@@ -311,6 +311,169 @@ const TOOL_REGISTRY = {
     parameters: {},
     requiredPermission: "products",
   },
+
+  // === FASE 1: LEITURA UNIVERSAL ===
+  searchProducts: {
+    description: "Buscar produtos por nome, SKU ou categoria",
+    parameters: {
+      query: { type: "string", required: true, description: "Termo de busca (nome ou SKU)" },
+      categoryId: { type: "string", required: false, description: "Filtrar por categoria" },
+      limit: { type: "number", required: false, description: "Limite de resultados (padrão 20)" },
+    },
+    requiredPermission: "products",
+  },
+  listProducts: {
+    description: "Listar produtos com filtros (ativos, inativos, por categoria, faixa de preço)",
+    parameters: {
+      status: { type: "string", required: false, description: "active, inactive, all" },
+      categoryId: { type: "string", required: false, description: "Filtrar por categoria" },
+      minPrice: { type: "number", required: false, description: "Preço mínimo em reais" },
+      maxPrice: { type: "number", required: false, description: "Preço máximo em reais" },
+      limit: { type: "number", required: false, description: "Limite (padrão 20)" },
+      orderBy: { type: "string", required: false, description: "name, price, created_at, stock_quantity" },
+    },
+    requiredPermission: "products",
+  },
+  getProductDetails: {
+    description: "Ver detalhes completos de um produto (nome, preço, estoque, SKU, descrição, dimensões, peso, SEO, variantes)",
+    parameters: {
+      productId: { type: "string", required: true, description: "ID do produto" },
+    },
+    requiredPermission: "products",
+  },
+  searchOrders: {
+    description: "Buscar pedidos por número, nome do cliente, status ou período",
+    parameters: {
+      query: { type: "string", required: false, description: "Número do pedido ou nome do cliente" },
+      status: { type: "string", required: false, description: "pending, paid, shipped, delivered, cancelled" },
+      startDate: { type: "string", required: false, description: "Data início (ISO)" },
+      endDate: { type: "string", required: false, description: "Data fim (ISO)" },
+      limit: { type: "number", required: false, description: "Limite (padrão 20)" },
+    },
+    requiredPermission: "orders",
+  },
+  getOrderDetails: {
+    description: "Ver detalhes completos de um pedido (itens, pagamento, frete, cliente, endereço)",
+    parameters: {
+      orderId: { type: "string", required: true, description: "ID do pedido" },
+    },
+    requiredPermission: "orders",
+  },
+  listDiscounts: {
+    description: "Listar cupons de desconto ativos ou inativos",
+    parameters: {
+      status: { type: "string", required: false, description: "active, inactive, all (padrão: all)" },
+      limit: { type: "number", required: false, description: "Limite (padrão 20)" },
+    },
+    requiredPermission: "discounts",
+  },
+  listCategories: {
+    description: "Listar todas as categorias de produtos",
+    parameters: {
+      status: { type: "string", required: false, description: "active, inactive, all (padrão: all)" },
+    },
+    requiredPermission: "products",
+  },
+  getDashboardStats: {
+    description: "Obter estatísticas do dashboard: receita, pedidos, ticket médio, novos clientes",
+    parameters: {
+      period: { type: "string", required: false, description: "today, week, month, year (padrão: month)" },
+    },
+    requiredPermission: "orders",
+  },
+  getTopProducts: {
+    description: "Ver os produtos mais vendidos",
+    parameters: {
+      period: { type: "string", required: false, description: "week, month, year (padrão: month)" },
+      limit: { type: "number", required: false, description: "Quantidade (padrão 10)" },
+    },
+    requiredPermission: "orders",
+  },
+  listCustomerTags: {
+    description: "Listar todas as tags de clientes disponíveis",
+    parameters: {},
+    requiredPermission: "customers",
+  },
+
+  // === FASE 2: CRUD COMPLETO ===
+  updateProduct: {
+    description: "Editar campos de um produto (nome, descrição, preço, peso, dimensões, SEO, etc.)",
+    parameters: {
+      productId: { type: "string", required: true, description: "ID do produto" },
+      name: { type: "string", required: false, description: "Novo nome" },
+      description: { type: "string", required: false, description: "Nova descrição" },
+      price: { type: "number", required: false, description: "Novo preço em reais" },
+      compareAtPrice: { type: "number", required: false, description: "Preço original (de/por) em reais" },
+      sku: { type: "string", required: false, description: "Novo SKU" },
+      weight: { type: "number", required: false, description: "Peso em gramas" },
+      width: { type: "number", required: false, description: "Largura em cm" },
+      height: { type: "number", required: false, description: "Altura em cm" },
+      length: { type: "number", required: false, description: "Comprimento em cm" },
+      seoTitle: { type: "string", required: false, description: "Título SEO" },
+      seoDescription: { type: "string", required: false, description: "Descrição SEO" },
+      isActive: { type: "boolean", required: false, description: "Ativar/desativar" },
+      stockQuantity: { type: "number", required: false, description: "Nova quantidade em estoque" },
+    },
+    requiredPermission: "products",
+  },
+  duplicateProduct: {
+    description: "Duplicar um produto existente (cria cópia com '(Cópia)' no nome)",
+    parameters: {
+      productId: { type: "string", required: true, description: "ID do produto a duplicar" },
+    },
+    requiredPermission: "products",
+  },
+  deleteCustomer: {
+    description: "Excluir um cliente (soft delete)",
+    parameters: {
+      customerId: { type: "string", required: true, description: "ID do cliente" },
+    },
+    requiredPermission: "customers",
+  },
+  addTrackingCode: {
+    description: "Adicionar código de rastreio a um pedido",
+    parameters: {
+      orderId: { type: "string", required: true, description: "ID do pedido" },
+      trackingCode: { type: "string", required: true, description: "Código de rastreio" },
+      shippingCarrier: { type: "string", required: false, description: "Transportadora (correios, jadlog, etc.)" },
+    },
+    requiredPermission: "orders",
+  },
+  cancelOrder: {
+    description: "Cancelar um pedido",
+    parameters: {
+      orderId: { type: "string", required: true, description: "ID do pedido" },
+      reason: { type: "string", required: false, description: "Motivo do cancelamento" },
+    },
+    requiredPermission: "orders",
+  },
+  createManualOrder: {
+    description: "Criar um pedido manual",
+    parameters: {
+      customerEmail: { type: "string", required: true, description: "Email do cliente" },
+      customerName: { type: "string", required: true, description: "Nome do cliente" },
+      items: { type: "array", required: true, description: "Array de {productId, quantity}" },
+      notes: { type: "string", required: false, description: "Observações" },
+    },
+    requiredPermission: "orders",
+  },
+  createCustomerTag: {
+    description: "Criar uma nova tag de cliente",
+    parameters: {
+      name: { type: "string", required: true, description: "Nome da tag" },
+      color: { type: "string", required: false, description: "Cor em hex (ex: #FF5733)" },
+      description: { type: "string", required: false, description: "Descrição da tag" },
+    },
+    requiredPermission: "customers",
+  },
+  removeCustomerTag: {
+    description: "Remover tag de clientes",
+    parameters: {
+      customerIds: { type: "array", required: true, description: "IDs dos clientes" },
+      tagId: { type: "string", required: true, description: "ID da tag a remover" },
+    },
+    requiredPermission: "customers",
+  },
 };
 
 // Build dynamic system prompt with all available tools
@@ -365,6 +528,24 @@ Mapeamento OBRIGATÓRIO (interno → fala do assistente):
 - listProductComponents → "listar os componentes do kit"
 - bulkSetCompositionType → "alterar o tipo de composição dos kits"
 - autoCreateKitCompositions → "criar composições automaticamente para kits sem componentes"
+- searchProducts → "buscar produtos"
+- listProducts → "listar produtos"
+- getProductDetails → "ver detalhes do produto"
+- searchOrders → "buscar pedidos"
+- getOrderDetails → "ver detalhes do pedido"
+- listDiscounts → "listar cupons de desconto"
+- listCategories → "listar categorias"
+- getDashboardStats → "ver resumo do dashboard"
+- getTopProducts → "ver produtos mais vendidos"
+- listCustomerTags → "listar tags de clientes"
+- updateProduct → "editar produto"
+- duplicateProduct → "duplicar produto"
+- deleteCustomer → "excluir cliente"
+- addTrackingCode → "adicionar código de rastreio"
+- cancelOrder → "cancelar pedido"
+- createManualOrder → "criar pedido manual"
+- createCustomerTag → "criar tag de cliente"
+- removeCustomerTag → "remover tag de clientes"
 - tool_name / tool_args → NUNCA mencionar esses termos
 - tenant_id, user_id, conversation_id → NUNCA mencionar
 
@@ -373,14 +554,17 @@ Exemplo CORRETO: "Vou atualizar o NCM de todos os produtos para 33051000."
 
 Você pode executar QUALQUER operação que o usuário faria manualmente no painel, incluindo:
 - Operações em massa em produtos (NCM, CEST, preços, estoque, ativar/desativar)
-- Gerenciamento de categorias
-- Gerenciamento de cupons de desconto
-- Gerenciamento de pedidos e status
-- Gerenciamento de clientes e tags
+- Buscar, listar e ver detalhes de produtos
+- Editar qualquer campo de um produto (nome, descrição, preço, peso, dimensões, SEO)
+- Duplicar produtos
+- Gerenciamento de categorias (criar, editar, excluir, listar)
+- Gerenciamento de cupons de desconto (criar, editar, excluir, listar)
+- Gerenciamento de pedidos (buscar, ver detalhes, atualizar status, adicionar rastreio, cancelar, criar pedido manual)
+- Gerenciamento de clientes (criar, editar, excluir, buscar, tags)
 - Composição de kits (adicionar/remover componentes, listar, alterar tipo de composição em massa, detectar kits sem composição)
 - Tarefas da agenda
 - Configurações da loja
-- Relatórios diversos
+- Relatórios e estatísticas (vendas, estoque, clientes, dashboard, produtos mais vendidos)
 
 ## RELATÓRIOS E FEEDBACK:
 IMPORTANTE: Todas as operações em massa retornam RELATÓRIOS DETALHADOS após execução, incluindo:

@@ -60,6 +60,28 @@ const PERMISSION_MAP: Record<string, string[]> = {
   
   // Configurações
   updateStoreSettings: ["owner", "admin"],
+
+  // === FASE 1: LEITURA UNIVERSAL ===
+  searchProducts: ["owner", "admin", "manager", "editor", "attendant", "viewer"],
+  listProducts: ["owner", "admin", "manager", "editor", "attendant", "viewer"],
+  getProductDetails: ["owner", "admin", "manager", "editor", "attendant", "viewer"],
+  searchOrders: ["owner", "admin", "manager", "attendant", "viewer"],
+  getOrderDetails: ["owner", "admin", "manager", "attendant", "viewer"],
+  listDiscounts: ["owner", "admin", "manager", "viewer"],
+  listCategories: ["owner", "admin", "manager", "editor", "attendant", "viewer"],
+  getDashboardStats: ["owner", "admin", "manager", "viewer"],
+  getTopProducts: ["owner", "admin", "manager", "viewer"],
+  listCustomerTags: ["owner", "admin", "manager", "attendant", "viewer"],
+
+  // === FASE 2: CRUD COMPLETO ===
+  updateProduct: ["owner", "admin", "manager", "editor"],
+  duplicateProduct: ["owner", "admin", "manager", "editor"],
+  deleteCustomer: ["owner", "admin", "manager"],
+  addTrackingCode: ["owner", "admin", "manager", "attendant"],
+  cancelOrder: ["owner", "admin", "manager"],
+  createManualOrder: ["owner", "admin", "manager"],
+  createCustomerTag: ["owner", "admin", "manager"],
+  removeCustomerTag: ["owner", "admin", "manager"],
 };
 
 // Rate limiting - simple in-memory (resets on function restart)
@@ -1336,6 +1358,697 @@ async function executeTool(
         success: true,
         message: `⚠️ **${missing.length} kit(s) sem composição encontrados:**\n\n${lines}\n\nPara cada kit, me diga quais produtos devem compor e em qual quantidade.`,
         data: { kitsWithoutComposition: missing },
+      };
+    }
+
+    // ==================== FASE 1: LEITURA UNIVERSAL ====================
+    case "searchProducts": {
+      const { query, categoryId, limit } = tool_args;
+      const maxResults = limit || 20;
+      
+      let q = supabase
+        .from("products")
+        .select("id, name, sku, price, compare_at_price, stock_quantity, is_active, created_at")
+        .eq("tenant_id", tenant_id)
+        .is("deleted_at", null)
+        .or(`name.ilike.%${query}%,sku.ilike.%${query}%`)
+        .limit(maxResults);
+      
+      const { data, error } = await q;
+      if (error) throw new Error(error.message);
+      
+      if (!data || data.length === 0) {
+        return { success: true, message: `Nenhum produto encontrado para "${query}".`, data: [] };
+      }
+      
+      const list = data.map((p: any) => 
+        `• ${p.name} (SKU: ${p.sku || "—"}) — R$ ${(p.price || 0).toFixed(2)} — Estoque: ${p.stock_quantity ?? 0} — ${p.is_active ? "Ativo" : "Inativo"}`
+      ).join("\n");
+      
+      return {
+        success: true,
+        message: `🔍 **${data.length} produto(s) encontrado(s) para "${query}":**\n\n${list}`,
+        data,
+      };
+    }
+
+    case "listProducts": {
+      const { status, categoryId, minPrice, maxPrice, limit, orderBy } = tool_args;
+      const maxResults = limit || 20;
+      
+      let q = supabase
+        .from("products")
+        .select("id, name, sku, price, stock_quantity, is_active, created_at")
+        .eq("tenant_id", tenant_id)
+        .is("deleted_at", null)
+        .limit(maxResults);
+      
+      if (status === "active") q = q.eq("is_active", true);
+      else if (status === "inactive") q = q.eq("is_active", false);
+      
+      if (minPrice) q = q.gte("price", minPrice);
+      if (maxPrice) q = q.lte("price", maxPrice);
+      
+      const sortField = orderBy || "created_at";
+      q = q.order(sortField, { ascending: sortField === "name" });
+      
+      const { data, error } = await q;
+      if (error) throw new Error(error.message);
+      
+      if (!data || data.length === 0) {
+        return { success: true, message: "Nenhum produto encontrado com os filtros aplicados.", data: [] };
+      }
+      
+      const list = data.map((p: any) => 
+        `• ${p.name} — R$ ${(p.price || 0).toFixed(2)} — Estoque: ${p.stock_quantity ?? 0}`
+      ).join("\n");
+      
+      return {
+        success: true,
+        message: `📦 **${data.length} produto(s):**\n\n${list}`,
+        data,
+      };
+    }
+
+    case "getProductDetails": {
+      const { productId } = tool_args;
+      
+      const { data: p, error } = await supabase
+        .from("products")
+        .select("*")
+        .eq("id", productId)
+        .eq("tenant_id", tenant_id)
+        .single();
+      
+      if (error) throw new Error(error.message);
+      if (!p) return { success: false, error: "Produto não encontrado." };
+      
+      // Get categories
+      const { data: cats } = await supabase
+        .from("product_categories")
+        .select("categories(name)")
+        .eq("product_id", productId);
+      
+      const catNames = (cats || []).map((c: any) => c.categories?.name).filter(Boolean).join(", ");
+      
+      return {
+        success: true,
+        message: `📦 **${p.name}**\n\n` +
+          `• SKU: ${p.sku || "—"}\n` +
+          `• Preço: R$ ${(p.price || 0).toFixed(2)}\n` +
+          `• Preço original: ${p.compare_at_price ? `R$ ${p.compare_at_price.toFixed(2)}` : "—"}\n` +
+          `• Estoque: ${p.stock_quantity ?? 0}\n` +
+          `• Status: ${p.is_active ? "Ativo" : "Inativo"}\n` +
+          `• Peso: ${p.weight ? `${p.weight}g` : "—"}\n` +
+          `• Dimensões: ${p.width || "—"}×${p.height || "—"}×${p.length || "—"} cm\n` +
+          `• NCM: ${p.ncm_code || "—"}\n` +
+          `• CEST: ${p.cest_code || "—"}\n` +
+          `• Categorias: ${catNames || "Nenhuma"}\n` +
+          `• Descrição: ${p.description ? p.description.substring(0, 200) + (p.description.length > 200 ? "..." : "") : "—"}\n` +
+          `• SEO Title: ${p.seo_title || "—"}\n` +
+          `• SEO Description: ${p.seo_description || "—"}\n` +
+          `• Formato: ${p.product_format || "simple"}\n` +
+          `• Criado em: ${new Date(p.created_at).toLocaleDateString("pt-BR")}`,
+        data: p,
+      };
+    }
+
+    case "searchOrders": {
+      const { query, status, startDate, endDate, limit } = tool_args;
+      const maxResults = limit || 20;
+      
+      let q = supabase
+        .from("orders")
+        .select("id, order_number, status, payment_status, total, customer_name, customer_email, created_at")
+        .eq("tenant_id", tenant_id)
+        .order("created_at", { ascending: false })
+        .limit(maxResults);
+      
+      if (query) {
+        q = q.or(`order_number.ilike.%${query}%,customer_name.ilike.%${query}%,customer_email.ilike.%${query}%`);
+      }
+      if (status) q = q.eq("status", status);
+      if (startDate) q = q.gte("created_at", startDate);
+      if (endDate) q = q.lte("created_at", endDate);
+      
+      const { data, error } = await q;
+      if (error) throw new Error(error.message);
+      
+      if (!data || data.length === 0) {
+        return { success: true, message: "Nenhum pedido encontrado.", data: [] };
+      }
+      
+      const list = data.map((o: any) => 
+        `• #${o.order_number} — ${o.customer_name || "—"} — R$ ${(o.total || 0).toFixed(2)} — ${o.status} — ${new Date(o.created_at).toLocaleDateString("pt-BR")}`
+      ).join("\n");
+      
+      return {
+        success: true,
+        message: `📋 **${data.length} pedido(s):**\n\n${list}`,
+        data,
+      };
+    }
+
+    case "getOrderDetails": {
+      const { orderId } = tool_args;
+      
+      const { data: o, error } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("id", orderId)
+        .eq("tenant_id", tenant_id)
+        .single();
+      
+      if (error) throw new Error(error.message);
+      if (!o) return { success: false, error: "Pedido não encontrado." };
+      
+      // Get items
+      const { data: items } = await supabase
+        .from("order_items")
+        .select("product_name, quantity, unit_price, total_price, sku")
+        .eq("order_id", orderId);
+      
+      const itemsList = (items || []).map((i: any) => 
+        `  • ${i.product_name} (x${i.quantity}) — R$ ${(i.total_price || 0).toFixed(2)}`
+      ).join("\n");
+      
+      return {
+        success: true,
+        message: `📋 **Pedido #${o.order_number}**\n\n` +
+          `• Status: ${o.status}\n` +
+          `• Pagamento: ${o.payment_status} (${o.payment_method || "—"})\n` +
+          `• Total: R$ ${(o.total || 0).toFixed(2)}\n` +
+          `• Subtotal: R$ ${(o.subtotal || 0).toFixed(2)}\n` +
+          `• Frete: R$ ${(o.shipping_total || 0).toFixed(2)}\n` +
+          `• Desconto: R$ ${(o.discount_total || 0).toFixed(2)}\n` +
+          `• Cliente: ${o.customer_name || "—"} (${o.customer_email || "—"})\n` +
+          `• Telefone: ${o.customer_phone || "—"}\n` +
+          `• Rastreio: ${o.tracking_code || "—"}\n` +
+          `• Transportadora: ${o.shipping_carrier || "—"}\n` +
+          `• Endereço: ${[o.shipping_street, o.shipping_number, o.shipping_complement, o.shipping_neighborhood, o.shipping_city, o.shipping_state, o.shipping_postal_code].filter(Boolean).join(", ") || "—"}\n` +
+          `• Notas: ${o.notes || "—"}\n` +
+          `• Data: ${new Date(o.created_at).toLocaleString("pt-BR")}\n\n` +
+          `**Itens:**\n${itemsList || "  Nenhum item"}`,
+        data: { ...o, items },
+      };
+    }
+
+    case "listDiscounts": {
+      const { status, limit } = tool_args;
+      const maxResults = limit || 20;
+      
+      let q = supabase
+        .from("discounts")
+        .select("id, name, code, type, value, is_active, usage_limit, usage_count, starts_at, ends_at")
+        .eq("tenant_id", tenant_id)
+        .order("created_at", { ascending: false })
+        .limit(maxResults);
+      
+      if (status === "active") q = q.eq("is_active", true);
+      else if (status === "inactive") q = q.eq("is_active", false);
+      
+      const { data, error } = await q;
+      if (error) throw new Error(error.message);
+      
+      if (!data || data.length === 0) {
+        return { success: true, message: "Nenhum cupom encontrado.", data: [] };
+      }
+      
+      const list = data.map((d: any) => {
+        const valueStr = d.type === "percentage" ? `${d.value}%` : `R$ ${(d.value / 100).toFixed(2)}`;
+        return `• ${d.code} — ${valueStr} off — ${d.is_active ? "Ativo" : "Inativo"} — Usos: ${d.usage_count || 0}/${d.usage_limit || "∞"}`;
+      }).join("\n");
+      
+      return {
+        success: true,
+        message: `🏷️ **${data.length} cupom(ns):**\n\n${list}`,
+        data,
+      };
+    }
+
+    case "listCategories": {
+      const { status } = tool_args;
+      
+      let q = supabase
+        .from("categories")
+        .select("id, name, slug, is_active, parent_id, created_at")
+        .eq("tenant_id", tenant_id)
+        .order("name");
+      
+      if (status === "active") q = q.eq("is_active", true);
+      else if (status === "inactive") q = q.eq("is_active", false);
+      
+      const { data, error } = await q;
+      if (error) throw new Error(error.message);
+      
+      if (!data || data.length === 0) {
+        return { success: true, message: "Nenhuma categoria encontrada.", data: [] };
+      }
+      
+      const list = data.map((c: any) => 
+        `• ${c.name} (${c.slug}) — ${c.is_active ? "Ativa" : "Inativa"}${c.parent_id ? " (subcategoria)" : ""}`
+      ).join("\n");
+      
+      return {
+        success: true,
+        message: `📂 **${data.length} categoria(s):**\n\n${list}`,
+        data,
+      };
+    }
+
+    case "getDashboardStats": {
+      const { period } = tool_args;
+      const p = period || "month";
+      
+      let start = new Date();
+      switch (p) {
+        case "today": start.setHours(0, 0, 0, 0); break;
+        case "week": start.setDate(start.getDate() - 7); break;
+        case "month": start.setMonth(start.getMonth() - 1); break;
+        case "year": start.setFullYear(start.getFullYear() - 1); break;
+      }
+      
+      const { data: orders } = await supabase
+        .from("orders")
+        .select("id, total, status, payment_status")
+        .eq("tenant_id", tenant_id)
+        .gte("created_at", start.toISOString());
+      
+      const { data: customers } = await supabase
+        .from("customers")
+        .select("id")
+        .eq("tenant_id", tenant_id)
+        .is("deleted_at", null)
+        .gte("created_at", start.toISOString());
+      
+      const { data: products } = await supabase
+        .from("products")
+        .select("id")
+        .eq("tenant_id", tenant_id)
+        .eq("is_active", true)
+        .is("deleted_at", null);
+      
+      const totalOrders = orders?.length || 0;
+      const paidOrders = orders?.filter((o: any) => o.payment_status === "paid") || [];
+      const revenue = paidOrders.reduce((sum: number, o: any) => sum + (o.total || 0), 0);
+      const avgTicket = paidOrders.length > 0 ? revenue / paidOrders.length : 0;
+      
+      return {
+        success: true,
+        message: `📊 **Dashboard (${p})**\n\n` +
+          `• Pedidos: ${totalOrders}\n` +
+          `• Pedidos pagos: ${paidOrders.length}\n` +
+          `• Receita: R$ ${revenue.toFixed(2)}\n` +
+          `• Ticket médio: R$ ${avgTicket.toFixed(2)}\n` +
+          `• Novos clientes: ${customers?.length || 0}\n` +
+          `• Produtos ativos: ${products?.length || 0}`,
+        data: { totalOrders, paidOrders: paidOrders.length, revenue, avgTicket, newCustomers: customers?.length || 0, activeProducts: products?.length || 0 },
+      };
+    }
+
+    case "getTopProducts": {
+      const { period, limit } = tool_args;
+      const p = period || "month";
+      const maxResults = limit || 10;
+      
+      let start = new Date();
+      switch (p) {
+        case "week": start.setDate(start.getDate() - 7); break;
+        case "month": start.setMonth(start.getMonth() - 1); break;
+        case "year": start.setFullYear(start.getFullYear() - 1); break;
+      }
+      
+      const { data: items, error } = await supabase
+        .from("order_items")
+        .select("product_name, product_id, quantity, total_price, orders!inner(tenant_id, created_at, payment_status)")
+        .eq("orders.tenant_id", tenant_id)
+        .eq("orders.payment_status", "paid")
+        .gte("orders.created_at", start.toISOString());
+      
+      if (error) throw new Error(error.message);
+      
+      // Aggregate by product
+      const productMap = new Map<string, { name: string; qty: number; revenue: number }>();
+      for (const item of items || []) {
+        const key = item.product_id || item.product_name;
+        const existing = productMap.get(key) || { name: item.product_name, qty: 0, revenue: 0 };
+        existing.qty += item.quantity || 0;
+        existing.revenue += item.total_price || 0;
+        productMap.set(key, existing);
+      }
+      
+      const sorted = Array.from(productMap.values()).sort((a, b) => b.revenue - a.revenue).slice(0, maxResults);
+      
+      if (sorted.length === 0) {
+        return { success: true, message: "Nenhuma venda encontrada no período.", data: [] };
+      }
+      
+      const list = sorted.map((p, i) => 
+        `${i + 1}. ${p.name} — ${p.qty} vendidos — R$ ${p.revenue.toFixed(2)}`
+      ).join("\n");
+      
+      return {
+        success: true,
+        message: `🏆 **Top ${sorted.length} Produtos (${p}):**\n\n${list}`,
+        data: sorted,
+      };
+    }
+
+    case "listCustomerTags": {
+      const { data, error } = await supabase
+        .from("customer_tags")
+        .select("id, name, color, description")
+        .eq("tenant_id", tenant_id)
+        .order("name");
+      
+      if (error) throw new Error(error.message);
+      
+      if (!data || data.length === 0) {
+        return { success: true, message: "Nenhuma tag de cliente encontrada.", data: [] };
+      }
+      
+      const list = data.map((t: any) => `• ${t.name}${t.description ? ` — ${t.description}` : ""}`).join("\n");
+      
+      return {
+        success: true,
+        message: `🏷️ **${data.length} tag(s) de clientes:**\n\n${list}`,
+        data,
+      };
+    }
+
+    // ==================== FASE 2: CRUD COMPLETO ====================
+    case "updateProduct": {
+      const { productId, name, description, price, compareAtPrice, sku, weight, width, height, length, seoTitle, seoDescription, isActive, stockQuantity } = tool_args;
+      
+      const updateData: any = { updated_at: new Date().toISOString() };
+      if (name !== undefined) updateData.name = name;
+      if (description !== undefined) updateData.description = description;
+      if (price !== undefined) updateData.price = price;
+      if (compareAtPrice !== undefined) updateData.compare_at_price = compareAtPrice;
+      if (sku !== undefined) updateData.sku = sku;
+      if (weight !== undefined) updateData.weight = weight;
+      if (width !== undefined) updateData.width = width;
+      if (height !== undefined) updateData.height = height;
+      if (length !== undefined) updateData.length = length;
+      if (seoTitle !== undefined) updateData.seo_title = seoTitle;
+      if (seoDescription !== undefined) updateData.seo_description = seoDescription;
+      if (isActive !== undefined) updateData.is_active = isActive;
+      if (stockQuantity !== undefined) updateData.stock_quantity = stockQuantity;
+      
+      const { data, error } = await supabase
+        .from("products")
+        .update(updateData)
+        .eq("id", productId)
+        .eq("tenant_id", tenant_id)
+        .select("id, name")
+        .single();
+      
+      if (error) throw new Error(error.message);
+      
+      const fields = Object.keys(updateData).filter(k => k !== "updated_at").join(", ");
+      return {
+        success: true,
+        message: `✅ Produto "${data.name}" atualizado! Campos: ${fields}`,
+        data,
+      };
+    }
+
+    case "duplicateProduct": {
+      const { productId } = tool_args;
+      
+      const { data: original, error: fetchError } = await supabase
+        .from("products")
+        .select("*")
+        .eq("id", productId)
+        .eq("tenant_id", tenant_id)
+        .single();
+      
+      if (fetchError || !original) throw new Error("Produto não encontrado.");
+      
+      const { id, created_at, updated_at, deleted_at, slug, ...productData } = original;
+      const newName = `${original.name} (Cópia)`;
+      const newSlug = `${original.slug}-copia-${Date.now()}`;
+      
+      const { data: newProduct, error: insertError } = await supabase
+        .from("products")
+        .insert({
+          ...productData,
+          name: newName,
+          slug: newSlug,
+          is_active: false, // starts as inactive
+        })
+        .select()
+        .single();
+      
+      if (insertError) throw new Error(insertError.message);
+      
+      // Copy categories
+      const { data: cats } = await supabase
+        .from("product_categories")
+        .select("category_id")
+        .eq("product_id", productId);
+      
+      if (cats && cats.length > 0) {
+        await supabase.from("product_categories").insert(
+          cats.map((c: any) => ({ product_id: newProduct.id, category_id: c.category_id }))
+        );
+      }
+      
+      return {
+        success: true,
+        message: `✅ Produto "${original.name}" duplicado como "${newName}" (inativo por padrão).`,
+        data: newProduct,
+      };
+    }
+
+    case "deleteCustomer": {
+      const { customerId } = tool_args;
+      
+      const { data, error } = await supabase
+        .from("customers")
+        .update({ deleted_at: new Date().toISOString(), status: "inactive" })
+        .eq("id", customerId)
+        .eq("tenant_id", tenant_id)
+        .select("id, full_name")
+        .single();
+      
+      if (error) throw new Error(error.message);
+      
+      return {
+        success: true,
+        message: `✅ Cliente "${data.full_name}" excluído com sucesso.`,
+        data,
+      };
+    }
+
+    case "addTrackingCode": {
+      const { orderId, trackingCode, shippingCarrier } = tool_args;
+      
+      const updateData: any = {
+        tracking_code: trackingCode,
+        shipping_status: "shipped",
+        shipped_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      if (shippingCarrier) updateData.shipping_carrier = shippingCarrier;
+      
+      const { data, error } = await supabase
+        .from("orders")
+        .update(updateData)
+        .eq("id", orderId)
+        .eq("tenant_id", tenant_id)
+        .select("id, order_number")
+        .single();
+      
+      if (error) throw new Error(error.message);
+      
+      return {
+        success: true,
+        message: `✅ Código de rastreio "${trackingCode}" adicionado ao pedido #${data.order_number}!${shippingCarrier ? ` (${shippingCarrier})` : ""}`,
+        data,
+      };
+    }
+
+    case "cancelOrder": {
+      const { orderId, reason } = tool_args;
+      
+      const updateData: any = {
+        status: "cancelled",
+        updated_at: new Date().toISOString(),
+      };
+      
+      // Append cancellation reason to notes
+      if (reason) {
+        const { data: order } = await supabase
+          .from("orders")
+          .select("notes")
+          .eq("id", orderId)
+          .eq("tenant_id", tenant_id)
+          .single();
+        
+        const timestamp = new Date().toLocaleString("pt-BR");
+        const cancelNote = `[${timestamp}] ❌ CANCELADO: ${reason}`;
+        updateData.notes = order?.notes ? `${order.notes}\n${cancelNote}` : cancelNote;
+      }
+      
+      const { data, error } = await supabase
+        .from("orders")
+        .update(updateData)
+        .eq("id", orderId)
+        .eq("tenant_id", tenant_id)
+        .select("id, order_number")
+        .single();
+      
+      if (error) throw new Error(error.message);
+      
+      return {
+        success: true,
+        message: `✅ Pedido #${data.order_number} cancelado!${reason ? ` Motivo: ${reason}` : ""}`,
+        data,
+      };
+    }
+
+    case "createManualOrder": {
+      const { customerEmail, customerName, items: orderItems, notes } = tool_args;
+      
+      if (!orderItems || orderItems.length === 0) {
+        return { success: false, error: "É necessário pelo menos um item no pedido." };
+      }
+      
+      // Fetch products
+      const productIds = orderItems.map((i: any) => i.productId);
+      const { data: products, error: prodError } = await supabase
+        .from("products")
+        .select("id, name, price, sku")
+        .eq("tenant_id", tenant_id)
+        .in("id", productIds);
+      
+      if (prodError) throw new Error(prodError.message);
+      
+      // Find or create customer
+      let customerId: string | null = null;
+      const { data: existingCustomer } = await supabase
+        .from("customers")
+        .select("id")
+        .eq("tenant_id", tenant_id)
+        .eq("email", customerEmail.toLowerCase())
+        .is("deleted_at", null)
+        .single();
+      
+      if (existingCustomer) {
+        customerId = existingCustomer.id;
+      } else {
+        const { data: newCustomer } = await supabase
+          .from("customers")
+          .insert({ tenant_id, email: customerEmail.toLowerCase(), full_name: customerName, status: "active" })
+          .select("id")
+          .single();
+        customerId = newCustomer?.id || null;
+      }
+      
+      // Calculate totals
+      let subtotal = 0;
+      const itemsData: any[] = [];
+      for (const item of orderItems) {
+        const product = products?.find((p: any) => p.id === item.productId);
+        if (!product) continue;
+        const qty = item.quantity || 1;
+        const totalPrice = product.price * qty;
+        subtotal += totalPrice;
+        itemsData.push({
+          product_id: product.id,
+          product_name: product.name,
+          sku: product.sku || "",
+          quantity: qty,
+          unit_price: product.price,
+          total_price: totalPrice,
+        });
+      }
+      
+      // Generate order number
+      const orderNumber = `M${Date.now().toString().slice(-8)}`;
+      
+      // Create order
+      const { data: order, error: orderError } = await supabase
+        .from("orders")
+        .insert({
+          tenant_id,
+          customer_id: customerId,
+          customer_name: customerName,
+          customer_email: customerEmail.toLowerCase(),
+          order_number: orderNumber,
+          status: "pending",
+          payment_status: "pending",
+          shipping_status: "pending",
+          subtotal,
+          total: subtotal,
+          shipping_total: 0,
+          discount_total: 0,
+          notes: notes || null,
+          source: "manual",
+        })
+        .select("id, order_number")
+        .single();
+      
+      if (orderError) throw new Error(orderError.message);
+      
+      // Create order items
+      for (const item of itemsData) {
+        await supabase.from("order_items").insert({
+          order_id: order.id,
+          tenant_id,
+          ...item,
+        });
+      }
+      
+      return {
+        success: true,
+        message: `✅ Pedido manual #${order.order_number} criado!\n• Cliente: ${customerName}\n• Itens: ${itemsData.length}\n• Total: R$ ${subtotal.toFixed(2)}`,
+        data: order,
+      };
+    }
+
+    case "createCustomerTag": {
+      const { name, color, description } = tool_args;
+      
+      const { data, error } = await supabase
+        .from("customer_tags")
+        .insert({
+          tenant_id,
+          name,
+          color: color || "#6B7280",
+          description: description || null,
+        })
+        .select()
+        .single();
+      
+      if (error) throw new Error(error.message);
+      
+      return {
+        success: true,
+        message: `✅ Tag "${name}" criada com sucesso!`,
+        data,
+      };
+    }
+
+    case "removeCustomerTag": {
+      const { customerIds, tagId } = tool_args;
+      
+      let deleteCount = 0;
+      for (const customerId of customerIds) {
+        const { error } = await supabase
+          .from("customer_tag_assignments")
+          .delete()
+          .eq("customer_id", customerId)
+          .eq("tag_id", tagId);
+        
+        if (!error) deleteCount++;
+      }
+      
+      return {
+        success: true,
+        message: `✅ Tag removida de ${deleteCount} cliente(s)!`,
+        data: { affected: deleteCount },
       };
     }
 
