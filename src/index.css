@@ -277,6 +277,12 @@
   .sf-header-mobile-menu { display: none !important; }
 }
 
+/* Header search placeholder inherits header text color */
+.sf-header-search-input::placeholder {
+  color: var(--sf-header-text-color, currentColor);
+  opacity: 0.5;
+}
+
 /* Footer - separate mobile and desktop layouts */
 @container storefront (max-width: 639px) {
   .sf-footer-mobile {

@@ -841,15 +841,23 @@ export function StorefrontHeaderContent({
             )}>
               {/* Search - now on the left */}
               {showSearch && (
-                <div className="max-w-[220px] w-full">
+                <div className="max-w-[220px] w-full" style={{ '--sf-header-text-color': headerTextColor || 'currentColor' } as React.CSSProperties}>
                   <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-foreground/70" />
+                    <Search 
+                      className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2" 
+                      style={{ color: headerIconColor || headerTextColor || undefined, opacity: 0.7 }}
+                    />
                     <Input
                       type="search"
                       placeholder="Pesquisar"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="h-9 pl-8 pr-3 text-sm bg-muted/40 border-muted-foreground/30 focus:border-primary/50 placeholder:text-foreground/50"
+                      className="h-9 pl-8 pr-3 text-sm border sf-header-search-input"
+                      style={{ 
+                        backgroundColor: headerTextColor ? `${headerTextColor}15` : undefined,
+                        borderColor: headerTextColor ? `${headerTextColor}30` : undefined,
+                        color: headerTextColor || undefined,
+                      }}
                     />
                   </div>
                 </div>
