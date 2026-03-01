@@ -312,7 +312,39 @@ async function executeTool(
     }
 
     case "bulkUpdateProductsPrice": {
-      const { type, value, productIds, categoryId } = tool_args;
+      const { type, value, productIds, categoryId, prices } = tool_args;
+      
+      // Validate required args
+      if (!type) {
+        return { success: false, error: "Parâmetro 'type' é obrigatório (percent_increase, percent_decrease, fixed)." };
+      }
+      
+      // Support individual prices per product: prices = [{ productId, price }]
+      if (type === "fixed" && prices && Array.isArray(prices)) {
+        let updateCount = 0;
+        for (const item of prices) {
+          const newPrice = parseFloat(item.price);
+          if (isNaN(newPrice) || !item.productId) continue;
+          
+          const { error: updateError } = await supabase
+            .from("products")
+            .update({ price: Math.round(newPrice * 100) / 100, updated_at: new Date().toISOString() })
+            .eq("id", item.productId)
+            .eq("tenant_id", tenant_id);
+          
+          if (!updateError) updateCount++;
+        }
+        
+        return {
+          success: true,
+          message: `✅ Preços atualizados individualmente em ${updateCount} produto(s)!`,
+          data: { affected: updateCount, type: "fixed_individual", prices },
+        };
+      }
+      
+      if (type !== "fixed" && (value === undefined || value === null)) {
+        return { success: false, error: "Parâmetro 'value' é obrigatório para alterações percentuais." };
+      }
       
       // First, get the products to update (include compare_at_price)
       let selectQuery = supabase
@@ -366,8 +398,8 @@ async function executeTool(
             }
             break;
           case "fixed":
-            newPrice = value;
-            newCompareAtPrice = null; // Fixed price = no compare
+            newPrice = value != null ? value : currentPrice;
+            newCompareAtPrice = null;
             break;
         }
         
@@ -386,7 +418,7 @@ async function executeTool(
       
       const typeLabel = type === "percent_increase" ? `aumentados em ${value}%` :
                        type === "percent_decrease" ? `reduzidos em ${value}%` :
-                       `definidos para R$ ${value.toFixed(2)}`;
+                       `definidos para R$ ${(value != null ? value : 0).toFixed(2)}`;
       
       return {
         success: true,
