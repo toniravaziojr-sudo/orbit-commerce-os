@@ -474,6 +474,229 @@ const TOOL_REGISTRY = {
     },
     requiredPermission: "customers",
   },
+
+  // === FASE 3: MARKETING E CRM ===
+  createBlogPost: {
+    description: "Criar um post no blog",
+    parameters: {
+      title: { type: "string", required: true, description: "Título do post" },
+      content: { type: "string", required: true, description: "Conteúdo do post (suporta markdown)" },
+      excerpt: { type: "string", required: false, description: "Resumo do post" },
+      status: { type: "string", required: false, description: "draft ou published (padrão: draft)" },
+      seoTitle: { type: "string", required: false, description: "Título SEO" },
+      seoDescription: { type: "string", required: false, description: "Descrição SEO" },
+    },
+    requiredPermission: "blog",
+  },
+  updateBlogPost: {
+    description: "Editar um post do blog",
+    parameters: {
+      postId: { type: "string", required: true, description: "ID do post" },
+      title: { type: "string", required: false, description: "Novo título" },
+      content: { type: "string", required: false, description: "Novo conteúdo" },
+      excerpt: { type: "string", required: false, description: "Novo resumo" },
+      status: { type: "string", required: false, description: "draft ou published" },
+    },
+    requiredPermission: "blog",
+  },
+  deleteBlogPost: {
+    description: "Excluir um post do blog",
+    parameters: {
+      postId: { type: "string", required: true, description: "ID do post" },
+    },
+    requiredPermission: "blog",
+  },
+  listBlogPosts: {
+    description: "Listar posts do blog",
+    parameters: {
+      status: { type: "string", required: false, description: "draft, published, all (padrão: all)" },
+      limit: { type: "number", required: false, description: "Limite (padrão 20)" },
+    },
+    requiredPermission: "blog",
+  },
+  createOffer: {
+    description: "Criar uma oferta de bump ou upsell",
+    parameters: {
+      name: { type: "string", required: true, description: "Nome da oferta" },
+      type: { type: "string", required: true, description: "bump ou upsell" },
+      triggerProductId: { type: "string", required: false, description: "ID do produto gatilho" },
+      offerProductId: { type: "string", required: true, description: "ID do produto oferecido" },
+      discountPercent: { type: "number", required: false, description: "Desconto em percentual" },
+      isActive: { type: "boolean", required: false, description: "Ativo (padrão: true)" },
+    },
+    requiredPermission: "offers",
+  },
+  updateOffer: {
+    description: "Editar uma oferta existente",
+    parameters: {
+      offerId: { type: "string", required: true, description: "ID da oferta" },
+      name: { type: "string", required: false, description: "Novo nome" },
+      discountPercent: { type: "number", required: false, description: "Novo desconto" },
+      isActive: { type: "boolean", required: false, description: "Ativar/desativar" },
+    },
+    requiredPermission: "offers",
+  },
+  deleteOffer: {
+    description: "Excluir uma oferta",
+    parameters: {
+      offerId: { type: "string", required: true, description: "ID da oferta" },
+    },
+    requiredPermission: "offers",
+  },
+  listOffers: {
+    description: "Listar ofertas de bump/upsell",
+    parameters: {
+      type: { type: "string", required: false, description: "bump, upsell, all (padrão: all)" },
+      status: { type: "string", required: false, description: "active, inactive, all (padrão: all)" },
+    },
+    requiredPermission: "offers",
+  },
+  listReviews: {
+    description: "Listar avaliações de produtos",
+    parameters: {
+      status: { type: "string", required: false, description: "pending, approved, rejected, all (padrão: all)" },
+      limit: { type: "number", required: false, description: "Limite (padrão 20)" },
+    },
+    requiredPermission: "reviews",
+  },
+  approveReview: {
+    description: "Aprovar uma avaliação de produto",
+    parameters: {
+      reviewId: { type: "string", required: true, description: "ID da avaliação" },
+    },
+    requiredPermission: "reviews",
+  },
+  rejectReview: {
+    description: "Rejeitar uma avaliação de produto",
+    parameters: {
+      reviewId: { type: "string", required: true, description: "ID da avaliação" },
+    },
+    requiredPermission: "reviews",
+  },
+  respondToReview: {
+    description: "Responder a uma avaliação de produto",
+    parameters: {
+      reviewId: { type: "string", required: true, description: "ID da avaliação" },
+      response: { type: "string", required: true, description: "Texto da resposta" },
+    },
+    requiredPermission: "reviews",
+  },
+
+  // === FASE 4: MÓDULOS OPERACIONAIS ===
+  listPages: {
+    description: "Listar páginas institucionais da loja",
+    parameters: {
+      status: { type: "string", required: false, description: "published, draft, all (padrão: all)" },
+    },
+    requiredPermission: "pages",
+  },
+  createPage: {
+    description: "Criar uma página institucional",
+    parameters: {
+      title: { type: "string", required: true, description: "Título da página" },
+      slug: { type: "string", required: false, description: "Slug para URL" },
+      content: { type: "string", required: false, description: "Conteúdo HTML/texto" },
+      seoTitle: { type: "string", required: false, description: "Título SEO" },
+      seoDescription: { type: "string", required: false, description: "Descrição SEO" },
+      status: { type: "string", required: false, description: "draft ou published (padrão: draft)" },
+    },
+    requiredPermission: "pages",
+  },
+  updatePage: {
+    description: "Editar uma página institucional",
+    parameters: {
+      pageId: { type: "string", required: true, description: "ID da página" },
+      title: { type: "string", required: false, description: "Novo título" },
+      content: { type: "string", required: false, description: "Novo conteúdo" },
+      seoTitle: { type: "string", required: false, description: "Novo título SEO" },
+      seoDescription: { type: "string", required: false, description: "Nova descrição SEO" },
+      status: { type: "string", required: false, description: "draft ou published" },
+    },
+    requiredPermission: "pages",
+  },
+  getFinancialSummary: {
+    description: "Ver resumo financeiro (receita, custos, lucro)",
+    parameters: {
+      period: { type: "string", required: false, description: "today, week, month, year (padrão: month)" },
+    },
+    requiredPermission: "finance",
+  },
+  listShippingMethods: {
+    description: "Listar métodos de frete configurados",
+    parameters: {},
+    requiredPermission: "shipping",
+  },
+  listNotifications: {
+    description: "Listar notificações recentes",
+    parameters: {
+      limit: { type: "number", required: false, description: "Limite (padrão 20)" },
+      unreadOnly: { type: "boolean", required: false, description: "Apenas não lidas" },
+    },
+    requiredPermission: null,
+  },
+  markNotificationRead: {
+    description: "Marcar notificação como lida",
+    parameters: {
+      notificationId: { type: "string", required: true, description: "ID da notificação" },
+    },
+    requiredPermission: null,
+  },
+  listFiles: {
+    description: "Listar arquivos do drive/mídia",
+    parameters: {
+      folder: { type: "string", required: false, description: "Pasta (ex: products, blog)" },
+      limit: { type: "number", required: false, description: "Limite (padrão 20)" },
+    },
+    requiredPermission: "media",
+  },
+  getStorageUsage: {
+    description: "Ver uso de armazenamento do drive",
+    parameters: {},
+    requiredPermission: "media",
+  },
+
+  // === FASE 5: EMAIL MARKETING ===
+  listEmailLists: {
+    description: "Listar listas de email marketing",
+    parameters: {},
+    requiredPermission: "email_marketing",
+  },
+  listSubscribers: {
+    description: "Listar inscritos de uma lista de email",
+    parameters: {
+      listId: { type: "string", required: true, description: "ID da lista" },
+      status: { type: "string", required: false, description: "active, unsubscribed, all (padrão: active)" },
+      limit: { type: "number", required: false, description: "Limite (padrão 20)" },
+    },
+    requiredPermission: "email_marketing",
+  },
+  addSubscriber: {
+    description: "Adicionar inscrito a uma lista de email",
+    parameters: {
+      listId: { type: "string", required: true, description: "ID da lista" },
+      email: { type: "string", required: true, description: "Email do inscrito" },
+      name: { type: "string", required: false, description: "Nome do inscrito" },
+    },
+    requiredPermission: "email_marketing",
+  },
+  createEmailCampaign: {
+    description: "Criar uma campanha de email marketing",
+    parameters: {
+      name: { type: "string", required: true, description: "Nome da campanha" },
+      subject: { type: "string", required: true, description: "Assunto do email" },
+      listId: { type: "string", required: true, description: "ID da lista de destino" },
+      templateId: { type: "string", required: false, description: "ID do template" },
+    },
+    requiredPermission: "email_marketing",
+  },
+  listCampaigns: {
+    description: "Listar campanhas de email marketing",
+    parameters: {
+      status: { type: "string", required: false, description: "draft, active, completed, all (padrão: all)" },
+      limit: { type: "number", required: false, description: "Limite (padrão 20)" },
+    },
+    requiredPermission: "email_marketing",
+  },
 };
 
 // Build dynamic system prompt with all available tools
@@ -546,6 +769,32 @@ Mapeamento OBRIGATÓRIO (interno → fala do assistente):
 - createManualOrder → "criar pedido manual"
 - createCustomerTag → "criar tag de cliente"
 - removeCustomerTag → "remover tag de clientes"
+- createBlogPost → "criar post no blog"
+- updateBlogPost → "editar post do blog"
+- deleteBlogPost → "excluir post do blog"
+- listBlogPosts → "listar posts do blog"
+- createOffer → "criar oferta de bump/upsell"
+- updateOffer → "editar oferta"
+- deleteOffer → "excluir oferta"
+- listOffers → "listar ofertas"
+- listReviews → "listar avaliações"
+- approveReview → "aprovar avaliação"
+- rejectReview → "rejeitar avaliação"
+- respondToReview → "responder avaliação"
+- listPages → "listar páginas institucionais"
+- createPage → "criar página institucional"
+- updatePage → "editar página institucional"
+- getFinancialSummary → "ver resumo financeiro"
+- listShippingMethods → "listar métodos de frete"
+- listNotifications → "listar notificações"
+- markNotificationRead → "marcar notificação como lida"
+- listFiles → "listar arquivos do drive"
+- getStorageUsage → "ver uso de armazenamento"
+- listEmailLists → "listar listas de email"
+- listSubscribers → "listar inscritos"
+- addSubscriber → "adicionar inscrito à lista"
+- createEmailCampaign → "criar campanha de email"
+- listCampaigns → "listar campanhas de email"
 - tool_name / tool_args → NUNCA mencionar esses termos
 - tenant_id, user_id, conversation_id → NUNCA mencionar
 
@@ -564,6 +813,15 @@ Você pode executar QUALQUER operação que o usuário faria manualmente no pain
 - Composição de kits (adicionar/remover componentes, listar, alterar tipo de composição em massa, detectar kits sem composição)
 - Tarefas da agenda
 - Configurações da loja
+- Blog (criar, editar, excluir, listar posts)
+- Ofertas de bump/upsell (criar, editar, excluir, listar)
+- Avaliações de produtos (listar, aprovar, rejeitar, responder)
+- Páginas institucionais (criar, editar, listar)
+- Resumo financeiro
+- Métodos de frete
+- Notificações
+- Arquivos e mídia do drive
+- Email marketing (listas, inscritos, campanhas)
 - Relatórios e estatísticas (vendas, estoque, clientes, dashboard, produtos mais vendidos)
 
 ## RELATÓRIOS E FEEDBACK:
