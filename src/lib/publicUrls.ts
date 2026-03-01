@@ -31,7 +31,13 @@ function isOnTenantHost(): boolean {
   }
   
   // If NOT on app domain and NOT on fallback origin → likely custom domain
+  // But exclude development/preview domains (lovableproject.com, lovable.app, localhost)
   if (!isAppDomain(hostname)) {
+    // Exclude known dev/preview domains
+    if (hostname === 'localhost' || hostname === '127.0.0.1') return false;
+    if (hostname.endsWith('.lovableproject.com')) return false;
+    if (hostname.endsWith('.lovable.app')) return false;
+    
     const fallbackHost = new URL(SAAS_CONFIG.fallbackOrigin).hostname;
     if (hostname !== fallbackHost) {
       return true;

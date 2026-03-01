@@ -89,7 +89,9 @@ export function isAppDomain(hostname: string): boolean {
   const normalizedHostname = hostname.toLowerCase().replace(/^www\./, '');
   return (
     normalizedHostname === `${SAAS_CONFIG.appSubdomain}.${SAAS_CONFIG.domain}` ||
-    normalizedHostname === 'orbit-commerce-os.lovable.app'
+    normalizedHostname === 'orbit-commerce-os.lovable.app' ||
+    normalizedHostname.endsWith('.lovableproject.com') ||
+    normalizedHostname.endsWith('.lovable.app')
   );
 }
 
