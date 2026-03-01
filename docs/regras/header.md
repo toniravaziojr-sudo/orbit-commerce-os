@@ -48,6 +48,36 @@
 | 4 | `menus` (location='header') | Menu de navegação do header |
 | 5 | Dados Demo | Fallback quando `isEditing=true` e sem dados reais |
 
+### Arquitetura de Dados Auto-Suficiente (REGRA CRÍTICA)
+
+O `HeaderBlock` (em `BlockRenderer.tsx`) busca seus próprios dados diretamente do banco via `useQuery`, **sem depender de dados passados via context pelas páginas pai**. Isso espelha o padrão do `FooterBlock`/`StorefrontFooterContent`.
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    HEADER — FETCHING AUTO-SUFICIENTE                     │
+├─────────────────────────────────────────────────────────────────────────┤
+│  useQuery(['header-categories-self', tenantId])                         │
+│    → categories (id, slug, name) com is_active=true                     │
+│                                                                          │
+│  useQuery(['header-menu-self', tenantId])                                │
+│    → menu_items do menu com location='header'                           │
+│                                                                          │
+│  useQuery(['header-pages-for-menu', tenantId])                           │
+│    → store_pages publicadas (id, slug, type)                            │
+│                                                                          │
+│  Prioridade: DB direto > context (fallback) > dados demo                │
+│  staleTime: 5 minutos                                                    │
+│  Desabilitado quando isEditing=true (usa context do builder)            │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Por que auto-suficiente?**
+- Em domínios customizados, `baseUrl` retorna `''`. Se o context estiver vazio, links ficam quebrados.
+- O fetching direto garante que categorias e menus sempre estejam disponíveis, independente do pipeline de dados da página pai.
+- No builder (`isEditing=true`), o fetching direto é desabilitado para manter a fidelidade dos rascunhos.
+
+> ⚠️ **PROIBIDO**: Remover o fetching auto-suficiente do HeaderBlock ou torná-lo dependente exclusivamente de dados do context.
+
 ### Herança de Logo (REGRA CRÍTICA)
 
 A logo segue uma cadeia de prioridade implementada em `StorefrontHeaderContent.tsx`:
@@ -369,6 +399,7 @@ const handleMobileMenuNavigate = (url: string) => {
 | 2025-02-28 | Logo do header com `loading="eager"` (above-the-fold) e otimização via `getLogoImageUrl()` |
 | 2025-03-01 | Menu mobile herda cores do header (`headerBgColor`, `headerTextColor`) — substituído `text-foreground`/`text-muted-foreground` por `style` inline |
 | 2025-03-01 | Menu mobile: substituído `<Link>`/`<LinkWrapper>` por `<button>` + `handleMobileMenuNavigate()` (navegação programática) — fix para cliques não navegarem dentro do Sheet/Radix Dialog |
+| 2025-03-01 | HeaderBlock tornado auto-suficiente — fetching direto de categorias, menus e páginas via `useQuery` (padrão espelhado do Footer), eliminando dependência de context para domínios customizados |
 
 ---
 
