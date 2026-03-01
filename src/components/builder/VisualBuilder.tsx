@@ -741,19 +741,33 @@ export function VisualBuilder({
           console.log('[VisualBuilder.handleSave] Cleared footer draft');
         }
         
-        // CRITICAL: Invalidate page settings query caches so useCategorySettings/useProductSettings
-        // pick up the newly saved data instead of showing stale cached values.
-        // Without this, clearing the draft above would cause the canvas to revert to OLD cached settings.
-        queryClient.invalidateQueries({ queryKey: ['category-settings-builder', tenantId] });
-        queryClient.invalidateQueries({ queryKey: ['product-settings-builder', tenantId] });
-        queryClient.invalidateQueries({ queryKey: ['cart-settings-builder', tenantId] });
-        queryClient.invalidateQueries({ queryKey: ['checkout-settings-builder', tenantId] });
-        queryClient.invalidateQueries({ queryKey: ['thankYou-settings-builder', tenantId] });
+        // CRITICAL: Synchronously update page settings caches via setQueryData
+        // (matches builder-data-synchronization-standard-v3: setQueryData > invalidateQueries)
+        // Without this, clearing drafts above would cause canvas to revert to OLD cached settings.
+        const savedPageSettings = (updatedThemeSettings.pageSettings as Record<string, unknown>) || {};
+        const effectiveTsId = templateSetId || 'legacy';
+        
+        const pageSettingsCacheMap: Record<string, string> = {
+          category: 'category-settings-builder',
+          product: 'product-settings-builder',
+          cart: 'cart-settings-builder',
+          checkout: 'checkout-settings-builder',
+          thank_you: 'thankYou-settings-builder',
+        };
+        
+        for (const [pageKey, cacheKey] of Object.entries(pageSettingsCacheMap)) {
+          if (savedPageSettings[pageKey]) {
+            queryClient.setQueryData(
+              [cacheKey, tenantId, effectiveTsId],
+              savedPageSettings[pageKey]
+            );
+          }
+        }
         
         // Notify PageSettingsContent to reload from DB (for baseline sync)
         const { notifyPageSettingsSaveCompleted } = await import('@/hooks/useBuilderDraftPageSettings');
         notifyPageSettingsSaveCompleted();
-        console.log('[VisualBuilder.handleSave] Save complete');
+        console.log('[VisualBuilder.handleSave] Save complete, page settings caches updated');
       }
 
       // STEP 2: Extract Header/Footer from current content
