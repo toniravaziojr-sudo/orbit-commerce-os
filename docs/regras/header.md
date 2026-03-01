@@ -310,6 +310,42 @@ O drawer do menu mobile (`SheetContent`) **herda obrigatoriamente** as cores con
 2. Hover deve usar `opacity` (ex: `hover:opacity-70`) em vez de `hover:bg-muted` quando cores customizadas estão ativas.
 3. Quando `headerTextColor` é vazio/null, o fallback é `undefined` (herda do tema normalmente).
 
+### Navegação Mobile — Padrão Obrigatório
+
+Os links do menu mobile **NÃO devem usar `<Link>` ou `<LinkWrapper>`**. Devem usar `<button>` com `handleMobileMenuNavigate()` (navegação programática via `useNavigate`).
+
+**Motivo:** O Radix Dialog (Sheet) interfere com a navegação do `<Link>` ao fechar o drawer, causando cliques que não navegam.
+
+**Implementação:**
+
+```tsx
+// Função de navegação mobile (definida no componente)
+const handleMobileMenuNavigate = (url: string) => {
+  if (!url) return;
+  navigate(url);
+  requestAnimationFrame(() => {
+    setMobileMenuOpen(false);
+  });
+};
+
+// Uso nos itens do menu mobile
+<button
+  type="button"
+  onClick={() => handleMobileMenuNavigate(getMenuItemUrl(item))}
+  className="py-3 px-4 text-sm font-medium hover:opacity-70 rounded-lg text-left w-full"
+  style={{ color: headerTextColor || undefined }}
+>
+  {item.label}
+</button>
+```
+
+**Regras:**
+1. **PROIBIDO** usar `<Link>` ou `<LinkWrapper>` com `onClick={() => setMobileMenuOpen(false)}` no menu mobile.
+2. Sempre usar `<button type="button">` + `handleMobileMenuNavigate()`.
+3. Navegar **primeiro**, fechar o drawer **depois** (via `requestAnimationFrame`).
+4. Adicionar `text-left w-full` para manter aparência de link.
+5. Botões de expand/collapse de submenu (chevrons) continuam usando `<button>` com `toggleMobileDropdown()` — NÃO navegam.
+
 ---
 
 ## Histórico de Alterações
@@ -332,6 +368,7 @@ O drawer do menu mobile (`SheetContent`) **herda obrigatoriamente** as cores con
 | 2025-01-19 | Upload de thumbnail refinado no builder |
 | 2025-02-28 | Logo do header com `loading="eager"` (above-the-fold) e otimização via `getLogoImageUrl()` |
 | 2025-03-01 | Menu mobile herda cores do header (`headerBgColor`, `headerTextColor`) — substituído `text-foreground`/`text-muted-foreground` por `style` inline |
+| 2025-03-01 | Menu mobile: substituído `<Link>`/`<LinkWrapper>` por `<button>` + `handleMobileMenuNavigate()` (navegação programática) — fix para cliques não navegarem dentro do Sheet/Radix Dialog |
 
 ---
 
