@@ -597,22 +597,80 @@ function FallbackBlock({ children }: { children?: React.ReactNode }) {
 // ========== HEADER / FOOTER ==========
 
 function HeaderBlock({ context, isEditing, block }: any) {
-  const { settings, headerMenu, categories, tenantSlug } = context || {};
+  const { settings, headerMenu, categories: contextCategories, tenantSlug } = context || {};
+  const tenantId = settings?.tenant_id;
   
-  const { data: pagesData } = useQuery({
-    queryKey: ['header-pages-for-menu', settings?.tenant_id],
+  // ========== SELF-SUFFICIENT DATA FETCHING (like FooterBlock) ==========
+  // Fetch categories directly from DB — primary source, context is fallback
+  const { data: dbCategories } = useQuery({
+    queryKey: ['header-categories-self', tenantId],
     queryFn: async () => {
-      if (!settings?.tenant_id) return [];
+      if (!tenantId) return [];
+      const { data } = await supabase
+        .from('categories')
+        .select('id, slug, name')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .order('sort_order');
+      return data || [];
+    },
+    enabled: !!tenantId && !isEditing,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // Fetch header menu items directly from DB — primary source
+  const { data: dbMenuItems } = useQuery({
+    queryKey: ['header-menu-self', tenantId],
+    queryFn: async () => {
+      if (!tenantId) return [];
+      // Find header menu
+      const { data: menus } = await supabase
+        .from('menus')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('location', 'header')
+        .limit(1);
+      
+      if (!menus || menus.length === 0) return [];
+      
+      const { data: items } = await supabase
+        .from('menu_items')
+        .select('id, label, url, item_type, ref_id, sort_order, parent_id')
+        .eq('menu_id', menus[0].id)
+        .order('sort_order');
+      
+      return items || [];
+    },
+    enabled: !!tenantId && !isEditing,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // Fetch pages for resolving menu item URLs
+  const { data: pagesData } = useQuery({
+    queryKey: ['header-pages-for-menu', tenantId],
+    queryFn: async () => {
+      if (!tenantId) return [];
       const { data } = await supabase
         .from('store_pages')
         .select('id, slug, type')
-        .eq('tenant_id', settings.tenant_id)
+        .eq('tenant_id', tenantId)
         .eq('is_published', true);
       return data || [];
     },
-    enabled: !!settings?.tenant_id,
+    enabled: !!tenantId,
+    staleTime: 1000 * 60 * 5,
   });
   
+  // Use DB data as primary, context as fallback (for builder compatibility)
+  const resolvedCategories = dbCategories && dbCategories.length > 0 
+    ? dbCategories 
+    : (contextCategories || []);
+  
+  const contextMenuItems = Array.isArray(headerMenu) ? headerMenu : (headerMenu?.items || []);
+  const resolvedMenuItems = dbMenuItems && dbMenuItems.length > 0 
+    ? dbMenuItems 
+    : contextMenuItems;
+
   const headerConfig = { ...block, props: block?.props || {} };
   
   const storeSettings = settings ? {
@@ -628,19 +686,17 @@ function HeaderBlock({ context, isEditing, block }: any) {
     social_instagram: settings.social_instagram,
   } : null;
   
-  const menuItems = Array.isArray(headerMenu) ? headerMenu : (headerMenu?.items || []);
-  
   return (
     <StorefrontHeaderContent 
       tenantSlug={tenantSlug || ''} 
       headerConfig={headerConfig}
       storeSettings={storeSettings}
-      menuItems={menuItems}
-      categories={categories || []}
+      menuItems={resolvedMenuItems}
+      categories={resolvedCategories}
       pagesData={pagesData || []}
       totalCartItems={0}
       isEditing={isEditing}
-      tenantId={settings?.tenant_id}
+      tenantId={tenantId}
       viewportOverride={context.viewport}
     />
   );
