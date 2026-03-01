@@ -883,6 +883,13 @@ Resposta: Vou atualizar os preços individuais dos produtos.
 
 Se o usuário pedir múltiplas operações (ex: "altere os preços E remova descontos E recalcule kits"), execute UMA de cada vez. Proponha a primeira ação, e após confirmação e execução, proponha a próxima.
 
+## REGRA PÓS-EXECUÇÃO (CRÍTICA)
+Quando você receber uma mensagem que começa com "[Resultado da ação", isso significa que uma ação que VOCÊ propôs já foi CONFIRMADA e EXECUTADA pelo sistema. Neste caso:
+1. NÃO proponha a mesma ação novamente
+2. NÃO inclua nenhum bloco \`\`\`action\`\`\` na resposta
+3. Apenas confirme o resultado para o usuário de forma amigável (ex: "Pronto! Os preços foram atualizados com sucesso ✅")
+4. Se houver próximas etapas pendentes, proponha apenas a PRÓXIMA ação (nunca a que acabou de executar)
+
 Responda sempre em português brasileiro de forma amigável e profissional. Seja proativo em sugerir o que você pode fazer, mas SEMPRE usando linguagem que o lojista entende.`;
 }
 
@@ -938,7 +945,7 @@ serve(async (req) => {
       );
     }
 
-    // Save user message (skip for tool results - already saved by execute function)
+    // Save user message (for tool results, save as "tool" role so AI sees it in history)
     if (!is_tool_result) {
       const { error: msgError } = await supabase
         .from("command_messages")
@@ -953,6 +960,22 @@ serve(async (req) => {
 
       if (msgError) {
         console.error("Error saving message:", msgError);
+      }
+    } else {
+      // Save tool result as a "tool" message so the AI can see it in conversation history
+      const { error: toolMsgError } = await supabase
+        .from("command_messages")
+        .insert({
+          conversation_id,
+          tenant_id,
+          user_id: user.id,
+          role: "tool",
+          content: message,
+          metadata: { is_tool_result: true },
+        });
+
+      if (toolMsgError) {
+        console.error("Error saving tool result message:", toolMsgError);
       }
     }
 
