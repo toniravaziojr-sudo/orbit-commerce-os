@@ -545,7 +545,7 @@ async function executeTool(
       
       let query = supabase
         .from("products")
-        .update({ is_active: isActive, updated_at: new Date().toISOString() })
+        .update({ status: isActive ? "active" : "inactive", updated_at: new Date().toISOString() })
         .eq("tenant_id", tenant_id);
       
       if (productIds && productIds.length > 0) {
@@ -582,7 +582,7 @@ async function executeTool(
           sku: sku || null,
           description: description || null,
           stock_quantity: stockQuantity || 0,
-          is_active: true,
+          status: "active",
         })
         .select()
         .single();
@@ -1106,7 +1106,7 @@ async function executeTool(
         .from("products")
         .select("id, name, stock_quantity, sku")
         .eq("tenant_id", tenant_id)
-        .eq("is_active", true);
+        .eq("status", "active");
       
       if (error) throw new Error(error.message);
       
@@ -1405,7 +1405,7 @@ async function executeTool(
       
       let q = supabase
         .from("products")
-        .select("id, name, sku, price, compare_at_price, stock_quantity, is_active, created_at")
+        .select("id, name, sku, price, compare_at_price, stock_quantity, status, created_at")
         .eq("tenant_id", tenant_id)
         .is("deleted_at", null)
         .or(`name.ilike.%${query}%,sku.ilike.%${query}%`)
@@ -1419,7 +1419,7 @@ async function executeTool(
       }
       
       const list = data.map((p: any) => 
-        `• ${p.name} (SKU: ${p.sku || "—"}) — R$ ${(p.price || 0).toFixed(2)} — Estoque: ${p.stock_quantity ?? 0} — ${p.is_active ? "Ativo" : "Inativo"}`
+        `• ${p.name} (SKU: ${p.sku || "—"}) — R$ ${(p.price || 0).toFixed(2)} — Estoque: ${p.stock_quantity ?? 0} — ${p.status === "active" ? "Ativo" : "Inativo"}`
       ).join("\n");
       
       return {
@@ -1435,13 +1435,13 @@ async function executeTool(
       
       let q = supabase
         .from("products")
-        .select("id, name, sku, price, stock_quantity, is_active, created_at")
+        .select("id, name, sku, price, stock_quantity, status, created_at")
         .eq("tenant_id", tenant_id)
         .is("deleted_at", null)
         .limit(maxResults);
       
-      if (status === "active") q = q.eq("is_active", true);
-      else if (status === "inactive") q = q.eq("is_active", false);
+      if (status === "active") q = q.eq("status", "active");
+      else if (status === "inactive") q = q.eq("status", "inactive");
       
       if (minPrice) q = q.gte("price", minPrice);
       if (maxPrice) q = q.lte("price", maxPrice);
@@ -1495,11 +1495,11 @@ async function executeTool(
           `• Preço: R$ ${(p.price || 0).toFixed(2)}\n` +
           `• Preço original: ${p.compare_at_price ? `R$ ${p.compare_at_price.toFixed(2)}` : "—"}\n` +
           `• Estoque: ${p.stock_quantity ?? 0}\n` +
-          `• Status: ${p.is_active ? "Ativo" : "Inativo"}\n` +
+          `• Status: ${p.status === "active" ? "Ativo" : "Inativo"}\n` +
           `• Peso: ${p.weight ? `${p.weight}g` : "—"}\n` +
           `• Dimensões: ${p.width || "—"}×${p.height || "—"}×${p.length || "—"} cm\n` +
-          `• NCM: ${p.ncm_code || "—"}\n` +
-          `• CEST: ${p.cest_code || "—"}\n` +
+          `• NCM: ${p.ncm || "—"}\n` +
+          `• CEST: ${p.cest || "—"}\n` +
           `• Categorias: ${catNames || "Nenhuma"}\n` +
           `• Descrição: ${p.description ? p.description.substring(0, 200) + (p.description.length > 200 ? "..." : "") : "—"}\n` +
           `• SEO Title: ${p.seo_title || "—"}\n` +
@@ -1682,7 +1682,7 @@ async function executeTool(
         .from("products")
         .select("id")
         .eq("tenant_id", tenant_id)
-        .eq("is_active", true)
+        .eq("status", "active")
         .is("deleted_at", null);
       
       const totalOrders = orders?.length || 0;
@@ -1789,7 +1789,7 @@ async function executeTool(
       if (length !== undefined) updateData.length = length;
       if (seoTitle !== undefined) updateData.seo_title = seoTitle;
       if (seoDescription !== undefined) updateData.seo_description = seoDescription;
-      if (isActive !== undefined) updateData.is_active = isActive;
+      if (isActive !== undefined) updateData.status = isActive ? "active" : "inactive";
       if (stockQuantity !== undefined) updateData.stock_quantity = stockQuantity;
       
       const { data, error } = await supabase
