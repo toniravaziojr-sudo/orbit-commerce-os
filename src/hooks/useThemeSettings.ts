@@ -78,6 +78,8 @@ export interface ThemeColors {
   textSecondary: string;
   // Accent color for UI details (checkmarks, icons, links)
   accentColor: string;
+  // Price color - exclusive for the main/discounted price value
+  priceColor?: string;
   // Special tag colors
   successBg: string;
   successText: string;
@@ -242,6 +244,8 @@ export const DEFAULT_THEME_COLORS: ThemeColors = {
   textSecondary: '#666666',
   // Accent color for UI details (checkmarks, icons, links)
   accentColor: '#22c55e',
+  // Price color - empty means inherit from textPrimary
+  priceColor: '',
   // Special tag colors
   successBg: '#22c55e',
   successText: '#ffffff',

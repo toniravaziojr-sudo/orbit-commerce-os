@@ -106,6 +106,8 @@ export function useBuilderThemeInjector(
     const whatsappHover = colors?.whatsappHover || DEFAULT_THEME_COLORS.whatsappHover;
     const textPrimary = colors?.textPrimary || DEFAULT_THEME_COLORS.textPrimary;
     const textSecondary = colors?.textSecondary || DEFAULT_THEME_COLORS.textSecondary;
+    // Price color - exclusive for main/discounted price
+    const priceColor = colors?.priceColor || '';
     // Special tag colors
     const successBg = colors?.successBg || DEFAULT_THEME_COLORS.successBg;
     const successText = colors?.successText || DEFAULT_THEME_COLORS.successText;
@@ -142,6 +144,8 @@ export function useBuilderThemeInjector(
         --theme-whatsapp-hover: ${whatsappHover};
         --theme-text-primary: ${textPrimary};
         --theme-text-secondary: ${textSecondary};
+        /* Price color - exclusive for main/discounted price */
+        ${priceColor ? `--theme-price-color: ${priceColor};` : ''}
         /* Accent color for UI elements (checkmarks, sliders, icons) */
         --theme-accent-color: ${accentColor};
         /* Special tag colors */

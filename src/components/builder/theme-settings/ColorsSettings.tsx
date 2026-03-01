@@ -23,7 +23,7 @@ interface ColorInput {
   id: keyof ThemeColors;
   label: string;
   description: string;
-  group: 'primary' | 'secondary' | 'whatsapp' | 'text' | 'tags';
+  group: 'primary' | 'secondary' | 'whatsapp' | 'text' | 'price' | 'tags';
 }
 
 const colorInputs: ColorInput[] = [
@@ -89,7 +89,7 @@ const colorInputs: ColorInput[] = [
   { 
     id: 'textPrimary', 
     label: 'Texto Principal', 
-    description: 'Títulos, nomes de produtos, preços e textos de destaque', 
+    description: 'Títulos, nomes de produtos e textos de destaque', 
     group: 'text' 
   },
   { 
@@ -97,6 +97,13 @@ const colorInputs: ColorInput[] = [
     label: 'Texto Secundário', 
     description: 'Descrições, legendas, informações de frete e textos auxiliares', 
     group: 'text' 
+  },
+  // Price color
+  { 
+    id: 'priceColor', 
+    label: 'Cor valor principal', 
+    description: 'Cor exclusiva do preço com desconto (valor final). Aplicado em grids, categorias, página do produto, etc.', 
+    group: 'price' 
   },
   // Special tags - success
   { 
@@ -190,6 +197,7 @@ export function ColorsSettings({ tenantId, templateSetId }: ColorsSettingsProps)
   const secondaryInputs = colorInputs.filter(c => c.group === 'secondary');
   const whatsappInputs = colorInputs.filter(c => c.group === 'whatsapp');
   const textInputs = colorInputs.filter(c => c.group === 'text');
+  const priceInputs = colorInputs.filter(c => c.group === 'price');
   const tagsInputs = colorInputs.filter(c => c.group === 'tags');
 
   if (isLoading) {
@@ -260,6 +268,11 @@ export function ColorsSettings({ tenantId, templateSetId }: ColorsSettingsProps)
       
       {/* Text Colors */}
       {renderColorGroup(textInputs, '📝 Textos e Destaque')}
+
+      <Separator />
+
+      {/* Price Color */}
+      {renderColorGroup(priceInputs, '💰 Valor Principal')}
 
       <Separator />
       
@@ -338,7 +351,7 @@ export function ColorsSettings({ tenantId, templateSetId }: ColorsSettingsProps)
           </div>
         </div>
 
-        {/* Text Preview */}
+        {/* Text & Price Preview */}
         <div className="space-y-1 p-3 bg-background rounded border">
           <p className="font-medium" style={{ color: localColors.textPrimary }}>
             Título de exemplo
@@ -346,6 +359,12 @@ export function ColorsSettings({ tenantId, templateSetId }: ColorsSettingsProps)
           <p className="text-sm" style={{ color: localColors.textSecondary }}>
             Descrição secundária com texto auxiliar
           </p>
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-xs line-through" style={{ color: localColors.textSecondary }}>R$ 199,90</span>
+            <span className="text-sm font-bold" style={{ color: localColors.priceColor || localColors.textPrimary }}>
+              R$ 149,90
+            </span>
+          </div>
         </div>
 
         {/* Tags Preview */}

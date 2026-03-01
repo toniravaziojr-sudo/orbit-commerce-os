@@ -274,7 +274,7 @@ export function CompreJuntoSlotBlock({
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-medium text-sm line-clamp-2">{currentProduct.name}</p>
-              <p className="text-primary font-bold">{formatCurrency(currentPrice)}</p>
+              <p className="font-bold sf-price-color" style={{ color: 'var(--theme-price-color, var(--theme-text-primary, currentColor))' }}>{formatCurrency(currentPrice)}</p>
             </div>
           </div>
 
@@ -297,7 +297,7 @@ export function CompreJuntoSlotBlock({
                 {hasDiscount && (
                   <span className="text-xs text-muted-foreground line-through">{formatCurrency(suggestedOriginalPrice)}</span>
                 )}
-                <span className="text-primary font-bold">{formatCurrency(suggestedDiscountedPrice)}</span>
+                <span className="font-bold sf-price-color" style={{ color: 'var(--theme-price-color, var(--theme-text-primary, currentColor))' }}>{formatCurrency(suggestedDiscountedPrice)}</span>
               </div>
             </div>
           </div>
@@ -311,7 +311,7 @@ export function CompreJuntoSlotBlock({
               </div>
             )}
             <p className="text-xs text-muted-foreground font-medium">COMPRANDO JUNTO:</p>
-            <p className="text-xl font-bold text-primary">{formatCurrency(totalDiscounted)}</p>
+            <p className="text-xl font-bold sf-price-color" style={{ color: 'var(--theme-price-color, var(--theme-text-primary, currentColor))' }}>{formatCurrency(totalDiscounted)}</p>
             {hasDiscount && (
               <p className="text-sm text-green-600 font-medium">Economize {formatCurrency(savings)}</p>
             )}

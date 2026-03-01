@@ -241,6 +241,10 @@ export function getStorefrontThemeCss(themeSettings: ThemeSettings | null): stri
   if (colors?.textSecondary) {
     colorVars.push(`--theme-text-secondary: ${colors.textSecondary};`);
   }
+  // Price color - exclusive for main/discounted price value
+  if (colors?.priceColor) {
+    colorVars.push(`--theme-price-color: ${colors.priceColor};`);
+  }
   // WhatsApp button colors
   const whatsappColor = colors?.whatsappColor || '#25D366';
   const whatsappHover = colors?.whatsappHover || '#128C7E';
