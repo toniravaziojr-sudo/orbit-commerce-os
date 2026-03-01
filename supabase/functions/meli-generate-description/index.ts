@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.5.0"; // Use category max_title_length for dynamic limits
+const VERSION = "v2.0.0"; // Improved title gen: min length 60%, openai provider, better prompts
 // ===================
 
 const DEFAULT_MAX_TITLE_LENGTH = 120;
@@ -51,9 +51,14 @@ function sanitizeGeneratedTitle(rawTitle: string, maxLength: number = DEFAULT_MA
   return truncateAtWordBoundary(normalized, maxLength);
 }
 
-function isValidGeneratedTitle(title: string, maxLength: number = DEFAULT_MAX_TITLE_LENGTH): boolean {
+function isValidGeneratedTitle(title: string, maxLength: number = DEFAULT_MAX_TITLE_LENGTH, minLengthPct: number = 0.6): boolean {
   if (!title) return false;
-  if (title.length < 10 || title.length > maxLength) return false;
+  if (title.length > maxLength) return false;
+
+  // Dynamic minimum: 60% of max length (e.g., 36 for 60-char categories)
+  const dynamicMin = Math.max(10, Math.floor(maxLength * minLengthPct));
+  if (title.length < dynamicMin) return false;
+
   if (/[-,/:;]$/.test(title)) return false;
   if (title.split(/\s+/).length < 2) return false;
 
@@ -229,65 +234,77 @@ INSTRUÇÕES:
 
       // Fetch category-specific max title length
       const maxTitleLen = await getCategoryMaxTitleLength(categoryId);
-      console.log(`[meli-generate-description][${VERSION}] Using max_title_length=${maxTitleLen} for category=${categoryId || "none"}`);
+      const minTitleLen = Math.max(10, Math.floor(maxTitleLen * 0.6));
+      console.log(`[meli-generate-description][${VERSION}] Using max_title_length=${maxTitleLen}, minTitleLen=${minTitleLen} for category=${categoryId || "none"}`);
 
-      systemPromptFinal = `Você é um especialista em SEO de títulos para o Mercado Livre Brasil.
+      systemPromptFinal = `Você é um copywriter especialista em títulos de anúncios para o Mercado Livre Brasil. Seu objetivo é criar títulos que VENDEM e são encontrados nas buscas.
 
 TAREFA: Gere exatamente UM título otimizado para buscas, completo e natural.
 
+FORMATO DO TÍTULO:
+[Tipo do Produto] [Marca] [Função/Benefício Principal] [Detalhe Diferenciador] [Peso/Quantidade]
+
 REGRAS OBRIGATÓRIAS:
 1. O título DEVE começar pelo TIPO DE PRODUTO (ex: Balm, Sérum, Kit, Camiseta), nunca pela marca sozinha
-2. A marca deve aparecer depois do tipo de produto (se fizer sentido)
-3. NÃO truncar palavras no final (nunca terminar em hífen, barra, vírgula ou palavra incompleta)
-4. Evite abreviações incompletas e frases cortadas
-5. Use benefícios/função reais do produto extraídos da descrição
-6. Sem emojis, sem CAPS LOCK excessivo, sem preço/promoção
-7. Não incluir EAN/GTIN/código de barras no título
-8. Título deve ser objetivo, legível e pronto para publicação
-9. Priorize termos que compradores realmente usam na busca
-10. O título deve ter NO MÁXIMO ${maxTitleLen} caracteres (LIMITE DA CATEGORIA)
-${maxTitleLen <= 60 ? '11. ATENÇÃO: Limite curto! Seja conciso: tipo + marca + benefício principal.' : ''}
+2. A marca deve aparecer depois do tipo de produto
+3. Inclua o principal benefício/função extraído da descrição (Antiqueda, Hidratante, Crescimento, etc.)
+4. Inclua peso/volume/quantidade quando disponível (60g, 30ml, 500ml, etc.)
+5. NÃO truncar palavras no final — todas as palavras devem estar COMPLETAS
+6. Sem emojis, sem CAPS LOCK excessivo, sem preço/promoção, sem código de barras
+7. Sem repetir palavras
+8. O título DEVE ter entre ${minTitleLen} e ${maxTitleLen} caracteres — PREENCHA O ESPAÇO DISPONÍVEL
+9. Priorize termos que compradores realmente usam na busca do Mercado Livre
+${maxTitleLen <= 60 ? '10. ATENÇÃO: Limite curto! Seja conciso: tipo + marca + benefício + peso/volume.' : '10. Aproveite o espaço: tipo + marca + benefício + detalhe + peso/volume.'}
 
-EXEMPLOS CORRETOS:
-- Balm Pós-Banho Antiqueda para Cabelo e Barba 60g
-- Sérum Facial Vitamina C Anti-idade e Clareador 30ml
-- Kit 3 Camisetas Básicas Algodão Masculina Slim Fit
+EXEMPLOS CORRETOS (observe como preenchem o espaço):
+- "Balm Pós-Banho Respeite o Homem Antiqueda Crescimento 60g" (57 chars ✓)
+- "Sérum Facial Vitamina C Anti-idade Clareador Uniformizador 30ml" (63 chars ✓)
+- "Kit 3 Camisetas Básicas Algodão Premium Masculina Slim Fit M" (61 chars ✓)
 
 EXEMPLOS ERRADOS (NÃO FAÇA ISSO):
-- Balm Pós-Banho Cabelo Bar (cortado)
-- Balm Cabelo Anti- (truncado)
-- ⭐ SUPER PROMOÇÃO Camiseta BARATA ⭐ (emojis/caps/preço)`;
-
-      userPromptFinal = `Gere UM título otimizado para o Mercado Livre (MÁXIMO ${maxTitleLen} caracteres).
-
-Produto: ${productName || "Produto"}
-${productTitle ? `Título atual: ${productTitle}` : ""}
-${htmlDescription ? `Descrição: ${htmlDescription.slice(0, 700)}` : ""}
+- "Balm Respeite o Homem Pós" (25 chars ✗ — MUITO CURTO, desperdiça espaço)
+- "Balm Pós-Banho Cabelo Bar" (25 chars ✗ — truncado)
+- "⭐ SUPER PROMOÇÃO Camiseta ⭐" (✗ — emojis/caps)
 
 Retorne APENAS o título, sem aspas e sem explicações.`;
+
+      userPromptFinal = `Gere UM título otimizado para o Mercado Livre.
+
+REQUISITOS DE TAMANHO: O título DEVE ter entre ${minTitleLen} e ${maxTitleLen} caracteres. Preencha o espaço disponível com informações relevantes do produto.
+
+${productName ? `Produto: ${productName}` : ""}
+${productTitle ? `Título atual: ${productTitle}` : ""}
+${htmlDescription ? `Descrição/Contexto: ${htmlDescription.slice(0, 700)}` : ""}
+
+Retorne APENAS o título completo, sem aspas e sem explicações.`;
 
       const MAX_ATTEMPTS = 3;
       let finalTitle = "";
       let lastCandidate = "";
 
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-        const attemptFeedback = attempt > 1
-          ? `\n\nA tentativa anterior foi rejeitada por qualidade: "${lastCandidate || "(vazio)"}". Gere uma nova versão COMPLETA, sem final cortado ou abreviado. MÁXIMO ${maxTitleLen} caracteres.`
-          : "";
+        let attemptFeedback = "";
+        if (attempt > 1 && lastCandidate) {
+          const shortReason = lastCandidate.length < minTitleLen
+            ? `MUITO CURTO (${lastCandidate.length} chars, mínimo ${minTitleLen}). Adicione mais palavras-chave, benefícios e detalhes do produto.`
+            : `Rejeitado por qualidade (palavra final cortada ou incompleta).`;
+          attemptFeedback = `\n\nTENTATIVA ANTERIOR REJEITADA: "${lastCandidate}" — ${shortReason}\nGere uma versão DIFERENTE e COMPLETA com entre ${minTitleLen} e ${maxTitleLen} caracteres.`;
+        }
 
         const aiResponse = await aiChatCompletion(
-          "google/gemini-2.5-flash",
+          "google/gemini-2.5-pro",
           {
             messages: [
               { role: "system", content: systemPromptFinal },
               { role: "user", content: `${userPromptFinal}${attemptFeedback}` },
             ],
             max_tokens: 256,
-            temperature: attempt === 1 ? 0.35 : attempt === 2 ? 0.5 : 0.65,
+            temperature: attempt === 1 ? 0.5 : attempt === 2 ? 0.65 : 0.8,
           },
           {
             supabaseUrl,
             supabaseServiceKey,
+            preferProvider: 'openai',
             logPrefix: "[meli-generate-description]",
           }
         );
@@ -304,7 +321,7 @@ Retorne APENAS o título, sem aspas e sem explicações.`;
         lastCandidate = candidate;
 
         const isValid = isValidGeneratedTitle(candidate, maxTitleLen);
-        console.log(`[meli-generate-description][${VERSION}] attempt ${attempt}/${MAX_ATTEMPTS} title="${candidate}" (${candidate.length}/${maxTitleLen} chars, valid=${isValid})`);
+        console.log(`[meli-generate-description][${VERSION}] attempt ${attempt}/${MAX_ATTEMPTS} title="${candidate}" (${candidate.length}/${maxTitleLen} chars, min=${minTitleLen}, valid=${isValid})`);
 
         if (isValid) {
           finalTitle = candidate;

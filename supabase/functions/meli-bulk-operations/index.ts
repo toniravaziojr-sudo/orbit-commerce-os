@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
-const VERSION = "v1.8.0"; // Use category max_title_length for title generation
+const VERSION = "v1.9.0"; // Relaxed hasSufficientProductCoverage to accept brand/type matches
 
 const DEFAULT_MAX_TITLE_LENGTH = 120;
 
@@ -143,10 +143,33 @@ function getDynamicMinTitleLength(productName: string): number {
   return Math.max(24, Math.min(48, Math.floor(baseLength * 0.6)));
 }
 
-function hasSufficientProductCoverage(title: string, productName: string): boolean {
+function hasSufficientProductCoverage(title: string, productName: string, brand?: string): boolean {
   const normalizedTitle = normalizeForComparison(title);
   const normalizedProduct = normalizeForComparison(productName);
 
+  // If title contains the brand, that's sufficient coverage
+  if (brand) {
+    const normalizedBrand = normalizeForComparison(brand);
+    if (normalizedBrand.length >= 3 && normalizedTitle.includes(normalizedBrand)) {
+      return true;
+    }
+  }
+
+  // Check if title contains the product TYPE (first word of product name, e.g. "Balm", "Kit", "Sérum")
+  const productWords = normalizedProduct.split(" ").filter(w => w.length >= 3);
+  if (productWords.length > 0) {
+    const productType = productWords[0];
+    if (normalizedTitle.includes(productType)) {
+      // Product type match found - only need 1 additional keyword match
+      const stopwords = new Set(["de", "da", "do", "das", "dos", "e", "com", "para", "por", "a", "o", "em", "kit"]);
+      const otherKeywords = productWords.slice(1).filter(w => !stopwords.has(w) && w.length >= 4);
+      if (otherKeywords.length === 0) return true;
+      const hasAnyMatch = otherKeywords.some(kw => normalizedTitle.includes(kw));
+      return hasAnyMatch;
+    }
+  }
+
+  // Fallback: original logic but with requiredMatches = 1
   const stopwords = new Set(["de", "da", "do", "das", "dos", "e", "com", "para", "por", "a", "o", "em", "kit"]);
   const productKeywords = Array.from(new Set(
     normalizedProduct
@@ -156,7 +179,7 @@ function hasSufficientProductCoverage(title: string, productName: string): boole
 
   if (productKeywords.length === 0) return true;
 
-  const requiredMatches = Math.min(2, productKeywords.length);
+  const requiredMatches = 1; // Relaxed from Math.min(2, ...) to 1
   const matches = productKeywords.filter((keyword) => normalizedTitle.includes(keyword)).length;
 
   return matches >= requiredMatches;
@@ -189,7 +212,7 @@ function isLikelyTruncatedEnding(title: string, productName?: string): boolean {
   return normalizedLastWord.length > 0 && normalizedLastWord.length <= 3;
 }
 
-function isValidGeneratedTitle(title: string, productName: string, maxLength: number = DEFAULT_MAX_TITLE_LENGTH): boolean {
+function isValidGeneratedTitle(title: string, productName: string, maxLength: number = DEFAULT_MAX_TITLE_LENGTH, brand?: string): boolean {
   if (!title) return false;
   if (title.length > maxLength) return false;
   if (title.split(/\s+/).length < 3) return false;
@@ -198,7 +221,7 @@ function isValidGeneratedTitle(title: string, productName: string, maxLength: nu
   if (title.length < minLength) return false;
 
   if (isLikelyTruncatedEnding(title, productName)) return false;
-  if (!hasSufficientProductCoverage(title, productName)) return false;
+  if (!hasSufficientProductCoverage(title, productName, brand)) return false;
 
   const lastWord = title.split(/\s+/).pop()?.toLowerCase() || "";
   const danglingWords = new Set(["de", "da", "do", "das", "dos", "e", "com", "para", "por", "a", "o", "em"]);
@@ -590,7 +613,7 @@ Retorne APENAS o título, nada mais.`,
             const title = sanitizeGeneratedTitle(rawTitle, maxTitleLen);
 
             // Validate title quality with category-specific max length
-            const isGoodTitle = isValidGeneratedTitle(title, productName || listing.title || "Produto", maxTitleLen);
+            const isGoodTitle = isValidGeneratedTitle(title, productName || listing.title || "Produto", maxTitleLen, product?.brand);
 
             console.log(`[meli-bulk-titles] Attempt ${attempt}/${MAX_TITLE_ATTEMPTS} for "${productName}" → "${title}" (${title.length}/${maxTitleLen} chars, good=${isGoodTitle})`);
 
@@ -606,7 +629,7 @@ Retorne APENAS o título, nada mais.`,
           }
 
           // Final fallback: use buildFallbackTitle if all attempts failed
-          if (!finalTitle || !isValidGeneratedTitle(finalTitle, productName || listing.title || "Produto", maxTitleLen)) {
+          if (!finalTitle || !isValidGeneratedTitle(finalTitle, productName || listing.title || "Produto", maxTitleLen, product?.brand)) {
             const context = contextParts.join("\n");
             finalTitle = buildFallbackTitle(productName || listing.title || "Produto Original", context, maxTitleLen);
             console.log(`[meli-bulk-titles] Fallback title for "${productName}": "${finalTitle}" (last raw: "${lastRawTitle}")`);
