@@ -28,12 +28,13 @@ const TOOL_REGISTRY = {
     requiredPermission: "products",
   },
   bulkUpdateProductsPrice: {
-    description: "Atualizar preços de produtos (aumento/desconto percentual ou valor fixo)",
+    description: "Atualizar preços de produtos (aumento/desconto percentual ou valor fixo individual)",
     parameters: {
       type: { type: "string", required: true, description: "percent_increase, percent_decrease, fixed" },
-      value: { type: "number", required: true, description: "Valor (percentual ou fixo em reais)" },
+      value: { type: "number", required: false, description: "Valor percentual (para percent_increase/percent_decrease)" },
       productIds: { type: "array", required: false, description: "IDs específicos (opcional)" },
       categoryId: { type: "string", required: false, description: "Filtrar por categoria" },
+      prices: { type: "array", required: false, description: "Para definir preços individuais: [{productId, price}]. Usar com type='fixed'" },
     },
     requiredPermission: "products",
   },

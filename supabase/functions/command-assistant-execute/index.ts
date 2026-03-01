@@ -366,7 +366,12 @@ async function executeTool(
     }
 
     case "bulkUpdateProductsPrice": {
-      const { type, value, productIds, categoryId, prices } = tool_args;
+      let { type, value, productIds, categoryId, prices } = tool_args;
+      
+      // Auto-infer type when prices array is provided
+      if (!type && prices && Array.isArray(prices)) {
+        type = "fixed";
+      }
       
       // Validate required args
       if (!type) {
@@ -472,11 +477,11 @@ async function executeTool(
       
       const typeLabel = type === "percent_increase" ? `aumentados em ${value}%` :
                        type === "percent_decrease" ? `reduzidos em ${value}%` :
-                       `definidos para R$ ${(value != null ? value : 0).toFixed(2)}`;
+                       value != null ? `definidos para R$ ${Number(value).toFixed(2)}` : `atualizados`;
       
       return {
         success: true,
-        message: `✅ Preços ${typeLabel} em ${updateCount} produto(s)! (valor base e valor final atualizados)`,
+        message: `✅ Preços ${typeLabel} em ${updateCount} produto(s)!`,
         data: { affected: updateCount, type, value },
       };
     }
