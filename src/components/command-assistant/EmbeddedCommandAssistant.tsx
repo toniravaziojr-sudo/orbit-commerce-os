@@ -85,6 +85,7 @@ export function EmbeddedCommandAssistant() {
             </div>
             <div className="border-t p-3">
               <CommandChatInput
+                key={currentConversationId}
                 onSend={handleSend}
                 isStreaming={isStreaming}
                 onCancel={cancelStreaming}
