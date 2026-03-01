@@ -1,120 +1,48 @@
 
 
-# Plano: Fluxo de Criação de Campanhas de Email Marketing com Editor Visual
+## Diagnóstico Completo — Header vs Footer
 
-## Situacao Atual
+### Causa Raiz Identificada
 
-O modulo de email marketing existe mas e bastante basico:
-- **CampaignDialog**: modal simples com 4 campos (nome, tipo, lista, template)
-- **TemplateDialog**: textarea de HTML cru, sem preview, sem editor visual
-- **Nao ha**: editor de email visual, steps wizard, preview em tempo real, drag-and-drop de blocos
-- Backend ja funciona: `email-campaign-broadcast` edge function, `email_send_queue`, `email-dispatcher`
+A diferença fundamental entre header e footer é a **arquitetura de dados**:
 
-## Proposta: Campaign Builder em 3 Steps com Email Editor Visual
+- **Footer (`StorefrontFooterContent`)**: É **auto-suficiente** — busca suas próprias categorias, menus e páginas diretamente do banco via `useQuery` hooks internos (linhas 129-228). Não depende de nenhum dado externo.
 
-Substituir o modal simples por uma pagina dedicada de criacao de campanha com wizard de steps e editor visual de email.
+- **Header (`HeaderBlock` no `BlockRenderer.tsx`)**: É **dependente de context** — recebe `categories`, `headerMenu` e `pagesData` via props passadas pela página pai (ex: `StorefrontHome`). Se esses dados estiverem vazios por qualquer motivo (timing, cache, formato), todos os links de categorias caem no fallback `baseUrl`, que no domínio customizado é `''` (string vazia) — resultando em links que navegam para a página atual (parecem "não funcionar").
 
-### Arquitetura
+### Por que funciona no preview e não no domínio customizado
 
+No preview (`.lovableproject.com`), `baseUrl` retorna `/store/respeite-o-homem`. Mesmo quando os links fazem fallback, eles navegam para a home da loja. No domínio customizado, `baseUrl` é `''`, então o fallback gera links vazios que não fazem nada visível.
+
+### Plano de Correção
+
+**Tornar o `HeaderBlock` auto-suficiente como o `FooterBlock`** — buscar seus próprios dados diretamente do banco, eliminando a dependência de dados passados via context.
+
+#### Alterações:
+
+1. **`src/components/builder/BlockRenderer.tsx` — `HeaderBlock`**
+   - Adicionar `useQuery` hooks internos para buscar:
+     - Menu items do header (via `menus` + `menu_items` onde `location = 'header'`)
+     - Categorias ativas do tenant
+   - Usar esses dados como **fonte primária**, com fallback para `context.categories` e `context.headerMenu` (manter retrocompatibilidade com builder)
+   - Usar `settings.tenant_id` (já disponível) para as queries
+
+2. **Nenhuma alteração** em `StorefrontHeaderContent.tsx` — o componente já recebe os dados via props corretamente
+
+3. **Nenhuma alteração** nas páginas individuais (StorefrontHome, etc.) — os dados do context continuam sendo passados mas deixam de ser a fonte única
+
+### Detalhes Técnicos
+
+O `HeaderBlock` passará de:
 ```text
-/email-marketing/campaign/new
-  ┌─────────────────────────────────────────────────┐
-  │  Step Bar: [1. Config] → [2. Conteudo] → [3. Enviar]  │
-  └─────────────────────────────────────────────────┘
-
-  Step 1 - Configuracao
-  ├── Nome da campanha
-  ├── Tipo (broadcast / automacao)
-  ├── Lista de destino (select)
-  └── Remetente (from email_provider_configs)
-
-  Step 2 - Conteudo (Editor Visual)
-  ├── Assunto do email + preview text
-  ├── Toolbar lateral com blocos arrastaveis:
-  │   ├── Texto (heading, paragrafo)
-  │   ├── Imagem
-  │   ├── Botao (CTA)
-  │   ├── Divisor
-  │   ├── Espacador
-  │   ├── Colunas (2col, 3col)
-  │   └── Produto (puxa do catalogo)
-  ├── Area central: blocos empilhados (drag to reorder)
-  ├── Painel direito: propriedades do bloco selecionado
-  └── Preview mobile/desktop toggle
-
-  Step 3 - Revisar & Enviar
-  ├── Resumo (lista, qtd subscribers, assunto)
-  ├── Preview final do email (iframe)
-  ├── Opcoes: Enviar agora / Agendar
-  └── Botao "Enviar Campanha"
+context.categories → StorefrontHeaderContent (frágil, dependente de pipeline)
+```
+Para:
+```text
+useQuery(['header-categories', tenantId]) → StorefrontHeaderContent (auto-suficiente)
 ```
 
-### Arquivos a Criar (~12 arquivos)
+Similar ao padrão do `FooterBlock`/`StorefrontFooterContent` que já funciona perfeitamente.
 
-| Arquivo | Descricao |
-|---------|-----------|
-| `src/pages/EmailMarketingCampaignBuilder.tsx` | Pagina do wizard (rota `/email-marketing/campaign/new`) |
-| `src/components/email-marketing/campaign-builder/CampaignStepBar.tsx` | Barra de progresso dos steps |
-| `src/components/email-marketing/campaign-builder/StepConfig.tsx` | Step 1: nome, tipo, lista |
-| `src/components/email-marketing/campaign-builder/StepContent.tsx` | Step 2: editor visual |
-| `src/components/email-marketing/campaign-builder/StepReview.tsx` | Step 3: revisao e envio |
-| `src/components/email-marketing/campaign-builder/EmailBlocksSidebar.tsx` | Sidebar com blocos arrastaveis |
-| `src/components/email-marketing/campaign-builder/EmailCanvas.tsx` | Area central com blocos (sortable) |
-| `src/components/email-marketing/campaign-builder/BlockPropertyEditor.tsx` | Painel de propriedades do bloco |
-| `src/components/email-marketing/campaign-builder/EmailPreview.tsx` | Preview do email (iframe) |
-| `src/components/email-marketing/campaign-builder/blocks/` | Componentes de cada bloco (TextBlock, ImageBlock, ButtonBlock, DividerBlock, SpacerBlock, ColumnsBlock, ProductBlock) |
-| `src/hooks/useEmailCampaignBuilder.ts` | State machine do builder (blocos, seleção, serialização para HTML) |
-| `src/lib/email-builder-utils.ts` | Serializar blocos → HTML inline-style para email |
-
-### Arquivos a Editar
-
-| Arquivo | Mudanca |
-|---------|---------|
-| `src/pages/EmailMarketing.tsx` | Botao "Nova Campanha" redireciona para `/email-marketing/campaign/new` em vez de abrir dialog |
-| `src/App.tsx` | Registrar rota `/email-marketing/campaign/new` |
-
-### Tecnologia de Drag-and-Drop
-
-Usar `@dnd-kit/core` + `@dnd-kit/sortable` que ja estao instalados no projeto. Abordagem:
-- Sidebar: blocos com `useDraggable` 
-- Canvas: lista de blocos com `useSortable` (reordenar)
-- Drop da sidebar no canvas para adicionar novos blocos
-
-### Editor de Blocos (Modelo de dados)
-
-```typescript
-interface EmailBlock {
-  id: string;
-  type: 'text' | 'image' | 'button' | 'divider' | 'spacer' | 'columns' | 'product';
-  props: Record<string, any>;
-  // Exemplos de props por tipo:
-  // text: { content: string, tag: 'h1'|'h2'|'p', align, color, fontSize }
-  // image: { src: string, alt: string, width: string, link?: string }
-  // button: { text: string, url: string, bgColor, textColor, borderRadius }
-  // divider: { color, thickness }
-  // spacer: { height: number }
-  // columns: { columns: EmailBlock[][] }
-  // product: { product_id: string, showPrice, showImage, showButton }
-}
-```
-
-### Conversao Blocos → HTML
-
-A funcao `blocksToHtml()` em `email-builder-utils.ts` converte a arvore de blocos para HTML table-based com inline styles (compativel com email clients). Nao depende de CSS externo.
-
-### Fluxo de Envio
-
-1. Usuario monta o email no builder
-2. No Step 3, `blocksToHtml()` gera o HTML final
-3. Ao clicar "Enviar", salva template (upsert `email_marketing_templates`) + campanha (upsert `email_marketing_campaigns`)
-4. Chama `email-campaign-broadcast` edge function
-5. Redireciona para listagem com toast de sucesso
-
-### Sem Mudancas no Banco
-
-Nenhuma migracao necessaria. Os campos `body_html` e `body_text` do template ja comportam o HTML gerado. A campanha ja tem `template_id` e `list_id`.
-
-### Estimativa
-
-Sera implementado em 2-3 rodadas de mensagens devido ao volume de arquivos.
+As queries terão `staleTime: 5min` para não impactar performance (dados de menu/categorias mudam raramente).
 
