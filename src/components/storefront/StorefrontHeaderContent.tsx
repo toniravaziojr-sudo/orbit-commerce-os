@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { getLogoImageUrl } from '@/lib/imageTransform';
 import { Search, ShoppingCart, Menu, Phone, MessageCircle, User, Mail, Facebook, Instagram, ChevronDown, ChevronRight } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -85,6 +85,7 @@ export function StorefrontHeaderContent({
   tenantId,
   viewportOverride,
 }: StorefrontHeaderContentProps) {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [animationState, setAnimationState] = useState<'initial' | 'animating' | 'done'>('initial');
@@ -450,6 +451,18 @@ export function StorefrontHeaderContent({
     );
   };
 
+  // Mobile menu navigation: navigate first, then close drawer
+  // This ensures navigation completes before the Sheet unmounts content
+  const handleMobileMenuNavigate = (url: string) => {
+    if (!url) return;
+    // Navigate immediately
+    navigate(url);
+    // Close menu after a tick so navigation isn't blocked
+    requestAnimationFrame(() => {
+      setMobileMenuOpen(false);
+    });
+  };
+
   // Determine layout mode based on viewportOverride (from builder) or CSS will handle it for public
   const forceMobile = viewportOverride === 'mobile' || viewportOverride === 'tablet';
   const forceDesktop = viewportOverride === 'desktop';
@@ -601,14 +614,14 @@ export function StorefrontHeaderContent({
                             {item.children.length > 0 ? (
                               <>
                                 <div className="flex items-center">
-                                  <LinkWrapper
-                                    to={getMenuItemUrl(item)}
-                                    onClick={() => setMobileMenuOpen(false)}
-                                    className="flex-1 py-3 px-4 text-sm font-medium hover:opacity-70 rounded-l-lg"
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMobileMenuNavigate(getMenuItemUrl(item))}
+                                    className="flex-1 py-3 px-4 text-sm font-medium hover:opacity-70 rounded-l-lg text-left"
                                     style={{ color: headerTextColor || undefined }}
                                   >
                                     {item.label}
-                                  </LinkWrapper>
+                                  </button>
                                   <button
                                     type="button"
                                     onClick={() => toggleMobileDropdown(item.id)}
@@ -629,14 +642,14 @@ export function StorefrontHeaderContent({
                                         {child.children && child.children.length > 0 ? (
                                           <>
                                             <div className="flex items-center">
-                                              <LinkWrapper
-                                                to={getMenuItemUrl(child)}
-                                                onClick={() => setMobileMenuOpen(false)}
-                                                className="flex-1 py-2 px-4 text-sm opacity-80 hover:opacity-100 rounded-l-lg transition-colors"
+                                              <button
+                                                type="button"
+                                                onClick={() => handleMobileMenuNavigate(getMenuItemUrl(child))}
+                                                className="flex-1 py-2 px-4 text-sm opacity-80 hover:opacity-100 rounded-l-lg transition-colors text-left"
                                                 style={{ color: headerTextColor || undefined }}
                                               >
                                                 {child.label}
-                                              </LinkWrapper>
+                                              </button>
                                               <button
                                                 type="button"
                                                 onClick={() => toggleMobileDropdown(child.id)}
@@ -653,28 +666,28 @@ export function StorefrontHeaderContent({
                                             {openMobileDropdowns.has(child.id) && (
                                               <div className="ml-4 border-l-2" style={{ borderColor: headerTextColor ? `${headerTextColor}20` : undefined }}>
                                                 {child.children.map((grandchild) => (
-                                                  <LinkWrapper
+                                                  <button
                                                     key={grandchild.id}
-                                                    to={getMenuItemUrl(grandchild)}
-                                                    onClick={() => setMobileMenuOpen(false)}
-                                                    className="py-2 px-4 text-sm opacity-80 hover:opacity-100 rounded-lg block transition-colors"
+                                                    type="button"
+                                                    onClick={() => handleMobileMenuNavigate(getMenuItemUrl(grandchild))}
+                                                    className="py-2 px-4 text-sm opacity-80 hover:opacity-100 rounded-lg block transition-colors text-left w-full"
                                                     style={{ color: headerTextColor || undefined }}
                                                   >
                                                     {grandchild.label}
-                                                  </LinkWrapper>
+                                                  </button>
                                                 ))}
                                               </div>
                                             )}
                                           </>
                                         ) : (
-                                          <LinkWrapper
-                                            to={getMenuItemUrl(child)}
-                                            onClick={() => setMobileMenuOpen(false)}
-                                            className="py-2 px-4 text-sm opacity-80 hover:opacity-100 rounded-lg block transition-colors"
+                                          <button
+                                            type="button"
+                                            onClick={() => handleMobileMenuNavigate(getMenuItemUrl(child))}
+                                            className="py-2 px-4 text-sm opacity-80 hover:opacity-100 rounded-lg block transition-colors text-left w-full"
                                             style={{ color: headerTextColor || undefined }}
                                           >
                                             {child.label}
-                                          </LinkWrapper>
+                                          </button>
                                         )}
                                       </div>
                                     ))}
@@ -682,14 +695,14 @@ export function StorefrontHeaderContent({
                                 )}
                               </>
                             ) : (
-                              <LinkWrapper
-                                to={getMenuItemUrl(item)}
-                                onClick={() => setMobileMenuOpen(false)}
-                                className="py-3 px-4 text-sm font-medium hover:opacity-70 rounded-lg flex items-center justify-between"
+                              <button
+                                type="button"
+                                onClick={() => handleMobileMenuNavigate(getMenuItemUrl(item))}
+                                className="py-3 px-4 text-sm font-medium hover:opacity-70 rounded-lg flex items-center justify-between w-full text-left"
                                 style={{ color: headerTextColor || undefined }}
                               >
                                 {item.label}
-                              </LinkWrapper>
+                              </button>
                             )}
                           </div>
                         ))
@@ -713,30 +726,30 @@ export function StorefrontHeaderContent({
                       
                       {/* Featured Promos (Mobile) */}
                       {featuredPromosEnabled && featuredPromosUrl && (
-                        <LinkWrapper
-                          to={featuredPromosUrl}
-                          onClick={() => setMobileMenuOpen(false)}
-                          className="py-3 px-4 text-sm font-bold rounded-lg inline-flex"
+                        <button
+                          type="button"
+                          onClick={() => handleMobileMenuNavigate(featuredPromosUrl)}
+                          className="py-3 px-4 text-sm font-bold rounded-lg inline-flex text-left"
                           style={{ 
                             color: featuredPromosTextColor || headerTextColor || undefined,
                             backgroundColor: featuredPromosBgColor ? `${featuredPromosBgColor}20` : undefined,
                           }}
                         >
                           {featuredPromosLabel}
-                        </LinkWrapper>
+                        </button>
                       )}
                       
                       {/* Customer Area (Mobile) */}
                       {customerAreaEnabled && (
-                        <LinkWrapper
-                          to={`${baseUrl}/conta`}
-                          onClick={() => setMobileMenuOpen(false)}
-                          className="py-3 px-4 text-sm font-medium hover:opacity-70 rounded-lg flex items-center gap-2"
+                        <button
+                          type="button"
+                          onClick={() => handleMobileMenuNavigate(`${baseUrl}/conta`)}
+                          className="py-3 px-4 text-sm font-medium hover:opacity-70 rounded-lg flex items-center gap-2 w-full text-left"
                           style={{ color: headerTextColor || undefined }}
                         >
                           <User className="h-4 w-4" />
                           Minha Conta
-                        </LinkWrapper>
+                        </button>
                       )}
                     </nav>}
 
