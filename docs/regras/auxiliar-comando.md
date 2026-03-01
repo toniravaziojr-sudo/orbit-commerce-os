@@ -1,7 +1,8 @@
 # Auxiliar de Comando — Regras e Especificações
 
 > **Status:** ✅ Ready  
-> **Última atualização:** 2025-01-25
+> **Última atualização:** 2026-03-01  
+> **Cobertura:** 56+ tools — 100% dos módulos (Fases 1–5 completas)
 
 ---
 
@@ -163,20 +164,33 @@ while (true) {
 
 ---
 
-## Ações Suportadas (Tools)
+## Ações Suportadas (Tools) — Cobertura 100%
 
-### Produtos
+> **Total: 56+ tools** — Implementação completa Fases 1–5 (Jan/2025)
+
+---
+
+### Produtos (Escrita)
 
 | Tool | Descrição | Permissões |
 |------|-----------|------------|
 | `createProduct` | Criar produto | owner, admin, manager, editor |
-| `updateProduct` | Atualizar produto | owner, admin, manager, editor |
-| `deleteProduct` | Deletar produto | owner, admin, manager |
+| `updateProduct` | Editar qualquer campo de um produto (nome, descrição, preço, peso, dimensões, SEO, estoque, status) | owner, admin, manager, editor |
+| `deleteProducts` | Deletar produtos | owner, admin, manager |
+| `duplicateProduct` | Duplicar produto (copia categorias, inicia inativo) | owner, admin, manager, editor |
 | `bulkUpdateProductsNCM` | Atualizar NCM em massa | owner, admin, manager |
 | `bulkUpdateProductsCEST` | Atualizar CEST em massa | owner, admin, manager |
-| `bulkUpdateProductsPrice` | Atualizar preços em massa | owner, admin, manager |
-| `bulkUpdateProductsStock` | Atualizar estoque em massa | owner, admin, manager |
+| `bulkUpdateProductsPrice` | Atualizar preços em massa (%, fixo, aumento, redução) | owner, admin, manager |
+| `bulkUpdateProductsStock` | Atualizar estoque em massa (set, add, subtract) | owner, admin, manager |
 | `bulkActivateProducts` | Ativar/desativar em massa | owner, admin, manager |
+
+### Produtos (Leitura)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `searchProducts` | Buscar produtos por nome/SKU | todos |
+| `listProducts` | Listar produtos com filtros (status, preço, categoria, ordenação) | todos |
+| `getProductDetails` | Detalhes completos de um produto (preço, estoque, dimensões, SEO, categorias) | todos |
 
 ### Categorias
 
@@ -185,6 +199,7 @@ while (true) {
 | `createCategory` | Criar categoria | owner, admin, manager, editor |
 | `updateCategory` | Atualizar categoria | owner, admin, manager, editor |
 | `deleteCategory` | Deletar categoria | owner, admin, manager |
+| `listCategories` | Listar todas as categorias (com filtro ativa/inativa) | todos |
 
 ### Cupons/Descontos
 
@@ -193,42 +208,149 @@ while (true) {
 | `createDiscount` | Criar cupom | owner, admin, manager |
 | `updateDiscount` | Atualizar cupom | owner, admin, manager |
 | `deleteDiscount` | Deletar cupom | owner, admin, manager |
+| `listDiscounts` | Listar cupons (ativo/inativo, uso, validade) | todos |
 
-### Pedidos
+### Pedidos (Escrita)
 
 | Tool | Descrição | Permissões |
 |------|-----------|------------|
 | `updateOrderStatus` | Atualizar status do pedido | owner, admin, manager, attendant |
 | `bulkUpdateOrderStatus` | Atualizar status em massa | owner, admin, manager |
 | `addOrderNote` | Adicionar nota ao pedido | owner, admin, manager, attendant |
+| `addTrackingCode` | Adicionar código de rastreio + transportadora | owner, admin, manager |
+| `cancelOrder` | Cancelar pedido (com motivo) | owner, admin |
+| `createManualOrder` | Criar pedido manual (busca/cria cliente, calcula totais) | owner, admin, manager |
 
-### Clientes
+### Pedidos (Leitura)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `searchOrders` | Buscar pedidos por número, cliente, status, período | todos |
+| `getOrderDetails` | Detalhes completos (itens, pagamento, frete, endereço, rastreio) | todos |
+
+### Clientes (Escrita)
 
 | Tool | Descrição | Permissões |
 |------|-----------|------------|
 | `createCustomer` | Criar cliente | owner, admin, manager, attendant |
 | `updateCustomer` | Atualizar cliente | owner, admin, manager, attendant |
-| `deleteCustomer` | Deletar cliente | owner, admin, manager |
+| `deleteCustomer` | Excluir cliente (soft delete) | owner, admin |
+| `addCustomerTag` | Adicionar tag a clientes | owner, admin, manager, attendant |
+| `removeCustomerTag` | Remover tag de clientes | owner, admin, manager |
+| `createCustomerTag` | Criar nova tag de cliente | owner, admin, manager |
 
-### Relatórios
+### Clientes (Leitura)
 
 | Tool | Descrição | Permissões |
 |------|-----------|------------|
-| `salesReport` | Relatório de vendas | owner, admin, manager, editor, viewer |
-| `inventoryReport` | Relatório de estoque | owner, admin, manager, editor, viewer |
-| `customersReport` | Relatório de clientes | owner, admin, manager, editor, viewer |
+| `searchCustomers` | Buscar clientes por nome/email/telefone | todos |
+| `listCustomerTags` | Listar tags disponíveis | todos |
+
+### Composição de Kits
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `addProductComponent` | Adicionar componente a um kit | owner, admin, manager, editor |
+| `removeProductComponent` | Remover componente de um kit | owner, admin, manager, editor |
+| `listProductComponents` | Listar composição de um kit | todos |
+| `bulkSetCompositionType` | Alterar tipo de composição (físico/virtual) em massa | owner, admin, manager |
+| `autoCreateKitCompositions` | Detectar kits sem composição | owner, admin, manager |
+
+### Blog
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `createBlogPost` | Criar post (rascunho ou publicado) | owner, admin, manager, editor |
+| `updateBlogPost` | Editar post (título, conteúdo, status) | owner, admin, manager, editor |
+| `deleteBlogPost` | Excluir post | owner, admin |
+| `listBlogPosts` | Listar posts (filtro por status) | todos |
+
+### Ofertas (Bump/Upsell)
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `createOffer` | Criar regra de bump/upsell | owner, admin |
+| `updateOffer` | Editar oferta | owner, admin |
+| `deleteOffer` | Excluir oferta | owner, admin |
+| `listOffers` | Listar ofertas (tipo, status) | todos |
+
+### Avaliações
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listReviews` | Listar avaliações (filtro por status) | todos |
+| `approveReview` | Aprovar avaliação | owner, admin, manager |
+| `rejectReview` | Rejeitar avaliação | owner, admin, manager |
+| `respondToReview` | Responder avaliação | owner, admin, manager |
+
+### Páginas Institucionais
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listPages` | Listar páginas (publicadas/rascunho) | todos |
+| `createPage` | Criar página institucional | owner, admin, manager, editor |
+| `updatePage` | Editar página | owner, admin, manager, editor |
+
+### Financeiro
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `getFinancialSummary` | Resumo financeiro (receita, pagos, pendentes, ticket médio) | owner, admin |
+
+### Logística
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listShippingMethods` | Listar métodos de frete configurados | todos |
+
+### Notificações
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listNotifications` | Listar notificações (lidas/não lidas) | todos |
+| `markNotificationRead` | Marcar notificação como lida | todos |
+
+### Mídia/Drive
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listFiles` | Listar arquivos do drive (por pasta) | todos |
+| `getStorageUsage` | Verificar uso de armazenamento | owner, admin |
+
+### Email Marketing
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `listEmailLists` | Listar listas de email | todos |
+| `listSubscribers` | Listar inscritos de uma lista | todos |
+| `addSubscriber` | Adicionar inscrito (via RPC sync_subscriber_to_customer_with_tag) | owner, admin, manager |
+| `createEmailCampaign` | Criar campanha de email | owner, admin |
+| `listCampaigns` | Listar campanhas | todos |
+
+### Dashboard e Relatórios
+
+| Tool | Descrição | Permissões |
+|------|-----------|------------|
+| `getDashboardStats` | Resumo do dashboard (receita, pedidos, ticket médio, clientes, produtos) | todos |
+| `getTopProducts` | Produtos mais vendidos por período | todos |
+| `salesReport` | Relatório de vendas por período | owner, admin, manager, editor, viewer |
+| `inventoryReport` | Relatório de estoque (baixo, zerado) | owner, admin, manager, editor, viewer |
+| `customersReport` | Relatório de clientes (total, novos no período) | owner, admin, manager, editor, viewer |
 
 ### Configurações
 
 | Tool | Descrição | Permissões |
 |------|-----------|------------|
-| `updateStoreSettings` | Atualizar configurações da loja | owner, admin |
+| `updateStoreSettings` | Atualizar configurações da loja (nome, email, telefone) | owner, admin |
+| `updateShippingSettings` | Atualizar configurações de frete | owner, admin |
 
 ### Agenda
 
 | Tool | Descrição | Permissões |
 |------|-----------|------------|
-| `createAgendaTask` | Criar tarefa na agenda | todos |
+| `createAgendaTask` | Criar tarefa na agenda (com lembretes) | todos |
+| `listAgendaTasks` | Listar tarefas (filtro por status) | todos |
+| `completeTask` | Marcar tarefa como concluída | todos |
 
 ### Formato de Ação Proposta
 
@@ -358,6 +480,34 @@ O assistente NUNCA deve expor nomes internos de ferramentas, variáveis, IDs ou 
 | `updateOrderStatus` | "atualizar o status do pedido" |
 | `salesReport` | "gerar um relatório de vendas" |
 | `createAgendaTask` | "criar uma tarefa na Agenda" |
+| `searchProducts` | "buscar produtos" |
+| `listProducts` | "listar os produtos" |
+| `getProductDetails` | "ver os detalhes do produto" |
+| `searchOrders` | "buscar pedidos" |
+| `getOrderDetails` | "ver os detalhes do pedido" |
+| `listDiscounts` | "listar os cupons" |
+| `listCategories` | "listar as categorias" |
+| `getDashboardStats` | "ver o resumo do dashboard" |
+| `getTopProducts` | "ver os produtos mais vendidos" |
+| `updateProduct` | "editar o produto" |
+| `duplicateProduct` | "duplicar o produto" |
+| `addTrackingCode` | "adicionar código de rastreio" |
+| `cancelOrder` | "cancelar o pedido" |
+| `createManualOrder` | "criar um pedido manual" |
+| `createBlogPost` | "criar um post no blog" |
+| `listBlogPosts` | "listar os posts do blog" |
+| `createOffer` | "criar uma oferta" |
+| `listReviews` | "listar as avaliações" |
+| `approveReview` | "aprovar a avaliação" |
+| `respondToReview` | "responder a avaliação" |
+| `listPages` | "listar as páginas" |
+| `getFinancialSummary` | "ver o resumo financeiro" |
+| `listEmailLists` | "listar as listas de email" |
+| `addSubscriber` | "adicionar inscrito" |
+| `createEmailCampaign` | "criar uma campanha de email" |
+| `listNotifications` | "ver as notificações" |
+| `listFiles` | "listar os arquivos" |
+| `getStorageUsage` | "verificar uso de armazenamento" |
 | `tool_name` / `tool_args` | NUNCA mencionar |
 | `tenant_id`, `user_id` | NUNCA mencionar |
 | `autopilot_config` | "Configurações da IA de Tráfego" |
