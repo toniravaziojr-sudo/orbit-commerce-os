@@ -257,6 +257,7 @@ const SYSTEM_BLOCKS = new Set([
 │  • Mapear block.type para componente React                              │
 │  • Passar props + context para cada bloco                               │
 │  • Gerenciar isEditing vs público                                       │
+│  • HeaderBlock/FooterBlock: auto-suficientes (fetching próprio do DB)   │
 └─────────────────────────────────────────────────────────────────────────┘
                                     ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
