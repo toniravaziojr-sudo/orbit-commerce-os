@@ -169,14 +169,16 @@ export default function LandingPages() {
             Crie landing pages de alta conversão com inteligência artificial
           </p>
         </div>
-        <Button variant="outline" onClick={() => setIsAIImportOpen(true)}>
-          <Sparkles className="h-4 w-4 mr-2" />
-          Importar com IA
-        </Button>
-        <Button onClick={() => setCreateDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nova Landing Page
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={() => setIsAIImportOpen(true)}>
+            <Sparkles className="h-4 w-4 mr-2" />
+            Importar com IA
+          </Button>
+          <Button onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nova Landing Page
+          </Button>
+        </div>
       </div>
 
       {/* Tabs */}
