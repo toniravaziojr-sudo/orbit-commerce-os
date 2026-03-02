@@ -2,7 +2,7 @@
 
 > **Status:** ✅ Ready  
 > **Última atualização:** 2026-03-02  
-> **Versão do Pipeline:** v3.6.0  
+> **Versão do Pipeline:** v3.6.1  
 > **Cobertura:** 57+ tools — 100% dos módulos (Fases 1–5 completas)
 
 ---
@@ -145,6 +145,18 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
 3. Se o usuário pede ação sobre produtos, PRIMEIRO buscar via tool calling, DEPOIS propor a ação
 4. **PROIBIDO** gerar texto anunciando intenção de ação SEM realmente executar — tools são síncronas
 5. Se não tem IDs → CHAMAR searchProducts. Não responder sem chamar.
+
+### 🔧 Fix: Confirmação Pós-Execução (v3.6.1)
+
+> **Problema corrigido**: Após executar uma ação (ex: recalcular preços de kits), o frontend enviava o resultado para a IA gerar uma resposta de follow-up via streaming. Se esse streaming falhasse (rate limit 429, timeout, ou resposta vazia), o `catch` apenas logava no console — o usuário nunca via confirmação no chat, precisando perguntar "já fez?".
+
+**Mudanças:**
+
+1. **Fallback de stream vazio**: Se o streaming retorna mas `assistantContent` está vazio, insere mensagem local de confirmação com o resultado da ação
+2. **Fallback de erro de stream**: Se o fetch do follow-up falha (catch), insere mensagem local de confirmação em vez de silenciar
+3. **Garantia**: O usuário SEMPRE vê uma confirmação no chat após execução, independente do estado da IA
+
+**Arquivo alterado:** `src/hooks/useCommandAssistant.ts` (função `executeAction`)
 
 ### 🔧 Fix: Busca Reversa de Kits (v3.6.0)
 
