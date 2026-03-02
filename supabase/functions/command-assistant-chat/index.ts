@@ -1331,7 +1331,7 @@ serve(async (req) => {
             toolResult = `Sem permissão para executar ${toolName}. Necessário: ${allowedTypes.join(", ")}`;
           } else if (READ_TOOLS.has(toolName)) {
             try {
-              toolResult = await executeReadTool(supabase, tenant_id, user.id, toolName, toolArgs);
+              toolResult = await executeReadTool(supabase, tenant_id, user.id, toolName, toolArgs, token);
             } catch (e) {
               toolResult = `Erro ao executar ${toolName}: ${e instanceof Error ? e.message : "Erro desconhecido"}`;
             }
