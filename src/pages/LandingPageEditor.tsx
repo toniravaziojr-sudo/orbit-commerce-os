@@ -252,26 +252,48 @@ export default function LandingPageEditor() {
 
   const renderPreview = () => {
     if (!landingPage?.generated_html) {
-      // Check if status is 'generating' (AI creation in progress) vs empty (builder mode)
-      const isGenerating = landingPage?.status === 'generating';
+      const isGeneratingStatus = landingPage?.status === 'generating';
       return (
-        <div className="flex items-center justify-center h-full bg-muted/50">
-          <div className="text-center p-8">
-            {isGenerating ? (
+        <div className="flex items-center justify-center h-full bg-muted/30">
+          <div className="text-center p-8 max-w-lg">
+            {isGeneratingStatus ? (
               <>
-                <Sparkles className="h-12 w-12 text-muted-foreground mx-auto mb-4 animate-pulse" />
-                <h3 className="text-lg font-medium mb-2">Gerando sua landing page...</h3>
+                <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Sparkles className="h-8 w-8 text-primary animate-pulse" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">Gerando sua landing page...</h3>
                 <p className="text-muted-foreground">
-                  Aguarde enquanto a IA cria sua página
+                  Aguarde enquanto a IA cria sua página. Isso pode levar alguns segundos.
                 </p>
               </>
             ) : (
               <>
-                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">Sua landing page está pronta para edição</h3>
-                <p className="text-muted-foreground">
-                  Use o Editor IA ao lado para descrever o que deseja criar, ou edite o HTML diretamente.
+                <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Wand2 className="h-8 w-8 text-primary" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">Comece a criar sua página</h3>
+                <p className="text-muted-foreground mb-6">
+                  Use o <strong>Editor IA</strong> ao lado para descrever o que deseja. A IA vai gerar o conteúdo completo para você.
                 </p>
+                <div className="grid grid-cols-1 gap-2 text-left">
+                  {[
+                    'Crie uma landing page de promoção com banner, produtos e CTA',
+                    'Faça uma página de captura de leads com formulário',
+                    'Crie uma página de lançamento com countdown e benefícios',
+                  ].map((suggestion, i) => (
+                    <button
+                      key={i}
+                      className="text-sm text-left px-4 py-3 rounded-lg border border-border bg-card hover:bg-accent hover:border-primary/30 transition-colors cursor-pointer"
+                      onClick={() => {
+                        setActiveTab('editor');
+                        setPromptInput(suggestion);
+                      }}
+                    >
+                      <span className="text-muted-foreground mr-2">💡</span>
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
               </>
             )}
           </div>
