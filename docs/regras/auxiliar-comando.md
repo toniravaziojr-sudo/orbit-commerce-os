@@ -644,6 +644,10 @@ O `memoryContext` é concatenado ao final do system prompt de cada IA, contendo:
 - **Excluir (soft)**: `.update({ deleted_at: new Date().toISOString() })`
 - **Listar não-deletados**: `.is("deleted_at", null)`
 
+### bulkUpdateProductsPrice — Validação de Resultado
+
+A tool `bulkUpdateProductsPrice` retorna `success: false` se `updateCount === 0` (nenhum produto atualizado). Isso impede que a IA trate uma atualização falhada como sucesso e entre em loop de retry.
+
 ---
 
 ## Persistência de Rascunho (Draft)
@@ -670,6 +674,27 @@ O campo de input do chat salva automaticamente o texto digitado no `localStorage
 
 ---
 
+## Injeção de Dados Internos (CRÍTICO)
+
+Quando a Edge Function `command-assistant-chat` executa tools de leitura automaticamente (native tool calling), o resultado é injetado de volta ao Gemini em **dois formatos**:
+
+1. **Texto legível** — para o modelo gerar resposta amigável ao lojista
+2. **JSON interno** — marcado com `[DADOS_INTERNOS_JSON]...[/DADOS_INTERNOS_JSON]` — contendo os **UUIDs reais** do banco
+
+### Por que dois formatos?
+
+Sem o JSON interno, o modelo **inventa IDs falsos** (ex: `prod_12345`, `abc-123`) porque não consegue extrair UUIDs de texto natural. O JSON garante que o modelo use os IDs reais ao propor ações de escrita.
+
+### Regras do System Prompt
+
+O system prompt instrui o modelo a:
+- **EXTRAIR** IDs exclusivamente do bloco `[DADOS_INTERNOS_JSON]`
+- **NUNCA** inventar, inferir ou fabricar IDs
+- **Buscar cada produto individualmente** em operações batch (um `searchProducts` por item)
+- **Propor ação imediatamente** quando a busca retorna resultado único
+
+---
+
 ## Regra de Decisão Rápida (System Prompt)
 
 A IA deve ser DECISIVA e não fazer perguntas desnecessárias ao lojista.
@@ -691,6 +716,7 @@ A IA deve ser DECISIVA e não fazer perguntas desnecessárias ao lojista.
 - ❌ "O ID do produto é prod-0026. É esse mesmo?"
 - ❌ Repetir dados já visíveis em mensagens anteriores
 - ❌ Fazer 2+ perguntas antes de propor a ação
+- ❌ Inventar IDs curtos como `prod_12345` — usar UUID real do JSON interno
 - ✅ "Encontrei o **Shampoo X** (R$ 311,82). Vou atualizar para **R$ 97,90**:" + bloco action
 
 ---
