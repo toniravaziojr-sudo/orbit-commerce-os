@@ -90,17 +90,21 @@ Landing Pages de IA são páginas HTML standalone de alta conversão, geradas e 
 ## Fluxos de Criação
 
 ### 1. Criar com IA (wizard completo)
-1. Usuário clica "Nova Landing Page"
+1. Usuário clica "Criar com IA" (botão principal com ícone Sparkles)
 2. Preenche nome, slug, seleciona produtos, URL de referência, prompt
 3. Sistema cria registro em `ai_landing_pages` (status: `generating`)
 4. Edge function `ai-landing-page-generate` gera HTML via Gemini
 5. Redireciona para `/landing-pages/:id`
 
-### 2. Criar no Builder (em branco)
+### 2. Criar no Builder (Visual Builder)
 1. Usuário clica "Criar no Builder"
-2. Sistema cria registro em `ai_landing_pages` (status: `draft`, `generated_html: ''`)
-3. Redireciona para `/landing-pages/:id`
-4. Usuário edita manualmente no editor
+2. Dialog solicita nome da página
+3. Sistema cria um `page_template` com conteúdo padrão (Header + Section + Footer)
+4. Sistema cria registro em `store_pages` (type: `landing_page`, status: `draft`) vinculado ao template
+5. Redireciona para `/pages/:id/builder` (Visual Builder — mesmo editor das Páginas Institucionais)
+6. Usuário edita visualmente no builder
+
+> **IMPORTANTE:** Landing Pages criadas no Builder usam `store_pages` (type: `landing_page`) e o Visual Builder. Landing Pages criadas com IA usam `ai_landing_pages` e o editor HTML.
 
 ### 3. Importar com IA
 1. Usuário clica "Importar com IA"
