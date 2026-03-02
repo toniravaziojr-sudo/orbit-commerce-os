@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.18.0"; // Add TikTok Ads CRUD tools (create, toggle, budget)
+const VERSION = "v5.18.1"; // Fix: sanitize content:null for Gemini compatibility in tool_calls and history
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -4164,7 +4164,8 @@ Deno.serve(async (req) => {
       if (i === history.length - 1 && m.role === "user" && m.attachments) {
         aiMessages.push(buildUserMessage(m.content || "", m.attachments));
       } else {
-        aiMessages.push({ role: m.role, content: m.content });
+        // CRITICAL: Gemini rejects content:null — sanitize to empty string
+        aiMessages.push({ role: m.role, content: m.content || "" });
       }
     }
 
@@ -4230,7 +4231,7 @@ Deno.serve(async (req) => {
         console.log(`[ads-chat][${VERSION}] Tool round ${round + 1}: ${currentToolCalls.map((t: any) => t.function.name).join(", ")}`);
         
         // Build assistant message with tool_calls
-        const assistantMsg: any = { role: "assistant", content: null, tool_calls: currentToolCalls.map((tc: any) => ({ id: tc.id, type: "function", function: { name: tc.function.name, arguments: tc.function.arguments } })) };
+        const assistantMsg: any = { role: "assistant", content: "", tool_calls: currentToolCalls.map((tc: any) => ({ id: tc.id, type: "function", function: { name: tc.function.name, arguments: tc.function.arguments } })) };
         loopMessages.push(assistantMsg);
         
         // Execute tool calls IN PARALLEL for performance (v5.9.0)
