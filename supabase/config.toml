@@ -1,5 +1,8 @@
 project_id = "ojssezfjhdvvncsqyhyq"
 
+[functions.ai-import-page]
+verify_jwt = false
+
 [functions.import-data-health]
 verify_jwt = false
 
