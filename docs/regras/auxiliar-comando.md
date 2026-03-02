@@ -157,7 +157,11 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
 
 **Fluxo esperado:** `listKitsSummary` → agrupar por faixa → `applyKitDiscount` com os IDs e percentuais
 
-**System prompt atualizado:** Seção "KITS E COMPOSIÇÕES" instrui o fluxo completo de desconto por faixa.
+**Regra de decisão obrigatória (v3.7.0):**
+- Se o pedido menciona "desconto", "%" ou "faixa de unidades" → **OBRIGATÓRIO** usar `listKitsSummary` + `applyKitDiscount`. NUNCA usar `recalculateKitPrices` para isso.
+- Se o pedido é "recalcular/atualizar preço base" (sem desconto) → usar `findKitsContainingProduct` + `recalculateKitPrices`
+
+**System prompt atualizado:** Seção "KITS E COMPOSIÇÕES" instrui o fluxo completo com regra de decisão explícita.
 
 ### 🔧 Fix: Confirmação Pós-Execução (v3.6.1)
 
