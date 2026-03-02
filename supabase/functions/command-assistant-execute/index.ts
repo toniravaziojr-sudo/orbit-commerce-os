@@ -2919,7 +2919,50 @@ async function executeTool(
       const { productIds, removeCompareAtPrice } = tool_args;
       
       // Find all kits that contain any of the given products as components
-      let kitQuery = supabase
+      // NOTE: product_components does NOT have tenant_id — tenant isolation is via products table
+      
+      // First, get kit IDs scoped to this tenant
+      let kitIds: Set<string>;
+      if (productIds && productIds.length > 0) {
+        // Find kits containing the specified products
+        const { data: affectedComponents } = await supabase
+          .from("product_components")
+          .select("parent_product_id")
+          .in("component_product_id", productIds);
+        
+        const candidateKitIds = [...new Set((affectedComponents || []).map((c: any) => c.parent_product_id))];
+        
+        if (candidateKitIds.length === 0) {
+          return { success: true, message: "Nenhum kit encontrado com esses produtos como componentes.", data: { affected: 0 } };
+        }
+        
+        // Validate these kits belong to this tenant
+        const { data: tenantKits } = await supabase
+          .from("products")
+          .select("id")
+          .in("id", candidateKitIds)
+          .eq("tenant_id", tenant_id);
+        
+        kitIds = new Set((tenantKits || []).map((k: any) => k.id));
+        if (kitIds.size === 0) {
+          return { success: true, message: "Nenhum kit encontrado com esses produtos como componentes.", data: { affected: 0 } };
+        }
+      } else {
+        // Get all kits for this tenant
+        const { data: tenantKits } = await supabase
+          .from("products")
+          .select("id")
+          .eq("tenant_id", tenant_id)
+          .eq("product_format", "with_composition");
+        
+        kitIds = new Set((tenantKits || []).map((k: any) => k.id));
+        if (kitIds.size === 0) {
+          return { success: true, message: "Nenhum kit para recalcular.", data: { affected: 0 } };
+        }
+      }
+      
+      // Fetch all components for the identified kits
+      const { data: allComponents, error: compError } = await supabase
         .from("product_components")
         .select(`
           parent_product_id,
@@ -2929,26 +2972,8 @@ async function executeTool(
             id, name, sku, price
           )
         `)
-        .eq("tenant_id", tenant_id);
-      
-      // If specific product IDs given, find kits containing those products
-      let kitIds: Set<string>;
-      if (productIds && productIds.length > 0) {
-        const { data: affectedComponents } = await supabase
-          .from("product_components")
-          .select("parent_product_id")
-          .in("component_product_id", productIds);
-        
-        kitIds = new Set((affectedComponents || []).map((c: any) => c.parent_product_id));
-        
-        if (kitIds.size === 0) {
-          return { success: true, message: "Nenhum kit encontrado com esses produtos como componentes.", data: { affected: 0 } };
-        }
-        
-        kitQuery = kitQuery.in("parent_product_id", Array.from(kitIds));
-      }
-      
-      const { data: allComponents, error: compError } = await kitQuery.order("sort_order");
+        .in("parent_product_id", Array.from(kitIds))
+        .order("sort_order");
       if (compError) throw new Error(compError.message);
       
       // Group components by parent kit
