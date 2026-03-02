@@ -4,9 +4,27 @@
 
 ## Visão Geral
 
-Páginas estáticas customizáveis para conteúdo institucional da loja (Sobre, Contato, Políticas, etc.). Utiliza o Visual Builder para edição visual de blocos.
+Módulo unificado de **Páginas** (`/pages`) que combina Páginas Institucionais, Landing Pages com IA e Landing Pages no Builder em uma **única listagem** (sem abas). Todas as páginas são criadas e gerenciadas com as mesmas ferramentas.
 
-O módulo "Páginas da Loja" (`/pages`) unifica **Páginas Institucionais** e **Landing Pages** em duas abas separadas. Ver `docs/regras/landing-pages.md` para regras de Landing Pages.
+### Modos de Criação
+
+O botão "Criar Página" oferece 3 opções via dropdown:
+
+| Opção | Descrição |
+|-------|-----------|
+| **No Builder** | Insere nome e slug, redireciona para o Visual Builder (blocos nativos) |
+| **Com IA** | Geração completa com IA (chat para ajustar, etc.) — cria `ai_landing_pages` |
+| **Importar com IA** | Importa página a partir de URL alvo — cria `ai_landing_pages` |
+
+### Fontes de Dados Unificadas
+
+A listagem mescla 3 fontes em uma tabela única ordenada por `created_at`:
+
+| Fonte | Tabela | Badge |
+|-------|--------|-------|
+| Institucional | `store_pages` (type != landing_page) | — |
+| Landing (Builder) | `store_pages` (type = landing_page) | `Landing` |
+| Landing (IA) | `ai_landing_pages` | `IA` |
 
 ## Rotas
 
@@ -152,13 +170,24 @@ Cada página pode ter um template dedicado criado automaticamente ao criar a pá
 
 ## Fluxo de Criação
 
-1. Usuário clica "Nova Página" no admin
+### Via Builder (padrão)
+1. Usuário clica "Criar Página" → "No Builder"
 2. Preenche título (slug gerado automaticamente)
 3. Sistema cria `store_pages` + `page_templates` associado
 4. Redireciona para `/pages/:pageId/builder`
 5. Editor visual carrega com estrutura padrão (Header + Section vazia + Footer)
 6. Usuário adiciona blocos e edita conteúdo
 7. Pode salvar rascunho ou publicar
+
+### Via IA (geração)
+1. Usuário clica "Criar Página" → "Com IA"
+2. Diálogo de criação de landing page com chat IA
+3. Sistema cria `ai_landing_pages` com HTML/CSS gerado
+
+### Via IA (importação)
+1. Usuário clica "Criar Página" → "Importar com IA"
+2. Insere URL da página alvo
+3. Sistema importa e recria via IA em `ai_landing_pages`
 
 ---
 

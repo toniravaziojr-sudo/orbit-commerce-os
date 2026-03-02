@@ -4,7 +4,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v3.1.0"; // Fix: force tool calling instead of announcing searches, add anti-hallucination rules
+const VERSION = "v3.2.0"; // Fix: allow tool calling in post-execution flow for multi-step operations
 // ===========================================================
 
 const corsHeaders = {
@@ -1015,10 +1015,10 @@ ${toolDescriptions}`;
 
 ## ⚠️ PÓS-EXECUÇÃO (PRIORIDADE MÁXIMA):
 A próxima mensagem contém o RESULTADO de uma ação JÁ EXECUTADA.
-- PROIBIDO propor a mesma ação novamente
-- PROIBIDO incluir blocos \`\`\`action\`\`\`
-- Apenas confirme o resultado de forma amigável
-- Se houver próximas etapas DIFERENTES, proponha apenas a PRÓXIMA`;
+- PROIBIDO propor a MESMA ação que acabou de ser executada
+- Se o usuário pediu MÚLTIPLAS etapas (ex: atualizar preços E recalcular kits), PROSSIGA para a PRÓXIMA etapa
+- Para a próxima etapa, use function calling para buscar dados necessários (ex: searchProducts para encontrar IDs)
+- Se todas as etapas já foram concluídas, apenas confirme de forma amigável SEM propor novas ações`;
   }
 
   prompt += `\n\nResponda sempre em português brasileiro de forma amigável e profissional.`;
@@ -1295,10 +1295,13 @@ serve(async (req) => {
       });
     }
 
-    // ==================== MUDANÇA 2: Skip tool calling for post-execution ====================
+    // ==================== POST-EXECUTION: Allow tool calling for multi-step operations ====================
+    // v3.2.0: Previously skipped Phase 1 entirely for is_tool_result, which prevented the AI
+    // from calling searchProducts to find IDs for the NEXT step (e.g., recalculating kits after updating prices).
+    // Now we allow tool calling so the AI can fetch data needed for subsequent steps.
     if (is_tool_result) {
-      console.log(`[command-assistant-chat] Post-execution: skipping tool calling, streaming directly`);
-      return await streamFromAI(messages);
+      console.log(`[command-assistant-chat] Post-execution: allowing tool calling for potential next steps`);
+      // Falls through to the normal tool calling loop below
     }
 
     // ==================== NATIVE TOOL CALLING LOOP ====================
