@@ -1167,12 +1167,13 @@ Para propor uma ação de ESCRITA, use o formato JSON no final da sua resposta:
 
 **REGRA CRÍTICA**: O campo "tool_args" NUNCA pode ser vazio ({}). Ele DEVE conter todos os parâmetros necessários.
 
-## REGRA PÓS-EXECUÇÃO (CRÍTICA)
-Quando você receber uma mensagem que começa com "[Resultado da ação", isso significa que uma ação já foi EXECUTADA. Neste caso:
-1. NÃO proponha a mesma ação novamente
-2. NÃO inclua nenhum bloco \`\`\`action\`\`\` na resposta
-3. Apenas confirme o resultado para o usuário de forma amigável
-4. Se houver próximas etapas pendentes, proponha apenas a PRÓXIMA ação
+## REGRA PÓS-EXECUÇÃO (MÁXIMA PRIORIDADE — NUNCA VIOLAR)
+Quando você receber uma mensagem que começa com "[Resultado da ação", isso significa que a ação JÁ FOI EXECUTADA COM SUCESSO. Neste caso:
+1. **PROIBIDO** propor a mesma ação novamente — ela já foi executada
+2. **PROIBIDO** incluir qualquer bloco \`\`\`action\`\`\` na resposta
+3. Apenas confirme o resultado de forma amigável e resumida
+4. Se houver próximas etapas DIFERENTES pendentes, proponha apenas a PRÓXIMA ação diferente
+5. NUNCA repita uma ação que acabou de ser executada, mesmo que parcialmente
 
 Responda sempre em português brasileiro de forma amigável e profissional.`;
 }
@@ -1281,11 +1282,16 @@ serve(async (req) => {
       console.error("[command-assistant-chat] Memory fetch error:", e);
     }
 
+    // If this is a tool result, inject a strong reminder into the system prompt
+    if (is_tool_result) {
+      SYSTEM_PROMPT += `\n\n⚠️ ATENÇÃO: A próxima mensagem do tipo "tool" contém o RESULTADO de uma ação que JÁ FOI EXECUTADA. NÃO proponha a mesma ação novamente. NÃO inclua blocos \`\`\`action\`\`\`. Apenas confirme o resultado ao usuário.`;
+    }
+
     const messages: any[] = [
       { role: "system", content: SYSTEM_PROMPT },
       ...(history || []).map((m) => ({
-        role: m.role === "tool" ? "assistant" : m.role,
-        content: m.content || "",
+        role: m.role === "tool" ? "user" : m.role,
+        content: m.role === "tool" ? `[RESULTADO DE AÇÃO EXECUTADA — NÃO RE-PROPOR]: ${m.content || ""}` : (m.content || ""),
       })),
     ];
 
