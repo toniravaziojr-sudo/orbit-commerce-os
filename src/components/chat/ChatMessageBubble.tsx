@@ -109,7 +109,7 @@ export function ChatMessageBubble({
       </div>
 
       {/* Content */}
-      <div className="flex flex-col gap-1 min-w-0 max-w-[92%] pt-0.5">
+      <div className="flex flex-col gap-1 min-w-0 max-w-[92%] pt-0.5 overflow-hidden break-words">
         {modeIndicator}
 
         {isTool ? (
