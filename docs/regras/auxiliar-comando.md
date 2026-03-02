@@ -607,6 +607,27 @@ O `memoryContext` é concatenado ao final do system prompt de cada IA, contendo:
 
 ---
 
+## Mapeamento de Colunas — Tabela `products`
+
+> ⚠️ **CRÍTICO**: A Edge Function `command-assistant-execute` DEVE usar os nomes corretos das colunas do banco.
+
+| Conceito | Coluna CORRETA | ❌ NÃO usar |
+|----------|---------------|-------------|
+| Status ativo/inativo | `status` (string: `"active"` / `"inactive"`) | `is_active` (não existe) |
+| Código NCM | `ncm` | `ncm_code` (não existe) |
+| Código CEST | `cest` | `cest_code` (não existe) |
+| Soft delete | `deleted_at` (timestamp, NULL = ativo) | — |
+
+### Regras de uso
+
+- **Filtrar ativos**: `.eq("status", "active")`
+- **Ativar produto**: `.update({ status: "active" })`
+- **Desativar produto**: `.update({ status: "inactive" })`
+- **Excluir (soft)**: `.update({ deleted_at: new Date().toISOString() })`
+- **Listar não-deletados**: `.is("deleted_at", null)`
+
+---
+
 ## Checklist
 
 - [ ] Painel abre com ⌘K
