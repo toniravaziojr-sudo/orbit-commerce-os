@@ -2,8 +2,8 @@
 
 > **Status:** ✅ Ready  
 > **Última atualização:** 2026-03-02  
-> **Versão do Pipeline:** v3.5.0  
-> **Cobertura:** 56+ tools — 100% dos módulos (Fases 1–5 completas)
+> **Versão do Pipeline:** v3.6.0  
+> **Cobertura:** 57+ tools — 100% dos módulos (Fases 1–5 completas)
 
 ---
 
@@ -114,7 +114,7 @@ Todos os inputs de chat usam o padrão **card pill**:
 
 ---
 
-## Arquitetura (v3.5.0 — OpenAI Nativa + Uma Ação por Vez + Anti-Alucinação)
+## Arquitetura (v3.6.0 — OpenAI Nativa + Busca Reversa de Kits)
 
 ### Modelo de IA
 
@@ -128,7 +128,7 @@ O sistema usa **native tool calling** da OpenAI para executar tools de leitura a
 
 Essas tools são executadas internamente pela Edge Function `command-assistant-chat` antes de gerar a resposta final. O usuário não vê botão de confirmação para elas:
 
-`searchProducts`, `listProducts`, `getProductDetails`, `listProductComponents`, `searchOrders`, `getOrderDetails`, `listDiscounts`, `listCategories`, `getDashboardStats`, `getTopProducts`, `listCustomerTags`, `searchCustomers`, `listBlogPosts`, `listOffers`, `listReviews`, `listPages`, `getFinancialSummary`, `listShippingMethods`, `listNotifications`, `listFiles`, `getStorageUsage`, `listEmailLists`, `listSubscribers`, `listCampaigns`, `listAgendaTasks`, `inventoryReport`, `customersReport`, `salesReport`
+`searchProducts`, `listProducts`, `getProductDetails`, `listProductComponents`, `findKitsContainingProduct`, `searchOrders`, `getOrderDetails`, `listDiscounts`, `listCategories`, `getDashboardStats`, `getTopProducts`, `listCustomerTags`, `searchCustomers`, `listBlogPosts`, `listOffers`, `listReviews`, `listPages`, `getFinancialSummary`, `listShippingMethods`, `listNotifications`, `listFiles`, `getStorageUsage`, `listEmailLists`, `listSubscribers`, `listCampaigns`, `listAgendaTasks`, `inventoryReport`, `customersReport`, `salesReport`
 
 #### Tools de Escrita (Confirmação via botão)
 
@@ -145,6 +145,16 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
 3. Se o usuário pede ação sobre produtos, PRIMEIRO buscar via tool calling, DEPOIS propor a ação
 4. **PROIBIDO** gerar texto anunciando intenção de ação SEM realmente executar — tools são síncronas
 5. Se não tem IDs → CHAMAR searchProducts. Não responder sem chamar.
+
+### 🔧 Fix: Busca Reversa de Kits (v3.6.0)
+
+> **Problema corrigido**: Ao perguntar "quais kits contêm o produto X?", a IA usava apenas `listProductComponents` (parent→children) e não encontrava nada, pois o produto X não era um kit. A busca reversa (child→parents) não existia, causando a resposta incorreta "não há kits associados".
+
+**Mudanças:**
+
+1. **Nova tool `findKitsContainingProduct`**: Busca reversa na tabela `product_components` filtrando por `component_product_id`, retornando todos os kits-pai com nome, SKU, preço e quantidade do componente
+2. **System prompt atualizado**: Seção "KITS E COMPOSIÇÕES" instrui a IA a SEMPRE usar `findKitsContainingProduct` quando o usuário perguntar sobre kits que contêm um produto específico
+3. **Regra de uso**: `listProductComponents` = "o que tem DENTRO deste kit"; `findKitsContainingProduct` = "quais kits USAM este produto"
 
 ### 🔧 Fix: Uma Ação por Vez (v3.5.0)
 
@@ -350,7 +360,8 @@ for (const chunk of chunks) {
 |------|-----------|------------|
 | `addProductComponent` | Adicionar componente a um kit | owner, admin, manager, editor |
 | `removeProductComponent` | Remover componente de um kit | owner, admin, manager, editor |
-| `listProductComponents` | Listar composição de um kit | todos |
+| `listProductComponents` | Listar composição de um kit (parent → children) | todos |
+| `findKitsContainingProduct` | Busca reversa: quais kits contêm um produto como componente (child → parents) | todos |
 | `bulkSetCompositionType` | Alterar tipo de composição (físico/virtual) em massa | owner, admin, manager |
 | `autoCreateKitCompositions` | Detectar kits sem composição | owner, admin, manager |
 | `recalculateKitPrices` | Recalcular preços de kits baseado nos componentes (Σ preço×qtd) | owner, admin, manager |
