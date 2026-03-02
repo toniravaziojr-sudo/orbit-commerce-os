@@ -648,6 +648,15 @@ O `memoryContext` é concatenado ao final do system prompt de cada IA, contendo:
 
 A tool `bulkUpdateProductsPrice` retorna `success: false` se `updateCount === 0` (nenhum produto atualizado). Isso impede que a IA trate uma atualização falhada como sucesso e entre em loop de retry.
 
+### recalculateKitPrices — Isolamento de Tenant
+
+> ⚠️ **CRÍTICO**: A tabela `product_components` **NÃO possui** coluna `tenant_id`. O isolamento de tenant é feito via tabela `products` (que possui `tenant_id`).
+
+**Fluxo correto:**
+1. Identificar kits do tenant via `products` (`.eq("tenant_id", tenant_id).eq("product_format", "with_composition")`)
+2. Buscar componentes via `product_components` filtrando por `parent_product_id` (IDs já validados pelo tenant)
+3. **NUNCA** filtrar `product_components` por `tenant_id` — causa erro `column does not exist`
+
 ---
 
 ## Persistência de Rascunho (Draft)
