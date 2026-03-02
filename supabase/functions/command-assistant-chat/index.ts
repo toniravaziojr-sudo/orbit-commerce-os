@@ -4,7 +4,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v3.5.0"; // Switch to OpenAI native for tool calling (reliable tool support)
+const VERSION = "v3.6.0"; // Add findKitsContainingProduct read tool for reverse composition lookup
 // ===========================================================
 
 const corsHeaders = {
@@ -14,7 +14,7 @@ const corsHeaders = {
 
 // ==================== READ TOOLS (auto-executed server-side) ====================
 const READ_TOOLS = new Set([
-  "searchProducts", "listProducts", "getProductDetails", "listProductComponents",
+  "searchProducts", "listProducts", "getProductDetails", "listProductComponents", "findKitsContainingProduct",
   "searchOrders", "getOrderDetails", "listDiscounts", "listCategories",
   "getDashboardStats", "getTopProducts", "listCustomerTags", "searchCustomers",
   "listBlogPosts", "listOffers", "listReviews", "listPages",
@@ -29,6 +29,7 @@ const READ_PERMISSION_MAP: Record<string, string[]> = {
   listProducts: ["owner", "admin", "manager", "editor", "attendant", "viewer"],
   getProductDetails: ["owner", "admin", "manager", "editor", "attendant", "viewer"],
   listProductComponents: ["owner", "admin", "manager", "editor", "viewer"],
+  findKitsContainingProduct: ["owner", "admin", "manager", "editor", "viewer"],
   searchOrders: ["owner", "admin", "manager", "attendant", "viewer"],
   getOrderDetails: ["owner", "admin", "manager", "attendant", "viewer"],
   listDiscounts: ["owner", "admin", "manager", "viewer"],
@@ -112,13 +113,27 @@ const OPENAI_READ_TOOLS = [
     type: "function",
     function: {
       name: "listProductComponents",
-      description: "Listar componentes/composição de um kit",
+      description: "Listar componentes/composição de um kit (dado o ID do kit pai)",
       parameters: {
         type: "object",
         properties: {
-          parentProductId: { type: "string", description: "ID do produto kit" },
+          parentProductId: { type: "string", description: "ID do produto kit (pai)" },
         },
         required: ["parentProductId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "findKitsContainingProduct",
+      description: "Busca inversa: dado um produto simples (componente), encontra TODOS os kits que o contêm. Use ANTES de recalculateKitPrices para saber quais kits serão afetados.",
+      parameters: {
+        type: "object",
+        properties: {
+          componentProductId: { type: "string", description: "ID do produto simples (componente)" },
+        },
+        required: ["componentProductId"],
       },
     },
   },
@@ -1002,6 +1017,12 @@ Fale como se conversa com LOJISTA. NUNCA exponha nomes de tools, IDs de sistema 
 - Após o resultado da primeira etapa, proponha a próxima automaticamente
 - NUNCA use placeholders como "<novoID>" — espere o resultado real da etapa anterior
 - Exemplo: se o usuário pede "duplicar e alterar nome", primeiro proponha APENAS a duplicação
+
+## KITS E COMPOSIÇÕES (IMPORTANTE):
+- listProductComponents: dado um KIT (pai), lista seus componentes
+- findKitsContainingProduct: dado um COMPONENTE (produto simples), encontra os KITS que o contêm ← USE SEMPRE que o usuário pedir para recalcular kits de um produto
+- recalculateKitPrices: aceita productIds de componentes (produtos simples) e encontra automaticamente os kits que os contêm
+- Quando o usuário pede "atualizar kits de X", PRIMEIRO use findKitsContainingProduct para listar os kits afetados, DEPOIS proponha recalculateKitPrices
 
 ## OPERAÇÕES EM LOTE (AÇÃO ÚNICA):
 Quando alterar MÚLTIPLOS produtos com A MESMA operação: busque TODOS automaticamente, extraia IDs do JSON, proponha UMA ação com todos os IDs.
