@@ -4,7 +4,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v3.2.0"; // Fix: allow tool calling in post-execution flow for multi-step operations
+const VERSION = "v3.3.0"; // Fix: is_tool_result messages were filtered from history, causing AI to not see execution results
 // ===========================================================
 
 const corsHeaders = {
@@ -1095,13 +1095,16 @@ serve(async (req) => {
         });
       if (msgError) console.error("Error saving message:", msgError);
     } else {
+      // v3.3.0 FIX: Save as "user" role instead of "tool" so it's NOT filtered from history.
+      // Previously saved as "tool" which was filtered at line 1135, causing the AI to never see
+      // the action result and hallucinate about "searching" or re-propose the same action.
       const { error: toolMsgError } = await supabase
         .from("command_messages")
         .insert({
           conversation_id,
           tenant_id,
           user_id: user.id,
-          role: "tool",
+          role: "user",
           content: message,
           metadata: { is_tool_result: true },
         });
@@ -1185,7 +1188,7 @@ serve(async (req) => {
     }
 
     // ==================== HELPER: Create synthetic SSE stream from text ====================
-    function createSyntheticStream(text: string): ReadableStream {
+    function createSyntheticStream(text: string, proposedActions?: any[]): ReadableStream {
       const encoder = new TextEncoder();
       return new ReadableStream({
         start(controller) {
@@ -1197,6 +1200,11 @@ serve(async (req) => {
               choices: [{ delta: { content: chunk } }],
             });
             controller.enqueue(encoder.encode(`data: ${sseData}\n\n`));
+          }
+          // v3.3.0: Emit proposed_actions so frontend can render action buttons immediately
+          if (proposedActions && proposedActions.length > 0) {
+            const actionsData = JSON.stringify({ proposed_actions: proposedActions });
+            controller.enqueue(encoder.encode(`data: ${actionsData}\n\n`));
           }
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
@@ -1388,11 +1396,33 @@ serve(async (req) => {
     if (phase1FinalContent) {
       console.log(`[command-assistant-chat] Using Phase 1 response directly (no Phase 2 needed)`);
       
-      // Save the message
+      // Save the message and extract proposed actions
       await saveAssistantMessage(phase1FinalContent);
       
+      // Extract proposed actions for synthetic stream emission
+      const actionMatch = phase1FinalContent.match(/```action\s*([\s\S]*?)```/);
+      let streamActions: any[] = [];
+      if (actionMatch) {
+        try {
+          const actionData = JSON.parse(actionMatch[1]);
+          if (actionData.tool_name && actionData.tool_args && Object.keys(actionData.tool_args).length > 0) {
+            streamActions = [{
+              id: crypto.randomUUID(),
+              tool_name: actionData.tool_name,
+              tool_args: actionData.tool_args,
+              description: actionData.description,
+            }];
+          }
+        } catch (e) {
+          console.error("Error parsing action for stream:", e);
+        }
+      }
+      
+      // Clean content for streaming (remove action blocks)
+      const cleanContent = phase1FinalContent.replace(/```action[\s\S]*?```/g, "").trim();
+      
       // Stream it synthetically to the frontend
-      const syntheticStream = createSyntheticStream(phase1FinalContent);
+      const syntheticStream = createSyntheticStream(cleanContent, streamActions);
       
       return new Response(syntheticStream, {
         headers: { ...corsHeaders, "Content-Type": "text/event-stream" },

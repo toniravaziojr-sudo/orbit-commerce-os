@@ -2,7 +2,7 @@
 
 > **Status:** ✅ Ready  
 > **Última atualização:** 2026-03-02  
-> **Versão do Pipeline:** v3.1.0  
+> **Versão do Pipeline:** v3.3.0  
 > **Cobertura:** 56+ tools — 100% dos módulos (Fases 1–5 completas)
 
 ---
@@ -114,7 +114,7 @@ Todos os inputs de chat usam o padrão **card pill**:
 
 ---
 
-## Arquitetura (v3.2.0 — Pipeline Otimizado + Anti-Alucinação + Multi-Step Fix)
+## Arquitetura (v3.3.0 — Pipeline Otimizado + Anti-Alucinação + Multi-Step Fix + History Fix)
 
 ### Arquitetura de Tools: Leitura Automática vs Escrita com Confirmação
 
@@ -152,7 +152,16 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
 2. **System prompt pós-execução atualizado**: Em vez de "PROIBIDO incluir blocos action", agora instrui "PROIBIDO propor a MESMA ação, mas PROSSIGA para a PRÓXIMA etapa se houver".
 3. **Frontend parseProposedActions no follow-up**: O `executeAction` no hook agora parseia `proposed_actions` da resposta de follow-up, permitindo que a IA proponha a próxima ação na sequência.
 
-### Pipeline de Processamento (v3.2)
+### 🔧 Fix History Filtering (v3.3.0)
+
+> **Problema corrigido**: Mensagens de resultado de execução (`is_tool_result`) eram salvas como `role: "tool"` no banco de dados, mas o filtro de histórico (linha 1135) removia TODAS as mensagens `role: "tool"` antes de enviar ao modelo. Resultado: a IA nunca via o resultado da ação executada e alucinava dizendo "estou aguardando a busca" ou re-propunha a mesma ação.
+
+**Mudanças:**
+
+1. **Mensagens de resultado salvas como `role: "user"`**: Resultados de ações confirmadas agora são salvos como mensagem do usuário (em vez de "tool"), garantindo que não sejam filtradas do histórico.
+2. **Synthetic stream emite `proposed_actions`**: O streaming sintético da Phase 1 agora inclui as ações propostas no SSE, permitindo que o frontend renderize botões de confirmação imediatamente sem depender do refetch.
+
+### Pipeline de Processamento (v3.3)
 
 > **Mudança crítica v3**: O pipeline anterior tinha 2 fases (tool calling + streaming separado), o que causava "raciocínio duplo" — a IA pensava uma vez com os dados e depois gerava outra resposta do zero. Agora o pipeline é unificado.
 
@@ -197,15 +206,16 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
    - Se concluído: apenas confirmação textual
 ```
 
-### Otimizações v3.2
+### Otimizações v3.3
 
-| Aspecto | Antes (v2) | v3.0 | v3.2 |
+| Aspecto | Antes (v2) | v3.0 | v3.3 |
 |---------|------------|------|------|
 | Chamadas API por turno | 2 | 1 | 1 |
-| Pós-execução | Re-executava pipeline completo | Streaming direto (sem tools) | Pipeline completo com tools (multi-step) |
-| Multi-step | Travava na 2ª etapa | Travava na 2ª etapa | ✅ Suporte completo |
-| Histórico | 20 mensagens | 50 mensagens | 50 mensagens |
-| Role "tool" no histórico | Mapeado como "assistant" | Filtrado | Filtrado |
+| Pós-execução | Re-executava pipeline completo | Streaming direto (sem tools) | Pipeline completo com tools + resultado visível no histórico |
+| Multi-step | Travava na 2ª etapa | Travava na 2ª etapa | ✅ Suporte completo (resultado preservado no histórico) |
+| Histórico | 20 mensagens | 50 mensagens | 50 mensagens (resultados de ação como "user") |
+| Role "tool" no histórico | Mapeado como "assistant" | Filtrado | Filtrado (resultados de ação salvos como "user") |
+| Ações no streaming sintético | Não emitidas | Não emitidas | ✅ Emitidas via SSE |
 ### Streaming SSE
 
 ```typescript
