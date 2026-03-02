@@ -25,7 +25,8 @@ import {
   Eye,
   Globe,
   Clock,
-  FileText
+  FileText,
+  LayoutTemplate
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -170,6 +171,10 @@ export default function LandingPages() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={() => navigate('/pages')}>
+            <LayoutTemplate className="h-4 w-4 mr-2" />
+            Criar no Builder
+          </Button>
           <Button variant="outline" onClick={() => setIsAIImportOpen(true)}>
             <Sparkles className="h-4 w-4 mr-2" />
             Importar com IA
