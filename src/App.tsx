@@ -360,7 +360,7 @@ const App = () => {
                   <Route path="/menus" element={<Menus />} />
                   <Route path="/pages" element={<Pages />} />
                   <Route path="/page-templates" element={<PageTemplates />} />
-                  <Route path="/landing-pages" element={<LandingPages />} />
+                  <Route path="/landing-pages" element={<Navigate to="/pages" replace />} />
                   <Route path="/landing-pages/:id" element={<LandingPageEditor />} />
                   <Route path="/blog" element={<Blog />} />
                   <Route path="/blog/campaigns/:campaignId" element={<BlogCampaignDetail />} />
