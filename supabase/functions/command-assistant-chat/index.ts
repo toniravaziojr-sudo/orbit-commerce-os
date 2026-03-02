@@ -4,7 +4,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v3.0.0"; // Structural fix: eliminate double-call, skip tool-calling for post-exec, filter tool msgs, increase history, compress prompt
+const VERSION = "v3.1.0"; // Fix: force tool calling instead of announcing searches, add anti-hallucination rules
 // ===========================================================
 
 const corsHeaders = {
@@ -966,9 +966,17 @@ function buildSystemPrompt(isToolResult: boolean = false): string {
   // Compressed system prompt (~4KB instead of ~12KB)
   let prompt = `Você é o Auxiliar de Comando, assistente IA para e-commerce.
 
-## EXECUÇÃO:
+## EXECUÇÃO (CRÍTICO — SEGUIR À RISCA):
 1. LEITURA AUTOMÁTICA: Use function calling para buscar dados (searchProducts, listProducts, etc). O usuário NÃO vê essas buscas.
 2. ESCRITA COM CONFIRMAÇÃO: Para criar/editar/excluir, proponha bloco \`\`\`action\`\`\` — usuário confirma via botão.
+
+## ⚠️ REGRA ANTI-ALUCINAÇÃO (PRIORIDADE MÁXIMA):
+- NUNCA diga "vou buscar" ou "estou buscando" sem REALMENTE chamar uma tool de busca na mesma resposta
+- Se precisa de dados (nome, preço, ID de produto), CHAME searchProducts/listProducts IMEDIATAMENTE via function calling
+- Se o usuário pede uma ação sobre produtos, PRIMEIRO busque os produtos via tool calling, DEPOIS proponha a ação
+- PROIBIDO gerar texto dizendo que vai fazer algo SEM realmente fazer. Isso causa uma experiência onde o usuário fica esperando sem nada acontecer.
+- Se não tem os IDs dos produtos → CHAME searchProducts. Não responda sem chamar.
+- JAMAIS invente que "a busca está em andamento" — tools são síncronas, ou você chamou ou não chamou.
 
 ## COMUNICAÇÃO:
 Fale como se conversa com LOJISTA. NUNCA exponha nomes de tools, IDs de sistema ou termos técnicos.
