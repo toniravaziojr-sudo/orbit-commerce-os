@@ -3,16 +3,39 @@
 // This is a placeholder block used in templates to indicate where page content goes
 // =============================================
 
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { BlockRenderContext } from '@/lib/builder/types';
 
 interface PageContentBlockProps {
   context?: BlockRenderContext;
-  // The actual content is passed via context.pageContent
 }
 
 export function PageContentBlock({ context }: PageContentBlockProps) {
   const content = context?.pageContent || '';
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Add event listeners for carousel navigation buttons (data-scroll-dir)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleNavClick = (e: Event) => {
+      const btn = (e.currentTarget as HTMLElement);
+      const dir = btn.getAttribute('data-scroll-dir');
+      const amount = parseInt(btn.getAttribute('data-scroll-amount') || '320', 10);
+      const track = btn.parentElement?.querySelector('.fc-carousel-track');
+      if (track) {
+        track.scrollBy({ left: dir === 'prev' ? -amount : amount, behavior: 'smooth' });
+      }
+    };
+
+    const buttons = container.querySelectorAll('[data-scroll-dir]');
+    buttons.forEach(btn => btn.addEventListener('click', handleNavClick));
+    
+    return () => {
+      buttons.forEach(btn => btn.removeEventListener('click', handleNavClick));
+    };
+  }, [content]);
   
   // If no content, show placeholder in preview/editor mode
   if (!content) {
@@ -32,6 +55,7 @@ export function PageContentBlock({ context }: PageContentBlockProps) {
   // Render the actual content
   return (
     <div 
+      ref={containerRef}
       className="prose prose-lg max-w-none dark:prose-invert"
       dangerouslySetInnerHTML={{ __html: content }}
     />
