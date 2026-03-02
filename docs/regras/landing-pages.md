@@ -32,11 +32,13 @@ O módulo Landing Pages oferece **dois modos de criação distintos** com tabela
 
 | Rota | Descrição |
 |------|-----------|
-| **Admin:** `/landing-pages` | Listagem de todas as landing pages (IA + Builder) |
+| **Admin:** `/pages` (aba "Landing Pages") | Listagem unificada de todas as landing pages (IA + Builder) |
 | **Admin:** `/landing-pages/:id` | Editor HTML + IA (apenas landing pages IA) |
 | **Admin:** `/pages/:pageId/builder` | VisualBuilder (landing pages Builder) |
 | **Storefront:** `/loja/:slug/ai-lp/:lpSlug` | Landing page IA pública |
 | **Storefront:** `/loja/:slug/lp/:pageSlug` | Landing page Builder pública |
+
+> **NOTA:** A rota `/landing-pages` redireciona para `/pages`. A listagem agora é unificada dentro do módulo "Páginas da Loja" com abas.
 
 ---
 

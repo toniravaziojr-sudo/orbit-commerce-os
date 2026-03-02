@@ -6,7 +6,7 @@
 
 Páginas estáticas customizáveis para conteúdo institucional da loja (Sobre, Contato, Políticas, etc.). Utiliza o Visual Builder para edição visual de blocos.
 
----
+O módulo "Páginas da Loja" (`/pages`) unifica **Páginas Institucionais** e **Landing Pages** em duas abas separadas. Ver `docs/regras/landing-pages.md` para regras de Landing Pages.
 
 ## Rotas
 
