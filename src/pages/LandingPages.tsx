@@ -9,8 +9,6 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useAILandingPageUrl } from "@/hooks/useAILandingPageUrl";
-import { useStorePages } from "@/hooks/useStorePages";
-import { usePageTemplates } from "@/hooks/usePageTemplates";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -84,8 +82,6 @@ export default function LandingPages() {
   const [builderPageName, setBuilderPageName] = useState('');
   const [isCreatingBuilderPage, setIsCreatingBuilderPage] = useState(false);
 
-  const { createPage } = useStorePages();
-  const { createTemplate } = usePageTemplates();
 
   // Get tenant's public URL
   const { baseUrl: tenantBaseUrl } = useAILandingPageUrl({
@@ -148,7 +144,7 @@ export default function LandingPages() {
   };
 
   const handleCreateBuilderPage = async () => {
-    if (!builderPageName.trim()) return;
+    if (!builderPageName.trim() || !tenant?.id || !user?.id) return;
     setIsCreatingBuilderPage(true);
     try {
       const slug = builderPageName.trim().toLowerCase()
@@ -156,28 +152,27 @@ export default function LandingPages() {
         .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
       const uniqueSuffix = Date.now().toString(36);
 
-      // 1. Create a dedicated template
-      const newTemplate = await createTemplate.mutateAsync({
-        name: `Modelo - ${builderPageName}`,
-        slug: `modelo-lp-${slug}-${uniqueSuffix}`,
-        is_default: false,
-      });
+      // Create directly in ai_landing_pages with empty HTML (builder mode)
+      const { data: newPage, error } = await supabase
+        .from('ai_landing_pages')
+        .insert({
+          tenant_id: tenant.id,
+          created_by: user.id,
+          name: builderPageName.trim(),
+          slug: `${slug}-${uniqueSuffix}`,
+          status: 'draft',
+          generated_html: '',
+        })
+        .select()
+        .single();
 
-      // 2. Create the page as landing_page type
-      const newPage = await createPage.mutateAsync({
-        title: builderPageName,
-        slug: `${slug}-${uniqueSuffix}`,
-        type: 'landing_page',
-        status: 'draft',
-        is_published: false,
-        template_id: newTemplate.id,
-        content: null,
-      });
+      if (error) throw error;
 
       setIsBuilderDialogOpen(false);
       setBuilderPageName('');
+      queryClient.invalidateQueries({ queryKey: ['ai-landing-pages'] });
       toast.success('Landing page criada! Abrindo o editor...');
-      navigate(`/pages/${newPage.id}/builder`);
+      navigate(`/landing-pages/${newPage.id}`);
     } catch (error) {
       console.error('Error creating builder landing page:', error);
       toast.error('Erro ao criar landing page');
