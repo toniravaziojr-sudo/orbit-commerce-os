@@ -31,6 +31,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { CreateLandingPageDialog } from "@/components/landing-pages/CreateLandingPageDialog";
 import { LandingPagePreviewDialog } from "@/components/landing-pages/LandingPagePreviewDialog";
+import { ImportPageWithAIDialog } from "@/components/import/ImportPageWithAIDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -66,6 +67,7 @@ export default function LandingPages() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("all");
+  const [isAIImportOpen, setIsAIImportOpen] = useState(false);
 
   // Get tenant's public URL
   const { baseUrl: tenantBaseUrl } = useAILandingPageUrl({
@@ -167,6 +169,10 @@ export default function LandingPages() {
             Crie landing pages de alta conversão com inteligência artificial
           </p>
         </div>
+        <Button variant="outline" onClick={() => setIsAIImportOpen(true)}>
+          <Sparkles className="h-4 w-4 mr-2" />
+          Importar com IA
+        </Button>
         <Button onClick={() => setCreateDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
           Nova Landing Page
@@ -321,6 +327,19 @@ export default function LandingPages() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* AI Import Dialog */}
+      {tenant?.id && (
+        <ImportPageWithAIDialog
+          open={isAIImportOpen}
+          onOpenChange={setIsAIImportOpen}
+          tenantId={tenant.id}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['ai-landing-pages'] });
+            setIsAIImportOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }

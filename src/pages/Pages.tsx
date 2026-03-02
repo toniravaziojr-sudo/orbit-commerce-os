@@ -12,14 +12,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Trash2, FileText, Eye, LayoutTemplate, AlertCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, FileText, Eye, LayoutTemplate, AlertCircle, Sparkles } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { usePrimaryPublicHost, buildPublicStorefrontUrl } from '@/hooks/usePrimaryPublicHost';
 import { validateSlug } from '@/lib/slugValidation';
 import { toast } from 'sonner';
 import { GenerateSeoButton } from '@/components/seo/GenerateSeoButton';
-// ImportPageDialog removido - função descontinuada
+import { ImportPageWithAIDialog } from '@/components/import/ImportPageWithAIDialog';
 
 export default function Pages() {
   const navigate = useNavigate();
@@ -31,6 +31,7 @@ export default function Pages() {
   const [isCreating, setIsCreating] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editingPage, setEditingPage] = useState<any>(null);
+  const [isAIImportOpen, setIsAIImportOpen] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     slug: '',
@@ -169,6 +170,9 @@ export default function Pages() {
         description="Crie e gerencie páginas como Sobre Nós, Política de Privacidade, Landing Pages, etc."
         actions={
           <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsAIImportOpen(true)}>
+              <Sparkles className="mr-2 h-4 w-4" />Importar com IA
+            </Button>
             <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
               <DialogTrigger asChild>
                 <Button><Plus className="mr-2 h-4 w-4" />Nova Página</Button>
@@ -379,6 +383,19 @@ export default function Pages() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* AI Import Dialog */}
+      {currentTenant?.id && (
+        <ImportPageWithAIDialog
+          open={isAIImportOpen}
+          onOpenChange={setIsAIImportOpen}
+          tenantId={currentTenant.id}
+          onSuccess={() => {
+            refetch();
+            setIsAIImportOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }
