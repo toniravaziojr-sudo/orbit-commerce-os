@@ -49,9 +49,11 @@ export function CommandChatInput({ onSend, isStreaming, onCancel, conversationId
   const { user, currentTenant } = useAuth();
 
   const prevConversationIdRef = useRef(conversationId);
+  const isRestoringRef = useRef(false);
 
-  // Save draft to localStorage on every change
+  // Save draft to localStorage on every change (skip during restore)
   useEffect(() => {
+    if (isRestoringRef.current) return;
     const key = getDraftKey(conversationId);
     if (key) {
       try {
@@ -67,7 +69,22 @@ export function CommandChatInput({ onSend, isStreaming, onCancel, conversationId
   // Restore draft when conversation changes
   useEffect(() => {
     if (prevConversationIdRef.current !== conversationId) {
+      isRestoringRef.current = true;
+      // Save draft for the PREVIOUS conversation before switching
+      const prevKey = getDraftKey(prevConversationIdRef.current);
+      if (prevKey) {
+        try {
+          // message state still holds the previous conversation's text
+          const currentText = textareaRef.current?.value || "";
+          if (currentText) {
+            localStorage.setItem(prevKey, currentText);
+          } else {
+            localStorage.removeItem(prevKey);
+          }
+        } catch {}
+      }
       prevConversationIdRef.current = conversationId;
+      // Load draft for the NEW conversation
       const key = getDraftKey(conversationId);
       const saved = key ? (localStorage.getItem(key) || "") : "";
       setMessage(saved);
@@ -75,6 +92,8 @@ export function CommandChatInput({ onSend, isStreaming, onCancel, conversationId
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
       }
+      // Allow save effect to run again after state settles
+      requestAnimationFrame(() => { isRestoringRef.current = false; });
     }
   }, [conversationId]);
 
