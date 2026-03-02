@@ -1,7 +1,8 @@
 # Auxiliar de Comando — Regras e Especificações
 
 > **Status:** ✅ Ready  
-> **Última atualização:** 2026-03-01  
+> **Última atualização:** 2026-03-02  
+> **Versão do Pipeline:** v3.0.0  
 > **Cobertura:** 56+ tools — 100% dos módulos (Fases 1–5 completas)
 
 ---
@@ -113,7 +114,7 @@ Todos os inputs de chat usam o padrão **card pill**:
 
 ---
 
-## Arquitetura
+## Arquitetura (v3.0.0 — Pipeline Otimizado)
 
 ### Arquitetura de Tools: Leitura Automática vs Escrita com Confirmação
 
@@ -129,40 +130,59 @@ Essas tools são executadas internamente pela Edge Function `command-assistant-c
 
 Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confirmar".
 
-#### Fluxo de Execução
+### Pipeline de Processamento (v3)
+
+> **Mudança crítica v3**: O pipeline anterior tinha 2 fases (tool calling + streaming separado), o que causava "raciocínio duplo" — a IA pensava uma vez com os dados e depois gerava outra resposta do zero. Agora o pipeline é unificado.
+
+#### Fluxo Normal (mensagem do usuário)
 
 ```
-1. Usuário digita mensagem no painel
+1. Usuário digita mensagem
    ↓
-2. useCommandAssistant.sendMessage()
-   - Cria conversa se necessário
-   - Adiciona mensagem otimisticamente
+2. POST /command-assistant-chat
+   - Carrega histórico (50 mensagens, filtradas — sem role "tool")
+   - Injeta memórias + system prompt comprimido (~4KB)
    ↓
-3. POST /command-assistant-chat (native tool calling + streaming SSE)
-   - Recebe contexto do tenant + memórias
-   - Envia ao Gemini com tools de leitura em formato OpenAI
-   - Gemini retorna tool_calls → executa server-side → devolve resultado ao Gemini
-   - Loop máximo 5 rodadas de tool calling
-   - Quando Gemini gera resposta final: streama via SSE
-   - Extrai proposed_actions do texto (blocos ```action)
+3. Fase 1: Tool Calling (non-streaming, até 5 rodadas)
+   - Gemini decide se precisa buscar dados
+   - Se sim: executa tools → injeta resultado → repete
+   - Se não: gera resposta final com content
    ↓
-4. Frontend renderiza resposta
+4. ⚡ STREAMING DA RESPOSTA (sem Fase 2 separada!)
+   - Se Fase 1 gerou content (sem mais tool_calls):
+     → Faz STREAMING SINTÉTICO da resposta já gerada
+     → NÃO chama a API novamente (elimina "raciocínio duplo")
+   - Se Fase 1 nunca foi chamada: streaming direto normal
+   ↓
+5. Frontend renderiza resposta
+   - Extrai proposed_actions dos blocos ```action
    - Se há ações de escrita: mostra botões de confirmação
-   ↓
-5. Usuário confirma ação (apenas para escrita)
-   - Botão mostra "Executando..." com spinner (via executingActionId)
-   - Botão fica disabled durante execução
-   ↓
-6. POST /command-assistant-execute
-   - Valida permissões RBAC
-   - Executa ação no banco
-   - Retorna resultado
-   ↓
-7. Fluxo pós-execução (automático)
-   - Frontend envia resultado da ação de volta ao chat (is_tool_result: true)
-   - IA gera resposta de follow-up confirmando/resumindo a execução
-   - UI mostra streaming da resposta de follow-up
 ```
+
+#### Fluxo Pós-Execução (is_tool_result: true)
+
+```
+1. Usuário confirma ação → POST /command-assistant-execute
+   ↓
+2. Frontend envia resultado de volta (is_tool_result: true)
+   ↓
+3. ⚡ PULA Fase 1 (tool calling) — vai direto para streaming
+   - A IA não precisa buscar dados para confirmar uma execução
+   - Gera apenas follow-up de confirmação/resumo
+   ↓
+4. Frontend renderiza follow-up
+```
+
+### Otimizações v3
+
+| Aspecto | Antes (v2) | Agora (v3) |
+|---------|------------|------------|
+| Chamadas API por turno | 2 (tool calling + streaming) | 1 (resposta da Fase 1 é reutilizada) |
+| Latência | ~100% | ~50% (metade das chamadas) |
+| Histórico | 20 mensagens | 50 mensagens |
+| Role "tool" no histórico | Mapeado como "assistant" (confundia IA) | Filtrado (não entra no histórico) |
+| System prompt | ~12KB+ (diluía atenção) | ~4KB (comprimido e focado) |
+| Pós-execução | Re-executava pipeline completo | Streaming direto (sem tools) |
 
 ### Streaming SSE
 
@@ -175,6 +195,20 @@ while (true) {
   
   // Parse SSE chunks
   // data: {"choices":[{"delta":{"content":"..."}}]}
+}
+```
+
+### Streaming Sintético (v3)
+
+Quando a Fase 1 gera a resposta final (sem mais tool_calls), o conteúdo é enviado ao frontend via **streaming sintético** — chunks de ~50 caracteres enviados em formato SSE idêntico ao streaming real. Isso garante a mesma UX de "digitação" sem chamar a API novamente.
+
+```typescript
+// Server-side: streaming sintético
+const chunks = splitIntoChunks(phase1Content, 50);
+for (const chunk of chunks) {
+  controller.enqueue(`data: ${JSON.stringify({
+    choices: [{ delta: { content: chunk } }]
+  })}\n\n`);
 }
 ```
 
@@ -396,18 +430,16 @@ const PERMISSION_MAP: Record<string, string[]> = {
 
 ---
 
-## System Prompt
+## System Prompt (v3.0.0 — Comprimido)
 
-```
-Você é o Auxiliar de Comando, um assistente inteligente para e-commerce.
-Você pode ajudar o usuário a executar ações como:
-- Criar categorias de produtos
-- Criar cupons de desconto
-- Gerar relatórios de vendas
-- Criar tarefas na Agenda
+> ⚠️ **O system prompt foi comprimido de ~12KB para ~4KB na v3.** Regras consolidadas, duplicações removidas, mapeamento de nomes em formato compacto.
 
-Quando propor uma ação, formate em bloco ```action ... ```
-```
+### Princípios do Prompt v3
+
+1. **Compacto**: ~4KB total (sem memórias), vs ~12KB na v2
+2. **Focado**: Regras de alta prioridade no topo, mapeamento de tools em formato tabular
+3. **Sem duplicação**: Cada regra aparece apenas 1 vez
+4. **Memórias separadas**: Injetadas via `getMemoryContext()` após o prompt base
 
 ---
 
