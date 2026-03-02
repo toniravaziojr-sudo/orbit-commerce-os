@@ -9,14 +9,25 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useAILandingPageUrl } from "@/hooks/useAILandingPageUrl";
+import { useStorePages } from "@/hooks/useStorePages";
+import { usePageTemplates } from "@/hooks/usePageTemplates";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { 
-  Plus, 
+   
   Sparkles, 
   ExternalLink, 
   Settings, 
@@ -69,6 +80,12 @@ export default function LandingPages() {
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("all");
   const [isAIImportOpen, setIsAIImportOpen] = useState(false);
+  const [isBuilderDialogOpen, setIsBuilderDialogOpen] = useState(false);
+  const [builderPageName, setBuilderPageName] = useState('');
+  const [isCreatingBuilderPage, setIsCreatingBuilderPage] = useState(false);
+
+  const { createPage } = useStorePages();
+  const { createTemplate } = usePageTemplates();
 
   // Get tenant's public URL
   const { baseUrl: tenantBaseUrl } = useAILandingPageUrl({
@@ -130,6 +147,45 @@ export default function LandingPages() {
     return <Badge variant="secondary">Rascunho</Badge>;
   };
 
+  const handleCreateBuilderPage = async () => {
+    if (!builderPageName.trim()) return;
+    setIsCreatingBuilderPage(true);
+    try {
+      const slug = builderPageName.trim().toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      const uniqueSuffix = Date.now().toString(36);
+
+      // 1. Create a dedicated template
+      const newTemplate = await createTemplate.mutateAsync({
+        name: `Modelo - ${builderPageName}`,
+        slug: `modelo-lp-${slug}-${uniqueSuffix}`,
+        is_default: false,
+      });
+
+      // 2. Create the page as landing_page type
+      const newPage = await createPage.mutateAsync({
+        title: builderPageName,
+        slug: `${slug}-${uniqueSuffix}`,
+        type: 'landing_page',
+        status: 'draft',
+        is_published: false,
+        template_id: newTemplate.id,
+        content: null,
+      });
+
+      setIsBuilderDialogOpen(false);
+      setBuilderPageName('');
+      toast.success('Landing page criada! Abrindo o editor...');
+      navigate(`/pages/${newPage.id}/builder`);
+    } catch (error) {
+      console.error('Error creating builder landing page:', error);
+      toast.error('Erro ao criar landing page');
+    } finally {
+      setIsCreatingBuilderPage(false);
+    }
+  };
+
   const copySlug = (slug: string) => {
     const url = tenantBaseUrl ? `${tenantBaseUrl}/ai-lp/${slug}` : `/ai-lp/${slug}`;
     navigator.clipboard.writeText(url);
@@ -171,28 +227,7 @@ export default function LandingPages() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={async () => {
-            if (!tenant?.id || !user?.id) return;
-            const slug = `lp-${Date.now()}`;
-            const { data, error } = await supabase
-              .from('ai_landing_pages')
-              .insert({
-                tenant_id: tenant.id,
-                created_by: user.id,
-                name: 'Nova Landing Page',
-                slug,
-                status: 'draft',
-                generated_html: '',
-              })
-              .select('id')
-              .single();
-            if (error) {
-              toast.error('Erro ao criar landing page');
-              return;
-            }
-            queryClient.invalidateQueries({ queryKey: ['ai-landing-pages'] });
-            navigate(`/landing-pages/${data.id}`);
-          }}>
+          <Button variant="outline" onClick={() => setIsBuilderDialogOpen(true)}>
             <LayoutTemplate className="h-4 w-4 mr-2" />
             Criar no Builder
           </Button>
@@ -201,8 +236,8 @@ export default function LandingPages() {
             Importar com IA
           </Button>
           <Button onClick={() => setCreateDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nova Landing Page
+            <Sparkles className="h-4 w-4 mr-2" />
+            Criar com IA
           </Button>
         </div>
       </div>
@@ -373,6 +408,47 @@ export default function LandingPages() {
           }}
         />
       )}
+
+      {/* Builder Create Dialog */}
+      <Dialog open={isBuilderDialogOpen} onOpenChange={(open) => {
+        setIsBuilderDialogOpen(open);
+        if (!open) setBuilderPageName('');
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Criar Landing Page no Builder</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="lp-name">Nome da Landing Page</Label>
+              <Input
+                id="lp-name"
+                placeholder="Ex: Promoção de Verão"
+                value={builderPageName}
+                onChange={(e) => setBuilderPageName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCreateBuilderPage()}
+                autoFocus
+              />
+            </div>
+            <div className="bg-muted/50 p-3 rounded-md border border-dashed">
+              <p className="text-sm text-muted-foreground">
+                💡 Após criar, você será redirecionado ao editor visual para construir o conteúdo da página.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBuilderDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleCreateBuilderPage} 
+              disabled={!builderPageName.trim() || isCreatingBuilderPage}
+            >
+              {isCreatingBuilderPage ? 'Criando...' : 'Criar Página'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
