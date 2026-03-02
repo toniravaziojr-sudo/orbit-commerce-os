@@ -381,14 +381,20 @@ async function executeTool(
       
       // Support individual prices per product: prices = [{ productId, price }]
       if (type === "fixed" && prices && Array.isArray(prices)) {
+        const removeCompareAtPrice = tool_args.removeCompareAtPrice === true;
         let updateCount = 0;
         for (const item of prices) {
           const newPrice = parseFloat(item.price);
           if (isNaN(newPrice) || !item.productId) continue;
           
+          const updateData: any = { price: Math.round(newPrice * 100) / 100, updated_at: new Date().toISOString() };
+          if (removeCompareAtPrice) {
+            updateData.compare_at_price = null;
+          }
+          
           const { error: updateError } = await supabase
             .from("products")
-            .update({ price: Math.round(newPrice * 100) / 100, updated_at: new Date().toISOString() })
+            .update(updateData)
             .eq("id", item.productId)
             .eq("tenant_id", tenant_id);
           
@@ -397,8 +403,9 @@ async function executeTool(
         
         return {
           success: true,
-          message: `✅ Preços atualizados individualmente em ${updateCount} produto(s)!`,
-          data: { affected: updateCount, type: "fixed_individual", prices },
+          message: `✅ Preços atualizados individualmente em ${updateCount} produto(s)!` + 
+            (removeCompareAtPrice ? ` Preços de desconto removidos.` : ''),
+          data: { affected: updateCount, type: "fixed_individual", prices, removeCompareAtPrice },
         };
       }
       
@@ -2865,6 +2872,117 @@ async function executeTool(
         success: true,
         message: `📨 **${data.length} campanha(s):**\n\n${list}`,
         data,
+      };
+    }
+
+    // ==================== RECALCULAR PREÇOS DE KITS ====================
+    case "recalculateKitPrices": {
+      const { productIds, removeCompareAtPrice } = tool_args;
+      
+      // Find all kits that contain any of the given products as components
+      let kitQuery = supabase
+        .from("product_components")
+        .select(`
+          parent_product_id,
+          quantity,
+          sale_price,
+          component:products!component_product_id(
+            id, name, sku, price
+          )
+        `)
+        .eq("tenant_id", tenant_id);
+      
+      // If specific product IDs given, find kits containing those products
+      let kitIds: Set<string>;
+      if (productIds && productIds.length > 0) {
+        const { data: affectedComponents } = await supabase
+          .from("product_components")
+          .select("parent_product_id")
+          .in("component_product_id", productIds);
+        
+        kitIds = new Set((affectedComponents || []).map((c: any) => c.parent_product_id));
+        
+        if (kitIds.size === 0) {
+          return { success: true, message: "Nenhum kit encontrado com esses produtos como componentes.", data: { affected: 0 } };
+        }
+        
+        kitQuery = kitQuery.in("parent_product_id", Array.from(kitIds));
+      }
+      
+      const { data: allComponents, error: compError } = await kitQuery.order("sort_order");
+      if (compError) throw new Error(compError.message);
+      
+      // Group components by parent kit
+      const componentsByKit = new Map<string, any[]>();
+      for (const comp of (allComponents || [])) {
+        const list = componentsByKit.get(comp.parent_product_id) || [];
+        list.push(comp);
+        componentsByKit.set(comp.parent_product_id, list);
+      }
+      
+      if (componentsByKit.size === 0) {
+        return { success: true, message: "Nenhum kit para recalcular.", data: { affected: 0 } };
+      }
+      
+      // Get current kit product info
+      const kitProductIds = Array.from(componentsByKit.keys());
+      const { data: kitProducts } = await supabase
+        .from("products")
+        .select("id, name, sku, price, compare_at_price")
+        .in("id", kitProductIds)
+        .eq("tenant_id", tenant_id);
+      
+      const kitProductMap = new Map((kitProducts || []).map((p: any) => [p.id, p]));
+      
+      // Calculate new prices and update
+      const report: any[] = [];
+      let updateCount = 0;
+      
+      for (const [kitId, components] of componentsByKit) {
+        const kit = kitProductMap.get(kitId);
+        if (!kit) continue;
+        
+        // Sum: component_price × quantity
+        const newPrice = components.reduce((sum: number, c: any) => {
+          const compPrice = c.sale_price ?? c.component?.price ?? 0;
+          return sum + (parseFloat(compPrice) * c.quantity);
+        }, 0);
+        
+        const roundedPrice = Math.round(newPrice * 100) / 100;
+        const oldPrice = parseFloat(kit.price) || 0;
+        
+        const updateData: any = { price: roundedPrice, updated_at: new Date().toISOString() };
+        if (removeCompareAtPrice) {
+          updateData.compare_at_price = null;
+        }
+        
+        const { error: updateError } = await supabase
+          .from("products")
+          .update(updateData)
+          .eq("id", kitId)
+          .eq("tenant_id", tenant_id);
+        
+        if (!updateError) {
+          updateCount++;
+          report.push({
+            name: kit.name,
+            sku: kit.sku,
+            oldPrice,
+            newPrice: roundedPrice,
+            components: components.length,
+          });
+        }
+      }
+      
+      const reportLines = report.map((r: any) => 
+        `• **${r.name}** (${r.sku}): R$ ${r.oldPrice.toFixed(2)} → R$ ${r.newPrice.toFixed(2)} (${r.components} componentes)`
+      ).join("\n");
+      
+      return {
+        success: true,
+        message: `✅ **${updateCount} kit(s) recalculado(s):**\n\n${reportLines}` +
+          (removeCompareAtPrice ? `\n\n🏷️ Preços de desconto removidos dos kits.` : ''),
+        data: { affected: updateCount, report },
       };
     }
 

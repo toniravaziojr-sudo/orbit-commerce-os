@@ -115,7 +115,21 @@ Todos os inputs de chat usam o padrão **card pill**:
 
 ## Arquitetura
 
-### Fluxo de Mensagem
+### Arquitetura de Tools: Leitura Automática vs Escrita com Confirmação
+
+O sistema usa **native tool calling** do Gemini para executar tools de leitura automaticamente no servidor, sem confirmação do usuário. Apenas tools de escrita exigem confirmação via botão.
+
+#### Tools de Leitura (Auto-executáveis — server-side)
+
+Essas tools são executadas internamente pela Edge Function `command-assistant-chat` antes de gerar a resposta final. O usuário não vê botão de confirmação para elas:
+
+`searchProducts`, `listProducts`, `getProductDetails`, `listProductComponents`, `searchOrders`, `getOrderDetails`, `listDiscounts`, `listCategories`, `getDashboardStats`, `getTopProducts`, `listCustomerTags`, `searchCustomers`, `listBlogPosts`, `listOffers`, `listReviews`, `listPages`, `getFinancialSummary`, `listShippingMethods`, `listNotifications`, `listFiles`, `getStorageUsage`, `listEmailLists`, `listSubscribers`, `listCampaigns`, `listAgendaTasks`, `inventoryReport`, `customersReport`, `salesReport`
+
+#### Tools de Escrita (Confirmação via botão)
+
+Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confirmar".
+
+#### Fluxo de Execução
 
 ```
 1. Usuário digita mensagem no painel
@@ -124,16 +138,18 @@ Todos os inputs de chat usam o padrão **card pill**:
    - Cria conversa se necessário
    - Adiciona mensagem otimisticamente
    ↓
-3. POST /command-assistant-chat (streaming SSE)
-   - Recebe contexto do tenant
-   - Processa com modelo de IA
-   - Retorna chunks via SSE
-   - Extrai proposed_actions do texto
+3. POST /command-assistant-chat (native tool calling + streaming SSE)
+   - Recebe contexto do tenant + memórias
+   - Envia ao Gemini com tools de leitura em formato OpenAI
+   - Gemini retorna tool_calls → executa server-side → devolve resultado ao Gemini
+   - Loop máximo 5 rodadas de tool calling
+   - Quando Gemini gera resposta final: streama via SSE
+   - Extrai proposed_actions do texto (blocos ```action)
    ↓
 4. Frontend renderiza resposta
-   - Se há ações: mostra botões de confirmação
+   - Se há ações de escrita: mostra botões de confirmação
    ↓
-5. Usuário confirma ação
+5. Usuário confirma ação (apenas para escrita)
    - Botão mostra "Executando..." com spinner (via executingActionId)
    - Botão fica disabled durante execução
    ↓
@@ -255,6 +271,7 @@ while (true) {
 | `listProductComponents` | Listar composição de um kit | todos |
 | `bulkSetCompositionType` | Alterar tipo de composição (físico/virtual) em massa | owner, admin, manager |
 | `autoCreateKitCompositions` | Detectar kits sem composição | owner, admin, manager |
+| `recalculateKitPrices` | Recalcular preços de kits baseado nos componentes (Σ preço×qtd) | owner, admin, manager |
 
 ### Blog
 
@@ -508,6 +525,7 @@ O assistente NUNCA deve expor nomes internos de ferramentas, variáveis, IDs ou 
 | `listNotifications` | "ver as notificações" |
 | `listFiles` | "listar os arquivos" |
 | `getStorageUsage` | "verificar uso de armazenamento" |
+| `recalculateKitPrices` | "recalcular preços dos kits baseado nos componentes" |
 | `tool_name` / `tool_args` | NUNCA mencionar |
 | `tenant_id`, `user_id` | NUNCA mencionar |
 | `autopilot_config` | "Configurações da IA de Tráfego" |
