@@ -269,7 +269,7 @@ O usuário anexou imagens/vídeos no prompt abaixo. As URLs estão marcadas como
       temperature: 0.7,
     }, {
       supabaseUrl,
-      supabaseServiceKey,
+      supabaseServiceKey: supabaseKey,
       logPrefix: "[AI-LP-Generate]",
     });
 
