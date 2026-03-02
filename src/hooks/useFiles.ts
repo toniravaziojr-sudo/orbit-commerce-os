@@ -244,10 +244,11 @@ export function useFiles(folderId: string | null = null) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['files', currentTenant?.id] });
-      toast.success('Arquivo enviado com sucesso!');
+      // Toast handled by caller (Files.tsx) to consolidate multiple uploads
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao enviar arquivo: ${error.message}`);
+      // Error toast handled by caller for batch upload consolidation
+      console.error('Upload error:', error.message);
     },
   });
 

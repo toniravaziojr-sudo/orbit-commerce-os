@@ -149,9 +149,27 @@ export default function Files() {
       if (!uploadedFiles) return;
 
       const folderId = targetFolderId !== undefined ? targetFolderId : currentFolderId;
+      const filesArray = Array.from(uploadedFiles);
+      let successCount = 0;
+      let errorCount = 0;
 
-      for (const file of Array.from(uploadedFiles)) {
-        await uploadFile.mutateAsync({ file, folderId });
+      for (const file of filesArray) {
+        try {
+          await uploadFile.mutateAsync({ file, folderId });
+          successCount++;
+        } catch {
+          errorCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(successCount === 1
+          ? 'Arquivo enviado com sucesso!'
+          : `${successCount} arquivos enviados com sucesso!`
+        );
+      }
+      if (errorCount > 0) {
+        toast.error(`${errorCount} arquivo(s) falharam no envio.`);
       }
 
       if (fileInputRef.current) {
@@ -171,8 +189,27 @@ export default function Files() {
       const droppedFiles = e.dataTransfer.files;
       if (!droppedFiles) return;
 
-      for (const file of Array.from(droppedFiles)) {
-        await uploadFile.mutateAsync({ file, folderId: currentFolderId });
+      const filesArray = Array.from(droppedFiles);
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const file of filesArray) {
+        try {
+          await uploadFile.mutateAsync({ file, folderId: currentFolderId });
+          successCount++;
+        } catch {
+          errorCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(successCount === 1
+          ? 'Arquivo enviado com sucesso!'
+          : `${successCount} arquivos enviados com sucesso!`
+        );
+      }
+      if (errorCount > 0) {
+        toast.error(`${errorCount} arquivo(s) falharam no envio.`);
       }
     },
     [currentFolderId, uploadFile]
