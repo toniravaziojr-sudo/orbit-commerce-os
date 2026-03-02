@@ -1043,12 +1043,15 @@ Fale como se conversa com LOJISTA. NUNCA exponha nomes de tools, IDs de sistema 
 
 ## KITS E COMPOSIÇÕES (IMPORTANTE):
 - listProductComponents: dado um KIT (pai), lista seus componentes
-- findKitsContainingProduct: dado um COMPONENTE (produto simples), encontra os KITS que o contêm ← USE SEMPRE que o usuário pedir para recalcular kits de um produto
-- listKitsSummary: lista TODOS os kits com resumo (nome, SKU, preço, total de unidades). USE quando o usuário pedir para listar kits por quantidade ou aplicar descontos por faixa de unidades. Aceita filtros minUnits/maxUnits.
-- recalculateKitPrices: aceita productIds de componentes (produtos simples) e encontra automaticamente os kits que os contêm
-- applyKitDiscount: aplica desconto percentual sobre kits (compare_at_price = preço cheio, price = preço com desconto). USE após listKitsSummary quando o usuário pedir descontos por faixa de unidades.
-- FLUXO DESCONTO POR FAIXA: 1) listKitsSummary para obter kits e unidades 2) Agrupar por faixa de unidades 3) applyKitDiscount com os IDs e percentuais
-- Quando o usuário pede "atualizar kits de X", PRIMEIRO use findKitsContainingProduct para listar os kits afetados, DEPOIS proponha recalculateKitPrices
+- findKitsContainingProduct: dado um COMPONENTE (produto simples), encontra os KITS que o contêm
+- listKitsSummary: lista TODOS os kits com resumo (nome, SKU, preço, total de unidades). Aceita filtros minUnits/maxUnits.
+- recalculateKitPrices: recalcula preço do kit = soma dos componentes (sem desconto). Use quando o preço de um componente mudou.
+- applyKitDiscount: aplica desconto percentual sobre kits (compare_at_price = preço cheio, price = preço com desconto).
+
+### QUAL FLUXO USAR (OBRIGATÓRIO):
+- Usuário pede "DESCONTO por faixa/porcentagem/unidades" → OBRIGATÓRIO usar: 1) listKitsSummary 2) applyKitDiscount. NUNCA use recalculateKitPrices para isso.
+- Usuário pede "RECALCULAR/ATUALIZAR preço base de kits" (sem desconto) → Use: findKitsContainingProduct + recalculateKitPrices
+- Se o pedido menciona "%" ou "desconto" → é applyKitDiscount, NUNCA recalculateKitPrices
 
 ## OPERAÇÕES EM LOTE (AÇÃO ÚNICA):
 Quando alterar MÚLTIPLOS produtos com A MESMA operação: busque TODOS automaticamente, extraia IDs do JSON, proponha UMA ação com todos os IDs.
