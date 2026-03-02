@@ -336,9 +336,14 @@ export default function LandingPages() {
           open={isAIImportOpen}
           onOpenChange={setIsAIImportOpen}
           tenantId={tenant.id}
-          onSuccess={() => {
+          targetType="landing_page"
+          onSuccess={(result) => {
             queryClient.invalidateQueries({ queryKey: ['ai-landing-pages'] });
             setIsAIImportOpen(false);
+            if (result?.pageId) {
+              toast.success('Landing page importada! Abrindo editor...');
+              navigate(`/landing-pages/${result.pageId}`);
+            }
           }}
         />
       )}

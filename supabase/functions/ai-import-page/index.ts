@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.0.0"; // Initial release - AI page import
+const VERSION = "v1.1.0"; // Support targetType landing_page (saves to ai_landing_pages)
 // ===========================================================
 
 const corsHeaders = {
@@ -310,38 +310,16 @@ Gere a árvore BlockNode JSON completa, mapeando CADA seção visual para o bloc
 
     console.log(`[ai-import-page][${VERSION}] Successfully generated ${sectionCount} sections`);
 
-    // Step 3: Save to existing page or create new one
+    // Step 3: Save based on targetType
     const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
     let savedPageId = pageId || null;
 
-    if (pageId) {
-      // Update existing page
-      console.log(`[ai-import-page][${VERSION}] Step 3: Saving to existing page ${pageId}`);
+    if (targetType === 'landing_page') {
+      // ===== LANDING PAGE MODE: Save to ai_landing_pages =====
+      console.log(`[ai-import-page][${VERSION}] Step 3: Saving as AI Landing Page`);
       
-      const { error: updateError } = await adminClient
-        .from('store_pages')
-        .update({
-          content: blockNodeJson,
-          template_id: null,
-          individual_content: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', pageId)
-        .eq('tenant_id', tenantId);
-
-      if (updateError) {
-        console.error(`[ai-import-page][${VERSION}] Save error:`, updateError);
-        return new Response(
-          JSON.stringify({ success: false, error: `Erro ao salvar: ${updateError.message}` }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      console.log(`[ai-import-page][${VERSION}] Existing page updated successfully`);
-    } else {
-      // Create new page automatically
-      console.log(`[ai-import-page][${VERSION}] Step 3: Creating new page`);
-      
-      const pageTitle = metadata.title || 'Página Importada';
+      // Generate a simple HTML representation from the block tree for ai_landing_pages
+      const pageTitle = metadata.title || 'Landing Page Importada';
       const baseSlug = pageTitle
         .toLowerCase()
         .normalize('NFD')
@@ -350,32 +328,127 @@ Gere a árvore BlockNode JSON completa, mapeando CADA seção visual para o bloc
         .replace(/(^-|-$)/g, '')
         .substring(0, 50);
       const uniqueSlug = `${baseSlug}-${Date.now().toString(36)}`;
+      
+      // Get user ID from claims
+      const userId = claimsData.claims.sub;
 
-      const { data: newPage, error: insertError } = await adminClient
-        .from('store_pages')
-        .insert({
-          tenant_id: tenantId,
-          title: pageTitle,
-          slug: uniqueSlug,
-          type: 'institutional',
-          status: 'draft',
-          content: blockNodeJson,
-          template_id: null,
-          individual_content: null,
-          is_published: false,
-        })
-        .select('id')
-        .single();
+      if (pageId) {
+        // Update existing landing page
+        const { error: updateError } = await adminClient
+          .from('ai_landing_pages')
+          .update({
+            generated_html: html.substring(0, 500000),
+            initial_prompt: `Importado de: ${formattedUrl}`,
+            reference_url: formattedUrl,
+            status: 'draft',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', pageId)
+          .eq('tenant_id', tenantId);
 
-      if (insertError) {
-        console.error(`[ai-import-page][${VERSION}] Create error:`, insertError);
-        return new Response(
-          JSON.stringify({ success: false, error: `Erro ao criar página: ${insertError.message}` }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        if (updateError) {
+          console.error(`[ai-import-page][${VERSION}] LP update error:`, updateError);
+          return new Response(
+            JSON.stringify({ success: false, error: `Erro ao atualizar: ${updateError.message}` }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        savedPageId = pageId;
+        console.log(`[ai-import-page][${VERSION}] Landing page updated: ${savedPageId}`);
+      } else {
+        // Create new landing page
+        const { data: newLP, error: insertError } = await adminClient
+          .from('ai_landing_pages')
+          .insert({
+            tenant_id: tenantId,
+            name: pageTitle,
+            slug: uniqueSlug,
+            status: 'draft',
+            is_published: false,
+            generated_html: html.substring(0, 500000),
+            initial_prompt: `Importado de: ${formattedUrl}`,
+            reference_url: formattedUrl,
+            created_by: userId,
+            current_version: 1,
+          })
+          .select('id')
+          .single();
+
+        if (insertError) {
+          console.error(`[ai-import-page][${VERSION}] LP create error:`, insertError);
+          return new Response(
+            JSON.stringify({ success: false, error: `Erro ao criar landing page: ${insertError.message}` }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        savedPageId = newLP.id;
+        console.log(`[ai-import-page][${VERSION}] Landing page created: ${savedPageId}`);
       }
-      savedPageId = newPage.id;
-      console.log(`[ai-import-page][${VERSION}] New page created: ${savedPageId}`);
+    } else {
+      // ===== STORE PAGE MODE: Save to store_pages =====
+      if (pageId) {
+        // Update existing page
+        console.log(`[ai-import-page][${VERSION}] Step 3: Saving to existing page ${pageId}`);
+        
+        const { error: updateError } = await adminClient
+          .from('store_pages')
+          .update({
+            content: blockNodeJson,
+            template_id: null,
+            individual_content: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', pageId)
+          .eq('tenant_id', tenantId);
+
+        if (updateError) {
+          console.error(`[ai-import-page][${VERSION}] Save error:`, updateError);
+          return new Response(
+            JSON.stringify({ success: false, error: `Erro ao salvar: ${updateError.message}` }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        console.log(`[ai-import-page][${VERSION}] Existing page updated successfully`);
+      } else {
+        // Create new page automatically
+        console.log(`[ai-import-page][${VERSION}] Step 3: Creating new page`);
+        
+        const pageTitle = metadata.title || 'Página Importada';
+        const baseSlug = pageTitle
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)/g, '')
+          .substring(0, 50);
+        const uniqueSlug = `${baseSlug}-${Date.now().toString(36)}`;
+
+        const { data: newPage, error: insertError } = await adminClient
+          .from('store_pages')
+          .insert({
+            tenant_id: tenantId,
+            title: pageTitle,
+            slug: uniqueSlug,
+            type: 'institutional',
+            status: 'draft',
+            content: blockNodeJson,
+            template_id: null,
+            individual_content: null,
+            is_published: false,
+          })
+          .select('id')
+          .single();
+
+        if (insertError) {
+          console.error(`[ai-import-page][${VERSION}] Create error:`, insertError);
+          return new Response(
+            JSON.stringify({ success: false, error: `Erro ao criar página: ${insertError.message}` }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        savedPageId = newPage.id;
+        console.log(`[ai-import-page][${VERSION}] New page created: ${savedPageId}`);
+      }
     }
 
     return new Response(
@@ -387,6 +460,7 @@ Gere a árvore BlockNode JSON completa, mapeando CADA seção visual para o bloc
           sourceUrl: formattedUrl,
           sourceTitle: metadata.title || '',
           pageId: savedPageId,
+          targetType: targetType || 'page',
           provider: aiResponse.provider,
           model: aiResponse.model,
         }

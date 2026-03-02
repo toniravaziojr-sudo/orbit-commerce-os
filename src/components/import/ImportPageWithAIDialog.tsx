@@ -14,6 +14,7 @@ interface ImportPageWithAIDialogProps {
   onOpenChange: (open: boolean) => void;
   tenantId: string;
   pageId?: string; // If provided, saves directly to this page
+  targetType?: 'page' | 'landing_page'; // Defaults to 'page'
   onSuccess?: (result: ImportResult) => void;
 }
 
@@ -50,6 +51,7 @@ export function ImportPageWithAIDialog({
   onOpenChange, 
   tenantId, 
   pageId,
+  targetType = 'page',
   onSuccess 
 }: ImportPageWithAIDialogProps) {
   const [url, setUrl] = useState('');
@@ -76,7 +78,7 @@ export function ImportPageWithAIDialog({
           url: url.trim(),
           tenantId,
           pageId,
-          targetType: 'page',
+          targetType,
         }
       });
 
