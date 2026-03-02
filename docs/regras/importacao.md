@@ -852,15 +852,23 @@ O conteúdo de headers/footers da página de origem NÃO é importado. O sistema
 #### RN-AIP-005: HTMLSection como Último Recurso
 Seções complexas que não se encaixam em nenhum bloco nativo são convertidas em `HTMLSection` com HTML/CSS inline.
 
-#### RN-AIP-006: Salvamento Híbrido (Criar ou Sobrescrever)
+#### RN-AIP-006: Salvamento Híbrido (Criar ou Sobrescrever) com Dual Target
+
+O campo `targetType` determina onde o conteúdo é persistido:
+
+**`targetType = 'page'` (padrão) → Salva em `store_pages`:**
 - **Com `pageId`**: faz UPDATE em `store_pages` setando `content` com o JSON, `template_id = NULL` e `individual_content = NULL`.
-- **Sem `pageId`**: cria automaticamente uma nova entrada em `store_pages` com `type = 'institutional'`, `status = 'draft'`, título extraído do `metadata.title` da página original, e slug único gerado com sufixo timestamp. Após criação, redireciona ao builder.
+- **Sem `pageId`**: cria automaticamente uma nova entrada em `store_pages` com `type = 'institutional'`, `status = 'draft'`, título extraído do `metadata.title` da página original, e slug único gerado com sufixo timestamp. Após criação, redireciona ao builder (`/pages/{id}/builder`).
+
+**`targetType = 'landing_page'` → Salva em `ai_landing_pages`:**
+- **Com `pageId`**: faz UPDATE em `ai_landing_pages` setando `generated_html` com o HTML original (até 500k chars), `reference_url` e `status = 'draft'`.
+- **Sem `pageId`**: cria automaticamente uma nova entrada em `ai_landing_pages` com `name`, `slug` único, `generated_html`, `reference_url`, `initial_prompt`, `current_version = 1` e `created_by` do usuário autenticado. Após criação, redireciona ao editor (`/landing-pages/{id}`).
 
 ### UI de Importação
 
 O dialog `ImportPageWithAIDialog` é acessado via botão **"Importar com IA"** presente em:
-- **Páginas da Loja** (`/pages`) — no header da listagem
-- **Landing Pages** (`/landing-pages`) — no header da listagem
+- **Páginas da Loja** (`/pages`) — usa `targetType = 'page'` → salva em `store_pages`
+- **Landing Pages IA** (`/landing-pages`) — usa `targetType = 'landing_page'` → salva em `ai_landing_pages`
 
 #### Props
 
@@ -869,7 +877,8 @@ O dialog `ImportPageWithAIDialog` é acessado via botão **"Importar com IA"** p
 | `open` | boolean | Controla visibilidade do dialog |
 | `onOpenChange` | function | Callback ao abrir/fechar |
 | `tenantId` | string | ID do tenant |
-| `pageId` | string? | Se fornecido, sobrescreve a página. Se omitido, cria nova página. |
+| `pageId` | string? | Se fornecido, sobrescreve a página. Se omitido, cria nova. |
+| `targetType` | `'page'` \| `'landing_page'` | Define tabela destino. Default: `'page'` |
 | `onSuccess` | function? | Callback com `ImportResult` (inclui `pageId` da página criada/atualizada) |
 
 #### ImportResult
@@ -881,6 +890,7 @@ O dialog `ImportPageWithAIDialog` é acessado via botão **"Importar com IA"** p
 | `sourceUrl` | string | URL original |
 | `sourceTitle` | string | Título da página original |
 | `pageId` | string? | ID da página criada ou atualizada |
+| `targetType` | string | Tipo de destino usado (`'page'` ou `'landing_page'`) |
 
 #### Estados de Progresso
 
@@ -897,14 +907,14 @@ O dialog `ImportPageWithAIDialog` é acessado via botão **"Importar com IA"** p
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `supabase/functions/ai-import-page/index.ts` | Edge Function (Firecrawl + Gemini) |
+| `supabase/functions/ai-import-page/index.ts` | Edge Function v1.1.0 (Firecrawl + Gemini, dual target) |
 | `src/components/import/ImportPageWithAIDialog.tsx` | Dialog de UI |
 
 ### Dependências
 
 - **Firecrawl** — Connector deve estar habilitado (secret `FIRECRAWL_API_KEY`)
 - **Lovable AI** — Usa `aiChatCompletionJSON` com modelo `google/gemini-2.5-pro`
-- **Supabase** — Service role para salvar em `store_pages`
+- **Supabase** — Service role para salvar em `store_pages` e/ou `ai_landing_pages`
 
 ---
 
