@@ -2,7 +2,7 @@
 
 > **Status:** ✅ Ready  
 > **Última atualização:** 2026-03-02  
-> **Versão do Pipeline:** v3.0.0  
+> **Versão do Pipeline:** v3.1.0  
 > **Cobertura:** 56+ tools — 100% dos módulos (Fases 1–5 completas)
 
 ---
@@ -114,7 +114,7 @@ Todos os inputs de chat usam o padrão **card pill**:
 
 ---
 
-## Arquitetura (v3.0.0 — Pipeline Otimizado)
+## Arquitetura (v3.1.0 — Pipeline Otimizado + Anti-Alucinação)
 
 ### Arquitetura de Tools: Leitura Automática vs Escrita com Confirmação
 
@@ -129,6 +129,18 @@ Essas tools são executadas internamente pela Edge Function `command-assistant-c
 #### Tools de Escrita (Confirmação via botão)
 
 Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confirmar".
+
+### ⚠️ Regra Anti-Alucinação (v3.1.0)
+
+> **Problema corrigido**: A IA gerava texto dizendo "estou buscando seus produtos..." sem realmente chamar nenhuma tool de busca, causando UX onde o usuário ficava esperando sem nada acontecer.
+
+**Regras implementadas no system prompt:**
+
+1. **NUNCA** dizer "vou buscar" ou "estou buscando" sem REALMENTE chamar uma tool na mesma resposta
+2. Se precisa de dados (nome, preço, ID de produto), CHAMAR `searchProducts`/`listProducts` IMEDIATAMENTE via function calling
+3. Se o usuário pede ação sobre produtos, PRIMEIRO buscar via tool calling, DEPOIS propor a ação
+4. **PROIBIDO** gerar texto anunciando intenção de ação SEM realmente executar — tools são síncronas
+5. Se não tem IDs → CHAMAR searchProducts. Não responder sem chamar.
 
 ### Pipeline de Processamento (v3)
 
@@ -183,7 +195,6 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
 | Role "tool" no histórico | Mapeado como "assistant" (confundia IA) | Filtrado (não entra no histórico) |
 | System prompt | ~12KB+ (diluía atenção) | ~4KB (comprimido e focado) |
 | Pós-execução | Re-executava pipeline completo | Streaming direto (sem tools) |
-
 ### Streaming SSE
 
 ```typescript
