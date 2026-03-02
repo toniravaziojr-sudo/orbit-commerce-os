@@ -168,29 +168,30 @@ export function useDriveFiles(options: UseDriveFilesOptions = {}) {
         return metadataUrl;
       }
       
-      // 2. Use bucket + storage_path to get public URL
+      // 2. Use bucket + storage_path
       const bucket = getBucketForFile(file);
       
-      // Try public URL first
+      // For private buckets (tenant-files), always use signed URLs
+      const isPrivateBucket = bucket === 'tenant-files';
+      
+      if (isPrivateBucket) {
+        const { data: signedData, error } = await supabase.storage
+          .from(bucket)
+          .createSignedUrl(file.storage_path, 3600);
+
+        if (error) {
+          console.error('Error getting signed URL:', error);
+          return null;
+        }
+        return signedData?.signedUrl || null;
+      }
+      
+      // Public bucket — use public URL
       const { data: publicData } = supabase.storage
         .from(bucket)
         .getPublicUrl(file.storage_path);
       
-      if (publicData?.publicUrl) {
-        return publicData.publicUrl;
-      }
-      
-      // Fallback to signed URL
-      const { data: signedData, error } = await supabase.storage
-        .from(bucket)
-        .createSignedUrl(file.storage_path, 3600);
-
-      if (error) {
-        console.error('Error getting signed URL:', error);
-        return null;
-      }
-      
-      return signedData?.signedUrl || null;
+      return publicData?.publicUrl || null;
     } catch (err) {
       console.error('Error in getFileUrl:', err);
       return null;
