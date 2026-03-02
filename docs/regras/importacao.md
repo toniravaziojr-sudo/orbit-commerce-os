@@ -789,11 +789,121 @@ Limpar clientes desvincula pedidos (customer_id = NULL) mas não deleta os pedid
 
 ---
 
+## Importar com IA (Importação Autônoma de Páginas)
+
+### Objetivo
+
+Permitir que lojistas importem qualquer página web externa (de qualquer plataforma) e a convertam automaticamente em blocos nativos 100% editáveis no Builder, usando IA.
+
+### Arquitetura
+
+```
+┌──────────────┐    ┌───────────────┐    ┌──────────────────┐    ┌──────────────┐
+│   URL da     │ →  │  Firecrawl    │ →  │  Gemini 2.5 Pro  │ →  │  BlockNode   │
+│   Página     │    │  (HTML+MD)    │    │  (Mapeamento)    │    │  (JSON)      │
+└──────────────┘    └───────────────┘    └──────────────────┘    └──────────────┘
+```
+
+### Workflow
+
+1. Usuário cola URL de qualquer página web
+2. **Firecrawl** faz scrape (HTML + Markdown + Screenshot + Links)
+3. **Gemini 2.5 Pro** recebe o HTML completo + markdown e mapeia para blocos nativos
+4. Sistema valida e normaliza o JSON (garante Header/Footer, IDs únicos, estrutura válida)
+5. Se `pageId` fornecido, salva direto no banco (`store_pages.content`)
+
+### Blocos Mapeados pela IA
+
+A IA mapeia visualmente cada seção para o bloco nativo mais adequado:
+
+| Padrão Visual | Bloco Nativo |
+|--------------|--------------|
+| Banners hero/topo | `Banner` (single ou carousel) |
+| Carrosséis de imagens | `ImageCarousel` |
+| Galerias de imagens | `ImageGallery` |
+| Vídeos YouTube | `YouTubeVideo` ou `VideoCarousel` |
+| Texto formatado | `RichText` |
+| FAQ/acordeões | `Accordion` |
+| Lista de benefícios | `FeatureList` ou `InfoHighlights` |
+| Depoimentos/reviews | `Reviews` |
+| Estatísticas | `StatsNumbers` |
+| Passos/timeline | `StepsTimeline` |
+| Logos parceiros | `LogosCarousel` |
+| Texto + imagem lado a lado | `ContentColumns` |
+| Contador regressivo | `CountdownTimer` |
+| Newsletter | `Newsletter` |
+| HTML complexo (último recurso) | `HTMLSection` |
+
+### Regras Críticas
+
+#### RN-AIP-001: URLs de Imagem Exatas
+A IA **NUNCA** inventa URLs de imagens. Usa exclusivamente as URLs encontradas no HTML original do scraping.
+
+#### RN-AIP-002: Estrutura Page > Header > Conteúdo > Footer
+O JSON sempre segue: `{ type: "Page", children: [Header, ...seções, Footer] }`.
+Se a IA omitir Header/Footer, o sistema os adiciona automaticamente.
+
+#### RN-AIP-003: IDs Únicos
+Todos os blocos recebem IDs únicos (`{tipo}-{timestamp}-{random}`). O sistema garante via `ensureIds()`.
+
+#### RN-AIP-004: Headers/Footers da Origem Ignorados
+O conteúdo de headers/footers da página de origem NÃO é importado. O sistema usa seus próprios Header/Footer nativos.
+
+#### RN-AIP-005: HTMLSection como Último Recurso
+Seções complexas que não se encaixam em nenhum bloco nativo são convertidas em `HTMLSection` com HTML/CSS inline.
+
+#### RN-AIP-006: Salvamento Direto
+Quando `pageId` é fornecido, o sistema faz UPDATE em `store_pages` setando `content` com o JSON, `template_id = NULL` e `individual_content = NULL`.
+
+### UI de Importação
+
+O dialog `ImportPageWithAIDialog` é acessado via botão **"Importar com IA"** presente em:
+- **Páginas da Loja** (`/pages`) — no header da listagem
+- **Landing Pages** (`/landing-pages`) — no header da listagem
+
+#### Props
+
+| Prop | Tipo | Descrição |
+|------|------|-----------|
+| `open` | boolean | Controla visibilidade do dialog |
+| `onOpenChange` | function | Callback ao abrir/fechar |
+| `tenantId` | string | ID do tenant |
+| `pageId` | string? | Se fornecido, salva direto na página |
+| `onSuccess` | function? | Callback com resultado da importação |
+
+#### Estados de Progresso
+
+| Status | Label | Progresso |
+|--------|-------|-----------|
+| `idle` | — | 0% |
+| `scraping` | Acessando e extraindo conteúdo... | 25% |
+| `analyzing` | IA analisando e convertendo... | 60% |
+| `saving` | Salvando blocos na página... | 90% |
+| `completed` | Importação concluída! | 100% |
+| `error` | Ocorreu um erro | 0% |
+
+### Arquivos Relacionados
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `supabase/functions/ai-import-page/index.ts` | Edge Function (Firecrawl + Gemini) |
+| `src/components/import/ImportPageWithAIDialog.tsx` | Dialog de UI |
+
+### Dependências
+
+- **Firecrawl** — Connector deve estar habilitado (secret `FIRECRAWL_API_KEY`)
+- **Lovable AI** — Usa `aiChatCompletionJSON` com modelo `google/gemini-2.5-pro`
+- **Supabase** — Service role para salvar em `store_pages`
+
+---
+
 ## Pendências (Futuro)
 
 - [ ] Preview antes de aplicar (staging tables)
 - [ ] Retry automático em falhas de rede
-- [ ] Import de imagens para storage próprio
+- [ ] Import de imagens para storage próprio (hospedar no bucket do tenant)
 - [ ] Mapeamento de campos customizado
 - [ ] Import de cupons/descontos
 - [ ] Import de avaliações/reviews
+- [ ] Importar com IA: suporte a múltiplas páginas em lote
+- [ ] Importar com IA: preview visual antes de salvar
