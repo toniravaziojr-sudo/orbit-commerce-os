@@ -1,140 +1,134 @@
 
 
-# Plano: Expansão Total do Auxiliar de Comando — Cobertura 100% dos Módulos
+## Diagnóstico Completo
 
-## Problema
+Após análise detalhada dos 3 arquivos core (`command-assistant-chat`, `command-assistant-execute`, `useCommandAssistant.ts`), identifiquei o problema central e 4 problemas adjacentes que tornam a IA ineficiente:
 
-O Auxiliar de Comando hoje cobre apenas **~30%** das funcionalidades do sistema. Quando o usuário pede algo que não está mapeado como tool, a IA não consegue executar e o pedido "não acontece". 
+### Problema Central: Arquitetura "Cega" — IA não consegue VER antes de AGIR
 
-## Diagnóstico: O que EXISTE vs. O que FALTA
+O fluxo atual funciona assim:
 
-### Tools que JÁ existem (30 tools):
+```text
+Usuário: "Altere o preço do Shampoo Calvície Zero para R$ 97,90"
+    ↓
+IA gera: ```action { tool: "searchProducts", args: { query: "Shampoo..." } }```
+    ↓
+Frontend mostra botão "Confirmar" para BUSCA (!!!)
+    ↓
+Usuário clica → resultado volta → IA recebe resultado
+    ↓
+IA gera: ```action { tool: "bulkUpdateProductsPrice", args: {...} }```
+    ↓
+Frontend mostra botão "Confirmar" para AÇÃO
+    ↓
+Usuário clica → ação executa
 
-| Área | Tools |
-|------|-------|
-| Produtos | bulkUpdateNCM, bulkUpdateCEST, bulkUpdatePrice, bulkUpdateStock, bulkActivate, create, delete |
-| Categorias | create, update, delete |
-| Descontos | create, update, delete |
-| Pedidos | updateStatus, bulkUpdateStatus, addNote, salesReport |
-| Clientes | create, update, addTag, search |
-| Agenda | create, list, complete |
-| Configurações | updateStore, updateShipping |
-| Relatórios | inventory, customers |
-| Kits | add/remove/list components, bulkSetType, autoCreate |
+TOTAL: 6+ interações para 1 tarefa
+```
 
-### Tools que FALTAM (mapeados por módulo):
+A IA está **cega** — ela precisa pedir permissão ao usuário até para LER dados. Isso causa:
+- Busca retorna kit em vez do produto individual (busca `ilike` genérica)
+- IA faz perguntas desnecessárias ("é esse mesmo?") porque não tem confiança nos dados
+- Para 3 produtos = 6+ cliques + perguntas intermediárias
+- IA "delira" tentando compensar a falta de informação
 
-| Módulo | Ações que o usuário faz manualmente mas a IA NÃO consegue |
-|--------|----------------------------------------------------------|
-| **Produtos** | updateProduct (editar campos individuais: descrição, peso, dimensões, SEO), duplicateProduct, searchProducts (buscar por nome/SKU), listProducts (listar com filtros), bulkUpdateProductsWeight, updateProductImages, updateProductVariants |
-| **Pedidos** | searchOrders (buscar pedidos), getOrderDetails (ver detalhes), addTrackingCode (adicionar rastreio), cancelOrder, refundOrder, createManualOrder |
-| **Descontos** | listDiscounts, searchDiscounts |
-| **Clientes** | deleteCustomer, listCustomerTags, createCustomerTag, removeCustomerTag, mergeCustomers, exportCustomers |
-| **Blog** | createBlogPost, updateBlogPost, deleteBlogPost, listBlogPosts |
-| **Email Marketing** | createEmailList, sendCampaign, listSubscribers, addSubscriber, removeSubscriber, listCampaigns |
-| **Ofertas (Bump/Upsell)** | createOffer, updateOffer, deleteOffer, listOffers |
-| **Avaliações** | listReviews, approveReview, rejectReview, respondToReview |
-| **Loja Online** | updateStorefrontTheme, publishStore, unpublishStore, updateMenus |
-| **Páginas** | createPage, updatePage, deletePage, listPages |
-| **Logística/Frete** | listShippingMethods, updateShippingMethod, createShippingZone, getShippingQuote |
-| **Fiscal** | listInvoices, createInvoice |
-| **Financeiro** | getFinancialSummary, listTransactions |
-| **Notificações** | listNotifications, markAsRead |
-| **Suporte/Atendimento** | listTickets, respondTicket, closeTicket |
-| **Mídia/Drive** | listFiles, deleteFile, getStorageUsage |
-| **Afiliados** | listAffiliates, createAffiliateLink |
-| **Influencers** | listInfluencers, createInfluencer |
-| **Importação** | startImport, getImportStatus |
-| **Integrações** | listIntegrations, getIntegrationStatus |
-| **Dados de Leitura** | getTenantInfo, getDashboardStats, getTopProducts, getRevenueByPeriod |
+### Como outras IAs do sistema resolvem isso
 
-## Plano de Implementação (Faseado)
+O Motor Guardião e o Motor Estrategista (`ads-autopilot-guardian`, `ads-autopilot-analyze`) já usam **native tool calling** do Gemini:
 
-### Fase 1 — Leitura Universal (PRIORIDADE MÁXIMA)
-**Impacto: resolve ~60% dos pedidos que falham hoje**
+```typescript
+// Guardião - já funciona assim:
+const aiResponse = await aiChatCompletion("google/gemini-2.5-flash", {
+  messages: [...],
+  tools: GUARDIAN_TOOLS,   // ← IA chama tools direto
+  tool_choice: "auto",     // ← sem confirmação humana
+});
+const toolCalls = aiResult.choices[0].message.tool_calls;
+// Executa e processa resultado automaticamente
+```
 
-A maioria dos pedidos do usuário envolve **consultar dados** antes de agir. Sem tools de leitura, a IA não consegue nem ver o que existe.
+A IA de Anúncios já faz buscas, análises e ações automáticas com tool calling nativo. O Auxiliar de Comando precisa adotar o mesmo padrão para operações de leitura.
 
-**Adicionar ao TOOL_REGISTRY + execute:**
+---
 
-1. **searchProducts** — Buscar produtos por nome/SKU/categoria
-2. **listProducts** — Listar produtos com filtros (ativos, inativos, por categoria, faixa de preço)
-3. **getProductDetails** — Detalhes completos de um produto
-4. **searchOrders** — Buscar pedidos por número, cliente, status, período
-5. **getOrderDetails** — Detalhes completos de um pedido (itens, pagamento, frete)
-6. **listDiscounts** — Listar cupons ativos/inativos
-7. **listCategories** — Listar todas as categorias
-8. **getDashboardStats** — Resumo do dashboard (receita, pedidos, ticket médio)
-9. **getTopProducts** — Produtos mais vendidos
-10. **listCustomerTags** — Listar tags disponíveis
+## Plano de Correção — 3 Mudanças Estruturais
 
-### Fase 2 — CRUD Completo dos Módulos Core
-**Impacto: completa os módulos que já existem parcialmente**
+### 1. Native Tool Calling para Leitura Automática (Mudança Principal)
 
-11. **updateProduct** — Editar qualquer campo de um produto
-12. **duplicateProduct** — Duplicar produto
-13. **deleteCustomer** — Excluir cliente (soft delete)
-14. **addTrackingCode** — Adicionar código de rastreio a pedido
-15. **cancelOrder** — Cancelar pedido
-16. **createManualOrder** — Criar pedido manual
-17. **createCustomerTag** — Criar nova tag de cliente
-18. **removeCustomerTag** — Remover tag de clientes
+Implementar tool calling nativo do Gemini na Edge Function `command-assistant-chat`, usando o mesmo padrão do Motor Guardião. A IA chamará tools de leitura internamente e só apresentará botão de confirmação para ações de escrita.
 
-### Fase 3 — Módulos de Marketing e CRM
-**Impacto: cobre marketing, blog, ofertas, avaliações**
+**Classificação de tools:**
 
-19. **createBlogPost** — Criar post do blog
-20. **updateBlogPost** — Editar post
-21. **deleteBlogPost** — Excluir post
-22. **listBlogPosts** — Listar posts
-23. **createOffer** — Criar regra de bump/upsell
-24. **updateOffer** — Editar oferta
-25. **deleteOffer** — Excluir oferta
-26. **listReviews** — Listar avaliações
-27. **approveReview** / **rejectReview** — Moderar avaliações
-28. **respondToReview** — Responder avaliação
+| Tipo | Tools | Comportamento |
+|------|-------|---------------|
+| **Leitura (auto)** | `searchProducts`, `listProducts`, `getProductDetails`, `listProductComponents`, `searchOrders`, `getOrderDetails`, `listDiscounts`, `listCategories`, `getDashboardStats`, `getTopProducts`, `listCustomerTags`, `searchCustomers`, `listBlogPosts`, `listOffers`, `listReviews`, `listPages`, `getFinancialSummary`, `listShippingMethods`, `listNotifications`, `listFiles`, `getStorageUsage`, `listEmailLists`, `listSubscribers`, `listCampaigns`, `listAgendaTasks`, `inventoryReport`, `customersReport`, `salesReport` | IA executa server-side, resultado volta inline, sem botão |
+| **Escrita (confirmar)** | Todos os demais (create, update, delete, bulk) | Mantém fluxo atual com botão Confirmar |
 
-### Fase 4 — Módulos Operacionais (ERP, Logística, Suporte)
-**Impacto: cobre os módulos mais avançados**
+**Fluxo novo:**
 
-29. **listPages** — Listar páginas institucionais
-30. **createPage** / **updatePage** — Gerenciar páginas
-31. **getFinancialSummary** — Resumo financeiro
-32. **listShippingMethods** — Listar métodos de frete
-33. **listNotifications** — Listar notificações
-34. **listFiles** — Listar arquivos do drive
-35. **getStorageUsage** — Uso de armazenamento
+```text
+Usuário: "Altere o preço do Shampoo, Loção e Balm Calvície Zero"
+    ↓
+IA chama searchProducts("Shampoo Calvície Zero") → resultado inline
+IA chama searchProducts("Loção pós-banho calvície zero") → resultado inline
+IA chama searchProducts("Balm pós-banho calvície zero") → resultado inline
+    ↓
+IA propõe UMA ação com os 3 preços → botão Confirmar
+    ↓
+Usuário clica → execução
 
-### Fase 5 — Email Marketing e Automações
+TOTAL: 2 interações (pedido + confirmar)
+```
 
-36. **listEmailLists** — Listar listas de email
-37. **listSubscribers** — Listar inscritos
-38. **addSubscriber** — Adicionar inscrito
-39. **createEmailCampaign** — Criar campanha de email
-40. **listCampaigns** — Listar campanhas
+**Implementação na Edge Function `command-assistant-chat`:**
 
-## Detalhes Técnicos
+1. Converter as tools de leitura para formato OpenAI `tools` (array de `{type: "function", function: {name, description, parameters}}`)
+2. Enviar na chamada ao Gemini com `tool_choice: "auto"`
+3. Quando o modelo retornar `tool_calls`:
+   - Executar as de leitura chamando o mesmo código do `command-assistant-execute` (importar ou invocar internamente)
+   - Devolver resultado ao modelo como `tool` message
+   - Deixar o modelo continuar gerando (pode chamar mais tools ou gerar resposta final com `action` block)
+4. Quando o modelo gerar resposta final (sem mais tool_calls): stremar ao frontend normalmente
+5. O frontend **não muda** — continua recebendo SSE como antes
 
-### Arquivos afetados:
-- `supabase/functions/command-assistant-chat/index.ts` — Adicionar tools ao `TOOL_REGISTRY` + atualizar system prompt
-- `supabase/functions/command-assistant-execute/index.ts` — Adicionar `case` handlers para cada nova tool
-- `docs/regras/auxiliar-comando.md` — Documentar novas tools
+**Implementação detalhada:**
+- Extrair a função `executeTool()` do `command-assistant-execute` para um módulo compartilhado (`_shared/command-tools.ts`) ou duplicar as lógicas de leitura inline no chat
+- Loop de tool calling: máximo 5 rodadas para evitar loops infinitos
+- Permissões: validar `userRole` para cada tool de leitura chamada (reutilizar PERMISSION_MAP)
 
-### Padrão por tool:
-1. Entrada no `TOOL_REGISTRY` (chat) com description + parameters + requiredPermission
-2. Mapeamento na linguagem UI no system prompt
-3. `case` handler no execute com lógica de banco
-4. Todas as queries filtram por `tenant_id` (segurança multi-tenant)
+### 2. Melhorar Busca de Produtos
 
-### Estimativa de tamanho:
-- Fase 1: ~10 tools de leitura → ~300 linhas no execute + ~150 no chat
-- Fase 2: ~8 tools CRUD → ~400 linhas no execute + ~120 no chat
-- Fase 3: ~10 tools marketing → ~500 linhas no execute + ~150 no chat
-- Fase 4: ~7 tools operacionais → ~350 linhas no execute + ~100 no chat
-- Fase 5: ~5 tools email → ~250 linhas no execute + ~80 no chat
+No handler `searchProducts` do execute:
 
-**Total: ~40 novas tools, ~1800 linhas no execute, ~600 no chat**
+- **Priorizar match exato**: Primeiro buscar `name.eq.{query}`, depois `ilike`
+- **Excluir kits por padrão**: Filtrar `product_format.neq.with_composition` quando a busca é por produto-base
+- **Adicionar parâmetros**: `excludeKits: boolean` e `exactMatch: boolean`
+- **Buscar por SKU exato**: Se o query for numérico ou match padrão de SKU, buscar `sku.eq.{query}` primeiro
 
-### Recomendação de execução:
-Implementar **Fase 1 + Fase 2** primeiro (18 tools), pois resolve a vasta maioria dos pedidos. Depois iterar nas fases seguintes.
+### 3. Adicionar Tool `recalculateKitPrices`
+
+Nova tool que recalcula preços de kits baseado nos componentes:
+- Recebe lista de product IDs (produtos-base que mudaram de preço)
+- Busca todos os kits que contêm esses produtos via `product_components`
+- Calcula novo preço = Σ(preço_componente × quantidade)
+- Atualiza `price` e opcionalmente remove `compare_at_price`
+- Retorna relatório (quais kits foram recalculados e novos preços)
+
+---
+
+## Arquivos Afetados
+
+| Arquivo | Mudança |
+|---------|---------|
+| `supabase/functions/command-assistant-chat/index.ts` | Implementar native tool calling loop; converter tools de leitura para formato Gemini tools; atualizar system prompt |
+| `supabase/functions/command-assistant-execute/index.ts` | Melhorar `searchProducts`; adicionar `recalculateKitPrices`; adicionar permissões novas |
+| `docs/regras/auxiliar-comando.md` | Documentar arquitetura de leitura automática vs escrita com confirmação |
+
+### Estimativa
+- `command-assistant-chat`: ~200 linhas novas (loop de tool calling + definição de tools OpenAI format)
+- `command-assistant-execute`: ~80 linhas (melhorias de busca + recalculateKitPrices)
+- Documentação: ~30 linhas
+
+### Resultado esperado
+O cenário que falhou (alterar preço de 3 produtos + recalcular kits) passará a funcionar em **2 interações** em vez de 6+. A IA terá "visão" completa dos dados antes de propor qualquer ação.
 
