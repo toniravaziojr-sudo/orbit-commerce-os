@@ -628,6 +628,30 @@ O `memoryContext` é concatenado ao final do system prompt de cada IA, contendo:
 
 ---
 
+## Persistência de Rascunho (Draft)
+
+O campo de input do chat salva automaticamente o texto digitado no `localStorage`, por conversa.
+
+### Comportamento
+
+- **Salva automaticamente**: A cada keystroke, o rascunho é persistido em `localStorage` com chave `cmd_chat_draft_{conversationId}`
+- **Restaura ao voltar**: Ao trocar de conversa e retornar, o rascunho anterior é restaurado
+- **Limpa ao enviar**: Após enviar a mensagem, o rascunho é removido do storage
+- **Isolamento por conversa**: Cada conversa tem seu próprio rascunho independente
+- **Resistente a falhas**: Se a internet cair ou a página recarregar, o rascunho sobrevive
+
+### Implementação
+
+- Prop `conversationId` no `CommandChatInput` (substitui o padrão `key={}` para reset)
+- **NÃO** usar `key={conversationId}` no input — isso destrói o componente e perde o draft
+- Efeito `useEffect` monitora mudança de `conversationId` para trocar o rascunho ativo
+
+### Anti-Pattern
+
+> ⚠️ **NÃO** usar `key={conversationId}` no `CommandChatInput` — isso força remount e impede a persistência do rascunho.
+
+---
+
 ## Checklist
 
 - [ ] Painel abre com ⌘K
@@ -639,3 +663,4 @@ O `memoryContext` é concatenado ao final do system prompt de cada IA, contendo:
 - [ ] Linguagem UI-friendly (sem jargão técnico)
 - [ ] Memória persistente funciona entre sessões
 - [ ] **Chat scrollável** (container pai é flex flex-col min-h-0)
+- [ ] **Rascunho persiste** entre trocas de conversa e reloads
