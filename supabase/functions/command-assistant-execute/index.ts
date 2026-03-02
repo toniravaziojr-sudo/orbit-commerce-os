@@ -51,6 +51,7 @@ const PERMISSION_MAP: Record<string, string[]> = {
   addProductComponent: ["owner", "admin", "manager", "editor"],
   removeProductComponent: ["owner", "admin", "manager", "editor"],
   listProductComponents: ["owner", "admin", "manager", "editor", "viewer"],
+  findKitsContainingProduct: ["owner", "admin", "manager", "editor", "viewer"],
   bulkSetCompositionType: ["owner", "admin", "manager"],
   autoCreateKitCompositions: ["owner", "admin", "manager"],
   
@@ -1380,6 +1381,70 @@ async function executeTool(
         success: true,
         message: `📦 **Composição do kit "${parentProd?.name}"** (Tipo: ${parentProd?.stock_type === 'virtual' ? 'Virtual' : 'Físico'})\n\n${lines}`,
         data: comps,
+      };
+    }
+
+    // ==================== BUSCA INVERSA: KITS QUE CONTÊM UM COMPONENTE ====================
+    case "findKitsContainingProduct": {
+      const { componentProductId } = tool_args;
+      if (!componentProductId) {
+        return { success: false, error: "componentProductId é obrigatório." };
+      }
+
+      // Find all kits containing this product as component
+      const { data: parentComps, error: parentErr } = await supabase
+        .from("product_components")
+        .select(`
+          parent_product_id,
+          quantity,
+          parent:products!parent_product_id(id, name, sku, price, product_format)
+        `)
+        .eq("component_product_id", componentProductId);
+
+      if (parentErr) throw new Error(parentErr.message);
+
+      // Filter to this tenant's kits
+      const tenantKits = (parentComps || []).filter(
+        (c: any) => c.parent && c.parent.id
+      );
+
+      // Validate tenant ownership
+      const kitIds = tenantKits.map((c: any) => c.parent.id);
+      const { data: validKits } = await supabase
+        .from("products")
+        .select("id")
+        .in("id", kitIds)
+        .eq("tenant_id", tenant_id);
+
+      const validIds = new Set((validKits || []).map((k: any) => k.id));
+      const filtered = tenantKits.filter((c: any) => validIds.has(c.parent.id));
+
+      if (filtered.length === 0) {
+        // Also get the component product name for a better message
+        const { data: compProd } = await supabase.from("products").select("name").eq("id", componentProductId).single();
+        return { 
+          success: true, 
+          message: `Nenhum kit encontrado contendo "${compProd?.name || componentProductId}" como componente.`, 
+          data: [] 
+        };
+      }
+
+      const { data: compProd } = await supabase.from("products").select("name, sku").eq("id", componentProductId).single();
+
+      const lines = filtered.map((c: any, i: number) =>
+        `${i + 1}. **${c.parent.name}** (SKU: ${c.parent.sku}) — Qtd do componente: ${c.quantity}, Preço kit: R$ ${Number(c.parent.price).toFixed(2)}`
+      ).join("\n");
+
+      return {
+        success: true,
+        message: `🔍 **Kits que contêm "${compProd?.name}" (${compProd?.sku}):**\n\n${lines}`,
+        data: filtered.map((c: any) => ({
+          kitId: c.parent.id,
+          kitName: c.parent.name,
+          kitSku: c.parent.sku,
+          kitPrice: c.parent.price,
+          componentQuantity: c.quantity,
+        })),
       };
     }
 
