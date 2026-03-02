@@ -186,7 +186,8 @@ export default function Pages() {
       .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     const slugValidation = validateSlug(slug);
     if (!slugValidation.isValid) { toast.error(slugValidation.error || 'Slug inválido'); return; }
-    const isDuplicate = pages?.some(p => p.slug === slug && (!editingPage || p.id !== editingPage.id));
+    // Check against ALL pages (institutional + AI + builder LPs) to avoid DB constraint violations
+    const isDuplicate = allPages.some(p => p.slug === slug && (!editingPage || p.id !== editingPage.id));
     if (isDuplicate) { toast.error('Já existe uma página com este slug'); return; }
     if (editingPage) {
       await updatePage.mutateAsync({

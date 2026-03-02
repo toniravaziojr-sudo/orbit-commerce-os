@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.1.0"; // Support targetType landing_page (saves to ai_landing_pages)
+const VERSION = "v1.2.0"; // Generate clean HTML for landing_page targetType instead of raw scraped HTML
 // ===========================================================
 
 const corsHeaders = {
@@ -315,10 +315,76 @@ Gere a árvore BlockNode JSON completa, mapeando CADA seção visual para o bloc
     let savedPageId = pageId || null;
 
     if (targetType === 'landing_page') {
-      // ===== LANDING PAGE MODE: Save to ai_landing_pages =====
-      console.log(`[ai-import-page][${VERSION}] Step 3: Saving as AI Landing Page`);
+      // ===== LANDING PAGE MODE: Generate clean HTML and save to ai_landing_pages =====
+      console.log(`[ai-import-page][${VERSION}] Step 3: Generating clean HTML for AI Landing Page`);
       
-      // Generate a simple HTML representation from the block tree for ai_landing_pages
+      // Use AI to generate a clean, self-contained HTML page from the scraped content
+      const htmlGenPrompt = `Você é um especialista em criar landing pages de alta conversão.
+Sua tarefa é recriar fielmente a página web abaixo como um HTML completo, moderno, responsivo e self-contained.
+
+## REGRAS OBRIGATÓRIAS:
+1. Gere HTML completo começando com <!DOCTYPE html>
+2. Use CSS inline ou em tags <style> dentro do HTML
+3. O design deve ser FIEL ao original: mesmas cores, layout, estrutura visual
+4. COPIE E COLE as URLs de imagens EXATAS do HTML original - NUNCA use placeholder
+5. Extraia vídeos do YouTube e use iframes com embed
+6. O HTML deve ser self-contained (não depender de arquivos externos exceto Google Fonts e CDNs de imagem)
+7. Use fontes do Google Fonts via @import quando apropriado
+8. Mantenha responsividade (mobile-first com media queries)
+9. NÃO inclua header/footer/nav do site original - apenas o CONTEÚDO principal
+10. Preserve textos, títulos, descrições, preços e CTAs do original
+11. Mantenha a mesma hierarquia visual e ordem das seções
+12. Use animações CSS sutis para melhorar a experiência
+13. Otimize para conversão mantendo CTAs visíveis e atraentes
+
+## IMPORTANTE:
+- Retorne APENAS o HTML completo, sem explicações ou markdown
+- O HTML DEVE começar com <!DOCTYPE html>`;
+
+      const htmlGenUserPrompt = `Recrie fielmente esta página como HTML self-contained:
+
+URL Original: ${formattedUrl}
+Título: ${metadata.title || 'Sem título'}
+
+## HTML Original (seções principais):
+${html.substring(0, 100000)}
+
+## Conteúdo em Markdown (referência adicional):
+${markdown.substring(0, 30000)}
+
+Gere o HTML completo, mantendo fidelidade visual ao original. Use as URLs de imagem EXATAS do HTML.`;
+
+      const htmlAiResponse = await aiChatCompletionJSON(
+        "google/gemini-2.5-pro",
+        {
+          messages: [
+            { role: "system", content: htmlGenPrompt },
+            { role: "user", content: htmlGenUserPrompt },
+          ],
+        },
+        {
+          supabaseUrl: SUPABASE_URL,
+          supabaseServiceKey: SUPABASE_SERVICE_KEY,
+          logPrefix: '[ai-import-page-html]',
+        }
+      );
+
+      let generatedHtml = '';
+      if (htmlAiResponse?.data?.choices?.[0]?.message?.content) {
+        generatedHtml = htmlAiResponse.data.choices[0].message.content
+          .replace(/^```html?\n?/i, "")
+          .replace(/\n?```$/i, "")
+          .trim();
+      }
+      
+      // Fallback to raw HTML if AI generation fails
+      if (!generatedHtml || !generatedHtml.includes('<!DOCTYPE') && !generatedHtml.includes('<html')) {
+        console.log(`[ai-import-page][${VERSION}] HTML generation fallback to raw scraped HTML`);
+        generatedHtml = html.substring(0, 500000);
+      }
+
+      console.log(`[ai-import-page][${VERSION}] Generated clean HTML: ${generatedHtml.length} chars`);
+      
       const pageTitle = metadata.title || 'Landing Page Importada';
       const baseSlug = pageTitle
         .toLowerCase()
@@ -337,7 +403,7 @@ Gere a árvore BlockNode JSON completa, mapeando CADA seção visual para o bloc
         const { error: updateError } = await adminClient
           .from('ai_landing_pages')
           .update({
-            generated_html: html.substring(0, 500000),
+            generated_html: generatedHtml,
             initial_prompt: `Importado de: ${formattedUrl}`,
             reference_url: formattedUrl,
             status: 'draft',
@@ -365,7 +431,7 @@ Gere a árvore BlockNode JSON completa, mapeando CADA seção visual para o bloc
             slug: uniqueSlug,
             status: 'draft',
             is_published: false,
-            generated_html: html.substring(0, 500000),
+            generated_html: generatedHtml,
             initial_prompt: `Importado de: ${formattedUrl}`,
             reference_url: formattedUrl,
             created_by: userId,

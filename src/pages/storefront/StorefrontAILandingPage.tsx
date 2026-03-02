@@ -151,21 +151,30 @@ a.parentNode.insertBefore(o,a)};ttq.load('${config.tiktok_pixel_id}');ttq.page()
 }
 
 /**
- * Inject pixel scripts into the AI LP HTML before </head> or </body>
+ * Build favicon link tag from tenant store settings
  */
-function injectPixelsIntoHtml(html: string, pixelScripts: string): string {
-  if (!pixelScripts) return html;
+function buildFaviconTag(faviconUrl: string | null | undefined): string {
+  if (!faviconUrl) return '';
+  return `<link rel="icon" href="${faviconUrl}" type="image/png">`;
+}
+
+/**
+ * Inject pixel scripts and favicon into the AI LP HTML before </head> or </body>
+ */
+function injectPixelsIntoHtml(html: string, pixelScripts: string, faviconTag?: string): string {
+  const injections = [pixelScripts, faviconTag].filter(Boolean).join('\n');
+  if (!injections) return html;
 
   // Try to inject before </head>
   if (html.includes('</head>')) {
-    return html.replace('</head>', `${pixelScripts}\n</head>`);
+    return html.replace('</head>', `${injections}\n</head>`);
   }
   // Fallback: inject before </body>
   if (html.includes('</body>')) {
-    return html.replace('</body>', `${pixelScripts}\n</body>`);
+    return html.replace('</body>', `${injections}\n</body>`);
   }
   // Last resort: append
-  return html + pixelScripts;
+  return html + injections;
 }
 
 export default function StorefrontAILandingPage() {
@@ -174,6 +183,23 @@ export default function StorefrontAILandingPage() {
 
   // Fetch marketing config for pixel injection
   const { data: marketingConfig } = usePublicMarketingConfig(tenantInfo?.tenantId);
+
+  // Fetch store settings for favicon
+  const { data: storeSettings } = useQuery({
+    queryKey: ['store-settings-favicon', tenantInfo?.tenantId],
+    queryFn: async () => {
+      if (!tenantInfo?.tenantId) return null;
+      const { data, error } = await supabase
+        .from('store_settings')
+        .select('favicon_url')
+        .eq('tenant_id', tenantInfo.tenantId)
+        .maybeSingle();
+      if (error) return null;
+      return data;
+    },
+    enabled: !!tenantInfo?.tenantId,
+    staleTime: 1000 * 60 * 10,
+  });
 
   const { data: landingPage, isLoading: pageLoading, error } = useQuery({
     queryKey: ['ai-landing-page-public', tenantInfo?.tenantId, lpSlug],
@@ -214,9 +240,10 @@ export default function StorefrontAILandingPage() {
     return <NotFound />;
   }
 
-  // Inject pixel scripts into the generated HTML
+  // Inject pixel scripts and favicon into the generated HTML
   const pixelScripts = buildPixelScripts(marketingConfig ?? null);
-  const fullHtml = injectPixelsIntoHtml(landingPage.generated_html, pixelScripts);
+  const faviconTag = buildFaviconTag(storeSettings?.favicon_url);
+  const fullHtml = injectPixelsIntoHtml(landingPage.generated_html, pixelScripts, faviconTag);
 
   // Set document title
   if (typeof document !== 'undefined') {
