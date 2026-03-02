@@ -22,6 +22,7 @@ export interface ImportResult {
   sectionsCount: number;
   sourceUrl: string;
   sourceTitle: string;
+  pageId?: string;
 }
 
 type ImportStatus = 'idle' | 'scraping' | 'analyzing' | 'saving' | 'completed' | 'error';

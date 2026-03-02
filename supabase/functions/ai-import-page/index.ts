@@ -310,11 +310,13 @@ Gere a árvore BlockNode JSON completa, mapeando CADA seção visual para o bloc
 
     console.log(`[ai-import-page][${VERSION}] Successfully generated ${sectionCount} sections`);
 
-    // Step 3: If pageId provided, save directly to the page
+    // Step 3: Save to existing page or create new one
+    const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+    let savedPageId = pageId || null;
+
     if (pageId) {
-      console.log(`[ai-import-page][${VERSION}] Step 3: Saving to page ${pageId}`);
-      
-      const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+      // Update existing page
+      console.log(`[ai-import-page][${VERSION}] Step 3: Saving to existing page ${pageId}`);
       
       const { error: updateError } = await adminClient
         .from('store_pages')
@@ -334,8 +336,46 @@ Gere a árvore BlockNode JSON completa, mapeando CADA seção visual para o bloc
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+      console.log(`[ai-import-page][${VERSION}] Existing page updated successfully`);
+    } else {
+      // Create new page automatically
+      console.log(`[ai-import-page][${VERSION}] Step 3: Creating new page`);
+      
+      const pageTitle = metadata.title || 'Página Importada';
+      const baseSlug = pageTitle
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '')
+        .substring(0, 50);
+      const uniqueSlug = `${baseSlug}-${Date.now().toString(36)}`;
 
-      console.log(`[ai-import-page][${VERSION}] Page saved successfully`);
+      const { data: newPage, error: insertError } = await adminClient
+        .from('store_pages')
+        .insert({
+          tenant_id: tenantId,
+          title: pageTitle,
+          slug: uniqueSlug,
+          type: 'institutional',
+          status: 'draft',
+          content: blockNodeJson,
+          template_id: null,
+          individual_content: null,
+          is_published: false,
+        })
+        .select('id')
+        .single();
+
+      if (insertError) {
+        console.error(`[ai-import-page][${VERSION}] Create error:`, insertError);
+        return new Response(
+          JSON.stringify({ success: false, error: `Erro ao criar página: ${insertError.message}` }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      savedPageId = newPage.id;
+      console.log(`[ai-import-page][${VERSION}] New page created: ${savedPageId}`);
     }
 
     return new Response(
@@ -346,6 +386,7 @@ Gere a árvore BlockNode JSON completa, mapeando CADA seção visual para o bloc
           sectionsCount: sectionCount,
           sourceUrl: formattedUrl,
           sourceTitle: metadata.title || '',
+          pageId: savedPageId,
           provider: aiResponse.provider,
           model: aiResponse.model,
         }

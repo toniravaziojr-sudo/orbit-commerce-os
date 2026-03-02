@@ -390,9 +390,13 @@ export default function Pages() {
           open={isAIImportOpen}
           onOpenChange={setIsAIImportOpen}
           tenantId={currentTenant.id}
-          onSuccess={() => {
+          onSuccess={(result) => {
             refetch();
             setIsAIImportOpen(false);
+            if (result?.pageId) {
+              toast.success('Página importada! Abrindo o editor...');
+              navigate(`/pages/${result.pageId}/builder`);
+            }
           }}
         />
       )}
