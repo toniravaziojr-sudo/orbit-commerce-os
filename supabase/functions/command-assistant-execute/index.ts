@@ -2941,7 +2941,8 @@ async function executeTool(
       
       // First, get kit IDs scoped to this tenant
       let kitIds: Set<string>;
-      if (productIds && productIds.length > 0) {
+      // Treat empty array same as no productIds — recalculate ALL kits
+      if (productIds && Array.isArray(productIds) && productIds.length > 0) {
         // Find kits containing the specified products
         const { data: affectedComponents } = await supabase
           .from("product_components")

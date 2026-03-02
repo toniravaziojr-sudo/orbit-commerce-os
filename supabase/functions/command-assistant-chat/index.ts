@@ -940,9 +940,9 @@ const TOOL_REGISTRY = {
     requiredPermission: "email_marketing",
   },
   recalculateKitPrices: {
-    description: "Recalcular preços de kits baseado nos componentes. Busca todos os kits que contêm os produtos indicados e recalcula preço = Σ(preço_componente × quantidade)",
+    description: "Recalcular preços de kits baseado nos componentes. Se productIds for vazio ou omitido, recalcula TODOS os kits do tenant. Preço = Σ(preço_componente × quantidade)",
     parameters: {
-      productIds: { type: "array", required: true, description: "IDs dos produtos-base que mudaram de preço" },
+      productIds: { type: "array", required: false, description: "IDs dos produtos-base que mudaram de preço. Se vazio ou omitido, recalcula TODOS os kits do tenant." },
       removeCompareAtPrice: { type: "boolean", required: false, description: "Se true, remove preço de desconto dos kits" },
     },
     requiredPermission: "products",
@@ -1147,7 +1147,7 @@ Quando o usuário pedir alterações em MÚLTIPLOS produtos de uma vez:
 1. Busque TODOS os produtos automaticamente (MÚLTIPLAS chamadas — uma por produto)
 2. Extraia os IDs reais do [DADOS_INTERNOS_JSON] de cada busca
 3. Proponha UMA ÚNICA ação com todos os dados usando os IDs REAIS
-4. Se o usuário pedir recálculo de kits após alterar preços, proponha recalculateKitPrices como próxima ação
+4. Se o usuário pedir recálculo de kits após alterar preços, proponha recalculateKitPrices. Se não conseguir identificar os IDs dos produtos, use productIds: [] (vazio) para recalcular TODOS os kits do tenant automaticamente.
 
 Exemplo:
 Usuário: "Altere Shampoo para R$ 97,90, Loção para R$ 96,00 e Balm para R$ 96,00."
