@@ -18279,6 +18279,25 @@ export type Database = {
           similarity: number
         }[]
       }
+      search_products_fuzzy: {
+        Args: {
+          p_exclude_kits?: boolean
+          p_limit?: number
+          p_query: string
+          p_tenant_id: string
+        }
+        Returns: {
+          compare_at_price: number
+          created_at: string
+          id: string
+          name: string
+          price: number
+          product_format: string
+          sku: string
+          status: string
+          stock_quantity: number
+        }[]
+      }
       sync_list_subscribers_from_tag: {
         Args: { p_list_id: string }
         Returns: Json
