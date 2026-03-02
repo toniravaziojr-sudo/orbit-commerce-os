@@ -433,6 +433,13 @@ async function executeTool(
           if (!updateError) updateCount++;
         }
         
+        if (updateCount === 0) {
+          return {
+            success: false,
+            error: `❌ Nenhum produto foi atualizado. Os IDs fornecidos não foram encontrados no banco de dados. Verifique se os IDs são UUIDs válidos obtidos de uma busca anterior.`,
+            data: { affected: 0, type: "fixed_individual", prices, removeCompareAtPrice },
+          };
+        }
         return {
           success: true,
           message: `✅ Preços atualizados individualmente em ${updateCount} produto(s)!` + 

@@ -4,7 +4,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.0.0"; // Native tool calling for read operations
+const VERSION = "v2.1.0"; // Fix: return raw data with UUIDs to AI, enforce real IDs in prompt
 // ===========================================================
 
 const corsHeaders = {
@@ -483,7 +483,14 @@ async function executeReadTool(
   const result = await response.json();
   
   if (result.success) {
-    return result.message || JSON.stringify(result.data || {});
+    // CRITICAL: Return BOTH the human-readable message AND the raw data with IDs
+    // The AI needs the real UUIDs to use in write operations
+    const message = result.message || "";
+    const data = result.data;
+    if (data && (Array.isArray(data) ? data.length > 0 : Object.keys(data).length > 0)) {
+      return `${message}\n\n[DADOS_INTERNOS_JSON]: ${JSON.stringify(data)}`;
+    }
+    return message || JSON.stringify(data || {});
   } else {
     return `Erro: ${result.error || "Falha ao executar consulta"}`;
   }
@@ -1101,11 +1108,20 @@ ${toolDescriptions}
 3. NUNCA peça ao usuário para confirmar uma BUSCA — buscas são automáticas
 4. Apenas ações de ESCRITA precisam de confirmação via botão
 
+## REGRA CRÍTICA DE IDs (NUNCA VIOLAR):
+- Os IDs de produtos são UUIDs no formato "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" (ex: "8259065f-16f5-4aad-bc80-7d9cac4fa0c2")
+- NUNCA invente IDs como "prod_67890", "prod-abc123" ou qualquer formato curto
+- Os IDs REAIS estão no bloco [DADOS_INTERNOS_JSON] que acompanha cada resultado de busca
+- Sempre extraia o campo "id" do JSON de dados retornado pela busca
+- Se um produto não apareceu nos resultados de busca, você NÃO sabe o ID dele — faça outra busca
+
 ## REGRA DE BUSCA INTELIGENTE:
 - Quando o usuário mencionar VÁRIOS produtos para alterar, busque TODOS antes de propor a ação
+- Faça MÚLTIPLAS buscas separadas — uma para cada produto mencionado
 - Quando buscar produtos, use a tool searchProducts que PRIORIZA match exato e EXCLUI kits por padrão
 - Se precisar buscar produtos-base (não kits), a busca já exclui kits automaticamente
 - Se o usuário fornecer um SKU, busque por SKU exato
+- NUNCA afirme ter encontrado um produto que NÃO apareceu nos resultados de busca
 
 ## REGRA DE DECISÃO RÁPIDA (CRÍTICA — NÃO PERGUNTE DEMAIS):
 Seja DECISIVO. O lojista quer ação, não interrogatório.
@@ -1115,26 +1131,29 @@ Seja DECISIVO. O lojista quer ação, não interrogatório.
 **Quando o usuário já deu todas as informações**: Proponha a ação direto.
 
 **Fluxo ideal (2 passos)**:
-1. Usuário pede algo → buscas automáticas → propõe ação com botão Confirmar
+1. Usuário pede algo → buscas automáticas (TODAS de uma vez) → propõe ação com botão Confirmar
 2. Usuário clica Confirmar → execução → resultado
 
 **Anti-patterns PROIBIDOS**:
 - ❌ Pedir confirmação para buscar dados
 - ❌ Fazer perguntas quando já tem todas as informações
 - ❌ Fazer 2+ perguntas antes de propor a ação
+- ❌ Inventar IDs de produtos — SEMPRE extrair do [DADOS_INTERNOS_JSON]
+- ❌ Afirmar ter encontrado um produto sem que ele apareça nos dados da busca
 - ✅ Buscar automaticamente → propor ação com botão
 
 ## OPERAÇÕES EM LOTE (CRÍTICO):
 Quando o usuário pedir alterações em MÚLTIPLOS produtos de uma vez:
-1. Busque TODOS os produtos automaticamente (múltiplas chamadas paralelas se necessário)
-2. Proponha UMA ÚNICA ação com todos os dados (ex: bulkUpdateProductsPrice com array de prices)
-3. Se o usuário pedir recálculo de kits após alterar preços, proponha recalculateKitPrices como próxima ação
+1. Busque TODOS os produtos automaticamente (MÚLTIPLAS chamadas — uma por produto)
+2. Extraia os IDs reais do [DADOS_INTERNOS_JSON] de cada busca
+3. Proponha UMA ÚNICA ação com todos os dados usando os IDs REAIS
+4. Se o usuário pedir recálculo de kits após alterar preços, proponha recalculateKitPrices como próxima ação
 
 Exemplo:
-Usuário: "Altere Shampoo para R$ 97,90, Loção para R$ 96,00 e Balm para R$ 96,00. Depois recalcule os kits."
-→ Busque os 3 produtos automaticamente
-→ Proponha UMA ação bulkUpdateProductsPrice com prices: [{productId: "...", price: 97.90}, {productId: "...", price: 96.00}, {productId: "...", price: 96.00}]
-→ Após confirmação, proponha recalculateKitPrices com os IDs dos 3 produtos
+Usuário: "Altere Shampoo para R$ 97,90, Loção para R$ 96,00 e Balm para R$ 96,00."
+→ Busque searchProducts("Shampoo Calvície Zero"), searchProducts("Loção pós-banho calvície zero"), searchProducts("Balm pós-banho calvície zero")
+→ Extraia os IDs reais do JSON de cada resultado (ex: "8259065f-...", "a1b2c3d4-...", "e5f6g7h8-...")
+→ Proponha UMA ação bulkUpdateProductsPrice com prices: [{productId: "8259065f-...", price: 97.90}, ...]
 
 ## FORMATO DE AÇÃO (OBRIGATÓRIO)
 Para propor uma ação de ESCRITA, use o formato JSON no final da sua resposta:
