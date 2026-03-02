@@ -167,6 +167,24 @@ O Platform Admin tem acesso a dois modos de visualização via toggle pills no h
 | **Roles** | Usar `hasRole()` (nunca hardcoded) |
 | **Platform admins** | Tabela `platform_admins` (separado). Platform admin não precisa de tenant para acessar |
 
+### Hooks de Acesso ao Tenant (Unificados)
+
+| Hook | Status | Descrição |
+|------|--------|-----------|
+| **`useTenantAccess`** | ✅ **CANÔNICO** | Hook unificado. Retorna: `tenantType`, `plan`, `isSpecial`, `isPlatform`, `isPlatformTenant`, `isCustomerTenant`, `isUnlimited`, `planLevel`, `canAccess(feature)`, `showStatusIndicators`, `overrides` |
+| `useTenantType` | ⚠️ **DEPRECATED** | Wrapper fino sobre `useTenantAccess`. Mantido para backwards compat. Usar `useTenantAccess` em código novo. |
+| `useIsSpecialTenant` | ⚠️ **DEPRECATED** | Wrapper fino sobre `useTenantAccess().showStatusIndicators`. Usar `useTenantAccess` em código novo. |
+| **`usePlatformOperator`** | ✅ Ativo | Verifica se o usuário é admin da plataforma (tabela `platform_admins`). Eixo separado. |
+| **`usePermissions`** | ✅ Ativo | RBAC de sub-usuários (owner/admin/operator/viewer). Eixo separado. |
+
+### Regra de Uso
+
+| ❌ Proibido | ✅ Correto |
+|-------------|------------|
+| Usar `useTenantType` em código novo | Usar `useTenantAccess` |
+| Usar `useIsSpecialTenant` em código novo | Usar `useTenantAccess().showStatusIndicators` |
+| Criar novo hook para dados do tenant | Adicionar ao `useTenantAccess` |
+
 ---
 
 ## Arquitetura — Locais Canônicos (Regra Fixa)
