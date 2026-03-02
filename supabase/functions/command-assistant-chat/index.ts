@@ -1290,8 +1290,8 @@ serve(async (req) => {
     const messages: any[] = [
       { role: "system", content: SYSTEM_PROMPT },
       ...(history || []).map((m) => ({
-        role: m.role === "tool" ? "user" : m.role,
-        content: m.role === "tool" ? `[RESULTADO DE AÇÃO EXECUTADA — NÃO RE-PROPOR]: ${m.content || ""}` : (m.content || ""),
+        role: m.role === "tool" ? "assistant" : m.role,
+        content: m.role === "tool" ? `[RESULTADO DE AÇÃO JÁ EXECUTADA]: ${m.content || ""}` : (m.content || ""),
       })),
     ];
 
