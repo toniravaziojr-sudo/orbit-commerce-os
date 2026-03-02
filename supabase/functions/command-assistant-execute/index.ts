@@ -114,6 +114,7 @@ const PERMISSION_MAP: Record<string, string[]> = {
   addSubscriber: ["owner", "admin", "manager"],
   createEmailCampaign: ["owner", "admin", "manager"],
   listCampaigns: ["owner", "admin", "manager", "viewer"],
+  recalculateKitPrices: ["owner", "admin", "manager"],
 };
 
 // Rate limiting - simple in-memory (resets on function restart)
@@ -1400,21 +1401,97 @@ async function executeTool(
 
     // ==================== FASE 1: LEITURA UNIVERSAL ====================
     case "searchProducts": {
-      const { query, categoryId, limit } = tool_args;
+      const { query, categoryId, limit, excludeKits = true, exactMatch = true } = tool_args;
       const maxResults = limit || 20;
       
+      const selectFields = "id, name, sku, price, compare_at_price, stock_quantity, status, product_format, created_at";
+      
+      // Strategy 1: Try exact SKU match first (if query looks like a SKU)
+      const isSkuLike = /^[0-9]{1,10}$/.test(query?.trim()) || /^[A-Z0-9-]{2,20}$/i.test(query?.trim());
+      if (isSkuLike) {
+        const { data: skuMatch } = await supabase
+          .from("products")
+          .select(selectFields)
+          .eq("tenant_id", tenant_id)
+          .is("deleted_at", null)
+          .eq("sku", query.trim())
+          .limit(1);
+        
+        if (skuMatch && skuMatch.length > 0) {
+          const p = skuMatch[0];
+          return {
+            success: true,
+            message: `🔍 **1 produto encontrado por SKU "${query}":**\n\n• ${p.name} (SKU: ${p.sku || "—"}) — R$ ${(p.price || 0).toFixed(2)} — Estoque: ${p.stock_quantity ?? 0} — ${p.status === "active" ? "Ativo" : "Inativo"}`,
+            data: skuMatch,
+          };
+        }
+      }
+      
+      // Strategy 2: Exact name match (prioritized)
+      if (exactMatch) {
+        let exactQ = supabase
+          .from("products")
+          .select(selectFields)
+          .eq("tenant_id", tenant_id)
+          .is("deleted_at", null)
+          .eq("name", query)
+          .limit(maxResults);
+        
+        if (excludeKits) {
+          exactQ = exactQ.neq("product_format", "with_composition");
+        }
+        
+        const { data: exactData } = await exactQ;
+        if (exactData && exactData.length > 0) {
+          const list = exactData.map((p: any) => 
+            `• ${p.name} (SKU: ${p.sku || "—"}) — R$ ${(p.price || 0).toFixed(2)} — Estoque: ${p.stock_quantity ?? 0} — ${p.status === "active" ? "Ativo" : "Inativo"}`
+          ).join("\n");
+          return {
+            success: true,
+            message: `🔍 **${exactData.length} produto(s) encontrado(s) para "${query}":**\n\n${list}`,
+            data: exactData,
+          };
+        }
+      }
+      
+      // Strategy 3: ilike search (fallback)
       let q = supabase
         .from("products")
-        .select("id, name, sku, price, compare_at_price, stock_quantity, status, created_at")
+        .select(selectFields)
         .eq("tenant_id", tenant_id)
         .is("deleted_at", null)
         .or(`name.ilike.%${query}%,sku.ilike.%${query}%`)
         .limit(maxResults);
       
+      if (excludeKits) {
+        q = q.neq("product_format", "with_composition");
+      }
+      
       const { data, error } = await q;
       if (error) throw new Error(error.message);
       
       if (!data || data.length === 0) {
+        // If excludeKits was on and no results, try including kits
+        if (excludeKits) {
+          const { data: withKits } = await supabase
+            .from("products")
+            .select(selectFields)
+            .eq("tenant_id", tenant_id)
+            .is("deleted_at", null)
+            .or(`name.ilike.%${query}%,sku.ilike.%${query}%`)
+            .limit(maxResults);
+          
+          if (withKits && withKits.length > 0) {
+            const list = withKits.map((p: any) => 
+              `• ${p.name} (SKU: ${p.sku || "—"}) — R$ ${(p.price || 0).toFixed(2)} — ${p.product_format === "with_composition" ? "Kit" : "Produto"} — ${p.status === "active" ? "Ativo" : "Inativo"}`
+            ).join("\n");
+            return {
+              success: true,
+              message: `🔍 **${withKits.length} produto(s) encontrado(s) para "${query}" (incluindo kits):**\n\n${list}`,
+              data: withKits,
+            };
+          }
+        }
         return { success: true, message: `Nenhum produto encontrado para "${query}".`, data: [] };
       }
       
