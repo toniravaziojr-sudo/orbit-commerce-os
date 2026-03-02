@@ -3,7 +3,7 @@
 // This is a placeholder block used in templates to indicate where page content goes
 // =============================================
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { BlockRenderContext } from '@/lib/builder/types';
 
 interface PageContentBlockProps {
@@ -14,28 +14,68 @@ export function PageContentBlock({ context }: PageContentBlockProps) {
   const content = context?.pageContent || '';
   const containerRef = useRef<HTMLDivElement>(null);
   
-  // Add event listeners for carousel navigation buttons (data-scroll-dir)
-  useEffect(() => {
+  // Carousel navigation handler
+  const attachNavListeners = useCallback(() => {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container) return () => {};
 
     const handleNavClick = (e: Event) => {
-      const btn = (e.currentTarget as HTMLElement);
+      e.preventDefault();
+      e.stopPropagation();
+      const btn = e.currentTarget as HTMLElement;
       const dir = btn.getAttribute('data-scroll-dir');
       const amount = parseInt(btn.getAttribute('data-scroll-amount') || '320', 10);
-      const track = btn.parentElement?.querySelector('.fc-carousel-track');
+      // Find the carousel track as a sibling within the same wrapper
+      const wrapper = btn.closest('.fc-carousel-wrapper');
+      const track = wrapper?.querySelector('.fc-carousel-track');
       if (track) {
         track.scrollBy({ left: dir === 'prev' ? -amount : amount, behavior: 'smooth' });
       }
     };
 
     const buttons = container.querySelectorAll('[data-scroll-dir]');
-    buttons.forEach(btn => btn.addEventListener('click', handleNavClick));
+    buttons.forEach(btn => {
+      btn.removeEventListener('click', handleNavClick);
+      btn.addEventListener('click', handleNavClick);
+      // Ensure buttons are interactive
+      (btn as HTMLElement).style.cursor = 'pointer';
+      (btn as HTMLElement).style.pointerEvents = 'auto';
+      (btn as HTMLElement).style.touchAction = 'manipulation';
+      (btn as HTMLElement).setAttribute('type', 'button');
+    });
     
     return () => {
       buttons.forEach(btn => btn.removeEventListener('click', handleNavClick));
     };
-  }, [content]);
+  }, []);
+
+  // Attach listeners after content renders
+  useEffect(() => {
+    if (!content) return;
+    
+    // Use requestAnimationFrame to ensure DOM is fully painted
+    const rafId = requestAnimationFrame(() => {
+      const cleanup = attachNavListeners();
+      // Also use MutationObserver as fallback for dynamic content
+      const observer = new MutationObserver(() => {
+        attachNavListeners();
+      });
+      const container = containerRef.current;
+      if (container) {
+        observer.observe(container, { childList: true, subtree: true });
+      }
+      // Store cleanup refs
+      (containerRef as any)._cleanup = () => {
+        cleanup();
+        observer.disconnect();
+      };
+    });
+    
+    return () => {
+      cancelAnimationFrame(rafId);
+      (containerRef as any)?._cleanup?.();
+    };
+  }, [content, attachNavListeners]);
   
   // If no content, show placeholder in preview/editor mode
   if (!content) {
