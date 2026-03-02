@@ -652,6 +652,31 @@ O campo de input do chat salva automaticamente o texto digitado no `localStorage
 
 ---
 
+## Regra de Decisão Rápida (System Prompt)
+
+A IA deve ser DECISIVA e não fazer perguntas desnecessárias ao lojista.
+
+### Comportamento Esperado
+
+- **1 resultado na busca**: Assumir que é o item correto e propor ação IMEDIATAMENTE com botão Confirmar
+- **Múltiplos resultados**: Perguntar qual, de forma CONCISA
+- **Informações completas**: Propor ação direto, sem pedir "confirmação textual" antes do botão
+
+### Fluxo Ideal (máx. 2-3 mensagens)
+
+1. Usuário pede algo → busca (se necessário) → propõe ação com botão Confirmar
+2. Usuário clica Confirmar → execução → resultado
+
+### Anti-Patterns PROIBIDOS
+
+- ❌ "Encontrei o produto X. Você confirma que quer alterar?" (sem botão de ação)
+- ❌ "O ID do produto é prod-0026. É esse mesmo?"
+- ❌ Repetir dados já visíveis em mensagens anteriores
+- ❌ Fazer 2+ perguntas antes de propor a ação
+- ✅ "Encontrei o **Shampoo X** (R$ 311,82). Vou atualizar para **R$ 97,90**:" + bloco action
+
+---
+
 ## Checklist
 
 - [ ] Painel abre com ⌘K
@@ -664,3 +689,4 @@ O campo de input do chat salva automaticamente o texto digitado no `localStorage
 - [ ] Memória persistente funciona entre sessões
 - [ ] **Chat scrollável** (container pai é flex flex-col min-h-0)
 - [ ] **Rascunho persiste** entre trocas de conversa e reloads
+- [ ] **Decisão rápida**: IA não pergunta demais, propõe ação direto
