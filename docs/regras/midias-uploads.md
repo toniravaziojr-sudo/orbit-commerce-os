@@ -398,10 +398,37 @@ Criativos gerados pela IA (edge function `creative-image-generate`) usam nomes d
 
 ---
 
+## Buckets e URLs — Regra de Acesso
+
+| Bucket | Visibilidade | Método de URL |
+|--------|-------------|---------------|
+| `store-assets` | Público | `getPublicUrl()` |
+| `media-assets` | Público | `getPublicUrl()` |
+| `tenant-files` | **Privado** | `createSignedUrl()` (1h de expiração) |
+
+> **REGRA CRÍTICA:** `getPublicUrl()` sempre retorna uma URL, mesmo para buckets privados (a URL simplesmente não funciona). Por isso, para `tenant-files`, SEMPRE usar `createSignedUrl()` diretamente. Nunca tentar `getPublicUrl` como primeiro passo em buckets privados.
+
+---
+
+## Toasts de Upload — Consolidação Obrigatória
+
+| Regra | Descrição |
+|-------|-----------|
+| **Upload único** | Toast: "Arquivo enviado com sucesso!" |
+| **Upload múltiplo** | Toast: "X arquivos enviados com sucesso!" (consolidado) |
+| **Erros parciais** | Toast de erro separado: "X arquivo(s) falharam no envio." |
+| **Implementação** | O toast é disparado pelo **caller** (`Files.tsx`), não pelo hook `useFiles.ts` |
+
+> **PROIBIDO:** Disparar toast individual por arquivo dentro do `onSuccess` da mutation. O hook `useFiles.uploadFile` NÃO emite toasts — a responsabilidade é do componente que orquestra o upload em lote.
+
+---
+
 ## Histórico de Alterações
 
 | Data | Alteração |
 |------|-----------|
+| 2026-03-02 | Corrigido `getFileUrl` para usar `createSignedUrl` em buckets privados (`tenant-files`) — previews e downloads agora funcionam |
+| 2026-03-02 | Toasts de upload consolidados: uma única notificação para uploads em lote em vez de uma por arquivo |
 | 2026-02-19 | Nomes únicos para criativos (`{product}_{style}_{provider}_{timestamp}.png`) e ordenação do Drive por `created_at DESC` |
 | 2026-02-17 | Adicionadas pastas "Imagens de Produtos" e "Gestor de Tráfego IA" — sincronização automática de imagens do catálogo para o Meu Drive |
 | 2026-02-14 | Adicionadas regras de estabilidade do DriveFilePicker: `stopPropagation` no DialogContent e `type="button"` no botão do Drive |
