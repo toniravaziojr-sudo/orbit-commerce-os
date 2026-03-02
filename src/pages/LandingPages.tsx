@@ -40,6 +40,7 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { CreateLandingPageDialog } from "@/components/landing-pages/CreateLandingPageDialog";
+import { validateSlug, generateSlug } from '@/lib/slugValidation';
 import { LandingPagePreviewDialog } from "@/components/landing-pages/LandingPagePreviewDialog";
 import { ImportPageWithAIDialog } from "@/components/import/ImportPageWithAIDialog";
 import {
@@ -80,6 +81,7 @@ export default function LandingPages() {
   const [isAIImportOpen, setIsAIImportOpen] = useState(false);
   const [isBuilderDialogOpen, setIsBuilderDialogOpen] = useState(false);
   const [builderPageName, setBuilderPageName] = useState('');
+  const [builderPageSlug, setBuilderPageSlug] = useState('');
   const [isCreatingBuilderPage, setIsCreatingBuilderPage] = useState(false);
 
 
@@ -145,13 +147,25 @@ export default function LandingPages() {
 
   const handleCreateBuilderPage = async () => {
     if (!builderPageName.trim() || !tenant?.id || !user?.id) return;
+    
+    const slug = builderPageSlug || generateSlug(builderPageName);
+    
+    // Validate slug
+    const slugValidation = validateSlug(slug);
+    if (!slugValidation.isValid) {
+      toast.error(slugValidation.error || 'Slug inválido');
+      return;
+    }
+    
+    // Check for duplicate slug
+    const isDuplicate = landingPages?.some(p => p.slug === slug);
+    if (isDuplicate) {
+      toast.error('Já existe uma landing page com este slug');
+      return;
+    }
+    
     setIsCreatingBuilderPage(true);
     try {
-      const slug = builderPageName.trim().toLowerCase()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-      const uniqueSuffix = Date.now().toString(36);
-
       // Create directly in ai_landing_pages with empty HTML (builder mode)
       const { data: newPage, error } = await supabase
         .from('ai_landing_pages')
@@ -159,7 +173,7 @@ export default function LandingPages() {
           tenant_id: tenant.id,
           created_by: user.id,
           name: builderPageName.trim(),
-          slug: `${slug}-${uniqueSuffix}`,
+          slug,
           status: 'draft',
           generated_html: '',
         })
@@ -170,6 +184,7 @@ export default function LandingPages() {
 
       setIsBuilderDialogOpen(false);
       setBuilderPageName('');
+      setBuilderPageSlug('');
       queryClient.invalidateQueries({ queryKey: ['ai-landing-pages'] });
       toast.success('Landing page criada! Abrindo o editor...');
       navigate(`/landing-pages/${newPage.id}`);
@@ -407,28 +422,49 @@ export default function LandingPages() {
       {/* Builder Create Dialog */}
       <Dialog open={isBuilderDialogOpen} onOpenChange={(open) => {
         setIsBuilderDialogOpen(open);
-        if (!open) setBuilderPageName('');
+        if (!open) { setBuilderPageName(''); setBuilderPageSlug(''); }
       }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Criar Landing Page no Builder</DialogTitle>
+            <DialogTitle>Criar Nova Landing Page</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* Título */}
             <div className="space-y-2">
-              <Label htmlFor="lp-name">Nome da Landing Page</Label>
+              <Label className="text-sm font-medium">Nome *</Label>
               <Input
-                id="lp-name"
                 placeholder="Ex: Promoção de Verão"
                 value={builderPageName}
-                onChange={(e) => setBuilderPageName(e.target.value)}
+                onChange={(e) => {
+                  setBuilderPageName(e.target.value);
+                  // Auto-generate slug if user hasn't manually edited it
+                  if (!builderPageSlug || builderPageSlug === generateSlug(builderPageName)) {
+                    setBuilderPageSlug(generateSlug(e.target.value));
+                  }
+                }}
                 onKeyDown={(e) => e.key === 'Enter' && handleCreateBuilderPage()}
                 autoFocus
               />
             </div>
-            <div className="bg-muted/50 p-3 rounded-md border border-dashed">
-              <p className="text-sm text-muted-foreground">
-                💡 Após criar, você será redirecionado ao editor visual para construir o conteúdo da página.
-              </p>
+
+            {/* Slug */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Slug (URL)</Label>
+              <Input
+                value={builderPageSlug}
+                onChange={(e) => setBuilderPageSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
+                placeholder={builderPageName ? generateSlug(builderPageName) : 'slug-da-pagina'}
+                className={!validateSlug(builderPageSlug).isValid && builderPageSlug ? 'border-destructive' : ''}
+              />
+              {!validateSlug(builderPageSlug).isValid && builderPageSlug ? (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  {validateSlug(builderPageSlug).error}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  URL final: /ai-lp/{builderPageSlug || generateSlug(builderPageName) || 'slug'}
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>
