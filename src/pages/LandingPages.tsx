@@ -60,7 +60,7 @@ interface AILandingPage {
 }
 
 export default function LandingPages() {
-  const { currentTenant: tenant } = useAuth();
+  const { currentTenant: tenant, user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   
@@ -171,7 +171,28 @@ export default function LandingPages() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={() => navigate('/pages')}>
+          <Button variant="outline" onClick={async () => {
+            if (!tenant?.id || !user?.id) return;
+            const slug = `lp-${Date.now()}`;
+            const { data, error } = await supabase
+              .from('ai_landing_pages')
+              .insert({
+                tenant_id: tenant.id,
+                created_by: user.id,
+                name: 'Nova Landing Page',
+                slug,
+                status: 'draft',
+                generated_html: '',
+              })
+              .select('id')
+              .single();
+            if (error) {
+              toast.error('Erro ao criar landing page');
+              return;
+            }
+            queryClient.invalidateQueries({ queryKey: ['ai-landing-pages'] });
+            navigate(`/landing-pages/${data.id}`);
+          }}>
             <LayoutTemplate className="h-4 w-4 mr-2" />
             Criar no Builder
           </Button>
