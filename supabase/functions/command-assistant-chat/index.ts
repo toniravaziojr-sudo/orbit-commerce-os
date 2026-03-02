@@ -1,14 +1,497 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMemoryContext } from "../_shared/ai-memory.ts";
-import { getAIEndpoint, resetAIRouterCache } from "../_shared/ai-router.ts";
+import { getAIEndpoint, aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
+
+// ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
+const VERSION = "v2.0.0"; // Native tool calling for read operations
+// ===========================================================
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Extended Tool registry - defines ALL available actions
+// ==================== READ TOOLS (auto-executed server-side) ====================
+const READ_TOOLS = new Set([
+  "searchProducts", "listProducts", "getProductDetails", "listProductComponents",
+  "searchOrders", "getOrderDetails", "listDiscounts", "listCategories",
+  "getDashboardStats", "getTopProducts", "listCustomerTags", "searchCustomers",
+  "listBlogPosts", "listOffers", "listReviews", "listPages",
+  "getFinancialSummary", "listShippingMethods", "listNotifications",
+  "listFiles", "getStorageUsage", "listEmailLists", "listSubscribers",
+  "listCampaigns", "listAgendaTasks", "inventoryReport", "customersReport", "salesReport",
+]);
+
+// ==================== PERMISSION MAP for read tools ====================
+const READ_PERMISSION_MAP: Record<string, string[]> = {
+  searchProducts: ["owner", "admin", "manager", "editor", "attendant", "viewer"],
+  listProducts: ["owner", "admin", "manager", "editor", "attendant", "viewer"],
+  getProductDetails: ["owner", "admin", "manager", "editor", "attendant", "viewer"],
+  listProductComponents: ["owner", "admin", "manager", "editor", "viewer"],
+  searchOrders: ["owner", "admin", "manager", "attendant", "viewer"],
+  getOrderDetails: ["owner", "admin", "manager", "attendant", "viewer"],
+  listDiscounts: ["owner", "admin", "manager", "viewer"],
+  listCategories: ["owner", "admin", "manager", "editor", "attendant", "viewer"],
+  getDashboardStats: ["owner", "admin", "manager", "viewer"],
+  getTopProducts: ["owner", "admin", "manager", "viewer"],
+  listCustomerTags: ["owner", "admin", "manager", "attendant", "viewer"],
+  searchCustomers: ["owner", "admin", "manager", "attendant", "viewer"],
+  listBlogPosts: ["owner", "admin", "manager", "editor", "viewer"],
+  listOffers: ["owner", "admin", "manager", "viewer"],
+  listReviews: ["owner", "admin", "manager", "attendant", "viewer"],
+  listPages: ["owner", "admin", "manager", "editor", "viewer"],
+  getFinancialSummary: ["owner", "admin", "manager", "viewer"],
+  listShippingMethods: ["owner", "admin", "manager", "viewer"],
+  listNotifications: ["owner", "admin", "manager", "editor", "attendant", "assistant", "viewer"],
+  listFiles: ["owner", "admin", "manager", "editor", "viewer"],
+  getStorageUsage: ["owner", "admin", "manager", "viewer"],
+  listEmailLists: ["owner", "admin", "manager"],
+  listSubscribers: ["owner", "admin", "manager"],
+  listCampaigns: ["owner", "admin", "manager", "viewer"],
+  listAgendaTasks: ["owner", "admin", "manager", "editor", "attendant", "assistant", "viewer"],
+  inventoryReport: ["owner", "admin", "manager", "editor", "viewer"],
+  customersReport: ["owner", "admin", "manager", "viewer"],
+  salesReport: ["owner", "admin", "manager", "editor", "viewer"],
+};
+
+// ==================== OpenAI-format tool definitions for read tools ====================
+const OPENAI_READ_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "searchProducts",
+      description: "Buscar produtos por nome ou SKU. Prioriza match exato no nome, exclui kits por padrão. Se o query parecer um SKU (numérico ou curto), busca por SKU exato primeiro.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Termo de busca (nome ou SKU)" },
+          categoryId: { type: "string", description: "Filtrar por categoria (opcional)" },
+          limit: { type: "number", description: "Limite de resultados (padrão 20)" },
+          excludeKits: { type: "boolean", description: "Excluir kits/composições (padrão true)" },
+          exactMatch: { type: "boolean", description: "Priorizar match exato no nome (padrão true)" },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listProducts",
+      description: "Listar produtos com filtros (ativos, inativos, por categoria, faixa de preço)",
+      parameters: {
+        type: "object",
+        properties: {
+          status: { type: "string", description: "active, inactive, all" },
+          categoryId: { type: "string", description: "Filtrar por categoria" },
+          minPrice: { type: "number", description: "Preço mínimo em reais" },
+          maxPrice: { type: "number", description: "Preço máximo em reais" },
+          limit: { type: "number", description: "Limite (padrão 20)" },
+          orderBy: { type: "string", description: "name, price, created_at, stock_quantity" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "getProductDetails",
+      description: "Ver detalhes completos de um produto (nome, preço, estoque, SKU, categorias, dimensões, SEO)",
+      parameters: {
+        type: "object",
+        properties: {
+          productId: { type: "string", description: "ID do produto" },
+        },
+        required: ["productId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listProductComponents",
+      description: "Listar componentes/composição de um kit",
+      parameters: {
+        type: "object",
+        properties: {
+          parentProductId: { type: "string", description: "ID do produto kit" },
+        },
+        required: ["parentProductId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "searchOrders",
+      description: "Buscar pedidos por número, nome do cliente, status ou período",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Número do pedido ou nome do cliente" },
+          status: { type: "string", description: "pending, paid, shipped, delivered, cancelled" },
+          startDate: { type: "string", description: "Data início (ISO)" },
+          endDate: { type: "string", description: "Data fim (ISO)" },
+          limit: { type: "number", description: "Limite (padrão 20)" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "getOrderDetails",
+      description: "Ver detalhes completos de um pedido",
+      parameters: {
+        type: "object",
+        properties: {
+          orderId: { type: "string", description: "ID do pedido" },
+        },
+        required: ["orderId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listDiscounts",
+      description: "Listar cupons de desconto",
+      parameters: {
+        type: "object",
+        properties: {
+          status: { type: "string", description: "active, inactive, all" },
+          limit: { type: "number", description: "Limite (padrão 20)" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listCategories",
+      description: "Listar categorias de produtos",
+      parameters: {
+        type: "object",
+        properties: {
+          status: { type: "string", description: "active, inactive, all" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "getDashboardStats",
+      description: "Obter estatísticas do dashboard: receita, pedidos, ticket médio",
+      parameters: {
+        type: "object",
+        properties: {
+          period: { type: "string", description: "today, week, month, year" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "getTopProducts",
+      description: "Ver os produtos mais vendidos",
+      parameters: {
+        type: "object",
+        properties: {
+          period: { type: "string", description: "week, month, year" },
+          limit: { type: "number", description: "Quantidade (padrão 10)" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listCustomerTags",
+      description: "Listar tags de clientes disponíveis",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "searchCustomers",
+      description: "Buscar clientes por nome, email ou telefone",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Termo de busca" },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listBlogPosts",
+      description: "Listar posts do blog",
+      parameters: {
+        type: "object",
+        properties: {
+          status: { type: "string", description: "draft, published, all" },
+          limit: { type: "number", description: "Limite (padrão 20)" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listOffers",
+      description: "Listar ofertas de bump/upsell",
+      parameters: {
+        type: "object",
+        properties: {
+          type: { type: "string", description: "bump, upsell, all" },
+          status: { type: "string", description: "active, inactive, all" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listReviews",
+      description: "Listar avaliações de produtos",
+      parameters: {
+        type: "object",
+        properties: {
+          status: { type: "string", description: "pending, approved, rejected, all" },
+          limit: { type: "number", description: "Limite (padrão 20)" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listPages",
+      description: "Listar páginas institucionais",
+      parameters: {
+        type: "object",
+        properties: {
+          status: { type: "string", description: "published, draft, all" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "getFinancialSummary",
+      description: "Ver resumo financeiro (receita, custos, lucro)",
+      parameters: {
+        type: "object",
+        properties: {
+          period: { type: "string", description: "today, week, month, year" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listShippingMethods",
+      description: "Listar métodos de frete configurados",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listNotifications",
+      description: "Listar notificações recentes",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: { type: "number", description: "Limite (padrão 20)" },
+          unreadOnly: { type: "boolean", description: "Apenas não lidas" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listFiles",
+      description: "Listar arquivos do drive/mídia",
+      parameters: {
+        type: "object",
+        properties: {
+          folder: { type: "string", description: "Pasta (ex: products, blog)" },
+          limit: { type: "number", description: "Limite (padrão 20)" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "getStorageUsage",
+      description: "Ver uso de armazenamento do drive",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listEmailLists",
+      description: "Listar listas de email marketing",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listSubscribers",
+      description: "Listar inscritos de uma lista de email",
+      parameters: {
+        type: "object",
+        properties: {
+          listId: { type: "string", description: "ID da lista" },
+          status: { type: "string", description: "active, unsubscribed, all" },
+          limit: { type: "number", description: "Limite (padrão 20)" },
+        },
+        required: ["listId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listCampaigns",
+      description: "Listar campanhas de email marketing",
+      parameters: {
+        type: "object",
+        properties: {
+          status: { type: "string", description: "draft, active, completed, all" },
+          limit: { type: "number", description: "Limite (padrão 20)" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listAgendaTasks",
+      description: "Listar tarefas da agenda",
+      parameters: {
+        type: "object",
+        properties: {
+          status: { type: "string", description: "pending, done, all" },
+          limit: { type: "number", description: "Limite de resultados" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "inventoryReport",
+      description: "Relatório de estoque (baixo, zerado)",
+      parameters: {
+        type: "object",
+        properties: {
+          lowStockThreshold: { type: "number", description: "Limite para considerar estoque baixo" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "customersReport",
+      description: "Relatório de clientes (total, novos no período)",
+      parameters: {
+        type: "object",
+        properties: {
+          period: { type: "string", description: "week, month, year" },
+        },
+        required: ["period"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "salesReport",
+      description: "Relatório de vendas por período",
+      parameters: {
+        type: "object",
+        properties: {
+          period: { type: "string", description: "today, week, month, custom" },
+          startDate: { type: "string", description: "Data início (para custom)" },
+          endDate: { type: "string", description: "Data fim (para custom)" },
+        },
+        required: ["period"],
+      },
+    },
+  },
+];
+
+// ==================== Execute read tool server-side ====================
+async function executeReadTool(
+  supabase: any,
+  tenantId: string,
+  userId: string,
+  toolName: string,
+  toolArgs: any
+): Promise<string> {
+  // Call the execute function via HTTP to reuse all existing logic
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  
+  // We call the execute function directly via internal invocation
+  const response = await fetch(`${supabaseUrl}/functions/v1/command-assistant-execute`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${supabaseServiceKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      conversation_id: "internal-tool-call", // special marker
+      tenant_id: tenantId,
+      tool_name: toolName,
+      tool_args: toolArgs,
+      action_id: `auto-read-${crypto.randomUUID()}`,
+      _internal_user_id: userId, // pass user context
+    }),
+  });
+
+  const result = await response.json();
+  
+  if (result.success) {
+    return result.message || JSON.stringify(result.data || {});
+  } else {
+    return `Erro: ${result.error || "Falha ao executar consulta"}`;
+  }
+}
+
+// Extended Tool registry - defines ALL available actions (for system prompt)
 const TOOL_REGISTRY = {
   // === PRODUTOS ===
   bulkUpdateProductsNCM: {
@@ -35,6 +518,7 @@ const TOOL_REGISTRY = {
       productIds: { type: "array", required: false, description: "IDs específicos (opcional)" },
       categoryId: { type: "string", required: false, description: "Filtrar por categoria" },
       prices: { type: "array", required: false, description: "Para definir preços individuais: [{productId, price}]. Usar com type='fixed'" },
+      removeCompareAtPrice: { type: "boolean", required: false, description: "Se true, remove o preço de desconto (compare_at_price) dos produtos" },
     },
     requiredPermission: "products",
   },
@@ -75,8 +559,6 @@ const TOOL_REGISTRY = {
     },
     requiredPermission: "products",
   },
-
-  // === CATEGORIAS ===
   createCategory: {
     description: "Criar uma nova categoria de produtos",
     parameters: {
@@ -104,8 +586,6 @@ const TOOL_REGISTRY = {
     },
     requiredPermission: "products",
   },
-
-  // === DESCONTOS/CUPONS ===
   createDiscount: {
     description: "Criar um novo cupom de desconto",
     parameters: {
@@ -137,13 +617,11 @@ const TOOL_REGISTRY = {
     },
     requiredPermission: "discounts",
   },
-
-  // === PEDIDOS ===
   updateOrderStatus: {
     description: "Atualizar status de um pedido",
     parameters: {
       orderId: { type: "string", required: true, description: "ID do pedido" },
-      status: { type: "string", required: true, description: "Novo status: pending, paid, shipped, delivered, cancelled" },
+      status: { type: "string", required: true, description: "Novo status" },
     },
     requiredPermission: "orders",
   },
@@ -163,21 +641,10 @@ const TOOL_REGISTRY = {
     },
     requiredPermission: "orders",
   },
-  salesReport: {
-    description: "Gerar relatório de vendas",
-    parameters: {
-      period: { type: "string", required: true, description: "Período: today, week, month, custom" },
-      startDate: { type: "string", required: false, description: "Data início (para custom)" },
-      endDate: { type: "string", required: false, description: "Data fim (para custom)" },
-    },
-    requiredPermission: "orders",
-  },
-
-  // === CLIENTES ===
   createCustomer: {
     description: "Criar um novo cliente",
     parameters: {
-      name: { type: "string", required: true, description: "Nome do cliente" },
+      name: { type: "string", required: true, description: "Nome" },
       email: { type: "string", required: true, description: "Email" },
       phone: { type: "string", required: false, description: "Telefone" },
       cpf: { type: "string", required: false, description: "CPF" },
@@ -202,30 +669,13 @@ const TOOL_REGISTRY = {
     },
     requiredPermission: "customers",
   },
-  searchCustomers: {
-    description: "Buscar clientes por nome, email ou telefone",
-    parameters: {
-      query: { type: "string", required: true, description: "Termo de busca" },
-    },
-    requiredPermission: "customers",
-  },
-
-  // === AGENDA ===
   createAgendaTask: {
-    description: "Criar uma tarefa na Agenda",
+    description: "Criar tarefa na Agenda",
     parameters: {
       title: { type: "string", required: true, description: "Título da tarefa" },
       dueAt: { type: "string", required: true, description: "Data/hora de vencimento" },
       description: { type: "string", required: false, description: "Descrição" },
       reminderOffsets: { type: "array", required: false, description: "Offsets de lembretes em minutos" },
-    },
-    requiredPermission: null,
-  },
-  listAgendaTasks: {
-    description: "Listar tarefas da agenda",
-    parameters: {
-      status: { type: "string", required: false, description: "Filtrar por status: pending, done, all" },
-      limit: { type: "number", required: false, description: "Limite de resultados" },
     },
     requiredPermission: null,
   },
@@ -236,34 +686,14 @@ const TOOL_REGISTRY = {
     },
     requiredPermission: null,
   },
-
-  // === FRETE/LOGÍSTICA ===
   updateShippingSettings: {
     description: "Atualizar configurações de frete",
     parameters: {
-      freeShippingThreshold: { type: "number", required: false, description: "Valor mínimo para frete grátis (em reais)" },
-      defaultShippingPrice: { type: "number", required: false, description: "Preço padrão do frete (em reais)" },
+      freeShippingThreshold: { type: "number", required: false, description: "Valor mínimo para frete grátis" },
+      defaultShippingPrice: { type: "number", required: false, description: "Preço padrão do frete" },
     },
     requiredPermission: "shipping",
   },
-
-  // === RELATÓRIOS ===
-  inventoryReport: {
-    description: "Relatório de estoque",
-    parameters: {
-      lowStockThreshold: { type: "number", required: false, description: "Limite para considerar estoque baixo" },
-    },
-    requiredPermission: "products",
-  },
-  customersReport: {
-    description: "Relatório de clientes",
-    parameters: {
-      period: { type: "string", required: true, description: "Período: week, month, year" },
-    },
-    requiredPermission: "customers",
-  },
-
-  // === CONFIGURAÇÕES DA LOJA ===
   updateStoreSettings: {
     description: "Atualizar configurações gerais da loja",
     parameters: {
@@ -273,138 +703,44 @@ const TOOL_REGISTRY = {
     },
     requiredPermission: "settings",
   },
-
-  // === COMPOSIÇÃO DE KITS ===
   addProductComponent: {
-    description: "Adicionar componente a um kit (produto com composição). Também converte o produto para formato kit se necessário.",
+    description: "Adicionar componente a um kit",
     parameters: {
-      parentProductId: { type: "string", required: true, description: "ID do produto kit (pai)" },
-      componentProductId: { type: "string", required: true, description: "ID do produto componente" },
-      quantity: { type: "number", required: true, description: "Quantidade do componente no kit" },
+      parentProductId: { type: "string", required: true, description: "ID do kit (pai)" },
+      componentProductId: { type: "string", required: true, description: "ID do componente" },
+      quantity: { type: "number", required: true, description: "Quantidade" },
     },
     requiredPermission: "products",
   },
   removeProductComponent: {
     description: "Remover componente de um kit",
     parameters: {
-      parentProductId: { type: "string", required: true, description: "ID do produto kit" },
-      componentProductId: { type: "string", required: true, description: "ID do componente a remover" },
-    },
-    requiredPermission: "products",
-  },
-  listProductComponents: {
-    description: "Listar componentes de um kit e seus dados",
-    parameters: {
-      parentProductId: { type: "string", required: true, description: "ID do produto kit" },
+      parentProductId: { type: "string", required: true, description: "ID do kit" },
+      componentProductId: { type: "string", required: true, description: "ID do componente" },
     },
     requiredPermission: "products",
   },
   bulkSetCompositionType: {
-    description: "Alterar o tipo de composição (estoque físico ou virtual) de kits em massa",
+    description: "Alterar tipo de composição de kits em massa",
     parameters: {
-      stockType: { type: "string", required: true, description: "Tipo: 'physical' ou 'virtual'" },
-      productIds: { type: "array", required: false, description: "IDs específicos (opcional, se vazio aplica a todos os kits)" },
+      stockType: { type: "string", required: true, description: "physical ou virtual" },
+      productIds: { type: "array", required: false, description: "IDs específicos" },
     },
     requiredPermission: "products",
   },
   autoCreateKitCompositions: {
-    description: "Detectar produtos com nome de kit (ex: 'Kit X (2x)') que estão sem composição e criar automaticamente baseado no padrão do nome",
+    description: "Detectar kits sem composição",
     parameters: {},
     requiredPermission: "products",
   },
-
-  // === FASE 1: LEITURA UNIVERSAL ===
-  searchProducts: {
-    description: "Buscar produtos por nome, SKU ou categoria",
-    parameters: {
-      query: { type: "string", required: true, description: "Termo de busca (nome ou SKU)" },
-      categoryId: { type: "string", required: false, description: "Filtrar por categoria" },
-      limit: { type: "number", required: false, description: "Limite de resultados (padrão 20)" },
-    },
-    requiredPermission: "products",
-  },
-  listProducts: {
-    description: "Listar produtos com filtros (ativos, inativos, por categoria, faixa de preço)",
-    parameters: {
-      status: { type: "string", required: false, description: "active, inactive, all" },
-      categoryId: { type: "string", required: false, description: "Filtrar por categoria" },
-      minPrice: { type: "number", required: false, description: "Preço mínimo em reais" },
-      maxPrice: { type: "number", required: false, description: "Preço máximo em reais" },
-      limit: { type: "number", required: false, description: "Limite (padrão 20)" },
-      orderBy: { type: "string", required: false, description: "name, price, created_at, stock_quantity" },
-    },
-    requiredPermission: "products",
-  },
-  getProductDetails: {
-    description: "Ver detalhes completos de um produto (nome, preço, estoque, SKU, descrição, dimensões, peso, SEO, variantes)",
-    parameters: {
-      productId: { type: "string", required: true, description: "ID do produto" },
-    },
-    requiredPermission: "products",
-  },
-  searchOrders: {
-    description: "Buscar pedidos por número, nome do cliente, status ou período",
-    parameters: {
-      query: { type: "string", required: false, description: "Número do pedido ou nome do cliente" },
-      status: { type: "string", required: false, description: "pending, paid, shipped, delivered, cancelled" },
-      startDate: { type: "string", required: false, description: "Data início (ISO)" },
-      endDate: { type: "string", required: false, description: "Data fim (ISO)" },
-      limit: { type: "number", required: false, description: "Limite (padrão 20)" },
-    },
-    requiredPermission: "orders",
-  },
-  getOrderDetails: {
-    description: "Ver detalhes completos de um pedido (itens, pagamento, frete, cliente, endereço)",
-    parameters: {
-      orderId: { type: "string", required: true, description: "ID do pedido" },
-    },
-    requiredPermission: "orders",
-  },
-  listDiscounts: {
-    description: "Listar cupons de desconto ativos ou inativos",
-    parameters: {
-      status: { type: "string", required: false, description: "active, inactive, all (padrão: all)" },
-      limit: { type: "number", required: false, description: "Limite (padrão 20)" },
-    },
-    requiredPermission: "discounts",
-  },
-  listCategories: {
-    description: "Listar todas as categorias de produtos",
-    parameters: {
-      status: { type: "string", required: false, description: "active, inactive, all (padrão: all)" },
-    },
-    requiredPermission: "products",
-  },
-  getDashboardStats: {
-    description: "Obter estatísticas do dashboard: receita, pedidos, ticket médio, novos clientes",
-    parameters: {
-      period: { type: "string", required: false, description: "today, week, month, year (padrão: month)" },
-    },
-    requiredPermission: "orders",
-  },
-  getTopProducts: {
-    description: "Ver os produtos mais vendidos",
-    parameters: {
-      period: { type: "string", required: false, description: "week, month, year (padrão: month)" },
-      limit: { type: "number", required: false, description: "Quantidade (padrão 10)" },
-    },
-    requiredPermission: "orders",
-  },
-  listCustomerTags: {
-    description: "Listar todas as tags de clientes disponíveis",
-    parameters: {},
-    requiredPermission: "customers",
-  },
-
-  // === FASE 2: CRUD COMPLETO ===
   updateProduct: {
-    description: "Editar campos de um produto (nome, descrição, preço, peso, dimensões, SEO, etc.)",
+    description: "Editar campos de um produto",
     parameters: {
       productId: { type: "string", required: true, description: "ID do produto" },
       name: { type: "string", required: false, description: "Novo nome" },
       description: { type: "string", required: false, description: "Nova descrição" },
-      price: { type: "number", required: false, description: "Novo preço em reais" },
-      compareAtPrice: { type: "number", required: false, description: "Preço original (de/por) em reais" },
+      price: { type: "number", required: false, description: "Novo preço" },
+      compareAtPrice: { type: "number", required: false, description: "Preço original" },
       sku: { type: "string", required: false, description: "Novo SKU" },
       weight: { type: "number", required: false, description: "Peso em gramas" },
       width: { type: "number", required: false, description: "Largura em cm" },
@@ -413,12 +749,12 @@ const TOOL_REGISTRY = {
       seoTitle: { type: "string", required: false, description: "Título SEO" },
       seoDescription: { type: "string", required: false, description: "Descrição SEO" },
       isActive: { type: "boolean", required: false, description: "Ativar/desativar" },
-      stockQuantity: { type: "number", required: false, description: "Nova quantidade em estoque" },
+      stockQuantity: { type: "number", required: false, description: "Quantidade em estoque" },
     },
     requiredPermission: "products",
   },
   duplicateProduct: {
-    description: "Duplicar um produto existente (cria cópia com '(Cópia)' no nome)",
+    description: "Duplicar um produto existente",
     parameters: {
       productId: { type: "string", required: true, description: "ID do produto a duplicar" },
     },
@@ -436,7 +772,7 @@ const TOOL_REGISTRY = {
     parameters: {
       orderId: { type: "string", required: true, description: "ID do pedido" },
       trackingCode: { type: "string", required: true, description: "Código de rastreio" },
-      shippingCarrier: { type: "string", required: false, description: "Transportadora (correios, jadlog, etc.)" },
+      shippingCarrier: { type: "string", required: false, description: "Transportadora" },
     },
     requiredPermission: "orders",
   },
@@ -459,11 +795,11 @@ const TOOL_REGISTRY = {
     requiredPermission: "orders",
   },
   createCustomerTag: {
-    description: "Criar uma nova tag de cliente",
+    description: "Criar nova tag de cliente",
     parameters: {
       name: { type: "string", required: true, description: "Nome da tag" },
-      color: { type: "string", required: false, description: "Cor em hex (ex: #FF5733)" },
-      description: { type: "string", required: false, description: "Descrição da tag" },
+      color: { type: "string", required: false, description: "Cor hex" },
+      description: { type: "string", required: false, description: "Descrição" },
     },
     requiredPermission: "customers",
   },
@@ -471,64 +807,51 @@ const TOOL_REGISTRY = {
     description: "Remover tag de clientes",
     parameters: {
       customerIds: { type: "array", required: true, description: "IDs dos clientes" },
-      tagId: { type: "string", required: true, description: "ID da tag a remover" },
+      tagId: { type: "string", required: true, description: "ID da tag" },
     },
     requiredPermission: "customers",
   },
-
-  // === FASE 3: MARKETING E CRM ===
   createBlogPost: {
-    description: "Criar um post no blog",
+    description: "Criar post no blog",
     parameters: {
-      title: { type: "string", required: true, description: "Título do post" },
-      content: { type: "string", required: true, description: "Conteúdo do post (suporta markdown)" },
-      excerpt: { type: "string", required: false, description: "Resumo do post" },
-      status: { type: "string", required: false, description: "draft ou published (padrão: draft)" },
-      seoTitle: { type: "string", required: false, description: "Título SEO" },
-      seoDescription: { type: "string", required: false, description: "Descrição SEO" },
+      title: { type: "string", required: true, description: "Título" },
+      content: { type: "string", required: true, description: "Conteúdo" },
+      excerpt: { type: "string", required: false, description: "Resumo" },
+      status: { type: "string", required: false, description: "draft ou published" },
     },
     requiredPermission: "blog",
   },
   updateBlogPost: {
-    description: "Editar um post do blog",
+    description: "Editar post do blog",
     parameters: {
       postId: { type: "string", required: true, description: "ID do post" },
       title: { type: "string", required: false, description: "Novo título" },
       content: { type: "string", required: false, description: "Novo conteúdo" },
-      excerpt: { type: "string", required: false, description: "Novo resumo" },
       status: { type: "string", required: false, description: "draft ou published" },
     },
     requiredPermission: "blog",
   },
   deleteBlogPost: {
-    description: "Excluir um post do blog",
+    description: "Excluir post do blog",
     parameters: {
       postId: { type: "string", required: true, description: "ID do post" },
     },
     requiredPermission: "blog",
   },
-  listBlogPosts: {
-    description: "Listar posts do blog",
-    parameters: {
-      status: { type: "string", required: false, description: "draft, published, all (padrão: all)" },
-      limit: { type: "number", required: false, description: "Limite (padrão 20)" },
-    },
-    requiredPermission: "blog",
-  },
   createOffer: {
-    description: "Criar uma oferta de bump ou upsell",
+    description: "Criar oferta de bump/upsell",
     parameters: {
-      name: { type: "string", required: true, description: "Nome da oferta" },
+      name: { type: "string", required: true, description: "Nome" },
       type: { type: "string", required: true, description: "bump ou upsell" },
-      triggerProductId: { type: "string", required: false, description: "ID do produto gatilho" },
       offerProductId: { type: "string", required: true, description: "ID do produto oferecido" },
-      discountPercent: { type: "number", required: false, description: "Desconto em percentual" },
-      isActive: { type: "boolean", required: false, description: "Ativo (padrão: true)" },
+      triggerProductId: { type: "string", required: false, description: "ID do gatilho" },
+      discountPercent: { type: "number", required: false, description: "Desconto %" },
+      isActive: { type: "boolean", required: false, description: "Ativo" },
     },
     requiredPermission: "offers",
   },
   updateOffer: {
-    description: "Editar uma oferta existente",
+    description: "Editar oferta",
     parameters: {
       offerId: { type: "string", required: true, description: "ID da oferta" },
       name: { type: "string", required: false, description: "Novo nome" },
@@ -538,102 +861,53 @@ const TOOL_REGISTRY = {
     requiredPermission: "offers",
   },
   deleteOffer: {
-    description: "Excluir uma oferta",
+    description: "Excluir oferta",
     parameters: {
       offerId: { type: "string", required: true, description: "ID da oferta" },
     },
     requiredPermission: "offers",
   },
-  listOffers: {
-    description: "Listar ofertas de bump/upsell",
-    parameters: {
-      type: { type: "string", required: false, description: "bump, upsell, all (padrão: all)" },
-      status: { type: "string", required: false, description: "active, inactive, all (padrão: all)" },
-    },
-    requiredPermission: "offers",
-  },
-  listReviews: {
-    description: "Listar avaliações de produtos",
-    parameters: {
-      status: { type: "string", required: false, description: "pending, approved, rejected, all (padrão: all)" },
-      limit: { type: "number", required: false, description: "Limite (padrão 20)" },
-    },
-    requiredPermission: "reviews",
-  },
   approveReview: {
-    description: "Aprovar uma avaliação de produto",
+    description: "Aprovar avaliação",
     parameters: {
       reviewId: { type: "string", required: true, description: "ID da avaliação" },
     },
     requiredPermission: "reviews",
   },
   rejectReview: {
-    description: "Rejeitar uma avaliação de produto",
+    description: "Rejeitar avaliação",
     parameters: {
       reviewId: { type: "string", required: true, description: "ID da avaliação" },
     },
     requiredPermission: "reviews",
   },
   respondToReview: {
-    description: "Responder a uma avaliação de produto",
+    description: "Responder avaliação",
     parameters: {
-      reviewId: { type: "string", required: true, description: "ID da avaliação" },
+      reviewId: { type: "string", required: true, description: "ID" },
       response: { type: "string", required: true, description: "Texto da resposta" },
     },
     requiredPermission: "reviews",
   },
-
-  // === FASE 4: MÓDULOS OPERACIONAIS ===
-  listPages: {
-    description: "Listar páginas institucionais da loja",
-    parameters: {
-      status: { type: "string", required: false, description: "published, draft, all (padrão: all)" },
-    },
-    requiredPermission: "pages",
-  },
   createPage: {
-    description: "Criar uma página institucional",
+    description: "Criar página institucional",
     parameters: {
-      title: { type: "string", required: true, description: "Título da página" },
-      slug: { type: "string", required: false, description: "Slug para URL" },
-      content: { type: "string", required: false, description: "Conteúdo HTML/texto" },
-      seoTitle: { type: "string", required: false, description: "Título SEO" },
-      seoDescription: { type: "string", required: false, description: "Descrição SEO" },
-      status: { type: "string", required: false, description: "draft ou published (padrão: draft)" },
-    },
-    requiredPermission: "pages",
-  },
-  updatePage: {
-    description: "Editar uma página institucional",
-    parameters: {
-      pageId: { type: "string", required: true, description: "ID da página" },
-      title: { type: "string", required: false, description: "Novo título" },
-      content: { type: "string", required: false, description: "Novo conteúdo" },
-      seoTitle: { type: "string", required: false, description: "Novo título SEO" },
-      seoDescription: { type: "string", required: false, description: "Nova descrição SEO" },
+      title: { type: "string", required: true, description: "Título" },
+      slug: { type: "string", required: false, description: "Slug" },
+      content: { type: "string", required: false, description: "Conteúdo" },
       status: { type: "string", required: false, description: "draft ou published" },
     },
     requiredPermission: "pages",
   },
-  getFinancialSummary: {
-    description: "Ver resumo financeiro (receita, custos, lucro)",
+  updatePage: {
+    description: "Editar página institucional",
     parameters: {
-      period: { type: "string", required: false, description: "today, week, month, year (padrão: month)" },
+      pageId: { type: "string", required: true, description: "ID da página" },
+      title: { type: "string", required: false, description: "Novo título" },
+      content: { type: "string", required: false, description: "Novo conteúdo" },
+      status: { type: "string", required: false, description: "draft ou published" },
     },
-    requiredPermission: "finance",
-  },
-  listShippingMethods: {
-    description: "Listar métodos de frete configurados",
-    parameters: {},
-    requiredPermission: "shipping",
-  },
-  listNotifications: {
-    description: "Listar notificações recentes",
-    parameters: {
-      limit: { type: "number", required: false, description: "Limite (padrão 20)" },
-      unreadOnly: { type: "boolean", required: false, description: "Apenas não lidas" },
-    },
-    requiredPermission: null,
+    requiredPermission: "pages",
   },
   markNotificationRead: {
     description: "Marcar notificação como lida",
@@ -642,67 +916,40 @@ const TOOL_REGISTRY = {
     },
     requiredPermission: null,
   },
-  listFiles: {
-    description: "Listar arquivos do drive/mídia",
-    parameters: {
-      folder: { type: "string", required: false, description: "Pasta (ex: products, blog)" },
-      limit: { type: "number", required: false, description: "Limite (padrão 20)" },
-    },
-    requiredPermission: "media",
-  },
-  getStorageUsage: {
-    description: "Ver uso de armazenamento do drive",
-    parameters: {},
-    requiredPermission: "media",
-  },
-
-  // === FASE 5: EMAIL MARKETING ===
-  listEmailLists: {
-    description: "Listar listas de email marketing",
-    parameters: {},
-    requiredPermission: "email_marketing",
-  },
-  listSubscribers: {
-    description: "Listar inscritos de uma lista de email",
-    parameters: {
-      listId: { type: "string", required: true, description: "ID da lista" },
-      status: { type: "string", required: false, description: "active, unsubscribed, all (padrão: active)" },
-      limit: { type: "number", required: false, description: "Limite (padrão 20)" },
-    },
-    requiredPermission: "email_marketing",
-  },
   addSubscriber: {
-    description: "Adicionar inscrito a uma lista de email",
+    description: "Adicionar inscrito à lista de email",
     parameters: {
       listId: { type: "string", required: true, description: "ID da lista" },
-      email: { type: "string", required: true, description: "Email do inscrito" },
-      name: { type: "string", required: false, description: "Nome do inscrito" },
+      email: { type: "string", required: true, description: "Email" },
+      name: { type: "string", required: false, description: "Nome" },
     },
     requiredPermission: "email_marketing",
   },
   createEmailCampaign: {
-    description: "Criar uma campanha de email marketing",
+    description: "Criar campanha de email marketing",
     parameters: {
-      name: { type: "string", required: true, description: "Nome da campanha" },
-      subject: { type: "string", required: true, description: "Assunto do email" },
-      listId: { type: "string", required: true, description: "ID da lista de destino" },
-      templateId: { type: "string", required: false, description: "ID do template" },
+      name: { type: "string", required: true, description: "Nome" },
+      subject: { type: "string", required: true, description: "Assunto" },
+      listId: { type: "string", required: true, description: "ID da lista" },
     },
     requiredPermission: "email_marketing",
   },
-  listCampaigns: {
-    description: "Listar campanhas de email marketing",
+  recalculateKitPrices: {
+    description: "Recalcular preços de kits baseado nos componentes. Busca todos os kits que contêm os produtos indicados e recalcula preço = Σ(preço_componente × quantidade)",
     parameters: {
-      status: { type: "string", required: false, description: "draft, active, completed, all (padrão: all)" },
-      limit: { type: "number", required: false, description: "Limite (padrão 20)" },
+      productIds: { type: "array", required: true, description: "IDs dos produtos-base que mudaram de preço" },
+      removeCompareAtPrice: { type: "boolean", required: false, description: "Se true, remove preço de desconto dos kits" },
     },
-    requiredPermission: "email_marketing",
+    requiredPermission: "products",
   },
 };
 
-// Build dynamic system prompt with all available tools
+// Build dynamic system prompt with all available tools (WRITE only - reads are native tools)
 function buildSystemPrompt(): string {
-  const toolDescriptions = Object.entries(TOOL_REGISTRY)
+  // Only include WRITE tools in the text-based prompt (read tools are native)
+  const writeTools = Object.entries(TOOL_REGISTRY).filter(([name]) => !READ_TOOLS.has(name));
+  
+  const toolDescriptions = writeTools
     .map(([name, tool]) => {
       const params = Object.entries(tool.parameters)
         .map(([pName, pDef]: [string, any]) => `  - ${pName}${pDef.required ? " (obrigatório)" : ""}: ${pDef.description}`)
@@ -712,6 +959,21 @@ function buildSystemPrompt(): string {
     .join("\n\n");
 
   return `Você é o Auxiliar de Comando, um assistente inteligente para e-commerce com poderes COMPLETOS para gerenciar a loja.
+
+## ARQUITETURA DE EXECUÇÃO (CRÍTICO):
+
+Você possui DOIS modos de execução:
+
+### 1. LEITURA AUTOMÁTICA (você faz sozinho, sem pedir permissão):
+Você tem acesso direto a ferramentas de leitura via function calling nativo. Use-as livremente para buscar dados ANTES de propor qualquer ação de escrita. O usuário NÃO vê essas buscas — elas acontecem automaticamente.
+
+Exemplos de quando usar leitura automática:
+- Usuário pede para alterar preço → busque o produto primeiro para obter o ID
+- Usuário menciona vários produtos → busque TODOS de uma vez
+- Usuário quer um relatório → execute a consulta diretamente
+
+### 2. ESCRITA COM CONFIRMAÇÃO (propõe ação, usuário confirma):
+Para operações que MODIFICAM dados (criar, editar, excluir), você propõe um bloco \`\`\`action\`\`\` e o usuário confirma com botão.
 
 ## REGRA SUPREMA DE COMUNICAÇÃO (OBRIGATÓRIA):
 Você está conversando com um LOJISTA, não com um desenvolvedor.
@@ -796,6 +1058,7 @@ Mapeamento OBRIGATÓRIO (interno → fala do assistente):
 - addSubscriber → "adicionar inscrito à lista"
 - createEmailCampaign → "criar campanha de email"
 - listCampaigns → "listar campanhas de email"
+- recalculateKitPrices → "recalcular preços dos kits baseado nos componentes"
 - tool_name / tool_args → NUNCA mencionar esses termos
 - tenant_id, user_id, conversation_id → NUNCA mencionar
 
@@ -812,6 +1075,7 @@ Você pode executar QUALQUER operação que o usuário faria manualmente no pain
 - Gerenciamento de pedidos (buscar, ver detalhes, atualizar status, adicionar rastreio, cancelar, criar pedido manual)
 - Gerenciamento de clientes (criar, editar, excluir, buscar, tags)
 - Composição de kits (adicionar/remover componentes, listar, alterar tipo de composição em massa, detectar kits sem composição)
+- Recalcular preços de kits baseado nos componentes
 - Tarefas da agenda
 - Configurações da loja
 - Blog (criar, editar, excluir, listar posts)
@@ -826,100 +1090,81 @@ Você pode executar QUALQUER operação que o usuário faria manualmente no pain
 - Relatórios e estatísticas (vendas, estoque, clientes, dashboard, produtos mais vendidos)
 
 ## RELATÓRIOS E FEEDBACK:
-IMPORTANTE: Todas as operações em massa retornam RELATÓRIOS DETALHADOS após execução, incluindo:
-- Total de itens processados
-- Quantidade de itens atualizados com sucesso
-- Exemplos de itens afetados (nome, SKU)
-- Contagem de itens que já tinham o valor
+IMPORTANTE: Todas as operações em massa retornam RELATÓRIOS DETALHADOS após execução.
 
-Quando o usuário pedir relatório ou resumo da operação, INFORME que ele receberá o relatório completo após confirmar a ação.
-
-## FERRAMENTAS DISPONÍVEIS (uso interno — NUNCA exponha esses nomes ao usuário):
+## FERRAMENTAS DE ESCRITA (requerem confirmação via botão):
 
 ${toolDescriptions}
 
 ## INSTRUÇÕES:
 
-1. Quando o usuário pedir para executar uma ação, entenda claramente o que ele quer
-2. Proponha a ação com linguagem natural e amigável (sem jargão técnico)
-3. INFORME que após confirmar, ele receberá um relatório detalhado da operação
-4. Aguarde a confirmação antes de executar
+1. Quando o usuário pedir algo que requer dados (preço, ID, detalhes), USE as ferramentas de leitura automática para buscar PRIMEIRO
+2. Com os dados em mãos, proponha a ação de escrita com todos os IDs e valores corretos
+3. NUNCA peça ao usuário para confirmar uma BUSCA — buscas são automáticas
+4. Apenas ações de ESCRITA precisam de confirmação via botão
 
-IMPORTANTE: Você NÃO executa ações diretamente. Você apenas propõe ações que o usuário pode confirmar.
+## REGRA DE BUSCA INTELIGENTE:
+- Quando o usuário mencionar VÁRIOS produtos para alterar, busque TODOS antes de propor a ação
+- Quando buscar produtos, use a tool searchProducts que PRIORIZA match exato e EXCLUI kits por padrão
+- Se precisar buscar produtos-base (não kits), a busca já exclui kits automaticamente
+- Se o usuário fornecer um SKU, busque por SKU exato
 
 ## REGRA DE DECISÃO RÁPIDA (CRÍTICA — NÃO PERGUNTE DEMAIS):
 Seja DECISIVO. O lojista quer ação, não interrogatório.
 
-**Quando uma busca retorna UM ÚNICO resultado**: Assuma que É o produto/item correto e proponha a ação IMEDIATAMENTE. NÃO peça confirmação do ID, NÃO repita informações que já apareceram no resultado da busca.
+**Quando uma busca retorna UM ÚNICO resultado**: Assuma que É o produto/item correto e proponha a ação IMEDIATAMENTE.
+**Quando uma busca retorna MÚLTIPLOS resultados**: Pergunte qual deles o usuário quer, mas de forma CONCISA.
+**Quando o usuário já deu todas as informações**: Proponha a ação direto.
 
-**Quando uma busca retorna MÚLTIPLOS resultados**: Pergunte qual deles o usuário quer, mas de forma CONCISA (lista curta, sem repetir todos os campos).
-
-**Quando o usuário já deu todas as informações necessárias**: Proponha a ação direto. NÃO peça "confirmação" antes de mostrar o botão Confirmar — o próprio botão JÁ É a confirmação.
-
-**Fluxo ideal (2 passos, MÁXIMO 3)**:
-1. Usuário pede algo → busca (se necessário) → propõe ação com botão Confirmar
+**Fluxo ideal (2 passos)**:
+1. Usuário pede algo → buscas automáticas → propõe ação com botão Confirmar
 2. Usuário clica Confirmar → execução → resultado
 
 **Anti-patterns PROIBIDOS**:
-- ❌ "Encontrei o produto X. Você confirma que quer alterar o preço dele?" (SEM botão de ação)
-- ❌ "O ID do produto é prod-0026. É esse mesmo?" 
-- ❌ Repetir dados que já apareceram em mensagens anteriores
+- ❌ Pedir confirmação para buscar dados
+- ❌ Fazer perguntas quando já tem todas as informações
 - ❌ Fazer 2+ perguntas antes de propor a ação
-- ✅ "Encontrei o **Shampoo X** (R$ 311,82). Vou atualizar para **R$ 97,90**:" + bloco action
+- ✅ Buscar automaticamente → propor ação com botão
+
+## OPERAÇÕES EM LOTE (CRÍTICO):
+Quando o usuário pedir alterações em MÚLTIPLOS produtos de uma vez:
+1. Busque TODOS os produtos automaticamente (múltiplas chamadas paralelas se necessário)
+2. Proponha UMA ÚNICA ação com todos os dados (ex: bulkUpdateProductsPrice com array de prices)
+3. Se o usuário pedir recálculo de kits após alterar preços, proponha recalculateKitPrices como próxima ação
+
+Exemplo:
+Usuário: "Altere Shampoo para R$ 97,90, Loção para R$ 96,00 e Balm para R$ 96,00. Depois recalcule os kits."
+→ Busque os 3 produtos automaticamente
+→ Proponha UMA ação bulkUpdateProductsPrice com prices: [{productId: "...", price: 97.90}, {productId: "...", price: 96.00}, {productId: "...", price: 96.00}]
+→ Após confirmação, proponha recalculateKitPrices com os IDs dos 3 produtos
 
 ## FORMATO DE AÇÃO (OBRIGATÓRIO)
-Para propor uma ação, use o formato JSON no final da sua resposta (o bloco action é processado internamente e NÃO aparece para o usuário):
+Para propor uma ação de ESCRITA, use o formato JSON no final da sua resposta:
 \`\`\`action
 {
-  "tool_name": "bulkUpdateProductsNCM",
-  "tool_args": {"ncm": "33051000"},
-  "description": "Atualizar NCM de todos os produtos para 33051000"
+  "tool_name": "bulkUpdateProductsPrice",
+  "tool_args": {"type": "fixed", "prices": [{"productId": "...", "price": 97.90}]},
+  "description": "Atualizar preços dos produtos"
 }
 \`\`\`
 
-**REGRA CRÍTICA**: O campo "tool_args" NUNCA pode ser vazio ({}). Ele DEVE conter todos os parâmetros necessários da ferramenta. Se a operação requer múltiplas etapas, proponha APENAS UMA ação por vez (a mais importante primeiro).
-
-## EXEMPLOS:
-
-Usuário: "Coloque o NCM 33051000 em todos os produtos e me dê um relatório"
-Resposta: Vou atualizar o NCM de todos os seus produtos para **33051000**. Após confirmar, você receberá um relatório completo com a quantidade de produtos atualizados e exemplos.
-\`\`\`action
-{"tool_name": "bulkUpdateProductsNCM", "tool_args": {"ncm": "33051000"}, "description": "Atualizar NCM de todos os produtos para 33051000"}
-\`\`\`
-
-Usuário: "Aumente o preço de todos os produtos em 10%"
-Resposta: Vou aumentar o preço de todos os seus produtos em **10%**.
-\`\`\`action
-{"tool_name": "bulkUpdateProductsPrice", "tool_args": {"type": "percent_increase", "value": 10}, "description": "Aumentar preços em 10%"}
-\`\`\`
-
-Usuário: "Altere o preço do Shampoo X para R$ 97,90 e do Condicionador Y para R$ 96,00"
-Resposta: Vou atualizar os preços individuais dos produtos.
-\`\`\`action
-{"tool_name": "bulkUpdateProductsPrice", "tool_args": {"type": "fixed", "prices": [{"productId": "ID_DO_SHAMPOO", "price": 97.90}, {"productId": "ID_DO_CONDICIONADOR", "price": 96.00}]}, "description": "Atualizar preços individuais: Shampoo X para R$ 97,90 e Condicionador Y para R$ 96,00"}
-\`\`\`
-
-**Exemplo de busca → ação direta (SEM perguntas extras)**:
-
-Contexto: Busca retornou 1 resultado: Shampoo Calvície Zero (SKU: 0026) — R$ 311,82
-Usuário: "Altere o valor base para R$ 97,90"
-Resposta: Encontrei o **Shampoo Calvície Zero** (R$ 311,82). Vou atualizar para **R$ 97,90**:
-\`\`\`action
-{"tool_name": "bulkUpdateProductsPrice", "tool_args": {"type": "fixed", "prices": [{"productId": "ID_ENCONTRADO", "price": 97.90}]}, "description": "Atualizar preço do Shampoo Calvície Zero para R$ 97,90"}
-\`\`\`
-(Note: NÃO pergunte "é esse mesmo?", NÃO repita o ID, NÃO peça confirmação textual — o botão Confirmar é suficiente)
+**REGRA CRÍTICA**: O campo "tool_args" NUNCA pode ser vazio ({}). Ele DEVE conter todos os parâmetros necessários.
 
 ## REGRA PÓS-EXECUÇÃO (CRÍTICA)
-Quando você receber uma mensagem que começa com "[Resultado da ação", isso significa que uma ação que VOCÊ propôs já foi CONFIRMADA e EXECUTADA pelo sistema. Neste caso:
+Quando você receber uma mensagem que começa com "[Resultado da ação", isso significa que uma ação já foi EXECUTADA. Neste caso:
 1. NÃO proponha a mesma ação novamente
 2. NÃO inclua nenhum bloco \`\`\`action\`\`\` na resposta
-3. Apenas confirme o resultado para o usuário de forma amigável (ex: "Pronto! Os preços foram atualizados com sucesso ✅")
-4. Se houver próximas etapas pendentes, proponha apenas a PRÓXIMA ação (nunca a que acabou de executar)
+3. Apenas confirme o resultado para o usuário de forma amigável
+4. Se houver próximas etapas pendentes, proponha apenas a PRÓXIMA ação
 
-Responda sempre em português brasileiro de forma amigável e profissional. Seja proativo em sugerir o que você pode fazer, mas SEMPRE usando linguagem que o lojista entende.`;
+Responda sempre em português brasileiro de forma amigável e profissional.`;
 }
 
+const MAX_TOOL_ROUNDS = 5;
+
 serve(async (req) => {
+  console.log(`[command-assistant-chat][${VERSION}] Request received`);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -971,7 +1216,7 @@ serve(async (req) => {
       );
     }
 
-    // Save user message (for tool results, save as "tool" role so AI sees it in history)
+    // Save user message
     if (!is_tool_result) {
       const { error: msgError } = await supabase
         .from("command_messages")
@@ -983,12 +1228,8 @@ serve(async (req) => {
           content: message,
           metadata: {},
         });
-
-      if (msgError) {
-        console.error("Error saving message:", msgError);
-      }
+      if (msgError) console.error("Error saving message:", msgError);
     } else {
-      // Save tool result as a "tool" message so the AI can see it in conversation history
       const { error: toolMsgError } = await supabase
         .from("command_messages")
         .insert({
@@ -999,10 +1240,7 @@ serve(async (req) => {
           content: message,
           metadata: { is_tool_result: true },
         });
-
-      if (toolMsgError) {
-        console.error("Error saving tool result message:", toolMsgError);
-      }
+      if (toolMsgError) console.error("Error saving tool result message:", toolMsgError);
     }
 
     // Get conversation history
@@ -1020,13 +1258,13 @@ serve(async (req) => {
       const memoryContext = await getMemoryContext(supabase, tenant_id, user.id, "command_assistant");
       if (memoryContext) {
         SYSTEM_PROMPT += memoryContext;
-        console.log(`[command-assistant] Memory context injected (${memoryContext.length} chars)`);
+        console.log(`[command-assistant-chat] Memory context injected (${memoryContext.length} chars)`);
       }
     } catch (e) {
-      console.error("[command-assistant] Memory fetch error:", e);
+      console.error("[command-assistant-chat] Memory fetch error:", e);
     }
 
-    const messages = [
+    const messages: any[] = [
       { role: "system", content: SYSTEM_PROMPT },
       ...(history || []).map((m) => ({
         role: m.role === "tool" ? "assistant" : m.role,
@@ -1034,17 +1272,95 @@ serve(async (req) => {
       })),
     ];
 
-    // Call AI via centralized router (Gemini/OpenAI native → Lovable fallback)
-    const aiSupabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const aiSupabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    // ==================== NATIVE TOOL CALLING LOOP ====================
+    // Phase 1: Non-streaming loop to resolve all read tool calls
     resetAIRouterCache();
+    const aiOpts = { supabaseUrl, supabaseServiceKey: supabaseKey, logPrefix: '[command-assistant-chat]' };
+    
+    let toolCallRound = 0;
+    let finalMessages = [...messages];
 
+    while (toolCallRound < MAX_TOOL_ROUNDS) {
+      toolCallRound++;
+      console.log(`[command-assistant-chat] Tool calling round ${toolCallRound}/${MAX_TOOL_ROUNDS}`);
+
+      try {
+        const { data: aiData } = await aiChatCompletionJSON(
+          "google/gemini-2.5-flash",
+          {
+            messages: finalMessages,
+            tools: OPENAI_READ_TOOLS,
+            tool_choice: "auto",
+          },
+          aiOpts
+        );
+
+        const choice = aiData?.choices?.[0];
+        if (!choice) {
+          console.error("[command-assistant-chat] No choice in AI response");
+          break;
+        }
+
+        const toolCalls = choice.message?.tool_calls;
+        
+        // If no tool calls, we have the final response — break and stream it
+        if (!toolCalls || toolCalls.length === 0) {
+          console.log(`[command-assistant-chat] No more tool calls after ${toolCallRound} round(s)`);
+          break;
+        }
+
+        // Execute read tools
+        console.log(`[command-assistant-chat] Executing ${toolCalls.length} read tool(s)`);
+        
+        // Add assistant message with tool_calls to conversation
+        finalMessages.push({
+          role: "assistant",
+          content: choice.message.content || "",
+          tool_calls: toolCalls,
+        });
+
+        // Execute each tool call and add results
+        for (const tc of toolCalls) {
+          const toolName = tc.function?.name;
+          const toolArgs = tc.function?.arguments ? 
+            (typeof tc.function.arguments === 'string' ? JSON.parse(tc.function.arguments) : tc.function.arguments) : {};
+          
+          // Permission check
+          const allowedTypes = READ_PERMISSION_MAP[toolName];
+          let toolResult: string;
+          
+          if (allowedTypes && !allowedTypes.includes(userRole.user_type)) {
+            toolResult = `Sem permissão para executar ${toolName}. Necessário: ${allowedTypes.join(", ")}`;
+          } else if (READ_TOOLS.has(toolName)) {
+            try {
+              toolResult = await executeReadTool(supabase, tenant_id, user.id, toolName, toolArgs);
+            } catch (e) {
+              toolResult = `Erro ao executar ${toolName}: ${e instanceof Error ? e.message : "Erro desconhecido"}`;
+            }
+          } else {
+            toolResult = `Tool ${toolName} não é uma tool de leitura automática.`;
+          }
+
+          finalMessages.push({
+            role: "tool",
+            tool_call_id: tc.id,
+            content: toolResult,
+          });
+        }
+      } catch (e) {
+        console.error(`[command-assistant-chat] Tool calling round ${toolCallRound} error:`, e);
+        break;
+      }
+    }
+
+    // ==================== PHASE 2: STREAM FINAL RESPONSE ====================
+    // Now do a streaming call WITHOUT tools (so the model generates a final text response)
     const endpoint = await getAIEndpoint("google/gemini-2.5-flash", {
-      supabaseUrl: aiSupabaseUrl,
-      supabaseServiceKey: aiSupabaseServiceKey,
+      supabaseUrl,
+      supabaseServiceKey: supabaseKey,
     });
 
-    console.log(`[command-assistant-chat] Using provider: ${endpoint.provider}, model: ${endpoint.model}`);
+    console.log(`[command-assistant-chat] Streaming final response via ${endpoint.provider} (${endpoint.model})`);
 
     const aiResponse = await fetch(endpoint.url, {
       method: "POST",
@@ -1054,7 +1370,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: endpoint.model,
-        messages,
+        messages: finalMessages,
         stream: true,
       }),
     });
@@ -1084,7 +1400,6 @@ serve(async (req) => {
     const reader = aiResponse.body!.getReader();
     const decoder = new TextDecoder();
     
-    // Create a TransformStream to process and forward the stream
     const { readable, writable } = new TransformStream();
     const writer = writable.getWriter();
     
@@ -1103,7 +1418,7 @@ serve(async (req) => {
           // Forward raw chunks to client
           await writer.write(value);
           
-          // Also accumulate content for action extraction
+          // Accumulate content for action extraction
           let newlineIndex;
           while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
             const line = buffer.slice(0, newlineIndex).trim();
@@ -1126,7 +1441,6 @@ serve(async (req) => {
         if (actionMatch) {
           try {
             const actionData = JSON.parse(actionMatch[1]);
-            // Only accept actions with non-empty tool_args
             if (actionData.tool_name && actionData.tool_args && Object.keys(actionData.tool_args).length > 0) {
               proposedActions = [{
                 id: crypto.randomUUID(),
