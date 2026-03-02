@@ -55,7 +55,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-interface AILandingPage {
+interface LandingPageItem {
   id: string;
   name: string;
   slug: string;
@@ -68,6 +68,7 @@ interface AILandingPage {
   reference_url: string | null;
   seo_title: string | null;
   seo_description: string | null;
+  source: 'ai' | 'builder'; // Which module owns this page
 }
 
 export default function LandingPages() {
@@ -77,7 +78,7 @@ export default function LandingPages() {
   const { createTemplate } = usePageTemplates();
   
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; source: 'ai' | 'builder' } | null>(null);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("all");
   const [isAIImportOpen, setIsAIImportOpen] = useState(false);
@@ -93,8 +94,8 @@ export default function LandingPages() {
     tenantSlug: tenant?.slug,
   });
 
-  // Fetch landing pages
-  const { data: landingPages, isLoading } = useQuery({
+  // Fetch AI landing pages
+  const { data: aiPages, isLoading: aiLoading } = useQuery({
     queryKey: ['ai-landing-pages', tenant?.id],
     queryFn: async () => {
       if (!tenant?.id) return [];
@@ -103,26 +104,78 @@ export default function LandingPages() {
         .select('*')
         .eq('tenant_id', tenant.id)
         .order('created_at', { ascending: false });
-      
       if (error) throw error;
-      return data as AILandingPage[];
+      return (data || []).map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        slug: p.slug,
+        status: p.status as LandingPageItem['status'],
+        is_published: p.is_published || false,
+        published_at: p.published_at,
+        created_at: p.created_at,
+        updated_at: p.updated_at,
+        current_version: p.current_version || 0,
+        reference_url: p.reference_url,
+        seo_title: p.seo_title,
+        seo_description: p.seo_description,
+        source: 'ai' as const,
+      }));
     },
     enabled: !!tenant?.id,
   });
 
-  // Delete mutation
+  // Fetch Builder landing pages (store_pages with type = 'landing_page')
+  const { data: builderPages, isLoading: builderLoading } = useQuery({
+    queryKey: ['builder-landing-pages', tenant?.id],
+    queryFn: async () => {
+      if (!tenant?.id) return [];
+      const { data, error } = await supabase
+        .from('store_pages')
+        .select('*')
+        .eq('tenant_id', tenant.id)
+        .eq('type', 'landing_page')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data || []).map((p: any) => ({
+        id: p.id,
+        name: p.title,
+        slug: p.slug,
+        status: (p.status || 'draft') as LandingPageItem['status'],
+        is_published: p.is_published || false,
+        published_at: null,
+        created_at: p.created_at,
+        updated_at: p.updated_at,
+        current_version: 0,
+        reference_url: null,
+        seo_title: p.seo_title,
+        seo_description: p.seo_description,
+        source: 'builder' as const,
+      }));
+    },
+    enabled: !!tenant?.id,
+  });
+
+  const isLoading = aiLoading || builderLoading;
+
+  // Merge both sources sorted by created_at desc
+  const landingPages = [...(aiPages || []), ...(builderPages || [])]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  // Delete mutation - handles both sources
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async ({ id, source }: { id: string; source: 'ai' | 'builder' }) => {
+      const table = source === 'ai' ? 'ai_landing_pages' : 'store_pages';
       const { error } = await supabase
-        .from('ai_landing_pages')
+        .from(table)
         .delete()
         .eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ai-landing-pages'] });
+      queryClient.invalidateQueries({ queryKey: ['builder-landing-pages'] });
       toast.success('Landing page excluída');
-      setDeleteId(null);
+      setDeleteTarget(null);
     },
     onError: () => {
       toast.error('Erro ao excluir landing page');
@@ -137,7 +190,7 @@ export default function LandingPages() {
     return true;
   });
 
-  const getStatusBadge = (page: AILandingPage) => {
+  const getStatusBadge = (page: LandingPageItem) => {
     if (page.status === 'generating') {
       return <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/30">Gerando...</Badge>;
     }
@@ -290,14 +343,24 @@ export default function LandingPages() {
             </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredPages?.map(page => (
-                <Card key={page.id} className="group hover:shadow-md transition-shadow">
+              {filteredPages?.map(page => {
+                const isBuilder = page.source === 'builder';
+                const urlPrefix = isBuilder ? '/lp/' : '/ai-lp/';
+                const editUrl = isBuilder ? `/pages/${page.id}/builder` : `/landing-pages/${page.id}`;
+                
+                return (
+                <Card key={`${page.source}-${page.id}`} className="group hover:shadow-md transition-shadow">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
-                        <CardTitle className="text-base truncate">{page.name}</CardTitle>
+                        <CardTitle className="text-base truncate flex items-center gap-2">
+                          {page.name}
+                          {isBuilder && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">Builder</Badge>
+                          )}
+                        </CardTitle>
                         <CardDescription className="flex items-center gap-1 mt-1">
-                          <span className="truncate">/ai-lp/{page.slug}</span>
+                          <span className="truncate">{urlPrefix}{page.slug}</span>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -317,25 +380,31 @@ export default function LandingPages() {
                       <span>
                         {format(new Date(page.updated_at), "dd MMM yyyy 'às' HH:mm", { locale: ptBR })}
                       </span>
-                      <span className="mx-1">•</span>
-                      <span>v{page.current_version}</span>
+                      {!isBuilder && page.current_version > 0 && (
+                        <>
+                          <span className="mx-1">•</span>
+                          <span>v{page.current_version}</span>
+                        </>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => setPreviewId(page.id)}
-                      >
-                        <Eye className="h-4 w-4 mr-1" />
-                        Preview
-                      </Button>
+                      {!isBuilder && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => setPreviewId(page.id)}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Preview
+                        </Button>
+                      )}
                       <Button
                         variant="default"
                         size="sm"
                         className="flex-1"
-                        onClick={() => navigate(`/landing-pages/${page.id}`)}
+                        onClick={() => navigate(editUrl)}
                       >
                         <Settings className="h-4 w-4 mr-1" />
                         Editar
@@ -344,7 +413,7 @@ export default function LandingPages() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-destructive hover:text-destructive"
-                        onClick={() => setDeleteId(page.id)}
+                        onClick={() => setDeleteTarget({ id: page.id, source: page.source })}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -364,7 +433,8 @@ export default function LandingPages() {
                     )}
                   </CardContent>
                 </Card>
-              ))}
+                );
+              })}
             </div>
           )}
         </TabsContent>
@@ -386,19 +456,19 @@ export default function LandingPages() {
       )}
 
       {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir Landing Page?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação não pode ser desfeita. A landing page e todo seu histórico de versões serão permanentemente excluídos.
+              Esta ação não pode ser desfeita. A landing page será permanentemente excluída.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => deleteId && deleteMutation.mutate(deleteId)}
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget)}
             >
               Excluir
             </AlertDialogAction>
