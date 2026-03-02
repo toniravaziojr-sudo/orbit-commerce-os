@@ -426,10 +426,42 @@ export function useCommandAssistant() {
               ["command-messages", currentConversationId],
               (old = []) => [...old, followUpMessage]
             );
+          } else {
+            // v3.6.1: Stream returned empty content — insert fallback confirmation
+            const fallbackMsg: CommandMessage = {
+              id: crypto.randomUUID(),
+              conversation_id: currentConversationId,
+              tenant_id: currentTenant.id,
+              user_id: user!.id,
+              role: "assistant",
+              content: `✅ ${data.message || "Ação executada com sucesso!"}`,
+              metadata: {},
+              created_at: new Date().toISOString(),
+            };
+            queryClient.setQueryData<CommandMessage[]>(
+              ["command-messages", currentConversationId],
+              (old = []) => [...old, fallbackMsg]
+            );
           }
         }
-      } catch (streamError) {
+    } catch (streamError) {
         console.error("Post-action stream error:", streamError);
+        // v3.6.1: If the follow-up AI stream fails (rate limit, timeout, etc.),
+        // insert a local confirmation message so the user always sees the result
+        const fallbackMessage: CommandMessage = {
+          id: crypto.randomUUID(),
+          conversation_id: currentConversationId,
+          tenant_id: currentTenant.id,
+          user_id: user!.id,
+          role: "assistant",
+          content: `✅ ${data.message || "Ação executada com sucesso!"}`,
+          metadata: {},
+          created_at: new Date().toISOString(),
+        };
+        queryClient.setQueryData<CommandMessage[]>(
+          ["command-messages", currentConversationId],
+          (old = []) => [...old, fallbackMessage]
+        );
       } finally {
         setIsStreaming(false);
         setStreamingContent("");
