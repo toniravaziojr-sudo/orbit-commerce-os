@@ -1,4 +1,4 @@
-import { useState, useRef, KeyboardEvent, ChangeEvent } from "react";
+import { useState, useRef, useEffect, useCallback, KeyboardEvent, ChangeEvent } from "react";
 import { Send, Square, Paperclip, X, Loader2, Image as ImageIcon, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,17 +23,60 @@ interface CommandChatInputProps {
   onSend: (message: string, attachments?: { url: string; filename: string; mimeType: string }[]) => void;
   isStreaming: boolean;
   onCancel: () => void;
+  conversationId?: string | null;
 }
 
 const ACCEPTED_FILE_TYPES = "image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv";
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
-export function CommandChatInput({ onSend, isStreaming, onCancel }: CommandChatInputProps) {
-  const [message, setMessage] = useState("");
+const DRAFT_STORAGE_PREFIX = "cmd_chat_draft_";
+
+function getDraftKey(conversationId?: string | null) {
+  return conversationId ? `${DRAFT_STORAGE_PREFIX}${conversationId}` : null;
+}
+
+export function CommandChatInput({ onSend, isStreaming, onCancel, conversationId }: CommandChatInputProps) {
+  const [message, setMessage] = useState(() => {
+    const key = getDraftKey(conversationId);
+    if (key) {
+      try { return localStorage.getItem(key) || ""; } catch { return ""; }
+    }
+    return "";
+  });
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user, currentTenant } = useAuth();
+
+  const prevConversationIdRef = useRef(conversationId);
+
+  // Save draft to localStorage on every change
+  useEffect(() => {
+    const key = getDraftKey(conversationId);
+    if (key) {
+      try {
+        if (message) {
+          localStorage.setItem(key, message);
+        } else {
+          localStorage.removeItem(key);
+        }
+      } catch { /* quota exceeded, ignore */ }
+    }
+  }, [message, conversationId]);
+
+  // Restore draft when conversation changes
+  useEffect(() => {
+    if (prevConversationIdRef.current !== conversationId) {
+      prevConversationIdRef.current = conversationId;
+      const key = getDraftKey(conversationId);
+      const saved = key ? (localStorage.getItem(key) || "") : "";
+      setMessage(saved);
+      setAttachedFiles([]);
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+      }
+    }
+  }, [conversationId]);
 
   const hasAttachments = attachedFiles.length > 0;
   const isUploadingAny = attachedFiles.some(f => f.isUploading);
@@ -116,6 +159,10 @@ export function CommandChatInput({ onSend, isStreaming, onCancel }: CommandChatI
 
     onSend(trimmed, attachments.length > 0 ? attachments : undefined);
     setMessage("");
+
+    // Clear draft from storage
+    const key = getDraftKey(conversationId);
+    if (key) try { localStorage.removeItem(key); } catch {}
 
     attachedFiles.forEach(f => {
       if (f.preview) URL.revokeObjectURL(f.preview);
