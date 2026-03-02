@@ -4,11 +4,9 @@ import { cn } from "@/lib/utils";
 import { platformBranding } from "@/lib/branding";
 import { LogoIcon } from "@/components/branding/Logo";
 import { usePlatformOperator } from "@/hooks/usePlatformOperator";
-import { useTenantType } from "@/hooks/useTenantType";
 import { useTenantAccess } from "@/hooks/useTenantAccess";
 import { useAllModuleAccess, AccessLevel } from "@/hooks/useModuleAccess";
 import { useAuth } from "@/hooks/useAuth";
-import { useIsSpecialTenant } from "@/hooks/useIsSpecialTenant";
 import { useDemoMode } from "@/hooks/useDemoMode";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAdminModeSafe } from "@/contexts/AdminModeContext";
@@ -267,9 +265,8 @@ export function AppSidebar() {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(getInitialOpenGroups);
   const location = useLocation();
   const { isPlatformOperator } = usePlatformOperator();
-  const { isPlatformTenant, isUnlimited, isLoading: isTenantTypeLoading } = useTenantType();
+  const { isPlatformTenant, isUnlimited, showStatusIndicators, isLoading: isTenantTypeLoading } = useTenantAccess();
   const { currentTenant, tenants } = useAuth();
-  const { isSpecialTenant } = useIsSpecialTenant();
   const { isDemoMode } = useDemoMode();
   const { isOwner, isSidebarItemVisible, isPlatformOperator: isPlatformOp } = usePermissions();
   
@@ -406,7 +403,7 @@ export function AppSidebar() {
     const Icon = item.icon;
     const active = isActive(item.href);
     // Hide module status indicators for demo users (e.g., Shopee reviewers)
-    const status = (isSpecialTenant && !isDemoMode) ? getModuleStatus(item.href) : undefined;
+    const status = (showStatusIndicators && !isDemoMode) ? getModuleStatus(item.href) : undefined;
 
     // Determine if item should be locked:
     // 1. If item has locked=true in definition, always lock
@@ -692,7 +689,7 @@ export function AppSidebar() {
                 {platformNavigation.items.map((item) => {
                   const Icon = item.icon;
                   const active = location.pathname.startsWith(item.href);
-                  const status = isSpecialTenant ? getModuleStatus(item.href) : undefined;
+                  const status = showStatusIndicators ? getModuleStatus(item.href) : undefined;
 
                   const linkContent = (
                     <NavLink

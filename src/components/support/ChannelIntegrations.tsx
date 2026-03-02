@@ -15,7 +15,7 @@ import { ChannelConfigDialog } from "./ChannelConfigDialog";
 import { AIChannelConfigDialog } from "./AIChannelConfigDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useTenantType } from "@/hooks/useTenantType";
+import { useTenantAccess } from "@/hooks/useTenantAccess";
 import { useNavigate } from "react-router-dom";
 import { useMeliConnection } from "@/hooks/useMeliConnection";
 import { IntegrationRequiredAlert } from "@/components/ui/integration-required-alert";
@@ -85,7 +85,7 @@ const PLATFORM_TENANT_CHANNELS: SupportChannelType[] = ['whatsapp', 'email', 'fa
 
 export function ChannelIntegrations() {
   const { currentTenant } = useAuth();
-  const { isPlatformTenant } = useTenantType();
+  const { isPlatformTenant } = useTenantAccess();
   const navigate = useNavigate();
   const { channels, isLoading, createChannel, updateChannel, deleteChannel } = useChannelAccounts();
   const { isConnected: meliConnected, isLoading: meliLoading, connection: meliConnection } = useMeliConnection();

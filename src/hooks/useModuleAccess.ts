@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
-import { useTenantType } from '@/hooks/useTenantType';
+import { useTenantAccess } from '@/hooks/useTenantAccess';
 import { supabase } from '@/integrations/supabase/client';
 
 export type AccessLevel = 'none' | 'partial' | 'full';
@@ -46,7 +46,7 @@ const FULL_ACCESS_RESULT: ModuleAccessInfo = {
  */
 export function useModuleAccess(moduleKey: string): ModuleAccessInfo & { isLoading: boolean } {
   const { currentTenant } = useAuth();
-  const { isUnlimited, isPlatformTenant, isLoading: tenantTypeLoading } = useTenantType();
+  const { isUnlimited, isPlatformTenant, isLoading: tenantTypeLoading } = useTenantAccess();
 
   // Early return: tenants especiais/unlimited/platform têm acesso total
   const shouldBypass = isUnlimited || isPlatformTenant;
@@ -126,7 +126,7 @@ export function useModuleAccess(moduleKey: string): ModuleAccessInfo & { isLoadi
  */
 export function useAllModuleAccess() {
   const { currentTenant } = useAuth();
-  const { isUnlimited, isPlatformTenant, isLoading: tenantTypeLoading } = useTenantType();
+  const { isUnlimited, isPlatformTenant, isLoading: tenantTypeLoading } = useTenantAccess();
 
   // Early return: tenants especiais/unlimited/platform têm acesso total
   const shouldBypass = isUnlimited || isPlatformTenant;

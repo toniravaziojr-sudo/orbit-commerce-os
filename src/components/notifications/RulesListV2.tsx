@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import type { NotificationRuleV2, RuleType } from "@/hooks/useNotificationRulesV2";
-import { useTenantType } from "@/hooks/useTenantType";
+import { useTenantAccess } from "@/hooks/useTenantAccess";
 
 interface RulesListV2Props {
   rules: NotificationRuleV2[];
@@ -81,7 +81,7 @@ export function RulesListV2({
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const { isPlatformTenant } = useTenantType();
+  const { isPlatformTenant } = useTenantAccess();
 
   // Platform tenant (admin) doesn't see "Envios" tab - filter it out
   const visibleRuleTypes: RuleType[] = isPlatformTenant 
