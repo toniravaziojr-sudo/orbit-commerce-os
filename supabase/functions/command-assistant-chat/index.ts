@@ -4,7 +4,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v3.3.0"; // Fix: is_tool_result messages were filtered from history, causing AI to not see execution results
+const VERSION = "v3.4.0"; // Fix: eliminate duplicate messages, execute saves as user with [AÇÃO_CONCLUÍDA] prefix
 // ===========================================================
 
 const corsHeaders = {
@@ -1014,11 +1014,13 @@ ${toolDescriptions}`;
     prompt += `
 
 ## ⚠️ PÓS-EXECUÇÃO (PRIORIDADE MÁXIMA):
-A próxima mensagem contém o RESULTADO de uma ação JÁ EXECUTADA.
-- PROIBIDO propor a MESMA ação que acabou de ser executada
+Uma ação acaba de ser executada. O resultado está no histórico como mensagem com prefixo [AÇÃO_CONCLUÍDA] ou [AÇÃO_FALHOU].
+- RECONHEÇA o resultado: diga "Pronto!" ou "Feito!" — NÃO diga "vou buscar" ou "estou aguardando"
+- PROIBIDO propor a MESMA ação que aparece em [AÇÃO_CONCLUÍDA]
 - Se o usuário pediu MÚLTIPLAS etapas (ex: atualizar preços E recalcular kits), PROSSIGA para a PRÓXIMA etapa
 - Para a próxima etapa, use function calling para buscar dados necessários (ex: searchProducts para encontrar IDs)
-- Se todas as etapas já foram concluídas, apenas confirme de forma amigável SEM propor novas ações`;
+- Se TODAS as etapas já foram concluídas, confirme de forma amigável e concisa
+- NUNCA diga "houve um problema técnico" se a ação foi bem-sucedida`;
   }
 
   prompt += `\n\nResponda sempre em português brasileiro de forma amigável e profissional.`;
@@ -1095,31 +1097,21 @@ serve(async (req) => {
         });
       if (msgError) console.error("Error saving message:", msgError);
     } else {
-      // v3.3.0 FIX: Save as "user" role instead of "tool" so it's NOT filtered from history.
-      // Previously saved as "tool" which was filtered at line 1135, causing the AI to never see
-      // the action result and hallucinate about "searching" or re-propose the same action.
-      const { error: toolMsgError } = await supabase
-        .from("command_messages")
-        .insert({
-          conversation_id,
-          tenant_id,
-          user_id: user.id,
-          role: "user",
-          content: message,
-          metadata: { is_tool_result: true },
-        });
-      if (toolMsgError) console.error("Error saving tool result message:", toolMsgError);
+      // v3.4.0: DON'T save here — the execute function already saved the result as role:"user"
+      // with is_tool_result metadata. Saving again would create duplicate messages in the UI
+      // and confuse the AI with redundant history entries.
+      console.log(`[command-assistant-chat] Post-execution: skipping save (already saved by execute function)`);
     }
 
-    // Get conversation history — MUDANÇA 4: increased from 20 to 50
+    // Get conversation history — includes metadata to distinguish action results
     const { data: history } = await supabase
       .from("command_messages")
-      .select("role, content")
+      .select("role, content, metadata")
       .eq("conversation_id", conversation_id)
       .order("created_at", { ascending: true })
       .limit(50);
 
-    // MUDANÇA 5: compressed prompt + MUDANÇA 2: post-exec flag built into prompt
+    // Build system prompt with post-execution context
     let SYSTEM_PROMPT = buildSystemPrompt(!!is_tool_result);
 
     // Inject AI memory context
@@ -1133,13 +1125,13 @@ serve(async (req) => {
       console.error("[command-assistant-chat] Memory fetch error:", e);
     }
 
-    // MUDANÇA 3: Filter tool messages from history — they were already processed during tool calling
-    // Instead of mapping them as "assistant" (confusing), we simply exclude them
-    const filteredHistory = (history || []).filter((m) => m.role !== "tool");
+    // v3.4.0: Filter native tool call artifacts (role:"tool") but KEEP action results
+    // Action results from execute function are now saved as role:"user" with is_tool_result metadata
+    const filteredHistory = (history || []).filter((m: any) => m.role !== "tool");
     
     const messages: any[] = [
       { role: "system", content: SYSTEM_PROMPT },
-      ...filteredHistory.map((m) => ({
+      ...filteredHistory.map((m: any) => ({
         role: m.role as string,
         content: m.content || "",
       })),
@@ -1315,7 +1307,8 @@ serve(async (req) => {
     // ==================== NATIVE TOOL CALLING LOOP ====================
     // Phase 1: Non-streaming loop to resolve all read tool calls
     resetAIRouterCache();
-    const aiOpts = { supabaseUrl, supabaseServiceKey: supabaseKey, logPrefix: '[command-assistant-chat]' };
+    // Force Lovable Gateway for tool calling (Gemini native OpenAI-compat doesn't reliably support tools)
+    const aiOpts = { supabaseUrl, supabaseServiceKey: supabaseKey, logPrefix: '[command-assistant-chat]', preferProvider: 'lovable' as const };
     
     let toolCallRound = 0;
     let finalMessages = [...messages];
