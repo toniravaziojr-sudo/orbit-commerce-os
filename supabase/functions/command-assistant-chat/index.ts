@@ -14,7 +14,7 @@ const corsHeaders = {
 
 // ==================== READ TOOLS (auto-executed server-side) ====================
 const READ_TOOLS = new Set([
-  "searchProducts", "listProducts", "getProductDetails", "listProductComponents", "findKitsContainingProduct",
+  "searchProducts", "listProducts", "getProductDetails", "listProductComponents", "findKitsContainingProduct", "listKitsSummary",
   "searchOrders", "getOrderDetails", "listDiscounts", "listCategories",
   "getDashboardStats", "getTopProducts", "listCustomerTags", "searchCustomers",
   "listBlogPosts", "listOffers", "listReviews", "listPages",
@@ -30,6 +30,7 @@ const READ_PERMISSION_MAP: Record<string, string[]> = {
   getProductDetails: ["owner", "admin", "manager", "editor", "attendant", "viewer"],
   listProductComponents: ["owner", "admin", "manager", "editor", "viewer"],
   findKitsContainingProduct: ["owner", "admin", "manager", "editor", "viewer"],
+  listKitsSummary: ["owner", "admin", "manager", "editor", "viewer"],
   searchOrders: ["owner", "admin", "manager", "attendant", "viewer"],
   getOrderDetails: ["owner", "admin", "manager", "attendant", "viewer"],
   listDiscounts: ["owner", "admin", "manager", "viewer"],
@@ -134,6 +135,21 @@ const OPENAI_READ_TOOLS = [
           componentProductId: { type: "string", description: "ID do produto simples (componente)" },
         },
         required: ["componentProductId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "listKitsSummary",
+      description: "Lista TODOS os kits do tenant com resumo: nome, SKU, preço, quantidade total de unidades (soma das quantidades dos componentes). Use quando o usuário pedir para listar kits por quantidade de unidades ou aplicar descontos por faixa de unidades.",
+      parameters: {
+        type: "object",
+        properties: {
+          minUnits: { type: "number", description: "Filtrar kits com no mínimo X unidades totais (opcional)" },
+          maxUnits: { type: "number", description: "Filtrar kits com no máximo X unidades totais (opcional)" },
+        },
+        required: [],
       },
     },
   },
@@ -962,6 +978,13 @@ const TOOL_REGISTRY = {
     },
     requiredPermission: "products",
   },
+  applyKitDiscount: {
+    description: "Aplicar desconto percentual sobre kits. Define compare_at_price = preço cheio (soma componentes) e price = preço com desconto. Útil para criar descontos por faixa de unidades.",
+    parameters: {
+      discounts: { type: "array", required: true, description: "Array de {kitId: UUID, discountPercent: número de 1 a 99}. Cada item define o desconto para um kit específico." },
+    },
+    requiredPermission: "products",
+  },
 };
 
 // Build dynamic system prompt with all available tools (WRITE only - reads are native tools)
@@ -1021,7 +1044,10 @@ Fale como se conversa com LOJISTA. NUNCA exponha nomes de tools, IDs de sistema 
 ## KITS E COMPOSIÇÕES (IMPORTANTE):
 - listProductComponents: dado um KIT (pai), lista seus componentes
 - findKitsContainingProduct: dado um COMPONENTE (produto simples), encontra os KITS que o contêm ← USE SEMPRE que o usuário pedir para recalcular kits de um produto
+- listKitsSummary: lista TODOS os kits com resumo (nome, SKU, preço, total de unidades). USE quando o usuário pedir para listar kits por quantidade ou aplicar descontos por faixa de unidades. Aceita filtros minUnits/maxUnits.
 - recalculateKitPrices: aceita productIds de componentes (produtos simples) e encontra automaticamente os kits que os contêm
+- applyKitDiscount: aplica desconto percentual sobre kits (compare_at_price = preço cheio, price = preço com desconto). USE após listKitsSummary quando o usuário pedir descontos por faixa de unidades.
+- FLUXO DESCONTO POR FAIXA: 1) listKitsSummary para obter kits e unidades 2) Agrupar por faixa de unidades 3) applyKitDiscount com os IDs e percentuais
 - Quando o usuário pede "atualizar kits de X", PRIMEIRO use findKitsContainingProduct para listar os kits afetados, DEPOIS proponha recalculateKitPrices
 
 ## OPERAÇÕES EM LOTE (AÇÃO ÚNICA):

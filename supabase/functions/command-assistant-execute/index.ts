@@ -116,6 +116,8 @@ const PERMISSION_MAP: Record<string, string[]> = {
   createEmailCampaign: ["owner", "admin", "manager"],
   listCampaigns: ["owner", "admin", "manager", "viewer"],
   recalculateKitPrices: ["owner", "admin", "manager"],
+  listKitsSummary: ["owner", "admin", "manager", "editor", "viewer"],
+  applyKitDiscount: ["owner", "admin", "manager"],
 };
 
 // Rate limiting - simple in-memory (resets on function restart)
@@ -3135,6 +3137,171 @@ async function executeTool(
         success: true,
         message: `✅ **${updateCount} kit(s) recalculado(s):**\n\n${reportLines}` +
           (removeCompareAtPrice ? `\n\n🏷️ Preços de desconto removidos dos kits.` : ''),
+        data: { affected: updateCount, report },
+      };
+    }
+
+    // ==================== LISTAR KITS COM RESUMO ====================
+    case "listKitsSummary": {
+      const { minUnits, maxUnits } = tool_args;
+      
+      // Get all kits for this tenant
+      const { data: kits, error: kitsErr } = await supabase
+        .from("products")
+        .select("id, name, sku, price, compare_at_price, status")
+        .eq("tenant_id", tenant_id)
+        .eq("product_format", "with_composition")
+        .is("deleted_at", null)
+        .order("name");
+      
+      if (kitsErr) throw new Error(kitsErr.message);
+      if (!kits || kits.length === 0) {
+        return { success: true, message: "Nenhum kit encontrado.", data: [] };
+      }
+      
+      // Get all components for all kits
+      const kitIds = kits.map((k: any) => k.id);
+      const { data: allComps, error: compsErr } = await supabase
+        .from("product_components")
+        .select("parent_product_id, quantity")
+        .in("parent_product_id", kitIds);
+      
+      if (compsErr) throw new Error(compsErr.message);
+      
+      // Sum total units per kit
+      const unitsByKit = new Map<string, number>();
+      for (const comp of (allComps || [])) {
+        const current = unitsByKit.get(comp.parent_product_id) || 0;
+        unitsByKit.set(comp.parent_product_id, current + comp.quantity);
+      }
+      
+      // Build results with optional filtering
+      let results = kits.map((k: any) => ({
+        kitId: k.id,
+        name: k.name,
+        sku: k.sku,
+        price: k.price,
+        compareAtPrice: k.compare_at_price,
+        status: k.status,
+        totalUnits: unitsByKit.get(k.id) || 0,
+      }));
+      
+      if (minUnits !== undefined && minUnits !== null) {
+        results = results.filter((r: any) => r.totalUnits >= minUnits);
+      }
+      if (maxUnits !== undefined && maxUnits !== null) {
+        results = results.filter((r: any) => r.totalUnits <= maxUnits);
+      }
+      
+      // Sort by totalUnits
+      results.sort((a: any, b: any) => a.totalUnits - b.totalUnits);
+      
+      const lines = results.map((r: any, i: number) =>
+        `${i + 1}. **${r.name}** (SKU: ${r.sku}) — ${r.totalUnits} unidades, Preço: R$ ${Number(r.price).toFixed(2)}${r.compareAtPrice ? ` (de R$ ${Number(r.compareAtPrice).toFixed(2)})` : ''}`
+      ).join("\n");
+      
+      return {
+        success: true,
+        message: `📦 **${results.length} kit(s) encontrado(s):**\n\n${lines}`,
+        data: results,
+      };
+    }
+
+    // ==================== APLICAR DESCONTO PERCENTUAL EM KITS ====================
+    case "applyKitDiscount": {
+      const { discounts } = tool_args;
+      
+      if (!discounts || !Array.isArray(discounts) || discounts.length === 0) {
+        return { success: false, error: "Parâmetro 'discounts' é obrigatório: array de {kitId, discountPercent}" };
+      }
+      
+      // Validate all entries
+      for (const d of discounts) {
+        if (!d.kitId || !d.discountPercent) {
+          return { success: false, error: "Cada item deve ter kitId (UUID) e discountPercent (1-99)" };
+        }
+        if (d.discountPercent < 1 || d.discountPercent > 99) {
+          return { success: false, error: `Desconto inválido: ${d.discountPercent}%. Deve ser entre 1 e 99.` };
+        }
+      }
+      
+      const kitIds = discounts.map((d: any) => d.kitId);
+      
+      // Validate kits belong to tenant
+      const { data: validKits, error: vErr } = await supabase
+        .from("products")
+        .select("id, name, sku, product_format")
+        .in("id", kitIds)
+        .eq("tenant_id", tenant_id)
+        .eq("product_format", "with_composition");
+      
+      if (vErr) throw new Error(vErr.message);
+      
+      const validKitMap = new Map((validKits || []).map((k: any) => [k.id, k]));
+      
+      // Get components to calculate full price
+      const { data: allComps2, error: compErr2 } = await supabase
+        .from("product_components")
+        .select(`
+          parent_product_id,
+          quantity,
+          sale_price,
+          component:products!component_product_id(price)
+        `)
+        .in("parent_product_id", kitIds);
+      
+      if (compErr2) throw new Error(compErr2.message);
+      
+      // Calculate full price (sum of components) per kit
+      const fullPriceByKit = new Map<string, number>();
+      for (const comp of (allComps2 || [])) {
+        const compPrice = comp.sale_price ?? comp.component?.price ?? 0;
+        const current = fullPriceByKit.get(comp.parent_product_id) || 0;
+        fullPriceByKit.set(comp.parent_product_id, current + (parseFloat(compPrice) * comp.quantity));
+      }
+      
+      const report: any[] = [];
+      let updateCount = 0;
+      
+      for (const d of discounts) {
+        const kit = validKitMap.get(d.kitId);
+        if (!kit) continue;
+        
+        const fullPrice = fullPriceByKit.get(d.kitId) || 0;
+        if (fullPrice <= 0) continue;
+        
+        const discountedPrice = Math.round(fullPrice * (1 - d.discountPercent / 100) * 100) / 100;
+        const roundedFullPrice = Math.round(fullPrice * 100) / 100;
+        
+        const { error: updateErr } = await supabase
+          .from("products")
+          .update({
+            price: discountedPrice,
+            compare_at_price: roundedFullPrice,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", d.kitId)
+          .eq("tenant_id", tenant_id);
+        
+        if (!updateErr) {
+          updateCount++;
+          report.push({
+            name: kit.name,
+            sku: kit.sku,
+            fullPrice: roundedFullPrice,
+            discountPercent: d.discountPercent,
+            finalPrice: discountedPrice,
+          });
+        }
+      }
+      
+      const reportLines = report.map((r: any) =>
+        `• **${r.name}** (${r.sku}): De R$ ${r.fullPrice.toFixed(2)} → R$ ${r.finalPrice.toFixed(2)} (-${r.discountPercent}%)`
+      ).join("\n");
+      
+      return {
+        success: true,
+        message: `✅ **${updateCount} kit(s) com desconto aplicado:**\n\n${reportLines}`,
         data: { affected: updateCount, report },
       };
     }
