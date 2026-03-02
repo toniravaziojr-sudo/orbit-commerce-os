@@ -1517,24 +1517,42 @@ async function executeTool(
       if (error) throw new Error(error.message);
       
       if (!data || data.length === 0) {
-        // If excludeKits was on and no results, try including kits
+        // Strategy 4: Accent-insensitive search using unaccent RPC
+        const { data: fuzzyData } = await supabase.rpc("search_products_fuzzy", {
+          p_tenant_id: tenant_id,
+          p_query: query,
+          p_limit: maxResults,
+          p_exclude_kits: excludeKits,
+        });
+        
+        if (fuzzyData && fuzzyData.length > 0) {
+          const list = fuzzyData.map((p: any) => 
+            `• ${p.name} (SKU: ${p.sku || "—"}) — R$ ${(p.price || 0).toFixed(2)} — Estoque: ${p.stock_quantity ?? 0} — ${p.status === "active" ? "Ativo" : "Inativo"}`
+          ).join("\n");
+          return {
+            success: true,
+            message: `🔍 **${fuzzyData.length} produto(s) encontrado(s) para "${query}":**\n\n${list}`,
+            data: fuzzyData,
+          };
+        }
+        
+        // If excludeKits was on and no results, try including kits (also with unaccent)
         if (excludeKits) {
-          const { data: withKits } = await supabase
-            .from("products")
-            .select(selectFields)
-            .eq("tenant_id", tenant_id)
-            .is("deleted_at", null)
-            .or(`name.ilike.%${query}%,sku.ilike.%${query}%`)
-            .limit(maxResults);
+          const { data: withKitsFuzzy } = await supabase.rpc("search_products_fuzzy", {
+            p_tenant_id: tenant_id,
+            p_query: query,
+            p_limit: maxResults,
+            p_exclude_kits: false,
+          });
           
-          if (withKits && withKits.length > 0) {
-            const list = withKits.map((p: any) => 
+          if (withKitsFuzzy && withKitsFuzzy.length > 0) {
+            const list = withKitsFuzzy.map((p: any) => 
               `• ${p.name} (SKU: ${p.sku || "—"}) — R$ ${(p.price || 0).toFixed(2)} — ${p.product_format === "with_composition" ? "Kit" : "Produto"} — ${p.status === "active" ? "Ativo" : "Inativo"}`
             ).join("\n");
             return {
               success: true,
-              message: `🔍 **${withKits.length} produto(s) encontrado(s) para "${query}" (incluindo kits):**\n\n${list}`,
-              data: withKits,
+              message: `🔍 **${withKitsFuzzy.length} produto(s) encontrado(s) para "${query}" (incluindo kits):**\n\n${list}`,
+              data: withKitsFuzzy,
             };
           }
         }
