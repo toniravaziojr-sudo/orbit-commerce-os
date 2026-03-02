@@ -2,8 +2,8 @@
 
 > **Status:** ✅ Ready  
 > **Última atualização:** 2026-03-02  
-> **Versão do Pipeline:** v3.6.1  
-> **Cobertura:** 57+ tools — 100% dos módulos (Fases 1–5 completas)
+> **Versão do Pipeline:** v3.7.0  
+> **Cobertura:** 59+ tools — 100% dos módulos (Fases 1–5 completas)
 
 ---
 
@@ -114,7 +114,7 @@ Todos os inputs de chat usam o padrão **card pill**:
 
 ---
 
-## Arquitetura (v3.6.0 — OpenAI Nativa + Busca Reversa de Kits)
+## Arquitetura (v3.7.0 — OpenAI Nativa + Desconto por Faixa de Kits)
 
 ### Modelo de IA
 
@@ -128,7 +128,7 @@ O sistema usa **native tool calling** da OpenAI para executar tools de leitura a
 
 Essas tools são executadas internamente pela Edge Function `command-assistant-chat` antes de gerar a resposta final. O usuário não vê botão de confirmação para elas:
 
-`searchProducts`, `listProducts`, `getProductDetails`, `listProductComponents`, `findKitsContainingProduct`, `searchOrders`, `getOrderDetails`, `listDiscounts`, `listCategories`, `getDashboardStats`, `getTopProducts`, `listCustomerTags`, `searchCustomers`, `listBlogPosts`, `listOffers`, `listReviews`, `listPages`, `getFinancialSummary`, `listShippingMethods`, `listNotifications`, `listFiles`, `getStorageUsage`, `listEmailLists`, `listSubscribers`, `listCampaigns`, `listAgendaTasks`, `inventoryReport`, `customersReport`, `salesReport`
+`searchProducts`, `listProducts`, `getProductDetails`, `listProductComponents`, `findKitsContainingProduct`, `listKitsSummary`, `searchOrders`, `getOrderDetails`, `listDiscounts`, `listCategories`, `getDashboardStats`, `getTopProducts`, `listCustomerTags`, `searchCustomers`, `listBlogPosts`, `listOffers`, `listReviews`, `listPages`, `getFinancialSummary`, `listShippingMethods`, `listNotifications`, `listFiles`, `getStorageUsage`, `listEmailLists`, `listSubscribers`, `listCampaigns`, `listAgendaTasks`, `inventoryReport`, `customersReport`, `salesReport`
 
 #### Tools de Escrita (Confirmação via botão)
 
@@ -145,6 +145,19 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
 3. Se o usuário pede ação sobre produtos, PRIMEIRO buscar via tool calling, DEPOIS propor a ação
 4. **PROIBIDO** gerar texto anunciando intenção de ação SEM realmente executar — tools são síncronas
 5. Se não tem IDs → CHAMAR searchProducts. Não responder sem chamar.
+
+### 🔧 Feature: Desconto por Faixa de Kits (v3.7.0)
+
+> **Problema corrigido**: Quando o usuário pedia "aplique descontos nos kits: 2 unidades = 12-15%, 3 unidades = 18-20%", a IA não tinha como listar kits por quantidade de unidades nem aplicar descontos percentuais. Buscava produtos aleatórios em vez de kits agrupados por composição.
+
+**Novas tools:**
+
+1. **`listKitsSummary`** (Leitura auto-executável): Lista TODOS os kits com nome, SKU, preço e **total de unidades** (soma das quantidades dos componentes). Aceita filtros `minUnits`/`maxUnits`.
+2. **`applyKitDiscount`** (Escrita com confirmação): Aplica desconto percentual sobre kits. Define `compare_at_price` = preço cheio (soma dos componentes) e `price` = preço com desconto. Aceita array de `{kitId, discountPercent}`.
+
+**Fluxo esperado:** `listKitsSummary` → agrupar por faixa → `applyKitDiscount` com os IDs e percentuais
+
+**System prompt atualizado:** Seção "KITS E COMPOSIÇÕES" instrui o fluxo completo de desconto por faixa.
 
 ### 🔧 Fix: Confirmação Pós-Execução (v3.6.1)
 
@@ -374,9 +387,11 @@ for (const chunk of chunks) {
 | `removeProductComponent` | Remover componente de um kit | owner, admin, manager, editor |
 | `listProductComponents` | Listar composição de um kit (parent → children) | todos |
 | `findKitsContainingProduct` | Busca reversa: quais kits contêm um produto como componente (child → parents) | todos |
+| `listKitsSummary` | Lista TODOS os kits com resumo (nome, SKU, preço, total de unidades). Filtra por minUnits/maxUnits | todos |
 | `bulkSetCompositionType` | Alterar tipo de composição (físico/virtual) em massa | owner, admin, manager |
 | `autoCreateKitCompositions` | Detectar kits sem composição | owner, admin, manager |
 | `recalculateKitPrices` | Recalcular preços de kits baseado nos componentes (Σ preço×qtd) | owner, admin, manager |
+| `applyKitDiscount` | Aplicar desconto percentual sobre kits (compare_at_price = cheio, price = com desconto) | owner, admin, manager |
 
 ### Blog
 
@@ -629,6 +644,8 @@ O assistente NUNCA deve expor nomes internos de ferramentas, variáveis, IDs ou 
 | `listFiles` | "listar os arquivos" |
 | `getStorageUsage` | "verificar uso de armazenamento" |
 | `recalculateKitPrices` | "recalcular preços dos kits baseado nos componentes" |
+| `listKitsSummary` | "listar todos os kits com quantidade de unidades" |
+| `applyKitDiscount` | "aplicar descontos nos kits" |
 | `tool_name` / `tool_args` | NUNCA mencionar |
 | `tenant_id`, `user_id` | NUNCA mencionar |
 | `autopilot_config` | "Configurações da IA de Tráfego" |
