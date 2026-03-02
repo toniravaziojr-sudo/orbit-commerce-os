@@ -4,7 +4,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v3.6.0"; // Add findKitsContainingProduct read tool for reverse composition lookup
+const VERSION = "v3.7.0"; // Add listKitsSummary + applyKitDiscount tools for tiered kit pricing
 // ===========================================================
 
 const corsHeaders = {
