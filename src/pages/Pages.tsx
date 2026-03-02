@@ -303,13 +303,29 @@ export default function Pages() {
         description="Gerencie páginas institucionais e landing pages da sua loja"
         actions={
           <div className="flex gap-2">
-            {/* Criar Página (institucional) */}
-            <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
-              <DialogTrigger asChild>
-                <Button variant="outline">
+            {/* Botão único: Criar Página (dropdown) */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button>
                   <Plus className="mr-2 h-4 w-4" />Criar Página
+                  <ChevronDown className="ml-2 h-4 w-4" />
                 </Button>
-              </DialogTrigger>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setIsDialogOpen(true)}>
+                  <FileText className="mr-2 h-4 w-4" />Página Institucional
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setCreateLPDialogOpen(true)}>
+                  <Sparkles className="mr-2 h-4 w-4" />Landing Page com IA
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setAIImportTarget('landing_page'); setIsAIImportOpen(true); }}>
+                  <Sparkles className="mr-2 h-4 w-4" />Importar com IA
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Dialog de criação de página institucional (hidden trigger) */}
+            <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
               <DialogContent className="max-w-md">
                 <DialogHeader>
                   <DialogTitle>{editingPage ? 'Editar Página' : 'Criar Nova Página'}</DialogTitle>
@@ -360,27 +376,6 @@ export default function Pages() {
                 </div>
               </DialogContent>
             </Dialog>
-
-            {/* Criar Landing Page (dropdown) */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />Criar Landing Page
-                  <ChevronDown className="ml-2 h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setIsBuilderDialogOpen(true)}>
-                  <LayoutTemplate className="mr-2 h-4 w-4" />No Builder
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setCreateLPDialogOpen(true)}>
-                  <Sparkles className="mr-2 h-4 w-4" />Com IA
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { setAIImportTarget('landing_page'); setIsAIImportOpen(true); }}>
-                  <Sparkles className="mr-2 h-4 w-4" />Importar com IA
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
         }
       />
