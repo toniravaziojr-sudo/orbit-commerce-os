@@ -4,7 +4,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v3.4.0"; // Fix: eliminate duplicate messages, execute saves as user with [AÇÃO_CONCLUÍDA] prefix
+const VERSION = "v3.5.0"; // Switch to OpenAI native for tool calling (reliable tool support)
 // ===========================================================
 
 const corsHeaders = {
@@ -996,14 +996,22 @@ Fale como se conversa com LOJISTA. NUNCA exponha nomes de tools, IDs de sistema 
 - NUNCA peça confirmação para buscar dados
 - NUNCA faça 2+ perguntas antes de propor ação
 
-## OPERAÇÕES EM LOTE:
-Quando alterar MÚLTIPLOS produtos: busque TODOS automaticamente, extraia IDs do JSON, proponha UMA ação.
+## ⚠️ UMA AÇÃO POR VEZ (OBRIGATÓRIO):
+- Cada bloco \`\`\`action\`\`\` deve conter EXATAMENTE UM objeto JSON (NÃO um array)
+- Para operações em múltiplas etapas (ex: duplicar produto + alterar nome), proponha APENAS A PRIMEIRA etapa
+- Após o resultado da primeira etapa, proponha a próxima automaticamente
+- NUNCA use placeholders como "<novoID>" — espere o resultado real da etapa anterior
+- Exemplo: se o usuário pede "duplicar e alterar nome", primeiro proponha APENAS a duplicação
+
+## OPERAÇÕES EM LOTE (AÇÃO ÚNICA):
+Quando alterar MÚLTIPLOS produtos com A MESMA operação: busque TODOS automaticamente, extraia IDs do JSON, proponha UMA ação com todos os IDs.
 
 ## FORMATO DE AÇÃO:
 \`\`\`action
 {"tool_name":"bulkUpdateProductsPrice","tool_args":{"type":"fixed","prices":[{"productId":"UUID","price":97.90}]},"description":"Atualizar preços"}
 \`\`\`
 "tool_args" NUNCA pode ser vazio ({}).
+O JSON deve ser um OBJETO, NUNCA um array.
 
 ## FERRAMENTAS DE ESCRITA:
 
@@ -1144,8 +1152,13 @@ serve(async (req) => {
       
       if (actionMatch) {
         try {
-          const actionData = JSON.parse(actionMatch[1]);
-          if (actionData.tool_name && actionData.tool_args && Object.keys(actionData.tool_args).length > 0) {
+          let actionData = JSON.parse(actionMatch[1]);
+          // v3.5.0: Handle arrays (take first action only)
+          if (Array.isArray(actionData)) {
+            console.warn("Action was array, taking first element only");
+            actionData = actionData[0];
+          }
+          if (actionData?.tool_name && actionData?.tool_args && Object.keys(actionData.tool_args).length > 0) {
             proposedActions = [{
               id: crypto.randomUUID(),
               tool_name: actionData.tool_name,
@@ -1206,9 +1219,10 @@ serve(async (req) => {
 
     // ==================== HELPER: Stream from real AI response ====================
     async function streamFromAI(streamMessages: any[]): Promise<Response> {
-      const endpoint = await getAIEndpoint("google/gemini-2.5-flash", {
+      const endpoint = await getAIEndpoint("openai/gpt-5", {
         supabaseUrl,
         supabaseServiceKey: supabaseKey,
+        preferProvider: 'openai',
       });
 
       console.log(`[command-assistant-chat] Streaming via ${endpoint.provider} (${endpoint.model})`);
@@ -1307,8 +1321,8 @@ serve(async (req) => {
     // ==================== NATIVE TOOL CALLING LOOP ====================
     // Phase 1: Non-streaming loop to resolve all read tool calls
     resetAIRouterCache();
-    // Force Lovable Gateway for tool calling (Gemini native OpenAI-compat doesn't reliably support tools)
-    const aiOpts = { supabaseUrl, supabaseServiceKey: supabaseKey, logPrefix: '[command-assistant-chat]', preferProvider: 'lovable' as const };
+    // Use OpenAI native for tool calling (reliable tool support, Gemini OpenAI-compat doesn't support tools well)
+    const aiOpts = { supabaseUrl, supabaseServiceKey: supabaseKey, logPrefix: '[command-assistant-chat]', preferProvider: 'openai' as const };
     
     let toolCallRound = 0;
     let finalMessages = [...messages];
