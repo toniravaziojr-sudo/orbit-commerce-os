@@ -37,6 +37,7 @@ import {
   ExternalLink,
   Settings,
   Wand2,
+  FileText,
 } from "lucide-react";
 
 interface LandingPageData {
@@ -251,14 +252,28 @@ export default function LandingPageEditor() {
 
   const renderPreview = () => {
     if (!landingPage?.generated_html) {
+      // Check if status is 'generating' (AI creation in progress) vs empty (builder mode)
+      const isGenerating = landingPage?.status === 'generating';
       return (
         <div className="flex items-center justify-center h-full bg-muted/50">
           <div className="text-center p-8">
-            <Sparkles className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium mb-2">Gerando sua landing page...</h3>
-            <p className="text-muted-foreground">
-              Aguarde enquanto a IA cria sua página
-            </p>
+            {isGenerating ? (
+              <>
+                <Sparkles className="h-12 w-12 text-muted-foreground mx-auto mb-4 animate-pulse" />
+                <h3 className="text-lg font-medium mb-2">Gerando sua landing page...</h3>
+                <p className="text-muted-foreground">
+                  Aguarde enquanto a IA cria sua página
+                </p>
+              </>
+            ) : (
+              <>
+                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">Sua landing page está pronta para edição</h3>
+                <p className="text-muted-foreground">
+                  Use o Editor IA ao lado para descrever o que deseja criar, ou edite o HTML diretamente.
+                </p>
+              </>
+            )}
           </div>
         </div>
       );
