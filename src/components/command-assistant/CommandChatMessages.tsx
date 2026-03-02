@@ -47,20 +47,26 @@ export function CommandChatMessages({
         {messages.map((message) => {
           const proposedActions = message.metadata?.proposed_actions || [];
           const toolResult = message.metadata?.tool_result;
+          const isToolResult = message.metadata?.is_tool_result === true;
           const attachments = message.metadata?.attachments as { url: string; filename: string; mimeType: string }[] | undefined;
+
+          // Determine avatar: action results show as tool, otherwise by role
+          const avatarIcon = isToolResult ? "tool" : (message.role === "user" ? "user" : message.role === "tool" ? "tool" : "bot");
+          // For action results saved as "user", treat display as "tool"
+          const displayRole = isToolResult ? "tool" as const : (message.role as "user" | "assistant" | "tool");
 
           return (
             <ChatMessageBubble
               key={message.id}
-              role={message.role as "user" | "assistant" | "tool"}
-              content={message.content}
-              avatarIcon={message.role === "user" ? "user" : message.role === "tool" ? "tool" : "bot"}
+              role={displayRole}
+              content={isToolResult ? "" : message.content}
+              avatarIcon={avatarIcon}
               attachments={attachments}
               timestamp={message.created_at ? new Date(message.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : undefined}
               actions={
                 <>
-                  {/* Tool result */}
-                  {message.role === "tool" && toolResult && (
+                  {/* Tool result (from action execution) */}
+                  {(isToolResult || (message.role === "tool" && toolResult)) && toolResult && (
                     <div className="px-1 mt-1">
                       {toolResult.success ? (
                         <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">

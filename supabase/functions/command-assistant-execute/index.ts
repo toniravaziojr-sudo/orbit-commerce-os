@@ -265,17 +265,22 @@ serve(async (req) => {
       result = { success: false, error: `Erro ao executar ação: ${execError instanceof Error ? execError.message : "Erro desconhecido"}` };
     }
 
-    // Log the execution (skip for internal calls to avoid noise)
+    // Log the execution as "user" role with is_tool_result marker so it's NOT filtered
+    // from AI history. Previously saved as "tool" which was filtered at line 1138 of
+    // command-assistant-chat, causing AI to never see action results.
     if (!_internal_user_id) {
+      const resultContent = result.success
+        ? `[AÇÃO_CONCLUÍDA]: ${result.message || "Executado com sucesso"}`
+        : `[AÇÃO_FALHOU]: ${result.error || "Erro ao executar"}`;
       await supabase
         .from("command_messages")
         .insert({
           conversation_id,
           tenant_id,
           user_id: userId,
-          role: "tool",
-          content: result.success ? result.message : result.error,
-          metadata: { action_id, tool_name, tool_args, tool_result: result },
+          role: "user",
+          content: resultContent,
+          metadata: { is_tool_result: true, action_id, tool_name, tool_args, tool_result: result },
         });
     }
 
