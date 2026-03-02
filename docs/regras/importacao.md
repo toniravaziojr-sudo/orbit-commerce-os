@@ -852,8 +852,9 @@ O conteúdo de headers/footers da página de origem NÃO é importado. O sistema
 #### RN-AIP-005: HTMLSection como Último Recurso
 Seções complexas que não se encaixam em nenhum bloco nativo são convertidas em `HTMLSection` com HTML/CSS inline.
 
-#### RN-AIP-006: Salvamento Direto
-Quando `pageId` é fornecido, o sistema faz UPDATE em `store_pages` setando `content` com o JSON, `template_id = NULL` e `individual_content = NULL`.
+#### RN-AIP-006: Salvamento Híbrido (Criar ou Sobrescrever)
+- **Com `pageId`**: faz UPDATE em `store_pages` setando `content` com o JSON, `template_id = NULL` e `individual_content = NULL`.
+- **Sem `pageId`**: cria automaticamente uma nova entrada em `store_pages` com `type = 'institutional'`, `status = 'draft'`, título extraído do `metadata.title` da página original, e slug único gerado com sufixo timestamp. Após criação, redireciona ao builder.
 
 ### UI de Importação
 
@@ -868,8 +869,18 @@ O dialog `ImportPageWithAIDialog` é acessado via botão **"Importar com IA"** p
 | `open` | boolean | Controla visibilidade do dialog |
 | `onOpenChange` | function | Callback ao abrir/fechar |
 | `tenantId` | string | ID do tenant |
-| `pageId` | string? | Se fornecido, salva direto na página |
-| `onSuccess` | function? | Callback com resultado da importação |
+| `pageId` | string? | Se fornecido, sobrescreve a página. Se omitido, cria nova página. |
+| `onSuccess` | function? | Callback com `ImportResult` (inclui `pageId` da página criada/atualizada) |
+
+#### ImportResult
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `content` | BlockNode | Árvore de blocos gerada |
+| `sectionsCount` | number | Quantidade de seções importadas |
+| `sourceUrl` | string | URL original |
+| `sourceTitle` | string | Título da página original |
+| `pageId` | string? | ID da página criada ou atualizada |
 
 #### Estados de Progresso
 
