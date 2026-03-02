@@ -2,7 +2,7 @@
 
 > **Status:** ✅ Ready  
 > **Última atualização:** 2026-03-02  
-> **Versão do Pipeline:** v3.3.0  
+> **Versão do Pipeline:** v3.5.0  
 > **Cobertura:** 56+ tools — 100% dos módulos (Fases 1–5 completas)
 
 ---
@@ -114,11 +114,15 @@ Todos os inputs de chat usam o padrão **card pill**:
 
 ---
 
-## Arquitetura (v3.3.0 — Pipeline Otimizado + Anti-Alucinação + Multi-Step Fix + History Fix)
+## Arquitetura (v3.5.0 — OpenAI Nativa + Uma Ação por Vez + Anti-Alucinação)
+
+### Modelo de IA
+
+> **Mudança v3.5.0**: Migração de Gemini (via Lovable Gateway) para **OpenAI nativa (gpt-4o)** com `preferProvider: 'openai'`. Motivo: Gemini via OpenAI-compat não suportava `tools` de forma confiável, causando alucinações onde a IA dizia "estou buscando" sem chamar nenhuma tool.
 
 ### Arquitetura de Tools: Leitura Automática vs Escrita com Confirmação
 
-O sistema usa **native tool calling** do Gemini para executar tools de leitura automaticamente no servidor, sem confirmação do usuário. Apenas tools de escrita exigem confirmação via botão.
+O sistema usa **native tool calling** da OpenAI para executar tools de leitura automaticamente no servidor, sem confirmação do usuário. Apenas tools de escrita exigem confirmação via botão.
 
 #### Tools de Leitura (Auto-executáveis — server-side)
 
@@ -142,6 +146,17 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
 4. **PROIBIDO** gerar texto anunciando intenção de ação SEM realmente executar — tools são síncronas
 5. Se não tem IDs → CHAMAR searchProducts. Não responder sem chamar.
 
+### 🔧 Fix: Uma Ação por Vez (v3.5.0)
+
+> **Problema corrigido**: Para comandos multi-etapa (ex: "duplique o produto X e altere o nome"), a IA tentava propor múltiplas ações de uma vez (array no bloco `action`) ou usava placeholders como `<novoID>`. Isso causava falhas no parser e ações inválidas.
+
+**Mudanças:**
+
+1. **Uma ação por bloco `action`**: Cada bloco deve conter EXATAMENTE um objeto JSON (nunca array)
+2. **Sequenciamento obrigatório**: Para multi-step, propor APENAS a primeira etapa. Após confirmação e resultado, propor a próxima
+3. **Parser com fallback de array**: Se a IA retornar array, o parser extrai o primeiro elemento gracefully
+4. **Proibição de placeholders**: Nunca usar `<novoID>` — esperar o resultado real da etapa anterior
+
 ### 🔧 Fix Multi-Step Post-Execution (v3.2.0)
 
 > **Problema corrigido**: Quando o usuário pedia operações em múltiplas etapas (ex: "atualize preços E recalcule os kits"), o fluxo pós-execução pulava a Fase 1 (tool calling) inteiramente. Isso impedia a IA de chamar `searchProducts` para encontrar IDs dos kits para a próxima etapa, causando a IA a alucinar "estou aguardando a busca" e travar.
@@ -154,14 +169,14 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
 
 ### 🔧 Fix History Filtering (v3.3.0)
 
-> **Problema corrigido**: Mensagens de resultado de execução (`is_tool_result`) eram salvas como `role: "tool"` no banco de dados, mas o filtro de histórico (linha 1135) removia TODAS as mensagens `role: "tool"` antes de enviar ao modelo. Resultado: a IA nunca via o resultado da ação executada e alucinava dizendo "estou aguardando a busca" ou re-propunha a mesma ação.
+> **Problema corrigido**: Mensagens de resultado de execução (`is_tool_result`) eram salvas como `role: "tool"` no banco de dados, mas o filtro de histórico removia TODAS as mensagens `role: "tool"` antes de enviar ao modelo. Resultado: a IA nunca via o resultado da ação executada e alucinava dizendo "estou aguardando a busca" ou re-propunha a mesma ação.
 
 **Mudanças:**
 
-1. **Mensagens de resultado salvas como `role: "user"`**: Resultados de ações confirmadas agora são salvos como mensagem do usuário (em vez de "tool"), garantindo que não sejam filtradas do histórico.
+1. **Mensagens de resultado salvas como `role: "user"`**: Resultados de ações confirmadas agora são salvos como mensagem do usuário (em vez de "tool") com prefixo `[AÇÃO_CONCLUÍDA]` ou `[AÇÃO_FALHOU]` e metadata `is_tool_result: true`, garantindo que não sejam filtradas do histórico.
 2. **Synthetic stream emite `proposed_actions`**: O streaming sintético da Phase 1 agora inclui as ações propostas no SSE, permitindo que o frontend renderize botões de confirmação imediatamente sem depender do refetch.
 
-### Pipeline de Processamento (v3.3)
+### Pipeline de Processamento (v3.5)
 
 > **Mudança crítica v3**: O pipeline anterior tinha 2 fases (tool calling + streaming separado), o que causava "raciocínio duplo" — a IA pensava uma vez com os dados e depois gerava outra resposta do zero. Agora o pipeline é unificado.
 
@@ -174,8 +189,8 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
    - Carrega histórico (50 mensagens, filtradas — sem role "tool")
    - Injeta memórias + system prompt comprimido (~4KB)
    ↓
-3. Fase 1: Tool Calling (non-streaming, até 5 rodadas)
-   - Gemini decide se precisa buscar dados
+3. Fase 1: Tool Calling (non-streaming, até 5 rodadas) — OpenAI gpt-4o
+   - OpenAI decide se precisa buscar dados
    - Se sim: executa tools → injeta resultado → repete
    - Se não: gera resposta final com content
    ↓
@@ -183,10 +198,10 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
    - Se Fase 1 gerou content (sem mais tool_calls):
      → Faz STREAMING SINTÉTICO da resposta já gerada
      → NÃO chama a API novamente (elimina "raciocínio duplo")
-   - Se Fase 1 nunca foi chamada: streaming direto normal
+   - Se Fase 1 nunca foi chamada: streaming direto normal (OpenAI gpt-5)
    ↓
 5. Frontend renderiza resposta
-   - Extrai proposed_actions dos blocos ```action
+   - Extrai proposed_actions dos blocos ```action (UM objeto por bloco)
    - Se há ações de escrita: mostra botões de confirmação
 ```
 
@@ -195,7 +210,7 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
 ```
 1. Usuário confirma ação → POST /command-assistant-execute
    ↓
-2. Frontend envia resultado de volta (is_tool_result: true)
+2. Frontend envia resultado de volta (is_tool_result: true, prefixo [AÇÃO_CONCLUÍDA])
    ↓
 3. MESMO pipeline que fluxo normal (Fase 1 com tool calling habilitado)
    - A IA PODE chamar searchProducts/etc para buscar dados da PRÓXIMA etapa
@@ -206,16 +221,17 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
    - Se concluído: apenas confirmação textual
 ```
 
-### Otimizações v3.3
+### Otimizações v3.5
 
-| Aspecto | Antes (v2) | v3.0 | v3.3 |
+| Aspecto | Antes (v2) | v3.3 | v3.5 |
 |---------|------------|------|------|
+| Modelo IA | Gemini | Gemini (Lovable Gateway) | OpenAI nativa (gpt-4o/gpt-5) |
 | Chamadas API por turno | 2 | 1 | 1 |
-| Pós-execução | Re-executava pipeline completo | Streaming direto (sem tools) | Pipeline completo com tools + resultado visível no histórico |
-| Multi-step | Travava na 2ª etapa | Travava na 2ª etapa | ✅ Suporte completo (resultado preservado no histórico) |
-| Histórico | 20 mensagens | 50 mensagens | 50 mensagens (resultados de ação como "user") |
-| Role "tool" no histórico | Mapeado como "assistant" | Filtrado | Filtrado (resultados de ação salvos como "user") |
-| Ações no streaming sintético | Não emitidas | Não emitidas | ✅ Emitidas via SSE |
+| Pós-execução | Re-executava pipeline completo | Pipeline completo com tools | Pipeline completo com tools |
+| Multi-step | Travava na 2ª etapa | ✅ Suporte completo | ✅ Uma ação por vez (sequencial) |
+| Histórico | 20 mensagens | 50 mensagens (resultados como "user") | 50 mensagens (resultados como "user" com prefixo) |
+| Ações no streaming sintético | Não emitidas | ✅ Emitidas via SSE | ✅ Emitidas via SSE |
+| Tool calling confiável | ❌ Gemini ignorava tools | ⚠️ Via Lovable Gateway | ✅ OpenAI nativa |
 ### Streaming SSE
 
 ```typescript
