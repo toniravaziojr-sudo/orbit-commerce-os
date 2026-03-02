@@ -114,7 +114,7 @@ Todos os inputs de chat usam o padrão **card pill**:
 
 ---
 
-## Arquitetura (v3.1.0 — Pipeline Otimizado + Anti-Alucinação)
+## Arquitetura (v3.2.0 — Pipeline Otimizado + Anti-Alucinação + Multi-Step Fix)
 
 ### Arquitetura de Tools: Leitura Automática vs Escrita com Confirmação
 
@@ -142,7 +142,17 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
 4. **PROIBIDO** gerar texto anunciando intenção de ação SEM realmente executar — tools são síncronas
 5. Se não tem IDs → CHAMAR searchProducts. Não responder sem chamar.
 
-### Pipeline de Processamento (v3)
+### 🔧 Fix Multi-Step Post-Execution (v3.2.0)
+
+> **Problema corrigido**: Quando o usuário pedia operações em múltiplas etapas (ex: "atualize preços E recalcule os kits"), o fluxo pós-execução pulava a Fase 1 (tool calling) inteiramente. Isso impedia a IA de chamar `searchProducts` para encontrar IDs dos kits para a próxima etapa, causando a IA a alucinar "estou aguardando a busca" e travar.
+
+**Mudanças:**
+
+1. **Pós-execução agora permite tool calling**: O fluxo `is_tool_result: true` não mais pula a Fase 1. A IA pode chamar tools de leitura para buscar dados necessários para a próxima etapa.
+2. **System prompt pós-execução atualizado**: Em vez de "PROIBIDO incluir blocos action", agora instrui "PROIBIDO propor a MESMA ação, mas PROSSIGA para a PRÓXIMA etapa se houver".
+3. **Frontend parseProposedActions no follow-up**: O `executeAction` no hook agora parseia `proposed_actions` da resposta de follow-up, permitindo que a IA proponha a próxima ação na sequência.
+
+### Pipeline de Processamento (v3.2)
 
 > **Mudança crítica v3**: O pipeline anterior tinha 2 fases (tool calling + streaming separado), o que causava "raciocínio duplo" — a IA pensava uma vez com os dados e depois gerava outra resposta do zero. Agora o pipeline é unificado.
 
@@ -171,30 +181,31 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
    - Se há ações de escrita: mostra botões de confirmação
 ```
 
-#### Fluxo Pós-Execução (is_tool_result: true)
+#### Fluxo Pós-Execução (is_tool_result: true) — v3.2.0
 
 ```
 1. Usuário confirma ação → POST /command-assistant-execute
    ↓
 2. Frontend envia resultado de volta (is_tool_result: true)
    ↓
-3. ⚡ PULA Fase 1 (tool calling) — vai direto para streaming
-   - A IA não precisa buscar dados para confirmar uma execução
-   - Gera apenas follow-up de confirmação/resumo
+3. MESMO pipeline que fluxo normal (Fase 1 com tool calling habilitado)
+   - A IA PODE chamar searchProducts/etc para buscar dados da PRÓXIMA etapa
+   - System prompt reforça: NÃO re-propor a ação que acabou de executar
    ↓
 4. Frontend renderiza follow-up
+   - Se há próxima etapa: mostra botão de confirmação para nova ação
+   - Se concluído: apenas confirmação textual
 ```
 
-### Otimizações v3
+### Otimizações v3.2
 
-| Aspecto | Antes (v2) | Agora (v3) |
-|---------|------------|------------|
-| Chamadas API por turno | 2 (tool calling + streaming) | 1 (resposta da Fase 1 é reutilizada) |
-| Latência | ~100% | ~50% (metade das chamadas) |
-| Histórico | 20 mensagens | 50 mensagens |
-| Role "tool" no histórico | Mapeado como "assistant" (confundia IA) | Filtrado (não entra no histórico) |
-| System prompt | ~12KB+ (diluía atenção) | ~4KB (comprimido e focado) |
-| Pós-execução | Re-executava pipeline completo | Streaming direto (sem tools) |
+| Aspecto | Antes (v2) | v3.0 | v3.2 |
+|---------|------------|------|------|
+| Chamadas API por turno | 2 | 1 | 1 |
+| Pós-execução | Re-executava pipeline completo | Streaming direto (sem tools) | Pipeline completo com tools (multi-step) |
+| Multi-step | Travava na 2ª etapa | Travava na 2ª etapa | ✅ Suporte completo |
+| Histórico | 20 mensagens | 50 mensagens | 50 mensagens |
+| Role "tool" no histórico | Mapeado como "assistant" | Filtrado | Filtrado |
 ### Streaming SSE
 
 ```typescript

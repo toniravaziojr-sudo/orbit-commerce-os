@@ -369,6 +369,7 @@ export function useCommandAssistant() {
           const decoder = new TextDecoder();
           let textBuffer = "";
           let assistantContent = "";
+          let followUpActions: ProposedAction[] = [];
 
           while (true) {
             const { done, value } = await reader.read();
@@ -390,6 +391,12 @@ export function useCommandAssistant() {
 
               try {
                 const parsed = JSON.parse(jsonStr);
+                
+                // Parse proposed_actions from follow-up
+                if (parsed.proposed_actions) {
+                  followUpActions = parsed.proposed_actions;
+                }
+                
                 const content = parsed.choices?.[0]?.delta?.content;
                 if (content) {
                   assistantContent += content;
@@ -411,7 +418,7 @@ export function useCommandAssistant() {
               user_id: user!.id,
               role: "assistant",
               content: assistantContent,
-              metadata: {},
+              metadata: followUpActions.length > 0 ? { proposed_actions: followUpActions } : {},
               created_at: new Date().toISOString(),
             };
 
