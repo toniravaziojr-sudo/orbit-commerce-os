@@ -157,44 +157,72 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Verify user
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    if (userError || !user) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Token inválido" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    const body = await req.json();
+    const { conversation_id, action_id, tool_name, tool_args, tenant_id, _internal_user_id } = body;
 
-    // Rate limit check
-    if (!checkRateLimit(user.id)) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Muitas requisições. Aguarde um momento." }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    let userId: string;
+    let userRole: any;
 
-    const { conversation_id, action_id, tool_name, tool_args, tenant_id } = await req.json();
+    // Internal call from command-assistant-chat (uses service role key)
+    if (_internal_user_id && authHeader.includes(supabaseKey)) {
+      userId = _internal_user_id;
+      
+      // Lookup user role directly
+      const { data: role, error: roleError } = await supabase
+        .from("user_roles")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("tenant_id", tenant_id)
+        .single();
+      
+      if (roleError || !role) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Acesso negado ao tenant (internal)" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      userRole = role;
+    } else {
+      // Normal external call - verify user token
+      const token = authHeader.replace("Bearer ", "");
+      const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+      if (userError || !user) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Token inválido" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      userId = user.id;
+
+      // Rate limit check
+      if (!checkRateLimit(userId)) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Muitas requisições. Aguarde um momento." }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Verify user has access to tenant
+      const { data: role, error: roleError } = await supabase
+        .from("user_roles")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("tenant_id", tenant_id)
+        .single();
+
+      if (roleError || !role) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Acesso negado ao tenant" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      userRole = role;
+    }
 
     if (!tenant_id || !tool_name || !conversation_id) {
       return new Response(
         JSON.stringify({ success: false, error: "Parâmetros inválidos" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Verify user has access to tenant
-    const { data: userRole, error: roleError } = await supabase
-      .from("user_roles")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("tenant_id", tenant_id)
-      .single();
-
-    if (roleError || !userRole) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Acesso negado ao tenant" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -207,17 +235,19 @@ serve(async (req) => {
         error: `Você não tem permissão para executar esta ação. Necessário: ${allowedTypes.join(", ")}`,
       };
       
-      // Log the failed attempt
-      await supabase
-        .from("command_messages")
-        .insert({
-          conversation_id,
-          tenant_id,
-          user_id: user.id,
-          role: "tool",
-          content: `Ação "${tool_name}" negada por falta de permissão.`,
-          metadata: { action_id, tool_name, tool_args, tool_result: result },
-        });
+      // Log the failed attempt (skip for internal calls)
+      if (!_internal_user_id) {
+        await supabase
+          .from("command_messages")
+          .insert({
+            conversation_id,
+            tenant_id,
+            user_id: userId,
+            role: "tool",
+            content: `Ação "${tool_name}" negada por falta de permissão.`,
+            metadata: { action_id, tool_name, tool_args, tool_result: result },
+          });
+      }
       
       return new Response(
         JSON.stringify(result),
@@ -229,23 +259,25 @@ serve(async (req) => {
     let result: { success: boolean; message?: string; error?: string; data?: any };
 
     try {
-      result = await executeTool(supabase, tenant_id, user.id, tool_name, tool_args);
+      result = await executeTool(supabase, tenant_id, userId, tool_name, tool_args);
     } catch (execError) {
       console.error("Tool execution error:", execError);
       result = { success: false, error: `Erro ao executar ação: ${execError instanceof Error ? execError.message : "Erro desconhecido"}` };
     }
 
-    // Log the execution
-    await supabase
-      .from("command_messages")
-      .insert({
-        conversation_id,
-        tenant_id,
-        user_id: user.id,
-        role: "tool",
-        content: result.success ? result.message : result.error,
-        metadata: { action_id, tool_name, tool_args, tool_result: result },
-      });
+    // Log the execution (skip for internal calls to avoid noise)
+    if (!_internal_user_id) {
+      await supabase
+        .from("command_messages")
+        .insert({
+          conversation_id,
+          tenant_id,
+          user_id: userId,
+          role: "tool",
+          content: result.success ? result.message : result.error,
+          metadata: { action_id, tool_name, tool_args, tool_result: result },
+        });
+    }
 
     // Update conversation
     await supabase

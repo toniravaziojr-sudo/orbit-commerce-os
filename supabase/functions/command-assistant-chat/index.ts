@@ -459,26 +459,24 @@ async function executeReadTool(
   tenantId: string,
   userId: string,
   toolName: string,
-  toolArgs: any
+  toolArgs: any,
+  userAuthToken: string
 ): Promise<string> {
-  // Call the execute function via HTTP to reuse all existing logic
+  // Call the execute function via HTTP using the user's original auth token
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   
-  // We call the execute function directly via internal invocation
   const response = await fetch(`${supabaseUrl}/functions/v1/command-assistant-execute`, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${supabaseServiceKey}`,
+      "Authorization": `Bearer ${userAuthToken}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      conversation_id: "internal-tool-call", // special marker
+      conversation_id: "internal-tool-call",
       tenant_id: tenantId,
       tool_name: toolName,
       tool_args: toolArgs,
       action_id: `auto-read-${crypto.randomUUID()}`,
-      _internal_user_id: userId, // pass user context
     }),
   });
 
