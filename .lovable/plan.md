@@ -1,134 +1,115 @@
 
 
-## Diagnóstico Completo
+# Diagnóstico Estrutural: Por que o Auxiliar de Comando é "fraco"
 
-Após análise detalhada dos 3 arquivos core (`command-assistant-chat`, `command-assistant-execute`, `useCommandAssistant.ts`), identifiquei o problema central e 4 problemas adjacentes que tornam a IA ineficiente:
+Após investigação completa do pipeline (`command-assistant-chat`, `useCommandAssistant.ts`, `ai-router.ts`), identifiquei **5 problemas estruturais graves** que explicam por que a IA parece "burra" e limitada.
 
-### Problema Central: Arquitetura "Cega" — IA não consegue VER antes de AGIR
+---
 
-O fluxo atual funciona assim:
+## Problema 1 (CRÍTICO): A resposta da Fase 1 é DESCARTADA — a IA pensa duas vezes
+
+O pipeline opera em 2 fases:
+- **Fase 1**: Chamada NON-streaming com tools de leitura (loop de até 5 rodadas)
+- **Fase 2**: Chamada STREAMING sem tools (para gerar a resposta final)
+
+O problema: quando a Fase 1 termina (o modelo gera sua resposta final com os dados lidos), **essa resposta é jogada fora**. A Fase 2 pede ao modelo que gere tudo de novo, do zero, apenas com o histórico de mensagens. O modelo:
+
+- Perde a "continuidade de raciocínio" entre ler dados e propor ação
+- Pode gerar resposta completamente diferente
+- Pode re-propor ações antigas ou ignorar dados que acabou de ler
+- Faz 2x chamadas à API quando 1x bastaria
 
 ```text
-Usuário: "Altere o preço do Shampoo Calvície Zero para R$ 97,90"
-    ↓
-IA gera: ```action { tool: "searchProducts", args: { query: "Shampoo..." } }```
-    ↓
-Frontend mostra botão "Confirmar" para BUSCA (!!!)
-    ↓
-Usuário clica → resultado volta → IA recebe resultado
-    ↓
-IA gera: ```action { tool: "bulkUpdateProductsPrice", args: {...} }```
-    ↓
-Frontend mostra botão "Confirmar" para AÇÃO
-    ↓
-Usuário clica → ação executa
-
-TOTAL: 6+ interações para 1 tarefa
+FLUXO ATUAL (QUEBRADO):
+Fase 1: Modelo lê dados → gera resposta final com ação → DESCARTADA
+Fase 2: Modelo recebe mesmo contexto → gera OUTRA resposta → enviada ao usuário
+         (pode ignorar os dados, inventar coisas, propor ação errada)
 ```
 
-A IA está **cega** — ela precisa pedir permissão ao usuário até para LER dados. Isso causa:
-- Busca retorna kit em vez do produto individual (busca `ilike` genérica)
-- IA faz perguntas desnecessárias ("é esse mesmo?") porque não tem confiança nos dados
-- Para 3 produtos = 6+ cliques + perguntas intermediárias
-- IA "delira" tentando compensar a falta de informação
+**Correção**: Quando a Fase 1 termina sem tool_calls, capturar a resposta gerada (`choice.message.content`) e fazer streaming sintético dela diretamente ao frontend, sem chamar a API novamente.
 
-### Como outras IAs do sistema resolvem isso
+---
 
-O Motor Guardião e o Motor Estrategista (`ads-autopilot-guardian`, `ads-autopilot-analyze`) já usam **native tool calling** do Gemini:
+## Problema 2 (GRAVE): Tool results mapeados como "assistant" — IA confunde quem disse o quê
 
+Linha 1293:
 ```typescript
-// Guardião - já funciona assim:
-const aiResponse = await aiChatCompletion("google/gemini-2.5-flash", {
-  messages: [...],
-  tools: GUARDIAN_TOOLS,   // ← IA chama tools direto
-  tool_choice: "auto",     // ← sem confirmação humana
-});
-const toolCalls = aiResult.choices[0].message.tool_calls;
-// Executa e processa resultado automaticamente
+role: m.role === "tool" ? "assistant" : m.role,
+content: m.role === "tool" ? `[RESULTADO DE AÇÃO JÁ EXECUTADA]: ${m.content || ""}` : (m.content || ""),
 ```
 
-A IA de Anúncios já faz buscas, análises e ações automáticas com tool calling nativo. O Auxiliar de Comando precisa adotar o mesmo padrão para operações de leitura.
+Resultados de ferramentas executadas são mapeados como `role: "assistant"`. O modelo vê isso como se **ele mesmo** tivesse dito aquilo. Quando o usuário pede algo novo, o modelo "lembra" que já disse o resultado e fica confuso sobre o que já fez vs. o que precisa fazer.
+
+**Correção**: Mapear como `role: "user"` com prefixo `[SISTEMA]` ou melhor, simplesmente NÃO armazenar mensagens de role "tool" no histórico persistido — elas já foram processadas durante o tool calling loop.
 
 ---
 
-## Plano de Correção — 3 Mudanças Estruturais
+## Problema 3 (GRAVE): Limite de 20 mensagens no histórico
 
-### 1. Native Tool Calling para Leitura Automática (Mudança Principal)
-
-Implementar tool calling nativo do Gemini na Edge Function `command-assistant-chat`, usando o mesmo padrão do Motor Guardião. A IA chamará tools de leitura internamente e só apresentará botão de confirmação para ações de escrita.
-
-**Classificação de tools:**
-
-| Tipo | Tools | Comportamento |
-|------|-------|---------------|
-| **Leitura (auto)** | `searchProducts`, `listProducts`, `getProductDetails`, `listProductComponents`, `searchOrders`, `getOrderDetails`, `listDiscounts`, `listCategories`, `getDashboardStats`, `getTopProducts`, `listCustomerTags`, `searchCustomers`, `listBlogPosts`, `listOffers`, `listReviews`, `listPages`, `getFinancialSummary`, `listShippingMethods`, `listNotifications`, `listFiles`, `getStorageUsage`, `listEmailLists`, `listSubscribers`, `listCampaigns`, `listAgendaTasks`, `inventoryReport`, `customersReport`, `salesReport` | IA executa server-side, resultado volta inline, sem botão |
-| **Escrita (confirmar)** | Todos os demais (create, update, delete, bulk) | Mantém fluxo atual com botão Confirmar |
-
-**Fluxo novo:**
-
-```text
-Usuário: "Altere o preço do Shampoo, Loção e Balm Calvície Zero"
-    ↓
-IA chama searchProducts("Shampoo Calvície Zero") → resultado inline
-IA chama searchProducts("Loção pós-banho calvície zero") → resultado inline
-IA chama searchProducts("Balm pós-banho calvície zero") → resultado inline
-    ↓
-IA propõe UMA ação com os 3 preços → botão Confirmar
-    ↓
-Usuário clica → execução
-
-TOTAL: 2 interações (pedido + confirmar)
+Linha 1270:
+```typescript
+.limit(20)
 ```
 
-**Implementação na Edge Function `command-assistant-chat`:**
+Com tool results, pós-execução e follow-ups, uma única tarefa pode gerar 5-6 mensagens. Em uma conversa de 3-4 tarefas, as mensagens mais antigas (contexto crítico) são descartadas. A IA literalmente **esquece** o que fez 3 turnos atrás.
 
-1. Converter as tools de leitura para formato OpenAI `tools` (array de `{type: "function", function: {name, description, parameters}}`)
-2. Enviar na chamada ao Gemini com `tool_choice: "auto"`
-3. Quando o modelo retornar `tool_calls`:
-   - Executar as de leitura chamando o mesmo código do `command-assistant-execute` (importar ou invocar internamente)
-   - Devolver resultado ao modelo como `tool` message
-   - Deixar o modelo continuar gerando (pode chamar mais tools ou gerar resposta final com `action` block)
-4. Quando o modelo gerar resposta final (sem mais tool_calls): stremar ao frontend normalmente
-5. O frontend **não muda** — continua recebendo SSE como antes
-
-**Implementação detalhada:**
-- Extrair a função `executeTool()` do `command-assistant-execute` para um módulo compartilhado (`_shared/command-tools.ts`) ou duplicar as lógicas de leitura inline no chat
-- Loop de tool calling: máximo 5 rodadas para evitar loops infinitos
-- Permissões: validar `userRole` para cada tool de leitura chamada (reutilizar PERMISSION_MAP)
-
-### 2. Melhorar Busca de Produtos
-
-No handler `searchProducts` do execute:
-
-- **Priorizar match exato**: Primeiro buscar `name.eq.{query}`, depois `ilike`
-- **Excluir kits por padrão**: Filtrar `product_format.neq.with_composition` quando a busca é por produto-base
-- **Adicionar parâmetros**: `excludeKits: boolean` e `exactMatch: boolean`
-- **Buscar por SKU exato**: Se o query for numérico ou match padrão de SKU, buscar `sku.eq.{query}` primeiro
-
-### 3. Adicionar Tool `recalculateKitPrices`
-
-Nova tool que recalcula preços de kits baseado nos componentes:
-- Recebe lista de product IDs (produtos-base que mudaram de preço)
-- Busca todos os kits que contêm esses produtos via `product_components`
-- Calcula novo preço = Σ(preço_componente × quantidade)
-- Atualiza `price` e opcionalmente remove `compare_at_price`
-- Retorna relatório (quais kits foram recalculados e novos preços)
+**Correção**: Aumentar para 50 mensagens, E/OU implementar sumarização de mensagens antigas para manter contexto sem explodir tokens.
 
 ---
 
-## Arquivos Afetados
+## Problema 4 (MODERADO): System prompt excessivamente longo (~12KB+)
+
+O system prompt tem ~1200 linhas de texto, incluindo:
+- Mapeamento de 60+ nomes de ferramentas para linguagem humana
+- Descrições de todas as ferramentas de escrita
+- Regras repetitivas em 5+ seções diferentes
+- Memórias injetadas (~7KB extras)
+
+Total: ~20KB de system prompt. Isso dilui a atenção do modelo — quanto mais texto no prompt, mais o modelo "esquece" regras específicas, especialmente as críticas como "não re-proponha ações já executadas".
+
+**Correção**: Comprimir o system prompt para ~4KB. Mover o mapeamento de nomes para uma seção compacta. Remover duplicações. Consolidar regras em formato conciso.
+
+---
+
+## Problema 5 (MODERADO): Pós-execução re-executa o pipeline completo
+
+Após o usuário confirmar uma ação, o frontend envia o resultado de volta como `is_tool_result: true` (linhas 346-428 de `useCommandAssistant.ts`). Isso dispara o pipeline INTEIRO novamente:
+1. Tool calling Phase 1 (pode chamar tools desnecessariamente)
+2. Streaming Phase 2 (gera follow-up)
+
+A IA nesse momento pode chamar tools de leitura novamente, perder contexto, e propor a MESMA ação que acabou de ser executada — exatamente o bug que o usuário reportou.
+
+**Correção**: Para `is_tool_result`, fazer chamada streaming DIRETA (sem Phase 1 tool calling), já que nenhuma ferramenta de leitura é necessária para confirmar uma execução.
+
+---
+
+## Plano de Implementação
+
+### Mudança 1: Eliminar dupla-chamada (usar resposta da Fase 1)
+Na `command-assistant-chat`, quando a Fase 1 termina sem tool_calls, capturar `choice.message.content` e fazer streaming sintético (SSE formatado) diretamente ao frontend. Eliminar a Fase 2 completamente nesses casos.
+
+### Mudança 2: Pular tool calling para pós-execução
+Quando `is_tool_result === true`, ir direto para streaming sem Phase 1. A IA não precisa buscar dados para confirmar que uma ação foi executada.
+
+### Mudança 3: Corrigir mapeamento de role "tool" no histórico
+Mudar de `"assistant"` para `"user"` com prefixo claro `[SISTEMA - resultado de execução]`, ou filtrar mensagens de role "tool" do histórico antes de enviar ao modelo (já foram processadas).
+
+### Mudança 4: Aumentar limite de histórico
+De 20 para 50 mensagens.
+
+### Mudança 5: Comprimir system prompt
+Reduzir de ~12KB para ~4KB, removendo duplicações e consolidando regras. Manter apenas as regras de maior impacto.
+
+### Arquivos afetados
 
 | Arquivo | Mudança |
 |---------|---------|
-| `supabase/functions/command-assistant-chat/index.ts` | Implementar native tool calling loop; converter tools de leitura para formato Gemini tools; atualizar system prompt |
-| `supabase/functions/command-assistant-execute/index.ts` | Melhorar `searchProducts`; adicionar `recalculateKitPrices`; adicionar permissões novas |
-| `docs/regras/auxiliar-comando.md` | Documentar arquitetura de leitura automática vs escrita com confirmação |
-
-### Estimativa
-- `command-assistant-chat`: ~200 linhas novas (loop de tool calling + definição de tools OpenAI format)
-- `command-assistant-execute`: ~80 linhas (melhorias de busca + recalculateKitPrices)
-- Documentação: ~30 linhas
+| `supabase/functions/command-assistant-chat/index.ts` | Todas as 5 mudanças |
 
 ### Resultado esperado
-O cenário que falhou (alterar preço de 3 produtos + recalcular kits) passará a funcionar em **2 interações** em vez de 6+. A IA terá "visão" completa dos dados antes de propor qualquer ação.
+- IA deixa de "pensar duas vezes" e gera respostas coerentes com os dados que leu
+- IA para de re-propor ações já executadas
+- IA mantém contexto em conversas mais longas
+- Latência reduzida (~50%, elimina 1 chamada API por turno)
+- Raciocínio mais consistente com prompt mais focado
 
