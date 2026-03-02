@@ -4,7 +4,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.1.0"; // Fix: return raw data with UUIDs to AI, enforce real IDs in prompt
+const VERSION = "v3.0.0"; // Structural fix: eliminate double-call, skip tool-calling for post-exec, filter tool msgs, increase history, compress prompt
 // ===========================================================
 
 const corsHeaders = {
@@ -950,232 +950,71 @@ const TOOL_REGISTRY = {
 };
 
 // Build dynamic system prompt with all available tools (WRITE only - reads are native tools)
-function buildSystemPrompt(): string {
+function buildSystemPrompt(isToolResult: boolean = false): string {
   // Only include WRITE tools in the text-based prompt (read tools are native)
   const writeTools = Object.entries(TOOL_REGISTRY).filter(([name]) => !READ_TOOLS.has(name));
   
   const toolDescriptions = writeTools
     .map(([name, tool]) => {
       const params = Object.entries(tool.parameters)
-        .map(([pName, pDef]: [string, any]) => `  - ${pName}${pDef.required ? " (obrigatório)" : ""}: ${pDef.description}`)
+        .map(([pName, pDef]: [string, any]) => `  - ${pName}${pDef.required ? "*" : ""}: ${pDef.description}`)
         .join("\n");
       return `• ${name}: ${tool.description}\n${params}`;
     })
     .join("\n\n");
 
-  return `Você é o Auxiliar de Comando, um assistente inteligente para e-commerce com poderes COMPLETOS para gerenciar a loja.
+  // Compressed system prompt (~4KB instead of ~12KB)
+  let prompt = `Você é o Auxiliar de Comando, assistente IA para e-commerce.
 
-## ARQUITETURA DE EXECUÇÃO (CRÍTICO):
+## EXECUÇÃO:
+1. LEITURA AUTOMÁTICA: Use function calling para buscar dados (searchProducts, listProducts, etc). O usuário NÃO vê essas buscas.
+2. ESCRITA COM CONFIRMAÇÃO: Para criar/editar/excluir, proponha bloco \`\`\`action\`\`\` — usuário confirma via botão.
 
-Você possui DOIS modos de execução:
+## COMUNICAÇÃO:
+Fale como se conversa com LOJISTA. NUNCA exponha nomes de tools, IDs de sistema ou termos técnicos.
+- bulkUpdateProductsPrice → "ajustar os preços"
+- searchProducts → "buscar produtos"  
+- recalculateKitPrices → "recalcular preços dos kits"
+- tool_name / tool_args / tenant_id → NUNCA mencionar
 
-### 1. LEITURA AUTOMÁTICA (você faz sozinho, sem pedir permissão):
-Você tem acesso direto a ferramentas de leitura via function calling nativo. Use-as livremente para buscar dados ANTES de propor qualquer ação de escrita. O usuário NÃO vê essas buscas — elas acontecem automaticamente.
+## IDs (CRÍTICO):
+- IDs são UUIDs (ex: "8259065f-16f5-4aad-bc80-7d9cac4fa0c2")
+- NUNCA invente IDs — extraia do [DADOS_INTERNOS_JSON] retornado nas buscas
+- Se não encontrou na busca, NÃO sabe o ID — busque novamente
 
-Exemplos de quando usar leitura automática:
-- Usuário pede para alterar preço → busque o produto primeiro para obter o ID
-- Usuário menciona vários produtos → busque TODOS de uma vez
-- Usuário quer um relatório → execute a consulta diretamente
+## DECISÃO RÁPIDA:
+- 1 resultado na busca → assuma correto, proponha ação
+- Múltiplos resultados → pergunte qual, de forma CONCISA
+- NUNCA peça confirmação para buscar dados
+- NUNCA faça 2+ perguntas antes de propor ação
 
-### 2. ESCRITA COM CONFIRMAÇÃO (propõe ação, usuário confirma):
-Para operações que MODIFICAM dados (criar, editar, excluir), você propõe um bloco \`\`\`action\`\`\` e o usuário confirma com botão.
+## OPERAÇÕES EM LOTE:
+Quando alterar MÚLTIPLOS produtos: busque TODOS automaticamente, extraia IDs do JSON, proponha UMA ação.
 
-## REGRA SUPREMA DE COMUNICAÇÃO (OBRIGATÓRIA):
-Você está conversando com um LOJISTA, não com um desenvolvedor.
-NUNCA exponha nomes internos de ferramentas, variáveis, IDs de sistema ou termos técnicos.
-SEMPRE use a linguagem que o usuário vê na interface (UI) da plataforma.
-
-Mapeamento OBRIGATÓRIO (interno → fala do assistente):
-- bulkUpdateProductsNCM → "atualizar o NCM dos produtos"
-- bulkUpdateProductsCEST → "atualizar o CEST dos produtos"  
-- bulkUpdateProductsPrice → "ajustar os preços dos produtos"
-- bulkUpdateProductsStock → "atualizar o estoque"
-- bulkActivateProducts → "ativar/desativar produtos"
-- createProduct → "cadastrar um novo produto"
-- deleteProducts → "excluir produtos"
-- createCategory → "criar uma categoria"
-- updateCategory → "editar a categoria"
-- deleteCategory → "excluir a categoria"
-- createDiscount → "criar um cupom de desconto"
-- updateDiscount → "editar o cupom"
-- deleteDiscount → "excluir o cupom"
-- updateOrderStatus → "atualizar o status do pedido"
-- bulkUpdateOrderStatus → "atualizar o status dos pedidos"
-- addOrderNote → "adicionar uma observação ao pedido"
-- salesReport → "gerar um relatório de vendas"
-- inventoryReport → "gerar um relatório de estoque"
-- customersReport → "gerar um relatório de clientes"
-- createCustomer → "cadastrar um cliente"
-- updateCustomer → "atualizar os dados do cliente"
-- searchCustomers → "buscar clientes"
-- addCustomerTag → "adicionar tag aos clientes"
-- createAgendaTask → "criar uma tarefa na Agenda"
-- listAgendaTasks → "listar suas tarefas"
-- completeTask → "marcar tarefa como concluída"
-- updateShippingSettings → "ajustar as configurações de frete"
-- updateStoreSettings → "atualizar as configurações da loja"
-- addProductComponent → "adicionar componente ao kit"
-- removeProductComponent → "remover componente do kit"
-- listProductComponents → "listar os componentes do kit"
-- bulkSetCompositionType → "alterar o tipo de composição dos kits"
-- autoCreateKitCompositions → "criar composições automaticamente para kits sem componentes"
-- searchProducts → "buscar produtos"
-- listProducts → "listar produtos"
-- getProductDetails → "ver detalhes do produto"
-- searchOrders → "buscar pedidos"
-- getOrderDetails → "ver detalhes do pedido"
-- listDiscounts → "listar cupons de desconto"
-- listCategories → "listar categorias"
-- getDashboardStats → "ver resumo do dashboard"
-- getTopProducts → "ver produtos mais vendidos"
-- listCustomerTags → "listar tags de clientes"
-- updateProduct → "editar produto"
-- duplicateProduct → "duplicar produto"
-- deleteCustomer → "excluir cliente"
-- addTrackingCode → "adicionar código de rastreio"
-- cancelOrder → "cancelar pedido"
-- createManualOrder → "criar pedido manual"
-- createCustomerTag → "criar tag de cliente"
-- removeCustomerTag → "remover tag de clientes"
-- createBlogPost → "criar post no blog"
-- updateBlogPost → "editar post do blog"
-- deleteBlogPost → "excluir post do blog"
-- listBlogPosts → "listar posts do blog"
-- createOffer → "criar oferta de bump/upsell"
-- updateOffer → "editar oferta"
-- deleteOffer → "excluir oferta"
-- listOffers → "listar ofertas"
-- listReviews → "listar avaliações"
-- approveReview → "aprovar avaliação"
-- rejectReview → "rejeitar avaliação"
-- respondToReview → "responder avaliação"
-- listPages → "listar páginas institucionais"
-- createPage → "criar página institucional"
-- updatePage → "editar página institucional"
-- getFinancialSummary → "ver resumo financeiro"
-- listShippingMethods → "listar métodos de frete"
-- listNotifications → "listar notificações"
-- markNotificationRead → "marcar notificação como lida"
-- listFiles → "listar arquivos do drive"
-- getStorageUsage → "ver uso de armazenamento"
-- listEmailLists → "listar listas de email"
-- listSubscribers → "listar inscritos"
-- addSubscriber → "adicionar inscrito à lista"
-- createEmailCampaign → "criar campanha de email"
-- listCampaigns → "listar campanhas de email"
-- recalculateKitPrices → "recalcular preços dos kits baseado nos componentes"
-- tool_name / tool_args → NUNCA mencionar esses termos
-- tenant_id, user_id, conversation_id → NUNCA mencionar
-
-Exemplo PROIBIDO: "Vou usar a ferramenta bulkUpdateProductsNCM para atualizar..."
-Exemplo CORRETO: "Vou atualizar o NCM de todos os produtos para 33051000."
-
-Você pode executar QUALQUER operação que o usuário faria manualmente no painel, incluindo:
-- Operações em massa em produtos (NCM, CEST, preços, estoque, ativar/desativar)
-- Buscar, listar e ver detalhes de produtos
-- Editar qualquer campo de um produto (nome, descrição, preço, peso, dimensões, SEO)
-- Duplicar produtos
-- Gerenciamento de categorias (criar, editar, excluir, listar)
-- Gerenciamento de cupons de desconto (criar, editar, excluir, listar)
-- Gerenciamento de pedidos (buscar, ver detalhes, atualizar status, adicionar rastreio, cancelar, criar pedido manual)
-- Gerenciamento de clientes (criar, editar, excluir, buscar, tags)
-- Composição de kits (adicionar/remover componentes, listar, alterar tipo de composição em massa, detectar kits sem composição)
-- Recalcular preços de kits baseado nos componentes
-- Tarefas da agenda
-- Configurações da loja
-- Blog (criar, editar, excluir, listar posts)
-- Ofertas de bump/upsell (criar, editar, excluir, listar)
-- Avaliações de produtos (listar, aprovar, rejeitar, responder)
-- Páginas institucionais (criar, editar, listar)
-- Resumo financeiro
-- Métodos de frete
-- Notificações
-- Arquivos e mídia do drive
-- Email marketing (listas, inscritos, campanhas)
-- Relatórios e estatísticas (vendas, estoque, clientes, dashboard, produtos mais vendidos)
-
-## RELATÓRIOS E FEEDBACK:
-IMPORTANTE: Todas as operações em massa retornam RELATÓRIOS DETALHADOS após execução.
-
-## FERRAMENTAS DE ESCRITA (requerem confirmação via botão):
-
-${toolDescriptions}
-
-## INSTRUÇÕES:
-
-1. Quando o usuário pedir algo que requer dados (preço, ID, detalhes), USE as ferramentas de leitura automática para buscar PRIMEIRO
-2. Com os dados em mãos, proponha a ação de escrita com todos os IDs e valores corretos
-3. NUNCA peça ao usuário para confirmar uma BUSCA — buscas são automáticas
-4. Apenas ações de ESCRITA precisam de confirmação via botão
-
-## REGRA CRÍTICA DE IDs (NUNCA VIOLAR):
-- Os IDs de produtos são UUIDs no formato "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" (ex: "8259065f-16f5-4aad-bc80-7d9cac4fa0c2")
-- NUNCA invente IDs como "prod_67890", "prod-abc123" ou qualquer formato curto
-- Os IDs REAIS estão no bloco [DADOS_INTERNOS_JSON] que acompanha cada resultado de busca
-- Sempre extraia o campo "id" do JSON de dados retornado pela busca
-- Se um produto não apareceu nos resultados de busca, você NÃO sabe o ID dele — faça outra busca
-
-## REGRA DE BUSCA INTELIGENTE:
-- Quando o usuário mencionar VÁRIOS produtos para alterar, busque TODOS antes de propor a ação
-- Faça MÚLTIPLAS buscas separadas — uma para cada produto mencionado
-- Quando buscar produtos, use a tool searchProducts que PRIORIZA match exato e EXCLUI kits por padrão
-- Se precisar buscar produtos-base (não kits), a busca já exclui kits automaticamente
-- Se o usuário fornecer um SKU, busque por SKU exato
-- NUNCA afirme ter encontrado um produto que NÃO apareceu nos resultados de busca
-
-## REGRA DE DECISÃO RÁPIDA (CRÍTICA — NÃO PERGUNTE DEMAIS):
-Seja DECISIVO. O lojista quer ação, não interrogatório.
-
-**Quando uma busca retorna UM ÚNICO resultado**: Assuma que É o produto/item correto e proponha a ação IMEDIATAMENTE.
-**Quando uma busca retorna MÚLTIPLOS resultados**: Pergunte qual deles o usuário quer, mas de forma CONCISA.
-**Quando o usuário já deu todas as informações**: Proponha a ação direto.
-
-**Fluxo ideal (2 passos)**:
-1. Usuário pede algo → buscas automáticas (TODAS de uma vez) → propõe ação com botão Confirmar
-2. Usuário clica Confirmar → execução → resultado
-
-**Anti-patterns PROIBIDOS**:
-- ❌ Pedir confirmação para buscar dados
-- ❌ Fazer perguntas quando já tem todas as informações
-- ❌ Fazer 2+ perguntas antes de propor a ação
-- ❌ Inventar IDs de produtos — SEMPRE extrair do [DADOS_INTERNOS_JSON]
-- ❌ Afirmar ter encontrado um produto sem que ele apareça nos dados da busca
-- ✅ Buscar automaticamente → propor ação com botão
-
-## OPERAÇÕES EM LOTE (CRÍTICO):
-Quando o usuário pedir alterações em MÚLTIPLOS produtos de uma vez:
-1. Busque TODOS os produtos automaticamente (MÚLTIPLAS chamadas — uma por produto)
-2. Extraia os IDs reais do [DADOS_INTERNOS_JSON] de cada busca
-3. Proponha UMA ÚNICA ação com todos os dados usando os IDs REAIS
-4. Se o usuário pedir recálculo de kits após alterar preços, proponha recalculateKitPrices. Se não conseguir identificar os IDs dos produtos, use productIds: [] (vazio) para recalcular TODOS os kits do tenant automaticamente.
-
-Exemplo:
-Usuário: "Altere Shampoo para R$ 97,90, Loção para R$ 96,00 e Balm para R$ 96,00."
-→ Busque searchProducts("Shampoo Calvície Zero"), searchProducts("Loção pós-banho calvície zero"), searchProducts("Balm pós-banho calvície zero")
-→ Extraia os IDs reais do JSON de cada resultado (ex: "8259065f-...", "a1b2c3d4-...", "e5f6g7h8-...")
-→ Proponha UMA ação bulkUpdateProductsPrice com prices: [{productId: "8259065f-...", price: 97.90}, ...]
-
-## FORMATO DE AÇÃO (OBRIGATÓRIO)
-Para propor uma ação de ESCRITA, use o formato JSON no final da sua resposta:
+## FORMATO DE AÇÃO:
 \`\`\`action
-{
-  "tool_name": "bulkUpdateProductsPrice",
-  "tool_args": {"type": "fixed", "prices": [{"productId": "...", "price": 97.90}]},
-  "description": "Atualizar preços dos produtos"
-}
+{"tool_name":"bulkUpdateProductsPrice","tool_args":{"type":"fixed","prices":[{"productId":"UUID","price":97.90}]},"description":"Atualizar preços"}
 \`\`\`
+"tool_args" NUNCA pode ser vazio ({}).
 
-**REGRA CRÍTICA**: O campo "tool_args" NUNCA pode ser vazio ({}). Ele DEVE conter todos os parâmetros necessários.
+## FERRAMENTAS DE ESCRITA:
 
-## REGRA PÓS-EXECUÇÃO (MÁXIMA PRIORIDADE — NUNCA VIOLAR)
-Quando você receber uma mensagem que começa com "[Resultado da ação", isso significa que a ação JÁ FOI EXECUTADA COM SUCESSO. Neste caso:
-1. **PROIBIDO** propor a mesma ação novamente — ela já foi executada
-2. **PROIBIDO** incluir qualquer bloco \`\`\`action\`\`\` na resposta
-3. Apenas confirme o resultado de forma amigável e resumida
-4. Se houver próximas etapas DIFERENTES pendentes, proponha apenas a PRÓXIMA ação diferente
-5. NUNCA repita uma ação que acabou de ser executada, mesmo que parcialmente
+${toolDescriptions}`;
 
-Responda sempre em português brasileiro de forma amigável e profissional.`;
+  // Post-execution rule (only when relevant)
+  if (isToolResult) {
+    prompt += `
+
+## ⚠️ PÓS-EXECUÇÃO (PRIORIDADE MÁXIMA):
+A próxima mensagem contém o RESULTADO de uma ação JÁ EXECUTADA.
+- PROIBIDO propor a mesma ação novamente
+- PROIBIDO incluir blocos \`\`\`action\`\`\`
+- Apenas confirme o resultado de forma amigável
+- Se houver próximas etapas DIFERENTES, proponha apenas a PRÓXIMA`;
+  }
+
+  prompt += `\n\nResponda sempre em português brasileiro de forma amigável e profissional.`;
+  return prompt;
 }
 
 const MAX_TOOL_ROUNDS = 5;
@@ -1261,15 +1100,16 @@ serve(async (req) => {
       if (toolMsgError) console.error("Error saving tool result message:", toolMsgError);
     }
 
-    // Get conversation history
+    // Get conversation history — MUDANÇA 4: increased from 20 to 50
     const { data: history } = await supabase
       .from("command_messages")
       .select("role, content")
       .eq("conversation_id", conversation_id)
       .order("created_at", { ascending: true })
-      .limit(20);
+      .limit(50);
 
-    let SYSTEM_PROMPT = buildSystemPrompt();
+    // MUDANÇA 5: compressed prompt + MUDANÇA 2: post-exec flag built into prompt
+    let SYSTEM_PROMPT = buildSystemPrompt(!!is_tool_result);
 
     // Inject AI memory context
     try {
@@ -1282,18 +1122,176 @@ serve(async (req) => {
       console.error("[command-assistant-chat] Memory fetch error:", e);
     }
 
-    // If this is a tool result, inject a strong reminder into the system prompt
-    if (is_tool_result) {
-      SYSTEM_PROMPT += `\n\n⚠️ ATENÇÃO: A próxima mensagem do tipo "tool" contém o RESULTADO de uma ação que JÁ FOI EXECUTADA. NÃO proponha a mesma ação novamente. NÃO inclua blocos \`\`\`action\`\`\`. Apenas confirme o resultado ao usuário.`;
-    }
-
+    // MUDANÇA 3: Filter tool messages from history — they were already processed during tool calling
+    // Instead of mapping them as "assistant" (confusing), we simply exclude them
+    const filteredHistory = (history || []).filter((m) => m.role !== "tool");
+    
     const messages: any[] = [
       { role: "system", content: SYSTEM_PROMPT },
-      ...(history || []).map((m) => ({
-        role: m.role === "tool" ? "assistant" : m.role,
-        content: m.role === "tool" ? `[RESULTADO DE AÇÃO JÁ EXECUTADA]: ${m.content || ""}` : (m.content || ""),
+      ...filteredHistory.map((m) => ({
+        role: m.role as string,
+        content: m.content || "",
       })),
     ];
+
+    // ==================== HELPER: Save assistant message and extract actions ====================
+    async function saveAssistantMessage(content: string) {
+      const actionMatch = content.match(/```action\s*([\s\S]*?)```/);
+      let proposedActions: any[] = [];
+      
+      if (actionMatch) {
+        try {
+          const actionData = JSON.parse(actionMatch[1]);
+          if (actionData.tool_name && actionData.tool_args && Object.keys(actionData.tool_args).length > 0) {
+            proposedActions = [{
+              id: crypto.randomUUID(),
+              tool_name: actionData.tool_name,
+              tool_args: actionData.tool_args,
+              description: actionData.description,
+            }];
+          } else {
+            console.error("Action rejected: empty tool_args", JSON.stringify(actionData));
+          }
+        } catch (e) {
+          console.error("Error parsing action:", e);
+        }
+      }
+      
+      const cleanContent = content.replace(/```action[\s\S]*?```/g, "").trim();
+      
+      await supabase
+        .from("command_messages")
+        .insert({
+          conversation_id,
+          tenant_id,
+          user_id: user.id,
+          role: "assistant",
+          content: cleanContent,
+          metadata: proposedActions.length > 0 ? { proposed_actions: proposedActions } : {},
+        });
+      
+      await supabase
+        .from("command_conversations")
+        .update({ updated_at: new Date().toISOString() })
+        .eq("id", conversation_id);
+    }
+
+    // ==================== HELPER: Create synthetic SSE stream from text ====================
+    function createSyntheticStream(text: string): ReadableStream {
+      const encoder = new TextEncoder();
+      return new ReadableStream({
+        start(controller) {
+          // Stream in chunks to simulate real streaming
+          const chunkSize = 20; // characters per chunk
+          for (let i = 0; i < text.length; i += chunkSize) {
+            const chunk = text.slice(i, i + chunkSize);
+            const sseData = JSON.stringify({
+              choices: [{ delta: { content: chunk } }],
+            });
+            controller.enqueue(encoder.encode(`data: ${sseData}\n\n`));
+          }
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        },
+      });
+    }
+
+    // ==================== HELPER: Stream from real AI response ====================
+    async function streamFromAI(streamMessages: any[]): Promise<Response> {
+      const endpoint = await getAIEndpoint("google/gemini-2.5-flash", {
+        supabaseUrl,
+        supabaseServiceKey: supabaseKey,
+      });
+
+      console.log(`[command-assistant-chat] Streaming via ${endpoint.provider} (${endpoint.model})`);
+
+      const aiResponse = await fetch(endpoint.url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${endpoint.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: endpoint.model,
+          messages: streamMessages,
+          stream: true,
+        }),
+      });
+
+      if (!aiResponse.ok) {
+        if (aiResponse.status === 429) {
+          return new Response(
+            JSON.stringify({ success: false, error: "Limite de requisições excedido. Tente novamente em instantes." }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        if (aiResponse.status === 402) {
+          return new Response(
+            JSON.stringify({ success: false, error: "Créditos de IA esgotados. Adicione mais créditos." }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        const errorText = await aiResponse.text();
+        console.error("AI Gateway error:", aiResponse.status, errorText);
+        return new Response(
+          JSON.stringify({ success: false, error: "Erro ao processar resposta da IA" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Process streaming response
+      const reader = aiResponse.body!.getReader();
+      const decoder = new TextDecoder();
+      
+      const { readable, writable } = new TransformStream();
+      const writer = writable.getWriter();
+      
+      let fullContent = "";
+
+      (async () => {
+        try {
+          let buffer = "";
+          
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            buffer += decoder.decode(value, { stream: true });
+            await writer.write(value);
+            
+            let newlineIndex;
+            while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
+              const line = buffer.slice(0, newlineIndex).trim();
+              buffer = buffer.slice(newlineIndex + 1);
+              
+              if (!line.startsWith("data: ") || line === "data: [DONE]") continue;
+              
+              try {
+                const parsed = JSON.parse(line.slice(6));
+                const content = parsed.choices?.[0]?.delta?.content;
+                if (content) fullContent += content;
+              } catch {}
+            }
+          }
+          
+          await saveAssistantMessage(fullContent);
+        } catch (e) {
+          console.error("Stream processing error:", e);
+        } finally {
+          await writer.close();
+        }
+      })();
+
+      return new Response(readable, {
+        headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+      });
+    }
+
+    // ==================== MUDANÇA 2: Skip tool calling for post-execution ====================
+    if (is_tool_result) {
+      console.log(`[command-assistant-chat] Post-execution: skipping tool calling, streaming directly`);
+      return await streamFromAI(messages);
+    }
 
     // ==================== NATIVE TOOL CALLING LOOP ====================
     // Phase 1: Non-streaming loop to resolve all read tool calls
@@ -1302,6 +1300,7 @@ serve(async (req) => {
     
     let toolCallRound = 0;
     let finalMessages = [...messages];
+    let phase1FinalContent: string | null = null;
 
     while (toolCallRound < MAX_TOOL_ROUNDS) {
       toolCallRound++;
@@ -1326,29 +1325,27 @@ serve(async (req) => {
 
         const toolCalls = choice.message?.tool_calls;
         
-        // If no tool calls, we have the final response — break and stream it
+        // MUDANÇA 1: If no tool calls, CAPTURE the response instead of discarding it
         if (!toolCalls || toolCalls.length === 0) {
-          console.log(`[command-assistant-chat] No more tool calls after ${toolCallRound} round(s)`);
+          phase1FinalContent = choice.message?.content || null;
+          console.log(`[command-assistant-chat] Phase 1 complete after ${toolCallRound} round(s), captured response (${phase1FinalContent?.length || 0} chars)`);
           break;
         }
 
         // Execute read tools
         console.log(`[command-assistant-chat] Executing ${toolCalls.length} read tool(s)`);
         
-        // Add assistant message with tool_calls to conversation
         finalMessages.push({
           role: "assistant",
           content: choice.message.content || "",
           tool_calls: toolCalls,
         });
 
-        // Execute each tool call and add results
         for (const tc of toolCalls) {
           const toolName = tc.function?.name;
           const toolArgs = tc.function?.arguments ? 
             (typeof tc.function.arguments === 'string' ? JSON.parse(tc.function.arguments) : tc.function.arguments) : {};
           
-          // Permission check
           const allowedTypes = READ_PERMISSION_MAP[toolName];
           let toolResult: string;
           
@@ -1376,139 +1373,25 @@ serve(async (req) => {
       }
     }
 
-    // ==================== PHASE 2: STREAM FINAL RESPONSE ====================
-    // Now do a streaming call WITHOUT tools (so the model generates a final text response)
-    const endpoint = await getAIEndpoint("google/gemini-2.5-flash", {
-      supabaseUrl,
-      supabaseServiceKey: supabaseKey,
-    });
-
-    console.log(`[command-assistant-chat] Streaming final response via ${endpoint.provider} (${endpoint.model})`);
-
-    const aiResponse = await fetch(endpoint.url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${endpoint.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: endpoint.model,
-        messages: finalMessages,
-        stream: true,
-      }),
-    });
-
-    if (!aiResponse.ok) {
-      if (aiResponse.status === 429) {
-        return new Response(
-          JSON.stringify({ success: false, error: "Limite de requisições excedido. Tente novamente em instantes." }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (aiResponse.status === 402) {
-        return new Response(
-          JSON.stringify({ success: false, error: "Créditos de IA esgotados. Adicione mais créditos." }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      const errorText = await aiResponse.text();
-      console.error("AI Gateway error:", aiResponse.status, errorText);
-      return new Response(
-        JSON.stringify({ success: false, error: "Erro ao processar resposta da IA" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // ==================== MUDANÇA 1: Use Phase 1 response directly (synthetic stream) ====================
+    if (phase1FinalContent) {
+      console.log(`[command-assistant-chat] Using Phase 1 response directly (no Phase 2 needed)`);
+      
+      // Save the message
+      await saveAssistantMessage(phase1FinalContent);
+      
+      // Stream it synthetically to the frontend
+      const syntheticStream = createSyntheticStream(phase1FinalContent);
+      
+      return new Response(syntheticStream, {
+        headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+      });
     }
 
-    // Process streaming response and extract actions
-    const reader = aiResponse.body!.getReader();
-    const decoder = new TextDecoder();
-    
-    const { readable, writable } = new TransformStream();
-    const writer = writable.getWriter();
-    
-    let fullContent = "";
-
-    (async () => {
-      try {
-        let buffer = "";
-        
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          
-          buffer += decoder.decode(value, { stream: true });
-          
-          // Forward raw chunks to client
-          await writer.write(value);
-          
-          // Accumulate content for action extraction
-          let newlineIndex;
-          while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
-            const line = buffer.slice(0, newlineIndex).trim();
-            buffer = buffer.slice(newlineIndex + 1);
-            
-            if (!line.startsWith("data: ") || line === "data: [DONE]") continue;
-            
-            try {
-              const parsed = JSON.parse(line.slice(6));
-              const content = parsed.choices?.[0]?.delta?.content;
-              if (content) fullContent += content;
-            } catch {}
-          }
-        }
-        
-        // Extract proposed actions from content
-        const actionMatch = fullContent.match(/```action\s*([\s\S]*?)```/);
-        let proposedActions: any[] = [];
-        
-        if (actionMatch) {
-          try {
-            const actionData = JSON.parse(actionMatch[1]);
-            if (actionData.tool_name && actionData.tool_args && Object.keys(actionData.tool_args).length > 0) {
-              proposedActions = [{
-                id: crypto.randomUUID(),
-                tool_name: actionData.tool_name,
-                tool_args: actionData.tool_args,
-                description: actionData.description,
-              }];
-            } else {
-              console.error("Action rejected: empty tool_args", JSON.stringify(actionData));
-            }
-          } catch (e) {
-            console.error("Error parsing action:", e);
-          }
-        }
-        
-        // Save assistant message with proposed actions
-        const cleanContent = fullContent.replace(/```action[\s\S]*?```/g, "").trim();
-        
-        await supabase
-          .from("command_messages")
-          .insert({
-            conversation_id,
-            tenant_id,
-            user_id: user.id,
-            role: "assistant",
-            content: cleanContent,
-            metadata: proposedActions.length > 0 ? { proposed_actions: proposedActions } : {},
-          });
-        
-        // Update conversation
-        await supabase
-          .from("command_conversations")
-          .update({ updated_at: new Date().toISOString() })
-          .eq("id", conversation_id);
-        
-      } catch (e) {
-        console.error("Stream processing error:", e);
-      } finally {
-        await writer.close();
-      }
-    })();
-
-    return new Response(readable, {
-      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
-    });
+    // Fallback: Phase 1 didn't produce a final response (e.g., all rounds were tool calls)
+    // In this case, do a streaming call to get the final response
+    console.log(`[command-assistant-chat] Phase 1 exhausted without final response, falling back to streaming call`);
+    return await streamFromAI(finalMessages);
 
   } catch (error) {
     console.error("Error:", error);
