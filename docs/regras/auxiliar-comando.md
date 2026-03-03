@@ -1,8 +1,8 @@
 # Auxiliar de Comando — Regras e Especificações
 
 > **Status:** ✅ Ready  
-> **Última atualização:** 2026-03-02  
-> **Versão do Pipeline:** v3.7.0  
+> **Última atualização:** 2026-03-03  
+> **Versão do Pipeline:** v3.7.1  
 > **Cobertura:** 59+ tools — 100% dos módulos (Fases 1–5 completas)
 
 ---
@@ -114,7 +114,7 @@ Todos os inputs de chat usam o padrão **card pill**:
 
 ---
 
-## Arquitetura (v3.7.0 — OpenAI Nativa + Desconto por Faixa de Kits)
+## Arquitetura (v3.7.1 — OpenAI Nativa + Desconto por Faixa de Kits + Independência de Contexto)
 
 ### Modelo de IA
 
@@ -146,6 +146,18 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
 4. **PROIBIDO** gerar texto anunciando intenção de ação SEM realmente executar — tools são síncronas
 5. Se não tem IDs → CHAMAR searchProducts. Não responder sem chamar.
 
+### 🔧 Fix: Independência de Contexto (v3.7.1)
+
+> **Problema corrigido**: Quando o histórico da conversa continha uma tarefa anterior (ex: "recalcular preços base"), a IA ficava "presa" naquele contexto e ignorava pedidos novos de natureza diferente (ex: "aplicar descontos percentuais"). A IA reciclava o fluxo anterior em vez de classificar o novo pedido de forma independente.
+
+**Mudanças:**
+
+1. **Regra #0 (Independência)**: System prompt agora força a IA a analisar a **última mensagem de forma independente**, ignorando o contexto de tarefas anteriores para classificação
+2. **Regra #1 (Classificação Obrigatória)**: Antes de qualquer ação, a IA deve classificar o pedido:
+   - **Classificação A (Descontos)**: Keywords "desconto", "%", "faixa" → `listKitsSummary` + `applyKitDiscount` (PROIBIDO usar `recalculateKitPrices`)
+   - **Classificação B (Preço Base)**: Keywords "recalcular", "atualizar preço base" → `findKitsContainingProduct` + `recalculateKitPrices`
+3. **Prioridade**: Regras #0 e #1 têm prioridade máxima sobre qualquer outro raciocínio ou contexto do histórico
+
 ### 🔧 Feature: Desconto por Faixa de Kits (v3.7.0)
 
 > **Problema corrigido**: Quando o usuário pedia "aplique descontos nos kits: 2 unidades = 12-15%, 3 unidades = 18-20%", a IA não tinha como listar kits por quantidade de unidades nem aplicar descontos percentuais. Buscava produtos aleatórios em vez de kits agrupados por composição.
@@ -157,7 +169,7 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
 
 **Fluxo esperado:** `listKitsSummary` → agrupar por faixa → `applyKitDiscount` com os IDs e percentuais
 
-**Regra de decisão obrigatória (v3.7.0):**
+**Regra de decisão obrigatória (v3.7.0+):**
 - Se o pedido menciona "desconto", "%" ou "faixa de unidades" → **OBRIGATÓRIO** usar `listKitsSummary` + `applyKitDiscount`. NUNCA usar `recalculateKitPrices` para isso.
 - Se o pedido é "recalcular/atualizar preço base" (sem desconto) → usar `findKitsContainingProduct` + `recalculateKitPrices`
 
