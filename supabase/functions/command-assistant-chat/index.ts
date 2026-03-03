@@ -1271,10 +1271,11 @@ serve(async (req) => {
 
     // ==================== HELPER: Stream from real AI response ====================
     async function streamFromAI(streamMessages: any[]): Promise<Response> {
-      const endpoint = await getAIEndpoint("openai/gpt-5", {
+      // v3.8.1: Use Gemini for fallback streaming to avoid OpenAI rate limits
+      const endpoint = await getAIEndpoint("google/gemini-2.5-flash", {
         supabaseUrl,
         supabaseServiceKey: supabaseKey,
-        preferProvider: 'openai',
+        preferProvider: 'gemini',
       });
 
       console.log(`[command-assistant-chat] Streaming via ${endpoint.provider} (${endpoint.model})`);
@@ -1382,15 +1383,21 @@ serve(async (req) => {
 
     while (toolCallRound < MAX_TOOL_ROUNDS) {
       toolCallRound++;
-      console.log(`[command-assistant-chat] Tool calling round ${toolCallRound}/${MAX_TOOL_ROUNDS}`);
+      const isLastRound = toolCallRound >= MAX_TOOL_ROUNDS;
+      console.log(`[command-assistant-chat] Tool calling round ${toolCallRound}/${MAX_TOOL_ROUNDS}${isLastRound ? ' (FINAL - forcing text response)' : ''}`);
 
       try {
+        // On the last round, remove tools to force a text response instead of more tool calls
+        const roundTools = isLastRound ? undefined : OPENAI_READ_TOOLS;
+        const roundToolChoice = isLastRound ? undefined : "auto";
+        
         const { data: aiData } = await aiChatCompletionJSON(
           "google/gemini-2.5-flash",
           {
-            messages: finalMessages,
-            tools: OPENAI_READ_TOOLS,
-            tool_choice: "auto",
+            messages: isLastRound 
+              ? [...finalMessages, { role: "system", content: "IMPORTANTE: Você já coletou dados suficientes. Responda ao usuário agora com base nos dados que já tem. NÃO tente buscar mais dados." }]
+              : finalMessages,
+            ...(roundTools ? { tools: roundTools, tool_choice: roundToolChoice } : {}),
           },
           aiOpts
         );
