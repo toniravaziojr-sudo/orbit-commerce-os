@@ -385,7 +385,8 @@ export default function StorefrontAILandingPage() {
     display: 'block',
     border: 'none',
     height: iframeHeight ? `${iframeHeight}px` : '100vh',
-    minHeight: '100vh',
+    minHeight: iframeHeight ? undefined : '100vh',
+    overflow: 'hidden',
   };
 
   // If header or footer needed, wrap with providers + TenantSlugContext

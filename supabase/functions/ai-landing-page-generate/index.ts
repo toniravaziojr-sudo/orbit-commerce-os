@@ -9,7 +9,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
-const VERSION = "3.1.0"; // Creative Image Generation — generates hero creative before HTML
+const VERSION = "3.2.0"; // Image discipline + logo fixes + HTML cleanup
 
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
@@ -636,16 +636,18 @@ a { text-decoration: none; color: inherit; }
 ## ⚠️ REGRAS CRÍTICAS ABSOLUTAS
 
 ### LOGO DA LOJA
-- Se a logo for usada na página (ex: tabela comparativa, seção de marca), **NÃO APLIQUE FILTROS CSS** como opacity, filter:brightness, filter:grayscale, mix-blend-mode ou qualquer efeito que altere as cores originais da logo
-- A logo DEVE ser exibida com suas cores originais intactas, em fundo que garanta contraste (use fundo branco ou claro atrás da logo se o background da seção for escuro)
-- Se usar a logo em tabela comparativa, garanta que ela esteja em um container com **background branco, padding generoso e border-radius**, para que as cores da logo fiquem legíveis
-- **NUNCA** aplique CSS filters que descoloram ou apagam a logo
+- Se a logo for usada na página (ex: tabela comparativa, seção de marca), **NÃO APLIQUE NENHUM FILTRO CSS** — nada de opacity, filter:brightness, filter:grayscale, filter:invert, mix-blend-mode, backdrop-filter ou qualquer efeito visual
+- A logo DEVE ser renderizada com \`<img src="URL" style="display:block; max-width:160px; height:auto;">\` sem NENHUM outro estilo que altere sua aparência
+- Em tabelas comparativas: coloque a logo dentro de um \`<div style="background:#fff; padding:12px 16px; border-radius:8px; display:inline-block;">\`
+- **TESTE MENTAL**: Se a logo original tem vermelho, verde e preto, ela DEVE aparecer com vermelho, verde e preto na LP. Se aparece acinzentada, você violou esta regra.
 
-### IMAGENS DOS PRODUTOS
+### IMAGENS DOS PRODUTOS — DISCIPLINA DE USO
+- **HERO/DESTAQUE**: Use APENAS a imagem criativa gerada (se disponível nas "IMAGENS CRIATIVAS GERADAS" abaixo) ou a imagem principal do catálogo com gradient overlay
+- **SEÇÕES DO CORPO (Transformação, Prova Social, FAQ, CTA Final, etc.)**: **NÃO USE imagens de catálogo do produto!** Essas seções devem usar APENAS ícones, emojis, badges, CSS visual, e texto — sem \`<img>\` de produto
+- **EXCEÇÃO ÚNICA**: Imagens de catálogo podem aparecer APENAS em grids de produtos/ofertas que linkem para compra (ex: "Kits Promocionais", "Outros produtos")
 - **USE OBRIGATORIAMENTE** as URLs de imagem fornecidas abaixo — COPIE E COLE exatamente
 - **NUNCA** use placeholder.com, via.placeholder.com, unsplash ou imagens genéricas
 - A imagem principal DEVE aparecer em COMPOSIÇÃO no Hero (como background OU em layout split com tratamento visual)
-- Use TODAS as imagens em seções diferentes (galeria, destaque, comparativo)
 
 ### CORES DA MARCA
 - **USE as cores da marca fornecidas** (cor primária, secundária, acento, botões) em CTAs, badges, gradientes e destaques
@@ -657,6 +659,12 @@ a { text-decoration: none; color: inherit; }
 - USE EXCLUSIVAMENTE os produtos listados abaixo
 - NÃO invente nomes, preços ou descrições — use os EXATOS fornecidos
 - Preços já estão em Reais (R$) — NÃO divida por 100
+
+### HTML LIMPO
+- **NUNCA** deixe tags HTML visíveis como texto (ex: \`</section>\`, \`<div>\` aparecendo como texto na página)
+- Todas as tags devem estar corretamente fechadas e aninhadas
+- Sem comentários HTML visíveis ao usuário
+- Teste mental: se o usuário vê texto como "section>" na tela, o HTML está quebrado
 
 ### URL DE REFERÊNCIA
 Se fornecida, use APENAS como inspiração de layout/estilo. **NUNCA COPIE** conteúdo.
@@ -670,39 +678,39 @@ Se fornecida, use APENAS como inspiração de layout/estilo. **NUNCA COPIE** con
 ---
 
 ## Informações da Loja
-- **Nome**: ${storeSettings?.store_name || "Loja"}
-- **Logo**: ${storeSettings?.logo_url || "Sem logo"}
-- **Cor Principal da Marca**: ${primaryColor}
-${storeSettings?.secondary_color ? `- **Cor Secundária**: ${storeSettings.secondary_color}` : ""}
-${storeSettings?.accent_color ? `- **Cor de Acento**: ${storeSettings.accent_color}` : ""}
-${themeColors.buttonPrimaryBg ? `- **Cor Botão Primário (tema publicado)**: ${themeColors.buttonPrimaryBg}` : ""}
-${themeColors.buttonPrimaryText ? `- **Texto Botão Primário**: ${themeColors.buttonPrimaryText}` : ""}
-${themeColors.buttonSecondaryBg ? `- **Cor Botão Secundário**: ${themeColors.buttonSecondaryBg}` : ""}
-${themeColors.accentColor ? `- **Cor Acento do Tema**: ${themeColors.accentColor}` : ""}
-${themeColors.priceColor ? `- **Cor do Preço**: ${themeColors.priceColor}` : ""}
-- **Telefone**: ${storeSettings?.contact_phone || ""}
-- **Email**: ${storeSettings?.contact_email || ""}
+- **Nome**: \${storeSettings?.store_name || "Loja"}
+- **Logo**: \${storeSettings?.logo_url || "Sem logo"}
+- **Cor Principal da Marca**: \${primaryColor}
+\${storeSettings?.secondary_color ? \`- **Cor Secundária**: \${storeSettings.secondary_color}\` : ""}
+\${storeSettings?.accent_color ? \`- **Cor de Acento**: \${storeSettings.accent_color}\` : ""}
+\${themeColors.buttonPrimaryBg ? \`- **Cor Botão Primário (tema publicado)**: \${themeColors.buttonPrimaryBg}\` : ""}
+\${themeColors.buttonPrimaryText ? \`- **Texto Botão Primário**: \${themeColors.buttonPrimaryText}\` : ""}
+\${themeColors.buttonSecondaryBg ? \`- **Cor Botão Secundário**: \${themeColors.buttonSecondaryBg}\` : ""}
+\${themeColors.accentColor ? \`- **Cor Acento do Tema**: \${themeColors.accentColor}\` : ""}
+\${themeColors.priceColor ? \`- **Cor do Preço**: \${themeColors.priceColor}\` : ""}
+- **Telefone**: \${storeSettings?.contact_phone || ""}
+- **Email**: \${storeSettings?.contact_email || ""}
 
-⚠️ A logo acima NUNCA deve ser alterada visualmente (sem CSS filters, sem opacity, sem blend-mode). Use-a com suas cores originais, em fundo com contraste adequado.
+⚠️ A logo acima NUNCA deve ser alterada visualmente. Renderize com <img> simples, sem CSS filters. Em fundos escuros, use container branco.
 
-${productsInfo ? `## PRODUTOS A SEREM DESTACADOS:\n${productsInfo}` : "## ATENÇÃO: Nenhum produto selecionado. Crie uma landing page genérica para a loja."}
+\${productsInfo ? \`## PRODUTOS A SEREM DESTACADOS:\\n\${productsInfo}\` : "## ATENÇÃO: Nenhum produto selecionado. Crie uma landing page genérica para a loja."}
 
-${productImages.length > 0 ? `## ⚠️ IMAGENS DOS PRODUTOS — USE ESTAS URLs EXATAS:\n${productImages.map((url, i) => `${i + 1}. ${url}`).join("\n")}` : ""}
+\${productImages.length > 0 ? \`## ⚠️ IMAGENS DOS PRODUTOS — USE APENAS NO HERO E EM GRIDS DE OFERTA:\\n\${productImages.map((url, i) => \`\${i + 1}. \${url}\`).join("\\n")}\\n\\n**IMPORTANTE:** NÃO espalhe imagens de catálogo por todas as seções. Use-as APENAS no Hero e em grids de produto/oferta. Seções de texto (Transformação, FAQ, CTA) devem ser visuais com CSS, ícones e badges — sem <img> de produto.\` : ""}
 
-${generatedCreativeUrls.length > 0 ? `## 🎨 IMAGENS CRIATIVAS GERADAS (HERO/DESTAQUE — PRIORIDADE MÁXIMA!)
+\${generatedCreativeUrls.length > 0 ? \`## 🎨 IMAGENS CRIATIVAS GERADAS (HERO/DESTAQUE — PRIORIDADE MÁXIMA!)
 USE ESTAS imagens geradas profissionalmente como IMAGEM PRINCIPAL no HERO e na seção de PRODUTO EM DESTAQUE.
 Elas foram criadas especificamente para esta landing page com composição publicitária premium.
-${generatedCreativeUrls.map((url, i) => `${i + 1}. ${url}`).join("\n")}
+\${generatedCreativeUrls.map((url, i) => \`\${i + 1}. \${url}\`).join("\\n")}
 
-As imagens de catálogo acima podem ser usadas nas demais seções (galeria, comparativo, etc).` : ""}
+As imagens de catálogo NÃO devem ser usadas no corpo da página, apenas em grids de oferta se necessário.\` : ""}
 
-${reviewsInfo ? `## AVALIAÇÕES REAIS DE CLIENTES (USE COMO PROVA SOCIAL!):\n${reviewsInfo}\n\n> Use estes depoimentos reais na seção de prova social. Mantenha os nomes e ratings exatos. Se houver poucos, complemente com depoimentos fictícios mas realistas.` : "## PROVA SOCIAL:\nNão há avaliações reais disponíveis. Crie depoimentos fictícios mas realistas e convincentes."}
+\${reviewsInfo ? \`## AVALIAÇÕES REAIS DE CLIENTES (USE COMO PROVA SOCIAL!):\\n\${reviewsInfo}\\n\\n> Use estes depoimentos reais na seção de prova social. Mantenha os nomes e ratings exatos. Se houver poucos, complemente com depoimentos fictícios mas realistas.\` : "## PROVA SOCIAL:\\nNão há avaliações reais disponíveis. Crie depoimentos fictícios mas realistas e convincentes."}
 
-${creativesInfo ? `## REFERÊNCIAS DE MARKETING (TOM, ESTILO E HEADLINES DO NEGÓCIO):\n${creativesInfo}\n\n> Use estas referências para alinhar o tom de voz, estilo de copywriting e abordagem da landing page com o que o negócio já usa em suas campanhas.` : ""}
+\${creativesInfo ? \`## REFERÊNCIAS DE MARKETING (TOM, ESTILO E HEADLINES DO NEGÓCIO):\\n\${creativesInfo}\\n\\n> Use estas referências para alinhar o tom de voz, estilo de copywriting e abordagem da landing page com o que o negócio já usa em suas campanhas.\` : ""}
 
-${referenceUrl ? `## URL DE REFERÊNCIA (APENAS INSPIRAÇÃO VISUAL/ESTRUTURAL!):\n${referenceUrl}\n⚠️ COPIE APENAS O LAYOUT E ESTILO! USE OS DADOS DOS PRODUTOS ACIMA!` : ""}
+\${referenceUrl ? \`## URL DE REFERÊNCIA (APENAS INSPIRAÇÃO VISUAL/ESTRUTURAL!):\\n\${referenceUrl}\\n⚠️ COPIE APENAS O LAYOUT E ESTILO! USE OS DADOS DOS PRODUTOS ACIMA!\` : ""}
 
-${currentHtml ? `## HTML ATUAL (para ajustes):\n${currentHtml}` : ""}
+\${currentHtml ? \`## HTML ATUAL (para ajustes):\\n\${currentHtml}\` : ""}
 
 IMPORTANTE: Retorne APENAS o HTML completo, sem explicações ou markdown. O HTML DEVE começar com <!DOCTYPE html>.`;
 
