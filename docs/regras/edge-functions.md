@@ -319,10 +319,15 @@ for (const modelToTry of modelsToTry) {
 
 ## AI Landing Page Generator (`ai-landing-page-generate`)
 
-### Versão Atual: v1.2.0
+### Versão Atual: v3.8.0 — "Fidelidade Máxima"
 
 ### Visão Geral
-Edge function para geração de landing pages via IA usando Lovable AI Gateway (Gemini 2.5 Flash).
+Edge function para geração de landing pages de alta conversão via IA usando Lovable AI Gateway (Gemini 2.5 Pro).
+Utiliza framework de 5 pilares: Sourcing de Imagens, Identidade Visual, Copy Persuasivo, Integridade de Dados e Renderização Estável.
+
+### Modelo IA
+- **Modelo**: `google/gemini-2.5-pro` (via Lovable AI Gateway)
+- **Fallback**: Não possui fallback — erro retornado se gateway falhar
 
 ### Rotas no Frontend
 | Tipo | Rota | Descrição |
@@ -334,11 +339,25 @@ Edge function para geração de landing pages via IA usando Lovable AI Gateway (
 **IMPORTANTE**: 
 - A rota `/ai-lp/` é standalone, fora do `StorefrontLayout`, para renderizar HTML puro
 - O componente `StorefrontAILandingPage` resolve o tenant automaticamente pelo hostname (domínio customizado ou subdomínio da plataforma)
+- O `StorefrontAILandingPage` inclui `StorefrontThemeInjector` e `StorefrontConfigProvider` para garantir que header/footer herdem o tema correto
 
 ### Fluxo de Resolução de Tenant (StorefrontAILandingPage)
 1. Verifica se há `tenantSlug` na URL (rota `/store/:tenantSlug/ai-lp/:lpSlug`)
 2. Se for subdomínio da plataforma (`tenant.shops.comandocentral.com.br`), extrai o slug
 3. Se for domínio customizado, busca na tabela `tenant_domains`
+
+### Pipeline de Geração (Ordem Estrita)
+1. **Fetch de Dados Reais** — Busca produtos, imagens, themeSettings, Drive assets e creative assets em queries consolidadas
+2. **Sourcing de Imagens** — Busca keywords no Drive (`files` table) + gera lifestyle images via IA se necessário
+3. **Construção do Prompt** — Monta system prompt com 5 pilares + dados reais injetados
+4. **Geração HTML/CSS** — Chamada ao Gemini 2.5 Pro
+5. **Validação Pós-Geração** — Anti-hallucinação (verifica nomes de produto no HTML final)
+6. **Persistência** — Salva HTML/CSS na `ai_landing_pages` + cria versão em `ai_landing_page_versions`
+
+### Otimizações v3.8.0
+- **Queries Consolidadas**: Dados de produto reutilizados via objeto `firstProduct` — elimina 3 queries redundantes
+- **Anti-Hallucinação**: Validação pós-geração confirma nomes de produto no HTML final
+- **Drive Keywords**: Busca por `product_type` e `tags` do primeiro produto para encontrar assets relevantes
 
 ### Campos do Produto Coletados
 ```typescript
@@ -358,6 +377,15 @@ Edge function para geração de landing pages via IA usando Lovable AI Gateway (
 }
 ```
 
+### Templates Criativos (Fallback por Nicho)
+| Template | Nicho/Uso |
+|----------|-----------|
+| `autoridade-premium` | Saúde, beleza masculina, suplementos |
+| `editorial-clean` | Moda, acessórios, lifestyle |
+| `tech-futurista` | Eletrônicos, gadgets, tech |
+| `organico-sensorial` | Alimentos, bebidas, cosméticos naturais |
+| `urgencia-conversao` | Default / máxima conversão |
+
 ### Regras do Prompt da IA (CRÍTICAS!)
 1. **URL de Referência** = APENAS inspiração visual/estrutural
    - ❌ NÃO copiar conteúdo, textos ou produtos
@@ -370,19 +398,25 @@ Edge function para geração de landing pages via IA usando Lovable AI Gateway (
 3. **Output** = HTML completo com `<!DOCTYPE html>`
    - CSS inline ou em `<style>`
    - Responsivo e otimizado para conversão
+4. **Identidade Visual** = themeSettings da loja injetadas no prompt
+   - Logo Protection Rules (proibição de filtros CSS, containers de alto contraste)
+5. **Copy Persuasivo** = Framework PAS (Problem-Agitation-Solution) em 9 seções estratégicas
 
 ### Comportamento Importante
 - Em ajustes (`promptType: 'adjustment'`), a função SEMPRE busca `product_ids` e `reference_url` salvos na landing page
 - Isso garante que edições subsequentes mantenham os produtos originais
+- A função tem `verify_jwt = false` para permitir chamadas internas via service role (ex: ads-autopilot-strategist)
 
 ### Mapeamento Tabela → Edge Function
 | Tabela | Edge Function |
 |--------|---------------|
 | `ai_landing_pages` | `ai-landing-page-generate` |
 | `ai_landing_page_versions` | `ai-landing-page-generate` |
-| `products` | `ai-landing-page-generate` |
-| `product_images` | `ai-landing-page-generate` |
-| `store_settings` | `ai-landing-page-generate` |
+| `products` | `ai-landing-page-generate` (SELECT) |
+| `product_images` | `ai-landing-page-generate` (SELECT) |
+| `store_settings` | `ai-landing-page-generate` (SELECT) |
+| `files` | `ai-landing-page-generate` (SELECT — Drive assets) |
+| `ads_creative_assets` | `ai-landing-page-generate` (SELECT — tom de marca) |
 
 ---
 
