@@ -135,7 +135,7 @@ O módulo Landing Pages oferece **dois modos de criação distintos** com tabela
 | `ai-landing-page-generate` | Gera HTML via Gemini 2.5 Pro (v2.0.0) com Design System completo e contexto do negócio |
 | `ai-import-page` | Importa página externa (com `targetType: 'landing_page'` salva em `ai_landing_pages`) |
 
-### Design System do Gerador IA (v2.0.0)
+### Design System do Gerador IA (v3.10.1)
 
 O prompt do `ai-landing-page-generate` inclui:
 
@@ -145,7 +145,11 @@ O prompt do `ai-landing-page-generate` inclui:
 - **Layout:** max-width 1200px, padding vertical 80-120px entre seções, grid responsivo
 - **Componentes:** Cards com border-radius 16px e sombras multicamada, badges/pills, ícones SVG inline
 - **Animações:** fade-in via `@keyframes`, hover transitions em cards e CTAs, pulse/glow nos CTAs principais
-- **Responsividade:** Mobile-first com breakpoints em 768px e 1024px
+- **Responsividade (v3.10.0):** Mobile-first com 45+ regras CSS para < 768px. Grids empilham em 1 coluna, CTAs full-width, tabelas comparativas com scroll horizontal, teste mental em iPhone 13 Mini
+- **Logo — Inteligência de Contraste (v3.10.1):** A IA analisa o fundo da seção e escolhe a melhor abordagem: logo direta em fundos claros, container escuro harmonizado em fundos claros quando a logo é branca/clara, ou adaptação de cores da logo (monocromática, temática) para integração visual. **Proibido** container branco fixo sem análise de contraste
+- **Emojis — Uso Inteligente (v3.10.1):** Emojis permitidos quando agregam valor visual (checkmarks, badges, ícones de benefícios). Sem limite rígido, mas com bom senso profissional. Não devem dominar o design
+- **Imagens — Contexto de Nicho (v3.10.0):** Prompts de geração incluem cenários específicos por nicho (cosméticos → bancada de banheiro, tech → mesa moderna, alimentos → mesa rústica). Coerência visual com layout dark/premium
+- **Header/Footer — Isolamento CSS (v3.10.0):** `isolation: isolate` e `bg-white` no container, keys únicas para forçar re-render correto
 - **Estrutura obrigatória:** Hero → Barra de confiança → Benefícios → Social proof → Oferta → FAQ accordion → CTA final
 
 ---
