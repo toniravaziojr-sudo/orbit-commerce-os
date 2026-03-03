@@ -89,6 +89,7 @@ import Quizzes from "@/pages/Quizzes";
 import { QuizEditor } from "@/components/quizzes";
 import BlockSuggestions from "@/pages/BlockSuggestions";
 import DemoEstruturaPage from "@/pages/DemoEstruturaPage";
+import DemoLandingPage from "@/pages/DemoLandingPage";
 
 import MetaOAuthCallback from "@/pages/MetaOAuthCallback";
 import MeliOAuthCallback from "@/pages/MeliOAuthCallback";
@@ -214,6 +215,7 @@ const App = () => {
               {/* TikTok OAuth callback - handles TikTok connection result */}
               <Route path="/integrations/tiktok/callback" element={<TikTokOAuthCallback />} />
               <Route path="/demo-estrutura" element={<DemoEstruturaPage />} />
+              <Route path="/demo-lp" element={<DemoLandingPage />} />
               <Route path="/accept-invite" element={<AcceptInvite />} />
               {/* Preview route for review page (development only) */}
               <Route path="/avaliar/:token" element={<StorefrontReview />} />
