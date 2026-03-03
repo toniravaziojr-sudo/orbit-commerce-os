@@ -2,7 +2,7 @@
 
 > **Status:** ✅ Ready  
 > **Última atualização:** 2026-03-03  
-> **Versão do Pipeline:** v3.10.0  
+> **Versão do Pipeline:** v3.10.0 | **AI Router:** v1.2.0  
 > **Cobertura:** 59+ tools — 100% dos módulos (Fases 1–5 completas)
 
 ---
@@ -205,6 +205,23 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
 4. **Checklist de completude**: Regra de revisar o pedido original e verificar se TUDO foi feito antes de finalizar
 
 **Arquivo alterado:** `supabase/functions/command-assistant-chat/index.ts` (system prompt)
+
+### 🔧 Fix: Rate Limit Memory no AI Router (v1.2.0)
+
+> **Problema corrigido**: Quando OpenAI retornava 429 (rate limit) no round 1, o sistema fazia fallback para Gemini com sucesso. Porém, no round 2 de tool calling, o router esquecia que OpenAI estava em rate limit e tentava novamente — gastando 35s+ em retries (5s + 10s + 20s) até a conexão SSE morrer ("connection closed before message completed"). O usuário via a IA dizer "vou buscar" mas nunca receber resposta.
+
+**Mudanças:**
+
+1. **Rate Limit Memory**: O router agora marca providers que retornaram 429 e os pula automaticamente nas chamadas subsequentes (TTL: 60s)
+2. **Skip log**: Quando um provider é pulado, loga `⏭️ Skipping {provider} (rate-limited in this request lifecycle)`
+3. **Retries reduzidos para command-assistant**: `maxRetries: 1` e `baseDelayMs: 3000` (antes era 3 retries com 5s base = até 35s de espera)
+4. **`aiChatCompletionJSON` atualizado**: Agora propaga `maxRetries` e `baseDelayMs` para `aiChatCompletion`
+
+**Arquivos alterados:** 
+- `supabase/functions/_shared/ai-router.ts` (v1.2.0 — rate limit memory)
+- `supabase/functions/command-assistant-chat/index.ts` (retry config reduzido)
+
+### 🔧 Fix: SSE Keep-Alive + Streaming Imediato (v3.8.2)
 
 > **Problema corrigido**: A edge function fazia todas as rodadas de tool calling (~60s) **antes** de retornar qualquer byte ao navegador. Conexões eram dropadas por timeout do browser/proxy, deixando o usuário travado em "Pensando..." eternamente.
 

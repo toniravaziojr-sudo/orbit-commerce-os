@@ -1,7 +1,8 @@
 // =============================================
-// AI ROUTER v1.1.0 — Roteamento Inteligente de IA com Rate Limit Queue
+// AI ROUTER v1.2.0 — Roteamento Inteligente de IA com Rate Limit Queue
 // Prioridade: Gemini Nativa → OpenAI Nativa → Lovable Gateway (fallback)
 // Retry com backoff exponencial ao receber 429 (rate limit)
+// v1.2.0: Rate limit memory — skip providers that returned 429 within same request lifecycle
 // =============================================
 
 import { getCredential } from "./platform-credentials.ts";
@@ -52,11 +53,37 @@ const OPENAI_NATIVE_MODELS: Record<string, string> = {
 // Cache de chaves por request (evita múltiplas consultas ao DB)
 let _cachedKeys: { openai: string | null; gemini: string | null; lovable: string | null } | null = null;
 
+// Rate-limit memory: providers that returned 429 within this request lifecycle
+// This prevents re-trying a rate-limited provider in subsequent tool-calling rounds
+const _rateLimitedProviders: Map<AIProvider, number> = new Map();
+
 /**
- * Reseta o cache de chaves. Chamar no início de cada request.
+ * Reseta o cache de chaves E a memória de rate limit. Chamar no início de cada request.
  */
 export function resetAIRouterCache() {
   _cachedKeys = null;
+  _rateLimitedProviders.clear();
+}
+
+/**
+ * Marca um provider como rate-limited (skip futuro por 60s dentro do mesmo lifecycle).
+ */
+function markProviderRateLimited(provider: AIProvider) {
+  _rateLimitedProviders.set(provider, Date.now());
+}
+
+/**
+ * Verifica se um provider está marcado como rate-limited (dentro dos últimos 60s).
+ */
+function isProviderRateLimited(provider: AIProvider): boolean {
+  const timestamp = _rateLimitedProviders.get(provider);
+  if (!timestamp) return false;
+  // Rate limit memory expires after 60s
+  if (Date.now() - timestamp > 60_000) {
+    _rateLimitedProviders.delete(provider);
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -223,8 +250,12 @@ export async function aiChatCompletion(
       : ['gemini', 'openai', 'lovable'];
   }
 
-  // Filtrar para provedores com chave disponível
+  // Filtrar para provedores com chave disponível E não rate-limited
   const available = providerOrder.filter(p => {
+    if (isProviderRateLimited(p)) {
+      console.log(`${logPrefix} ⏭️ Skipping ${p} (rate-limited in this request lifecycle)`);
+      return false;
+    }
     if (p === 'openai') return !!keys.openai;
     if (p === 'gemini') return !!keys.gemini;
     if (p === 'lovable') return !!keys.lovable;
@@ -302,7 +333,8 @@ export async function aiChatCompletion(
             continue; // retry same provider
           } else {
             lastError = `${provider} (${model}): HTTP 429 after ${maxRetries} retries`;
-            console.warn(`${logPrefix} ⚠️ ${provider} still rate limited after ${maxRetries} retries, trying next provider...`);
+            console.warn(`${logPrefix} ⚠️ ${provider} still rate limited after ${maxRetries} retries, marking and trying next provider...`);
+            markProviderRateLimited(provider); // Remember for subsequent rounds
             break; // move to next provider
           }
         }
@@ -348,6 +380,8 @@ export async function aiChatCompletionJSON(
     supabaseServiceKey?: string;
     preferProvider?: AIProvider | 'auto';
     logPrefix?: string;
+    maxRetries?: number;
+    baseDelayMs?: number;
   }
 ): Promise<{ data: any; provider: AIProvider; model: string }> {
   // Force stream: false
