@@ -8,8 +8,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
+import { isPromptIncomplete, selectBestFallback } from "../_shared/marketing/fallback-prompts.ts";
 
-const VERSION = "3.4.0"; // Product-specific Drive search + lifestyle image generation
+const VERSION = "3.5.0"; // Fallback prompt templates for incomplete user prompts
 
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
@@ -871,9 +872,43 @@ IMPORTANTE: Retorne APENAS o HTML completo, sem explicações ou markdown. O HTM
 O usuário anexou imagens/vídeos no prompt abaixo. As URLs estão marcadas como [Imagem: URL] ou [Vídeo: URL].
 **VOCÊ DEVE usar essas URLs exatas** no HTML onde o usuário indicou. Para vídeos, use <video src="URL"> com controles.` : "";
 
+    // ===== FALLBACK PROMPTS: Enrich incomplete user prompts =====
+    let enrichedPrompt = prompt;
+    let fallbackUsed: string | null = null;
+
+    if (promptType !== "adjustment" && isPromptIncomplete(prompt)) {
+      // Get product context for best fallback selection
+      let fbProductType: string | null = null;
+      let fbTags: string[] | null = null;
+      let fbDescription: string | null = null;
+      let fbProductName: string | null = null;
+
+      if (productIds && productIds.length > 0) {
+        const { data: fbProd } = await supabase
+          .from("products")
+          .select("name, product_type, tags, description")
+          .eq("id", productIds[0])
+          .single();
+        if (fbProd) {
+          fbProductType = fbProd.product_type;
+          fbTags = fbProd.tags;
+          fbDescription = fbProd.description;
+          fbProductName = fbProd.name;
+        }
+      }
+
+      const bestFallback = selectBestFallback(fbProductType, fbTags, fbDescription, fbProductName);
+      fallbackUsed = bestFallback.id;
+
+      // Merge: user's original intent + full creative direction from fallback
+      enrichedPrompt = `${prompt}\n\n---\n\n## DIREÇÃO CRIATIVA COMPLEMENTAR (template: ${bestFallback.name})\n\nO usuário forneceu instruções básicas acima. Complete com esta direção criativa detalhada como BASE, adaptando ao produto e ao pedido do usuário:\n\n${bestFallback.prompt}`;
+
+      console.log(`[AI-LP-Generate] Prompt was incomplete (${prompt.length} chars). Enriched with fallback "${bestFallback.id}"`);
+    }
+
     const userPrompt = promptType === "adjustment"
       ? `Faça os seguintes ajustes na landing page atual:\n\n${prompt}${userMediaNote}\n\nRetorne o HTML completo atualizado.`
-      : `Crie uma landing page baseada nas seguintes instruções:\n\n${prompt}${userMediaNote}\n\nRetorne o HTML completo.`;
+      : `Crie uma landing page baseada nas seguintes instruções:\n\n${enrichedPrompt}${userMediaNote}\n\nRetorne o HTML completo.`;
 
     console.log(`[AI-LP-Generate] Calling AI via centralized router for ${promptType}...`);
     resetAIRouterCache();
@@ -965,6 +1000,7 @@ O usuário anexou imagens/vídeos no prompt abaixo. As URLs estão marcadas como
           creatives_count: creativesInfo ? creativesInfo.split("\n").length : 0,
           drive_assets_count: driveAssetsCount,
           lifestyle_images_generated: lifestyleImageUrls.length,
+          fallback_prompt_used: fallbackUsed,
         },
       });
 

@@ -245,7 +245,7 @@ Cada página pode ter um template dedicado criado automaticamente ao criar a pá
 
 ---
 
-## Motor de Geração IA v3.0.0
+## Motor de Geração IA v3.5.0
 
 ### Edge Function: `ai-landing-page-generate`
 
@@ -256,6 +256,7 @@ Cada página pode ter um template dedicado criado automaticamente ao criar a pá
 | **3. Composição Visual de Produto** | Gradient overlay no hero, 3D transforms, galeria assimétrica, badges sobrepostos |
 | **4. Estrutura Comercial** | 9 seções ordenadas: Hero → Trust Bar → Transformação → Produto → Prova Social → Comparativo → Oferta → FAQ → CTA Final |
 | **5. Efeitos Visuais Premium** | Glassmorphism, pulse CTA, fadeInUp, gradient text, divider waves |
+| **6. Fallback Prompts (v3.5.0)** | 5 templates de alta conversão selecionados automaticamente quando o prompt do usuário é curto/incompleto |
 
 ### Dados Consumidos
 - `products` (nome, preço, descrição, imagens, tags, tipo)
@@ -317,6 +318,27 @@ O editor (`LandingPageEditor.tsx`) detecta se `generated_html` já é um documen
 ### Renderização Pública (anti-tela-preta)
 
 O CSS de segurança injetado no iframe público força `opacity: 1 !important` e `animation: none !important` em todos os elementos animados. O iframe remove `minHeight` quando o auto-resize reporta a altura real, eliminando scroll excessivo.
+
+### Fallback Prompts Inteligentes (v3.5.0)
+
+Quando o usuário fornece um prompt curto ou incompleto (< 80 chars, < 3 frases, ou sem palavras-chave de direção criativa), o motor seleciona automaticamente um dos 5 templates de alta conversão:
+
+| ID | Nome | Nichos Ideais |
+|----|------|---------------|
+| `dark-authority` | Autoridade Premium (Dark Mode) | Saúde, beleza, masculino, suplementos, cosméticos |
+| `editorial-clean` | Editorial Clean (Moda & Lifestyle) | Moda, acessórios, joias, decoração, perfumes |
+| `tech-futurista` | Tech Futurista (Gadgets & Eletrônicos) | Tech, gadgets, eletrônicos, software, apps |
+| `organico-sensorial` | Orgânico Sensorial (Alimentos & Naturais) | Alimentos, bebidas, orgânicos, naturais, fit |
+| `urgencia-conversao` | Máxima Conversão (Universal) | Qualquer nicho — fallback padrão |
+
+**Lógica de seleção:**
+1. Analisa `product_type`, `tags`, `description` e `name` do produto
+2. Calcula score de match com os nichos ideais de cada template
+3. Se nenhum match é encontrado (score = 0), usa `urgencia-conversao`
+4. O prompt original do usuário é **preservado** e o template é injetado como "direção criativa complementar"
+
+**Arquivo:** `supabase/functions/_shared/marketing/fallback-prompts.ts`
+**Metadata:** `generation_metadata.fallback_prompt_used` registra o ID do template usado (ou `null` se não usado)
 
 ---
 
