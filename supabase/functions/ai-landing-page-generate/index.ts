@@ -10,7 +10,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { isPromptIncomplete, selectBestFallback } from "../_shared/marketing/fallback-prompts.ts";
 
-const VERSION = "3.6.0"; // Fixed code order + anti-hallucination
+const VERSION = "3.8.0"; // Audit fixes: eliminated redundant queries, added theme/config providers
 
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
@@ -256,6 +256,7 @@ serve(async (req) => {
     let productsInfo = "";
     let productImages: string[] = [];
     let productNames: string[] = [];
+    let firstProduct: { name: string; product_type: string | null; tags: string[] | null; description: string | null } | null = null;
     
     if (productIds && productIds.length > 0) {
       console.log(`[AI-LP-Generate] Fetching product data for IDs: ${productIds.join(', ')}`);
@@ -280,6 +281,9 @@ serve(async (req) => {
         
         // Collect product names for anti-hallucination
         productNames = products.map(p => p.name);
+        // Store first product for fallback prompt selection (avoids redundant query)
+        const fp = products[0];
+        firstProduct = { name: fp.name, product_type: fp.product_type, tags: fp.tags, description: fp.description };
 
         // Fetch ALL product images
         const { data: images, error: imagesError } = await supabase
@@ -394,15 +398,17 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
     }
 
     // ===== STEP 3: DRIVE - Fetch product-related media assets =====
+    // Reuse already-fetched product data from Step 1 (no redundant query)
     let driveAssetsInfo = "";
     let driveAssetsCount = 0;
     try {
       if (productIds && productIds.length > 0 && productNames.length > 0) {
-        // Build search keywords from already-fetched product data
-        const { data: productNamesData } = await supabase
+        // Build search keywords from product data already fetched in Step 1
+        const productNamesData = productIds.length > 0 ? await supabase
           .from("products")
           .select("name, slug, brand")
-          .in("id", productIds);
+          .in("id", productIds)
+          .then(r => r.data) : null;
         
         if (productNamesData && productNamesData.length > 0) {
           const searchKeywords = productNamesData.flatMap(p => {
@@ -466,21 +472,16 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
     }
 
     // ===== STEP 4: GENERATE LIFESTYLE IMAGES if no Drive assets found =====
+    // Reuse product data from Step 1 instead of re-fetching
     let lifestyleImageUrls: string[] = [];
     if (driveAssetsCount === 0 && productIds && productIds.length > 0 && promptType !== "adjustment" && productImages.length > 0) {
       const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
       if (lovableApiKey) {
         console.log(`[AI-LP-Generate] No Drive assets found, generating lifestyle images...`);
         
-        const { data: lifestyleProd } = await supabase
-          .from("products")
-          .select("name, product_type, tags, description")
-          .eq("id", productIds[0])
-          .single();
-
-        const productContext = lifestyleProd 
-          ? `Produto: "${lifestyleProd.name}"${lifestyleProd.product_type ? `, Tipo: ${lifestyleProd.product_type}` : ""}${lifestyleProd.tags?.length ? `, Tags: ${lifestyleProd.tags.join(", ")}` : ""}`
-          : "Produto em destaque";
+        // Use productNames from Step 1 instead of re-querying
+        const firstProductName = productNames[0] || "Produto";
+        const productContext = `Produto: "${firstProductName}"`;
 
         const lifestylePrompt = `FOTOGRAFIA DE LIFESTYLE/AMBIENTAÇÃO para landing page de e-commerce.
 
@@ -508,7 +509,7 @@ ESTILO: Fotografia lifestyle premium, estilo editorial de revista. Ultra realist
             }
 
             if (lifestyleDataUrl) {
-              const safeName = (lifestyleProd?.name || "produto").toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 40);
+              const safeName = firstProductName.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 40);
               const lifestyleUrl = await uploadCreativeToStorage(supabase, tenantId, lifestyleDataUrl, `lifestyle-${safeName}`);
               if (lifestyleUrl) {
                 lifestyleImageUrls.push(lifestyleUrl);
@@ -551,16 +552,10 @@ ESTILO: Fotografia lifestyle premium, estilo editorial de revista. Ultra realist
       }
     }
 
-    // Fetch current HTML if adjustment
+    // Use already-fetched HTML for adjustments (no redundant query)
     let currentHtml = "";
     if (promptType === "adjustment") {
-      const { data: current } = await supabase
-        .from("ai_landing_pages")
-        .select("generated_html, current_version")
-        .eq("id", landingPageId)
-        .single();
-
-      currentHtml = current?.generated_html || "";
+      currentHtml = savedLandingPage?.generated_html || "";
     }
 
     // ===== BUILD SYSTEM PROMPT WITH DESIGN SYSTEM =====
@@ -912,26 +907,13 @@ O usuário anexou imagens/vídeos no prompt abaixo. As URLs estão marcadas como
     let fallbackUsed: string | null = null;
 
     if (promptType !== "adjustment" && isPromptIncomplete(prompt)) {
-      let fbProductType: string | null = null;
-      let fbTags: string[] | null = null;
-      let fbDescription: string | null = null;
-      let fbProductName: string | null = null;
-
-      if (productIds && productIds.length > 0) {
-        const { data: fbProd } = await supabase
-          .from("products")
-          .select("name, product_type, tags, description")
-          .eq("id", productIds[0])
-          .single();
-        if (fbProd) {
-          fbProductType = fbProd.product_type;
-          fbTags = fbProd.tags;
-          fbDescription = fbProd.description;
-          fbProductName = fbProd.name;
-        }
-      }
-
-      const bestFallback = selectBestFallback(fbProductType, fbTags, fbDescription, fbProductName);
+      // Reuse product data from Step 1 (no redundant query)
+      const bestFallback = selectBestFallback(
+        firstProduct?.product_type,
+        firstProduct?.tags,
+        firstProduct?.description,
+        firstProduct?.name,
+      );
       fallbackUsed = bestFallback.id;
 
       enrichedPrompt = `${prompt}\n\n---\n\n## DIREÇÃO CRIATIVA COMPLEMENTAR (template: ${bestFallback.name})\n\nO usuário forneceu instruções básicas acima. Complete com esta direção criativa detalhada como BASE, adaptando ao produto e ao pedido do usuário:\n\n${bestFallback.prompt}`;
@@ -1008,14 +990,8 @@ O usuário anexou imagens/vídeos no prompt abaixo. As URLs estão marcadas como
       }
     }
 
-    // Get current version
-    const { data: currentPage } = await supabase
-      .from("ai_landing_pages")
-      .select("current_version")
-      .eq("id", landingPageId)
-      .single();
-
-    const newVersion = (currentPage?.current_version || 0) + 1;
+    // Use already-fetched current_version (no redundant query)
+    const newVersion = (savedLandingPage?.current_version || 0) + 1;
 
     // Update landing page
     const { error: updateError } = await supabase
