@@ -10,7 +10,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { isPromptIncomplete, selectBestFallback } from "../_shared/marketing/fallback-prompts.ts";
 
-const VERSION = "3.9.1"; // Drive images used as visual reference for AI generation, not directly
+const VERSION = "3.10.0"; // Mobile-first, emoji reduction, logo fix, niche-aware image generation
 
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
@@ -244,12 +244,18 @@ async function generateHeroCreative(
       '3. NÃO invente novos produtos ou embalagens\n\n' +
       'COMPOSIÇÃO:\n' +
       '- Produto em destaque central ou em posição hero (leve ângulo 3/4)\n' +
-      '- Background profissional premium (gradiente escuro, superfície reflexiva, ou ambiente contextual)\n' +
-      '- Iluminação de estúdio dramática com rim light sutil\n' +
       '- Sombra de contato realista\n' +
       '- Efeitos de brilho/reflexo sutis para transmitir qualidade premium\n' +
       '- Aspect ratio: 16:9 (paisagem) para hero banner\n\n' +
-      'ESTILO: Fotografia de produto premium para e-commerce de alta conversão.\n' +
+      'CENÁRIO E AMBIENTAÇÃO (baseado no nicho do produto):\n' +
+      '- Cosméticos/Saúde/Beleza: bancada de banheiro premium com iluminação natural dourada, toalhas brancas dobradas, superfície de mármore escuro, vegetação sutil ao fundo\n' +
+      '- Suplementos/Fitness/Masculino: superfície de concreto polido escuro, iluminação dramática lateral, elementos metálicos sutis, fundo industrial premium\n' +
+      '- Tech/Eletrônicos/Gadgets: mesa de escritório moderna dark wood, iluminação LED azulada sutil, ambiente minimalista futurista\n' +
+      '- Alimentos/Bebidas/Orgânicos: mesa de madeira rústica natural, ingredientes frescos ao redor, iluminação quente de janela, textura de linho\n' +
+      '- Moda/Acessórios: fundo de tecido nobre (veludo ou seda), iluminação de estúdio suave, composição editorial\n' +
+      '- Default: superfície minimalista escura com gradiente de luz lateral suave, reflexo sutil\n\n' +
+      'ESTILO VISUAL: A imagem DEVE ter coerência com uma landing page dark/premium. Use backgrounds escuros ou médios. Evite backgrounds muito claros, brancos ou cores pastéis que destoem de um layout de venda premium.\n' +
+      'Iluminação de estúdio dramática com rim light sutil.\n' +
       'Qualidade de catálogo profissional. Ultra realista, sem aparência de IA.' + driveContext;
 
     let imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', prompt, referenceBase64, driveReferenceBase64s);
@@ -598,18 +604,26 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
 
 ${productContext}
 
-OBJETIVO: Criar uma imagem de ambientação/lifestyle que mostre o produto sendo usado em contexto real, transmitindo os benefícios e o estilo de vida associado.
+OBJETIVO: Criar uma imagem de ambientação/lifestyle que mostre o produto em contexto real premium, transmitindo benefícios e estilo de vida aspiracional.
+
+CENÁRIOS POR NICHO (escolha o mais adequado):
+- Cosméticos/Saúde/Beleza: pessoa usando o produto em banheiro moderno, espelho iluminado, rotina de cuidados pessoais
+- Suplementos/Fitness/Masculino: ambiente de treino ou mesa de trabalho executiva, produto em primeiro plano com pessoa ao fundo
+- Tech/Gadgets: pessoa usando o produto em home office moderno, iluminação azulada ambiente
+- Alimentos/Bebidas: mesa posta elegante, momento de refeição/preparo, ingredientes naturais ao redor
+- Moda/Acessórios: pessoa vestindo/usando o acessório em ambiente urbano sofisticado ou estúdio editorial
+- Default: ambiente premium minimalista com o produto em uso natural
 
 REGRAS:
 1. O produto da imagem de referência DEVE aparecer de forma natural no cenário
-2. Mostre o produto EM USO ou em um ambiente premium/aspiracional
-3. Iluminação natural e acolhedora
-4. Composição equilibrada com espaço para sobreposição de texto
+2. Mostre o produto EM USO real — não apenas apoiado em superfície
+3. Iluminação natural e acolhedora, mas com profundidade dramática
+4. Composição equilibrada com espaço para sobreposição de texto (lado esquerdo ou topo)
 5. Aspect ratio: 16:9 (paisagem) para seção de banner/ambientação
-6. Cores que complementem o produto
+6. A imagem DEVE ter coerência visual com uma landing page dark/premium. Evite backgrounds muito claros ou cores pastéis
 7. NÃO altere o rótulo, embalagem ou identidade do produto
 
-ESTILO: Fotografia lifestyle premium, estilo editorial de revista. Ultra realista.${driveRefNote}`;
+ESTILO: Fotografia lifestyle premium, estilo editorial de revista. Cores ricas e profundas. Ultra realista, sem aparência de IA.${driveRefNote}`;
 
         try {
           const referenceBase64 = await imageUrlToBase64(productImages[0]);
@@ -706,7 +720,13 @@ SE VOCÊ INVENTAR UM NOME DE PRODUTO, A PÁGINA SERÁ DESCARTADA.
 
 ${antiHallucinationBlock}
 
-## 🎯 PILAR 1 — DIREÇÃO CRIATIVA INTELIGENTE
+## REGRA — EMOJIS — USO MÍNIMO
+Emojis devem ser usados com MODERAÇÃO. Máximo de 5-8 emojis em TODA a landing page. Use emojis APENAS para: checkmarks (✓ ou ✅ — máx 2 contextos), badges de urgência (1-2 no máx). NÃO use emojis em headlines, subtítulos ou CTAs. Prefira ícones CSS/SVG inline, texto estilizado com CSS e badges visuais com background-color ao invés de emojis. A página deve ter aparência PROFISSIONAL e limpa, não de post de redes sociais.
+
+## REGRA — RESPONSIVIDADE MOBILE — CRÍTICA
+O HTML DEVE funcionar perfeitamente em telas de 375px. TODAS as grids com 2+ colunas DEVEM empilhar em 1 coluna no mobile. Tabelas comparativas DEVEM ter wrapper com overflow-x: auto. CTAs DEVEM ser width: 100% no mobile. NUNCA use vw para font-size. TESTE MENTAL: visualize a página em um iPhone 13 Mini — nada deve transbordar ou ficar cortado.
+
+## PILAR 1 — DIREÇÃO CRIATIVA INTELIGENTE
 
 Analise os dados do produto (tipo, tags, descrição, marca) e ESCOLHA uma direção visual que faça sentido para o nicho:
 
@@ -737,7 +757,7 @@ ${themeColors.priceColor ? `Cor do preço: **${themeColors.priceColor}**` : ""}
 - **NÃO invente cores aleatórias** como roxo, azul neon, ou cores que não fazem parte da identidade visual
 - A paleta de cores da LP deve parecer uma EXTENSÃO natural do site/loja do cliente
 
-## 🎯 PILAR 2 — COPY PERSUASIVO DE ALTA CONVERSÃO
+## PILAR 2 — COPY PERSUASIVO DE ALTA CONVERSÃO
 
 ### Hero — Use a técnica PAS (Problem → Agitation → Solution):
 - **Headline principal**: Frase de impacto que ataca a DOR do cliente (ex: "Cansado de [problema]?" ou "[Número]% das pessoas sofrem com [problema]")
@@ -752,7 +772,7 @@ ${themeColors.priceColor ? `Cor do preço: **${themeColors.priceColor}**` : ""}
 - Texto de garantia junto ao preço: "Garantia incondicional de 30 dias"
 - NUNCA use texto genérico como "Lorem ipsum" ou "Texto aqui"
 
-## 🎯 PILAR 3 — COMPOSIÇÃO VISUAL DE PRODUTO
+## PILAR 3 — COMPOSIÇÃO VISUAL DE PRODUTO
 
 ### Layout do HERO — Escolha UM dos 3 layouts abaixo (o mais adequado ao nicho/produto):
 
@@ -787,54 +807,56 @@ ${themeColors.priceColor ? `Cor do preço: **${themeColors.priceColor}**` : ""}
 - **Galeria**: Grid assimétrico (1 imagem grande 60% + 2 pequenas 40% empilhadas) em vez de grid uniforme
 - **Tratamento visual**: border sutil (2px) na cor primária, glow effect (box-shadow com cor primária em 20% opacidade), badges sobrepostos ("Mais Vendido", "-30%")
 
-## 🎯 PILAR 4 — ESTRUTURA COMERCIAL DE ALTA CONVERSÃO
+## PILAR 4 — ESTRUTURA COMERCIAL DE ALTA CONVERSÃO
 
 Gere as seções EXATAMENTE nesta ordem (adapte o conteúdo ao produto):
 
-1. **🔥 HERO DE IMPACTO**
+1. **HERO DE IMPACTO**
    - Headline PAS + sub-headline emocional
    - Use o layout de hero mais adequado ao nicho (Split, Clean ou Background — veja Pilar 3)
-   - CTA primário grande + trust indicators inline (🛡️ Garantia | 🚚 Frete Grátis | ⭐ 4.9/5)
+   - CTA primário grande + trust indicators inline com badges CSS (Garantia | Frete Grátis | 4.9/5)
 
-2. **📊 BARRA DE CONFIANÇA** (background levemente destacado)
-   - 4 ícones com texto: Frete Grátis / Garantia 30 dias / Pagamento Seguro / Satisfação Garantida
+2. **BARRA DE CONFIANÇA** (background levemente destacado)
+   - 4 ícones SVG/CSS com texto: Frete Grátis / Garantia 30 dias / Pagamento Seguro / Satisfação Garantida
+   - NÃO use emojis aqui — use ícones inline SVG ou CSS shapes
 
-3. **💡 TRANSFORMAÇÃO (Problema → Solução)** (layout 2 colunas)
-   - Lado esquerdo: "SEM [produto]" com lista de dores (❌ ícones vermelhos)
-   - Lado direito: "COM [produto]" com lista de benefícios (✅ ícones verdes)
+3. **TRANSFORMAÇÃO (Problema → Solução)** (layout 2 colunas, empilha no mobile)
+   - Lado esquerdo: "SEM [produto]" com lista de dores (ícone X vermelho CSS, NÃO emoji)
+   - Lado direito: "COM [produto]" com lista de benefícios (ícone check verde CSS, NÃO emoji)
 
-4. **🏆 PRODUTO EM DESTAQUE** (fundo alternado)
+4. **PRODUTO EM DESTAQUE** (fundo alternado)
    - Foto grande do produto (com tratamento 3D/sombra)
-   - Lista de benefícios em bullets visuais
+   - Lista de benefícios em bullets visuais com ícones CSS
    - Preço com âncora (De R$XX ~~riscado~~ Por R$XX) + badge de desconto
    - CTA secundário
 
-5. **⭐ PROVA SOCIAL** (cards de depoimento)
-   - Cards com nome, foto placeholder circular, estrelas visuais (★★★★★), quote em destaque
+5. **PROVA SOCIAL** (cards de depoimento)
+   - Cards com nome, foto placeholder circular, estrelas visuais com CSS (★★★★★), quote em destaque
    - Destaque visual em frases-chave do depoimento (negrito ou cor primária)
    - Se houver reviews reais, USE-OS. Senão, crie 3 fictícios realistas
 
-6. **🆚 COMPARATIVO DE VALOR** (tabela visual ou cards lado a lado)
+6. **COMPARATIVO DE VALOR** (tabela visual ou cards lado a lado)
    - "Por que [produto] vs alternativas genéricas"
-   - 5-7 critérios com ✅ para o produto e ❌ para alternativas
+   - 5-7 critérios com ícone check CSS para o produto e X CSS para alternativas
+   - ENVOLVA a tabela em wrapper com overflow-x: auto para mobile
 
-7. **💰 OFERTA IRRESISTÍVEL** (card destacado com background especial)
+7. **OFERTA IRRESISTÍVEL** (card destacado com background especial)
    - Card de preço centralizado com sombra dramática
    - Preço com âncora + economia calculada
-   - Selos de garantia + pagamento seguro
+   - Selos de garantia + pagamento seguro (badges CSS, sem emojis)
    - CTA GRANDE com animação pulse
-   - Micro-copy: "🔒 Compra 100% segura"
+   - Micro-copy: "Compra 100% segura" (com ícone de cadeado CSS)
 
-8. **❓ FAQ ESTRATÉGICO** (accordion visual)
+8. **FAQ ESTRATÉGICO** (accordion visual)
    - 5-7 perguntas que são objeções comuns transformadas em perguntas
    - Estilo: click para expandir com ícone + / -
 
-9. **🎯 CTA FINAL** (background gradiente dramático)
+9. **CTA FINAL** (background gradiente dramático)
    - Headline de fechamento urgente
    - Último CTA + reforço de garantia
    - "Garantia incondicional de 30 dias. Se não gostar, devolvemos seu dinheiro."
 
-## 🎯 PILAR 5 — EFEITOS VISUAIS PREMIUM
+## PILAR 5 — EFEITOS VISUAIS PREMIUM
 
 ### CSS Obrigatório no <style>:
 \`\`\`css
@@ -895,11 +917,55 @@ a { text-decoration: none; color: inherit; }
 @media (min-width: 768px) { .section { padding: 100px 0; } }
 @media (min-width: 1024px) { .section { padding: 120px 0; } }
 
-/* Responsive */
+/* MOBILE-FIRST — Regras obrigatórias para < 768px */
 @media (max-width: 768px) {
-  h1 { font-size: 2rem !important; }
-  h2 { font-size: 1.5rem !important; }
-  .section { padding: 60px 0; }
+  h1 { font-size: 1.75rem !important; line-height: 1.2 !important; }
+  h2 { font-size: 1.4rem !important; }
+  h3 { font-size: 1.15rem !important; }
+  p, li, span { font-size: 15px !important; }
+  .section { padding: 48px 0 !important; }
+  .container { padding: 0 20px !important; }
+  
+  /* Forçar empilhamento de todas as grids */
+  .hero-grid, .spotlight-grid, .transformation-grid,
+  [style*="grid-template-columns"], [class*="grid"] {
+    grid-template-columns: 1fr !important;
+  }
+  /* Flex wraps */
+  [style*="display: flex"][style*="gap"],
+  [style*="display:flex"][style*="gap"] {
+    flex-direction: column !important;
+  }
+  
+  /* Tabelas comparativas: scroll horizontal */
+  .comparison-table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .comparison-table { min-width: 600px; }
+  table { font-size: 13px; }
+  
+  /* CTAs full-width */
+  .cta-button, [class*="cta"], a[style*="padding"][style*="background"] {
+    width: 100% !important; text-align: center !important; 
+    padding: 16px 24px !important; font-size: 16px !important;
+    display: block !important; box-sizing: border-box !important;
+  }
+  
+  /* Imagens */
+  img { max-width: 100% !important; height: auto !important; }
+  
+  /* Preço */
+  .price-new, [class*="price"] { font-size: 2rem !important; }
+  
+  /* Stats numbers */
+  [style*="font-size: 48px"], [style*="font-size:48px"],
+  [style*="font-size: 3rem"], [style*="font-size:3rem"] {
+    font-size: 2rem !important;
+  }
+  
+  /* Hero split — empilhar */
+  [style*="grid-template-columns: 1fr 1fr"],
+  [style*="grid-template-columns:1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
 }
 \`\`\`
 
@@ -917,15 +983,12 @@ a { text-decoration: none; color: inherit; }
 - **NUNCA** invente nomes de produto. Se o produto se chama "Shampoo Calvície Zero", use "Shampoo Calvície Zero" — NÃO invente "Folixil", "CapilMax", "HairRevive" ou qualquer outro nome de fantasia.
 - O nome da marca/loja é "${storeSettings?.store_name || "Loja"}". USE EXATAMENTE ESTE NOME.
 
-### LOGO DA LOJA — REGRAS DE ADAPTAÇÃO INTELIGENTE
-- Se a logo for usada na página (ex: tabela comparativa, seção de marca), **NÃO APLIQUE NENHUM FILTRO CSS** — nada de opacity, filter:brightness, filter:grayscale, filter:invert, mix-blend-mode, backdrop-filter ou qualquer efeito visual
-- A logo DEVE ser renderizada com \`<img src="URL" style="display:block; max-width:200px; height:auto;">\` sem NENHUM outro estilo que altere sua aparência
-- **Em tabelas comparativas**: a logo deve ocupar pelo menos 180px de largura para garantir legibilidade. Use: \`<div style="background:#fff; padding:16px 20px; border-radius:8px; display:inline-block; min-width:180px; text-align:center;">\`
-- **REGRA DE FUNDO ADAPTATIVO**:
-  - Se a LP tem fundo ESCURO e a logo tem fundo transparente com elementos CLAROS → use a logo DIRETAMENTE sem container branco
-  - Se a LP tem fundo ESCURO e a logo tem texto/elementos ESCUROS em fundo transparente → use o container branco com min-width:180px
-  - Se a LP tem fundo CLARO → use a logo diretamente sem container branco
-- **TESTE MENTAL**: Se a logo original tem vermelho, verde e preto, ela DEVE aparecer com vermelho, verde e preto na LP. Se aparece acinzentada, você violou esta regra.
+### LOGO DA LOJA — REGRA SIMPLIFICADA (OBRIGATÓRIO)
+- Ao usar a logo em QUALQUER seção (comparativo, marca, hero, etc.), SEMPRE envolva em container branco com padding:
+  \`<div style="background:#fff; padding:12px 16px; border-radius:8px; display:inline-block;"><img src="LOGO_URL" style="max-width:180px; height:auto; display:block;" alt="Logo NOME_LOJA"></div>\`
+- Isso garante legibilidade universal em QUALQUER fundo (claro ou escuro)
+- NÃO aplique filter, opacity, mix-blend-mode, backdrop-filter ou qualquer efeito CSS na logo
+- A logo DEVE aparecer com suas cores originais intactas — se aparece acinzentada ou com cores alteradas, você violou esta regra
 
 ### IMAGENS DOS PRODUTOS — DISCIPLINA DE USO
 - **HERO/DESTAQUE**: Use APENAS a imagem criativa gerada (se disponível nas "IMAGENS CRIATIVAS GERADAS" abaixo) ou a imagem principal do catálogo com gradient overlay

@@ -391,10 +391,10 @@ export default function StorefrontAILandingPage() {
           <DiscountProvider>
             <StorefrontConfigProvider tenantId={tenantInfo.tenantId}>
               <StorefrontThemeInjector tenantSlug={resolvedTenantSlug} />
-              <div className="w-full min-h-screen" style={{ margin: 0, padding: 0 }}>
+              <div className="w-full min-h-screen bg-white" style={{ margin: 0, padding: 0, isolation: 'isolate' }}>
                 {shouldShowHeader && (
-                  <div style={{ containerType: 'inline-size' }}>
-                    <StorefrontHeader />
+                  <div style={{ containerType: 'inline-size' }} className="storefront-header-wrapper">
+                    <StorefrontHeader key={`header-${resolvedTenantSlug}`} />
                   </div>
                 )}
                 <iframe
@@ -406,8 +406,8 @@ export default function StorefrontAILandingPage() {
                   scrolling="no"
                 />
                 {shouldShowFooter && (
-                  <div style={{ containerType: 'inline-size' }}>
-                    <StorefrontFooter />
+                  <div style={{ containerType: 'inline-size' }} className="storefront-footer-wrapper">
+                    <StorefrontFooter key={`footer-${resolvedTenantSlug}`} />
                   </div>
                 )}
               </div>
