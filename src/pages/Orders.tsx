@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { QueryErrorState } from '@/components/ui/query-error-state';
 import {
   Select,
   SelectContent,
@@ -65,9 +66,11 @@ export default function Orders() {
   const { 
     orders, 
     totalCount, 
-    isLoading, 
+    isLoading,
+    error,
     updateOrderStatus,
     deleteOrder,
+    refetch,
   } = useOrders({
     page: currentPage,
     pageSize: PAGE_SIZE,
@@ -80,6 +83,15 @@ export default function Orders() {
     dateField,
     firstSaleOnly,
   });
+
+  if (error) {
+    return (
+      <div className="space-y-8 animate-fade-in">
+        <PageHeader title="Pedidos" description="Gestão de pedidos, pagamentos e envios" />
+        <QueryErrorState title="Erro ao carregar pedidos" onRetry={refetch} />
+      </div>
+    );
+  }
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 

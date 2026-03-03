@@ -10,6 +10,7 @@ export default function Products() {
   const [view, setView] = useState<View>('list');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
+  // ... keep existing code (handlers)
   const handleCreateProduct = () => {
     setEditingProduct(null);
     setView('create');

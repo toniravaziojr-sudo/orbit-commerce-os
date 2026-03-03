@@ -16,12 +16,13 @@ import { FinanceEntryFormDialog } from "@/components/finance/FinanceEntryFormDia
 import { DeleteConfirmDialog } from "@/components/purchases/DeleteConfirmDialog";
 import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { ExportDropdown } from "@/components/ui/export-dropdown";
+import { QueryErrorState } from '@/components/ui/query-error-state';
 import { exportToCSV, exportToExcel, formatDateForExport, formatCurrencyForExport } from "@/lib/exportUtils";
 import { format, isWithinInterval, startOfMonth, endOfMonth } from "date-fns";
 import { toast } from "sonner";
 
 export default function Finance() {
-  const { entries, orders, totalIncome, totalExpense, netProfit, margin, ordersIncome, createEntry, updateEntry, deleteEntry, isLoading } = useFinanceEntries();
+  const { entries, orders, totalIncome, totalExpense, netProfit, margin, ordersIncome, createEntry, updateEntry, deleteEntry, isLoading, error } = useFinanceEntries();
   const { financeEntryTypes } = useFinanceEntryTypes();
   
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -184,6 +185,15 @@ export default function Finance() {
     
     toast.success(`Exportação ${exportFormat.toUpperCase()} concluída`);
   };
+
+  if (error) {
+    return (
+      <div className="space-y-8 animate-fade-in">
+        <PageHeader title="Financeiro" description="Controle de entradas, saídas, margens e conciliação" />
+        <QueryErrorState title="Erro ao carregar dados financeiros" onRetry={() => window.location.reload()} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-fade-in">

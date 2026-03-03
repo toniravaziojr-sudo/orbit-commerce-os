@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { QueryErrorState } from '@/components/ui/query-error-state';
 import {
   Select,
   SelectContent,
@@ -46,7 +47,8 @@ export default function Customers() {
   const { 
     customers, 
     totalCount, 
-    isLoading, 
+    isLoading,
+    error,
     deleteCustomer, 
     refetch 
   } = useCustomers({
@@ -55,6 +57,15 @@ export default function Customers() {
     search: debouncedSearch,
     status: statusFilter,
   });
+
+  if (error) {
+    return (
+      <div className="space-y-8 animate-fade-in">
+        <PageHeader title="Clientes" description="Base de clientes com histórico, tags e segmentação" />
+        <QueryErrorState title="Erro ao carregar clientes" onRetry={refetch} />
+      </div>
+    );
+  }
 
   const { tags, createTag, deleteTag } = useCustomerTags();
 

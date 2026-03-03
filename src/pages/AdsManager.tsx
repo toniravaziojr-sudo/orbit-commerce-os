@@ -131,7 +131,7 @@ export default function AdsManager() {
 
   const handleSyncCampaigns = useCallback(async () => {
     if (activeChannel === "meta") {
-      try { await meta.syncCampaigns.mutateAsync(); } catch {}
+      try { await meta.syncCampaigns.mutateAsync(); } catch (e) { console.error('Erro ao sincronizar campanhas Meta:', e); }
       meta.syncInsights.mutate({});
       meta.syncAdsets.mutate({});
       meta.syncAds.mutate({});
@@ -141,7 +141,7 @@ export default function AdsManager() {
       google.syncInsights(undefined);
       google.syncAudiences(undefined);
     } else if (activeChannel === "tiktok") {
-      try { await tiktok.syncCampaigns.mutateAsync(); } catch {}
+      try { await tiktok.syncCampaigns.mutateAsync(); } catch (e) { console.error('Erro ao sincronizar campanhas TikTok:', e); }
       tiktok.syncInsights.mutate({});
     }
   }, [activeChannel, meta, google, tiktok]);

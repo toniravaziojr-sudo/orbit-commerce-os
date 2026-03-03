@@ -205,6 +205,8 @@ export function useShipments(options: UseShipmentsOptions = {}) {
     stats: statsQuery.data || { pendingCount: 0, inTransitCount: 0, deliveredCount: 0, deliveryRate: 0 },
     isLoading: shipmentsQuery.isLoading,
     isStatsLoading: statsQuery.isLoading,
+    error: shipmentsQuery.error,
+    refetch: shipmentsQuery.refetch,
   };
 }
 

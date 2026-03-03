@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StatCard } from '@/components/ui/stat-card';
+import { QueryErrorState } from '@/components/ui/query-error-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useShipments, type Shipment } from '@/hooks/useShipments';
@@ -70,11 +71,20 @@ export default function Shipping() {
     setSearchParams({ tab: value });
   };
 
-  const { shipments, stats, totalCount, isLoading } = useShipments({
+  const { shipments, stats, totalCount, isLoading, error, refetch } = useShipments({
     page: currentPage,
     pageSize: PAGE_SIZE,
     status: statusFilter !== 'all' ? statusFilter : undefined,
   });
+
+  if (error) {
+    return (
+      <div className="space-y-8 animate-fade-in">
+        <PageHeader title="Envios" description="Gestão de entregas, rastreamento e transportadoras" />
+        <QueryErrorState title="Erro ao carregar envios" onRetry={refetch} />
+      </div>
+    );
+  }
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
