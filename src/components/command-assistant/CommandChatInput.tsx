@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, KeyboardEvent, ChangeEvent } from "react";
+import { useState, useRef, useEffect, useCallback, KeyboardEvent, ChangeEvent, ClipboardEvent } from "react";
 import { Send, Square, Paperclip, X, Loader2, Image as ImageIcon, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -100,61 +100,92 @@ export function CommandChatInput({ onSend, isStreaming, onCancel, conversationId
   const hasAttachments = attachedFiles.length > 0;
   const isUploadingAny = attachedFiles.some(f => f.isUploading);
 
-  const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
+  // Shared upload logic for both file input and paste
+  const uploadFile = useCallback(async (file: File) => {
     if (!currentTenant?.id || !user?.id) {
       toast.error("Usuário ou tenant não identificado");
       return;
     }
 
-    for (const file of Array.from(files)) {
-      if (file.size > MAX_FILE_SIZE) {
-        toast.error(`Arquivo ${file.name} excede o limite de 10MB`);
-        continue;
-      }
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error(`Arquivo ${file.name} excede o limite de 10MB`);
+      return;
+    }
 
-      let preview: string | undefined;
-      if (file.type.startsWith("image/")) {
-        preview = URL.createObjectURL(file);
-      }
+    let preview: string | undefined;
+    if (file.type.startsWith("image/")) {
+      preview = URL.createObjectURL(file);
+    }
 
-      const newFile: AttachedFile = { file, preview, isUploading: true };
-      setAttachedFiles(prev => [...prev, newFile]);
+    const newFile: AttachedFile = { file, preview, isUploading: true };
+    setAttachedFiles(prev => [...prev, newFile]);
 
-      try {
-        const result = await uploadAndRegisterToSystemDrive({
-          tenantId: currentTenant.id,
-          userId: user.id,
-          file,
-          source: "command_assistant",
-          subPath: "command-assistant",
-        });
+    try {
+      const result = await uploadAndRegisterToSystemDrive({
+        tenantId: currentTenant.id,
+        userId: user.id,
+        file,
+        source: "command_assistant",
+        subPath: "command-assistant",
+      });
 
-        if (result) {
-          setAttachedFiles(prev =>
-            prev.map(f =>
-              f.file === file
-                ? { ...f, publicUrl: result.publicUrl, isUploading: false }
-                : f
-            )
-          );
-        } else {
-          toast.error(`Erro ao enviar ${file.name}`);
-          setAttachedFiles(prev => prev.filter(f => f.file !== file));
-        }
-      } catch (err) {
-        console.error("Upload error:", err);
+      if (result) {
+        setAttachedFiles(prev =>
+          prev.map(f =>
+            f.file === file
+              ? { ...f, publicUrl: result.publicUrl, isUploading: false }
+              : f
+          )
+        );
+      } else {
         toast.error(`Erro ao enviar ${file.name}`);
         setAttachedFiles(prev => prev.filter(f => f.file !== file));
       }
+    } catch (err) {
+      console.error("Upload error:", err);
+      toast.error(`Erro ao enviar ${file.name}`);
+      setAttachedFiles(prev => prev.filter(f => f.file !== file));
+    }
+  }, [currentTenant?.id, user?.id]);
+
+  const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    for (const file of Array.from(files)) {
+      await uploadFile(file);
     }
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
+
+  // Ctrl+V / Cmd+V paste support for screenshots and images
+  const handlePaste = useCallback(async (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const imageItems: File[] = [];
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) {
+          // Create a named file from the clipboard blob
+          const ext = item.type.split("/")[1] || "png";
+          const namedFile = new File([file], `screenshot-${Date.now()}.${ext}`, { type: item.type });
+          imageItems.push(namedFile);
+        }
+      }
+    }
+
+    if (imageItems.length > 0) {
+      e.preventDefault(); // Prevent pasting image data as text
+      for (const file of imageItems) {
+        await uploadFile(file);
+      }
+    }
+  }, [uploadFile]);
 
   const removeFile = (file: File) => {
     setAttachedFiles(prev => {
@@ -285,6 +316,7 @@ export function CommandChatInput({ onSend, isStreaming, onCancel, conversationId
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           onInput={handleInput}
           placeholder="Envie uma mensagem..."
           className={cn(

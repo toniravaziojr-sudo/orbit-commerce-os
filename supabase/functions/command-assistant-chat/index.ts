@@ -4,7 +4,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v3.11.0"; // Fix: concrete few-shot examples, strict action block format, no unnecessary separation
+const VERSION = "v3.12.0"; // Multimodal: image vision support + Ctrl+V paste
 // ===========================================================
 
 const corsHeaders = {
@@ -1171,7 +1171,7 @@ serve(async (req) => {
       );
     }
 
-    const { conversation_id, message, tenant_id, is_tool_result } = await req.json();
+    const { conversation_id, message, tenant_id, is_tool_result, attachments } = await req.json();
 
     if (!tenant_id || !message) {
       return new Response(
@@ -1195,6 +1195,10 @@ serve(async (req) => {
       );
     }
 
+    // Parse attachments
+    const parsedAttachments: Array<{ url: string; filename: string; mimeType: string }> = Array.isArray(attachments) ? attachments : [];
+    const imageAttachments = parsedAttachments.filter((a: any) => a.mimeType?.startsWith("image/"));
+    
     // Save user message
     if (!is_tool_result) {
       const { error: msgError } = await supabase
@@ -1205,7 +1209,7 @@ serve(async (req) => {
           user_id: user.id,
           role: "user",
           content: message,
-          metadata: {},
+          metadata: parsedAttachments.length > 0 ? { attachments: parsedAttachments } : {},
         });
       if (msgError) console.error("Error saving message:", msgError);
     } else {
@@ -1241,13 +1245,41 @@ serve(async (req) => {
     // Action results from execute function are now saved as role:"user" with is_tool_result metadata
     const filteredHistory = (history || []).filter((m: any) => m.role !== "tool");
     
+    // Build messages array with multimodal support for images
     const messages: any[] = [
       { role: "system", content: SYSTEM_PROMPT },
-      ...filteredHistory.map((m: any) => ({
-        role: m.role as string,
-        content: m.content || "",
-      })),
+      ...filteredHistory.slice(0, -1).map((m: any) => {
+        // Check if historical message has image attachments in metadata
+        const msgAttachments = m.metadata?.attachments;
+        if (m.role === "user" && Array.isArray(msgAttachments) && msgAttachments.some((a: any) => a.mimeType?.startsWith("image/"))) {
+          const contentParts: any[] = [];
+          if (m.content) contentParts.push({ type: "text", text: m.content });
+          for (const att of msgAttachments) {
+            if (att.mimeType?.startsWith("image/") && att.url) {
+              contentParts.push({ type: "image_url", image_url: { url: att.url, detail: "high" } });
+            }
+          }
+          return { role: "user", content: contentParts.length > 0 ? contentParts : m.content || "" };
+        }
+        return { role: m.role as string, content: m.content || "" };
+      }),
     ];
+
+    // Add the current user message (last in history) with multimodal content if images present
+    const lastHistoryMsg = filteredHistory[filteredHistory.length - 1];
+    if (imageAttachments.length > 0) {
+      const contentParts: any[] = [];
+      if (message) contentParts.push({ type: "text", text: message });
+      for (const img of imageAttachments) {
+        contentParts.push({ type: "image_url", image_url: { url: img.url, detail: "high" } });
+      }
+      messages.push({ role: "user", content: contentParts });
+      console.log(`[command-assistant-chat] Multimodal message with ${imageAttachments.length} image(s)`);
+    } else if (lastHistoryMsg) {
+      messages.push({ role: "user", content: lastHistoryMsg.content || message || "" });
+    } else {
+      messages.push({ role: "user", content: message || "" });
+    }
 
     // ==================== HELPER: Save assistant message and extract actions ====================
     async function saveAssistantMessage(content: string) {
