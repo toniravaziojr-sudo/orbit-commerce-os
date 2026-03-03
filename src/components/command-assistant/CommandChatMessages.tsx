@@ -43,7 +43,7 @@ export function CommandChatMessages({
 
   return (
     <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4">
-      <div className="space-y-5 max-w-2xl mx-auto w-full">
+      <div className="space-y-5 max-w-4xl mx-auto w-full">
         {messages.map((message) => {
           const proposedActions = message.metadata?.proposed_actions || [];
           const toolResult = message.metadata?.tool_result;
