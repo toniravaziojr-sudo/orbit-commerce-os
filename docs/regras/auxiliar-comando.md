@@ -2,7 +2,7 @@
 
 > **Status:** ✅ Ready  
 > **Última atualização:** 2026-03-03  
-> **Versão do Pipeline:** v3.9.0  
+> **Versão do Pipeline:** v3.10.0  
 > **Cobertura:** 59+ tools — 100% dos módulos (Fases 1–5 completas)
 
 ---
@@ -189,7 +189,22 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
 
 **Arquivo alterado:** `supabase/functions/command-assistant-chat/index.ts` (system prompt)
 
+### 🔧 Fix: Anti-Alucinação Reforçada + Auto-Continuação (v3.10.0)
 
+> **Problemas corrigidos**:
+> 1. A IA dizia "vou buscar todos os kits e produtos" mas NÃO chamava nenhuma tool — ficava parada esperando resposta do usuário
+> 2. Após o usuário confirmar ("sim", "pode prosseguir"), a IA re-listava o plano inteiro e pedia confirmação NOVAMENTE (loop de re-confirmação)
+> 3. Após executar uma etapa com sucesso (ex: descontos em kits 2x), a IA parava e pedia confirmação para continuar com as próximas faixas em vez de auto-continuar
+> 4. A IA esquecia faixas inteiras (ex: aplicava 2x e 12x, esquecia 3x e 6x)
+
+**Mudanças:**
+
+1. **Anti-Alucinação reforçada**: Regra explícita de que se precisa de dados, deve chamar a tool SILENCIOSAMENTE, não anunciar intenção
+2. **Proibição de loops de re-confirmação**: Se o usuário já disse "sim", é PROIBIDO re-listar o plano ou pedir "quer aplicar?" novamente
+3. **Auto-continuação pós-execução**: Após ação bem-sucedida, se há etapas pendentes do pedido original, a IA DEVE executar imediatamente SEM pedir nova confirmação
+4. **Checklist de completude**: Regra de revisar o pedido original e verificar se TUDO foi feito antes de finalizar
+
+**Arquivo alterado:** `supabase/functions/command-assistant-chat/index.ts` (system prompt)
 
 > **Problema corrigido**: A edge function fazia todas as rodadas de tool calling (~60s) **antes** de retornar qualquer byte ao navegador. Conexões eram dropadas por timeout do browser/proxy, deixando o usuário travado em "Pensando..." eternamente.
 
