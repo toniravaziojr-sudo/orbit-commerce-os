@@ -4,7 +4,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v3.13.0"; // Add free_shipping tools (bulk + individual)
+const VERSION = "v3.14.0"; // Anti-hallucination guard for Gemini fallback
 // ===========================================================
 
 const corsHeaders = {
@@ -1553,7 +1553,38 @@ serve(async (req) => {
             const toolCalls = choice.message?.tool_calls;
 
             if (!toolCalls || toolCalls.length === 0) {
-              phase1FinalContent = choice.message?.content || null;
+              const responseText = choice.message?.content || "";
+              
+              // v3.14.0: Anti-hallucination guard — detect "vou verificar/buscar" without tool calls
+              // When Gemini fallback generates text announcing intent without actually calling tools,
+              // inject a correction and retry instead of accepting the hollow response
+              const HALLUCINATION_PATTERNS = [
+                /vou\s+(verificar|buscar|checar|conferir|consultar|analisar|investigar|pesquisar)/i,
+                /já\s+estou\s+(buscando|verificando|checando|consultando|analisando)/i,
+                /estou\s+(buscando|verificando|checando|consultando|analisando)/i,
+                /deixa\s+eu\s+(verificar|buscar|checar|conferir)/i,
+                /vou\s+te\s+(informar|avisar|dizer)/i,
+              ];
+              
+              const isHallucination = !isLastRound && 
+                HALLUCINATION_PATTERNS.some(p => p.test(responseText)) &&
+                !responseText.includes("```action");
+              
+              if (isHallucination) {
+                console.warn(`[command-assistant-chat] ⚠️ Anti-hallucination guard triggered! Response was: "${responseText.substring(0, 100)}..."`);
+                // Inject correction message and retry
+                finalMsgs.push({
+                  role: "assistant",
+                  content: responseText,
+                });
+                finalMsgs.push({
+                  role: "user", 
+                  content: "SISTEMA: Você disse que vai verificar/buscar, mas NÃO chamou nenhuma ferramenta. Use as tools disponíveis AGORA para buscar os dados. Chame searchProducts, listProducts, listKitsSummary ou a tool apropriada IMEDIATAMENTE.",
+                });
+                continue; // Retry the round
+              }
+              
+              phase1FinalContent = responseText;
               console.log(`[command-assistant-chat] Phase 1 complete after ${toolCallRound} round(s), captured response (${phase1FinalContent?.length || 0} chars)`);
               break;
             }
