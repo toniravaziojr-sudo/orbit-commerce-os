@@ -265,6 +265,22 @@ Cada página pode ter um template dedicado criado automaticamente ao criar a pá
 
 ### Modelo: `google/gemini-2.5-pro` via `ai-router`
 
+### Geração de Criativos (v3.1.0)
+
+O pipeline gera automaticamente uma **imagem hero criativa** antes de construir o HTML:
+
+1. **Download** da imagem principal do produto (catálogo)
+2. **Envio** ao `google/gemini-3-pro-image-preview` via Lovable Gateway com prompt de fotografia publicitária premium
+3. **Fallback** para `google/gemini-2.5-flash-image` se o modelo primário falhar
+4. **Upload** do criativo gerado ao bucket `store-assets` (pasta `lp-creatives/`)
+5. **Injeção** da URL pública do criativo no prompt do Gemini Pro (HTML), com instrução para usar como imagem principal no Hero e destaque
+
+Se a geração falhar em ambos os modelos, o sistema usa as imagens do catálogo normalmente (graceful degradation).
+
+### Renderização Pública (anti-tela-preta)
+
+O CSS de segurança injetado no iframe público força `opacity: 1 !important` e `animation: none !important` em todos os elementos animados (`.animate-section`, `[class*="animate"]`), impedindo que animações CSS não-completadas deixem o conteúdo invisível.
+
 ---
 
 ## Prompt Ideal para Geração de Landing Page

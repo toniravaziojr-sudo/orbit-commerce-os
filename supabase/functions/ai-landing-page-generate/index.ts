@@ -1,14 +1,173 @@
 // =============================================
 // AI LANDING PAGE GENERATE
 // Edge function para gerar landing pages com IA
-// Usa ai-router (Gemini/OpenAI) para geração
+// Usa ai-router (Gemini/OpenAI) para geração de HTML
+// v3.1.0: Gera criativos de imagem via Gemini Image antes do HTML
 // =============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
-const VERSION = "3.0.0"; // Creative Engine v3 — niche-aware design, persuasive copy, visual composition
+const VERSION = "3.1.0"; // Creative Image Generation — generates hero creative before HTML
+
+const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+
+// ========== CREATIVE IMAGE GENERATION ==========
+
+async function imageUrlToBase64(url: string): Promise<string | null> {
+  try {
+    const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!resp.ok) return null;
+    const buffer = await resp.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  } catch (e) {
+    console.error("[AI-LP-Generate] Failed to download image:", e);
+    return null;
+  }
+}
+
+async function callImageModel(
+  lovableApiKey: string,
+  model: string,
+  prompt: string,
+  referenceBase64: string,
+): Promise<string | null> {
+  const response = await fetch(LOVABLE_GATEWAY_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + lovableApiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          {
+            type: 'image_url',
+            image_url: { url: 'data:image/png;base64,' + referenceBase64 }
+          }
+        ]
+      }],
+      modalities: ['image', 'text'],
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    console.error("[AI-LP-Generate] " + model + " error: " + response.status, errText.substring(0, 300));
+    return null;
+  }
+
+  const data = await response.json();
+  const imageDataUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+  return imageDataUrl || null;
+}
+
+async function uploadCreativeToStorage(
+  supabase: any,
+  tenantId: string,
+  dataUrl: string,
+  productName: string,
+): Promise<string | null> {
+  try {
+    const base64Data = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+    const binaryStr = atob(base64Data);
+    const bytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) {
+      bytes[i] = binaryStr.charCodeAt(i);
+    }
+
+    const timestamp = Date.now();
+    const safeName = productName.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 40);
+    const filePath = tenantId + '/lp-creatives/hero-' + safeName + '-' + timestamp + '.png';
+
+    const { error: uploadError } = await supabase.storage
+      .from('store-assets')
+      .upload(filePath, bytes, {
+        contentType: 'image/png',
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error("[AI-LP-Generate] Upload error:", uploadError);
+      return null;
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from('store-assets')
+      .getPublicUrl(filePath);
+
+    const publicUrl = publicUrlData?.publicUrl;
+    console.log("[AI-LP-Generate] Creative uploaded: " + publicUrl);
+    return publicUrl || null;
+  } catch (error) {
+    console.error("[AI-LP-Generate] Upload creative error:", error);
+    return null;
+  }
+}
+
+async function generateHeroCreative(
+  supabase: any,
+  lovableApiKey: string,
+  tenantId: string,
+  productName: string,
+  productImageUrl: string,
+  storeName: string,
+): Promise<string | null> {
+  try {
+    console.log('[AI-LP-Generate] Generating hero creative for "' + productName + '"...');
+
+    const referenceBase64 = await imageUrlToBase64(productImageUrl);
+    if (!referenceBase64) {
+      console.warn("[AI-LP-Generate] Could not download reference image, skipping creative generation");
+      return null;
+    }
+
+    const prompt = 'FOTOGRAFIA PUBLICITÁRIA DE ALTO IMPACTO para landing page de venda.\n\n' +
+      'PRODUTO: "' + productName + '" pela marca "' + storeName + '"\n\n' +
+      'OBJETIVO: Criar uma imagem hero profissional de alta conversão para landing page.\n\n' +
+      'REGRAS ABSOLUTAS:\n' +
+      '1. O produto na imagem de referência DEVE ser mantido EXATAMENTE como é — mesmo rótulo, mesmas cores, mesmo formato\n' +
+      '2. NÃO altere o texto do rótulo, marca ou embalagem do produto\n' +
+      '3. NÃO invente novos produtos ou embalagens\n\n' +
+      'COMPOSIÇÃO:\n' +
+      '- Produto em destaque central ou em posição hero (leve ângulo 3/4)\n' +
+      '- Background profissional premium (gradiente escuro, superfície reflexiva, ou ambiente contextual)\n' +
+      '- Iluminação de estúdio dramática com rim light sutil\n' +
+      '- Sombra de contato realista\n' +
+      '- Efeitos de brilho/reflexo sutis para transmitir qualidade premium\n' +
+      '- Aspect ratio: 16:9 (paisagem) para hero banner\n\n' +
+      'ESTILO: Fotografia de produto premium para e-commerce de alta conversão.\n' +
+      'Qualidade de catálogo profissional. Ultra realista, sem aparência de IA.';
+
+    // Try primary model
+    let imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', prompt, referenceBase64);
+
+    // Fallback to flash model
+    if (!imageDataUrl) {
+      console.log("[AI-LP-Generate] Trying fallback model google/gemini-2.5-flash-image...");
+      imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-2.5-flash-image', prompt, referenceBase64);
+    }
+
+    if (!imageDataUrl) {
+      console.warn("[AI-LP-Generate] All image models failed");
+      return null;
+    }
+
+    return await uploadCreativeToStorage(supabase, tenantId, imageDataUrl, productName);
+  } catch (error) {
+    console.error("[AI-LP-Generate] Creative generation error:", error);
+    return null;
+  }
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -207,6 +366,44 @@ ${p.seo_description ? `- **SEO Description**: ${p.seo_description}` : ""}
 ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).join("\n") : "  NENHUMA IMAGEM ENCONTRADA"}
           `;
         }).join("\n\n");
+      }
+    }
+
+    // ===== GENERATE HERO CREATIVE IMAGE =====
+    let generatedCreativeUrls: string[] = [];
+    if (promptType !== "adjustment" && productImages.length > 0) {
+      console.log(`[AI-LP-Generate] Starting hero creative generation...`);
+      
+      const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+      if (lovableApiKey) {
+        // Get primary product name for the creative
+        let primaryProductName = "Produto";
+        if (productIds && productIds.length > 0) {
+          const { data: primaryProd } = await supabase
+            .from("products")
+            .select("name")
+            .eq("id", productIds[0])
+            .single();
+          if (primaryProd) primaryProductName = primaryProd.name;
+        }
+        
+        const heroCreativeUrl = await generateHeroCreative(
+          supabase,
+          lovableApiKey,
+          tenantId,
+          primaryProductName,
+          productImages[0], // Use primary product image as reference
+          storeSettings?.store_name || "Loja",
+        );
+        
+        if (heroCreativeUrl) {
+          generatedCreativeUrls.push(heroCreativeUrl);
+          console.log(`[AI-LP-Generate] Hero creative generated: ${heroCreativeUrl}`);
+        } else {
+          console.warn(`[AI-LP-Generate] Hero creative generation failed, will use catalog images`);
+        }
+      } else {
+        console.warn(`[AI-LP-Generate] LOVABLE_API_KEY not found, skipping creative generation`);
       }
     }
 
@@ -432,6 +629,13 @@ Se fornecida, use APENAS como inspiração de layout/estilo. **NUNCA COPIE** con
 ${productsInfo ? `## PRODUTOS A SEREM DESTACADOS:\n${productsInfo}` : "## ATENÇÃO: Nenhum produto selecionado. Crie uma landing page genérica para a loja."}
 
 ${productImages.length > 0 ? `## ⚠️ IMAGENS DOS PRODUTOS — USE ESTAS URLs EXATAS:\n${productImages.map((url, i) => `${i + 1}. ${url}`).join("\n")}` : ""}
+
+${generatedCreativeUrls.length > 0 ? `## 🎨 IMAGENS CRIATIVAS GERADAS (HERO/DESTAQUE — PRIORIDADE MÁXIMA!)
+USE ESTAS imagens geradas profissionalmente como IMAGEM PRINCIPAL no HERO e na seção de PRODUTO EM DESTAQUE.
+Elas foram criadas especificamente para esta landing page com composição publicitária premium.
+${generatedCreativeUrls.map((url, i) => `${i + 1}. ${url}`).join("\n")}
+
+As imagens de catálogo acima podem ser usadas nas demais seções (galeria, comparativo, etc).` : ""}
 
 ${reviewsInfo ? `## AVALIAÇÕES REAIS DE CLIENTES (USE COMO PROVA SOCIAL!):\n${reviewsInfo}\n\n> Use estes depoimentos reais na seção de prova social. Mantenha os nomes e ratings exatos. Se houver poucos, complemente com depoimentos fictícios mas realistas.` : "## PROVA SOCIAL:\nNão há avaliações reais disponíveis. Crie depoimentos fictícios mas realistas e convincentes."}
 
