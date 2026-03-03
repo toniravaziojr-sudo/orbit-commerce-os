@@ -645,10 +645,10 @@ async function executeTool(
       let targetProductIds: string[] | null = productIds && productIds.length > 0 ? productIds : null;
       
       if (minComponents && minComponents > 0) {
-        // Find kits with at least N components
+        // Find kits with at least N total items (sum of quantities, not row count)
         const { data: kitsWithComponents, error: kitsError } = await supabase
           .from("products")
-          .select("id, product_components!product_components_parent_product_id_fkey(id)")
+          .select("id, product_components!product_components_parent_product_id_fkey(id, quantity)")
           .eq("tenant_id", tenant_id)
           .eq("product_format", "with_composition")
           .eq("status", "active");
@@ -656,7 +656,12 @@ async function executeTool(
         if (kitsError) throw new Error(kitsError.message);
         
         const qualifyingKitIds = (kitsWithComponents || [])
-          .filter((kit: any) => (kit.product_components?.length || 0) >= minComponents)
+          .filter((kit: any) => {
+            const totalQty = (kit.product_components || []).reduce(
+              (sum: number, comp: any) => sum + (Number(comp.quantity) || 0), 0
+            );
+            return totalQty >= minComponents;
+          })
           .map((kit: any) => kit.id);
         
         if (qualifyingKitIds.length === 0) {
