@@ -83,6 +83,8 @@ export default function LandingPageEditor() {
   // Form state
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");
+  const [showHeader, setShowHeader] = useState(true);
+  const [showFooter, setShowFooter] = useState(true);
   
   // Get tenant's public URL - MUST be at top level before any conditionals
   const { baseUrl: tenantBaseUrl } = useAILandingPageUrl({
@@ -129,6 +131,8 @@ export default function LandingPageEditor() {
     if (landingPage) {
       setSeoTitle(landingPage.seo_title || "");
       setSeoDescription(landingPage.seo_description || "");
+      setShowHeader((landingPage as any).show_header ?? true);
+      setShowFooter((landingPage as any).show_footer ?? true);
     }
   }, [landingPage]);
 
@@ -231,7 +235,9 @@ export default function LandingPageEditor() {
         .update({
           seo_title: seoTitle,
           seo_description: seoDescription,
-        })
+          show_header: showHeader,
+          show_footer: showFooter,
+        } as any)
         .eq('id', id);
 
       if (error) throw error;
@@ -575,6 +581,34 @@ export default function LandingPageEditor() {
                     <Save className="h-4 w-4 mr-2" />
                     Salvar Configurações
                   </Button>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-4">
+                  <h3 className="font-medium">Exibição</h3>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="show-header">Exibir Cabeçalho da Loja</Label>
+                      <p className="text-xs text-muted-foreground">Mostra o header padrão da loja acima da landing page</p>
+                    </div>
+                    <Switch
+                      id="show-header"
+                      checked={showHeader}
+                      onCheckedChange={setShowHeader}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="show-footer">Exibir Rodapé da Loja</Label>
+                      <p className="text-xs text-muted-foreground">Mostra o footer padrão da loja abaixo da landing page</p>
+                    </div>
+                    <Switch
+                      id="show-footer"
+                      checked={showFooter}
+                      onCheckedChange={setShowFooter}
+                    />
+                  </div>
                 </div>
 
                 <Separator />

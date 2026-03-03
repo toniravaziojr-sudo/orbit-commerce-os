@@ -3,6 +3,7 @@
 // Fetches from ai_landing_pages table and renders generated HTML
 // Resolves tenant from hostname (custom domain or platform subdomain)
 // Injects marketing pixels (Meta/Google/TikTok) into generated HTML
+// Conditionally renders store header/footer based on show_header/show_footer
 // =============================================
 
 import { useParams } from 'react-router-dom';
@@ -12,6 +13,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import NotFound from '@/pages/NotFound';
 import { isPlatformSubdomain, extractTenantFromPlatformSubdomain } from '@/lib/canonicalDomainService';
 import { usePublicMarketingConfig } from '@/hooks/useMarketingIntegrations';
+import { CartProvider } from '@/contexts/CartContext';
+import { DiscountProvider } from '@/contexts/DiscountContext';
+import { StorefrontHeader } from '@/components/storefront/StorefrontHeader';
+import { StorefrontFooter } from '@/components/storefront/StorefrontFooter';
 
 interface AILandingPageData {
   id: string;
@@ -23,6 +28,8 @@ interface AILandingPageData {
   seo_description: string | null;
   seo_image_url: string | null;
   is_published: boolean;
+  show_header: boolean;
+  show_footer: boolean;
 }
 
 /**
@@ -178,7 +185,7 @@ function injectPixelsIntoHtml(html: string, pixelScripts: string, faviconTag?: s
 }
 
 export default function StorefrontAILandingPage() {
-  const { lpSlug } = useParams<{ lpSlug: string }>();
+  const { lpSlug, tenantSlug } = useParams<{ lpSlug: string; tenantSlug: string }>();
   const { data: tenantInfo, isLoading: tenantLoading } = useTenantFromHostname();
 
   // Fetch marketing config for pixel injection
@@ -206,10 +213,10 @@ export default function StorefrontAILandingPage() {
     queryFn: async () => {
       if (!tenantInfo?.tenantId || !lpSlug) return null;
 
-      // Get the AI landing page - must be published
+      // Get the AI landing page - must be published - include show_header/show_footer
       const { data: page, error: pageError } = await supabase
         .from('ai_landing_pages')
-        .select('id, name, slug, generated_html, generated_css, seo_title, seo_description, seo_image_url, is_published')
+        .select('id, name, slug, generated_html, generated_css, seo_title, seo_description, seo_image_url, is_published, show_header, show_footer')
         .eq('tenant_id', tenantInfo.tenantId)
         .eq('slug', lpSlug)
         .eq('is_published', true)
@@ -262,6 +269,38 @@ export default function StorefrontAILandingPage() {
     }
   }
 
+  const shouldShowHeader = landingPage.show_header ?? false;
+  const shouldShowFooter = landingPage.show_footer ?? false;
+
+  // Resolve tenantSlug for providers
+  const resolvedTenantSlug = tenantSlug || tenantInfo.tenantSlug || '';
+
+  // If header or footer needed, wrap with providers
+  if (shouldShowHeader || shouldShowFooter) {
+    return (
+      <CartProvider tenantSlug={resolvedTenantSlug}>
+        <DiscountProvider>
+          <div className="min-h-screen w-full flex flex-col" style={{ margin: 0, padding: 0 }}>
+            {shouldShowHeader && <StorefrontHeader />}
+            <iframe
+              srcDoc={fullHtml}
+              className="w-full border-0 flex-1"
+              style={{ 
+                minHeight: shouldShowHeader || shouldShowFooter ? '80vh' : '100vh', 
+                width: '100%', 
+                display: 'block',
+                border: 'none',
+              }}
+              title={landingPage.name}
+            />
+            {shouldShowFooter && <StorefrontFooter />}
+          </div>
+        </DiscountProvider>
+      </CartProvider>
+    );
+  }
+
+  // No header/footer — render standalone
   return (
     <div className="min-h-screen w-full" style={{ margin: 0, padding: 0 }}>
       <iframe
