@@ -572,13 +572,13 @@ const TOOL_REGISTRY = {
     requiredPermission: "products",
   },
   bulkUpdateProductsFreeShipping: {
-    description: "Ativar ou desativar frete grátis em produtos em massa. Pode filtrar por formato (kits, simples), categoria, IDs específicos, ou por quantidade mínima de componentes (para kits).",
+    description: "Ativar ou desativar frete grátis em produtos em massa. Pode filtrar por formato (kits, simples), categoria, IDs específicos, ou por quantidade mínima de unidades totais na composição (soma das quantidades dos componentes).",
     parameters: {
       freeShipping: { type: "boolean", required: true, description: "true para ativar frete grátis, false para desativar" },
       productIds: { type: "array", required: false, description: "IDs específicos (opcional)" },
       categoryId: { type: "string", required: false, description: "Filtrar por categoria" },
       productFormat: { type: "string", required: false, description: "Filtrar por formato: simple, with_composition, with_variants" },
-      minComponents: { type: "number", required: false, description: "Filtrar kits com no mínimo N componentes na composição" },
+      minComponents: { type: "number", required: false, description: "Filtrar kits com no mínimo N unidades totais na composição (soma das quantidades). Ex: minComponents=3 inclui tanto kits com 3 componentes diferentes quanto kits com 1 produto em quantidade 3" },
     },
     requiredPermission: "products",
   },
