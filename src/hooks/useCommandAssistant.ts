@@ -232,6 +232,9 @@ export function useCommandAssistant() {
           try {
             const parsed = JSON.parse(jsonStr);
             
+            // Skip heartbeat/status events (v3.8.2 keep-alive)
+            if (parsed.status === "processing") continue;
+            
             // Check for proposed actions in the response
             if (parsed.proposed_actions) {
               proposedActions = parsed.proposed_actions;
@@ -391,6 +394,9 @@ export function useCommandAssistant() {
 
               try {
                 const parsed = JSON.parse(jsonStr);
+                
+                // Skip heartbeat/status events (v3.8.2 keep-alive)
+                if (parsed.status === "processing") continue;
                 
                 // Parse proposed_actions from follow-up
                 if (parsed.proposed_actions) {
