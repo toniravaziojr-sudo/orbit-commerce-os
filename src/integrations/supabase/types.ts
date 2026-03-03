@@ -1352,6 +1352,8 @@ export type Database = {
           seo_description: string | null
           seo_image_url: string | null
           seo_title: string | null
+          show_footer: boolean
+          show_header: boolean
           slug: string
           status: string
           tenant_id: string
@@ -1376,6 +1378,8 @@ export type Database = {
           seo_description?: string | null
           seo_image_url?: string | null
           seo_title?: string | null
+          show_footer?: boolean
+          show_header?: boolean
           slug: string
           status?: string
           tenant_id: string
@@ -1400,6 +1404,8 @@ export type Database = {
           seo_description?: string | null
           seo_image_url?: string | null
           seo_title?: string | null
+          show_footer?: boolean
+          show_header?: boolean
           slug?: string
           status?: string
           tenant_id?: string
