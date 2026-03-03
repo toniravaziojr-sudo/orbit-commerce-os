@@ -10,7 +10,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { isPromptIncomplete, selectBestFallback } from "../_shared/marketing/fallback-prompts.ts";
 
-const VERSION = "3.8.0"; // Audit fixes: eliminated redundant queries, added theme/config providers
+const VERSION = "3.9.0"; // All images AI-generated, registered to "Criativos de página" Drive folder
 
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
@@ -72,11 +72,91 @@ async function callImageModel(
   return imageDataUrl || null;
 }
 
+async function ensureDriveFolder(
+  supabase: any,
+  tenantId: string,
+  userId: string,
+  folderName: string,
+): Promise<string | null> {
+  try {
+    const { data: existing } = await supabase
+      .from("files")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("is_folder", true)
+      .eq("filename", folderName)
+      .limit(1)
+      .maybeSingle();
+
+    if (existing?.id) return existing.id;
+
+    const { data: created, error } = await supabase
+      .from("files")
+      .insert({
+        tenant_id: tenantId,
+        filename: folderName,
+        original_name: folderName,
+        is_folder: true,
+        is_system_folder: true,
+        created_by: userId,
+        metadata: { source: "ai_landing_page_generate", system_managed: true },
+      })
+      .select("id")
+      .single();
+
+    if (error) {
+      console.error("[AI-LP-Generate] Error creating folder:", error);
+      return null;
+    }
+    return created?.id || null;
+  } catch (e) {
+    console.error("[AI-LP-Generate] Folder ensure error:", e);
+    return null;
+  }
+}
+
+async function registerFileToDrive(
+  supabase: any,
+  tenantId: string,
+  userId: string,
+  folderId: string,
+  publicUrl: string,
+  storagePath: string,
+  originalName: string,
+  mimeType: string,
+  sizeBytes: number,
+): Promise<void> {
+  try {
+    await supabase.from("files").insert({
+      tenant_id: tenantId,
+      folder_id: folderId,
+      filename: originalName,
+      original_name: originalName,
+      storage_path: storagePath,
+      mime_type: mimeType,
+      size_bytes: sizeBytes,
+      is_folder: false,
+      is_system_folder: false,
+      created_by: userId,
+      metadata: {
+        source: "ai_landing_page_generate",
+        url: publicUrl,
+        bucket: "store-assets",
+        system_managed: true,
+      },
+    });
+  } catch (e) {
+    console.warn("[AI-LP-Generate] Drive registration error (non-blocking):", e);
+  }
+}
+
 async function uploadCreativeToStorage(
   supabase: any,
   tenantId: string,
   dataUrl: string,
   productName: string,
+  userId?: string,
+  driveFolderId?: string | null,
 ): Promise<string | null> {
   try {
     const base64Data = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
@@ -88,7 +168,8 @@ async function uploadCreativeToStorage(
 
     const timestamp = Date.now();
     const safeName = productName.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 40);
-    const filePath = tenantId + '/lp-creatives/hero-' + safeName + '-' + timestamp + '.png';
+    const filename = 'hero-' + safeName + '-' + timestamp + '.png';
+    const filePath = tenantId + '/lp-creatives/' + filename;
 
     const { error: uploadError } = await supabase.storage
       .from('store-assets')
@@ -108,6 +189,16 @@ async function uploadCreativeToStorage(
 
     const publicUrl = publicUrlData?.publicUrl;
     console.log("[AI-LP-Generate] Creative uploaded: " + publicUrl);
+
+    // Register to Drive folder "Criativos de página"
+    if (publicUrl && driveFolderId && userId) {
+      await registerFileToDrive(
+        supabase, tenantId, userId, driveFolderId,
+        publicUrl, filePath, filename, 'image/png', bytes.length,
+      );
+      console.log("[AI-LP-Generate] Creative registered to Drive folder");
+    }
+
     return publicUrl || null;
   } catch (error) {
     console.error("[AI-LP-Generate] Upload creative error:", error);
@@ -122,6 +213,8 @@ async function generateHeroCreative(
   productName: string,
   productImageUrl: string,
   storeName: string,
+  userId?: string,
+  driveFolderId?: string | null,
 ): Promise<string | null> {
   try {
     console.log('[AI-LP-Generate] Generating hero creative for "' + productName + '"...');
@@ -149,10 +242,8 @@ async function generateHeroCreative(
       'ESTILO: Fotografia de produto premium para e-commerce de alta conversão.\n' +
       'Qualidade de catálogo profissional. Ultra realista, sem aparência de IA.';
 
-    // Try primary model
     let imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', prompt, referenceBase64);
 
-    // Fallback to flash model
     if (!imageDataUrl) {
       console.log("[AI-LP-Generate] Trying fallback model google/gemini-2.5-flash-image...");
       imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-2.5-flash-image', prompt, referenceBase64);
@@ -163,7 +254,7 @@ async function generateHeroCreative(
       return null;
     }
 
-    return await uploadCreativeToStorage(supabase, tenantId, imageDataUrl, productName);
+    return await uploadCreativeToStorage(supabase, tenantId, imageDataUrl, productName, userId, driveFolderId);
   } catch (error) {
     console.error("[AI-LP-Generate] Creative generation error:", error);
     return null;
@@ -397,89 +488,24 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
       console.log(`[AI-LP-Generate] Found ${creatives.length} creative assets for tone context`);
     }
 
-    // ===== STEP 3: DRIVE - Fetch product-related media assets =====
-    // Reuse already-fetched product data from Step 1 (no redundant query)
-    let driveAssetsInfo = "";
-    let driveAssetsCount = 0;
+    // ===== STEP 3: ENSURE "Criativos de página" DRIVE FOLDER =====
+    let driveFolderId: string | null = null;
     try {
-      if (productIds && productIds.length > 0 && productNames.length > 0) {
-        // Build search keywords from product data already fetched in Step 1
-        const productNamesData = productIds.length > 0 ? await supabase
-          .from("products")
-          .select("name, slug, brand")
-          .in("id", productIds)
-          .then(r => r.data) : null;
-        
-        if (productNamesData && productNamesData.length > 0) {
-          const searchKeywords = productNamesData.flatMap(p => {
-            const keywords: string[] = [];
-            if (p.name) {
-              const words = p.name.toLowerCase().split(/[\s\-_,]+/).filter((w: string) => w.length >= 3);
-              keywords.push(...words);
-              keywords.push(p.name.toLowerCase().replace(/\s+/g, '-'));
-            }
-            if (p.slug) keywords.push(p.slug.toLowerCase());
-            if (p.brand) keywords.push(p.brand.toLowerCase());
-            return keywords;
-          }).filter((v, i, a) => a.indexOf(v) === i);
-
-          console.log(`[AI-LP-Generate] Drive search keywords: ${searchKeywords.slice(0, 10).join(', ')}`);
-
-          const { data: driveFiles } = await supabase
-            .from("files")
-            .select("filename, original_name, storage_path, mime_type, metadata")
-            .eq("tenant_id", tenantId)
-            .eq("is_folder", false)
-            .like("mime_type", "image/%")
-            .not("storage_path", "is", null)
-            .order("created_at", { ascending: false })
-            .limit(100);
-
-          if (driveFiles && driveFiles.length > 0) {
-            const relevantAssets = driveFiles.filter(f => {
-              const meta = f.metadata as Record<string, any> | null;
-              const bucket = meta?.bucket || "";
-              const isPublic = bucket === "store-assets" || bucket === "media-assets" || 
-                               (f.storage_path || "").startsWith("tenants/");
-              if (!isPublic) return false;
-
-              const fname = (f.original_name || f.filename || "").toLowerCase();
-              return searchKeywords.some(kw => fname.includes(kw));
-            });
-
-            if (relevantAssets.length > 0) {
-              const assetUrls = relevantAssets.slice(0, 15).map(f => {
-                const meta = f.metadata as Record<string, any> | null;
-                if (meta?.url) return { name: f.original_name || f.filename, url: meta.url };
-                const bucket = meta?.bucket || "store-assets";
-                const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(f.storage_path!);
-                return { name: f.original_name || f.filename, url: urlData?.publicUrl || "" };
-              }).filter(a => a.url);
-
-              if (assetUrls.length > 0) {
-                driveAssetsInfo = assetUrls.map((a, i) => `  ${i + 1}. ${a.name}: ${a.url}`).join("\n");
-                driveAssetsCount = assetUrls.length;
-                console.log(`[AI-LP-Generate] Found ${assetUrls.length} product-related Drive assets`);
-              }
-            } else {
-              console.log(`[AI-LP-Generate] No product-related Drive assets found (${driveFiles.length} total files checked)`);
-            }
-          }
-        }
+      driveFolderId = await ensureDriveFolder(supabase, tenantId, userId, "Criativos de página");
+      if (driveFolderId) {
+        console.log(`[AI-LP-Generate] Drive folder "Criativos de página" ready: ${driveFolderId}`);
       }
-    } catch (driveErr) {
-      console.warn("[AI-LP-Generate] Drive fetch error (non-blocking):", driveErr);
+    } catch (folderErr) {
+      console.warn("[AI-LP-Generate] Drive folder creation error (non-blocking):", folderErr);
     }
 
-    // ===== STEP 4: GENERATE LIFESTYLE IMAGES if no Drive assets found =====
-    // Reuse product data from Step 1 instead of re-fetching
+    // ===== STEP 4: GENERATE LIFESTYLE IMAGE (always, not conditional on Drive) =====
     let lifestyleImageUrls: string[] = [];
-    if (driveAssetsCount === 0 && productIds && productIds.length > 0 && promptType !== "adjustment" && productImages.length > 0) {
+    if (productIds && productIds.length > 0 && promptType !== "adjustment" && productImages.length > 0) {
       const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
       if (lovableApiKey) {
-        console.log(`[AI-LP-Generate] No Drive assets found, generating lifestyle images...`);
+        console.log(`[AI-LP-Generate] Generating lifestyle image...`);
         
-        // Use productNames from Step 1 instead of re-querying
         const firstProductName = productNames[0] || "Produto";
         const productContext = `Produto: "${firstProductName}"`;
 
@@ -510,10 +536,10 @@ ESTILO: Fotografia lifestyle premium, estilo editorial de revista. Ultra realist
 
             if (lifestyleDataUrl) {
               const safeName = firstProductName.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 40);
-              const lifestyleUrl = await uploadCreativeToStorage(supabase, tenantId, lifestyleDataUrl, `lifestyle-${safeName}`);
+              const lifestyleUrl = await uploadCreativeToStorage(supabase, tenantId, lifestyleDataUrl, `lifestyle-${safeName}`, userId, driveFolderId);
               if (lifestyleUrl) {
                 lifestyleImageUrls.push(lifestyleUrl);
-                console.log(`[AI-LP-Generate] Lifestyle image generated: ${lifestyleUrl}`);
+                console.log(`[AI-LP-Generate] Lifestyle image generated and registered: ${lifestyleUrl}`);
               }
             }
           }
@@ -539,6 +565,8 @@ ESTILO: Fotografia lifestyle premium, estilo editorial de revista. Ultra realist
           primaryProductName,
           productImages[0],
           storeSettings?.store_name || "Loja",
+          userId,
+          driveFolderId,
         );
         
         if (heroCreativeUrl) {
@@ -895,11 +923,6 @@ ${reviewsInfo ? `## AVALIAÇÕES REAIS DE CLIENTES (USE COMO PROVA SOCIAL!):\n${
 
 ${creativesInfo ? `## REFERÊNCIAS DE MARKETING (TOM, ESTILO E HEADLINES DO NEGÓCIO):\n${creativesInfo}\n\n> Use estas referências para alinhar o tom de voz, estilo de copywriting e abordagem da landing page com o que o negócio já usa em suas campanhas.` : ""}
 
-${driveAssetsInfo ? `## 📁 IMAGENS DO DRIVE RELACIONADAS AO PRODUTO
-O lojista possui estas imagens relacionadas ao(s) produto(s) desta landing page. Use-as para enriquecer visualmente a página (ex: fotos de lifestyle, banners, ambientação):
-${driveAssetsInfo}
-
-> Use estas imagens nas seções de ambientação, lifestyle ou como complemento visual. **NÃO substitua** as imagens de produto do catálogo por estas.` : ""}
 
 ${lifestyleImageUrls.length > 0 ? `## 🌿 IMAGENS DE LIFESTYLE GERADAS (AMBIENTAÇÃO DO PRODUTO)
 Estas imagens foram geradas especificamente para mostrar o produto em contexto de uso real. Use-as nas seções de "Transformação", "Benefícios" ou "Ambientação":
@@ -1045,7 +1068,7 @@ O usuário anexou imagens/vídeos no prompt abaixo. As URLs estão marcadas como
           product_count: productIds?.length || 0,
           reviews_count: reviewsInfo ? reviewsInfo.split("\n").length : 0,
           creatives_count: creativesInfo ? creativesInfo.split("\n").length : 0,
-          drive_assets_count: driveAssetsCount,
+          drive_folder_id: driveFolderId,
           lifestyle_images_generated: lifestyleImageUrls.length,
           fallback_prompt_used: fallbackUsed,
         },
