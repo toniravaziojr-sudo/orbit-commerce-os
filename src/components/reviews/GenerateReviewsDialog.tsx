@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Sparkles, Loader2, AlertCircle } from 'lucide-react';
@@ -20,7 +21,6 @@ interface GenerateReviewsDialogProps {
   trigger?: React.ReactNode;
 }
 
-type QuantityOption = '10' | '30' | '50';
 type GenderOption = 'both' | 'male' | 'female';
 type RatingOption = 'all5' | 'mixed';
 
@@ -36,7 +36,7 @@ export function GenerateReviewsDialog({ trigger }: GenerateReviewsDialogProps) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [productId, setProductId] = useState('');
-  const [quantity, setQuantity] = useState<QuantityOption>('10');
+  const [quantity, setQuantity] = useState<number>(15);
   const [gender, setGender] = useState<GenderOption>('both');
   const [ratingDistribution, setRatingDistribution] = useState<RatingOption>('mixed');
   const [generatedReviews, setGeneratedReviews] = useState<GeneratedReview[]>([]);
@@ -70,7 +70,7 @@ export function GenerateReviewsDialog({ trigger }: GenerateReviewsDialogProps) {
 
   const resetDialog = () => {
     setProductId('');
-    setQuantity('10');
+    setQuantity(15);
     setGender('both');
     setRatingDistribution('mixed');
     setGeneratedReviews([]);
@@ -94,7 +94,7 @@ export function GenerateReviewsDialog({ trigger }: GenerateReviewsDialogProps) {
             price: selectedProduct.price,
             sku: selectedProduct.sku,
           },
-          quantity: parseInt(quantity),
+          quantity: Math.min(Math.max(quantity, 1), 100),
           gender,
           ratingDistribution,
         },
@@ -202,22 +202,26 @@ export function GenerateReviewsDialog({ trigger }: GenerateReviewsDialogProps) {
             </div>
 
             {/* Quantity Selection */}
-            <div className="space-y-3">
-              <Label>Quantidade de avaliações</Label>
-              <RadioGroup value={quantity} onValueChange={(v) => setQuantity(v as QuantityOption)} className="flex gap-4">
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="10" id="q10" />
-                  <Label htmlFor="q10" className="font-normal cursor-pointer">10 avaliações</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="30" id="q30" />
-                  <Label htmlFor="q30" className="font-normal cursor-pointer">30 avaliações</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="50" id="q50" />
-                  <Label htmlFor="q50" className="font-normal cursor-pointer">50 avaliações</Label>
-                </div>
-              </RadioGroup>
+            <div className="space-y-2">
+              <Label>Quantidade de avaliações (1 a 100)</Label>
+              <Input
+                type="number"
+                min={1}
+                max={100}
+                value={quantity}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value);
+                  if (!isNaN(val)) {
+                    setQuantity(Math.min(Math.max(val, 1), 100));
+                  } else if (e.target.value === '') {
+                    setQuantity(1);
+                  }
+                }}
+                className="w-32"
+              />
+              <p className="text-xs text-muted-foreground">
+                Máximo de 100 avaliações por vez
+              </p>
             </div>
 
             {/* Gender Selection */}
@@ -268,7 +272,7 @@ export function GenerateReviewsDialog({ trigger }: GenerateReviewsDialogProps) {
               </Button>
               <Button
                 onClick={() => generateMutation.mutate()}
-                disabled={!productId || generateMutation.isPending}
+                disabled={!productId || generateMutation.isPending || quantity < 1 || quantity > 100}
               >
                 <Sparkles className="h-4 w-4 mr-2" />
                 Gerar Avaliações
