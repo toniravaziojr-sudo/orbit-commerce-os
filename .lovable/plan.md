@@ -1,81 +1,204 @@
 
-# Plano de Correção — 4 Problemas nas AI Landing Pages
 
-## Problema 1: Header "Categoria em Destaque" bugada
+# Plano: Eliminação de Erros Silenciosos no Comando Central
 
-**Análise:** No screenshot, o badge de "Featured Promos" (lado esquerdo da barra de navegação secundária) aparece como um retângulo vermelho cortado/sem texto legível. O componente `StorefrontHeaderContent.tsx` renderiza o badge usando `featuredPromosBgColor` e `featuredPromosTextColor`, mas dentro do contexto de AI LP (que está FORA do `TenantStorefrontLayout`), as container queries CSS (`sf-header-desktop` / `sf-header-mobile`) podem não estar inicializadas corretamente.
+## Contexto
 
-**Correção:**
-- Investigar se o CSS de container queries do header está disponível no contexto da AI LP (o `StorefrontThemeInjector` injeta essas regras? Ou dependem do layout global?)
-- Garantir que a barra secundária com featured promos tenha `overflow: visible` e dimensões adequadas
-- Se necessário, injetar o CSS de container queries no wrapper da AI LP
+O sistema possui ~90 hooks e ~60 páginas no admin. A auditoria revelou:
 
----
+- **14 arquivos** com `catch {}` vazio (erros 100% silenciosos)
+- **79 hooks** com `console.error()` — maioria JÁ tem `toast.error()` associado (bom), mas ~15-20 instâncias logam no console sem notificar o usuário
+- **0 ErrorBoundary** no admin (apenas no Builder/Storefront)
+- **0 páginas** com tratamento de estado de erro em queries (`isError` não usado em nenhuma página)
+- Nenhum padrão global de "contate o suporte" para erros técnicos
 
-## Problema 2: Footer não responsivo + Toggle não funciona
+## Estratégia
 
-**Análise (responsividade):** O `StorefrontFooter` usa container queries (`.sf-footer-mobile` / `.sf-footer-desktop` com breakpoint 768px). Dentro da AI LP, o footer é renderizado fora do iframe, como React component. Se o container pai não tem `container-type: inline-size`, as container queries não funcionam e o footer fica sempre no layout mobile (empilhado verticalmente).
+Criar um sistema de 3 camadas:
 
-**Correção (responsividade):**
-- No `StorefrontAILandingPage.tsx`, envolver o `<StorefrontFooter />` (e `<StorefrontHeader />`) em um container com `container-type: inline-size` para que as container queries funcionem corretamente
-
-**Análise (toggle):** O DB confirma `show_footer: false`, mas o usuário reporta que o footer continua aparecendo. A mutação de save funciona (linha 244 do editor), mas o problema pode ser:
-1. O `staleTime: 5 minutos` na query pública causa cache
-2. O usuário precisa hard-refresh a página publicada
-3. Possível issue: o componente `StorefrontAILandingPage` lê da query que pode estar cacheada no browser
-
-**Correção (toggle):**
-- Reduzir `staleTime` da query `ai-landing-page-public` para 30 segundos (ou 0) para garantir freshness
-- Verificar se o `select` da query realmente inclui `show_header, show_footer` (já confirmado que sim)
-- Adicionar `refetchOnWindowFocus: true` na query pública para re-validar ao voltar para a aba
+1. **Camada Global** — ErrorBoundary no admin + interceptor de erros não tratados
+2. **Camada de Hook** — Padronizar todos os hooks para sempre notificar o usuário
+3. **Camada de Página** — Cada página mostra estado de erro quando query falha
 
 ---
 
-## Problema 3: Hero Banner — uso "burro" de imagens
+## Parte 1: ErrorBoundary Global do Admin
 
-**Análise:** O system prompt do `ai-landing-page-generate` SEMPRE instrui hero com `min-height: 90vh` + imagem de fundo com gradient overlay. Isso resulta em um padrão repetitivo e nem sempre adequado.
+**Criar** `src/components/layout/AdminErrorBoundary.tsx`
 
-**Correção no prompt (edge function):**
-- Remover a instrução fixa de `min-height: 90vh` no Hero (esse valor é sanitizado pelo client de qualquer forma)
-- Variar os templates de Hero nos fallback prompts. Dos 5 templates existentes (`dark-authority`, `editorial-clean`, `tech-futurista`, `organico-sensorial`, `urgencia-conversao`):
-  - Apenas `dark-authority` e `urgencia-conversao` usam hero fullscreen com background-image overlay
-  - `editorial-clean` → layout split (texto esquerda, produto direita)
-  - `tech-futurista` → hero com produto centralizado em container
-  - `organico-sensorial` → hero clean com produto em foto lifestyle
-- No system prompt principal, trocar de "Imagem do produto como background com gradient overlay" para oferecer 3 opções de layout de hero, deixando a IA escolher com base no nicho:
-  1. **Split layout**: Texto à esquerda, produto à direita (melhor para produtos com embalagem visível)
-  2. **Background composicional**: Imagem lifestyle/criativa como fundo com overlay (apenas para nichos dark/premium)
-  3. **Hero clean**: Fundo sólido/gradiente com produto flutuante centralizado e copy ao lado
+Um React Error Boundary que envolve todo o admin layout. Quando um erro não tratado ocorre:
+- Mostra tela com mensagem amigável: "Algo deu errado"
+- Botão "Tentar novamente" (reload da página)
+- Botão "Contatar suporte" (link para /support ou WhatsApp)
+- Loga o erro no console para debug
+
+**Alterar** `src/App.tsx` ou layout principal para envolver rotas admin com `<AdminErrorBoundary>`.
 
 ---
 
-## Problema 4: Logo não se adapta ao design da página
+## Parte 2: Componente Reutilizável de Erro
 
-**Análise:** No screenshot do comparativo (imagem 183), a logo aparece minúscula dentro de um container branco, quase ilegível. O prompt instrui `max-width: 160px` fixo e container branco obrigatório. Para logos com fundo transparente sobre temas dark, isso funciona, mas o tamanho é muito pequeno para tabelas comparativas.
+**Criar** `src/components/ui/query-error-state.tsx`
 
-**Correção no prompt:**
-- Aumentar `max-width` da logo para `200px` no prompt
-- Instruir que em tabelas comparativas, a logo deve ocupar pelo menos `180px` de largura
-- Adicionar regra: "Se o fundo da LP é escuro e a logo tem fundo transparente com texto claro, NÃO precisa de container branco — use a logo diretamente"
-- Adicionar regra: "Se a logo tem texto escuro em fundo transparente E a LP é dark, use o container branco mas com `min-width: 180px` para garantir legibilidade"
+Componente padrão para estados de erro em queries:
+
+```text
+┌─────────────────────────────────┐
+│  ⚠ Erro ao carregar [módulo]   │
+│                                 │
+│  Não foi possível carregar os   │
+│  dados. Tente novamente.        │
+│                                 │
+│  [Tentar novamente]             │
+│                                 │
+│  Se o problema persistir,       │
+│  entre em contato com o suporte │
+└─────────────────────────────────┘
+```
+
+Props: `title`, `message`, `onRetry`, `showSupportLink`.
 
 ---
 
-## Resumo de Arquivos Afetados
+## Parte 3: Utilitário de Toast para Erros
 
-| Arquivo | Alteração |
+**Criar** `src/lib/error-toast.ts`
+
+Função centralizada para categorizar e exibir erros:
+
+- **Erro de ação do usuário** (ex: campo obrigatório, duplicata) → Toast com instrução clara do que fazer
+- **Erro técnico** (ex: falha de rede, 500, timeout) → Toast com "Erro interno. Se persistir, contate o suporte."
+- **Erro de permissão** (ex: 403, RLS) → Toast com "Você não tem permissão para esta ação."
+
+---
+
+## Parte 4: Hooks — Auditoria e Correção (20+ hooks)
+
+Hooks que logam erro no console SEM notificar o usuário:
+
+| Hook | Problema |
+|------|----------|
+| `useBuilderData.ts` | `console.error` + `throw` sem toast |
+| `useSubscriptionStatus.ts` | `console.error` + `throw` sem toast |
+| `useThemeSettings.ts` (migrateLegacy) | `console.error` + return null silencioso |
+| `useFiles.ts` (getFileUrl, getSignedUrl) | `console.error` + return null silencioso |
+| `useDashboardMetrics.ts` | Queries sem onError |
+| `useNotificationLogs.ts` | Query sem onError |
+| `useFinanceEntries.ts` | Query sem onError |
+| `usePurchases.ts` | Query sem onError |
+| `useEmailMarketing.ts` | Query sem onError |
+| `useReports.ts` | Query sem onError |
+| `useIntegrationConfig.ts` | Fetch silencioso |
+| `useMediaLibrary.ts` | Upload errors parcialmente silenciosos |
+| `useAdsChat.ts` | `.catch(() => ({}))` silencioso |
+| `useStoreSettings.ts` | Queries sem feedback de erro |
+| `useHealthChecks.ts` | Erro de fetch silencioso |
+
+**Ação**: Adicionar `toast.error()` com mensagem clara em cada `catch`/`onError` que hoje é silencioso. Usar o utilitário `error-toast.ts` para categorizar.
+
+---
+
+## Parte 5: Páginas — Estado de Erro Visual (40+ páginas)
+
+Nenhuma página do admin mostra estado de erro quando uma query falha. Todas ignoram `isError` retornado pelo React Query.
+
+**Páginas prioritárias** (alto impacto):
+
+| Página | Query afetada |
+|--------|---------------|
+| `Orders.tsx` | `useOrders` |
+| `Products.tsx` | `useProducts` |
+| `Customers.tsx` | `useCustomers` |
+| `Dashboard.tsx` | `useDashboardMetrics` |
+| `Categories.tsx` | `useProducts` |
+| `Discounts.tsx` | `useDiscounts` |
+| `Finance.tsx` | `useFinanceEntries` |
+| `Fiscal.tsx` | `useFiscal` |
+| `Shipping.tsx` | `useShippingRules` |
+| `EmailMarketing.tsx` | `useEmailMarketing` |
+| `Notifications.tsx` | `useNotificationRules` |
+| `Media.tsx` | `useMediaLibrary` |
+| `Integrations.tsx` | Multiple |
+| `Offers.tsx` | `useOfferRules` |
+| `Reviews.tsx` | Reviews query |
+| `Affiliates.tsx` | `useAffiliates` |
+| `Blog.tsx` | Blog queries |
+| `LandingPages.tsx` | LP queries |
+| `Campaigns.tsx` | Campaign queries |
+| `Support.tsx` | Tickets query |
+| `Reports.tsx` | `useReports` |
+| `Purchases.tsx` | `usePurchases` |
+| `Shipments.tsx` | `useShipments` |
+| `CommandCenter.tsx` | Agenda queries |
+| `AdsManager.tsx` | Ads queries |
+| `Import.tsx` | Import queries |
+| `Files.tsx` | `useFiles` |
+| `Pages.tsx` | `useStorePages` |
+| `Menus.tsx` | `useMenus` |
+| `Payments.tsx` | `usePaymentProviders` |
+| `Settings.tsx` | Config queries |
+| `Domains.tsx` | Domain queries |
+
+**Ação em cada página**: Extrair `isError` e `refetch` das queries e renderizar `<QueryErrorState>` quando `isError === true`.
+
+---
+
+## Parte 6: Catches Vazios — Correção Pontual
+
+| Arquivo | Linha | Ação |
+|---------|-------|------|
+| `CommandChatInput.tsx` | 85, 215 | OK — localStorage fallback, aceitável |
+| `AppSidebar.tsx` | 251 | OK — localStorage fallback |
+| `AdminModeContext.tsx` | 41, 51 | OK — localStorage fallback |
+| `AdsManager.tsx` | 134, 144 | Adicionar `toast.error('Erro ao sincronizar')` |
+| `EmailProviderSettings.tsx` | 153 | OK — já tem toast logo abaixo |
+| `checkoutSession.ts` | 249 | OK — fire-and-forget intencional |
+
+---
+
+## Parte 7: Edge Functions e IAs
+
+Todas as IAs (Auxiliar de Comando, Gerador de LP, Criativos, Ads Chat) já retornam erros via streaming ou response body. O problema é no **client-side**:
+
+- `useCommandAssistant.ts` — Já tem error handling adequado
+- `useAdsChat.ts` — Catch genérico, melhorar mensagem
+- `useCreatives.ts` — Já tem toast.error
+- Landing Page generate — Já tem toast.error
+
+**Ação**: Auditar mensagens de erro das IAs para garantir que são claras e orientam o usuário.
+
+---
+
+## Ordem de Implementação
+
+1. Criar `AdminErrorBoundary` + `QueryErrorState` + `error-toast.ts` (infraestrutura)
+2. Corrigir hooks silenciosos (Parte 4)
+3. Adicionar estados de erro nas páginas principais (Parte 5 — top 15 páginas primeiro)
+4. Corrigir catches vazios restantes (Parte 6)
+5. Refinar mensagens de erro das IAs (Parte 7)
+6. Páginas secundárias restantes
+
+---
+
+## Arquivos Novos
+
+| Arquivo | Descrição |
 |---------|-----------|
-| `src/pages/storefront/StorefrontAILandingPage.tsx` | Container com `container-type: inline-size` para header/footer; reduzir `staleTime` |
-| `supabase/functions/ai-landing-page-generate/index.ts` | Prompt: variar hero layouts, melhorar regras de logo, remover min-height 90vh fixo |
-| `supabase/functions/_shared/marketing/fallback-prompts.ts` | Atualizar templates para diversificar heroes |
-| `docs/regras/paginas-institucionais.md` | Documentar correção do scroll + novos padrões de hero |
+| `src/components/layout/AdminErrorBoundary.tsx` | ErrorBoundary global do admin |
+| `src/components/ui/query-error-state.tsx` | Componente reutilizável de estado de erro |
+| `src/lib/error-toast.ts` | Utilitário centralizado de toast de erro |
+
+## Arquivos Editados
+
+~55 arquivos entre hooks e páginas (listados acima).
 
 ---
 
-## Documentação Necessária
+## Documentação
 
-Atualizar `docs/regras/paginas-institucionais.md`:
-- Registrar fix v3.8.2 do scroll (sanitizeAILandingPageHtml)
-- Registrar container queries fix para header/footer em AI LPs
-- Registrar diversificação de hero layouts (v3.9.0)
-- Registrar novas regras de logo adaptativa
+Atualizar `docs/regras/regras-gerais.md`:
+- Adicionar seção "Padrão de Tratamento de Erros v1.0"
+- Registrar componentes e utilitários criados
+- Definir regra: "Nenhum `console.error` sem `toast` correspondente"
+- Definir regra: "Toda página com query deve tratar `isError`"
+
