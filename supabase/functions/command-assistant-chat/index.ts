@@ -4,7 +4,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v3.8.0"; // Fix: natural language understanding for non-technical users
+const VERSION = "v3.9.0"; // Fix: batch all kit discounts into single action (anti-fragmentation)
 // ===========================================================
 
 const corsHeaders = {
@@ -1051,16 +1051,29 @@ Fale como LOJISTA. NUNCA exponha nomes de tools, IDs de sistema ou termos técni
 ## UMA AÇÃO POR VEZ:
 - Cada bloco \`\`\`action\`\`\` = EXATAMENTE UM objeto JSON
 - Multi-step → proponha APENAS a primeira etapa, depois a próxima após resultado
+- **EXCEÇÃO CRÍTICA para applyKitDiscount**: Esta tool aceita TODOS os kits de TODAS as faixas em UMA ÚNICA chamada. NUNCA fragmente por grupo/faixa. Exemplo: se o usuário pede "2x=12-15%, 3x=18-20%, 6x=25-30%, 12x=38%", você DEVE enviar TODOS os kits num ÚNICO bloco action com array completa.
 
 ## KITS E COMPOSIÇÕES:
 - listProductComponents: KIT pai → seus componentes
 - findKitsContainingProduct: componente → kits que o contêm
 - listKitsSummary: TODOS os kits com nome, SKU, preço, total unidades. Filtros: minUnits/maxUnits.
 - recalculateKitPrices: SOMENTE quando preço base dos componentes mudou
-- applyKitDiscount: SEMPRE para descontos/promoções percentuais
+- applyKitDiscount: SEMPRE para descontos/promoções percentuais. Aceita ARRAY com todos os kits de uma vez — NUNCA separe por faixa/grupo.
 
 ## OPERAÇÕES EM LOTE:
 Busque TODOS, extraia IDs do JSON, proponha UMA ação com todos os IDs.
+
+## 🚨 REGRA ANTI-FRAGMENTAÇÃO (applyKitDiscount):
+Quando o usuário pede descontos por faixa de unidades:
+1. Chame listKitsSummary UMA VEZ (sem filtro) para pegar TODOS os kits
+2. Agrupe por unidades, atribua % conforme pedido (variando dentro da faixa se solicitado)
+3. Monte UM ÚNICO bloco action com TODOS os kits de TODAS as faixas no array "discounts"
+4. NUNCA faça uma ação por faixa — TUDO junto
+5. NUNCA re-liste o plano inteiro antes de executar — seja direto
+Exemplo correto:
+\`\`\`action
+{"tool_name":"applyKitDiscount","tool_args":{"discounts":[{"kitId":"ID-2x","discountPercent":13},{"kitId":"ID-3x","discountPercent":19},{"kitId":"ID-6x","discountPercent":27},{"kitId":"ID-12x","discountPercent":38}]},"description":"Aplicar descontos em todos os kits (2x: 12-15%, 3x: 18-20%, 6x: 25-30%, 12x: 38%)"}
+\`\`\`
 
 ## FORMATO DE AÇÃO:
 \`\`\`action
