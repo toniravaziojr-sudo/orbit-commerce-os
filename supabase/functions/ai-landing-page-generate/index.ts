@@ -9,7 +9,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
-const VERSION = "3.2.0"; // Image discipline + logo fixes + HTML cleanup
+const VERSION = "3.3.0"; // Drive access for tenant media assets
 
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
@@ -293,6 +293,51 @@ serve(async (req) => {
         return `- ${parts.join(" | ")}`;
       }).join("\n");
       console.log(`[AI-LP-Generate] Found ${creatives.length} creative assets for tone context`);
+    }
+
+    // ===== DRIVE: Fetch tenant media assets from Drive =====
+    let driveAssetsInfo = "";
+    try {
+      const { data: driveFiles } = await supabase
+        .from("files")
+        .select("filename, original_name, storage_path, mime_type, metadata")
+        .eq("tenant_id", tenantId)
+        .eq("is_folder", false)
+        .like("mime_type", "image/%")
+        .not("storage_path", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(30);
+
+      if (driveFiles && driveFiles.length > 0) {
+        // Only include files from public buckets (store-assets, media-assets)
+        const publicAssets = driveFiles.filter(f => {
+          const path = f.storage_path || "";
+          const meta = f.metadata as Record<string, any> | null;
+          const bucket = meta?.bucket || "";
+          // Files in store-assets or media-assets are public
+          return bucket === "store-assets" || bucket === "media-assets" || 
+                 path.startsWith("tenants/");
+        });
+
+        if (publicAssets.length > 0) {
+          const assetUrls = publicAssets.map(f => {
+            const meta = f.metadata as Record<string, any> | null;
+            // Use the URL from metadata if available, otherwise construct it
+            if (meta?.url) return { name: f.original_name || f.filename, url: meta.url };
+            
+            const bucket = meta?.bucket || "store-assets";
+            const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(f.storage_path!);
+            return { name: f.original_name || f.filename, url: urlData?.publicUrl || "" };
+          }).filter(a => a.url);
+
+          if (assetUrls.length > 0) {
+            driveAssetsInfo = assetUrls.map((a, i) => `  ${i + 1}. ${a.name}: ${a.url}`).join("\n");
+            console.log(`[AI-LP-Generate] Found ${assetUrls.length} Drive assets for context`);
+          }
+        }
+      }
+    } catch (driveErr) {
+      console.warn("[AI-LP-Generate] Drive fetch error (non-blocking):", driveErr);
     }
 
     // Fetch products if provided - include ALL relevant fields!
@@ -708,6 +753,12 @@ As imagens de catálogo NÃO devem ser usadas no corpo da página, apenas em gri
 
 \${creativesInfo ? \`## REFERÊNCIAS DE MARKETING (TOM, ESTILO E HEADLINES DO NEGÓCIO):\\n\${creativesInfo}\\n\\n> Use estas referências para alinhar o tom de voz, estilo de copywriting e abordagem da landing page com o que o negócio já usa em suas campanhas.\` : ""}
 
+\${driveAssetsInfo ? \`## 📁 IMAGENS DO DRIVE DO LOJISTA (ASSETS ADICIONAIS DISPONÍVEIS)
+O lojista possui estas imagens no Drive que podem ser usadas como recursos visuais complementares na landing page (ex: banners, lifestyle, ambientação, ícones customizados):
+\${driveAssetsInfo}
+
+> Use estas imagens quando fizerem sentido para enriquecer visualmente a página (ex: fotos de lifestyle, banners, texturas). **NÃO substitua** as imagens de produto do catálogo por estas. Elas são complementares.\` : ""}
+
 \${referenceUrl ? \`## URL DE REFERÊNCIA (APENAS INSPIRAÇÃO VISUAL/ESTRUTURAL!):\\n\${referenceUrl}\\n⚠️ COPIE APENAS O LAYOUT E ESTILO! USE OS DADOS DOS PRODUTOS ACIMA!\` : ""}
 
 \${currentHtml ? \`## HTML ATUAL (para ajustes):\\n\${currentHtml}\` : ""}
@@ -814,6 +865,7 @@ O usuário anexou imagens/vídeos no prompt abaixo. As URLs estão marcadas como
           product_count: productIds?.length || 0,
           reviews_count: reviewsInfo ? reviewsInfo.split("\n").length : 0,
           creatives_count: creativesInfo ? creativesInfo.split("\n").length : 0,
+          drive_assets_count: driveAssetsInfo ? driveAssetsInfo.split("\n").length : 0,
         },
       });
 
