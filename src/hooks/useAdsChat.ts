@@ -236,6 +236,9 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
           (old) => (old || []).filter(m => m.id !== optimisticMsg.id)
         );
       }
+      // Notify user about the error
+      const { toast } = await import("sonner");
+      toast.error("Erro ao enviar mensagem. Tente novamente.");
       throw err;
     } finally {
       setIsStreaming(false);

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
+import { QueryErrorState } from '@/components/ui/query-error-state';
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -53,12 +54,21 @@ const typeIcons = {
 type StatusFilter = "all" | "active" | "scheduled" | "expired";
 
 export default function Discounts() {
-  const { discounts, isLoading, deleteDiscount, toggleDiscount, duplicateDiscount } = useDiscounts();
+  const { discounts, isLoading, error, deleteDiscount, toggleDiscount, duplicateDiscount } = useDiscounts();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingDiscount, setEditingDiscount] = useState<Discount | null>(null);
   const [deletingDiscount, setDeletingDiscount] = useState<Discount | null>(null);
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Descontos" description="Gerencie cupons e descontos da sua loja" />
+        <QueryErrorState title="Erro ao carregar descontos" onRetry={() => window.location.reload()} />
+      </div>
+    );
+  }
 
   const filteredDiscounts = discounts.filter((discount) => {
     const status = getDiscountStatus(discount);

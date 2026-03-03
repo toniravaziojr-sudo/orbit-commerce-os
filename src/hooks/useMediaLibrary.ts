@@ -118,7 +118,7 @@ export function useMediaLibrary(variantOrOptions?: MediaVariant | UseMediaLibrar
 
       if (error) {
         console.error('Error fetching files for media library:', error);
-        return [];
+        throw error;
       }
 
       // Filter to only files within system folder tree

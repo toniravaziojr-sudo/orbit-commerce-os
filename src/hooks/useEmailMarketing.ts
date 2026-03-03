@@ -142,6 +142,9 @@ export function useEmailMarketing() {
       queryClient.invalidateQueries({ queryKey: ["email-marketing-subscribers"] });
       toast.success("Lista criada - subscribers sincronizados automaticamente!");
     },
+    onError: (error: Error) => {
+      toast.error(`Erro ao criar lista: ${error.message}`);
+    },
   });
 
   const createTemplate = useMutation({
@@ -152,6 +155,9 @@ export function useEmailMarketing() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["email-marketing-templates"] });
       toast.success("Template criado");
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao criar template: ${error.message}`);
     },
   });
 
@@ -164,6 +170,9 @@ export function useEmailMarketing() {
       queryClient.invalidateQueries({ queryKey: ["email-marketing-campaigns"] });
       toast.success("Campanha criada");
     },
+    onError: (error: Error) => {
+      toast.error(`Erro ao criar campanha: ${error.message}`);
+    },
   });
 
   const createForm = useMutation({
@@ -174,6 +183,9 @@ export function useEmailMarketing() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["email-marketing-forms"] });
       toast.success("Formulário criado");
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao criar formulário: ${error.message}`);
     },
   });
 

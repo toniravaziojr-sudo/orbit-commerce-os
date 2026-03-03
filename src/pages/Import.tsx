@@ -8,12 +8,22 @@ import { GuidedImportWizard } from '@/components/import/GuidedImportWizard';
 import { ClearDataDialog } from '@/components/import/ClearDataDialog';
 import { useImportJobs } from '@/hooks/useImportJobs';
 import { Upload, CheckCircle, XCircle, Clock, Loader2, Trash2, Globe } from 'lucide-react';
+import { QueryErrorState } from '@/components/ui/query-error-state';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export default function Import() {
   const [wizardOpen, setWizardOpen] = useState(false);
-  const { jobs, isLoading, deleteJob, clearTenantData } = useImportJobs();
+  const { jobs, isLoading, error, deleteJob, clearTenantData } = useImportJobs();
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Importar Dados" description="Migre seus dados de outras plataformas de e-commerce" />
+        <QueryErrorState title="Erro ao carregar importações" onRetry={() => window.location.reload()} />
+      </div>
+    );
+  }
 
   const getStatusIcon = (status: string) => {
     switch (status) {
