@@ -295,8 +295,9 @@ O prompt inclui regras explícitas para **nunca alterar visualmente** a logo do 
 | Regra | Descrição |
 |-------|-----------|
 | **Sem filtros CSS** | Proibido `opacity`, `brightness`, `grayscale`, `invert`, `mix-blend-mode`, `backdrop-filter` na logo |
-| **Render simples** | Logo via `<img>` com `style="display:block; max-width:160px; height:auto;"` sem outros estilos |
-| **Container em tabelas** | Em comparativos: `<div style="background:#fff; padding:12px 16px; border-radius:8px;">` |
+| **Render simples** | Logo via `<img>` com `style="display:block; max-width:200px; height:auto;"` sem outros estilos |
+| **Container adaptativo** | Em comparativos: `min-width:180px`, container branco APENAS se logo tem elementos escuros sobre fundo dark |
+| **Fundo adaptativo** | Se LP dark + logo clara transparente → sem container. Se LP dark + logo escura transparente → container branco |
 | **Teste mental** | Se as cores originais não são visíveis, a regra foi violada |
 
 ### Disciplina de Imagens (v3.2.0)
@@ -436,3 +437,30 @@ REGRAS:
 | Mencionar técnica PAS | Ativa copy persuasivo no motor v3.0.0 |
 | Pedir imagens reais | Evita URLs fictícias ou imagens de catálogo |
 | Listar seções na ordem | Garante estrutura comercial otimizada |
+
+---
+
+## Changelog de Correções
+
+### v3.8.2 — Sanitização de Scroll e Visibilidade
+
+**Arquivo:** `src/lib/sanitizeAILandingPageHtml.ts`
+
+| Correção | Descrição |
+|----------|-----------|
+| `min-height: XXvh → auto` | Remove `min-height` baseado em `vh` que causava scroll infinito no iframe auto-resize |
+| `height: >=50vh → auto` | Remove `height` grande baseado em `vh` (preserva valores pequenos como `2vh`) |
+| `animation-fill-mode: both/forwards` | Remove fill-mode que causava `opacity:0` stuck (tela preta) |
+| `animation-delay` | Remove delays que mantinham elementos invisíveis |
+
+### v3.9.0 — Container Queries, Hero Diversificado, Logo Adaptativa
+
+**Arquivos:** `StorefrontAILandingPage.tsx`, `ai-landing-page-generate/index.ts`, `fallback-prompts.ts`
+
+| Correção | Descrição |
+|----------|-----------|
+| Container queries fix | Header/Footer em AI LPs agora envoltos em `<div style="containerType: inline-size">` para container queries funcionarem |
+| staleTime reduzido | Query pública de AI LP agora usa `staleTime: 30s` + `refetchOnWindowFocus: true` para toggle show_header/show_footer refletir rápido |
+| Hero diversificado | 3 layouts de hero (Split, Clean, Background) — IA escolhe baseado no nicho. Apenas `dark-authority` e `urgencia-conversao` usam background composicional |
+| Logo adaptativa | `max-width` aumentado para `200px`, `min-width: 180px` em comparativos, container branco condicional baseado no contraste fundo/logo |
+| Removido `min-height: 90vh` | Instrução fixa removida do prompt principal e fallback prompts |

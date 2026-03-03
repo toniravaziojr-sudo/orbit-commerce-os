@@ -316,7 +316,8 @@ export default function StorefrontAILandingPage() {
       return page as AILandingPageData | null;
     },
     enabled: !!tenantInfo?.tenantId && !!lpSlug,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 30, // 30 seconds — ensures show_header/show_footer toggle reflects quickly
+    refetchOnWindowFocus: true,
   });
 
   // Auto-resize iframe based on content height (hooks must be before conditionals)
@@ -391,7 +392,11 @@ export default function StorefrontAILandingPage() {
             <StorefrontConfigProvider tenantId={tenantInfo.tenantId}>
               <StorefrontThemeInjector tenantSlug={resolvedTenantSlug} />
               <div className="w-full min-h-screen" style={{ margin: 0, padding: 0 }}>
-                {shouldShowHeader && <StorefrontHeader />}
+                {shouldShowHeader && (
+                  <div style={{ containerType: 'inline-size' }}>
+                    <StorefrontHeader />
+                  </div>
+                )}
                 <iframe
                   ref={iframeRef}
                   srcDoc={fullHtml}
@@ -400,7 +405,11 @@ export default function StorefrontAILandingPage() {
                   title={landingPage.name}
                   scrolling="no"
                 />
-                {shouldShowFooter && <StorefrontFooter />}
+                {shouldShowFooter && (
+                  <div style={{ containerType: 'inline-size' }}>
+                    <StorefrontFooter />
+                  </div>
+                )}
               </div>
             </StorefrontConfigProvider>
           </DiscountProvider>

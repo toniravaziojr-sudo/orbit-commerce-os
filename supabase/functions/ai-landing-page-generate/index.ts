@@ -640,31 +640,46 @@ ${themeColors.priceColor ? `Cor do preço: **${themeColors.priceColor}**` : ""}
 
 ## 🎯 PILAR 3 — COMPOSIÇÃO VISUAL DE PRODUTO
 
-### Tratamento de Imagens (OBRIGATÓRIO):
-- **Hero**: Imagem principal do produto como background com gradient overlay (30-60% opacidade) + texto sobreposto. OU: layout split (texto à esquerda, produto à direita com sombra flutuante)
-- **Mockup contextual**: CSS transform (rotateY 5-10deg, perspective 1000px) + box-shadow dramática para efeito 3D sutil
-- **Galeria**: Grid assimétrico (1 imagem grande 60% + 2 pequenas 40% empilhadas) em vez de grid uniforme
-- **Tratamento visual**: border sutil (2px) na cor primária, glow effect (box-shadow com cor primária em 20% opacidade), badges sobrepostos ("Mais Vendido", "-30%")
+### Layout do HERO — Escolha UM dos 3 layouts abaixo (o mais adequado ao nicho/produto):
 
-### Background Composicional:
+**OPÇÃO A — SPLIT LAYOUT** (recomendado para produtos com embalagem visível, cosméticos, alimentos):
+- Texto (headline PAS + CTA) na ESQUERDA (50%)
+- Produto flutuante na DIREITA (50%) com box-shadow dramática e sutil rotação CSS
+- Fundo: cor sólida escura ou gradiente sutil da paleta da marca
+- NÃO usar imagem de fundo no hero
+
+**OPÇÃO B — HERO CLEAN** (recomendado para tech, gadgets, moda):
+- Fundo sólido ou gradiente da marca (sem imagem de background)
+- Produto centralizado com destaque visual (glow, sombra, 3D transform)
+- Headline + copy ACIMA ou AO LADO do produto
+- Trust bar logo abaixo
+
+**OPÇÃO C — BACKGROUND COMPOSICIONAL** (APENAS para nichos dark/premium, suplementos masculinos, lifestyle aspiracional):
+- Imagem lifestyle/criativa como background com gradient overlay (30-60% opacidade)
+- Texto sobreposto com boa legibilidade
+- Use APENAS imagens criativas geradas ou imagens de lifestyle do Drive — NUNCA fotos de catálogo como background
 \`\`\`css
 .hero {
-  background: linear-gradient(135deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 50%, transparent 100%), url('IMAGEM_PRODUTO');
+  background: linear-gradient(135deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 50%, transparent 100%), url('IMAGEM_LIFESTYLE');
   background-size: cover;
   background-position: center;
-  min-height: 90vh;
   display: flex;
   align-items: center;
 }
 \`\`\`
 
+### Tratamento de Imagens (OBRIGATÓRIO):
+- **Mockup contextual**: CSS transform (rotateY 5-10deg, perspective 1000px) + box-shadow dramática para efeito 3D sutil
+- **Galeria**: Grid assimétrico (1 imagem grande 60% + 2 pequenas 40% empilhadas) em vez de grid uniforme
+- **Tratamento visual**: border sutil (2px) na cor primária, glow effect (box-shadow com cor primária em 20% opacidade), badges sobrepostos ("Mais Vendido", "-30%")
+
 ## 🎯 PILAR 4 — ESTRUTURA COMERCIAL DE ALTA CONVERSÃO
 
 Gere as seções EXATAMENTE nesta ordem (adapte o conteúdo ao produto):
 
-1. **🔥 HERO DE IMPACTO** (min-height: 90vh)
+1. **🔥 HERO DE IMPACTO**
    - Headline PAS + sub-headline emocional
-   - Imagem do produto em composição (background ou split layout)
+   - Use o layout de hero mais adequado ao nicho (Split, Clean ou Background — veja Pilar 3)
    - CTA primário grande + trust indicators inline (🛡️ Garantia | 🚚 Frete Grátis | ⭐ 4.9/5)
 
 2. **📊 BARRA DE CONFIANÇA** (background levemente destacado)
@@ -788,10 +803,14 @@ a { text-decoration: none; color: inherit; }
 - **NUNCA** invente nomes de produto. Se o produto se chama "Shampoo Calvície Zero", use "Shampoo Calvície Zero" — NÃO invente "Folixil", "CapilMax", "HairRevive" ou qualquer outro nome de fantasia.
 - O nome da marca/loja é "${storeSettings?.store_name || "Loja"}". USE EXATAMENTE ESTE NOME.
 
-### LOGO DA LOJA
+### LOGO DA LOJA — REGRAS DE ADAPTAÇÃO INTELIGENTE
 - Se a logo for usada na página (ex: tabela comparativa, seção de marca), **NÃO APLIQUE NENHUM FILTRO CSS** — nada de opacity, filter:brightness, filter:grayscale, filter:invert, mix-blend-mode, backdrop-filter ou qualquer efeito visual
-- A logo DEVE ser renderizada com \`<img src="URL" style="display:block; max-width:160px; height:auto;">\` sem NENHUM outro estilo que altere sua aparência
-- Em tabelas comparativas: coloque a logo dentro de um \`<div style="background:#fff; padding:12px 16px; border-radius:8px; display:inline-block;">\`
+- A logo DEVE ser renderizada com \`<img src="URL" style="display:block; max-width:200px; height:auto;">\` sem NENHUM outro estilo que altere sua aparência
+- **Em tabelas comparativas**: a logo deve ocupar pelo menos 180px de largura para garantir legibilidade. Use: \`<div style="background:#fff; padding:16px 20px; border-radius:8px; display:inline-block; min-width:180px; text-align:center;">\`
+- **REGRA DE FUNDO ADAPTATIVO**:
+  - Se a LP tem fundo ESCURO e a logo tem fundo transparente com elementos CLAROS → use a logo DIRETAMENTE sem container branco
+  - Se a LP tem fundo ESCURO e a logo tem texto/elementos ESCUROS em fundo transparente → use o container branco com min-width:180px
+  - Se a LP tem fundo CLARO → use a logo diretamente sem container branco
 - **TESTE MENTAL**: Se a logo original tem vermelho, verde e preto, ela DEVE aparecer com vermelho, verde e preto na LP. Se aparece acinzentada, você violou esta regra.
 
 ### IMAGENS DOS PRODUTOS — DISCIPLINA DE USO

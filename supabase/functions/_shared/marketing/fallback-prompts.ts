@@ -33,7 +33,7 @@ DIREÇÃO CRIATIVA:
 - Imagens: produto como protagonista absoluto com iluminação dramática de estúdio (rim light)
 
 ESTRUTURA PERSUASIVA:
-1. HERO de impacto (min-height: 90vh) — headline atacando a DOR principal do público-alvo, sub-headline com promessa de transformação, CTA dourado pulsante, trust bar com selos de segurança
+1. HERO de impacto — headline atacando a DOR principal do público-alvo, sub-headline com promessa de transformação, CTA dourado pulsante, trust bar com selos de segurança. **LAYOUT: Background composicional** (imagem lifestyle/criativa como fundo com gradient overlay escuro — este nicho PEDE visual dark imersivo)
 2. BARRA DE CREDIBILIDADE — "Dermatologicamente testado", "Fórmula patenteada", "Aprovado pela ANVISA" (ou equivalentes reais do produto)
 3. PROBLEMA → SOLUÇÃO (layout split) — lado esquerdo com dores (ícones ❌ vermelhos), lado direito com benefícios (ícones ✅ verdes)
 4. PRODUTO EM DESTAQUE — foto grande com efeito 3D sutil + lista de ingredientes/benefícios em cards elegantes + preço com âncora (de/por)
@@ -64,7 +64,7 @@ DIREÇÃO CRIATIVA:
 - Imagens: produto em composição editorial com muito espaço negativo, sombras suaves e luz natural
 
 ESTRUTURA PERSUASIVA:
-1. HERO EDITORIAL (min-height: 90vh) — headline serifa curta e impactante que desperta desejo, sub-headline que conta uma micro-história (1 frase), CTA elegante com bordas finas, trust bar minimalista
+1. HERO EDITORIAL — **LAYOUT: Split layout** (texto serifa curta à ESQUERDA que desperta desejo, produto em foto editorial à DIREITA com whitespace generoso). NÃO usar background-image no hero. Sub-headline que conta uma micro-história (1 frase), CTA elegante com bordas finas, trust bar minimalista
 2. STORYTELLING DA MARCA — seção com texto de conexão emocional: "Criado para quem...", "Para os que valorizam...", fotos de lifestyle integradas
 3. TRANSFORMAÇÃO VISUAL — antes/depois sutil (mais focado em estilo de vida do que em "problema"), layout split com imagens grandes
 4. PRODUTO EM DESTAQUE — foto grande com whitespace, detalhes técnicos em tipografia fina e elegante, preço com apresentação sofisticada
@@ -95,7 +95,7 @@ DIREÇÃO CRIATIVA:
 - Imagens: produto com iluminação neon de contorno (glow effect), fundo dark com partículas ou gradientes mesh
 
 ESTRUTURA PERSUASIVA:
-1. HERO FUTURISTA (min-height: 90vh) — headline que promete performance/eficiência, sub-headline com spec principal destacada em badge neon, CTA com gradiente vibrante pulsante, trust bar com ícones de specs
+1. HERO FUTURISTA — **LAYOUT: Hero clean** (fundo dark sólido ou gradiente neon, produto centralizado com glow effect da cor primária). Headline que promete performance/eficiência, sub-headline com spec principal destacada em badge neon, CTA com gradiente vibrante pulsante, trust bar com ícones de specs. NÃO usar imagem de background.
 2. SPECS EM DESTAQUE — 4 cards glassmorphism com stats grandes (números em 48px, gradient text) + ícones neon: Velocidade, Bateria, Resolução, etc.
 3. PROBLEMA → SOLUÇÃO TECH — layout comparativo: "Tecnologia obsoleta" vs "Com [produto]", visual de before/after técnico com specs comparadas
 4. PRODUTO EM DESTAQUE — foto com glow effect da cor primária, specs em grid de 2 colunas, preço em badge tech, CTA
@@ -128,7 +128,7 @@ DIREÇÃO CRIATIVA:
 - Imagens: fotografia de comida/produto com luz natural quente, close-ups sensoriais, steam/vapor se aplicável
 
 ESTRUTURA PERSUASIVA:
-1. HERO SENSORIAL (min-height: 90vh) — headline que desperta DESEJO sensorial ("O sabor que transforma suas manhãs", "Direto do produtor para sua mesa"), imagem grande do produto em contexto de uso, CTA em cor quente, trust bar com selos orgânicos
+1. HERO SENSORIAL — **LAYOUT: Split layout** (headline sensorial à ESQUERDA que desperta DESEJO ("O sabor que transforma suas manhãs", "Direto do produtor para sua mesa"), produto em foto lifestyle à DIREITA com fundo texturizado quente). NÃO usar imagem de background no hero. CTA em cor quente, trust bar com selos orgânicos
 2. HISTÓRIA DE ORIGEM — seção com storytelling do produto: de onde vem, como é feito, tradição por trás, com fotos de lifestyle/produção
 3. BENEFÍCIOS SENSORIAIS — 4 cards com ícones orgânicos: Sabor, Saúde, Origem, Qualidade — descrições que ativam os sentidos
 4. PRODUTO EM DESTAQUE — foto grande com fundo texturizado, informações nutricionais em design clean, ingredientes destacados, preço com apresentação artesanal
@@ -161,7 +161,7 @@ DIREÇÃO CRIATIVA:
 - Animações de atenção: CTAs pulsando, banners de estoque, timer visual
 
 ESTRUTURA PERSUASIVA:
-1. HERO DE IMPACTO MÁXIMO (min-height: 90vh) — headline PAS agressiva ("Chega de [problema]! [Número] pessoas já resolveram com [produto]"), badge de "OFERTA POR TEMPO LIMITADO" em vermelho, sub-headline com benefício principal, CTA grande pulsante com "🔥 Aproveitar Agora", trust bar com ícones + números ("37.000+ vendidos")
+1. HERO DE IMPACTO MÁXIMO — **LAYOUT: Background composicional** (imagem criativa/lifestyle como fundo com overlay escuro 70%). Headline PAS agressiva ("Chega de [problema]! [Número] pessoas já resolveram com [produto]"), badge de "OFERTA POR TEMPO LIMITADO" em vermelho, sub-headline com benefício principal, CTA grande pulsante com "🔥 Aproveitar Agora", trust bar com ícones + números ("37.000+ vendidos")
 2. BARRA DE URGÊNCIA — banner fixo estilizado: "⚡ Oferta válida por tempo limitado — Estoque: XX unidades restantes"
 3. PROBLEMA × SOLUÇÃO — impacto visual forte com ícones grandes, dores em vermelho (❌), benefícios em verde (✅), layout dramático
 4. PRODUTO EM DESTAQUE — foto grande, badges sobrepostos ("MAIS VENDIDO", "-30% OFF"), lista de benefícios com checkmarks verdes, preço com ÂNCORA VISUAL forte (preço antigo grande e riscado em vermelho, preço novo grande e verde/primário)
