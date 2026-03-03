@@ -4,7 +4,7 @@
 // Objetivo: Comparar com as versões geradas via Edge Function e HTML direto
 // =============================================
 
-import { Helmet } from "react-helmet-async";
+// Helmet removed - no HelmetProvider in this app context
 
 const PRODUCT = {
   name: "Shampoo Calvície Zero",
@@ -49,11 +49,8 @@ const FAQ = [
 export default function DemoLandingPage() {
   return (
     <>
-      <Helmet>
-        <title>Shampoo Calvície Zero | Respeite o Homem — Demo LP</title>
-        <meta name="description" content="Landing page demo gerada pelo Lovable Editor para comparação." />
-        <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-      </Helmet>
+      {/* Fonts loaded via link tag */}
+      <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
       <div className="min-h-screen" style={{ fontFamily: "'Inter', system-ui, sans-serif", color: "#1a1a2e" }}>
         
