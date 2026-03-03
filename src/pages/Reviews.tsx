@@ -3,6 +3,7 @@
 // =============================================
 
 import { useState, useEffect, useCallback } from 'react';
+import { QueryErrorState } from '@/components/ui/query-error-state';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -115,7 +116,7 @@ export default function Reviews() {
   });
 
   // Fetch reviews
-  const { data: reviews = [], isLoading } = useQuery({
+  const { data: reviews = [], isLoading, error: reviewsError, refetch: refetchReviews } = useQuery({
     queryKey: ['product-reviews', currentTenantId, activeTab, productFilter],
     queryFn: async () => {
       if (!currentTenantId) return [];
@@ -328,6 +329,15 @@ export default function Reviews() {
     approved: reviews.filter((r) => r.status === 'approved').length,
     rejected: reviews.filter((r) => r.status === 'rejected').length,
   };
+
+  if (reviewsError) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <PageHeader title="Avaliações" description="Modere as avaliações de produtos da sua loja" />
+        <QueryErrorState title="Erro ao carregar avaliações" onRetry={() => refetchReviews()} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">

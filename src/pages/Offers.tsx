@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useOfferRules, OfferRule, OfferType, CustomerType, DiscountType, CreateOfferRuleInput } from '@/hooks/useOfferRules';
 import { useProducts } from '@/hooks/useProducts';
 import { PageHeader } from '@/components/ui/page-header';
+import { QueryErrorState } from '@/components/ui/query-error-state';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';

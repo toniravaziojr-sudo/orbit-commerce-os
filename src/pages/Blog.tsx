@@ -3,6 +3,7 @@
 // =============================================
 
 import { useState } from 'react';
+import { QueryErrorState } from '@/components/ui/query-error-state';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -100,7 +101,7 @@ export default function Blog() {
   });
 
   // Fetch blog posts
-  const { data: posts, isLoading } = useQuery({
+  const { data: posts, isLoading, error: postsError, refetch: refetchPosts } = useQuery({
     queryKey: ['blog-posts', currentTenant?.id],
     queryFn: async () => {
       if (!currentTenant?.id) return [];
@@ -405,6 +406,15 @@ export default function Blog() {
       <div className="p-6 space-y-4">
         <Skeleton className="h-10 w-48" />
         <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (postsError) {
+    return (
+      <div className="p-6 space-y-6">
+        <PageHeader title="Blog" description="Crie e gerencie posts e campanhas de conteúdo do blog" />
+        <QueryErrorState title="Erro ao carregar posts" onRetry={() => refetchPosts()} />
       </div>
     );
   }

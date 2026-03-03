@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { QueryErrorState } from "@/components/ui/query-error-state";
 import { Bell, Zap } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -69,7 +70,18 @@ export default function Notifications() {
     cancelNotification,
     rescheduleNotification,
     reprocessNotification,
+    error: notificationsError,
+    refetch: refetchNotifications,
   } = useNotifications();
+
+  if (notificationsError) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <PageHeader title="Notificações & Automações" description="Configure regras, automações e notificações por WhatsApp e Email" />
+        <QueryErrorState title="Erro ao carregar notificações" onRetry={() => refetchNotifications()} />
+      </div>
+    );
+  }
 
   // Rules state V2
   const {

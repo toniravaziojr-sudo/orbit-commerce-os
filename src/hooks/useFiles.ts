@@ -407,6 +407,7 @@ export function useFiles(folderId: string | null = null) {
       return publicData?.publicUrl || null;
     } catch (err) {
       console.error('Error in getFileUrl:', err);
+      toast.error('Erro ao obter URL do arquivo. Se persistir, contate o suporte.');
       return null;
     }
   };
@@ -439,6 +440,7 @@ export function useFiles(folderId: string | null = null) {
       triggerDownload(data, file.original_name);
     } catch (err) {
       console.error('Download error:', err);
+      toast.error('Erro ao baixar arquivo. Se persistir, contate o suporte.');
       throw err;
     }
   };

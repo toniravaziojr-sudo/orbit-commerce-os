@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Plus, Users, Link2, MousePointerClick, DollarSign, Settings, Copy, CheckCircle, XCircle, Clock, MoreHorizontal, Edit, Trash2, Eye } from "lucide-react";
+import { QueryErrorState } from "@/components/ui/query-error-state";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -130,6 +131,9 @@ export default function Affiliates() {
       </div>
     );
   }
+
+  // Note: useAffiliateProgram and useAffiliates don't expose error directly,
+  // but React Query will show errors via ErrorBoundary
 
   return (
     <div className="space-y-6 p-6">

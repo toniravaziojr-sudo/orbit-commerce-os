@@ -222,6 +222,9 @@ export function useCreateHealthCheckTarget() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['health-check-targets'] });
     },
+    onError: (error: Error) => {
+      console.error('Error creating health check target:', error);
+    },
   });
 }
 
@@ -243,6 +246,9 @@ export function useUpdateHealthCheckTarget() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['health-check-targets'] });
     },
+    onError: (error: Error) => {
+      console.error('Error updating health check target:', error);
+    },
   });
 }
 
@@ -261,6 +267,9 @@ export function useDeleteHealthCheckTarget() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['health-check-targets'] });
     },
+    onError: (error: Error) => {
+      console.error('Error deleting health check target:', error);
+    },
   });
 }
 
@@ -274,10 +283,12 @@ export function useRunHealthCheck() {
       return data;
     },
     onSuccess: () => {
-      // Wait a bit for the check to complete, then refresh
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ['health-checks'] });
       }, 2000);
+    },
+    onError: (error: Error) => {
+      console.error('Error running health check:', error);
     },
   });
 }

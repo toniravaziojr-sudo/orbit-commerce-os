@@ -10,7 +10,7 @@ export function useEmailMarketing() {
   const tenantId = currentTenant?.id;
 
   // Lists - include tag relationship
-  const { data: lists = [], isLoading: listsLoading } = useQuery({
+  const { data: lists = [], isLoading: listsLoading, error: listsError, refetch: refetchLists } = useQuery({
     queryKey: ["email-marketing-lists", tenantId],
     queryFn: async () => {
       if (!tenantId) return [];
@@ -190,7 +190,7 @@ export function useEmailMarketing() {
   });
 
   return {
-    lists, listsLoading,
+    lists, listsLoading, listsError, refetchLists,
     subscribers, subscribersLoading, subscribersCount,
     templates, templatesLoading,
     campaigns, campaignsLoading,

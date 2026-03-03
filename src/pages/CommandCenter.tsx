@@ -69,7 +69,7 @@ function DashboardContent() {
   const [startDate, setStartDate] = useState<Date | undefined>(startOfDay(new Date()));
   const [endDate, setEndDate] = useState<Date | undefined>(endOfDay(new Date()));
   
-  const { data: metrics, isLoading: metricsLoading } = useDashboardMetrics(startDate, endDate);
+  const { data: metrics, isLoading: metricsLoading, error: metricsError, refetch: refetchMetrics } = useDashboardMetrics(startDate, endDate);
   const { data: recentOrders, isLoading: ordersLoading } = useRecentOrders(4);
 
   const handleDateChange = (start?: Date, end?: Date) => {
