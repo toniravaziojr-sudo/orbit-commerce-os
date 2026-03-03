@@ -4,7 +4,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v3.9.0"; // Fix: batch all kit discounts into single action (anti-fragmentation)
+const VERSION = "v3.10.0"; // Fix: anti-hallucination reinforcement, no re-confirmation loops, auto-continue post-execution
 // ===========================================================
 
 const corsHeaders = {
@@ -1030,11 +1030,19 @@ function buildSystemPrompt(isToolResult: boolean = false): string {
 1. LEITURA AUTOMÁTICA: Use function calling para buscar dados. O usuário NÃO vê essas buscas.
 2. ESCRITA COM CONFIRMAÇÃO: Para criar/editar/excluir, proponha bloco \`\`\`action\`\`\` — usuário confirma via botão.
 
-## ⚠️ REGRA ANTI-ALUCINAÇÃO:
-- NUNCA diga "vou buscar" sem REALMENTE chamar uma tool na mesma resposta
-- Se precisa de dados, CHAME searchProducts/listProducts IMEDIATAMENTE via function calling
-- PROIBIDO gerar texto dizendo que vai fazer algo SEM realmente fazer
-- Se não tem IDs → CHAME searchProducts. Não responda sem chamar.
+## ⚠️ REGRA ANTI-ALUCINAÇÃO (CRÍTICA):
+- NUNCA diga "vou buscar", "vou listar", "preciso buscar" sem REALMENTE chamar uma tool na mesma resposta
+- Se precisa de dados, CHAME searchProducts/listProducts/listKitsSummary IMEDIATAMENTE via function calling
+- PROIBIDO gerar texto dizendo que vai fazer algo SEM realmente fazer na mesma rodada
+- Se não tem IDs → CHAME a tool. Não responda sem chamar.
+- Se o usuário pede uma ação e você precisa de dados primeiro, CHAME A TOOL SILENCIOSAMENTE — não anuncie, apenas faça.
+
+## 🚫 PROIBIDO LOOPS DE RE-CONFIRMAÇÃO:
+- Quando o usuário já disse "sim", "confirma", "pode prosseguir", "aplica" → EXECUTE IMEDIATAMENTE
+- NUNCA re-liste o plano inteiro após o usuário já ter confirmado
+- NUNCA peça confirmação duas vezes para a mesma ação
+- Se o usuário confirma → gere o bloco \`\`\`action\`\`\` IMEDIATAMENTE, sem repetir o resumo
+- PROIBIDO responder com "Você gostaria de aplicar?" se o usuário JÁ DISSE SIM
 
 ## COMUNICAÇÃO:
 Fale como LOJISTA. NUNCA exponha nomes de tools, IDs de sistema ou termos técnicos. Seja direto e amigável.
@@ -1088,12 +1096,14 @@ ${toolDescriptions}`;
   if (isToolResult) {
     prompt += `
 
-## ⚠️ PÓS-EXECUÇÃO:
+## ⚠️ PÓS-EXECUÇÃO (OBRIGATÓRIO):
 Uma ação acaba de ser executada. O resultado está no histórico como [AÇÃO_CONCLUÍDA] ou [AÇÃO_FALHOU].
-- Confirme o resultado de forma amigável ("Pronto!", "Feito!")
+- Confirme o resultado em 1-2 frases ("Pronto!", "Feito!")
 - PROIBIDO repetir a mesma ação
-- Se há próxima etapa do pedido original, prossiga
-- Se tudo concluído, confirme de forma breve`;
+- Se há próxima etapa do pedido original → EXECUTE IMEDIATAMENTE (chame tools, proponha action) SEM pedir nova confirmação
+- O usuário já autorizou o fluxo completo — NÃO peça "quer continuar?" ou "confirme para prosseguir"
+- Se tudo concluído, confirme de forma breve
+- NUNCA esqueça faixas/etapas pendentes — revise o pedido original e verifique se TUDO foi feito`;
   }
 
   prompt += `\n\nResponda sempre em português brasileiro de forma amigável e profissional.`;
