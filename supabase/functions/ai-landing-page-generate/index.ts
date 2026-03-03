@@ -720,8 +720,12 @@ SE VOCÊ INVENTAR UM NOME DE PRODUTO, A PÁGINA SERÁ DESCARTADA.
 
 ${antiHallucinationBlock}
 
-## REGRA — EMOJIS — USO MÍNIMO
-Emojis devem ser usados com MODERAÇÃO. Máximo de 5-8 emojis em TODA a landing page. Use emojis APENAS para: checkmarks (✓ ou ✅ — máx 2 contextos), badges de urgência (1-2 no máx). NÃO use emojis em headlines, subtítulos ou CTAs. Prefira ícones CSS/SVG inline, texto estilizado com CSS e badges visuais com background-color ao invés de emojis. A página deve ter aparência PROFISSIONAL e limpa, não de post de redes sociais.
+## REGRA — EMOJIS — USO INTELIGENTE
+Emojis podem ser usados quando agregam valor visual, mas com BOM SENSO — sem excesso. Diretrizes:
+- Use emojis para checkmarks (✓/✅), ícones de benefício (🛡️, 🚚, ⭐), e badges visuais quando fizerem sentido no contexto.
+- NÃO encha a página de emojis repetidos — se uma seção já tem 3+ emojis, não adicione mais.
+- Prefira ícones CSS/SVG quando disponíveis, mas emojis são aceitáveis quando melhoram a experiência visual.
+- A página deve ter aparência PROFISSIONAL — emojis devem complementar, não dominar.
 
 ## REGRA — RESPONSIVIDADE MOBILE — CRÍTICA
 O HTML DEVE funcionar perfeitamente em telas de 375px. TODAS as grids com 2+ colunas DEVEM empilhar em 1 coluna no mobile. Tabelas comparativas DEVEM ter wrapper com overflow-x: auto. CTAs DEVEM ser width: 100% no mobile. NUNCA use vw para font-size. TESTE MENTAL: visualize a página em um iPhone 13 Mini — nada deve transbordar ou ficar cortado.
@@ -983,12 +987,15 @@ a { text-decoration: none; color: inherit; }
 - **NUNCA** invente nomes de produto. Se o produto se chama "Shampoo Calvície Zero", use "Shampoo Calvície Zero" — NÃO invente "Folixil", "CapilMax", "HairRevive" ou qualquer outro nome de fantasia.
 - O nome da marca/loja é "${storeSettings?.store_name || "Loja"}". USE EXATAMENTE ESTE NOME.
 
-### LOGO DA LOJA — REGRA SIMPLIFICADA (OBRIGATÓRIO)
-- Ao usar a logo em QUALQUER seção (comparativo, marca, hero, etc.), SEMPRE envolva em container branco com padding:
-  \`<div style="background:#fff; padding:12px 16px; border-radius:8px; display:inline-block;"><img src="LOGO_URL" style="max-width:180px; height:auto; display:block;" alt="Logo NOME_LOJA"></div>\`
-- Isso garante legibilidade universal em QUALQUER fundo (claro ou escuro)
-- NÃO aplique filter, opacity, mix-blend-mode, backdrop-filter ou qualquer efeito CSS na logo
-- A logo DEVE aparecer com suas cores originais intactas — se aparece acinzentada ou com cores alteradas, você violou esta regra
+### LOGO DA LOJA — INTELIGÊNCIA DE CONTRASTE (OBRIGATÓRIO)
+- Ao usar a logo, ANALISE o fundo da seção onde ela será inserida:
+  - **Fundo ESCURO** (ex: #0a0a0a, #1a1a2e, navy, preto): Use a logo diretamente SEM container — a maioria das logos tem elementos claros/brancos que ficam naturais em fundos escuros. Se a logo tiver elementos escuros pouco visíveis, aplique \`filter: brightness(1.3)\` ou \`filter: invert(1)\` APENAS nos elementos problemáticos.
+  - **Fundo CLARO** (ex: branco, cinza claro, bege): Se a logo tiver textos/elementos brancos ou muito claros, envolva em container com fundo escuro harmonizado: \`<div style="background:rgba(0,0,0,0.85); padding:12px 16px; border-radius:8px; display:inline-block;"><img ...></div>\`
+  - **Fundo MÉDIO** (ex: azul, verde, gradientes): Avalie visualmente se a logo tem contraste suficiente. Se não, use container semi-transparente escuro ou claro conforme necessário.
+- **REGRA PRINCIPAL**: A logo DEVE ser 100% LEGÍVEL e VISÍVEL em qualquer contexto. O fundo do container (quando necessário) deve HARMONIZAR com o design da seção, não criar um "quadrado branco" destoante.
+- Você PODE adaptar as cores da logo quando julgar que melhora a integração visual com o design da página (ex: versão monocromática em páginas minimalistas, dourada em páginas premium).
+- Limite o tamanho: max-width: 200px, height: auto.
+- NUNCA deixe a logo "apagada", invisível ou com contraste insuficiente.
 
 ### IMAGENS DOS PRODUTOS — DISCIPLINA DE USO
 - **HERO/DESTAQUE**: Use APENAS a imagem criativa gerada (se disponível nas "IMAGENS CRIATIVAS GERADAS" abaixo) ou a imagem principal do catálogo com gradient overlay
@@ -1055,7 +1062,7 @@ ${themeColors.priceColor ? `- **Cor do Preço**: ${themeColors.priceColor}` : ""
 - **Telefone**: ${storeSettings?.contact_phone || ""}
 - **Email**: ${storeSettings?.contact_email || ""}
 
-⚠️ A logo acima NUNCA deve ser alterada visualmente. Renderize com <img> simples, sem CSS filters. Em fundos escuros, use container branco.
+⚠️ A logo deve ser renderizada com máximo contraste e visibilidade. Adapte o fundo/container conforme as regras de inteligência de contraste. Você PODE ajustar cores da logo se isso melhorar a integração visual com o design da página.
 
 ${productsInfo ? `## PRODUTOS A SEREM DESTACADOS:\n${productsInfo}` : "## ATENÇÃO: Nenhum produto selecionado. Crie uma landing page genérica para a loja."}
 
