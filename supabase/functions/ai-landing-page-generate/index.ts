@@ -10,7 +10,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { isPromptIncomplete, selectBestFallback } from "../_shared/marketing/fallback-prompts.ts";
 
-const VERSION = "3.9.0"; // All images AI-generated, registered to "Criativos de página" Drive folder
+const VERSION = "3.9.1"; // Drive images used as visual reference for AI generation, not directly
 
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
@@ -38,7 +38,21 @@ async function callImageModel(
   model: string,
   prompt: string,
   referenceBase64: string,
+  additionalReferences?: string[],
 ): Promise<string | null> {
+  // Build content array with text prompt + all reference images
+  const content: any[] = [
+    { type: 'text', text: prompt },
+    { type: 'image_url', image_url: { url: 'data:image/png;base64,' + referenceBase64 } },
+  ];
+
+  // Add additional reference images (from Drive) — max 2 to avoid token bloat
+  if (additionalReferences && additionalReferences.length > 0) {
+    for (const refB64 of additionalReferences.slice(0, 2)) {
+      content.push({ type: 'image_url', image_url: { url: 'data:image/png;base64,' + refB64 } });
+    }
+  }
+
   const response = await fetch(LOVABLE_GATEWAY_URL, {
     method: 'POST',
     headers: {
@@ -47,16 +61,7 @@ async function callImageModel(
     },
     body: JSON.stringify({
       model,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          {
-            type: 'image_url',
-            image_url: { url: 'data:image/png;base64,' + referenceBase64 }
-          }
-        ]
-      }],
+      messages: [{ role: 'user', content }],
       modalities: ['image', 'text'],
     }),
   });
@@ -215,15 +220,20 @@ async function generateHeroCreative(
   storeName: string,
   userId?: string,
   driveFolderId?: string | null,
+  driveReferenceBase64s?: string[],
 ): Promise<string | null> {
   try {
-    console.log('[AI-LP-Generate] Generating hero creative for "' + productName + '"...');
+    console.log('[AI-LP-Generate] Generating hero creative for "' + productName + '" with ' + (driveReferenceBase64s?.length || 0) + ' Drive references...');
 
     const referenceBase64 = await imageUrlToBase64(productImageUrl);
     if (!referenceBase64) {
       console.warn("[AI-LP-Generate] Could not download reference image, skipping creative generation");
       return null;
     }
+
+    const driveContext = driveReferenceBase64s && driveReferenceBase64s.length > 0
+      ? '\n\nREFERÊNCIAS VISUAIS ADICIONAIS: As imagens extras anexadas são referências visuais do Drive do lojista para este produto. Use-as como inspiração de estilo, ângulo e composição, mas GERE uma imagem NOVA e ORIGINAL.'
+      : '';
 
     const prompt = 'FOTOGRAFIA PUBLICITÁRIA DE ALTO IMPACTO para landing page de venda.\n\n' +
       'PRODUTO: "' + productName + '" pela marca "' + storeName + '"\n\n' +
@@ -240,13 +250,13 @@ async function generateHeroCreative(
       '- Efeitos de brilho/reflexo sutis para transmitir qualidade premium\n' +
       '- Aspect ratio: 16:9 (paisagem) para hero banner\n\n' +
       'ESTILO: Fotografia de produto premium para e-commerce de alta conversão.\n' +
-      'Qualidade de catálogo profissional. Ultra realista, sem aparência de IA.';
+      'Qualidade de catálogo profissional. Ultra realista, sem aparência de IA.' + driveContext;
 
-    let imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', prompt, referenceBase64);
+    let imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', prompt, referenceBase64, driveReferenceBase64s);
 
     if (!imageDataUrl) {
       console.log("[AI-LP-Generate] Trying fallback model google/gemini-2.5-flash-image...");
-      imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-2.5-flash-image', prompt, referenceBase64);
+      imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-2.5-flash-image', prompt, referenceBase64, driveReferenceBase64s);
     }
 
     if (!imageDataUrl) {
@@ -488,7 +498,78 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
       console.log(`[AI-LP-Generate] Found ${creatives.length} creative assets for tone context`);
     }
 
-    // ===== STEP 3: ENSURE "Criativos de página" DRIVE FOLDER =====
+    // ===== STEP 3: SEARCH DRIVE FOR VISUAL REFERENCES (not for direct use) =====
+    let driveReferenceBase64s: string[] = [];
+    if (productIds && productIds.length > 0 && promptType !== "adjustment") {
+      try {
+        // Search Drive for images related to the product (by name/slug keywords)
+        const searchTerms = productNames.map(n => n.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim()).filter(Boolean);
+        
+        if (searchTerms.length > 0) {
+          console.log(`[AI-LP-Generate] Searching Drive for visual references: ${searchTerms.join(', ')}`);
+          
+          // Search files that are images and match product names
+          const { data: driveFiles } = await supabase
+            .from("files")
+            .select("id, original_name, storage_path, mime_type, metadata")
+            .eq("tenant_id", tenantId)
+            .eq("is_folder", false)
+            .ilike("mime_type", "image/%")
+            .order("created_at", { ascending: false })
+            .limit(50);
+
+          if (driveFiles && driveFiles.length > 0) {
+            // Filter files that match product names or have product_id in metadata
+            const matchingFiles = driveFiles.filter((f: any) => {
+              const name = (f.original_name || '').toLowerCase();
+              const meta = f.metadata as Record<string, any> | null;
+              const metaProductId = meta?.product_id;
+              
+              // Match by product_id in metadata
+              if (metaProductId && productIds!.includes(metaProductId)) return true;
+              
+              // Match by name similarity
+              return searchTerms.some(term => {
+                const termWords = term.split(/\s+/).filter((w: string) => w.length > 3);
+                return termWords.some((word: string) => name.includes(word));
+              });
+            }).slice(0, 3); // Max 3 reference images
+
+            console.log(`[AI-LP-Generate] Found ${matchingFiles.length} Drive files as visual references`);
+
+            // Download as base64 for reference (max 2 to avoid memory issues)
+            for (const file of matchingFiles.slice(0, 2)) {
+              try {
+                const meta = file.metadata as Record<string, any> | null;
+                const fileUrl = meta?.url as string | undefined;
+                const bucket = (meta?.bucket as string) || 'tenant-files';
+                
+                let imageUrl = fileUrl;
+                if (!imageUrl) {
+                  // Try to get public URL
+                  const { data: pubData } = supabase.storage.from(bucket).getPublicUrl(file.storage_path);
+                  imageUrl = pubData?.publicUrl;
+                }
+                
+                if (imageUrl) {
+                  const b64 = await imageUrlToBase64(imageUrl);
+                  if (b64) {
+                    driveReferenceBase64s.push(b64);
+                    console.log(`[AI-LP-Generate] Drive reference loaded: ${file.original_name}`);
+                  }
+                }
+              } catch (dlErr) {
+                console.warn(`[AI-LP-Generate] Could not load Drive reference ${file.original_name}:`, dlErr);
+              }
+            }
+          }
+        }
+      } catch (driveSearchErr) {
+        console.warn("[AI-LP-Generate] Drive search error (non-blocking):", driveSearchErr);
+      }
+    }
+
+    // ===== STEP 4: ENSURE "Criativos de página" DRIVE FOLDER =====
     let driveFolderId: string | null = null;
     try {
       driveFolderId = await ensureDriveFolder(supabase, tenantId, userId, "Criativos de página");
@@ -499,15 +580,19 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
       console.warn("[AI-LP-Generate] Drive folder creation error (non-blocking):", folderErr);
     }
 
-    // ===== STEP 4: GENERATE LIFESTYLE IMAGE (always, not conditional on Drive) =====
+    // ===== STEP 5: GENERATE LIFESTYLE IMAGE =====
     let lifestyleImageUrls: string[] = [];
     if (productIds && productIds.length > 0 && promptType !== "adjustment" && productImages.length > 0) {
       const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
       if (lovableApiKey) {
-        console.log(`[AI-LP-Generate] Generating lifestyle image...`);
+        console.log(`[AI-LP-Generate] Generating lifestyle image with ${driveReferenceBase64s.length} Drive references...`);
         
         const firstProductName = productNames[0] || "Produto";
         const productContext = `Produto: "${firstProductName}"`;
+
+        const driveRefNote = driveReferenceBase64s.length > 0
+          ? '\n\nREFERÊNCIAS VISUAIS ADICIONAIS: As imagens extras anexadas são referências visuais do Drive do lojista. Use como inspiração de estilo, ângulo e ambientação, mas GERE uma imagem NOVA e ORIGINAL.'
+          : '';
 
         const lifestylePrompt = `FOTOGRAFIA DE LIFESTYLE/AMBIENTAÇÃO para landing page de e-commerce.
 
@@ -524,14 +609,14 @@ REGRAS:
 6. Cores que complementem o produto
 7. NÃO altere o rótulo, embalagem ou identidade do produto
 
-ESTILO: Fotografia lifestyle premium, estilo editorial de revista. Ultra realista.`;
+ESTILO: Fotografia lifestyle premium, estilo editorial de revista. Ultra realista.${driveRefNote}`;
 
         try {
           const referenceBase64 = await imageUrlToBase64(productImages[0]);
           if (referenceBase64) {
-            let lifestyleDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', lifestylePrompt, referenceBase64);
+            let lifestyleDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', lifestylePrompt, referenceBase64, driveReferenceBase64s);
             if (!lifestyleDataUrl) {
-              lifestyleDataUrl = await callImageModel(lovableApiKey, 'google/gemini-2.5-flash-image', lifestylePrompt, referenceBase64);
+              lifestyleDataUrl = await callImageModel(lovableApiKey, 'google/gemini-2.5-flash-image', lifestylePrompt, referenceBase64, driveReferenceBase64s);
             }
 
             if (lifestyleDataUrl) {
@@ -549,10 +634,10 @@ ESTILO: Fotografia lifestyle premium, estilo editorial de revista. Ultra realist
       }
     }
 
-    // ===== STEP 5: GENERATE HERO CREATIVE IMAGE =====
+    // ===== STEP 6: GENERATE HERO CREATIVE IMAGE =====
     let generatedCreativeUrls: string[] = [];
     if (promptType !== "adjustment" && productImages.length > 0) {
-      console.log(`[AI-LP-Generate] Starting hero creative generation...`);
+      console.log(`[AI-LP-Generate] Starting hero creative generation with ${driveReferenceBase64s.length} Drive references...`);
       
       const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
       if (lovableApiKey) {
@@ -567,6 +652,7 @@ ESTILO: Fotografia lifestyle premium, estilo editorial de revista. Ultra realist
           storeSettings?.store_name || "Loja",
           userId,
           driveFolderId,
+          driveReferenceBase64s,
         );
         
         if (heroCreativeUrl) {
@@ -1069,6 +1155,7 @@ O usuário anexou imagens/vídeos no prompt abaixo. As URLs estão marcadas como
           reviews_count: reviewsInfo ? reviewsInfo.split("\n").length : 0,
           creatives_count: creativesInfo ? creativesInfo.split("\n").length : 0,
           drive_folder_id: driveFolderId,
+          drive_references_used: driveReferenceBase64s.length,
           lifestyle_images_generated: lifestyleImageUrls.length,
           fallback_prompt_used: fallbackUsed,
         },
