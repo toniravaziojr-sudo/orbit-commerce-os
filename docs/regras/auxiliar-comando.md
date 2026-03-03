@@ -2,7 +2,7 @@
 
 > **Status:** ✅ Ready  
 > **Última atualização:** 2026-03-03  
-> **Versão do Pipeline:** v3.13.0 | **AI Router:** v1.2.0  
+> **Versão do Pipeline:** v3.14.0 | **AI Router:** v1.2.0  
 > **Cobertura:** 61+ tools — 100% dos módulos (Fases 1–5 completas)
 
 ---
@@ -222,6 +222,20 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
 4. **Exceção à regra "Uma Ação por Vez"**: `applyKitDiscount` é explicitamente marcada como exceção que aceita operações em lote
 
 **Arquivo alterado:** `supabase/functions/command-assistant-chat/index.ts` (system prompt)
+
+### 🔧 Fix: Anti-Alucinação por Detecção de Padrão (v3.14.0)
+
+> **Problema corrigido**: Quando OpenAI retornava 429 e o Gemini assumia via fallback, o Gemini frequentemente gerava respostas de texto dizendo "vou verificar agora mesmo" ou "já estou buscando" **sem chamar nenhuma tool**. O sistema aceitava essa resposta como válida ("Phase 1 complete") e a enviava ao usuário, que ficava esperando uma verificação que nunca acontecia.
+
+**Mudanças:**
+
+1. **Guard de detecção de padrão**: Após cada rodada de tool calling, se a IA responde com texto (sem tool_calls) contendo padrões como "vou verificar", "estou buscando", "deixa eu checar", o sistema detecta automaticamente
+2. **Injeção de correção**: Ao detectar alucinação, injeta uma mensagem de sistema forçando a IA a chamar as tools disponíveis na próxima rodada
+3. **Retry automático**: A rodada não é encerrada — o loop de tool calling continua, dando à IA chance de chamar as tools corretamente
+4. **Padrões detectados**: `vou (verificar|buscar|checar|conferir|consultar|analisar)`, `estou (buscando|verificando)`, `já estou (buscando|verificando)`, `deixa eu (verificar|buscar)`, `vou te (informar|avisar)`
+5. **Proteção contra loops**: A detecção só ocorre se NÃO for a última rodada (`!isLastRound`), evitando loops infinitos
+
+**Arquivo alterado:** `supabase/functions/command-assistant-chat/index.ts` (tool calling loop)
 
 ### 🔧 Fix: Anti-Alucinação Reforçada + Auto-Continuação (v3.10.0)
 
