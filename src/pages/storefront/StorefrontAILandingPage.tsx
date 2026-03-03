@@ -175,13 +175,47 @@ function injectPixelsIntoHtml(html: string, pixelScripts: string, faviconTag?: s
   const autoResizeScript = `
 <script>
 (function(){
+  var lastH = 0;
   function sendHeight(){
-    var h = document.documentElement.scrollHeight || document.body.scrollHeight;
-    window.parent.postMessage({type:'ai-lp-resize', height: h}, '*');
+    var h = Math.max(
+      document.documentElement.scrollHeight || 0,
+      document.body.scrollHeight || 0,
+      document.documentElement.offsetHeight || 0,
+      document.body.offsetHeight || 0
+    );
+    if(h > 0 && h !== lastH){
+      lastH = h;
+      window.parent.postMessage({type:'ai-lp-resize', height: h}, '*');
+    }
   }
-  window.addEventListener('load', function(){ setTimeout(sendHeight, 100); setTimeout(sendHeight, 500); setTimeout(sendHeight, 2000); });
+  // Multiple attempts to catch late-loading content
+  window.addEventListener('load', function(){
+    sendHeight();
+    setTimeout(sendHeight, 200);
+    setTimeout(sendHeight, 500);
+    setTimeout(sendHeight, 1000);
+    setTimeout(sendHeight, 2000);
+    setTimeout(sendHeight, 4000);
+    setTimeout(sendHeight, 8000);
+  });
+  // Watch for DOM changes
   new MutationObserver(sendHeight).observe(document.body, {childList:true, subtree:true, attributes:true});
   window.addEventListener('resize', sendHeight);
+  // Watch for all images loading
+  document.addEventListener('DOMContentLoaded', function(){
+    sendHeight();
+    var imgs = document.querySelectorAll('img');
+    imgs.forEach(function(img){
+      if(!img.complete){ img.addEventListener('load', sendHeight); img.addEventListener('error', sendHeight); }
+    });
+  });
+  // Periodic check for first 15 seconds
+  var checks = 0;
+  var interval = setInterval(function(){
+    sendHeight();
+    checks++;
+    if(checks > 30) clearInterval(interval);
+  }, 500);
 })();
 </script>`;
 
@@ -301,12 +335,13 @@ export default function StorefrontAILandingPage() {
   const shouldShowFooter = landingPage.show_footer ?? false;
   const resolvedTenantSlug = tenantSlug || tenantInfo.tenantSlug || '';
 
-  const iframeStyle = {
+  const iframeStyle: React.CSSProperties = {
     width: '100%',
-    display: 'block' as const,
+    display: 'block',
     border: 'none',
-    height: iframeHeight ? `${iframeHeight}px` : undefined,
-    minHeight: iframeHeight ? undefined : (shouldShowHeader || shouldShowFooter ? '80vh' : '100vh'),
+    height: iframeHeight ? `${iframeHeight}px` : '100vh',
+    minHeight: '100vh',
+    overflow: 'hidden',
   };
 
   // If header or footer needed, wrap with providers + TenantSlugContext
@@ -315,12 +350,12 @@ export default function StorefrontAILandingPage() {
       <TenantSlugContext.Provider value={resolvedTenantSlug}>
         <CartProvider tenantSlug={resolvedTenantSlug}>
           <DiscountProvider>
-            <div className="min-h-screen w-full flex flex-col" style={{ margin: 0, padding: 0 }}>
+            <div className="w-full" style={{ margin: 0, padding: 0 }}>
               {shouldShowHeader && <StorefrontHeader />}
               <iframe
                 ref={iframeRef}
                 srcDoc={fullHtml}
-                className="w-full border-0 flex-1"
+                className="w-full border-0"
                 style={iframeStyle}
                 title={landingPage.name}
               />
