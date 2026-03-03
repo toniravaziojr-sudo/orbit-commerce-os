@@ -2,7 +2,7 @@
 
 > **Status:** ✅ Ready  
 > **Última atualização:** 2026-03-03  
-> **Versão do Pipeline:** v3.7.1  
+> **Versão do Pipeline:** v3.8.0  
 > **Cobertura:** 59+ tools — 100% dos módulos (Fases 1–5 completas)
 
 ---
@@ -114,11 +114,30 @@ Todos os inputs de chat usam o padrão **card pill**:
 
 ---
 
-## Arquitetura (v3.7.1 — OpenAI Nativa + Desconto por Faixa de Kits + Independência de Contexto)
+## Arquitetura (v3.8.0 — OpenAI Nativa + Linguagem Natural para Empreendedores)
 
 ### Modelo de IA
 
 > **Mudança v3.5.0**: Migração de Gemini (via Lovable Gateway) para **OpenAI nativa (gpt-4o)** com `preferProvider: 'openai'`. Motivo: Gemini via OpenAI-compat não suportava `tools` de forma confiável, causando alucinações onde a IA dizia "estou buscando" sem chamar nenhuma tool.
+
+### Filosofia de Interpretação (v3.8.0)
+
+> **Princípio**: O usuário é um empreendedor comum, NÃO um especialista em prompts. A IA deve interpretar a **intenção**, não as palavras exatas.
+
+**Regras fundamentais do system prompt:**
+
+1. **Cada mensagem é um pedido independente** — o histórico anterior é referência, não "modo de operação ativo". Se o usuário muda de assunto, a IA deve abandonar o raciocínio anterior imediatamente.
+2. **Interpretação de intenção** — "aplica descontos nos kits" = desconto percentual. "agora faz X" = nova tarefa. A IA infere sem exigir termos técnicos.
+3. **Não esperar prompts perfeitos** — se ambíguo, perguntar em 1 frase simples em vez de assumir errado.
+4. **Nunca reciclar raciocínio anterior** — se a tarefa anterior era "recalcular preços" e agora pede "aplicar descontos", começar do zero.
+
+**Tabela de decisão para kits (no system prompt):**
+
+| O que o usuário quer | Como identificar | Ferramenta |
+|---|---|---|
+| Desconto/promoção | "desconto", "%", valor menor, promoção | `listKitsSummary` → `applyKitDiscount` |
+| Corrigir preço base | "recalcular", "preço mudou" | `findKitsContainingProduct` → `recalculateKitPrices` |
+| Não ficou claro | Qualquer dúvida | Perguntar em 1 frase simples |
 
 ### Arquitetura de Tools: Leitura Automática vs Escrita com Confirmação
 
@@ -146,21 +165,9 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
 4. **PROIBIDO** gerar texto anunciando intenção de ação SEM realmente executar — tools são síncronas
 5. Se não tem IDs → CHAMAR searchProducts. Não responder sem chamar.
 
-### 🔧 Fix: Independência de Contexto (v3.7.1)
-
-> **Problema corrigido**: Quando o histórico da conversa continha uma tarefa anterior (ex: "recalcular preços base"), a IA ficava "presa" naquele contexto e ignorava pedidos novos de natureza diferente (ex: "aplicar descontos percentuais"). A IA reciclava o fluxo anterior em vez de classificar o novo pedido de forma independente.
-
-**Mudanças:**
-
-1. **Regra #0 (Independência)**: System prompt agora força a IA a analisar a **última mensagem de forma independente**, ignorando o contexto de tarefas anteriores para classificação
-2. **Regra #1 (Classificação Obrigatória)**: Antes de qualquer ação, a IA deve classificar o pedido:
-   - **Classificação A (Descontos)**: Keywords "desconto", "%", "faixa" → `listKitsSummary` + `applyKitDiscount` (PROIBIDO usar `recalculateKitPrices`)
-   - **Classificação B (Preço Base)**: Keywords "recalcular", "atualizar preço base" → `findKitsContainingProduct` + `recalculateKitPrices`
-3. **Prioridade**: Regras #0 e #1 têm prioridade máxima sobre qualquer outro raciocínio ou contexto do histórico
-
 ### 🔧 Feature: Desconto por Faixa de Kits (v3.7.0)
 
-> **Problema corrigido**: Quando o usuário pedia "aplique descontos nos kits: 2 unidades = 12-15%, 3 unidades = 18-20%", a IA não tinha como listar kits por quantidade de unidades nem aplicar descontos percentuais. Buscava produtos aleatórios em vez de kits agrupados por composição.
+> **Problema corrigido**: Quando o usuário pedia "aplique descontos nos kits: 2 unidades = 12-15%, 3 unidades = 18-20%", a IA não tinha como listar kits por quantidade de unidades nem aplicar descontos percentuais.
 
 **Novas tools:**
 
@@ -168,12 +175,6 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
 2. **`applyKitDiscount`** (Escrita com confirmação): Aplica desconto percentual sobre kits. Define `compare_at_price` = preço cheio (soma dos componentes) e `price` = preço com desconto. Aceita array de `{kitId, discountPercent}`.
 
 **Fluxo esperado:** `listKitsSummary` → agrupar por faixa → `applyKitDiscount` com os IDs e percentuais
-
-**Regra de decisão obrigatória (v3.7.0+):**
-- Se o pedido menciona "desconto", "%" ou "faixa de unidades" → **OBRIGATÓRIO** usar `listKitsSummary` + `applyKitDiscount`. NUNCA usar `recalculateKitPrices` para isso.
-- Se o pedido é "recalcular/atualizar preço base" (sem desconto) → usar `findKitsContainingProduct` + `recalculateKitPrices`
-
-**System prompt atualizado:** Seção "KITS E COMPOSIÇÕES" instrui o fluxo completo com regra de decisão explícita.
 
 ### 🔧 Fix: Confirmação Pós-Execução (v3.6.1)
 
