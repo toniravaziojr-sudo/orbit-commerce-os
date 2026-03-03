@@ -1,5 +1,6 @@
 // =============================================
 // LANDING PAGE EDITOR - Edição via prompt de IA
+// v2: Renders header/footer in admin preview
 // =============================================
 
 import { useState, useRef, useEffect } from "react";
@@ -22,6 +23,12 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { GenerateSeoButton } from "@/components/seo/GenerateSeoButton";
 import { LandingPageChatInput } from "@/components/landing-pages/LandingPageChatInput";
+import { StorefrontHeader } from "@/components/storefront/StorefrontHeader";
+import { StorefrontFooter } from "@/components/storefront/StorefrontFooter";
+import { TenantSlugContext } from "@/components/storefront/TenantStorefrontLayout";
+import { CartProvider } from "@/contexts/CartContext";
+import { DiscountProvider } from "@/contexts/DiscountContext";
+import { StorefrontThemeInjector } from "@/components/storefront/StorefrontThemeInjector";
 import {
   ArrowLeft,
   Sparkles,
@@ -57,6 +64,8 @@ interface LandingPageData {
   product_ids: string[];
   created_at: string;
   updated_at: string;
+  show_header?: boolean;
+  show_footer?: boolean;
 }
 
 interface VersionHistory {
@@ -131,8 +140,8 @@ export default function LandingPageEditor() {
     if (landingPage) {
       setSeoTitle(landingPage.seo_title || "");
       setSeoDescription(landingPage.seo_description || "");
-      setShowHeader((landingPage as any).show_header ?? true);
-      setShowFooter((landingPage as any).show_footer ?? true);
+      setShowHeader(landingPage.show_header ?? true);
+      setShowFooter(landingPage.show_footer ?? true);
     }
   }, [landingPage]);
 
@@ -256,6 +265,19 @@ export default function LandingPageEditor() {
     sendPromptMutation.mutate(promptInput.trim());
   };
 
+  // Auto-resize iframe
+  const [iframeHeight, setIframeHeight] = useState<number | null>(null);
+  
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'ai-lp-resize' && typeof e.data.height === 'number') {
+        setIframeHeight(e.data.height);
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
   const renderPreview = () => {
     if (!landingPage?.generated_html) {
       const isGeneratingStatus = landingPage?.status === 'generating';
@@ -308,7 +330,6 @@ export default function LandingPageEditor() {
     }
 
     // generated_html is already a full <!DOCTYPE html> document from the AI
-    // If it starts with <!DOCTYPE or <html, use it directly; otherwise wrap it
     const rawHtml = landingPage.generated_html || '';
     const isFullDocument = rawHtml.trim().toLowerCase().startsWith('<!doctype') || rawHtml.trim().toLowerCase().startsWith('<html');
     
@@ -327,14 +348,80 @@ export default function LandingPageEditor() {
 <body>${rawHtml}</body>
 </html>`;
 
-    return (
+    // Inject auto-resize script
+    const autoResizeScript = `<script>
+(function(){
+  var lastH = 0;
+  function sendHeight(){
+    try {
+      var h = Math.max(
+        document.documentElement.scrollHeight || 0,
+        document.body.scrollHeight || 0,
+        document.documentElement.offsetHeight || 0,
+        document.body.offsetHeight || 0
+      );
+      if(h > 0 && h !== lastH){
+        lastH = h;
+        window.parent.postMessage({type:'ai-lp-resize', height: h}, '*');
+      }
+    } catch(e){}
+  }
+  sendHeight();
+  setTimeout(sendHeight, 100);
+  setTimeout(sendHeight, 500);
+  setTimeout(sendHeight, 1500);
+  setTimeout(sendHeight, 3000);
+  try { new MutationObserver(sendHeight).observe(document.body, {childList:true, subtree:true, attributes:true}); } catch(e){}
+  window.addEventListener('resize', sendHeight);
+  var imgs = document.querySelectorAll('img');
+  imgs.forEach(function(img){ if(!img.complete){ img.addEventListener('load', sendHeight); } });
+})();
+</script>`;
+
+    let htmlWithResize = fullHtml;
+    if (htmlWithResize.includes('</body>')) {
+      htmlWithResize = htmlWithResize.replace('</body>', `${autoResizeScript}\n</body>`);
+    } else {
+      htmlWithResize += autoResizeScript;
+    }
+
+    const tenantSlug = tenant?.slug || '';
+    const shouldShowHeader = showHeader;
+    const shouldShowFooter = showFooter;
+
+    const iframeElement = (
       <iframe
         ref={iframeRef}
-        srcDoc={fullHtml}
-        className="w-full h-full border-0"
+        srcDoc={htmlWithResize}
+        className="w-full border-0"
+        style={{ 
+          height: iframeHeight ? `${iframeHeight}px` : '100%',
+          minHeight: iframeHeight ? undefined : '400px',
+          display: 'block',
+        }}
         title="Landing Page Preview"
       />
     );
+
+    // If header or footer should be shown, wrap with providers
+    if (shouldShowHeader || shouldShowFooter) {
+      return (
+        <TenantSlugContext.Provider value={tenantSlug}>
+          <CartProvider tenantSlug={tenantSlug}>
+            <DiscountProvider>
+              <StorefrontThemeInjector tenantSlug={tenantSlug} />
+              <div className="w-full h-full overflow-auto" style={{ background: '#fff' }}>
+                {shouldShowHeader && <StorefrontHeader />}
+                {iframeElement}
+                {shouldShowFooter && <StorefrontFooter />}
+              </div>
+            </DiscountProvider>
+          </CartProvider>
+        </TenantSlugContext.Provider>
+      );
+    }
+
+    return iframeElement;
   };
 
   if (isLoading) {
@@ -453,6 +540,7 @@ export default function LandingPageEditor() {
                 ? 'w-[375px] h-[667px] rounded-[40px] border-[12px] border-foreground/80'
                 : 'w-full max-w-[1200px] h-full rounded-lg'
             }`}
+            style={viewMode === 'desktop' ? { overflow: 'auto' } : undefined}
           >
             {renderPreview()}
           </div>
@@ -520,7 +608,6 @@ export default function LandingPageEditor() {
               {/* Input area */}
               <LandingPageChatInput
                 onSend={(message, attachments) => {
-                  // Include attachments info in prompt if any
                   let fullPrompt = message;
                   if (attachments && attachments.length > 0) {
                     const attachmentInfo = attachments.map(a => 
