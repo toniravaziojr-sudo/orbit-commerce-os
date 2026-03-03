@@ -4,6 +4,7 @@
 // =============================================
 
 import { useState } from "react";
+import { sanitizeAILandingPageHtml } from "@/lib/sanitizeAILandingPageHtml";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -68,7 +69,7 @@ export function LandingPagePreviewDialog({
       );
     }
 
-    const rawHtml = landingPage.generated_html;
+    const rawHtml = sanitizeAILandingPageHtml(landingPage.generated_html);
     const isFullDocument = rawHtml.trim().toLowerCase().startsWith('<!doctype') || rawHtml.trim().toLowerCase().startsWith('<html');
 
     const safetyCss = `<style id="lp-safety">

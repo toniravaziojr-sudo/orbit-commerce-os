@@ -5,6 +5,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { sanitizeAILandingPageHtml } from "@/lib/sanitizeAILandingPageHtml";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -326,7 +327,7 @@ export default function LandingPageEditor() {
     }
 
     // generated_html is already a full <!DOCTYPE html> document from the AI
-    const rawHtml = landingPage.generated_html || '';
+    const rawHtml = sanitizeAILandingPageHtml(landingPage.generated_html || '');
     const isFullDocument = rawHtml.trim().toLowerCase().startsWith('<!doctype') || rawHtml.trim().toLowerCase().startsWith('<html');
     
     const fullHtml = isFullDocument 

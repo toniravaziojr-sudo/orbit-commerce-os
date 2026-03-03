@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import NotFound from '@/pages/NotFound';
 import { isPlatformSubdomain, extractTenantFromPlatformSubdomain } from '@/lib/canonicalDomainService';
+import { sanitizeAILandingPageHtml } from '@/lib/sanitizeAILandingPageHtml';
 import { usePublicMarketingConfig } from '@/hooks/useMarketingIntegrations';
 import { CartProvider } from '@/contexts/CartContext';
 import { DiscountProvider } from '@/contexts/DiscountContext';
@@ -349,7 +350,8 @@ export default function StorefrontAILandingPage() {
   // Inject pixel scripts and favicon into the generated HTML
   const pixelScripts = buildPixelScripts(marketingConfig ?? null);
   const faviconTag = buildFaviconTag(storeSettings?.favicon_url);
-  const fullHtml = injectPixelsIntoHtml(landingPage.generated_html, pixelScripts, faviconTag);
+  const sanitizedHtml = sanitizeAILandingPageHtml(landingPage.generated_html);
+  const fullHtml = injectPixelsIntoHtml(sanitizedHtml, pixelScripts, faviconTag);
 
   // Set document title and favicon on parent document
   if (typeof document !== 'undefined') {
