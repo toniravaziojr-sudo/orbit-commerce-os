@@ -34,7 +34,7 @@ O dialog `GenerateReviewsDialog.tsx` permite gerar avaliações automaticamente 
 | Opção | Valores | Descrição |
 |-------|---------|-----------|
 | **Produto** | Dropdown | Seleciona o produto (apenas `status: active`) |
-| **Quantidade** | 5-50 | Número de avaliações a gerar |
+| **Quantidade** | 1-100 | Número de avaliações a gerar (input numérico livre) |
 | **Gênero dos Nomes** | `both`, `male`, `female` | Filtra os nomes gerados por gênero |
 | **Distribuição de Notas** | `all5`, `mixed` | `all5` = todas 5 estrelas, `mixed` = 4-5 estrelas |
 
@@ -48,7 +48,7 @@ interface RequestBody {
     price?: number;
     sku?: string;
   };
-  quantity: number;           // 5-50 (default: 10)
+  quantity: number;           // 1-100 (default: 15)
   gender?: 'both' | 'male' | 'female';  // default: 'both'
   ratingDistribution?: 'all5' | 'mixed'; // default: 'mixed'
 }
