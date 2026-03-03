@@ -14,7 +14,6 @@ import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { QueryErrorState } from "@/components/ui/query-error-state";
-import { QueryErrorState } from "@/components/ui/query-error-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StorefrontHealthCard } from "@/components/health/StorefrontHealthCard";
 import { IntegrationAlerts } from "@/components/dashboard/IntegrationAlerts";
