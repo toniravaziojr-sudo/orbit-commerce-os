@@ -2,8 +2,8 @@
 
 > **Status:** ✅ Ready  
 > **Última atualização:** 2026-03-03  
-> **Versão do Pipeline:** v3.12.0 | **AI Router:** v1.2.0  
-> **Cobertura:** 59+ tools — 100% dos módulos (Fases 1–5 completas)
+> **Versão do Pipeline:** v3.13.0 | **AI Router:** v1.2.0  
+> **Cobertura:** 61+ tools — 100% dos módulos (Fases 1–5 completas)
 
 ---
 
@@ -146,7 +146,32 @@ Todos os inputs de chat usam o padrão **card pill**:
 |---|---|---|
 | Desconto/promoção | "desconto", "%", valor menor, promoção | `listKitsSummary` → `applyKitDiscount` |
 | Corrigir preço base | "recalcular", "preço mudou" | `findKitsContainingProduct` → `recalculateKitPrices` |
+| Frete grátis (em massa) | "frete grátis", "frete gratuito", "free shipping" | `bulkUpdateProductsFreeShipping` |
+| Frete grátis (individual) | "frete grátis no produto X" | `updateProduct` com `freeShipping: true` |
 | Não ficou claro | Qualquer dúvida | Perguntar em 1 frase simples |
+
+### 🔧 Feature: Frete Grátis em Massa (v3.13.0)
+
+> **Problema corrigido**: Quando o usuário pedia "ative frete grátis nos kits", a IA não tinha ferramenta específica e usava `bulkUpdateProductsPrice` incorretamente, gerando mensagens de sucesso sobre "preço" quando o pedido era sobre "frete". A ação também falhava no banco pois a tool não suportava o campo `free_shipping`.
+
+**Novas tools:**
+
+1. **`bulkUpdateProductsFreeShipping`** (Escrita com confirmação): Atualiza `free_shipping` em massa. Suporta filtros:
+   - `productIds`: Array de IDs específicos
+   - `categoryId`: Filtrar por categoria
+   - `productFormat`: Filtrar por formato (`simple`, `with_composition`, `with_variants`)
+   - `minComponents`: Número mínimo de componentes (útil para "kits com 3+ itens")
+   - `freeShipping`: Boolean — ativar ou desativar
+2. **`updateProduct` expandido**: Agora aceita `freeShipping` e `requiresShipping` como parâmetros opcionais para edição individual
+
+**Tabela de decisão atualizada no system prompt:**
+
+| Palavras-chave | Ferramenta correta | ❌ NÃO usar |
+|---|---|---|
+| "frete grátis", "frete gratuito", "free shipping" | `bulkUpdateProductsFreeShipping` | `bulkUpdateProductsPrice` |
+| "preço", "desconto", "%" | `bulkUpdateProductsPrice` / `applyKitDiscount` | `bulkUpdateProductsFreeShipping` |
+
+**Arquivos alterados:** `supabase/functions/command-assistant-chat/index.ts`, `supabase/functions/command-assistant-execute/index.ts`
 
 ### Arquitetura de Tools: Leitura Automática vs Escrita com Confirmação
 
