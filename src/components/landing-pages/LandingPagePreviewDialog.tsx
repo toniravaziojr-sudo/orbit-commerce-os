@@ -72,12 +72,10 @@ export function LandingPagePreviewDialog({
     const isFullDocument = rawHtml.trim().toLowerCase().startsWith('<!doctype') || rawHtml.trim().toLowerCase().startsWith('<html');
 
     const safetyCss = `<style id="lp-safety">
-*, *::before, *::after {
-  animation: none !important;
-}
-* {
-  opacity: 1 !important;
-  visibility: visible !important;
+*, *::before, *::after { animation: none !important; }
+* { opacity: 1 !important; visibility: visible !important; }
+section, .section, .hero, [class*="hero"] {
+  min-height: auto !important;
 }
 .cta-button { cursor: pointer; }
 </style>`;
