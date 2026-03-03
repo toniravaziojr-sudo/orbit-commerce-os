@@ -407,7 +407,7 @@ async function executeTool(
     }
 
     case "bulkUpdateProductsPrice": {
-      let { type, value, productIds, categoryId, prices } = tool_args;
+      let { type, value, productIds, categoryId, prices, productFormat, excludeKits } = tool_args;
       
       // Auto-infer type when prices array is provided
       if (!type && prices && Array.isArray(prices)) {
@@ -464,10 +464,18 @@ async function executeTool(
       let selectQuery = supabase
         .from("products")
         .select("id, price, compare_at_price")
-        .eq("tenant_id", tenant_id);
+        .eq("tenant_id", tenant_id)
+        .is("deleted_at", null);
       
       if (productIds && productIds.length > 0) {
         selectQuery = selectQuery.in("id", productIds);
+      }
+      
+      // Apply product format filters
+      if (productFormat) {
+        selectQuery = selectQuery.eq("product_format", productFormat);
+      } else if (excludeKits) {
+        selectQuery = selectQuery.neq("product_format", "with_composition");
       }
       
       const { data: products, error: selectError } = await selectQuery;
@@ -515,6 +523,11 @@ async function executeTool(
             newPrice = value != null ? value : currentPrice;
             newCompareAtPrice = null;
             break;
+          case "apply_discount":
+            // Sets compare_at_price = current price ("preço de") and price = discounted ("preço por")
+            newCompareAtPrice = currentPrice;
+            newPrice = Math.round(currentPrice * (1 - value / 100) * 100) / 100;
+            break;
         }
         
         const updateData: any = { price: newPrice, updated_at: new Date().toISOString() };
@@ -532,6 +545,7 @@ async function executeTool(
       
       const typeLabel = type === "percent_increase" ? `aumentados em ${value}%` :
                        type === "percent_decrease" ? `reduzidos em ${value}%` :
+                       type === "apply_discount" ? `com ${value}% de desconto promocional (preço de/por)` :
                        value != null ? `definidos para R$ ${Number(value).toFixed(2)}` : `atualizados`;
       
       return {
