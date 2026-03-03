@@ -4,7 +4,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v3.12.0"; // Multimodal: image vision support + Ctrl+V paste
+const VERSION = "v3.13.0"; // Add free_shipping tools (bulk + individual)
 // ===========================================================
 
 const corsHeaders = {
@@ -571,6 +571,17 @@ const TOOL_REGISTRY = {
     },
     requiredPermission: "products",
   },
+  bulkUpdateProductsFreeShipping: {
+    description: "Ativar ou desativar frete grátis em produtos em massa. Pode filtrar por formato (kits, simples), categoria, IDs específicos, ou por quantidade mínima de componentes (para kits).",
+    parameters: {
+      freeShipping: { type: "boolean", required: true, description: "true para ativar frete grátis, false para desativar" },
+      productIds: { type: "array", required: false, description: "IDs específicos (opcional)" },
+      categoryId: { type: "string", required: false, description: "Filtrar por categoria" },
+      productFormat: { type: "string", required: false, description: "Filtrar por formato: simple, with_composition, with_variants" },
+      minComponents: { type: "number", required: false, description: "Filtrar kits com no mínimo N componentes na composição" },
+    },
+    requiredPermission: "products",
+  },
   bulkActivateProducts: {
     description: "Ativar ou desativar produtos em massa",
     parameters: {
@@ -790,6 +801,8 @@ const TOOL_REGISTRY = {
       seoDescription: { type: "string", required: false, description: "Descrição SEO" },
       isActive: { type: "boolean", required: false, description: "Ativar/desativar" },
       stockQuantity: { type: "number", required: false, description: "Quantidade em estoque" },
+      freeShipping: { type: "boolean", required: false, description: "Ativar/desativar frete grátis no produto" },
+      requiresShipping: { type: "boolean", required: false, description: "Se o produto requer envio físico" },
     },
     requiredPermission: "products",
   },
@@ -1097,6 +1110,8 @@ Vou criar a promoção de 5% nos produtos simples, definindo "preço de" (riscad
 | Desconto PROMOCIONAL (preço de/por) | Menciona "preço riscado", "promoção", "preço de/por", "não alterar base" | bulkUpdateProductsPrice type=apply_discount |
 | Desconto em TODOS os produtos (reduz base) | Menciona "todos os produtos", "tudo", "reduzir preço" | bulkUpdateProductsPrice type=percent_decrease |
 | Corrigir preço base (componente mudou) | Menciona "recalcular", "preço mudou" | findKitsContainingProduct → recalculateKitPrices |
+| Ativar/desativar frete grátis em massa | Menciona "frete grátis", "ativar frete", "free shipping" | bulkUpdateProductsFreeShipping |
+| Frete grátis em kits com N+ componentes | Menciona "frete grátis nos kits com 3+", "kits com X produtos" | bulkUpdateProductsFreeShipping com minComponents |
 
 ## EXECUÇÃO:
 1. LEITURA AUTOMÁTICA: Use function calling para buscar dados. O usuário NÃO vê essas buscas.

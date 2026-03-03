@@ -14,6 +14,7 @@ const PERMISSION_MAP: Record<string, string[]> = {
   bulkUpdateProductsPrice: ["owner", "admin", "manager"],
   bulkUpdateProductsStock: ["owner", "admin", "manager", "editor"],
   bulkActivateProducts: ["owner", "admin", "manager", "editor"],
+  bulkUpdateProductsFreeShipping: ["owner", "admin", "manager", "editor"],
   createProduct: ["owner", "admin", "manager", "editor"],
   deleteProducts: ["owner", "admin", "manager"],
   
@@ -634,6 +635,89 @@ async function executeTool(
         success: true,
         message: `✅ ${affectedCount} produto(s) ${statusLabel}!`,
         data: { affected: affectedCount, isActive },
+      };
+    }
+
+    case "bulkUpdateProductsFreeShipping": {
+      const { freeShipping, productIds, categoryId, productFormat, minComponents } = tool_args;
+      
+      // If filtering by minComponents, we need to find kits with N+ components first
+      let targetProductIds: string[] | null = productIds && productIds.length > 0 ? productIds : null;
+      
+      if (minComponents && minComponents > 0) {
+        // Find kits with at least N components
+        const { data: kitsWithComponents, error: kitsError } = await supabase
+          .from("products")
+          .select("id, product_components(id)")
+          .eq("tenant_id", tenant_id)
+          .eq("product_format", "with_composition")
+          .eq("status", "active");
+        
+        if (kitsError) throw new Error(kitsError.message);
+        
+        const qualifyingKitIds = (kitsWithComponents || [])
+          .filter((kit: any) => (kit.product_components?.length || 0) >= minComponents)
+          .map((kit: any) => kit.id);
+        
+        if (qualifyingKitIds.length === 0) {
+          return {
+            success: true,
+            message: `⚠️ Nenhum kit encontrado com ${minComponents} ou mais produtos na composição.`,
+            data: { affected: 0 },
+          };
+        }
+        
+        // If productIds was also provided, intersect
+        if (targetProductIds) {
+          targetProductIds = targetProductIds.filter((id: string) => qualifyingKitIds.includes(id));
+        } else {
+          targetProductIds = qualifyingKitIds;
+        }
+      }
+      
+      let query = supabase
+        .from("products")
+        .update({ free_shipping: freeShipping, updated_at: new Date().toISOString() })
+        .eq("tenant_id", tenant_id);
+      
+      if (targetProductIds && targetProductIds.length > 0) {
+        query = query.in("id", targetProductIds);
+      }
+      
+      if (productFormat) {
+        query = query.eq("product_format", productFormat);
+      }
+      
+      if (categoryId) {
+        // Get product IDs from category first
+        const { data: catProducts } = await supabase
+          .from("product_categories")
+          .select("product_id")
+          .eq("category_id", categoryId);
+        
+        if (catProducts && catProducts.length > 0) {
+          const catProductIds = catProducts.map((cp: any) => cp.product_id);
+          query = query.in("id", catProductIds);
+        } else {
+          return {
+            success: true,
+            message: `⚠️ Nenhum produto encontrado nesta categoria.`,
+            data: { affected: 0 },
+          };
+        }
+      }
+      
+      const { data, error } = await query.select("id");
+      
+      if (error) throw new Error(error.message);
+      
+      const affectedCount = data?.length || 0;
+      const statusLabel = freeShipping ? "ativado" : "desativado";
+      
+      return {
+        success: true,
+        message: `✅ Frete grátis ${statusLabel} em ${affectedCount} produto(s)!`,
+        data: { affected: affectedCount, freeShipping },
       };
     }
 
@@ -2023,7 +2107,7 @@ async function executeTool(
 
     // ==================== FASE 2: CRUD COMPLETO ====================
     case "updateProduct": {
-      const { productId, name, description, price, compareAtPrice, sku, weight, width, height, length, seoTitle, seoDescription, isActive, stockQuantity } = tool_args;
+      const { productId, name, description, price, compareAtPrice, sku, weight, width, height, length, seoTitle, seoDescription, isActive, stockQuantity, freeShipping, requiresShipping } = tool_args;
       
       const updateData: any = { updated_at: new Date().toISOString() };
       if (name !== undefined) updateData.name = name;
@@ -2039,6 +2123,8 @@ async function executeTool(
       if (seoDescription !== undefined) updateData.seo_description = seoDescription;
       if (isActive !== undefined) updateData.status = isActive ? "active" : "inactive";
       if (stockQuantity !== undefined) updateData.stock_quantity = stockQuantity;
+      if (freeShipping !== undefined) updateData.free_shipping = freeShipping;
+      if (requiresShipping !== undefined) updateData.requires_shipping = requiresShipping;
       
       const { data, error } = await supabase
         .from("products")
