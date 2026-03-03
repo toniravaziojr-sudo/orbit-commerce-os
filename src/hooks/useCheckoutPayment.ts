@@ -107,9 +107,11 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
         ? parseFloat(shippingOption.price) || 0 
         : (shippingOption?.price || 0);
       
-      // Apply discount
+      // Apply discount & free shipping hierarchy: product > coupon > logistics
       const discountAmount = discount?.discount_amount || 0;
-      const effectiveShippingTotal = discount?.free_shipping ? 0 : shippingTotal;
+      const allItemsFreeShipping = items.length > 0 && items.every(item => (item as any).free_shipping === true);
+      const hasFreeShipping = allItemsFreeShipping || discount?.free_shipping;
+      const effectiveShippingTotal = hasFreeShipping ? 0 : shippingTotal;
       const total = Math.max(0, subtotal - discountAmount + effectiveShippingTotal);
       
       console.log('[Checkout] Totals:', { subtotal, shippingTotal: effectiveShippingTotal, discountAmount, total });

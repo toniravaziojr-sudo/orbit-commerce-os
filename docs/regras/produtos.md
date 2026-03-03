@@ -99,6 +99,7 @@ interface Product {
   product_type: string | null;
   tags: string[] | null;
   requires_shipping: boolean | null;
+  free_shipping: boolean;          // Frete grátis no produto (prioridade máxima)
   taxable: boolean | null;
   tax_code: string | null;
   cest: string | null;

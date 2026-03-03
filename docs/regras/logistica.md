@@ -65,7 +65,19 @@ O cálculo de frete é centralizado na Edge Function `shipping-quote`, que consu
 
 ---
 
-## Regras de Frete Grátis
+## Hierarquia de Frete Grátis
+
+O sistema aplica frete grátis se **qualquer** uma das 3 fontes for verdadeira:
+
+| Prioridade | Fonte | Descrição |
+|------------|-------|-----------|
+| 1 (Máxima) | **Produto** | Campo `free_shipping` no cadastro do produto. Se ativado, frete é grátis sempre. |
+| 2 | **Cupom** | Cupom de desconto do tipo `free_shipping`. Substitui regras de logística. |
+| 3 | **Regras de Logística** | Regras condicionais por região, valor mínimo, categoria, etc. |
+
+> Se um produto atingir qualquer uma dessas 3 regras, terá frete grátis.
+
+## Regras de Frete Grátis (Logística)
 
 ```typescript
 interface FreeShippingRule {

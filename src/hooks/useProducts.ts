@@ -52,6 +52,7 @@ export interface Product {
   warranty_type: string | null;
   warranty_duration: string | null;
   published_at: string | null;
+  free_shipping: boolean;
 }
 
 export interface ProductVariant {

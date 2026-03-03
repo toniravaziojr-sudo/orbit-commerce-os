@@ -81,6 +81,7 @@ export function BundlesSection({ tenantId }: { tenantId: string }) {
         price: product.price,
         quantity: 1,
         image_url: product.image_url,
+        free_shipping: (product as any).free_shipping,
       });
     });
     toast.success('Kit adicionado ao carrinho');

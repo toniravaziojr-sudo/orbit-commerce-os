@@ -45,6 +45,9 @@ export function ShippingEstimator() {
     try {
       let options;
       
+      // Check if ALL items in cart have product-level free_shipping
+      const allItemsFreeShipping = items.length > 0 && items.every(item => item.free_shipping === true);
+
       // Use async quote for multi-provider or Frenet
       if (config.provider === 'frenet' || config.provider === 'multi') {
         const cartItems = items.map(item => ({
@@ -61,6 +64,11 @@ export function ShippingEstimator() {
         options = quote(cepDigits, subtotal);
       }
       
+      // Apply product-level free shipping (highest priority)
+      if (allItemsFreeShipping && options.length > 0) {
+        options = options.map(opt => ({ ...opt, price: 0, isFree: true }));
+      }
+
       if (options.length === 0) {
         setError('Não encontramos opções de frete para este CEP.');
         setShippingOptions([]);

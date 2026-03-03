@@ -136,6 +136,7 @@ export function ProductList({ onCreateProduct, onEditProduct }: ProductListProps
         regulatory_info: (product as any).regulatory_info ?? {},
         warranty_type: (product as any).warranty_type ?? null,
         warranty_duration: (product as any).warranty_duration ?? null,
+        free_shipping: (product as any).free_shipping ?? false,
       });
 
       toast.success('Produto duplicado com sucesso!');

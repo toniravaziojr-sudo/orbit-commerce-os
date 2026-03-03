@@ -97,6 +97,7 @@ const productSchema = z.object({
   product_type: z.string().max(100).nullable().optional(),
   tags: z.array(z.string()).nullable().optional(),
   requires_shipping: z.boolean().nullable().optional(),
+  free_shipping: z.boolean().optional(),
   taxable: z.boolean().nullable().optional(),
   tax_code: z.string().max(50).nullable().optional(),
   cest: z.string().max(20).nullable().optional()
@@ -285,6 +286,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       product_type: product?.product_type ?? '',
       tags: product?.tags ?? [],
       requires_shipping: product?.requires_shipping ?? true,
+      free_shipping: (product as any)?.free_shipping ?? false,
       taxable: product?.taxable ?? true,
       tax_code: product?.tax_code ?? '',
       cest: product?.cest ?? '',
@@ -562,6 +564,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           },
           warranty_type: data.warranty_type || null,
           warranty_duration: data.warranty_duration || null,
+          free_shipping: data.free_shipping ?? false,
         });
 
         // Save pending data using the new product ID
@@ -1588,6 +1591,27 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                           <FormControl>
                             <Switch
                               checked={field.value ?? true}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="free_shipping"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 border-green-200 bg-green-50/50 dark:border-green-900 dark:bg-green-950/20">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-base font-semibold">Frete Grátis</FormLabel>
+                            <FormDescription>
+                              Se ativado, este produto sempre terá frete grátis, independente de cupons ou regras de logística
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value ?? false}
                               onCheckedChange={field.onChange}
                             />
                           </FormControl>

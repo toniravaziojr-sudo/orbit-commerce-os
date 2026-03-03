@@ -34,6 +34,8 @@ interface ProductCTAsProps {
   variantSelected?: boolean;        // Se alguma variante está selecionada
   // Cart action type: what happens on "Add to Cart" click
   cartActionType?: CartActionType;
+  // Free shipping at product level
+  freeShipping?: boolean;
 }
 
 export function ProductCTAs({
@@ -56,6 +58,7 @@ export function ProductCTAs({
   hasRequiredVariant = false,
   variantSelected = true,
   cartActionType = 'miniCart',
+  freeShipping = false,
 }: ProductCTAsProps) {
   const navigate = useNavigate();
   const { items, addItem } = useCart();
@@ -102,6 +105,7 @@ export function ProductCTAs({
       price: productPrice,
       quantity: quantity,
       image_url: imageUrl,
+      free_shipping: freeShipping,
     });
     
     trackAddToCart({
@@ -131,7 +135,7 @@ export function ProductCTAs({
         setAddedFeedback(false);
       }, 2000);
     }, 150);
-  }, [productId, productName, productSku, productPrice, quantity, imageUrl, isOutOfStock, isAddingToCart, addItem, onOpenMiniCart, trackAddToCart, requiresVariantSelection, cartActionType, tenantSlug, isPreview, navigate]);
+  }, [productId, productName, productSku, productPrice, quantity, imageUrl, isOutOfStock, isAddingToCart, addItem, onOpenMiniCart, trackAddToCart, requiresVariantSelection, cartActionType, tenantSlug, isPreview, navigate, freeShipping]);
   
   const handleBuyNow = React.useCallback(() => {
     if (!productId || isOutOfStock || isAddingToCart || requiresVariantSelection) return;
@@ -143,6 +147,7 @@ export function ProductCTAs({
       price: productPrice,
       quantity: quantity,
       image_url: imageUrl,
+      free_shipping: freeShipping,
     });
     
     trackAddToCart({

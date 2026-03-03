@@ -19,6 +19,7 @@ interface Product {
   price: number;
   sku: string;
   image_url?: string;
+  free_shipping?: boolean;
 }
 
 interface CrossSellSectionProps {
@@ -136,6 +137,7 @@ export function CrossSellSection({ tenantId }: CrossSellSectionProps) {
       price: finalPrice,
       quantity: 1,
       image_url: product.image_url,
+      free_shipping: product.free_shipping,
     });
     toast.success(`${product.name} adicionado ao carrinho`);
   };

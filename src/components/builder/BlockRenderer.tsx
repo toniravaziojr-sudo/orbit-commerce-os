@@ -1289,6 +1289,7 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing }: any) {
             hasRequiredVariant={hasRequiredVariant}
             variantSelected={variantSelected}
             cartActionType={cartActionType}
+            freeShipping={(product as any)?.free_shipping ?? false}
           />
           
           {/* 13. Calculadora de frete */}

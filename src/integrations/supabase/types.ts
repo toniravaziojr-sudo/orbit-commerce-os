@@ -13093,6 +13093,7 @@ export type Database = {
           depth: number | null
           description: string | null
           external_reference: string | null
+          free_shipping: boolean
           gtin: string | null
           has_variants: boolean | null
           height: number | null
@@ -13144,6 +13145,7 @@ export type Database = {
           depth?: number | null
           description?: string | null
           external_reference?: string | null
+          free_shipping?: boolean
           gtin?: string | null
           has_variants?: boolean | null
           height?: number | null
@@ -13195,6 +13197,7 @@ export type Database = {
           depth?: number | null
           description?: string | null
           external_reference?: string | null
+          free_shipping?: boolean
           gtin?: string | null
           has_variants?: boolean | null
           height?: number | null
