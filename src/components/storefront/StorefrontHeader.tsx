@@ -1,5 +1,5 @@
-import { useParams } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
+import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { useCart } from '@/contexts/CartContext';
 import { usePublicGlobalLayout } from '@/hooks/useGlobalLayoutIntegration';
 import { useQuery } from '@tanstack/react-query';
@@ -10,10 +10,11 @@ import { StorefrontHeaderContent } from './StorefrontHeaderContent';
  * StorefrontHeader - Wrapper component for public storefront header
  * Uses the unified StorefrontHeaderContent for consistent rendering
  * Fetches global layout and passes header_config for proper priority
+ * Uses useTenantSlug() to resolve tenant from URL params OR context (custom domain)
  */
 export function StorefrontHeader() {
-  const { tenantSlug } = useParams<{ tenantSlug: string }>();
-  const { storeSettings, headerMenu, categories, tenant } = usePublicStorefront(tenantSlug || '');
+  const tenantSlug = useTenantSlug();
+  const { storeSettings, headerMenu, categories, tenant } = usePublicStorefront(tenantSlug);
   const { totalItems } = useCart();
 
   // Fetch pages for resolving page menu item URLs
@@ -32,11 +33,11 @@ export function StorefrontHeader() {
   });
 
   // Fetch global layout for header config
-  const { data: globalLayout } = usePublicGlobalLayout(tenantSlug || '');
+  const { data: globalLayout } = usePublicGlobalLayout(tenantSlug);
   
   return (
     <StorefrontHeaderContent 
-      tenantSlug={tenantSlug || ''} 
+      tenantSlug={tenantSlug} 
       headerConfig={globalLayout?.header_config}
       storeSettings={storeSettings}
       menuItems={headerMenu?.items || []}

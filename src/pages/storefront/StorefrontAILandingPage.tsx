@@ -17,6 +17,8 @@ import { CartProvider } from '@/contexts/CartContext';
 import { DiscountProvider } from '@/contexts/DiscountContext';
 import { StorefrontHeader } from '@/components/storefront/StorefrontHeader';
 import { StorefrontFooter } from '@/components/storefront/StorefrontFooter';
+import { TenantSlugContext } from '@/components/storefront/TenantStorefrontLayout';
+import { useEffect, useRef, useState } from 'react';
 
 interface AILandingPageData {
   id: string;
@@ -169,7 +171,21 @@ function buildFaviconTag(faviconUrl: string | null | undefined): string {
  * Inject pixel scripts and favicon into the AI LP HTML before </head> or </body>
  */
 function injectPixelsIntoHtml(html: string, pixelScripts: string, faviconTag?: string): string {
-  const injections = [pixelScripts, faviconTag].filter(Boolean).join('\n');
+  // Auto-resize script to communicate height to parent
+  const autoResizeScript = `
+<script>
+(function(){
+  function sendHeight(){
+    var h = document.documentElement.scrollHeight || document.body.scrollHeight;
+    window.parent.postMessage({type:'ai-lp-resize', height: h}, '*');
+  }
+  window.addEventListener('load', function(){ setTimeout(sendHeight, 100); setTimeout(sendHeight, 500); setTimeout(sendHeight, 2000); });
+  new MutationObserver(sendHeight).observe(document.body, {childList:true, subtree:true, attributes:true});
+  window.addEventListener('resize', sendHeight);
+})();
+</script>`;
+
+  const injections = [pixelScripts, faviconTag, autoResizeScript].filter(Boolean).join('\n');
   if (!injections) return html;
 
   // Try to inject before </head>
@@ -233,6 +249,20 @@ export default function StorefrontAILandingPage() {
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
+  // Auto-resize iframe based on content height (hooks must be before conditionals)
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [iframeHeight, setIframeHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'ai-lp-resize' && typeof e.data.height === 'number') {
+        setIframeHeight(e.data.height);
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
   // Loading state
   if (tenantLoading || pageLoading) {
     return (
@@ -255,8 +285,6 @@ export default function StorefrontAILandingPage() {
   // Set document title and favicon on parent document
   if (typeof document !== 'undefined') {
     document.title = landingPage.seo_title || landingPage.name;
-    
-    // Set favicon on parent document (not just inside iframe)
     if (storeSettings?.favicon_url) {
       let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement | null;
       if (!link) {
@@ -271,32 +299,36 @@ export default function StorefrontAILandingPage() {
 
   const shouldShowHeader = landingPage.show_header ?? false;
   const shouldShowFooter = landingPage.show_footer ?? false;
-
-  // Resolve tenantSlug for providers
   const resolvedTenantSlug = tenantSlug || tenantInfo.tenantSlug || '';
 
-  // If header or footer needed, wrap with providers
+  const iframeStyle = {
+    width: '100%',
+    display: 'block' as const,
+    border: 'none',
+    height: iframeHeight ? `${iframeHeight}px` : undefined,
+    minHeight: iframeHeight ? undefined : (shouldShowHeader || shouldShowFooter ? '80vh' : '100vh'),
+  };
+
+  // If header or footer needed, wrap with providers + TenantSlugContext
   if (shouldShowHeader || shouldShowFooter) {
     return (
-      <CartProvider tenantSlug={resolvedTenantSlug}>
-        <DiscountProvider>
-          <div className="min-h-screen w-full flex flex-col" style={{ margin: 0, padding: 0 }}>
-            {shouldShowHeader && <StorefrontHeader />}
-            <iframe
-              srcDoc={fullHtml}
-              className="w-full border-0 flex-1"
-              style={{ 
-                minHeight: shouldShowHeader || shouldShowFooter ? '80vh' : '100vh', 
-                width: '100%', 
-                display: 'block',
-                border: 'none',
-              }}
-              title={landingPage.name}
-            />
-            {shouldShowFooter && <StorefrontFooter />}
-          </div>
-        </DiscountProvider>
-      </CartProvider>
+      <TenantSlugContext.Provider value={resolvedTenantSlug}>
+        <CartProvider tenantSlug={resolvedTenantSlug}>
+          <DiscountProvider>
+            <div className="min-h-screen w-full flex flex-col" style={{ margin: 0, padding: 0 }}>
+              {shouldShowHeader && <StorefrontHeader />}
+              <iframe
+                ref={iframeRef}
+                srcDoc={fullHtml}
+                className="w-full border-0 flex-1"
+                style={iframeStyle}
+                title={landingPage.name}
+              />
+              {shouldShowFooter && <StorefrontFooter />}
+            </div>
+          </DiscountProvider>
+        </CartProvider>
+      </TenantSlugContext.Provider>
     );
   }
 
@@ -304,14 +336,10 @@ export default function StorefrontAILandingPage() {
   return (
     <div className="min-h-screen w-full" style={{ margin: 0, padding: 0 }}>
       <iframe
+        ref={iframeRef}
         srcDoc={fullHtml}
         className="w-full border-0"
-        style={{ 
-          minHeight: '100vh', 
-          width: '100%', 
-          display: 'block',
-          border: 'none',
-        }}
+        style={iframeStyle}
         title={landingPage.name}
       />
     </div>

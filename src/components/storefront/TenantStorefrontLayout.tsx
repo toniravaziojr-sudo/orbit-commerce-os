@@ -28,7 +28,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 
 // Context to provide tenantSlug to child components when not in URL
-const TenantSlugContext = createContext<string>('');
+export const TenantSlugContext = createContext<string>('');
 
 export function useTenantSlugFromContext(): string {
   return useContext(TenantSlugContext);
