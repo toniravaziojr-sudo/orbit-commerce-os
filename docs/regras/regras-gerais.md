@@ -623,6 +623,90 @@ useQuery({
 
 ---
 
+## 🚨 Tratamento de Erros — Padrão v1.0
+
+> **REGRA OBRIGATÓRIA** — Aplica-se a TODOS os módulos do admin (Comando Central).
+
+### Princípio
+
+**Nenhum erro pode ser silencioso.** Todo erro deve resultar em feedback visual claro para o usuário.
+
+### Camadas de Proteção
+
+| Camada | Componente | Descrição |
+|--------|-----------|-----------|
+| **Global** | `AdminErrorBoundary` (`src/components/layout/AdminErrorBoundary.tsx`) | Captura erros não tratados em qualquer componente do admin. Mostra tela de erro com botão "Tentar novamente" e "Contatar suporte" |
+| **Página** | `QueryErrorState` (`src/components/ui/query-error-state.tsx`) | Componente reutilizável para exibir quando uma query falha (`isError === true`) |
+| **Hook/Ação** | `showErrorToast` (`src/lib/error-toast.ts`) | Utilitário para categorizar erros e exibir toasts com mensagem clara |
+
+### Regras Obrigatórias
+
+| Regra | Descrição |
+|-------|-----------|
+| **Nenhum `console.error` sem `toast`** | Todo `catch` que loga no console DEVE também notificar o usuário via `toast.error()` ou `showErrorToast()` |
+| **Toda página com query deve tratar `isError`** | Extrair `isError` e `refetch` da query e renderizar `<QueryErrorState>` quando `isError === true` |
+| **Catches vazios proibidos** | `catch {}` vazio é proibido exceto para fallbacks de `localStorage` |
+| **Erros técnicos orientam suporte** | Erros de rede/500/timeout devem incluir "Se o problema persistir, entre em contato com o suporte" |
+| **Erros de permissão são claros** | Erros 403/RLS devem dizer "Você não tem permissão para esta ação" |
+
+### Categorias de Erro (error-toast.ts)
+
+| Categoria | Quando | Mensagem |
+|-----------|--------|----------|
+| **permission** | 403, "permission", "not authorized", "RLS" | "Você não tem permissão para realizar esta ação" |
+| **technical** | 500, timeout, network, erro genérico | "Erro interno do sistema. Se persistir, entre em contato com o suporte." |
+| **validation** | 400, "duplicate", "unique", "invalid" | Mensagem original do erro |
+
+### Uso do QueryErrorState
+
+```tsx
+import { QueryErrorState } from "@/components/ui/query-error-state";
+
+// No componente da página:
+const { data, isLoading, isError, refetch } = useMyQuery();
+
+if (isError) {
+  return (
+    <QueryErrorState
+      title="Erro ao carregar [módulo]"
+      message="Não foi possível carregar os dados. Tente novamente."
+      onRetry={() => refetch()}
+    />
+  );
+}
+```
+
+### Uso do showErrorToast
+
+```typescript
+import { showErrorToast } from "@/lib/error-toast";
+
+try {
+  await someAction();
+} catch (error) {
+  showErrorToast(error, "Erro ao salvar produto");
+}
+```
+
+### Proibições
+
+| ❌ Proibido | ✅ Correto |
+|-------------|------------|
+| `catch (e) { console.error(e) }` sem toast | `catch (e) { console.error(e); showErrorToast(e, "Contexto") }` |
+| `catch {}` vazio (exceto localStorage) | `catch (e) { toast.error("Mensagem clara") }` |
+| Página sem tratamento de `isError` | `if (isError) return <QueryErrorState ... />` |
+| Mensagem genérica "Algo deu errado" sem ação | Mensagem + botão "Tentar novamente" + link suporte |
+
+### Arquivos de Referência
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/components/layout/AdminErrorBoundary.tsx` | ErrorBoundary global do admin |
+| `src/components/ui/query-error-state.tsx` | Componente de estado de erro em queries |
+| `src/lib/error-toast.ts` | Utilitário centralizado de toast de erro |
+
+---
+
 ## Regra de Imutabilidade
 
 | Regra | Descrição |
