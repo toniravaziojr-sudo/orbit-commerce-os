@@ -426,7 +426,7 @@ for (const chunk of chunks) {
 | `duplicateProduct` | Duplicar produto (copia categorias, inicia inativo) | owner, admin, manager, editor |
 | `bulkUpdateProductsNCM` | Atualizar NCM em massa | owner, admin, manager |
 | `bulkUpdateProductsCEST` | Atualizar CEST em massa | owner, admin, manager |
-| `bulkUpdateProductsPrice` | Atualizar preços em massa (%, fixo, aumento, redução) | owner, admin, manager |
+| `bulkUpdateProductsPrice` | Atualizar preços em massa (%, fixo, aumento, redução, **apply_discount**). Suporta filtros: `productFormat`, `excludeKits`. `type=apply_discount` cria preço de/por (promocional). | owner, admin, manager |
 | `bulkUpdateProductsStock` | Atualizar estoque em massa (set, add, subtract) | owner, admin, manager |
 | `bulkActivateProducts` | Ativar/desativar em massa | owner, admin, manager |
 

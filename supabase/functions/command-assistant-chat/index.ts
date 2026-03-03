@@ -549,12 +549,14 @@ const TOOL_REGISTRY = {
     requiredPermission: "products",
   },
   bulkUpdateProductsPrice: {
-    description: "Atualizar preços de produtos (aumento/desconto percentual ou valor fixo individual)",
+    description: "Atualizar preços de produtos (aumento/desconto percentual, valor fixo, ou aplicar desconto promocional criando preço de/por)",
     parameters: {
-      type: { type: "string", required: true, description: "percent_increase, percent_decrease, fixed" },
-      value: { type: "number", required: false, description: "Valor percentual (para percent_increase/percent_decrease)" },
+      type: { type: "string", required: true, description: "percent_increase, percent_decrease, fixed, apply_discount (cria preço de/por)" },
+      value: { type: "number", required: false, description: "Valor percentual (para percent_increase/percent_decrease/apply_discount)" },
       productIds: { type: "array", required: false, description: "IDs específicos (opcional)" },
       categoryId: { type: "string", required: false, description: "Filtrar por categoria" },
+      productFormat: { type: "string", required: false, description: "Filtrar por formato: simple, with_composition, with_variants" },
+      excludeKits: { type: "boolean", required: false, description: "Se true, exclui kits (with_composition)" },
       prices: { type: "array", required: false, description: "Para definir preços individuais: [{productId, price}]. Usar com type='fixed'" },
       removeCompareAtPrice: { type: "boolean", required: false, description: "Se true, remove o preço de desconto (compare_at_price) dos produtos" },
     },
@@ -1046,7 +1048,14 @@ Formato ERRADO (NUNCA use):
 **Resposta CORRETA:**
 Vou aplicar 5% de desconto em todos os seus produtos (incluindo kits).
 \`\`\`action
-{"tool_name":"bulkUpdateProductsPrice","tool_args":{"type":"percent_decrease","value":5},"description":"Aplicar 5% de desconto em todos os produtos e kits"}
+{"tool_name":"bulkUpdateProductsPrice","tool_args":{"type":"percent_decrease","value":5},"description":"Reduzir preço base em 5% em todos os produtos e kits"}
+\`\`\`
+
+**Usuário:** "Aplica 5% de desconto promocional nos produtos simples (não kits)"
+**Resposta CORRETA:**
+Vou criar a promoção de 5% nos produtos simples, definindo "preço de" (riscado) e "preço por" (atual).
+\`\`\`action
+{"tool_name":"bulkUpdateProductsPrice","tool_args":{"type":"apply_discount","value":5,"excludeKits":true},"description":"Aplicar 5% desconto promocional (preço de/por) nos produtos simples"}
 \`\`\`
 
 **Resposta ERRADA (PROIBIDA):**
@@ -1059,18 +1068,34 @@ Vou aplicar 5% de desconto em todos os seus produtos (incluindo kits).
 {"tool_name":"bulkActivateProducts","tool_args":{"isActive":true},"description":"Ativar todos os produtos"}
 \`\`\`
 
+## TIPOS DE ALTERAÇÃO DE PREÇO:
+| type | O que faz | Quando usar |
+|---|---|---|
+| \`percent_decrease\` | Reduz preço BASE em X% | Redução permanente de preço |
+| \`percent_increase\` | Aumenta preço BASE em X% | Aumento de preço |
+| \`fixed\` | Define preço fixo | Definir valor específico |
+| \`apply_discount\` | Cria promoção: compare_at_price=preço atual, price=preço com desconto | Desconto promocional (preço de/por, preço riscado) |
+
+## FILTROS DE FORMATO:
+| Parâmetro | O que faz |
+|---|---|
+| \`productFormat: "simple"\` | Apenas produtos simples |
+| \`excludeKits: true\` | Exclui kits (with_composition) |
+| \`productFormat: "with_composition"\` | Apenas kits |
+
 ## REGRA: OPERAÇÕES EM MASSA SEM IDs = TODOS
 - \`bulkUpdateProductsPrice\` sem \`productIds\` → aplica em TODOS os produtos (incluindo kits)
 - \`bulkActivateProducts\` sem \`productIds\` → aplica em TODOS
 - **NÃO É NECESSÁRIO** listar produtos antes de uma operação em massa sem filtro
 - **NÃO SEPARE** kits de produtos — a tool já lida com todos
 
-## COMO ESCOLHER A FERRAMENTA CERTA (KITS):
+## COMO ESCOLHER A FERRAMENTA CERTA (KITS/PREÇOS):
 
 | O que o usuário quer | Como você identifica | O que usar |
 |---|---|---|
 | Desconto/promoção em kits ESPECÍFICOS | Menciona "desconto nos kits", faixa de unidades | listKitsSummary → applyKitDiscount |
-| Desconto em TODOS os produtos | Menciona "todos os produtos", "tudo" | bulkUpdateProductsPrice (sem productIds) |
+| Desconto PROMOCIONAL (preço de/por) | Menciona "preço riscado", "promoção", "preço de/por", "não alterar base" | bulkUpdateProductsPrice type=apply_discount |
+| Desconto em TODOS os produtos (reduz base) | Menciona "todos os produtos", "tudo", "reduzir preço" | bulkUpdateProductsPrice type=percent_decrease |
 | Corrigir preço base (componente mudou) | Menciona "recalcular", "preço mudou" | findKitsContainingProduct → recalculateKitPrices |
 
 ## EXECUÇÃO:
