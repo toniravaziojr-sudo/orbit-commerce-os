@@ -206,6 +206,22 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
 
 **Arquivo alterado:** `supabase/functions/command-assistant-chat/index.ts` (system prompt)
 
+### 🔧 Fix: Few-Shot Examples + Formato Obrigatório + Sem Separação (v3.11.0)
+
+> **Problemas corrigidos**:
+> 1. A IA anunciava "vou buscar" repetidamente sem chamar nenhuma tool — mesmo com regras v3.10.0, faltavam EXEMPLOS concretos
+> 2. A IA mostrava JSON cru no chat (fora do bloco ` ```action``` `), então o frontend não renderizava botões de ação
+> 3. A IA separava "kits" de "produtos" desnecessariamente quando o usuário pedia "todos os produtos" — `bulkUpdateProductsPrice` sem `productIds` já aplica em TUDO
+
+**Mudanças:**
+
+1. **Few-shot examples obrigatórios**: Exemplos concretos no system prompt mostrando a resposta CORRETA vs ERRADA para pedidos comuns (ex: "aplica 5% de desconto em todos os produtos")
+2. **Formato de ação obrigatório**: Regra explícita com destaque máximo (🚨🚨🚨) de que JSON fora de bloco ` ```action``` ` será IGNORADO pelo sistema. Exemplos visuais do formato correto vs errado
+3. **Regra "Sem IDs = TODOS"**: `bulkUpdateProductsPrice` sem `productIds` = aplica em TODOS os produtos (incluindo kits). NÃO é necessário listar antes. NÃO separar kits de produtos
+4. **Tabela de decisão atualizada**: Diferencia "desconto em kits ESPECÍFICOS" (→ applyKitDiscount) de "desconto em TODOS os produtos" (→ bulkUpdateProductsPrice sem filtro)
+
+**Arquivo alterado:** `supabase/functions/command-assistant-chat/index.ts` (system prompt)
+
 ### 🔧 Fix: Rate Limit Memory no AI Router (v1.2.0)
 
 > **Problema corrigido**: Quando OpenAI retornava 429 (rate limit) no round 1, o sistema fazia fallback para Gemini com sucesso. Porém, no round 2 de tool calling, o router esquecia que OpenAI estava em rate limit e tentava novamente — gastando 35s+ em retries (5s + 10s + 20s) até a conexão SSE morrer ("connection closed before message completed"). O usuário via a IA dizer "vou buscar" mas nunca receber resposta.
