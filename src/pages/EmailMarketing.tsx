@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/ui/page-header";
+import { QueryErrorState } from "@/components/ui/query-error-state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,11 +23,22 @@ import { Tag } from "lucide-react";
 
 export default function EmailMarketing() {
   const navigate = useNavigate();
-  const { lists, templates, campaigns, queueStats, subscribersCount } = useEmailMarketing();
-  
+  const emailMarketing = useEmailMarketing();
+  const { lists, templates, campaigns, queueStats, subscribersCount, listsLoading, listsError, refetchLists } = emailMarketing;
+
   const [listDialogOpen, setListDialogOpen] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [campaignDialogOpen, setCampaignDialogOpen] = useState(false);
+
+  // Render error state if needed
+  if (listsError) {
+    return (
+      <div className="space-y-8 animate-fade-in">
+        <PageHeader title="Email Marketing" description="Gerencie listas, assinantes, templates e campanhas de email" />
+        <QueryErrorState title="Erro ao carregar email marketing" onRetry={() => refetchLists()} />
+      </div>
+    );
+  }
 
   const handleViewList = (list: any) => {
     navigate(`/email-marketing/list/${list.id}`);

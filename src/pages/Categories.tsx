@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useCategories, Category } from '@/hooks/useProducts';
+import { QueryErrorState } from '@/components/ui/query-error-state';
 import { useAuth } from '@/hooks/useAuth';
 import { usePrimaryPublicHost } from '@/hooks/usePrimaryPublicHost';
 import { PageHeader } from '@/components/ui/page-header';

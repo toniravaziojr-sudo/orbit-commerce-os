@@ -73,6 +73,7 @@ export function useNotifications() {
     failed: 0,
     canceled: 0,
   });
+  const [error, setError] = useState<Error | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -161,6 +162,7 @@ export function useNotifications() {
       setHasMore(typedData.length === PAGE_SIZE);
     } catch (err) {
       console.error('[useNotifications] Error fetching notifications:', err);
+      setError(err as Error);
       toast.error('Erro ao carregar notificações');
     } finally {
       setIsLoading(false);
@@ -290,6 +292,7 @@ export function useNotifications() {
     notifications,
     stats,
     isLoading,
+    error,
     hasMore,
     filter,
     setFilter,

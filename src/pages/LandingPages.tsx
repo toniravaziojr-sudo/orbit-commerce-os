@@ -4,6 +4,7 @@
 // =============================================
 
 import { useState } from "react";
+import { QueryErrorState } from "@/components/ui/query-error-state";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -95,7 +96,7 @@ export default function LandingPages() {
   });
 
   // Fetch AI landing pages
-  const { data: aiPages, isLoading: aiLoading } = useQuery({
+  const { data: aiPages, isLoading: aiLoading, error: aiError, refetch: refetchAi } = useQuery({
     queryKey: ['ai-landing-pages', tenant?.id],
     queryFn: async () => {
       if (!tenant?.id) return [];
@@ -125,7 +126,7 @@ export default function LandingPages() {
   });
 
   // Fetch Builder landing pages (store_pages with type = 'landing_page')
-  const { data: builderPages, isLoading: builderLoading } = useQuery({
+  const { data: builderPages, isLoading: builderLoading, error: builderError, refetch: refetchBuilder } = useQuery({
     queryKey: ['builder-landing-pages', tenant?.id],
     queryFn: async () => {
       if (!tenant?.id) return [];
@@ -277,6 +278,23 @@ export default function LandingPages() {
             <Skeleton key={i} className="h-48" />
           ))}
         </div>
+      </div>
+    );
+  }
+
+  if (aiError || builderError) {
+    return (
+      <div className="container mx-auto py-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Sparkles className="h-6 w-6 text-primary" />
+            Landing Pages IA
+          </h1>
+        </div>
+        <QueryErrorState 
+          title="Erro ao carregar landing pages" 
+          onRetry={() => { refetchAi(); refetchBuilder(); }} 
+        />
       </div>
     );
   }

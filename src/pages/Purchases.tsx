@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePurchases, PURCHASE_STATUS_LABELS, PURCHASE_STATUS_COLORS, Purchase } from "@/hooks/usePurchases";
+import { QueryErrorState } from "@/components/ui/query-error-state";
 import { usePurchaseSuppliers } from "@/hooks/usePurchaseSuppliers";
 import { usePurchaseTypes } from "@/hooks/usePurchaseTypes";
 import { usePurchaseSupplierTypes } from "@/hooks/usePurchaseSupplierTypes";
@@ -24,7 +25,7 @@ import { format, isWithinInterval, startOfMonth, endOfMonth } from "date-fns";
 import { toast } from "sonner";
 
 export default function Purchases() {
-  const { purchases, pendingCount, inTransitCount, deliveredThisMonth, createPurchase, updatePurchase, deletePurchase, isLoading: loadingPurchases } = usePurchases();
+  const { purchases, pendingCount, inTransitCount, deliveredThisMonth, createPurchase, updatePurchase, deletePurchase, isLoading: loadingPurchases, error: purchasesError } = usePurchases();
   const { suppliers, createSupplier, updateSupplier, deleteSupplier, isLoading: loadingSuppliers } = usePurchaseSuppliers();
   const { purchaseTypes } = usePurchaseTypes();
   const { supplierTypes } = usePurchaseSupplierTypes();
