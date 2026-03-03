@@ -1,6 +1,6 @@
 # Landing Pages — Regras e Especificações
 
-> **Status:** PRONTO ✅ | **Atualizado:** 2026-03-02
+> **Status:** PRONTO ✅ | **Atualizado:** 2026-03-03
 
 ## Visão Geral
 
@@ -68,6 +68,8 @@ O módulo Landing Pages oferece **dois modos de criação distintos** com tabela
 | `reference_screenshot_url` | text | Screenshot da referência |
 | `product_ids` | text[] | IDs de produtos vinculados |
 | `current_version` | integer | Versão atual |
+| `show_header` | boolean | Exibir header da loja (default: true) |
+| `show_footer` | boolean | Exibir footer da loja (default: true) |
 | `seo_title` | string | Título para SEO |
 | `seo_description` | string | Descrição para SEO |
 | `seo_image_url` | string | Imagem OG para SEO |
@@ -86,6 +88,7 @@ O módulo Landing Pages oferece **dois modos de criação distintos** com tabela
 | `LandingPagePreviewDialog` | `src/components/landing-pages/LandingPagePreviewDialog.tsx` | Preview inline |
 | `ImportPageWithAIDialog` | `src/components/import/ImportPageWithAIDialog.tsx` | Importação de URL externa |
 | `StorefrontLandingPage` | `src/pages/storefront/StorefrontLandingPage.tsx` | Renderização pública (Builder) |
+| `StorefrontAILandingPage` | `src/pages/storefront/StorefrontAILandingPage.tsx` | Renderização pública (IA) com header/footer condicionais |
 
 ---
 
@@ -104,7 +107,7 @@ O módulo Landing Pages oferece **dois modos de criação distintos** com tabela
 1. Usuário clica "Criar com IA" (botão principal com ícone Sparkles)
 2. Preenche nome, slug, seleciona produtos, URL de referência, prompt
 3. Sistema cria registro em `ai_landing_pages` (status: `generating`)
-4. Edge function `ai-landing-page-generate` gera HTML via Gemini
+4. Edge function `ai-landing-page-generate` gera HTML via Gemini 2.5 Pro
 5. Redireciona para `/landing-pages/:id`
 
 ### 2. Criar no Builder (Visual Builder)
@@ -129,8 +132,21 @@ O módulo Landing Pages oferece **dois modos de criação distintos** com tabela
 
 | Function | Descrição |
 |----------|-----------|
-| `ai-landing-page-generate` | Gera HTML via Gemini (criação/refinamento) |
+| `ai-landing-page-generate` | Gera HTML via Gemini 2.5 Pro (v2.0.0) com Design System completo e contexto do negócio |
 | `ai-import-page` | Importa página externa (com `targetType: 'landing_page'` salva em `ai_landing_pages`) |
+
+### Design System do Gerador IA (v2.0.0)
+
+O prompt do `ai-landing-page-generate` inclui:
+
+- **Modelo:** `google/gemini-2.5-pro`
+- **Contexto do negócio:** Busca `product_reviews` e `ads_creative_assets` do tenant para injetar prova social real e tom de marca
+- **Tipografia:** Sora (headlines), Inter (corpo), escala tipográfica definida (hero 48-64px, h2 32-40px, body 16-18px)
+- **Layout:** max-width 1200px, padding vertical 80-120px entre seções, grid responsivo
+- **Componentes:** Cards com border-radius 16px e sombras multicamada, badges/pills, ícones SVG inline
+- **Animações:** fade-in via `@keyframes`, hover transitions em cards e CTAs, pulse/glow nos CTAs principais
+- **Responsividade:** Mobile-first com breakpoints em 768px e 1024px
+- **Estrutura obrigatória:** Hero → Barra de confiança → Benefícios → Social proof → Oferta → FAQ accordion → CTA final
 
 ---
 
@@ -158,6 +174,16 @@ Usa `useAILandingPageUrl` para resolver a URL pública correta de landing pages 
 
 ### RN-LP-007: Dialog "Criar no Builder" Espelha Páginas Institucionais
 O dialog deve conter campos de Nome + Slug editável com preview da URL final e validação de formato. Idêntico ao dialog "Nova Página" de Páginas Institucionais.
+
+### RN-LP-008: Header/Footer Condicional (Landing Pages IA)
+- Colunas `show_header` e `show_footer` em `ai_landing_pages` controlam exibição
+- Editor: switches na aba Config do `LandingPageEditor.tsx`
+- Storefront: `StorefrontAILandingPage.tsx` renderiza `StorefrontHeader`/`StorefrontFooter` condicionalmente com `CartProvider` e `DiscountProvider`
+- Default: ambos `true` (exibir header e footer)
+
+### RN-LP-009: Header/Footer Condicional (Landing Pages Builder)
+- Já suportado via `usePageOverrides` + `HeaderFooterPropsEditor`
+- `PublicTemplateRenderer` lê `headerEnabled`/`footerEnabled` dos overrides
 
 ---
 
