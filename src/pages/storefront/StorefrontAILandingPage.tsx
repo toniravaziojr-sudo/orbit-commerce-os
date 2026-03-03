@@ -245,9 +245,21 @@ export default function StorefrontAILandingPage() {
   const faviconTag = buildFaviconTag(storeSettings?.favicon_url);
   const fullHtml = injectPixelsIntoHtml(landingPage.generated_html, pixelScripts, faviconTag);
 
-  // Set document title
+  // Set document title and favicon on parent document
   if (typeof document !== 'undefined') {
     document.title = landingPage.seo_title || landingPage.name;
+    
+    // Set favicon on parent document (not just inside iframe)
+    if (storeSettings?.favicon_url) {
+      let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement | null;
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.head.appendChild(link);
+      }
+      link.href = storeSettings.favicon_url;
+      link.type = 'image/png';
+    }
   }
 
   return (
