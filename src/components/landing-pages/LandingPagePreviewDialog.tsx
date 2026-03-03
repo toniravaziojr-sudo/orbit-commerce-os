@@ -68,20 +68,27 @@ export function LandingPagePreviewDialog({
       );
     }
 
-    const fullHtml = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <style>
-            body { margin: 0; font-family: system-ui, sans-serif; }
-            ${landingPage.generated_css || ''}
-          </style>
-        </head>
-        <body>${landingPage.generated_html}</body>
-      </html>
-    `;
+    const rawHtml = landingPage.generated_html;
+    const isFullDocument = rawHtml.trim().toLowerCase().startsWith('<!doctype') || rawHtml.trim().toLowerCase().startsWith('<html');
+
+    const safetyCss = `<style id="lp-safety">
+*, *::before, *::after { animation-fill-mode: none !important; }
+body { opacity: 1 !important; visibility: visible !important; }
+section, .section, .hero, .container, main, article, div,
+h1, h2, h3, h4, p, span, a, ul, li, img { opacity: 1 !important; visibility: visible !important; }
+</style>`;
+
+    let fullHtml: string;
+    if (isFullDocument) {
+      fullHtml = rawHtml.includes('</head>')
+        ? rawHtml.replace('</head>', `${safetyCss}\n</head>`)
+        : rawHtml;
+    } else {
+      fullHtml = `<!DOCTYPE html><html><head>
+        <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>body { margin: 0; font-family: system-ui, sans-serif; }${landingPage.generated_css || ''}</style>
+        ${safetyCss}</head><body>${rawHtml}</body></html>`;
+    }
 
     return (
       <iframe

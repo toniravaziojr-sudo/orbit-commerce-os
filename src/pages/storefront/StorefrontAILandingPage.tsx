@@ -244,20 +244,14 @@ function injectPixelsIntoHtml(html: string, pixelScripts: string, faviconTag?: s
   // First, convert @import to <link> to prevent render-blocking
   let result = convertImportsToLinks(html);
 
-  // Safety CSS: force visibility even if animations fail or fonts block rendering
-  // This ensures content is never stuck at opacity:0 from unfinished CSS animations
-  const visibilitySafety = `<style>
-    /* Force ALL content visible — prevent opacity:0 from unfinished animations */
-    body, body * { visibility: visible !important; }
-    body { opacity: 1 !important; }
-    /* Override fadeInUp and similar animations that start at opacity:0 */
-    .animate-section, [class*="animate"], [class*="delay-"], [style*="opacity: 0"], [style*="opacity:0"] {
-      opacity: 1 !important;
-      transform: none !important;
-      animation: none !important;
-    }
-    /* Ensure sections and divs inside body are visible */
-    section, .section, .hero, .container, main, article, div {
+  // Safety CSS: force visibility — prevents opacity:0 stuck state from animation-fill-mode:both
+  // The root cause: `animation: fadeInUp 0.8s ease-out 0.2s both` keeps elements at opacity:0
+  // if animation keyframes are malformed or fail to complete in srcDoc iframes
+  const visibilitySafety = `<style id="lp-safety">
+    *, *::before, *::after { animation-fill-mode: none !important; }
+    body { opacity: 1 !important; visibility: visible !important; }
+    section, .section, .hero, .container, main, article, div,
+    h1, h2, h3, h4, p, span, a, ul, li, img, header, footer, nav {
       opacity: 1 !important;
       visibility: visible !important;
     }
