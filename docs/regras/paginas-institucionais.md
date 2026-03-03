@@ -340,6 +340,29 @@ Quando o usuário fornece um prompt curto ou incompleto (< 80 chars, < 3 frases,
 **Arquivo:** `supabase/functions/_shared/marketing/fallback-prompts.ts`
 **Metadata:** `generation_metadata.fallback_prompt_used` registra o ID do template usado (ou `null` se não usado)
 
+### Anti-Alucinação de Produto (v3.6.0)
+
+O motor v3.6.0 corrige o problema de a IA inventar nomes de produtos inexistentes. Mudanças:
+
+| Regra | Descrição |
+|-------|-----------|
+| **Ordem de execução** | Dados do produto são buscados ANTES de qualquer geração de imagem ou construção de prompt |
+| **Whitelist de nomes** | O system prompt inclui lista explícita de nomes permitidos: `ALLOWED_PRODUCT_NAMES: [...]` |
+| **Proibição explícita** | Prompt instrui: "NUNCA invente nomes de marca/produto. Use APENAS os nomes da lista." |
+| **Verificação pós-geração** | Pipeline valida que o HTML contém o nome correto do produto e pelo menos 1 URL de imagem válida |
+| **Imagens obrigatórias** | Se `productImages` está vazio, o motor gera imagens via IA antes de chamar o LLM |
+
+### Preview com Header/Footer no Editor Admin (v3.6.0)
+
+O `LandingPageEditor.tsx` renderiza `StorefrontHeader` e `StorefrontFooter` como componentes React **ao redor** do iframe de preview. Isso garante:
+
+| Item | Implementação |
+|------|--------------|
+| **Context** | `TenantSlugContext.Provider` envolve header + iframe + footer |
+| **Providers** | `CartProvider`, `DiscountProvider` e `StorefrontThemeInjector` são injetados |
+| **Visibilidade** | Controlado pelas flags `show_header` / `show_footer` da landing page |
+| **Isolamento** | Header/footer são React nativo; conteúdo da LP continua no iframe (CSS isolado) |
+
 ---
 
 ## Prompt Ideal para Geração de Landing Page
