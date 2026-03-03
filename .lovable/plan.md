@@ -1,97 +1,81 @@
 
+# Plano de Correção — 4 Problemas nas AI Landing Pages
 
-## Plano Definitivo: Correção Header/Footer + Upgrade do Motor de Geração IA
+## Problema 1: Header "Categoria em Destaque" bugada
 
----
+**Análise:** No screenshot, o badge de "Featured Promos" (lado esquerdo da barra de navegação secundária) aparece como um retângulo vermelho cortado/sem texto legível. O componente `StorefrontHeaderContent.tsx` renderiza o badge usando `featuredPromosBgColor` e `featuredPromosTextColor`, mas dentro do contexto de AI LP (que está FORA do `TenantStorefrontLayout`), as container queries CSS (`sf-header-desktop` / `sf-header-mobile`) podem não estar inicializadas corretamente.
 
-### Problema 1: Header e Footer quebrados nas AI Landing Pages
-
-**Causa raiz identificada:** `StorefrontHeader` e `StorefrontFooter` usam `useParams<{ tenantSlug }>()` para obter o slug do tenant. Nas AI Landing Pages acessadas via domínio customizado (ex: `loja.respeiteohomem.com.br/ai-lp/...`), **não existe `:tenantSlug` na URL** — o tenant é resolvido via hostname dentro do `StorefrontAILandingPage`. Resultado: header/footer recebem string vazia e não conseguem buscar dados.
-
-**Solução:**
-
-O `StorefrontAILandingPage` já resolve o tenant via hostname (`useTenantFromHostname`), mas não compartilha essa informação com os componentes filhos. A correção é:
-
-1. **Envolver o header/footer com o `TenantSlugContext`** do `TenantStorefrontLayout` — injetar o `resolvedTenantSlug` no context para que `useTenantSlug()` funcione corretamente nos componentes filhos
-2. **Garantir que `StorefrontHeader` e `StorefrontFooter` usem `useTenantSlug()`** (que já resolve param vs context) em vez de `useParams()` diretamente
-
-Arquivos afetados:
-- `src/pages/storefront/StorefrontAILandingPage.tsx` — wrapping com TenantSlugContext.Provider
-- `src/components/storefront/StorefrontHeader.tsx` — trocar `useParams` por `useTenantSlug`
-- `src/components/storefront/StorefrontFooter.tsx` — trocar `useParams` por `useTenantSlug`
+**Correção:**
+- Investigar se o CSS de container queries do header está disponível no contexto da AI LP (o `StorefrontThemeInjector` injeta essas regras? Ou dependem do layout global?)
+- Garantir que a barra secundária com featured promos tenha `overflow: visible` e dimensões adequadas
+- Se necessário, injetar o CSS de container queries no wrapper da AI LP
 
 ---
 
-### Problema 2: IA gera páginas "catálogo" sem criatividade visual
+## Problema 2: Footer não responsivo + Toggle não funciona
 
-**Diagnóstico:** O prompt atual (v2.0.0) é detalhado em regras CSS mas **fraco em direção criativa e comercial**. Ele diz "use Inter e Sora, padding 80-120px, cards com border-radius 16px" — instruções mecânicas que resultam em layouts previsíveis e genéricos. Faltam:
+**Análise (responsividade):** O `StorefrontFooter` usa container queries (`.sf-footer-mobile` / `.sf-footer-desktop` com breakpoint 768px). Dentro da AI LP, o footer é renderizado fora do iframe, como React component. Se o container pai não tem `container-type: inline-size`, as container queries não funcionam e o footer fica sempre no layout mobile (empilhado verticalmente).
 
-- **Direção artística** — a IA não recebe referências visuais de páginas de alta conversão
-- **Copy persuasivo** — o prompt não instrui sobre técnicas de copywriting (AIDA, PAS, storytelling)
-- **Inteligência de design adaptativa** — não diferencia nicho (cosmético, tech, moda, alimentos)
-- **Imagens como hero visual** — o prompt trata imagens como "coloque no src", mas não instrui sobre composições (imagem full-bleed, sobreposição com gradiente, mockups contextuais)
+**Correção (responsividade):**
+- No `StorefrontAILandingPage.tsx`, envolver o `<StorefrontFooter />` (e `<StorefrontHeader />`) em um container com `container-type: inline-size` para que as container queries funcionem corretamente
 
-**Solução: Reescrita completa do system prompt (v3.0.0)**
+**Análise (toggle):** O DB confirma `show_footer: false`, mas o usuário reporta que o footer continua aparecendo. A mutação de save funciona (linha 244 do editor), mas o problema pode ser:
+1. O `staleTime: 5 minutos` na query pública causa cache
+2. O usuário precisa hard-refresh a página publicada
+3. Possível issue: o componente `StorefrontAILandingPage` lê da query que pode estar cacheada no browser
 
-O novo prompt será estruturado em 5 pilares:
-
-#### Pilar 1 — Direção Criativa por Nicho
-Em vez de um design genérico, a IA analisará o `product_type`, `tags` e `description` do produto para identificar o nicho e aplicar uma direção visual correspondente:
-- **Saúde/Beleza masculina** → Dark premium, gold accents, autoridade médica
-- **Moda/Acessórios** → Editorial, whitespace generoso, lifestyle imagery
-- **Tech/Eletrônicos** → Gradientes neon, glassmorphism, specs visuais
-- **Alimentos/Bebidas** → Tons quentes, fotografia sensorial, texturas orgânicas
-
-#### Pilar 2 — Copy Persuasivo Estruturado
-Instruções explícitas de copywriting no prompt:
-- Hero: Técnica PAS (Problem → Agitation → Solution) ou gancho de curiosidade
-- Headlines com números específicos e power words
-- Micro-copy de urgência nos CTAs ("Últimas unidades", "Oferta por tempo limitado")
-- Seção "Antes vs Depois" ou "Com vs Sem" para criar contraste emocional
-
-#### Pilar 3 — Composição Visual de Produto
-Em vez de simplesmente "coloque a imagem no src":
-- Hero com imagem do produto em composição com gradiente (overlay de 30-60% sobre a imagem como background)
-- Mockup contextual: produto flutuando com sombra, ângulo 3D via CSS transform
-- Grid de galeria assimétrico (imagem grande + 2 pequenas ao lado)
-- Imagens com tratamento visual (border, glow da cor primária, badge sobreposto)
-
-#### Pilar 4 — Estrutura Comercial Otimizada
-Nova estrutura de seções focada em conversão:
-1. **Hero de impacto** — headline PAS + imagem hero composicional + CTA primário + trust indicators inline
-2. **Transformação visual** — antes/depois ou problema/solução com layout split
-3. **Produto em destaque** — foto grande + benefícios em lista + preço com âncora (de/por) + CTA
-4. **Prova social dinâmica** — reviews reais com foto, rating, destaque de frases-chave
-5. **Comparativo de valor** — "Por que [produto] vs alternativas" em tabela visual
-6. **Oferta irresistível** — card de preço com urgência, garantia, selos, CTA pulsante
-7. **FAQ estratégico** — objeções comuns transformadas em perguntas
-
-#### Pilar 5 — Efeitos Visuais Premium
-Instruções de CSS avançado:
-- Gradientes multicamada (mesh gradient backgrounds)
-- Glassmorphism em cards de destaque
-- Micro-animações (floating product, pulse CTA, count-up stats)
-- Parallax sutil em seções de background
-- Efeitos de texto (gradient text para headlines)
-
-**Arquivo afetado:** `supabase/functions/ai-landing-page-generate/index.ts`
+**Correção (toggle):**
+- Reduzir `staleTime` da query `ai-landing-page-public` para 30 segundos (ou 0) para garantir freshness
+- Verificar se o `select` da query realmente inclui `show_header, show_footer` (já confirmado que sim)
+- Adicionar `refetchOnWindowFocus: true` na query pública para re-validar ao voltar para a aba
 
 ---
 
-### Problema Bônus: iframe height não se ajusta ao conteúdo
+## Problema 3: Hero Banner — uso "burro" de imagens
 
-O iframe da AI LP usa `minHeight: '80vh'` fixo — isso pode cortar ou deixar espaço vazio. Será adicionado um `postMessage` de auto-resize do iframe.
+**Análise:** O system prompt do `ai-landing-page-generate` SEMPRE instrui hero com `min-height: 90vh` + imagem de fundo com gradient overlay. Isso resulta em um padrão repetitivo e nem sempre adequado.
 
-**Arquivos afetados:**
-- `src/pages/storefront/StorefrontAILandingPage.tsx` — listener de resize + script injetado no HTML
+**Correção no prompt (edge function):**
+- Remover a instrução fixa de `min-height: 90vh` no Hero (esse valor é sanitizado pelo client de qualquer forma)
+- Variar os templates de Hero nos fallback prompts. Dos 5 templates existentes (`dark-authority`, `editorial-clean`, `tech-futurista`, `organico-sensorial`, `urgencia-conversao`):
+  - Apenas `dark-authority` e `urgencia-conversao` usam hero fullscreen com background-image overlay
+  - `editorial-clean` → layout split (texto esquerda, produto direita)
+  - `tech-futurista` → hero com produto centralizado em container
+  - `organico-sensorial` → hero clean com produto em foto lifestyle
+- No system prompt principal, trocar de "Imagem do produto como background com gradient overlay" para oferecer 3 opções de layout de hero, deixando a IA escolher com base no nicho:
+  1. **Split layout**: Texto à esquerda, produto à direita (melhor para produtos com embalagem visível)
+  2. **Background composicional**: Imagem lifestyle/criativa como fundo com overlay (apenas para nichos dark/premium)
+  3. **Hero clean**: Fundo sólido/gradiente com produto flutuante centralizado e copy ao lado
 
 ---
 
-### Resumo de entregas
+## Problema 4: Logo não se adapta ao design da página
 
-| # | Entrega | Arquivos |
-|---|---------|----------|
-| 1 | Fix header/footer em AI LPs (TenantSlugContext) | StorefrontAILandingPage, StorefrontHeader, StorefrontFooter |
-| 2 | Prompt v3.0.0 — Motor criativo completo | ai-landing-page-generate/index.ts |
-| 3 | Auto-resize do iframe | StorefrontAILandingPage |
+**Análise:** No screenshot do comparativo (imagem 183), a logo aparece minúscula dentro de um container branco, quase ilegível. O prompt instrui `max-width: 160px` fixo e container branco obrigatório. Para logos com fundo transparente sobre temas dark, isso funciona, mas o tamanho é muito pequeno para tabelas comparativas.
 
+**Correção no prompt:**
+- Aumentar `max-width` da logo para `200px` no prompt
+- Instruir que em tabelas comparativas, a logo deve ocupar pelo menos `180px` de largura
+- Adicionar regra: "Se o fundo da LP é escuro e a logo tem fundo transparente com texto claro, NÃO precisa de container branco — use a logo diretamente"
+- Adicionar regra: "Se a logo tem texto escuro em fundo transparente E a LP é dark, use o container branco mas com `min-width: 180px` para garantir legibilidade"
+
+---
+
+## Resumo de Arquivos Afetados
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/pages/storefront/StorefrontAILandingPage.tsx` | Container com `container-type: inline-size` para header/footer; reduzir `staleTime` |
+| `supabase/functions/ai-landing-page-generate/index.ts` | Prompt: variar hero layouts, melhorar regras de logo, remover min-height 90vh fixo |
+| `supabase/functions/_shared/marketing/fallback-prompts.ts` | Atualizar templates para diversificar heroes |
+| `docs/regras/paginas-institucionais.md` | Documentar correção do scroll + novos padrões de hero |
+
+---
+
+## Documentação Necessária
+
+Atualizar `docs/regras/paginas-institucionais.md`:
+- Registrar fix v3.8.2 do scroll (sanitizeAILandingPageHtml)
+- Registrar container queries fix para header/footer em AI LPs
+- Registrar diversificação de hero layouts (v3.9.0)
+- Registrar novas regras de logo adaptativa
