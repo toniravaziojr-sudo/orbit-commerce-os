@@ -23,12 +23,8 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { GenerateSeoButton } from "@/components/seo/GenerateSeoButton";
 import { LandingPageChatInput } from "@/components/landing-pages/LandingPageChatInput";
-import { StorefrontHeader } from "@/components/storefront/StorefrontHeader";
-import { StorefrontFooter } from "@/components/storefront/StorefrontFooter";
-import { TenantSlugContext } from "@/components/storefront/TenantStorefrontLayout";
-import { CartProvider } from "@/contexts/CartContext";
-import { DiscountProvider } from "@/contexts/DiscountContext";
-import { StorefrontThemeInjector } from "@/components/storefront/StorefrontThemeInjector";
+// Header/Footer are rendered only in the public page (StorefrontAILandingPage)
+// In the editor, we show a clean iframe-only preview to avoid CSS conflicts
 import {
   ArrowLeft,
   Sparkles,
@@ -385,43 +381,33 @@ export default function LandingPageEditor() {
       htmlWithResize += autoResizeScript;
     }
 
-    const tenantSlug = tenant?.slug || '';
-    const shouldShowHeader = showHeader;
-    const shouldShowFooter = showFooter;
-
-    const iframeElement = (
-      <iframe
-        ref={iframeRef}
-        srcDoc={htmlWithResize}
-        className="w-full border-0"
-        style={{ 
-          height: iframeHeight ? `${iframeHeight}px` : '100%',
-          minHeight: iframeHeight ? undefined : '400px',
-          display: 'block',
-        }}
-        title="Landing Page Preview"
-      />
+    // Editor preview: iframe-only (header/footer visible only on public page)
+    // This avoids CSS conflicts from injecting storefront components into admin context
+    return (
+      <div className="w-full h-full overflow-auto" style={{ background: '#fff' }}>
+        {showHeader && (
+          <div className="bg-muted/50 border-b px-4 py-2 text-center text-xs text-muted-foreground">
+            ⬆ Cabeçalho da loja será exibido aqui na página pública
+          </div>
+        )}
+        <iframe
+          ref={iframeRef}
+          srcDoc={htmlWithResize}
+          className="w-full border-0"
+          style={{ 
+            height: iframeHeight ? `${iframeHeight}px` : '100%',
+            minHeight: iframeHeight ? undefined : '400px',
+            display: 'block',
+          }}
+          title="Landing Page Preview"
+        />
+        {showFooter && (
+          <div className="bg-muted/50 border-t px-4 py-2 text-center text-xs text-muted-foreground">
+            ⬇ Rodapé da loja será exibido aqui na página pública
+          </div>
+        )}
+      </div>
     );
-
-    // If header or footer should be shown, wrap with providers
-    if (shouldShowHeader || shouldShowFooter) {
-      return (
-        <TenantSlugContext.Provider value={tenantSlug}>
-          <CartProvider tenantSlug={tenantSlug}>
-            <DiscountProvider>
-              <StorefrontThemeInjector tenantSlug={tenantSlug} />
-              <div className="w-full h-full overflow-auto" style={{ background: '#fff' }}>
-                {shouldShowHeader && <StorefrontHeader />}
-                {iframeElement}
-                {shouldShowFooter && <StorefrontFooter />}
-              </div>
-            </DiscountProvider>
-          </CartProvider>
-        </TenantSlugContext.Provider>
-      );
-    }
-
-    return iframeElement;
   };
 
   if (isLoading) {

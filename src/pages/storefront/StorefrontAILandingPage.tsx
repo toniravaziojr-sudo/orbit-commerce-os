@@ -384,8 +384,9 @@ export default function StorefrontAILandingPage() {
     width: '100%',
     display: 'block',
     border: 'none',
-    height: iframeHeight ? `${iframeHeight}px` : '100vh',
-    minHeight: iframeHeight ? undefined : '100vh',
+    height: iframeHeight ? `${iframeHeight}px` : '80vh',
+    minHeight: '400px',
+    maxHeight: iframeHeight ? `${iframeHeight}px` : undefined,
     overflow: 'hidden',
   };
 
@@ -395,7 +396,7 @@ export default function StorefrontAILandingPage() {
       <TenantSlugContext.Provider value={resolvedTenantSlug}>
         <CartProvider tenantSlug={resolvedTenantSlug}>
           <DiscountProvider>
-            <div className="w-full" style={{ margin: 0, padding: 0 }}>
+            <div className="w-full min-h-screen" style={{ margin: 0, padding: 0, overflow: 'hidden' }}>
               {shouldShowHeader && <StorefrontHeader />}
               <iframe
                 ref={iframeRef}
@@ -403,6 +404,7 @@ export default function StorefrontAILandingPage() {
                 className="w-full border-0"
                 style={iframeStyle}
                 title={landingPage.name}
+                scrolling="no"
               />
               {shouldShowFooter && <StorefrontFooter />}
             </div>
@@ -419,8 +421,12 @@ export default function StorefrontAILandingPage() {
         ref={iframeRef}
         srcDoc={fullHtml}
         className="w-full border-0"
-        style={iframeStyle}
+        style={{
+          ...iframeStyle,
+          height: iframeHeight ? `${iframeHeight}px` : '100vh',
+        }}
         title={landingPage.name}
+        scrolling="no"
       />
     </div>
   );
