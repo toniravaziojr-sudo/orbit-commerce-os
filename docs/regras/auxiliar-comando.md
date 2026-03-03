@@ -2,7 +2,7 @@
 
 > **Status:** ✅ Ready  
 > **Última atualização:** 2026-03-03  
-> **Versão do Pipeline:** v3.8.0  
+> **Versão do Pipeline:** v3.8.1  
 > **Cobertura:** 59+ tools — 100% dos módulos (Fases 1–5 completas)
 
 ---
@@ -175,6 +175,18 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
 2. **`applyKitDiscount`** (Escrita com confirmação): Aplica desconto percentual sobre kits. Define `compare_at_price` = preço cheio (soma dos componentes) e `price` = preço com desconto. Aceita array de `{kitId, discountPercent}`.
 
 **Fluxo esperado:** `listKitsSummary` → agrupar por faixa → `applyKitDiscount` com os IDs e percentuais
+
+### 🔧 Fix: Forced Response na Última Rodada + Fallback Gemini (v3.8.1)
+
+> **Problema corrigido**: Em comandos complexos (ex: "aplique descontos em todos os kits por faixa"), a IA usava todas as 5 rodadas de tool calling sem nunca produzir uma resposta final. O fallback `streamFromAI` usava OpenAI que já estava com rate limit (429), causando shutdown da função sem resposta ao usuário.
+
+**Mudanças:**
+
+1. **Forced text response na última rodada**: Na rodada 5/5 (última), as tools são removidas da chamada à IA e uma instrução de sistema é injetada forçando resposta textual com os dados já coletados
+2. **Fallback streaming via Gemini**: O `streamFromAI` agora usa `google/gemini-2.5-flash` com `preferProvider: 'gemini'` em vez de `openai/gpt-5`, evitando conflito de rate limit quando OpenAI já foi throttled nas rodadas anteriores
+3. **Garantia**: Mesmo em cenários com muitas ferramentas, o usuário SEMPRE recebe uma resposta
+
+**Arquivo alterado:** `supabase/functions/command-assistant-chat/index.ts`
 
 ### 🔧 Fix: Confirmação Pós-Execução (v3.6.1)
 
