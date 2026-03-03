@@ -9,7 +9,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
-const VERSION = "3.3.0"; // Drive access for tenant media assets
+const VERSION = "3.4.0"; // Product-specific Drive search + lifestyle image generation
 
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
@@ -295,49 +295,141 @@ serve(async (req) => {
       console.log(`[AI-LP-Generate] Found ${creatives.length} creative assets for tone context`);
     }
 
-    // ===== DRIVE: Fetch tenant media assets from Drive =====
+    // ===== DRIVE: Fetch product-related media assets from Drive =====
     let driveAssetsInfo = "";
+    let driveAssetsCount = 0;
     try {
-      const { data: driveFiles } = await supabase
-        .from("files")
-        .select("filename, original_name, storage_path, mime_type, metadata")
-        .eq("tenant_id", tenantId)
-        .eq("is_folder", false)
-        .like("mime_type", "image/%")
-        .not("storage_path", "is", null)
-        .order("created_at", { ascending: false })
-        .limit(30);
+      if (productIds && productIds.length > 0) {
+        // First, get product names/slugs to search the Drive
+        const { data: productNamesData } = await supabase
+          .from("products")
+          .select("name, slug, brand")
+          .in("id", productIds);
+        
+        if (productNamesData && productNamesData.length > 0) {
+          // Build search keywords from product names (lowercase, normalized)
+          const searchKeywords = productNamesData.flatMap(p => {
+            const keywords: string[] = [];
+            if (p.name) {
+              // Split product name into meaningful words (3+ chars)
+              const words = p.name.toLowerCase().split(/[\s\-_,]+/).filter((w: string) => w.length >= 3);
+              keywords.push(...words);
+              // Also add full name slug-style
+              keywords.push(p.name.toLowerCase().replace(/\s+/g, '-'));
+            }
+            if (p.slug) keywords.push(p.slug.toLowerCase());
+            if (p.brand) keywords.push(p.brand.toLowerCase());
+            return keywords;
+          }).filter((v, i, a) => a.indexOf(v) === i); // deduplicate
 
-      if (driveFiles && driveFiles.length > 0) {
-        // Only include files from public buckets (store-assets, media-assets)
-        const publicAssets = driveFiles.filter(f => {
-          const path = f.storage_path || "";
-          const meta = f.metadata as Record<string, any> | null;
-          const bucket = meta?.bucket || "";
-          // Files in store-assets or media-assets are public
-          return bucket === "store-assets" || bucket === "media-assets" || 
-                 path.startsWith("tenants/");
-        });
+          console.log(`[AI-LP-Generate] Drive search keywords: ${searchKeywords.slice(0, 10).join(', ')}`);
 
-        if (publicAssets.length > 0) {
-          const assetUrls = publicAssets.map(f => {
-            const meta = f.metadata as Record<string, any> | null;
-            // Use the URL from metadata if available, otherwise construct it
-            if (meta?.url) return { name: f.original_name || f.filename, url: meta.url };
-            
-            const bucket = meta?.bucket || "store-assets";
-            const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(f.storage_path!);
-            return { name: f.original_name || f.filename, url: urlData?.publicUrl || "" };
-          }).filter(a => a.url);
+          // Fetch images from Drive
+          const { data: driveFiles } = await supabase
+            .from("files")
+            .select("filename, original_name, storage_path, mime_type, metadata")
+            .eq("tenant_id", tenantId)
+            .eq("is_folder", false)
+            .like("mime_type", "image/%")
+            .not("storage_path", "is", null)
+            .order("created_at", { ascending: false })
+            .limit(100);
 
-          if (assetUrls.length > 0) {
-            driveAssetsInfo = assetUrls.map((a, i) => `  ${i + 1}. ${a.name}: ${a.url}`).join("\n");
-            console.log(`[AI-LP-Generate] Found ${assetUrls.length} Drive assets for context`);
+          if (driveFiles && driveFiles.length > 0) {
+            // Filter: only public buckets AND matching product keywords
+            const relevantAssets = driveFiles.filter(f => {
+              const meta = f.metadata as Record<string, any> | null;
+              const bucket = meta?.bucket || "";
+              const isPublic = bucket === "store-assets" || bucket === "media-assets" || 
+                               (f.storage_path || "").startsWith("tenants/");
+              if (!isPublic) return false;
+
+              // Check if filename matches any product keyword
+              const fname = (f.original_name || f.filename || "").toLowerCase();
+              return searchKeywords.some(kw => fname.includes(kw));
+            });
+
+            if (relevantAssets.length > 0) {
+              const assetUrls = relevantAssets.slice(0, 15).map(f => {
+                const meta = f.metadata as Record<string, any> | null;
+                if (meta?.url) return { name: f.original_name || f.filename, url: meta.url };
+                const bucket = meta?.bucket || "store-assets";
+                const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(f.storage_path!);
+                return { name: f.original_name || f.filename, url: urlData?.publicUrl || "" };
+              }).filter(a => a.url);
+
+              if (assetUrls.length > 0) {
+                driveAssetsInfo = assetUrls.map((a, i) => `  ${i + 1}. ${a.name}: ${a.url}`).join("\n");
+                driveAssetsCount = assetUrls.length;
+                console.log(`[AI-LP-Generate] Found ${assetUrls.length} product-related Drive assets`);
+              }
+            } else {
+              console.log(`[AI-LP-Generate] No product-related Drive assets found (${driveFiles.length} total files checked)`);
+            }
           }
         }
       }
     } catch (driveErr) {
       console.warn("[AI-LP-Generate] Drive fetch error (non-blocking):", driveErr);
+    }
+
+    // ===== GENERATE LIFESTYLE IMAGES if no Drive assets found =====
+    let lifestyleImageUrls: string[] = [];
+    if (driveAssetsCount === 0 && productIds && productIds.length > 0 && promptType !== "adjustment") {
+      const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+      if (lovableApiKey && productImages.length > 0) {
+        console.log(`[AI-LP-Generate] No Drive assets found, generating lifestyle images...`);
+        
+        // Get product context for lifestyle prompt
+        const { data: lifestyleProd } = await supabase
+          .from("products")
+          .select("name, product_type, tags, description")
+          .eq("id", productIds[0])
+          .single();
+
+        const productContext = lifestyleProd 
+          ? `Produto: "${lifestyleProd.name}"${lifestyleProd.product_type ? `, Tipo: ${lifestyleProd.product_type}` : ""}${lifestyleProd.tags?.length ? `, Tags: ${lifestyleProd.tags.join(", ")}` : ""}`
+          : "Produto em destaque";
+
+        const lifestylePrompt = `FOTOGRAFIA DE LIFESTYLE/AMBIENTAÇÃO para landing page de e-commerce.
+
+${productContext}
+
+OBJETIVO: Criar uma imagem de ambientação/lifestyle que mostre o produto sendo usado em contexto real, transmitindo os benefícios e o estilo de vida associado.
+
+REGRAS:
+1. O produto da imagem de referência DEVE aparecer de forma natural no cenário
+2. Mostre o produto EM USO ou em um ambiente premium/aspiracional
+3. Iluminação natural e acolhedora
+4. Composição equilibrada com espaço para sobreposição de texto
+5. Aspect ratio: 16:9 (paisagem) para seção de banner/ambientação
+6. Cores que complementem o produto
+7. NÃO altere o rótulo, embalagem ou identidade do produto
+
+ESTILO: Fotografia lifestyle premium, estilo editorial de revista. Ultra realista.`;
+
+        try {
+          const referenceBase64 = await imageUrlToBase64(productImages[0]);
+          if (referenceBase64) {
+            // Generate 1 lifestyle image
+            let lifestyleDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', lifestylePrompt, referenceBase64);
+            if (!lifestyleDataUrl) {
+              lifestyleDataUrl = await callImageModel(lovableApiKey, 'google/gemini-2.5-flash-image', lifestylePrompt, referenceBase64);
+            }
+
+            if (lifestyleDataUrl) {
+              const safeName = (lifestyleProd?.name || "produto").toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 40);
+              const lifestyleUrl = await uploadCreativeToStorage(supabase, tenantId, lifestyleDataUrl, `lifestyle-${safeName}`);
+              if (lifestyleUrl) {
+                lifestyleImageUrls.push(lifestyleUrl);
+                console.log(`[AI-LP-Generate] Lifestyle image generated: ${lifestyleUrl}`);
+              }
+            }
+          }
+        } catch (lifestyleErr) {
+          console.warn("[AI-LP-Generate] Lifestyle generation error (non-blocking):", lifestyleErr);
+        }
+      }
     }
 
     // Fetch products if provided - include ALL relevant fields!
@@ -753,11 +845,17 @@ As imagens de catálogo NÃO devem ser usadas no corpo da página, apenas em gri
 
 \${creativesInfo ? \`## REFERÊNCIAS DE MARKETING (TOM, ESTILO E HEADLINES DO NEGÓCIO):\\n\${creativesInfo}\\n\\n> Use estas referências para alinhar o tom de voz, estilo de copywriting e abordagem da landing page com o que o negócio já usa em suas campanhas.\` : ""}
 
-\${driveAssetsInfo ? \`## 📁 IMAGENS DO DRIVE DO LOJISTA (ASSETS ADICIONAIS DISPONÍVEIS)
-O lojista possui estas imagens no Drive que podem ser usadas como recursos visuais complementares na landing page (ex: banners, lifestyle, ambientação, ícones customizados):
+\${driveAssetsInfo ? \`## 📁 IMAGENS DO DRIVE RELACIONADAS AO PRODUTO
+O lojista possui estas imagens relacionadas ao(s) produto(s) desta landing page. Use-as para enriquecer visualmente a página (ex: fotos de lifestyle, banners, ambientação):
 \${driveAssetsInfo}
 
-> Use estas imagens quando fizerem sentido para enriquecer visualmente a página (ex: fotos de lifestyle, banners, texturas). **NÃO substitua** as imagens de produto do catálogo por estas. Elas são complementares.\` : ""}
+> Use estas imagens nas seções de ambientação, lifestyle ou como complemento visual. **NÃO substitua** as imagens de produto do catálogo por estas.\` : ""}
+
+\${lifestyleImageUrls.length > 0 ? \`## 🌿 IMAGENS DE LIFESTYLE GERADAS (AMBIENTAÇÃO DO PRODUTO)
+Estas imagens foram geradas especificamente para mostrar o produto em contexto de uso real. Use-as nas seções de "Transformação", "Benefícios" ou "Ambientação":
+\${lifestyleImageUrls.map((url, i) => \`  \${i + 1}. \${url}\`).join("\\n")}
+
+> Use para seções de lifestyle/ambientação. NÃO substitua as imagens de catálogo do produto.\` : ""}
 
 \${referenceUrl ? \`## URL DE REFERÊNCIA (APENAS INSPIRAÇÃO VISUAL/ESTRUTURAL!):\\n\${referenceUrl}\\n⚠️ COPIE APENAS O LAYOUT E ESTILO! USE OS DADOS DOS PRODUTOS ACIMA!\` : ""}
 
@@ -865,7 +963,8 @@ O usuário anexou imagens/vídeos no prompt abaixo. As URLs estão marcadas como
           product_count: productIds?.length || 0,
           reviews_count: reviewsInfo ? reviewsInfo.split("\n").length : 0,
           creatives_count: creativesInfo ? creativesInfo.split("\n").length : 0,
-          drive_assets_count: driveAssetsInfo ? driveAssetsInfo.split("\n").length : 0,
+          drive_assets_count: driveAssetsCount,
+          lifestyle_images_generated: lifestyleImageUrls.length,
         },
       });
 
