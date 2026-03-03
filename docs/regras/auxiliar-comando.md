@@ -2,7 +2,7 @@
 
 > **Status:** ✅ Ready  
 > **Última atualização:** 2026-03-03  
-> **Versão do Pipeline:** v3.8.2  
+> **Versão do Pipeline:** v3.9.0  
 > **Cobertura:** 59+ tools — 100% dos módulos (Fases 1–5 completas)
 
 ---
@@ -174,9 +174,22 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
 1. **`listKitsSummary`** (Leitura auto-executável): Lista TODOS os kits com nome, SKU, preço e **total de unidades** (soma das quantidades dos componentes). Aceita filtros `minUnits`/`maxUnits`.
 2. **`applyKitDiscount`** (Escrita com confirmação): Aplica desconto percentual sobre kits. Define `compare_at_price` = preço cheio (soma dos componentes) e `price` = preço com desconto. Aceita array de `{kitId, discountPercent}`.
 
-**Fluxo esperado:** `listKitsSummary` → agrupar por faixa → `applyKitDiscount` com os IDs e percentuais
+**Fluxo esperado:** `listKitsSummary` (sem filtro, pegar TODOS) → agrupar por faixa → **UMA ÚNICA chamada** `applyKitDiscount` com TODOS os kits de TODAS as faixas
 
-### 🔧 Fix: SSE Keep-Alive + Streaming Imediato (v3.8.2)
+### 🔧 Fix: Anti-Fragmentação de Descontos em Kits (v3.9.0)
+
+> **Problema corrigido**: Ao pedir descontos por faixa (ex: "2x=12-15%, 3x=18-20%, 6x=25-30%, 12x=38%"), a IA fragmentava em 4+ ações separadas (uma por faixa), exigindo múltiplas confirmações. Também re-listava o plano completo várias vezes antes de executar, e às vezes esquecia faixas inteiras.
+
+**Mudanças:**
+
+1. **Regra Anti-Fragmentação no system prompt**: Instrução explícita de que `applyKitDiscount` DEVE receber TODOS os kits de TODAS as faixas em uma ÚNICA chamada
+2. **Workflow obrigatório**: `listKitsSummary` (1x, sem filtro) → agrupar → 1 bloco `action` com array completa
+3. **Proibição de re-listagem**: A IA não deve listar o plano inteiro múltiplas vezes antes de executar
+4. **Exceção à regra "Uma Ação por Vez"**: `applyKitDiscount` é explicitamente marcada como exceção que aceita operações em lote
+
+**Arquivo alterado:** `supabase/functions/command-assistant-chat/index.ts` (system prompt)
+
+
 
 > **Problema corrigido**: A edge function fazia todas as rodadas de tool calling (~60s) **antes** de retornar qualquer byte ao navegador. Conexões eram dropadas por timeout do browser/proxy, deixando o usuário travado em "Pensando..." eternamente.
 
