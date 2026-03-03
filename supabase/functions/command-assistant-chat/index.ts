@@ -1398,7 +1398,7 @@ serve(async (req) => {
     // v3.8.2: Return Response immediately with heartbeat SSE events during tool calling
     // to prevent browser/proxy timeout on long-running tool calling rounds
     resetAIRouterCache();
-    const aiOpts = { supabaseUrl, supabaseServiceKey: supabaseKey, logPrefix: '[command-assistant-chat]', preferProvider: 'openai' as const };
+    const aiOpts = { supabaseUrl, supabaseServiceKey: supabaseKey, logPrefix: '[command-assistant-chat]', preferProvider: 'openai' as const, maxRetries: 1, baseDelayMs: 3000 };
 
     const { readable, writable } = new TransformStream();
     const writer = writable.getWriter();
