@@ -81,7 +81,7 @@ const OPENAI_READ_TOOLS = [
     type: "function",
     function: {
       name: "listProducts",
-      description: "Listar produtos com filtros (ativos, inativos, por categoria, faixa de preço)",
+      description: "Listar produtos com filtros. Use productFormat para filtrar por tipo: 'simple' (produtos simples), 'with_composition' (kits), 'with_variants' (com variantes). Use excludeKits=true para excluir kits.",
       parameters: {
         type: "object",
         properties: {
@@ -89,8 +89,10 @@ const OPENAI_READ_TOOLS = [
           categoryId: { type: "string", description: "Filtrar por categoria" },
           minPrice: { type: "number", description: "Preço mínimo em reais" },
           maxPrice: { type: "number", description: "Preço máximo em reais" },
-          limit: { type: "number", description: "Limite (padrão 20)" },
+          limit: { type: "number", description: "Limite (padrão 20, máx 100)" },
           orderBy: { type: "string", description: "name, price, created_at, stock_quantity" },
+          productFormat: { type: "string", description: "Filtrar por formato: simple, with_composition, with_variants" },
+          excludeKits: { type: "boolean", description: "Se true, exclui produtos com composição (kits). Padrão false" },
         },
         required: [],
       },

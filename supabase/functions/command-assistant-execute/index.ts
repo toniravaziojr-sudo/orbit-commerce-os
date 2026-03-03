@@ -1643,18 +1643,38 @@ async function executeTool(
     }
 
     case "listProducts": {
-      const { status, categoryId, minPrice, maxPrice, limit, orderBy } = tool_args;
-      const maxResults = limit || 20;
+      const { status, categoryId, minPrice, maxPrice, limit, orderBy, productFormat, excludeKits } = tool_args;
+      const maxResults = Math.min(limit || 20, 100);
       
       let q = supabase
         .from("products")
-        .select("id, name, sku, price, stock_quantity, status, created_at")
+        .select("id, name, sku, price, compare_at_price, stock_quantity, status, product_format, created_at")
         .eq("tenant_id", tenant_id)
         .is("deleted_at", null)
         .limit(maxResults);
       
       if (status === "active") q = q.eq("status", "active");
       else if (status === "inactive") q = q.eq("status", "inactive");
+      
+      // Filter by product format
+      if (productFormat) {
+        q = q.eq("product_format", productFormat);
+      } else if (excludeKits) {
+        q = q.neq("product_format", "with_composition");
+      }
+      
+      if (categoryId) {
+        // Get product IDs from category junction table
+        const { data: catProducts } = await supabase
+          .from("product_categories")
+          .select("product_id")
+          .eq("category_id", categoryId);
+        if (catProducts && catProducts.length > 0) {
+          q = q.in("id", catProducts.map((cp: any) => cp.product_id));
+        } else {
+          return { success: true, message: "Nenhum produto encontrado nesta categoria.", data: [] };
+        }
+      }
       
       if (minPrice) q = q.gte("price", minPrice);
       if (maxPrice) q = q.lte("price", maxPrice);
@@ -1669,9 +1689,10 @@ async function executeTool(
         return { success: true, message: "Nenhum produto encontrado com os filtros aplicados.", data: [] };
       }
       
-      const list = data.map((p: any) => 
-        `• ${p.name} — R$ ${(p.price || 0).toFixed(2)} — Estoque: ${p.stock_quantity ?? 0}`
-      ).join("\n");
+      const list = data.map((p: any) => {
+        const format = p.product_format === "with_composition" ? " [Kit]" : p.product_format === "with_variants" ? " [Variantes]" : "";
+        return `• ${p.name}${format} (SKU: ${p.sku || "—"}) — R$ ${(p.price || 0).toFixed(2)} — Estoque: ${p.stock_quantity ?? 0} — ${p.status === "active" ? "Ativo" : "Inativo"}`;
+      }).join("\n");
       
       return {
         success: true,
