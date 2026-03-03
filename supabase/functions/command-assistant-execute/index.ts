@@ -648,7 +648,7 @@ async function executeTool(
         // Find kits with at least N components
         const { data: kitsWithComponents, error: kitsError } = await supabase
           .from("products")
-          .select("id, product_components(id)")
+          .select("id, product_components!product_components_parent_product_id_fkey(id)")
           .eq("tenant_id", tenant_id)
           .eq("product_format", "with_composition")
           .eq("status", "active");
