@@ -1371,134 +1371,208 @@ serve(async (req) => {
       // Falls through to the normal tool calling loop below
     }
 
-    // ==================== NATIVE TOOL CALLING LOOP ====================
-    // Phase 1: Non-streaming loop to resolve all read tool calls
+    // ==================== NATIVE TOOL CALLING LOOP (with SSE keep-alive) ====================
+    // v3.8.2: Return Response immediately with heartbeat SSE events during tool calling
+    // to prevent browser/proxy timeout on long-running tool calling rounds
     resetAIRouterCache();
-    // Use OpenAI native for tool calling (reliable tool support, Gemini OpenAI-compat doesn't support tools well)
     const aiOpts = { supabaseUrl, supabaseServiceKey: supabaseKey, logPrefix: '[command-assistant-chat]', preferProvider: 'openai' as const };
-    
-    let toolCallRound = 0;
-    let finalMessages = [...messages];
-    let phase1FinalContent: string | null = null;
 
-    while (toolCallRound < MAX_TOOL_ROUNDS) {
-      toolCallRound++;
-      const isLastRound = toolCallRound >= MAX_TOOL_ROUNDS;
-      console.log(`[command-assistant-chat] Tool calling round ${toolCallRound}/${MAX_TOOL_ROUNDS}${isLastRound ? ' (FINAL - forcing text response)' : ''}`);
+    const { readable, writable } = new TransformStream();
+    const writer = writable.getWriter();
+    const enc = new TextEncoder();
+
+    // Background processing
+    (async () => {
+      // Heartbeat interval — send SSE comment every 8s to keep connection alive
+      const heartbeat = setInterval(() => {
+        try { writer.write(enc.encode(": heartbeat\n\n")); } catch {}
+      }, 8000);
 
       try {
-        // On the last round, remove tools to force a text response instead of more tool calls
-        const roundTools = isLastRound ? undefined : OPENAI_READ_TOOLS;
-        const roundToolChoice = isLastRound ? undefined : "auto";
-        
-        const { data: aiData } = await aiChatCompletionJSON(
-          "google/gemini-2.5-flash",
-          {
-            messages: isLastRound 
-              ? [...finalMessages, { role: "system", content: "IMPORTANTE: Você já coletou dados suficientes. Responda ao usuário agora com base nos dados que já tem. NÃO tente buscar mais dados." }]
-              : finalMessages,
-            ...(roundTools ? { tools: roundTools, tool_choice: roundToolChoice } : {}),
-          },
-          aiOpts
-        );
+        let toolCallRound = 0;
+        let finalMsgs = [...messages];
+        let phase1FinalContent: string | null = null;
 
-        const choice = aiData?.choices?.[0];
-        if (!choice) {
-          console.error("[command-assistant-chat] No choice in AI response");
-          break;
-        }
+        while (toolCallRound < MAX_TOOL_ROUNDS) {
+          toolCallRound++;
+          const isLastRound = toolCallRound >= MAX_TOOL_ROUNDS;
+          console.log(`[command-assistant-chat] Tool calling round ${toolCallRound}/${MAX_TOOL_ROUNDS}${isLastRound ? ' (FINAL - forcing text response)' : ''}`);
 
-        const toolCalls = choice.message?.tool_calls;
-        
-        // MUDANÇA 1: If no tool calls, CAPTURE the response instead of discarding it
-        if (!toolCalls || toolCalls.length === 0) {
-          phase1FinalContent = choice.message?.content || null;
-          console.log(`[command-assistant-chat] Phase 1 complete after ${toolCallRound} round(s), captured response (${phase1FinalContent?.length || 0} chars)`);
-          break;
-        }
+          // Send status event so frontend knows progress
+          try {
+            writer.write(enc.encode(`data: ${JSON.stringify({ status: "processing", round: toolCallRound })}\n\n`));
+          } catch {}
 
-        // Execute read tools
-        console.log(`[command-assistant-chat] Executing ${toolCalls.length} read tool(s)`);
-        
-        finalMessages.push({
-          role: "assistant",
-          content: choice.message.content || "",
-          tool_calls: toolCalls,
-        });
+          try {
+            const roundTools = isLastRound ? undefined : OPENAI_READ_TOOLS;
+            const roundToolChoice = isLastRound ? undefined : "auto";
 
-        for (const tc of toolCalls) {
-          const toolName = tc.function?.name;
-          const toolArgs = tc.function?.arguments ? 
-            (typeof tc.function.arguments === 'string' ? JSON.parse(tc.function.arguments) : tc.function.arguments) : {};
-          
-          const allowedTypes = READ_PERMISSION_MAP[toolName];
-          let toolResult: string;
-          
-          if (allowedTypes && !allowedTypes.includes(userRole.user_type)) {
-            toolResult = `Sem permissão para executar ${toolName}. Necessário: ${allowedTypes.join(", ")}`;
-          } else if (READ_TOOLS.has(toolName)) {
-            try {
-              toolResult = await executeReadTool(supabase, tenant_id, user.id, toolName, toolArgs, token);
-            } catch (e) {
-              toolResult = `Erro ao executar ${toolName}: ${e instanceof Error ? e.message : "Erro desconhecido"}`;
+            const { data: aiData } = await aiChatCompletionJSON(
+              "google/gemini-2.5-flash",
+              {
+                messages: isLastRound
+                  ? [...finalMsgs, { role: "system", content: "IMPORTANTE: Você já coletou dados suficientes. Responda ao usuário agora com base nos dados que já tem. NÃO tente buscar mais dados." }]
+                  : finalMsgs,
+                ...(roundTools ? { tools: roundTools, tool_choice: roundToolChoice } : {}),
+              },
+              aiOpts
+            );
+
+            const choice = aiData?.choices?.[0];
+            if (!choice) {
+              console.error("[command-assistant-chat] No choice in AI response");
+              break;
             }
-          } else {
-            toolResult = `Tool ${toolName} não é uma tool de leitura automática.`;
+
+            const toolCalls = choice.message?.tool_calls;
+
+            if (!toolCalls || toolCalls.length === 0) {
+              phase1FinalContent = choice.message?.content || null;
+              console.log(`[command-assistant-chat] Phase 1 complete after ${toolCallRound} round(s), captured response (${phase1FinalContent?.length || 0} chars)`);
+              break;
+            }
+
+            console.log(`[command-assistant-chat] Executing ${toolCalls.length} read tool(s)`);
+
+            finalMsgs.push({
+              role: "assistant",
+              content: choice.message.content || "",
+              tool_calls: toolCalls,
+            });
+
+            for (const tc of toolCalls) {
+              const toolName = tc.function?.name;
+              const toolArgs = tc.function?.arguments ?
+                (typeof tc.function.arguments === 'string' ? JSON.parse(tc.function.arguments) : tc.function.arguments) : {};
+
+              const allowedTypes = READ_PERMISSION_MAP[toolName];
+              let toolResult: string;
+
+              if (allowedTypes && !allowedTypes.includes(userRole.user_type)) {
+                toolResult = `Sem permissão para executar ${toolName}. Necessário: ${allowedTypes.join(", ")}`;
+              } else if (READ_TOOLS.has(toolName)) {
+                try {
+                  toolResult = await executeReadTool(supabase, tenant_id, user.id, toolName, toolArgs, token);
+                } catch (e) {
+                  toolResult = `Erro ao executar ${toolName}: ${e instanceof Error ? e.message : "Erro desconhecido"}`;
+                }
+              } else {
+                toolResult = `Tool ${toolName} não é uma tool de leitura automática.`;
+              }
+
+              finalMsgs.push({
+                role: "tool",
+                tool_call_id: tc.id,
+                content: toolResult,
+              });
+            }
+          } catch (e) {
+            console.error(`[command-assistant-chat] Tool calling round ${toolCallRound} error:`, e);
+            break;
+          }
+        }
+
+        clearInterval(heartbeat);
+
+        // ==================== Send final response ====================
+        if (phase1FinalContent) {
+          console.log(`[command-assistant-chat] Using Phase 1 response directly (no Phase 2 needed)`);
+          await saveAssistantMessage(phase1FinalContent);
+
+          const actionMatch = phase1FinalContent.match(/```action\s*([\s\S]*?)```/);
+          let streamActions: any[] = [];
+          if (actionMatch) {
+            try {
+              const actionData = JSON.parse(actionMatch[1]);
+              if (actionData.tool_name && actionData.tool_args && Object.keys(actionData.tool_args).length > 0) {
+                streamActions = [{
+                  id: crypto.randomUUID(),
+                  tool_name: actionData.tool_name,
+                  tool_args: actionData.tool_args,
+                  description: actionData.description,
+                }];
+              }
+            } catch (e) {
+              console.error("Error parsing action for stream:", e);
+            }
           }
 
-          finalMessages.push({
-            role: "tool",
-            tool_call_id: tc.id,
-            content: toolResult,
+          const cleanContent = phase1FinalContent.replace(/```action[\s\S]*?```/g, "").trim();
+
+          // Stream content in chunks
+          const chunkSize = 20;
+          for (let i = 0; i < cleanContent.length; i += chunkSize) {
+            const chunk = cleanContent.slice(i, i + chunkSize);
+            await writer.write(enc.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: chunk } }] })}\n\n`));
+          }
+          if (streamActions.length > 0) {
+            await writer.write(enc.encode(`data: ${JSON.stringify({ proposed_actions: streamActions })}\n\n`));
+          }
+          await writer.write(enc.encode("data: [DONE]\n\n"));
+        } else {
+          // Fallback: stream from AI
+          console.log(`[command-assistant-chat] Phase 1 exhausted without final response, falling back to streaming call`);
+          const endpoint = await getAIEndpoint("google/gemini-2.5-flash", {
+            supabaseUrl,
+            supabaseServiceKey: supabaseKey,
+            preferProvider: 'gemini',
           });
-        }
-      } catch (e) {
-        console.error(`[command-assistant-chat] Tool calling round ${toolCallRound} error:`, e);
-        break;
-      }
-    }
+          console.log(`[command-assistant-chat] Streaming via ${endpoint.provider} (${endpoint.model})`);
 
-    // ==================== MUDANÇA 1: Use Phase 1 response directly (synthetic stream) ====================
-    if (phase1FinalContent) {
-      console.log(`[command-assistant-chat] Using Phase 1 response directly (no Phase 2 needed)`);
-      
-      // Save the message and extract proposed actions
-      await saveAssistantMessage(phase1FinalContent);
-      
-      // Extract proposed actions for synthetic stream emission
-      const actionMatch = phase1FinalContent.match(/```action\s*([\s\S]*?)```/);
-      let streamActions: any[] = [];
-      if (actionMatch) {
-        try {
-          const actionData = JSON.parse(actionMatch[1]);
-          if (actionData.tool_name && actionData.tool_args && Object.keys(actionData.tool_args).length > 0) {
-            streamActions = [{
-              id: crypto.randomUUID(),
-              tool_name: actionData.tool_name,
-              tool_args: actionData.tool_args,
-              description: actionData.description,
-            }];
+          const aiResponse = await fetch(endpoint.url, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${endpoint.apiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: endpoint.model,
+              messages: finalMsgs,
+              stream: true,
+            }),
+          });
+
+          if (!aiResponse.ok || !aiResponse.body) {
+            await writer.write(enc.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente." } }] })}\n\n`));
+            await writer.write(enc.encode("data: [DONE]\n\n"));
+          } else {
+            const reader = aiResponse.body.getReader();
+            let fullContent = "";
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              const text = new TextDecoder().decode(value);
+              await writer.write(enc.encode(text));
+              // Extract content for saving
+              const lines = text.split("\n");
+              for (const line of lines) {
+                if (!line.startsWith("data: ") || line === "data: [DONE]") continue;
+                try {
+                  const parsed = JSON.parse(line.slice(6));
+                  const c = parsed.choices?.[0]?.delta?.content;
+                  if (c) fullContent += c;
+                } catch {}
+              }
+            }
+            if (fullContent) await saveAssistantMessage(fullContent);
+            // Ensure DONE is sent
+            await writer.write(enc.encode("data: [DONE]\n\n"));
           }
-        } catch (e) {
-          console.error("Error parsing action for stream:", e);
         }
+      } catch (error) {
+        console.error("Error in background processing:", error);
+        try {
+          await writer.write(enc.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: "Desculpe, ocorreu um erro interno. Tente novamente." } }] })}\n\n`));
+          await writer.write(enc.encode("data: [DONE]\n\n"));
+        } catch {}
+      } finally {
+        try { await writer.close(); } catch {}
       }
-      
-      // Clean content for streaming (remove action blocks)
-      const cleanContent = phase1FinalContent.replace(/```action[\s\S]*?```/g, "").trim();
-      
-      // Stream it synthetically to the frontend
-      const syntheticStream = createSyntheticStream(cleanContent, streamActions);
-      
-      return new Response(syntheticStream, {
-        headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
-      });
-    }
+    })();
 
-    // Fallback: Phase 1 didn't produce a final response (e.g., all rounds were tool calls)
-    // In this case, do a streaming call to get the final response
-    console.log(`[command-assistant-chat] Phase 1 exhausted without final response, falling back to streaming call`);
-    return await streamFromAI(finalMessages);
+    return new Response(readable, {
+      headers: { ...corsHeaders, "Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive" },
+    });
 
   } catch (error) {
     console.error("Error:", error);
