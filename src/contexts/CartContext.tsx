@@ -9,6 +9,7 @@ export interface CartItem {
   price: number;
   quantity: number;
   image_url?: string;
+  free_shipping?: boolean;
 }
 
 export interface ShippingOption {

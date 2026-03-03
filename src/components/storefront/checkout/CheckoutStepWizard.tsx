@@ -103,9 +103,11 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   // Calculate discount
   const discountAmount = getDiscountAmount(subtotal, shipping.selected?.price || 0);
   
-  // Handle free shipping from coupon
-  const effectiveShipping = appliedDiscount?.free_shipping 
-    ? { ...shipping.selected, isFree: true, price: 0 }
+  // Free shipping hierarchy: 1) Product-level → 2) Coupon → 3) Logistics rules
+  const allItemsFreeShipping = items.length > 0 && items.every(item => item.free_shipping === true);
+  const hasFreeShipping = allItemsFreeShipping || appliedDiscount?.free_shipping;
+  const effectiveShipping = hasFreeShipping
+    ? (shipping.selected ? { ...shipping.selected, isFree: true, price: 0 } : shipping.selected)
     : shipping.selected;
 
   // Use centralized totals
@@ -857,7 +859,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
             totals={totals} 
             shipping={effectiveShipping} 
             appliedDiscount={appliedDiscount}
-            freeShipping={appliedDiscount?.free_shipping}
+            freeShipping={hasFreeShipping}
           />
 
           {/* Testimonials */}
