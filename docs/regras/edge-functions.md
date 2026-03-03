@@ -1243,6 +1243,36 @@ Remarketing/Ofertas → focus.remarketing (variantes: "Kit Banho Calvície Zero 
 
 ---
 
+### v1.48.0: `ads-autopilot-strategist` — Landing Page Tools (Search + Generate)
+
+**Novas Ferramentas:**
+- `search_landing_pages`: Busca LPs existentes (AI Landing Pages + Builder) filtrando por nome de produto. Retorna URLs públicas prontas para `destination_url`. Busca em `ai_landing_pages` e `store_pages` (type=landing_page).
+- `generate_landing_page`: Cria um registro em `ai_landing_pages` e dispara a edge function `ai-landing-page-generate` em background (fire-and-forget). Retorna a URL futura imediatamente. Verifica duplicatas antes de criar.
+
+**Disponibilidade:**
+- Ambas as tools estão disponíveis em TODOS os triggers (start, implement_approved_plan, implement_campaigns, revision, weekly, monthly) e para TODOS os canais (Meta, Google, TikTok).
+- Array `LANDING_PAGE_TOOLS` é concatenado ao array de tools do canal ativo via spread operator.
+
+**System Prompt (v1.48.0):**
+- Seção "CAPACIDADES DE LANDING PAGES" instrui a IA sobre quando usar cada ferramenta
+- Regras: preferir LPs existentes, não gerar para orçamentos baixos ou remarketing quente
+- LPs dedicadas tipicamente convertem 2-5x melhor que páginas de produto padrão
+
+**URL Fix:**
+- Landing pages IA agora usam corretamente `/ai-lp/{slug}` (antes usava `/lp/{slug}` incorretamente)
+
+**Tabelas afetadas:**
+| Tabela | Operação |
+|--------|----------|
+| `ai_landing_pages` | SELECT (search), INSERT (generate) |
+| `store_pages` | SELECT (search) |
+| `products` | SELECT (resolução de nome) |
+| `tenant_domains` | SELECT (URL resolution) |
+| `tenants` | SELECT (slug fallback) |
+| `user_roles` | SELECT (created_by) |
+
+---
+
 ### v1.8.0 → v1.9.0: `ads-autopilot-strategist` — Approval Obrigatório + Plano Injetado + Creative Link
 
 **v1.8.0 — Approval Obrigatório**:

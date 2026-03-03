@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.47.0"; // TikTok tool selection in execution loop
+const VERSION = "v1.48.0"; // Landing page tools: search + generate for campaigns
 // ===================
 
 const corsHeaders = {
@@ -333,6 +333,46 @@ const STRATEGIST_TOOLS = [
           timeline: { type: "string", description: "Cronograma detalhado: Dia 1 (o quê), Dia 2-3 (o quê), Semana 1 (review), etc." },
         },
         required: ["diagnosis", "planned_actions", "budget_allocation", "expected_results", "risk_assessment", "timeline"],
+        additionalProperties: false,
+      },
+    },
+  },
+];
+
+// ============ LANDING PAGE TOOLS (shared across channels) ============
+
+const LANDING_PAGE_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "search_landing_pages",
+      description: "Busca landing pages existentes na loja que podem ser usadas como destino de campanhas. Retorna URLs públicas prontas para uso em destination_url. Use ANTES de criar campanhas para verificar se já existe uma LP otimizada para o produto.",
+      parameters: {
+        type: "object",
+        properties: {
+          product_name: { type: "string", description: "Nome do produto para buscar LPs relacionadas (opcional — sem filtro retorna todas)" },
+          include_drafts: { type: "boolean", description: "Incluir LPs em rascunho (default: false, apenas publicadas)" },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "generate_landing_page",
+      description: "Solicita a geração de uma nova landing page otimizada para conversão usando IA. Use quando NÃO existir uma LP adequada para o produto e você identificar que uma LP dedicada melhoraria a taxa de conversão (vs enviar para a página padrão do produto). A LP será gerada em background e ficará disponível em poucos minutos.",
+      parameters: {
+        type: "object",
+        properties: {
+          product_name: { type: "string", description: "Nome EXATO do produto do catálogo (case-sensitive)" },
+          prompt: { type: "string", description: "Instruções criativas para a LP. Descreva o tom, estilo visual, público-alvo e ângulo de venda. Mínimo 50 caracteres para melhor resultado." },
+          show_header: { type: "boolean", description: "Exibir header da loja na LP (default: true)" },
+          show_footer: { type: "boolean", description: "Exibir footer da loja na LP (default: true)" },
+          reasoning: { type: "string", description: "Justificativa estratégica: por que uma LP dedicada é melhor que a página padrão do produto para esta campanha" },
+        },
+        required: ["product_name", "prompt", "reasoning"],
         additionalProperties: false,
       },
     },
@@ -976,8 +1016,10 @@ async function collectStrategistContext(supabase: any, tenantId: string, configs
   }));
   const lpLinks = landingPages.map((lp: any) => ({
     name: lp.name,
-    url: storeUrl ? `${storeUrl}/lp/${lp.slug}` : `/lp/${lp.slug}`,
+    url: storeUrl ? `${storeUrl}/ai-lp/${lp.slug}` : `/ai-lp/${lp.slug}`,
+    slug: lp.slug,
     products: lp.product_ids,
+    seo_title: lp.seo_title,
   }));
 
   // Compute per-campaign performance (v1.35.0: added frequency, CPM, funnel actions)
@@ -1419,7 +1461,27 @@ ${config.user_instructions || "Nenhuma instrução adicional."}
 
 ## LINKS E DESTINOS DISPONÍVEIS
 - Páginas da Loja: ${context.pageLinks?.length > 0 ? context.pageLinks.map((p: any) => `${p.title} (${p.url})`).join(", ") : "Nenhuma publicada"}
-- Landing Pages IA: ${context.lpLinks?.length > 0 ? context.lpLinks.map((lp: any) => `${lp.name} (${lp.url})`).join(", ") : "Nenhuma"}
+- Landing Pages IA: ${context.lpLinks?.length > 0 ? context.lpLinks.map((lp: any) => `${lp.name} → ${lp.url}${lp.products?.length ? ` [produtos: ${lp.products.join(", ")}]` : ""}`).join("\n  ") : "Nenhuma ativa"}
+
+## CAPACIDADES DE LANDING PAGES (v1.48.0)
+Você pode buscar e GERAR landing pages otimizadas para campanhas:
+
+### search_landing_pages
+- Use ANTES de criar campanhas para verificar se já existe uma LP dedicada
+- LPs dedicadas tipicamente convertem 2-5x melhor que páginas de produto padrão
+- Se encontrar uma LP relevante, use sua URL como destination_url
+
+### generate_landing_page  
+- Use quando identificar que uma LP dedicada melhoraria conversões
+- Cenários ideais: produto carro-chefe sem LP, campanha de alto orçamento, lançamento
+- A LP é gerada por IA com copy persuasivo, design responsivo e otimizada para conversão
+- Forneça um prompt DESCRITIVO com tom, estilo visual e ângulo de venda
+- A URL estará disponível em ~2 minutos — use-a como destination_url
+
+### Quando NÃO gerar LP:
+- Produto já tem LP existente (use search_landing_pages primeiro)
+- Orçamento baixo (< R$30/dia) — a página padrão do produto é suficiente
+- Campanha de remarketing quente — o cliente já conhece o produto
 
 ## REGRAS DO ESTRATEGISTA
 - Analise TODO o contexto antes de tomar decisões: produtos, público, campanhas ativas, métricas, links disponíveis e instruções do usuário
@@ -1431,7 +1493,7 @@ ${config.user_instructions || "Nenhuma instrução adicional."}
 - Promoção: variante com CPA < 80% do controle ou ROAS > 120% por 3+ dias → promover
 - Responda SEMPRE em Português do Brasil
 - Cada tool call deve ter justificativa numérica
-- Use os links reais da loja (landing pages, páginas) como destino dos anúncios
+- Use os links reais da loja (landing pages, páginas) como destino dos anúncios — PREFIRA landing pages dedicadas quando disponíveis
 - Considere as categorias de produtos e o posicionamento da marca ao criar copys
 
 ## MÉTRICAS ESTENDIDAS DISPONÍVEIS (v1.35.0)
@@ -2430,6 +2492,237 @@ async function executeToolCall(
     };
   }
 
+  // ============ LANDING PAGE TOOL HANDLERS ============
+
+  if (toolName === "search_landing_pages") {
+    try {
+      console.log(`[ads-autopilot-strategist][${VERSION}] search_landing_pages for tenant ${tenantId}`);
+      
+      let query = supabase
+        .from("ai_landing_pages")
+        .select("id, name, slug, status, is_published, seo_title, product_ids, created_at")
+        .eq("tenant_id", tenantId);
+      
+      if (!args.include_drafts) {
+        query = query.eq("is_published", true);
+      }
+      
+      const { data: lps, error } = await query.order("created_at", { ascending: false }).limit(30);
+      
+      if (error) {
+        console.error(`[ads-autopilot-strategist][${VERSION}] search_landing_pages error:`, error);
+        return { status: "failed", data: { error: error.message } };
+      }
+
+      // Also fetch store_pages (builder landing pages)
+      const { data: builderPages } = await supabase
+        .from("store_pages")
+        .select("id, title, slug, type, is_published, seo_title")
+        .eq("tenant_id", tenantId)
+        .eq("type", "landing_page")
+        .eq("is_published", true)
+        .limit(20);
+      
+      // Resolve store URL
+      const { data: domainRow } = await supabase.from("tenant_domains").select("domain").eq("tenant_id", tenantId).eq("type", "custom").eq("is_primary", true).maybeSingle();
+      const { data: tenantRow } = await supabase.from("tenants").select("slug").eq("id", tenantId).single();
+      const baseUrl = domainRow?.domain ? `https://${domainRow.domain}` : (tenantRow?.slug ? `https://${tenantRow.slug}.comandocentral.com.br` : "");
+      
+      // Filter by product name if provided
+      let filteredLPs = lps || [];
+      if (args.product_name) {
+        const searchName = (args.product_name || "").toLowerCase().trim();
+        // Match by product_ids (resolve names) or by LP name containing product name
+        const { data: matchedProducts } = await supabase
+          .from("products")
+          .select("id, name")
+          .eq("tenant_id", tenantId)
+          .ilike("name", `%${searchName}%`)
+          .limit(10);
+        const matchedIds = (matchedProducts || []).map((p: any) => p.id);
+        
+        filteredLPs = filteredLPs.filter((lp: any) => {
+          const nameMatch = lp.name?.toLowerCase().includes(searchName);
+          const productMatch = lp.product_ids?.some((pid: string) => matchedIds.includes(pid));
+          return nameMatch || productMatch;
+        });
+      }
+
+      const aiLpResults = filteredLPs.map((lp: any) => ({
+        name: lp.name,
+        slug: lp.slug,
+        url: `${baseUrl}/ai-lp/${lp.slug}`,
+        status: lp.is_published ? "published" : "draft",
+        seo_title: lp.seo_title,
+        product_ids: lp.product_ids,
+        type: "ai_landing_page",
+      }));
+
+      const builderResults = (builderPages || []).map((p: any) => ({
+        name: p.title,
+        slug: p.slug,
+        url: `${baseUrl}/lp/${p.slug}`,
+        status: p.is_published ? "published" : "draft",
+        seo_title: p.seo_title,
+        type: "builder_landing_page",
+      }));
+
+      const allResults = [...aiLpResults, ...builderResults];
+
+      return {
+        status: "executed",
+        data: {
+          landing_pages: allResults,
+          total: allResults.length,
+          message: allResults.length > 0 
+            ? `Encontradas ${allResults.length} landing pages. Use a URL na destination_url da campanha.`
+            : "Nenhuma landing page encontrada. Considere usar generate_landing_page para criar uma LP otimizada.",
+        },
+      };
+    } catch (err: any) {
+      console.error(`[ads-autopilot-strategist][${VERSION}] search_landing_pages exception:`, err.message);
+      return { status: "failed", data: { error: err.message } };
+    }
+  }
+
+  if (toolName === "generate_landing_page") {
+    try {
+      console.log(`[ads-autopilot-strategist][${VERSION}] generate_landing_page for product "${args.product_name}"`);
+      
+      // Find the product
+      const { data: products } = await supabase
+        .from("products")
+        .select("id, name, slug")
+        .eq("tenant_id", tenantId)
+        .eq("status", "active")
+        .limit(100);
+      
+      const matchedProduct = (products || []).find((p: any) => p.name.trim() === (args.product_name || "").trim());
+      if (!matchedProduct) {
+        return { status: "failed", data: { error: `Produto "${args.product_name}" não encontrado no catálogo. Verifique o nome exato.` } };
+      }
+
+      // Check if an LP already exists for this product
+      const { data: existingLPs } = await supabase
+        .from("ai_landing_pages")
+        .select("id, name, slug, is_published")
+        .eq("tenant_id", tenantId)
+        .contains("product_ids", [matchedProduct.id])
+        .limit(5);
+      
+      if (existingLPs && existingLPs.length > 0) {
+        const { data: domainRow } = await supabase.from("tenant_domains").select("domain").eq("tenant_id", tenantId).eq("type", "custom").eq("is_primary", true).maybeSingle();
+        const { data: tenantRow } = await supabase.from("tenants").select("slug").eq("id", tenantId).single();
+        const baseUrl = domainRow?.domain ? `https://${domainRow.domain}` : (tenantRow?.slug ? `https://${tenantRow.slug}.comandocentral.com.br` : "");
+        
+        const existingList = existingLPs.map((lp: any) => ({
+          name: lp.name,
+          url: `${baseUrl}/ai-lp/${lp.slug}`,
+          is_published: lp.is_published,
+        }));
+
+        return {
+          status: "executed",
+          data: {
+            action: "existing_found",
+            existing_landing_pages: existingList,
+            message: `Já existem ${existingLPs.length} landing page(s) para "${matchedProduct.name}". Use a URL existente ou prossiga com a geração de uma nova.`,
+          },
+        };
+      }
+
+      // Get the user's auth info for the created_by field
+      const { data: ownerRole } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("tenant_id", tenantId)
+        .eq("role", "owner")
+        .limit(1)
+        .single();
+      
+      const createdBy = ownerRole?.user_id || tenantId;
+
+      // Generate a unique slug
+      const baseSlug = matchedProduct.slug || matchedProduct.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+      const slug = `${baseSlug}-lp-${Date.now().toString(36)}`;
+
+      // Create the landing page record
+      const { data: newLP, error: insertError } = await supabase
+        .from("ai_landing_pages")
+        .insert({
+          tenant_id: tenantId,
+          name: `LP - ${matchedProduct.name}`,
+          slug,
+          status: "generating",
+          is_published: false,
+          show_header: args.show_header !== false,
+          show_footer: args.show_footer !== false,
+          initial_prompt: args.prompt,
+          product_ids: [matchedProduct.id],
+          created_by: createdBy,
+        })
+        .select("id, slug")
+        .single();
+
+      if (insertError) {
+        console.error(`[ads-autopilot-strategist][${VERSION}] generate_landing_page insert error:`, insertError);
+        return { status: "failed", data: { error: insertError.message } };
+      }
+
+      // Trigger the AI generation edge function
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+      const generatePayload = {
+        landingPageId: newLP.id,
+        tenantId,
+        prompt: args.prompt,
+        promptType: "initial",
+        productIds: [matchedProduct.id],
+      };
+
+      // Fire and forget — don't await the full generation
+      fetch(`${supabaseUrl}/functions/v1/ai-landing-page-generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify(generatePayload),
+      }).then(async (res) => {
+        if (!res.ok) {
+          const errText = await res.text();
+          console.error(`[ads-autopilot-strategist][${VERSION}] LP generation trigger failed: ${res.status} ${errText}`);
+        } else {
+          console.log(`[ads-autopilot-strategist][${VERSION}] LP generation triggered successfully for ${newLP.id}`);
+        }
+      }).catch((err) => {
+        console.error(`[ads-autopilot-strategist][${VERSION}] LP generation trigger exception:`, err.message);
+      });
+
+      // Resolve URL
+      const { data: domainRow } = await supabase.from("tenant_domains").select("domain").eq("tenant_id", tenantId).eq("type", "custom").eq("is_primary", true).maybeSingle();
+      const { data: tenantRow } = await supabase.from("tenants").select("slug").eq("id", tenantId).single();
+      const baseUrl = domainRow?.domain ? `https://${domainRow.domain}` : (tenantRow?.slug ? `https://${tenantRow.slug}.comandocentral.com.br` : "");
+      const lpUrl = `${baseUrl}/ai-lp/${slug}`;
+
+      return {
+        status: "executed",
+        data: {
+          action: "generation_triggered",
+          landing_page_id: newLP.id,
+          slug: newLP.slug,
+          url: lpUrl,
+          product_name: matchedProduct.name,
+          message: `Landing page "${matchedProduct.name}" sendo gerada por IA. URL futura: ${lpUrl}. A página estará pronta em ~2 minutos. Use esta URL como destination_url nas campanhas.`,
+        },
+      };
+    } catch (err: any) {
+      console.error(`[ads-autopilot-strategist][${VERSION}] generate_landing_page exception:`, err.message);
+      return { status: "failed", data: { error: err.message } };
+    }
+  }
+
   return { status: "unknown", data: { tool: toolName } };
 }
 
@@ -2816,30 +3109,30 @@ ${topPlacements.map(p => `- ${p.placement} — ROAS: ${p.roas}x | Conversões: $
       let allowedTools: any[];
       const isTikTokAccount = config.channel === "tiktok";
       if (isTikTokAccount) {
-        // TikTok Ads: use TikTok-specific tools
+        // TikTok Ads: use TikTok-specific tools + landing page tools
         allowedTools = trigger === "start"
-          ? TIKTOK_STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan")
+          ? [...TIKTOK_STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan"), ...LANDING_PAGE_TOOLS]
           : trigger === "implement_approved_plan" || trigger === "implement_campaigns"
-          ? TIKTOK_STRATEGIST_TOOLS.filter((t: any) => ["create_tiktok_campaign", "toggle_tiktok_status", "update_tiktok_budget"].includes(t.function?.name))
-          : TIKTOK_STRATEGIST_TOOLS;
+          ? [...TIKTOK_STRATEGIST_TOOLS.filter((t: any) => ["create_tiktok_campaign", "toggle_tiktok_status", "update_tiktok_budget"].includes(t.function?.name)), ...LANDING_PAGE_TOOLS]
+          : [...TIKTOK_STRATEGIST_TOOLS, ...LANDING_PAGE_TOOLS];
       } else if (isGoogleAccount) {
-        // Google Ads: use Google-specific tools
+        // Google Ads: use Google-specific tools + landing page tools
         allowedTools = trigger === "start"
-          ? GOOGLE_STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan")
+          ? [...GOOGLE_STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan"), ...LANDING_PAGE_TOOLS]
           : trigger === "implement_approved_plan" || trigger === "implement_campaigns"
-          ? GOOGLE_STRATEGIST_TOOLS.filter((t: any) => ["create_google_campaign", "create_google_ad_group", "create_google_keyword", "create_google_ad"].includes(t.function?.name))
-          : GOOGLE_STRATEGIST_TOOLS;
+          ? [...GOOGLE_STRATEGIST_TOOLS.filter((t: any) => ["create_google_campaign", "create_google_ad_group", "create_google_keyword", "create_google_ad"].includes(t.function?.name)), ...LANDING_PAGE_TOOLS]
+          : [...GOOGLE_STRATEGIST_TOOLS, ...LANDING_PAGE_TOOLS];
       } else {
-        // Meta Ads: use Meta-specific tools (default)
+        // Meta Ads: use Meta-specific tools + landing page tools (default)
         allowedTools = trigger === "implement_approved_plan" 
-          ? STRATEGIST_TOOLS.filter((t: any) => ["generate_creative", "create_lookalike_audience"].includes(t.function?.name))
+          ? [...STRATEGIST_TOOLS.filter((t: any) => ["generate_creative", "create_lookalike_audience"].includes(t.function?.name)), ...LANDING_PAGE_TOOLS]
           : trigger === "implement_campaigns"
-          ? STRATEGIST_TOOLS.filter((t: any) => ["create_campaign", "create_adset", "adjust_budget"].includes(t.function?.name))
+          ? [...STRATEGIST_TOOLS.filter((t: any) => ["create_campaign", "create_adset", "adjust_budget"].includes(t.function?.name)), ...LANDING_PAGE_TOOLS]
           : trigger === "start"
-          ? STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan")
+          ? [...STRATEGIST_TOOLS.filter((t: any) => t.function?.name === "strategic_plan"), ...LANDING_PAGE_TOOLS]
           : isScopedRevision
-          ? STRATEGIST_TOOLS.filter((t: any) => ["create_campaign", "create_adset", "generate_creative", "create_lookalike_audience"].includes(t.function?.name))
-          : STRATEGIST_TOOLS;
+          ? [...STRATEGIST_TOOLS.filter((t: any) => ["create_campaign", "create_adset", "generate_creative", "create_lookalike_audience"].includes(t.function?.name)), ...LANDING_PAGE_TOOLS]
+          : [...STRATEGIST_TOOLS, ...LANDING_PAGE_TOOLS];
       }
 
       // Messages history for multi-round conversation
