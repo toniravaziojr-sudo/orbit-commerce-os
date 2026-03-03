@@ -19,9 +19,9 @@ export function sanitizeAILandingPageHtml(html: string): string {
   //    Matches: min-height: 95vh, min-height:100vh, min-height: 80vh, etc.
   result = result.replace(/min-height\s*:\s*\d+(\.\d+)?vh/gi, 'min-height: auto');
 
-  // 2. Replace height: XXvh with height: auto ONLY for large values (>50vh)
+  // 2. Replace height: XXvh with height: auto ONLY for large values (>=50vh)
   //    Small vh values (e.g., height: 2vh for spacing) are left alone
-  result = result.replace(/height\s*:([5-9]\d|100)(\.\d+)?vh/gi, 'height: auto');
+  result = result.replace(/height\s*:\s*(100|[5-9]\d)(\.\d+)?vh/gi, 'height: auto');
 
   // 3. Remove animation-fill-mode: both/forwards (cause opacity:0 stuck state)
   result = result.replace(/animation-fill-mode\s*:\s*(both|forwards)\s*;?/gi, '');
