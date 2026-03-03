@@ -264,3 +264,52 @@ Cada página pode ter um template dedicado criado automaticamente ao criar a pá
 - `store_settings` (nome, logo, cor primária)
 
 ### Modelo: `google/gemini-2.5-pro` via `ai-router`
+
+---
+
+## Prompt Ideal para Geração de Landing Page
+
+### Estrutura Recomendada do Prompt do Usuário
+
+O prompt inserido pelo lojista no campo "Descreva sua Landing Page" deve seguir esta estrutura para máxima qualidade:
+
+```
+Crie uma landing page de alta conversão para [PRODUTO PRINCIPAL - 1 UNIDADE].
+
+DIREÇÃO CRIATIVA:
+- Estilo visual: [Dark premium / Editorial clean / Neon-tech / Orgânico]
+- Tom: [Autoridade + urgência / Elegante + aspiracional / Técnico + confiável]
+
+HERO:
+- Headline usando técnica PAS (problema → agitação → solução)
+- Sub-headline com benefício principal
+- CTA primário pulsante
+- Trust bar com selos de confiança
+
+ESTRUTURA DE SEÇÕES (nesta ordem):
+1. Hero de impacto
+2. Seção "O Problema" — dor do cliente com empatia
+3. Seção "A Transformação" — antes vs depois
+4. Produto em destaque — foto + benefícios + preço com âncora
+5. Prova social — depoimentos reais
+6. Comparativo — produto vs alternativas
+7. Oferta irresistível — preço, garantia, selos, CTA
+8. FAQ estratégico — objeções em perguntas
+9. CTA final com urgência
+
+REGRAS:
+- Foque na UNIDADE individual, não em kits
+- Use APENAS imagens reais do produto
+- Mobile-first
+- Varie o texto dos CTAs
+```
+
+### Dicas para Melhor Resultado
+
+| Dica | Por quê |
+|------|---------|
+| Especificar 1 produto (não kit) | IA tende a priorizar kits se não instruída |
+| Descrever o tom desejado | Evita páginas genéricas sem personalidade |
+| Mencionar técnica PAS | Ativa copy persuasivo no motor v3.0.0 |
+| Pedir imagens reais | Evita URLs fictícias ou imagens de catálogo |
+| Listar seções na ordem | Garante estrutura comercial otimizada |
