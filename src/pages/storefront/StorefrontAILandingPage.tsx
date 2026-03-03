@@ -170,44 +170,64 @@ function buildFaviconTag(faviconUrl: string | null | undefined): string {
 /**
  * Inject pixel scripts and favicon into the AI LP HTML before </head> or </body>
  */
+/**
+ * Convert @import url(...) inside <style> tags to <link> tags to prevent render-blocking.
+ * In srcDoc iframes, @import can block rendering indefinitely if the font fails to load.
+ */
+function convertImportsToLinks(html: string): string {
+  const importRegex = /@import\s+url\(['"]?(https?:\/\/[^'")\s]+)['"]?\)\s*;?/g;
+  const links: string[] = [];
+  
+  // Extract @import URLs and remove them from <style>
+  let result = html.replace(importRegex, (match, url) => {
+    links.push(`<link rel="stylesheet" href="${url}">`);
+    return ''; // Remove the @import from <style>
+  });
+  
+  // Inject <link> tags in <head>
+  if (links.length > 0 && result.includes('</head>')) {
+    result = result.replace('</head>', `${links.join('\n')}\n</head>`);
+  }
+  
+  return result;
+}
+
 function injectPixelsIntoHtml(html: string, pixelScripts: string, faviconTag?: string): string {
-  // Auto-resize script to communicate height to parent
+  // Auto-resize script - injected BEFORE </body> so document.body exists
   const autoResizeScript = `
 <script>
 (function(){
   var lastH = 0;
   function sendHeight(){
-    var h = Math.max(
-      document.documentElement.scrollHeight || 0,
-      document.body.scrollHeight || 0,
-      document.documentElement.offsetHeight || 0,
-      document.body.offsetHeight || 0
-    );
-    if(h > 0 && h !== lastH){
-      lastH = h;
-      window.parent.postMessage({type:'ai-lp-resize', height: h}, '*');
-    }
+    try {
+      var h = Math.max(
+        document.documentElement.scrollHeight || 0,
+        document.body.scrollHeight || 0,
+        document.documentElement.offsetHeight || 0,
+        document.body.offsetHeight || 0
+      );
+      if(h > 0 && h !== lastH){
+        lastH = h;
+        window.parent.postMessage({type:'ai-lp-resize', height: h}, '*');
+      }
+    } catch(e){}
   }
   // Multiple attempts to catch late-loading content
-  window.addEventListener('load', function(){
-    sendHeight();
-    setTimeout(sendHeight, 200);
-    setTimeout(sendHeight, 500);
-    setTimeout(sendHeight, 1000);
-    setTimeout(sendHeight, 2000);
-    setTimeout(sendHeight, 4000);
-    setTimeout(sendHeight, 8000);
-  });
+  sendHeight();
+  setTimeout(sendHeight, 100);
+  setTimeout(sendHeight, 300);
+  setTimeout(sendHeight, 600);
+  setTimeout(sendHeight, 1000);
+  setTimeout(sendHeight, 2000);
+  setTimeout(sendHeight, 4000);
+  setTimeout(sendHeight, 8000);
   // Watch for DOM changes
-  new MutationObserver(sendHeight).observe(document.body, {childList:true, subtree:true, attributes:true});
+  try { new MutationObserver(sendHeight).observe(document.body, {childList:true, subtree:true, attributes:true}); } catch(e){}
   window.addEventListener('resize', sendHeight);
   // Watch for all images loading
-  document.addEventListener('DOMContentLoaded', function(){
-    sendHeight();
-    var imgs = document.querySelectorAll('img');
-    imgs.forEach(function(img){
-      if(!img.complete){ img.addEventListener('load', sendHeight); img.addEventListener('error', sendHeight); }
-    });
+  var imgs = document.querySelectorAll('img');
+  imgs.forEach(function(img){
+    if(!img.complete){ img.addEventListener('load', sendHeight); img.addEventListener('error', sendHeight); }
   });
   // Periodic check for first 15 seconds
   var checks = 0;
@@ -219,19 +239,37 @@ function injectPixelsIntoHtml(html: string, pixelScripts: string, faviconTag?: s
 })();
 </script>`;
 
-  const injections = [pixelScripts, faviconTag, autoResizeScript].filter(Boolean).join('\n');
-  if (!injections) return html;
+  // First, convert @import to <link> to prevent render-blocking
+  let result = convertImportsToLinks(html);
 
-  // Try to inject before </head>
-  if (html.includes('</head>')) {
-    return html.replace('</head>', `${injections}\n</head>`);
+  // Safety CSS: force visibility even if animations fail or fonts block rendering
+  // This ensures content is never stuck at opacity:0 from unfinished CSS animations
+  const visibilitySafety = `<style>
+    /* Fallback: ensure all animated content becomes visible after animations */
+    @keyframes forceVisible { to { opacity: 1; } }
+    .animate-section, [class*="animate"], [class*="delay-"] {
+      animation-fill-mode: forwards !important;
+    }
+    /* Ensure body is always visible */
+    body { opacity: 1 !important; visibility: visible !important; }
+  </style>`;
+
+  // Inject head items (favicon, pixels, visibility safety) before </head>
+  const headInjections = [faviconTag, pixelScripts, visibilitySafety].filter(Boolean).join('\n');
+  if (headInjections && result.includes('</head>')) {
+    result = result.replace('</head>', `${headInjections}\n</head>`);
   }
-  // Fallback: inject before </body>
-  if (html.includes('</body>')) {
-    return html.replace('</body>', `${injections}\n</body>`);
+
+  // Inject auto-resize script before </body> (so document.body exists)
+  if (result.includes('</body>')) {
+    result = result.replace('</body>', `${autoResizeScript}\n</body>`);
+  } else if (result.includes('</html>')) {
+    result = result.replace('</html>', `${autoResizeScript}\n</html>`);
+  } else {
+    result += autoResizeScript;
   }
-  // Last resort: append
-  return html + injections;
+
+  return result;
 }
 
 export default function StorefrontAILandingPage() {
@@ -341,7 +379,6 @@ export default function StorefrontAILandingPage() {
     border: 'none',
     height: iframeHeight ? `${iframeHeight}px` : '100vh',
     minHeight: '100vh',
-    overflow: 'hidden',
   };
 
   // If header or footer needed, wrap with providers + TenantSlugContext
