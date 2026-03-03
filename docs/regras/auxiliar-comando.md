@@ -435,7 +435,7 @@ for (const chunk of chunks) {
 | Tool | Descrição | Permissões |
 |------|-----------|------------|
 | `searchProducts` | Buscar produtos por nome/SKU | todos |
-| `listProducts` | Listar produtos com filtros (status, preço, categoria, ordenação) | todos |
+| `listProducts` | Listar produtos com filtros (status, preço, categoria, ordenação, **productFormat**, **excludeKits**). `productFormat`: `simple`, `with_composition`, `with_variants`. `excludeKits`: exclui kits. Output inclui SKU, formato e status. Limite máx 100. | todos |
 | `getProductDetails` | Detalhes completos de um produto (preço, estoque, dimensões, SEO, categorias) | todos |
 
 ### Categorias
