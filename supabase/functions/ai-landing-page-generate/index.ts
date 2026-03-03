@@ -227,9 +227,29 @@ serve(async (req) => {
     // Fetch store settings
     const { data: storeSettings } = await supabase
       .from("store_settings")
-      .select("store_name, logo_url, primary_color, contact_phone, contact_email")
+      .select("store_name, logo_url, primary_color, secondary_color, accent_color, favicon_url, contact_phone, contact_email, published_template_id")
       .eq("tenant_id", tenantId)
       .single();
+
+    // Fetch published theme colors from template set (the REAL brand colors)
+    let themeColors: Record<string, string> = {};
+    if (storeSettings?.published_template_id) {
+      const { data: templateSet } = await supabase
+        .from("storefront_template_sets")
+        .select("published_content")
+        .eq("id", storeSettings.published_template_id)
+        .eq("tenant_id", tenantId)
+        .single();
+
+      if (templateSet?.published_content) {
+        const pc = templateSet.published_content as Record<string, any>;
+        const ts = pc?.themeSettings?.colors;
+        if (ts) {
+          themeColors = ts;
+          console.log("[AI-LP-Generate] Found published theme colors:", JSON.stringify(ts).substring(0, 200));
+        }
+      }
+    }
 
     // ===== BUSINESS CONTEXT: Fetch reviews & creative assets =====
     let reviewsInfo = "";
@@ -437,6 +457,24 @@ Analise os dados do produto (tipo, tags, descrição, marca) e ESCOLHA uma dire�
 
 A direção DEVE ser coerente do Hero ao Footer. NÃO misture estilos.
 
+## 🎨 COR PRIMÁRIA DA MARCA (OBRIGATÓRIO!)
+
+A cor primária da marca é: **${primaryColor}**
+${storeSettings?.secondary_color ? `A cor secundária da marca é: **${storeSettings.secondary_color}**` : ""}
+${storeSettings?.accent_color ? `A cor de acento da marca é: **${storeSettings.accent_color}**` : ""}
+${themeColors.buttonPrimaryBg ? `Cor do botão primário: **${themeColors.buttonPrimaryBg}**` : ""}
+${themeColors.buttonPrimaryText ? `Texto do botão primário: **${themeColors.buttonPrimaryText}**` : ""}
+${themeColors.textPrimary ? `Cor de texto principal: **${themeColors.textPrimary}**` : ""}
+${themeColors.accentColor ? `Cor de acento do tema: **${themeColors.accentColor}**` : ""}
+${themeColors.priceColor ? `Cor do preço: **${themeColors.priceColor}**` : ""}
+
+### REGRAS DE CORES:
+- **USE as cores acima** como base para CTAs, badges, destaques, gradientes e acentos visuais
+- Os botões CTA DEVEM usar a cor primária da marca (ou cor do botão primário se disponível)
+- Gradientes devem ser construídos a PARTIR das cores da marca (ex: primary → primary escurecido, ou primary → secondary)
+- **NÃO invente cores aleatórias** como roxo, azul neon, ou cores que não fazem parte da identidade visual
+- A paleta de cores da LP deve parecer uma EXTENSÃO natural do site/loja do cliente
+
 ## 🎯 PILAR 2 — COPY PERSUASIVO DE ALTA CONVERSÃO
 
 ### Hero — Use a técnica PAS (Problem → Agitation → Solution):
@@ -597,11 +635,23 @@ a { text-decoration: none; color: inherit; }
 
 ## ⚠️ REGRAS CRÍTICAS ABSOLUTAS
 
+### LOGO DA LOJA
+- Se a logo for usada na página (ex: tabela comparativa, seção de marca), **NÃO APLIQUE FILTROS CSS** como opacity, filter:brightness, filter:grayscale, mix-blend-mode ou qualquer efeito que altere as cores originais da logo
+- A logo DEVE ser exibida com suas cores originais intactas, em fundo que garanta contraste (use fundo branco ou claro atrás da logo se o background da seção for escuro)
+- Se usar a logo em tabela comparativa, garanta que ela esteja em um container com **background branco, padding generoso e border-radius**, para que as cores da logo fiquem legíveis
+- **NUNCA** aplique CSS filters que descoloram ou apagam a logo
+
 ### IMAGENS DOS PRODUTOS
 - **USE OBRIGATORIAMENTE** as URLs de imagem fornecidas abaixo — COPIE E COLE exatamente
 - **NUNCA** use placeholder.com, via.placeholder.com, unsplash ou imagens genéricas
 - A imagem principal DEVE aparecer em COMPOSIÇÃO no Hero (como background OU em layout split com tratamento visual)
 - Use TODAS as imagens em seções diferentes (galeria, destaque, comparativo)
+
+### CORES DA MARCA
+- **USE as cores da marca fornecidas** (cor primária, secundária, acento, botões) em CTAs, badges, gradientes e destaques
+- Os botões CTA DEVEM usar as cores da marca, não cores inventadas
+- A paleta visual da landing page deve ser uma extensão natural da identidade visual da loja
+- **NÃO use cores aleatórias** que não tenham relação com a marca
 
 ### DADOS DOS PRODUTOS
 - USE EXCLUSIVAMENTE os produtos listados abaixo
@@ -622,9 +672,18 @@ Se fornecida, use APENAS como inspiração de layout/estilo. **NUNCA COPIE** con
 ## Informações da Loja
 - **Nome**: ${storeSettings?.store_name || "Loja"}
 - **Logo**: ${storeSettings?.logo_url || "Sem logo"}
-- **Cor Principal**: ${primaryColor}
+- **Cor Principal da Marca**: ${primaryColor}
+${storeSettings?.secondary_color ? `- **Cor Secundária**: ${storeSettings.secondary_color}` : ""}
+${storeSettings?.accent_color ? `- **Cor de Acento**: ${storeSettings.accent_color}` : ""}
+${themeColors.buttonPrimaryBg ? `- **Cor Botão Primário (tema publicado)**: ${themeColors.buttonPrimaryBg}` : ""}
+${themeColors.buttonPrimaryText ? `- **Texto Botão Primário**: ${themeColors.buttonPrimaryText}` : ""}
+${themeColors.buttonSecondaryBg ? `- **Cor Botão Secundário**: ${themeColors.buttonSecondaryBg}` : ""}
+${themeColors.accentColor ? `- **Cor Acento do Tema**: ${themeColors.accentColor}` : ""}
+${themeColors.priceColor ? `- **Cor do Preço**: ${themeColors.priceColor}` : ""}
 - **Telefone**: ${storeSettings?.contact_phone || ""}
 - **Email**: ${storeSettings?.contact_email || ""}
+
+⚠️ A logo acima NUNCA deve ser alterada visualmente (sem CSS filters, sem opacity, sem blend-mode). Use-a com suas cores originais, em fundo com contraste adequado.
 
 ${productsInfo ? `## PRODUTOS A SEREM DESTACADOS:\n${productsInfo}` : "## ATENÇÃO: Nenhum produto selecionado. Crie uma landing page genérica para a loja."}
 
