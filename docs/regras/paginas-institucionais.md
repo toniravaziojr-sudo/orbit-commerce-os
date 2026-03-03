@@ -286,20 +286,36 @@ O motor busca automaticamente as **cores da identidade visual** do tenant antes 
 3. **Injeção no prompt**: As cores são passadas como regras obrigatórias ao Gemini Pro, impedindo cores aleatórias
 4. **Fallback**: Se não houver tema publicado, usa cores do `store_settings` (logo + cor primária)
 
-### Proteção de Logo (v3.1.1)
+### Proteção de Logo (v3.2.0)
 
 O prompt inclui regras explícitas para **nunca alterar visualmente** a logo do lojista:
 
 | Regra | Descrição |
 |-------|-----------|
-| **Sem filtros CSS** | Proibido `opacity`, `brightness`, `grayscale`, `mix-blend-mode` na logo |
-| **Container de alto contraste** | Logo deve estar em fundo branco ou claro quando sobre backgrounds escuros |
-| **Tamanho mínimo** | Logo nunca menor que 120px de largura |
-| **Sem recorte** | `object-fit: contain` obrigatório |
+| **Sem filtros CSS** | Proibido `opacity`, `brightness`, `grayscale`, `invert`, `mix-blend-mode`, `backdrop-filter` na logo |
+| **Render simples** | Logo via `<img>` com `style="display:block; max-width:160px; height:auto;"` sem outros estilos |
+| **Container em tabelas** | Em comparativos: `<div style="background:#fff; padding:12px 16px; border-radius:8px;">` |
+| **Teste mental** | Se as cores originais não são visíveis, a regra foi violada |
+
+### Disciplina de Imagens (v3.2.0)
+
+| Área da LP | Imagens permitidas |
+|------------|-------------------|
+| **Hero / Produto em Destaque** | Criativo gerado OU imagem principal com overlay |
+| **Grid de ofertas / Kits** | Imagens de catálogo (exceção única) |
+| **Seções de texto (FAQ, CTA, Transformação)** | Apenas CSS, ícones, emojis, badges — **sem `<img>` de produto** |
+
+### HTML Limpo (v3.2.0)
+
+O prompt exige HTML sem tags visíveis ao usuário (ex: `</section>` aparecendo como texto). Todas as tags devem ser corretamente fechadas e aninhadas.
+
+### Preview no Editor Admin (v3.2.0)
+
+O editor (`LandingPageEditor.tsx`) detecta se `generated_html` já é um documento completo (`<!DOCTYPE html>`) e, se sim, usa-o diretamente no iframe sem re-embrulhar em outro `<html>`. Isso elimina o bug de double-wrapping que causava tags HTML visíveis na página.
 
 ### Renderização Pública (anti-tela-preta)
 
-O CSS de segurança injetado no iframe público força `opacity: 1 !important` e `animation: none !important` em todos os elementos animados (`.animate-section`, `[class*="animate"]`), impedindo que animações CSS não-completadas deixem o conteúdo invisível.
+O CSS de segurança injetado no iframe público força `opacity: 1 !important` e `animation: none !important` em todos os elementos animados. O iframe remove `minHeight` quando o auto-resize reporta a altura real, eliminando scroll excessivo.
 
 ---
 

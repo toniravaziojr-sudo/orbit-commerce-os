@@ -307,20 +307,25 @@ export default function LandingPageEditor() {
       );
     }
 
-    const fullHtml = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <style>
-            body { margin: 0; font-family: system-ui, sans-serif; }
-            ${landingPage.generated_css || ''}
-          </style>
-        </head>
-        <body>${landingPage.generated_html}</body>
-      </html>
-    `;
+    // generated_html is already a full <!DOCTYPE html> document from the AI
+    // If it starts with <!DOCTYPE or <html, use it directly; otherwise wrap it
+    const rawHtml = landingPage.generated_html || '';
+    const isFullDocument = rawHtml.trim().toLowerCase().startsWith('<!doctype') || rawHtml.trim().toLowerCase().startsWith('<html');
+    
+    const fullHtml = isFullDocument 
+      ? rawHtml 
+      : `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; }
+    ${landingPage.generated_css || ''}
+  </style>
+</head>
+<body>${rawHtml}</body>
+</html>`;
 
     return (
       <iframe
