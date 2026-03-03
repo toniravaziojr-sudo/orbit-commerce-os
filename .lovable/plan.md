@@ -1,204 +1,140 @@
 
 
-# Plano: Eliminação de Erros Silenciosos no Comando Central
+# Plano: Correção Total do Motor de AI Landing Pages (v3.10.0)
 
-## Contexto
+## Diagnóstico dos 5 Problemas
 
-O sistema possui ~90 hooks e ~60 páginas no admin. A auditoria revelou:
+Após análise do HTML gerado (`t7`), do system prompt no edge function e do renderer `StorefrontAILandingPage.tsx`:
 
-- **14 arquivos** com `catch {}` vazio (erros 100% silenciosos)
-- **79 hooks** com `console.error()` — maioria JÁ tem `toast.error()` associado (bom), mas ~15-20 instâncias logam no console sem notificar o usuário
-- **0 ErrorBoundary** no admin (apenas no Builder/Storefront)
-- **0 páginas** com tratamento de estado de erro em queries (`isError` não usado em nenhuma página)
-- Nenhum padrão global de "contate o suporte" para erros técnicos
+### 1. Logo não adapta cores ao design da página
+**Causa**: O system prompt já tem regras de logo, mas a IA as ignora parcialmente. Na screenshot (image-188), a logo aparece com container branco na tabela comparativa, mas os textos da logo ("RESPEITE O HOMEM") ficam pouco legíveis. A instrução de "fundo adaptativo" é vaga e a IA não a aplica corretamente.
 
-## Estratégia
+### 2. Header/Footer com bugs visuais em desktop
+**Causa**: O `StorefrontAILandingPage.tsx` renderiza o Header/Footer nativos da loja FORA do iframe, enquanto o conteúdo da LP está DENTRO de um iframe com `srcDoc`. Isso cria dois contextos CSS isolados. O Header/Footer herdam o tema via `StorefrontThemeInjector`, mas não recebem os mesmos providers de dados que as páginas normais do storefront (ex: `usePublicStorefront` com menus, categorias, etc.). O Header depende de `TenantSlugContext` que está sendo passado, mas pode haver inconsistências com dados de menu/categorias.
 
-Criar um sistema de 3 camadas:
+### 3. Sem versão mobile dedicada — responsividade ruim
+**Causa**: O system prompt define `@media (max-width: 768px)` com apenas `h1 { font-size: 2rem }` e `h2 { font-size: 1.5rem }`. Faltam regras para: padding lateral adequado (48px → 20px), empilhamento de colunas em grids complexos (tabela comparativa, hero split), imagens em full-width, CTAs em full-width, e tamanhos de fonte para body text. A tabela comparativa (4 colunas) é especialmente problemática no mobile.
 
-1. **Camada Global** — ErrorBoundary no admin + interceptor de erros não tratados
-2. **Camada de Hook** — Padronizar todos os hooks para sempre notificar o usuário
-3. **Camada de Página** — Cada página mostra estado de erro quando query falha
+### 4. Uso excessivo de emojis
+**Causa**: O system prompt usa emojis extensivamente nas instruções de seções (🔥, 📊, 💡, 🏆, ⭐, 🆚, 💰, ❓, 🎯) e a IA replica isso no HTML gerado. Também instrui a usar "✅", "❌", "🛡️", "🚚", "⭐", "🔒" nos textos de copy.
 
----
-
-## Parte 1: ErrorBoundary Global do Admin
-
-**Criar** `src/components/layout/AdminErrorBoundary.tsx`
-
-Um React Error Boundary que envolve todo o admin layout. Quando um erro não tratado ocorre:
-- Mostra tela com mensagem amigável: "Algo deu errado"
-- Botão "Tentar novamente" (reload da página)
-- Botão "Contatar suporte" (link para /support ou WhatsApp)
-- Loga o erro no console para debug
-
-**Alterar** `src/App.tsx` ou layout principal para envolver rotas admin com `<AdminErrorBoundary>`.
+### 5. Imagens geradas mal ambientadas
+**Causa**: Os prompts de geração de hero creative e lifestyle usam instruções genéricas ("background profissional premium", "iluminação de estúdio dramática"). Não consideram o nicho específico do produto nem fornecem contexto visual suficiente sobre a ambientação desejada. O prompt de lifestyle pede "produto EM USO" mas não especifica cenário concreto para o nicho.
 
 ---
 
-## Parte 2: Componente Reutilizável de Erro
+## Parte 1: Correção do System Prompt — Responsividade Mobile (Issue 3)
 
-**Criar** `src/components/ui/query-error-state.tsx`
+**Arquivo**: `supabase/functions/ai-landing-page-generate/index.ts`
 
-Componente padrão para estados de erro em queries:
+Substituir o bloco de CSS responsivo no system prompt (linhas ~898-904) por regras mobile muito mais completas:
 
-```text
-┌─────────────────────────────────┐
-│  ⚠ Erro ao carregar [módulo]   │
-│                                 │
-│  Não foi possível carregar os   │
-│  dados. Tente novamente.        │
-│                                 │
-│  [Tentar novamente]             │
-│                                 │
-│  Se o problema persistir,       │
-│  entre em contato com o suporte │
-└─────────────────────────────────┘
+```css
+/* MOBILE-FIRST — Regras obrigatórias para < 768px */
+@media (max-width: 768px) {
+  h1 { font-size: 1.75rem !important; line-height: 1.2 !important; }
+  h2 { font-size: 1.4rem !important; }
+  h3 { font-size: 1.15rem !important; }
+  .section { padding: 48px 0 !important; }
+  .container { padding: 0 20px !important; }
+  
+  /* Forçar empilhamento de todas as grids */
+  .hero-grid, .spotlight-grid, .transformation-grid,
+  [style*="grid-template-columns"], [class*="grid"] {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* Tabelas comparativas: scroll horizontal */
+  .comparison-table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .comparison-table { min-width: 600px; }
+  
+  /* CTAs full-width */
+  .cta-button { width: 100% !important; text-align: center !important; padding: 16px 24px !important; font-size: 16px !important; }
+  
+  /* Imagens */
+  img { max-width: 100% !important; height: auto !important; }
+  
+  /* Preço */
+  .price-new { font-size: 2.2rem !important; }
+}
 ```
 
-Props: `title`, `message`, `onRetry`, `showSupportLink`.
+Adicionar instrução explícita no prompt:
+
+> **RESPONSIVIDADE MOBILE — REGRA CRÍTICA**: O HTML DEVE funcionar perfeitamente em telas de 375px. TODAS as grids com 2+ colunas DEVEM empilhar em 1 coluna no mobile. Tabelas comparativas DEVEM ter wrapper com `overflow-x: auto`. CTAs DEVEM ser `width: 100%` no mobile. NUNCA use `vw` para font-size. TESTE MENTAL: visualize a página em um iPhone 13 Mini — nada deve transbordar.
 
 ---
 
-## Parte 3: Utilitário de Toast para Erros
+## Parte 2: Redução de Emojis (Issue 4)
 
-**Criar** `src/lib/error-toast.ts`
+**Arquivo**: `supabase/functions/ai-landing-page-generate/index.ts`
 
-Função centralizada para categorizar e exibir erros:
+Adicionar regra explícita no system prompt:
 
-- **Erro de ação do usuário** (ex: campo obrigatório, duplicata) → Toast com instrução clara do que fazer
-- **Erro técnico** (ex: falha de rede, 500, timeout) → Toast com "Erro interno. Se persistir, contate o suporte."
-- **Erro de permissão** (ex: 403, RLS) → Toast com "Você não tem permissão para esta ação."
+> **EMOJIS — USO MÍNIMO**: Emojis devem ser usados com MODERAÇÃO. Máximo de 5-8 emojis em TODA a landing page. Use emojis APENAS para: checkmarks (✓ ou ✅ — máx 2 contextos), badges de urgência (1-2 no máx). NÃO use emojis em headlines, subtítulos ou CTAs. Prefira ícones CSS/SVG, texto estilizado com CSS e badges visuais com background-color ao invés de emojis. A página deve ter aparência PROFISSIONAL e limpa, não de post de Instagram.
 
----
-
-## Parte 4: Hooks — Auditoria e Correção (20+ hooks)
-
-Hooks que logam erro no console SEM notificar o usuário:
-
-| Hook | Problema |
-|------|----------|
-| `useBuilderData.ts` | `console.error` + `throw` sem toast |
-| `useSubscriptionStatus.ts` | `console.error` + `throw` sem toast |
-| `useThemeSettings.ts` (migrateLegacy) | `console.error` + return null silencioso |
-| `useFiles.ts` (getFileUrl, getSignedUrl) | `console.error` + return null silencioso |
-| `useDashboardMetrics.ts` | Queries sem onError |
-| `useNotificationLogs.ts` | Query sem onError |
-| `useFinanceEntries.ts` | Query sem onError |
-| `usePurchases.ts` | Query sem onError |
-| `useEmailMarketing.ts` | Query sem onError |
-| `useReports.ts` | Query sem onError |
-| `useIntegrationConfig.ts` | Fetch silencioso |
-| `useMediaLibrary.ts` | Upload errors parcialmente silenciosos |
-| `useAdsChat.ts` | `.catch(() => ({}))` silencioso |
-| `useStoreSettings.ts` | Queries sem feedback de erro |
-| `useHealthChecks.ts` | Erro de fetch silencioso |
-
-**Ação**: Adicionar `toast.error()` com mensagem clara em cada `catch`/`onError` que hoje é silencioso. Usar o utilitário `error-toast.ts` para categorizar.
+Remover os emojis das instruções de seções no prompt (🔥, 📊, 💡, etc.) — substituir por numeração simples.
 
 ---
 
-## Parte 5: Páginas — Estado de Erro Visual (40+ páginas)
+## Parte 3: Logo Adaptativa (Issue 1)
 
-Nenhuma página do admin mostra estado de erro quando uma query falha. Todas ignoram `isError` retornado pelo React Query.
+**Arquivo**: `supabase/functions/ai-landing-page-generate/index.ts`
 
-**Páginas prioritárias** (alto impacto):
+Refinar a regra de logo no system prompt. Atualmente a instrução de "fundo adaptativo" depende de um "teste mental" que a IA não executa corretamente. Substituir por regra concreta:
 
-| Página | Query afetada |
-|--------|---------------|
-| `Orders.tsx` | `useOrders` |
-| `Products.tsx` | `useProducts` |
-| `Customers.tsx` | `useCustomers` |
-| `Dashboard.tsx` | `useDashboardMetrics` |
-| `Categories.tsx` | `useProducts` |
-| `Discounts.tsx` | `useDiscounts` |
-| `Finance.tsx` | `useFinanceEntries` |
-| `Fiscal.tsx` | `useFiscal` |
-| `Shipping.tsx` | `useShippingRules` |
-| `EmailMarketing.tsx` | `useEmailMarketing` |
-| `Notifications.tsx` | `useNotificationRules` |
-| `Media.tsx` | `useMediaLibrary` |
-| `Integrations.tsx` | Multiple |
-| `Offers.tsx` | `useOfferRules` |
-| `Reviews.tsx` | Reviews query |
-| `Affiliates.tsx` | `useAffiliates` |
-| `Blog.tsx` | Blog queries |
-| `LandingPages.tsx` | LP queries |
-| `Campaigns.tsx` | Campaign queries |
-| `Support.tsx` | Tickets query |
-| `Reports.tsx` | `useReports` |
-| `Purchases.tsx` | `usePurchases` |
-| `Shipments.tsx` | `useShipments` |
-| `CommandCenter.tsx` | Agenda queries |
-| `AdsManager.tsx` | Ads queries |
-| `Import.tsx` | Import queries |
-| `Files.tsx` | `useFiles` |
-| `Pages.tsx` | `useStorePages` |
-| `Menus.tsx` | `useMenus` |
-| `Payments.tsx` | `usePaymentProviders` |
-| `Settings.tsx` | Config queries |
-| `Domains.tsx` | Domain queries |
-
-**Ação em cada página**: Extrair `isError` e `refetch` das queries e renderizar `<QueryErrorState>` quando `isError === true`.
+> **LOGO — REGRA SIMPLIFICADA**: Ao usar a logo em qualquer seção (comparativo, marca, etc.), SEMPRE envolva em container branco com padding: `<div style="background:#fff; padding:12px 16px; border-radius:8px; display:inline-block;"><img src="LOGO_URL" style="max-width:180px; height:auto; display:block;" alt="Logo NOME_LOJA"></div>`. Isso garante legibilidade universal em qualquer fundo. NÃO aplique filter, opacity, mix-blend-mode ou qualquer efeito CSS na logo.
 
 ---
 
-## Parte 6: Catches Vazios — Correção Pontual
+## Parte 4: Qualidade das Imagens Geradas (Issue 5)
 
-| Arquivo | Linha | Ação |
-|---------|-------|------|
-| `CommandChatInput.tsx` | 85, 215 | OK — localStorage fallback, aceitável |
-| `AppSidebar.tsx` | 251 | OK — localStorage fallback |
-| `AdminModeContext.tsx` | 41, 51 | OK — localStorage fallback |
-| `AdsManager.tsx` | 134, 144 | Adicionar `toast.error('Erro ao sincronizar')` |
-| `EmailProviderSettings.tsx` | 153 | OK — já tem toast logo abaixo |
-| `checkoutSession.ts` | 249 | OK — fire-and-forget intencional |
+**Arquivo**: `supabase/functions/ai-landing-page-generate/index.ts`
+
+Melhorar o prompt de geração de imagens (funções `generateHeroCreative` e lifestyle). Atualmente o prompt é genérico. Mudanças:
+
+1. **Hero creative**: Adicionar contexto de nicho ao prompt. Usar `firstProduct.product_type` e `firstProduct.tags` para gerar instruções de cenário específicas:
+   - Cosméticos/saúde: "bancada de banheiro premium com iluminação natural, toalhas brancas, superfície de mármore"
+   - Tech: "mesa de escritório moderna e clean, iluminação LED azul sutil"
+   - Alimentos: "mesa de madeira rústica, ingredientes naturais ao redor"
+   - Default: "superfície minimalista com gradiente de luz suave"
+
+2. **Lifestyle**: Adicionar cenários concretos por nicho em vez de "contexto real" genérico.
+
+3. **Ambas**: Adicionar instrução: "A imagem deve ter coerência visual com uma landing page dark/premium. Evite backgrounds muito claros ou cores que destoem do layout escuro."
 
 ---
 
-## Parte 7: Edge Functions e IAs
+## Parte 5: Header/Footer Nativos em LP (Issue 2)
 
-Todas as IAs (Auxiliar de Comando, Gerador de LP, Criativos, Ads Chat) já retornam erros via streaming ou response body. O problema é no **client-side**:
+**Arquivo**: `src/pages/storefront/StorefrontAILandingPage.tsx`
 
-- `useCommandAssistant.ts` — Já tem error handling adequado
-- `useAdsChat.ts` — Catch genérico, melhorar mensagem
-- `useCreatives.ts` — Já tem toast.error
-- Landing Page generate — Já tem toast.error
+O problema é que o Header/Footer renderizam fora do iframe mas podem ter dados incompletos. Verificar e corrigir:
 
-**Ação**: Auditar mensagens de erro das IAs para garantir que são claras e orientam o usuário.
+1. Garantir que o `StorefrontHeader` e `StorefrontFooter` recebem todos os dados necessários. Atualmente dependem de `TenantSlugContext` e dos hooks internos de auto-fetch (conforme memory `header-data-architecture-self-sufficiency`), o que deveria funcionar.
+
+2. O bug visual pode ser causado pelo CSS do tema da loja não estar carregando completamente. O `StorefrontThemeInjector` injeta as variáveis CSS, mas pode haver um timing issue. Investigar se o header está renderizando antes do ThemeInjector aplicar as variáveis.
+
+3. Possível fix: mover `StorefrontThemeInjector` para ANTES do header no DOM, e adicionar `key={resolvedTenantSlug}` para forçar re-render quando o slug muda.
+
+4. Para bugs de imagens/botões no desktop: pode ser conflito CSS entre o estilo global do app e o tema do storefront. Verificar se algum estilo base do admin está vazando para o contexto da LP.
+
+---
+
+## Arquivos Alterados
+
+| Arquivo | Mudança |
+|---------|---------|
+| `supabase/functions/ai-landing-page-generate/index.ts` | Melhorar CSS responsivo, reduzir emojis, refinar logo, melhorar prompts de imagem |
+| `src/pages/storefront/StorefrontAILandingPage.tsx` | Fix timing do ThemeInjector + investigar bugs de header/footer |
 
 ---
 
 ## Ordem de Implementação
 
-1. Criar `AdminErrorBoundary` + `QueryErrorState` + `error-toast.ts` (infraestrutura)
-2. Corrigir hooks silenciosos (Parte 4)
-3. Adicionar estados de erro nas páginas principais (Parte 5 — top 15 páginas primeiro)
-4. Corrigir catches vazios restantes (Parte 6)
-5. Refinar mensagens de erro das IAs (Parte 7)
-6. Páginas secundárias restantes
-
----
-
-## Arquivos Novos
-
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/components/layout/AdminErrorBoundary.tsx` | ErrorBoundary global do admin |
-| `src/components/ui/query-error-state.tsx` | Componente reutilizável de estado de erro |
-| `src/lib/error-toast.ts` | Utilitário centralizado de toast de erro |
-
-## Arquivos Editados
-
-~55 arquivos entre hooks e páginas (listados acima).
-
----
-
-## Documentação
-
-Atualizar `docs/regras/regras-gerais.md`:
-- Adicionar seção "Padrão de Tratamento de Erros v1.0"
-- Registrar componentes e utilitários criados
-- Definir regra: "Nenhum `console.error` sem `toast` correspondente"
-- Definir regra: "Toda página com query deve tratar `isError`"
+1. Atualizar system prompt (responsividade + emojis + logo) no edge function
+2. Melhorar prompts de geração de imagem (hero + lifestyle) com contexto de nicho
+3. Fix do renderer StorefrontAILandingPage (header/footer)
+4. Deploy edge function
+5. Gerar página de teste para validar
 
