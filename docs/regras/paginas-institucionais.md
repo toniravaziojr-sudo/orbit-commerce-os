@@ -262,6 +262,7 @@ Cada página pode ter um template dedicado criado automaticamente ao criar a pá
 - `product_reviews` (prova social real)
 - `ads_creative_assets` (tom de voz e headlines existentes)
 - `store_settings` (nome, logo, cor primária)
+- `files` — Drive do tenant (imagens complementares de lifestyle, banners, texturas — v3.3.0)
 
 ### Modelo: `google/gemini-2.5-pro` via `ai-router`
 
