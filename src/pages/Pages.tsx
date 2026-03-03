@@ -13,6 +13,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 import { PageHeader } from '@/components/ui/page-header';
+import { QueryErrorState } from '@/components/ui/query-error-state';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -60,7 +61,7 @@ export default function Pages() {
   const queryClient = useQueryClient();
   const { currentTenant, user } = useAuth();
   const { primaryOrigin } = usePrimaryPublicHost(currentTenant?.id, currentTenant?.slug);
-  const { pages, isLoading: pagesLoading, createPage, updatePage, deletePage, refetch } = useStorePages();
+  const { pages, isLoading: pagesLoading, error: pagesError, createPage, updatePage, deletePage, refetch } = useStorePages();
   const { templates, isLoading: templatesLoading, initializeDefaultTemplate, createTemplate } = usePageTemplates();
 
   // =============================================
@@ -311,6 +312,14 @@ export default function Pages() {
           </div>
         }
       />
+
+      {pagesError && (
+        <QueryErrorState
+          title="Erro ao carregar páginas"
+          message="Não foi possível carregar as páginas. Tente novamente."
+          onRetry={() => refetch()}
+        />
+      )}
 
       {/* =============================================
           UNIFIED TABLE

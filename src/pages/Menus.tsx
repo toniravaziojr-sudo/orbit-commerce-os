@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { QueryErrorState } from '@/components/ui/query-error-state';
 import { useMenus, useMenuItems, MenuItem, MenuItemType } from '@/hooks/useMenus';
 import { useCategories } from '@/hooks/useProducts';
 import { useStorePages } from '@/hooks/useStorePages';
@@ -22,7 +23,7 @@ interface LocalMenuItem {
 }
 
 export default function Menus() {
-  const { menus, isLoading, createMenu } = useMenus();
+  const { menus, isLoading, error: menusError, createMenu } = useMenus();
   const { categories } = useCategories();
   const { pages } = useStorePages();
 
@@ -126,6 +127,14 @@ export default function Menus() {
         title="Menus"
         description="Gerencie os menus de navegação da sua loja"
       />
+
+      {menusError && (
+        <QueryErrorState
+          title="Erro ao carregar menus"
+          message="Não foi possível carregar os menus. Tente novamente."
+          onRetry={() => window.location.reload()}
+        />
+      )}
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Header Menu Panel */}

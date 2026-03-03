@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { QueryErrorState } from "@/components/ui/query-error-state";
 import { MessageSquare, Plug, History, Settings } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -29,7 +30,7 @@ export default function Support() {
   const [showEventsPanel, setShowEventsPanel] = useState(false);
   const [activeTab, setActiveTab] = useState("inbox");
 
-  const { conversations, isLoading: conversationsLoading, assignConversation, updateStatus, markAsRead } = useConversations();
+  const { conversations, isLoading: conversationsLoading, error: conversationsError, refetch: refetchConversations, assignConversation, updateStatus, markAsRead } = useConversations();
   const { messages, isLoading: messagesLoading, sendMessage, sendAiResponse } = useMessages(selectedConversation?.id || null);
   const { quickReplies, incrementUseCount } = useQuickReplies();
 
@@ -108,6 +109,21 @@ export default function Support() {
       toast.error('Erro ao transferir conversa');
     }
   };
+
+  if (conversationsError) {
+    return (
+      <div className="p-6">
+        <PageHeader title="Atendimento" description="Central de atendimento unificada com IA" />
+        <div className="mt-6">
+          <QueryErrorState
+            title="Erro ao carregar conversas"
+            message="Não foi possível carregar as conversas. Tente novamente."
+            onRetry={() => refetchConversations()}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col">

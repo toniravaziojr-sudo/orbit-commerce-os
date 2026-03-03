@@ -126,5 +126,7 @@ export function usePayments(options: UsePaymentsOptions = {}) {
     stats: statsQuery.data || { totalReceived: 0, totalPending: 0, approvedCount: 0, approvalRate: 0 },
     isLoading: paymentsQuery.isLoading,
     isStatsLoading: statsQuery.isLoading,
+    error: paymentsQuery.error || statsQuery.error,
+    refetch: paymentsQuery.refetch,
   };
 }

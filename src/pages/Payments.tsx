@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { QueryErrorState } from '@/components/ui/query-error-state';
 import { 
   CreditCard, 
   Settings, 
@@ -65,7 +66,7 @@ export default function Payments() {
   const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
-  const { payments, stats, totalCount, isLoading } = usePayments({
+  const { payments, stats, totalCount, isLoading, error, refetch } = usePayments({
     page: currentPage,
     pageSize: PAGE_SIZE,
     status: statusFilter !== 'all' ? statusFilter : undefined,
@@ -79,6 +80,14 @@ export default function Payments() {
         title="Pagamentos"
         description="Gestão de transações, gateways e conciliação"
       />
+
+      {error && (
+        <QueryErrorState
+          title="Erro ao carregar pagamentos"
+          message="Não foi possível carregar os dados de pagamentos. Tente novamente."
+          onRetry={() => refetch()}
+        />
+      )}
 
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { QueryErrorState } from "@/components/ui/query-error-state";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -111,7 +112,7 @@ export default function Reports() {
   };
 
   // Fetch all report data
-  const { data: summary, isLoading: summaryLoading, refetch: refetchSummary } = useReportSummary(filters);
+  const { data: summary, isLoading: summaryLoading, isError: summaryError, refetch: refetchSummary } = useReportSummary(filters);
   const { data: salesData, isLoading: salesLoading } = useSalesReport(filters);
   const { data: couponData, isLoading: couponLoading } = useSalesByCoupon(filters);
   const { data: channelData, isLoading: channelLoading } = useSalesByChannel(filters);
@@ -161,6 +162,14 @@ export default function Reports() {
         <h1 className="text-2xl font-bold">Relatórios</h1>
         <p className="text-muted-foreground">Análises detalhadas de vendas, produtos, canais e clientes</p>
       </div>
+
+      {summaryError && (
+        <QueryErrorState
+          title="Erro ao carregar relatórios"
+          message="Não foi possível carregar os dados dos relatórios. Tente novamente."
+          onRetry={() => refetchSummary()}
+        />
+      )}
 
       {/* Filters */}
       <Card>
