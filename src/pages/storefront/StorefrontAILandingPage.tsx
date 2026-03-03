@@ -15,8 +15,10 @@ import { isPlatformSubdomain, extractTenantFromPlatformSubdomain } from '@/lib/c
 import { usePublicMarketingConfig } from '@/hooks/useMarketingIntegrations';
 import { CartProvider } from '@/contexts/CartContext';
 import { DiscountProvider } from '@/contexts/DiscountContext';
+import { StorefrontConfigProvider } from '@/contexts/StorefrontConfigContext';
 import { StorefrontHeader } from '@/components/storefront/StorefrontHeader';
 import { StorefrontFooter } from '@/components/storefront/StorefrontFooter';
+import { StorefrontThemeInjector } from '@/components/storefront/StorefrontThemeInjector';
 import { TenantSlugContext } from '@/components/storefront/TenantStorefrontLayout';
 import { useEffect, useRef, useState } from 'react';
 
@@ -390,24 +392,27 @@ export default function StorefrontAILandingPage() {
     overflow: 'hidden',
   };
 
-  // If header or footer needed, wrap with providers + TenantSlugContext
+  // If header or footer needed, wrap with providers + TenantSlugContext + ThemeInjector
   if (shouldShowHeader || shouldShowFooter) {
     return (
       <TenantSlugContext.Provider value={resolvedTenantSlug}>
         <CartProvider tenantSlug={resolvedTenantSlug}>
           <DiscountProvider>
-            <div className="w-full min-h-screen" style={{ margin: 0, padding: 0, overflow: 'hidden' }}>
-              {shouldShowHeader && <StorefrontHeader />}
-              <iframe
-                ref={iframeRef}
-                srcDoc={fullHtml}
-                className="w-full border-0"
-                style={iframeStyle}
-                title={landingPage.name}
-                scrolling="no"
-              />
-              {shouldShowFooter && <StorefrontFooter />}
-            </div>
+            <StorefrontConfigProvider tenantId={tenantInfo.tenantId}>
+              <StorefrontThemeInjector tenantSlug={resolvedTenantSlug} />
+              <div className="w-full min-h-screen" style={{ margin: 0, padding: 0 }}>
+                {shouldShowHeader && <StorefrontHeader />}
+                <iframe
+                  ref={iframeRef}
+                  srcDoc={fullHtml}
+                  className="w-full border-0"
+                  style={iframeStyle}
+                  title={landingPage.name}
+                  scrolling="no"
+                />
+                {shouldShowFooter && <StorefrontFooter />}
+              </div>
+            </StorefrontConfigProvider>
           </DiscountProvider>
         </CartProvider>
       </TenantSlugContext.Provider>
