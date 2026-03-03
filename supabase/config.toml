@@ -569,7 +569,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.ai-landing-page-generate]
-verify_jwt = true
+verify_jwt = false
 
 [functions.creative-image-generate]
 verify_jwt = false
