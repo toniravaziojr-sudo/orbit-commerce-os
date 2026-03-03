@@ -2,7 +2,7 @@
 
 > **Status:** ✅ Ready  
 > **Última atualização:** 2026-03-03  
-> **Versão do Pipeline:** v3.8.1  
+> **Versão do Pipeline:** v3.8.2  
 > **Cobertura:** 59+ tools — 100% dos módulos (Fases 1–5 completas)
 
 ---
@@ -175,6 +175,20 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
 2. **`applyKitDiscount`** (Escrita com confirmação): Aplica desconto percentual sobre kits. Define `compare_at_price` = preço cheio (soma dos componentes) e `price` = preço com desconto. Aceita array de `{kitId, discountPercent}`.
 
 **Fluxo esperado:** `listKitsSummary` → agrupar por faixa → `applyKitDiscount` com os IDs e percentuais
+
+### 🔧 Fix: SSE Keep-Alive + Streaming Imediato (v3.8.2)
+
+> **Problema corrigido**: A edge function fazia todas as rodadas de tool calling (~60s) **antes** de retornar qualquer byte ao navegador. Conexões eram dropadas por timeout do browser/proxy, deixando o usuário travado em "Pensando..." eternamente.
+
+**Mudanças:**
+
+1. **Response SSE imediata**: A `Response` com `TransformStream` é retornada instantaneamente. O processamento de tool calling acontece em background writer
+2. **Heartbeat a cada 8s**: Envia `": heartbeat\n\n"` (comentário SSE) durante as rodadas para manter a conexão viva
+3. **Status events por rodada**: Cada rodada emite `{ status: "processing", round: N }` — ignorado pelo frontend parser
+4. **Headers otimizados**: `Cache-Control: no-cache` + `Connection: keep-alive` na response SSE
+5. **Frontend atualizado**: Ambos os parsers SSE (sendMessage e executeAction) filtram eventos `status: "processing"`
+
+**Arquivos alterados:** `supabase/functions/command-assistant-chat/index.ts`, `src/hooks/useCommandAssistant.ts`
 
 ### 🔧 Fix: Forced Response na Última Rodada + Fallback Gemini (v3.8.1)
 
