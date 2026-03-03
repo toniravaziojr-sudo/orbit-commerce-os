@@ -344,6 +344,21 @@ export default function LandingPageEditor() {
 <body>${rawHtml}</body>
 </html>`;
 
+    // Inject safety CSS to prevent opacity:0 stuck state from animation-fill-mode: both
+    const safetyCss = `<style id="lp-safety">
+*, *::before, *::after { animation-fill-mode: none !important; }
+body { opacity: 1 !important; visibility: visible !important; }
+section, .section, .hero, .container, main, article, div,
+h1, h2, h3, h4, p, span, a, ul, li, img, header, footer, nav {
+  opacity: 1 !important; visibility: visible !important;
+}
+</style>`;
+
+    let htmlWithSafety = fullHtml;
+    if (htmlWithSafety.includes('</head>')) {
+      htmlWithSafety = htmlWithSafety.replace('</head>', `${safetyCss}\n</head>`);
+    }
+
     // Inject auto-resize script
     const autoResizeScript = `<script>
 (function(){
@@ -374,7 +389,7 @@ export default function LandingPageEditor() {
 })();
 </script>`;
 
-    let htmlWithResize = fullHtml;
+    let htmlWithResize = htmlWithSafety;
     if (htmlWithResize.includes('</body>')) {
       htmlWithResize = htmlWithResize.replace('</body>', `${autoResizeScript}\n</body>`);
     } else {
