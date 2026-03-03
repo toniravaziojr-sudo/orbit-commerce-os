@@ -352,16 +352,16 @@ O motor v3.6.0 corrige o problema de a IA inventar nomes de produtos inexistente
 | **Verificação pós-geração** | Pipeline valida que o HTML contém o nome correto do produto e pelo menos 1 URL de imagem válida |
 | **Imagens obrigatórias** | Se `productImages` está vazio, o motor gera imagens via IA antes de chamar o LLM |
 
-### Preview com Header/Footer no Editor Admin (v3.6.0)
+### Preview no Editor Admin (v3.7.0)
 
-O `LandingPageEditor.tsx` renderiza `StorefrontHeader` e `StorefrontFooter` como componentes React **ao redor** do iframe de preview. Isso garante:
+O `LandingPageEditor.tsx` **NÃO renderiza** `StorefrontHeader`/`StorefrontFooter` como componentes React — isso causava conflitos de CSS com o painel admin, logos quebrados e scroll infinito.
 
 | Item | Implementação |
 |------|--------------|
-| **Context** | `TenantSlugContext.Provider` envolve header + iframe + footer |
-| **Providers** | `CartProvider`, `DiscountProvider` e `StorefrontThemeInjector` são injetados |
-| **Visibilidade** | Controlado pelas flags `show_header` / `show_footer` da landing page |
-| **Isolamento** | Header/footer são React nativo; conteúdo da LP continua no iframe (CSS isolado) |
+| **Preview** | Iframe-only com o HTML gerado pela IA |
+| **Indicadores** | Banners informativos indicam onde header/footer aparecerão na versão pública |
+| **Público** | `StorefrontAILandingPage.tsx` continua renderizando header/footer como React components no contexto correto |
+| **Anti-Duplicação** | Edge function instrui a IA a NÃO incluir header/footer/navegação/copyright no HTML quando `show_header`/`show_footer` estão ativados |
 
 ---
 

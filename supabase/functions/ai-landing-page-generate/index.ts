@@ -210,7 +210,7 @@ serve(async (req) => {
     // ALWAYS fetch the landing page to get saved productIds and referenceUrl
     const { data: savedLandingPage, error: lpError } = await supabase
       .from("ai_landing_pages")
-      .select("product_ids, reference_url, generated_html, current_version")
+      .select("product_ids, reference_url, generated_html, current_version, show_header, show_footer")
       .eq("id", landingPageId)
       .single();
 
@@ -833,6 +833,20 @@ Se fornecida, use APENAS como inspiração de layout/estilo. **NUNCA COPIE** con
 - CSS em tag \`<style>\` no \`<head>\` (NÃO use CSS externo além do Google Fonts)
 - O HTML deve ser 100% self-contained e RESPONSIVO
 - **NÃO** inclua explicações, markdown ou comentários fora do HTML
+
+### ⚠️ HEADER E FOOTER — PROIBIÇÃO ABSOLUTA
+${savedLandingPage?.show_header || savedLandingPage?.show_footer ? `
+**ESTA LANDING PAGE USA O HEADER/FOOTER DA LOJA (renderizados automaticamente pela plataforma).**
+- **NÃO inclua NENHUM header, navegação, menu ou barra de topo no HTML**
+- **NÃO inclua NENHUM footer, copyright, links sociais, dados de contato, CNPJ ou seção de rodapé no HTML**
+- **NÃO inclua seções de "newsletter" ou "receba promoções" no HTML — o footer da loja já tem isso**
+- A landing page deve começar DIRETO no Hero e terminar no último CTA
+- O header e footer serão adicionados automaticamente pela plataforma ao redor da sua página
+` : `
+- Esta landing page NÃO usa header/footer da loja
+- Você PODE incluir um footer simples com copyright e logo se fizer sentido para a página
+- **NÃO inclua header/navegação** — landing pages não devem ter menu de navegação
+`}
 
 ---
 
