@@ -277,6 +277,26 @@ O pipeline gera automaticamente uma **imagem hero criativa** antes de construir 
 
 Se a geração falhar em ambos os modelos, o sistema usa as imagens do catálogo normalmente (graceful degradation).
 
+### Cores da Marca (v3.1.1)
+
+O motor busca automaticamente as **cores da identidade visual** do tenant antes de gerar o HTML:
+
+1. **Fonte**: `storefront_template_sets.published_content.themeSettings` (cores do tema publicado)
+2. **Dados extraídos**: `primaryColor`, `secondaryColor`, `accentColor`, `buttonPrimaryBg`, `buttonPrimaryText`
+3. **Injeção no prompt**: As cores são passadas como regras obrigatórias ao Gemini Pro, impedindo cores aleatórias
+4. **Fallback**: Se não houver tema publicado, usa cores do `store_settings` (logo + cor primária)
+
+### Proteção de Logo (v3.1.1)
+
+O prompt inclui regras explícitas para **nunca alterar visualmente** a logo do lojista:
+
+| Regra | Descrição |
+|-------|-----------|
+| **Sem filtros CSS** | Proibido `opacity`, `brightness`, `grayscale`, `mix-blend-mode` na logo |
+| **Container de alto contraste** | Logo deve estar em fundo branco ou claro quando sobre backgrounds escuros |
+| **Tamanho mínimo** | Logo nunca menor que 120px de largura |
+| **Sem recorte** | `object-fit: contain` obrigatório |
+
 ### Renderização Pública (anti-tela-preta)
 
 O CSS de segurança injetado no iframe público força `opacity: 1 !important` e `animation: none !important` em todos os elementos animados (`.animate-section`, `[class*="animate"]`), impedindo que animações CSS não-completadas deixem o conteúdo invisível.
