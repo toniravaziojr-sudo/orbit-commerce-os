@@ -72,10 +72,14 @@ export function LandingPagePreviewDialog({
     const isFullDocument = rawHtml.trim().toLowerCase().startsWith('<!doctype') || rawHtml.trim().toLowerCase().startsWith('<html');
 
     const safetyCss = `<style id="lp-safety">
-*, *::before, *::after { animation-fill-mode: none !important; }
-body { opacity: 1 !important; visibility: visible !important; }
-section, .section, .hero, .container, main, article, div,
-h1, h2, h3, h4, p, span, a, ul, li, img { opacity: 1 !important; visibility: visible !important; }
+*, *::before, *::after {
+  animation: none !important;
+}
+* {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+.cta-button { cursor: pointer; }
 </style>`;
 
     let fullHtml: string;

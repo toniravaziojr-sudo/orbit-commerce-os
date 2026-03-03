@@ -248,13 +248,17 @@ function injectPixelsIntoHtml(html: string, pixelScripts: string, faviconTag?: s
   // The root cause: `animation: fadeInUp 0.8s ease-out 0.2s both` keeps elements at opacity:0
   // if animation keyframes are malformed or fail to complete in srcDoc iframes
   const visibilitySafety = `<style id="lp-safety">
-    *, *::before, *::after { animation-fill-mode: none !important; }
-    body { opacity: 1 !important; visibility: visible !important; }
-    section, .section, .hero, .container, main, article, div,
-    h1, h2, h3, h4, p, span, a, ul, li, img, header, footer, nav {
+    /* Kill CSS animations that cause opacity:0 stuck state from malformed keyframes */
+    *, *::before, *::after {
+      animation: none !important;
+    }
+    /* Force visibility on every element */
+    * {
       opacity: 1 !important;
       visibility: visible !important;
     }
+    /* Re-allow specific non-problematic animations after override */
+    .cta-button { cursor: pointer; }
   </style>`;
 
   // Inject head items (favicon, pixels, visibility safety) before </head>
