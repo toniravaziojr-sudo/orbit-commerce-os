@@ -2,7 +2,7 @@
 
 > **Status:** ✅ Ready  
 > **Última atualização:** 2026-03-03  
-> **Versão do Pipeline:** v3.11.0 | **AI Router:** v1.2.0  
+> **Versão do Pipeline:** v3.12.0 | **AI Router:** v1.2.0  
 > **Cobertura:** 59+ tools — 100% dos módulos (Fases 1–5 completas)
 
 ---
@@ -14,10 +14,19 @@ O Auxiliar de Comando suporta upload de arquivos e imagens diretamente no chat:
 ### Funcionamento
 
 1. **Botão de Anexo**: Clique no ícone 📎 (Paperclip) para selecionar arquivos
-2. **Tipos Aceitos**: Imagens, PDFs, documentos Office, TXT, CSV
-3. **Limite**: 10MB por arquivo
-4. **Preview**: Imagens mostram miniatura antes do envio
-5. **Upload**: Arquivos são enviados para o System Drive automaticamente
+2. **Ctrl+V / Cmd+V**: Cole screenshots diretamente no campo de texto — a imagem é detectada automaticamente do clipboard, nomeada como `screenshot-{timestamp}.png` e enviada para upload
+3. **Tipos Aceitos**: Imagens, PDFs, documentos Office, TXT, CSV
+4. **Limite**: 10MB por arquivo
+5. **Preview**: Imagens mostram miniatura antes do envio
+6. **Upload**: Arquivos são enviados para o System Drive automaticamente
+
+### Processamento Multimodal (v3.12.0)
+
+A IA **enxerga** as imagens enviadas:
+
+- **Imagens** (PNG, JPG, WEBP, etc.): São passadas como `image_url` com `detail: "high"` no conteúdo multimodal da mensagem. O modelo Gemini 2.5 Flash analisa visualmente a imagem
+- **Histórico**: Imagens de mensagens anteriores na conversa também são incluídas no contexto visual
+- **Arquivos texto/PDF**: Atualmente enviados como link — a IA vê a URL mas **não lê o conteúdo** automaticamente (feature futura)
 
 ### Estrutura do Anexo
 
@@ -967,3 +976,5 @@ A IA deve ser DECISIVA e não fazer perguntas desnecessárias ao lojista.
 - [ ] **Chat scrollável** (container pai é flex flex-col min-h-0)
 - [ ] **Rascunho persiste** entre trocas de conversa e reloads
 - [ ] **Decisão rápida**: IA não pergunta demais, propõe ação direto
+- [ ] **Ctrl+V paste**: Screenshots colados no textarea são detectados e enviados como anexo
+- [ ] **Visão multimodal**: Imagens enviadas são analisadas visualmente pelo modelo de IA
