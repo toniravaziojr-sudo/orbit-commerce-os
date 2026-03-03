@@ -195,49 +195,41 @@ function convertImportsToLinks(html: string): string {
 }
 
 function injectPixelsIntoHtml(html: string, pixelScripts: string, faviconTag?: string): string {
-  // Auto-resize script - injected BEFORE </body> so document.body exists
+  // Auto-resize script — measures content once after stabilization, prevents vh feedback loop
   const autoResizeScript = `
 <script>
 (function(){
+  var locked = false;
   var lastH = 0;
+  var stableCount = 0;
   function sendHeight(){
+    if(locked) return;
     try {
       var h = Math.max(
         document.documentElement.scrollHeight || 0,
-        document.body.scrollHeight || 0,
-        document.documentElement.offsetHeight || 0,
-        document.body.offsetHeight || 0
+        document.body.scrollHeight || 0
       );
-      if(h > 0 && h !== lastH){
+      if(h > 0 && Math.abs(h - lastH) > 2){
+        stableCount = 0;
         lastH = h;
         window.parent.postMessage({type:'ai-lp-resize', height: h}, '*');
+      } else if(h > 0) {
+        stableCount++;
+        if(stableCount >= 3) { locked = true; } // Lock after 3 stable readings
       }
     } catch(e){}
   }
-  // Multiple attempts to catch late-loading content
+  // Measure a few times to catch images/fonts loading
   sendHeight();
-  setTimeout(sendHeight, 100);
-  setTimeout(sendHeight, 300);
+  setTimeout(sendHeight, 200);
   setTimeout(sendHeight, 600);
-  setTimeout(sendHeight, 1000);
-  setTimeout(sendHeight, 2000);
-  setTimeout(sendHeight, 4000);
-  setTimeout(sendHeight, 8000);
-  // Watch for DOM changes
-  try { new MutationObserver(sendHeight).observe(document.body, {childList:true, subtree:true, attributes:true}); } catch(e){}
-  window.addEventListener('resize', sendHeight);
-  // Watch for all images loading
+  setTimeout(sendHeight, 1500);
+  setTimeout(sendHeight, 3000);
+  // Watch for images loading (one-time)
   var imgs = document.querySelectorAll('img');
   imgs.forEach(function(img){
-    if(!img.complete){ img.addEventListener('load', sendHeight); img.addEventListener('error', sendHeight); }
+    if(!img.complete){ img.addEventListener('load', function(){ sendHeight(); }, {once:true}); }
   });
-  // Periodic check for first 15 seconds
-  var checks = 0;
-  var interval = setInterval(function(){
-    sendHeight();
-    checks++;
-    if(checks > 30) clearInterval(interval);
-  }, 500);
 })();
 </script>`;
 
@@ -248,16 +240,14 @@ function injectPixelsIntoHtml(html: string, pixelScripts: string, faviconTag?: s
   // The root cause: `animation: fadeInUp 0.8s ease-out 0.2s both` keeps elements at opacity:0
   // if animation keyframes are malformed or fail to complete in srcDoc iframes
   const visibilitySafety = `<style id="lp-safety">
-    /* Kill CSS animations that cause opacity:0 stuck state from malformed keyframes */
-    *, *::before, *::after {
-      animation: none !important;
-    }
+    /* Kill CSS animations that cause opacity:0 stuck state */
+    *, *::before, *::after { animation: none !important; }
     /* Force visibility on every element */
-    * {
-      opacity: 1 !important;
-      visibility: visible !important;
+    * { opacity: 1 !important; visibility: visible !important; }
+    /* Prevent vh feedback loop: cap min-height on sections inside auto-resized iframes */
+    section, .section, .hero, [class*="hero"] {
+      min-height: auto !important;
     }
-    /* Re-allow specific non-problematic animations after override */
     .cta-button { cursor: pointer; }
   </style>`;
 

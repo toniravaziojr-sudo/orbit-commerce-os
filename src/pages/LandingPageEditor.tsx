@@ -346,12 +346,10 @@ export default function LandingPageEditor() {
 
     // Inject safety CSS to prevent opacity:0 stuck state from animation-fill-mode: both
     const safetyCss = `<style id="lp-safety">
-*, *::before, *::after {
-  animation: none !important;
-}
-* {
-  opacity: 1 !important;
-  visibility: visible !important;
+*, *::before, *::after { animation: none !important; }
+* { opacity: 1 !important; visibility: visible !important; }
+section, .section, .hero, [class*="hero"] {
+  min-height: auto !important;
 }
 .cta-button { cursor: pointer; }
 </style>`;
@@ -364,30 +362,35 @@ export default function LandingPageEditor() {
     // Inject auto-resize script
     const autoResizeScript = `<script>
 (function(){
+  var locked = false;
   var lastH = 0;
+  var stableCount = 0;
   function sendHeight(){
+    if(locked) return;
     try {
       var h = Math.max(
         document.documentElement.scrollHeight || 0,
-        document.body.scrollHeight || 0,
-        document.documentElement.offsetHeight || 0,
-        document.body.offsetHeight || 0
+        document.body.scrollHeight || 0
       );
-      if(h > 0 && h !== lastH){
+      if(h > 0 && Math.abs(h - lastH) > 2){
+        stableCount = 0;
         lastH = h;
         window.parent.postMessage({type:'ai-lp-resize', height: h}, '*');
+      } else if(h > 0) {
+        stableCount++;
+        if(stableCount >= 3) { locked = true; }
       }
     } catch(e){}
   }
   sendHeight();
-  setTimeout(sendHeight, 100);
-  setTimeout(sendHeight, 500);
+  setTimeout(sendHeight, 200);
+  setTimeout(sendHeight, 600);
   setTimeout(sendHeight, 1500);
   setTimeout(sendHeight, 3000);
-  try { new MutationObserver(sendHeight).observe(document.body, {childList:true, subtree:true, attributes:true}); } catch(e){}
-  window.addEventListener('resize', sendHeight);
   var imgs = document.querySelectorAll('img');
-  imgs.forEach(function(img){ if(!img.complete){ img.addEventListener('load', sendHeight); } });
+  imgs.forEach(function(img){
+    if(!img.complete){ img.addEventListener('load', function(){ sendHeight(); }, {once:true}); }
+  });
 })();
 </script>`;
 
