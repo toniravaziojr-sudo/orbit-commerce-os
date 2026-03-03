@@ -315,9 +315,34 @@ O prompt exige HTML sem tags visíveis ao usuário (ex: `</section>` aparecendo 
 
 O editor (`LandingPageEditor.tsx`) detecta se `generated_html` já é um documento completo (`<!DOCTYPE html>`) e, se sim, usa-o diretamente no iframe sem re-embrulhar em outro `<html>`. Isso elimina o bug de double-wrapping que causava tags HTML visíveis na página.
 
-### Renderização Pública (anti-tela-preta)
+### Renderização Pública (anti-tela-preta) — v3.8.1
 
-O CSS de segurança injetado no iframe público força `opacity: 1 !important` e `animation: none !important` em todos os elementos animados. O iframe remove `minHeight` quando o auto-resize reporta a altura real, eliminando scroll excessivo.
+O CSS de segurança (`#lp-safety`) é injetado no `<head>` do iframe em **3 pontos de renderização**:
+- `StorefrontAILandingPage.tsx` (página pública)
+- `LandingPageEditor.tsx` (editor admin)
+- `LandingPagePreviewDialog.tsx` (modal de preview)
+
+#### Regras do Safety CSS (v3.8.1)
+
+```css
+/* Mata TODAS as animações CSS — previne opacity:0 de keyframes malformados */
+*, *::before, *::after {
+  animation: none !important;
+}
+/* Força visibilidade universal — cobre inline styles e classes como .animate-section */
+* {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+```
+
+**Por que `animation: none` e não apenas `animation-fill-mode: none`?**
+- O Gemini frequentemente gera keyframes com CSS malformado (ex: `translateY(0)` sem `transform:`)
+- `animation-fill-mode: none` no seletor `*` tem especificidade 0-0-0, que perde para classes como `.animate-section` (0-1-0) mesmo com `!important` quando o shorthand `animation` redefine o fill-mode
+- `animation: none !important` mata a animação inteira, eliminando o problema na raiz
+- `opacity: 1 !important` no `*` garante visibilidade mesmo com inline styles `opacity: 0`
+
+**NÃO usar `transform: none !important`** — isso quebra efeitos visuais intencionais (gradient text, composição de produto, overlays).
 
 ### Fallback Prompts Inteligentes (v3.5.0)
 
