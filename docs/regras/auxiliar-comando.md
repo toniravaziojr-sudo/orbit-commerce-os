@@ -2,7 +2,7 @@
 
 > **Status:** ✅ Ready  
 > **Última atualização:** 2026-03-03  
-> **Versão do Pipeline:** v3.10.0 | **AI Router:** v1.2.0  
+> **Versão do Pipeline:** v3.11.0 | **AI Router:** v1.2.0  
 > **Cobertura:** 59+ tools — 100% dos módulos (Fases 1–5 completas)
 
 ---
