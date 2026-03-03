@@ -245,13 +245,20 @@ function injectPixelsIntoHtml(html: string, pixelScripts: string, faviconTag?: s
   // Safety CSS: force visibility even if animations fail or fonts block rendering
   // This ensures content is never stuck at opacity:0 from unfinished CSS animations
   const visibilitySafety = `<style>
-    /* Fallback: ensure all animated content becomes visible after animations */
-    @keyframes forceVisible { to { opacity: 1; } }
-    .animate-section, [class*="animate"], [class*="delay-"] {
-      animation-fill-mode: forwards !important;
+    /* Force ALL content visible — prevent opacity:0 from unfinished animations */
+    body, body * { visibility: visible !important; }
+    body { opacity: 1 !important; }
+    /* Override fadeInUp and similar animations that start at opacity:0 */
+    .animate-section, [class*="animate"], [class*="delay-"], [style*="opacity: 0"], [style*="opacity:0"] {
+      opacity: 1 !important;
+      transform: none !important;
+      animation: none !important;
     }
-    /* Ensure body is always visible */
-    body { opacity: 1 !important; visibility: visible !important; }
+    /* Ensure sections and divs inside body are visible */
+    section, .section, .hero, .container, main, article, div {
+      opacity: 1 !important;
+      visibility: visible !important;
+    }
   </style>`;
 
   // Inject head items (favicon, pixels, visibility safety) before </head>
