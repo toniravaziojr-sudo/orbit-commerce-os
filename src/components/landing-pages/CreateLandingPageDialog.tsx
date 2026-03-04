@@ -193,6 +193,8 @@ export function CreateLandingPageDialog({ open, onOpenChange }: CreateLandingPag
           initial_prompt: prompt,
           status: 'generating',
           briefing: briefing as any,
+          show_header: false,
+          show_footer: false,
         })
         .select()
         .single();
