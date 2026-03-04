@@ -1,15 +1,20 @@
 // =============================================
-// AI LANDING PAGE ENHANCE IMAGES — V2.0.0
+// AI LANDING PAGE ENHANCE IMAGES — V2.1.0
 // Step 2: Generates full-section visual compositions using product PNG as reference
 // The AI generates COMPLETE scene compositions (1920x800) with the product naturally integrated
 // Product PNG with transparent background → AI creates the entire environment around it
+// v2.1.0: Timeout-aware chunking — processes sections in batches, returns remaining for recursive calls
 // =============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 
-const VERSION = "2.0.0";
+const VERSION = "2.1.0";
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+
+// Timeout budget: Edge Functions have 150s limit, reserve margin for persistence + overhead
+const MAX_EXECUTION_MS = 130_000; // 130s usable budget
+const ESTIMATED_IMAGE_GEN_MS = 30_000; // ~30s per image generation (model + upload)
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -125,7 +130,7 @@ interface SectionSpec {
   blockId: string;
   promptSuffix: string;
   aspectRatio: string;
-  imageField: string; // path to update in block props
+  imageField: string;
 }
 
 function detectEnhanceableSections(blocks: any): SectionSpec[] {
@@ -133,8 +138,6 @@ function detectEnhanceableSections(blocks: any): SectionSpec[] {
 
   function walk(node: any) {
     if (!node) return;
-    
-    // Hero Banner — full-width composition 21:9
     if (node.type === 'Banner' && node.props?.slides?.length > 0) {
       specs.push({
         blockType: 'Banner',
@@ -144,8 +147,6 @@ function detectEnhanceableSections(blocks: any): SectionSpec[] {
         imageField: 'slides[0].imageDesktop',
       });
     }
-    
-    // Hero Block (content hero) — 16:9 composition
     if (node.type === 'Hero' && node.props) {
       specs.push({
         blockType: 'Hero',
@@ -155,7 +156,6 @@ function detectEnhanceableSections(blocks: any): SectionSpec[] {
         imageField: 'backgroundImage',
       });
     }
-
     if (node.children && Array.isArray(node.children)) {
       for (const child of node.children) walk(child);
     }
@@ -167,7 +167,6 @@ function detectEnhanceableSections(blocks: any): SectionSpec[] {
 
 function applyImageToBlock(blocks: any, blockId: string, imageField: string, imageUrl: string): boolean {
   let updated = false;
-  
   function walk(node: any) {
     if (!node) return;
     if (node.id === blockId && node.props) {
@@ -190,7 +189,6 @@ function applyImageToBlock(blocks: any, blockId: string, imageField: string, ima
       for (const child of node.children) walk(child);
     }
   }
-  
   walk(blocks);
   return updated;
 }
@@ -203,7 +201,6 @@ function buildCompositionPrompt(
   spec: SectionSpec,
   hasDriveRefs: boolean,
 ): string {
-  // Detect niche from product name/tags for scene selection
   const nameAndTags = `${product.name} ${(product.tags || []).join(' ')}`.toLowerCase();
   
   let sceneDescription: string;
@@ -266,11 +263,12 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  const startTime = Date.now();
   console.log(`[AI-LP-Enhance v${VERSION}] Starting full-section composition generation...`);
 
   try {
     const body = await req.json();
-    const { landingPageId, tenantId, userId } = body;
+    const { landingPageId, tenantId, userId, startFromIndex = 0, stage = 1 } = body;
 
     if (!landingPageId || !tenantId || !userId) {
       return new Response(
@@ -403,22 +401,49 @@ serve(async (req) => {
 
     // 6. Detect enhanceable sections from the block tree
     const blocks = JSON.parse(JSON.stringify(lp.generated_blocks));
-    const enhanceableSpecs = detectEnhanceableSections(blocks);
+    const allSpecs = detectEnhanceableSections(blocks);
 
-    if (enhanceableSpecs.length === 0) {
+    if (allSpecs.length === 0) {
       console.warn("[AI-LP-Enhance] No enhanceable sections found in blocks");
       return new Response(
-        JSON.stringify({ success: true, enhanced: 0, message: "No enhanceable sections found" }),
+        JSON.stringify({ success: true, enhanced: 0, message: "No enhanceable sections found", done: true }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`[AI-LP-Enhance] Found ${enhanceableSpecs.length} section(s) to enhance`);
+    // ===== TIMEOUT-AWARE CHUNKING =====
+    // Only process sections from startFromIndex onwards
+    const pendingSpecs = allSpecs.slice(startFromIndex);
+    
+    if (pendingSpecs.length === 0) {
+      console.log("[AI-LP-Enhance] All sections already processed");
+      return new Response(
+        JSON.stringify({ success: true, enhanced: 0, done: true, message: "All sections already enhanced" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-    // 7. Generate composition for each section (sequentially to avoid rate limits)
+    // Calculate how many sections we can fit in the remaining time budget
+    const elapsedMs = Date.now() - startTime;
+    const remainingBudgetMs = MAX_EXECUTION_MS - elapsedMs;
+    const maxSectionsInBudget = Math.max(1, Math.floor(remainingBudgetMs / ESTIMATED_IMAGE_GEN_MS));
+    const sectionsToProcess = pendingSpecs.slice(0, maxSectionsInBudget);
+    const hasMoreAfterBatch = (startFromIndex + sectionsToProcess.length) < allSpecs.length;
+    
+    console.log(`[AI-LP-Enhance] Stage ${stage}: Processing ${sectionsToProcess.length}/${allSpecs.length} sections (startFrom=${startFromIndex}, budget=${Math.round(remainingBudgetMs/1000)}s, max=${maxSectionsInBudget})`);
+
+    // 7. Generate composition for each section in this batch (sequentially to avoid rate limits)
     const results: { section: string; url: string | null; applied: boolean }[] = [];
 
-    for (const spec of enhanceableSpecs) {
+    for (const spec of sectionsToProcess) {
+      // Check remaining time before each generation
+      const elapsedSoFar = Date.now() - startTime;
+      if (elapsedSoFar > MAX_EXECUTION_MS - 10_000) {
+        // Less than 10s left — stop processing, save what we have
+        console.warn(`[AI-LP-Enhance] Timeout approaching (${Math.round(elapsedSoFar/1000)}s elapsed), stopping batch early`);
+        break;
+      }
+
       console.log(`[AI-LP-Enhance] Generating ${spec.promptSuffix} composition...`);
       
       const prompt = buildCompositionPrompt(product, storeName, spec, driveReferenceBase64s.length > 0);
@@ -453,12 +478,22 @@ serve(async (req) => {
       console.log(`[AI-LP-Enhance] ${spec.promptSuffix}: uploaded & ${applied ? 'applied' : 'NOT applied'}`);
     }
 
-    // 8. Persist updated blocks
+    // 8. Persist updated blocks (save progress even if partial)
     const existingMeta = (lp.metadata && typeof lp.metadata === 'object') ? lp.metadata as Record<string, any> : {};
     const enhancedSections = results.filter(r => r.applied).map(r => ({
       section: r.section,
       url: r.url,
     }));
+
+    // Merge with existing enhancement metadata (from previous stages)
+    const previousEnhancement = existingMeta?.imageEnhancement as Record<string, any> | undefined;
+    const allEnhancedSections = [
+      ...(previousEnhancement?.sections || []),
+      ...enhancedSections,
+    ];
+
+    const nextIndex = startFromIndex + results.length;
+    const isDone = nextIndex >= allSpecs.length;
 
     const { error: updateError } = await supabase
       .from("ai_landing_pages")
@@ -469,8 +504,11 @@ serve(async (req) => {
           imageEnhancement: {
             version: VERSION,
             enhancedAt: new Date().toISOString(),
-            sections: enhancedSections,
-            totalEnhanced: enhancedSections.length,
+            sections: allEnhancedSections,
+            totalEnhanced: allEnhancedSections.length,
+            totalSections: allSpecs.length,
+            stage,
+            done: isDone,
           },
         },
       })
@@ -485,14 +523,19 @@ serve(async (req) => {
     }
 
     const successCount = results.filter(r => r.applied).length;
-    console.log(`[AI-LP-Enhance v${VERSION}] Done! ${successCount}/${enhanceableSpecs.length} sections enhanced.`);
+    const totalElapsed = Date.now() - startTime;
+    console.log(`[AI-LP-Enhance v${VERSION}] Stage ${stage} done! ${successCount}/${sectionsToProcess.length} sections enhanced in ${Math.round(totalElapsed/1000)}s. Done: ${isDone}`);
 
     return new Response(
       JSON.stringify({
         success: true,
         enhanced: successCount,
-        total: enhanceableSpecs.length,
+        total: allSpecs.length,
         results,
+        done: isDone,
+        nextIndex: isDone ? null : nextIndex,
+        nextStage: isDone ? null : stage + 1,
+        stage,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
