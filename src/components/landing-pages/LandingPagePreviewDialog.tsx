@@ -1,10 +1,12 @@
 // =============================================
 // LANDING PAGE PREVIEW DIALOG
 // Preview modal for landing pages
+// V4.2: Uses shared pipeline (aiLandingPageShell.ts)
 // =============================================
 
 import { useState } from "react";
 import { sanitizeAILandingPageHtml } from "@/lib/sanitizeAILandingPageHtml";
+import { buildDocumentShell } from "@/lib/aiLandingPageShell";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -69,30 +71,11 @@ export function LandingPagePreviewDialog({
       );
     }
 
-    const rawHtml = sanitizeAILandingPageHtml(landingPage.generated_html);
-    const isFullDocument = rawHtml.trim().toLowerCase().startsWith('<!doctype') || rawHtml.trim().toLowerCase().startsWith('<html');
-
-    const safetyCss = `<style id="lp-safety">
-[style*="animation-fill-mode: both"], [style*="animation-fill-mode: forwards"],
-[style*="animation-fill-mode:both"], [style*="animation-fill-mode:forwards"] {
-  animation-fill-mode: none !important;
-}
-section, .section, .hero, [class*="hero"] { min-height: auto !important; }
-html, body { overflow-x: hidden !important; max-width: 100% !important; }
-.cta-button { cursor: pointer; }
-</style>`;
-
-    let fullHtml: string;
-    if (isFullDocument) {
-      fullHtml = rawHtml.includes('</head>')
-        ? rawHtml.replace('</head>', `${safetyCss}\n</head>`)
-        : rawHtml;
-    } else {
-      fullHtml = `<!DOCTYPE html><html><head>
-        <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>body { margin: 0; font-family: system-ui, sans-serif; }${landingPage.generated_css || ''}</style>
-        ${safetyCss}</head><body>${rawHtml}</body></html>`;
-    }
+    // V4.2: Use shared pipeline for document assembly
+    const sanitizedHtml = sanitizeAILandingPageHtml(landingPage.generated_html);
+    const fullHtml = buildDocumentShell(sanitizedHtml, {
+      extraCss: landingPage.generated_css || undefined,
+    });
 
     return (
       <iframe

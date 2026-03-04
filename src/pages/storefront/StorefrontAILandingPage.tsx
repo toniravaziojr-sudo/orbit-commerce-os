@@ -1,9 +1,7 @@
 // =============================================
 // STOREFRONT AI LANDING PAGE - Serves AI-generated landing pages
-// Fetches from ai_landing_pages table and renders generated HTML
-// Resolves tenant from hostname (custom domain or platform subdomain)
-// Injects marketing pixels (Meta/Google/TikTok) into generated HTML
-// Conditionally renders store header/footer based on show_header/show_footer
+// V4.2: Uses shared pipeline (aiLandingPageShell.ts)
+// Skeleton + opacity transition for iframe loading
 // =============================================
 
 import { useParams } from 'react-router-dom';
@@ -13,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import NotFound from '@/pages/NotFound';
 import { isPlatformSubdomain, extractTenantFromPlatformSubdomain } from '@/lib/canonicalDomainService';
 import { sanitizeAILandingPageHtml } from '@/lib/sanitizeAILandingPageHtml';
+import { buildDocumentShell } from '@/lib/aiLandingPageShell';
 import { usePublicMarketingConfig } from '@/hooks/useMarketingIntegrations';
 import { CartProvider } from '@/contexts/CartContext';
 import { DiscountProvider } from '@/contexts/DiscountContext';
@@ -39,7 +38,6 @@ interface AILandingPageData {
 
 /**
  * Resolves tenant ID from the current hostname
- * Works for: custom domains, platform subdomains, and legacy /store/:tenantSlug routes
  */
 function useTenantFromHostname() {
   const { tenantSlug: paramSlug } = useParams<{ tenantSlug: string }>();
@@ -49,19 +47,16 @@ function useTenantFromHostname() {
     queryFn: async () => {
       const hostname = window.location.hostname.toLowerCase().replace(/^www\./, '');
       
-      // 1. If URL has tenantSlug param (legacy /store/:tenantSlug route)
       if (paramSlug) {
         const { data, error } = await supabase
           .from('tenants')
           .select('id, slug')
           .eq('slug', paramSlug)
           .maybeSingle();
-        
         if (error || !data) return null;
         return { tenantId: data.id, tenantSlug: data.slug };
       }
       
-      // 2. Check if it's a platform subdomain (tenant.shops.comandocentral.com.br)
       if (isPlatformSubdomain(hostname)) {
         const extractedSlug = extractTenantFromPlatformSubdomain(hostname);
         if (extractedSlug) {
@@ -70,13 +65,11 @@ function useTenantFromHostname() {
             .select('id, slug')
             .eq('slug', extractedSlug)
             .maybeSingle();
-          
           if (error || !data) return null;
           return { tenantId: data.id, tenantSlug: data.slug };
         }
       }
       
-      // 3. Custom domain - lookup in tenant_domains table
       const { data: domainData, error: domainError } = await supabase
         .from('tenant_domains')
         .select('tenant_id, tenants!inner(slug)')
@@ -94,31 +87,29 @@ function useTenantFromHostname() {
         tenantSlug: (domainData.tenants as any)?.slug || '' 
       };
     },
-    staleTime: 1000 * 60 * 10, // 10 minutes
+    staleTime: 1000 * 60 * 10,
     retry: 1,
   });
 }
 
 /**
- * Build pixel injection scripts to insert into the AI LP iframe HTML
+ * Build pixel injection scripts
  */
 function buildPixelScripts(config: {
   meta_pixel_id?: string | null;
   meta_enabled?: boolean;
   google_measurement_id?: string | null;
   google_ads_conversion_id?: string | null;
+  google_ads_conversion_label?: string | null;
   google_enabled?: boolean;
   tiktok_pixel_id?: string | null;
   tiktok_enabled?: boolean;
 } | null): string {
   if (!config) return '';
-
   const scripts: string[] = [];
 
-  // Meta Pixel
   if (config.meta_enabled && config.meta_pixel_id) {
-    scripts.push(`
-<script>
+    scripts.push(`<script>
 !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
 n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
 n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
@@ -129,10 +120,8 @@ fbq('init','${config.meta_pixel_id}');fbq('track','PageView');
 <noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=${config.meta_pixel_id}&ev=PageView&noscript=1"/></noscript>`);
   }
 
-  // Google Analytics / Ads
   if (config.google_enabled && config.google_measurement_id) {
-    scripts.push(`
-<script async src="https://www.googletagmanager.com/gtag/js?id=${config.google_measurement_id}"></script>
+    scripts.push(`<script async src="https://www.googletagmanager.com/gtag/js?id=${config.google_measurement_id}"></script>
 <script>
 window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}
 gtag('js',new Date());gtag('config','${config.google_measurement_id}');
@@ -140,10 +129,8 @@ ${config.google_ads_conversion_id ? `gtag('config','${config.google_ads_conversi
 </script>`);
   }
 
-  // TikTok Pixel
   if (config.tiktok_enabled && config.tiktok_pixel_id) {
-    scripts.push(`
-<script>
+    scripts.push(`<script>
 !function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=
 ["page","track","identify","instances","debug","on","off","once","ready","alias",
 "group","enableCookie","disableCookie"];ttq.setAndDefer=function(t,e){t[e]=function()
@@ -163,126 +150,19 @@ a.parentNode.insertBefore(o,a)};ttq.load('${config.tiktok_pixel_id}');ttq.page()
 }
 
 /**
- * Build favicon link tag from tenant store settings
+ * Build favicon link tag
  */
 function buildFaviconTag(faviconUrl: string | null | undefined): string {
   if (!faviconUrl) return '';
   return `<link rel="icon" href="${faviconUrl}" type="image/png">`;
 }
 
-/**
- * Inject pixel scripts and favicon into the AI LP HTML before </head> or </body>
- */
-/**
- * Convert @import url(...) inside <style> tags to <link> tags to prevent render-blocking.
- * In srcDoc iframes, @import can block rendering indefinitely if the font fails to load.
- */
-function convertImportsToLinks(html: string): string {
-  const importRegex = /@import\s+url\(['"]?(https?:\/\/[^'")\s]+)['"]?\)\s*;?/g;
-  const links: string[] = [];
-  
-  // Extract @import URLs and remove them from <style>
-  let result = html.replace(importRegex, (match, url) => {
-    links.push(`<link rel="stylesheet" href="${url}">`);
-    return ''; // Remove the @import from <style>
-  });
-  
-  // Inject <link> tags in <head>
-  if (links.length > 0 && result.includes('</head>')) {
-    result = result.replace('</head>', `${links.join('\n')}\n</head>`);
-  }
-  
-  return result;
-}
-
-function injectPixelsIntoHtml(html: string, pixelScripts: string, faviconTag?: string): string {
-  // Auto-resize script — measures content once after stabilization, prevents vh feedback loop
-  const autoResizeScript = `
-<script>
-(function(){
-  var locked = false;
-  var lastH = 0;
-  var stableCount = 0;
-  function sendHeight(){
-    if(locked) return;
-    try {
-      var h = Math.max(
-        document.documentElement.scrollHeight || 0,
-        document.body.scrollHeight || 0
-      );
-      if(h > 0 && Math.abs(h - lastH) > 2){
-        stableCount = 0;
-        lastH = h;
-        window.parent.postMessage({type:'ai-lp-resize', height: h}, '*');
-      } else if(h > 0) {
-        stableCount++;
-        if(stableCount >= 3) { locked = true; } // Lock after 3 stable readings
-      }
-    } catch(e){}
-  }
-  // Measure a few times to catch images/fonts loading
-  sendHeight();
-  setTimeout(sendHeight, 200);
-  setTimeout(sendHeight, 600);
-  setTimeout(sendHeight, 1500);
-  setTimeout(sendHeight, 3000);
-  // Watch for images loading (one-time)
-  var imgs = document.querySelectorAll('img');
-  imgs.forEach(function(img){
-    if(!img.complete){ img.addEventListener('load', function(){ sendHeight(); }, {once:true}); }
-  });
-})();
-</script>`;
-
-  // First, convert @import to <link> to prevent render-blocking
-  let result = convertImportsToLinks(html);
-
-  // Safety CSS: softer approach — preserve layout while preventing stuck invisible elements
-  // v4.1: No longer kills ALL animations or forces opacity on everything (caused layout breaks)
-  const visibilitySafety = `<style id="lp-safety">
-    /* Only fix stuck animations with fill-mode both/forwards — preserve normal animations */
-    [style*="animation-fill-mode: both"], [style*="animation-fill-mode: forwards"],
-    [style*="animation-fill-mode:both"], [style*="animation-fill-mode:forwards"] {
-      animation-fill-mode: none !important;
-    }
-    /* Prevent vh feedback loop on sections */
-    section, .section, .hero, [class*="hero"] {
-      min-height: auto !important;
-    }
-    /* Fix scrollbar: prevent body from creating scroll inside iframe */
-    html, body {
-      overflow-x: hidden !important;
-      max-width: 100% !important;
-    }
-    .cta-button { cursor: pointer; }
-  </style>`;
-
-  // Inject head items (favicon, pixels, visibility safety) before </head>
-  const headInjections = [faviconTag, pixelScripts, visibilitySafety].filter(Boolean).join('\n');
-  if (headInjections && result.includes('</head>')) {
-    result = result.replace('</head>', `${headInjections}\n</head>`);
-  }
-
-  // Inject auto-resize script before </body> (so document.body exists)
-  if (result.includes('</body>')) {
-    result = result.replace('</body>', `${autoResizeScript}\n</body>`);
-  } else if (result.includes('</html>')) {
-    result = result.replace('</html>', `${autoResizeScript}\n</html>`);
-  } else {
-    result += autoResizeScript;
-  }
-
-  return result;
-}
-
 export default function StorefrontAILandingPage() {
   const { lpSlug, tenantSlug } = useParams<{ lpSlug: string; tenantSlug: string }>();
   const { data: tenantInfo, isLoading: tenantLoading } = useTenantFromHostname();
 
-  // Fetch marketing config for pixel injection
   const { data: marketingConfig } = usePublicMarketingConfig(tenantInfo?.tenantId);
 
-  // Fetch store settings for favicon
   const { data: storeSettings } = useQuery({
     queryKey: ['store-settings-favicon', tenantInfo?.tenantId],
     queryFn: async () => {
@@ -299,12 +179,10 @@ export default function StorefrontAILandingPage() {
     staleTime: 1000 * 60 * 10,
   });
 
-  const { data: landingPage, isLoading: pageLoading, error } = useQuery({
+  const { data: landingPage, isLoading: pageLoading } = useQuery({
     queryKey: ['ai-landing-page-public', tenantInfo?.tenantId, lpSlug],
     queryFn: async () => {
       if (!tenantInfo?.tenantId || !lpSlug) return null;
-
-      // Get the AI landing page - must be published - include show_header/show_footer
       const { data: page, error: pageError } = await supabase
         .from('ai_landing_pages')
         .select('id, name, slug, generated_html, generated_css, seo_title, seo_description, seo_image_url, is_published, show_header, show_footer')
@@ -312,32 +190,41 @@ export default function StorefrontAILandingPage() {
         .eq('slug', lpSlug)
         .eq('is_published', true)
         .maybeSingle();
-
       if (pageError) {
         console.error('Error fetching AI landing page:', pageError);
         return null;
       }
-
       return page as AILandingPageData | null;
     },
     enabled: !!tenantInfo?.tenantId && !!lpSlug,
-    staleTime: 1000 * 30, // 30 seconds — ensures show_header/show_footer toggle reflects quickly
+    staleTime: 1000 * 30,
     refetchOnWindowFocus: true,
   });
 
-  // Auto-resize iframe based on content height (hooks must be before conditionals)
+  // V4.2: Skeleton + opacity transition for iframe loading
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [iframeHeight, setIframeHeight] = useState<number | null>(null);
+  const [iframeReady, setIframeReady] = useState(false);
 
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.data?.type === 'ai-lp-resize' && typeof e.data.height === 'number') {
         setIframeHeight(e.data.height);
+        setIframeReady(true);
       }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
   }, []);
+
+  // Fallback timeout: show iframe after 5s even without postMessage
+  useEffect(() => {
+    if (iframeReady) return;
+    const timeout = setTimeout(() => {
+      setIframeReady(true);
+    }, 5000);
+    return () => clearTimeout(timeout);
+  }, [iframeReady]);
 
   // Loading state
   if (tenantLoading || pageLoading) {
@@ -348,16 +235,18 @@ export default function StorefrontAILandingPage() {
     );
   }
 
-  // Not found: tenant not resolved, page not found, or not published
   if (!tenantInfo || !landingPage || !landingPage.generated_html) {
     return <NotFound />;
   }
 
-  // Inject pixel scripts and favicon into the generated HTML
+  // V4.2: Use shared pipeline for document assembly
   const pixelScripts = buildPixelScripts(marketingConfig ?? null);
   const faviconTag = buildFaviconTag(storeSettings?.favicon_url);
   const sanitizedHtml = sanitizeAILandingPageHtml(landingPage.generated_html);
-  const fullHtml = injectPixelsIntoHtml(sanitizedHtml, pixelScripts, faviconTag);
+  const fullHtml = buildDocumentShell(sanitizedHtml, {
+    pixelScripts,
+    faviconTag,
+  });
 
   // Set document title and favicon on parent document
   if (typeof document !== 'undefined') {
@@ -378,17 +267,49 @@ export default function StorefrontAILandingPage() {
   const shouldShowFooter = landingPage.show_footer ?? false;
   const resolvedTenantSlug = tenantSlug || tenantInfo.tenantSlug || '';
 
+  // V4.2: Skeleton container + opacity transition
   const iframeStyle: React.CSSProperties = {
     width: '100%',
     display: 'block',
     border: 'none',
-    height: iframeHeight ? `${iframeHeight}px` : '2000px',
+    height: iframeHeight ? `${iframeHeight}px` : 'auto',
     minHeight: '400px',
     maxHeight: iframeHeight ? `${iframeHeight}px` : undefined,
     overflow: 'hidden',
+    opacity: iframeReady ? 1 : 0,
+    transition: 'opacity 0.3s ease-in-out',
   };
 
-  // If header or footer needed, wrap with providers + TenantSlugContext + ThemeInjector
+  const skeletonOverlay = !iframeReady ? (
+    <div className="absolute inset-0 flex items-center justify-center" style={{ minHeight: '400px' }}>
+      <div className="w-full max-w-3xl space-y-6 px-8">
+        <Skeleton className="h-10 w-3/4 mx-auto" />
+        <Skeleton className="h-6 w-1/2 mx-auto" />
+        <Skeleton className="h-64 w-full rounded-xl" />
+        <div className="grid grid-cols-3 gap-4">
+          <Skeleton className="h-24 rounded-lg" />
+          <Skeleton className="h-24 rounded-lg" />
+          <Skeleton className="h-24 rounded-lg" />
+        </div>
+        <Skeleton className="h-12 w-48 mx-auto rounded-full" />
+      </div>
+    </div>
+  ) : null;
+
+  const iframeElement = (
+    <div className="relative" style={{ minHeight: '400px' }}>
+      {skeletonOverlay}
+      <iframe
+        ref={iframeRef}
+        srcDoc={fullHtml}
+        className="w-full border-0"
+        style={iframeStyle}
+        title={landingPage.name}
+        scrolling="no"
+      />
+    </div>
+  );
+
   if (shouldShowHeader || shouldShowFooter) {
     return (
       <TenantSlugContext.Provider value={resolvedTenantSlug}>
@@ -402,14 +323,7 @@ export default function StorefrontAILandingPage() {
                     <StorefrontHeader key={`header-${resolvedTenantSlug}`} />
                   </div>
                 )}
-                <iframe
-                  ref={iframeRef}
-                  srcDoc={fullHtml}
-                  className="w-full border-0"
-                  style={iframeStyle}
-                  title={landingPage.name}
-                  scrolling="no"
-                />
+                {iframeElement}
                 {shouldShowFooter && (
                   <div style={{ containerType: 'inline-size' }} className="storefront-footer-wrapper">
                     <StorefrontFooter key={`footer-${resolvedTenantSlug}`} />
@@ -423,20 +337,9 @@ export default function StorefrontAILandingPage() {
     );
   }
 
-  // No header/footer — render standalone
   return (
     <div className="min-h-screen w-full" style={{ margin: 0, padding: 0 }}>
-      <iframe
-        ref={iframeRef}
-        srcDoc={fullHtml}
-        className="w-full border-0"
-        style={{
-          ...iframeStyle,
-          height: iframeHeight ? `${iframeHeight}px` : '2000px',
-        }}
-        title={landingPage.name}
-        scrolling="no"
-      />
+      {iframeElement}
     </div>
   );
 }
