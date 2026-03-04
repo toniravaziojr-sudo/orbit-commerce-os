@@ -174,6 +174,8 @@ function buildModularPrompt(params: {
   productsInfo: string;
   productImages: string[];
   productNames: string[];
+  /** Map of product name → primary catalog image URL (deterministic slot assignment) */
+  productPrimaryImageMap: Record<string, string>;
   reviewsInfo: string;
   creativesInfo: string;
   generatedCreativeUrls: string[];
@@ -185,7 +187,7 @@ function buildModularPrompt(params: {
 }): string {
   const {
     enginePlan, storeName, logoUrl, primaryColor, secondaryColor, accentColor,
-    themeColors, productsInfo, productImages, productNames, reviewsInfo,
+    themeColors, productsInfo, productImages, productNames, productPrimaryImageMap, reviewsInfo,
     creativesInfo, generatedCreativeUrls, lifestyleImageUrls,
     referenceUrl, currentHtml, showHeader, showFooter,
   } = params;
@@ -399,7 +401,16 @@ A IA NÃO deve gerar nenhum dos itens abaixo, mesmo sem usar a tag <footer>:
 - "Menu Footer", links institucionais ("Política de Privacidade", "Termos de Uso", "Sobre Nós")
 - Endereço físico, CNPJ, razão social como seção de fechamento
 - Qualquer seção que funcione como rodapé de um site — isso é responsabilidade da PLATAFORMA
-- A última seção da landing page DEVE ser um CTA de conversão com botão de ação`);
+- A última seção da landing page DEVE ser um CTA de conversão com botão de ação
+
+### PROIBIÇÃO DE ESCASSEZ/URGÊNCIA ARTIFICIAL:
+- NÃO invente dados de estoque ("restam apenas X unidades", "últimas X unidades")
+- NÃO invente contadores regressivos ou prazos artificiais
+- NÃO use "OFERTA LIMITADA", "ÚLTIMAS VAGAS", "ACABA HOJE" sem dados reais
+- Se o produto tem compare_at_price, pode mencionar desconto com os valores reais
+- Se NÃO há dado real de promoção/estoque limitado, NÃO crie urgência artificial
+- Urgência baseada em dados falsos destrói credibilidade e pode violar leis do consumidor`);
+
 
   // === DATA SECTIONS ===
   const dataSections: string[] = [];
@@ -412,47 +423,63 @@ A IA NÃO deve gerar nenhum dos itens abaixo, mesmo sem usar a tag <footer>:
   if (productsInfo) dataSections.push(`## PRODUTOS A SEREM DESTACADOS:\n${productsInfo}`);
   else dataSections.push(`## ATENÇÃO: Nenhum produto selecionado. Crie uma landing page genérica para a loja.`);
 
-  // === IMAGE PRIORITY SYSTEM (v4.1) ===
-  // Generated creatives and lifestyle images ALWAYS take priority over catalog images
-  // Catalog images are only used as fallback when no creatives were generated
+  // === IMAGE SLOT SYSTEM (v4.3) ===
+  // Deterministic asset resolution: backend decides which image goes where
+  // AI must follow the slot map, not choose freely
 
+  // Build the deterministic asset map
+  const assetSlots: string[] = [];
+  
+  // HERO slot
   if (generatedCreativeUrls.length > 0) {
-    dataSections.push(`## 🎨 IMAGENS CRIATIVAS GERADAS (PRIORIDADE MÁXIMA — USE ESTAS):
-${generatedCreativeUrls.map((url, i) => `${i + 1}. ${url}`).join('\n')}
-
-REGRA: Use como IMAGEM PRINCIPAL no HERO e seções visuais.
-Estas imagens foram geradas profissionalmente para esta landing page.
-NÃO use imagens de catálogo (fundo branco) no Hero quando houver criativos gerados.`);
+    assetSlots.push(`### 🎯 HERO (imagem principal da página):
+URL OBRIGATÓRIA: ${generatedCreativeUrls[0]}
+${generatedCreativeUrls.length > 1 ? `URL ALTERNATIVA: ${generatedCreativeUrls[1]}` : ''}
+REGRA: Use esta imagem como hero/banner principal. É um criativo gerado profissionalmente.`);
+  } else if (lifestyleImageUrls.length > 0) {
+    assetSlots.push(`### 🎯 HERO (imagem principal da página):
+URL OBRIGATÓRIA: ${lifestyleImageUrls[0]}
+REGRA: Use esta imagem lifestyle como hero/banner principal.`);
+  } else if (productImages.length > 0) {
+    assetSlots.push(`### 🎯 HERO (imagem principal da página):
+URL OBRIGATÓRIA: ${productImages[0]}
+REGRA: Use esta imagem como hero. Se possível, aplique tratamento CSS (gradient overlay, zoom).`);
   }
 
+  // OFFER/PRICING slot — each product gets its primary image
+  const primaryMapEntries = Object.entries(productPrimaryImageMap);
+  if (primaryMapEntries.length > 0) {
+    assetSlots.push(`### 🛒 OFERTA / PRICING / KITS (imagem POR PRODUTO — OBRIGATÓRIO):
+${primaryMapEntries.map(([name, url]) => `- "${name}": ${url}`).join('\n')}
+REGRA: Cada card de oferta/pricing DEVE usar a imagem do produto correspondente listada acima. NÃO troque imagens entre produtos. NÃO use before/after em cards de oferta.`);
+  }
+
+  // LIFESTYLE/AMBIANCE slot
   if (lifestyleImageUrls.length > 0) {
-    dataSections.push(`## 🌿 IMAGENS DE LIFESTYLE (SEGUNDA PRIORIDADE):
+    assetSlots.push(`### 🌿 AMBIENTAÇÃO / PROVA VISUAL:
 ${lifestyleImageUrls.map((url, i) => `${i + 1}. ${url}`).join('\n')}
-
-Use em seções de ambientação, transformação, prova visual.
-Estas são superiores às imagens de catálogo para contexto visual.`);
+REGRA: Use em seções de transformação, ambientação, prova visual. NÃO use em cards de oferta.`);
   }
 
-  if (productImages.length > 0) {
-     const imageUsageNote = generatedCreativeUrls.length > 0 || lifestyleImageUrls.length > 0
-      ? `\n⚠️ ATENÇÃO: Use imagens de catálogo APENAS em grids de produto, comparações ou seções técnicas.
-NÃO use imagens de catálogo (fundo branco) como hero ou background — use os criativos gerados acima.
+  // SECONDARY CATALOG slot (non-primary images)
+  const secondaryImages = productImages.filter(url => !Object.values(productPrimaryImageMap).includes(url));
+  if (secondaryImages.length > 0) {
+    assetSlots.push(`### 📷 IMAGENS SECUNDÁRIAS (benefícios, detalhes, features):
+${secondaryImages.map((url, i) => `${i + 1}. ${url}`).join('\n')}
+REGRA: Use em seções de benefícios, detalhes, features. NÃO use no hero. NÃO use em pricing.`);
+  }
 
-### POLÍTICA DE IMAGEM POR TIPO DE SEÇÃO:
-- HERO: Use criativo gerado (prioridade) ou lifestyle. NUNCA catálogo com fundo branco.
-- OFERTA / PRICING / KITS: Use OBRIGATORIAMENTE a imagem principal (is_primary) de cada produto do catálogo. Cada card de oferta DEVE mostrar a foto do produto correspondente.
-- PROVA SOCIAL / BEFORE-AFTER: Apenas imagens aprovadas de transformação.
-- BENEFÍCIOS / FEATURES: Ícones CSS ou imagens secundárias.
-- NUNCA misture: before/after em card de oferta, catálogo em hero, lifestyle em pricing.`
-      : `\nCOPIE E COLE estas URLs. NUNCA invente URLs.
+  if (assetSlots.length > 0) {
+    dataSections.push(`## 🎯 MAPA DE ASSETS POR SEÇÃO (OBRIGATÓRIO — NÃO ALTERE A DISTRIBUIÇÃO):
 
-### POLÍTICA DE IMAGEM POR TIPO DE SEÇÃO:
-- OFERTA / PRICING / KITS: Use OBRIGATORIAMENTE a imagem principal (is_primary) de cada produto do catálogo.
-- NUNCA use imagens aleatórias em cards de oferta — cada card DEVE mostrar a foto do produto correspondente.`;
+${assetSlots.join('\n\n')}
 
-    dataSections.push(`## 📷 IMAGENS DO CATÁLOGO (REFERÊNCIA):
-${productImages.map((url, i) => `${i + 1}. ${url}`).join('\n')}
-${imageUsageNote}`);
+⚠️ REGRAS ABSOLUTAS DE IMAGEM:
+- NUNCA invente URLs de imagem. Use APENAS as URLs fornecidas acima.
+- NUNCA use imgur.com, postimg.cc, imgbb.com, cloudinary.com ou qualquer host externo.
+- NUNCA troque imagens entre slots (ex: before/after em card de oferta).
+- Cada card de produto DEVE mostrar a imagem primária correspondente ao produto.
+- Se não houver imagem para um slot, use ícones CSS ou gradientes — NUNCA placeholder.`);
   }
 
   if (reviewsInfo) dataSections.push(`## AVALIAÇÕES REAIS:\n${reviewsInfo}\nUse estes depoimentos reais na prova social.`);
@@ -727,6 +754,7 @@ serve(async (req) => {
     let productsInfo = "";
     let productImages: string[] = [];
     let productNames: string[] = [];
+    let productPrimaryImageMap: Record<string, string> = {};
     let firstProduct: { name: string; product_type: string | null; tags: string[] | null; description: string | null; price: number | null } | null = null;
     let reviewCount = 0;
 
@@ -760,7 +788,10 @@ serve(async (req) => {
           const prodImages = imagesByProduct.get(p.id) || [];
           const primaryImage = prodImages.find(img => img.is_primary)?.url || prodImages[0]?.url;
           const allImageUrls = prodImages.map(img => img.url);
-          if (primaryImage) productImages.push(primaryImage);
+          if (primaryImage) {
+            productImages.push(primaryImage);
+            productPrimaryImageMap[p.name] = primaryImage;
+          }
           allImageUrls.forEach(url => { if (url && !productImages.includes(url)) productImages.push(url); });
 
           const priceInReais = p.price;
@@ -943,6 +974,7 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
       productsInfo,
       productImages,
       productNames,
+      productPrimaryImageMap,
       reviewsInfo,
       creativesInfo,
       generatedCreativeUrls,
