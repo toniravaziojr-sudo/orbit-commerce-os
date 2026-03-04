@@ -2679,6 +2679,15 @@ async function executeToolCall(
         prompt: args.prompt,
         promptType: "initial",
         productIds: [matchedProduct.id],
+        briefing: {
+          objective: "sale",
+          trafficTemp: "cold",
+          trafficSource: "meta",
+          awarenessLevel: "pain_aware",
+          preferredCTA: "buy",
+          restrictions: [],
+          assumedBySystem: true,
+        },
       };
 
       // Fire and forget — don't await the full generation
