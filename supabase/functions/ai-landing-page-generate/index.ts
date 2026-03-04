@@ -19,8 +19,13 @@ import {
   type EnginePlanInput,
   type HardCheckOutput,
 } from "../_shared/marketing/engine-plan.ts";
+import {
+  BLOCK_TOOL_DEFINITION,
+  getBlockPropsDocumentation,
+  assembleBlockTree,
+} from "../_shared/marketing/block-assembler.ts";
 
-const VERSION = "4.2.0"; // Engine V4.2: body-only contract + wrapInDocumentShell + layout hard checks + parser enforcement
+const VERSION = "5.0.0"; // Engine V5: JSON-to-React blocks via tool calling — same system as Lovable editor
 
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
@@ -164,7 +169,7 @@ interface GenerateRequest {
 
 // ========== MODULAR PROMPT BUILDER ==========
 
-function buildModularPrompt(params: {
+function buildV5SystemPrompt(params: {
   enginePlan: EnginePlanInput;
   storeName: string;
   logoUrl: string;
@@ -175,7 +180,6 @@ function buildModularPrompt(params: {
   productsInfo: string;
   productImages: string[];
   productNames: string[];
-  /** Map of product name → primary catalog image URL (deterministic slot assignment) */
   productPrimaryImageMap: Record<string, string>;
   reviewsInfo: string;
   creativesInfo: string;
@@ -183,23 +187,25 @@ function buildModularPrompt(params: {
   lifestyleImageUrls: string[];
   socialProofImageUrls: string[];
   referenceUrl?: string;
-  currentHtml?: string;
-  showHeader?: boolean;
-  showFooter?: boolean;
+  currentBlocks?: string;
 }): string {
   const {
     enginePlan, storeName, logoUrl, primaryColor, secondaryColor, accentColor,
     themeColors, productsInfo, productImages, productNames, productPrimaryImageMap, reviewsInfo,
     creativesInfo, generatedCreativeUrls, lifestyleImageUrls,
-    referenceUrl, currentHtml, showHeader, showFooter,
+    referenceUrl, currentBlocks,
   } = params;
 
   const sections: string[] = [];
 
-  // === A. AUTHORITATIVE CONTEXT (non-negotiable) ===
-  sections.push(`## ⚡ CONTEXTO AUTORITATIVO (NÃO NEGOCIÁVEL)
+  // === A. ROLE ===
+  sections.push(`Você é um diretor criativo de elite, especialista em landing pages de altíssima conversão.
+Você vai montar uma landing page usando COMPONENTES REAIS pré-construídos (React). 
+Você NÃO gera HTML. Você chama a função build_landing_page com a estrutura de seções.
+Cada seção que você escolher será renderizada por um componente real com design profissional.`);
 
-As seguintes decisões foram tomadas pelo sistema e NÃO podem ser alteradas pela IA:
+  // === B. AUTHORITATIVE CONTEXT ===
+  sections.push(`## ⚡ CONTEXTO AUTORITATIVO (NÃO NEGOCIÁVEL)
 
 - **Arquétipo**: ${enginePlan.resolvedArchetype} (${TEMPLATE_REGISTRY_NAMES[enginePlan.resolvedArchetype]})
 - **Nicho**: ${enginePlan.resolvedNiche}
@@ -214,302 +220,126 @@ As seguintes decisões foram tomadas pelo sistema e NÃO podem ser alteradas pel
 - **Temperatura do Tráfego**: ${enginePlan.briefing.trafficTemp}
 - **Fonte de Tráfego**: ${enginePlan.briefing.trafficSource}
 - **Nível de Consciência**: ${enginePlan.briefing.awarenessLevel}
-${enginePlan.briefing.restrictions?.length ? `- **Restrições**: ${enginePlan.briefing.restrictions.join(', ')}` : ''}
+${enginePlan.briefing.restrictions?.length ? `- **Restrições**: ${enginePlan.briefing.restrictions.join(', ')}` : ''}`);
 
-ESTAS DECISÕES SÃO FINAIS. Siga-as à risca.`);
+  // === C. SECTION MAPPING ===
+  sections.push(`## 📐 MAPEAMENTO DE SEÇÕES → COMPONENTES
 
-  // === B. SECTION ENGINE ===
-  sections.push(`## 📐 SECTION ENGINE
+Use a função build_landing_page com os seguintes tipos de seção:
 
-Siga a ordem de seções especificada acima. Cada seção deve ter:
-- Um ID ou class CSS identificável (ex: class="hero", class="beneficios")
-- Transição visual clara entre seções
-- Padding consistente (80px desktop, 48px mobile)
+| Seção do Engine Plan | Tipo no Tool Call | Quando Usar |
+|-----|-----|-----|
+| hero | hero_banner | SEMPRE primeiro — headline + CTA + imagem hero |
+| credibilidade | info_highlights | Badges de confiança (Frete Grátis, Pagamento Seguro) |
+| dor_problema | content_columns | Texto sobre o problema + imagem | 
+| solucao | content_columns | Solução + imagem do produto |
+| beneficios | feature_list | Lista de benefícios com ícones |
+| produto_destaque | content_columns | Produto em destaque com features |
+| prova_social | testimonials OU image_gallery | Reviews reais ou galeria de fotos |
+| comparativo | pricing_table | Comparação de kits/planos |
+| oferta | pricing_table | Cards de preço/oferta |
+| faq | faq | Perguntas frequentes |
+| garantia | text_section + button_cta | Texto de garantia + CTA |
+| como_funciona | steps_timeline | Passo a passo |
+| cta_final | button_cta | CTA de fechamento |
 
-### Seções Obrigatórias (DEVEM estar presentes):
-${enginePlan.requiredSections.map(s => `- **${s}**`).join('\n')}
+Siga a ordem do Engine Plan. Inclua seções obrigatórias E opcionais conforme a profundidade.`);
 
-### Seções Opcionais (inclua se a profundidade permitir):
-${enginePlan.optionalSections.map(s => `- ${s}`).join('\n')}`);
-
-  // === C. NICHE RULES (only for detected niche) ===
+  // === D. NICHE + TRAFFIC RULES ===
   sections.push(getNicheRules(enginePlan.resolvedNiche));
-
-  // === D. TRAFFIC STRATEGY ===
   sections.push(getTrafficRules(enginePlan.briefing.trafficSource));
-
-  // === E. AWARENESS COPY RULES ===
   sections.push(getAwarenessCopyRules(enginePlan.briefing.awarenessLevel));
 
-  // === F. VISUAL ENGINE ===
-  sections.push(`## 🎨 VISUAL ENGINE
+  // === E. VISUAL ===
+  sections.push(`## 🎨 CORES E VISUAL
 
-### Cor Primária da Marca: ${primaryColor}
-${secondaryColor ? `Cor Secundária: ${secondaryColor}` : ''}
-${accentColor ? `Cor de Acento: ${accentColor}` : ''}
-${themeColors.buttonPrimaryBg ? `Cor Botão Primário: ${themeColors.buttonPrimaryBg}` : ''}
-${themeColors.buttonPrimaryText ? `Texto Botão: ${themeColors.buttonPrimaryText}` : ''}
-${themeColors.priceColor ? `Cor do Preço: ${themeColors.priceColor}` : ''}
+- Cor Primária: ${primaryColor}
+${secondaryColor ? `- Cor Secundária: ${secondaryColor}` : ''}
+${accentColor ? `- Cor de Acento: ${accentColor}` : ''}
+${themeColors.buttonPrimaryBg ? `- Botão Primário BG: ${themeColors.buttonPrimaryBg}` : ''}
+${themeColors.buttonPrimaryText ? `- Botão Primário Text: ${themeColors.buttonPrimaryText}` : ''}
+${themeColors.priceColor ? `- Cor do Preço: ${themeColors.priceColor}` : ''}
 
 ### Peso Visual: ${enginePlan.resolvedVisualWeight}
-${enginePlan.resolvedVisualWeight === 'minimalista' ? '- Whitespace generoso, poucos elementos, tipografia elegante, paleta neutra' : ''}
-${enginePlan.resolvedVisualWeight === 'comercial' ? '- Badges, selos, urgência visual, preço em destaque, CTAs vibrantes' : ''}
-${enginePlan.resolvedVisualWeight === 'premium' ? '- Dark mode ou neutro escuro, tipografia sofisticada, gradientes sutis, gold accents' : ''}
-${enginePlan.resolvedVisualWeight === 'direto' ? '- Layout simples, foco no essencial, sem ornamentos, CTAs claros' : ''}
-${enginePlan.resolvedVisualWeight === 'informativo' ? '- Layout organizado, ícones, features em grid, specs técnicas, screenshots' : ''}
+${enginePlan.resolvedVisualWeight === 'premium' ? '- Use page_background_color escuro (#0a0a0a), textColor claro (#ffffff), accentColor dourado' : ''}
+${enginePlan.resolvedVisualWeight === 'comercial' ? '- Use cores vibrantes nos CTAs, badges de desconto, preço em destaque' : ''}
+${enginePlan.resolvedVisualWeight === 'minimalista' ? '- Use page_background_color claro (#ffffff), poucos elementos, tipografia elegante' : ''}
+${enginePlan.resolvedVisualWeight === 'direto' ? '- Layout simples, sem ornamentos, CTAs claros' : ''}
 
-### Regras de Cores:
-- USE as cores da marca como base para CTAs, badges, gradientes
-- NÃO invente cores aleatórias que não fazem parte da identidade
-- A paleta deve parecer extensão natural do site/loja
+Use as cores da marca em buttonColor, iconColor, accentColor dos blocos.`);
 
-### Layout do HERO (escolha o mais adequado ao nicho):
-- **Split Layout**: texto à esquerda, produto à direita (ideal para cosméticos, alimentos)
-- **Hero Clean**: fundo sólido/gradiente, produto centralizado (ideal para tech, moda)
-- **Background Composicional**: imagem lifestyle como fundo com overlay (ideal para urgência)
-
-### Responsividade Mobile (CRÍTICA):
-- Todas as grids 2+ colunas DEVEM empilhar em 1 coluna em < 768px
-- CTAs width: 100% no mobile
-- Tabelas com overflow-x: auto
-- NUNCA use vw para font-size
-
-### Logo: ${logoUrl || 'Sem logo'}
-- Analise contraste do fundo para decidir tratamento da logo
-- Max-width: 200px, height: auto
-- Em fundo escuro: use diretamente ou com filter: brightness(1.3)
-- Em fundo claro: envolva em container com fundo escuro harmonizado se necessário`);
-
-  // === G. COPY ENGINE (moved outside visual) ===
-  sections.push(`## ✍️ COPY ENGINE
-
-### Emojis — Uso Inteligente:
-- Use para checkmarks (✅), ícones de benefício (🛡️, 🚚, ⭐) quando fizerem sentido
-- NÃO encha a página — máximo 5-8 por página
-- Prefira ícones CSS/SVG quando disponíveis
-- Aparência PROFISSIONAL — emojis complementam, não dominam
-
-### Hero Copy — Técnica PAS:
-- Headline: frase de impacto que ataca a DOR do cliente
-- Sub-headline: agita o problema e apresenta a solução
-- CTA primário: verbo de ação + benefício ("${enginePlan.defaultCTA}")
-
-### Regras Gerais de Copy:
-- Headlines com NÚMEROS ESPECÍFICOS e power words
-- Bullets de benefícios com ✓ — foque em RESULTADOS, não features
-- Garantia junto ao preço
-- NUNCA use "Lorem ipsum" ou texto genérico`);
-
-  // === H. ANTI-PADRÕES ===
+  // === F. ANTI-PADRÕES ===
   const restrictionRules = enginePlan.briefing.restrictions?.map(r => {
-    if (r === 'no_countdown') return '- ❌ NÃO inclua countdown timers ou contadores regressivos';
-    if (r === 'no_video') return '- ❌ NÃO inclua seções de vídeo ou embeds de YouTube';
-    if (r === 'no_comparisons') return '- ❌ NÃO inclua tabelas comparativas ou "vs concorrente"';
+    if (r === 'no_countdown') return '- NÃO inclua countdown timers';
+    if (r === 'no_video') return '- NÃO inclua seções de vídeo';
+    if (r === 'no_comparisons') return '- NÃO inclua tabelas comparativas';
     return '';
   }).filter(Boolean).join('\n') || '';
 
-  sections.push(`## 🚫 ANTI-PADRÕES
+  sections.push(`## 🚫 REGRAS ABSOLUTAS
 
-### PROIBIÇÕES ABSOLUTAS:
-- NUNCA invente nomes de produto — use EXATAMENTE os nomes fornecidos
-- NUNCA use placeholder.com, via.placeholder, unsplash ou imagens genéricas
-- NUNCA use imgur.com, postimg.cc, imgbb.com, cloudinary.com ou qualquer host externo de imagens — use APENAS as URLs fornecidas
-- NUNCA use Lorem ipsum ou texto placeholder
-- NUNCA deixe tags HTML visíveis como texto
-- NUNCA inclua header/navegação (a plataforma renderiza automaticamente)
-- NUNCA inclua <footer>, rodapé ou seção de copyright (a plataforma renderiza o footer)
-- NUNCA use badges "OFERTA LIMITADA", "PROMOÇÃO" ou selos de urgência a menos que o produto tenha compare_at_price (preço riscado) real
-- NUNCA use imagens de catálogo (fundo branco) como hero/background quando existem criativos gerados
-${restrictionRules}
+- NUNCA invente nomes de produto — use EXATAMENTE: ${productNames.map(n => `"${n}"`).join(', ')}
+- NUNCA invente URLs de imagem — use APENAS as fornecidas
+- NUNCA use Lorem ipsum
+- Use EXATAMENTE os preços fornecidos nos dados
+- NÃO crie urgência artificial (estoque falso, countdown sem dados reais)
+- Header e Footer são adicionados automaticamente — NÃO os inclua nas seções
+${restrictionRules}`);
 
-### NOMES DE PRODUTOS (COPIE LETRA POR LETRA):
-${productNames.map((name, i) => `${i + 1}. "${name}"`).join('\n')}
-
-### VERIFICAÇÃO OBRIGATÓRIA:
-1. O <title> contém "${productNames[0] || 'Produto'}"
-2. A H1 usa o nome exato do produto
-3. TODAS as menções usam o nome correto
-4. NENHUM nome inventado aparece no HTML`);
-
-  // === I. QUALITY ENGINE ===
-  sections.push(`## 📊 QUALITY ENGINE
-
-Antes de finalizar, faça uma autoavaliação (0-100) considerando:
-- Fidelidade ao nome do produto (0-20)
-- Uso correto das imagens fornecidas (0-20)
-- Qualidade do copy PAS (0-20)
-- Responsividade mobile (0-20)
-- Coerência visual com a marca (0-20)
-
-Inclua no bloco JSON: score total, risks (pontos fracos), strengths (pontos fortes).`);
-
-  // === J. OUTPUT FORMAT (V4.2: body-only contract) ===
-  sections.push(`## 📤 FORMATO DE SAÍDA (OBRIGATÓRIO)
-
-Retorne EXATAMENTE dois blocos separados e fechados:
-
-1. Bloco JSON com diagnóstico:
-\`\`\`json
-{
-  "diagnostic": {
-    "archetype": "${enginePlan.resolvedArchetype}",
-    "depth": "${enginePlan.resolvedDepth}",
-    "cta_primary": "${enginePlan.defaultCTA}",
-    "sections_used": ["hero", "..."],
-    "score": { "total": 85, "product_fidelity": 20, "image_usage": 18, "copy_quality": 17, "mobile": 15, "brand_coherence": 15 },
-    "risks": ["risk1", "risk2"],
-    "strengths": ["strength1", "strength2"],
-    "alt_headline": "Headline alternativa",
-    "alt_cta": "CTA alternativo"
-  }
-}
-\`\`\`
-
-2. Bloco HTML — APENAS conteúdo das seções (body-only):
-\`\`\`html
-<style>
-  /* CSS específico desta landing page */
-</style>
-<section class="hero">...</section>
-<section class="beneficios">...</section>
-...último CTA...
-\`\`\`
-
-### REGRAS DO FORMATO HTML:
-- Comece na primeira <section> (Hero)
-- Termine no último CTA ou seção de conteúdo
-- NÃO inclua <!DOCTYPE>, <html>, <head>, <body> — o sistema monta o documento completo
-- Inclua um único bloco <style> no início com os CSS específicos desta LP
-- O sistema adicionará: charset, viewport, fonts, CSS utilities, safety CSS, favicon, pixels e auto-resize
-
-AMBOS os blocos são obrigatórios. O JSON vem PRIMEIRO, o HTML SEGUNDO.`);
-
-  // === HEADER/FOOTER RULES ===
-  // === HEADER/FOOTER — ALWAYS PROHIBITED (v4.1) ===
-  // The platform ALWAYS renders header/footer separately.
-  // The AI must NEVER generate footer content — it creates duplication and layout breaks.
-  sections.push(`## ⚠️ HEADER E FOOTER — PROIBIÇÃO ABSOLUTA
-A plataforma renderiza header e footer automaticamente.
-- NÃO inclua NENHUM header, navegação, menu ou barra de topo
-- NÃO inclua NENHUM footer, rodapé, copyright, links de rodapé ou seção final com "©"
-- NÃO inclua tags <header>, <footer> ou <nav> de nível superior
-- Comece DIRETO no Hero e termine no último CTA ou seção de conteúdo
-- A última seção DEVE ser um CTA de conversão, NÃO informação institucional
-
-### PROIBIÇÃO DE CONTEÚDO SEMÂNTICO DE RODAPÉ:
-A IA NÃO deve gerar nenhum dos itens abaixo, mesmo sem usar a tag <footer>:
-- Seções com dados de SAC, contato institucional, telefone/email de suporte
-- Blocos de redes sociais (Instagram, Facebook, Twitter, TikTok)
-- "Menu Footer", links institucionais ("Política de Privacidade", "Termos de Uso", "Sobre Nós")
-- Endereço físico, CNPJ, razão social como seção de fechamento
-- Qualquer seção que funcione como rodapé de um site — isso é responsabilidade da PLATAFORMA
-- A última seção da landing page DEVE ser um CTA de conversão com botão de ação
-
-### PROIBIÇÃO DE ESCASSEZ/URGÊNCIA ARTIFICIAL:
-- NÃO invente dados de estoque ("restam apenas X unidades", "últimas X unidades")
-- NÃO invente contadores regressivos ou prazos artificiais
-- NÃO use "OFERTA LIMITADA", "ÚLTIMAS VAGAS", "ACABA HOJE" sem dados reais
-- Se o produto tem compare_at_price, pode mencionar desconto com os valores reais
-- Se NÃO há dado real de promoção/estoque limitado, NÃO crie urgência artificial
-- Urgência baseada em dados falsos destrói credibilidade e pode violar leis do consumidor`);
-
-
-  // === DATA SECTIONS ===
+  // === G. DATA ===
   const dataSections: string[] = [];
 
-  dataSections.push(`## Informações da Loja
-- Nome: ${storeName}
+  dataSections.push(`## Loja: ${storeName}
 - Logo: ${logoUrl || 'Sem logo'}
 - Cor Principal: ${primaryColor}`);
 
-  if (productsInfo) dataSections.push(`## PRODUTOS A SEREM DESTACADOS:\n${productsInfo}`);
-  else dataSections.push(`## ATENÇÃO: Nenhum produto selecionado. Crie uma landing page genérica para a loja.`);
+  if (productsInfo) dataSections.push(`## PRODUTOS:\n${productsInfo}`);
 
-  // === IMAGE SLOT SYSTEM (v4.3) ===
-  // Deterministic asset resolution: backend decides which image goes where
-  // AI must follow the slot map, not choose freely
-
-  // Build the deterministic asset map
+  // Asset slots
   const assetSlots: string[] = [];
   
-  // HERO slot
   if (generatedCreativeUrls.length > 0) {
-    assetSlots.push(`### 🎯 HERO (imagem principal da página):
-URL OBRIGATÓRIA: ${generatedCreativeUrls[0]}
-${generatedCreativeUrls.length > 1 ? `URL ALTERNATIVA: ${generatedCreativeUrls[1]}` : ''}
-REGRA: Use esta imagem como hero/banner principal. É um criativo gerado profissionalmente.`);
+    assetSlots.push(`### HERO IMAGE: ${generatedCreativeUrls[0]}
+Use como imageDesktop no hero_banner.`);
   } else if (lifestyleImageUrls.length > 0) {
-    assetSlots.push(`### 🎯 HERO (imagem principal da página):
-URL OBRIGATÓRIA: ${lifestyleImageUrls[0]}
-REGRA: Use esta imagem lifestyle como hero/banner principal.`);
+    assetSlots.push(`### HERO IMAGE: ${lifestyleImageUrls[0]}
+Use como imageDesktop no hero_banner.`);
   } else if (productImages.length > 0) {
-    assetSlots.push(`### 🎯 HERO (imagem principal da página):
-URL OBRIGATÓRIA: ${productImages[0]}
-REGRA: Use esta imagem como hero. Se possível, aplique tratamento CSS (gradient overlay, zoom).`);
+    assetSlots.push(`### HERO IMAGE: ${productImages[0]}`);
   }
 
-  // OFFER/PRICING slot — each product gets its primary image
   const primaryMapEntries = Object.entries(productPrimaryImageMap);
   if (primaryMapEntries.length > 0) {
-    assetSlots.push(`### 🛒 OFERTA / PRICING / KITS (imagem POR PRODUTO — OBRIGATÓRIO):
-${primaryMapEntries.map(([name, url]) => `- "${name}": ${url}`).join('\n')}
-REGRA: Cada card de oferta/pricing DEVE usar a imagem do produto correspondente listada acima. NÃO troque imagens entre produtos. NÃO use before/after em cards de oferta.`);
+    assetSlots.push(`### IMAGENS POR PRODUTO (para pricing_table e content_columns):
+${primaryMapEntries.map(([name, url]) => `- "${name}": ${url}`).join('\n')}`);
   }
 
-  // LIFESTYLE/AMBIANCE slot
-  if (lifestyleImageUrls.length > 0) {
-    assetSlots.push(`### 🌿 AMBIENTAÇÃO / PROVA VISUAL:
-${lifestyleImageUrls.map((url, i) => `${i + 1}. ${url}`).join('\n')}
-REGRA: Use em seções de transformação, ambientação, prova visual. NÃO use em cards de oferta.`);
-  }
-
-  // SOCIAL PROOF slot (from Drive folders)
   if (params.socialProofImageUrls && params.socialProofImageUrls.length > 0) {
-    assetSlots.push(`### 📸 PROVA SOCIAL REAL (fotos reais de clientes/resultados):
-${params.socialProofImageUrls.map((url: string, i: number) => `${i + 1}. ${url}`).join('\n')}
-REGRA: Use OBRIGATORIAMENTE estas imagens reais na seção de depoimentos/resultados/prova social. São fotos reais de clientes — NÃO substitua por imagens genéricas. Exiba com bordas arredondadas e legenda descritiva.`);
-  }
-
-  // SECONDARY CATALOG slot (non-primary images)
-  const secondaryImages = productImages.filter(url => !Object.values(productPrimaryImageMap).includes(url));
-  if (secondaryImages.length > 0) {
-    assetSlots.push(`### 📷 IMAGENS SECUNDÁRIAS (benefícios, detalhes, features):
-${secondaryImages.map((url, i) => `${i + 1}. ${url}`).join('\n')}
-REGRA: Use em seções de benefícios, detalhes, features. NÃO use no hero. NÃO use em pricing.`);
+    assetSlots.push(`### PROVA SOCIAL REAL (use em image_gallery ou testimonials.image):
+${params.socialProofImageUrls.map((url: string, i: number) => `${i + 1}. ${url}`).join('\n')}`);
   }
 
   if (assetSlots.length > 0) {
-    dataSections.push(`## 🎯 MAPA DE ASSETS POR SEÇÃO (OBRIGATÓRIO — NÃO ALTERE A DISTRIBUIÇÃO):
-
-${assetSlots.join('\n\n')}
-
-⚠️ REGRAS ABSOLUTAS DE IMAGEM:
-- NUNCA invente URLs de imagem. Use APENAS as URLs fornecidas acima.
-- NUNCA use imgur.com, postimg.cc, imgbb.com, cloudinary.com ou qualquer host externo.
-- NUNCA troque imagens entre slots (ex: before/after em card de oferta).
-- Cada card de produto DEVE mostrar a imagem primária correspondente ao produto.
-- Se não houver imagem para um slot, use ícones CSS ou gradientes — NUNCA placeholder.`);
+    dataSections.push(`## 🎯 ASSETS DISPONÍVEIS:\n${assetSlots.join('\n\n')}`);
   }
 
-  if (reviewsInfo) dataSections.push(`## AVALIAÇÕES REAIS:\n${reviewsInfo}\nUse estes depoimentos reais na prova social.`);
-  if (creativesInfo) dataSections.push(`## REFERÊNCIAS DE MARKETING:\n${creativesInfo}\nAlinhe tom de voz com estas referências.`);
-  if (referenceUrl) dataSections.push(`## URL DE REFERÊNCIA (APENAS INSPIRAÇÃO):\n${referenceUrl}\n⚠️ COPIE APENAS LAYOUT E ESTILO! USE OS DADOS DOS PRODUTOS ACIMA!`);
-  if (currentHtml) dataSections.push(`## HTML ATUAL (para ajustes):\n${currentHtml}`);
+  if (reviewsInfo) dataSections.push(`## AVALIAÇÕES REAIS (use no testimonials):\n${reviewsInfo}`);
+  if (creativesInfo) dataSections.push(`## REFERÊNCIAS DE MARKETING:\n${creativesInfo}`);
+  if (referenceUrl) dataSections.push(`## URL DE REFERÊNCIA (apenas inspiração de layout):\n${referenceUrl}`);
+  if (currentBlocks) dataSections.push(`## ESTRUTURA ATUAL (para ajustes):\n${currentBlocks}`);
 
-  // === CSS UTILITIES NOTE (v4.2: utilities moved to wrapInDocumentShell, only reference here) ===
-  sections.push(`## 🎨 CSS — INSTRUÇÕES
-O sistema injeta automaticamente CSS utilities (fadeInUp, pulse-cta, glass-card, container, responsividade mobile).
-No seu bloco <style>, inclua APENAS os CSS específicos desta landing page: cores, gradientes, layouts de seção, tipografia customizada.
-NÃO redefina: .container, .section, @keyframes fadeInUp, ou regras @media mobile genéricas — já estão no sistema.`);
+  // === H. BLOCK PROPS DOCUMENTATION ===
+  sections.push(getBlockPropsDocumentation());
 
-  // Combine system prompt
-  return `Você é um diretor criativo e desenvolvedor front-end de elite, especialista em landing pages de altíssima conversão. Siga TODAS as instruções abaixo à risca — elas são decisões do sistema, não sugestões.
-
-${sections.join('\n\n---\n\n')}
+  return `${sections.join('\n\n---\n\n')}
 
 ---
 
-${dataSections.join('\n\n')}`;
+${dataSections.join('\n\n')}
+
+---
+
+IMPORTANTE: Chame a função build_landing_page com a estrutura completa de seções. NÃO escreva HTML. NÃO escreva texto fora da chamada de função.`;
 }
 
 const TEMPLATE_REGISTRY_NAMES: Record<string, string> = {
@@ -1102,13 +932,19 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
 
     console.log(`[AI-LP-Generate] Engine Plan: archetype=${enginePlan.resolvedArchetype}, niche=${enginePlan.resolvedNiche}, depth=${enginePlan.resolvedDepth}, visual=${enginePlan.resolvedVisualWeight}, proof=${enginePlan.proofStrength}, assumptions=${enginePlan.assumptions.length}`);
 
-    // ===== STEP 8: BUILD MODULAR PROMPT =====
-    let currentHtml = "";
+    // ===== STEP 8: BUILD V5 PROMPT =====
+    let currentBlocks = "";
     if (promptType === "adjustment") {
-      currentHtml = savedLandingPage?.generated_html || "";
+      // For adjustments, pass current blocks as context
+      const currentBlocksData = savedLandingPage?.generated_blocks;
+      if (currentBlocksData) {
+        currentBlocks = JSON.stringify(currentBlocksData, null, 2);
+      } else if (savedLandingPage?.generated_html) {
+        currentBlocks = "[Legacy HTML - regenerate from scratch]";
+      }
     }
 
-    const systemPrompt = buildModularPrompt({
+    const systemPrompt = buildV5SystemPrompt({
       enginePlan,
       storeName: storeSettings?.store_name || "Loja",
       logoUrl: storeSettings?.logo_url || "",
@@ -1126,9 +962,7 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
       lifestyleImageUrls,
       socialProofImageUrls,
       referenceUrl,
-      currentHtml,
-      showHeader: savedLandingPage?.show_header,
-      showFooter: savedLandingPage?.show_footer,
+      currentBlocks,
     });
 
     // ===== STEP 9: ENRICH PROMPT IF INCOMPLETE =====
@@ -1143,19 +977,19 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
         firstProduct?.name,
       );
       fallbackUsed = bestFallback.id;
-      enrichedPrompt = `${prompt}\n\n---\n\n## DIREÇÃO CRIATIVA COMPLEMENTAR (template: ${bestFallback.name})\n\n${bestFallback.prompt}`;
+      enrichedPrompt = `${prompt}\n\nDIREÇÃO CRIATIVA: ${bestFallback.prompt}`;
       console.log(`[AI-LP-Generate] Prompt enriched with fallback "${bestFallback.id}"`);
     }
 
     const hasUserMedia = prompt.includes("[Imagem:") || prompt.includes("[Vídeo:");
-    const userMediaNote = hasUserMedia ? `\n\n## ⚠️ MÍDIA ANEXADA — USE OBRIGATORIAMENTE!\nAs URLs marcadas como [Imagem: URL] ou [Vídeo: URL] DEVEM ser usadas no HTML.` : "";
+    const userMediaNote = hasUserMedia ? `\nAs URLs marcadas como [Imagem: URL] DEVEM ser usadas nos blocos.` : "";
 
     const userPrompt = promptType === "adjustment"
-      ? `Faça os seguintes ajustes na landing page atual:\n\n${prompt}${userMediaNote}\n\nRetorne o HTML completo atualizado nos dois blocos (json + html).`
-      : `Crie uma landing page baseada nas seguintes instruções:\n\n${enrichedPrompt}${userMediaNote}`;
+      ? `Ajuste a landing page:\n\n${prompt}${userMediaNote}\n\nChame build_landing_page com a estrutura completa atualizada.`
+      : `Crie uma landing page de alta conversão:\n\n${enrichedPrompt}${userMediaNote}`;
 
-    // ===== STEP 10: CALL AI =====
-    console.log(`[AI-LP-Generate] Calling AI for ${promptType}...`);
+    // ===== STEP 10: CALL AI WITH TOOL CALLING =====
+    console.log(`[AI-LP-Generate v${VERSION}] Calling AI with tool calling for ${promptType}...`);
     resetAIRouterCache();
 
     const aiResponse = await aiChatCompletion("google/gemini-2.5-pro", {
@@ -1163,6 +997,8 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt }
       ],
+      tools: [BLOCK_TOOL_DEFINITION],
+      tool_choice: { type: "function", function: { name: "build_landing_page" } },
       temperature: 0.7,
     }, {
       supabaseUrl,
@@ -1183,42 +1019,55 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
     }
 
     const aiData = await aiResponse.json();
-    const rawContent = aiData.choices?.[0]?.message?.content || "";
+    
+    // ===== STEP 11: PARSE TOOL CALL RESPONSE =====
+    let toolCallOutput: any = null;
+    let parseError: string | null = null;
 
-    // ===== STEP 11: PARSE STRUCTURED RESPONSE =====
-    const parsed = parseStructuredResponse(rawContent);
-    let generatedHtml = parsed.html;
-
-    console.log(`[AI-LP-Generate] Parsed: diagnostic=${parsed.diagnostic ? 'yes' : 'no'}, html=${generatedHtml.length} chars, parseError=${parsed.parseError || 'none'}`);
-
-    // ===== STEP 12: RUN HARD CHECKS (on raw AI output, BEFORE wrapping) =====
-    const hardCheckResults: HardCheckOutput = runHardChecks(generatedHtml, enginePlan, productNames, productImages);
-
-    // If parse had errors (including outputContractViolation), reflect in consolidated status
-    if (parsed.parseError) {
-      hardCheckResults.hardCheckStatus = hardCheckResults.hardCheckStatus === 'fail' ? 'fail' : 'warning';
-      hardCheckResults.needsReview = true;
-      hardCheckResults.checks.push({
-        name: 'parse_error',
-        passed: false,
-        message: parsed.parseError,
-      });
-    }
-
-    // V4.2: outputContractViolation must always reflect as warning + needsReview
-    if (parsed.parseError?.includes('outputContractViolation')) {
-      if (hardCheckResults.hardCheckStatus === 'pass') {
-        hardCheckResults.hardCheckStatus = 'warning';
+    const toolCalls = aiData.choices?.[0]?.message?.tool_calls;
+    if (toolCalls && toolCalls.length > 0) {
+      const buildCall = toolCalls.find((tc: any) => tc.function?.name === "build_landing_page");
+      if (buildCall) {
+        try {
+          toolCallOutput = JSON.parse(buildCall.function.arguments);
+          console.log(`[AI-LP-Generate] Tool call parsed: ${toolCallOutput.sections?.length || 0} sections`);
+        } catch (e) {
+          parseError = `Tool call JSON parse failed: ${(e as Error).message}`;
+          console.error("[AI-LP-Generate] " + parseError);
+        }
+      } else {
+        parseError = "AI called wrong function";
+        console.warn("[AI-LP-Generate] " + parseError);
       }
-      hardCheckResults.needsReview = true;
+    } else {
+      // Fallback: try to parse from content (some models return JSON in content)
+      const rawContent = aiData.choices?.[0]?.message?.content || "";
+      if (rawContent) {
+        try {
+          const jsonMatch = rawContent.match(/\{[\s\S]*"sections"[\s\S]*\}/);
+          if (jsonMatch) {
+            toolCallOutput = JSON.parse(jsonMatch[0]);
+            parseError = "Extracted from content (no tool_calls)";
+            console.warn("[AI-LP-Generate] " + parseError);
+          }
+        } catch (e) {
+          parseError = "No tool_calls and content parse failed";
+          console.error("[AI-LP-Generate] " + parseError);
+        }
+      }
+      if (!toolCallOutput) {
+        parseError = "AI did not use tool calling";
+        console.error("[AI-LP-Generate] " + parseError);
+      }
     }
 
-    console.log(`[AI-LP-Generate] Hard checks: status=${hardCheckResults.hardCheckStatus}, needsReview=${hardCheckResults.needsReview}, checks=${hardCheckResults.checks.length}`);
+    if (!toolCallOutput || !toolCallOutput.sections || toolCallOutput.sections.length === 0) {
+      throw new Error("AI failed to generate page structure: " + (parseError || "empty output"));
+    }
 
-    // V4.2 FIX: Do NOT wrap in document shell at save time.
-    // Save body-only HTML. The document shell is assembled at RENDER time
-    // by the client-side pipeline (aiLandingPageShell.ts → buildDocumentShell).
-    // This prevents double-wrapping that caused duplicated scripts and CSS conflicts.
+    // ===== STEP 12: ASSEMBLE BLOCK TREE =====
+    const blockTree = assembleBlockTree(toolCallOutput);
+    console.log(`[AI-LP-Generate] Block tree assembled: ${blockTree.children?.length || 0} children (incl header/footer)`);
 
     // ===== STEP 13: PERSIST =====
     const newVersion = (savedLandingPage?.current_version || 0) + 1;
@@ -1226,17 +1075,17 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
     const { error: updateError } = await supabase
       .from("ai_landing_pages")
       .update({
-        generated_html: generatedHtml,
+        generated_blocks: blockTree,
+        generated_html: null, // V5: blocks take priority, clear legacy HTML
         current_version: newVersion,
         status: "draft",
         metadata: {
-          engineVersion: "v4.2",
+          engineVersion: "v5.0",
           briefingSchemaVersion: "1.0",
           enginePlanInput: enginePlan,
-          diagnostic: parsed.diagnostic,
-          altHeadline: parsed.diagnostic?.alt_headline || null,
-          altCTA: parsed.diagnostic?.alt_cta || null,
-          hardCheckResults,
+          toolCallSections: toolCallOutput.sections?.length || 0,
+          parseError: parseError || null,
+          fallbackPromptUsed: fallbackUsed,
         },
       })
       .eq("id", landingPageId);
@@ -1251,37 +1100,33 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
         version: newVersion,
         prompt,
         prompt_type: promptType,
-        html_content: generatedHtml,
+        html_content: JSON.stringify(blockTree), // Store block JSON in html_content for compatibility
+        blocks_content: blockTree,
         created_by: userId,
         generation_metadata: {
-          engineVersion: "v4.2",
-          briefingSchemaVersion: "1.0",
+          engineVersion: "v5.0",
           model: "google/gemini-2.5-pro",
-          html_length: generatedHtml.length,
-          had_reference: !!referenceUrl,
+          tool_calling: true,
+          sections_count: toolCallOutput.sections?.length || 0,
           product_count: productIds?.length || 0,
           reviews_count: reviewCount,
           drive_references_used: driveReferenceBase64s.length,
           lifestyle_images_generated: lifestyleImageUrls.length,
           fallback_prompt_used: fallbackUsed,
-          enginePlanInput: enginePlan,
-          diagnostic: parsed.diagnostic,
-          hardCheckResults,
-          parseError: parsed.parseError || null,
+          parseError: parseError || null,
         },
       });
 
     if (versionError) console.error("[AI-LP-Generate] Version error:", versionError);
 
-    console.log(`[AI-LP-Generate] Success! Version ${newVersion}, hardCheck=${hardCheckResults.hardCheckStatus}`);
+    console.log(`[AI-LP-Generate v${VERSION}] Success! Version ${newVersion}, ${toolCallOutput.sections?.length} sections`);
 
     return new Response(
       JSON.stringify({
         success: true,
         version: newVersion,
-        htmlLength: generatedHtml.length,
-        hardCheckStatus: hardCheckResults.hardCheckStatus,
-        needsReview: hardCheckResults.needsReview,
+        sectionsCount: toolCallOutput.sections?.length || 0,
+        engineVersion: "v5.0",
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

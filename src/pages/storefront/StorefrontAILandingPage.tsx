@@ -1,7 +1,6 @@
 // =============================================
 // STOREFRONT AI LANDING PAGE - Serves AI-generated landing pages
-// V4.2: Uses shared pipeline (aiLandingPageShell.ts)
-// Skeleton + opacity transition for iframe loading
+// V5: Supports generated_blocks (React components) with HTML fallback
 // =============================================
 
 import { useParams } from 'react-router-dom';
@@ -20,6 +19,8 @@ import { StorefrontHeader } from '@/components/storefront/StorefrontHeader';
 import { StorefrontFooter } from '@/components/storefront/StorefrontFooter';
 import { StorefrontThemeInjector } from '@/components/storefront/StorefrontThemeInjector';
 import { TenantSlugContext } from '@/components/storefront/TenantStorefrontLayout';
+import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRenderer';
+import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
 import { useEffect, useRef, useState } from 'react';
 
 interface AILandingPageData {
@@ -28,6 +29,7 @@ interface AILandingPageData {
   slug: string;
   generated_html: string | null;
   generated_css: string | null;
+  generated_blocks: BlockNode | null;
   seo_title: string | null;
   seo_description: string | null;
   seo_image_url: string | null;
