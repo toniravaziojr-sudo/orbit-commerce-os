@@ -42,8 +42,10 @@ const defaultDemoTestimonials: TestimonialItem[] = [
 ];
 
 export function TestimonialsBlock({ title = 'O que dizem nossos clientes', items = [], isEditing }: TestimonialsBlockProps) {
+  // Guard: AI may generate items as object instead of array
+  const safeItems = Array.isArray(items) ? items : [];
   // Use demo testimonials when editing and no items configured
-  const displayItems = items && items.length > 0 ? items : (isEditing ? defaultDemoTestimonials : []);
+  const displayItems = safeItems.length > 0 ? safeItems : (isEditing ? defaultDemoTestimonials : []);
   
   if (displayItems.length === 0) {
     return null;

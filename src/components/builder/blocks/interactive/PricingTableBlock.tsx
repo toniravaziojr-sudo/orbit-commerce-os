@@ -107,11 +107,19 @@ export function PricingTableBlock({
   isEditing = false,
 }: PricingTableBlockProps) {
   const [isAnnual, setIsAnnual] = React.useState(false);
+  // Guard: AI may generate plans as object instead of array
+  const safePlans = Array.isArray(plans) ? plans : [];
   // Only use defaults in editing mode - in public/preview, show nothing if no plans configured
-  const displayPlans = plans?.length ? plans : (isEditing ? defaultPlans : []);
+  const displayPlans = safePlans.length > 0 ? safePlans : (isEditing ? defaultPlans : []);
 
   // If no plans and not editing, don't render
   if (!displayPlans.length && !isEditing) return null;
+
+  // Guard: ensure each plan's features is also an array
+  const safeDisplayPlans = displayPlans.map(plan => ({
+    ...plan,
+    features: Array.isArray(plan.features) ? plan.features : [],
+  }));
 
   const formatPrice = (price: number) => {
     const finalPrice = isAnnual ? price * (1 - annualDiscount / 100) : price;
@@ -124,7 +132,7 @@ export function PricingTableBlock({
   // Layout: Table
   if (layout === 'table') {
     const allFeatures = Array.from(
-      new Set(displayPlans.flatMap((p) => p.features.map((f) => f.name)))
+      new Set(safeDisplayPlans.flatMap((p) => p.features.map((f) => f.name)))
     );
 
     return (
@@ -142,7 +150,7 @@ export function PricingTableBlock({
               <thead>
                 <tr>
                   <th className="text-left p-4 border-b border-border"></th>
-                  {displayPlans.map((plan) => (
+                  {safeDisplayPlans.map((plan) => (
                     <th
                       key={plan.id || plan.name}
                       className={cn(
@@ -170,7 +178,7 @@ export function PricingTableBlock({
                 {allFeatures.map((featureName, idx) => (
                   <tr key={idx} className="border-b border-border">
                     <td className="p-4 text-foreground font-medium">{featureName}</td>
-                    {displayPlans.map((plan) => {
+                    {safeDisplayPlans.map((plan) => {
                       const feature = plan.features.find((f) => f.name === featureName);
                       return (
                         <td
@@ -191,7 +199,7 @@ export function PricingTableBlock({
                 ))}
                 <tr>
                   <td className="p-4"></td>
-                  {displayPlans.map((plan) => (
+                  {safeDisplayPlans.map((plan) => (
                     <td
                       key={plan.id || plan.name}
                       className={cn('p-4 text-center', plan.isPopular && 'bg-primary/5')}
@@ -258,7 +266,7 @@ export function PricingTableBlock({
 
         {/* Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
-          {displayPlans.map((plan, index) => {
+          {safeDisplayPlans.map((plan, index) => {
             const Icon = IconMap[plan.icon || 'sparkles'];
             return (
               <div
