@@ -79,8 +79,9 @@ export function LandingPagePreviewDialog({
     // V5.4: Prioritize HTML rendering (iframe) for maximum visual quality
     if (landingPage?.generated_html) {
       const sanitizedHtml = sanitizeAILandingPageHtml(landingPage.generated_html);
+      const sanitizedCss = sanitizeAILandingPageHtml(landingPage.generated_css || '');
       const fullHtml = buildDocumentShell(sanitizedHtml, {
-        extraCss: landingPage.generated_css || undefined,
+        extraCss: sanitizedCss || undefined,
       });
 
       return (
