@@ -400,6 +400,8 @@ const handleMobileMenuNavigate = (url: string) => {
 | 2025-03-01 | Menu mobile herda cores do header (`headerBgColor`, `headerTextColor`) — substituído `text-foreground`/`text-muted-foreground` por `style` inline |
 | 2025-03-01 | Menu mobile: substituído `<Link>`/`<LinkWrapper>` por `<button>` + `handleMobileMenuNavigate()` (navegação programática) — fix para cliques não navegarem dentro do Sheet/Radix Dialog |
 | 2025-03-01 | HeaderBlock tornado auto-suficiente — fetching direto de categorias, menus e páginas via `useQuery` (padrão espelhado do Footer), eliminando dependência de context para domínios customizados |
+| 2025-03-04 | Fallback de cor no badge de Featured Promos: se `featuredPromosBgColor` for vazio, igual ao texto, ou igual ao fundo do header, o sistema ignora a cor inválida e usa `sf-btn-primary` (cor primária do tema). Previne botão invisível em todos os tenants |
+| 2025-03-04 | Mobile secondary bar: badge de Featured Promos agora usa `sf-btn-primary` + `featuredPromosStyle` (paridade com desktop) |
 
 ---
 
