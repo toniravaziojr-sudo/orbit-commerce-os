@@ -204,14 +204,14 @@ export default function StorefrontAILandingPage() {
     refetchOnWindowFocus: true,
   });
 
-  // V4.2: Skeleton + opacity transition for iframe loading (HTML fallback only)
+  // Iframe resize handling for HTML rendering
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [iframeHeight, setIframeHeight] = useState<number | null>(null);
   const [iframeReady, setIframeReady] = useState(false);
 
   useEffect(() => {
     const handler = (e: MessageEvent) => {
-      if (e.data?.type === 'ai-lp-resize' && typeof e.data.height === 'number') {
+      if (e.data?.type === 'ai-lp-resize' && typeof e.data.height === 'number' && e.data.height > 100) {
         setIframeHeight(e.data.height);
         setIframeReady(true);
       }
@@ -220,12 +220,12 @@ export default function StorefrontAILandingPage() {
     return () => window.removeEventListener('message', handler);
   }, []);
 
-  // Fallback timeout: show iframe after 5s even without postMessage
+  // Fallback: show iframe after 3s even without postMessage (with scroll enabled)
   useEffect(() => {
     if (iframeReady) return;
     const timeout = setTimeout(() => {
       setIframeReady(true);
-    }, 5000);
+    }, 3000);
     return () => clearTimeout(timeout);
   }, [iframeReady]);
 
@@ -263,11 +263,6 @@ export default function StorefrontAILandingPage() {
   }
 
   const resolvedTenantSlug = tenantSlug || tenantInfo.tenantSlug || '';
-
-  // ===== V5.4: HTML RENDERING (iframe) — PRIORITY =====
-  if (hasHtml) {
-    // This is the primary rendering path for V5.4+ content
-  }
 
   // ===== FALLBACK: BLOCKS RENDERING (legacy V5 content) =====
   if (!hasHtml && hasBlocks) {
@@ -334,15 +329,15 @@ export default function StorefrontAILandingPage() {
   const shouldShowHeader = landingPage.show_header ?? false;
   const shouldShowFooter = landingPage.show_footer ?? false;
 
-  // V4.2: Skeleton container + opacity transition
+  // Iframe styling: when height is known, lock it. Otherwise allow natural flow.
+  const hasCalculatedHeight = iframeHeight && iframeHeight > 100;
   const iframeStyle: React.CSSProperties = {
     width: '100%',
     display: 'block',
     border: 'none',
-    height: iframeHeight ? `${iframeHeight}px` : 'auto',
+    height: hasCalculatedHeight ? `${iframeHeight}px` : '100vh',
     minHeight: '400px',
-    maxHeight: iframeHeight ? `${iframeHeight}px` : undefined,
-    overflow: 'hidden',
+    overflow: hasCalculatedHeight ? 'hidden' : 'auto',
     opacity: iframeReady ? 1 : 0,
     transition: 'opacity 0.3s ease-in-out',
   };
@@ -372,7 +367,6 @@ export default function StorefrontAILandingPage() {
         className="w-full border-0"
         style={iframeStyle}
         title={landingPage.name}
-        scrolling="no"
       />
     </div>
   );

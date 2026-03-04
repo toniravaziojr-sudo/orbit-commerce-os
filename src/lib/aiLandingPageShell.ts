@@ -61,8 +61,11 @@ export function buildSafetyCss(): string {
   animation-fill-mode: none !important;
 }
 section, .section, .hero, [class*="hero"] { min-height: auto !important; }
-html, body { overflow-x: hidden !important; max-width: 100% !important; }
-.cta-button { cursor: pointer; }`;
+html, body { overflow-x: hidden !important; max-width: 100% !important; width: 100% !important; box-sizing: border-box !important; }
+body > * { max-width: 100% !important; overflow-x: hidden !important; }
+.cta-button { cursor: pointer; }
+img { max-width: 100% !important; height: auto; }
+[style*="width"][style*="vw"] { max-width: 100% !important; }`;
 }
 
 /**
