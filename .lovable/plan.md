@@ -1,124 +1,106 @@
 
 
-# Diagnóstico Raiz + Plano de Correção Cirúrgica
+# Diagnóstico Honesto: O que aconteceu e como resolver
 
-## Achados Confirmados por Análise de Dados
+## O Problema Real (sem rodeios)
 
-### 1. Header/Footer: NÃO é bug de código — é bug de dados
-O código em `StorefrontAILandingPage.tsx` funciona **corretamente**: linhas 266-267 leem `show_header ?? false` e linhas 313-337 condicionam o render ao valor real. A rota em `App.tsx` (L230) está **fora** do `TenantStorefrontLayout`, então não herda shell externo.
+O Motor V5 foi construído com uma premissa que parece boa na teoria mas falha na prática:
 
-**O problema real**: O registro `t123` no banco tem `show_header: true` e `show_footer: true`. Isso acontece porque esse registro foi criado antes do deploy da correção no `CreateLandingPageDialog.tsx`, ou os toggles foram ativados no editor. O `CreateLandingPageDialog` já insere com `false` (L196-197). O default da coluna no banco já é `false`.
+**A IA gera JSON estruturado que mapeia para componentes React genéricos do Builder.**
 
-**Correção**: Atualizar t123 no banco para `show_header: false, show_footer: false`.
+O resultado é previsível: os componentes `TestimonialsBlock`, `PricingTableBlock`, `FAQBlock` etc. foram desenhados para **lojas e-commerce comuns** (com Tailwind utilitário básico, `py-8 container mx-auto px-4`). Eles **nunca** foram desenhados para páginas de vendas de alta conversão com visual premium.
 
-### 2. Imagens de oferta erradas: O backend NÃO busca kits relacionados
-Este é o problema **mais grave** e estrutural. O LP `t123` tem **apenas 1 produto selecionado**: `Shampoo Calvície Zero` (produto `simple`). Porém, existem **14 kits** que contêm esse produto como componente (via `product_components`), cada um com sua **própria imagem primária** profissional.
+### O que aconteceu passo a passo:
 
-O que acontece hoje:
-- O backend monta `productPrimaryImageMap` apenas com os `product_ids` selecionados (1 produto)
-- A IA recebe apenas 1 thumb e inventa a seção de "kits" com a mesma imagem repetida
-- Os kits reais (com thumbs profissionais) existem no catálogo mas não são passados para a IA
+1. **Motor V4 funcionava** -- a IA gerava HTML/CSS livre, com total controle sobre layout, cores, tipografia, sombras, gradientes. O resultado era renderizado em iframe isolado. Tinha liberdade criativa total.
 
-**Correção**: No STEP 1 do `index.ts`, após buscar os produtos selecionados, consultar `product_components` para encontrar kits (`with_composition`) que contêm esses produtos. Incluir seus dados (nome, preço, imagem primária) no `productPrimaryImageMap` e no `productsInfo`.
+2. **Problema de timeout** -- gerar HTML + imagens na mesma chamada estourava os 150s. Solução correta: separar em etapas.
 
-### 3. Provas sociais reais ignoradas
-Existem pastas reais no Drive:
-- `Feedback Clientes` (id: `3379009a...`)
-- `Review clientes` (id: `8bb4339a...`)
+3. **Decisão errada** -- ao separar em etapas, mudamos **também** o formato de saída de HTML livre para JSON/blocos. Isso não era necessário para resolver o timeout. Misturamos dois problemas.
 
-E existe 1 arquivo de review (`1768714772803-1xuve9.png`).
+4. **Resultado** -- a IA agora está presa a ~14 componentes genéricos com props fixas. Ela não pode controlar:
+   - Gradientes de fundo sofisticados
+   - Tipografia premium (Playfair Display, letter-spacing)
+   - Layouts assimétricos ou criativos
+   - Efeitos visuais (glass, blur, sombras profundas)
+   - Espaçamentos personalizados por seção
+   - Cores por seção (cada bloco herda o Tailwind padrão)
 
-O STEP 3 (DRIVE REFERENCES) busca arquivos por **nome do produto**, não por **pastas de prova social**. As pastas de feedback não são consultadas.
+5. **Os bugs (`.map is not a function`, dados como object)** são sintomas secundários -- a IA tenta encaixar conteúdo rico em props que não foram feitas para isso.
 
-**Correção**: Adicionar busca explícita no STEP 3 por arquivos em pastas cujo nome contenha "feedback", "review", "prova", "resultado". Passar essas imagens como `socialProofImageSet` separado no mapa de assets.
-
-### 4. CTAs desproporcionais
-O CSS utilities não impõe limites de tamanho para CTAs. A IA tem liberdade total para definir font-size, padding e width dos botões.
-
-**Correção**: Adicionar regras de CTA no CSS utilities (`wrapInDocumentShell` e `buildCssUtilities`) com max-width, font-size padronizado e padding controlado.
+### Resumo brutal:
+> O Motor V5 transforma um diretor criativo (IA com HTML livre) num operário de linha de montagem (IA preenchendo formulários de props). O resultado visual é inferior por design, não por bug.
 
 ---
 
-## Plano de Correção (4 tarefas)
+## A Solução Correta
 
-### Tarefa 1: Corrigir dados do t123
-**Tipo**: SQL direto
-- `UPDATE ai_landing_pages SET show_header = false, show_footer = false WHERE slug = 't123'`
+O timeout era o único problema real. A solução é **manter HTML livre + resolver o timeout separadamente**:
 
-### Tarefa 2: Auto-descobrir kits relacionados no backend
-**Arquivo**: `supabase/functions/ai-landing-page-generate/index.ts` (STEP 1, ~L762-821)
+### Plano: Motor V5.4 (HTML Livre + Timeout Resolvido)
 
-Após buscar os produtos selecionados, adicionar:
-```sql
-SELECT pc.parent_product_id, p.name, p.price, p.compare_at_price, p.sku
-FROM product_components pc
-JOIN products p ON p.id = pc.parent_product_id
-WHERE pc.component_product_id IN (selectedProductIds)
-  AND p.deleted_at IS NULL
-  AND p.product_format = 'with_composition'
-  AND p.status = 'active'
+```text
+┌─────────────────────────────────────────────┐
+│  ETAPA 1: ai-landing-page-generate          │
+│  IA gera HTML/CSS COMPLETO (como V4)        │
+│  Usa imagens do catálogo (sem gerar novas)  │
+│  Tempo: ~30-60s (cabe nos 150s)             │
+│  Salva em: generated_html + generated_css   │
+└──────────────────┬──────────────────────────┘
+                   │
+┌──────────────────▼──────────────────────────┐
+│  ETAPA 2: ai-landing-page-enhance-images    │
+│  (já existe, mantém chunking por timeout)   │
+│  Gera imagens premium assíncronamente       │
+│  Substitui URLs no HTML salvo               │
+│  Tempo: ~30s por imagem, recursivo          │
+└─────────────────────────────────────────────┘
 ```
 
-Para cada kit encontrado, buscar sua `is_primary` image e adicionar ao `productPrimaryImageMap` e ao `productsInfo`. Isso garante que cards de oferta/pricing usem a thumb correta de cada kit.
+### O que muda concretamente:
 
-### Tarefa 3: Buscar provas sociais do Drive
-**Arquivo**: `supabase/functions/ai-landing-page-generate/index.ts` (STEP 3, ~L862-906)
+1. **Edge Function `ai-landing-page-generate`**: Volta a pedir HTML/CSS livre para a IA (como V4), mas **sem** gerar imagens (isso resolve o timeout). A IA usa as imagens do catálogo diretamente.
 
-Adicionar busca por imagens em pastas cujo nome contém "feedback", "review", "prova", "resultado":
-```sql
--- Buscar folders de prova social
-SELECT id FROM files WHERE tenant_id = ? AND is_folder = true 
-  AND (filename ILIKE '%feedback%' OR filename ILIKE '%review%' OR filename ILIKE '%prova%' OR filename ILIKE '%resultado%')
+2. **Renderização**: Volta para iframe com `wrapInDocumentShell()` (já existe no código, linhas 429-533). A pipeline de shell, CSS utilities e safety CSS **já está pronta**.
 
--- Buscar imagens nessas folders (via storage_path match)
-SELECT storage_path, original_name, metadata FROM files 
-  WHERE tenant_id = ? AND is_folder = false AND mime_type LIKE 'image/%'
-  AND storage_path LIKE ANY(folder_paths)
-```
+3. **Editor e Preview**: Prioriza `generated_html` com iframe. O código do `LandingPageEditor.tsx` e `StorefrontAILandingPage.tsx` já tem o fallback para iframe -- basta inverter a prioridade.
 
-Passar as URLs públicas dessas imagens como slot `PROVA SOCIAL REAL` no mapa de assets, com instrução explícita para a IA usar essas imagens na seção de depoimentos/resultados.
+4. **Enhance Images (Etapa 2)**: Continua igual -- busca seções do HTML, gera composições visuais premium, substitui as URLs. O chunking por timeout já funciona.
 
-### Tarefa 4: Restringir CTAs no CSS utilities
-**Arquivos**: 
-- `supabase/functions/ai-landing-page-generate/index.ts` (CSS utilities, ~L595-627)
-- `src/lib/aiLandingPageShell.ts` (buildCssUtilities)
+5. **Blocos V5 mantidos para o Builder**: Os componentes JSON/React continuam existindo para o Builder visual da loja. Eles simplesmente não são usados para landing pages de IA.
 
-Adicionar regras CSS para CTAs:
-```css
-.cta-button, [class*="cta"], a[style*="padding"][style*="background"] {
-  max-width: 400px;
-  font-size: clamp(14px, 1.1vw, 18px);
-  padding: 14px 32px;
-  border-radius: 8px;
-  display: inline-block;
-  box-sizing: border-box;
-}
-```
-E no mobile:
-```css
-@media (max-width: 768px) {
-  .cta-button, [class*="cta"], a[style*="padding"][style*="background"] {
-    max-width: 100%;
-    font-size: 16px !important;
-    padding: 14px 24px !important;
-  }
-}
-```
+### O que NÃO muda:
+- Auto-descoberta de kits (STEP 1B) -- mantida
+- Busca de provas sociais do Drive (STEP 3) -- mantida  
+- Engine Plan (archetype, niche, depth) -- mantido
+- CTA constraints no CSS -- mantidas
+- Header/Footer governance -- mantida
 
----
-
-## Arquivos Afetados
+### Arquivos afetados:
 
 | Arquivo | Mudança |
 |---------|---------|
-| SQL direto | Fix t123 show_header/show_footer |
-| `supabase/functions/ai-landing-page-generate/index.ts` | Auto-descobrir kits; buscar provas sociais; CTA constraints no CSS utilities |
-| `src/lib/aiLandingPageShell.ts` | CTA constraints no buildCssUtilities (paridade) |
+| `supabase/functions/ai-landing-page-generate/index.ts` | Prompt volta a pedir HTML livre; salva em `generated_html` + `generated_css` em vez de `generated_blocks` |
+| `src/pages/LandingPageEditor.tsx` | Prioridade: `generated_html` (iframe) > `generated_blocks` (blocos) |
+| `src/pages/storefront/StorefrontAILandingPage.tsx` | Idem -- prioriza HTML no iframe |
+| `src/components/landing-pages/LandingPagePreviewDialog.tsx` | Idem |
 
-## O que NÃO muda
-- Arquitetura V4.2 body-only (mantida)
-- Pipeline compartilhada (mantida)
-- Parser/hard checks (mantidos)
-- Componente StorefrontAILandingPage (funciona corretamente)
-- CreateLandingPageDialog (já corrigido)
+### Por que isso vai funcionar:
+- O Motor V4 **já produzia resultados bons** -- o HTML livre dá à IA controle total
+- O timeout é resolvido pela separação generate/enhance que **já existe**
+- A pipeline de shell/safety/CSS utilities **já está implementada** (linhas 429-533)
+- Não há componente novo para criar -- é reverter a decisão errada e manter a infraestrutura certa
+
+### Estimativa: 
+- 1 mudança na Edge Function (prompt + formato de saída)
+- 3 mudanças em componentes React (inverter prioridade de renderização)
+- Zero tabelas novas, zero componentes novos
+
+---
+
+## Resposta direta à sua pergunta
+
+> Vamos conseguir desenvolver algo realmente bom aqui?
+
+Sim. O motor de geração de HTML livre já funcionava. O erro foi trocar o formato de saída (de HTML para JSON/blocos) junto com a solução de timeout, quando eram problemas independentes. A correção é cirúrgica: desfazer a troca de formato, manter a solução de timeout.
 
