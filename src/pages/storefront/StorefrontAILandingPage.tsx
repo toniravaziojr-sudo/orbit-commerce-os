@@ -319,13 +319,13 @@ export default function StorefrontAILandingPage() {
               <StorefrontThemeInjector tenantSlug={resolvedTenantSlug} />
               <div className="w-full min-h-screen bg-white" style={{ margin: 0, padding: 0, isolation: 'isolate' }}>
                 {shouldShowHeader && (
-                  <div style={{ containerType: 'inline-size' }} className="storefront-header-wrapper">
+                  <div style={{ containerType: 'inline-size', containerName: 'storefront' }} className="storefront-header-wrapper">
                     <StorefrontHeader key={`header-${resolvedTenantSlug}`} />
                   </div>
                 )}
                 {iframeElement}
                 {shouldShowFooter && (
-                  <div style={{ containerType: 'inline-size' }} className="storefront-footer-wrapper">
+                  <div style={{ containerType: 'inline-size', containerName: 'storefront' }} className="storefront-footer-wrapper">
                     <StorefrontFooter key={`footer-${resolvedTenantSlug}`} />
                   </div>
                 )}
