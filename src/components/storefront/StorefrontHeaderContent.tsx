@@ -155,10 +155,22 @@ export function StorefrontHeaderContent({
   // Featured promos props
   const featuredPromosEnabled = Boolean(props.featuredPromosEnabled);
   const featuredPromosLabel = String(props.featuredPromosLabel || 'Promoções');
-  const featuredPromosTextColor = String(props.featuredPromosTextColor || '');
-  const featuredPromosBgColor = String(props.featuredPromosBgColor || '');
+  const rawFeaturedPromosTextColor = String(props.featuredPromosTextColor || '');
+  const rawFeaturedPromosBgColor = String(props.featuredPromosBgColor || '');
   const featuredPromosDestination = String(props.featuredPromosTarget || props.featuredPromosDestination || '');
   const featuredPromosThumbnail = String(props.featuredPromosThumbnail || '');
+
+  // Fallback: if bg is empty, equals text color, or equals header bg (invisible), use primary
+  const isFeaturedBgInvalid = !rawFeaturedPromosBgColor 
+    || rawFeaturedPromosBgColor.toLowerCase() === rawFeaturedPromosTextColor.toLowerCase()
+    || rawFeaturedPromosBgColor.toLowerCase() === (headerBgColor || '').toLowerCase();
+  const featuredPromosBgColor = isFeaturedBgInvalid ? '' : rawFeaturedPromosBgColor;
+  const featuredPromosTextColor = rawFeaturedPromosTextColor || '#ffffff';
+
+  // Computed style for featured promos badge — always has visible bg
+  const featuredPromosStyle: React.CSSProperties = featuredPromosBgColor 
+    ? { color: featuredPromosTextColor, backgroundColor: featuredPromosBgColor }
+    : { color: featuredPromosTextColor }; // sf-btn-primary handles bg via CSS theme
   
   // Menu visual style - 'classic', 'elegant', 'minimal'
   const menuVisualStyle = String(props.menuVisualStyle || 'classic') as 'classic' | 'elegant' | 'minimal';
@@ -1036,8 +1048,8 @@ export function StorefrontHeaderContent({
             {featuredPromosEnabled && featuredPromosUrl && (
               <LinkWrapper
                 to={featuredPromosUrl}
-                className="text-xs font-bold hover:opacity-80 whitespace-nowrap px-2"
-                style={{ color: featuredPromosTextColor }}
+                className="text-xs font-bold hover:opacity-80 whitespace-nowrap px-2 py-1 rounded-md sf-btn-primary"
+                style={featuredPromosStyle}
               >
                 {featuredPromosLabel}
               </LinkWrapper>
@@ -1068,12 +1080,7 @@ export function StorefrontHeaderContent({
                   <LinkWrapper
                     to={featuredPromosUrl}
                     className="text-xs font-bold hover:opacity-90 whitespace-nowrap px-3 py-1.5 rounded-md transition-all inline-flex items-center gap-1.5 sf-btn-primary"
-                    style={featuredPromosBgColor ? { 
-                      color: featuredPromosTextColor || '#ffffff',
-                      backgroundColor: featuredPromosBgColor
-                    } : {
-                      color: featuredPromosTextColor || '#ffffff'
-                    }}
+                    style={featuredPromosStyle}
                   >
                     {featuredPromosLabel}
                   </LinkWrapper>
@@ -1422,12 +1429,7 @@ export function StorefrontHeaderContent({
                   <LinkWrapper
                     to={featuredPromosUrl}
                     className="text-xs font-bold hover:opacity-90 whitespace-nowrap px-3 py-1.5 rounded-md transition-all inline-flex items-center gap-1.5 sf-btn-primary"
-                    style={featuredPromosBgColor ? { 
-                      color: featuredPromosTextColor || '#ffffff',
-                      backgroundColor: featuredPromosBgColor
-                    } : {
-                      color: featuredPromosTextColor || '#ffffff'
-                    }}
+                    style={featuredPromosStyle}
                   >
                     {featuredPromosLabel}
                   </LinkWrapper>
@@ -1505,12 +1507,7 @@ export function StorefrontHeaderContent({
                   <LinkWrapper
                     to={featuredPromosUrl}
                     className="text-xs font-bold hover:opacity-90 whitespace-nowrap px-3 py-1.5 rounded-md sf-btn-primary"
-                    style={featuredPromosBgColor ? { 
-                      color: featuredPromosTextColor || '#ffffff',
-                      backgroundColor: featuredPromosBgColor
-                    } : {
-                      color: featuredPromosTextColor || '#ffffff'
-                    }}
+                    style={featuredPromosStyle}
                   >
                     {featuredPromosLabel}
                   </LinkWrapper>
