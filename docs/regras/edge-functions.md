@@ -319,15 +319,62 @@ for (const modelToTry of modelsToTry) {
 
 ## AI Landing Page Generator (`ai-landing-page-generate`)
 
-### Versão Atual: v3.8.0 — "Fidelidade Máxima"
+### Versão Atual: v5.0.0 — "JSON-to-React Blocks"
 
 ### Visão Geral
-Edge function para geração de landing pages de alta conversão via IA usando Lovable AI Gateway (Gemini 2.5 Pro).
-Utiliza framework de 5 pilares: Sourcing de Imagens, Identidade Visual, Copy Persuasivo, Integridade de Dados e Renderização Estável.
+Edge function para geração de landing pages de alta conversão via IA.
+**V5** utiliza **tool calling** (Gemini 2.5 Pro) para gerar estrutura JSON de blocos React reais, em vez de HTML bruto.
+A IA chama a função `build_landing_page` com seções tipadas que são convertidas em `BlockNode` (mesmos componentes do Builder visual).
 
 ### Modelo IA
-- **Modelo**: `google/gemini-2.5-pro` (via Lovable AI Gateway)
-- **Fallback**: Não possui fallback — erro retornado se gateway falhar
+- **Modelo**: `google/gemini-2.5-pro` (via ai-router.ts com fallback automático)
+- **Fallback**: Gemini nativo → OpenAI → Lovable Gateway (via ai-router)
+
+### Arquitetura V5: Tool Calling → BlockNode
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                     PIPELINE V5 (JSON-to-React)                       │
+├──────────────────────────────────────────────────────────────────────┤
+│  1. Fetch dados reais (produtos, kits, Drive, reviews, settings)     │
+│  2. Resolve Engine Plan (arquétipo, nicho, profundidade)             │
+│  3. Build system prompt V5 (mapeamento seção → componente)           │
+│  4. AI tool call: build_landing_page({ sections: [...] })            │
+│  5. assembleBlockTree() → BlockNode (mesma estrutura do Builder)     │
+│  6. Persist: generated_blocks (JSONB) + ai_landing_page_versions     │
+│  7. Render: PublicTemplateRenderer (React nativo + Tailwind)         │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+### Diferenças V5 vs V4 (HTML)
+| Aspecto | V4 (HTML) | V5 (Blocks) |
+|---------|-----------|-------------|
+| **Output** | HTML/CSS bruto | JSON BlockNode |
+| **Render** | iframe + srcDoc | PublicTemplateRenderer (React) |
+| **Responsividade** | CSS manual | Tailwind nativo |
+| **Editável** | Não | Sim (Builder visual — futuro) |
+| **Consistência** | Variável | Componentes reais padronizados |
+| **Armazenamento** | `generated_html` + `generated_css` | `generated_blocks` (JSONB) |
+| **Fallback** | N/A | HTML legado via iframe (se `generated_blocks` vazio) |
+
+### Mapeamento Seção → Componente (block-assembler.ts)
+
+| Tipo de Seção (tool call) | Componente React Real |
+|---------------------------|----------------------|
+| `hero_banner` | `Banner` (mode: single) |
+| `info_highlights` | `InfoHighlights` |
+| `content_columns` | `ContentColumns` |
+| `feature_list` | `FeatureList` |
+| `testimonials` | Seção de depoimentos (Section + Text + Grid) |
+| `pricing_table` | Seção de pricing (Section + Grid + cards) |
+| `faq` | `Accordion` |
+| `image_gallery` | `ImageGallery` |
+| `steps_timeline` | `StepsTimeline` |
+| `stats_numbers` | `StatsNumbers` |
+| `text_section` | `RichText` |
+| `button_cta` | `Button` |
+| `countdown` | `CountdownTimer` |
+| `video_embed` | `YouTubeVideo` |
 
 ### Rotas no Frontend
 | Tipo | Rota | Descrição |
@@ -337,27 +384,43 @@ Utiliza framework de 5 pilares: Sourcing de Imagens, Identidade Visual, Copy Per
 | Público | `/ai-lp/:slug` | Renderização da LP publicada (standalone) |
 
 **IMPORTANTE**: 
-- A rota `/ai-lp/` é standalone, fora do `StorefrontLayout`, para renderizar HTML puro
-- O componente `StorefrontAILandingPage` resolve o tenant automaticamente pelo hostname (domínio customizado ou subdomínio da plataforma)
-- O `StorefrontAILandingPage` inclui `StorefrontThemeInjector` e `StorefrontConfigProvider` para garantir que header/footer herdem o tema correto
+- A rota `/ai-lp/` é standalone, fora do `StorefrontLayout`
+- V5: Renderiza via `PublicTemplateRenderer` (blocos React reais)
+- Fallback: Se `generated_blocks` vazio, renderiza `generated_html` via iframe
+- O componente `StorefrontAILandingPage` resolve o tenant automaticamente pelo hostname
+- O `StorefrontAILandingPage` inclui `StorefrontThemeInjector` e `StorefrontConfigProvider`
 
 ### Fluxo de Resolução de Tenant (StorefrontAILandingPage)
 1. Verifica se há `tenantSlug` na URL (rota `/store/:tenantSlug/ai-lp/:lpSlug`)
 2. Se for subdomínio da plataforma (`tenant.shops.comandocentral.com.br`), extrai o slug
 3. Se for domínio customizado, busca na tabela `tenant_domains`
 
-### Pipeline de Geração (Ordem Estrita)
-1. **Fetch de Dados Reais** — Busca produtos, imagens, themeSettings, Drive assets e creative assets em queries consolidadas
-2. **Sourcing de Imagens** — Busca keywords no Drive (`files` table) + gera lifestyle images via IA se necessário
-3. **Construção do Prompt** — Monta system prompt com 5 pilares + dados reais injetados
-4. **Geração HTML/CSS** — Chamada ao Gemini 2.5 Pro
-5. **Validação Pós-Geração** — Anti-hallucinação (verifica nomes de produto no HTML final)
-6. **Persistência** — Salva HTML/CSS na `ai_landing_pages` + cria versão em `ai_landing_page_versions`
+### Pipeline de Geração (12 Steps)
+1. **STEP 1: Fetch Produtos + Auto-Discover Kits** — Busca produtos selecionados, imagens primárias, e auto-descobre kits via `product_components` (JOIN sem tenant_id direto)
+2. **STEP 2: Business Context** — Reviews aprovadas + criativos de ads existentes
+3. **STEP 3: Drive References** — Busca imagens no Drive por nome de produto + busca pastas de prova social (feedback, review, prova, resultado, depoimento, antes/depois)
+4. **STEP 4: Drive Folder** — Garante pasta "Criativos de página" para salvar assets gerados
+5. **STEP 5: Lifestyle Image** — Gera imagem lifestyle via Gemini Image (com refs do Drive)
+6. **STEP 6: Hero Creative** — Gera imagem hero profissional via Gemini Image
+7. **STEP 7: Engine Plan** — Resolve arquétipo, nicho, profundidade, peso visual, seções
+8. **STEP 8: Build V5 Prompt** — System prompt com mapeamento seção→componente + dados reais
+9. **STEP 9: Enrich Prompt** — Fallback prompts se prompt do usuário for incompleto
+10. **STEP 10: AI Tool Call** — Gemini 2.5 Pro com tool `build_landing_page`
+11. **STEP 11: Parse Response** — Extrai JSON do tool call (ou fallback do content)
+12. **STEP 12-13: Assemble + Persist** — `assembleBlockTree()` → salva em `generated_blocks` + versão
 
-### Otimizações v3.8.0
-- **Queries Consolidadas**: Dados de produto reutilizados via objeto `firstProduct` — elimina 3 queries redundantes
-- **Anti-Hallucinação**: Validação pós-geração confirma nomes de produto no HTML final
-- **Drive Keywords**: Busca por `product_type` e `tags` do primeiro produto para encontrar assets relevantes
+### Auto-Descoberta de Kits (STEP 1)
+- Consulta `product_components` para encontrar kits (`with_composition`) que contêm os produtos selecionados
+- **IMPORTANTE**: `product_components` NÃO tem coluna `tenant_id` — filtra via JOIN com `products`
+- Busca imagens primárias dos kits e adiciona ao `productPrimaryImageMap`
+- Kits aparecem na seção "KITS QUE CONTÊM ESTE PRODUTO" do prompt
+
+### Busca de Provas Sociais (STEP 3B)
+- Busca pastas cujo nome contém: feedback, review, prova, resultado, depoimento, antes/depois
+- Busca imagens dentro dessas pastas via `storage_path LIKE folder_path/%`
+- Imagens de `tenant-files` (privado) usam URLs assinadas (1h)
+- Imagens de `store-assets` (público) usam URLs públicas
+- Até 5 imagens passadas como `socialProofImageUrls` para a IA
 
 ### Campos do Produto Coletados
 ```typescript
@@ -377,46 +440,49 @@ Utiliza framework de 5 pilares: Sourcing de Imagens, Identidade Visual, Copy Per
 }
 ```
 
-### Templates Criativos (Fallback por Nicho)
-| Template | Nicho/Uso |
-|----------|-----------|
-| `autoridade-premium` | Saúde, beleza masculina, suplementos |
-| `editorial-clean` | Moda, acessórios, lifestyle |
-| `tech-futurista` | Eletrônicos, gadgets, tech |
-| `organico-sensorial` | Alimentos, bebidas, cosméticos naturais |
-| `urgencia-conversao` | Default / máxima conversão |
-
 ### Regras do Prompt da IA (CRÍTICAS!)
 1. **URL de Referência** = APENAS inspiração visual/estrutural
    - ❌ NÃO copiar conteúdo, textos ou produtos
    - ✅ Copiar layout, cores, tipografia, estrutura
-2. **Produtos** = Usar EXCLUSIVAMENTE os selecionados
+2. **Produtos** = Usar EXCLUSIVAMENTE os selecionados + kits auto-descobertos
    - ⚠️ SEMPRE buscar `product_ids` salvos na landing page (mesmo em adjustments)
-   - Todas as imagens DEVEM ser usadas no HTML (`<img src="URL-REAL">`)
+   - Todas as imagens DEVEM ser referenciadas nos blocos
    - ❌ NUNCA usar placeholder.com ou imagens genéricas
    - Preços, nomes e descrições devem ser exatos
-3. **Output** = HTML completo com `<!DOCTYPE html>`
-   - CSS inline ou em `<style>`
-   - Responsivo e otimizado para conversão
+3. **Output** = Chamada de função `build_landing_page` (NÃO HTML)
+   - Cada seção vira um componente React real
+   - Header e Footer são adicionados automaticamente pelo `assembleBlockTree`
 4. **Identidade Visual** = themeSettings da loja injetadas no prompt
-   - Logo Protection Rules (proibição de filtros CSS, containers de alto contraste)
-5. **Copy Persuasivo** = Framework PAS (Problem-Agitation-Solution) em 9 seções estratégicas
+   - Cores, logo, peso visual (premium/comercial/minimalista/direto)
+5. **Copy Persuasivo** = Framework PAS via Engine Plan (arquétipo + nicho)
 
 ### Comportamento Importante
 - Em ajustes (`promptType: 'adjustment'`), a função SEMPRE busca `product_ids` e `reference_url` salvos na landing page
-- Isso garante que edições subsequentes mantenham os produtos originais
-- A função tem `verify_jwt = false` para permitir chamadas internas via service role (ex: ads-autopilot-strategist)
+- Para adjustments, passa os blocos atuais como contexto para a IA
+- A função tem `verify_jwt = false` para permitir chamadas internas via service role
+- `generated_html` é setado para `null` quando V5 gera blocos (blocks têm prioridade)
 
 ### Mapeamento Tabela → Edge Function
 | Tabela | Edge Function |
 |--------|---------------|
-| `ai_landing_pages` | `ai-landing-page-generate` |
-| `ai_landing_page_versions` | `ai-landing-page-generate` |
+| `ai_landing_pages` | `ai-landing-page-generate` (SELECT + UPDATE: `generated_blocks`) |
+| `ai_landing_page_versions` | `ai-landing-page-generate` (INSERT: `blocks_content`) |
 | `products` | `ai-landing-page-generate` (SELECT) |
 | `product_images` | `ai-landing-page-generate` (SELECT) |
+| `product_components` | `ai-landing-page-generate` (SELECT — kit discovery) |
+| `product_reviews` | `ai-landing-page-generate` (SELECT — prova social) |
 | `store_settings` | `ai-landing-page-generate` (SELECT) |
-| `files` | `ai-landing-page-generate` (SELECT — Drive assets) |
+| `files` | `ai-landing-page-generate` (SELECT — Drive assets + social proof folders) |
 | `ads_creative_assets` | `ai-landing-page-generate` (SELECT — tom de marca) |
+
+### Shared Module: block-assembler.ts
+**Arquivo**: `supabase/functions/_shared/marketing/block-assembler.ts`
+
+| Export | Descrição |
+|--------|-----------|
+| `BLOCK_TOOL_DEFINITION` | Tool definition OpenAI-compatible para `build_landing_page` |
+| `getBlockPropsDocumentation()` | Documentação de props por tipo de bloco (injetada no prompt) |
+| `assembleBlockTree(toolOutput)` | Converte output do tool call em `BlockNode` tree com Header/Footer |
 
 ---
 
