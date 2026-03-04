@@ -1,123 +1,103 @@
 
 
-# V4.2 — Correção Arquitetural: Plano de Implementação
+# Diagnóstico de Regressões V4.2 + Plano de Correção
 
-## Visão Geral
+## Problemas Identificados (confirmados por análise do código e dados)
 
-Implementação aprovada da V4.2 que muda o contrato de output da IA de "documento HTML completo" para "apenas seções de conteúdo", com o backend assumindo controle total do shell do documento.
+### 1. Duplo wrapping do documento (BUG CRÍTICO)
+O backend salva o HTML **já envolto em `<!DOCTYPE html>`** via `wrapInDocumentShell()` (index.ts L1021-1024). Depois, no render, `StorefrontAILandingPage.tsx` (L245-248) e `LandingPagePreviewDialog.tsx` chamam `buildDocumentShell()` novamente. Como o HTML salvo começa com `<!DOCTYPE`, o shell do `aiLandingPageShell.ts` detecta `isFullDocument` e injeta safety CSS + auto-resize **duplicados**. Resultado: scripts duplicados, potencial conflito CSS.
 
----
+### 2. Header/footer da loja aparecendo (DADOS + CÓDIGO)
+O registro do t10 tem `show_header: true` e `show_footer: true`. O componente (L266-267) respeita esses flags com `?? false` como fallback. Mas como a LP foi criada/gerada com esses valores `true`, a plataforma renderiza header + footer da loja **em volta** da LP. Combinado com footer-like content gerado pela IA, causa **footer duplicado** (visível nos prints).
 
-## Fase 1: Hard Checks de Layout + Contrato Body-Only + Parser Enforcement
+### 3. Footer-like sections ainda geradas pela IA
+O prompt proíbe `<footer>` como tag e "seção de copyright", mas a IA ainda gera seções com SAC, redes sociais, CNPJ, endereço, "Menu Footer" — conteúdo semântico de rodapé sem usar a tag `<footer>`. A proibição atual é insuficiente.
 
-### 1.1 — Hard checks de layout (`engine-plan.ts`, após linha 438)
+### 4. CSS grid catch-all destrói 2 colunas no mobile
+Linha 569: `[style*="display: grid"][style*="grid-template-columns"] { grid-template-columns: 1fr !important; }` — esse catch-all **anula** as regras seletivas das linhas 562-568 que preservam 2 colunas. Todo grid vira 1 coluna no mobile. Era para ter sido removido na Fase 3.
 
-Adicionar 4 novos checks **antes** do cálculo de status final. Estes checks rodam sobre o HTML bruto da IA, antes do wrapping:
+### 5. Imagens quebradas (imgur.com)
+A IA está usando URLs externas (imgur.com) que não são do catálogo/Drive. O prompt proíbe placeholder.com e unsplash.com, mas **não** proíbe imgur e outros hotlinks genéricos.
 
-- `has_no_footer` — detecta `<footer[\s>]` (tag real, não class names)
-- `has_no_document_shell` — detecta `<!DOCTYPE` ou `<html[\s>]` ou `<head[\s>]`
-- `has_no_large_vh` — detecta `height:\s*(8\d|9\d|100)vh`
-- `has_no_position_fixed` — detecta `position:\s*fixed`
-
-Todos geram **warning** (nunca entram em `criticalFails`), com `needsReview: true`.
-
-### 1.2 — Mudar formato de saída no prompt (`index.ts`, linhas 341-369)
-
-Trocar o bloco de output de:
-```
-2. Bloco HTML completo:
-<!DOCTYPE html><html>...
-```
-Para:
-```
-2. Bloco HTML — APENAS conteúdo das seções:
-   - Comece na primeira <section> (Hero)
-   - Termine no último CTA
-   - NÃO inclua <!DOCTYPE>, <html>, <head>, <body>
-   - Inclua um único bloco <style> com CSS específicos da LP
-   - O sistema montará o documento completo
-```
-
-### 1.3 — `wrapInDocumentShell()` no backend (`index.ts`, ~linha 884)
-
-Nova função que monta o documento completo ao redor do conteúdo da IA. O CSS utilities (linhas 432-466) **sai do prompt** e vai para esta função. O prompt mantém apenas a instrução de incluir `<style>` com CSS específico.
-
-A função recebe o HTML das seções e produz o documento completo com: charset, viewport, fonts, CSS utilities, safety CSS mínimo, favicon, pixels, auto-resize script.
-
-### 1.4 — Enforcement no parser (`index.ts`, linhas 498-533)
-
-Após extrair o HTML no `parseStructuredResponse`, adicionar detecção de violação:
-1. Detectar se contém `<!DOCTYPE` ou `<html[\s>]` ou `<head[\s>]`
-2. Se sim → tentar extrair conteúdo de `<body>...</body>`
-3. Se `<body>` não existir → remover tags shell conhecidas e usar miolo restante
-4. Registrar `outputContractViolation` em parseError
-5. **Refletir no status consolidado**: após `runHardChecks`, se houve `outputContractViolation`, garantir `hardCheckStatus >= 'warning'` e `needsReview: true`
-
-### 1.5 — Metadata: `engineVersion: "v4.2"` (linhas 914, 939)
+### 6. `.animate-section` com `both` causa invisibilidade
+Linha 549: `.animate-section { animation: fadeInUp 0.8s ease-out both; }` — o CSS utilities do backend usa `animation-fill-mode: both`, que o safety CSS depois tenta corrigir para `none`. Conflito interno.
 
 ---
 
-## Fase 2: Iframe com Skeleton + Pipeline Compartilhada
+## Plano de Correção (cirúrgico — preserva arquitetura V4.2)
 
-### 2.1 — Skeleton + opacity no iframe (`StorefrontAILandingPage.tsx`)
+### Correção 1: Eliminar duplo wrapping
+**Arquivo:** `supabase/functions/ai-landing-page-generate/index.ts` (L1019-1024)
 
-Substituir `height: 2000px` por:
-- Container com `min-height: 400px` e skeleton visual (pulse)
-- Iframe com `opacity: 0` + `transition: opacity 0.3s`
-- Ao receber primeiro `postMessage` → `opacity: 1` com altura correta
-- Timeout de 5s como fallback seguro
+O backend NÃO deve envelopar com `wrapInDocumentShell` no momento do save. Deve salvar **apenas o HTML body-only** (seções + style). O wrapping acontece **apenas no render** (client-side via `buildDocumentShell`).
 
-### 2.2 — Pipeline compartilhada (`src/lib/aiLandingPageShell.ts` — NOVO)
+Remover linhas 1019-1024 (chamada a `wrapInDocumentShell`). O `generatedHtml` salvo fica body-only.
 
-Novo arquivo que exporta:
-- `buildDocumentShell(sectionHtml, options)` — monta documento
-- `buildSafetyCss()` — CSS de segurança unificado
-- `buildAutoResizeScript()` — script de auto-resize
+### Correção 2: Default show_header/show_footer = false
+**Arquivo:** `supabase/functions/ai-landing-page-generate/index.ts`
 
-Tanto `StorefrontAILandingPage.tsx` quanto `LandingPagePreviewDialog.tsx` importam e usam a mesma pipeline.
+Na criação de novas LPs, o default já deveria ser `false`. Verificar se o front-end de criação está definindo `true` indevidamente. Independentemente, o componente de render já trata `?? false`.
 
-### 2.3 — Simplificar sanitizer (`sanitizeAILandingPageHtml.ts`)
+**Ação adicional:** Atualizar o t10 no banco para `show_header: false, show_footer: false` para validação imediata.
 
-Com contrato body-only:
-- **Remover**: regex de `<footer>` (linhas 50-53)
-- **Remover**: injeção de `overflow-x: hidden` no body (linhas 43-47)
-- **Manter**: correção de `vh` heights e `animation-fill-mode` como defesa secundária
+### Correção 3: Proibição semântica de footer-like content
+**Arquivo:** `supabase/functions/ai-landing-page-generate/index.ts` (bloco HEADER/FOOTER, L386-392)
 
----
+Expandir a proibição para incluir conteúdo semântico de rodapé:
+- NÃO gerar seções com dados de SAC/contato institucional
+- NÃO gerar blocos de redes sociais
+- NÃO gerar "Menu Footer" ou links institucionais
+- NÃO gerar endereço/CNPJ como seção de fechamento
+- A última seção DEVE ser um CTA de conversão, não informação institucional
 
-## Fase 3: Refinar Mobile + Animações
+### Correção 4: Remover CSS grid catch-all
+**Arquivo:** `supabase/functions/ai-landing-page-generate/index.ts` (L569)
 
-### 3.1 — Mobile grid seletivo (CSS utilities)
-- Grids 3+ colunas → forçar 1fr
-- Grids 2 colunas → manter 2col
-- Remover catch-all `[style*="display: flex"][style*="align-items"] { flex-direction: column !important; }`
+Remover a linha: `[style*="display: grid"][style*="grid-template-columns"] { grid-template-columns: 1fr !important; }`
 
-### 3.2 — Animation-delay: cap 0.5s → 1.5s (sanitizer linha 39)
+As regras seletivas (L562-568) já cobrem grids de 3+ colunas. A catch-all destrói grids de 2 colunas legítimos.
 
-### 3.3 — animation-fill-mode: manter `forwards` para animações sem `opacity: 0`
+### Correção 5: Proibir hotlinks externos no prompt + hard check
+**Arquivo:** `supabase/functions/ai-landing-page-generate/index.ts` (bloco ANTI-PADRÕES, L307-327)
+
+Adicionar proibição: `- NUNCA use imgur.com, postimg.cc, imgbb.com ou qualquer host externo de imagens`
+
+**Arquivo:** `supabase/functions/_shared/marketing/engine-plan.ts` (hard checks)
+
+Adicionar check `has_no_external_images`: detectar `imgur.com|postimg.cc|imgbb.com|cloudinary.com` no HTML. Warning + needsReview.
+
+### Correção 6: Corrigir `.animate-section` fill-mode
+**Arquivo:** `supabase/functions/ai-landing-page-generate/index.ts` (L549)
+
+Trocar `.animate-section { animation: fadeInUp 0.8s ease-out both; }` para `.animate-section { animation: fadeInUp 0.8s ease-out forwards; }` — ou melhor, remover `both` inteiramente já que o safety CSS o anula.
+
+### Correção 7: Atualizar `buildDocumentShell` para incluir CSS utilities
+**Arquivo:** `src/lib/aiLandingPageShell.ts`
+
+O shell client-side precisa injetar os CSS utilities (keyframes, container, grid rules mobile) quando o input é body-only. Atualmente só injeta safety CSS. Deve incluir as mesmas utilities do backend para que o render funcione corretamente com HTML body-only.
 
 ---
 
 ## Arquivos Afetados
 
-| Arquivo | Fase |
-|---------|------|
-| `supabase/functions/_shared/marketing/engine-plan.ts` | 1 |
-| `supabase/functions/ai-landing-page-generate/index.ts` | 1 |
-| `src/lib/aiLandingPageShell.ts` (NOVO) | 2 |
-| `src/pages/storefront/StorefrontAILandingPage.tsx` | 2 |
-| `src/components/landing-pages/LandingPagePreviewDialog.tsx` | 2 |
-| `src/lib/sanitizeAILandingPageHtml.ts` | 2-3 |
-| `docs/regras/landing-pages.md` | 3 |
+| Arquivo | Mudança |
+|---------|---------|
+| `supabase/functions/ai-landing-page-generate/index.ts` | Remover wrapping no save; expandir proibição de footer semântico; proibir imgur; corrigir animate-section; remover grid catch-all |
+| `supabase/functions/_shared/marketing/engine-plan.ts` | Novo hard check `has_no_external_images` |
+| `src/lib/aiLandingPageShell.ts` | Adicionar CSS utilities ao shell body-only |
 
-## Ordem de Execução
+## O que NÃO muda
+- Contrato body-only (mantido)
+- Parser enforcement (mantido)
+- Hard checks existentes (mantidos)
+- Pipeline compartilhada (mantida)
+- Skeleton + opacity transition (mantido)
 
-1. Hard checks de layout em `engine-plan.ts`
-2. Contrato body-only no prompt + `wrapInDocumentShell` no backend
-3. Parser com enforcement de violação de contrato
-4. Iframe com skeleton + opacity transition
-5. Pipeline compartilhada (`aiLandingPageShell.ts`)
-6. Simplificar sanitizer
-7. Refinar mobile + animações
-8. Deploy edge function + atualizar documentação
+## Ordem de execução
+1. Remover duplo wrapping no backend (save body-only)
+2. Adicionar CSS utilities ao `buildDocumentShell` client-side
+3. Expandir proibição de footer semântico no prompt
+4. Remover grid catch-all + corrigir animate-section
+5. Adicionar proibição de hotlinks + hard check
+6. Deploy edge function
 
