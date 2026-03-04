@@ -1,8 +1,8 @@
 # Auxiliar de Comando — Regras e Especificações
 
 > **Status:** ✅ Ready  
-> **Última atualização:** 2026-03-03  
-> **Versão do Pipeline:** v3.14.0 | **AI Router:** v1.2.0  
+> **Última atualização:** 2026-03-04  
+> **Versão do Pipeline:** v3.15.0 | **AI Router:** v1.2.0  
 > **Cobertura:** 61+ tools — 100% dos módulos (Fases 1–5 completas)
 
 ---
@@ -224,6 +224,18 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
 4. **Exceção à regra "Uma Ação por Vez"**: `applyKitDiscount` é explicitamente marcada como exceção que aceita operações em lote
 
 **Arquivo alterado:** `supabase/functions/command-assistant-chat/index.ts` (system prompt)
+
+### 🔧 Fix: Leituras Nunca Pedem Confirmação (v3.15.0)
+
+> **Problema corrigido**: A IA gerava blocos `\`\`\`action\`\`\`` para operações de leitura (ex: "Listar kits com 3+ produtos para verificar frete grátis"), forçando o usuário a clicar "Confirmar" para uma simples consulta. Leituras devem ser executadas automaticamente via function calling, sem confirmação.
+
+**Mudanças:**
+
+1. **System prompt reforçado**: Regra explícita `🚨🚨🚨 PROIBIDO GERAR action PARA LEITURAS` com exemplos claros de que consultas/verificações/listagens devem usar function calling nativo
+2. **Guard server-side**: `saveAssistantMessage()` agora detecta quando um bloco `action` contém uma tool de leitura (presente no `READ_TOOLS` set) e automaticamente a remove, impedindo que botões de confirmação apareçam para leituras
+3. **Regra de execução expandida**: Distinção clara entre "LEITURA = FUNCTION CALLING" e "ESCRITA = BLOCO ACTION"
+
+**Arquivo alterado:** `supabase/functions/command-assistant-chat/index.ts` (system prompt + saveAssistantMessage)
 
 ### 🔧 Fix: Anti-Alucinação por Detecção de Padrão (v3.14.0)
 

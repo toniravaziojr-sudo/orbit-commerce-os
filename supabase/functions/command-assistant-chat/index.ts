@@ -4,7 +4,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v3.14.0"; // Anti-hallucination guard for Gemini fallback
+const VERSION = "v3.15.0"; // Read tools never proposed as actions + explicit system prompt rules
 // ===========================================================
 
 const corsHeaders = {
@@ -1113,9 +1113,15 @@ Vou criar a promoção de 5% nos produtos simples, definindo "preço de" (riscad
 | Ativar/desativar frete grátis em massa | Menciona "frete grátis", "ativar frete", "free shipping" | bulkUpdateProductsFreeShipping |
 | Frete grátis em kits com N+ componentes | Menciona "frete grátis nos kits com 3+", "kits com X produtos" | bulkUpdateProductsFreeShipping com minComponents |
 
-## EXECUÇÃO:
-1. LEITURA AUTOMÁTICA: Use function calling para buscar dados. O usuário NÃO vê essas buscas.
-2. ESCRITA COM CONFIRMAÇÃO: Para criar/editar/excluir, proponha bloco \`\`\`action\`\`\` — usuário confirma via botão.
+## 🚨 EXECUÇÃO (REGRA CRÍTICA):
+1. **LEITURA = SEMPRE VIA FUNCTION CALLING (tools nativas).** Use searchProducts, listProducts, listKitsSummary, etc. O usuário NÃO vê essas buscas. NUNCA gere bloco \`\`\`action\`\`\` para operações de leitura/consulta/listagem/verificação.
+2. **ESCRITA = SEMPRE VIA BLOCO \`\`\`action\`\`\`.** Para criar/editar/excluir/atualizar, proponha bloco \`\`\`action\`\`\` — usuário confirma via botão.
+
+## 🚨🚨🚨 PROIBIDO GERAR \`\`\`action\`\`\` PARA LEITURAS:
+- "Listar kits", "Verificar status", "Consultar produtos", "Buscar pedidos" → FUNCTION CALLING (tools nativas), NUNCA \`\`\`action\`\`\`
+- O bloco \`\`\`action\`\`\` é EXCLUSIVAMENTE para operações que MODIFICAM dados (create, update, delete, bulk)
+- Se o usuário pede para VERIFICAR/CONSULTAR algo → chame a tool de leitura via function calling SILENCIOSAMENTE e responda com os dados
+- NUNCA apresente uma consulta como ação que precisa de confirmação
 
 ## 🚫 PROIBIDO LOOPS DE RE-CONFIRMAÇÃO:
 - Quando o usuário já disse "sim", "confirma", "pode prosseguir", "aplica" → EXECUTE IMEDIATAMENTE
@@ -1336,7 +1342,12 @@ serve(async (req) => {
             console.warn("Action was array, taking first element only");
             actionData = actionData[0];
           }
-          if (actionData?.tool_name && actionData?.tool_args && Object.keys(actionData.tool_args).length > 0) {
+          // v3.15.0: Guard — if the AI proposed a READ tool as an action, strip it
+          // Read tools should NEVER be proposed as actions requiring confirmation
+          if (actionData?.tool_name && READ_TOOLS.has(actionData.tool_name)) {
+            console.warn(`[command-assistant-chat] ⚠️ Read tool "${actionData.tool_name}" was proposed as action — stripping (reads don't need confirmation)`);
+            // Don't add to proposedActions — it will be stripped from the message
+          } else if (actionData?.tool_name && actionData?.tool_args && Object.keys(actionData.tool_args).length > 0) {
             proposedActions = [{
               id: crypto.randomUUID(),
               tool_name: actionData.tool_name,
