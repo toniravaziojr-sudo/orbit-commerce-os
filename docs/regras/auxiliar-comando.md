@@ -2,7 +2,7 @@
 
 > **Status:** ✅ Ready  
 > **Última atualização:** 2026-03-04  
-> **Versão do Pipeline:** v3.15.0 | **AI Router:** v1.2.0  
+> **Versão do Pipeline:** v3.16.0 | **AI Router:** v1.2.0  
 > **Cobertura:** 61+ tools — 100% dos módulos (Fases 1–5 completas)
 
 ---
@@ -236,6 +236,37 @@ Todas as demais (create, update, delete, bulk) mantêm o fluxo com botão "Confi
 3. **Regra de execução expandida**: Distinção clara entre "LEITURA = FUNCTION CALLING" e "ESCRITA = BLOCO ACTION"
 
 **Arquivo alterado:** `supabase/functions/command-assistant-chat/index.ts` (system prompt + saveAssistantMessage)
+
+### 🔧 Feature: Acesso Completo a Campos de Produto (v3.16.0)
+
+> **Problema corrigido**: A IA tinha visibilidade e permissão de escrita limitadas sobre os campos de produtos. Consultas simples como "esse produto tem frete grátis?" falhavam, e a IA não conseguia editar campos como `brand`, `cost_price`, `tags`, `warranty`, `barcode`, `ncm`, `cest`, etc.
+
+**Mudanças:**
+
+1. **`getProductDetails` expandido**: A mensagem formatada agora exibe ~25 campos adicionais:
+   - Identificação: `brand`, `vendor`, `barcode`, `gtin`
+   - Comercial: `cost_price`, `is_featured`, `free_shipping`, `requires_shipping`, `taxable`
+   - Conteúdo: `short_description`, `tags`
+   - Garantia: `warranty_type`, `warranty_duration`
+   - Estoque: `manage_stock`, `allow_backorder`, `low_stock_threshold`
+   - Fiscal: `ncm`, `cest`, `origin_code`
+   - Promoção: `promotion_starts_at`, `promotion_ends_at`
+   - SEO: `meta_title`, `meta_description`, `meta_keywords`
+
+2. **`updateProduct` expandido (15 → 40+ campos)**: Agora aceita TODOS os campos editáveis do produto:
+   - `brand`, `vendor`, `barcode`, `gtin`, `costPrice`, `isFeatured`, `tags`
+   - `shortDescription`, `warrantyType`, `warrantyDuration`
+   - `manageStock`, `allowBackorder`, `lowStockThreshold`
+   - `taxable`, `ncm`, `cest`, `originCode`
+   - `promotionStartsAt`, `promotionEndsAt`
+   - `metaTitle`, `metaDescription`, `metaKeywords`
+   - `freeShipping`, `requiresShipping` (já existiam)
+
+3. **`createProduct` expandido (6 → 30+ campos)**: Além dos básicos (name, price, sku, description), agora aceita todos os campos acima na criação.
+
+4. **Listagens (`searchProducts`, `listProducts`, `listKitsSummary`)**: Agora incluem `free_shipping` no select e exibem indicador visual (✅/❌) no output.
+
+**Arquivos alterados:** `supabase/functions/command-assistant-execute/index.ts`, `supabase/functions/command-assistant-chat/index.ts`
 
 ### 🔧 Fix: Anti-Alucinação por Detecção de Padrão (v3.14.0)
 
@@ -473,8 +504,8 @@ for (const chunk of chunks) {
 
 | Tool | Descrição | Permissões |
 |------|-----------|------------|
-| `createProduct` | Criar produto | owner, admin, manager, editor |
-| `updateProduct` | Editar qualquer campo de um produto (nome, descrição, preço, peso, dimensões, SEO, estoque, status) | owner, admin, manager, editor |
+| `createProduct` | Criar produto com 30+ campos (nome, preço, SKU, descrição, marca, custo, tags, garantia, dimensões, fiscal, SEO, etc.) | owner, admin, manager, editor |
+| `updateProduct` | Editar qualquer campo de um produto (40+ campos: nome, descrição, preço, peso, dimensões, SEO, estoque, status, marca, custo, tags, garantia, barcode, GTIN, fiscal, promoção, frete, etc.) | owner, admin, manager, editor |
 | `deleteProducts` | Deletar produtos | owner, admin, manager |
 | `duplicateProduct` | Duplicar produto (copia categorias, inicia inativo) | owner, admin, manager, editor |
 | `bulkUpdateProductsNCM` | Atualizar NCM em massa | owner, admin, manager |
@@ -487,9 +518,9 @@ for (const chunk of chunks) {
 
 | Tool | Descrição | Permissões |
 |------|-----------|------------|
-| `searchProducts` | Buscar produtos por nome/SKU | todos |
-| `listProducts` | Listar produtos com filtros (status, preço, categoria, ordenação, **productFormat**, **excludeKits**). `productFormat`: `simple`, `with_composition`, `with_variants`. `excludeKits`: exclui kits. Output inclui SKU, formato e status. Limite máx 100. | todos |
-| `getProductDetails` | Detalhes completos de um produto (preço, estoque, dimensões, SEO, categorias) | todos |
+| `searchProducts` | Buscar produtos por nome/SKU (inclui `free_shipping`) | todos |
+| `listProducts` | Listar produtos com filtros (status, preço, categoria, ordenação, **productFormat**, **excludeKits**). Output inclui SKU, formato, status e `free_shipping` (✅/❌). Limite máx 100. | todos |
+| `getProductDetails` | Detalhes completos de um produto (preço, custo, estoque, marca, vendor, barcode, GTIN, tags, garantia, dimensões, fiscal NCM/CEST, SEO, promoção, frete) | todos |
 
 ### Categorias
 
@@ -921,6 +952,28 @@ O `memoryContext` é concatenado ao final do system prompt de cada IA, contendo:
 | Código NCM | `ncm` | `ncm_code` (não existe) |
 | Código CEST | `cest` | `cest_code` (não existe) |
 | Soft delete | `deleted_at` (timestamp, NULL = ativo) | — |
+| Marca | `brand` | — |
+| Fornecedor | `vendor` | `supplier` (não existe) |
+| Código de barras | `barcode` | `bar_code` (não existe) |
+| GTIN/EAN | `gtin` | `ean` (não existe) |
+| Preço de custo | `cost_price` | `cost` (não existe) |
+| Destaque | `is_featured` | `featured` (não existe) |
+| Frete grátis | `free_shipping` | — |
+| Requer envio | `requires_shipping` | — |
+| Tags | `tags` (text[]) | — |
+| Descrição curta | `short_description` | — |
+| Tipo garantia | `warranty_type` | — |
+| Duração garantia | `warranty_duration` | — |
+| Gerenciar estoque | `manage_stock` | — |
+| Permitir backorder | `allow_backorder` | — |
+| Limiar estoque baixo | `low_stock_threshold` | — |
+| Tributável | `taxable` | — |
+| Código origem | `origin_code` | — |
+| Início promoção | `promotion_starts_at` | — |
+| Fim promoção | `promotion_ends_at` | — |
+| Meta título SEO | `meta_title` | `seo_title` (não existe) |
+| Meta descrição SEO | `meta_description` | `seo_description` (não existe) |
+| Meta keywords SEO | `meta_keywords` | `seo_keywords` (não existe) |
 
 ### Regras de uso
 
