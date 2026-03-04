@@ -940,6 +940,7 @@ Quando o `ads-autopilot-strategist` dispara geração de LP, passa briefing com 
 
 | Data | Alteração |
 |------|-----------|
+| 2026-03-04 | **AI LP CONTAINER FIX**: Wrappers de Header/Footer em `StorefrontAILandingPage.tsx` devem incluir `containerName: 'storefront'` para que Container Queries funcionem corretamente |
 | 2026-03-04 | **ENGINE V4.1**: Sanitização HTML (sanitizeAILandingPageHtml), prioridade de ativos (criativos > lifestyle > catálogo), badges condicionais, proibição de footer pela IA, CSS safety suavizado |
 | 2026-03-04 | **ENGINE V4.0**: Pipeline determinística completa — engine-plan.ts, prompt modular, parser JSON+HTML, hard checks, briefing UI, metadata expandido |
 | 2026-03-01 | **DOMÍNIOS**: Regras de detecção de domínio para preview/dev (lovableproject.com, lovable.app) |

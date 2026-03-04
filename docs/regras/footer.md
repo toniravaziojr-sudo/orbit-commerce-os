@@ -367,6 +367,7 @@ const hiddenCount = configuredItems.length - validItems.length;
 | 2026-02-02 | Referência de dimensões (px) adicionada no UI do builder para orientar uploads |
 | 2026-02-01 | **FIX v5**: Movido gerenciamento de `pendingUpdatesRef` para o hook `useThemeFooter` — hook agora retorna `footer` já mesclado com atualizações pendentes |
 | 2026-02-01 | `FooterSettings.tsx` simplificado — não precisa mais de estado local para seções de imagem (paymentMethods, etc.) |
+| 2026-03-04 | **FIX AI LP**: Wrapper do footer em `StorefrontAILandingPage.tsx` agora inclui `containerName: 'storefront'` no `style` — sem isso, as CSS Container Queries (`@container storefront`) não matchavam e o layout ficava quebrado (empilhado em vez de colunas). Regra: qualquer wrapper que renderize Header/Footer DEVE ter `containerType: 'inline-size'` E `containerName: 'storefront'` |
 | 2026-02-01 | Correção usa `saveThemeSettingsAsync` para aguardar persistência antes de limpar flags |
 | 2026-02-01 | **FIX v4**: Novo sistema de `pendingSaveKeysRef` para rastrear chaves em salvamento e evitar sobrescrita por sync |
 | 2026-02-01 | Removido `isInitializedRef` que bloqueava re-sincronização; sync agora preserva chaves pendentes |
