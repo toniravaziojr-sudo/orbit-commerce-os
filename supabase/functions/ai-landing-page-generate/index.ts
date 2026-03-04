@@ -312,6 +312,9 @@ ${enginePlan.resolvedVisualWeight === 'informativo' ? '- Layout organizado, íco
 - NUNCA use Lorem ipsum ou texto placeholder
 - NUNCA deixe tags HTML visíveis como texto
 - NUNCA inclua header/navegação (a plataforma renderiza automaticamente)
+- NUNCA inclua <footer>, rodapé ou seção de copyright (a plataforma renderiza o footer)
+- NUNCA use badges "OFERTA LIMITADA", "PROMOÇÃO" ou selos de urgência a menos que o produto tenha compare_at_price (preço riscado) real
+- NUNCA use imagens de catálogo (fundo branco) como hero/background quando existem criativos gerados
 ${restrictionRules}
 
 ### NOMES DE PRODUTOS (COPIE LETRA POR LETRA):
@@ -366,17 +369,16 @@ Retorne EXATAMENTE dois blocos separados e fechados:
 AMBOS os blocos são obrigatórios. O JSON vem PRIMEIRO, o HTML SEGUNDO.`);
 
   // === HEADER/FOOTER RULES ===
-  if (showHeader || showFooter) {
-    sections.push(`## ⚠️ HEADER E FOOTER — PROIBIÇÃO
-Esta LP usa header/footer da loja (renderizados pela plataforma).
-- NÃO inclua NENHUM header, navegação ou menu
-- NÃO inclua NENHUM footer, copyright ou rodapé
-- Comece DIRETO no Hero e termine no último CTA`);
-  } else {
-    sections.push(`## HEADER E FOOTER
-- NÃO inclua header/navegação
-- Você PODE incluir footer simples com copyright se fizer sentido`);
-  }
+  // === HEADER/FOOTER — ALWAYS PROHIBITED (v4.1) ===
+  // The platform ALWAYS renders header/footer separately.
+  // The AI must NEVER generate footer content — it creates duplication and layout breaks.
+  sections.push(`## ⚠️ HEADER E FOOTER — PROIBIÇÃO ABSOLUTA
+A plataforma renderiza header e footer automaticamente.
+- NÃO inclua NENHUM header, navegação, menu ou barra de topo
+- NÃO inclua NENHUM footer, rodapé, copyright, links de rodapé ou seção final com "©"
+- NÃO inclua tags <header>, <footer> ou <nav> de nível superior
+- Comece DIRETO no Hero e termine no último CTA ou seção de conteúdo
+- A última seção deve ser um CTA final, NÃO um footer`);
 
   // === DATA SECTIONS ===
   const dataSections: string[] = [];
@@ -389,16 +391,36 @@ Esta LP usa header/footer da loja (renderizados pela plataforma).
   if (productsInfo) dataSections.push(`## PRODUTOS A SEREM DESTACADOS:\n${productsInfo}`);
   else dataSections.push(`## ATENÇÃO: Nenhum produto selecionado. Crie uma landing page genérica para a loja.`);
 
-  if (productImages.length > 0) {
-    dataSections.push(`## ⚠️ IMAGENS DOS PRODUTOS — USE OBRIGATORIAMENTE:\n${productImages.map((url, i) => `${i + 1}. ${url}`).join('\n')}\n\nCOPIE E COLE estas URLs. NUNCA invente URLs.\nUse imagens APENAS no Hero e grids de produto. Seções de texto usam CSS/ícones.`);
-  }
+  // === IMAGE PRIORITY SYSTEM (v4.1) ===
+  // Generated creatives and lifestyle images ALWAYS take priority over catalog images
+  // Catalog images are only used as fallback when no creatives were generated
 
   if (generatedCreativeUrls.length > 0) {
-    dataSections.push(`## 🎨 IMAGENS CRIATIVAS GERADAS (PRIORIDADE MÁXIMA):\n${generatedCreativeUrls.map((url, i) => `${i + 1}. ${url}`).join('\n')}\nUse como IMAGEM PRINCIPAL no HERO.`);
+    dataSections.push(`## 🎨 IMAGENS CRIATIVAS GERADAS (PRIORIDADE MÁXIMA — USE ESTAS):
+${generatedCreativeUrls.map((url, i) => `${i + 1}. ${url}`).join('\n')}
+
+REGRA: Use como IMAGEM PRINCIPAL no HERO e seções visuais.
+Estas imagens foram geradas profissionalmente para esta landing page.
+NÃO use imagens de catálogo (fundo branco) no Hero quando houver criativos gerados.`);
   }
 
   if (lifestyleImageUrls.length > 0) {
-    dataSections.push(`## 🌿 IMAGENS DE LIFESTYLE:\n${lifestyleImageUrls.map((url, i) => `${i + 1}. ${url}`).join('\n')}\nUse em seções de ambientação/transformação.`);
+    dataSections.push(`## 🌿 IMAGENS DE LIFESTYLE (SEGUNDA PRIORIDADE):
+${lifestyleImageUrls.map((url, i) => `${i + 1}. ${url}`).join('\n')}
+
+Use em seções de ambientação, transformação, prova visual.
+Estas são superiores às imagens de catálogo para contexto visual.`);
+  }
+
+  if (productImages.length > 0) {
+    const imageUsageNote = generatedCreativeUrls.length > 0 || lifestyleImageUrls.length > 0
+      ? `\n⚠️ ATENÇÃO: Use imagens de catálogo APENAS em grids de produto, comparações ou seções técnicas.
+NÃO use imagens de catálogo (fundo branco) como hero ou background — use os criativos gerados acima.`
+      : `\nCOPIE E COLE estas URLs. NUNCA invente URLs.`;
+
+    dataSections.push(`## 📷 IMAGENS DO CATÁLOGO (REFERÊNCIA):
+${productImages.map((url, i) => `${i + 1}. ${url}`).join('\n')}
+${imageUsageNote}`);
   }
 
   if (reviewsInfo) dataSections.push(`## AVALIAÇÕES REAIS:\n${reviewsInfo}\nUse estes depoimentos reais na prova social.`);
@@ -417,20 +439,29 @@ Esta LP usa header/footer da loja (renderizados pela plataforma).
 .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
 .section { padding: 80px 0; }
 @media (max-width: 768px) {
+  html, body { overflow-x: hidden !important; max-width: 100vw !important; }
   h1 { font-size: 1.75rem !important; line-height: 1.2 !important; }
   h2 { font-size: 1.4rem !important; }
   h3 { font-size: 1.15rem !important; }
   p, li, span { font-size: 15px !important; }
   .section { padding: 48px 0 !important; }
-  .container { padding: 0 20px !important; }
+  .container { padding: 0 16px !important; }
+  /* Force single column on ALL multi-column layouts */
   [style*="grid-template-columns"], [class*="grid"] { grid-template-columns: 1fr !important; }
   [style*="display: flex"][style*="gap"], [style*="display:flex"][style*="gap"] { flex-direction: column !important; }
+  [style*="display: grid"][style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
   .comparison-table-wrapper { overflow-x: auto; }
   .cta-button, [class*="cta"], a[style*="padding"][style*="background"] {
     width: 100% !important; text-align: center !important; padding: 16px 24px !important; font-size: 16px !important; display: block !important;
   }
   img { max-width: 100% !important; height: auto !important; }
   [style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+  [style*="grid-template-columns: repeat"] { grid-template-columns: 1fr !important; }
+  /* Prevent horizontal overflow from absolute/fixed positioned elements */
+  * { max-width: 100vw; }
+  [style*="position: absolute"], [style*="position:absolute"] { max-width: 100% !important; }
+  /* Fix hero split layouts */
+  [style*="display: flex"][style*="align-items"] { flex-direction: column !important; }
 }
 \`\`\``;
 

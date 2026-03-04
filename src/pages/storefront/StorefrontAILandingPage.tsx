@@ -237,17 +237,22 @@ function injectPixelsIntoHtml(html: string, pixelScripts: string, faviconTag?: s
   // First, convert @import to <link> to prevent render-blocking
   let result = convertImportsToLinks(html);
 
-  // Safety CSS: force visibility — prevents opacity:0 stuck state from animation-fill-mode:both
-  // The root cause: `animation: fadeInUp 0.8s ease-out 0.2s both` keeps elements at opacity:0
-  // if animation keyframes are malformed or fail to complete in srcDoc iframes
+  // Safety CSS: softer approach — preserve layout while preventing stuck invisible elements
+  // v4.1: No longer kills ALL animations or forces opacity on everything (caused layout breaks)
   const visibilitySafety = `<style id="lp-safety">
-    /* Kill CSS animations that cause opacity:0 stuck state */
-    *, *::before, *::after { animation: none !important; }
-    /* Force visibility on every element */
-    * { opacity: 1 !important; visibility: visible !important; }
-    /* Prevent vh feedback loop: cap min-height on sections inside auto-resized iframes */
+    /* Only fix stuck animations with fill-mode both/forwards — preserve normal animations */
+    [style*="animation-fill-mode: both"], [style*="animation-fill-mode: forwards"],
+    [style*="animation-fill-mode:both"], [style*="animation-fill-mode:forwards"] {
+      animation-fill-mode: none !important;
+    }
+    /* Prevent vh feedback loop on sections */
     section, .section, .hero, [class*="hero"] {
       min-height: auto !important;
+    }
+    /* Fix scrollbar: prevent body from creating scroll inside iframe */
+    html, body {
+      overflow-x: hidden !important;
+      max-width: 100% !important;
     }
     .cta-button { cursor: pointer; }
   </style>`;
@@ -377,7 +382,7 @@ export default function StorefrontAILandingPage() {
     width: '100%',
     display: 'block',
     border: 'none',
-    height: iframeHeight ? `${iframeHeight}px` : '80vh',
+    height: iframeHeight ? `${iframeHeight}px` : '2000px',
     minHeight: '400px',
     maxHeight: iframeHeight ? `${iframeHeight}px` : undefined,
     overflow: 'hidden',
@@ -427,7 +432,7 @@ export default function StorefrontAILandingPage() {
         className="w-full border-0"
         style={{
           ...iframeStyle,
-          height: iframeHeight ? `${iframeHeight}px` : '100vh',
+          height: iframeHeight ? `${iframeHeight}px` : '2000px',
         }}
         title={landingPage.name}
         scrolling="no"
