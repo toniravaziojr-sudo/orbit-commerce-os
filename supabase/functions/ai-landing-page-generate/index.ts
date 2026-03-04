@@ -156,60 +156,183 @@ ${themeColors.priceColor ? `- Cor do Preço: ${themeColors.priceColor}` : ''}
 - CTAs: use a classe .cta-button para botões de ação
 - Animações sutis: fadeInUp com animation-delay escalonado (max 1.5s)
 - Mobile: inclua @media (max-width: 768px) para responsividade
-- NUNCA use position: fixed ou position: sticky`);
+- NUNCA use position: fixed, position: sticky, ou position: absolute para imagens
+- NUNCA use vh units para height ou min-height (causa bugs em iframes)
+- Use padding generoso (60px-100px) em vez de min-height para dar altura às seções`);
 
   // === C2. PRODUCT IMAGE INTEGRATION (CRITICAL) ===
   if (productImages.length > 0) {
-    sections.push(`## 📸 INTEGRAÇÃO VISUAL DO PRODUTO (OBRIGATÓRIO)
+    const primaryImg = productImages[0];
+    const secondImg = productImages.length > 1 ? productImages[1] : primaryImg;
+    const thirdImg = productImages.length > 2 ? productImages[2] : primaryImg;
 
-O PRODUTO deve ser o PROTAGONISTA VISUAL da página. Não basta listar imagens pequenas —
-a imagem do produto deve estar integrada organicamente no layout, como em landing pages profissionais de DTC (Öko Living, Spot & Tango, etc).
+    sections.push(`## 📸 INTEGRAÇÃO VISUAL DO PRODUTO — TEMPLATES OBRIGATÓRIOS
 
-### PADRÕES OBRIGATÓRIOS:
+O PRODUTO é o PROTAGONISTA VISUAL. Você DEVE usar os templates HTML abaixo como base estrutural.
+NÃO invente layouts alternativos. COPIE a estrutura e adapte apenas cores, textos e imagens.
 
-**1. HERO com Produto (seção principal)**
-O hero DEVE usar a imagem principal do produto de forma proeminente. Use um destes layouts:
-- **Split Hero (recomendado)**: Texto + CTA à esquerda (ou direita), imagem do produto GRANDE do outro lado (50/50 ou 40/60)
-- **Hero com Background**: Imagem do produto como fundo com overlay gradiente suave + texto sobre
-- **Hero Angulado**: Produto flutuando ao lado do texto com sombra dramática
+### ═══════ TEMPLATE 1: HERO (OBRIGATÓRIO) ═══════
 
-CSS obrigatório para split hero:
-\`\`\`
-.hero { display: grid; grid-template-columns: 1fr 1fr; align-items: center; min-height: 80vh; gap: 40px; }
+COPIE este HTML exatamente (adapte textos e cores):
+
+<section class="hero">
+  <div class="hero-content">
+    <span class="hero-badge">BADGE CONTEXTUAL</span>
+    <h1 class="hero-title">TÍTULO PRINCIPAL<br><span class="hero-highlight">COM DESTAQUE</span></h1>
+    <p class="hero-subtitle">Subtítulo persuasivo com 1-2 linhas no máximo.</p>
+    <ul class="hero-benefits">
+      <li>✅ Benefício 1</li>
+      <li>✅ Benefício 2</li>
+      <li>✅ Benefício 3</li>
+    </ul>
+    <a href="#ofertas" class="cta-button">TEXTO DO CTA</a>
+  </div>
+  <div class="hero-image">
+    <img src="${primaryImg}" alt="Produto" />
+  </div>
+</section>
+
+CSS OBRIGATÓRIO para o hero (COPIE):
+.hero { display: grid; grid-template-columns: 1fr 1fr; align-items: center; padding: 60px 5%; gap: 40px; }
+.hero-content { max-width: 600px; }
+.hero-title { font-size: 3rem; font-weight: 800; line-height: 1.1; margin-bottom: 16px; }
+.hero-highlight { color: ${primaryColor}; }
+.hero-badge { display: inline-block; padding: 6px 16px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; margin-bottom: 16px; }
+.hero-subtitle { font-size: 1.1rem; line-height: 1.6; margin-bottom: 24px; opacity: 0.85; }
+.hero-benefits { list-style: none; padding: 0; margin-bottom: 32px; }
+.hero-benefits li { padding: 4px 0; font-size: 1rem; }
 .hero-image { display: flex; align-items: center; justify-content: center; }
-.hero-image img { width: 100%; max-width: 600px; height: auto; object-fit: contain; }
-@media (max-width: 768px) { .hero { grid-template-columns: 1fr; text-align: center; } .hero-image { order: -1; } }
-\`\`\`
+.hero-image img { width: 100%; max-width: 500px; height: auto; object-fit: contain; filter: drop-shadow(0 20px 40px rgba(0,0,0,0.3)); }
+@media (max-width: 768px) {
+  .hero { grid-template-columns: 1fr; text-align: center; padding: 40px 5%; }
+  .hero-image { order: -1; }
+  .hero-image img { max-width: 300px; }
+  .hero-title { font-size: 2rem; }
+  .hero-benefits { text-align: left; }
+}
 
-**2. SEÇÕES DE BENEFÍCIOS com Produto**
-Cada benefício principal DEVE ter a imagem do produto ao lado, alternando posição:
-- Seção 1: texto-esquerda + imagem-direita
-- Seção 2: imagem-esquerda + texto-direita  
-- Use imagens diferentes do produto quando disponíveis (ângulos variados)
-- Imagem do produto com pelo menos 40% da largura do container
+### ═══════ TEMPLATE 2: SEÇÃO BENEFÍCIO (ALTERNAR POSIÇÃO) ═══════
 
-**3. SEÇÃO DE OFERTA/PREÇO com Produto**
-O card de pricing DEVE incluir a imagem principal do produto visualmente.
-NUNCA mostre preço sem o produto visualmente presente.
+Para cada benefício, alterne imagem-esquerda/direita. Use a classe .reverse na segunda:
 
-**4. CTA FINAL com Produto**
-A seção final de CTA deve reforçar visualmente o produto com imagem média/grande.
+<section class="benefit-section">
+  <div class="benefit-grid">
+    <div class="benefit-text">
+      <span class="benefit-label">LABEL DO BENEFÍCIO</span>
+      <h2 class="benefit-title">Título do Benefício com <span class="highlight">Destaque</span></h2>
+      <p class="benefit-desc">Descrição do benefício em 2-3 linhas.</p>
+      <ul class="benefit-list">
+        <li>✅ Ponto 1</li>
+        <li>✅ Ponto 2</li>
+      </ul>
+    </div>
+    <div class="benefit-image">
+      <img src="${secondImg}" alt="Benefício" />
+    </div>
+  </div>
+</section>
 
-### REGRAS DE IMAGEM:
-- Imagens de produto: use object-fit: contain (preserva proporção, sem corte)
-- Imagens lifestyle/background: use object-fit: cover
-- Tamanho mínimo da imagem do produto: 250px x 250px em qualquer seção
-- A imagem primária DEVE aparecer no mínimo 3x na página (hero, benefícios, CTA/pricing)
-- NUNCA mostre a imagem menor que 200px de largura
-- Sombras suaves: box-shadow: 0 20px 60px rgba(0,0,0,0.15)
-- Em fundo escuro: filter: drop-shadow(0 0 30px rgba(primária, 0.3))
+<section class="benefit-section">
+  <div class="benefit-grid reverse">
+    <div class="benefit-text">...</div>
+    <div class="benefit-image">
+      <img src="${thirdImg}" alt="Benefício" />
+    </div>
+  </div>
+</section>
+
+CSS OBRIGATÓRIO (COPIE):
+.benefit-section { padding: 80px 5%; }
+.benefit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; max-width: 1100px; margin: 0 auto; }
+.benefit-grid.reverse { direction: rtl; }
+.benefit-grid.reverse > * { direction: ltr; }
+.benefit-label { display: inline-block; padding: 6px 16px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; margin-bottom: 12px; }
+.benefit-title { font-size: 2rem; font-weight: 700; line-height: 1.2; margin-bottom: 16px; }
+.benefit-desc { font-size: 1rem; line-height: 1.7; margin-bottom: 20px; opacity: 0.85; }
+.benefit-list { list-style: none; padding: 0; }
+.benefit-list li { padding: 6px 0; font-size: 0.95rem; }
+.benefit-image img { width: 100%; max-width: 450px; height: auto; object-fit: contain; border-radius: 16px; filter: drop-shadow(0 15px 35px rgba(0,0,0,0.2)); }
+@media (max-width: 768px) {
+  .benefit-grid, .benefit-grid.reverse { grid-template-columns: 1fr; direction: ltr; text-align: center; gap: 30px; }
+  .benefit-image { order: -1; }
+  .benefit-image img { max-width: 280px; margin: 0 auto; }
+  .benefit-title { font-size: 1.5rem; }
+}
+
+### ═══════ TEMPLATE 3: PRICING/OFERTAS (OBRIGATÓRIO) ═══════
+
+COPIE esta estrutura para 3 ofertas (adapte nomes e preços dos dados):
+
+<section class="pricing" id="ofertas">
+  <h2 class="pricing-title">ESCOLHA SEU TRATAMENTO</h2>
+  <p class="pricing-subtitle">Desconto progressivo: quanto maior o kit, maior a economia.</p>
+  <div class="pricing-grid">
+
+    <div class="pricing-card">
+      <div class="pricing-card-header">
+        <h3>NOME DO KIT 1</h3>
+        <p class="pricing-period">Tratamento X Meses</p>
+      </div>
+      <div class="pricing-card-image">
+        <img src="URL_DA_IMAGEM_DO_KIT_1" alt="Kit 1" />
+      </div>
+      <div class="pricing-card-body">
+        <span class="pricing-badge">X% OFF</span>
+        <p class="pricing-old">De R$ XX,XX</p>
+        <p class="pricing-current">R$ XX,XX</p>
+        <p class="pricing-installment">ou 12x de R$ X,XX</p>
+        <a href="#" class="cta-button">COMPRAR AGORA</a>
+        <span class="pricing-shipping">✓ Frete Grátis</span>
+      </div>
+    </div>
+
+    <div class="pricing-card featured">
+      <div class="pricing-featured-badge">🔥 MAIS VENDIDO</div>
+      <!-- Mesmo conteúdo com classe "featured" -->
+    </div>
+
+    <div class="pricing-card">
+      <!-- Terceiro card -->
+    </div>
+
+  </div>
+</section>
+
+CSS OBRIGATÓRIO (COPIE):
+.pricing { padding: 80px 5%; text-align: center; }
+.pricing-title { font-size: 2.2rem; font-weight: 800; margin-bottom: 8px; }
+.pricing-subtitle { font-size: 1rem; opacity: 0.7; margin-bottom: 48px; }
+.pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; max-width: 1100px; margin: 0 auto; align-items: stretch; }
+.pricing-card { border-radius: 16px; overflow: hidden; padding: 32px 24px; display: flex; flex-direction: column; align-items: center; text-align: center; position: relative; }
+.pricing-card.featured { transform: scale(1.05); z-index: 2; border: 2px solid ${primaryColor}; }
+.pricing-featured-badge { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); padding: 6px 20px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
+.pricing-card-image { margin: 16px 0; }
+.pricing-card-image img { width: 180px; height: 180px; object-fit: contain; }
+.pricing-badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 0.8rem; font-weight: 700; margin-bottom: 8px; }
+.pricing-old { text-decoration: line-through; opacity: 0.5; font-size: 0.9rem; margin: 4px 0; }
+.pricing-current { font-size: 2.2rem; font-weight: 800; margin: 4px 0; }
+.pricing-installment { font-size: 0.85rem; opacity: 0.7; margin-bottom: 20px; }
+.pricing-shipping { font-size: 0.85rem; margin-top: 12px; opacity: 0.8; }
+@media (max-width: 768px) {
+  .pricing-grid { grid-template-columns: 1fr; max-width: 400px; }
+  .pricing-card.featured { transform: none; }
+  .pricing-current { font-size: 1.8rem; }
+}
+
+### ═══════ REGRAS ABSOLUTAS DE IMAGEM ═══════
+- TODAS as imagens de produto: object-fit: contain (NUNCA cover, corta o produto)
+- Tamanho MÍNIMO de qualquer imagem de produto: 180px x 180px
+- A imagem principal DEVE aparecer no mínimo 3x (hero, benefício, pricing/CTA)
+- Em fundo escuro: adicione filter: drop-shadow(0 0 30px rgba(cor_primária, 0.3))
+- NUNCA use img { width: 100px } ou menor — mínimo absoluto é 180px
+- NUNCA coloque a imagem do produto flutuando sobre texto/depoimentos (overlap)
 
 ### ANTI-PADRÕES (PROIBIDO):
-- ❌ Página só com texto e ícones genéricos sem fotos do produto
-- ❌ Imagem do produto pequena (< 200px) escondida no canto
-- ❌ Seções de benefícios com apenas bullet points sem imagem
-- ❌ Hero sem imagem do produto
-- ❌ object-fit: cover em imagens de produto (corta o produto)`);
+- ❌ Produto pequeno (< 180px) escondido no canto
+- ❌ Produto flutuando sobre depoimentos/textos (position absolute sobre conteúdo)
+- ❌ Hero com só texto sem imagem do produto
+- ❌ object-fit: cover em imagens de produto
+- ❌ Imagens decorativas genéricas no lugar do produto real`);
   }
 
   // === D. NICHE + TRAFFIC RULES ===
