@@ -86,14 +86,18 @@ export function LandingPagePreviewDialog({
         viewport: viewMode === 'mobile' ? 'mobile' : 'desktop',
       };
 
-      // Render each child block directly
-      const children = blockContent.children || [];
+      // Filter out Header/Footer blocks - they are managed externally
+      const contentChildren = (blockContent.children || []).filter(
+        (node: BlockNode) => node.type !== 'Header' && node.type !== 'Footer'
+      );
+      const pageBg = (blockContent.props?.backgroundColor as string) || 'transparent';
+
       return (
         <div 
           className="w-full h-full overflow-auto"
-          style={{ backgroundColor: (blockContent.props?.backgroundColor as string) || 'transparent' }}
+          style={{ backgroundColor: pageBg === 'transparent' ? '#fff' : pageBg }}
         >
-          {children.map((node: BlockNode) => (
+          {contentChildren.map((node: BlockNode) => (
             <BlockRenderer
               key={node.id}
               node={node}

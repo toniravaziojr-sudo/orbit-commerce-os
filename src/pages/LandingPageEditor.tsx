@@ -345,20 +345,26 @@ export default function LandingPageEditor() {
       const context: BlockRenderContext = {
         tenantSlug: tenant?.slug || '',
         isPreview: true,
+        pageType: 'landing_page',
       };
 
-      // Get children (skip header/footer nodes for editor preview)
-      const children = blockContent.children || [];
+      // Filter out Header/Footer blocks - they are managed externally
+      const contentChildren = (blockContent.children || []).filter(
+        (node: BlockNode) => node.type !== 'Header' && node.type !== 'Footer'
+      );
+
+      // Use the Page node's backgroundColor for the container
+      const pageBg = (blockContent.props?.backgroundColor as string) || 'transparent';
 
       return (
-        <div className="w-full h-full overflow-auto" style={{ background: '#fff' }}>
+        <div className="w-full h-full overflow-auto" style={{ background: pageBg === 'transparent' ? '#fff' : pageBg }}>
           {showHeader && (
             <div className="bg-muted/50 border-b px-4 py-2 text-center text-xs text-muted-foreground">
               ⬆ Cabeçalho da loja será exibido aqui na página pública
             </div>
           )}
           <div>
-            {children.map((node: BlockNode) => (
+            {contentChildren.map((node: BlockNode) => (
               <BlockRenderer
                 key={node.id}
                 node={node}

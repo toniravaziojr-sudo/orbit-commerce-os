@@ -107,7 +107,11 @@ export function PricingTableBlock({
   isEditing = false,
 }: PricingTableBlockProps) {
   const [isAnnual, setIsAnnual] = React.useState(false);
-  const displayPlans = plans?.length ? plans : defaultPlans;
+  // Only use defaults in editing mode - in public/preview, show nothing if no plans configured
+  const displayPlans = plans?.length ? plans : (isEditing ? defaultPlans : []);
+
+  // If no plans and not editing, don't render
+  if (!displayPlans.length && !isEditing) return null;
 
   const formatPrice = (price: number) => {
     const finalPrice = isAnnual ? price * (1 - annualDiscount / 100) : price;

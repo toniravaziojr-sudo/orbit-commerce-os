@@ -20,6 +20,7 @@ import { StorefrontFooter } from '@/components/storefront/StorefrontFooter';
 import { StorefrontThemeInjector } from '@/components/storefront/StorefrontThemeInjector';
 import { TenantSlugContext } from '@/components/storefront/TenantStorefrontLayout';
 import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRenderer';
+import { BlockRenderer } from '@/components/builder/BlockRenderer';
 import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
 import { useEffect, useRef, useState, useMemo } from 'react';
 
@@ -263,10 +264,19 @@ export default function StorefrontAILandingPage() {
 
   const resolvedTenantSlug = tenantSlug || tenantInfo.tenantSlug || '';
 
-  // ===== V5: BLOCKS RENDERING (React components via PublicTemplateRenderer) =====
+  // ===== V5: BLOCKS RENDERING (React components via BlockRenderer) =====
   if (hasBlocks) {
     const blockContent = landingPage.generated_blocks as BlockNode;
+    const shouldShowHeader = landingPage.show_header ?? false;
+    const shouldShowFooterV5 = landingPage.show_footer ?? false;
     
+    // Filter out Header/Footer blocks from the tree - managed externally
+    const contentChildren = (blockContent.children || []).filter(
+      (node: BlockNode) => node.type !== 'Header' && node.type !== 'Footer'
+    );
+
+    const pageBg = (blockContent.props?.backgroundColor as string) || 'transparent';
+
     const blockContext: BlockRenderContext = {
       tenantSlug: resolvedTenantSlug,
       isPreview: false,
@@ -279,13 +289,25 @@ export default function StorefrontAILandingPage() {
           <DiscountProvider>
             <StorefrontConfigProvider tenantId={tenantInfo.tenantId}>
               <StorefrontThemeInjector tenantSlug={resolvedTenantSlug} />
-              <div className="w-full min-h-screen" style={{ margin: 0, padding: 0, isolation: 'isolate' }}>
-                <PublicTemplateRenderer
-                  content={blockContent}
-                  context={blockContext}
-                  pageType="landing_page"
-                  pageId={landingPage.id}
-                />
+              <div className="w-full min-h-screen" style={{ margin: 0, padding: 0, isolation: 'isolate', backgroundColor: pageBg === 'transparent' ? undefined : pageBg }}>
+                {shouldShowHeader && (
+                  <div style={{ containerType: 'inline-size', containerName: 'storefront' }} className="storefront-header-wrapper">
+                    <StorefrontHeader key={`header-${resolvedTenantSlug}`} />
+                  </div>
+                )}
+                {contentChildren.map((node: BlockNode) => (
+                  <BlockRenderer
+                    key={node.id}
+                    node={node}
+                    context={blockContext}
+                    isEditing={false}
+                  />
+                ))}
+                {shouldShowFooterV5 && (
+                  <div style={{ containerType: 'inline-size', containerName: 'storefront' }} className="storefront-footer-wrapper">
+                    <StorefrontFooter key={`footer-${resolvedTenantSlug}`} />
+                  </div>
+                )}
               </div>
             </StorefrontConfigProvider>
           </DiscountProvider>
