@@ -86,6 +86,7 @@ async function ensureDriveFolder(supabase: any, tenantId: string, userId: string
     if (existing?.id) return existing.id;
     const { data: created, error } = await supabase.from("files").insert({
       tenant_id: tenantId, filename: folderName, original_name: folderName,
+      storage_path: `drive/${tenantId}/criativos-de-pagina`,
       is_folder: true, is_system_folder: true, created_by: userId,
       metadata: { source: "ai_landing_page_generate", system_managed: true },
     }).select("id").single();
