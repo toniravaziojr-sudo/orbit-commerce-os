@@ -158,6 +158,60 @@ ${themeColors.priceColor ? `- Cor do Preço: ${themeColors.priceColor}` : ''}
 - Mobile: inclua @media (max-width: 768px) para responsividade
 - NUNCA use position: fixed ou position: sticky`);
 
+  // === C2. PRODUCT IMAGE INTEGRATION (CRITICAL) ===
+  if (productImages.length > 0) {
+    sections.push(`## 📸 INTEGRAÇÃO VISUAL DO PRODUTO (OBRIGATÓRIO)
+
+O PRODUTO deve ser o PROTAGONISTA VISUAL da página. Não basta listar imagens pequenas —
+a imagem do produto deve estar integrada organicamente no layout, como em landing pages profissionais de DTC (Öko Living, Spot & Tango, etc).
+
+### PADRÕES OBRIGATÓRIOS:
+
+**1. HERO com Produto (seção principal)**
+O hero DEVE usar a imagem principal do produto de forma proeminente. Use um destes layouts:
+- **Split Hero (recomendado)**: Texto + CTA à esquerda (ou direita), imagem do produto GRANDE do outro lado (50/50 ou 40/60)
+- **Hero com Background**: Imagem do produto como fundo com overlay gradiente suave + texto sobre
+- **Hero Angulado**: Produto flutuando ao lado do texto com sombra dramática
+
+CSS obrigatório para split hero:
+\`\`\`
+.hero { display: grid; grid-template-columns: 1fr 1fr; align-items: center; min-height: 80vh; gap: 40px; }
+.hero-image { display: flex; align-items: center; justify-content: center; }
+.hero-image img { width: 100%; max-width: 600px; height: auto; object-fit: contain; }
+@media (max-width: 768px) { .hero { grid-template-columns: 1fr; text-align: center; } .hero-image { order: -1; } }
+\`\`\`
+
+**2. SEÇÕES DE BENEFÍCIOS com Produto**
+Cada benefício principal DEVE ter a imagem do produto ao lado, alternando posição:
+- Seção 1: texto-esquerda + imagem-direita
+- Seção 2: imagem-esquerda + texto-direita  
+- Use imagens diferentes do produto quando disponíveis (ângulos variados)
+- Imagem do produto com pelo menos 40% da largura do container
+
+**3. SEÇÃO DE OFERTA/PREÇO com Produto**
+O card de pricing DEVE incluir a imagem principal do produto visualmente.
+NUNCA mostre preço sem o produto visualmente presente.
+
+**4. CTA FINAL com Produto**
+A seção final de CTA deve reforçar visualmente o produto com imagem média/grande.
+
+### REGRAS DE IMAGEM:
+- Imagens de produto: use object-fit: contain (preserva proporção, sem corte)
+- Imagens lifestyle/background: use object-fit: cover
+- Tamanho mínimo da imagem do produto: 250px x 250px em qualquer seção
+- A imagem primária DEVE aparecer no mínimo 3x na página (hero, benefícios, CTA/pricing)
+- NUNCA mostre a imagem menor que 200px de largura
+- Sombras suaves: box-shadow: 0 20px 60px rgba(0,0,0,0.15)
+- Em fundo escuro: filter: drop-shadow(0 0 30px rgba(primária, 0.3))
+
+### ANTI-PADRÕES (PROIBIDO):
+- ❌ Página só com texto e ícones genéricos sem fotos do produto
+- ❌ Imagem do produto pequena (< 200px) escondida no canto
+- ❌ Seções de benefícios com apenas bullet points sem imagem
+- ❌ Hero sem imagem do produto
+- ❌ object-fit: cover em imagens de produto (corta o produto)`);
+  }
+
   // === D. NICHE + TRAFFIC RULES ===
   sections.push(getNicheRules(enginePlan.resolvedNiche));
   sections.push(getTrafficRules(enginePlan.briefing.trafficSource));
