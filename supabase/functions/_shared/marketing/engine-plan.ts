@@ -437,8 +437,52 @@ export function runHardChecks(
       : `Missing sections (heuristic): ${missingRequired.join(', ')}`,
   });
 
+  // === LAYOUT HARD CHECKS (v4.2) — run on raw AI output, BEFORE document wrapping ===
+  // These detect layout leaks that cause rendering issues in iframes
+
+  // has_no_footer: detects <footer tag (real tag only, NOT class names containing "footer")
+  const hasFooterTag = /<footer[\s>]/i.test(html);
+  checks.push({
+    name: 'has_no_footer',
+    passed: !hasFooterTag,
+    message: hasFooterTag
+      ? 'AI generated a <footer> tag — platform renders footer separately'
+      : 'No <footer> tag detected (correct)',
+  });
+
+  // has_no_document_shell: detects <!DOCTYPE, <html, <head — AI should return body-only
+  const hasDocumentShell = /<!DOCTYPE|<html[\s>]|<head[\s>]/i.test(html);
+  checks.push({
+    name: 'has_no_document_shell',
+    passed: !hasDocumentShell,
+    message: hasDocumentShell
+      ? 'AI included document shell (<!DOCTYPE/html/head) — contract violation'
+      : 'No document shell detected (correct body-only output)',
+  });
+
+  // has_no_large_vh: detects height >= 80vh which causes iframe resize loops
+  const hasLargeVh = /height\s*:\s*(8\d|9\d|100)(\.\d+)?vh/i.test(html);
+  checks.push({
+    name: 'has_no_large_vh',
+    passed: !hasLargeVh,
+    message: hasLargeVh
+      ? 'Found height >= 80vh — causes iframe resize feedback loop'
+      : 'No large vh heights detected',
+  });
+
+  // has_no_position_fixed: detects position: fixed which breaks iframe layout
+  const hasPositionFixed = /position\s*:\s*fixed/i.test(html);
+  checks.push({
+    name: 'has_no_position_fixed',
+    passed: !hasPositionFixed,
+    message: hasPositionFixed
+      ? 'Found position: fixed — breaks iframe rendering'
+      : 'No position: fixed detected',
+  });
+
   // Determine overall status
   const failedChecks = checks.filter(c => !c.passed);
+  // Layout checks are warnings only, never critical fails
   const criticalFails = failedChecks.filter(c =>
     ['has_h1', 'has_cta', 'has_product_name'].includes(c.name)
   );

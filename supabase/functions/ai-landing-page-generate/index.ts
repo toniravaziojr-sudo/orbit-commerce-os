@@ -20,7 +20,7 @@ import {
   type HardCheckOutput,
 } from "../_shared/marketing/engine-plan.ts";
 
-const VERSION = "4.0.0"; // Engine V4.0: deterministic pipeline + modular prompt + structured parser + hard checks
+const VERSION = "4.2.0"; // Engine V4.2: body-only contract + wrapInDocumentShell + layout hard checks + parser enforcement
 
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
@@ -338,7 +338,7 @@ Antes de finalizar, faça uma autoavaliação (0-100) considerando:
 
 Inclua no bloco JSON: score total, risks (pontos fracos), strengths (pontos fortes).`);
 
-  // === J. OUTPUT FORMAT ===
+  // === J. OUTPUT FORMAT (V4.2: body-only contract) ===
   sections.push(`## 📤 FORMATO DE SAÍDA (OBRIGATÓRIO)
 
 Retorne EXATAMENTE dois blocos separados e fechados:
@@ -360,11 +360,22 @@ Retorne EXATAMENTE dois blocos separados e fechados:
 }
 \`\`\`
 
-2. Bloco HTML completo:
+2. Bloco HTML — APENAS conteúdo das seções (body-only):
 \`\`\`html
-<!DOCTYPE html>
-<html>...
+<style>
+  /* CSS específico desta landing page */
+</style>
+<section class="hero">...</section>
+<section class="beneficios">...</section>
+...último CTA...
 \`\`\`
+
+### REGRAS DO FORMATO HTML:
+- Comece na primeira <section> (Hero)
+- Termine no último CTA ou seção de conteúdo
+- NÃO inclua <!DOCTYPE>, <html>, <head>, <body> — o sistema monta o documento completo
+- Inclua um único bloco <style> no início com os CSS específicos desta LP
+- O sistema adicionará: charset, viewport, fonts, CSS utilities, safety CSS, favicon, pixels e auto-resize
 
 AMBOS os blocos são obrigatórios. O JSON vem PRIMEIRO, o HTML SEGUNDO.`);
 
@@ -428,44 +439,11 @@ ${imageUsageNote}`);
   if (referenceUrl) dataSections.push(`## URL DE REFERÊNCIA (APENAS INSPIRAÇÃO):\n${referenceUrl}\n⚠️ COPIE APENAS LAYOUT E ESTILO! USE OS DADOS DOS PRODUTOS ACIMA!`);
   if (currentHtml) dataSections.push(`## HTML ATUAL (para ajustes):\n${currentHtml}`);
 
-  // === CSS UTILITIES ===
-  const cssUtilities = `## 🎨 CSS UTILITIES (inclua no <style>)
-
-\`\`\`css
-@keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes pulse-cta { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
-.animate-section { animation: fadeInUp 0.8s ease-out both; }
-.glass-card { background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; }
-.container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
-.section { padding: 80px 0; }
-@media (max-width: 768px) {
-  html, body { overflow-x: hidden !important; max-width: 100vw !important; }
-  h1 { font-size: 1.75rem !important; line-height: 1.2 !important; }
-  h2 { font-size: 1.4rem !important; }
-  h3 { font-size: 1.15rem !important; }
-  p, li, span { font-size: 15px !important; }
-  .section { padding: 48px 0 !important; }
-  .container { padding: 0 16px !important; }
-  /* Force single column on ALL multi-column layouts */
-  [style*="grid-template-columns"], [class*="grid"] { grid-template-columns: 1fr !important; }
-  [style*="display: flex"][style*="gap"], [style*="display:flex"][style*="gap"] { flex-direction: column !important; }
-  [style*="display: grid"][style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
-  .comparison-table-wrapper { overflow-x: auto; }
-  .cta-button, [class*="cta"], a[style*="padding"][style*="background"] {
-    width: 100% !important; text-align: center !important; padding: 16px 24px !important; font-size: 16px !important; display: block !important;
-  }
-  img { max-width: 100% !important; height: auto !important; }
-  [style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
-  [style*="grid-template-columns: repeat"] { grid-template-columns: 1fr !important; }
-  /* Prevent horizontal overflow from absolute/fixed positioned elements */
-  * { max-width: 100vw; }
-  [style*="position: absolute"], [style*="position:absolute"] { max-width: 100% !important; }
-  /* Fix hero split layouts */
-  [style*="display: flex"][style*="align-items"] { flex-direction: column !important; }
-}
-\`\`\``;
-
-  sections.push(cssUtilities);
+  // === CSS UTILITIES NOTE (v4.2: utilities moved to wrapInDocumentShell, only reference here) ===
+  sections.push(`## 🎨 CSS — INSTRUÇÕES
+O sistema injeta automaticamente CSS utilities (fadeInUp, pulse-cta, glass-card, container, responsividade mobile).
+No seu bloco <style>, inclua APENAS os CSS específicos desta landing page: cores, gradientes, layouts de seção, tipografia customizada.
+NÃO redefina: .container, .section, @keyframes fadeInUp, ou regras @media mobile genéricas — já estão no sistema.`);
 
   // Combine system prompt
   return `Você é um diretor criativo e desenvolvedor front-end de elite, especialista em landing pages de altíssima conversão. Siga TODAS as instruções abaixo à risca — elas são decisões do sistema, não sugestões.
@@ -529,7 +507,136 @@ function parseStructuredResponse(raw: string): ParsedResponse {
     console.warn("[AI-LP-Generate] Fallback: treating response as raw HTML");
   }
 
+  // === V4.2: ENFORCE BODY-ONLY CONTRACT ===
+  const hasShell = /<!DOCTYPE|<html[\s>]|<head[\s>]/i.test(html);
+  if (hasShell) {
+    console.warn("[AI-LP-Generate] outputContractViolation: AI sent document shell, stripping...");
+    // Try to extract <body> content first
+    const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    if (bodyMatch) {
+      html = bodyMatch[1].trim();
+      console.log("[AI-LP-Generate] Extracted content from <body> tag");
+    } else {
+      // No <body> — strip known shell tags and use remaining content
+      html = html
+        .replace(/<!DOCTYPE[^>]*>/gi, '')
+        .replace(/<\/?html[^>]*>/gi, '')
+        .replace(/<head[\s\S]*?<\/head>/gi, '')
+        .replace(/<\/?body[^>]*>/gi, '')
+        .trim();
+      console.log("[AI-LP-Generate] No <body> found — stripped shell tags, using remaining content");
+    }
+    parseError = (parseError ? parseError + '; ' : '') + 'outputContractViolation: AI sent document shell, extracted body content';
+  }
+
   return { diagnostic, html, parseError };
+}
+
+// ========== V4.2: WRAP IN DOCUMENT SHELL ==========
+
+/**
+ * Wraps AI-generated section content in a full HTML document.
+ * The backend is 100% authoritative over the document shell.
+ * AI returns only sections; this function adds: head, fonts, CSS utilities, safety CSS, pixels, favicon, auto-resize.
+ */
+function wrapInDocumentShell(sectionHtml: string, options: {
+  pixelScripts?: string;
+  faviconTag?: string;
+}): string {
+  const cssUtilities = `
+@keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pulse-cta { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+.animate-section { animation: fadeInUp 0.8s ease-out both; }
+.glass-card { background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; }
+.container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+.section { padding: 80px 0; }
+@media (max-width: 768px) {
+  html, body { overflow-x: hidden !important; max-width: 100vw !important; }
+  h1 { font-size: 1.75rem !important; line-height: 1.2 !important; }
+  h2 { font-size: 1.4rem !important; }
+  h3 { font-size: 1.15rem !important; }
+  p, li, span { font-size: 15px !important; }
+  .section { padding: 48px 0 !important; }
+  .container { padding: 0 16px !important; }
+  /* Force single column on grids with 3+ columns, preserve 2-col */
+  [style*="grid-template-columns: repeat(3"], [style*="grid-template-columns: repeat(4"],
+  [style*="grid-template-columns: repeat(5"], [style*="grid-template-columns: repeat(6"] {
+    grid-template-columns: 1fr !important;
+  }
+  [style*="grid-template-columns: 1fr 1fr 1fr"], [style*="grid-template-columns:1fr 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+  [style*="display: grid"][style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
+  .comparison-table-wrapper { overflow-x: auto; }
+  .cta-button, [class*="cta"], a[style*="padding"][style*="background"] {
+    width: 100% !important; text-align: center !important; padding: 16px 24px !important; font-size: 16px !important; display: block !important;
+  }
+  img { max-width: 100% !important; height: auto !important; }
+  /* Prevent horizontal overflow */
+  * { max-width: 100vw; }
+  [style*="position: absolute"], [style*="position:absolute"] { max-width: 100% !important; }
+}`;
+
+  const safetyCss = `
+/* Only fix stuck animations with fill-mode both/forwards */
+[style*="animation-fill-mode: both"], [style*="animation-fill-mode: forwards"],
+[style*="animation-fill-mode:both"], [style*="animation-fill-mode:forwards"] {
+  animation-fill-mode: none !important;
+}
+section, .section, .hero, [class*="hero"] { min-height: auto !important; }
+html, body { overflow-x: hidden !important; max-width: 100% !important; }
+.cta-button { cursor: pointer; }`;
+
+  const autoResizeScript = `
+<script>
+(function(){
+  var locked = false;
+  var lastH = 0;
+  var stableCount = 0;
+  function sendHeight(){
+    if(locked) return;
+    try {
+      var h = Math.max(
+        document.documentElement.scrollHeight || 0,
+        document.body.scrollHeight || 0
+      );
+      if(h > 0 && Math.abs(h - lastH) > 2){
+        stableCount = 0;
+        lastH = h;
+        window.parent.postMessage({type:'ai-lp-resize', height: h}, '*');
+      } else if(h > 0) {
+        stableCount++;
+        if(stableCount >= 3) { locked = true; }
+      }
+    } catch(e){}
+  }
+  sendHeight();
+  setTimeout(sendHeight, 200);
+  setTimeout(sendHeight, 600);
+  setTimeout(sendHeight, 1500);
+  setTimeout(sendHeight, 3000);
+  var imgs = document.querySelectorAll('img');
+  imgs.forEach(function(img){
+    if(!img.complete){ img.addEventListener('load', function(){ sendHeight(); }, {once:true}); }
+  });
+})();
+</script>`;
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style id="lp-utilities">${cssUtilities}</style>
+  <style id="lp-safety">${safetyCss}</style>
+  ${options.faviconTag || ''}
+  ${options.pixelScripts || ''}
+</head>
+<body style="margin:0;overflow-x:hidden">
+  ${sectionHtml}
+  ${autoResizeScript}
+</body>
+</html>`;
 }
 
 // ========== MAIN HANDLER ==========
@@ -885,10 +992,10 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
 
     console.log(`[AI-LP-Generate] Parsed: diagnostic=${parsed.diagnostic ? 'yes' : 'no'}, html=${generatedHtml.length} chars, parseError=${parsed.parseError || 'none'}`);
 
-    // ===== STEP 12: RUN HARD CHECKS =====
+    // ===== STEP 12: RUN HARD CHECKS (on raw AI output, BEFORE wrapping) =====
     const hardCheckResults: HardCheckOutput = runHardChecks(generatedHtml, enginePlan, productNames, productImages);
 
-    // If parse failed, force warning status
+    // If parse had errors (including outputContractViolation), reflect in consolidated status
     if (parsed.parseError) {
       hardCheckResults.hardCheckStatus = hardCheckResults.hardCheckStatus === 'fail' ? 'fail' : 'warning';
       hardCheckResults.needsReview = true;
@@ -899,7 +1006,22 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
       });
     }
 
+    // V4.2: outputContractViolation must always reflect as warning + needsReview
+    if (parsed.parseError?.includes('outputContractViolation')) {
+      if (hardCheckResults.hardCheckStatus === 'pass') {
+        hardCheckResults.hardCheckStatus = 'warning';
+      }
+      hardCheckResults.needsReview = true;
+    }
+
     console.log(`[AI-LP-Generate] Hard checks: status=${hardCheckResults.hardCheckStatus}, needsReview=${hardCheckResults.needsReview}, checks=${hardCheckResults.checks.length}`);
+
+    // ===== STEP 12.5: WRAP IN DOCUMENT SHELL (v4.2) =====
+    // Backend is authoritative over the document shell. AI content is sections-only.
+    generatedHtml = wrapInDocumentShell(generatedHtml, {
+      pixelScripts: '', // Pixels injected at render time by StorefrontAILandingPage
+      faviconTag: '',   // Favicon injected at render time
+    });
 
     // ===== STEP 13: PERSIST =====
     const newVersion = (savedLandingPage?.current_version || 0) + 1;
@@ -911,7 +1033,7 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
         current_version: newVersion,
         status: "draft",
         metadata: {
-          engineVersion: "v4.0",
+          engineVersion: "v4.2",
           briefingSchemaVersion: "1.0",
           enginePlanInput: enginePlan,
           diagnostic: parsed.diagnostic,
@@ -935,7 +1057,7 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
         html_content: generatedHtml,
         created_by: userId,
         generation_metadata: {
-          engineVersion: "v4.0",
+          engineVersion: "v4.2",
           briefingSchemaVersion: "1.0",
           model: "google/gemini-2.5-pro",
           html_length: generatedHtml.length,
