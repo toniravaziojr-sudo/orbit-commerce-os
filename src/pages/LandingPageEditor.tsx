@@ -7,6 +7,8 @@ import { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { sanitizeAILandingPageHtml } from "@/lib/sanitizeAILandingPageHtml";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { BlockRenderer } from "@/components/builder/BlockRenderer";
+import { BlockNode, BlockRenderContext } from "@/lib/builder/types";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useAILandingPageUrl } from "@/hooks/useAILandingPageUrl";
@@ -53,6 +55,7 @@ interface LandingPageData {
   published_at: string | null;
   generated_html: string | null;
   generated_css: string | null;
+  generated_blocks: BlockNode | null;
   current_version: number;
   reference_url: string | null;
   initial_prompt: string | null;
@@ -110,7 +113,7 @@ export default function LandingPageEditor() {
         .single();
       
       if (error) throw error;
-      return data as LandingPageData;
+      return data as unknown as LandingPageData;
     },
     enabled: !!id,
   });
@@ -150,8 +153,8 @@ export default function LandingPageEditor() {
       }, 3000);
       return () => clearInterval(interval);
     }
-    // After page loads, refetch once after 30s to pick up async image enhancement
-    if (landingPage?.status === 'draft' && landingPage?.generated_html !== undefined) {
+    // After page loads, refetch periodically to pick up async image enhancement
+    if (landingPage?.status === 'draft' && (landingPage?.generated_blocks || landingPage?.generated_html)) {
       const timer = setTimeout(() => refetch(), 30000);
       return () => clearTimeout(timer);
     }
@@ -280,8 +283,13 @@ export default function LandingPageEditor() {
     return () => window.removeEventListener('message', handler);
   }, []);
 
+  // V5: Check for blocks OR HTML
+  const hasBlocks = landingPage?.generated_blocks && 
+    (landingPage.generated_blocks as any)?.children?.length > 0;
+  const hasHtml = !!landingPage?.generated_html;
+
   const renderPreview = () => {
-    if (!landingPage?.generated_html) {
+    if (!hasBlocks && !hasHtml) {
       const isGeneratingStatus = landingPage?.status === 'generating';
       return (
         <div className="flex items-center justify-center h-full bg-muted/30">
@@ -331,8 +339,45 @@ export default function LandingPageEditor() {
       );
     }
 
-    // generated_html is already a full <!DOCTYPE html> document from the AI
-    const rawHtml = sanitizeAILandingPageHtml(landingPage.generated_html || '');
+    // V5: Render blocks via BlockRenderer
+    if (hasBlocks) {
+      const blockContent = landingPage!.generated_blocks as BlockNode;
+      const context: BlockRenderContext = {
+        tenantSlug: tenant?.slug || '',
+        isPreview: true,
+      };
+
+      // Get children (skip header/footer nodes for editor preview)
+      const children = blockContent.children || [];
+
+      return (
+        <div className="w-full h-full overflow-auto" style={{ background: '#fff' }}>
+          {showHeader && (
+            <div className="bg-muted/50 border-b px-4 py-2 text-center text-xs text-muted-foreground">
+              ⬆ Cabeçalho da loja será exibido aqui na página pública
+            </div>
+          )}
+          <div>
+            {children.map((node: BlockNode) => (
+              <BlockRenderer
+                key={node.id}
+                node={node}
+                context={context}
+                isEditing={false}
+              />
+            ))}
+          </div>
+          {showFooter && (
+            <div className="bg-muted/50 border-t px-4 py-2 text-center text-xs text-muted-foreground">
+              ⬇ Rodapé da loja será exibido aqui na página pública
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Legacy: HTML rendering via iframe
+    const rawHtml = sanitizeAILandingPageHtml(landingPage!.generated_html || '');
     const isFullDocument = rawHtml.trim().toLowerCase().startsWith('<!doctype') || rawHtml.trim().toLowerCase().startsWith('<html');
     
     const fullHtml = isFullDocument 
@@ -344,7 +389,7 @@ export default function LandingPageEditor() {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body { margin: 0; font-family: system-ui, sans-serif; }
-    ${landingPage.generated_css || ''}
+    ${landingPage!.generated_css || ''}
   </style>
 </head>
 <body>${rawHtml}</body>
@@ -407,8 +452,6 @@ section, .section, .hero, [class*="hero"] {
       htmlWithResize += autoResizeScript;
     }
 
-    // Editor preview: iframe-only (header/footer visible only on public page)
-    // This avoids CSS conflicts from injecting storefront components into admin context
     return (
       <div className="w-full h-full overflow-auto" style={{ background: '#fff' }}>
         {showHeader && (
