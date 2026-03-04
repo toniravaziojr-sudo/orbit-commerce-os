@@ -791,10 +791,156 @@ O sistema de URLs do storefront precisa distinguir entre três cenários:
 
 ---
 
+## AI Landing Pages — Engine V4.0
+
+### Arquitetura da Pipeline
+
+A geração de landing pages por IA opera na arquitetura **Engine V4.0**, uma pipeline determinística onde o backend (TypeScript) é a **autoridade estratégica** e a IA atua como **executora**.
+
+```
+Briefing (UI) → resolveEnginePlan() → Prompt Modular → Gemini → Parser → Hard Checks → Salvar
+```
+
+### Componentes da Pipeline
+
+| Componente | Arquivo | Responsabilidade |
+|---|---|---|
+| **Engine Plan** | `supabase/functions/_shared/marketing/engine-plan.ts` | Decisões determinísticas (arquétipo, seções, profundidade) |
+| **Gerador** | `supabase/functions/ai-landing-page-generate/index.ts` | Prompt modular + chamada IA + parser + hard checks |
+| **Fallback Prompts** | `supabase/functions/_shared/marketing/fallback-prompts.ts` | Enriquecimento de tom/estilo visual (SEM estrutura) |
+| **UI Briefing** | `src/components/landing-pages/CreateLandingPageDialog.tsx` | Coleta de briefing estratégico |
+
+### Briefing Estruturado (Coluna `briefing` jsonb)
+
+| Campo | Enums (valor salvo em inglês) | Obrigatório |
+|---|---|---|
+| `objective` | `lead \| whatsapp \| sale \| checkout \| scheduling \| quiz \| signup \| download` | ✅ |
+| `trafficTemp` | `cold \| warm \| hot` | ✅ |
+| `trafficSource` | `meta \| google \| organic \| email \| remarketing \| direct` | ✅ |
+| `awarenessLevel` | `unaware \| pain_aware \| solution_aware \| product_aware \| ready` | ✅ |
+| `preferredCTA` | `whatsapp \| buy \| signup \| schedule \| download` | ❌ |
+| `restrictions` | `no_countdown \| no_video \| no_comparisons` | ❌ |
+
+> **REGRA:** A UI exibe labels em PT-BR, mas o valor serializado/salvo DEVE ser o enum em inglês.
+
+### Engine Plan (`resolveEnginePlan`)
+
+Função determinística em TypeScript que resolve:
+
+| Decisão | Fonte | Valores possíveis |
+|---|---|---|
+| `resolvedNiche` | product_type + tags | `ecommerce`, `clinica`, `saas`, `infoproduto`, `servico_local`, `servico_premium` |
+| `resolvedArchetype` | objetivo × offerType | 7 arquétipos (ver abaixo) |
+| `resolvedDepth` | temperatura + ticket | `short`, `medium`, `long` |
+| `resolvedVisualWeight` | nicho + tráfego | `minimalista`, `comercial`, `premium`, `direto`, `informativo` |
+| `proofStrength` | count de reviews | `weak`, `medium`, `strong` |
+| `defaultCTA` | objetivo | texto do CTA padrão |
+
+#### 7 Arquétipos
+
+| ID | Nome | Seções |
+|---|---|---|
+| `lp_captura` | Lead capture curta | 3-5 |
+| `lp_whatsapp` | WhatsApp push | 5-7 |
+| `lp_produto_fisico` | Produto físico/DTC | 7-9 |
+| `lp_click_through` | Click-through para checkout | 5-6 |
+| `sales_page_longa` | Sales page longa | 9-12 |
+| `lp_servico_premium` | Serviço/consultoria | 6-8 |
+| `lp_saas` | SaaS/software | 7-9 |
+
+### Prompt Modular
+
+O system prompt é construído por **módulos condicionais** baseados no `enginePlanInput`:
+
+| Módulo | Condicional | Conteúdo |
+|---|---|---|
+| Contexto Autoritativo | Sempre | enginePlanInput como decisões NÃO negociáveis |
+| Section Engine | Sempre | Regras por seção (Hero, Dor, Solução, etc.) |
+| Niche Rules | Por nicho detectado | APENAS para o nicho resolvido |
+| Traffic Strategy | Por fonte de tráfego | Regras específicas da fonte |
+| Visual Engine | Sempre | Papéis de cor, tipografia, espaçamento |
+| Copy Engine | Por nível de consciência | Regras de copy por awareness |
+| Anti-padrões | Sempre | Bloqueios explícitos |
+| Quality Engine | Sempre | Autoavaliação com score 0-100 |
+| Formato de Saída | Sempre | Contrato JSON+HTML |
+
+### Contrato de Saída (Parser)
+
+A IA retorna **dois blocos separados e fechados**:
+
+1. ` ```json ` — Diagnóstico (score, risks, alt_headline, alt_cta)
+2. ` ```html ` — HTML completo da landing page
+
+**Regras de fallback:**
+- Se JSON não vier ou falhar no parse → `parseError` no metadata + `hardCheckStatus: "warning"` + `needsReview: true`
+- HTML é tratado como conteúdo para compatibilidade, mas **NUNCA** como sucesso normal
+
+### Hard Checks Pós-Geração (`runHardChecks`)
+
+| Check | Descrição |
+|---|---|
+| H1 presente | Verifica existência de `<h1>` |
+| CTA presente | Verifica botão/link de ação |
+| Nome do produto | Verifica presença no HTML |
+| Imagens reais | Verifica URLs fornecidas (não placeholder.com) |
+| Padrões proibidos | Detecta lorem ipsum, placeholder.com |
+| Seções requeridas | Heurística por class/id |
+
+**Resultado:** `{ hardCheckStatus: "pass"|"warning"|"fail", needsReview: boolean, checks: [...] }`
+
+> V4.0 **não bloqueia** geração — apenas registra no metadata.
+
+### Fallback Prompts (Enriquecimento)
+
+Os 5 prompts de fallback atuam **apenas como enriquecimento de tom/estilo visual**, sem poder sobre a estrutura:
+
+| ID | Nicho | Papel |
+|---|---|---|
+| `dark-authority` | Saúde, beleza, premium | Paleta dark, tipografia Sora, tom de autoridade |
+| `editorial-clean` | Moda, lifestyle | Branco editorial, Playfair Display, tom aspiracional |
+| `tech-futurista` | Tech, gadgets | Dark neon, glassmorphism, tom inovação |
+| `organico-sensorial` | Alimentos, naturais | Tons quentes, texturas orgânicas, tom acolhedor |
+| `urgencia-conversao` | Universal | Urgência, escassez, FOMO |
+
+> **REGRA CRÍTICA:** Fallbacks NÃO definem seções, ordem ou estrutura. Isso é responsabilidade exclusiva do `engine-plan.ts`.
+
+### Metadata Expandido (V4.0)
+
+| Campo | Descrição |
+|---|---|
+| `enginePlanInput` | Input completo do engine plan |
+| `diagnostic` | Score, risks, strengths da IA |
+| `altHeadline` | Headline alternativa |
+| `altCTA` | CTA alternativo |
+| `engineVersion` | `"v4.0"` |
+| `briefingSchemaVersion` | `"1.0"` |
+| `hardCheckResults` | Resultado dos hard checks |
+| `hardCheckStatus` | `"pass"` \| `"warning"` \| `"fail"` |
+| `needsReview` | boolean |
+
+### Integração com Ads Autopilot
+
+Quando o `ads-autopilot-strategist` dispara geração de LP, passa briefing com defaults conservadores:
+
+```json
+{
+  "objective": "sale",
+  "trafficTemp": "cold",
+  "trafficSource": "meta",
+  "awarenessLevel": "pain_aware",
+  "preferredCTA": "buy",
+  "restrictions": [],
+  "assumedBySystem": true
+}
+```
+
+---
+
 ## Histórico de Alterações
 
 | Data | Alteração |
 |------|-----------|
+| 2026-03-04 | **ENGINE V4.0**: Pipeline determinística completa — engine-plan.ts, prompt modular, parser JSON+HTML, hard checks, briefing UI, metadata expandido |
 | 2026-03-01 | **DOMÍNIOS**: Regras de detecção de domínio para preview/dev (lovableproject.com, lovable.app) |
 | 2026-02-28 | **PERFORMANCE**: Footer selos e FeaturedCategories thumbs agora usam `getLogoImageUrl()` com lazy loading |
 | 2026-02-28 | Image Proxy: wsrv.nl para auto-resize + WebP + CDN cache em todas as imagens Supabase |
