@@ -434,10 +434,21 @@ Estas são superiores às imagens de catálogo para contexto visual.`);
   }
 
   if (productImages.length > 0) {
-    const imageUsageNote = generatedCreativeUrls.length > 0 || lifestyleImageUrls.length > 0
+     const imageUsageNote = generatedCreativeUrls.length > 0 || lifestyleImageUrls.length > 0
       ? `\n⚠️ ATENÇÃO: Use imagens de catálogo APENAS em grids de produto, comparações ou seções técnicas.
-NÃO use imagens de catálogo (fundo branco) como hero ou background — use os criativos gerados acima.`
-      : `\nCOPIE E COLE estas URLs. NUNCA invente URLs.`;
+NÃO use imagens de catálogo (fundo branco) como hero ou background — use os criativos gerados acima.
+
+### POLÍTICA DE IMAGEM POR TIPO DE SEÇÃO:
+- HERO: Use criativo gerado (prioridade) ou lifestyle. NUNCA catálogo com fundo branco.
+- OFERTA / PRICING / KITS: Use OBRIGATORIAMENTE a imagem principal (is_primary) de cada produto do catálogo. Cada card de oferta DEVE mostrar a foto do produto correspondente.
+- PROVA SOCIAL / BEFORE-AFTER: Apenas imagens aprovadas de transformação.
+- BENEFÍCIOS / FEATURES: Ícones CSS ou imagens secundárias.
+- NUNCA misture: before/after em card de oferta, catálogo em hero, lifestyle em pricing.`
+      : `\nCOPIE E COLE estas URLs. NUNCA invente URLs.
+
+### POLÍTICA DE IMAGEM POR TIPO DE SEÇÃO:
+- OFERTA / PRICING / KITS: Use OBRIGATORIAMENTE a imagem principal (is_primary) de cada produto do catálogo.
+- NUNCA use imagens aleatórias em cards de oferta — cada card DEVE mostrar a foto do produto correspondente.`;
 
     dataSections.push(`## 📷 IMAGENS DO CATÁLOGO (REFERÊNCIA):
 ${productImages.map((url, i) => `${i + 1}. ${url}`).join('\n')}
