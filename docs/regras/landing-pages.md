@@ -135,7 +135,7 @@ O módulo Landing Pages oferece **dois modos de criação distintos** com tabela
 | `ai-landing-page-generate` | Gera HTML via Gemini 2.5 Pro (v2.0.0) com Design System completo e contexto do negócio |
 | `ai-import-page` | Importa página externa (com `targetType: 'landing_page'` salva em `ai_landing_pages`) |
 
-### Design System do Gerador IA (v3.10.1)
+### Design System do Gerador IA (v4.1)
 
 O prompt do `ai-landing-page-generate` inclui:
 
@@ -145,12 +145,28 @@ O prompt do `ai-landing-page-generate` inclui:
 - **Layout:** max-width 1200px, padding vertical 80-120px entre seções, grid responsivo
 - **Componentes:** Cards com border-radius 16px e sombras multicamada, badges/pills, ícones SVG inline
 - **Animações:** fade-in via `@keyframes`, hover transitions em cards e CTAs, pulse/glow nos CTAs principais
-- **Responsividade (v3.10.0):** Mobile-first com 45+ regras CSS para < 768px. Grids empilham em 1 coluna, CTAs full-width, tabelas comparativas com scroll horizontal, teste mental em iPhone 13 Mini
-- **Logo — Inteligência de Contraste (v3.10.1):** A IA analisa o fundo da seção e escolhe a melhor abordagem: logo direta em fundos claros, container escuro harmonizado em fundos claros quando a logo é branca/clara, ou adaptação de cores da logo (monocromática, temática) para integração visual. **Proibido** container branco fixo sem análise de contraste
-- **Emojis — Uso Inteligente (v3.10.1):** Emojis permitidos quando agregam valor visual (checkmarks, badges, ícones de benefícios). Sem limite rígido, mas com bom senso profissional. Não devem dominar o design
-- **Imagens — Contexto de Nicho (v3.10.0):** Prompts de geração incluem cenários específicos por nicho (cosméticos → bancada de banheiro, tech → mesa moderna, alimentos → mesa rústica). Coerência visual com layout dark/premium
-- **Header/Footer — Isolamento CSS (v3.10.0):** `isolation: isolate` e `bg-white` no container, keys únicas para forçar re-render correto
+- **Responsividade (v4.1):** Mobile-first com 45+ regras CSS para < 768px. Grids empilham em 1 coluna, CTAs full-width, tabelas comparativas com scroll horizontal
+- **Logo — Inteligência de Contraste:** A IA analisa o fundo da seção e escolhe a melhor abordagem de contraste. **Proibido** container branco fixo sem análise de contraste
+- **Emojis — Uso Inteligente:** Emojis permitidos quando agregam valor visual (checkmarks, badges). Sem limite rígido, mas com bom senso profissional
+- **Imagens — Prioridade de Ativos (v4.1):** Ordem de prioridade: **Criativos gerados > Lifestyle > Catálogo**. Imagens de catálogo (fundo branco) são restritas **exclusivamente** a grades de produto. Nunca usar como hero ou banner
+- **Badges de Urgência (v4.1):** Tarjas como "OFERTA LIMITADA" são **PROIBIDAS** a menos que exista `compare_at_price` ativo no produto
+- **Footer — Proibição Total (v4.1):** A IA **NUNCA** deve gerar `<footer>`, seção de copyright ou links institucionais. O footer é renderizado pela plataforma (`StorefrontFooter`)
+- **Header/Footer — Isolamento CSS:** `isolation: isolate` e `bg-white` no container, keys únicas para forçar re-render correto
 - **Estrutura obrigatória:** Hero → Barra de confiança → Benefícios → Social proof → Oferta → FAQ accordion → CTA final
+
+### Sanitização HTML (v4.1) — `sanitizeAILandingPageHtml.ts`
+
+O HTML gerado pela IA passa por sanitização **antes** da renderização para prevenir bugs comuns:
+
+| Regra | O que faz |
+|-------|-----------|
+| `min-height: XXvh` → `auto` | Previne loops infinitos de resize em iframes |
+| `height: ≥50vh` → `auto` | Idem para heights grandes |
+| `animation-fill-mode: both/forwards` → `none` | Previne elementos presos em `opacity: 0` |
+| Shorthand `animation` com `both/forwards` | Remove fill-mode do shorthand |
+| `animation-delay > 0.5s` | Remove delays excessivos que mantêm elementos invisíveis |
+| `overflow-x: hidden` no body | Previne scroll horizontal indesejado |
+| `<footer>` tags | **Remove** footers gerados pela IA (conflito com footer da plataforma) |
 
 ---
 
