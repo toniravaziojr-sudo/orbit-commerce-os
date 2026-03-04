@@ -142,13 +142,18 @@ export default function LandingPageEditor() {
     }
   }, [landingPage]);
 
-  // Check for generation status
+  // Check for generation status + auto-refetch for image enhancement
   useEffect(() => {
     if (landingPage?.status === 'generating') {
       const interval = setInterval(() => {
         refetch();
       }, 3000);
       return () => clearInterval(interval);
+    }
+    // After page loads, refetch once after 30s to pick up async image enhancement
+    if (landingPage?.status === 'draft' && landingPage?.generated_html !== undefined) {
+      const timer = setTimeout(() => refetch(), 30000);
+      return () => clearTimeout(timer);
     }
   }, [landingPage?.status, refetch]);
 

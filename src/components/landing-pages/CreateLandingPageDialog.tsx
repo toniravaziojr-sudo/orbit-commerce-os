@@ -218,6 +218,20 @@ export function CreateLandingPageDialog({ open, onOpenChange }: CreateLandingPag
         console.error('Generation error:', genError);
       }
 
+      // Step 2: Trigger async image enhancement (non-blocking)
+      if (!genError && selectedProducts.length > 0) {
+        supabase.functions.invoke('ai-landing-page-enhance-images', {
+          body: {
+            landingPageId: landingPage.id,
+            tenantId: tenant.id,
+            userId: user.id,
+          },
+        }).then(({ error }) => {
+          if (error) console.warn('Image enhancement error (non-blocking):', error);
+          else console.log('Image enhancement completed for LP', landingPage.id);
+        });
+      }
+
       return landingPage;
     },
     onSuccess: (data) => {
