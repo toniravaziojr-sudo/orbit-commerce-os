@@ -21,7 +21,7 @@ import { StorefrontThemeInjector } from '@/components/storefront/StorefrontTheme
 import { TenantSlugContext } from '@/components/storefront/TenantStorefrontLayout';
 import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRenderer';
 import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 
 interface AILandingPageData {
   id: string;
@@ -187,7 +187,7 @@ export default function StorefrontAILandingPage() {
       if (!tenantInfo?.tenantId || !lpSlug) return null;
       const { data: page, error: pageError } = await supabase
         .from('ai_landing_pages')
-        .select('id, name, slug, generated_html, generated_css, seo_title, seo_description, seo_image_url, is_published, show_header, show_footer')
+        .select('id, name, slug, generated_html, generated_css, generated_blocks, seo_title, seo_description, seo_image_url, is_published, show_header, show_footer')
         .eq('tenant_id', tenantInfo.tenantId)
         .eq('slug', lpSlug)
         .eq('is_published', true)
@@ -196,14 +196,14 @@ export default function StorefrontAILandingPage() {
         console.error('Error fetching AI landing page:', pageError);
         return null;
       }
-      return page as AILandingPageData | null;
+      return page as unknown as AILandingPageData | null;
     },
     enabled: !!tenantInfo?.tenantId && !!lpSlug,
     staleTime: 1000 * 30,
     refetchOnWindowFocus: true,
   });
 
-  // V4.2: Skeleton + opacity transition for iframe loading
+  // V4.2: Skeleton + opacity transition for iframe loading (HTML fallback only)
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [iframeHeight, setIframeHeight] = useState<number | null>(null);
   const [iframeReady, setIframeReady] = useState(false);
@@ -237,18 +237,14 @@ export default function StorefrontAILandingPage() {
     );
   }
 
-  if (!tenantInfo || !landingPage || !landingPage.generated_html) {
+  // V5: Check for blocks OR HTML
+  const hasBlocks = landingPage?.generated_blocks && 
+    (landingPage.generated_blocks as any)?.children?.length > 0;
+  const hasHtml = !!landingPage?.generated_html;
+
+  if (!tenantInfo || !landingPage || (!hasBlocks && !hasHtml)) {
     return <NotFound />;
   }
-
-  // V4.2: Use shared pipeline for document assembly
-  const pixelScripts = buildPixelScripts(marketingConfig ?? null);
-  const faviconTag = buildFaviconTag(storeSettings?.favicon_url);
-  const sanitizedHtml = sanitizeAILandingPageHtml(landingPage.generated_html);
-  const fullHtml = buildDocumentShell(sanitizedHtml, {
-    pixelScripts,
-    faviconTag,
-  });
 
   // Set document title and favicon on parent document
   if (typeof document !== 'undefined') {
@@ -265,9 +261,50 @@ export default function StorefrontAILandingPage() {
     }
   }
 
+  const resolvedTenantSlug = tenantSlug || tenantInfo.tenantSlug || '';
+
+  // ===== V5: BLOCKS RENDERING (React components via PublicTemplateRenderer) =====
+  if (hasBlocks) {
+    const blockContent = landingPage.generated_blocks as BlockNode;
+    
+    const blockContext: BlockRenderContext = {
+      tenantSlug: resolvedTenantSlug,
+      isPreview: false,
+      pageType: 'landing_page',
+    };
+
+    return (
+      <TenantSlugContext.Provider value={resolvedTenantSlug}>
+        <CartProvider tenantSlug={resolvedTenantSlug}>
+          <DiscountProvider>
+            <StorefrontConfigProvider tenantId={tenantInfo.tenantId}>
+              <StorefrontThemeInjector tenantSlug={resolvedTenantSlug} />
+              <div className="w-full min-h-screen" style={{ margin: 0, padding: 0, isolation: 'isolate' }}>
+                <PublicTemplateRenderer
+                  content={blockContent}
+                  context={blockContext}
+                  pageType="landing_page"
+                  pageId={landingPage.id}
+                />
+              </div>
+            </StorefrontConfigProvider>
+          </DiscountProvider>
+        </CartProvider>
+      </TenantSlugContext.Provider>
+    );
+  }
+
+  // ===== LEGACY HTML FALLBACK (iframe) =====
+  const pixelScripts = buildPixelScripts(marketingConfig ?? null);
+  const faviconTag = buildFaviconTag(storeSettings?.favicon_url);
+  const sanitizedHtml = sanitizeAILandingPageHtml(landingPage.generated_html!);
+  const fullHtml = buildDocumentShell(sanitizedHtml, {
+    pixelScripts,
+    faviconTag,
+  });
+
   const shouldShowHeader = landingPage.show_header ?? false;
   const shouldShowFooter = landingPage.show_footer ?? false;
-  const resolvedTenantSlug = tenantSlug || tenantInfo.tenantSlug || '';
 
   // V4.2: Skeleton container + opacity transition
   const iframeStyle: React.CSSProperties = {
