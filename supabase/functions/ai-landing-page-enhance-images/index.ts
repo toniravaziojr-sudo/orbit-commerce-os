@@ -1,13 +1,14 @@
 // =============================================
-// AI LANDING PAGE ENHANCE IMAGES — V1.0.0
-// Step 2: Generates hero/lifestyle images via AI and updates existing blocks
-// Runs AFTER ai-landing-page-generate completes (async, no timeout pressure on page gen)
+// AI LANDING PAGE ENHANCE IMAGES — V2.0.0
+// Step 2: Generates full-section visual compositions using product PNG as reference
+// The AI generates COMPLETE scene compositions (1920x800) with the product naturally integrated
+// Product PNG with transparent background → AI creates the entire environment around it
 // =============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 
-const VERSION = "1.0.0";
+const VERSION = "2.0.0";
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 const corsHeaders = {
@@ -65,7 +66,7 @@ async function callImageModel(
   });
   if (!response.ok) {
     const errText = await response.text();
-    console.error("[AI-LP-Enhance] " + model + " error: " + response.status, errText.substring(0, 300));
+    console.error(`[AI-LP-Enhance] ${model} error: ${response.status}`, errText.substring(0, 300));
     return null;
   }
   const data = await response.json();
@@ -89,7 +90,7 @@ async function ensureDriveFolder(supabase: any, tenantId: string, userId: string
 }
 
 async function uploadCreativeToStorage(
-  supabase: any, tenantId: string, dataUrl: string, label: string,
+  supabase: any, tenantId: string, dataUrl: string, label: string, suffix: string,
   userId?: string, driveFolderId?: string | null,
 ): Promise<string | null> {
   try {
@@ -98,9 +99,9 @@ async function uploadCreativeToStorage(
     const bytes = new Uint8Array(binaryStr.length);
     for (let i = 0; i < binaryStr.length; i++) { bytes[i] = binaryStr.charCodeAt(i); }
     const timestamp = Date.now();
-    const safeName = label.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 40);
-    const filename = 'hero-' + safeName + '-' + timestamp + '.png';
-    const filePath = tenantId + '/lp-creatives/' + filename;
+    const safeName = label.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 30);
+    const filename = `section-${suffix}-${safeName}-${timestamp}.png`;
+    const filePath = `${tenantId}/lp-creatives/${filename}`;
     const { error: uploadError } = await supabase.storage.from('store-assets').upload(filePath, bytes, { contentType: 'image/png', upsert: false });
     if (uploadError) { console.error("[AI-LP-Enhance] Upload error:", uploadError); return null; }
     const { data: publicUrlData } = supabase.storage.from('store-assets').getPublicUrl(filePath);
@@ -117,32 +118,145 @@ async function uploadCreativeToStorage(
   } catch (error) { console.error("[AI-LP-Enhance] Upload creative error:", error); return null; }
 }
 
-// ========== BLOCK TREE UPDATER ==========
+// ========== SECTION COMPOSITION PROMPTS ==========
 
-function updateHeroImageInBlocks(blocks: any, heroImageUrl: string): boolean {
-  if (!blocks || !blocks.children) return false;
-  let updated = false;
+interface SectionSpec {
+  blockType: string;
+  blockId: string;
+  promptSuffix: string;
+  aspectRatio: string;
+  imageField: string; // path to update in block props
+}
+
+function detectEnhanceableSections(blocks: any): SectionSpec[] {
+  const specs: SectionSpec[] = [];
 
   function walk(node: any) {
-    // Update Banner blocks (hero)
-    if (node.type === 'Banner' && node.props) {
-      if (node.props.slides && Array.isArray(node.props.slides) && node.props.slides.length > 0) {
-        node.props.slides[0].imageDesktop = heroImageUrl;
-        if (!node.props.slides[0].imageMobile) {
-          node.props.slides[0].imageMobile = heroImageUrl;
-        }
-        updated = true;
-      }
+    if (!node) return;
+    
+    // Hero Banner — full-width composition 21:9
+    if (node.type === 'Banner' && node.props?.slides?.length > 0) {
+      specs.push({
+        blockType: 'Banner',
+        blockId: node.id,
+        promptSuffix: 'HERO',
+        aspectRatio: '21:9 (2100x900 pixels, ultra-wide landscape)',
+        imageField: 'slides[0].imageDesktop',
+      });
     }
+    
+    // Hero Block (content hero) — 16:9 composition
+    if (node.type === 'Hero' && node.props) {
+      specs.push({
+        blockType: 'Hero',
+        blockId: node.id,
+        promptSuffix: 'HERO-CONTENT',
+        aspectRatio: '16:9 (1920x1080 pixels, landscape)',
+        imageField: 'backgroundImage',
+      });
+    }
+
     if (node.children && Array.isArray(node.children)) {
-      for (const child of node.children) {
-        walk(child);
-      }
+      for (const child of node.children) walk(child);
     }
   }
 
   walk(blocks);
+  return specs;
+}
+
+function applyImageToBlock(blocks: any, blockId: string, imageField: string, imageUrl: string): boolean {
+  let updated = false;
+  
+  function walk(node: any) {
+    if (!node) return;
+    if (node.id === blockId && node.props) {
+      if (imageField === 'slides[0].imageDesktop') {
+        if (node.props.slides && Array.isArray(node.props.slides) && node.props.slides.length > 0) {
+          node.props.slides[0].imageDesktop = imageUrl;
+          node.props.slides[0].imageMobile = node.props.slides[0].imageMobile || imageUrl;
+          updated = true;
+        }
+      } else if (imageField === 'backgroundImage') {
+        node.props.backgroundImage = imageUrl;
+        node.props.imageDesktop = imageUrl;
+        updated = true;
+      } else {
+        node.props[imageField] = imageUrl;
+        updated = true;
+      }
+    }
+    if (node.children && Array.isArray(node.children)) {
+      for (const child of node.children) walk(child);
+    }
+  }
+  
+  walk(blocks);
   return updated;
+}
+
+// ========== SCENE COMPOSITION PROMPT BUILDER ==========
+
+function buildCompositionPrompt(
+  product: { name: string; tags?: string[] },
+  storeName: string,
+  spec: SectionSpec,
+  hasDriveRefs: boolean,
+): string {
+  // Detect niche from product name/tags for scene selection
+  const nameAndTags = `${product.name} ${(product.tags || []).join(' ')}`.toLowerCase();
+  
+  let sceneDescription: string;
+  if (/cabelo|shampoo|condicion|capilar|calvíc|queda|fio/.test(nameAndTags)) {
+    sceneDescription = `Banheiro moderno premium com bancada de mármore escuro. Iluminação dourada suave vindo de uma janela lateral. Gotas d'água e névoa sutil ao redor do produto. Plantas tropicais desfocadas ao fundo. Toalha branca dobrada ao lado.`;
+  } else if (/skin|pele|facial|anti.?idade|colág|sérum|creme|hidrat/.test(nameAndTags)) {
+    sceneDescription = `Vanity table elegante com espelho redondo dourado ao fundo. Flores frescas em vaso de vidro. Superfície de mármore branco com veios dourados. Iluminação natural suave de manhã. Gotas de produto ou ingredientes orgânicos decorativos.`;
+  } else if (/suplement|whey|proteín|creatina|bcaa|fitness|treino|músculo/.test(nameAndTags)) {
+    sceneDescription = `Superfície de concreto polido escuro texturizado. Iluminação dramática lateral com highlights azulados. Halteres ou equipamento fitness premium desfocado ao fundo. Atmosfera de academia high-end.`;
+  } else if (/aliment|comida|orgânic|natural|chá|café|erva/.test(nameAndTags)) {
+    sceneDescription = `Mesa de madeira rústica nobre com grãos e ingredientes naturais espalhados artisticamente. Iluminação natural quente de janela. Folhas verdes frescas. Texturas de linho e cerâmica artesanal.`;
+  } else if (/tech|eletrôn|gadget|smart|digital/.test(nameAndTags)) {
+    sceneDescription = `Mesa de escritório moderna minimalista com acabamento fosco escuro. LED ambiental azul/roxo sutil. Superfície limpa com reflexo suave. Atmosfera futurista e clean.`;
+  } else {
+    sceneDescription = `Superfície elegante escura com gradiente de luz lateral suave. Reflexo sutil na superfície. Background com bokeh premium desfocado. Iluminação de estúdio profissional com key light e fill light.`;
+  }
+
+  return `COMPOSIÇÃO VISUAL COMPLETA PARA SEÇÃO DE LANDING PAGE — ${spec.promptSuffix}
+
+TAREFA PRINCIPAL: Criar uma imagem de seção COMPLETA e UNIFORME para uma landing page de vendas premium. Esta imagem será usada como background/visual de uma seção inteira — NÃO é uma foto de produto isolada.
+
+PRODUTO DE REFERÊNCIA: "${product.name}" pela marca "${storeName}"
+A imagem do produto anexada (com fundo transparente) DEVE ser integrada NATURALMENTE na composição.
+
+REGRAS ABSOLUTAS DE FIDELIDADE DO PRODUTO:
+1. O produto DEVE aparecer EXATAMENTE como na referência — mesmo rótulo, cores, formato, tipografia da embalagem
+2. NÃO altere, invente ou modifique texto, marca ou design da embalagem
+3. O produto deve parecer FOTOGRAFADO no cenário, não colado digitalmente
+
+CENÁRIO E AMBIENTAÇÃO:
+${sceneDescription}
+
+COMPOSIÇÃO DA CENA (aspect ratio ${spec.aspectRatio}):
+- O produto é o HERÓI VISUAL — posicionado com destaque (centro, regra dos terços, ou golden ratio)
+- O cenário ENVOLVE o produto — não é um fundo chapado, é um AMBIENTE tridimensional
+- Profundidade de campo: produto nítido, fundo com leve desfoque (bokeh)
+- Sombra de contato REALISTA sob o produto
+- Reflexos e highlights consistentes com a iluminação do cenário
+- A composição deve ter "respiro" — espaços para overlay de texto (lado esquerdo ou direita livre)
+
+QUALIDADE TÉCNICA:
+- Fotorrealismo de catálogo premium (nível Sephora, Apple, Nike)
+- Resolução e nitidez máximas
+- Color grading coeso em toda a imagem
+- Sem artefatos, sem bordas visíveis, sem aspecto de montagem
+- A imagem final deve parecer UMA ÚNICA FOTOGRAFIA profissional
+
+O QUE NÃO FAZER:
+- NÃO gerar texto, lettering ou tipografia na imagem
+- NÃO incluir logos, selos ou badges
+- NÃO fazer molduras, bordas ou frames
+- NÃO criar collages ou montagens — é UMA composição unificada
+- NÃO usar fundo branco ou chapado${hasDriveRefs ? '\n\nREFERÊNCIAS VISUAIS: As imagens extras são referências de estilo do lojista. Use como inspiração para composição e atmosfera, mas GERE uma imagem NOVA e ORIGINAL.' : ''}`;
 }
 
 // ========== MAIN HANDLER ==========
@@ -152,7 +266,7 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  console.log(`[AI-LP-Enhance v${VERSION}] Starting image enhancement...`);
+  console.log(`[AI-LP-Enhance v${VERSION}] Starting full-section composition generation...`);
 
   try {
     const body = await req.json();
@@ -170,10 +284,10 @@ serve(async (req) => {
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 1. Fetch landing page with generated blocks
+    // 1. Fetch landing page + blocks
     const { data: lp, error: lpError } = await supabase
       .from("ai_landing_pages")
-      .select("id, product_ids, generated_blocks, current_version")
+      .select("id, product_ids, generated_blocks, current_version, metadata")
       .eq("id", landingPageId)
       .single();
 
@@ -200,14 +314,14 @@ serve(async (req) => {
       );
     }
 
-    // 2. Fetch first product + primary image
+    // 2. Fetch product + primary image
     const { data: products } = await supabase
       .from("products")
-      .select("id, name, product_type, tags")
+      .select("id, name, tags")
       .in("id", productIds)
       .limit(1);
 
-    if (!products || products.length === 0) {
+    if (!products?.length) {
       return new Response(
         JSON.stringify({ success: false, error: "Products not found" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -215,7 +329,6 @@ serve(async (req) => {
     }
 
     const product = products[0];
-
     const { data: images } = await supabase
       .from("product_images")
       .select("url, is_primary")
@@ -231,16 +344,15 @@ serve(async (req) => {
       );
     }
 
-    // 3. Fetch store name
+    // 3. Store name
     const { data: storeSettings } = await supabase
       .from("store_settings")
       .select("store_name")
       .eq("tenant_id", tenantId)
       .single();
-
     const storeName = storeSettings?.store_name || "Loja";
 
-    // 4. Fetch Drive references for this product
+    // 4. Drive references (non-blocking)
     let driveReferenceBase64s: string[] = [];
     try {
       const searchTerm = product.name.split(' ').slice(0, 3).join(' ');
@@ -253,7 +365,7 @@ serve(async (req) => {
         .ilike("original_name", `%${searchTerm}%`)
         .limit(3);
 
-      if (driveFiles && driveFiles.length > 0) {
+      if (driveFiles?.length) {
         for (const file of driveFiles.slice(0, 2)) {
           const meta = file.metadata as Record<string, any> | null;
           const bucket = (meta?.bucket as string) || 'tenant-files';
@@ -273,15 +385,15 @@ serve(async (req) => {
         console.log(`[AI-LP-Enhance] Loaded ${driveReferenceBase64s.length} Drive references`);
       }
     } catch (e) {
-      console.warn("[AI-LP-Enhance] Drive reference fetch error (non-blocking):", e);
+      console.warn("[AI-LP-Enhance] Drive ref fetch error (non-blocking):", e);
     }
 
-    // 5. Ensure drive folder
-    const driveFolderId = await ensureDriveFolder(supabase, tenantId, userId);
+    // 5. Ensure drive folder + download product image
+    const [driveFolderId, referenceBase64] = await Promise.all([
+      ensureDriveFolder(supabase, tenantId, userId),
+      imageUrlToBase64(primaryImageUrl),
+    ]);
 
-    // 6. Generate hero image
-    console.log(`[AI-LP-Enhance] Generating hero image for "${product.name}"...`);
-    const referenceBase64 = await imageUrlToBase64(primaryImageUrl);
     if (!referenceBase64) {
       return new Response(
         JSON.stringify({ success: false, error: "Could not download product image" }),
@@ -289,94 +401,98 @@ serve(async (req) => {
       );
     }
 
-    const heroPrompt = `FOTOGRAFIA PUBLICITÁRIA DE ALTO IMPACTO para landing page de venda.
+    // 6. Detect enhanceable sections from the block tree
+    const blocks = JSON.parse(JSON.stringify(lp.generated_blocks));
+    const enhanceableSpecs = detectEnhanceableSections(blocks);
 
-PRODUTO: "${product.name}" pela marca "${storeName}"
-
-OBJETIVO: Criar uma imagem hero profissional de alta conversão para landing page.
-
-REGRAS ABSOLUTAS:
-1. O produto na imagem de referência DEVE ser mantido EXATAMENTE como é — mesmo rótulo, mesmas cores, mesmo formato
-2. NÃO altere o texto do rótulo, marca ou embalagem do produto
-3. NÃO invente novos produtos ou embalagens
-
-COMPOSIÇÃO:
-- Produto em destaque central ou em posição hero (leve ângulo 3/4)
-- Sombra de contato realista
-- Efeitos de brilho/reflexo sutis para transmitir qualidade premium
-- Aspect ratio: 16:9 (paisagem) para hero banner
-
-CENÁRIO E AMBIENTAÇÃO (baseado no nicho do produto):
-- Cosméticos/Saúde/Beleza: bancada de banheiro premium com iluminação natural dourada
-- Suplementos/Fitness/Masculino: superfície de concreto polido escuro, iluminação dramática lateral
-- Tech/Eletrônicos/Gadgets: mesa de escritório moderna, iluminação LED azulada sutil
-- Alimentos/Bebidas/Orgânicos: mesa de madeira rústica, ingredientes frescos ao redor
-- Moda/Acessórios: fundo de tecido nobre, iluminação de estúdio suave
-- Default: superfície minimalista escura com gradiente de luz lateral suave
-
-ESTILO VISUAL: Coerência com landing page dark/premium. Use backgrounds escuros ou médios. Qualidade de catálogo profissional. Ultra realista.${driveReferenceBase64s.length > 0 ? '\n\nREFERÊNCIAS VISUAIS ADICIONAIS: As imagens extras anexadas são referências visuais do Drive do lojista para este produto. Use-as como inspiração de estilo, ângulo e composição, mas GERE uma imagem NOVA e ORIGINAL.' : ''}`;
-
-    // Try pro model first, then flash
-    let imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', heroPrompt, referenceBase64, driveReferenceBase64s);
-    if (!imageDataUrl) {
-      console.log("[AI-LP-Enhance] Pro model failed, trying flash...");
-      imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-2.5-flash-image', heroPrompt, referenceBase64, driveReferenceBase64s);
-    }
-
-    if (!imageDataUrl) {
+    if (enhanceableSpecs.length === 0) {
+      console.warn("[AI-LP-Enhance] No enhanceable sections found in blocks");
       return new Response(
-        JSON.stringify({ success: false, error: "Image generation failed on all models" }),
+        JSON.stringify({ success: true, enhanced: 0, message: "No enhanceable sections found" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // 7. Upload to storage
-    const heroUrl = await uploadCreativeToStorage(supabase, tenantId, imageDataUrl, product.name, userId, driveFolderId);
-    if (!heroUrl) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Failed to upload generated image" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    console.log(`[AI-LP-Enhance] Found ${enhanceableSpecs.length} section(s) to enhance`);
+
+    // 7. Generate composition for each section (sequentially to avoid rate limits)
+    const results: { section: string; url: string | null; applied: boolean }[] = [];
+
+    for (const spec of enhanceableSpecs) {
+      console.log(`[AI-LP-Enhance] Generating ${spec.promptSuffix} composition...`);
+      
+      const prompt = buildCompositionPrompt(product, storeName, spec, driveReferenceBase64s.length > 0);
+      
+      // Try pro model first, then flash
+      let imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', prompt, referenceBase64, driveReferenceBase64s);
+      if (!imageDataUrl) {
+        console.log(`[AI-LP-Enhance] Pro failed for ${spec.promptSuffix}, trying flash...`);
+        imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-2.5-flash-image', prompt, referenceBase64, driveReferenceBase64s);
+      }
+
+      if (!imageDataUrl) {
+        console.error(`[AI-LP-Enhance] Both models failed for ${spec.promptSuffix}`);
+        results.push({ section: spec.promptSuffix, url: null, applied: false });
+        continue;
+      }
+
+      // Upload
+      const publicUrl = await uploadCreativeToStorage(
+        supabase, tenantId, imageDataUrl, product.name, spec.promptSuffix.toLowerCase(),
+        userId, driveFolderId,
       );
+
+      if (!publicUrl) {
+        results.push({ section: spec.promptSuffix, url: null, applied: false });
+        continue;
+      }
+
+      // Apply to block tree
+      const applied = applyImageToBlock(blocks, spec.blockId, spec.imageField, publicUrl);
+      results.push({ section: spec.promptSuffix, url: publicUrl, applied });
+      console.log(`[AI-LP-Enhance] ${spec.promptSuffix}: uploaded & ${applied ? 'applied' : 'NOT applied'}`);
     }
 
-    console.log(`[AI-LP-Enhance] Hero image uploaded: ${heroUrl.substring(0, 80)}...`);
+    // 8. Persist updated blocks
+    const existingMeta = (lp.metadata && typeof lp.metadata === 'object') ? lp.metadata as Record<string, any> : {};
+    const enhancedSections = results.filter(r => r.applied).map(r => ({
+      section: r.section,
+      url: r.url,
+    }));
 
-    // 8. Update hero block in generated_blocks
-    const blocks = JSON.parse(JSON.stringify(lp.generated_blocks)); // deep clone
-    const wasUpdated = updateHeroImageInBlocks(blocks, heroUrl);
-
-    if (!wasUpdated) {
-      console.warn("[AI-LP-Enhance] No Banner block found to update — saving image URL in metadata only");
-    }
-
-    // 9. Persist updated blocks
     const { error: updateError } = await supabase
       .from("ai_landing_pages")
       .update({
         generated_blocks: blocks,
         metadata: {
-          heroImageEnhanced: true,
-          heroImageUrl: heroUrl,
-          enhancedAt: new Date().toISOString(),
+          ...existingMeta,
+          imageEnhancement: {
+            version: VERSION,
+            enhancedAt: new Date().toISOString(),
+            sections: enhancedSections,
+            totalEnhanced: enhancedSections.length,
+          },
         },
       })
       .eq("id", landingPageId);
 
     if (updateError) {
-      console.error("[AI-LP-Enhance] Update error:", updateError);
+      console.error("[AI-LP-Enhance] Persist error:", updateError);
       return new Response(
         JSON.stringify({ success: false, error: "Failed to save enhanced blocks" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`[AI-LP-Enhance v${VERSION}] Success! Hero image applied to blocks.`);
+    const successCount = results.filter(r => r.applied).length;
+    console.log(`[AI-LP-Enhance v${VERSION}] Done! ${successCount}/${enhanceableSpecs.length} sections enhanced.`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        heroImageUrl: heroUrl,
-        blocksUpdated: wasUpdated,
+        enhanced: successCount,
+        total: enhanceableSpecs.length,
+        results,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
