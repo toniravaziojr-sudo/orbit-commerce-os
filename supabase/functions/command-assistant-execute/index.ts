@@ -727,21 +727,51 @@ async function executeTool(
     }
 
     case "createProduct": {
-      const { name, price, sku, description, categoryId, stockQuantity } = tool_args;
+      const { name, price, sku, description, shortDescription, categoryId, stockQuantity, brand, vendor, barcode, gtin, costPrice, weight, width, height, length: prodLen, depth, freeShipping, requiresShipping, isFeatured, tags, warrantyType, warrantyDuration, ncmCode, cestCode, originCode, taxable, manageStock, allowBackorder, seoTitle, seoDescription, metaKeywords } = tool_args;
       const slug = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+      
+      const insertData: any = {
+        tenant_id,
+        name,
+        slug,
+        price,
+        sku: sku || null,
+        description: description || null,
+        short_description: shortDescription || null,
+        stock_quantity: stockQuantity || 0,
+        status: "active",
+      };
+      
+      // Optional fields
+      if (brand) insertData.brand = brand;
+      if (vendor) insertData.vendor = vendor;
+      if (barcode) insertData.barcode = barcode;
+      if (gtin) insertData.gtin = gtin;
+      if (costPrice !== undefined) insertData.cost_price = costPrice;
+      if (weight !== undefined) insertData.weight = weight;
+      if (width !== undefined) insertData.width = width;
+      if (height !== undefined) insertData.height = height;
+      if (prodLen !== undefined) insertData.length = prodLen;
+      if (depth !== undefined) insertData.depth = depth;
+      if (freeShipping !== undefined) insertData.free_shipping = freeShipping;
+      if (requiresShipping !== undefined) insertData.requires_shipping = requiresShipping;
+      if (isFeatured !== undefined) insertData.is_featured = isFeatured;
+      if (tags) insertData.tags = tags;
+      if (warrantyType) insertData.warranty_type = warrantyType;
+      if (warrantyDuration) insertData.warranty_duration = warrantyDuration;
+      if (ncmCode) insertData.ncm = ncmCode;
+      if (cestCode) insertData.cest = cestCode;
+      if (originCode) insertData.origin_code = originCode;
+      if (taxable !== undefined) insertData.taxable = taxable;
+      if (manageStock !== undefined) insertData.manage_stock = manageStock;
+      if (allowBackorder !== undefined) insertData.allow_backorder = allowBackorder;
+      if (seoTitle) insertData.seo_title = seoTitle;
+      if (seoDescription) insertData.seo_description = seoDescription;
+      if (metaKeywords) insertData.meta_keywords = metaKeywords;
       
       const { data, error } = await supabase
         .from("products")
-        .insert({
-          tenant_id,
-          name,
-          slug,
-          price: Math.round(price * 100), // cents
-          sku: sku || null,
-          description: description || null,
-          stock_quantity: stockQuantity || 0,
-          status: "active",
-        })
+        .insert(insertData)
         .select()
         .single();
       
@@ -1825,23 +1855,55 @@ async function executeTool(
       
       const catNames = (cats || []).map((c: any) => c.categories?.name).filter(Boolean).join(", ");
       
+      const warrantyLabel = p.warranty_type === 'seller' ? 'Vendedor' : p.warranty_type === 'manufacturer' ? 'Fábrica' : p.warranty_type === 'none' ? 'Sem Garantia' : p.warranty_type || '—';
+      
       return {
         success: true,
         message: `📦 **${p.name}**\n\n` +
+          `**Identificação:**\n` +
           `• SKU: ${p.sku || "—"}\n` +
+          `• Barcode: ${p.barcode || "—"}\n` +
+          `• GTIN/EAN: ${p.gtin || "—"}\n` +
+          `• Marca: ${p.brand || "—"}\n` +
+          `• Fornecedor: ${p.vendor || "—"}\n` +
+          `• Formato: ${p.product_format || "simple"}\n` +
+          `• Tipo: ${p.product_type || "—"}\n` +
+          `• Tags: ${p.tags?.length ? p.tags.join(", ") : "—"}\n` +
+          `• Destaque: ${p.is_featured ? "✅" : "❌"}\n\n` +
+          `**Preços:**\n` +
           `• Preço: R$ ${(p.price || 0).toFixed(2)}\n` +
           `• Preço original: ${p.compare_at_price ? `R$ ${p.compare_at_price.toFixed(2)}` : "—"}\n` +
-          `• Estoque: ${p.stock_quantity ?? 0}\n` +
-          `• Status: ${p.status === "active" ? "Ativo" : "Inativo"}\n` +
+          `• Custo: ${p.cost_price ? `R$ ${p.cost_price.toFixed(2)}` : "—"}\n` +
+          `• Promoção: ${p.promotion_start_date ? `${new Date(p.promotion_start_date).toLocaleDateString("pt-BR")} até ${p.promotion_end_date ? new Date(p.promotion_end_date).toLocaleDateString("pt-BR") : "—"}` : "—"}\n\n` +
+          `**Estoque:**\n` +
+          `• Quantidade: ${p.stock_quantity ?? 0}\n` +
+          `• Controle de estoque: ${p.manage_stock ? "✅" : "❌"}\n` +
+          `• Estoque baixo (alerta): ${p.low_stock_threshold ?? "—"}\n` +
+          `• Permite backorder: ${p.allow_backorder ? "✅" : "❌"}\n` +
+          `• Status: ${p.status === "active" ? "Ativo" : "Inativo"}\n\n` +
+          `**Logística:**\n` +
           `• Peso: ${p.weight ? `${p.weight}g` : "—"}\n` +
-          `• Dimensões: ${p.width || "—"}×${p.height || "—"}×${p.length || "—"} cm\n` +
+          `• Dimensões (L×A×C): ${p.width || "—"}×${p.height || "—"}×${p.depth || p.length || "—"} cm\n` +
+          `• Requer envio: ${p.requires_shipping !== false ? "✅" : "❌"}\n` +
+          `• Frete grátis: ${p.free_shipping ? "✅" : "❌"}\n\n` +
+          `**Fiscal:**\n` +
           `• NCM: ${p.ncm || "—"}\n` +
           `• CEST: ${p.cest || "—"}\n` +
+          `• Código de origem: ${p.origin_code || "—"}\n` +
+          `• Tributável: ${p.taxable !== false ? "✅" : "❌"}\n` +
+          `• Código fiscal: ${p.tax_code || "—"}\n` +
+          `• ANVISA/Regulatório: ${p.regulatory_info ? JSON.stringify(p.regulatory_info) : "—"}\n\n` +
+          `**Garantia:**\n` +
+          `• Tipo: ${warrantyLabel}\n` +
+          `• Duração: ${p.warranty_duration || "—"}\n\n` +
+          `**Conteúdo:**\n` +
           `• Categorias: ${catNames || "Nenhuma"}\n` +
-          `• Descrição: ${p.description ? p.description.substring(0, 200) + (p.description.length > 200 ? "..." : "") : "—"}\n` +
-          `• SEO Title: ${p.seo_title || "—"}\n` +
-          `• SEO Description: ${p.seo_description || "—"}\n` +
-          `• Formato: ${p.product_format || "simple"}\n` +
+          `• Descrição curta: ${p.short_description ? p.short_description.substring(0, 150) : "—"}\n` +
+          `• Descrição: ${p.description ? p.description.substring(0, 200) + (p.description.length > 200 ? "..." : "") : "—"}\n\n` +
+          `**SEO:**\n` +
+          `• Title: ${p.seo_title || "—"}\n` +
+          `• Description: ${p.seo_description || "—"}\n` +
+          `• Keywords: ${p.meta_keywords || "—"}\n\n` +
           `• Criado em: ${new Date(p.created_at).toLocaleDateString("pt-BR")}`,
         data: p,
       };
@@ -2112,24 +2174,47 @@ async function executeTool(
 
     // ==================== FASE 2: CRUD COMPLETO ====================
     case "updateProduct": {
-      const { productId, name, description, price, compareAtPrice, sku, weight, width, height, length, seoTitle, seoDescription, isActive, stockQuantity, freeShipping, requiresShipping } = tool_args;
+      const { productId, name, description, shortDescription, price, compareAtPrice, costPrice, sku, barcode, gtin, brand, vendor, weight, width, height, length: prodLength, depth, seoTitle, seoDescription, metaKeywords, isActive, isFeatured, stockQuantity, manageStock, lowStockThreshold, allowBackorder, freeShipping, requiresShipping, tags, warrantyType, warrantyDuration, ncmCode, cestCode, originCode, taxable, taxCode, promotionStartDate, promotionEndDate, regulatoryInfo } = tool_args;
       
       const updateData: any = { updated_at: new Date().toISOString() };
       if (name !== undefined) updateData.name = name;
       if (description !== undefined) updateData.description = description;
+      if (shortDescription !== undefined) updateData.short_description = shortDescription;
       if (price !== undefined) updateData.price = price;
       if (compareAtPrice !== undefined) updateData.compare_at_price = compareAtPrice;
+      if (costPrice !== undefined) updateData.cost_price = costPrice;
       if (sku !== undefined) updateData.sku = sku;
+      if (barcode !== undefined) updateData.barcode = barcode;
+      if (gtin !== undefined) updateData.gtin = gtin;
+      if (brand !== undefined) updateData.brand = brand;
+      if (vendor !== undefined) updateData.vendor = vendor;
       if (weight !== undefined) updateData.weight = weight;
       if (width !== undefined) updateData.width = width;
       if (height !== undefined) updateData.height = height;
-      if (length !== undefined) updateData.length = length;
+      if (prodLength !== undefined) updateData.length = prodLength;
+      if (depth !== undefined) updateData.depth = depth;
       if (seoTitle !== undefined) updateData.seo_title = seoTitle;
       if (seoDescription !== undefined) updateData.seo_description = seoDescription;
+      if (metaKeywords !== undefined) updateData.meta_keywords = metaKeywords;
       if (isActive !== undefined) updateData.status = isActive ? "active" : "inactive";
+      if (isFeatured !== undefined) updateData.is_featured = isFeatured;
       if (stockQuantity !== undefined) updateData.stock_quantity = stockQuantity;
+      if (manageStock !== undefined) updateData.manage_stock = manageStock;
+      if (lowStockThreshold !== undefined) updateData.low_stock_threshold = lowStockThreshold;
+      if (allowBackorder !== undefined) updateData.allow_backorder = allowBackorder;
       if (freeShipping !== undefined) updateData.free_shipping = freeShipping;
       if (requiresShipping !== undefined) updateData.requires_shipping = requiresShipping;
+      if (tags !== undefined) updateData.tags = tags;
+      if (warrantyType !== undefined) updateData.warranty_type = warrantyType;
+      if (warrantyDuration !== undefined) updateData.warranty_duration = warrantyDuration;
+      if (ncmCode !== undefined) updateData.ncm = ncmCode;
+      if (cestCode !== undefined) updateData.cest = cestCode;
+      if (originCode !== undefined) updateData.origin_code = originCode;
+      if (taxable !== undefined) updateData.taxable = taxable;
+      if (taxCode !== undefined) updateData.tax_code = taxCode;
+      if (promotionStartDate !== undefined) updateData.promotion_start_date = promotionStartDate;
+      if (promotionEndDate !== undefined) updateData.promotion_end_date = promotionEndDate;
+      if (regulatoryInfo !== undefined) updateData.regulatory_info = regulatoryInfo;
       
       const { data, error } = await supabase
         .from("products")
