@@ -137,8 +137,8 @@ export default function LandingPageEditor() {
     if (landingPage) {
       setSeoTitle(landingPage.seo_title || "");
       setSeoDescription(landingPage.seo_description || "");
-      setShowHeader(landingPage.show_header ?? true);
-      setShowFooter(landingPage.show_footer ?? true);
+      setShowHeader(landingPage.show_header ?? false);
+      setShowFooter(landingPage.show_footer ?? false);
     }
   }, [landingPage]);
 

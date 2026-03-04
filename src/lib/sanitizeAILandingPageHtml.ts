@@ -36,5 +36,9 @@ export function sanitizeAILandingPageHtml(html: string): string {
   //    v4.2: Cap raised from 0.5s to 1.5s — allows stagger effects while preventing stuck elements
   result = result.replace(/animation-delay\s*:\s*([2-9]\d*|1\.[6-9]\d*|[2-9]\.\d+)s\s*;?/gi, '');
 
+  // 6. Strip <img> tags pointing to prohibited external hosts (runtime defense)
+  //    Replaces with empty string to prevent broken images from appearing
+  result = result.replace(/<img\s[^>]*src\s*=\s*["'][^"']*(?:imgur\.com|postimg\.cc|imgbb\.com|cloudinary\.com|via\.placeholder\.com|placeholder\.com)[^"']*["'][^>]*\/?>/gi, '');
+
   return result;
 }
