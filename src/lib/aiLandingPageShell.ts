@@ -17,6 +17,11 @@ export function buildCssUtilities(): string {
 .glass-card { background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; }
 .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
 .section { padding: 80px 0; }
+/* CTA constraints (v4.3) */
+.cta-button, [class*="cta"], a[style*="padding"][style*="background"] {
+  max-width: 400px; font-size: clamp(14px, 1.1vw, 18px); padding: 14px 32px;
+  border-radius: 8px; display: inline-block; box-sizing: border-box;
+}
 @media (max-width: 768px) {
   html, body { overflow-x: hidden !important; max-width: 100vw !important; }
   h1 { font-size: 1.75rem !important; line-height: 1.2 !important; }
@@ -36,7 +41,8 @@ export function buildCssUtilities(): string {
   /* Grid catch-all removed in v4.2 — selective rules above handle 3+ columns correctly */
   .comparison-table-wrapper { overflow-x: auto; }
   .cta-button, [class*="cta"], a[style*="padding"][style*="background"] {
-    width: 100% !important; text-align: center !important; padding: 16px 24px !important; font-size: 16px !important; display: block !important;
+    max-width: 100% !important; width: 100% !important; text-align: center !important;
+    padding: 14px 24px !important; font-size: 16px !important; display: block !important;
   }
   img { max-width: 100% !important; height: auto !important; }
   /* Prevent horizontal overflow */
