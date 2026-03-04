@@ -144,7 +144,7 @@ const OPENAI_READ_TOOLS = [
     type: "function",
     function: {
       name: "listKitsSummary",
-      description: "Lista TODOS os kits do tenant com resumo: nome, SKU, preço, quantidade total de unidades (soma das quantidades dos componentes). Use quando o usuário pedir para listar kits por quantidade de unidades ou aplicar descontos por faixa de unidades.",
+      description: "Lista TODOS os kits do tenant com resumo: nome, SKU, preço, status de frete grátis, quantidade total de unidades (soma das quantidades dos componentes). Use quando o usuário pedir para listar kits, verificar frete grátis, ou aplicar descontos por faixa de unidades.",
       parameters: {
         type: "object",
         properties: {
@@ -1149,7 +1149,7 @@ Fale como LOJISTA. NUNCA exponha nomes de tools, IDs de sistema ou termos técni
 ## KITS E COMPOSIÇÕES:
 - listProductComponents: KIT pai → seus componentes
 - findKitsContainingProduct: componente → kits que o contêm
-- listKitsSummary: TODOS os kits com nome, SKU, preço, total unidades. Filtros: minUnits/maxUnits.
+- listKitsSummary: TODOS os kits com nome, SKU, preço, frete grátis (✅/❌), total unidades. Filtros: minUnits/maxUnits.
 - recalculateKitPrices: SOMENTE quando preço base dos componentes mudou
 - applyKitDiscount: SEMPRE para descontos/promoções percentuais EM KITS ESPECÍFICOS.
 

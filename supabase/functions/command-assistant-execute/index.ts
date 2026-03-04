@@ -1751,7 +1751,7 @@ async function executeTool(
       
       let q = supabase
         .from("products")
-        .select("id, name, sku, price, compare_at_price, stock_quantity, status, product_format, created_at")
+        .select("id, name, sku, price, compare_at_price, stock_quantity, status, product_format, free_shipping, created_at")
         .eq("tenant_id", tenant_id)
         .is("deleted_at", null)
         .limit(maxResults);
@@ -1794,7 +1794,7 @@ async function executeTool(
       
       const list = data.map((p: any) => {
         const format = p.product_format === "with_composition" ? " [Kit]" : p.product_format === "with_variants" ? " [Variantes]" : "";
-        return `• ${p.name}${format} (SKU: ${p.sku || "—"}) — R$ ${(p.price || 0).toFixed(2)} — Estoque: ${p.stock_quantity ?? 0} — ${p.status === "active" ? "Ativo" : "Inativo"}`;
+        return `• ${p.name}${format} (SKU: ${p.sku || "—"}) — R$ ${(p.price || 0).toFixed(2)} — Estoque: ${p.stock_quantity ?? 0} — ${p.status === "active" ? "Ativo" : "Inativo"} — Frete grátis: ${p.free_shipping ? '✅' : '❌'}`;
       }).join("\n");
       
       return {
@@ -3274,7 +3274,7 @@ async function executeTool(
       // Get all kits for this tenant
       const { data: kits, error: kitsErr } = await supabase
         .from("products")
-        .select("id, name, sku, price, compare_at_price, status")
+        .select("id, name, sku, price, compare_at_price, status, free_shipping")
         .eq("tenant_id", tenant_id)
         .eq("product_format", "with_composition")
         .is("deleted_at", null)
@@ -3309,6 +3309,7 @@ async function executeTool(
         price: k.price,
         compareAtPrice: k.compare_at_price,
         status: k.status,
+        freeShipping: k.free_shipping || false,
         totalUnits: unitsByKit.get(k.id) || 0,
       }));
       
@@ -3323,7 +3324,7 @@ async function executeTool(
       results.sort((a: any, b: any) => a.totalUnits - b.totalUnits);
       
       const lines = results.map((r: any, i: number) =>
-        `${i + 1}. **${r.name}** (SKU: ${r.sku}) — ${r.totalUnits} unidades, Preço: R$ ${Number(r.price).toFixed(2)}${r.compareAtPrice ? ` (de R$ ${Number(r.compareAtPrice).toFixed(2)})` : ''}`
+        `${i + 1}. **${r.name}** (SKU: ${r.sku}) — ${r.totalUnits} unidades, Preço: R$ ${Number(r.price).toFixed(2)}${r.compareAtPrice ? ` (de R$ ${Number(r.compareAtPrice).toFixed(2)})` : ''} — Frete grátis: ${r.freeShipping ? '✅' : '❌'}`
       ).join("\n");
       
       return {
