@@ -1,77 +1,123 @@
 
 
-# Engine de Landing Pages V4.0 — Plano Final (3 correções aplicadas)
+# V4.2 — Correção Arquitetural: Plano de Implementação
 
-## Correções do ChatGPT incorporadas
+## Visão Geral
 
-1. **Nichos**: "APENAS para o nicho detectado" (sem número fixo, são 6 nichos definidos)
-2. **Contrato UI → Backend**: enums explícitos para serialização
-3. **Fallback de parse**: se JSON falhar → `parseError` + `hardCheckStatus: "warning"` + `needsReview: true`
+Implementação aprovada da V4.2 que muda o contrato de output da IA de "documento HTML completo" para "apenas seções de conteúdo", com o backend assumindo controle total do shell do documento.
 
 ---
 
-## Etapas de Implementação
+## Fase 1: Hard Checks de Layout + Contrato Body-Only + Parser Enforcement
 
-### Etapa 1: SQL Migration
-```sql
-ALTER TABLE ai_landing_pages ADD COLUMN briefing jsonb DEFAULT null;
+### 1.1 — Hard checks de layout (`engine-plan.ts`, após linha 438)
+
+Adicionar 4 novos checks **antes** do cálculo de status final. Estes checks rodam sobre o HTML bruto da IA, antes do wrapping:
+
+- `has_no_footer` — detecta `<footer[\s>]` (tag real, não class names)
+- `has_no_document_shell` — detecta `<!DOCTYPE` ou `<html[\s>]` ou `<head[\s>]`
+- `has_no_large_vh` — detecta `height:\s*(8\d|9\d|100)vh`
+- `has_no_position_fixed` — detecta `position:\s*fixed`
+
+Todos geram **warning** (nunca entram em `criticalFails`), com `needsReview: true`.
+
+### 1.2 — Mudar formato de saída no prompt (`index.ts`, linhas 341-369)
+
+Trocar o bloco de output de:
+```
+2. Bloco HTML completo:
+<!DOCTYPE html><html>...
+```
+Para:
+```
+2. Bloco HTML — APENAS conteúdo das seções:
+   - Comece na primeira <section> (Hero)
+   - Termine no último CTA
+   - NÃO inclua <!DOCTYPE>, <html>, <head>, <body>
+   - Inclua um único bloco <style> com CSS específicos da LP
+   - O sistema montará o documento completo
 ```
 
-### Etapa 2: Criar `supabase/functions/_shared/marketing/engine-plan.ts`
-Módulo novo com:
-- **`EnginePlanInput` interface** com todos os campos determinísticos
-- **Template Registry** — 7 arquétipos com `requiredSections`, `optionalSections`, `preferredOrder`, `reorderRules`
-- **`resolveEnginePlan()`** — decisões em TypeScript (niche, archetype, depth, visualWeight, proofStrength, defaultCTA, assumptions)
-- **`runHardChecks()`** — validação pós-geração retornando `{ hardCheckStatus: "pass"|"warning"|"fail", needsReview: boolean, checks: [...] }`
+### 1.3 — `wrapInDocumentShell()` no backend (`index.ts`, ~linha 884)
 
-### Etapa 3: Reescrever system prompt em `index.ts`
-Prompt modular como executor (não decisor):
-- Contexto Autoritativo (enginePlanInput como não negociável)
-- Section Engine, Niche Rules (APENAS para o nicho detectado), Traffic Strategy, Visual Engine, Copy Engine, Anti-padrões, Quality Engine, Formato de Saída
+Nova função que monta o documento completo ao redor do conteúdo da IA. O CSS utilities (linhas 432-466) **sai do prompt** e vai para esta função. O prompt mantém apenas a instrução de incluir `<style>` com CSS específico.
 
-### Etapa 4: Parser de resposta estruturada
-Dois blocos fechados: ` ```json ` + ` ```html `
-- **Se JSON não vier ou falhar no parse**: registrar `parseError` no metadata, definir `hardCheckStatus: "warning"`, definir `needsReview: true`. Tratar tudo como HTML para compatibilidade, mas NUNCA como sucesso normal.
+A função recebe o HTML das seções e produz o documento completo com: charset, viewport, fonts, CSS utilities, safety CSS mínimo, favicon, pixels, auto-resize script.
 
-### Etapa 5: Hard checks pós-geração
-`runHardChecks()` valida H1, CTA, nome do produto, imagens, padrões proibidos, seções requeridas. Resultado salvo com `hardCheckStatus` e `needsReview`. V4.0 não bloqueia, mas registra.
+### 1.4 — Enforcement no parser (`index.ts`, linhas 498-533)
 
-### Etapa 6: Refatorar `fallback-prompts.ts`
-Remover estrutura de seções (ESTRUTURA PERSUASIVA 1-10). Manter apenas tom/linguagem/ativos.
+Após extrair o HTML no `parseStructuredResponse`, adicionar detecção de violação:
+1. Detectar se contém `<!DOCTYPE` ou `<html[\s>]` ou `<head[\s>]`
+2. Se sim → tentar extrair conteúdo de `<body>...</body>`
+3. Se `<body>` não existir → remover tags shell conhecidas e usar miolo restante
+4. Registrar `outputContractViolation` em parseError
+5. **Refletir no status consolidado**: após `runHardChecks`, se houve `outputContractViolation`, garantir `hardCheckStatus >= 'warning'` e `needsReview: true`
 
-### Etapa 7: UI — Novo step "briefing" no `CreateLandingPageDialog.tsx`
-Step entre `reference` e `prompt`. **Contrato de enums (UI exibe PT-BR, valor salvo em inglês)**:
+### 1.5 — Metadata: `engineVersion: "v4.2"` (linhas 914, 939)
 
-| Campo | Enums |
-|-------|-------|
-| `objective` | `lead \| whatsapp \| sale \| checkout \| scheduling \| quiz \| signup \| download` |
-| `trafficTemp` | `cold \| warm \| hot` |
-| `trafficSource` | `meta \| google \| organic \| email \| remarketing \| direct` |
-| `awarenessLevel` | `unaware \| pain_aware \| solution_aware \| product_aware \| ready` |
-| `preferredCTA` | `whatsapp \| buy \| signup \| schedule \| download` (opcional) |
-| `restrictions` | `no_countdown \| no_video \| no_comparisons` (checkboxes) |
+---
 
-### Etapa 8: Ajustar `ads-autopilot-strategist/index.ts`
-Defaults conservadores com `assumedBySystem: true`.
+## Fase 2: Iframe com Skeleton + Pipeline Compartilhada
 
-### Etapa 9: Metadata expandido
-`enginePlanInput`, `diagnostic`, `altHeadline`, `altCTA`, `engineVersion: "v4.0"`, `briefingSchemaVersion: "1.0"`, `hardCheckResults`.
+### 2.1 — Skeleton + opacity no iframe (`StorefrontAILandingPage.tsx`)
 
-### Etapa 10: Deploy e documentação
+Substituir `height: 2000px` por:
+- Container com `min-height: 400px` e skeleton visual (pulse)
+- Iframe com `opacity: 0` + `transition: opacity 0.3s`
+- Ao receber primeiro `postMessage` → `opacity: 1` com altura correta
+- Timeout de 5s como fallback seguro
+
+### 2.2 — Pipeline compartilhada (`src/lib/aiLandingPageShell.ts` — NOVO)
+
+Novo arquivo que exporta:
+- `buildDocumentShell(sectionHtml, options)` — monta documento
+- `buildSafetyCss()` — CSS de segurança unificado
+- `buildAutoResizeScript()` — script de auto-resize
+
+Tanto `StorefrontAILandingPage.tsx` quanto `LandingPagePreviewDialog.tsx` importam e usam a mesma pipeline.
+
+### 2.3 — Simplificar sanitizer (`sanitizeAILandingPageHtml.ts`)
+
+Com contrato body-only:
+- **Remover**: regex de `<footer>` (linhas 50-53)
+- **Remover**: injeção de `overflow-x: hidden` no body (linhas 43-47)
+- **Manter**: correção de `vh` heights e `animation-fill-mode` como defesa secundária
+
+---
+
+## Fase 3: Refinar Mobile + Animações
+
+### 3.1 — Mobile grid seletivo (CSS utilities)
+- Grids 3+ colunas → forçar 1fr
+- Grids 2 colunas → manter 2col
+- Remover catch-all `[style*="display: flex"][style*="align-items"] { flex-direction: column !important; }`
+
+### 3.2 — Animation-delay: cap 0.5s → 1.5s (sanitizer linha 39)
+
+### 3.3 — animation-fill-mode: manter `forwards` para animações sem `opacity: 0`
+
+---
 
 ## Arquivos Afetados
 
-| Arquivo | Mudança |
-|---------|---------|
-| SQL Migration | `ADD COLUMN briefing jsonb` |
-| `supabase/functions/_shared/marketing/engine-plan.ts` | **NOVO** |
-| `supabase/functions/ai-landing-page-generate/index.ts` | Reescrita ~70% |
-| `supabase/functions/_shared/marketing/fallback-prompts.ts` | Remover estrutura |
-| `src/components/landing-pages/CreateLandingPageDialog.tsx` | Novo step briefing |
-| `supabase/functions/ads-autopilot-strategist/index.ts` | Passar briefing |
+| Arquivo | Fase |
+|---------|------|
+| `supabase/functions/_shared/marketing/engine-plan.ts` | 1 |
+| `supabase/functions/ai-landing-page-generate/index.ts` | 1 |
+| `src/lib/aiLandingPageShell.ts` (NOVO) | 2 |
+| `src/pages/storefront/StorefrontAILandingPage.tsx` | 2 |
+| `src/components/landing-pages/LandingPagePreviewDialog.tsx` | 2 |
+| `src/lib/sanitizeAILandingPageHtml.ts` | 2-3 |
+| `docs/regras/landing-pages.md` | 3 |
 
-## Fora de Escopo
-- UI de variantes A/B (V4.1)
-- Loop de aprendizado por métricas (V5.0)
-- Score em tabela separada (V4.1)
+## Ordem de Execução
+
+1. Hard checks de layout em `engine-plan.ts`
+2. Contrato body-only no prompt + `wrapInDocumentShell` no backend
+3. Parser com enforcement de violação de contrato
+4. Iframe com skeleton + opacity transition
+5. Pipeline compartilhada (`aiLandingPageShell.ts`)
+6. Simplificar sanitizer
+7. Refinar mobile + animações
+8. Deploy edge function + atualizar documentação
 
