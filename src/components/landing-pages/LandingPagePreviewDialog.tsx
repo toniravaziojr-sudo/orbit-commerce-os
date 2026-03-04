@@ -1,7 +1,7 @@
 // =============================================
 // LANDING PAGE PREVIEW DIALOG
 // Preview modal for landing pages
-// V4.2: Uses shared pipeline (aiLandingPageShell.ts)
+// V5: Supports blocks (React) with HTML fallback
 // =============================================
 
 import { useState } from "react";
@@ -11,6 +11,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useAILandingPageUrl } from "@/hooks/useAILandingPageUrl";
+import { BlockRenderer } from "@/components/builder/BlockRenderer";
+import { BlockNode, BlockRenderContext } from "@/lib/builder/types";
 import {
   Dialog,
   DialogContent,
@@ -46,7 +48,7 @@ export function LandingPagePreviewDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from('ai_landing_pages')
-        .select('name, slug, generated_html, generated_css, is_published')
+        .select('name, slug, generated_html, generated_css, generated_blocks, is_published')
         .eq('id', landingPageId)
         .single();
       
@@ -56,12 +58,15 @@ export function LandingPagePreviewDialog({
     enabled: open && !!landingPageId,
   });
 
+  const hasBlocks = landingPage?.generated_blocks && 
+    (landingPage.generated_blocks as any)?.children?.length > 0;
+
   const renderPreview = () => {
     if (isLoading) {
       return <Skeleton className="w-full h-full" />;
     }
 
-    if (!landingPage?.generated_html) {
+    if (!landingPage?.generated_html && !hasBlocks) {
       return (
         <div className="flex items-center justify-center h-full bg-muted/50">
           <p className="text-muted-foreground">
@@ -71,10 +76,39 @@ export function LandingPagePreviewDialog({
       );
     }
 
-    // V4.2: Use shared pipeline for document assembly
-    const sanitizedHtml = sanitizeAILandingPageHtml(landingPage.generated_html);
+    // V5: Render blocks via BlockRenderer if available
+    if (hasBlocks) {
+      const blockContent = landingPage!.generated_blocks as unknown as BlockNode;
+      const context: BlockRenderContext = {
+        tenantSlug: tenant?.slug || '',
+        isPreview: true,
+        pageType: 'landing_page',
+        viewport: viewMode === 'mobile' ? 'mobile' : 'desktop',
+      };
+
+      // Render each child block directly
+      const children = blockContent.children || [];
+      return (
+        <div 
+          className="w-full h-full overflow-auto"
+          style={{ backgroundColor: (blockContent.props?.backgroundColor as string) || 'transparent' }}
+        >
+          {children.map((node: BlockNode) => (
+            <BlockRenderer
+              key={node.id}
+              node={node}
+              context={context}
+              isEditing={false}
+            />
+          ))}
+        </div>
+      );
+    }
+
+    // Legacy HTML fallback
+    const sanitizedHtml = sanitizeAILandingPageHtml(landingPage!.generated_html!);
     const fullHtml = buildDocumentShell(sanitizedHtml, {
-      extraCss: landingPage.generated_css || undefined,
+      extraCss: landingPage!.generated_css || undefined,
     });
 
     return (
