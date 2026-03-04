@@ -218,18 +218,37 @@ export function CreateLandingPageDialog({ open, onOpenChange }: CreateLandingPag
         console.error('Generation error:', genError);
       }
 
-      // Step 2: Trigger async image enhancement (non-blocking)
+      // Step 2: Trigger async image enhancement with recursive chunking (non-blocking)
       if (!genError && selectedProducts.length > 0) {
-        supabase.functions.invoke('ai-landing-page-enhance-images', {
-          body: {
-            landingPageId: landingPage.id,
-            tenantId: tenant.id,
-            userId: user.id,
-          },
-        }).then(({ error }) => {
-          if (error) console.warn('Image enhancement error (non-blocking):', error);
-          else console.log('Image enhancement completed for LP', landingPage.id);
-        });
+        const enhanceRecursive = async (startFromIndex = 0, stage = 1) => {
+          try {
+            const { data, error } = await supabase.functions.invoke('ai-landing-page-enhance-images', {
+              body: {
+                landingPageId: landingPage.id,
+                tenantId: tenant.id,
+                userId: user.id,
+                startFromIndex,
+                stage,
+              },
+            });
+            if (error) {
+              console.warn(`Image enhancement error (stage ${stage}):`, error);
+              return;
+            }
+            console.log(`[LP-Enhance] Stage ${stage}: ${data?.enhanced || 0} sections enhanced, done: ${data?.done}`);
+            // If there are more sections to process, call again with next index
+            if (data && !data.done && data.nextIndex != null) {
+              console.log(`[LP-Enhance] Scheduling stage ${data.nextStage} from index ${data.nextIndex}...`);
+              await enhanceRecursive(data.nextIndex, data.nextStage);
+            } else {
+              console.log('[LP-Enhance] All sections enhanced!');
+              queryClient.invalidateQueries({ queryKey: ['ai-landing-pages'] });
+            }
+          } catch (e) {
+            console.warn('Image enhancement recursive error:', e);
+          }
+        };
+        enhanceRecursive();
       }
 
       return landingPage;
