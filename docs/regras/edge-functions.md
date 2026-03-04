@@ -317,16 +317,16 @@ for (const modelToTry of modelsToTry) {
 
 ---
 
-## AI Landing Page Generator — Arquitetura de 2 Etapas (V5.2)
+## AI Landing Page Generator — Arquitetura de 2 Etapas (V5.3)
 
 ### Visão Geral
 
-O sistema de geração de Landing Pages usa **2 Edge Functions em sequência**:
+O sistema de geração de Landing Pages usa **2 Edge Functions em sequência**, com a Etapa 2 suportando **chunking por timeout** para páginas com muitas seções:
 
 | Etapa | Edge Function | Responsabilidade | Timeout |
 |-------|--------------|------------------|---------|
-| **Etapa 1** | `ai-landing-page-generate` (v5.2.0) | Estrutura da página (blocos React) + dados comerciais | ~60-90s |
-| **Etapa 2** | `ai-landing-page-enhance-images` (v2.0.0) | Composições visuais full-section com produto integrado | ~30-60s |
+| **Etapa 1 (Arquiteto)** | `ai-landing-page-generate` (v5.2.0) | Estrutura da página (blocos React) + Visual Blueprint + dados comerciais | ~60-90s |
+| **Etapa 2 (Construtor)** | `ai-landing-page-enhance-images` (v2.1.0) | Composições visuais full-section com chunking por timeout | ~30-130s × N stages |
 
 ### Fluxo Completo Passo-a-Passo
 
@@ -346,23 +346,28 @@ O sistema de geração de Landing Pages usa **2 Edge Functions em sequência**:
 ├─────────────────────────────────────────────────────────────────────┤
 │                     (Frontend dispara Etapa 2)                      │
 ├─────────────────────────────────────────────────────────────────────┤
-│                ETAPA 2: ai-landing-page-enhance-images              │
+│          ETAPA 2: ai-landing-page-enhance-images (v2.1.0)           │
+│                   COM CHUNKING POR TIMEOUT                          │
 ├─────────────────────────────────────────────────────────────────────┤
-│  1. Lê generated_blocks da LP recém-criada                         │
-│  2. Busca imagem primária do produto (PNG, idealmente transparente)│
-│  3. Baixa referências visuais do Drive do lojista                  │
-│  4. Detecta seções "enhanceáveis" no block tree (Banner, Hero)     │
-│  5. Para CADA seção detectada:                                     │
-│     a. Monta prompt de COMPOSIÇÃO VISUAL COMPLETA                  │
-│        - Cenário detectado pelo nicho (cosméticos→banheiro premium,│
-│          fitness→concreto escuro, orgânicos→madeira rústica, etc.) │
-│        - Produto como input visual (PNG transparente)              │
-│        - A IA GERA a cena inteira com produto integrado            │
-│     b. Chama Gemini Pro Image → fallback Flash Image               │
-│     c. Upload da composição para store-assets + registro no Drive  │
-│     d. Atualiza o bloco no block tree com a URL da composição      │
-│  6. Persiste blocks atualizados + metadata de enhancement          │
-│  → Seções com composições visuais profissionais unificadas         │
+│  1. Recebe { landingPageId, tenantId, userId,                      │
+│              startFromIndex?: 0, stage?: 1 }                       │
+│  2. Lê generated_blocks + imagem primária do produto (PNG)         │
+│  3. Baixa referências visuais do Drive (non-blocking)              │
+│  4. Detecta seções enhanceáveis (Banner, Hero) no block tree       │
+│  5. Calcula budget de tempo: 130s úteis de 150s (MAX_EXECUTION_MS) │
+│  6. Estima ~30s por imagem (TIME_PER_IMAGE_MS)                     │
+│  7. A partir de startFromIndex, para CADA seção:                   │
+│     a. Verifica se há budget de tempo restante                     │
+│     b. Se NÃO há budget → salva progresso parcial, retorna:        │
+│        { done: false, nextIndex, nextStage, enhanced, total }      │
+│     c. Se há budget → gera composição visual completa              │
+│        - visual_brief do metadata (cenário, iluminação, etc.)      │
+│        - Produto PNG transparente como referência                  │
+│     d. Upload para store-assets + registro no Drive                │
+│     e. Atualiza bloco no block tree                                │
+│  8. Persiste blocks + metadata.imageEnhancement (acumulativo)      │
+│  9. Se todas processadas → retorna { done: true }                  │
+│  → Frontend chama recursivamente até done: true                    │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -507,25 +512,44 @@ A IA chama a função `build_landing_page` com seções tipadas que são convert
 - A função tem `verify_jwt = false` para permitir chamadas internas via service role
 - `generated_html` é setado para `null` quando V5 gera blocos (blocks têm prioridade)
 
-### Etapa 2: `ai-landing-page-enhance-images` (v2.0.0)
+### Etapa 2: `ai-landing-page-enhance-images` (v2.1.0)
 
-#### Versão Atual: v2.0.0 — "Full-Section Compositions"
+#### Versão Atual: v2.1.0 — "Full-Section Compositions + Chunking por Timeout"
 
 Edge function assíncrona que gera composições visuais profissionais para seções hero/banner.
-Chamada automaticamente pelo frontend após a Etapa 1 concluir.
+Chamada automaticamente pelo frontend após a Etapa 1 concluir. **Suporta execução em múltiplos stages** quando o número de seções excede o budget de tempo.
+
+#### Parâmetros de Entrada
+```typescript
+{
+  landingPageId: string,  // ID da LP
+  tenantId: string,       // Tenant
+  userId: string,         // Usuário
+  startFromIndex?: number, // Seção a iniciar (default 0)
+  stage?: number           // Informativo (1, 2, 3...)
+}
+```
+
+#### Gestão de Timeout (Chunking)
+- **MAX_EXECUTION_MS**: 130.000ms (de 150s de timeout real)
+- **TIME_PER_IMAGE_MS**: ~30.000ms (estimativa por imagem)
+- Antes de cada geração, calcula: `tempoRestante - TIME_PER_IMAGE_MS > 0`
+- Se não há budget → salva progresso parcial e retorna `{ done: false, nextIndex, nextStage }`
+- Frontend chama recursivamente a mesma função com `startFromIndex` incrementado
+- Metadata `imageEnhancement` acumula seções de todos os stages
 
 #### Modelo IA
 - **Primário**: `google/gemini-3-pro-image-preview` (melhor qualidade de composição)
 - **Fallback**: `google/gemini-2.5-flash-image` (mais rápido, menor qualidade)
 - **Chamada direta** ao Lovable Gateway (não usa ai-router — modelos de imagem não são suportados pelo router)
 
-#### Pipeline (6 Steps)
-1. **Lê LP + blocks** — Busca `generated_blocks` da LP recém-criada
+#### Pipeline (por Stage)
+1. **Lê LP + blocks** — Busca `generated_blocks` da LP
 2. **Fetch produto + imagem primária** — Baixa PNG do catálogo como base64
 3. **Drive references** — Busca imagens do Drive por nome do produto (non-blocking)
 4. **Detecta seções** — Varre block tree buscando `Banner` e `Hero` blocks
-5. **Gera composições** — Para cada seção: prompt de cena completa + produto PNG → imagem full-section
-6. **Persiste** — Upload para `store-assets`, registro no Drive, atualiza blocks
+5. **Gera composições (a partir de startFromIndex)** — Para cada seção com budget: prompt de cena + produto PNG → imagem full-section
+6. **Persiste** — Upload para `store-assets`, registro no Drive, atualiza blocks + metadata
 
 #### Detecção de Seções Enhanceáveis
 | Block Type | Aspect Ratio | Campo Atualizado |
