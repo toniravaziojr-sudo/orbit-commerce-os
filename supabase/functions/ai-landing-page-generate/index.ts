@@ -181,6 +181,7 @@ function buildModularPrompt(params: {
   creativesInfo: string;
   generatedCreativeUrls: string[];
   lifestyleImageUrls: string[];
+  socialProofImageUrls: string[];
   referenceUrl?: string;
   currentHtml?: string;
   showHeader?: boolean;
@@ -462,6 +463,13 @@ ${lifestyleImageUrls.map((url, i) => `${i + 1}. ${url}`).join('\n')}
 REGRA: Use em seções de transformação, ambientação, prova visual. NÃO use em cards de oferta.`);
   }
 
+  // SOCIAL PROOF slot (from Drive folders)
+  if (params.socialProofImageUrls && params.socialProofImageUrls.length > 0) {
+    assetSlots.push(`### 📸 PROVA SOCIAL REAL (fotos reais de clientes/resultados):
+${params.socialProofImageUrls.map((url: string, i: number) => `${i + 1}. ${url}`).join('\n')}
+REGRA: Use OBRIGATORIAMENTE estas imagens reais na seção de depoimentos/resultados/prova social. São fotos reais de clientes — NÃO substitua por imagens genéricas. Exiba com bordas arredondadas e legenda descritiva.`);
+  }
+
   // SECONDARY CATALOG slot (non-primary images)
   const secondaryImages = productImages.filter(url => !Object.values(productPrimaryImageMap).includes(url));
   if (secondaryImages.length > 0) {
@@ -599,6 +607,11 @@ function wrapInDocumentShell(sectionHtml: string, options: {
 .glass-card { background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; }
 .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
 .section { padding: 80px 0; }
+/* CTA constraints (v4.3) */
+.cta-button, [class*="cta"], a[style*="padding"][style*="background"] {
+  max-width: 400px; font-size: clamp(14px, 1.1vw, 18px); padding: 14px 32px;
+  border-radius: 8px; display: inline-block; box-sizing: border-box;
+}
 @media (max-width: 768px) {
   html, body { overflow-x: hidden !important; max-width: 100vw !important; }
   h1 { font-size: 1.75rem !important; line-height: 1.2 !important; }
@@ -618,7 +631,8 @@ function wrapInDocumentShell(sectionHtml: string, options: {
   /* Grid catch-all removed in v4.2 — selective rules above handle 3+ columns correctly */
   .comparison-table-wrapper { overflow-x: auto; }
   .cta-button, [class*="cta"], a[style*="padding"][style*="background"] {
-    width: 100% !important; text-align: center !important; padding: 16px 24px !important; font-size: 16px !important; display: block !important;
+    max-width: 100% !important; width: 100% !important; text-align: center !important;
+    padding: 14px 24px !important; font-size: 16px !important; display: block !important;
   }
   img { max-width: 100% !important; height: auto !important; }
   /* Prevent horizontal overflow */
@@ -818,6 +832,81 @@ ${p.weight ? `- **Peso**: ${p.weight}g` : ""}
 - **TODAS AS IMAGENS**: 
 ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).join("\n") : "  NENHUMA IMAGEM"}`;
         }).join("\n\n");
+
+        // ===== STEP 1B: AUTO-DISCOVER RELATED KITS =====
+        // Find kits (with_composition) that contain ANY of the selected products as components
+        try {
+          const { data: relatedKits } = await supabase
+            .from("product_components")
+            .select("parent_product_id, quantity, component_product_id")
+            .in("component_product_id", productIds);
+
+          if (relatedKits && relatedKits.length > 0) {
+            const kitParentIds = [...new Set(relatedKits.map((r: any) => r.parent_product_id))].filter(
+              (id: string) => !productIds!.includes(id) // exclude already-selected products
+            );
+
+            if (kitParentIds.length > 0) {
+              const { data: kitProducts } = await supabase
+                .from("products")
+                .select("id, name, slug, sku, price, compare_at_price, product_format, status")
+                .in("id", kitParentIds)
+                .eq("product_format", "with_composition")
+                .eq("status", "active")
+                .is("deleted_at", null);
+
+              if (kitProducts && kitProducts.length > 0) {
+                // Fetch primary images for kits
+                const kitIds = kitProducts.map((k: any) => k.id);
+                const { data: kitImages } = await supabase
+                  .from("product_images")
+                  .select("product_id, url, is_primary, sort_order")
+                  .in("product_id", kitIds)
+                  .order("is_primary", { ascending: false })
+                  .order("sort_order", { ascending: true });
+
+                const kitImageMap = new Map<string, string>();
+                kitImages?.forEach((img: any) => {
+                  if (!kitImageMap.has(img.product_id)) {
+                    kitImageMap.set(img.product_id, img.url);
+                  }
+                });
+
+                // Add kits to productsInfo and productPrimaryImageMap
+                const kitInfoParts: string[] = [];
+                for (const kit of kitProducts) {
+                  const kitPrimaryImage = kitImageMap.get(kit.id);
+                  if (kitPrimaryImage) {
+                    productPrimaryImageMap[kit.name] = kitPrimaryImage;
+                    if (!productImages.includes(kitPrimaryImage)) productImages.push(kitPrimaryImage);
+                  }
+                  if (!productNames.includes(kit.name)) productNames.push(kit.name);
+
+                  const kitCompare = kit.compare_at_price || null;
+                  const kitDiscount = kitCompare && kitCompare > kit.price
+                    ? Math.round(((kitCompare - kit.price) / kitCompare) * 100)
+                    : null;
+
+                  kitInfoParts.push(`### Kit Relacionado: ${kit.name}
+- **SKU**: ${kit.sku || "N/A"}
+- **Preço de Venda**: R$ ${kit.price.toFixed(2).replace('.', ',')}
+${kitCompare ? `- **Preço Original (riscado)**: R$ ${kitCompare.toFixed(2).replace('.', ',')}` : ""}
+${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
+- **Formato**: Kit com composição
+- **Imagem Principal**: ${kitPrimaryImage || "SEM IMAGEM"}`);
+                }
+
+                if (kitInfoParts.length > 0) {
+                  productsInfo += "\n\n## KITS QUE CONTÊM ESTE PRODUTO (use nas ofertas/pricing):\n\n" + kitInfoParts.join("\n\n");
+                }
+
+                console.log(`[AI-LP-Generate] Auto-discovered ${kitProducts.length} related kits with images`);
+              }
+            }
+          }
+        } catch (kitErr) {
+          console.warn("[AI-LP-Generate] Kit discovery error (non-blocking):", kitErr);
+        }
       }
     }
 
@@ -861,6 +950,8 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
 
     // ===== STEP 3: DRIVE REFERENCES =====
     let driveReferenceBase64s: string[] = [];
+    let socialProofImageUrls: string[] = [];
+
     if (productIds && productIds.length > 0 && promptType !== "adjustment") {
       try {
         const searchTerms = productNames.map(n => n.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim()).filter(Boolean);
@@ -903,6 +994,59 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
           }
         }
       } catch (driveErr) { console.warn("[AI-LP-Generate] Drive search error:", driveErr); }
+
+      // ===== STEP 3B: SOCIAL PROOF FOLDER SEARCH =====
+      // Search for folders with social proof content (feedback, reviews, results, proofs)
+      try {
+        const { data: proofFolders } = await supabase
+          .from("files")
+          .select("id, filename, storage_path")
+          .eq("tenant_id", tenantId)
+          .eq("is_folder", true)
+          .or("filename.ilike.%feedback%,filename.ilike.%review%,filename.ilike.%prova%,filename.ilike.%resultado%,filename.ilike.%depoimento%,filename.ilike.%antes%depois%")
+          .limit(10);
+
+        if (proofFolders && proofFolders.length > 0) {
+          console.log(`[AI-LP-Generate] Found ${proofFolders.length} social proof folders`);
+          const folderPaths = proofFolders.map((f: any) => f.storage_path || `drive/${tenantId}/${f.filename}`);
+          
+          // Search for image files whose storage_path starts with any of the proof folder paths
+          const orConditions = folderPaths.map((fp: string) => `storage_path.like.${fp}/%`).join(",");
+          const { data: proofFiles } = await supabase
+            .from("files")
+            .select("id, original_name, storage_path, mime_type, metadata")
+            .eq("tenant_id", tenantId)
+            .eq("is_folder", false)
+            .ilike("mime_type", "image/%")
+            .or(orConditions)
+            .order("created_at", { ascending: false })
+            .limit(10);
+
+          if (proofFiles && proofFiles.length > 0) {
+            for (const file of proofFiles.slice(0, 5)) {
+              try {
+                const meta = file.metadata as Record<string, any> | null;
+                let imageUrl = meta?.url as string | undefined;
+                if (!imageUrl) {
+                  // Social proof files are in tenant-files (private) — use signed URLs
+                  const bucket = (meta?.bucket as string) || 'tenant-files';
+                  if (bucket === 'tenant-files') {
+                    const { data: signedData } = await supabase.storage.from(bucket).createSignedUrl(file.storage_path, 3600);
+                    imageUrl = signedData?.signedUrl;
+                  } else {
+                    const { data: pubData } = supabase.storage.from(bucket).getPublicUrl(file.storage_path);
+                    imageUrl = pubData?.publicUrl;
+                  }
+                }
+                if (imageUrl) {
+                  socialProofImageUrls.push(imageUrl);
+                }
+              } catch (spErr) { console.warn("[AI-LP-Generate] Social proof file error:", spErr); }
+            }
+            console.log(`[AI-LP-Generate] Found ${socialProofImageUrls.length} social proof images`);
+          }
+        }
+      } catch (spSearchErr) { console.warn("[AI-LP-Generate] Social proof search error:", spSearchErr); }
     }
 
     // ===== STEP 4: DRIVE FOLDER =====
@@ -980,6 +1124,7 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
       creativesInfo,
       generatedCreativeUrls,
       lifestyleImageUrls,
+      socialProofImageUrls,
       referenceUrl,
       currentHtml,
       showHeader: savedLandingPage?.show_header,
