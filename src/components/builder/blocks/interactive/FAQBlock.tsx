@@ -25,8 +25,10 @@ const defaultItems: FAQItem[] = [
 export function FAQBlock({ title = 'Perguntas Frequentes', items, isEditing }: FAQBlockProps) {
   // IMPORTANT: Demo items should ONLY appear in builder/editor mode
   // In public storefront, show nothing if no real FAQ items exist
-  const hasRealItems = items && items.length > 0;
-  const faqItems = hasRealItems ? items : (isEditing ? defaultItems : []);
+  // Guard: AI may generate items as object instead of array
+  const safeItems = Array.isArray(items) ? items : [];
+  const hasRealItems = safeItems.length > 0;
+  const faqItems = hasRealItems ? safeItems : (isEditing ? defaultItems : []);
   
   // Don't render anything in public mode if no real items
   if (faqItems.length === 0) {
