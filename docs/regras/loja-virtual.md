@@ -791,24 +791,69 @@ O sistema de URLs do storefront precisa distinguir entre três cenários:
 
 ---
 
-## AI Landing Pages — Engine V4.1
+## AI Landing Pages — Engine V5.0 (JSON-to-React)
 
-### Arquitetura da Pipeline
+### Arquitetura V5
 
-A geração de landing pages por IA opera na arquitetura **Engine V4.1**, uma pipeline determinística onde o backend (TypeScript) é a **autoridade estratégica** e a IA atua como **executora**.
+A geração de landing pages por IA opera na arquitetura **Engine V5.0**, que utiliza **tool calling** para gerar estrutura JSON de blocos React reais (mesmos componentes do Builder visual), em vez de HTML bruto.
 
 ```
-Briefing (UI) → resolveEnginePlan() → Prompt Modular → Gemini → Parser → Hard Checks → Salvar
+Briefing (UI) → resolveEnginePlan() → Prompt V5 → Gemini Tool Call → assembleBlockTree() → BlockNode → PublicTemplateRenderer
 ```
+
+### Diferença Fundamental: V4 (HTML) vs V5 (Blocks)
+
+| Aspecto | V4 (HTML) | V5 (Blocks) |
+|---------|-----------|-------------|
+| **Output da IA** | HTML/CSS bruto | JSON via tool call `build_landing_page` |
+| **Renderização** | iframe + srcDoc | `PublicTemplateRenderer` (React nativo) |
+| **Responsividade** | CSS manual da IA | Tailwind nativo dos componentes |
+| **Editável** | Não | Sim (Builder visual — futuro) |
+| **Consistência** | Variável | Componentes padronizados |
+| **Armazenamento** | `generated_html` + `generated_css` | `generated_blocks` (JSONB) |
+| **Fallback** | N/A | Se `generated_blocks` vazio → renderiza HTML legado via iframe |
 
 ### Componentes da Pipeline
 
 | Componente | Arquivo | Responsabilidade |
 |---|---|---|
 | **Engine Plan** | `supabase/functions/_shared/marketing/engine-plan.ts` | Decisões determinísticas (arquétipo, seções, profundidade) |
-| **Gerador** | `supabase/functions/ai-landing-page-generate/index.ts` | Prompt modular + chamada IA + parser + hard checks |
-| **Fallback Prompts** | `supabase/functions/_shared/marketing/fallback-prompts.ts` | Enriquecimento de tom/estilo visual (SEM estrutura) |
+| **Block Assembler** | `supabase/functions/_shared/marketing/block-assembler.ts` | Tool definition + conversão JSON → BlockNode |
+| **Gerador** | `supabase/functions/ai-landing-page-generate/index.ts` | Pipeline completa (12 steps) |
+| **Fallback Prompts** | `supabase/functions/_shared/marketing/fallback-prompts.ts` | Enriquecimento de tom/estilo visual |
 | **UI Briefing** | `src/components/landing-pages/CreateLandingPageDialog.tsx` | Coleta de briefing estratégico |
+
+### Mapeamento Seção → Componente (block-assembler.ts)
+
+| Tipo de Seção (tool call) | Componente React Real |
+|---------------------------|----------------------|
+| `hero_banner` | `Banner` (mode: single) |
+| `info_highlights` | `InfoHighlights` |
+| `content_columns` | `ContentColumns` |
+| `feature_list` | `FeatureList` |
+| `testimonials` | Section + Text + Grid (depoimentos) |
+| `pricing_table` | Section + Grid (cards de preço) |
+| `faq` | `Accordion` |
+| `image_gallery` | `ImageGallery` |
+| `steps_timeline` | `StepsTimeline` |
+| `stats_numbers` | `StatsNumbers` |
+| `text_section` | `RichText` |
+| `button_cta` | `Button` |
+| `countdown` | `CountdownTimer` |
+| `video_embed` | `YouTubeVideo` |
+
+### Renderização no Frontend
+
+**Arquivo**: `src/pages/storefront/StorefrontAILandingPage.tsx`
+
+```
+if (generated_blocks com children) → PublicTemplateRenderer (React)
+else if (generated_html) → iframe com buildDocumentShell (HTML legado)
+else → "Página não gerada"
+```
+
+**Preview**: `src/components/landing-pages/LandingPagePreviewDialog.tsx`
+- Mesma lógica: blocks → BlockRenderer, HTML → iframe
 
 ### Briefing Estruturado (Coluna `briefing` jsonb)
 
@@ -848,75 +893,56 @@ Função determinística em TypeScript que resolve:
 | `lp_servico_premium` | Serviço/consultoria | 6-8 |
 | `lp_saas` | SaaS/software | 7-9 |
 
-### Prompt Modular
+### Pipeline de Geração (12 Steps)
 
-O system prompt é construído por **módulos condicionais** baseados no `enginePlanInput`:
+1. **STEP 1**: Fetch produtos + auto-discover kits via `product_components`
+2. **STEP 2**: Business context (reviews + criativos de ads)
+3. **STEP 3**: Drive references + social proof folders (feedback/review/prova/resultado)
+4. **STEP 4**: Drive folder para salvar assets gerados
+5. **STEP 5**: Lifestyle image via Gemini Image
+6. **STEP 6**: Hero creative via Gemini Image
+7. **STEP 7**: Resolve Engine Plan
+8. **STEP 8**: Build V5 system prompt (mapeamento seção→componente)
+9. **STEP 9**: Enrich prompt (fallback prompts)
+10. **STEP 10**: AI tool call `build_landing_page`
+11. **STEP 11**: Parse tool call response
+12. **STEP 12-13**: `assembleBlockTree()` → persist `generated_blocks`
 
-| Módulo | Condicional | Conteúdo |
-|---|---|---|
-| Contexto Autoritativo | Sempre | enginePlanInput como decisões NÃO negociáveis |
-| Section Engine | Sempre | Regras por seção (Hero, Dor, Solução, etc.) |
-| Niche Rules | Por nicho detectado | APENAS para o nicho resolvido |
-| Traffic Strategy | Por fonte de tráfego | Regras específicas da fonte |
-| Visual Engine | Sempre | Papéis de cor, tipografia, espaçamento |
-| Copy Engine | Por nível de consciência | Regras de copy por awareness |
-| Anti-padrões | Sempre | Bloqueios explícitos |
-| Quality Engine | Sempre | Autoavaliação com score 0-100 |
-| Formato de Saída | Sempre | Contrato JSON+HTML |
+### Auto-Descoberta de Kits (STEP 1)
 
-### Contrato de Saída (Parser)
+- Consulta `product_components` para encontrar kits (`with_composition`) contendo os produtos selecionados
+- **IMPORTANTE**: `product_components` NÃO tem coluna `tenant_id` — filtra via JOIN com `products`
+- Busca imagens primárias dos kits e adiciona ao `productPrimaryImageMap`
 
-A IA retorna **dois blocos separados e fechados**:
+### Busca de Provas Sociais (STEP 3B)
 
-1. ` ```json ` — Diagnóstico (score, risks, alt_headline, alt_cta)
-2. ` ```html ` — HTML completo da landing page
-
-**Regras de fallback:**
-- Se JSON não vier ou falhar no parse → `parseError` no metadata + `hardCheckStatus: "warning"` + `needsReview: true`
-- HTML é tratado como conteúdo para compatibilidade, mas **NUNCA** como sucesso normal
-
-### Hard Checks Pós-Geração (`runHardChecks`)
-
-| Check | Descrição |
-|---|---|
-| H1 presente | Verifica existência de `<h1>` |
-| CTA presente | Verifica botão/link de ação |
-| Nome do produto | Verifica presença no HTML |
-| Imagens reais | Verifica URLs fornecidas (não placeholder.com) |
-| Padrões proibidos | Detecta lorem ipsum, placeholder.com |
-| Seções requeridas | Heurística por class/id |
-
-**Resultado:** `{ hardCheckStatus: "pass"|"warning"|"fail", needsReview: boolean, checks: [...] }`
-
-> V4.0 **não bloqueia** geração — apenas registra no metadata.
+- Busca pastas cujo nome contém: feedback, review, prova, resultado, depoimento, antes/depois
+- Imagens de `tenant-files` (privado) → URLs assinadas (1h)
+- Imagens de `store-assets` (público) → URLs públicas
+- Até 5 imagens passadas como `socialProofImageUrls`
 
 ### Fallback Prompts (Enriquecimento)
 
-Os 5 prompts de fallback atuam **apenas como enriquecimento de tom/estilo visual**, sem poder sobre a estrutura:
-
 | ID | Nicho | Papel |
 |---|---|---|
-| `dark-authority` | Saúde, beleza, premium | Paleta dark, tipografia Sora, tom de autoridade |
-| `editorial-clean` | Moda, lifestyle | Branco editorial, Playfair Display, tom aspiracional |
-| `tech-futurista` | Tech, gadgets | Dark neon, glassmorphism, tom inovação |
-| `organico-sensorial` | Alimentos, naturais | Tons quentes, texturas orgânicas, tom acolhedor |
+| `dark-authority` | Saúde, beleza, premium | Paleta dark, tom de autoridade |
+| `editorial-clean` | Moda, lifestyle | Branco editorial, tom aspiracional |
+| `tech-futurista` | Tech, gadgets | Dark neon, glassmorphism |
+| `organico-sensorial` | Alimentos, naturais | Tons quentes, texturas orgânicas |
 | `urgencia-conversao` | Universal | Urgência, escassez, FOMO |
 
-> **REGRA CRÍTICA:** Fallbacks NÃO definem seções, ordem ou estrutura. Isso é responsabilidade exclusiva do `engine-plan.ts`.
+> **REGRA CRÍTICA:** Fallbacks NÃO definem seções ou estrutura. Isso é responsabilidade exclusiva do `engine-plan.ts`.
 
-### Metadata Expandido (V4.0)
+### Metadata V5
 
 | Campo | Descrição |
 |---|---|
-| `enginePlanInput` | Input completo do engine plan |
-| `diagnostic` | Score, risks, strengths da IA |
-| `altHeadline` | Headline alternativa |
-| `altCTA` | CTA alternativo |
-| `engineVersion` | `"v4.0"` |
+| `engineVersion` | `"v5.0"` |
 | `briefingSchemaVersion` | `"1.0"` |
-| `hardCheckResults` | Resultado dos hard checks |
-| `hardCheckStatus` | `"pass"` \| `"warning"` \| `"fail"` |
-| `needsReview` | boolean |
+| `enginePlanInput` | Input completo do engine plan |
+| `toolCallSections` | Número de seções geradas |
+| `parseError` | Erro de parsing (se houver) |
+| `fallbackPromptUsed` | ID do fallback prompt usado |
 
 ### Integração com Ads Autopilot
 
@@ -940,6 +966,7 @@ Quando o `ads-autopilot-strategist` dispara geração de LP, passa briefing com 
 
 | Data | Alteração |
 |------|-----------|
+| 2026-03-04 | **ENGINE V5.0**: Migração para JSON-to-React — tool calling com `build_landing_page`, `assembleBlockTree()`, `generated_blocks` (JSONB), render via `PublicTemplateRenderer`. Auto-descoberta de kits via `product_components`. Busca de provas sociais em pastas do Drive. Fallback HTML legado mantido. |
 | 2026-03-04 | **AI LP CONTAINER FIX**: Wrappers de Header/Footer em `StorefrontAILandingPage.tsx` devem incluir `containerName: 'storefront'` para que Container Queries funcionem corretamente |
 | 2026-03-04 | **ENGINE V4.1**: Sanitização HTML (sanitizeAILandingPageHtml), prioridade de ativos (criativos > lifestyle > catálogo), badges condicionais, proibição de footer pela IA, CSS safety suavizado |
 | 2026-03-04 | **ENGINE V4.0**: Pipeline determinística completa — engine-plan.ts, prompt modular, parser JSON+HTML, hard checks, briefing UI, metadata expandido |
