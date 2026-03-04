@@ -1334,6 +1334,7 @@ export type Database = {
       }
       ai_landing_pages: {
         Row: {
+          briefing: Json | null
           created_at: string
           created_by: string
           current_version: number | null
@@ -1360,6 +1361,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          briefing?: Json | null
           created_at?: string
           created_by: string
           current_version?: number | null
@@ -1386,6 +1388,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          briefing?: Json | null
           created_at?: string
           created_by?: string
           current_version?: number | null

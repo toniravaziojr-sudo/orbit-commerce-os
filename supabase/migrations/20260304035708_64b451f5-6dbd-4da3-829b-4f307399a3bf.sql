@@ -1,0 +1,1 @@
+ALTER TABLE public.ai_landing_pages ADD COLUMN IF NOT EXISTS briefing jsonb DEFAULT null;
