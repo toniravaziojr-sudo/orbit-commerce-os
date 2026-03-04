@@ -317,47 +317,93 @@ for (const modelToTry of modelsToTry) {
 
 ---
 
-## AI Landing Page Generator (`ai-landing-page-generate`)
-
-### Versão Atual: v5.0.0 — "JSON-to-React Blocks"
+## AI Landing Page Generator — Arquitetura de 2 Etapas (V5.2)
 
 ### Visão Geral
+
+O sistema de geração de Landing Pages usa **2 Edge Functions em sequência**:
+
+| Etapa | Edge Function | Responsabilidade | Timeout |
+|-------|--------------|------------------|---------|
+| **Etapa 1** | `ai-landing-page-generate` (v5.2.0) | Estrutura da página (blocos React) + dados comerciais | ~60-90s |
+| **Etapa 2** | `ai-landing-page-enhance-images` (v2.0.0) | Composições visuais full-section com produto integrado | ~30-60s |
+
+### Fluxo Completo Passo-a-Passo
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                  ETAPA 1: ai-landing-page-generate                  │
+├─────────────────────────────────────────────────────────────────────┤
+│  1. Fetch produtos selecionados + imagens do catálogo               │
+│  2. Auto-descoberta de kits via product_components                  │
+│  3. Busca reviews, criativos de ads, Drive refs + provas sociais    │
+│  4. Resolve Engine Plan (arquétipo, nicho, profundidade)            │
+│  5. Build prompt V5 com dados reais + mapeamento seção→componente  │
+│  6. AI Tool Call: build_landing_page({ sections: [...] })           │
+│  7. assembleBlockTree() → BlockNode tree                            │
+│  8. Persiste generated_blocks + cria versão                        │
+│  → Página FUNCIONAL renderizada com imagens do catálogo            │
+├─────────────────────────────────────────────────────────────────────┤
+│                     (Frontend dispara Etapa 2)                      │
+├─────────────────────────────────────────────────────────────────────┤
+│                ETAPA 2: ai-landing-page-enhance-images              │
+├─────────────────────────────────────────────────────────────────────┤
+│  1. Lê generated_blocks da LP recém-criada                         │
+│  2. Busca imagem primária do produto (PNG, idealmente transparente)│
+│  3. Baixa referências visuais do Drive do lojista                  │
+│  4. Detecta seções "enhanceáveis" no block tree (Banner, Hero)     │
+│  5. Para CADA seção detectada:                                     │
+│     a. Monta prompt de COMPOSIÇÃO VISUAL COMPLETA                  │
+│        - Cenário detectado pelo nicho (cosméticos→banheiro premium,│
+│          fitness→concreto escuro, orgânicos→madeira rústica, etc.) │
+│        - Produto como input visual (PNG transparente)              │
+│        - A IA GERA a cena inteira com produto integrado            │
+│     b. Chama Gemini Pro Image → fallback Flash Image               │
+│     c. Upload da composição para store-assets + registro no Drive  │
+│     d. Atualiza o bloco no block tree com a URL da composição      │
+│  6. Persiste blocks atualizados + metadata de enhancement          │
+│  → Seções com composições visuais profissionais unificadas         │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Princípio Visual: Composição Unificada (NÃO collage)
+
+A Etapa 2 gera **composições visuais completas** — NÃO imagens quadradas inseridas em fundos.
+
+**Como funciona:**
+1. A imagem do produto (PNG com fundo transparente) é enviada como referência
+2. A IA gera uma **cena inteira** (21:9 para Banner, 16:9 para Hero) onde o produto está **naturalmente integrado** no cenário
+3. O resultado é UMA fotografia profissional unificada — produto sobre bancada de mármore, com iluminação, sombras e reflexos reais
+
+**O que é PROIBIDO:**
+- ❌ Imagem quadrada do produto colada em fundo chapado
+- ❌ Bordas visíveis ou aspecto de montagem/collage
+- ❌ Fundo branco ou seco
+- ❌ Texto, logos ou badges na imagem gerada
+
+**Detecção automática de nicho** (por nome/tags do produto):
+| Nicho | Cenário |
+|-------|---------|
+| Cosméticos/Cabelo | Banheiro premium, mármore, luz dourada |
+| Skincare/Facial | Vanity table, espelho dourado, flores |
+| Suplementos/Fitness | Concreto polido escuro, luz dramática |
+| Alimentos/Orgânicos | Mesa de madeira rústica, ingredientes |
+| Tech/Eletrônicos | Mesa minimalista, LED ambiental |
+| Default | Superfície escura, gradiente lateral |
+
+### Etapa 1: `ai-landing-page-generate` (v5.2.0)
+
+#### Versão Atual: v5.2.0 — "JSON-to-React Blocks + 2-Step Architecture"
+
 Edge function para geração de landing pages de alta conversão via IA.
 **V5** utiliza **tool calling** (Gemini 2.5 Pro) para gerar estrutura JSON de blocos React reais, em vez de HTML bruto.
 A IA chama a função `build_landing_page` com seções tipadas que são convertidas em `BlockNode` (mesmos componentes do Builder visual).
 
-### Modelo IA
+#### Modelo IA
 - **Modelo**: `google/gemini-2.5-pro` (via ai-router.ts com fallback automático)
 - **Fallback**: Gemini nativo → OpenAI → Lovable Gateway (via ai-router)
 
-### Arquitetura V5: Tool Calling → BlockNode
-
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│                     PIPELINE V5 (JSON-to-React)                       │
-├──────────────────────────────────────────────────────────────────────┤
-│  1. Fetch dados reais (produtos, kits, Drive, reviews, settings)     │
-│  2. Resolve Engine Plan (arquétipo, nicho, profundidade)             │
-│  3. Build system prompt V5 (mapeamento seção → componente)           │
-│  4. AI tool call: build_landing_page({ sections: [...] })            │
-│  5. assembleBlockTree() → BlockNode (mesma estrutura do Builder)     │
-│  6. Persist: generated_blocks (JSONB) + ai_landing_page_versions     │
-│  7. Render: PublicTemplateRenderer (React nativo + Tailwind)         │
-└──────────────────────────────────────────────────────────────────────┘
-```
-
-### Diferenças V5 vs V4 (HTML)
-| Aspecto | V4 (HTML) | V5 (Blocks) |
-|---------|-----------|-------------|
-| **Output** | HTML/CSS bruto | JSON BlockNode |
-| **Render** | iframe + srcDoc | PublicTemplateRenderer (React) |
-| **Responsividade** | CSS manual | Tailwind nativo |
-| **Editável** | Não | Sim (Builder visual — futuro) |
-| **Consistência** | Variável | Componentes reais padronizados |
-| **Armazenamento** | `generated_html` + `generated_css` | `generated_blocks` (JSONB) |
-| **Fallback** | N/A | HTML legado via iframe (se `generated_blocks` vazio) |
-
-### Mapeamento Seção → Componente (block-assembler.ts)
+#### Mapeamento Seção → Componente (block-assembler.ts)
 
 | Tipo de Seção (tool call) | Componente React Real |
 |---------------------------|----------------------|
@@ -376,7 +422,7 @@ A IA chama a função `build_landing_page` com seções tipadas que são convert
 | `countdown` | `CountdownTimer` |
 | `video_embed` | `YouTubeVideo` |
 
-### Rotas no Frontend
+#### Rotas no Frontend
 | Tipo | Rota | Descrição |
 |------|------|-----------|
 | Admin | `/landing-pages` | Listagem e gerenciamento |
@@ -390,39 +436,38 @@ A IA chama a função `build_landing_page` com seções tipadas que são convert
 - O componente `StorefrontAILandingPage` resolve o tenant automaticamente pelo hostname
 - O `StorefrontAILandingPage` inclui `StorefrontThemeInjector` e `StorefrontConfigProvider`
 
-### Fluxo de Resolução de Tenant (StorefrontAILandingPage)
+#### Fluxo de Resolução de Tenant (StorefrontAILandingPage)
 1. Verifica se há `tenantSlug` na URL (rota `/store/:tenantSlug/ai-lp/:lpSlug`)
 2. Se for subdomínio da plataforma (`tenant.shops.comandocentral.com.br`), extrai o slug
 3. Se for domínio customizado, busca na tabela `tenant_domains`
 
-### Pipeline de Geração (12 Steps)
+#### Pipeline de Geração (Etapa 1 — Estrutura)
 1. **STEP 1: Fetch Produtos + Auto-Discover Kits** — Busca produtos selecionados, imagens primárias, e auto-descobre kits via `product_components` (JOIN sem tenant_id direto)
 2. **STEP 2: Business Context** — Reviews aprovadas + criativos de ads existentes
 3. **STEP 3: Drive References** — Busca imagens no Drive por nome de produto + busca pastas de prova social (feedback, review, prova, resultado, depoimento, antes/depois)
-4. **STEP 4: Drive Folder** — Garante pasta "Criativos de página" para salvar assets gerados
-5. **STEP 5: Lifestyle Image** — Gera imagem lifestyle via Gemini Image (com refs do Drive)
-6. **STEP 6: Hero Creative** — Gera imagem hero profissional via Gemini Image
-7. **STEP 7: Engine Plan** — Resolve arquétipo, nicho, profundidade, peso visual, seções
-8. **STEP 8: Build V5 Prompt** — System prompt com mapeamento seção→componente + dados reais
-9. **STEP 9: Enrich Prompt** — Fallback prompts se prompt do usuário for incompleto
-10. **STEP 10: AI Tool Call** — Gemini 2.5 Pro com tool `build_landing_page`
-11. **STEP 11: Parse Response** — Extrai JSON do tool call (ou fallback do content)
-12. **STEP 12-13: Assemble + Persist** — `assembleBlockTree()` → salva em `generated_blocks` + versão
+4. **STEP 4: Engine Plan** — Resolve arquétipo, nicho, profundidade, peso visual, seções
+5. **STEP 5: Build V5 Prompt** — System prompt com mapeamento seção→componente + dados reais
+6. **STEP 6: Enrich Prompt** — Fallback prompts se prompt do usuário for incompleto
+7. **STEP 7: AI Tool Call** — Gemini 2.5 Pro com tool `build_landing_page`
+8. **STEP 8: Parse Response** — Extrai JSON do tool call (ou fallback do content)
+9. **STEP 9: Assemble + Persist** — `assembleBlockTree()` → salva em `generated_blocks` + versão
 
-### Auto-Descoberta de Kits (STEP 1)
+> **Nota v5.2**: Steps de geração de imagem (lifestyle/hero) foram REMOVIDOS da Etapa 1 e movidos para a Etapa 2. Isso garante que a Etapa 1 caiba no timeout de 150s.
+
+#### Auto-Descoberta de Kits (STEP 1)
 - Consulta `product_components` para encontrar kits (`with_composition`) que contêm os produtos selecionados
 - **IMPORTANTE**: `product_components` NÃO tem coluna `tenant_id` — filtra via JOIN com `products`
 - Busca imagens primárias dos kits e adiciona ao `productPrimaryImageMap`
 - Kits aparecem na seção "KITS QUE CONTÊM ESTE PRODUTO" do prompt
 
-### Busca de Provas Sociais (STEP 3B)
+#### Busca de Provas Sociais (STEP 3B)
 - Busca pastas cujo nome contém: feedback, review, prova, resultado, depoimento, antes/depois
 - Busca imagens dentro dessas pastas via `storage_path LIKE folder_path/%`
 - Imagens de `tenant-files` (privado) usam URLs assinadas (1h)
 - Imagens de `store-assets` (público) usam URLs públicas
 - Até 5 imagens passadas como `socialProofImageUrls` para a IA
 
-### Campos do Produto Coletados
+#### Campos do Produto Coletados
 ```typescript
 // Dados buscados da tabela products:
 {
@@ -440,7 +485,7 @@ A IA chama a função `build_landing_page` com seções tipadas que são convert
 }
 ```
 
-### Regras do Prompt da IA (CRÍTICAS!)
+#### Regras do Prompt da IA (CRÍTICAS!)
 1. **URL de Referência** = APENAS inspiração visual/estrutural
    - ❌ NÃO copiar conteúdo, textos ou produtos
    - ✅ Copiar layout, cores, tipografia, estrutura
@@ -456,23 +501,58 @@ A IA chama a função `build_landing_page` com seções tipadas que são convert
    - Cores, logo, peso visual (premium/comercial/minimalista/direto)
 5. **Copy Persuasivo** = Framework PAS via Engine Plan (arquétipo + nicho)
 
-### Comportamento Importante
+#### Comportamento Importante
 - Em ajustes (`promptType: 'adjustment'`), a função SEMPRE busca `product_ids` e `reference_url` salvos na landing page
 - Para adjustments, passa os blocos atuais como contexto para a IA
 - A função tem `verify_jwt = false` para permitir chamadas internas via service role
 - `generated_html` é setado para `null` quando V5 gera blocos (blocks têm prioridade)
 
-### Mapeamento Tabela → Edge Function
+### Etapa 2: `ai-landing-page-enhance-images` (v2.0.0)
+
+#### Versão Atual: v2.0.0 — "Full-Section Compositions"
+
+Edge function assíncrona que gera composições visuais profissionais para seções hero/banner.
+Chamada automaticamente pelo frontend após a Etapa 1 concluir.
+
+#### Modelo IA
+- **Primário**: `google/gemini-3-pro-image-preview` (melhor qualidade de composição)
+- **Fallback**: `google/gemini-2.5-flash-image` (mais rápido, menor qualidade)
+- **Chamada direta** ao Lovable Gateway (não usa ai-router — modelos de imagem não são suportados pelo router)
+
+#### Pipeline (6 Steps)
+1. **Lê LP + blocks** — Busca `generated_blocks` da LP recém-criada
+2. **Fetch produto + imagem primária** — Baixa PNG do catálogo como base64
+3. **Drive references** — Busca imagens do Drive por nome do produto (non-blocking)
+4. **Detecta seções** — Varre block tree buscando `Banner` e `Hero` blocks
+5. **Gera composições** — Para cada seção: prompt de cena completa + produto PNG → imagem full-section
+6. **Persiste** — Upload para `store-assets`, registro no Drive, atualiza blocks
+
+#### Detecção de Seções Enhanceáveis
+| Block Type | Aspect Ratio | Campo Atualizado |
+|------------|-------------|------------------|
+| `Banner` | 21:9 (ultra-wide) | `slides[0].imageDesktop` |
+| `Hero` | 16:9 (landscape) | `backgroundImage` + `imageDesktop` |
+
+#### Mapeamento Tabela → Edge Function
 | Tabela | Edge Function |
 |--------|---------------|
-| `ai_landing_pages` | `ai-landing-page-generate` (SELECT + UPDATE: `generated_blocks`) |
-| `ai_landing_page_versions` | `ai-landing-page-generate` (INSERT: `blocks_content`) |
-| `products` | `ai-landing-page-generate` (SELECT) |
-| `product_images` | `ai-landing-page-generate` (SELECT) |
+| `ai_landing_pages` | `ai-landing-page-enhance-images` (SELECT + UPDATE: `generated_blocks`, `metadata`) |
+| `products` | `ai-landing-page-enhance-images` (SELECT) |
+| `product_images` | `ai-landing-page-enhance-images` (SELECT) |
+| `store_settings` | `ai-landing-page-enhance-images` (SELECT) |
+| `files` | `ai-landing-page-enhance-images` (SELECT Drive refs + INSERT criativos) |
+
+### Mapeamento Tabela Combinado (Ambas Etapas)
+| Tabela | Edge Function |
+|--------|---------------|
+| `ai_landing_pages` | `ai-landing-page-generate` (SELECT + UPDATE), `ai-landing-page-enhance-images` (SELECT + UPDATE) |
+| `ai_landing_page_versions` | `ai-landing-page-generate` (INSERT) |
+| `products` | ambas (SELECT) |
+| `product_images` | ambas (SELECT) |
 | `product_components` | `ai-landing-page-generate` (SELECT — kit discovery) |
 | `product_reviews` | `ai-landing-page-generate` (SELECT — prova social) |
-| `store_settings` | `ai-landing-page-generate` (SELECT) |
-| `files` | `ai-landing-page-generate` (SELECT — Drive assets + social proof folders) |
+| `store_settings` | ambas (SELECT) |
+| `files` | ambas (SELECT Drive + INSERT criativos) |
 | `ads_creative_assets` | `ai-landing-page-generate` (SELECT — tom de marca) |
 
 ### Shared Module: block-assembler.ts
