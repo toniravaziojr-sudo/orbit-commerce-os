@@ -1274,6 +1274,7 @@ export type Database = {
       }
       ai_landing_page_versions: {
         Row: {
+          blocks_content: Json | null
           created_at: string
           created_by: string
           css_content: string | null
@@ -1288,6 +1289,7 @@ export type Database = {
           version: number
         }
         Insert: {
+          blocks_content?: Json | null
           created_at?: string
           created_by: string
           css_content?: string | null
@@ -1302,6 +1304,7 @@ export type Database = {
           version: number
         }
         Update: {
+          blocks_content?: Json | null
           created_at?: string
           created_by?: string
           css_content?: string | null
@@ -1338,6 +1341,7 @@ export type Database = {
           created_at: string
           created_by: string
           current_version: number | null
+          generated_blocks: Json | null
           generated_css: string | null
           generated_html: string | null
           id: string
@@ -1365,6 +1369,7 @@ export type Database = {
           created_at?: string
           created_by: string
           current_version?: number | null
+          generated_blocks?: Json | null
           generated_css?: string | null
           generated_html?: string | null
           id?: string
@@ -1392,6 +1397,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           current_version?: number | null
+          generated_blocks?: Json | null
           generated_css?: string | null
           generated_html?: string | null
           id?: string
