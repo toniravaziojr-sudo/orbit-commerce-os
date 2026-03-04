@@ -1,8 +1,9 @@
 // =============================================
-// AI LANDING PAGE GENERATE — V5.4 ENGINE
-// Motor V5.4: HTML Livre + Timeout Resolvido
-// Volta ao HTML/CSS livre (como V4) para máxima qualidade visual
-// Imagens são geradas assíncronamente pelo enhance-images (Etapa 2)
+// AI LANDING PAGE GENERATE — V6.0 ENGINE
+// Motor V6: Templates Pré-Prontos + IA para Copy
+// Fase 1: Monta página a partir de templates HTML profissionais
+// Fase 2: IA refina copy/headlines (opcional, não afeta layout)
+// Fase 3: enhance-images gera composições visuais (assíncrono)
 // =============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -11,14 +12,16 @@ import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { isPromptIncomplete, selectBestFallback } from "../_shared/marketing/fallback-prompts.ts";
 import {
   resolveEnginePlan,
-  getNicheRules,
-  getTrafficRules,
-  getAwarenessCopyRules,
   type BriefingInput,
-  type EnginePlanInput,
 } from "../_shared/marketing/engine-plan.ts";
+import {
+  assembleLandingPage,
+  type PageTemplateInput,
+  type ProductData,
+  type ReviewData,
+} from "../_shared/landing-page-templates.ts";
 
-const VERSION = "5.4.0"; // Engine V5.4: HTML Livre + Timeout Resolvido
+const VERSION = "6.0.0"; // Engine V6: Templates + AI Copy
 
 // ========== CORS ==========
 
@@ -40,385 +43,107 @@ interface GenerateRequest {
   briefing?: BriefingInput;
 }
 
-// ========== HTML SYSTEM PROMPT BUILDER ==========
+// ========== AI COPY REFINEMENT PROMPT ==========
 
-function buildHtmlSystemPrompt(params: {
-  enginePlan: EnginePlanInput;
+function buildCopyRefinementPrompt(params: {
   storeName: string;
-  logoUrl: string;
-  primaryColor: string;
-  secondaryColor?: string;
-  accentColor?: string;
-  themeColors: Record<string, string>;
-  productsInfo: string;
-  productImages: string[];
-  productNames: string[];
-  productPrimaryImageMap: Record<string, string>;
-  reviewsInfo: string;
-  creativesInfo: string;
-  socialProofImageUrls: string[];
-  referenceUrl?: string;
-  currentHtml?: string;
-}): string {
-  const {
-    enginePlan, storeName, logoUrl, primaryColor, secondaryColor, accentColor,
-    themeColors, productsInfo, productImages, productNames, productPrimaryImageMap,
-    reviewsInfo, creativesInfo, socialProofImageUrls,
-    referenceUrl, currentHtml,
-  } = params;
+  productName: string;
+  niche: string;
+  visualWeight: string;
+  prompt: string;
+  currentHtml: string;
+}): { system: string; user: string } {
+  const { storeName, productName, niche, visualWeight, prompt, currentHtml } = params;
 
-  const sections: string[] = [];
+  const system = `Você é um copywriter de elite especializado em landing pages de alta conversão.
 
-  // === A. ROLE ===
-  sections.push(`Você é um diretor criativo de elite, especialista em criar landing pages de altíssima conversão com HTML/CSS livre.
-Você gera HTML e CSS COMPLETOS, com total controle sobre layout, tipografia, cores, gradientes, efeitos visuais e espaçamentos.
-Você NÃO está preso a componentes genéricos — você tem liberdade criativa total para criar páginas premium e únicas.
+## SUA FUNÇÃO
+Você recebe uma landing page HTML COMPLETA e profissional. Sua ÚNICA tarefa é melhorar os TEXTOS (headlines, subtítulos, descrições, benefícios, FAQs, CTAs).
 
-## FORMATO DE SAÍDA (OBRIGATÓRIO)
+## REGRAS ABSOLUTAS (NÃO NEGOCIÁVEL)
+1. MANTENHA toda a estrutura HTML/CSS intacta — NÃO mude classes, tags, estilos, grid, layout
+2. MANTENHA todas as URLs de imagem EXATAMENTE como estão
+3. MANTENHA todos os preços, nomes de produto e dados comerciais EXATAMENTE como estão
+4. MANTENHA as tags <style> INTACTAS — não modifique CSS
+5. NÃO adicione novas seções, divs, ou elementos estruturais
+6. NÃO remova seções existentes
+7. NÃO adicione <!DOCTYPE>, <html>, <head>, <body>, <footer>
+8. NÃO invente URLs de imagem
+9. NÃO mude nomes de produto
 
-Retorne APENAS o conteúdo do <body> — NÃO inclua <!DOCTYPE>, <html>, <head> ou <body> tags.
-O sistema vai envolver seu HTML em um documento completo automaticamente.
+## O QUE VOCÊ PODE MUDAR
+- Títulos (h1, h2, h3) — torne mais persuasivos e específicos ao nicho
+- Subtítulos e descrições (p) — mais envolventes e orientados a benefícios
+- Itens de lista (li) — benefícios mais específicos e tangíveis
+- Texto dos FAQs — respostas mais completas e convincentes
+- Texto de garantia — mais tranquilizador
+- Badges e labels — mais atraentes
+- Texto dos CTAs — mais urgentes e direcionados
 
-Inclua seus estilos CSS em uma tag <style> no INÍCIO do conteúdo.
+## CONTEXTO
+- Loja: ${storeName}
+- Produto: ${productName}
+- Nicho: ${niche}
+- Estilo: ${visualWeight}
 
-Exemplo de formato correto:
+## FORMATO DE SAÍDA
+Retorne o HTML COMPLETO (incluindo <style>) com APENAS os textos melhorados. Estrutura idêntica.`;
+
+  const user = `Melhore os textos desta landing page conforme a direção criativa abaixo:
+
+DIREÇÃO: ${prompt}
+
+HTML ATUAL:
+\`\`\`html
+${currentHtml}
 \`\`\`
-<style>
-  /* Seus estilos aqui */
-  .hero { background: linear-gradient(...); }
-</style>
-<section class="hero">...</section>
-<section class="benefits">...</section>
+
+Retorne o HTML completo com os textos melhorados. Mantenha TODA a estrutura e CSS intactos.`;
+
+  return { system, user };
+}
+
+// ========== ADJUSTMENT PROMPT ==========
+
+function buildAdjustmentPrompt(params: {
+  storeName: string;
+  productName: string;
+  prompt: string;
+  currentHtml: string;
+}): { system: string; user: string } {
+  const { storeName, productName, prompt, currentHtml } = params;
+
+  const system = `Você é um editor de landing pages. Você recebe uma página HTML completa e uma solicitação de ajuste.
+
+## REGRAS
+1. Faça APENAS o ajuste solicitado
+2. MANTENHA toda a estrutura que não precisa mudar
+3. MANTENHA todas as URLs de imagem como estão
+4. MANTENHA preços e nomes de produto como estão (exceto se o ajuste pedir mudança)
+5. MANTENHA as tags <style> e CSS (exceto se o ajuste pedir mudança de cor/estilo)
+6. NÃO adicione <!DOCTYPE>, <html>, <head>, <body>, <footer>
+7. NÃO invente URLs de imagem
+
+## CONTEXTO
+- Loja: ${storeName}
+- Produto: ${productName}
+
+## FORMATO DE SAÍDA
+Retorne o HTML COMPLETO atualizado com o ajuste aplicado.`;
+
+  const user = `Ajuste esta landing page:
+
+SOLICITAÇÃO: ${prompt}
+
+HTML ATUAL:
+\`\`\`html
+${currentHtml}
 \`\`\`
 
-PROIBIDO retornar <!DOCTYPE>, <html>, <head>, <body>, <footer> ou qualquer shell de documento.`);
+Retorne o HTML completo com o ajuste aplicado.`;
 
-  // === B. AUTHORITATIVE CONTEXT ===
-  sections.push(`## ⚡ CONTEXTO AUTORITATIVO (NÃO NEGOCIÁVEL)
-
-- **Arquétipo**: ${enginePlan.resolvedArchetype} (${TEMPLATE_REGISTRY_NAMES[enginePlan.resolvedArchetype]})
-- **Nicho**: ${enginePlan.resolvedNiche}
-- **Profundidade**: ${enginePlan.resolvedDepth} ${enginePlan.resolvedDepth === 'short' ? '(3-5 seções)' : enginePlan.resolvedDepth === 'medium' ? '(5-8 seções)' : '(8-12 seções)'}
-- **Peso Visual**: ${enginePlan.resolvedVisualWeight}
-- **Força de Prova**: ${enginePlan.proofStrength}
-- **CTA Padrão**: "${enginePlan.defaultCTA}"
-- **Seções Obrigatórias**: ${enginePlan.requiredSections.join(', ')}
-- **Seções Opcionais**: ${enginePlan.optionalSections.join(', ')}
-- **Ordem Preferida**: ${enginePlan.preferredOrder.join(' → ')}
-- **Objetivo**: ${enginePlan.briefing.objective}
-- **Temperatura do Tráfego**: ${enginePlan.briefing.trafficTemp}
-- **Fonte de Tráfego**: ${enginePlan.briefing.trafficSource}
-- **Nível de Consciência**: ${enginePlan.briefing.awarenessLevel}
-${enginePlan.briefing.restrictions?.length ? `- **Restrições**: ${enginePlan.briefing.restrictions.join(', ')}` : ''}`);
-
-  // === C. VISUAL GUIDELINES ===
-  sections.push(`## 🎨 DIRETRIZES VISUAIS PREMIUM
-
-### Peso Visual: ${enginePlan.resolvedVisualWeight}
-${enginePlan.resolvedVisualWeight === 'premium' ? `
-- Fundo escuro (#0a0a0a ou #0d0d0d) com acentos dourados (#c9a96e ou #d4af37)
-- Tipografia: Use Google Fonts premium — @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;800&family=Inter:wght@300;400;500;600&display=swap')
-- Playfair Display para headlines (bold, letter-spacing: 1-2px)
-- Inter para corpo de texto
-- Cards com backdrop-filter: blur(12px), sombras profundas (0 8px 32px rgba(0,0,0,0.4))
-- Botões CTA com gradiente dourado, padding generoso (18px 48px), border-radius: 8px
-- Seções com padding: 80px-120px vertical
-- Glass morphism: background: rgba(255,255,255,0.05), border: 1px solid rgba(255,255,255,0.1)` : ''}
-${enginePlan.resolvedVisualWeight === 'comercial' ? `
-- Cores vibrantes nos CTAs, badges de desconto grandes
-- Preço em destaque com compare-at-price riscado
-- Banners coloridos para urgência/oferta
-- Layout energético e direto
-- Tipografia: @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Open+Sans:wght@400;600&display=swap')` : ''}
-${enginePlan.resolvedVisualWeight === 'minimalista' ? `
-- Fundo claro (#ffffff ou #fafafa), muito espaço em branco
-- Tipografia elegante e leve
-- Poucos elementos, cada um com propósito claro
-- @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600&family=Inter:wght@300;400&display=swap')` : ''}
-${enginePlan.resolvedVisualWeight === 'direto' ? `
-- Layout limpo e objetivo
-- CTAs claros e prominentes
-- Sem ornamentos desnecessários
-- @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap')` : ''}
-
-### Cores da Marca
-- Cor Primária: ${primaryColor}
-${secondaryColor ? `- Cor Secundária: ${secondaryColor}` : ''}
-${accentColor ? `- Cor de Acento: ${accentColor}` : ''}
-${themeColors.buttonPrimaryBg ? `- Botão Primário BG: ${themeColors.buttonPrimaryBg}` : ''}
-${themeColors.buttonPrimaryText ? `- Botão Primário Text: ${themeColors.buttonPrimaryText}` : ''}
-${themeColors.priceColor ? `- Cor do Preço: ${themeColors.priceColor}` : ''}
-
-### Regras de CSS
-- Use classes semânticas (.hero, .benefits, .testimonials, .pricing, .faq, .cta-final)
-- Todas as imagens DEVEM ter max-width: 100% e height: auto
-- Grids com grid-template-columns devem usar fr units
-- CTAs: use a classe .cta-button para botões de ação
-- Animações sutis: fadeInUp com animation-delay escalonado (max 1.5s)
-- Mobile: inclua @media (max-width: 768px) para responsividade
-- NUNCA use position: fixed, position: sticky, ou position: absolute para imagens
-- NUNCA use vh units para height ou min-height (causa bugs em iframes)
-- Use padding generoso (60px-100px) em vez de min-height para dar altura às seções`);
-
-  // === C2. PRODUCT IMAGE INTEGRATION (CRITICAL) ===
-  if (productImages.length > 0) {
-    const primaryImg = productImages[0];
-    const secondImg = productImages.length > 1 ? productImages[1] : primaryImg;
-    const thirdImg = productImages.length > 2 ? productImages[2] : primaryImg;
-
-    sections.push(`## 📸 INTEGRAÇÃO VISUAL DO PRODUTO — TEMPLATES OBRIGATÓRIOS
-
-O PRODUTO é o PROTAGONISTA VISUAL. Você DEVE usar os templates HTML abaixo como base estrutural.
-NÃO invente layouts alternativos. COPIE a estrutura e adapte apenas cores, textos e imagens.
-
-### ═══════ TEMPLATE 1: HERO (OBRIGATÓRIO) ═══════
-
-COPIE este HTML exatamente (adapte textos e cores):
-
-<section class="hero">
-  <div class="hero-content">
-    <span class="hero-badge">BADGE CONTEXTUAL</span>
-    <h1 class="hero-title">TÍTULO PRINCIPAL<br><span class="hero-highlight">COM DESTAQUE</span></h1>
-    <p class="hero-subtitle">Subtítulo persuasivo com 1-2 linhas no máximo.</p>
-    <ul class="hero-benefits">
-      <li>✅ Benefício 1</li>
-      <li>✅ Benefício 2</li>
-      <li>✅ Benefício 3</li>
-    </ul>
-    <a href="#ofertas" class="cta-button">TEXTO DO CTA</a>
-  </div>
-  <div class="hero-image">
-    <img src="${primaryImg}" alt="Produto" />
-  </div>
-</section>
-
-CSS OBRIGATÓRIO para o hero (COPIE):
-.hero { display: grid; grid-template-columns: 1fr 1fr; align-items: center; padding: 60px 5%; gap: 40px; }
-.hero-content { max-width: 600px; }
-.hero-title { font-size: 3rem; font-weight: 800; line-height: 1.1; margin-bottom: 16px; }
-.hero-highlight { color: ${primaryColor}; }
-.hero-badge { display: inline-block; padding: 6px 16px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; margin-bottom: 16px; }
-.hero-subtitle { font-size: 1.1rem; line-height: 1.6; margin-bottom: 24px; opacity: 0.85; }
-.hero-benefits { list-style: none; padding: 0; margin-bottom: 32px; }
-.hero-benefits li { padding: 4px 0; font-size: 1rem; }
-.hero-image { display: flex; align-items: center; justify-content: center; }
-.hero-image img { width: 100%; max-width: 500px; height: auto; object-fit: contain; filter: drop-shadow(0 20px 40px rgba(0,0,0,0.3)); }
-@media (max-width: 768px) {
-  .hero { grid-template-columns: 1fr; text-align: center; padding: 40px 5%; }
-  .hero-image { order: -1; }
-  .hero-image img { max-width: 300px; }
-  .hero-title { font-size: 2rem; }
-  .hero-benefits { text-align: left; }
+  return { system, user };
 }
-
-### ═══════ TEMPLATE 2: SEÇÃO BENEFÍCIO (ALTERNAR POSIÇÃO) ═══════
-
-Para cada benefício, alterne imagem-esquerda/direita. Use a classe .reverse na segunda:
-
-<section class="benefit-section">
-  <div class="benefit-grid">
-    <div class="benefit-text">
-      <span class="benefit-label">LABEL DO BENEFÍCIO</span>
-      <h2 class="benefit-title">Título do Benefício com <span class="highlight">Destaque</span></h2>
-      <p class="benefit-desc">Descrição do benefício em 2-3 linhas.</p>
-      <ul class="benefit-list">
-        <li>✅ Ponto 1</li>
-        <li>✅ Ponto 2</li>
-      </ul>
-    </div>
-    <div class="benefit-image">
-      <img src="${secondImg}" alt="Benefício" />
-    </div>
-  </div>
-</section>
-
-<section class="benefit-section">
-  <div class="benefit-grid reverse">
-    <div class="benefit-text">...</div>
-    <div class="benefit-image">
-      <img src="${thirdImg}" alt="Benefício" />
-    </div>
-  </div>
-</section>
-
-CSS OBRIGATÓRIO (COPIE):
-.benefit-section { padding: 80px 5%; }
-.benefit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; max-width: 1100px; margin: 0 auto; }
-.benefit-grid.reverse { direction: rtl; }
-.benefit-grid.reverse > * { direction: ltr; }
-.benefit-label { display: inline-block; padding: 6px 16px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; margin-bottom: 12px; }
-.benefit-title { font-size: 2rem; font-weight: 700; line-height: 1.2; margin-bottom: 16px; }
-.benefit-desc { font-size: 1rem; line-height: 1.7; margin-bottom: 20px; opacity: 0.85; }
-.benefit-list { list-style: none; padding: 0; }
-.benefit-list li { padding: 6px 0; font-size: 0.95rem; }
-.benefit-image img { width: 100%; max-width: 450px; height: auto; object-fit: contain; border-radius: 16px; filter: drop-shadow(0 15px 35px rgba(0,0,0,0.2)); }
-@media (max-width: 768px) {
-  .benefit-grid, .benefit-grid.reverse { grid-template-columns: 1fr; direction: ltr; text-align: center; gap: 30px; }
-  .benefit-image { order: -1; }
-  .benefit-image img { max-width: 280px; margin: 0 auto; }
-  .benefit-title { font-size: 1.5rem; }
-}
-
-### ═══════ TEMPLATE 3: PRICING/OFERTAS (OBRIGATÓRIO) ═══════
-
-COPIE esta estrutura para 3 ofertas (adapte nomes e preços dos dados):
-
-<section class="pricing" id="ofertas">
-  <h2 class="pricing-title">ESCOLHA SEU TRATAMENTO</h2>
-  <p class="pricing-subtitle">Desconto progressivo: quanto maior o kit, maior a economia.</p>
-  <div class="pricing-grid">
-
-    <div class="pricing-card">
-      <div class="pricing-card-header">
-        <h3>NOME DO KIT 1</h3>
-        <p class="pricing-period">Tratamento X Meses</p>
-      </div>
-      <div class="pricing-card-image">
-        <img src="URL_DA_IMAGEM_DO_KIT_1" alt="Kit 1" />
-      </div>
-      <div class="pricing-card-body">
-        <span class="pricing-badge">X% OFF</span>
-        <p class="pricing-old">De R$ XX,XX</p>
-        <p class="pricing-current">R$ XX,XX</p>
-        <p class="pricing-installment">ou 12x de R$ X,XX</p>
-        <a href="#" class="cta-button">COMPRAR AGORA</a>
-        <span class="pricing-shipping">✓ Frete Grátis</span>
-      </div>
-    </div>
-
-    <div class="pricing-card featured">
-      <div class="pricing-featured-badge">🔥 MAIS VENDIDO</div>
-      <!-- Mesmo conteúdo com classe "featured" -->
-    </div>
-
-    <div class="pricing-card">
-      <!-- Terceiro card -->
-    </div>
-
-  </div>
-</section>
-
-CSS OBRIGATÓRIO (COPIE):
-.pricing { padding: 80px 5%; text-align: center; }
-.pricing-title { font-size: 2.2rem; font-weight: 800; margin-bottom: 8px; }
-.pricing-subtitle { font-size: 1rem; opacity: 0.7; margin-bottom: 48px; }
-.pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; max-width: 1100px; margin: 0 auto; align-items: stretch; }
-.pricing-card { border-radius: 16px; overflow: hidden; padding: 32px 24px; display: flex; flex-direction: column; align-items: center; text-align: center; position: relative; }
-.pricing-card.featured { transform: scale(1.05); z-index: 2; border: 2px solid ${primaryColor}; }
-.pricing-featured-badge { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); padding: 6px 20px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
-.pricing-card-image { margin: 16px 0; }
-.pricing-card-image img { width: 180px; height: 180px; object-fit: contain; }
-.pricing-badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 0.8rem; font-weight: 700; margin-bottom: 8px; }
-.pricing-old { text-decoration: line-through; opacity: 0.5; font-size: 0.9rem; margin: 4px 0; }
-.pricing-current { font-size: 2.2rem; font-weight: 800; margin: 4px 0; }
-.pricing-installment { font-size: 0.85rem; opacity: 0.7; margin-bottom: 20px; }
-.pricing-shipping { font-size: 0.85rem; margin-top: 12px; opacity: 0.8; }
-@media (max-width: 768px) {
-  .pricing-grid { grid-template-columns: 1fr; max-width: 400px; }
-  .pricing-card.featured { transform: none; }
-  .pricing-current { font-size: 1.8rem; }
-}
-
-### ═══════ REGRAS ABSOLUTAS DE IMAGEM ═══════
-- TODAS as imagens de produto: object-fit: contain (NUNCA cover, corta o produto)
-- Tamanho MÍNIMO de qualquer imagem de produto: 180px x 180px
-- A imagem principal DEVE aparecer no mínimo 3x (hero, benefício, pricing/CTA)
-- Em fundo escuro: adicione filter: drop-shadow(0 0 30px rgba(cor_primária, 0.3))
-- NUNCA use img { width: 100px } ou menor — mínimo absoluto é 180px
-- NUNCA coloque a imagem do produto flutuando sobre texto/depoimentos (overlap)
-
-### ANTI-PADRÕES (PROIBIDO):
-- ❌ Produto pequeno (< 180px) escondido no canto
-- ❌ Produto flutuando sobre depoimentos/textos (position absolute sobre conteúdo)
-- ❌ Hero com só texto sem imagem do produto
-- ❌ object-fit: cover em imagens de produto
-- ❌ Imagens decorativas genéricas no lugar do produto real`);
-  }
-
-  // === D. NICHE + TRAFFIC RULES ===
-  sections.push(getNicheRules(enginePlan.resolvedNiche));
-  sections.push(getTrafficRules(enginePlan.briefing.trafficSource));
-  sections.push(getAwarenessCopyRules(enginePlan.briefing.awarenessLevel));
-
-  // === E. ANTI-PADRÕES ===
-  const restrictionRules = enginePlan.briefing.restrictions?.map(r => {
-    if (r === 'no_countdown') return '- NÃO inclua countdown timers';
-    if (r === 'no_video') return '- NÃO inclua seções de vídeo';
-    if (r === 'no_comparisons') return '- NÃO inclua tabelas comparativas';
-    return '';
-  }).filter(Boolean).join('\n') || '';
-
-  sections.push(`## 🚫 REGRAS ABSOLUTAS
-
-- NUNCA invente nomes de produto — use EXATAMENTE: ${productNames.map(n => `"${n}"`).join(', ')}
-- NUNCA invente URLs de imagem — use APENAS as fornecidas abaixo
-- NUNCA use Lorem ipsum ou textos placeholder
-- Use EXATAMENTE os preços fornecidos nos dados
-- NÃO crie urgência artificial (estoque falso, countdown sem dados reais)
-- NÃO inclua Header nem Footer — são adicionados automaticamente pela plataforma
-- NÃO inclua tags de documento (<html>, <head>, <body>, <!DOCTYPE>)
-- NÃO inclua <footer> com informações de empresa, CNPJ, redes sociais etc.
-- NÃO use imagens de hosts externos (imgur, cloudinary, placeholder.com etc.)
-- NÃO use position: fixed ou position: sticky
-${restrictionRules}`);
-
-  // === F. DATA ===
-  const dataSections: string[] = [];
-
-  dataSections.push(`## Loja: ${storeName}
-- Logo: ${logoUrl || 'Sem logo'}
-- Cor Principal: ${primaryColor}`);
-
-  if (productsInfo) dataSections.push(`## PRODUTOS:\n${productsInfo}`);
-
-  // Asset slots
-  const assetSlots: string[] = [];
-
-  if (productImages.length > 0) {
-    assetSlots.push(`### IMAGENS DE PRODUTO DISPONÍVEIS (use nos blocos visuais):
-${productImages.map((url, i) => `${i + 1}. ${url}`).join('\n')}`);
-  }
-
-  const primaryMapEntries = Object.entries(productPrimaryImageMap);
-  if (primaryMapEntries.length > 0) {
-    assetSlots.push(`### IMAGEM PRINCIPAL POR PRODUTO:
-${primaryMapEntries.map(([name, url]) => `- "${name}": ${url}`).join('\n')}`);
-  }
-
-  if (socialProofImageUrls.length > 0) {
-    assetSlots.push(`### PROVA SOCIAL REAL (use em seções de depoimentos/resultados):
-${socialProofImageUrls.map((url, i) => `${i + 1}. ${url}`).join('\n')}`);
-  }
-
-  if (assetSlots.length > 0) {
-    dataSections.push(`## 🎯 ASSETS DISPONÍVEIS:\n${assetSlots.join('\n\n')}`);
-  }
-
-  if (reviewsInfo) dataSections.push(`## AVALIAÇÕES REAIS (use em seção de depoimentos):\n${reviewsInfo}`);
-  if (creativesInfo) dataSections.push(`## REFERÊNCIAS DE MARKETING:\n${creativesInfo}`);
-  if (referenceUrl) dataSections.push(`## URL DE REFERÊNCIA (apenas inspiração de layout):\n${referenceUrl}`);
-  if (currentHtml) dataSections.push(`## HTML ATUAL (para ajustes — modifique o necessário):\n\`\`\`html\n${currentHtml.substring(0, 8000)}\n\`\`\``);
-
-  return `${sections.join('\n\n---\n\n')}
-
----
-
-${dataSections.join('\n\n')}
-
----
-
-IMPORTANTE: Retorne APENAS HTML/CSS (conteúdo do body). NÃO inclua shell de documento. NÃO escreva explicações — apenas o código HTML/CSS.`;
-}
-
-const TEMPLATE_REGISTRY_NAMES: Record<string, string> = {
-  lp_captura: 'Lead Capture Curta',
-  lp_whatsapp: 'WhatsApp Push',
-  lp_produto_fisico: 'Produto Físico / DTC',
-  lp_click_through: 'Click-Through para Checkout',
-  sales_page_longa: 'Sales Page Longa',
-  lp_servico_premium: 'Serviço / Consultoria Premium',
-  lp_saas: 'SaaS / Software',
-};
 
 // ========== HTML RESPONSE PARSER ==========
 
@@ -434,7 +159,7 @@ function parseHtmlResponse(raw: string): { html: string; css: string; parseError
     html = html.replace(/^```\s*\n?/, '').replace(/\n?```\s*$/, '');
   }
 
-  // Enforce body-only contract — strip document shell if AI violated it
+  // Enforce body-only contract
   const hasShell = /<!DOCTYPE|<html[\s>]|<head[\s>]/i.test(html);
   if (hasShell) {
     console.warn("[AI-LP-Generate] outputContractViolation: AI sent document shell, stripping...");
@@ -452,7 +177,7 @@ function parseHtmlResponse(raw: string): { html: string; css: string; parseError
     parseError = 'outputContractViolation: stripped document shell';
   }
 
-  // Extract <style> blocks into separate CSS
+  // Extract CSS
   const styleRegex = /<style[^>]*>([\s\S]*?)<\/style>/gi;
   let match;
   const cssBlocks: string[] = [];
@@ -461,10 +186,9 @@ function parseHtmlResponse(raw: string): { html: string; css: string; parseError
   }
   if (cssBlocks.length > 0) {
     css = cssBlocks.join('\n\n');
-    // Keep <style> tags in the HTML for self-contained rendering
   }
 
-  // Strip <footer> tags (governance rule)
+  // Strip <footer>
   html = html.replace(/<footer[\s\S]*?<\/footer>/gi, '');
 
   return { html, css, parseError };
@@ -494,7 +218,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // ALWAYS fetch the landing page
+    // Fetch the landing page
     const { data: savedLandingPage, error: lpError } = await supabase
       .from("ai_landing_pages")
       .select("product_ids, reference_url, generated_html, generated_css, current_version, show_header, show_footer, briefing")
@@ -507,100 +231,76 @@ serve(async (req) => {
     referenceUrl = referenceUrl || savedLandingPage?.reference_url || undefined;
     briefing = briefing || (savedLandingPage?.briefing as BriefingInput | null) || undefined;
 
-    console.log(`[AI-LP-Generate] Using ${productIds?.length || 0} products, referenceUrl: ${referenceUrl ? 'yes' : 'no'}, briefing: ${briefing ? 'provided' : 'defaults'}`);
+    console.log(`[AI-LP-Generate] Using ${productIds?.length || 0} products, promptType: ${promptType}`);
 
     // Fetch store settings
     const { data: storeSettings } = await supabase
       .from("store_settings")
-      .select("store_name, logo_url, primary_color, secondary_color, accent_color, favicon_url, contact_phone, contact_email, published_template_id")
+      .select("store_name, logo_url, primary_color, secondary_color, accent_color, favicon_url, published_template_id")
       .eq("tenant_id", tenantId)
       .single();
 
-    // Fetch published theme colors
-    let themeColors: Record<string, string> = {};
-    if (storeSettings?.published_template_id) {
-      const { data: templateSet } = await supabase
-        .from("storefront_template_sets")
-        .select("published_content")
-        .eq("id", storeSettings.published_template_id)
-        .eq("tenant_id", tenantId)
-        .single();
-      if (templateSet?.published_content) {
-        const pc = templateSet.published_content as Record<string, any>;
-        const ts = pc?.themeSettings?.colors;
-        if (ts) { themeColors = ts; }
-      }
-    }
+    const storeName = storeSettings?.store_name || "Loja";
+    const primaryColor = storeSettings?.primary_color || "#6366f1";
 
     // ===== STEP 1: FETCH PRODUCTS =====
-    let productsInfo = "";
-    let productImages: string[] = [];
-    let productNames: string[] = [];
-    let productPrimaryImageMap: Record<string, string> = {};
-    let firstProduct: { name: string; product_type: string | null; tags: string[] | null; description: string | null; price: number | null } | null = null;
+    const allProducts: ProductData[] = [];
+    const kits: ProductData[] = [];
+    const reviews: ReviewData[] = [];
+    let firstProduct: ProductData | null = null;
     let reviewCount = 0;
 
     if (productIds && productIds.length > 0) {
-      const { data: products, error: productsError } = await supabase
+      const { data: products } = await supabase
         .from("products")
-        .select("id, name, slug, sku, description, short_description, price, compare_at_price, cost_price, brand, vendor, product_type, tags, weight, width, height, depth, seo_title, seo_description")
+        .select("id, name, slug, sku, description, short_description, price, compare_at_price, brand, product_type, tags")
         .in("id", productIds);
 
-      if (productsError) console.error("[AI-LP-Generate] Error fetching products:", productsError);
-
       if (products && products.length > 0) {
-        productNames = products.map(p => p.name);
-        const fp = products[0];
-        firstProduct = { name: fp.name, product_type: fp.product_type, tags: fp.tags, description: fp.description, price: fp.price };
-
+        // Fetch images
         const { data: images } = await supabase
           .from("product_images")
-          .select("product_id, url, is_primary, alt_text, sort_order")
+          .select("product_id, url, is_primary, sort_order")
           .in("product_id", productIds)
           .order("is_primary", { ascending: false })
           .order("sort_order", { ascending: true });
 
-        const imagesByProduct = new Map<string, { url: string; alt_text: string | null; is_primary: boolean }[]>();
-        images?.forEach(img => {
+        const imagesByProduct = new Map<string, string[]>();
+        const primaryImageByProduct = new Map<string, string>();
+        images?.forEach((img: any) => {
           if (!imagesByProduct.has(img.product_id)) imagesByProduct.set(img.product_id, []);
-          imagesByProduct.get(img.product_id)!.push({ url: img.url, alt_text: img.alt_text, is_primary: img.is_primary });
+          imagesByProduct.get(img.product_id)!.push(img.url);
+          if (img.is_primary && !primaryImageByProduct.has(img.product_id)) {
+            primaryImageByProduct.set(img.product_id, img.url);
+          }
         });
 
-        productsInfo = products.map(p => {
+        for (const p of products) {
           const prodImages = imagesByProduct.get(p.id) || [];
-          const primaryImage = prodImages.find(img => img.is_primary)?.url || prodImages[0]?.url;
-          const allImageUrls = prodImages.map(img => img.url);
-          if (primaryImage) {
-            productImages.push(primaryImage);
-            productPrimaryImageMap[p.name] = primaryImage;
-          }
-          allImageUrls.forEach(url => { if (url && !productImages.includes(url)) productImages.push(url); });
-
-          const priceInReais = p.price;
-          const compareAtPriceInReais = p.compare_at_price || null;
-          const discountPercent = compareAtPriceInReais && compareAtPriceInReais > priceInReais
-            ? Math.round(((compareAtPriceInReais - priceInReais) / compareAtPriceInReais) * 100)
+          const primaryImg = primaryImageByProduct.get(p.id) || prodImages[0] || '';
+          const compareAt = p.compare_at_price || null;
+          const discount = compareAt && compareAt > p.price
+            ? Math.round(((compareAt - p.price) / compareAt) * 100)
             : null;
 
-          return `### Produto: ${p.name}
-- **SKU**: ${p.sku || "N/A"}
-- **Slug (URL)**: ${p.slug || "N/A"}
-- **Descrição Curta**: ${p.short_description || "Sem descrição curta"}
-- **Descrição Completa**: ${p.description || "Sem descrição disponível"}
-- **Preço de Venda**: R$ ${priceInReais.toFixed(2).replace('.', ',')}
-${compareAtPriceInReais ? `- **Preço Original (riscado)**: R$ ${compareAtPriceInReais.toFixed(2).replace('.', ',')}` : ""}
-${discountPercent ? `- **Desconto**: ${discountPercent}% OFF` : ""}
-${p.brand ? `- **Marca**: ${p.brand}` : ""}
-${p.vendor ? `- **Fornecedor**: ${p.vendor}` : ""}
-${p.product_type ? `- **Tipo de Produto**: ${p.product_type}` : ""}
-${p.tags && p.tags.length > 0 ? `- **Tags**: ${p.tags.join(", ")}` : ""}
-${p.weight ? `- **Peso**: ${p.weight}g` : ""}
-- **Imagem Principal**: ${primaryImage || "SEM IMAGEM"}
-- **TODAS AS IMAGENS**: 
-${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).join("\n") : "  NENHUMA IMAGEM"}`;
-        }).join("\n\n");
+          const pd: ProductData = {
+            name: p.name,
+            slug: p.slug,
+            price: p.price,
+            compareAtPrice: compareAt,
+            discountPercent: discount,
+            primaryImage: primaryImg,
+            allImages: prodImages,
+            shortDescription: p.short_description || undefined,
+            description: p.description || undefined,
+            brand: p.brand || undefined,
+          };
 
-        // ===== STEP 1B: AUTO-DISCOVER RELATED KITS =====
+          allProducts.push(pd);
+          if (!firstProduct) firstProduct = pd;
+        }
+
+        // Auto-discover kits
         try {
           const { data: relatedKits } = await supabase
             .from("product_components")
@@ -615,7 +315,7 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
             if (kitParentIds.length > 0) {
               const { data: kitProducts } = await supabase
                 .from("products")
-                .select("id, name, slug, sku, price, compare_at_price, product_format, status")
+                .select("id, name, slug, price, compare_at_price, product_format, status")
                 .in("id", kitParentIds)
                 .eq("product_format", "with_composition")
                 .eq("status", "active")
@@ -625,96 +325,58 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
                 const kitIds = kitProducts.map((k: any) => k.id);
                 const { data: kitImages } = await supabase
                   .from("product_images")
-                  .select("product_id, url, is_primary, sort_order")
+                  .select("product_id, url, is_primary")
                   .in("product_id", kitIds)
-                  .order("is_primary", { ascending: false })
-                  .order("sort_order", { ascending: true });
+                  .order("is_primary", { ascending: false });
 
-                const kitImageMap = new Map<string, string>();
+                const kitPrimaryImage = new Map<string, string>();
                 kitImages?.forEach((img: any) => {
-                  if (!kitImageMap.has(img.product_id)) {
-                    kitImageMap.set(img.product_id, img.url);
-                  }
+                  if (!kitPrimaryImage.has(img.product_id)) kitPrimaryImage.set(img.product_id, img.url);
                 });
 
-                const kitInfoParts: string[] = [];
                 for (const kit of kitProducts) {
-                  const kitPrimaryImage = kitImageMap.get(kit.id);
-                  if (kitPrimaryImage) {
-                    productPrimaryImageMap[kit.name] = kitPrimaryImage;
-                    if (!productImages.includes(kitPrimaryImage)) productImages.push(kitPrimaryImage);
-                  }
-                  if (!productNames.includes(kit.name)) productNames.push(kit.name);
-
-                  const kitCompare = kit.compare_at_price || null;
-                  const kitDiscount = kitCompare && kitCompare > kit.price
-                    ? Math.round(((kitCompare - kit.price) / kitCompare) * 100)
+                  const compareAt = kit.compare_at_price || null;
+                  const discount = compareAt && compareAt > kit.price
+                    ? Math.round(((compareAt - kit.price) / compareAt) * 100)
                     : null;
-
-                  kitInfoParts.push(`### Kit Relacionado: ${kit.name}
-- **SKU**: ${kit.sku || "N/A"}
-- **Preço de Venda**: R$ ${kit.price.toFixed(2).replace('.', ',')}
-${kitCompare ? `- **Preço Original (riscado)**: R$ ${kitCompare.toFixed(2).replace('.', ',')}` : ""}
-${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
-- **Formato**: Kit com composição
-- **Imagem Principal**: ${kitPrimaryImage || "SEM IMAGEM"}`);
+                  kits.push({
+                    name: kit.name,
+                    slug: kit.slug,
+                    price: kit.price,
+                    compareAtPrice: compareAt,
+                    discountPercent: discount,
+                    primaryImage: kitPrimaryImage.get(kit.id) || '',
+                    isKit: true,
+                  });
                 }
-
-                if (kitInfoParts.length > 0) {
-                  productsInfo += "\n\n## KITS QUE CONTÊM ESTE PRODUTO (use nas ofertas/pricing):\n\n" + kitInfoParts.join("\n\n");
-                }
-
-                console.log(`[AI-LP-Generate] Auto-discovered ${kitProducts.length} related kits with images`);
+                console.log(`[AI-LP-Generate] Auto-discovered ${kits.length} kits`);
               }
             }
           }
         } catch (kitErr) {
-          console.warn("[AI-LP-Generate] Kit discovery error (non-blocking):", kitErr);
+          console.warn("[AI-LP-Generate] Kit discovery error:", kitErr);
+        }
+
+        // Fetch reviews
+        const { data: reviewsData } = await supabase
+          .from("product_reviews")
+          .select("reviewer_name, rating, comment")
+          .in("product_id", productIds)
+          .eq("status", "approved")
+          .order("rating", { ascending: false })
+          .limit(10);
+
+        if (reviewsData && reviewsData.length > 0) {
+          for (const r of reviewsData) {
+            reviews.push({ name: r.reviewer_name || 'Cliente', rating: r.rating, comment: r.comment });
+          }
+          reviewCount = reviewsData.length;
         }
       }
     }
 
-    // ===== STEP 2: BUSINESS CONTEXT =====
-    let reviewsInfo = "";
-    let creativesInfo = "";
-
-    if (productIds && productIds.length > 0) {
-      const { data: reviews } = await supabase
-        .from("product_reviews")
-        .select("reviewer_name, rating, comment, product_id")
-        .in("product_id", productIds)
-        .eq("status", "approved")
-        .order("rating", { ascending: false })
-        .limit(10);
-
-      if (reviews && reviews.length > 0) {
-        reviewsInfo = reviews.map(r => `- ⭐ ${r.rating}/5 — "${r.comment}" (${r.reviewer_name || 'Cliente'})`).join("\n");
-        reviewCount = reviews.length;
-      }
-    }
-
-    const { data: creatives } = await supabase
-      .from("ads_creative_assets")
-      .select("headline, copy_text, angle, funnel_stage, format")
-      .eq("tenant_id", tenantId)
-      .in("status", ["ready", "published"])
-      .not("copy_text", "is", null)
-      .order("created_at", { ascending: false })
-      .limit(5);
-
-    if (creatives && creatives.length > 0) {
-      creativesInfo = creatives.map(c => {
-        const parts = [];
-        if (c.headline) parts.push(`Headline: "${c.headline}"`);
-        if (c.copy_text) parts.push(`Copy: "${c.copy_text.slice(0, 200)}"`);
-        if (c.angle) parts.push(`Ângulo: ${c.angle}`);
-        return `- ${parts.join(" | ")}`;
-      }).join("\n");
-    }
-
-    // ===== STEP 3: SOCIAL PROOF =====
-    let socialProofImageUrls: string[] = [];
-
+    // Fetch social proof images
+    let socialProofImages: string[] = [];
     if (productIds && productIds.length > 0 && promptType !== "adjustment") {
       try {
         const { data: proofFolders } = await supabase
@@ -722,26 +384,24 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
           .select("id, filename, storage_path")
           .eq("tenant_id", tenantId)
           .eq("is_folder", true)
-          .or("filename.ilike.%feedback%,filename.ilike.%review%,filename.ilike.%prova%,filename.ilike.%resultado%,filename.ilike.%depoimento%,filename.ilike.%antes%depois%")
+          .or("filename.ilike.%feedback%,filename.ilike.%review%,filename.ilike.%prova%,filename.ilike.%resultado%,filename.ilike.%depoimento%")
           .limit(10);
 
         if (proofFolders && proofFolders.length > 0) {
-          console.log(`[AI-LP-Generate] Found ${proofFolders.length} social proof folders`);
           const folderPaths = proofFolders.map((f: any) => f.storage_path || `drive/${tenantId}/${f.filename}`);
-          
           const orConditions = folderPaths.map((fp: string) => `storage_path.like.${fp}/%`).join(",");
           const { data: proofFiles } = await supabase
             .from("files")
-            .select("id, original_name, storage_path, mime_type, metadata")
+            .select("id, storage_path, mime_type, metadata")
             .eq("tenant_id", tenantId)
             .eq("is_folder", false)
             .ilike("mime_type", "image/%")
             .or(orConditions)
             .order("created_at", { ascending: false })
-            .limit(10);
+            .limit(5);
 
-          if (proofFiles && proofFiles.length > 0) {
-            for (const file of proofFiles.slice(0, 5)) {
+          if (proofFiles) {
+            for (const file of proofFiles) {
               try {
                 const meta = file.metadata as Record<string, any> | null;
                 let imageUrl = meta?.url as string | undefined;
@@ -755,140 +415,205 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
                     imageUrl = pubData?.publicUrl;
                   }
                 }
-                if (imageUrl) {
-                  socialProofImageUrls.push(imageUrl);
-                }
-              } catch (spErr) { console.warn("[AI-LP-Generate] Social proof file error:", spErr); }
+                if (imageUrl) socialProofImages.push(imageUrl);
+              } catch (e) { /* non-blocking */ }
             }
-            console.log(`[AI-LP-Generate] Found ${socialProofImageUrls.length} social proof images`);
           }
         }
-      } catch (spSearchErr) { console.warn("[AI-LP-Generate] Social proof search error:", spSearchErr); }
+      } catch (e) { /* non-blocking */ }
     }
 
-    // ===== STEP 7: RESOLVE ENGINE PLAN =====
+    // ===== STEP 2: RESOLVE ENGINE PLAN =====
+    const fpProduct = allProducts[0];
     const enginePlan = resolveEnginePlan({
       briefing: briefing || null,
-      productType: firstProduct?.product_type,
-      tags: firstProduct?.tags,
-      description: firstProduct?.description,
-      price: firstProduct?.price,
+      productType: null,
+      tags: null,
+      description: fpProduct?.description || null,
+      price: fpProduct?.price || null,
       reviewCount,
     });
 
-    console.log(`[AI-LP-Generate] Engine Plan: archetype=${enginePlan.resolvedArchetype}, niche=${enginePlan.resolvedNiche}, depth=${enginePlan.resolvedDepth}, visual=${enginePlan.resolvedVisualWeight}, proof=${enginePlan.proofStrength}, assumptions=${enginePlan.assumptions.length}`);
+    console.log(`[AI-LP-Generate] Engine Plan: visual=${enginePlan.resolvedVisualWeight}, niche=${enginePlan.resolvedNiche}`);
 
-    // ===== STEP 8: BUILD HTML PROMPT =====
-    let currentHtml = "";
+    // ===== STEP 3: DETERMINE CTA =====
+    const ctaText = enginePlan.defaultCTA || "COMPRAR AGORA";
+    const ctaUrl = "#ofertas";
+
+    // ===== STEP 4: BUILD PAGE FROM TEMPLATES =====
+    
+    let finalHtml = "";
+    let finalCss = "";
+    let parseError: string | undefined;
+    let aiRefinementUsed = false;
+
     if (promptType === "adjustment" && savedLandingPage?.generated_html) {
-      currentHtml = savedLandingPage.generated_html;
-    }
+      // ── ADJUSTMENT MODE: AI edits existing HTML ──
+      console.log(`[AI-LP-Generate] Adjustment mode — sending current HTML to AI for editing`);
+      
+      const { system, user } = buildAdjustmentPrompt({
+        storeName,
+        productName: firstProduct?.name || 'Produto',
+        prompt,
+        currentHtml: savedLandingPage.generated_html.substring(0, 15000),
+      });
 
-    const systemPrompt = buildHtmlSystemPrompt({
-      enginePlan,
-      storeName: storeSettings?.store_name || "Loja",
-      logoUrl: storeSettings?.logo_url || "",
-      primaryColor: storeSettings?.primary_color || "#6366f1",
-      secondaryColor: storeSettings?.secondary_color,
-      accentColor: storeSettings?.accent_color,
-      themeColors,
-      productsInfo,
-      productImages,
-      productNames,
-      productPrimaryImageMap,
-      reviewsInfo,
-      creativesInfo,
-      socialProofImageUrls,
-      referenceUrl,
-      currentHtml,
-    });
+      resetAIRouterCache();
+      const aiResponse = await aiChatCompletion("google/gemini-2.5-pro", {
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        temperature: 0.5,
+      }, {
+        supabaseUrl,
+        supabaseServiceKey: supabaseKey,
+        logPrefix: "[AI-LP-Adjust]",
+      });
 
-    // ===== STEP 9: ENRICH PROMPT IF INCOMPLETE =====
-    let enrichedPrompt = prompt;
-    let fallbackUsed: string | null = null;
-
-    if (promptType !== "adjustment" && isPromptIncomplete(prompt)) {
-      const bestFallback = selectBestFallback(
-        firstProduct?.product_type,
-        firstProduct?.tags,
-        firstProduct?.description,
-        firstProduct?.name,
-      );
-      fallbackUsed = bestFallback.id;
-      enrichedPrompt = `${prompt}\n\nDIREÇÃO CRIATIVA: ${bestFallback.prompt}`;
-      console.log(`[AI-LP-Generate] Prompt enriched with fallback "${bestFallback.id}"`);
-    }
-
-    const hasUserMedia = prompt.includes("[Imagem:") || prompt.includes("[Vídeo:");
-    const userMediaNote = hasUserMedia ? `\nAs URLs marcadas como [Imagem: URL] DEVEM ser usadas no HTML.` : "";
-
-    const userPrompt = promptType === "adjustment"
-      ? `Ajuste a landing page conforme solicitado:\n\n${prompt}${userMediaNote}\n\nRetorne o HTML/CSS COMPLETO atualizado (conteúdo do body).`
-      : `Crie uma landing page de alta conversão:\n\n${enrichedPrompt}${userMediaNote}\n\nRetorne APENAS o HTML/CSS (conteúdo do body, sem shell de documento).`;
-
-    // ===== STEP 10: CALL AI (HTML generation, NO tool calling) =====
-    console.log(`[AI-LP-Generate v${VERSION}] Calling AI for HTML generation (${promptType})...`);
-    resetAIRouterCache();
-
-    const aiResponse = await aiChatCompletion("google/gemini-2.5-pro", {
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ],
-      temperature: 0.7,
-    }, {
-      supabaseUrl,
-      supabaseServiceKey: supabaseKey,
-      logPrefix: "[AI-LP-Generate]",
-    });
-
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
-      console.error("[AI-LP-Generate] AI error:", aiResponse.status, errorText);
-      if (aiResponse.status === 429) {
-        return new Response(JSON.stringify({ success: false, error: "Rate limit exceeded. Try again later." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      if (aiResponse.ok) {
+        const aiData = await aiResponse.json();
+        const rawContent = aiData.choices?.[0]?.message?.content || "";
+        if (rawContent.length > 100) {
+          const parsed = parseHtmlResponse(rawContent);
+          finalHtml = parsed.html;
+          finalCss = parsed.css;
+          parseError = parsed.parseError;
+          aiRefinementUsed = true;
+        } else {
+          // AI returned too-short response, keep existing
+          finalHtml = savedLandingPage.generated_html;
+          finalCss = savedLandingPage.generated_css || '';
+          parseError = 'AI adjustment returned too-short response, kept existing';
+        }
+      } else {
+        // AI failed, keep existing
+        finalHtml = savedLandingPage.generated_html;
+        finalCss = savedLandingPage.generated_css || '';
+        parseError = `AI adjustment failed: ${aiResponse.status}`;
       }
-      if (aiResponse.status === 402) {
-        return new Response(JSON.stringify({ success: false, error: "Credits exhausted. Please add credits." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    } else {
+      // ── GENERATION MODE: Templates + AI Copy Refinement ──
+      console.log(`[AI-LP-Generate] Generation mode — assembling from templates`);
+
+      if (!firstProduct) {
+        throw new Error("No products found to generate landing page");
       }
-      throw new Error(`AI error: ${aiResponse.status}`);
+
+      // Phase 1: Assemble from templates (instant, no AI needed)
+      const templateInput: PageTemplateInput = {
+        storeName,
+        primaryColor,
+        secondaryColor: storeSettings?.secondary_color || undefined,
+        accentColor: storeSettings?.accent_color || undefined,
+        visualWeight: enginePlan.resolvedVisualWeight as any || 'premium',
+        mainProduct: firstProduct,
+        allProducts,
+        kits,
+        reviews,
+        socialProofImages,
+        ctaText,
+        ctaUrl,
+      };
+
+      const assembled = assembleLandingPage(templateInput);
+      console.log(`[AI-LP-Generate] Templates assembled: ${assembled.html.length} chars, ${assembled.sectionOrder.length} sections: ${assembled.sectionOrder.join(', ')}`);
+
+      // Phase 2: AI refines copy (enhances headlines and descriptions)
+      try {
+        const enrichedPrompt = isPromptIncomplete(prompt)
+          ? `${prompt}\n\nDIREÇÃO: ${selectBestFallback(null, null, firstProduct.description || null, firstProduct.name).prompt}`
+          : prompt;
+
+        const { system, user } = buildCopyRefinementPrompt({
+          storeName,
+          productName: firstProduct.name,
+          niche: enginePlan.resolvedNiche,
+          visualWeight: enginePlan.resolvedVisualWeight,
+          prompt: enrichedPrompt,
+          currentHtml: assembled.html,
+        });
+
+        resetAIRouterCache();
+        const aiResponse = await aiChatCompletion("google/gemini-2.5-flash", {
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: user },
+          ],
+          temperature: 0.6,
+        }, {
+          supabaseUrl,
+          supabaseServiceKey: supabaseKey,
+          logPrefix: "[AI-LP-Copy]",
+        });
+
+        if (aiResponse.ok) {
+          const aiData = await aiResponse.json();
+          const rawContent = aiData.choices?.[0]?.message?.content || "";
+          if (rawContent.length > 200) {
+            const parsed = parseHtmlResponse(rawContent);
+            // Validate AI didn't destroy the page
+            if (parsed.html.length > assembled.html.length * 0.5) {
+              finalHtml = parsed.html;
+              finalCss = parsed.css || assembled.css;
+              parseError = parsed.parseError;
+              aiRefinementUsed = true;
+              console.log(`[AI-LP-Generate] AI copy refinement applied: ${parsed.html.length} chars`);
+            } else {
+              console.warn("[AI-LP-Generate] AI output too short vs template, using template baseline");
+              finalHtml = assembled.html;
+              finalCss = assembled.css;
+              parseError = 'AI copy refinement too short, used template baseline';
+            }
+          } else {
+            console.warn("[AI-LP-Generate] AI returned short response, using template baseline");
+            finalHtml = assembled.html;
+            finalCss = assembled.css;
+            parseError = 'AI copy too short';
+          }
+        } else {
+          console.warn(`[AI-LP-Generate] AI copy refinement failed (${aiResponse.status}), using template baseline`);
+          finalHtml = assembled.html;
+          finalCss = assembled.css;
+          parseError = `AI copy failed: ${aiResponse.status}`;
+        }
+      } catch (aiErr) {
+        console.warn("[AI-LP-Generate] AI copy error, using template baseline:", aiErr);
+        finalHtml = assembled.html;
+        finalCss = assembled.css;
+        parseError = 'AI copy error';
+      }
     }
 
-    const aiData = await aiResponse.json();
-    const rawContent = aiData.choices?.[0]?.message?.content || "";
-
-    if (!rawContent || rawContent.trim().length < 50) {
-      throw new Error("AI returned empty or too-short response");
+    if (!finalHtml || finalHtml.length < 50) {
+      throw new Error("Generated HTML is empty or too short");
     }
 
-    // ===== STEP 11: PARSE HTML RESPONSE =====
-    const { html, css, parseError } = parseHtmlResponse(rawContent);
-
-    if (!html || html.length < 50) {
-      throw new Error("Parsed HTML is too short: " + (parseError || "empty output"));
-    }
-
-    console.log(`[AI-LP-Generate] HTML parsed: ${html.length} chars, CSS: ${css.length} chars`);
-
-    // ===== STEP 12: PERSIST =====
+    // ===== STEP 5: PERSIST =====
     const newVersion = (savedLandingPage?.current_version || 0) + 1;
 
     const { error: updateError } = await supabase
       .from("ai_landing_pages")
       .update({
-        generated_html: html,
-        generated_css: css || null,
-        generated_blocks: null, // V5.4: HTML takes priority, clear blocks
+        generated_html: finalHtml,
+        generated_css: finalCss || null,
+        generated_blocks: null,
         current_version: newVersion,
         status: "draft",
         metadata: {
-          engineVersion: "v5.4",
-          briefingSchemaVersion: "1.0",
-          enginePlanInput: enginePlan,
-          htmlLength: html.length,
-          cssLength: css.length,
+          engineVersion: "v6.0",
+          templateBased: true,
+          aiRefinementUsed,
+          visualWeight: enginePlan.resolvedVisualWeight,
+          niche: enginePlan.resolvedNiche,
+          htmlLength: finalHtml.length,
+          cssLength: finalCss.length,
           parseError: parseError || null,
-          fallbackPromptUsed: fallbackUsed,
+          productCount: allProducts.length,
+          kitCount: kits.length,
+          reviewCount,
+          socialProofCount: socialProofImages.length,
         },
       })
       .eq("id", landingPageId);
@@ -903,33 +628,35 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
         version: newVersion,
         prompt,
         prompt_type: promptType,
-        html_content: html,
-        css_content: css || null,
+        html_content: finalHtml,
+        css_content: finalCss || null,
         blocks_content: null,
         created_by: userId,
         generation_metadata: {
-          engineVersion: "v5.4",
-          model: "google/gemini-2.5-pro",
-          tool_calling: false,
-          html_length: html.length,
-          css_length: css.length,
-          product_count: productIds?.length || 0,
+          engineVersion: "v6.0",
+          templateBased: true,
+          aiRefinementUsed,
+          model: aiRefinementUsed ? "google/gemini-2.5-flash" : "none",
+          html_length: finalHtml.length,
+          product_count: allProducts.length,
+          kit_count: kits.length,
           reviews_count: reviewCount,
-          fallback_prompt_used: fallbackUsed,
           parseError: parseError || null,
         },
       });
 
     if (versionError) console.error("[AI-LP-Generate] Version error:", versionError);
 
-    console.log(`[AI-LP-Generate v${VERSION}] Success! Version ${newVersion}, HTML ${html.length} chars`);
+    console.log(`[AI-LP-Generate v${VERSION}] Success! Version ${newVersion}, HTML ${finalHtml.length} chars, AI refined: ${aiRefinementUsed}`);
 
     return new Response(
       JSON.stringify({
         success: true,
         version: newVersion,
-        htmlLength: html.length,
-        engineVersion: "v5.4",
+        htmlLength: finalHtml.length,
+        engineVersion: "v6.0",
+        templateBased: true,
+        aiRefinementUsed,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
