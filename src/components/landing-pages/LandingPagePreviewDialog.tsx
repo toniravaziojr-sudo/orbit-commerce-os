@@ -76,7 +76,23 @@ export function LandingPagePreviewDialog({
       );
     }
 
-    // V5: Render blocks via BlockRenderer if available
+    // V5.4: Prioritize HTML rendering (iframe) for maximum visual quality
+    if (landingPage?.generated_html) {
+      const sanitizedHtml = sanitizeAILandingPageHtml(landingPage.generated_html);
+      const fullHtml = buildDocumentShell(sanitizedHtml, {
+        extraCss: landingPage.generated_css || undefined,
+      });
+
+      return (
+        <iframe
+          srcDoc={fullHtml}
+          className="w-full h-full border-0"
+          title="Landing Page Preview"
+        />
+      );
+    }
+
+    // Fallback: Render blocks via BlockRenderer (legacy V5 content)
     if (hasBlocks) {
       const blockContent = landingPage!.generated_blocks as unknown as BlockNode;
       const context: BlockRenderContext = {
@@ -86,7 +102,6 @@ export function LandingPagePreviewDialog({
         viewport: viewMode === 'mobile' ? 'mobile' : 'desktop',
       };
 
-      // Filter out Header/Footer blocks - they are managed externally
       const contentChildren = (blockContent.children || []).filter(
         (node: BlockNode) => node.type !== 'Header' && node.type !== 'Footer'
       );
@@ -109,19 +124,7 @@ export function LandingPagePreviewDialog({
       );
     }
 
-    // Legacy HTML fallback
-    const sanitizedHtml = sanitizeAILandingPageHtml(landingPage!.generated_html!);
-    const fullHtml = buildDocumentShell(sanitizedHtml, {
-      extraCss: landingPage!.generated_css || undefined,
-    });
-
-    return (
-      <iframe
-        srcDoc={fullHtml}
-        className="w-full h-full border-0"
-        title="Landing Page Preview"
-      />
-    );
+    return null;
   };
 
   return (

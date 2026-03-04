@@ -6,6 +6,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { sanitizeAILandingPageHtml } from "@/lib/sanitizeAILandingPageHtml";
+import { buildDocumentShell } from "@/lib/aiLandingPageShell";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { BlockRenderer } from "@/components/builder/BlockRenderer";
 import { BlockNode, BlockRenderContext } from "@/lib/builder/types";
@@ -339,7 +340,41 @@ export default function LandingPageEditor() {
       );
     }
 
-    // V5: Render blocks via BlockRenderer
+    // V5.4: Prioritize HTML rendering (iframe) for maximum visual quality
+    if (hasHtml) {
+      const sanitizedHtml = sanitizeAILandingPageHtml(landingPage!.generated_html || '');
+      const fullHtml = buildDocumentShell(sanitizedHtml, {
+        extraCss: landingPage!.generated_css || undefined,
+      });
+
+      return (
+        <div className="w-full h-full overflow-auto" style={{ background: '#fff' }}>
+          {showHeader && (
+            <div className="bg-muted/50 border-b px-4 py-2 text-center text-xs text-muted-foreground">
+              ⬆ Cabeçalho da loja será exibido aqui na página pública
+            </div>
+          )}
+          <iframe
+            ref={iframeRef}
+            srcDoc={fullHtml}
+            className="w-full border-0"
+            style={{ 
+              height: iframeHeight ? `${iframeHeight}px` : '100%',
+              minHeight: iframeHeight ? undefined : '400px',
+              display: 'block',
+            }}
+            title="Landing Page Preview"
+          />
+          {showFooter && (
+            <div className="bg-muted/50 border-t px-4 py-2 text-center text-xs text-muted-foreground">
+              ⬇ Rodapé da loja será exibido aqui na página pública
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Fallback: Render blocks via BlockRenderer (legacy V5 content)
     if (hasBlocks) {
       const blockContent = landingPage!.generated_blocks as BlockNode;
       const context: BlockRenderContext = {
@@ -348,12 +383,10 @@ export default function LandingPageEditor() {
         pageType: 'landing_page',
       };
 
-      // Filter out Header/Footer blocks - they are managed externally
       const contentChildren = (blockContent.children || []).filter(
         (node: BlockNode) => node.type !== 'Header' && node.type !== 'Footer'
       );
 
-      // Use the Page node's backgroundColor for the container
       const pageBg = (blockContent.props?.backgroundColor as string) || 'transparent';
 
       return (
@@ -382,107 +415,7 @@ export default function LandingPageEditor() {
       );
     }
 
-    // Legacy: HTML rendering via iframe
-    const rawHtml = sanitizeAILandingPageHtml(landingPage!.generated_html || '');
-    const isFullDocument = rawHtml.trim().toLowerCase().startsWith('<!doctype') || rawHtml.trim().toLowerCase().startsWith('<html');
-    
-    const fullHtml = isFullDocument 
-      ? rawHtml 
-      : `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body { margin: 0; font-family: system-ui, sans-serif; }
-    ${landingPage!.generated_css || ''}
-  </style>
-</head>
-<body>${rawHtml}</body>
-</html>`;
-
-    // Inject safety CSS to prevent opacity:0 stuck state from animation-fill-mode: both
-    const safetyCss = `<style id="lp-safety">
-*, *::before, *::after { animation: none !important; }
-* { opacity: 1 !important; visibility: visible !important; }
-section, .section, .hero, [class*="hero"] {
-  min-height: auto !important;
-}
-.cta-button { cursor: pointer; }
-</style>`;
-
-    let htmlWithSafety = fullHtml;
-    if (htmlWithSafety.includes('</head>')) {
-      htmlWithSafety = htmlWithSafety.replace('</head>', `${safetyCss}\n</head>`);
-    }
-
-    // Inject auto-resize script
-    const autoResizeScript = `<script>
-(function(){
-  var locked = false;
-  var lastH = 0;
-  var stableCount = 0;
-  function sendHeight(){
-    if(locked) return;
-    try {
-      var h = Math.max(
-        document.documentElement.scrollHeight || 0,
-        document.body.scrollHeight || 0
-      );
-      if(h > 0 && Math.abs(h - lastH) > 2){
-        stableCount = 0;
-        lastH = h;
-        window.parent.postMessage({type:'ai-lp-resize', height: h}, '*');
-      } else if(h > 0) {
-        stableCount++;
-        if(stableCount >= 3) { locked = true; }
-      }
-    } catch(e){}
-  }
-  sendHeight();
-  setTimeout(sendHeight, 200);
-  setTimeout(sendHeight, 600);
-  setTimeout(sendHeight, 1500);
-  setTimeout(sendHeight, 3000);
-  var imgs = document.querySelectorAll('img');
-  imgs.forEach(function(img){
-    if(!img.complete){ img.addEventListener('load', function(){ sendHeight(); }, {once:true}); }
-  });
-})();
-</script>`;
-
-    let htmlWithResize = htmlWithSafety;
-    if (htmlWithResize.includes('</body>')) {
-      htmlWithResize = htmlWithResize.replace('</body>', `${autoResizeScript}\n</body>`);
-    } else {
-      htmlWithResize += autoResizeScript;
-    }
-
-    return (
-      <div className="w-full h-full overflow-auto" style={{ background: '#fff' }}>
-        {showHeader && (
-          <div className="bg-muted/50 border-b px-4 py-2 text-center text-xs text-muted-foreground">
-            ⬆ Cabeçalho da loja será exibido aqui na página pública
-          </div>
-        )}
-        <iframe
-          ref={iframeRef}
-          srcDoc={htmlWithResize}
-          className="w-full border-0"
-          style={{ 
-            height: iframeHeight ? `${iframeHeight}px` : '100%',
-            minHeight: iframeHeight ? undefined : '400px',
-            display: 'block',
-          }}
-          title="Landing Page Preview"
-        />
-        {showFooter && (
-          <div className="bg-muted/50 border-t px-4 py-2 text-center text-xs text-muted-foreground">
-            ⬇ Rodapé da loja será exibido aqui na página pública
-          </div>
-        )}
-      </div>
-    );
+    return null;
   };
 
   if (isLoading) {

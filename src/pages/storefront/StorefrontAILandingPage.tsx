@@ -264,13 +264,17 @@ export default function StorefrontAILandingPage() {
 
   const resolvedTenantSlug = tenantSlug || tenantInfo.tenantSlug || '';
 
-  // ===== V5: BLOCKS RENDERING (React components via BlockRenderer) =====
-  if (hasBlocks) {
+  // ===== V5.4: HTML RENDERING (iframe) — PRIORITY =====
+  if (hasHtml) {
+    // This is the primary rendering path for V5.4+ content
+  }
+
+  // ===== FALLBACK: BLOCKS RENDERING (legacy V5 content) =====
+  if (!hasHtml && hasBlocks) {
     const blockContent = landingPage.generated_blocks as BlockNode;
-    const shouldShowHeader = landingPage.show_header ?? false;
-    const shouldShowFooterV5 = landingPage.show_footer ?? false;
+    const shouldShowHeaderBlocks = landingPage.show_header ?? false;
+    const shouldShowFooterBlocks = landingPage.show_footer ?? false;
     
-    // Filter out Header/Footer blocks from the tree - managed externally
     const contentChildren = (blockContent.children || []).filter(
       (node: BlockNode) => node.type !== 'Header' && node.type !== 'Footer'
     );
@@ -290,7 +294,7 @@ export default function StorefrontAILandingPage() {
             <StorefrontConfigProvider tenantId={tenantInfo.tenantId}>
               <StorefrontThemeInjector tenantSlug={resolvedTenantSlug} />
               <div className="w-full min-h-screen" style={{ margin: 0, padding: 0, isolation: 'isolate', backgroundColor: pageBg === 'transparent' ? undefined : pageBg }}>
-                {shouldShowHeader && (
+                {shouldShowHeaderBlocks && (
                   <div style={{ containerType: 'inline-size', containerName: 'storefront' }} className="storefront-header-wrapper">
                     <StorefrontHeader key={`header-${resolvedTenantSlug}`} />
                   </div>
@@ -303,7 +307,7 @@ export default function StorefrontAILandingPage() {
                     isEditing={false}
                   />
                 ))}
-                {shouldShowFooterV5 && (
+                {shouldShowFooterBlocks && (
                   <div style={{ containerType: 'inline-size', containerName: 'storefront' }} className="storefront-footer-wrapper">
                     <StorefrontFooter key={`footer-${resolvedTenantSlug}`} />
                   </div>
@@ -316,7 +320,7 @@ export default function StorefrontAILandingPage() {
     );
   }
 
-  // ===== LEGACY HTML FALLBACK (iframe) =====
+  // ===== HTML IFRAME RENDERING =====
   const pixelScripts = buildPixelScripts(marketingConfig ?? null);
   const faviconTag = buildFaviconTag(storeSettings?.favicon_url);
   const sanitizedHtml = sanitizeAILandingPageHtml(landingPage.generated_html!);

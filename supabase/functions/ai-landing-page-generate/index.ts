@@ -1,8 +1,8 @@
 // =============================================
-// AI LANDING PAGE GENERATE — V4.0 ENGINE
-// Deterministic backend pipeline for landing page generation
-// Backend is AUTHORITY, AI is EXECUTOR
-// v4.0.0: Engine plan + modular prompt + structured parser + hard checks
+// AI LANDING PAGE GENERATE — V5.4 ENGINE
+// Motor V5.4: HTML Livre + Timeout Resolvido
+// Volta ao HTML/CSS livre (como V4) para máxima qualidade visual
+// Imagens são geradas assíncronamente pelo enhance-images (Etapa 2)
 // =============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -11,141 +11,14 @@ import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { isPromptIncomplete, selectBestFallback } from "../_shared/marketing/fallback-prompts.ts";
 import {
   resolveEnginePlan,
-  runHardChecks,
   getNicheRules,
   getTrafficRules,
   getAwarenessCopyRules,
   type BriefingInput,
   type EnginePlanInput,
-  type HardCheckOutput,
 } from "../_shared/marketing/engine-plan.ts";
-import {
-  BLOCK_TOOL_DEFINITION,
-  getBlockPropsDocumentation,
-  assembleBlockTree,
-} from "../_shared/marketing/block-assembler.ts";
 
-const VERSION = "5.2.0"; // Engine V5.2: 2-step architecture — page generation (fast) + image enhancement (async)
-
-const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
-
-// ========== CREATIVE IMAGE GENERATION ==========
-
-async function imageUrlToBase64(url: string): Promise<string | null> {
-  try {
-    const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
-    if (!resp.ok) return null;
-    const buffer = await resp.arrayBuffer();
-    const bytes = new Uint8Array(buffer);
-    let binary = '';
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
-  } catch (e) {
-    console.error("[AI-LP-Generate] Failed to download image:", e);
-    return null;
-  }
-}
-
-async function callImageModel(
-  lovableApiKey: string,
-  model: string,
-  prompt: string,
-  referenceBase64: string,
-  additionalReferences?: string[],
-): Promise<string | null> {
-  const content: any[] = [
-    { type: 'text', text: prompt },
-    { type: 'image_url', image_url: { url: 'data:image/png;base64,' + referenceBase64 } },
-  ];
-  if (additionalReferences && additionalReferences.length > 0) {
-    for (const refB64 of additionalReferences.slice(0, 2)) {
-      content.push({ type: 'image_url', image_url: { url: 'data:image/png;base64,' + refB64 } });
-    }
-  }
-  const response = await fetch(LOVABLE_GATEWAY_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Bearer ' + lovableApiKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: 'user', content }],
-      modalities: ['image', 'text'],
-    }),
-  });
-  if (!response.ok) {
-    const errText = await response.text();
-    console.error("[AI-LP-Generate] " + model + " error: " + response.status, errText.substring(0, 300));
-    return null;
-  }
-  const data = await response.json();
-  return data.choices?.[0]?.message?.images?.[0]?.image_url?.url || null;
-}
-
-async function ensureDriveFolder(supabase: any, tenantId: string, userId: string, folderName: string): Promise<string | null> {
-  try {
-    const { data: existing } = await supabase.from("files").select("id").eq("tenant_id", tenantId).eq("is_folder", true).eq("filename", folderName).limit(1).maybeSingle();
-    if (existing?.id) return existing.id;
-    const { data: created, error } = await supabase.from("files").insert({
-      tenant_id: tenantId, filename: folderName, original_name: folderName,
-      storage_path: `drive/${tenantId}/criativos-de-pagina`,
-      is_folder: true, is_system_folder: true, created_by: userId,
-      metadata: { source: "ai_landing_page_generate", system_managed: true },
-    }).select("id").single();
-    if (error) { console.error("[AI-LP-Generate] Error creating folder:", error); return null; }
-    return created?.id || null;
-  } catch (e) { console.error("[AI-LP-Generate] Folder ensure error:", e); return null; }
-}
-
-async function registerFileToDrive(supabase: any, tenantId: string, userId: string, folderId: string, publicUrl: string, storagePath: string, originalName: string, mimeType: string, sizeBytes: number): Promise<void> {
-  try {
-    await supabase.from("files").insert({
-      tenant_id: tenantId, folder_id: folderId, filename: originalName, original_name: originalName,
-      storage_path: storagePath, mime_type: mimeType, size_bytes: sizeBytes,
-      is_folder: false, is_system_folder: false, created_by: userId,
-      metadata: { source: "ai_landing_page_generate", url: publicUrl, bucket: "store-assets", system_managed: true },
-    });
-  } catch (e) { console.warn("[AI-LP-Generate] Drive registration error (non-blocking):", e); }
-}
-
-async function uploadCreativeToStorage(supabase: any, tenantId: string, dataUrl: string, productName: string, userId?: string, driveFolderId?: string | null): Promise<string | null> {
-  try {
-    const base64Data = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
-    const binaryStr = atob(base64Data);
-    const bytes = new Uint8Array(binaryStr.length);
-    for (let i = 0; i < binaryStr.length; i++) { bytes[i] = binaryStr.charCodeAt(i); }
-    const timestamp = Date.now();
-    const safeName = productName.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 40);
-    const filename = 'hero-' + safeName + '-' + timestamp + '.png';
-    const filePath = tenantId + '/lp-creatives/' + filename;
-    const { error: uploadError } = await supabase.storage.from('store-assets').upload(filePath, bytes, { contentType: 'image/png', upsert: false });
-    if (uploadError) { console.error("[AI-LP-Generate] Upload error:", uploadError); return null; }
-    const { data: publicUrlData } = supabase.storage.from('store-assets').getPublicUrl(filePath);
-    const publicUrl = publicUrlData?.publicUrl;
-    if (publicUrl && driveFolderId && userId) {
-      await registerFileToDrive(supabase, tenantId, userId, driveFolderId, publicUrl, filePath, filename, 'image/png', bytes.length);
-    }
-    return publicUrl || null;
-  } catch (error) { console.error("[AI-LP-Generate] Upload creative error:", error); return null; }
-}
-
-async function generateHeroCreative(supabase: any, lovableApiKey: string, tenantId: string, productName: string, productImageUrl: string, storeName: string, userId?: string, driveFolderId?: string | null, driveReferenceBase64s?: string[]): Promise<string | null> {
-  try {
-    const referenceBase64 = await imageUrlToBase64(productImageUrl);
-    if (!referenceBase64) return null;
-    const driveContext = driveReferenceBase64s && driveReferenceBase64s.length > 0
-      ? '\n\nREFERÊNCIAS VISUAIS ADICIONAIS: As imagens extras anexadas são referências visuais do Drive do lojista para este produto. Use-as como inspiração de estilo, ângulo e composição, mas GERE uma imagem NOVA e ORIGINAL.'
-      : '';
-    const prompt = 'FOTOGRAFIA PUBLICITÁRIA DE ALTO IMPACTO para landing page de venda.\n\nPRODUTO: "' + productName + '" pela marca "' + storeName + '"\n\nOBJETIVO: Criar uma imagem hero profissional de alta conversão para landing page.\n\nREGRAS ABSOLUTAS:\n1. O produto na imagem de referência DEVE ser mantido EXATAMENTE como é — mesmo rótulo, mesmas cores, mesmo formato\n2. NÃO altere o texto do rótulo, marca ou embalagem do produto\n3. NÃO invente novos produtos ou embalagens\n\nCOMPOSIÇÃO:\n- Produto em destaque central ou em posição hero (leve ângulo 3/4)\n- Sombra de contato realista\n- Efeitos de brilho/reflexo sutis para transmitir qualidade premium\n- Aspect ratio: 16:9 (paisagem) para hero banner\n\nCENÁRIO E AMBIENTAÇÃO (baseado no nicho do produto):\n- Cosméticos/Saúde/Beleza: bancada de banheiro premium com iluminação natural dourada\n- Suplementos/Fitness/Masculino: superfície de concreto polido escuro, iluminação dramática lateral\n- Tech/Eletrônicos/Gadgets: mesa de escritório moderna, iluminação LED azulada sutil\n- Alimentos/Bebidas/Orgânicos: mesa de madeira rústica, ingredientes frescos ao redor\n- Moda/Acessórios: fundo de tecido nobre, iluminação de estúdio suave\n- Default: superfície minimalista escura com gradiente de luz lateral suave\n\nESTILO VISUAL: Coerência com landing page dark/premium. Use backgrounds escuros ou médios. Qualidade de catálogo profissional. Ultra realista.' + driveContext;
-    let imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', prompt, referenceBase64, driveReferenceBase64s);
-    if (!imageDataUrl) imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-2.5-flash-image', prompt, referenceBase64, driveReferenceBase64s);
-    if (!imageDataUrl) return null;
-    return await uploadCreativeToStorage(supabase, tenantId, imageDataUrl, productName, userId, driveFolderId);
-  } catch (error) { console.error("[AI-LP-Generate] Creative generation error:", error); return null; }
-}
+const VERSION = "5.4.0"; // Engine V5.4: HTML Livre + Timeout Resolvido
 
 // ========== CORS ==========
 
@@ -167,9 +40,9 @@ interface GenerateRequest {
   briefing?: BriefingInput;
 }
 
-// ========== MODULAR PROMPT BUILDER ==========
+// ========== HTML SYSTEM PROMPT BUILDER ==========
 
-function buildV5SystemPrompt(params: {
+function buildHtmlSystemPrompt(params: {
   enginePlan: EnginePlanInput;
   storeName: string;
   logoUrl: string;
@@ -183,26 +56,42 @@ function buildV5SystemPrompt(params: {
   productPrimaryImageMap: Record<string, string>;
   reviewsInfo: string;
   creativesInfo: string;
-  generatedCreativeUrls: string[];
-  lifestyleImageUrls: string[];
   socialProofImageUrls: string[];
   referenceUrl?: string;
-  currentBlocks?: string;
+  currentHtml?: string;
 }): string {
   const {
     enginePlan, storeName, logoUrl, primaryColor, secondaryColor, accentColor,
-    themeColors, productsInfo, productImages, productNames, productPrimaryImageMap, reviewsInfo,
-    creativesInfo, generatedCreativeUrls, lifestyleImageUrls,
-    referenceUrl, currentBlocks,
+    themeColors, productsInfo, productImages, productNames, productPrimaryImageMap,
+    reviewsInfo, creativesInfo, socialProofImageUrls,
+    referenceUrl, currentHtml,
   } = params;
 
   const sections: string[] = [];
 
   // === A. ROLE ===
-  sections.push(`Você é um diretor criativo de elite, especialista em landing pages de altíssima conversão.
-Você vai montar uma landing page usando COMPONENTES REAIS pré-construídos (React). 
-Você NÃO gera HTML. Você chama a função build_landing_page com a estrutura de seções.
-Cada seção que você escolher será renderizada por um componente real com design profissional.`);
+  sections.push(`Você é um diretor criativo de elite, especialista em criar landing pages de altíssima conversão com HTML/CSS livre.
+Você gera HTML e CSS COMPLETOS, com total controle sobre layout, tipografia, cores, gradientes, efeitos visuais e espaçamentos.
+Você NÃO está preso a componentes genéricos — você tem liberdade criativa total para criar páginas premium e únicas.
+
+## FORMATO DE SAÍDA (OBRIGATÓRIO)
+
+Retorne APENAS o conteúdo do <body> — NÃO inclua <!DOCTYPE>, <html>, <head> ou <body> tags.
+O sistema vai envolver seu HTML em um documento completo automaticamente.
+
+Inclua seus estilos CSS em uma tag <style> no INÍCIO do conteúdo.
+
+Exemplo de formato correto:
+\`\`\`
+<style>
+  /* Seus estilos aqui */
+  .hero { background: linear-gradient(...); }
+</style>
+<section class="hero">...</section>
+<section class="benefits">...</section>
+\`\`\`
+
+PROIBIDO retornar <!DOCTYPE>, <html>, <head>, <body>, <footer> ou qualquer shell de documento.`);
 
   // === B. AUTHORITATIVE CONTEXT ===
   sections.push(`## ⚡ CONTEXTO AUTORITATIVO (NÃO NEGOCIÁVEL)
@@ -222,37 +111,37 @@ Cada seção que você escolher será renderizada por um componente real com des
 - **Nível de Consciência**: ${enginePlan.briefing.awarenessLevel}
 ${enginePlan.briefing.restrictions?.length ? `- **Restrições**: ${enginePlan.briefing.restrictions.join(', ')}` : ''}`);
 
-  // === C. SECTION MAPPING ===
-  sections.push(`## 📐 MAPEAMENTO DE SEÇÕES → COMPONENTES
+  // === C. VISUAL GUIDELINES ===
+  sections.push(`## 🎨 DIRETRIZES VISUAIS PREMIUM
 
-Use a função build_landing_page com os seguintes tipos de seção:
+### Peso Visual: ${enginePlan.resolvedVisualWeight}
+${enginePlan.resolvedVisualWeight === 'premium' ? `
+- Fundo escuro (#0a0a0a ou #0d0d0d) com acentos dourados (#c9a96e ou #d4af37)
+- Tipografia: Use Google Fonts premium — @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;800&family=Inter:wght@300;400;500;600&display=swap')
+- Playfair Display para headlines (bold, letter-spacing: 1-2px)
+- Inter para corpo de texto
+- Cards com backdrop-filter: blur(12px), sombras profundas (0 8px 32px rgba(0,0,0,0.4))
+- Botões CTA com gradiente dourado, padding generoso (18px 48px), border-radius: 8px
+- Seções com padding: 80px-120px vertical
+- Glass morphism: background: rgba(255,255,255,0.05), border: 1px solid rgba(255,255,255,0.1)` : ''}
+${enginePlan.resolvedVisualWeight === 'comercial' ? `
+- Cores vibrantes nos CTAs, badges de desconto grandes
+- Preço em destaque com compare-at-price riscado
+- Banners coloridos para urgência/oferta
+- Layout energético e direto
+- Tipografia: @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Open+Sans:wght@400;600&display=swap')` : ''}
+${enginePlan.resolvedVisualWeight === 'minimalista' ? `
+- Fundo claro (#ffffff ou #fafafa), muito espaço em branco
+- Tipografia elegante e leve
+- Poucos elementos, cada um com propósito claro
+- @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600&family=Inter:wght@300;400&display=swap')` : ''}
+${enginePlan.resolvedVisualWeight === 'direto' ? `
+- Layout limpo e objetivo
+- CTAs claros e prominentes
+- Sem ornamentos desnecessários
+- @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap')` : ''}
 
-| Seção do Engine Plan | Tipo no Tool Call | Quando Usar |
-|-----|-----|-----|
-| hero | hero_banner | SEMPRE primeiro — headline + CTA + imagem hero |
-| credibilidade | info_highlights | Badges de confiança (Frete Grátis, Pagamento Seguro) |
-| dor_problema | content_columns | Texto sobre o problema + imagem | 
-| solucao | content_columns | Solução + imagem do produto |
-| beneficios | feature_list | Lista de benefícios com ícones |
-| produto_destaque | content_columns | Produto em destaque com features |
-| prova_social | testimonials OU image_gallery | Reviews reais ou galeria de fotos |
-| comparativo | pricing_table | Comparação de kits/planos |
-| oferta | pricing_table | Cards de preço/oferta |
-| faq | faq | Perguntas frequentes |
-| garantia | text_section + button_cta | Texto de garantia + CTA |
-| como_funciona | steps_timeline | Passo a passo |
-| cta_final | button_cta | CTA de fechamento |
-
-Siga a ordem do Engine Plan. Inclua seções obrigatórias E opcionais conforme a profundidade.`);
-
-  // === D. NICHE + TRAFFIC RULES ===
-  sections.push(getNicheRules(enginePlan.resolvedNiche));
-  sections.push(getTrafficRules(enginePlan.briefing.trafficSource));
-  sections.push(getAwarenessCopyRules(enginePlan.briefing.awarenessLevel));
-
-  // === E. VISUAL ===
-  sections.push(`## 🎨 CORES E VISUAL
-
+### Cores da Marca
 - Cor Primária: ${primaryColor}
 ${secondaryColor ? `- Cor Secundária: ${secondaryColor}` : ''}
 ${accentColor ? `- Cor de Acento: ${accentColor}` : ''}
@@ -260,15 +149,21 @@ ${themeColors.buttonPrimaryBg ? `- Botão Primário BG: ${themeColors.buttonPrim
 ${themeColors.buttonPrimaryText ? `- Botão Primário Text: ${themeColors.buttonPrimaryText}` : ''}
 ${themeColors.priceColor ? `- Cor do Preço: ${themeColors.priceColor}` : ''}
 
-### Peso Visual: ${enginePlan.resolvedVisualWeight}
-${enginePlan.resolvedVisualWeight === 'premium' ? '- Use page_background_color escuro (#0a0a0a), textColor claro (#ffffff), accentColor dourado' : ''}
-${enginePlan.resolvedVisualWeight === 'comercial' ? '- Use cores vibrantes nos CTAs, badges de desconto, preço em destaque' : ''}
-${enginePlan.resolvedVisualWeight === 'minimalista' ? '- Use page_background_color claro (#ffffff), poucos elementos, tipografia elegante' : ''}
-${enginePlan.resolvedVisualWeight === 'direto' ? '- Layout simples, sem ornamentos, CTAs claros' : ''}
+### Regras de CSS
+- Use classes semânticas (.hero, .benefits, .testimonials, .pricing, .faq, .cta-final)
+- Todas as imagens DEVEM ter max-width: 100% e height: auto
+- Grids com grid-template-columns devem usar fr units
+- CTAs: use a classe .cta-button para botões de ação
+- Animações sutis: fadeInUp com animation-delay escalonado (max 1.5s)
+- Mobile: inclua @media (max-width: 768px) para responsividade
+- NUNCA use position: fixed ou position: sticky`);
 
-Use as cores da marca em buttonColor, iconColor, accentColor dos blocos.`);
+  // === D. NICHE + TRAFFIC RULES ===
+  sections.push(getNicheRules(enginePlan.resolvedNiche));
+  sections.push(getTrafficRules(enginePlan.briefing.trafficSource));
+  sections.push(getAwarenessCopyRules(enginePlan.briefing.awarenessLevel));
 
-  // === F. ANTI-PADRÕES ===
+  // === E. ANTI-PADRÕES ===
   const restrictionRules = enginePlan.briefing.restrictions?.map(r => {
     if (r === 'no_countdown') return '- NÃO inclua countdown timers';
     if (r === 'no_video') return '- NÃO inclua seções de vídeo';
@@ -279,14 +174,18 @@ Use as cores da marca em buttonColor, iconColor, accentColor dos blocos.`);
   sections.push(`## 🚫 REGRAS ABSOLUTAS
 
 - NUNCA invente nomes de produto — use EXATAMENTE: ${productNames.map(n => `"${n}"`).join(', ')}
-- NUNCA invente URLs de imagem — use APENAS as fornecidas
-- NUNCA use Lorem ipsum
+- NUNCA invente URLs de imagem — use APENAS as fornecidas abaixo
+- NUNCA use Lorem ipsum ou textos placeholder
 - Use EXATAMENTE os preços fornecidos nos dados
 - NÃO crie urgência artificial (estoque falso, countdown sem dados reais)
-- Header e Footer são adicionados automaticamente — NÃO os inclua nas seções
+- NÃO inclua Header nem Footer — são adicionados automaticamente pela plataforma
+- NÃO inclua tags de documento (<html>, <head>, <body>, <!DOCTYPE>)
+- NÃO inclua <footer> com informações de empresa, CNPJ, redes sociais etc.
+- NÃO use imagens de hosts externos (imgur, cloudinary, placeholder.com etc.)
+- NÃO use position: fixed ou position: sticky
 ${restrictionRules}`);
 
-  // === G. DATA ===
+  // === F. DATA ===
   const dataSections: string[] = [];
 
   dataSections.push(`## Loja: ${storeName}
@@ -297,39 +196,31 @@ ${restrictionRules}`);
 
   // Asset slots
   const assetSlots: string[] = [];
-  
-  if (generatedCreativeUrls.length > 0) {
-    assetSlots.push(`### HERO IMAGE: ${generatedCreativeUrls[0]}
-Use como imageDesktop no hero_banner.`);
-  } else if (lifestyleImageUrls.length > 0) {
-    assetSlots.push(`### HERO IMAGE: ${lifestyleImageUrls[0]}
-Use como imageDesktop no hero_banner.`);
-  } else if (productImages.length > 0) {
-    assetSlots.push(`### HERO IMAGE: ${productImages[0]}`);
+
+  if (productImages.length > 0) {
+    assetSlots.push(`### IMAGENS DE PRODUTO DISPONÍVEIS (use nos blocos visuais):
+${productImages.map((url, i) => `${i + 1}. ${url}`).join('\n')}`);
   }
 
   const primaryMapEntries = Object.entries(productPrimaryImageMap);
   if (primaryMapEntries.length > 0) {
-    assetSlots.push(`### IMAGENS POR PRODUTO (para pricing_table e content_columns):
+    assetSlots.push(`### IMAGEM PRINCIPAL POR PRODUTO:
 ${primaryMapEntries.map(([name, url]) => `- "${name}": ${url}`).join('\n')}`);
   }
 
-  if (params.socialProofImageUrls && params.socialProofImageUrls.length > 0) {
-    assetSlots.push(`### PROVA SOCIAL REAL (use em image_gallery ou testimonials.image):
-${params.socialProofImageUrls.map((url: string, i: number) => `${i + 1}. ${url}`).join('\n')}`);
+  if (socialProofImageUrls.length > 0) {
+    assetSlots.push(`### PROVA SOCIAL REAL (use em seções de depoimentos/resultados):
+${socialProofImageUrls.map((url, i) => `${i + 1}. ${url}`).join('\n')}`);
   }
 
   if (assetSlots.length > 0) {
     dataSections.push(`## 🎯 ASSETS DISPONÍVEIS:\n${assetSlots.join('\n\n')}`);
   }
 
-  if (reviewsInfo) dataSections.push(`## AVALIAÇÕES REAIS (use no testimonials):\n${reviewsInfo}`);
+  if (reviewsInfo) dataSections.push(`## AVALIAÇÕES REAIS (use em seção de depoimentos):\n${reviewsInfo}`);
   if (creativesInfo) dataSections.push(`## REFERÊNCIAS DE MARKETING:\n${creativesInfo}`);
   if (referenceUrl) dataSections.push(`## URL DE REFERÊNCIA (apenas inspiração de layout):\n${referenceUrl}`);
-  if (currentBlocks) dataSections.push(`## ESTRUTURA ATUAL (para ajustes):\n${currentBlocks}`);
-
-  // === H. BLOCK PROPS DOCUMENTATION ===
-  sections.push(getBlockPropsDocumentation());
+  if (currentHtml) dataSections.push(`## HTML ATUAL (para ajustes — modifique o necessário):\n\`\`\`html\n${currentHtml.substring(0, 8000)}\n\`\`\``);
 
   return `${sections.join('\n\n---\n\n')}
 
@@ -339,7 +230,7 @@ ${dataSections.join('\n\n')}
 
 ---
 
-IMPORTANTE: Chame a função build_landing_page com a estrutura completa de seções. NÃO escreva HTML. NÃO escreva texto fora da chamada de função.`;
+IMPORTANTE: Retorne APENAS HTML/CSS (conteúdo do body). NÃO inclua shell de documento. NÃO escreva explicações — apenas o código HTML/CSS.`;
 }
 
 const TEMPLATE_REGISTRY_NAMES: Record<string, string> = {
@@ -352,184 +243,54 @@ const TEMPLATE_REGISTRY_NAMES: Record<string, string> = {
   lp_saas: 'SaaS / Software',
 };
 
-// ========== STRUCTURED RESPONSE PARSER ==========
+// ========== HTML RESPONSE PARSER ==========
 
-interface ParsedResponse {
-  diagnostic: Record<string, any> | null;
-  html: string;
-  parseError?: string;
-}
-
-function parseStructuredResponse(raw: string): ParsedResponse {
-  let diagnostic: Record<string, any> | null = null;
-  let html = '';
+function parseHtmlResponse(raw: string): { html: string; css: string; parseError?: string } {
+  let html = raw.trim();
+  let css = '';
   let parseError: string | undefined;
 
-  // Try to extract JSON block: ```json ... ```
-  const jsonMatch = raw.match(/```json\s*\n?([\s\S]*?)```/);
-  if (jsonMatch) {
-    try {
-      diagnostic = JSON.parse(jsonMatch[1].trim());
-      console.log("[AI-LP-Generate] Diagnostic JSON parsed successfully");
-    } catch (e) {
-      parseError = `JSON parse failed: ${(e as Error).message}`;
-      console.warn("[AI-LP-Generate] " + parseError);
-    }
-  } else {
-    parseError = 'No ```json block found in response';
-    console.warn("[AI-LP-Generate] " + parseError);
+  // Remove markdown code fences if present
+  if (html.startsWith('```html')) {
+    html = html.replace(/^```html\s*\n?/, '').replace(/\n?```\s*$/, '');
+  } else if (html.startsWith('```')) {
+    html = html.replace(/^```\s*\n?/, '').replace(/\n?```\s*$/, '');
   }
 
-  // Try to extract HTML block: ```html ... ```
-  const htmlMatch = raw.match(/```html\s*\n?([\s\S]*?)```/);
-  if (htmlMatch) {
-    html = htmlMatch[1].trim();
-    console.log("[AI-LP-Generate] HTML block extracted from structured response");
-  } else {
-    // Fallback: treat everything as HTML (compatibility)
-    html = raw.replace(/```json\s*\n?[\s\S]*?```/g, '').trim();
-    // Clean markdown wrappers
-    html = html.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '').trim();
-    if (!parseError) parseError = 'No ```html block found — used raw content as HTML';
-    console.warn("[AI-LP-Generate] Fallback: treating response as raw HTML");
-  }
-
-  // === V4.2: ENFORCE BODY-ONLY CONTRACT ===
+  // Enforce body-only contract — strip document shell if AI violated it
   const hasShell = /<!DOCTYPE|<html[\s>]|<head[\s>]/i.test(html);
   if (hasShell) {
     console.warn("[AI-LP-Generate] outputContractViolation: AI sent document shell, stripping...");
-    // Try to extract <body> content first
     const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
     if (bodyMatch) {
       html = bodyMatch[1].trim();
-      console.log("[AI-LP-Generate] Extracted content from <body> tag");
     } else {
-      // No <body> — strip known shell tags and use remaining content
       html = html
         .replace(/<!DOCTYPE[^>]*>/gi, '')
         .replace(/<\/?html[^>]*>/gi, '')
         .replace(/<head[\s\S]*?<\/head>/gi, '')
         .replace(/<\/?body[^>]*>/gi, '')
         .trim();
-      console.log("[AI-LP-Generate] No <body> found — stripped shell tags, using remaining content");
     }
-    parseError = (parseError ? parseError + '; ' : '') + 'outputContractViolation: AI sent document shell, extracted body content';
+    parseError = 'outputContractViolation: stripped document shell';
   }
 
-  return { diagnostic, html, parseError };
-}
-
-// ========== V4.2: WRAP IN DOCUMENT SHELL ==========
-
-/**
- * Wraps AI-generated section content in a full HTML document.
- * The backend is 100% authoritative over the document shell.
- * AI returns only sections; this function adds: head, fonts, CSS utilities, safety CSS, pixels, favicon, auto-resize.
- */
-function wrapInDocumentShell(sectionHtml: string, options: {
-  pixelScripts?: string;
-  faviconTag?: string;
-}): string {
-  const cssUtilities = `
-@keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes pulse-cta { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
-.animate-section { animation: fadeInUp 0.8s ease-out forwards; }
-.glass-card { background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; }
-.container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
-.section { padding: 80px 0; }
-/* CTA constraints (v4.3) */
-.cta-button, [class*="cta"], a[style*="padding"][style*="background"] {
-  max-width: 400px; font-size: clamp(14px, 1.1vw, 18px); padding: 14px 32px;
-  border-radius: 8px; display: inline-block; box-sizing: border-box;
-}
-@media (max-width: 768px) {
-  html, body { overflow-x: hidden !important; max-width: 100vw !important; }
-  h1 { font-size: 1.75rem !important; line-height: 1.2 !important; }
-  h2 { font-size: 1.4rem !important; }
-  h3 { font-size: 1.15rem !important; }
-  p, li, span { font-size: 15px !important; }
-  .section { padding: 48px 0 !important; }
-  .container { padding: 0 16px !important; }
-  /* Force single column on grids with 3+ columns, preserve 2-col */
-  [style*="grid-template-columns: repeat(3"], [style*="grid-template-columns: repeat(4"],
-  [style*="grid-template-columns: repeat(5"], [style*="grid-template-columns: repeat(6"] {
-    grid-template-columns: 1fr !important;
+  // Extract <style> blocks into separate CSS
+  const styleRegex = /<style[^>]*>([\s\S]*?)<\/style>/gi;
+  let match;
+  const cssBlocks: string[] = [];
+  while ((match = styleRegex.exec(html)) !== null) {
+    cssBlocks.push(match[1].trim());
   }
-  [style*="grid-template-columns: 1fr 1fr 1fr"], [style*="grid-template-columns:1fr 1fr 1fr"] {
-    grid-template-columns: 1fr !important;
+  if (cssBlocks.length > 0) {
+    css = cssBlocks.join('\n\n');
+    // Keep <style> tags in the HTML for self-contained rendering
   }
-  /* Grid catch-all removed in v4.2 — selective rules above handle 3+ columns correctly */
-  .comparison-table-wrapper { overflow-x: auto; }
-  .cta-button, [class*="cta"], a[style*="padding"][style*="background"] {
-    max-width: 100% !important; width: 100% !important; text-align: center !important;
-    padding: 14px 24px !important; font-size: 16px !important; display: block !important;
-  }
-  img { max-width: 100% !important; height: auto !important; }
-  /* Prevent horizontal overflow */
-  * { max-width: 100vw; }
-  [style*="position: absolute"], [style*="position:absolute"] { max-width: 100% !important; }
-}`;
 
-  const safetyCss = `
-/* Only fix stuck animations with fill-mode both/forwards */
-[style*="animation-fill-mode: both"], [style*="animation-fill-mode: forwards"],
-[style*="animation-fill-mode:both"], [style*="animation-fill-mode:forwards"] {
-  animation-fill-mode: none !important;
-}
-section, .section, .hero, [class*="hero"] { min-height: auto !important; }
-html, body { overflow-x: hidden !important; max-width: 100% !important; }
-.cta-button { cursor: pointer; }`;
+  // Strip <footer> tags (governance rule)
+  html = html.replace(/<footer[\s\S]*?<\/footer>/gi, '');
 
-  const autoResizeScript = `
-<script>
-(function(){
-  var locked = false;
-  var lastH = 0;
-  var stableCount = 0;
-  function sendHeight(){
-    if(locked) return;
-    try {
-      var h = Math.max(
-        document.documentElement.scrollHeight || 0,
-        document.body.scrollHeight || 0
-      );
-      if(h > 0 && Math.abs(h - lastH) > 2){
-        stableCount = 0;
-        lastH = h;
-        window.parent.postMessage({type:'ai-lp-resize', height: h}, '*');
-      } else if(h > 0) {
-        stableCount++;
-        if(stableCount >= 3) { locked = true; }
-      }
-    } catch(e){}
-  }
-  sendHeight();
-  setTimeout(sendHeight, 200);
-  setTimeout(sendHeight, 600);
-  setTimeout(sendHeight, 1500);
-  setTimeout(sendHeight, 3000);
-  var imgs = document.querySelectorAll('img');
-  imgs.forEach(function(img){
-    if(!img.complete){ img.addEventListener('load', function(){ sendHeight(); }, {once:true}); }
-  });
-})();
-</script>`;
-
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style id="lp-utilities">${cssUtilities}</style>
-  <style id="lp-safety">${safetyCss}</style>
-  ${options.faviconTag || ''}
-  ${options.pixelScripts || ''}
-</head>
-<body style="margin:0;overflow-x:hidden">
-  ${sectionHtml}
-  ${autoResizeScript}
-</body>
-</html>`;
+  return { html, css, parseError };
 }
 
 // ========== MAIN HANDLER ==========
@@ -559,7 +320,7 @@ serve(async (req) => {
     // ALWAYS fetch the landing page
     const { data: savedLandingPage, error: lpError } = await supabase
       .from("ai_landing_pages")
-      .select("product_ids, reference_url, generated_html, current_version, show_header, show_footer, briefing")
+      .select("product_ids, reference_url, generated_html, generated_css, current_version, show_header, show_footer, briefing")
       .eq("id", landingPageId)
       .single();
 
@@ -567,7 +328,6 @@ serve(async (req) => {
 
     productIds = productIds && productIds.length > 0 ? productIds : (savedLandingPage?.product_ids || []);
     referenceUrl = referenceUrl || savedLandingPage?.reference_url || undefined;
-    // Use briefing from request, or from saved LP, or null
     briefing = briefing || (savedLandingPage?.briefing as BriefingInput | null) || undefined;
 
     console.log(`[AI-LP-Generate] Using ${productIds?.length || 0} products, referenceUrl: ${referenceUrl ? 'yes' : 'no'}, briefing: ${briefing ? 'provided' : 'defaults'}`);
@@ -664,7 +424,6 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
         }).join("\n\n");
 
         // ===== STEP 1B: AUTO-DISCOVER RELATED KITS =====
-        // Find kits (with_composition) that contain ANY of the selected products as components
         try {
           const { data: relatedKits } = await supabase
             .from("product_components")
@@ -673,8 +432,8 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
 
           if (relatedKits && relatedKits.length > 0) {
             const kitParentIds = [...new Set(relatedKits.map((r: any) => r.parent_product_id))].filter(
-              (id: string) => !productIds!.includes(id) // exclude already-selected products
-            ).slice(0, 6); // Limit to 6 most relevant kits to keep prompt lean
+              (id: string) => !productIds!.includes(id)
+            ).slice(0, 6);
 
             if (kitParentIds.length > 0) {
               const { data: kitProducts } = await supabase
@@ -686,7 +445,6 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
                 .is("deleted_at", null);
 
               if (kitProducts && kitProducts.length > 0) {
-                // Fetch primary images for kits
                 const kitIds = kitProducts.map((k: any) => k.id);
                 const { data: kitImages } = await supabase
                   .from("product_images")
@@ -702,7 +460,6 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
                   }
                 });
 
-                // Add kits to productsInfo and productPrimaryImageMap
                 const kitInfoParts: string[] = [];
                 for (const kit of kitProducts) {
                   const kitPrimaryImage = kitImageMap.get(kit.id);
@@ -782,7 +539,6 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
     let socialProofImageUrls: string[] = [];
 
     if (productIds && productIds.length > 0 && promptType !== "adjustment") {
-      // Search for folders with social proof content (feedback, reviews, results, proofs)
       try {
         const { data: proofFolders } = await supabase
           .from("files")
@@ -833,11 +589,6 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
       } catch (spSearchErr) { console.warn("[AI-LP-Generate] Social proof search error:", spSearchErr); }
     }
 
-    // V5.2: Image generation moved to separate function (ai-landing-page-enhance-images)
-    // This function focuses on fast page structure generation using catalog images
-    const generatedCreativeUrls: string[] = [];
-    const lifestyleImageUrls: string[] = [];
-
     // ===== STEP 7: RESOLVE ENGINE PLAN =====
     const enginePlan = resolveEnginePlan({
       briefing: briefing || null,
@@ -850,19 +601,13 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
 
     console.log(`[AI-LP-Generate] Engine Plan: archetype=${enginePlan.resolvedArchetype}, niche=${enginePlan.resolvedNiche}, depth=${enginePlan.resolvedDepth}, visual=${enginePlan.resolvedVisualWeight}, proof=${enginePlan.proofStrength}, assumptions=${enginePlan.assumptions.length}`);
 
-    // ===== STEP 8: BUILD V5 PROMPT =====
-    let currentBlocks = "";
-    if (promptType === "adjustment") {
-      // For adjustments, pass current blocks as context
-      const currentBlocksData = savedLandingPage?.generated_blocks;
-      if (currentBlocksData) {
-        currentBlocks = JSON.stringify(currentBlocksData, null, 2);
-      } else if (savedLandingPage?.generated_html) {
-        currentBlocks = "[Legacy HTML - regenerate from scratch]";
-      }
+    // ===== STEP 8: BUILD HTML PROMPT =====
+    let currentHtml = "";
+    if (promptType === "adjustment" && savedLandingPage?.generated_html) {
+      currentHtml = savedLandingPage.generated_html;
     }
 
-    const systemPrompt = buildV5SystemPrompt({
+    const systemPrompt = buildHtmlSystemPrompt({
       enginePlan,
       storeName: storeSettings?.store_name || "Loja",
       logoUrl: storeSettings?.logo_url || "",
@@ -876,11 +621,9 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
       productPrimaryImageMap,
       reviewsInfo,
       creativesInfo,
-      generatedCreativeUrls,
-      lifestyleImageUrls,
       socialProofImageUrls,
       referenceUrl,
-      currentBlocks,
+      currentHtml,
     });
 
     // ===== STEP 9: ENRICH PROMPT IF INCOMPLETE =====
@@ -900,14 +643,14 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
     }
 
     const hasUserMedia = prompt.includes("[Imagem:") || prompt.includes("[Vídeo:");
-    const userMediaNote = hasUserMedia ? `\nAs URLs marcadas como [Imagem: URL] DEVEM ser usadas nos blocos.` : "";
+    const userMediaNote = hasUserMedia ? `\nAs URLs marcadas como [Imagem: URL] DEVEM ser usadas no HTML.` : "";
 
     const userPrompt = promptType === "adjustment"
-      ? `Ajuste a landing page:\n\n${prompt}${userMediaNote}\n\nChame build_landing_page com a estrutura completa atualizada.`
-      : `Crie uma landing page de alta conversão:\n\n${enrichedPrompt}${userMediaNote}`;
+      ? `Ajuste a landing page conforme solicitado:\n\n${prompt}${userMediaNote}\n\nRetorne o HTML/CSS COMPLETO atualizado (conteúdo do body).`
+      : `Crie uma landing page de alta conversão:\n\n${enrichedPrompt}${userMediaNote}\n\nRetorne APENAS o HTML/CSS (conteúdo do body, sem shell de documento).`;
 
-    // ===== STEP 10: CALL AI WITH TOOL CALLING =====
-    console.log(`[AI-LP-Generate v${VERSION}] Calling AI with tool calling for ${promptType}...`);
+    // ===== STEP 10: CALL AI (HTML generation, NO tool calling) =====
+    console.log(`[AI-LP-Generate v${VERSION}] Calling AI for HTML generation (${promptType})...`);
     resetAIRouterCache();
 
     const aiResponse = await aiChatCompletion("google/gemini-2.5-pro", {
@@ -915,8 +658,6 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt }
       ],
-      tools: [BLOCK_TOOL_DEFINITION],
-      tool_choice: { type: "function", function: { name: "build_landing_page" } },
       temperature: 0.7,
     }, {
       supabaseUrl,
@@ -937,71 +678,38 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
     }
 
     const aiData = await aiResponse.json();
-    
-    // ===== STEP 11: PARSE TOOL CALL RESPONSE =====
-    let toolCallOutput: any = null;
-    let parseError: string | null = null;
+    const rawContent = aiData.choices?.[0]?.message?.content || "";
 
-    const toolCalls = aiData.choices?.[0]?.message?.tool_calls;
-    if (toolCalls && toolCalls.length > 0) {
-      const buildCall = toolCalls.find((tc: any) => tc.function?.name === "build_landing_page");
-      if (buildCall) {
-        try {
-          toolCallOutput = JSON.parse(buildCall.function.arguments);
-          console.log(`[AI-LP-Generate] Tool call parsed: ${toolCallOutput.sections?.length || 0} sections`);
-        } catch (e) {
-          parseError = `Tool call JSON parse failed: ${(e as Error).message}`;
-          console.error("[AI-LP-Generate] " + parseError);
-        }
-      } else {
-        parseError = "AI called wrong function";
-        console.warn("[AI-LP-Generate] " + parseError);
-      }
-    } else {
-      // Fallback: try to parse from content (some models return JSON in content)
-      const rawContent = aiData.choices?.[0]?.message?.content || "";
-      if (rawContent) {
-        try {
-          const jsonMatch = rawContent.match(/\{[\s\S]*"sections"[\s\S]*\}/);
-          if (jsonMatch) {
-            toolCallOutput = JSON.parse(jsonMatch[0]);
-            parseError = "Extracted from content (no tool_calls)";
-            console.warn("[AI-LP-Generate] " + parseError);
-          }
-        } catch (e) {
-          parseError = "No tool_calls and content parse failed";
-          console.error("[AI-LP-Generate] " + parseError);
-        }
-      }
-      if (!toolCallOutput) {
-        parseError = "AI did not use tool calling";
-        console.error("[AI-LP-Generate] " + parseError);
-      }
+    if (!rawContent || rawContent.trim().length < 50) {
+      throw new Error("AI returned empty or too-short response");
     }
 
-    if (!toolCallOutput || !toolCallOutput.sections || toolCallOutput.sections.length === 0) {
-      throw new Error("AI failed to generate page structure: " + (parseError || "empty output"));
+    // ===== STEP 11: PARSE HTML RESPONSE =====
+    const { html, css, parseError } = parseHtmlResponse(rawContent);
+
+    if (!html || html.length < 50) {
+      throw new Error("Parsed HTML is too short: " + (parseError || "empty output"));
     }
 
-    // ===== STEP 12: ASSEMBLE BLOCK TREE =====
-    const blockTree = assembleBlockTree(toolCallOutput);
-    console.log(`[AI-LP-Generate] Block tree assembled: ${blockTree.children?.length || 0} children (incl header/footer)`);
+    console.log(`[AI-LP-Generate] HTML parsed: ${html.length} chars, CSS: ${css.length} chars`);
 
-    // ===== STEP 13: PERSIST =====
+    // ===== STEP 12: PERSIST =====
     const newVersion = (savedLandingPage?.current_version || 0) + 1;
 
     const { error: updateError } = await supabase
       .from("ai_landing_pages")
       .update({
-        generated_blocks: blockTree,
-        generated_html: null, // V5: blocks take priority, clear legacy HTML
+        generated_html: html,
+        generated_css: css || null,
+        generated_blocks: null, // V5.4: HTML takes priority, clear blocks
         current_version: newVersion,
         status: "draft",
         metadata: {
-          engineVersion: "v5.0",
+          engineVersion: "v5.4",
           briefingSchemaVersion: "1.0",
           enginePlanInput: enginePlan,
-          toolCallSections: toolCallOutput.sections?.length || 0,
+          htmlLength: html.length,
+          cssLength: css.length,
           parseError: parseError || null,
           fallbackPromptUsed: fallbackUsed,
         },
@@ -1018,18 +726,18 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
         version: newVersion,
         prompt,
         prompt_type: promptType,
-        html_content: JSON.stringify(blockTree), // Store block JSON in html_content for compatibility
-        blocks_content: blockTree,
+        html_content: html,
+        css_content: css || null,
+        blocks_content: null,
         created_by: userId,
         generation_metadata: {
-          engineVersion: "v5.0",
+          engineVersion: "v5.4",
           model: "google/gemini-2.5-pro",
-          tool_calling: true,
-          sections_count: toolCallOutput.sections?.length || 0,
+          tool_calling: false,
+          html_length: html.length,
+          css_length: css.length,
           product_count: productIds?.length || 0,
           reviews_count: reviewCount,
-          drive_references_used: 0,
-          lifestyle_images_generated: 0,
           fallback_prompt_used: fallbackUsed,
           parseError: parseError || null,
         },
@@ -1037,14 +745,14 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
 
     if (versionError) console.error("[AI-LP-Generate] Version error:", versionError);
 
-    console.log(`[AI-LP-Generate v${VERSION}] Success! Version ${newVersion}, ${toolCallOutput.sections?.length} sections`);
+    console.log(`[AI-LP-Generate v${VERSION}] Success! Version ${newVersion}, HTML ${html.length} chars`);
 
     return new Response(
       JSON.stringify({
         success: true,
         version: newVersion,
-        sectionsCount: toolCallOutput.sections?.length || 0,
-        engineVersion: "v5.0",
+        htmlLength: html.length,
+        engineVersion: "v5.4",
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
