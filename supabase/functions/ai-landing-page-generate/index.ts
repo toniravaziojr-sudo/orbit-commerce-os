@@ -25,7 +25,7 @@ import {
   assembleBlockTree,
 } from "../_shared/marketing/block-assembler.ts";
 
-const VERSION = "5.0.0"; // Engine V5: JSON-to-React blocks via tool calling — same system as Lovable editor
+const VERSION = "5.2.0"; // Engine V5.2: 2-step architecture — page generation (fast) + image enhancement (async)
 
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
@@ -833,8 +833,10 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
       } catch (spSearchErr) { console.warn("[AI-LP-Generate] Social proof search error:", spSearchErr); }
     }
 
-    // NOTE: Image generation (lifestyle/hero) removed in v5.1 — uses catalog images directly
-    // This saves ~60-90s of timeout-prone AI image generation calls
+    // V5.2: Image generation moved to separate function (ai-landing-page-enhance-images)
+    // This function focuses on fast page structure generation using catalog images
+    const generatedCreativeUrls: string[] = [];
+    const lifestyleImageUrls: string[] = [];
 
     // ===== STEP 7: RESOLVE ENGINE PLAN =====
     const enginePlan = resolveEnginePlan({
@@ -1026,8 +1028,8 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
           sections_count: toolCallOutput.sections?.length || 0,
           product_count: productIds?.length || 0,
           reviews_count: reviewCount,
-          drive_references_used: driveReferenceBase64s.length,
-          lifestyle_images_generated: lifestyleImageUrls.length,
+          drive_references_used: 0,
+          lifestyle_images_generated: 0,
           fallback_prompt_used: fallbackUsed,
           parseError: parseError || null,
         },
