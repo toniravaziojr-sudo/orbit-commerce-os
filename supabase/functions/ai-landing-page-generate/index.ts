@@ -1,16 +1,26 @@
 // =============================================
-// AI LANDING PAGE GENERATE
-// Edge function para gerar landing pages com IA
-// Usa ai-router (Gemini/OpenAI) para geração de HTML
-// v3.6.0: Fixed code order (product fetch before Drive/lifestyle), stronger anti-hallucination
+// AI LANDING PAGE GENERATE — V4.0 ENGINE
+// Deterministic backend pipeline for landing page generation
+// Backend is AUTHORITY, AI is EXECUTOR
+// v4.0.0: Engine plan + modular prompt + structured parser + hard checks
 // =============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { isPromptIncomplete, selectBestFallback } from "../_shared/marketing/fallback-prompts.ts";
+import {
+  resolveEnginePlan,
+  runHardChecks,
+  getNicheRules,
+  getTrafficRules,
+  getAwarenessCopyRules,
+  type BriefingInput,
+  type EnginePlanInput,
+  type HardCheckOutput,
+} from "../_shared/marketing/engine-plan.ts";
 
-const VERSION = "3.10.0"; // Mobile-first, emoji reduction, logo fix, niche-aware image generation
+const VERSION = "4.0.0"; // Engine V4.0: deterministic pipeline + modular prompt + structured parser + hard checks
 
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
@@ -40,19 +50,15 @@ async function callImageModel(
   referenceBase64: string,
   additionalReferences?: string[],
 ): Promise<string | null> {
-  // Build content array with text prompt + all reference images
   const content: any[] = [
     { type: 'text', text: prompt },
     { type: 'image_url', image_url: { url: 'data:image/png;base64,' + referenceBase64 } },
   ];
-
-  // Add additional reference images (from Drive) — max 2 to avoid token bloat
   if (additionalReferences && additionalReferences.length > 0) {
     for (const refB64 of additionalReferences.slice(0, 2)) {
       content.push({ type: 'image_url', image_url: { url: 'data:image/png;base64,' + refB64 } });
     }
   }
-
   const response = await fetch(LOVABLE_GATEWAY_URL, {
     method: 'POST',
     headers: {
@@ -65,222 +71,84 @@ async function callImageModel(
       modalities: ['image', 'text'],
     }),
   });
-
   if (!response.ok) {
     const errText = await response.text();
     console.error("[AI-LP-Generate] " + model + " error: " + response.status, errText.substring(0, 300));
     return null;
   }
-
   const data = await response.json();
-  const imageDataUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-  return imageDataUrl || null;
+  return data.choices?.[0]?.message?.images?.[0]?.image_url?.url || null;
 }
 
-async function ensureDriveFolder(
-  supabase: any,
-  tenantId: string,
-  userId: string,
-  folderName: string,
-): Promise<string | null> {
+async function ensureDriveFolder(supabase: any, tenantId: string, userId: string, folderName: string): Promise<string | null> {
   try {
-    const { data: existing } = await supabase
-      .from("files")
-      .select("id")
-      .eq("tenant_id", tenantId)
-      .eq("is_folder", true)
-      .eq("filename", folderName)
-      .limit(1)
-      .maybeSingle();
-
+    const { data: existing } = await supabase.from("files").select("id").eq("tenant_id", tenantId).eq("is_folder", true).eq("filename", folderName).limit(1).maybeSingle();
     if (existing?.id) return existing.id;
-
-    const { data: created, error } = await supabase
-      .from("files")
-      .insert({
-        tenant_id: tenantId,
-        filename: folderName,
-        original_name: folderName,
-        is_folder: true,
-        is_system_folder: true,
-        created_by: userId,
-        metadata: { source: "ai_landing_page_generate", system_managed: true },
-      })
-      .select("id")
-      .single();
-
-    if (error) {
-      console.error("[AI-LP-Generate] Error creating folder:", error);
-      return null;
-    }
+    const { data: created, error } = await supabase.from("files").insert({
+      tenant_id: tenantId, filename: folderName, original_name: folderName,
+      is_folder: true, is_system_folder: true, created_by: userId,
+      metadata: { source: "ai_landing_page_generate", system_managed: true },
+    }).select("id").single();
+    if (error) { console.error("[AI-LP-Generate] Error creating folder:", error); return null; }
     return created?.id || null;
-  } catch (e) {
-    console.error("[AI-LP-Generate] Folder ensure error:", e);
-    return null;
-  }
+  } catch (e) { console.error("[AI-LP-Generate] Folder ensure error:", e); return null; }
 }
 
-async function registerFileToDrive(
-  supabase: any,
-  tenantId: string,
-  userId: string,
-  folderId: string,
-  publicUrl: string,
-  storagePath: string,
-  originalName: string,
-  mimeType: string,
-  sizeBytes: number,
-): Promise<void> {
+async function registerFileToDrive(supabase: any, tenantId: string, userId: string, folderId: string, publicUrl: string, storagePath: string, originalName: string, mimeType: string, sizeBytes: number): Promise<void> {
   try {
     await supabase.from("files").insert({
-      tenant_id: tenantId,
-      folder_id: folderId,
-      filename: originalName,
-      original_name: originalName,
-      storage_path: storagePath,
-      mime_type: mimeType,
-      size_bytes: sizeBytes,
-      is_folder: false,
-      is_system_folder: false,
-      created_by: userId,
-      metadata: {
-        source: "ai_landing_page_generate",
-        url: publicUrl,
-        bucket: "store-assets",
-        system_managed: true,
-      },
+      tenant_id: tenantId, folder_id: folderId, filename: originalName, original_name: originalName,
+      storage_path: storagePath, mime_type: mimeType, size_bytes: sizeBytes,
+      is_folder: false, is_system_folder: false, created_by: userId,
+      metadata: { source: "ai_landing_page_generate", url: publicUrl, bucket: "store-assets", system_managed: true },
     });
-  } catch (e) {
-    console.warn("[AI-LP-Generate] Drive registration error (non-blocking):", e);
-  }
+  } catch (e) { console.warn("[AI-LP-Generate] Drive registration error (non-blocking):", e); }
 }
 
-async function uploadCreativeToStorage(
-  supabase: any,
-  tenantId: string,
-  dataUrl: string,
-  productName: string,
-  userId?: string,
-  driveFolderId?: string | null,
-): Promise<string | null> {
+async function uploadCreativeToStorage(supabase: any, tenantId: string, dataUrl: string, productName: string, userId?: string, driveFolderId?: string | null): Promise<string | null> {
   try {
     const base64Data = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
     const binaryStr = atob(base64Data);
     const bytes = new Uint8Array(binaryStr.length);
-    for (let i = 0; i < binaryStr.length; i++) {
-      bytes[i] = binaryStr.charCodeAt(i);
-    }
-
+    for (let i = 0; i < binaryStr.length; i++) { bytes[i] = binaryStr.charCodeAt(i); }
     const timestamp = Date.now();
     const safeName = productName.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 40);
     const filename = 'hero-' + safeName + '-' + timestamp + '.png';
     const filePath = tenantId + '/lp-creatives/' + filename;
-
-    const { error: uploadError } = await supabase.storage
-      .from('store-assets')
-      .upload(filePath, bytes, {
-        contentType: 'image/png',
-        upsert: false,
-      });
-
-    if (uploadError) {
-      console.error("[AI-LP-Generate] Upload error:", uploadError);
-      return null;
-    }
-
-    const { data: publicUrlData } = supabase.storage
-      .from('store-assets')
-      .getPublicUrl(filePath);
-
+    const { error: uploadError } = await supabase.storage.from('store-assets').upload(filePath, bytes, { contentType: 'image/png', upsert: false });
+    if (uploadError) { console.error("[AI-LP-Generate] Upload error:", uploadError); return null; }
+    const { data: publicUrlData } = supabase.storage.from('store-assets').getPublicUrl(filePath);
     const publicUrl = publicUrlData?.publicUrl;
-    console.log("[AI-LP-Generate] Creative uploaded: " + publicUrl);
-
-    // Register to Drive folder "Criativos de página"
     if (publicUrl && driveFolderId && userId) {
-      await registerFileToDrive(
-        supabase, tenantId, userId, driveFolderId,
-        publicUrl, filePath, filename, 'image/png', bytes.length,
-      );
-      console.log("[AI-LP-Generate] Creative registered to Drive folder");
+      await registerFileToDrive(supabase, tenantId, userId, driveFolderId, publicUrl, filePath, filename, 'image/png', bytes.length);
     }
-
     return publicUrl || null;
-  } catch (error) {
-    console.error("[AI-LP-Generate] Upload creative error:", error);
-    return null;
-  }
+  } catch (error) { console.error("[AI-LP-Generate] Upload creative error:", error); return null; }
 }
 
-async function generateHeroCreative(
-  supabase: any,
-  lovableApiKey: string,
-  tenantId: string,
-  productName: string,
-  productImageUrl: string,
-  storeName: string,
-  userId?: string,
-  driveFolderId?: string | null,
-  driveReferenceBase64s?: string[],
-): Promise<string | null> {
+async function generateHeroCreative(supabase: any, lovableApiKey: string, tenantId: string, productName: string, productImageUrl: string, storeName: string, userId?: string, driveFolderId?: string | null, driveReferenceBase64s?: string[]): Promise<string | null> {
   try {
-    console.log('[AI-LP-Generate] Generating hero creative for "' + productName + '" with ' + (driveReferenceBase64s?.length || 0) + ' Drive references...');
-
     const referenceBase64 = await imageUrlToBase64(productImageUrl);
-    if (!referenceBase64) {
-      console.warn("[AI-LP-Generate] Could not download reference image, skipping creative generation");
-      return null;
-    }
-
+    if (!referenceBase64) return null;
     const driveContext = driveReferenceBase64s && driveReferenceBase64s.length > 0
       ? '\n\nREFERÊNCIAS VISUAIS ADICIONAIS: As imagens extras anexadas são referências visuais do Drive do lojista para este produto. Use-as como inspiração de estilo, ângulo e composição, mas GERE uma imagem NOVA e ORIGINAL.'
       : '';
-
-    const prompt = 'FOTOGRAFIA PUBLICITÁRIA DE ALTO IMPACTO para landing page de venda.\n\n' +
-      'PRODUTO: "' + productName + '" pela marca "' + storeName + '"\n\n' +
-      'OBJETIVO: Criar uma imagem hero profissional de alta conversão para landing page.\n\n' +
-      'REGRAS ABSOLUTAS:\n' +
-      '1. O produto na imagem de referência DEVE ser mantido EXATAMENTE como é — mesmo rótulo, mesmas cores, mesmo formato\n' +
-      '2. NÃO altere o texto do rótulo, marca ou embalagem do produto\n' +
-      '3. NÃO invente novos produtos ou embalagens\n\n' +
-      'COMPOSIÇÃO:\n' +
-      '- Produto em destaque central ou em posição hero (leve ângulo 3/4)\n' +
-      '- Sombra de contato realista\n' +
-      '- Efeitos de brilho/reflexo sutis para transmitir qualidade premium\n' +
-      '- Aspect ratio: 16:9 (paisagem) para hero banner\n\n' +
-      'CENÁRIO E AMBIENTAÇÃO (baseado no nicho do produto):\n' +
-      '- Cosméticos/Saúde/Beleza: bancada de banheiro premium com iluminação natural dourada, toalhas brancas dobradas, superfície de mármore escuro, vegetação sutil ao fundo\n' +
-      '- Suplementos/Fitness/Masculino: superfície de concreto polido escuro, iluminação dramática lateral, elementos metálicos sutis, fundo industrial premium\n' +
-      '- Tech/Eletrônicos/Gadgets: mesa de escritório moderna dark wood, iluminação LED azulada sutil, ambiente minimalista futurista\n' +
-      '- Alimentos/Bebidas/Orgânicos: mesa de madeira rústica natural, ingredientes frescos ao redor, iluminação quente de janela, textura de linho\n' +
-      '- Moda/Acessórios: fundo de tecido nobre (veludo ou seda), iluminação de estúdio suave, composição editorial\n' +
-      '- Default: superfície minimalista escura com gradiente de luz lateral suave, reflexo sutil\n\n' +
-      'ESTILO VISUAL: A imagem DEVE ter coerência com uma landing page dark/premium. Use backgrounds escuros ou médios. Evite backgrounds muito claros, brancos ou cores pastéis que destoem de um layout de venda premium.\n' +
-      'Iluminação de estúdio dramática com rim light sutil.\n' +
-      'Qualidade de catálogo profissional. Ultra realista, sem aparência de IA.' + driveContext;
-
+    const prompt = 'FOTOGRAFIA PUBLICITÁRIA DE ALTO IMPACTO para landing page de venda.\n\nPRODUTO: "' + productName + '" pela marca "' + storeName + '"\n\nOBJETIVO: Criar uma imagem hero profissional de alta conversão para landing page.\n\nREGRAS ABSOLUTAS:\n1. O produto na imagem de referência DEVE ser mantido EXATAMENTE como é — mesmo rótulo, mesmas cores, mesmo formato\n2. NÃO altere o texto do rótulo, marca ou embalagem do produto\n3. NÃO invente novos produtos ou embalagens\n\nCOMPOSIÇÃO:\n- Produto em destaque central ou em posição hero (leve ângulo 3/4)\n- Sombra de contato realista\n- Efeitos de brilho/reflexo sutis para transmitir qualidade premium\n- Aspect ratio: 16:9 (paisagem) para hero banner\n\nCENÁRIO E AMBIENTAÇÃO (baseado no nicho do produto):\n- Cosméticos/Saúde/Beleza: bancada de banheiro premium com iluminação natural dourada\n- Suplementos/Fitness/Masculino: superfície de concreto polido escuro, iluminação dramática lateral\n- Tech/Eletrônicos/Gadgets: mesa de escritório moderna, iluminação LED azulada sutil\n- Alimentos/Bebidas/Orgânicos: mesa de madeira rústica, ingredientes frescos ao redor\n- Moda/Acessórios: fundo de tecido nobre, iluminação de estúdio suave\n- Default: superfície minimalista escura com gradiente de luz lateral suave\n\nESTILO VISUAL: Coerência com landing page dark/premium. Use backgrounds escuros ou médios. Qualidade de catálogo profissional. Ultra realista.' + driveContext;
     let imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', prompt, referenceBase64, driveReferenceBase64s);
-
-    if (!imageDataUrl) {
-      console.log("[AI-LP-Generate] Trying fallback model google/gemini-2.5-flash-image...");
-      imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-2.5-flash-image', prompt, referenceBase64, driveReferenceBase64s);
-    }
-
-    if (!imageDataUrl) {
-      console.warn("[AI-LP-Generate] All image models failed");
-      return null;
-    }
-
+    if (!imageDataUrl) imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-2.5-flash-image', prompt, referenceBase64, driveReferenceBase64s);
+    if (!imageDataUrl) return null;
     return await uploadCreativeToStorage(supabase, tenantId, imageDataUrl, productName, userId, driveFolderId);
-  } catch (error) {
-    console.error("[AI-LP-Generate] Creative generation error:", error);
-    return null;
-  }
+  } catch (error) { console.error("[AI-LP-Generate] Creative generation error:", error); return null; }
 }
+
+// ========== CORS ==========
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+// ========== REQUEST TYPE ==========
 
 interface GenerateRequest {
   landingPageId: string;
@@ -290,7 +158,350 @@ interface GenerateRequest {
   promptType: 'initial' | 'adjustment' | 'regenerate';
   referenceUrl?: string;
   productIds?: string[];
+  briefing?: BriefingInput;
 }
+
+// ========== MODULAR PROMPT BUILDER ==========
+
+function buildModularPrompt(params: {
+  enginePlan: EnginePlanInput;
+  storeName: string;
+  logoUrl: string;
+  primaryColor: string;
+  secondaryColor?: string;
+  accentColor?: string;
+  themeColors: Record<string, string>;
+  productsInfo: string;
+  productImages: string[];
+  productNames: string[];
+  reviewsInfo: string;
+  creativesInfo: string;
+  generatedCreativeUrls: string[];
+  lifestyleImageUrls: string[];
+  referenceUrl?: string;
+  currentHtml?: string;
+  showHeader?: boolean;
+  showFooter?: boolean;
+}): string {
+  const {
+    enginePlan, storeName, logoUrl, primaryColor, secondaryColor, accentColor,
+    themeColors, productsInfo, productImages, productNames, reviewsInfo,
+    creativesInfo, generatedCreativeUrls, lifestyleImageUrls,
+    referenceUrl, currentHtml, showHeader, showFooter,
+  } = params;
+
+  const sections: string[] = [];
+
+  // === A. AUTHORITATIVE CONTEXT (non-negotiable) ===
+  sections.push(`## ⚡ CONTEXTO AUTORITATIVO (NÃO NEGOCIÁVEL)
+
+As seguintes decisões foram tomadas pelo sistema e NÃO podem ser alteradas pela IA:
+
+- **Arquétipo**: ${enginePlan.resolvedArchetype} (${TEMPLATE_REGISTRY_NAMES[enginePlan.resolvedArchetype]})
+- **Nicho**: ${enginePlan.resolvedNiche}
+- **Profundidade**: ${enginePlan.resolvedDepth} ${enginePlan.resolvedDepth === 'short' ? '(3-5 seções)' : enginePlan.resolvedDepth === 'medium' ? '(5-8 seções)' : '(8-12 seções)'}
+- **Peso Visual**: ${enginePlan.resolvedVisualWeight}
+- **Força de Prova**: ${enginePlan.proofStrength}
+- **CTA Padrão**: "${enginePlan.defaultCTA}"
+- **Seções Obrigatórias**: ${enginePlan.requiredSections.join(', ')}
+- **Seções Opcionais**: ${enginePlan.optionalSections.join(', ')}
+- **Ordem Preferida**: ${enginePlan.preferredOrder.join(' → ')}
+- **Objetivo**: ${enginePlan.briefing.objective}
+- **Temperatura do Tráfego**: ${enginePlan.briefing.trafficTemp}
+- **Fonte de Tráfego**: ${enginePlan.briefing.trafficSource}
+- **Nível de Consciência**: ${enginePlan.briefing.awarenessLevel}
+${enginePlan.briefing.restrictions?.length ? `- **Restrições**: ${enginePlan.briefing.restrictions.join(', ')}` : ''}
+
+ESTAS DECISÕES SÃO FINAIS. Siga-as à risca.`);
+
+  // === B. SECTION ENGINE ===
+  sections.push(`## 📐 SECTION ENGINE
+
+Siga a ordem de seções especificada acima. Cada seção deve ter:
+- Um ID ou class CSS identificável (ex: class="hero", class="beneficios")
+- Transição visual clara entre seções
+- Padding consistente (80px desktop, 48px mobile)
+
+### Seções Obrigatórias (DEVEM estar presentes):
+${enginePlan.requiredSections.map(s => `- **${s}**`).join('\n')}
+
+### Seções Opcionais (inclua se a profundidade permitir):
+${enginePlan.optionalSections.map(s => `- ${s}`).join('\n')}`);
+
+  // === C. NICHE RULES (only for detected niche) ===
+  sections.push(getNicheRules(enginePlan.resolvedNiche));
+
+  // === D. TRAFFIC STRATEGY ===
+  sections.push(getTrafficRules(enginePlan.briefing.trafficSource));
+
+  // === E. AWARENESS COPY RULES ===
+  sections.push(getAwarenessCopyRules(enginePlan.briefing.awarenessLevel));
+
+  // === F. VISUAL ENGINE ===
+  sections.push(`## 🎨 VISUAL ENGINE
+
+### Cor Primária da Marca: ${primaryColor}
+${secondaryColor ? `Cor Secundária: ${secondaryColor}` : ''}
+${accentColor ? `Cor de Acento: ${accentColor}` : ''}
+${themeColors.buttonPrimaryBg ? `Cor Botão Primário: ${themeColors.buttonPrimaryBg}` : ''}
+${themeColors.buttonPrimaryText ? `Texto Botão: ${themeColors.buttonPrimaryText}` : ''}
+${themeColors.priceColor ? `Cor do Preço: ${themeColors.priceColor}` : ''}
+
+### Peso Visual: ${enginePlan.resolvedVisualWeight}
+${enginePlan.resolvedVisualWeight === 'minimalista' ? '- Whitespace generoso, poucos elementos, tipografia elegante, paleta neutra' : ''}
+${enginePlan.resolvedVisualWeight === 'comercial' ? '- Badges, selos, urgência visual, preço em destaque, CTAs vibrantes' : ''}
+${enginePlan.resolvedVisualWeight === 'premium' ? '- Dark mode ou neutro escuro, tipografia sofisticada, gradientes sutis, gold accents' : ''}
+${enginePlan.resolvedVisualWeight === 'direto' ? '- Layout simples, foco no essencial, sem ornamentos, CTAs claros' : ''}
+${enginePlan.resolvedVisualWeight === 'informativo' ? '- Layout organizado, ícones, features em grid, specs técnicas, screenshots' : ''}
+
+### Regras de Cores:
+- USE as cores da marca como base para CTAs, badges, gradientes
+- NÃO invente cores aleatórias que não fazem parte da identidade
+- A paleta deve parecer extensão natural do site/loja
+
+### Layout do HERO (escolha o mais adequado ao nicho):
+- **Split Layout**: texto à esquerda, produto à direita (ideal para cosméticos, alimentos)
+- **Hero Clean**: fundo sólido/gradiente, produto centralizado (ideal para tech, moda)
+- **Background Composicional**: imagem lifestyle como fundo com overlay (ideal para urgência)
+
+### Responsividade Mobile (CRÍTICA):
+- Todas as grids 2+ colunas DEVEM empilhar em 1 coluna em < 768px
+- CTAs width: 100% no mobile
+- Tabelas com overflow-x: auto
+- NUNCA use vw para font-size
+
+### Logo: ${logoUrl || 'Sem logo'}
+- Analise contraste do fundo para decidir tratamento da logo
+- Max-width: 200px, height: auto
+- Em fundo escuro: use diretamente ou com filter: brightness(1.3)
+- Em fundo claro: envolva em container com fundo escuro harmonizado se necessário`);
+
+  // === G. COPY ENGINE (moved outside visual) ===
+  sections.push(`## ✍️ COPY ENGINE
+
+### Emojis — Uso Inteligente:
+- Use para checkmarks (✅), ícones de benefício (🛡️, 🚚, ⭐) quando fizerem sentido
+- NÃO encha a página — máximo 5-8 por página
+- Prefira ícones CSS/SVG quando disponíveis
+- Aparência PROFISSIONAL — emojis complementam, não dominam
+
+### Hero Copy — Técnica PAS:
+- Headline: frase de impacto que ataca a DOR do cliente
+- Sub-headline: agita o problema e apresenta a solução
+- CTA primário: verbo de ação + benefício ("${enginePlan.defaultCTA}")
+
+### Regras Gerais de Copy:
+- Headlines com NÚMEROS ESPECÍFICOS e power words
+- Bullets de benefícios com ✓ — foque em RESULTADOS, não features
+- Garantia junto ao preço
+- NUNCA use "Lorem ipsum" ou texto genérico`);
+
+  // === H. ANTI-PADRÕES ===
+  const restrictionRules = enginePlan.briefing.restrictions?.map(r => {
+    if (r === 'no_countdown') return '- ❌ NÃO inclua countdown timers ou contadores regressivos';
+    if (r === 'no_video') return '- ❌ NÃO inclua seções de vídeo ou embeds de YouTube';
+    if (r === 'no_comparisons') return '- ❌ NÃO inclua tabelas comparativas ou "vs concorrente"';
+    return '';
+  }).filter(Boolean).join('\n') || '';
+
+  sections.push(`## 🚫 ANTI-PADRÕES
+
+### PROIBIÇÕES ABSOLUTAS:
+- NUNCA invente nomes de produto — use EXATAMENTE os nomes fornecidos
+- NUNCA use placeholder.com, via.placeholder, unsplash ou imagens genéricas
+- NUNCA use Lorem ipsum ou texto placeholder
+- NUNCA deixe tags HTML visíveis como texto
+- NUNCA inclua header/navegação (a plataforma renderiza automaticamente)
+${restrictionRules}
+
+### NOMES DE PRODUTOS (COPIE LETRA POR LETRA):
+${productNames.map((name, i) => `${i + 1}. "${name}"`).join('\n')}
+
+### VERIFICAÇÃO OBRIGATÓRIA:
+1. O <title> contém "${productNames[0] || 'Produto'}"
+2. A H1 usa o nome exato do produto
+3. TODAS as menções usam o nome correto
+4. NENHUM nome inventado aparece no HTML`);
+
+  // === I. QUALITY ENGINE ===
+  sections.push(`## 📊 QUALITY ENGINE
+
+Antes de finalizar, faça uma autoavaliação (0-100) considerando:
+- Fidelidade ao nome do produto (0-20)
+- Uso correto das imagens fornecidas (0-20)
+- Qualidade do copy PAS (0-20)
+- Responsividade mobile (0-20)
+- Coerência visual com a marca (0-20)
+
+Inclua no bloco JSON: score total, risks (pontos fracos), strengths (pontos fortes).`);
+
+  // === J. OUTPUT FORMAT ===
+  sections.push(`## 📤 FORMATO DE SAÍDA (OBRIGATÓRIO)
+
+Retorne EXATAMENTE dois blocos separados e fechados:
+
+1. Bloco JSON com diagnóstico:
+\`\`\`json
+{
+  "diagnostic": {
+    "archetype": "${enginePlan.resolvedArchetype}",
+    "depth": "${enginePlan.resolvedDepth}",
+    "cta_primary": "${enginePlan.defaultCTA}",
+    "sections_used": ["hero", "..."],
+    "score": { "total": 85, "product_fidelity": 20, "image_usage": 18, "copy_quality": 17, "mobile": 15, "brand_coherence": 15 },
+    "risks": ["risk1", "risk2"],
+    "strengths": ["strength1", "strength2"],
+    "alt_headline": "Headline alternativa",
+    "alt_cta": "CTA alternativo"
+  }
+}
+\`\`\`
+
+2. Bloco HTML completo:
+\`\`\`html
+<!DOCTYPE html>
+<html>...
+\`\`\`
+
+AMBOS os blocos são obrigatórios. O JSON vem PRIMEIRO, o HTML SEGUNDO.`);
+
+  // === HEADER/FOOTER RULES ===
+  if (showHeader || showFooter) {
+    sections.push(`## ⚠️ HEADER E FOOTER — PROIBIÇÃO
+Esta LP usa header/footer da loja (renderizados pela plataforma).
+- NÃO inclua NENHUM header, navegação ou menu
+- NÃO inclua NENHUM footer, copyright ou rodapé
+- Comece DIRETO no Hero e termine no último CTA`);
+  } else {
+    sections.push(`## HEADER E FOOTER
+- NÃO inclua header/navegação
+- Você PODE incluir footer simples com copyright se fizer sentido`);
+  }
+
+  // === DATA SECTIONS ===
+  const dataSections: string[] = [];
+
+  dataSections.push(`## Informações da Loja
+- Nome: ${storeName}
+- Logo: ${logoUrl || 'Sem logo'}
+- Cor Principal: ${primaryColor}`);
+
+  if (productsInfo) dataSections.push(`## PRODUTOS A SEREM DESTACADOS:\n${productsInfo}`);
+  else dataSections.push(`## ATENÇÃO: Nenhum produto selecionado. Crie uma landing page genérica para a loja.`);
+
+  if (productImages.length > 0) {
+    dataSections.push(`## ⚠️ IMAGENS DOS PRODUTOS — USE OBRIGATORIAMENTE:\n${productImages.map((url, i) => `${i + 1}. ${url}`).join('\n')}\n\nCOPIE E COLE estas URLs. NUNCA invente URLs.\nUse imagens APENAS no Hero e grids de produto. Seções de texto usam CSS/ícones.`);
+  }
+
+  if (generatedCreativeUrls.length > 0) {
+    dataSections.push(`## 🎨 IMAGENS CRIATIVAS GERADAS (PRIORIDADE MÁXIMA):\n${generatedCreativeUrls.map((url, i) => `${i + 1}. ${url}`).join('\n')}\nUse como IMAGEM PRINCIPAL no HERO.`);
+  }
+
+  if (lifestyleImageUrls.length > 0) {
+    dataSections.push(`## 🌿 IMAGENS DE LIFESTYLE:\n${lifestyleImageUrls.map((url, i) => `${i + 1}. ${url}`).join('\n')}\nUse em seções de ambientação/transformação.`);
+  }
+
+  if (reviewsInfo) dataSections.push(`## AVALIAÇÕES REAIS:\n${reviewsInfo}\nUse estes depoimentos reais na prova social.`);
+  if (creativesInfo) dataSections.push(`## REFERÊNCIAS DE MARKETING:\n${creativesInfo}\nAlinhe tom de voz com estas referências.`);
+  if (referenceUrl) dataSections.push(`## URL DE REFERÊNCIA (APENAS INSPIRAÇÃO):\n${referenceUrl}\n⚠️ COPIE APENAS LAYOUT E ESTILO! USE OS DADOS DOS PRODUTOS ACIMA!`);
+  if (currentHtml) dataSections.push(`## HTML ATUAL (para ajustes):\n${currentHtml}`);
+
+  // === CSS UTILITIES ===
+  const cssUtilities = `## 🎨 CSS UTILITIES (inclua no <style>)
+
+\`\`\`css
+@keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pulse-cta { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+.animate-section { animation: fadeInUp 0.8s ease-out both; }
+.glass-card { background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; }
+.container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+.section { padding: 80px 0; }
+@media (max-width: 768px) {
+  h1 { font-size: 1.75rem !important; line-height: 1.2 !important; }
+  h2 { font-size: 1.4rem !important; }
+  h3 { font-size: 1.15rem !important; }
+  p, li, span { font-size: 15px !important; }
+  .section { padding: 48px 0 !important; }
+  .container { padding: 0 20px !important; }
+  [style*="grid-template-columns"], [class*="grid"] { grid-template-columns: 1fr !important; }
+  [style*="display: flex"][style*="gap"], [style*="display:flex"][style*="gap"] { flex-direction: column !important; }
+  .comparison-table-wrapper { overflow-x: auto; }
+  .cta-button, [class*="cta"], a[style*="padding"][style*="background"] {
+    width: 100% !important; text-align: center !important; padding: 16px 24px !important; font-size: 16px !important; display: block !important;
+  }
+  img { max-width: 100% !important; height: auto !important; }
+  [style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+}
+\`\`\``;
+
+  sections.push(cssUtilities);
+
+  // Combine system prompt
+  return `Você é um diretor criativo e desenvolvedor front-end de elite, especialista em landing pages de altíssima conversão. Siga TODAS as instruções abaixo à risca — elas são decisões do sistema, não sugestões.
+
+${sections.join('\n\n---\n\n')}
+
+---
+
+${dataSections.join('\n\n')}`;
+}
+
+const TEMPLATE_REGISTRY_NAMES: Record<string, string> = {
+  lp_captura: 'Lead Capture Curta',
+  lp_whatsapp: 'WhatsApp Push',
+  lp_produto_fisico: 'Produto Físico / DTC',
+  lp_click_through: 'Click-Through para Checkout',
+  sales_page_longa: 'Sales Page Longa',
+  lp_servico_premium: 'Serviço / Consultoria Premium',
+  lp_saas: 'SaaS / Software',
+};
+
+// ========== STRUCTURED RESPONSE PARSER ==========
+
+interface ParsedResponse {
+  diagnostic: Record<string, any> | null;
+  html: string;
+  parseError?: string;
+}
+
+function parseStructuredResponse(raw: string): ParsedResponse {
+  let diagnostic: Record<string, any> | null = null;
+  let html = '';
+  let parseError: string | undefined;
+
+  // Try to extract JSON block: ```json ... ```
+  const jsonMatch = raw.match(/```json\s*\n?([\s\S]*?)```/);
+  if (jsonMatch) {
+    try {
+      diagnostic = JSON.parse(jsonMatch[1].trim());
+      console.log("[AI-LP-Generate] Diagnostic JSON parsed successfully");
+    } catch (e) {
+      parseError = `JSON parse failed: ${(e as Error).message}`;
+      console.warn("[AI-LP-Generate] " + parseError);
+    }
+  } else {
+    parseError = 'No ```json block found in response';
+    console.warn("[AI-LP-Generate] " + parseError);
+  }
+
+  // Try to extract HTML block: ```html ... ```
+  const htmlMatch = raw.match(/```html\s*\n?([\s\S]*?)```/);
+  if (htmlMatch) {
+    html = htmlMatch[1].trim();
+    console.log("[AI-LP-Generate] HTML block extracted from structured response");
+  } else {
+    // Fallback: treat everything as HTML (compatibility)
+    html = raw.replace(/```json\s*\n?[\s\S]*?```/g, '').trim();
+    // Clean markdown wrappers
+    html = html.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '').trim();
+    if (!parseError) parseError = 'No ```html block found — used raw content as HTML';
+    console.warn("[AI-LP-Generate] Fallback: treating response as raw HTML");
+  }
+
+  return { diagnostic, html, parseError };
+}
+
+// ========== MAIN HANDLER ==========
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -301,7 +512,7 @@ serve(async (req) => {
 
   try {
     const body: GenerateRequest = await req.json();
-    let { landingPageId, tenantId, userId, prompt, promptType, referenceUrl, productIds } = body;
+    let { landingPageId, tenantId, userId, prompt, promptType, referenceUrl, productIds, briefing } = body;
 
     if (!landingPageId || !tenantId || !userId || !prompt) {
       return new Response(
@@ -314,23 +525,21 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // ALWAYS fetch the landing page to get saved productIds and referenceUrl
+    // ALWAYS fetch the landing page
     const { data: savedLandingPage, error: lpError } = await supabase
       .from("ai_landing_pages")
-      .select("product_ids, reference_url, generated_html, current_version, show_header, show_footer")
+      .select("product_ids, reference_url, generated_html, current_version, show_header, show_footer, briefing")
       .eq("id", landingPageId)
       .single();
 
-    if (lpError) {
-      console.error("[AI-LP-Generate] Error fetching landing page:", lpError);
-      throw new Error("Landing page not found");
-    }
+    if (lpError) { console.error("[AI-LP-Generate] Error fetching landing page:", lpError); throw new Error("Landing page not found"); }
 
-    // Use saved values if not provided in request (important for adjustments!)
     productIds = productIds && productIds.length > 0 ? productIds : (savedLandingPage?.product_ids || []);
     referenceUrl = referenceUrl || savedLandingPage?.reference_url || undefined;
+    // Use briefing from request, or from saved LP, or null
+    briefing = briefing || (savedLandingPage?.briefing as BriefingInput | null) || undefined;
 
-    console.log(`[AI-LP-Generate] Using ${productIds?.length || 0} products, referenceUrl: ${referenceUrl ? 'yes' : 'no'}`);
+    console.log(`[AI-LP-Generate] Using ${productIds?.length || 0} products, referenceUrl: ${referenceUrl ? 'yes' : 'no'}, briefing: ${briefing ? 'provided' : 'defaults'}`);
 
     // Fetch store settings
     const { data: storeSettings } = await supabase
@@ -339,7 +548,7 @@ serve(async (req) => {
       .eq("tenant_id", tenantId)
       .single();
 
-    // Fetch published theme colors from template set (the REAL brand colors)
+    // Fetch published theme colors
     let themeColors: Record<string, string> = {};
     if (storeSettings?.published_template_id) {
       const { data: templateSet } = await supabase
@@ -348,97 +557,60 @@ serve(async (req) => {
         .eq("id", storeSettings.published_template_id)
         .eq("tenant_id", tenantId)
         .single();
-
       if (templateSet?.published_content) {
         const pc = templateSet.published_content as Record<string, any>;
         const ts = pc?.themeSettings?.colors;
-        if (ts) {
-          themeColors = ts;
-          console.log("[AI-LP-Generate] Found published theme colors:", JSON.stringify(ts).substring(0, 200));
-        }
+        if (ts) { themeColors = ts; }
       }
     }
 
-    // ===== STEP 1: FETCH PRODUCTS FIRST (needed by all subsequent steps) =====
+    // ===== STEP 1: FETCH PRODUCTS =====
     let productsInfo = "";
     let productImages: string[] = [];
     let productNames: string[] = [];
-    let firstProduct: { name: string; product_type: string | null; tags: string[] | null; description: string | null } | null = null;
-    
+    let firstProduct: { name: string; product_type: string | null; tags: string[] | null; description: string | null; price: number | null } | null = null;
+    let reviewCount = 0;
+
     if (productIds && productIds.length > 0) {
-      console.log(`[AI-LP-Generate] Fetching product data for IDs: ${productIds.join(', ')}`);
-      
       const { data: products, error: productsError } = await supabase
         .from("products")
-        .select(`
-          id, name, slug, sku, description, short_description,
-          price, compare_at_price, cost_price,
-          brand, vendor, product_type, tags,
-          weight, width, height, depth,
-          seo_title, seo_description
-        `)
+        .select("id, name, slug, sku, description, short_description, price, compare_at_price, cost_price, brand, vendor, product_type, tags, weight, width, height, depth, seo_title, seo_description")
         .in("id", productIds);
 
-      if (productsError) {
-        console.error("[AI-LP-Generate] Error fetching products:", productsError);
-      }
+      if (productsError) console.error("[AI-LP-Generate] Error fetching products:", productsError);
 
       if (products && products.length > 0) {
-        console.log(`[AI-LP-Generate] Found ${products.length} products: ${products.map(p => p.name).join(', ')}`);
-        
-        // Collect product names for anti-hallucination
         productNames = products.map(p => p.name);
-        // Store first product for fallback prompt selection (avoids redundant query)
         const fp = products[0];
-        firstProduct = { name: fp.name, product_type: fp.product_type, tags: fp.tags, description: fp.description };
+        firstProduct = { name: fp.name, product_type: fp.product_type, tags: fp.tags, description: fp.description, price: fp.price };
 
-        // Fetch ALL product images
-        const { data: images, error: imagesError } = await supabase
+        const { data: images } = await supabase
           .from("product_images")
           .select("product_id, url, is_primary, alt_text, sort_order")
           .in("product_id", productIds)
           .order("is_primary", { ascending: false })
           .order("sort_order", { ascending: true });
 
-        if (imagesError) {
-          console.error("[AI-LP-Generate] Error fetching images:", imagesError);
-        }
-
-        console.log(`[AI-LP-Generate] Found ${images?.length || 0} product images`);
-
         const imagesByProduct = new Map<string, { url: string; alt_text: string | null; is_primary: boolean }[]>();
         images?.forEach(img => {
-          if (!imagesByProduct.has(img.product_id)) {
-            imagesByProduct.set(img.product_id, []);
-          }
-          imagesByProduct.get(img.product_id)!.push({ 
-            url: img.url, 
-            alt_text: img.alt_text,
-            is_primary: img.is_primary 
-          });
+          if (!imagesByProduct.has(img.product_id)) imagesByProduct.set(img.product_id, []);
+          imagesByProduct.get(img.product_id)!.push({ url: img.url, alt_text: img.alt_text, is_primary: img.is_primary });
         });
 
         productsInfo = products.map(p => {
           const prodImages = imagesByProduct.get(p.id) || [];
           const primaryImage = prodImages.find(img => img.is_primary)?.url || prodImages[0]?.url;
           const allImageUrls = prodImages.map(img => img.url);
-          
-          // Collect all image URLs for the prompt
           if (primaryImage) productImages.push(primaryImage);
-          allImageUrls.forEach(url => {
-            if (url && !productImages.includes(url)) productImages.push(url);
-          });
+          allImageUrls.forEach(url => { if (url && !productImages.includes(url)) productImages.push(url); });
 
-          // Prices are in REAIS (decimal) - DO NOT divide by 100
           const priceInReais = p.price;
           const compareAtPriceInReais = p.compare_at_price || null;
-          
           const discountPercent = compareAtPriceInReais && compareAtPriceInReais > priceInReais
             ? Math.round(((compareAtPriceInReais - priceInReais) / compareAtPriceInReais) * 100)
             : null;
 
-          return `
-### Produto: ${p.name}
+          return `### Produto: ${p.name}
 - **SKU**: ${p.sku || "N/A"}
 - **Slug (URL)**: ${p.slug || "N/A"}
 - **Descrição Curta**: ${p.short_description || "Sem descrição curta"}
@@ -447,22 +619,18 @@ serve(async (req) => {
 ${compareAtPriceInReais ? `- **Preço Original (riscado)**: R$ ${compareAtPriceInReais.toFixed(2).replace('.', ',')}` : ""}
 ${discountPercent ? `- **Desconto**: ${discountPercent}% OFF` : ""}
 ${p.brand ? `- **Marca**: ${p.brand}` : ""}
-${p.vendor ? `- **Fornecedor/Fabricante**: ${p.vendor}` : ""}
+${p.vendor ? `- **Fornecedor**: ${p.vendor}` : ""}
 ${p.product_type ? `- **Tipo de Produto**: ${p.product_type}` : ""}
 ${p.tags && p.tags.length > 0 ? `- **Tags**: ${p.tags.join(", ")}` : ""}
 ${p.weight ? `- **Peso**: ${p.weight}g` : ""}
-${p.width && p.height && p.depth ? `- **Dimensões**: ${p.width} x ${p.height} x ${p.depth} cm` : ""}
-${p.seo_title ? `- **SEO Title**: ${p.seo_title}` : ""}
-${p.seo_description ? `- **SEO Description**: ${p.seo_description}` : ""}
 - **Imagem Principal**: ${primaryImage || "SEM IMAGEM"}
-- **TODAS AS IMAGENS REAIS DO PRODUTO**: 
-${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).join("\n") : "  NENHUMA IMAGEM ENCONTRADA"}
-          `;
+- **TODAS AS IMAGENS**: 
+${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).join("\n") : "  NENHUMA IMAGEM"}`;
         }).join("\n\n");
       }
     }
 
-    // ===== STEP 2: BUSINESS CONTEXT (reviews & creative assets) =====
+    // ===== STEP 2: BUSINESS CONTEXT =====
     let reviewsInfo = "";
     let creativesInfo = "";
 
@@ -476,10 +644,8 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
         .limit(10);
 
       if (reviews && reviews.length > 0) {
-        reviewsInfo = reviews.map(r => 
-          `- ⭐ ${r.rating}/5 — "${r.comment}" (${r.reviewer_name || 'Cliente'})`
-        ).join("\n");
-        console.log(`[AI-LP-Generate] Found ${reviews.length} product reviews for context`);
+        reviewsInfo = reviews.map(r => `- ⭐ ${r.rating}/5 — "${r.comment}" (${r.reviewer_name || 'Cliente'})`).join("\n");
+        reviewCount = reviews.length;
       }
     }
 
@@ -498,23 +664,16 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
         if (c.headline) parts.push(`Headline: "${c.headline}"`);
         if (c.copy_text) parts.push(`Copy: "${c.copy_text.slice(0, 200)}"`);
         if (c.angle) parts.push(`Ângulo: ${c.angle}`);
-        if (c.funnel_stage) parts.push(`Estágio: ${c.funnel_stage}`);
         return `- ${parts.join(" | ")}`;
       }).join("\n");
-      console.log(`[AI-LP-Generate] Found ${creatives.length} creative assets for tone context`);
     }
 
-    // ===== STEP 3: SEARCH DRIVE FOR VISUAL REFERENCES (not for direct use) =====
+    // ===== STEP 3: DRIVE REFERENCES =====
     let driveReferenceBase64s: string[] = [];
     if (productIds && productIds.length > 0 && promptType !== "adjustment") {
       try {
-        // Search Drive for images related to the product (by name/slug keywords)
         const searchTerms = productNames.map(n => n.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim()).filter(Boolean);
-        
         if (searchTerms.length > 0) {
-          console.log(`[AI-LP-Generate] Searching Drive for visual references: ${searchTerms.join(', ')}`);
-          
-          // Search files that are images and match product names
           const { data: driveFiles } = await supabase
             .from("files")
             .select("id, original_name, storage_path, mime_type, metadata")
@@ -525,587 +684,121 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
             .limit(50);
 
           if (driveFiles && driveFiles.length > 0) {
-            // Filter files that match product names or have product_id in metadata
             const matchingFiles = driveFiles.filter((f: any) => {
               const name = (f.original_name || '').toLowerCase();
               const meta = f.metadata as Record<string, any> | null;
-              const metaProductId = meta?.product_id;
-              
-              // Match by product_id in metadata
-              if (metaProductId && productIds!.includes(metaProductId)) return true;
-              
-              // Match by name similarity
+              if (meta?.product_id && productIds!.includes(meta.product_id)) return true;
               return searchTerms.some(term => {
                 const termWords = term.split(/\s+/).filter((w: string) => w.length > 3);
                 return termWords.some((word: string) => name.includes(word));
               });
-            }).slice(0, 3); // Max 3 reference images
+            }).slice(0, 3);
 
-            console.log(`[AI-LP-Generate] Found ${matchingFiles.length} Drive files as visual references`);
-
-            // Download as base64 for reference (max 2 to avoid memory issues)
             for (const file of matchingFiles.slice(0, 2)) {
               try {
                 const meta = file.metadata as Record<string, any> | null;
-                const fileUrl = meta?.url as string | undefined;
-                const bucket = (meta?.bucket as string) || 'tenant-files';
-                
-                let imageUrl = fileUrl;
+                let imageUrl = meta?.url as string | undefined;
                 if (!imageUrl) {
-                  // Try to get public URL
+                  const bucket = (meta?.bucket as string) || 'tenant-files';
                   const { data: pubData } = supabase.storage.from(bucket).getPublicUrl(file.storage_path);
                   imageUrl = pubData?.publicUrl;
                 }
-                
                 if (imageUrl) {
                   const b64 = await imageUrlToBase64(imageUrl);
-                  if (b64) {
-                    driveReferenceBase64s.push(b64);
-                    console.log(`[AI-LP-Generate] Drive reference loaded: ${file.original_name}`);
-                  }
+                  if (b64) driveReferenceBase64s.push(b64);
                 }
-              } catch (dlErr) {
-                console.warn(`[AI-LP-Generate] Could not load Drive reference ${file.original_name}:`, dlErr);
-              }
+              } catch (dlErr) { console.warn("[AI-LP-Generate] Drive ref error:", dlErr); }
             }
           }
         }
-      } catch (driveSearchErr) {
-        console.warn("[AI-LP-Generate] Drive search error (non-blocking):", driveSearchErr);
-      }
+      } catch (driveErr) { console.warn("[AI-LP-Generate] Drive search error:", driveErr); }
     }
 
-    // ===== STEP 4: ENSURE "Criativos de página" DRIVE FOLDER =====
+    // ===== STEP 4: DRIVE FOLDER =====
     let driveFolderId: string | null = null;
     try {
       driveFolderId = await ensureDriveFolder(supabase, tenantId, userId, "Criativos de página");
-      if (driveFolderId) {
-        console.log(`[AI-LP-Generate] Drive folder "Criativos de página" ready: ${driveFolderId}`);
-      }
-    } catch (folderErr) {
-      console.warn("[AI-LP-Generate] Drive folder creation error (non-blocking):", folderErr);
-    }
+    } catch (folderErr) { console.warn("[AI-LP-Generate] Folder error:", folderErr); }
 
-    // ===== STEP 5: GENERATE LIFESTYLE IMAGE =====
+    // ===== STEP 5: LIFESTYLE IMAGE =====
     let lifestyleImageUrls: string[] = [];
     if (productIds && productIds.length > 0 && promptType !== "adjustment" && productImages.length > 0) {
       const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
       if (lovableApiKey) {
-        console.log(`[AI-LP-Generate] Generating lifestyle image with ${driveReferenceBase64s.length} Drive references...`);
-        
         const firstProductName = productNames[0] || "Produto";
-        const productContext = `Produto: "${firstProductName}"`;
-
         const driveRefNote = driveReferenceBase64s.length > 0
-          ? '\n\nREFERÊNCIAS VISUAIS ADICIONAIS: As imagens extras anexadas são referências visuais do Drive do lojista. Use como inspiração de estilo, ângulo e ambientação, mas GERE uma imagem NOVA e ORIGINAL.'
+          ? '\n\nREFERÊNCIAS VISUAIS ADICIONAIS: As imagens extras anexadas são referências visuais do Drive. Use como inspiração, mas GERE imagem NOVA.'
           : '';
-
-        const lifestylePrompt = `FOTOGRAFIA DE LIFESTYLE/AMBIENTAÇÃO para landing page de e-commerce.
-
-${productContext}
-
-OBJETIVO: Criar uma imagem de ambientação/lifestyle que mostre o produto em contexto real premium, transmitindo benefícios e estilo de vida aspiracional.
-
-CENÁRIOS POR NICHO (escolha o mais adequado):
-- Cosméticos/Saúde/Beleza: pessoa usando o produto em banheiro moderno, espelho iluminado, rotina de cuidados pessoais
-- Suplementos/Fitness/Masculino: ambiente de treino ou mesa de trabalho executiva, produto em primeiro plano com pessoa ao fundo
-- Tech/Gadgets: pessoa usando o produto em home office moderno, iluminação azulada ambiente
-- Alimentos/Bebidas: mesa posta elegante, momento de refeição/preparo, ingredientes naturais ao redor
-- Moda/Acessórios: pessoa vestindo/usando o acessório em ambiente urbano sofisticado ou estúdio editorial
-- Default: ambiente premium minimalista com o produto em uso natural
-
-REGRAS:
-1. O produto da imagem de referência DEVE aparecer de forma natural no cenário
-2. Mostre o produto EM USO real — não apenas apoiado em superfície
-3. Iluminação natural e acolhedora, mas com profundidade dramática
-4. Composição equilibrada com espaço para sobreposição de texto (lado esquerdo ou topo)
-5. Aspect ratio: 16:9 (paisagem) para seção de banner/ambientação
-6. A imagem DEVE ter coerência visual com uma landing page dark/premium. Evite backgrounds muito claros ou cores pastéis
-7. NÃO altere o rótulo, embalagem ou identidade do produto
-
-ESTILO: Fotografia lifestyle premium, estilo editorial de revista. Cores ricas e profundas. Ultra realista, sem aparência de IA.${driveRefNote}`;
-
+        const lifestylePrompt = `FOTOGRAFIA DE LIFESTYLE/AMBIENTAÇÃO para landing page de e-commerce.\n\nPRODUTO: "${firstProductName}"\n\nOBJETIVO: Imagem de ambientação/lifestyle premium mostrando o produto em contexto real.\n\nCENÁRIOS POR NICHO:\n- Cosméticos/Saúde: pessoa usando o produto em banheiro moderno\n- Suplementos/Fitness: ambiente de treino ou mesa executiva\n- Tech: home office moderno\n- Alimentos: mesa posta elegante\n- Moda: ambiente urbano sofisticado\n\nREGRAS:\n1. Produto DEVE aparecer de forma natural no cenário\n2. Mostre o produto EM USO real\n3. Aspect ratio: 16:9\n4. Visual dark/premium. Evite backgrounds claros\n5. NÃO altere embalagem do produto\n\nEstilo: Fotografia lifestyle premium. Ultra realista.${driveRefNote}`;
         try {
           const referenceBase64 = await imageUrlToBase64(productImages[0]);
           if (referenceBase64) {
             let lifestyleDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', lifestylePrompt, referenceBase64, driveReferenceBase64s);
-            if (!lifestyleDataUrl) {
-              lifestyleDataUrl = await callImageModel(lovableApiKey, 'google/gemini-2.5-flash-image', lifestylePrompt, referenceBase64, driveReferenceBase64s);
-            }
-
+            if (!lifestyleDataUrl) lifestyleDataUrl = await callImageModel(lovableApiKey, 'google/gemini-2.5-flash-image', lifestylePrompt, referenceBase64, driveReferenceBase64s);
             if (lifestyleDataUrl) {
               const safeName = firstProductName.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 40);
               const lifestyleUrl = await uploadCreativeToStorage(supabase, tenantId, lifestyleDataUrl, `lifestyle-${safeName}`, userId, driveFolderId);
-              if (lifestyleUrl) {
-                lifestyleImageUrls.push(lifestyleUrl);
-                console.log(`[AI-LP-Generate] Lifestyle image generated and registered: ${lifestyleUrl}`);
-              }
+              if (lifestyleUrl) lifestyleImageUrls.push(lifestyleUrl);
             }
           }
-        } catch (lifestyleErr) {
-          console.warn("[AI-LP-Generate] Lifestyle generation error (non-blocking):", lifestyleErr);
-        }
+        } catch (lifestyleErr) { console.warn("[AI-LP-Generate] Lifestyle error:", lifestyleErr); }
       }
     }
 
-    // ===== STEP 6: GENERATE HERO CREATIVE IMAGE =====
+    // ===== STEP 6: HERO CREATIVE =====
     let generatedCreativeUrls: string[] = [];
     if (promptType !== "adjustment" && productImages.length > 0) {
-      console.log(`[AI-LP-Generate] Starting hero creative generation with ${driveReferenceBase64s.length} Drive references...`);
-      
       const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
       if (lovableApiKey) {
-        const primaryProductName = productNames[0] || "Produto";
-        
-        const heroCreativeUrl = await generateHeroCreative(
-          supabase,
-          lovableApiKey,
-          tenantId,
-          primaryProductName,
-          productImages[0],
-          storeSettings?.store_name || "Loja",
-          userId,
-          driveFolderId,
-          driveReferenceBase64s,
-        );
-        
-        if (heroCreativeUrl) {
-          generatedCreativeUrls.push(heroCreativeUrl);
-          console.log(`[AI-LP-Generate] Hero creative generated: ${heroCreativeUrl}`);
-        } else {
-          console.warn(`[AI-LP-Generate] Hero creative generation failed, will use catalog images`);
-        }
-      } else {
-        console.warn(`[AI-LP-Generate] LOVABLE_API_KEY not found, skipping creative generation`);
+        const heroUrl = await generateHeroCreative(supabase, lovableApiKey, tenantId, productNames[0] || "Produto", productImages[0], storeSettings?.store_name || "Loja", userId, driveFolderId, driveReferenceBase64s);
+        if (heroUrl) generatedCreativeUrls.push(heroUrl);
       }
     }
 
-    // Use already-fetched HTML for adjustments (no redundant query)
+    // ===== STEP 7: RESOLVE ENGINE PLAN =====
+    const enginePlan = resolveEnginePlan({
+      briefing: briefing || null,
+      productType: firstProduct?.product_type,
+      tags: firstProduct?.tags,
+      description: firstProduct?.description,
+      price: firstProduct?.price,
+      reviewCount,
+    });
+
+    console.log(`[AI-LP-Generate] Engine Plan: archetype=${enginePlan.resolvedArchetype}, niche=${enginePlan.resolvedNiche}, depth=${enginePlan.resolvedDepth}, visual=${enginePlan.resolvedVisualWeight}, proof=${enginePlan.proofStrength}, assumptions=${enginePlan.assumptions.length}`);
+
+    // ===== STEP 8: BUILD MODULAR PROMPT =====
     let currentHtml = "";
     if (promptType === "adjustment") {
       currentHtml = savedLandingPage?.generated_html || "";
     }
 
-    // ===== BUILD SYSTEM PROMPT WITH DESIGN SYSTEM =====
-    const primaryColor = storeSettings?.primary_color || "#6366f1";
-    
-    // Build anti-hallucination block with exact product names
-    const antiHallucinationBlock = productNames.length > 0
-      ? `
-## 🚫🚫🚫 REGRA ANTI-ALUCINAÇÃO — PROIBIÇÃO ABSOLUTA 🚫🚫🚫
-
-OS NOMES DOS PRODUTOS SÃO EXATAMENTE ESTES (COPIE LETRA POR LETRA):
-${productNames.map((name, i) => `  ${i + 1}. "${name}"`).join("\n")}
-
-### PROIBIÇÕES ABSOLUTAS:
-- **NUNCA** invente, altere ou "melhore" o nome do produto
-- **NUNCA** crie nomes de fantasia como "Folixil", "HairPro", "CapilMax" ou qualquer outro nome inventado
-- **NUNCA** use nomes genéricos como "Suplemento X", "Produto Y"
-- O nome "${productNames[0]}" DEVE aparecer EXATAMENTE assim em TODAS as menções ao produto
-- Se a marca/fabricante é "${storeSettings?.store_name || "Loja"}", use "${storeSettings?.store_name || "Loja"}" — NÃO invente outra marca
-- O título do <title> DEVE conter o nome exato do produto: "${productNames[0]}"
-
-### VERIFICAÇÃO OBRIGATÓRIA:
-Antes de finalizar, verifique que:
-1. O <title> contém "${productNames[0]}"
-2. A headline H1 usa o nome "${productNames[0]}" (pode adicionar copy ao redor, mas o nome é exato)
-3. TODAS as menções ao produto usam o nome correto
-4. NENHUM nome inventado aparece no HTML
-
-SE VOCÊ INVENTAR UM NOME DE PRODUTO, A PÁGINA SERÁ DESCARTADA.
-`
-      : "";
-
-    const systemPrompt = `Você é um diretor criativo e desenvolvedor front-end de elite, especialista em landing pages de altíssima conversão. Você cria páginas que parecem feitas por agências premium de R$50.000+.
-
-${antiHallucinationBlock}
-
-## REGRA — EMOJIS — USO INTELIGENTE
-Emojis podem ser usados quando agregam valor visual, mas com BOM SENSO — sem excesso. Diretrizes:
-- Use emojis para checkmarks (✓/✅), ícones de benefício (🛡️, 🚚, ⭐), e badges visuais quando fizerem sentido no contexto.
-- NÃO encha a página de emojis repetidos — se uma seção já tem 3+ emojis, não adicione mais.
-- Prefira ícones CSS/SVG quando disponíveis, mas emojis são aceitáveis quando melhoram a experiência visual.
-- A página deve ter aparência PROFISSIONAL — emojis devem complementar, não dominar.
-
-## REGRA — RESPONSIVIDADE MOBILE — CRÍTICA
-O HTML DEVE funcionar perfeitamente em telas de 375px. TODAS as grids com 2+ colunas DEVEM empilhar em 1 coluna no mobile. Tabelas comparativas DEVEM ter wrapper com overflow-x: auto. CTAs DEVEM ser width: 100% no mobile. NUNCA use vw para font-size. TESTE MENTAL: visualize a página em um iPhone 13 Mini — nada deve transbordar ou ficar cortado.
-
-## PILAR 1 — DIREÇÃO CRIATIVA INTELIGENTE
-
-Analise os dados do produto (tipo, tags, descrição, marca) e ESCOLHA uma direção visual que faça sentido para o nicho:
-
-**Saúde / Beleza / Masculino** → Dark premium (#0a0a0a, #111), acentos dourados (#c9a96e), tipografia autoritária, badges de "Dermatologicamente testado", visual de autoridade médica
-**Moda / Acessórios / Lifestyle** → Branco editorial, whitespace generoso, tipografia serifa elegante, grid assimétrico, visual de revista
-**Tech / Eletrônicos / Gadgets** → Gradientes neon (purple→blue), glassmorphism, specs em grid, dark mode, visual futurista
-**Alimentos / Bebidas / Orgânicos** → Tons quentes (terracota, verde oliva), texturas orgânicas, fotografia sensorial, visual artesanal
-**Casa / Decoração / Artesanato** → Paleta neutra sofisticada, serif fonts, visual Pinterest-worthy
-**Default (não identificado)** → Clean moderno com a cor primária da marca como acento forte
-
-A direção DEVE ser coerente do Hero ao Footer. NÃO misture estilos.
-
-## 🎨 COR PRIMÁRIA DA MARCA (OBRIGATÓRIO!)
-
-A cor primária da marca é: **${primaryColor}**
-${storeSettings?.secondary_color ? `A cor secundária da marca é: **${storeSettings.secondary_color}**` : ""}
-${storeSettings?.accent_color ? `A cor de acento da marca é: **${storeSettings.accent_color}**` : ""}
-${themeColors.buttonPrimaryBg ? `Cor do botão primário: **${themeColors.buttonPrimaryBg}**` : ""}
-${themeColors.buttonPrimaryText ? `Texto do botão primário: **${themeColors.buttonPrimaryText}**` : ""}
-${themeColors.textPrimary ? `Cor de texto principal: **${themeColors.textPrimary}**` : ""}
-${themeColors.accentColor ? `Cor de acento do tema: **${themeColors.accentColor}**` : ""}
-${themeColors.priceColor ? `Cor do preço: **${themeColors.priceColor}**` : ""}
-
-### REGRAS DE CORES:
-- **USE as cores acima** como base para CTAs, badges, destaques, gradientes e acentos visuais
-- Os botões CTA DEVEM usar a cor primária da marca (ou cor do botão primário se disponível)
-- Gradientes devem ser construídos a PARTIR das cores da marca (ex: primary → primary escurecido, ou primary → secondary)
-- **NÃO invente cores aleatórias** como roxo, azul neon, ou cores que não fazem parte da identidade visual
-- A paleta de cores da LP deve parecer uma EXTENSÃO natural do site/loja do cliente
-
-## PILAR 2 — COPY PERSUASIVO DE ALTA CONVERSÃO
-
-### Hero — Use a técnica PAS (Problem → Agitation → Solution):
-- **Headline principal**: Frase de impacto que ataca a DOR do cliente (ex: "Cansado de [problema]?" ou "[Número]% das pessoas sofrem com [problema]")
-- **Sub-headline**: Agite o problema e apresente a solução com o produto
-- **CTA primário**: Verbo de ação + benefício (ex: "Quero Resolver Agora", "Garantir Meu Desconto")
-
-### Regras de Copy:
-- Headlines com NÚMEROS ESPECÍFICOS e power words (Exclusivo, Comprovado, Garantido, Revolucionário)
-- Micro-copy de URGÊNCIA nos CTAs: "Últimas unidades", "Oferta por tempo limitado", "Apenas hoje"
-- Seção "Antes vs Depois" ou "Com vs Sem" para criar CONTRASTE EMOCIONAL
-- Bullets de benefícios com ✓ verde — foque em RESULTADOS, não features
-- Texto de garantia junto ao preço: "Garantia incondicional de 30 dias"
-- NUNCA use texto genérico como "Lorem ipsum" ou "Texto aqui"
-
-## PILAR 3 — COMPOSIÇÃO VISUAL DE PRODUTO
-
-### Layout do HERO — Escolha UM dos 3 layouts abaixo (o mais adequado ao nicho/produto):
-
-**OPÇÃO A — SPLIT LAYOUT** (recomendado para produtos com embalagem visível, cosméticos, alimentos):
-- Texto (headline PAS + CTA) na ESQUERDA (50%)
-- Produto flutuante na DIREITA (50%) com box-shadow dramática e sutil rotação CSS
-- Fundo: cor sólida escura ou gradiente sutil da paleta da marca
-- NÃO usar imagem de fundo no hero
-
-**OPÇÃO B — HERO CLEAN** (recomendado para tech, gadgets, moda):
-- Fundo sólido ou gradiente da marca (sem imagem de background)
-- Produto centralizado com destaque visual (glow, sombra, 3D transform)
-- Headline + copy ACIMA ou AO LADO do produto
-- Trust bar logo abaixo
-
-**OPÇÃO C — BACKGROUND COMPOSICIONAL** (APENAS para nichos dark/premium, suplementos masculinos, lifestyle aspiracional):
-- Imagem lifestyle/criativa como background com gradient overlay (30-60% opacidade)
-- Texto sobreposto com boa legibilidade
-- Use APENAS imagens criativas geradas ou imagens de lifestyle do Drive — NUNCA fotos de catálogo como background
-\`\`\`css
-.hero {
-  background: linear-gradient(135deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.3) 50%, transparent 100%), url('IMAGEM_LIFESTYLE');
-  background-size: cover;
-  background-position: center;
-  display: flex;
-  align-items: center;
-}
-\`\`\`
-
-### Tratamento de Imagens (OBRIGATÓRIO):
-- **Mockup contextual**: CSS transform (rotateY 5-10deg, perspective 1000px) + box-shadow dramática para efeito 3D sutil
-- **Galeria**: Grid assimétrico (1 imagem grande 60% + 2 pequenas 40% empilhadas) em vez de grid uniforme
-- **Tratamento visual**: border sutil (2px) na cor primária, glow effect (box-shadow com cor primária em 20% opacidade), badges sobrepostos ("Mais Vendido", "-30%")
-
-## PILAR 4 — ESTRUTURA COMERCIAL DE ALTA CONVERSÃO
-
-Gere as seções EXATAMENTE nesta ordem (adapte o conteúdo ao produto):
-
-1. **HERO DE IMPACTO**
-   - Headline PAS + sub-headline emocional
-   - Use o layout de hero mais adequado ao nicho (Split, Clean ou Background — veja Pilar 3)
-   - CTA primário grande + trust indicators inline com badges CSS (Garantia | Frete Grátis | 4.9/5)
-
-2. **BARRA DE CONFIANÇA** (background levemente destacado)
-   - 4 ícones SVG/CSS com texto: Frete Grátis / Garantia 30 dias / Pagamento Seguro / Satisfação Garantida
-   - NÃO use emojis aqui — use ícones inline SVG ou CSS shapes
-
-3. **TRANSFORMAÇÃO (Problema → Solução)** (layout 2 colunas, empilha no mobile)
-   - Lado esquerdo: "SEM [produto]" com lista de dores (ícone X vermelho CSS, NÃO emoji)
-   - Lado direito: "COM [produto]" com lista de benefícios (ícone check verde CSS, NÃO emoji)
-
-4. **PRODUTO EM DESTAQUE** (fundo alternado)
-   - Foto grande do produto (com tratamento 3D/sombra)
-   - Lista de benefícios em bullets visuais com ícones CSS
-   - Preço com âncora (De R$XX ~~riscado~~ Por R$XX) + badge de desconto
-   - CTA secundário
-
-5. **PROVA SOCIAL** (cards de depoimento)
-   - Cards com nome, foto placeholder circular, estrelas visuais com CSS (★★★★★), quote em destaque
-   - Destaque visual em frases-chave do depoimento (negrito ou cor primária)
-   - Se houver reviews reais, USE-OS. Senão, crie 3 fictícios realistas
-
-6. **COMPARATIVO DE VALOR** (tabela visual ou cards lado a lado)
-   - "Por que [produto] vs alternativas genéricas"
-   - 5-7 critérios com ícone check CSS para o produto e X CSS para alternativas
-   - ENVOLVA a tabela em wrapper com overflow-x: auto para mobile
-
-7. **OFERTA IRRESISTÍVEL** (card destacado com background especial)
-   - Card de preço centralizado com sombra dramática
-   - Preço com âncora + economia calculada
-   - Selos de garantia + pagamento seguro (badges CSS, sem emojis)
-   - CTA GRANDE com animação pulse
-   - Micro-copy: "Compra 100% segura" (com ícone de cadeado CSS)
-
-8. **FAQ ESTRATÉGICO** (accordion visual)
-   - 5-7 perguntas que são objeções comuns transformadas em perguntas
-   - Estilo: click para expandir com ícone + / -
-
-9. **CTA FINAL** (background gradiente dramático)
-   - Headline de fechamento urgente
-   - Último CTA + reforço de garantia
-   - "Garantia incondicional de 30 dias. Se não gostar, devolvemos seu dinheiro."
-
-## PILAR 5 — EFEITOS VISUAIS PREMIUM
-
-### CSS Obrigatório no <style>:
-\`\`\`css
-@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700;800;900&display=swap');
-
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
-body { font-family: 'Inter', system-ui, sans-serif; color: #111827; line-height: 1.7; overflow-x: hidden; }
-h1, h2, h3, h4 { font-family: 'Sora', sans-serif; line-height: 1.15; }
-img { max-width: 100%; height: auto; display: block; }
-a { text-decoration: none; color: inherit; }
-
-/* Gradient text for headlines */
-.gradient-text {
-  background: linear-gradient(135deg, ${primaryColor}, ${primaryColor}dd);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* Floating product effect */
-@keyframes float {
-  0%, 100% { transform: translateY(0px) rotate(0deg); }
-  50% { transform: translateY(-20px) rotate(2deg); }
-}
-
-/* Fade in up animation */
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(40px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Pulse CTA */
-@keyframes pulse-cta {
-  0%, 100% { box-shadow: 0 4px 20px rgba(${primaryColor === '#6366f1' ? '99,102,241' : '0,0,0'}, 0.3); }
-  50% { box-shadow: 0 8px 40px rgba(${primaryColor === '#6366f1' ? '99,102,241' : '0,0,0'}, 0.5); transform: scale(1.02); }
-}
-
-/* Section animations */
-.animate-section { animation: fadeInUp 0.8s ease-out both; }
-.delay-1 { animation-delay: 0.1s; }
-.delay-2 { animation-delay: 0.2s; }
-.delay-3 { animation-delay: 0.3s; }
-.delay-4 { animation-delay: 0.4s; }
-
-/* Glassmorphism cards */
-.glass-card {
-  background: rgba(255,255,255,0.08);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 20px;
-}
-
-/* Container */
-.container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
-.section { padding: 80px 0; }
-@media (min-width: 768px) { .section { padding: 100px 0; } }
-@media (min-width: 1024px) { .section { padding: 120px 0; } }
-
-/* MOBILE-FIRST — Regras obrigatórias para < 768px */
-@media (max-width: 768px) {
-  h1 { font-size: 1.75rem !important; line-height: 1.2 !important; }
-  h2 { font-size: 1.4rem !important; }
-  h3 { font-size: 1.15rem !important; }
-  p, li, span { font-size: 15px !important; }
-  .section { padding: 48px 0 !important; }
-  .container { padding: 0 20px !important; }
-  
-  /* Forçar empilhamento de todas as grids */
-  .hero-grid, .spotlight-grid, .transformation-grid,
-  [style*="grid-template-columns"], [class*="grid"] {
-    grid-template-columns: 1fr !important;
-  }
-  /* Flex wraps */
-  [style*="display: flex"][style*="gap"],
-  [style*="display:flex"][style*="gap"] {
-    flex-direction: column !important;
-  }
-  
-  /* Tabelas comparativas: scroll horizontal */
-  .comparison-table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .comparison-table { min-width: 600px; }
-  table { font-size: 13px; }
-  
-  /* CTAs full-width */
-  .cta-button, [class*="cta"], a[style*="padding"][style*="background"] {
-    width: 100% !important; text-align: center !important; 
-    padding: 16px 24px !important; font-size: 16px !important;
-    display: block !important; box-sizing: border-box !important;
-  }
-  
-  /* Imagens */
-  img { max-width: 100% !important; height: auto !important; }
-  
-  /* Preço */
-  .price-new, [class*="price"] { font-size: 2rem !important; }
-  
-  /* Stats numbers */
-  [style*="font-size: 48px"], [style*="font-size:48px"],
-  [style*="font-size: 3rem"], [style*="font-size:3rem"] {
-    font-size: 2rem !important;
-  }
-  
-  /* Hero split — empilhar */
-  [style*="grid-template-columns: 1fr 1fr"],
-  [style*="grid-template-columns:1fr 1fr"] {
-    grid-template-columns: 1fr !important;
-  }
-}
-\`\`\`
-
-### Detalhes Visuais:
-- **Cards**: border-radius 20px, background branco, box-shadow: 0 8px 32px rgba(0,0,0,0.08), hover: translateY(-6px) + sombra mais intensa
-- **CTAs**: padding 20px 56px, border-radius 14px, font-weight 700, font-size 18px, background gradiente, animation: pulse-cta 2s infinite
-- **Badges/Pills**: padding 8px 20px, border-radius 50px, font-size 13px, letter-spacing 0.05em
-- **Divider waves**: SVG path sutil entre seções para fluidez visual
-- **Stats numbers**: font-size 48px, font-weight 800, gradient text
-
-## ⚠️ REGRAS CRÍTICAS ABSOLUTAS
-
-### NOMES DE PRODUTOS — FIDELIDADE TOTAL
-- USE EXCLUSIVAMENTE os nomes de produto listados abaixo. COPIE E COLE exatamente.
-- **NUNCA** invente nomes de produto. Se o produto se chama "Shampoo Calvície Zero", use "Shampoo Calvície Zero" — NÃO invente "Folixil", "CapilMax", "HairRevive" ou qualquer outro nome de fantasia.
-- O nome da marca/loja é "${storeSettings?.store_name || "Loja"}". USE EXATAMENTE ESTE NOME.
-
-### LOGO DA LOJA — INTELIGÊNCIA DE CONTRASTE (OBRIGATÓRIO)
-- Ao usar a logo, ANALISE o fundo da seção onde ela será inserida:
-  - **Fundo ESCURO** (ex: #0a0a0a, #1a1a2e, navy, preto): Use a logo diretamente SEM container — a maioria das logos tem elementos claros/brancos que ficam naturais em fundos escuros. Se a logo tiver elementos escuros pouco visíveis, aplique \`filter: brightness(1.3)\` ou \`filter: invert(1)\` APENAS nos elementos problemáticos.
-  - **Fundo CLARO** (ex: branco, cinza claro, bege): Se a logo tiver textos/elementos brancos ou muito claros, envolva em container com fundo escuro harmonizado: \`<div style="background:rgba(0,0,0,0.85); padding:12px 16px; border-radius:8px; display:inline-block;"><img ...></div>\`
-  - **Fundo MÉDIO** (ex: azul, verde, gradientes): Avalie visualmente se a logo tem contraste suficiente. Se não, use container semi-transparente escuro ou claro conforme necessário.
-- **REGRA PRINCIPAL**: A logo DEVE ser 100% LEGÍVEL e VISÍVEL em qualquer contexto. O fundo do container (quando necessário) deve HARMONIZAR com o design da seção, não criar um "quadrado branco" destoante.
-- Você PODE adaptar as cores da logo quando julgar que melhora a integração visual com o design da página (ex: versão monocromática em páginas minimalistas, dourada em páginas premium).
-- Limite o tamanho: max-width: 200px, height: auto.
-- NUNCA deixe a logo "apagada", invisível ou com contraste insuficiente.
-
-### IMAGENS DOS PRODUTOS — DISCIPLINA DE USO
-- **HERO/DESTAQUE**: Use APENAS a imagem criativa gerada (se disponível nas "IMAGENS CRIATIVAS GERADAS" abaixo) ou a imagem principal do catálogo com gradient overlay
-- **SEÇÕES DO CORPO (Transformação, Prova Social, FAQ, CTA Final, etc.)**: **NÃO USE imagens de catálogo do produto!** Essas seções devem usar APENAS ícones, emojis, badges, CSS visual, e texto — sem \`<img>\` de produto
-- **EXCEÇÃO ÚNICA**: Imagens de catálogo podem aparecer APENAS em grids de produtos/ofertas que linkem para compra (ex: "Kits Promocionais", "Outros produtos")
-- **USE OBRIGATORIAMENTE** as URLs de imagem fornecidas abaixo — COPIE E COLE exatamente
-- **NUNCA** use placeholder.com, via.placeholder.com, unsplash ou imagens genéricas
-- A imagem principal DEVE aparecer em COMPOSIÇÃO no Hero (como background OU em layout split com tratamento visual)
-- **TODA tag <img> DEVE ter um atributo alt descritivo** — use o nome real do produto, ex: alt="Frasco do ${productNames[0] || "produto"}"
-
-### CORES DA MARCA
-- **USE as cores da marca fornecidas** (cor primária, secundária, acento, botões) em CTAs, badges, gradientes e destaques
-- Os botões CTA DEVEM usar as cores da marca, não cores inventadas
-- A paleta visual da landing page deve ser uma extensão natural da identidade visual da loja
-- **NÃO use cores aleatórias** que não tenham relação com a marca
-
-### DADOS DOS PRODUTOS
-- USE EXCLUSIVAMENTE os produtos listados abaixo
-- NÃO invente nomes, preços ou descrições — use os EXATOS fornecidos
-- Preços já estão em Reais (R$) — NÃO divida por 100
-
-### HTML LIMPO
-- **NUNCA** deixe tags HTML visíveis como texto (ex: \`</section>\`, \`<div>\` aparecendo como texto na página)
-- Todas as tags devem estar corretamente fechadas e aninhadas
-- Sem comentários HTML visíveis ao usuário
-- Teste mental: se o usuário vê texto como "section>" na tela, o HTML está quebrado
-
-### URL DE REFERÊNCIA
-Se fornecida, use APENAS como inspiração de layout/estilo. **NUNCA COPIE** conteúdo.
-
-### OUTPUT
-- Retorne APENAS HTML completo (começando com \`<!DOCTYPE html>\`)
-- CSS em tag \`<style>\` no \`<head>\` (NÃO use CSS externo além do Google Fonts)
-- O HTML deve ser 100% self-contained e RESPONSIVO
-- **NÃO** inclua explicações, markdown ou comentários fora do HTML
-
-### ⚠️ HEADER E FOOTER — PROIBIÇÃO ABSOLUTA
-${savedLandingPage?.show_header || savedLandingPage?.show_footer ? `
-**ESTA LANDING PAGE USA O HEADER/FOOTER DA LOJA (renderizados automaticamente pela plataforma).**
-- **NÃO inclua NENHUM header, navegação, menu ou barra de topo no HTML**
-- **NÃO inclua NENHUM footer, copyright, links sociais, dados de contato, CNPJ ou seção de rodapé no HTML**
-- **NÃO inclua seções de "newsletter" ou "receba promoções" no HTML — o footer da loja já tem isso**
-- A landing page deve começar DIRETO no Hero e terminar no último CTA
-- O header e footer serão adicionados automaticamente pela plataforma ao redor da sua página
-` : `
-- Esta landing page NÃO usa header/footer da loja
-- Você PODE incluir um footer simples com copyright e logo se fizer sentido para a página
-- **NÃO inclua header/navegação** — landing pages não devem ter menu de navegação
-`}
-
----
-
-## Informações da Loja
-- **Nome**: ${storeSettings?.store_name || "Loja"}
-- **Logo**: ${storeSettings?.logo_url || "Sem logo"}
-- **Cor Principal da Marca**: ${primaryColor}
-${storeSettings?.secondary_color ? `- **Cor Secundária**: ${storeSettings.secondary_color}` : ""}
-${storeSettings?.accent_color ? `- **Cor de Acento**: ${storeSettings.accent_color}` : ""}
-${themeColors.buttonPrimaryBg ? `- **Cor Botão Primário (tema publicado)**: ${themeColors.buttonPrimaryBg}` : ""}
-${themeColors.buttonPrimaryText ? `- **Texto Botão Primário**: ${themeColors.buttonPrimaryText}` : ""}
-${themeColors.buttonSecondaryBg ? `- **Cor Botão Secundário**: ${themeColors.buttonSecondaryBg}` : ""}
-${themeColors.accentColor ? `- **Cor Acento do Tema**: ${themeColors.accentColor}` : ""}
-${themeColors.priceColor ? `- **Cor do Preço**: ${themeColors.priceColor}` : ""}
-- **Telefone**: ${storeSettings?.contact_phone || ""}
-- **Email**: ${storeSettings?.contact_email || ""}
-
-⚠️ A logo deve ser renderizada com máximo contraste e visibilidade. Adapte o fundo/container conforme as regras de inteligência de contraste. Você PODE ajustar cores da logo se isso melhorar a integração visual com o design da página.
-
-${productsInfo ? `## PRODUTOS A SEREM DESTACADOS:\n${productsInfo}` : "## ATENÇÃO: Nenhum produto selecionado. Crie uma landing page genérica para a loja."}
-
-${productImages.length > 0 ? `## ⚠️ IMAGENS DOS PRODUTOS — USE OBRIGATORIAMENTE ESTAS URLs:\n${productImages.map((url, i) => `${i + 1}. ${url}`).join("\n")}\n\n**COPIE E COLE** estas URLs exatas nas tags <img>. NUNCA invente URLs. Se uma imagem não aparece na página, é porque você não usou a URL fornecida.\n\n**IMPORTANTE:** NÃO espalhe imagens de catálogo por todas as seções. Use-as APENAS no Hero e em grids de produto/oferta. Seções de texto (Transformação, FAQ, CTA) devem ser visuais com CSS, ícones e badges — sem <img> de produto.` : ""}
-
-${generatedCreativeUrls.length > 0 ? `## 🎨 IMAGENS CRIATIVAS GERADAS (HERO/DESTAQUE — PRIORIDADE MÁXIMA!)
-USE ESTAS imagens geradas profissionalmente como IMAGEM PRINCIPAL no HERO e na seção de PRODUTO EM DESTAQUE.
-Elas foram criadas especificamente para esta landing page com composição publicitária premium.
-${generatedCreativeUrls.map((url, i) => `${i + 1}. ${url}`).join("\n")}
-
-As imagens de catálogo NÃO devem ser usadas no corpo da página, apenas em grids de oferta se necessário.` : ""}
-
-${reviewsInfo ? `## AVALIAÇÕES REAIS DE CLIENTES (USE COMO PROVA SOCIAL!):\n${reviewsInfo}\n\n> Use estes depoimentos reais na seção de prova social. Mantenha os nomes e ratings exatos. Se houver poucos, complemente com depoimentos fictícios mas realistas.` : "## PROVA SOCIAL:\nNão há avaliações reais disponíveis. Crie depoimentos fictícios mas realistas e convincentes."}
-
-${creativesInfo ? `## REFERÊNCIAS DE MARKETING (TOM, ESTILO E HEADLINES DO NEGÓCIO):\n${creativesInfo}\n\n> Use estas referências para alinhar o tom de voz, estilo de copywriting e abordagem da landing page com o que o negócio já usa em suas campanhas.` : ""}
-
-
-${lifestyleImageUrls.length > 0 ? `## 🌿 IMAGENS DE LIFESTYLE GERADAS (AMBIENTAÇÃO DO PRODUTO)
-Estas imagens foram geradas especificamente para mostrar o produto em contexto de uso real. Use-as nas seções de "Transformação", "Benefícios" ou "Ambientação":
-${lifestyleImageUrls.map((url, i) => `  ${i + 1}. ${url}`).join("\n")}
-
-> Use para seções de lifestyle/ambientação. NÃO substitua as imagens de catálogo do produto.` : ""}
-
-${referenceUrl ? `## URL DE REFERÊNCIA (APENAS INSPIRAÇÃO VISUAL/ESTRUTURAL!):\n${referenceUrl}\n⚠️ COPIE APENAS O LAYOUT E ESTILO! USE OS DADOS DOS PRODUTOS ACIMA!` : ""}
-
-${currentHtml ? `## HTML ATUAL (para ajustes):\n${currentHtml}` : ""}
-
-IMPORTANTE: Retorne APENAS o HTML completo, sem explicações ou markdown. O HTML DEVE começar com <!DOCTYPE html>.`;
-
-    // Check if user attached media in the prompt
-    const hasUserMedia = prompt.includes("[Imagem:") || prompt.includes("[Vídeo:");
-    const userMediaNote = hasUserMedia ? `
-
-## ⚠️ MÍDIA ANEXADA PELO USUÁRIO - USE OBRIGATORIAMENTE!
-O usuário anexou imagens/vídeos no prompt abaixo. As URLs estão marcadas como [Imagem: URL] ou [Vídeo: URL].
-**VOCÊ DEVE usar essas URLs exatas** no HTML onde o usuário indicou. Para vídeos, use <video src="URL"> com controles.` : "";
-
-    // ===== FALLBACK PROMPTS: Enrich incomplete user prompts =====
+    const systemPrompt = buildModularPrompt({
+      enginePlan,
+      storeName: storeSettings?.store_name || "Loja",
+      logoUrl: storeSettings?.logo_url || "",
+      primaryColor: storeSettings?.primary_color || "#6366f1",
+      secondaryColor: storeSettings?.secondary_color,
+      accentColor: storeSettings?.accent_color,
+      themeColors,
+      productsInfo,
+      productImages,
+      productNames,
+      reviewsInfo,
+      creativesInfo,
+      generatedCreativeUrls,
+      lifestyleImageUrls,
+      referenceUrl,
+      currentHtml,
+      showHeader: savedLandingPage?.show_header,
+      showFooter: savedLandingPage?.show_footer,
+    });
+
+    // ===== STEP 9: ENRICH PROMPT IF INCOMPLETE =====
     let enrichedPrompt = prompt;
     let fallbackUsed: string | null = null;
 
     if (promptType !== "adjustment" && isPromptIncomplete(prompt)) {
-      // Reuse product data from Step 1 (no redundant query)
       const bestFallback = selectBestFallback(
         firstProduct?.product_type,
         firstProduct?.tags,
@@ -1113,17 +806,19 @@ O usuário anexou imagens/vídeos no prompt abaixo. As URLs estão marcadas como
         firstProduct?.name,
       );
       fallbackUsed = bestFallback.id;
-
-      enrichedPrompt = `${prompt}\n\n---\n\n## DIREÇÃO CRIATIVA COMPLEMENTAR (template: ${bestFallback.name})\n\nO usuário forneceu instruções básicas acima. Complete com esta direção criativa detalhada como BASE, adaptando ao produto e ao pedido do usuário:\n\n${bestFallback.prompt}`;
-
-      console.log(`[AI-LP-Generate] Prompt was incomplete (${prompt.length} chars). Enriched with fallback "${bestFallback.id}"`);
+      enrichedPrompt = `${prompt}\n\n---\n\n## DIREÇÃO CRIATIVA COMPLEMENTAR (template: ${bestFallback.name})\n\n${bestFallback.prompt}`;
+      console.log(`[AI-LP-Generate] Prompt enriched with fallback "${bestFallback.id}"`);
     }
 
-    const userPrompt = promptType === "adjustment"
-      ? `Faça os seguintes ajustes na landing page atual:\n\n${prompt}${userMediaNote}\n\nRetorne o HTML completo atualizado.`
-      : `Crie uma landing page baseada nas seguintes instruções:\n\n${enrichedPrompt}${userMediaNote}\n\nRetorne o HTML completo.`;
+    const hasUserMedia = prompt.includes("[Imagem:") || prompt.includes("[Vídeo:");
+    const userMediaNote = hasUserMedia ? `\n\n## ⚠️ MÍDIA ANEXADA — USE OBRIGATORIAMENTE!\nAs URLs marcadas como [Imagem: URL] ou [Vídeo: URL] DEVEM ser usadas no HTML.` : "";
 
-    console.log(`[AI-LP-Generate] Calling AI via centralized router for ${promptType}...`);
+    const userPrompt = promptType === "adjustment"
+      ? `Faça os seguintes ajustes na landing page atual:\n\n${prompt}${userMediaNote}\n\nRetorne o HTML completo atualizado nos dois blocos (json + html).`
+      : `Crie uma landing page baseada nas seguintes instruções:\n\n${enrichedPrompt}${userMediaNote}`;
+
+    // ===== STEP 10: CALL AI =====
+    console.log(`[AI-LP-Generate] Calling AI for ${promptType}...`);
     resetAIRouterCache();
 
     const aiResponse = await aiChatCompletion("google/gemini-2.5-pro", {
@@ -1140,73 +835,64 @@ O usuário anexou imagens/vídeos no prompt abaixo. As URLs estão marcadas como
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
-      console.error("[AI-LP-Generate] AI Gateway error:", aiResponse.status, errorText);
-
+      console.error("[AI-LP-Generate] AI error:", aiResponse.status, errorText);
       if (aiResponse.status === 429) {
-        return new Response(
-          JSON.stringify({ success: false, error: "Rate limit exceeded. Try again later." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return new Response(JSON.stringify({ success: false, error: "Rate limit exceeded. Try again later." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
       if (aiResponse.status === 402) {
-        return new Response(
-          JSON.stringify({ success: false, error: "Credits exhausted. Please add credits." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return new Response(JSON.stringify({ success: false, error: "Credits exhausted. Please add credits." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
-
-      throw new Error(`AI Gateway error: ${aiResponse.status}`);
+      throw new Error(`AI error: ${aiResponse.status}`);
     }
 
     const aiData = await aiResponse.json();
-    let generatedHtml = aiData.choices?.[0]?.message?.content || "";
+    const rawContent = aiData.choices?.[0]?.message?.content || "";
 
-    // Clean up the response - remove markdown code blocks if present
-    generatedHtml = generatedHtml
-      .replace(/^```html?\n?/i, "")
-      .replace(/\n?```$/i, "")
-      .trim();
+    // ===== STEP 11: PARSE STRUCTURED RESPONSE =====
+    const parsed = parseStructuredResponse(rawContent);
+    let generatedHtml = parsed.html;
 
-    console.log(`[AI-LP-Generate] Generated ${generatedHtml.length} chars of HTML`);
+    console.log(`[AI-LP-Generate] Parsed: diagnostic=${parsed.diagnostic ? 'yes' : 'no'}, html=${generatedHtml.length} chars, parseError=${parsed.parseError || 'none'}`);
 
-    // ===== POST-GENERATION VALIDATION =====
-    // Check if AI hallucinated product names
-    if (productNames.length > 0) {
-      const htmlLower = generatedHtml.toLowerCase();
-      const productNameLower = productNames[0].toLowerCase();
-      if (!htmlLower.includes(productNameLower)) {
-        console.warn(`[AI-LP-Generate] ⚠️ WARNING: Generated HTML does NOT contain product name "${productNames[0]}". AI may have hallucinated.`);
-      } else {
-        console.log(`[AI-LP-Generate] ✅ Product name "${productNames[0]}" found in HTML`);
-      }
-      
-      // Check if product images were used
-      const usedImages = productImages.filter(url => generatedHtml.includes(url));
-      console.log(`[AI-LP-Generate] Image usage: ${usedImages.length}/${productImages.length} product images used in HTML`);
-      if (usedImages.length === 0 && productImages.length > 0) {
-        console.warn(`[AI-LP-Generate] ⚠️ WARNING: NO product images found in generated HTML. AI may have used fake URLs.`);
-      }
+    // ===== STEP 12: RUN HARD CHECKS =====
+    const hardCheckResults: HardCheckOutput = runHardChecks(generatedHtml, enginePlan, productNames, productImages);
+
+    // If parse failed, force warning status
+    if (parsed.parseError) {
+      hardCheckResults.hardCheckStatus = hardCheckResults.hardCheckStatus === 'fail' ? 'fail' : 'warning';
+      hardCheckResults.needsReview = true;
+      hardCheckResults.checks.push({
+        name: 'parse_error',
+        passed: false,
+        message: parsed.parseError,
+      });
     }
 
-    // Use already-fetched current_version (no redundant query)
+    console.log(`[AI-LP-Generate] Hard checks: status=${hardCheckResults.hardCheckStatus}, needsReview=${hardCheckResults.needsReview}, checks=${hardCheckResults.checks.length}`);
+
+    // ===== STEP 13: PERSIST =====
     const newVersion = (savedLandingPage?.current_version || 0) + 1;
 
-    // Update landing page
     const { error: updateError } = await supabase
       .from("ai_landing_pages")
       .update({
         generated_html: generatedHtml,
         current_version: newVersion,
         status: "draft",
+        metadata: {
+          engineVersion: "v4.0",
+          briefingSchemaVersion: "1.0",
+          enginePlanInput: enginePlan,
+          diagnostic: parsed.diagnostic,
+          altHeadline: parsed.diagnostic?.alt_headline || null,
+          altCTA: parsed.diagnostic?.alt_cta || null,
+          hardCheckResults,
+        },
       })
       .eq("id", landingPageId);
 
-    if (updateError) {
-      console.error("[AI-LP-Generate] Update error:", updateError);
-      throw updateError;
-    }
+    if (updateError) { console.error("[AI-LP-Generate] Update error:", updateError); throw updateError; }
 
-    // Create version history
     const { error: versionError } = await supabase
       .from("ai_landing_page_versions")
       .insert({
@@ -1218,30 +904,34 @@ O usuário anexou imagens/vídeos no prompt abaixo. As URLs estão marcadas como
         html_content: generatedHtml,
         created_by: userId,
         generation_metadata: {
+          engineVersion: "v4.0",
+          briefingSchemaVersion: "1.0",
           model: "google/gemini-2.5-pro",
           html_length: generatedHtml.length,
           had_reference: !!referenceUrl,
           product_count: productIds?.length || 0,
-          reviews_count: reviewsInfo ? reviewsInfo.split("\n").length : 0,
-          creatives_count: creativesInfo ? creativesInfo.split("\n").length : 0,
-          drive_folder_id: driveFolderId,
+          reviews_count: reviewCount,
           drive_references_used: driveReferenceBase64s.length,
           lifestyle_images_generated: lifestyleImageUrls.length,
           fallback_prompt_used: fallbackUsed,
+          enginePlanInput: enginePlan,
+          diagnostic: parsed.diagnostic,
+          hardCheckResults,
+          parseError: parsed.parseError || null,
         },
       });
 
-    if (versionError) {
-      console.error("[AI-LP-Generate] Version history error:", versionError);
-    }
+    if (versionError) console.error("[AI-LP-Generate] Version error:", versionError);
 
-    console.log(`[AI-LP-Generate] Success! Version ${newVersion} created`);
+    console.log(`[AI-LP-Generate] Success! Version ${newVersion}, hardCheck=${hardCheckResults.hardCheckStatus}`);
 
     return new Response(
       JSON.stringify({
         success: true,
         version: newVersion,
         htmlLength: generatedHtml.length,
+        hardCheckStatus: hardCheckResults.hardCheckStatus,
+        needsReview: hardCheckResults.needsReview,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
@@ -1249,10 +939,7 @@ O usuário anexou imagens/vídeos no prompt abaixo. As URLs estão marcadas como
   } catch (error) {
     console.error("[AI-LP-Generate] Error:", error);
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      }),
+      JSON.stringify({ success: false, error: error instanceof Error ? error.message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
