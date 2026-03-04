@@ -1,10 +1,16 @@
 # Memory: features/ai/landing-page-v5-architecture-v5-3
 Updated: now
 
-O sistema de AI Landing Pages (Motor V5+) adota uma arquitetura 'Projeto (Arquiteto) vs. Execução (Construtor)' para garantir coesão estética e superar o limite de 150s das Edge Functions:
-1. Estágio 1 (Arquiteto - 'ai-landing-page-generate'): Gera a estrutura lógica e o 'Visual Blueprint'. Cada bloco (BlockNode) recebe um 'visual_brief' no metadata descrevendo cenário, iluminação e enquadramento.
-2. Estágio 2 (Construtor - 'ai-landing-page-enhance-images' v2.1.0): Executa o briefing de forma assíncrona com **chunking por timeout**. Utiliza o PNG transparente do produto como referência para gerar composições visuais unificadas (21:9 ou 16:9).
-3. Gestão de Timeout (v2.1.0): O processamento é sequencial. A função calcula o budget de tempo (130s úteis de 150s) e estima ~30s por imagem. Antes de cada geração, verifica o tempo restante. Se não há budget suficiente, salva progresso parcial (blocks + metadata) e retorna `{ done: false, nextIndex, nextStage }`. O frontend chama recursivamente a mesma função com `startFromIndex` e `stage` incrementados até `done: true`.
-4. Parâmetros de Entrada (v2.1.0): `{ landingPageId, tenantId, userId, startFromIndex?: number, stage?: number }`. O `startFromIndex` indica qual seção iniciar (default 0). O `stage` é informativo (1, 2, 3...).
-5. Metadata de Enhancement: O campo `metadata.imageEnhancement` acumula seções de todos os stages, incluindo `totalSections`, `totalEnhanced`, `stage`, e `done`.
-6. Renderização: O conteúdo é salvo como JSON ('generated_blocks') e renderizado nativamente via React ('PublicTemplateRenderer'), garantindo responsividade e performance superiores ao modelo legatário de HTML/Iframe.
+O sistema de AI Landing Pages evoluiu para o Motor V5.4 (HTML Livre + Timeout Resolvido):
+
+1. **Mudança Arquitetural (V5.4)**: A IA voltou a gerar HTML/CSS livre (como V4) em vez de JSON/blocos. Isso dá controle total sobre layout, tipografia, gradientes, efeitos visuais e espaçamentos — resultando em páginas de venda premium de alta conversão.
+
+2. **Estágio 1 (ai-landing-page-generate v5.4.0)**: Gera HTML/CSS COMPLETO usando imagens do catálogo (sem gerar novas). Salva em `generated_html` + `generated_css`. Sem tool calling — a IA retorna HTML direto. Tempo: ~30-60s.
+
+3. **Estágio 2 (ai-landing-page-enhance-images)**: Mantido igual — gera imagens premium assíncronamente e substitui URLs no HTML salvo. Chunking por timeout (~30s por imagem, recursivo).
+
+4. **Renderização**: Prioridade invertida — `generated_html` (iframe via `buildDocumentShell`) tem prioridade sobre `generated_blocks` (React). Blocos V5 mantidos apenas como fallback para conteúdo legado.
+
+5. **Contrato de Saída**: A IA retorna APENAS conteúdo do `<body>` (sem document shell). O backend (`buildDocumentShell`) é 100% autoritativo sobre o shell, CSS utilities, safety CSS e auto-resize script.
+
+6. **Componentes afetados**: LandingPageEditor.tsx, StorefrontAILandingPage.tsx e LandingPagePreviewDialog.tsx todos priorizam HTML→iframe sobre blocks→BlockRenderer.
