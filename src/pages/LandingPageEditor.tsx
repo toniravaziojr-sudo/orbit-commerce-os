@@ -342,9 +342,13 @@ export default function LandingPageEditor() {
 
     // V5.4: Prioritize HTML rendering (iframe) for maximum visual quality
     if (hasHtml) {
-      const sanitizedHtml = sanitizeAILandingPageHtml(landingPage!.generated_html || '');
+      const rawHtml = landingPage!.generated_html || '';
+      const rawCss = landingPage!.generated_css || '';
+      // Sanitize both HTML and CSS to fix animation issues
+      const sanitizedHtml = sanitizeAILandingPageHtml(rawHtml);
+      const sanitizedCss = sanitizeAILandingPageHtml(rawCss); // reuse same regex-based fixes
       const fullHtml = buildDocumentShell(sanitizedHtml, {
-        extraCss: landingPage!.generated_css || undefined,
+        extraCss: sanitizedCss || undefined,
       });
 
       return (
@@ -359,8 +363,7 @@ export default function LandingPageEditor() {
             srcDoc={fullHtml}
             className="w-full border-0"
             style={{ 
-              height: iframeHeight ? `${iframeHeight}px` : '100%',
-              minHeight: iframeHeight ? undefined : '400px',
+              height: iframeHeight ? `${iframeHeight}px` : '5000px',
               display: 'block',
             }}
             title="Landing Page Preview"

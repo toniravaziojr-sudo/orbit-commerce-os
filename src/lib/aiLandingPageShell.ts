@@ -73,35 +73,36 @@ export function buildAutoResizeScript(): string {
   return `
 <script>
 (function(){
-  var locked = false;
   var lastH = 0;
-  var stableCount = 0;
   function sendHeight(){
-    if(locked) return;
     try {
       var h = Math.max(
         document.documentElement.scrollHeight || 0,
         document.body.scrollHeight || 0
       );
-      if(h > 0 && Math.abs(h - lastH) > 2){
-        stableCount = 0;
+      if(h > 0 && h !== lastH){
         lastH = h;
         window.parent.postMessage({type:'ai-lp-resize', height: h}, '*');
-      } else if(h > 0) {
-        stableCount++;
-        if(stableCount >= 3) { locked = true; }
       }
     } catch(e){}
   }
   sendHeight();
-  setTimeout(sendHeight, 200);
+  setTimeout(sendHeight, 100);
+  setTimeout(sendHeight, 300);
   setTimeout(sendHeight, 600);
-  setTimeout(sendHeight, 1500);
-  setTimeout(sendHeight, 3000);
+  setTimeout(sendHeight, 1200);
+  setTimeout(sendHeight, 2500);
+  setTimeout(sendHeight, 5000);
+  setTimeout(sendHeight, 8000);
   var imgs = document.querySelectorAll('img');
   imgs.forEach(function(img){
     if(!img.complete){ img.addEventListener('load', function(){ sendHeight(); }, {once:true}); }
   });
+  if(document.fonts && document.fonts.ready){
+    document.fonts.ready.then(function(){ setTimeout(sendHeight, 50); });
+  }
+  var ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(function(){ sendHeight(); }) : null;
+  if(ro) ro.observe(document.body);
 })();
 </script>`;
 }

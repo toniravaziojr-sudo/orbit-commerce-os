@@ -324,9 +324,11 @@ export default function StorefrontAILandingPage() {
   const pixelScripts = buildPixelScripts(marketingConfig ?? null);
   const faviconTag = buildFaviconTag(storeSettings?.favicon_url);
   const sanitizedHtml = sanitizeAILandingPageHtml(landingPage.generated_html!);
+  const sanitizedCss = sanitizeAILandingPageHtml(landingPage.generated_css || '');
   const fullHtml = buildDocumentShell(sanitizedHtml, {
     pixelScripts,
     faviconTag,
+    extraCss: sanitizedCss || undefined,
   });
 
   const shouldShowHeader = landingPage.show_header ?? false;
