@@ -480,6 +480,16 @@ export function runHardChecks(
       : 'No position: fixed detected',
   });
 
+  // has_no_external_images: detects external image hosts (imgur, postimg, imgbb, cloudinary)
+  const hasExternalImages = /imgur\.com|postimg\.cc|imgbb\.com|cloudinary\.com/i.test(html);
+  checks.push({
+    name: 'has_no_external_images',
+    passed: !hasExternalImages,
+    message: hasExternalImages
+      ? 'Found external image host (imgur/postimg/imgbb/cloudinary) — AI should only use provided URLs'
+      : 'No external image hosts detected',
+  });
+
   // Determine overall status
   const failedChecks = checks.filter(c => !c.passed);
   // Layout checks are warnings only, never critical fails

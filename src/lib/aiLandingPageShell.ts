@@ -1,9 +1,49 @@
 // =============================================
-// AI LANDING PAGE SHELL — V4.2
+// AI LANDING PAGE SHELL — V4.2.1
 // Shared pipeline for document assembly
 // Used by both StorefrontAILandingPage.tsx and LandingPagePreviewDialog.tsx
-// Single source of truth for safety CSS, auto-resize, and document wrapping
+// Single source of truth for safety CSS, CSS utilities, auto-resize, and document wrapping
 // =============================================
+
+/**
+ * Build the CSS utilities that provide keyframes, containers, and mobile responsiveness.
+ * These MUST match the backend's wrapInDocumentShell() utilities exactly.
+ */
+export function buildCssUtilities(): string {
+  return `
+@keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pulse-cta { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+.animate-section { animation: fadeInUp 0.8s ease-out forwards; }
+.glass-card { background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; }
+.container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+.section { padding: 80px 0; }
+@media (max-width: 768px) {
+  html, body { overflow-x: hidden !important; max-width: 100vw !important; }
+  h1 { font-size: 1.75rem !important; line-height: 1.2 !important; }
+  h2 { font-size: 1.4rem !important; }
+  h3 { font-size: 1.15rem !important; }
+  p, li, span { font-size: 15px !important; }
+  .section { padding: 48px 0 !important; }
+  .container { padding: 0 16px !important; }
+  /* Force single column on grids with 3+ columns, preserve 2-col */
+  [style*="grid-template-columns: repeat(3"], [style*="grid-template-columns: repeat(4"],
+  [style*="grid-template-columns: repeat(5"], [style*="grid-template-columns: repeat(6"] {
+    grid-template-columns: 1fr !important;
+  }
+  [style*="grid-template-columns: 1fr 1fr 1fr"], [style*="grid-template-columns:1fr 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+  /* Grid catch-all removed in v4.2 — selective rules above handle 3+ columns correctly */
+  .comparison-table-wrapper { overflow-x: auto; }
+  .cta-button, [class*="cta"], a[style*="padding"][style*="background"] {
+    width: 100% !important; text-align: center !important; padding: 16px 24px !important; font-size: 16px !important; display: block !important;
+  }
+  img { max-width: 100% !important; height: auto !important; }
+  /* Prevent horizontal overflow */
+  * { max-width: 100vw; }
+  [style*="position: absolute"], [style*="position:absolute"] { max-width: 100% !important; }
+}`;
+}
 
 /**
  * Build the safety CSS that prevents common rendering issues in iframes.
@@ -94,15 +134,18 @@ export interface BuildDocumentShellOptions {
  * If the input is already a full document (has <!DOCTYPE or <html>),
  * it injects safety CSS, auto-resize, and optional extras into the existing structure.
  *
- * If the input is body-only (sections + style), it wraps in a proper document shell.
+ * If the input is body-only (sections + style), it wraps in a proper document shell
+ * WITH full CSS utilities (keyframes, container, grid rules, mobile).
  */
 export function buildDocumentShell(
   sectionHtml: string,
   options: BuildDocumentShellOptions = {},
 ): string {
   const safetyCss = buildSafetyCss();
+  const cssUtilities = buildCssUtilities();
   const autoResizeScript = buildAutoResizeScript();
   const safetyStyleTag = `<style id="lp-safety">${safetyCss}</style>`;
+  const utilitiesStyleTag = `<style id="lp-utilities">${cssUtilities}</style>`;
 
   const isFullDocument =
     sectionHtml.trim().toLowerCase().startsWith('<!doctype') ||
@@ -111,7 +154,7 @@ export function buildDocumentShell(
   let fullHtml: string;
 
   if (isFullDocument) {
-    // Already a full document (legacy V4.0 content or contract violation recovery)
+    // Already a full document (legacy content or contract violation recovery)
     fullHtml = sectionHtml;
 
     // Inject safety CSS before </head>
@@ -131,12 +174,13 @@ export function buildDocumentShell(
       fullHtml += autoResizeScript;
     }
   } else {
-    // Body-only content (V4.2 contract)
+    // Body-only content (V4.2 contract) — inject FULL CSS utilities + safety
     fullHtml = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  ${utilitiesStyleTag}
   ${options.extraCss ? `<style>${options.extraCss}</style>` : ''}
   ${safetyStyleTag}
   ${options.faviconTag || ''}
