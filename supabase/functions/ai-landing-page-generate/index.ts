@@ -674,7 +674,7 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
           if (relatedKits && relatedKits.length > 0) {
             const kitParentIds = [...new Set(relatedKits.map((r: any) => r.parent_product_id))].filter(
               (id: string) => !productIds!.includes(id) // exclude already-selected products
-            );
+            ).slice(0, 6); // Limit to 6 most relevant kits to keep prompt lean
 
             if (kitParentIds.length > 0) {
               const { data: kitProducts } = await supabase
@@ -778,54 +778,10 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
       }).join("\n");
     }
 
-    // ===== STEP 3: DRIVE REFERENCES =====
-    let driveReferenceBase64s: string[] = [];
+    // ===== STEP 3: SOCIAL PROOF =====
     let socialProofImageUrls: string[] = [];
 
     if (productIds && productIds.length > 0 && promptType !== "adjustment") {
-      try {
-        const searchTerms = productNames.map(n => n.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim()).filter(Boolean);
-        if (searchTerms.length > 0) {
-          const { data: driveFiles } = await supabase
-            .from("files")
-            .select("id, original_name, storage_path, mime_type, metadata")
-            .eq("tenant_id", tenantId)
-            .eq("is_folder", false)
-            .ilike("mime_type", "image/%")
-            .order("created_at", { ascending: false })
-            .limit(50);
-
-          if (driveFiles && driveFiles.length > 0) {
-            const matchingFiles = driveFiles.filter((f: any) => {
-              const name = (f.original_name || '').toLowerCase();
-              const meta = f.metadata as Record<string, any> | null;
-              if (meta?.product_id && productIds!.includes(meta.product_id)) return true;
-              return searchTerms.some(term => {
-                const termWords = term.split(/\s+/).filter((w: string) => w.length > 3);
-                return termWords.some((word: string) => name.includes(word));
-              });
-            }).slice(0, 3);
-
-            for (const file of matchingFiles.slice(0, 2)) {
-              try {
-                const meta = file.metadata as Record<string, any> | null;
-                let imageUrl = meta?.url as string | undefined;
-                if (!imageUrl) {
-                  const bucket = (meta?.bucket as string) || 'tenant-files';
-                  const { data: pubData } = supabase.storage.from(bucket).getPublicUrl(file.storage_path);
-                  imageUrl = pubData?.publicUrl;
-                }
-                if (imageUrl) {
-                  const b64 = await imageUrlToBase64(imageUrl);
-                  if (b64) driveReferenceBase64s.push(b64);
-                }
-              } catch (dlErr) { console.warn("[AI-LP-Generate] Drive ref error:", dlErr); }
-            }
-          }
-        }
-      } catch (driveErr) { console.warn("[AI-LP-Generate] Drive search error:", driveErr); }
-
-      // ===== STEP 3B: SOCIAL PROOF FOLDER SEARCH =====
       // Search for folders with social proof content (feedback, reviews, results, proofs)
       try {
         const { data: proofFolders } = await supabase
@@ -840,7 +796,6 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
           console.log(`[AI-LP-Generate] Found ${proofFolders.length} social proof folders`);
           const folderPaths = proofFolders.map((f: any) => f.storage_path || `drive/${tenantId}/${f.filename}`);
           
-          // Search for image files whose storage_path starts with any of the proof folder paths
           const orConditions = folderPaths.map((fp: string) => `storage_path.like.${fp}/%`).join(",");
           const { data: proofFiles } = await supabase
             .from("files")
@@ -858,7 +813,6 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
                 const meta = file.metadata as Record<string, any> | null;
                 let imageUrl = meta?.url as string | undefined;
                 if (!imageUrl) {
-                  // Social proof files are in tenant-files (private) — use signed URLs
                   const bucket = (meta?.bucket as string) || 'tenant-files';
                   if (bucket === 'tenant-files') {
                     const { data: signedData } = await supabase.storage.from(bucket).createSignedUrl(file.storage_path, 3600);
@@ -879,46 +833,8 @@ ${kitDiscount ? `- **Desconto**: ${kitDiscount}% OFF` : ""}
       } catch (spSearchErr) { console.warn("[AI-LP-Generate] Social proof search error:", spSearchErr); }
     }
 
-    // ===== STEP 4: DRIVE FOLDER =====
-    let driveFolderId: string | null = null;
-    try {
-      driveFolderId = await ensureDriveFolder(supabase, tenantId, userId, "Criativos de página");
-    } catch (folderErr) { console.warn("[AI-LP-Generate] Folder error:", folderErr); }
-
-    // ===== STEP 5: LIFESTYLE IMAGE =====
-    let lifestyleImageUrls: string[] = [];
-    if (productIds && productIds.length > 0 && promptType !== "adjustment" && productImages.length > 0) {
-      const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
-      if (lovableApiKey) {
-        const firstProductName = productNames[0] || "Produto";
-        const driveRefNote = driveReferenceBase64s.length > 0
-          ? '\n\nREFERÊNCIAS VISUAIS ADICIONAIS: As imagens extras anexadas são referências visuais do Drive. Use como inspiração, mas GERE imagem NOVA.'
-          : '';
-        const lifestylePrompt = `FOTOGRAFIA DE LIFESTYLE/AMBIENTAÇÃO para landing page de e-commerce.\n\nPRODUTO: "${firstProductName}"\n\nOBJETIVO: Imagem de ambientação/lifestyle premium mostrando o produto em contexto real.\n\nCENÁRIOS POR NICHO:\n- Cosméticos/Saúde: pessoa usando o produto em banheiro moderno\n- Suplementos/Fitness: ambiente de treino ou mesa executiva\n- Tech: home office moderno\n- Alimentos: mesa posta elegante\n- Moda: ambiente urbano sofisticado\n\nREGRAS:\n1. Produto DEVE aparecer de forma natural no cenário\n2. Mostre o produto EM USO real\n3. Aspect ratio: 16:9\n4. Visual dark/premium. Evite backgrounds claros\n5. NÃO altere embalagem do produto\n\nEstilo: Fotografia lifestyle premium. Ultra realista.${driveRefNote}`;
-        try {
-          const referenceBase64 = await imageUrlToBase64(productImages[0]);
-          if (referenceBase64) {
-            let lifestyleDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', lifestylePrompt, referenceBase64, driveReferenceBase64s);
-            if (!lifestyleDataUrl) lifestyleDataUrl = await callImageModel(lovableApiKey, 'google/gemini-2.5-flash-image', lifestylePrompt, referenceBase64, driveReferenceBase64s);
-            if (lifestyleDataUrl) {
-              const safeName = firstProductName.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 40);
-              const lifestyleUrl = await uploadCreativeToStorage(supabase, tenantId, lifestyleDataUrl, `lifestyle-${safeName}`, userId, driveFolderId);
-              if (lifestyleUrl) lifestyleImageUrls.push(lifestyleUrl);
-            }
-          }
-        } catch (lifestyleErr) { console.warn("[AI-LP-Generate] Lifestyle error:", lifestyleErr); }
-      }
-    }
-
-    // ===== STEP 6: HERO CREATIVE =====
-    let generatedCreativeUrls: string[] = [];
-    if (promptType !== "adjustment" && productImages.length > 0) {
-      const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
-      if (lovableApiKey) {
-        const heroUrl = await generateHeroCreative(supabase, lovableApiKey, tenantId, productNames[0] || "Produto", productImages[0], storeSettings?.store_name || "Loja", userId, driveFolderId, driveReferenceBase64s);
-        if (heroUrl) generatedCreativeUrls.push(heroUrl);
-      }
-    }
+    // NOTE: Image generation (lifestyle/hero) removed in v5.1 — uses catalog images directly
+    // This saves ~60-90s of timeout-prone AI image generation calls
 
     // ===== STEP 7: RESOLVE ENGINE PLAN =====
     const enginePlan = resolveEnginePlan({
