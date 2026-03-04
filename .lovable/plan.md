@@ -1,66 +1,109 @@
 
 
-# Correção Cirúrgica: Header/Footer + DB Defaults
+# Diagnóstico Raiz + Plano de Correção Cirúrgica
 
-## Diagnóstico Confirmado
+## Achados Confirmados por Análise de Dados
 
-### Problema #1: DB defaults estão `true` para `show_header` e `show_footer`
-A tabela `ai_landing_pages` tem `column_default: true` para ambas as colunas. O `CreateLandingPageDialog.tsx` (linha 186) não define esses campos no insert — então toda LP nova nasce com header/footer ligados. O editor (linha 140) também faz fallback `?? true`.
+### 1. Header/Footer: NÃO é bug de código — é bug de dados
+O código em `StorefrontAILandingPage.tsx` funciona **corretamente**: linhas 266-267 leem `show_header ?? false` e linhas 313-337 condicionam o render ao valor real. A rota em `App.tsx` (L230) está **fora** do `TenantStorefrontLayout`, então não herda shell externo.
 
-### Problema #2: Imagem quebrada do imgur
-O t11 ainda mostra uma imagem do imgur quebrada ("The image you are requesting does not exist"). Isso confirma que a IA ainda está gerando URLs externas apesar da proibição no prompt. O hard check `has_no_external_images` foi adicionado ao `engine-plan.ts` mas apenas gera warning — não faz strip automático das URLs proibidas.
+**O problema real**: O registro `t123` no banco tem `show_header: true` e `show_footer: true`. Isso acontece porque esse registro foi criado antes do deploy da correção no `CreateLandingPageDialog.tsx`, ou os toggles foram ativados no editor. O `CreateLandingPageDialog` já insere com `false` (L196-197). O default da coluna no banco já é `false`.
 
-### Problema #3: Imagens de oferta usando catálogo errado
-Nos cards de oferta/kit (Tratamento 4/6/12 meses), a IA está usando imagens aleatórias (before/after, catálogo genérico) em vez da imagem principal do produto. O prompt diz para usar catálogo "apenas em grids de produto", mas não especifica que cards de oferta/pricing DEVEM usar a imagem principal (`is_primary`) de cada produto.
+**Correção**: Atualizar t123 no banco para `show_header: false, show_footer: false`.
+
+### 2. Imagens de oferta erradas: O backend NÃO busca kits relacionados
+Este é o problema **mais grave** e estrutural. O LP `t123` tem **apenas 1 produto selecionado**: `Shampoo Calvície Zero` (produto `simple`). Porém, existem **14 kits** que contêm esse produto como componente (via `product_components`), cada um com sua **própria imagem primária** profissional.
+
+O que acontece hoje:
+- O backend monta `productPrimaryImageMap` apenas com os `product_ids` selecionados (1 produto)
+- A IA recebe apenas 1 thumb e inventa a seção de "kits" com a mesma imagem repetida
+- Os kits reais (com thumbs profissionais) existem no catálogo mas não são passados para a IA
+
+**Correção**: No STEP 1 do `index.ts`, após buscar os produtos selecionados, consultar `product_components` para encontrar kits (`with_composition`) que contêm esses produtos. Incluir seus dados (nome, preço, imagem primária) no `productPrimaryImageMap` e no `productsInfo`.
+
+### 3. Provas sociais reais ignoradas
+Existem pastas reais no Drive:
+- `Feedback Clientes` (id: `3379009a...`)
+- `Review clientes` (id: `8bb4339a...`)
+
+E existe 1 arquivo de review (`1768714772803-1xuve9.png`).
+
+O STEP 3 (DRIVE REFERENCES) busca arquivos por **nome do produto**, não por **pastas de prova social**. As pastas de feedback não são consultadas.
+
+**Correção**: Adicionar busca explícita no STEP 3 por arquivos em pastas cujo nome contenha "feedback", "review", "prova", "resultado". Passar essas imagens como `socialProofImageSet` separado no mapa de assets.
+
+### 4. CTAs desproporcionais
+O CSS utilities não impõe limites de tamanho para CTAs. A IA tem liberdade total para definir font-size, padding e width dos botões.
+
+**Correção**: Adicionar regras de CTA no CSS utilities (`wrapInDocumentShell` e `buildCssUtilities`) com max-width, font-size padronizado e padding controlado.
 
 ---
 
-## Correções Planejadas
+## Plano de Correção (4 tarefas)
 
-### Correção 1: Alterar DB defaults para `false`
-**Tipo:** Migration SQL
+### Tarefa 1: Corrigir dados do t123
+**Tipo**: SQL direto
+- `UPDATE ai_landing_pages SET show_header = false, show_footer = false WHERE slug = 't123'`
 
-Alterar os defaults das colunas `show_header` e `show_footer` de `true` para `false`. Isso garante que novas LPs nasçam sem header/footer por padrão.
+### Tarefa 2: Auto-descobrir kits relacionados no backend
+**Arquivo**: `supabase/functions/ai-landing-page-generate/index.ts` (STEP 1, ~L762-821)
 
-### Correção 2: Atualizar t11 no banco
-**Tipo:** SQL direto
-
-Setar `show_header: false` e `show_footer: false` no registro t11 para validação imediata.
-
-### Correção 3: Editor fallback `?? false`
-**Arquivo:** `src/pages/LandingPageEditor.tsx` (linha 140-141)
-
-Trocar:
-```typescript
-setShowHeader(landingPage.show_header ?? true);
-setShowFooter(landingPage.show_footer ?? true);
-```
-Para:
-```typescript
-setShowHeader(landingPage.show_header ?? false);
-setShowFooter(landingPage.show_footer ?? false);
+Após buscar os produtos selecionados, adicionar:
+```sql
+SELECT pc.parent_product_id, p.name, p.price, p.compare_at_price, p.sku
+FROM product_components pc
+JOIN products p ON p.id = pc.parent_product_id
+WHERE pc.component_product_id IN (selectedProductIds)
+  AND p.deleted_at IS NULL
+  AND p.product_format = 'with_composition'
+  AND p.status = 'active'
 ```
 
-### Correção 4: Regra de imagem por slot no prompt
-**Arquivo:** `supabase/functions/ai-landing-page-generate/index.ts`
+Para cada kit encontrado, buscar sua `is_primary` image e adicionar ao `productPrimaryImageMap` e ao `productsInfo`. Isso garante que cards de oferta/pricing usem a thumb correta de cada kit.
 
-Adicionar ao prompt (seção de IMAGENS ou ANTI-PADRÕES) uma regra de slot:
+### Tarefa 3: Buscar provas sociais do Drive
+**Arquivo**: `supabase/functions/ai-landing-page-generate/index.ts` (STEP 3, ~L862-906)
 
+Adicionar busca por imagens em pastas cujo nome contém "feedback", "review", "prova", "resultado":
+```sql
+-- Buscar folders de prova social
+SELECT id FROM files WHERE tenant_id = ? AND is_folder = true 
+  AND (filename ILIKE '%feedback%' OR filename ILIKE '%review%' OR filename ILIKE '%prova%' OR filename ILIKE '%resultado%')
+
+-- Buscar imagens nessas folders (via storage_path match)
+SELECT storage_path, original_name, metadata FROM files 
+  WHERE tenant_id = ? AND is_folder = false AND mime_type LIKE 'image/%'
+  AND storage_path LIKE ANY(folder_paths)
 ```
-### POLÍTICA DE IMAGEM POR TIPO DE SEÇÃO:
-- HERO: Use criativo gerado (prioridade) ou lifestyle. NUNCA catálogo com fundo branco.
-- OFERTA / PRICING / KITS: Use OBRIGATORIAMENTE a imagem principal (is_primary) de cada produto do catálogo.
-- PROVA SOCIAL / BEFORE-AFTER: Apenas imagens aprovadas de transformação.
-- BENEFÍCIOS / FEATURES: Ícones CSS ou imagens secundárias.
-- NUNCA misture: before/after em card de oferta, catálogo em hero, lifestyle em pricing.
+
+Passar as URLs públicas dessas imagens como slot `PROVA SOCIAL REAL` no mapa de assets, com instrução explícita para a IA usar essas imagens na seção de depoimentos/resultados.
+
+### Tarefa 4: Restringir CTAs no CSS utilities
+**Arquivos**: 
+- `supabase/functions/ai-landing-page-generate/index.ts` (CSS utilities, ~L595-627)
+- `src/lib/aiLandingPageShell.ts` (buildCssUtilities)
+
+Adicionar regras CSS para CTAs:
+```css
+.cta-button, [class*="cta"], a[style*="padding"][style*="background"] {
+  max-width: 400px;
+  font-size: clamp(14px, 1.1vw, 18px);
+  padding: 14px 32px;
+  border-radius: 8px;
+  display: inline-block;
+  box-sizing: border-box;
+}
 ```
-
-### Correção 5: Sanitizer strip de URLs externas proibidas
-**Arquivo:** `src/lib/sanitizeAILandingPageHtml.ts`
-
-Adicionar regex que remove `<img>` tags com src apontando para hosts proibidos (imgur.com, postimg.cc, imgbb.com, cloudinary.com), substituindo por string vazia ou placeholder transparente. Isso é defesa de runtime, além do warning do hard check.
-
-### Correção 6: Deploy edge function
+E no mobile:
+```css
+@media (max-width: 768px) {
+  .cta-button, [class*="cta"], a[style*="padding"][style*="background"] {
+    max-width: 100%;
+    font-size: 16px !important;
+    padding: 14px 24px !important;
+  }
+}
+```
 
 ---
 
@@ -68,13 +111,14 @@ Adicionar regex que remove `<img>` tags com src apontando para hosts proibidos (
 
 | Arquivo | Mudança |
 |---------|---------|
-| Migration SQL | Alterar defaults de `show_header`/`show_footer` para `false` |
-| `src/pages/LandingPageEditor.tsx` | Fallback `?? false` |
-| `supabase/functions/ai-landing-page-generate/index.ts` | Regra de imagem por slot |
-| `src/lib/sanitizeAILandingPageHtml.ts` | Strip de URLs externas proibidas |
+| SQL direto | Fix t123 show_header/show_footer |
+| `supabase/functions/ai-landing-page-generate/index.ts` | Auto-descobrir kits; buscar provas sociais; CTA constraints no CSS utilities |
+| `src/lib/aiLandingPageShell.ts` | CTA constraints no buildCssUtilities (paridade) |
 
 ## O que NÃO muda
-- Arquitetura V4.2 (body-only, pipeline compartilhada, hard checks)
-- Componente `StorefrontAILandingPage.tsx` (já está correto, respeita os flags)
-- Lógica de `buildDocumentShell` / `aiLandingPageShell.ts`
+- Arquitetura V4.2 body-only (mantida)
+- Pipeline compartilhada (mantida)
+- Parser/hard checks (mantidos)
+- Componente StorefrontAILandingPage (funciona corretamente)
+- CreateLandingPageDialog (já corrigido)
 
