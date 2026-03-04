@@ -309,6 +309,7 @@ ${enginePlan.resolvedVisualWeight === 'informativo' ? '- Layout organizado, íco
 ### PROIBIÇÕES ABSOLUTAS:
 - NUNCA invente nomes de produto — use EXATAMENTE os nomes fornecidos
 - NUNCA use placeholder.com, via.placeholder, unsplash ou imagens genéricas
+- NUNCA use imgur.com, postimg.cc, imgbb.com, cloudinary.com ou qualquer host externo de imagens — use APENAS as URLs fornecidas
 - NUNCA use Lorem ipsum ou texto placeholder
 - NUNCA deixe tags HTML visíveis como texto
 - NUNCA inclua header/navegação (a plataforma renderiza automaticamente)
@@ -389,7 +390,16 @@ A plataforma renderiza header e footer automaticamente.
 - NÃO inclua NENHUM footer, rodapé, copyright, links de rodapé ou seção final com "©"
 - NÃO inclua tags <header>, <footer> ou <nav> de nível superior
 - Comece DIRETO no Hero e termine no último CTA ou seção de conteúdo
-- A última seção deve ser um CTA final, NÃO um footer`);
+- A última seção DEVE ser um CTA de conversão, NÃO informação institucional
+
+### PROIBIÇÃO DE CONTEÚDO SEMÂNTICO DE RODAPÉ:
+A IA NÃO deve gerar nenhum dos itens abaixo, mesmo sem usar a tag <footer>:
+- Seções com dados de SAC, contato institucional, telefone/email de suporte
+- Blocos de redes sociais (Instagram, Facebook, Twitter, TikTok)
+- "Menu Footer", links institucionais ("Política de Privacidade", "Termos de Uso", "Sobre Nós")
+- Endereço físico, CNPJ, razão social como seção de fechamento
+- Qualquer seção que funcione como rodapé de um site — isso é responsabilidade da PLATAFORMA
+- A última seção da landing page DEVE ser um CTA de conversão com botão de ação`);
 
   // === DATA SECTIONS ===
   const dataSections: string[] = [];
@@ -546,7 +556,7 @@ function wrapInDocumentShell(sectionHtml: string, options: {
   const cssUtilities = `
 @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes pulse-cta { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
-.animate-section { animation: fadeInUp 0.8s ease-out both; }
+.animate-section { animation: fadeInUp 0.8s ease-out forwards; }
 .glass-card { background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; }
 .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
 .section { padding: 80px 0; }
@@ -566,7 +576,7 @@ function wrapInDocumentShell(sectionHtml: string, options: {
   [style*="grid-template-columns: 1fr 1fr 1fr"], [style*="grid-template-columns:1fr 1fr 1fr"] {
     grid-template-columns: 1fr !important;
   }
-  [style*="display: grid"][style*="grid-template-columns"] { grid-template-columns: 1fr !important; }
+  /* Grid catch-all removed in v4.2 — selective rules above handle 3+ columns correctly */
   .comparison-table-wrapper { overflow-x: auto; }
   .cta-button, [class*="cta"], a[style*="padding"][style*="background"] {
     width: 100% !important; text-align: center !important; padding: 16px 24px !important; font-size: 16px !important; display: block !important;
@@ -1016,12 +1026,10 @@ ${allImageUrls.length > 0 ? allImageUrls.map((url, i) => `  ${i + 1}. ${url}`).j
 
     console.log(`[AI-LP-Generate] Hard checks: status=${hardCheckResults.hardCheckStatus}, needsReview=${hardCheckResults.needsReview}, checks=${hardCheckResults.checks.length}`);
 
-    // ===== STEP 12.5: WRAP IN DOCUMENT SHELL (v4.2) =====
-    // Backend is authoritative over the document shell. AI content is sections-only.
-    generatedHtml = wrapInDocumentShell(generatedHtml, {
-      pixelScripts: '', // Pixels injected at render time by StorefrontAILandingPage
-      faviconTag: '',   // Favicon injected at render time
-    });
+    // V4.2 FIX: Do NOT wrap in document shell at save time.
+    // Save body-only HTML. The document shell is assembled at RENDER time
+    // by the client-side pipeline (aiLandingPageShell.ts → buildDocumentShell).
+    // This prevents double-wrapping that caused duplicated scripts and CSS conflicts.
 
     // ===== STEP 13: PERSIST =====
     const newVersion = (savedLandingPage?.current_version || 0) + 1;
