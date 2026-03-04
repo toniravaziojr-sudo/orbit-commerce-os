@@ -160,8 +160,10 @@ Todos os inputs de chat usam o padrão **card pill**:
    - `productIds`: Array de IDs específicos
    - `categoryId`: Filtrar por categoria
    - `productFormat`: Filtrar por formato (`simple`, `with_composition`, `with_variants`)
-   - `minComponents`: Número mínimo de componentes (útil para "kits com 3+ itens")
+   - `minComponents`: Número mínimo de **unidades totais** na composição (soma das quantidades dos componentes, NÃO contagem de linhas). Ex: `minComponents=3` inclui kits com 1 componente em quantidade 3 ou kits com 3 componentes diferentes em quantidade 1 cada.
    - `freeShipping`: Boolean — ativar ou desativar
+
+> ⚠️ **REGRA CRÍTICA (v3.13.1):** O filtro `minComponents` calcula `SUM(product_components.quantity)` por kit, e NÃO `COUNT(product_components.id)`. Um kit com 1 produto em quantidade 5 tem `minComponents = 5`, não 1.
 2. **`updateProduct` expandido**: Agora aceita `freeShipping` e `requiresShipping` como parâmetros opcionais para edição individual
 
 **Tabela de decisão atualizada no system prompt:**
