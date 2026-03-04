@@ -378,13 +378,23 @@ O motor v3.6.0 corrige o problema de a IA inventar nomes de produtos inexistente
 | **Verificação pós-geração** | Pipeline valida que o HTML contém o nome correto do produto e pelo menos 1 URL de imagem válida |
 | **Imagens obrigatórias** | Se `productImages` está vazio, o motor gera imagens via IA antes de chamar o LLM |
 
-### Preview no Editor Admin (v3.7.0)
+### Preview no Editor Admin (v5.3.0)
 
-O `LandingPageEditor.tsx` **NÃO renderiza** `StorefrontHeader`/`StorefrontFooter` como componentes React — isso causava conflitos de CSS com o painel admin, logos quebrados e scroll infinito.
+O `LandingPageEditor.tsx` suporta renderização dual:
+
+| Motor | Renderização | Detalhes |
+|-------|-------------|----------|
+| **V5+ (Blocos)** | `BlockRenderer` nativo (React) | Lê `generated_blocks` (JSON). Renderiza diretamente como componentes React no editor, sem iframe. |
+| **Legado (HTML)** | Iframe com `srcDoc` | Lê `generated_html`. Usa iframe com safety CSS e auto-resize script. |
+
+**Prioridade:** `generated_blocks` > `generated_html`. Se ambos existirem, blocos têm prioridade.
+
+O editor **NÃO renderiza** `StorefrontHeader`/`StorefrontFooter` como componentes React — isso causava conflitos de CSS com o painel admin.
 
 | Item | Implementação |
 |------|--------------|
-| **Preview** | Iframe-only com o HTML gerado pela IA |
+| **Preview V5** | `BlockRenderer` direto com `isEditing=false` e `isPreview=true` |
+| **Preview Legado** | Iframe-only com o HTML gerado pela IA |
 | **Indicadores** | Banners informativos indicam onde header/footer aparecerão na versão pública |
 | **Público** | `StorefrontAILandingPage.tsx` continua renderizando header/footer como React components no contexto correto |
 | **Anti-Duplicação** | Edge function instrui a IA a NÃO incluir header/footer/navegação/copyright no HTML quando `show_header`/`show_footer` estão ativados |
