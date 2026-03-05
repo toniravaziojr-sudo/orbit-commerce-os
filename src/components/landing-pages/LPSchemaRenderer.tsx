@@ -1,16 +1,14 @@
 // =============================================
-// LP SCHEMA RENDERER — V8.0
-// Renders LPSchema using real React components
-// Uses --lp-* CSS variables for theming
-// Sanitizes AI copy (strips markdown)
-// Container queries for responsive builder preview
-// V8.0: Passes variant prop to each block
+// LP SCHEMA RENDERER — V9.0
+// Routes Hero/CTA to premium template components
+// Falls back to generic blocks for backward compat
 // =============================================
 
 import { useMemo } from 'react';
 import type { LPSchema, LPSection, LPSectionType, LPColorScheme } from '@/lib/landing-page-schema';
 import { sanitizeLPSectionProps } from '@/lib/sanitizeLPCopy';
 import { normalizeAllCTAs } from '@/lib/normalizeLPCta';
+import { buildTokenCssVariables } from '@/lib/landing-page-template-tokens';
 import { LPHero } from './blocks/LPHero';
 import { LPBenefits } from './blocks/LPBenefits';
 import { LPTestimonials } from './blocks/LPTestimonials';
@@ -19,6 +17,22 @@ import { LPPricing } from './blocks/LPPricing';
 import { LPFaq } from './blocks/LPFaq';
 import { LPGuarantee } from './blocks/LPGuarantee';
 import { LPCtaFinal } from './blocks/LPCtaFinal';
+// Premium Heroes
+import { HeroLuxuryEditorial } from './heroes/HeroLuxuryEditorial';
+import { HeroBoldImpact } from './heroes/HeroBoldImpact';
+import { HeroMinimalZen } from './heroes/HeroMinimalZen';
+import { HeroOrganicNature } from './heroes/HeroOrganicNature';
+import { HeroCorporateTrust } from './heroes/HeroCorporateTrust';
+import { HeroNeonEnergy } from './heroes/HeroNeonEnergy';
+import { HeroWarmArtisan } from './heroes/HeroWarmArtisan';
+import { HeroTechGradient } from './heroes/HeroTechGradient';
+import { HeroClassicElegant } from './heroes/HeroClassicElegant';
+import { HeroUrbanStreet } from './heroes/HeroUrbanStreet';
+// Premium CTAs
+import { CtaLuxuryEditorial } from './ctas/CtaLuxuryEditorial';
+import { CtaBoldImpact } from './ctas/CtaBoldImpact';
+import { CtaMinimalZen } from './ctas/CtaMinimalZen';
+import { CtaOrganicNature, CtaCorporateTrust, CtaNeonEnergy, CtaWarmArtisan, CtaTechGradient, CtaClassicElegant, CtaUrbanStreet } from './ctas/CtaTemplates';
 import '@/styles/lp-container-queries.css';
 import '@/styles/lp-animations.css';
 
@@ -26,9 +40,47 @@ interface LPSchemaRendererProps {
   schema: LPSchema;
 }
 
-function renderSection(section: LPSection) {
+const PREMIUM_HEROES: Record<string, React.FC<{ data: any }>> = {
+  luxury_editorial: HeroLuxuryEditorial,
+  bold_impact: HeroBoldImpact,
+  minimal_zen: HeroMinimalZen,
+  organic_nature: HeroOrganicNature,
+  corporate_trust: HeroCorporateTrust,
+  neon_energy: HeroNeonEnergy,
+  warm_artisan: HeroWarmArtisan,
+  tech_gradient: HeroTechGradient,
+  classic_elegant: HeroClassicElegant,
+  urban_street: HeroUrbanStreet,
+};
+
+const PREMIUM_CTAS: Record<string, React.FC<{ data: any }>> = {
+  luxury_editorial: CtaLuxuryEditorial,
+  bold_impact: CtaBoldImpact,
+  minimal_zen: CtaMinimalZen,
+  organic_nature: CtaOrganicNature,
+  corporate_trust: CtaCorporateTrust,
+  neon_energy: CtaNeonEnergy,
+  warm_artisan: CtaWarmArtisan,
+  tech_gradient: CtaTechGradient,
+  classic_elegant: CtaClassicElegant,
+  urban_street: CtaUrbanStreet,
+};
+
+function renderSection(section: LPSection, premiumTemplateId?: string) {
   const { id, type, variant } = section;
   const cleanProps = sanitizeLPSectionProps(section.props);
+
+  // Route Hero/CTA to premium template if available
+  if (type === 'hero' && premiumTemplateId && PREMIUM_HEROES[premiumTemplateId]) {
+    const HeroComp = PREMIUM_HEROES[premiumTemplateId];
+    return <HeroComp key={id} data={cleanProps} />;
+  }
+  if (type === 'cta_final' && premiumTemplateId && PREMIUM_CTAS[premiumTemplateId]) {
+    const CtaComp = PREMIUM_CTAS[premiumTemplateId];
+    return <CtaComp key={id} data={cleanProps} />;
+  }
+
+  // Fallback to generic blocks (backward compat)
   switch (type) {
     case 'hero':
       return <LPHero key={id} data={cleanProps} variant={variant} />;
@@ -74,7 +126,9 @@ function buildCssVariables(cs: LPColorScheme): React.CSSProperties {
 }
 
 export function LPSchemaRenderer({ schema }: LPSchemaRendererProps) {
+  const premiumTemplateId = schema.premiumTemplateId;
   const cssVars = useMemo(() => buildCssVariables(schema.colorScheme), [schema.colorScheme]);
+  const tokenVars = useMemo(() => buildTokenCssVariables(premiumTemplateId), [premiumTemplateId]);
 
   return (
     <>
@@ -83,6 +137,7 @@ export function LPSchemaRenderer({ schema }: LPSchemaRendererProps) {
         className="w-full min-h-screen"
         style={{
           ...cssVars,
+          ...tokenVars,
           backgroundColor: schema.colorScheme.bg,
           fontFamily: schema.colorScheme.fontBody,
           color: schema.colorScheme.text,
@@ -92,7 +147,7 @@ export function LPSchemaRenderer({ schema }: LPSchemaRendererProps) {
           containerName: 'lp-root',
         }}
       >
-        {normalizeAllCTAs(schema.sections).map((section) => renderSection(section as LPSection))}
+        {normalizeAllCTAs(schema.sections).map((section) => renderSection(section as LPSection, premiumTemplateId))}
       </div>
     </>
   );

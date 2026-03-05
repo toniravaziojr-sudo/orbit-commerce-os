@@ -169,7 +169,18 @@ export type LPTemplateId =
   | 'problem_solution'
   | 'routine'
   | 'comparison'
-  | 'minimal_premium';
+  | 'minimal_premium'
+  // V9.0 Premium Templates
+  | 'luxury_editorial'
+  | 'bold_impact'
+  | 'minimal_zen'
+  | 'organic_nature'
+  | 'corporate_trust'
+  | 'neon_energy'
+  | 'warm_artisan'
+  | 'tech_gradient'
+  | 'classic_elegant'
+  | 'urban_street';
 
 export type LPMood = 'luxury' | 'bold' | 'organic' | 'corporate' | 'minimal';
 
@@ -178,7 +189,7 @@ export type LPMood = 'luxury' | 'bold' | 'organic' | 'corporate' | 'minimal';
 export type LPVisualStyle = 'premium' | 'comercial' | 'minimalista' | 'direto';
 
 export interface LPSchema {
-  version: '7.0' | '8.0';
+  version: '7.0' | '8.0' | '9.0';
   visualStyle: LPVisualStyle;
   colorScheme: LPColorScheme;
   showHeader: boolean;
@@ -188,6 +199,9 @@ export interface LPSchema {
   templateId?: LPTemplateId;
   mood?: LPMood;
   variantSeed?: number;
+  // V9.0 fields
+  premiumTemplateId?: string;
+  designTokens?: Record<string, string>;
 }
 
 // ========== MOOD PRESETS ==========
@@ -444,7 +458,7 @@ const zLPColorScheme = z.object({
 });
 
 export const zLPSchema = z.object({
-  version: z.enum(['7.0', '8.0']),
+  version: z.enum(['7.0', '8.0', '9.0']),
   visualStyle: z.enum(['premium', 'comercial', 'minimalista', 'direto']),
   colorScheme: zLPColorScheme,
   showHeader: z.boolean(),
