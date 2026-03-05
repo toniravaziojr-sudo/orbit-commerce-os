@@ -37,7 +37,6 @@ export function ProductPackshot({ src, maxW, maxH, glowColor, glowIntensity }: P
           filter: `drop-shadow(0 24px 60px var(--lp-shadow))`,
           maxWidth: maxW || 'clamp(260px, 30vw, 400px)',
           maxHeight: maxH || 'clamp(300px, 44vh, 500px)',
-          borderRadius: '16px',
         }}
       />
     </div>
