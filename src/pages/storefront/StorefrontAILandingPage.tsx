@@ -31,6 +31,7 @@ interface AILandingPageData {
   generated_html: string | null;
   generated_css: string | null;
   generated_blocks: BlockNode | null;
+  generated_schema: any | null;
   seo_title: string | null;
   seo_description: string | null;
   seo_image_url: string | null;
@@ -188,7 +189,7 @@ export default function StorefrontAILandingPage() {
       if (!tenantInfo?.tenantId || !lpSlug) return null;
       const { data: page, error: pageError } = await supabase
         .from('ai_landing_pages')
-        .select('id, name, slug, generated_html, generated_css, generated_blocks, seo_title, seo_description, seo_image_url, is_published, show_header, show_footer')
+        .select('id, name, slug, generated_html, generated_css, generated_blocks, generated_schema, seo_title, seo_description, seo_image_url, is_published, show_header, show_footer')
         .eq('tenant_id', tenantInfo.tenantId)
         .eq('slug', lpSlug)
         .eq('is_published', true)

@@ -1285,6 +1285,7 @@ export type Database = {
           preview_url: string | null
           prompt: string
           prompt_type: string
+          schema_content: Json | null
           tenant_id: string
           version: number
         }
@@ -1300,6 +1301,7 @@ export type Database = {
           preview_url?: string | null
           prompt: string
           prompt_type?: string
+          schema_content?: Json | null
           tenant_id: string
           version: number
         }
@@ -1315,6 +1317,7 @@ export type Database = {
           preview_url?: string | null
           prompt?: string
           prompt_type?: string
+          schema_content?: Json | null
           tenant_id?: string
           version?: number
         }
@@ -1344,6 +1347,7 @@ export type Database = {
           generated_blocks: Json | null
           generated_css: string | null
           generated_html: string | null
+          generated_schema: Json | null
           id: string
           initial_prompt: string | null
           is_published: boolean | null
@@ -1372,6 +1376,7 @@ export type Database = {
           generated_blocks?: Json | null
           generated_css?: string | null
           generated_html?: string | null
+          generated_schema?: Json | null
           id?: string
           initial_prompt?: string | null
           is_published?: boolean | null
@@ -1400,6 +1405,7 @@ export type Database = {
           generated_blocks?: Json | null
           generated_css?: string | null
           generated_html?: string | null
+          generated_schema?: Json | null
           id?: string
           initial_prompt?: string | null
           is_published?: boolean | null

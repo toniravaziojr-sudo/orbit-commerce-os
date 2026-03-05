@@ -1,9 +1,9 @@
 // =============================================
-// AI LANDING PAGE GENERATE — V6.0 ENGINE
-// Motor V6: Templates Pré-Prontos + IA para Copy
-// Fase 1: Monta página a partir de templates HTML profissionais
-// Fase 2: IA refina copy/headlines (opcional, não afeta layout)
-// Fase 3: enhance-images gera composições visuais (assíncrono)
+// AI LANDING PAGE GENERATE — V7.0 ENGINE
+// Motor V7: Schema-First + React Renderer
+// IA generates structured JSON schema, NOT HTML
+// Frontend renders with real React components
+// V6 HTML fallback preserved for legacy pages
 // =============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -20,9 +20,10 @@ import {
   type ProductData,
   type ReviewData,
 } from "../_shared/landing-page-templates.ts";
-import { getNicheImages } from "../_shared/landing-page-stock-images.ts";
+import { getNicheImages, getNicheImage } from "../_shared/landing-page-stock-images.ts";
+import { resolveLandingPageAssets, type ResolvedAssets } from "../_shared/landing-page-asset-resolver.ts";
 
-const VERSION = "6.0.0"; // Engine V6: Templates + AI Copy
+const VERSION = "7.0.0"; // Engine V7: Schema-First
 
 // ========== CORS ==========
 
@@ -44,42 +45,264 @@ interface GenerateRequest {
   briefing?: BriefingInput;
 }
 
-// ========== AI COPY REFINEMENT PROMPT ==========
+// ========== COLOR SCHEME PRESETS (same as V6) ==========
 
-function buildCopyRefinementPrompt(params: {
+function getColorScheme(visualWeight: string, primaryColor: string) {
+  switch (visualWeight) {
+    case 'premium':
+      return {
+        bg: '#0a0a0a', bgAlt: '#111111', text: '#ffffff', textMuted: 'rgba(255,255,255,0.7)',
+        accent: '#c9a96e', ctaBg: '#c9a96e', ctaText: '#0a0a0a',
+        cardBg: 'rgba(255,255,255,0.04)', cardBorder: 'rgba(255,255,255,0.08)',
+        priceCurrent: '#c9a96e', priceOld: 'rgba(255,255,255,0.4)',
+        badgeBg: 'rgba(201,169,110,0.15)', badgeText: '#c9a96e',
+        shadow: 'rgba(0,0,0,0.5)', divider: 'rgba(255,255,255,0.06)',
+        fontDisplay: "'Playfair Display', Georgia, serif",
+        fontBody: "'Inter', -apple-system, sans-serif",
+        fontImportUrl: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap',
+      };
+    case 'comercial':
+      return {
+        bg: '#ffffff', bgAlt: '#f8f9fa', text: '#111827', textMuted: '#6b7280',
+        accent: primaryColor || '#ef4444', ctaBg: primaryColor || '#ef4444', ctaText: '#ffffff',
+        cardBg: '#ffffff', cardBorder: '#e5e7eb',
+        priceCurrent: '#16a34a', priceOld: '#9ca3af',
+        badgeBg: '#fef2f2', badgeText: '#dc2626',
+        shadow: 'rgba(0,0,0,0.1)', divider: '#f3f4f6',
+        fontDisplay: "'Montserrat', -apple-system, sans-serif",
+        fontBody: "'Open Sans', -apple-system, sans-serif",
+        fontImportUrl: 'https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Open+Sans:wght@400;500;600&display=swap',
+      };
+    case 'minimalista':
+      return {
+        bg: '#fafafa', bgAlt: '#ffffff', text: '#1a1a1a', textMuted: '#666666',
+        accent: primaryColor || '#1a1a1a', ctaBg: '#1a1a1a', ctaText: '#ffffff',
+        cardBg: '#ffffff', cardBorder: '#e5e7eb',
+        priceCurrent: '#1a1a1a', priceOld: '#bbbbbb',
+        badgeBg: '#f5f5f5', badgeText: '#333333',
+        shadow: 'rgba(0,0,0,0.06)', divider: '#eeeeee',
+        fontDisplay: "'Sora', -apple-system, sans-serif",
+        fontBody: "'Inter', -apple-system, sans-serif",
+        fontImportUrl: 'https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap',
+      };
+    default: // 'direto'
+      return {
+        bg: '#ffffff', bgAlt: '#f9fafb', text: '#111827', textMuted: '#4b5563',
+        accent: primaryColor || '#2563eb', ctaBg: primaryColor || '#2563eb', ctaText: '#ffffff',
+        cardBg: '#ffffff', cardBorder: '#e5e7eb',
+        priceCurrent: '#16a34a', priceOld: '#9ca3af',
+        badgeBg: `${primaryColor || '#2563eb'}15`, badgeText: primaryColor || '#2563eb',
+        shadow: 'rgba(0,0,0,0.08)', divider: '#f3f4f6',
+        fontDisplay: "'Inter', -apple-system, sans-serif",
+        fontBody: "'Inter', -apple-system, sans-serif",
+        fontImportUrl: 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap',
+      };
+  }
+}
+
+// ========== SCHEMA BUILDER (deterministic, no AI) ==========
+
+function formatPrice(value: number): string {
+  return `R$ ${value.toFixed(2).replace('.', ',')}`;
+}
+
+function installments(price: number, n = 12): string {
+  const inst = price / n;
+  return `${n}x de R$ ${inst.toFixed(2).replace('.', ',')}`;
+}
+
+interface BuildSchemaInput {
+  storeName: string;
+  primaryColor: string;
+  visualWeight: string;
+  mainProduct: ProductData;
+  allProducts: ProductData[];
+  kits: ProductData[];
+  reviews: ReviewData[];
+  assets: ResolvedAssets;
+  ctaText: string;
+  ctaUrl: string;
+  showHeader: boolean;
+  showFooter: boolean;
+}
+
+function buildBaseSchema(input: BuildSchemaInput) {
+  const c = getColorScheme(input.visualWeight, input.primaryColor);
+  const p = input.mainProduct;
+  
+  const sections: any[] = [];
+
+  // Hero
+  sections.push({
+    id: 'hero',
+    type: 'hero',
+    props: {
+      badge: p.brand || input.storeName,
+      title: p.name,
+      subtitle: p.shortDescription || p.description?.substring(0, 150) || 'Descubra por que milhares de pessoas já escolheram este produto.',
+      benefits: [
+        p.shortDescription || 'Resultados comprovados por milhares de clientes',
+        'Fórmula exclusiva de alta performance',
+        'Satisfação garantida ou seu dinheiro de volta',
+      ],
+      ctaText: input.ctaText,
+      ctaUrl: input.ctaUrl,
+      productImageUrl: input.assets.heroImageUrl,
+      backgroundImageUrl: input.assets.heroBackgroundUrl || undefined,
+      priceDisplay: p.compareAtPrice && p.compareAtPrice > p.price
+        ? `De <s>${formatPrice(p.compareAtPrice)}</s> por <strong>${formatPrice(p.price)}</strong>`
+        : undefined,
+    },
+  });
+
+  // Benefits
+  const benefitItems = [
+    { label: 'QUALIDADE PREMIUM', title: 'Desenvolvido com os melhores ingredientes', description: 'Cada detalhe foi pensado para entregar o máximo resultado. Tecnologia avançada combinada com ingredientes selecionados.', imageUrl: input.assets.benefitImages[0] || '' },
+    { label: 'RESULTADO COMPROVADO', title: 'Aprovado por quem mais entende', description: 'Milhares de clientes satisfeitos comprovam a eficácia. Resultados visíveis desde as primeiras utilizações.', imageUrl: input.assets.benefitImages[1] || '' },
+    { label: 'FÁCIL DE USAR', title: 'Praticidade no seu dia a dia', description: 'Integre facilmente na sua rotina. Simples, rápido e eficiente — sem complicação.', imageUrl: input.assets.benefitImages[2] || '' },
+  ];
+  sections.push({ id: 'benefits', type: 'benefits', props: { items: benefitItems } });
+
+  // Testimonials (if reviews exist)
+  if (input.reviews.length > 0) {
+    const displayReviews = input.reviews.slice(0, 6);
+    const avgRating = (displayReviews.reduce((s, r) => s + r.rating, 0) / displayReviews.length).toFixed(1);
+    sections.push({
+      id: 'testimonials',
+      type: 'testimonials',
+      props: {
+        badge: 'AVALIAÇÕES REAIS',
+        title: 'O que nossos clientes dizem',
+        subtitle: `Nota média: ${avgRating}/5 — ${displayReviews.length}+ avaliações verificadas`,
+        items: displayReviews.map(r => ({ name: r.name, rating: r.rating, comment: r.comment })),
+      },
+    });
+  }
+
+  // Social Proof (if images exist)
+  if (input.assets.socialProofImages.length > 0) {
+    sections.push({
+      id: 'social_proof',
+      type: 'social_proof',
+      props: {
+        badge: 'RESULTADOS REAIS',
+        title: 'Transformações de quem já usa',
+        imageUrls: input.assets.socialProofImages.slice(0, 4),
+      },
+    });
+  }
+
+  // Pricing
+  const pricingProducts = input.kits.length > 0 ? [...input.kits] : [input.mainProduct];
+  pricingProducts.sort((a, b) => a.price - b.price);
+  const featuredIdx = pricingProducts.length === 3 ? 1 :
+    pricingProducts.reduce((best, prod, i) => (prod.discountPercent || 0) > (pricingProducts[best].discountPercent || 0) ? i : best, 0);
+
+  sections.push({
+    id: 'pricing',
+    type: 'pricing',
+    props: {
+      badge: 'OFERTAS ESPECIAIS',
+      title: 'Escolha a melhor opção para você',
+      subtitle: 'Quanto maior o kit, maior a economia',
+      cards: pricingProducts.map((prod, i) => ({
+        name: prod.name,
+        imageUrl: (prod.slug && input.assets.offerCardImages[prod.slug]) || prod.primaryImage || input.assets.heroImageUrl,
+        price: prod.price,
+        compareAtPrice: prod.compareAtPrice || null,
+        discountPercent: prod.discountPercent || null,
+        installments: installments(prod.price),
+        ctaText: input.ctaText,
+        ctaUrl: input.ctaUrl, // Will be replaced per-kit in future
+        isFeatured: i === featuredIdx,
+        featuredBadge: i === featuredIdx ? '🔥 MAIS VENDIDO' : undefined,
+      })),
+    },
+  });
+
+  // FAQ
+  sections.push({
+    id: 'faq',
+    type: 'faq',
+    props: {
+      badge: 'DÚVIDAS FREQUENTES',
+      title: 'Perguntas Frequentes',
+      items: [
+        { question: `O ${p.name} realmente funciona?`, answer: 'Sim! Nosso produto é testado e aprovado por milhares de clientes satisfeitos. Os resultados são comprovados por avaliações reais.' },
+        { question: 'Qual o prazo de entrega?', answer: 'Enviamos em até 24h úteis após a confirmação do pagamento. O prazo de entrega varia de acordo com a sua região.' },
+        { question: 'Posso parcelar minha compra?', answer: `Sim! Parcelamos em até 12x no cartão de crédito. O ${p.name} por apenas ${installments(p.price)} sem juros.` },
+        { question: 'Tem garantia?', answer: 'Oferecemos garantia de satisfação. Se não ficar satisfeito, devolvemos seu dinheiro.' },
+        { question: 'O produto é original?', answer: `Sim, 100% original e com nota fiscal. Somos ${input.storeName}, revendedor autorizado.` },
+      ],
+    },
+  });
+
+  // Guarantee
+  sections.push({
+    id: 'guarantee',
+    type: 'guarantee',
+    props: {
+      title: 'Garantia de Satisfação',
+      description: `Sua compra é 100% segura. Se por qualquer motivo você não ficar satisfeito com o ${p.name}, devolvemos seu dinheiro integralmente. Sem burocracia, sem perguntas.`,
+      badges: ['✓ Compra Segura', '✓ Pagamento Protegido', '✓ Envio Garantido'],
+    },
+  });
+
+  // CTA Final
+  sections.push({
+    id: 'cta_final',
+    type: 'cta_final',
+    props: {
+      title: 'Não perca essa oportunidade',
+      description: `Garanta o seu ${p.name} agora mesmo com condições especiais.`,
+      productImageUrl: input.assets.heroImageUrl,
+      priceDisplay: p.compareAtPrice && p.compareAtPrice > p.price
+        ? `<span style="text-decoration:line-through;color:${c.priceOld}">De ${formatPrice(p.compareAtPrice)}</span><br/><span style="font-size:2.4rem;font-weight:800;color:${c.priceCurrent}">${formatPrice(p.price)}</span>`
+        : `<span style="font-size:2.4rem;font-weight:800;color:${c.priceCurrent}">${formatPrice(p.price)}</span>`,
+      ctaText: input.ctaText,
+      ctaUrl: input.ctaUrl,
+    },
+  });
+
+  return {
+    version: '7.0' as const,
+    visualStyle: (input.visualWeight || 'premium') as any,
+    colorScheme: c,
+    showHeader: input.showHeader,
+    showFooter: input.showFooter,
+    sections,
+  };
+}
+
+// ========== AI COPY REFINEMENT FOR SCHEMA ==========
+
+function buildSchemaRefinementPrompt(params: {
   storeName: string;
   productName: string;
   niche: string;
   visualWeight: string;
   prompt: string;
-  currentHtml: string;
+  currentSchema: any;
 }): { system: string; user: string } {
-  const { storeName, productName, niche, visualWeight, prompt, currentHtml } = params;
+  const { storeName, productName, niche, visualWeight, prompt, currentSchema } = params;
 
   const system = `Você é um copywriter de elite especializado em landing pages de alta conversão.
 
 ## SUA FUNÇÃO
-Você recebe uma landing page HTML COMPLETA e profissional. Sua ÚNICA tarefa é melhorar os TEXTOS (headlines, subtítulos, descrições, benefícios, FAQs, CTAs).
+Você recebe o schema JSON de uma landing page com seções, títulos, descrições, benefícios, FAQs, etc.
+Sua tarefa é melhorar APENAS os TEXTOS (títulos, subtítulos, descrições, benefícios, FAQs, badges, CTAs).
 
-## REGRAS ABSOLUTAS (NÃO NEGOCIÁVEL)
-1. MANTENHA toda a estrutura HTML/CSS intacta — NÃO mude classes, tags, estilos, grid, layout
-2. MANTENHA todas as URLs de imagem EXATAMENTE como estão
-3. MANTENHA todos os preços, nomes de produto e dados comerciais EXATAMENTE como estão
-4. MANTENHA as tags <style> INTACTAS — não modifique CSS
-5. NÃO adicione novas seções, divs, ou elementos estruturais
-6. NÃO remova seções existentes
-7. NÃO adicione <!DOCTYPE>, <html>, <head>, <body>, <footer>
-8. NÃO invente URLs de imagem
-9. NÃO mude nomes de produto
-
-## O QUE VOCÊ PODE MUDAR
-- Títulos (h1, h2, h3) — torne mais persuasivos e específicos ao nicho
-- Subtítulos e descrições (p) — mais envolventes e orientados a benefícios
-- Itens de lista (li) — benefícios mais específicos e tangíveis
-- Texto dos FAQs — respostas mais completas e convincentes
-- Texto de garantia — mais tranquilizador
-- Badges e labels — mais atraentes
-- Texto dos CTAs — mais urgentes e direcionados
+## REGRAS ABSOLUTAS
+1. RETORNE o schema JSON COMPLETO e VÁLIDO — com a mesma estrutura
+2. NÃO mude URLs de imagem
+3. NÃO mude preços ou dados numéricos
+4. NÃO adicione ou remova seções
+5. NÃO mude o campo "type" de nenhuma seção
+6. NÃO mude os IDs das seções
+7. NÃO mude o colorScheme, visualStyle ou version
+8. NÃO mude showHeader/showFooter
+9. NÃO invente URLs
+10. Melhore os textos para serem mais persuasivos, específicos ao nicho e orientados a conversão
 
 ## CONTEXTO
 - Loja: ${storeName}
@@ -88,111 +311,78 @@ Você recebe uma landing page HTML COMPLETA e profissional. Sua ÚNICA tarefa é
 - Estilo: ${visualWeight}
 
 ## FORMATO DE SAÍDA
-Retorne o HTML COMPLETO (incluindo <style>) com APENAS os textos melhorados. Estrutura idêntica.`;
+Retorne APENAS o JSON completo do schema, sem markdown code fences, sem explicações.`;
 
-  const user = `Melhore os textos desta landing page conforme a direção criativa abaixo:
+  const user = `Melhore os textos deste schema de landing page conforme a direção criativa:
 
 DIREÇÃO: ${prompt}
 
-HTML ATUAL:
-\`\`\`html
-${currentHtml}
-\`\`\`
+SCHEMA ATUAL:
+${JSON.stringify(currentSchema, null, 2)}
 
-Retorne o HTML completo com os textos melhorados. Mantenha TODA a estrutura e CSS intactos.`;
+Retorne o JSON completo com os textos melhorados.`;
 
   return { system, user };
 }
 
-// ========== ADJUSTMENT PROMPT ==========
+// ========== AI ADJUSTMENT FOR SCHEMA ==========
 
-function buildAdjustmentPrompt(params: {
+function buildSchemaAdjustmentPrompt(params: {
   storeName: string;
   productName: string;
   prompt: string;
-  currentHtml: string;
+  currentSchema: any;
 }): { system: string; user: string } {
-  const { storeName, productName, prompt, currentHtml } = params;
+  const { storeName, productName, prompt, currentSchema } = params;
 
-  const system = `Você é um editor de landing pages. Você recebe uma página HTML completa e uma solicitação de ajuste.
+  const system = `Você é um editor de landing pages. Você recebe o schema JSON de uma landing page e uma solicitação de ajuste.
 
 ## REGRAS
 1. Faça APENAS o ajuste solicitado
-2. MANTENHA toda a estrutura que não precisa mudar
-3. MANTENHA todas as URLs de imagem como estão
-4. MANTENHA preços e nomes de produto como estão (exceto se o ajuste pedir mudança)
-5. MANTENHA as tags <style> e CSS (exceto se o ajuste pedir mudança de cor/estilo)
-6. NÃO adicione <!DOCTYPE>, <html>, <head>, <body>, <footer>
-7. NÃO invente URLs de imagem
+2. RETORNE o schema JSON COMPLETO e VÁLIDO
+3. NÃO mude URLs de imagem (exceto se solicitado)
+4. NÃO mude preços (exceto se solicitado)
+5. NÃO mude colorScheme, version ou visualStyle
+6. Você PODE reordenar seções, remover seções ou alterar textos conforme solicitado
+7. NÃO invente URLs
 
 ## CONTEXTO
 - Loja: ${storeName}
 - Produto: ${productName}
 
 ## FORMATO DE SAÍDA
-Retorne o HTML COMPLETO atualizado com o ajuste aplicado.`;
+Retorne APENAS o JSON completo do schema atualizado, sem markdown, sem explicações.`;
 
-  const user = `Ajuste esta landing page:
+  const user = `Ajuste este schema de landing page:
 
 SOLICITAÇÃO: ${prompt}
 
-HTML ATUAL:
-\`\`\`html
-${currentHtml}
-\`\`\`
+SCHEMA ATUAL:
+${JSON.stringify(currentSchema, null, 2)}
 
-Retorne o HTML completo com o ajuste aplicado.`;
+Retorne o JSON completo com o ajuste aplicado.`;
 
   return { system, user };
 }
 
-// ========== HTML RESPONSE PARSER ==========
+// ========== JSON RESPONSE PARSER ==========
 
-function parseHtmlResponse(raw: string): { html: string; css: string; parseError?: string } {
-  let html = raw.trim();
-  let css = '';
-  let parseError: string | undefined;
-
-  // Remove markdown code fences if present
-  if (html.startsWith('```html')) {
-    html = html.replace(/^```html\s*\n?/, '').replace(/\n?```\s*$/, '');
-  } else if (html.startsWith('```')) {
-    html = html.replace(/^```\s*\n?/, '').replace(/\n?```\s*$/, '');
+function parseJsonResponse(raw: string): any | null {
+  let text = raw.trim();
+  
+  // Remove markdown code fences
+  if (text.startsWith('```json')) {
+    text = text.replace(/^```json\s*\n?/, '').replace(/\n?```\s*$/, '');
+  } else if (text.startsWith('```')) {
+    text = text.replace(/^```\s*\n?/, '').replace(/\n?```\s*$/, '');
   }
 
-  // Enforce body-only contract
-  const hasShell = /<!DOCTYPE|<html[\s>]|<head[\s>]/i.test(html);
-  if (hasShell) {
-    console.warn("[AI-LP-Generate] outputContractViolation: AI sent document shell, stripping...");
-    const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-    if (bodyMatch) {
-      html = bodyMatch[1].trim();
-    } else {
-      html = html
-        .replace(/<!DOCTYPE[^>]*>/gi, '')
-        .replace(/<\/?html[^>]*>/gi, '')
-        .replace(/<head[\s\S]*?<\/head>/gi, '')
-        .replace(/<\/?body[^>]*>/gi, '')
-        .trim();
-    }
-    parseError = 'outputContractViolation: stripped document shell';
+  try {
+    return JSON.parse(text);
+  } catch {
+    console.error('[AI-LP-Generate] Failed to parse JSON response');
+    return null;
   }
-
-  // Extract CSS
-  const styleRegex = /<style[^>]*>([\s\S]*?)<\/style>/gi;
-  let match;
-  const cssBlocks: string[] = [];
-  while ((match = styleRegex.exec(html)) !== null) {
-    cssBlocks.push(match[1].trim());
-  }
-  if (cssBlocks.length > 0) {
-    css = cssBlocks.join('\n\n');
-  }
-
-  // Strip <footer>
-  html = html.replace(/<footer[\s\S]*?<\/footer>/gi, '');
-
-  return { html, css, parseError };
 }
 
 // ========== MAIN HANDLER ==========
@@ -222,7 +412,7 @@ serve(async (req) => {
     // Fetch the landing page
     const { data: savedLandingPage, error: lpError } = await supabase
       .from("ai_landing_pages")
-      .select("product_ids, reference_url, generated_html, generated_css, current_version, show_header, show_footer, briefing")
+      .select("product_ids, reference_url, generated_html, generated_css, generated_schema, current_version, show_header, show_footer, briefing")
       .eq("id", landingPageId)
       .single();
 
@@ -237,7 +427,7 @@ serve(async (req) => {
     // Fetch store settings
     const { data: storeSettings } = await supabase
       .from("store_settings")
-      .select("store_name, logo_url, primary_color, secondary_color, accent_color, favicon_url, published_template_id")
+      .select("store_name, logo_url, primary_color, secondary_color, accent_color, favicon_url")
       .eq("tenant_id", tenantId)
       .single();
 
@@ -250,6 +440,7 @@ serve(async (req) => {
     const reviews: ReviewData[] = [];
     let firstProduct: ProductData | null = null;
     let reviewCount = 0;
+    const kitProductIds: string[] = [];
 
     if (productIds && productIds.length > 0) {
       const { data: products } = await supabase
@@ -324,6 +515,8 @@ serve(async (req) => {
 
               if (kitProducts && kitProducts.length > 0) {
                 const kitIds = kitProducts.map((k: any) => k.id);
+                kitProductIds.push(...kitIds);
+                
                 const { data: kitImages } = await supabase
                   .from("product_images")
                   .select("product_id, url, is_primary")
@@ -376,54 +569,6 @@ serve(async (req) => {
       }
     }
 
-    // Fetch social proof images
-    let socialProofImages: string[] = [];
-    if (productIds && productIds.length > 0 && promptType !== "adjustment") {
-      try {
-        const { data: proofFolders } = await supabase
-          .from("files")
-          .select("id, filename, storage_path")
-          .eq("tenant_id", tenantId)
-          .eq("is_folder", true)
-          .or("filename.ilike.%feedback%,filename.ilike.%review%,filename.ilike.%prova%,filename.ilike.%resultado%,filename.ilike.%depoimento%")
-          .limit(10);
-
-        if (proofFolders && proofFolders.length > 0) {
-          const folderPaths = proofFolders.map((f: any) => f.storage_path || `drive/${tenantId}/${f.filename}`);
-          const orConditions = folderPaths.map((fp: string) => `storage_path.like.${fp}/%`).join(",");
-          const { data: proofFiles } = await supabase
-            .from("files")
-            .select("id, storage_path, mime_type, metadata")
-            .eq("tenant_id", tenantId)
-            .eq("is_folder", false)
-            .ilike("mime_type", "image/%")
-            .or(orConditions)
-            .order("created_at", { ascending: false })
-            .limit(5);
-
-          if (proofFiles) {
-            for (const file of proofFiles) {
-              try {
-                const meta = file.metadata as Record<string, any> | null;
-                let imageUrl = meta?.url as string | undefined;
-                if (!imageUrl) {
-                  const bucket = (meta?.bucket as string) || 'tenant-files';
-                  if (bucket === 'tenant-files') {
-                    const { data: signedData } = await supabase.storage.from(bucket).createSignedUrl(file.storage_path, 3600);
-                    imageUrl = signedData?.signedUrl;
-                  } else {
-                    const { data: pubData } = supabase.storage.from(bucket).getPublicUrl(file.storage_path);
-                    imageUrl = pubData?.publicUrl;
-                  }
-                }
-                if (imageUrl) socialProofImages.push(imageUrl);
-              } catch (e) { /* non-blocking */ }
-            }
-          }
-        }
-      } catch (e) { /* non-blocking */ }
-    }
-
     // ===== STEP 2: RESOLVE ENGINE PLAN =====
     const fpProduct = allProducts[0];
     const enginePlan = resolveEnginePlan({
@@ -437,30 +582,32 @@ serve(async (req) => {
 
     console.log(`[AI-LP-Generate] Engine Plan: visual=${enginePlan.resolvedVisualWeight}, niche=${enginePlan.resolvedNiche}`);
 
-    // ===== STEP 3: DETERMINE CTA =====
     const ctaText = enginePlan.defaultCTA || "COMPRAR AGORA";
     const ctaUrl = "#ofertas";
+    const showHeader = savedLandingPage?.show_header ?? false;
+    const showFooter = savedLandingPage?.show_footer ?? false;
 
-    // ===== STEP 4: BUILD PAGE FROM TEMPLATES =====
-    
-    let finalHtml = "";
-    let finalCss = "";
-    let parseError: string | undefined;
+    // ===== V7: SCHEMA-FIRST GENERATION =====
+
+    let finalSchema: any = null;
+    let finalHtml: string | null = null;
+    let finalCss: string | null = null;
     let aiRefinementUsed = false;
+    let parseError: string | undefined;
 
-    if (promptType === "adjustment" && savedLandingPage?.generated_html) {
-      // ── ADJUSTMENT MODE: AI edits existing HTML ──
-      console.log(`[AI-LP-Generate] Adjustment mode — sending current HTML to AI for editing`);
+    if (promptType === "adjustment" && savedLandingPage?.generated_schema) {
+      // ── ADJUSTMENT MODE: AI edits existing SCHEMA ──
+      console.log(`[AI-LP-Generate] V7 Schema adjustment mode`);
       
-      const { system, user } = buildAdjustmentPrompt({
+      const { system, user } = buildSchemaAdjustmentPrompt({
         storeName,
         productName: firstProduct?.name || 'Produto',
         prompt,
-        currentHtml: savedLandingPage.generated_html.substring(0, 15000),
+        currentSchema: savedLandingPage.generated_schema,
       });
 
       resetAIRouterCache();
-      const aiResponse = await aiChatCompletion("google/gemini-2.5-pro", {
+      const aiResponse = await aiChatCompletion("google/gemini-2.5-flash", {
         messages: [
           { role: "system", content: system },
           { role: "user", content: user },
@@ -469,78 +616,75 @@ serve(async (req) => {
       }, {
         supabaseUrl,
         supabaseServiceKey: supabaseKey,
-        logPrefix: "[AI-LP-Adjust]",
+        logPrefix: "[AI-LP-Schema-Adjust]",
       });
 
       if (aiResponse.ok) {
         const aiData = await aiResponse.json();
         const rawContent = aiData.choices?.[0]?.message?.content || "";
-        if (rawContent.length > 100) {
-          const parsed = parseHtmlResponse(rawContent);
-          finalHtml = parsed.html;
-          finalCss = parsed.css;
-          parseError = parsed.parseError;
+        const parsed = parseJsonResponse(rawContent);
+        if (parsed && parsed.sections && parsed.sections.length > 0) {
+          finalSchema = parsed;
           aiRefinementUsed = true;
+          console.log(`[AI-LP-Generate] Schema adjustment applied: ${parsed.sections.length} sections`);
         } else {
-          // AI returned too-short response, keep existing
-          finalHtml = savedLandingPage.generated_html;
-          finalCss = savedLandingPage.generated_css || '';
-          parseError = 'AI adjustment returned too-short response, kept existing';
+          finalSchema = savedLandingPage.generated_schema;
+          parseError = 'AI schema adjustment returned invalid JSON, kept existing';
         }
       } else {
-        // AI failed, keep existing
-        finalHtml = savedLandingPage.generated_html;
-        finalCss = savedLandingPage.generated_css || '';
-        parseError = `AI adjustment failed: ${aiResponse.status}`;
+        finalSchema = savedLandingPage.generated_schema;
+        parseError = `AI schema adjustment failed: ${aiResponse.status}`;
       }
 
     } else {
-      // ── GENERATION MODE: Templates + AI Copy Refinement ──
-      console.log(`[AI-LP-Generate] Generation mode — assembling from templates`);
+      // ── GENERATION MODE: Build base schema + AI copy refinement ──
+      console.log(`[AI-LP-Generate] V7 Schema generation mode`);
 
       if (!firstProduct) {
         throw new Error("No products found to generate landing page");
       }
 
-      // Phase 1: Assemble from templates (instant, no AI needed)
-      // Resolve stock images for the niche
+      // Resolve assets deterministically
       const nicheKey = enginePlan.resolvedNiche || 'geral';
-      const stockImages = getNicheImages(nicheKey);
-      console.log(`[AI-LP-Generate] Stock images resolved for niche: ${nicheKey}`);
+      const assets = await resolveLandingPageAssets({
+        supabase,
+        tenantId,
+        productIds: productIds || [],
+        kitProductIds,
+        niche: nicheKey,
+      });
 
-      const templateInput: PageTemplateInput = {
+      // Build base schema from templates (instant, no AI)
+      const baseSchema = buildBaseSchema({
         storeName,
         primaryColor,
-        secondaryColor: storeSettings?.secondary_color || undefined,
-        accentColor: storeSettings?.accent_color || undefined,
-        visualWeight: enginePlan.resolvedVisualWeight as any || 'premium',
+        visualWeight: enginePlan.resolvedVisualWeight,
         mainProduct: firstProduct,
         allProducts,
         kits,
         reviews,
-        socialProofImages,
+        assets,
         ctaText,
         ctaUrl,
-        niche: nicheKey,
-        stockImages,
-      };
+        showHeader,
+        showFooter,
+      });
 
-      const assembled = assembleLandingPage(templateInput);
-      console.log(`[AI-LP-Generate] Templates assembled: ${assembled.html.length} chars, ${assembled.sectionOrder.length} sections: ${assembled.sectionOrder.join(', ')}`);
+      console.log(`[AI-LP-Generate] Base schema built: ${baseSchema.sections.length} sections`);
 
-      // Phase 2: AI refines copy (enhances headlines and descriptions)
+      // AI refines copy in the schema
       try {
         const enrichedPrompt = isPromptIncomplete(prompt)
           ? `${prompt}\n\nDIREÇÃO: ${selectBestFallback(null, null, firstProduct.description || null, firstProduct.name).prompt}`
           : prompt;
 
-        const { system, user } = buildCopyRefinementPrompt({
+        const { system, user } = buildSchemaRefinementPrompt({
           storeName,
           productName: firstProduct.name,
           niche: enginePlan.resolvedNiche,
           visualWeight: enginePlan.resolvedVisualWeight,
           prompt: enrichedPrompt,
-          currentHtml: assembled.html,
+          currentSchema: baseSchema,
         });
 
         resetAIRouterCache();
@@ -553,50 +697,40 @@ serve(async (req) => {
         }, {
           supabaseUrl,
           supabaseServiceKey: supabaseKey,
-          logPrefix: "[AI-LP-Copy]",
+          logPrefix: "[AI-LP-Schema-Copy]",
         });
 
         if (aiResponse.ok) {
           const aiData = await aiResponse.json();
           const rawContent = aiData.choices?.[0]?.message?.content || "";
-          if (rawContent.length > 200) {
-            const parsed = parseHtmlResponse(rawContent);
-            // Validate AI didn't destroy the page
-            if (parsed.html.length > assembled.html.length * 0.5) {
-              finalHtml = parsed.html;
-              finalCss = parsed.css || assembled.css;
-              parseError = parsed.parseError;
-              aiRefinementUsed = true;
-              console.log(`[AI-LP-Generate] AI copy refinement applied: ${parsed.html.length} chars`);
-            } else {
-              console.warn("[AI-LP-Generate] AI output too short vs template, using template baseline");
-              finalHtml = assembled.html;
-              finalCss = assembled.css;
-              parseError = 'AI copy refinement too short, used template baseline';
-            }
+          const parsed = parseJsonResponse(rawContent);
+          if (parsed && parsed.sections && parsed.sections.length >= baseSchema.sections.length * 0.5) {
+            finalSchema = parsed;
+            aiRefinementUsed = true;
+            console.log(`[AI-LP-Generate] AI copy refinement applied to schema`);
           } else {
-            console.warn("[AI-LP-Generate] AI returned short response, using template baseline");
-            finalHtml = assembled.html;
-            finalCss = assembled.css;
-            parseError = 'AI copy too short';
+            console.warn("[AI-LP-Generate] AI schema output invalid, using base schema");
+            finalSchema = baseSchema;
+            parseError = 'AI schema refinement invalid';
           }
         } else {
-          console.warn(`[AI-LP-Generate] AI copy refinement failed (${aiResponse.status}), using template baseline`);
-          finalHtml = assembled.html;
-          finalCss = assembled.css;
-          parseError = `AI copy failed: ${aiResponse.status}`;
+          console.warn(`[AI-LP-Generate] AI schema refinement failed, using base schema`);
+          finalSchema = baseSchema;
+          parseError = `AI schema copy failed: ${aiResponse.status}`;
         }
       } catch (aiErr) {
-        console.warn("[AI-LP-Generate] AI copy error, using template baseline:", aiErr);
-        finalHtml = assembled.html;
-        finalCss = assembled.css;
-        parseError = 'AI copy error';
+        console.warn("[AI-LP-Generate] AI schema error, using base schema:", aiErr);
+        finalSchema = baseSchema;
+        parseError = 'AI schema error';
       }
     }
 
-    if (!finalHtml || finalHtml.length < 50) {
-      throw new Error("Generated HTML is empty or too short");
+    if (!finalSchema || !finalSchema.sections || finalSchema.sections.length === 0) {
+      throw new Error("Generated schema is empty");
     }
+
+    // Ensure version field
+    finalSchema.version = '7.0';
 
     // ===== STEP 5: PERSIST =====
     const newVersion = (savedLandingPage?.current_version || 0) + 1;
@@ -604,24 +738,24 @@ serve(async (req) => {
     const { error: updateError } = await supabase
       .from("ai_landing_pages")
       .update({
-        generated_html: finalHtml,
-        generated_css: finalCss || null,
+        generated_schema: finalSchema,
+        generated_html: null, // V7 uses schema, clear HTML
+        generated_css: null,
         generated_blocks: null,
         current_version: newVersion,
         status: "draft",
         metadata: {
-          engineVersion: "v6.0",
-          templateBased: true,
+          engineVersion: "v7.0",
+          schemaFirst: true,
           aiRefinementUsed,
           visualWeight: enginePlan.resolvedVisualWeight,
           niche: enginePlan.resolvedNiche,
-          htmlLength: finalHtml.length,
-          cssLength: finalCss.length,
+          sectionCount: finalSchema.sections.length,
           parseError: parseError || null,
           productCount: allProducts.length,
           kitCount: kits.length,
           reviewCount,
-          socialProofCount: socialProofImages.length,
+          socialProofCount: finalSchema.sections.find((s: any) => s.type === 'social_proof')?.props?.imageUrls?.length || 0,
         },
       })
       .eq("id", landingPageId);
@@ -636,16 +770,17 @@ serve(async (req) => {
         version: newVersion,
         prompt,
         prompt_type: promptType,
-        html_content: finalHtml,
-        css_content: finalCss || null,
+        html_content: '', // V7 doesn't generate HTML
+        css_content: null,
         blocks_content: null,
+        schema_content: finalSchema,
         created_by: userId,
         generation_metadata: {
-          engineVersion: "v6.0",
-          templateBased: true,
+          engineVersion: "v7.0",
+          schemaFirst: true,
           aiRefinementUsed,
           model: aiRefinementUsed ? "google/gemini-2.5-flash" : "none",
-          html_length: finalHtml.length,
+          section_count: finalSchema.sections.length,
           product_count: allProducts.length,
           kit_count: kits.length,
           reviews_count: reviewCount,
@@ -655,15 +790,15 @@ serve(async (req) => {
 
     if (versionError) console.error("[AI-LP-Generate] Version error:", versionError);
 
-    console.log(`[AI-LP-Generate v${VERSION}] Success! Version ${newVersion}, HTML ${finalHtml.length} chars, AI refined: ${aiRefinementUsed}`);
+    console.log(`[AI-LP-Generate v${VERSION}] Success! Version ${newVersion}, ${finalSchema.sections.length} sections, AI refined: ${aiRefinementUsed}`);
 
     return new Response(
       JSON.stringify({
         success: true,
         version: newVersion,
-        htmlLength: finalHtml.length,
-        engineVersion: "v6.0",
-        templateBased: true,
+        engineVersion: "v7.0",
+        schemaFirst: true,
+        sectionCount: finalSchema.sections.length,
         aiRefinementUsed,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
