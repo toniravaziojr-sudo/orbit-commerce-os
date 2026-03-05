@@ -1,0 +1,221 @@
+/* =============================================
+ * LP Animations — V7.4 Premium Visual Effects
+ * Keyframes, shimmer, glow, scroll-reveal, noise
+ * ============================================= */
+
+/* ── Scroll Reveal ── */
+.lp-reveal {
+  opacity: 0;
+  transform: translateY(32px);
+  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lp-reveal.lp-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.lp-reveal-delay-1 { transition-delay: 0.1s; }
+.lp-reveal-delay-2 { transition-delay: 0.2s; }
+.lp-reveal-delay-3 { transition-delay: 0.3s; }
+.lp-reveal-delay-4 { transition-delay: 0.4s; }
+
+/* ── Gradient Text ── */
+.lp-gradient-text {
+  background: linear-gradient(
+    135deg,
+    var(--lp-text) 0%,
+    var(--lp-accent) 50%,
+    var(--lp-text) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: lp-gradient-shift 6s ease infinite;
+}
+
+@keyframes lp-gradient-shift {
+  0%, 100% { background-position: 0% center; }
+  50% { background-position: 200% center; }
+}
+
+/* ── CTA Shimmer Sweep ── */
+.lp-cta-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.lp-cta-shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255,255,255,0.15) 50%,
+    transparent 100%
+  );
+  animation: lp-shimmer-sweep 4s ease-in-out infinite;
+}
+
+@keyframes lp-shimmer-sweep {
+  0% { left: -100%; }
+  50%, 100% { left: 150%; }
+}
+
+/* ── Glow Pulse (featured card border) ── */
+.lp-glow-pulse {
+  animation: lp-glow 3s ease-in-out infinite alternate;
+}
+
+@keyframes lp-glow {
+  0% { box-shadow: 0 0 20px rgba(201,169,110,0.08), 0 20px 60px var(--lp-shadow); }
+  100% { box-shadow: 0 0 40px rgba(201,169,110,0.18), 0 20px 80px var(--lp-shadow); }
+}
+
+/* ── Floating Particles / Dots ── */
+.lp-particles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.lp-particle {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--lp-accent);
+  opacity: 0;
+  animation: lp-particle-float 8s ease-in-out infinite;
+}
+.lp-particle:nth-child(1) { left: 10%; top: 20%; animation-delay: 0s; }
+.lp-particle:nth-child(2) { left: 25%; top: 70%; animation-delay: 1.5s; }
+.lp-particle:nth-child(3) { left: 50%; top: 30%; animation-delay: 3s; }
+.lp-particle:nth-child(4) { left: 70%; top: 60%; animation-delay: 4.5s; }
+.lp-particle:nth-child(5) { left: 85%; top: 40%; animation-delay: 6s; }
+.lp-particle:nth-child(6) { left: 40%; top: 85%; animation-delay: 2s; }
+
+@keyframes lp-particle-float {
+  0%, 100% { opacity: 0; transform: translateY(0) scale(1); }
+  20% { opacity: 0.4; }
+  50% { opacity: 0.6; transform: translateY(-40px) scale(1.5); }
+  80% { opacity: 0.3; }
+}
+
+/* ── Noise Texture Overlay ── */
+.lp-noise::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.03;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 200px 200px;
+  z-index: 0;
+}
+
+/* ── Animated Border (gradient rotation) ── */
+.lp-animated-border {
+  position: relative;
+}
+.lp-animated-border::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: linear-gradient(
+    var(--lp-border-angle, 0deg),
+    var(--lp-accent),
+    transparent 40%,
+    transparent 60%,
+    var(--lp-accent)
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: lp-border-rotate 6s linear infinite;
+}
+
+@keyframes lp-border-rotate {
+  to { --lp-border-angle: 360deg; }
+}
+
+@property --lp-border-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+/* ── Marquee (auto-scroll testimonials) ── */
+.lp-marquee {
+  display: flex;
+  animation: lp-marquee-scroll 30s linear infinite;
+  width: max-content;
+}
+.lp-marquee:hover {
+  animation-play-state: paused;
+}
+
+@keyframes lp-marquee-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* ── Stagger fade-in for list items ── */
+.lp-stagger > * {
+  opacity: 0;
+  transform: translateX(-12px);
+  animation: lp-stagger-in 0.5s ease forwards;
+}
+.lp-stagger > *:nth-child(1) { animation-delay: 0.1s; }
+.lp-stagger > *:nth-child(2) { animation-delay: 0.2s; }
+.lp-stagger > *:nth-child(3) { animation-delay: 0.3s; }
+.lp-stagger > *:nth-child(4) { animation-delay: 0.4s; }
+.lp-stagger > *:nth-child(5) { animation-delay: 0.5s; }
+
+@keyframes lp-stagger-in {
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* ── Scale-in for images/cards ── */
+.lp-scale-in {
+  opacity: 0;
+  transform: scale(0.92);
+  transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lp-scale-in.lp-visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ── Hero title entrance ── */
+.lp-hero-title-enter {
+  opacity: 0;
+  transform: translateY(24px);
+  animation: lp-hero-title 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.2s forwards;
+}
+
+@keyframes lp-hero-title {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Badge pulse ── */
+.lp-badge-pulse {
+  animation: lp-badge-glow 2.5s ease-in-out infinite alternate;
+}
+
+@keyframes lp-badge-glow {
+  0% { box-shadow: 0 0 0 0 transparent; }
+  100% { box-shadow: 0 0 16px rgba(201,169,110,0.15); }
+}
+
+/* ── Subtle parallax via scroll ── */
+.lp-parallax-slow {
+  will-change: transform;
+  transition: transform 0.1s linear;
+}

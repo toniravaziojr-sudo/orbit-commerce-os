@@ -19,6 +19,7 @@ import { LPFaq } from './blocks/LPFaq';
 import { LPGuarantee } from './blocks/LPGuarantee';
 import { LPCtaFinal } from './blocks/LPCtaFinal';
 import '@/styles/lp-container-queries.css';
+import '@/styles/lp-animations.css';
 
 interface LPSchemaRendererProps {
   schema: LPSchema;
