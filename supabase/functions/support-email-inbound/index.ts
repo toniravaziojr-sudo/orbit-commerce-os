@@ -294,19 +294,44 @@ serve(async (req: Request): Promise<Response> => {
       const messageData = newMessage as { id: string };
       console.log('Created message:', messageData.id);
 
-      // Handle attachments
+      // Handle attachments - extract binary files from multipart and upload to storage
       const numAttachments = parseInt(payload.attachments || '0', 10);
       if (numAttachments > 0 && payload['attachment-info']) {
         try {
           const attachmentInfo: Record<string, AttachmentInfo> = JSON.parse(payload['attachment-info']);
           for (const [key, info] of Object.entries(attachmentInfo)) {
+            let storagePath: string | null = null;
+            let fileSize = 0;
+
+            // Try to extract binary file from formData (SendGrid sends as attachmentN)
+            const fileData = formData.get(key);
+            if (fileData && fileData instanceof File) {
+              const ext = info.filename.split('.').pop() || 'bin';
+              storagePath = `${tenantId}/${messageData.id}/${crypto.randomUUID()}.${ext}`;
+              fileSize = fileData.size;
+
+              const { error: uploadError } = await supabase.storage
+                .from('email-attachments')
+                .upload(storagePath, fileData, {
+                  contentType: info.type,
+                  upsert: false,
+                });
+
+              if (uploadError) {
+                console.error(`Upload error for ${info.filename}:`, uploadError);
+                storagePath = null;
+              } else {
+                console.log(`Uploaded support attachment: ${info.filename} -> ${storagePath}`);
+              }
+            }
+
             await supabase.from('message_attachments').insert({
               tenant_id: tenantId,
               message_id: messageData.id,
               file_name: info.filename,
-              file_path: `attachments/${tenantId}/${messageData.id}/${info.filename}`,
+              file_path: storagePath || `attachments/${tenantId}/${messageData.id}/${info.filename}`,
               mime_type: info.type,
-              file_size: 0,
+              file_size: fileSize || 0,
             });
           }
           console.log('Saved', numAttachments, 'attachments');
@@ -471,18 +496,47 @@ serve(async (req: Request): Promise<Response> => {
       const emailMessageData = newMessage as { id: string };
       console.log('Created email message:', emailMessageData.id);
 
-      // Handle attachments
+      // Handle attachments - extract binary files from multipart and upload to storage
       const numAttachments = parseInt(payload.attachments || '0', 10);
       if (numAttachments > 0 && payload['attachment-info']) {
         try {
           const attachmentInfo: Record<string, AttachmentInfo> = JSON.parse(payload['attachment-info']);
           for (const [key, info] of Object.entries(attachmentInfo)) {
+            let storagePath: string | null = null;
+            let fileSize = 0;
+
+            // Try to extract binary file from formData (SendGrid sends as attachmentN)
+            const fileData = formData.get(key);
+            if (fileData && fileData instanceof File) {
+              const ext = info.filename.split('.').pop() || 'bin';
+              storagePath = `${tenantId}/${emailMessageData.id}/${crypto.randomUUID()}.${ext}`;
+              fileSize = fileData.size;
+
+              const { error: uploadError } = await supabase.storage
+                .from('email-attachments')
+                .upload(storagePath, fileData, {
+                  contentType: info.type,
+                  upsert: false,
+                });
+
+              if (uploadError) {
+                console.error(`Upload error for ${info.filename}:`, uploadError);
+                storagePath = null; // fallback: save metadata only
+              } else {
+                console.log(`Uploaded attachment: ${info.filename} -> ${storagePath}`);
+              }
+            } else {
+              console.warn(`No binary data found for attachment key: ${key}`);
+            }
+
             await supabase.from('email_attachments').insert({
               message_id: emailMessageData.id,
               filename: info.filename,
               content_type: info.type,
               content_id: info['content-id'] || null,
               is_inline: !!info['content-id'],
+              storage_path: storagePath,
+              size_bytes: fileSize || null,
             });
           }
           console.log('Saved', numAttachments, 'email attachments');
