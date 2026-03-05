@@ -1,9 +1,9 @@
 // =============================================
-// AI LANDING PAGE ENHANCE IMAGES — V4.0.0
-// Step 2: Generates FULL BANNERS with the product included
-// Uses the product image as reference for the AI to create
-// beautiful, proportional banners — like any normal image AI does
-// v4.0.0: Full banner generation — product IS part of the generated image
+// AI LANDING PAGE ENHANCE IMAGES — V4.1.0
+// Step 2: Generates BACKGROUND-ONLY scenes (no product in image)
+// Product is ALWAYS composited via CSS overlay in the frontend
+// This eliminates AI distortion of labels/colors/shapes
+// v4.1.0: Background-only generation + CSS composition
 // =============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
