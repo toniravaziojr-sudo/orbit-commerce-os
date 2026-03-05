@@ -35,8 +35,8 @@ export function LPCtaFinal({ data }: Props) {
       {/* Overlays */}
       {hasScene ? (
         <>
-          <div className="absolute inset-0" style={{ background: `linear-gradient(to right, var(--lp-bg, #070A10)f5 0%, var(--lp-bg, #070A10)dd 40%, var(--lp-bg, #070A10)88 65%, transparent 100%)` }} />
-          <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, transparent 40%, var(--lp-bg, #070A10)cc 100%)' }} />
+          <div className="absolute inset-0" style={{ background: `linear-gradient(to right, rgba(7,4,16,0.96) 0%, rgba(7,4,16,0.87) 40%, rgba(7,4,16,0.53) 65%, transparent 100%)` }} />
+          <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, transparent 40%, rgba(7,4,16,0.80) 100%)' }} />
         </>
       ) : (
         <>

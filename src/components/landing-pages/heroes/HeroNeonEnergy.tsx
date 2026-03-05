@@ -19,7 +19,7 @@ export function HeroNeonEnergy({ data }: Props) {
       ...(hasScene ? { backgroundImage: `url('${data.heroSceneDesktopUrl}')`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}),
     }}>
       {hasScene && (
-        <div className="absolute inset-0" style={{ background: `rgba(5,5,10,0.85)` }} />
+        <div className="absolute inset-0" style={{ background: `rgba(5,5,10,0.88)` }} />
       )}
 
       {/* Neon glow spots */}

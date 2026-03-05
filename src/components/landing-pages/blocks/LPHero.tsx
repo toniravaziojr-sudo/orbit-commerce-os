@@ -178,7 +178,7 @@ function HeroCentered({ data }: { data: LPHeroProps }) {
       {!hasScene && (
         <>
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[900px] rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, var(--lp-accent) 0%, transparent 60%)`, opacity: 0.05, filter: 'blur(120px)' }} />
-          <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse at center, transparent 40%, var(--lp-bg, #070A10)55 100%)` }} />
+          <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse at center, transparent 40%, rgba(7,4,16,0.33) 100%)` }} />
         </>
       )}
 

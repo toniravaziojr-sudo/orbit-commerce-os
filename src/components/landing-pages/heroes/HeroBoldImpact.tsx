@@ -17,7 +17,7 @@ export function HeroBoldImpact({ data }: Props) {
       {hasScene && (
         <>
           <div className="absolute inset-0" style={{ backgroundImage: `url('${data.heroSceneDesktopUrl}')`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
-          <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, var(--lp-bg, #070A10)ee 0%, var(--lp-bg, #070A10)88 100%)` }} />
+          <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, rgba(7,4,16,0.93) 0%, rgba(7,4,16,0.53) 100%)` }} />
         </>
       )}
 
