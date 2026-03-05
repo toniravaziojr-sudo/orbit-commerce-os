@@ -87,7 +87,7 @@ export async function resolveLandingPageAssets(input: AssetResolverInput): Promi
     }
   }
 
-  // 5. Social proof images from Drive
+  // 5. Social proof images from Drive — always use public URLs from store-assets bucket
   const socialProofImages: string[] = [];
   try {
     const { data: proofFolders } = await supabase
@@ -99,20 +99,16 @@ export async function resolveLandingPageAssets(input: AssetResolverInput): Promi
       .limit(10);
 
     if (proofFolders && proofFolders.length > 0) {
-      const orConditions = proofFolders
-        .map((f: any) => {
-          const path = f.storage_path || `drive/${tenantId}/${f.filename}`;
-          return `storage_path.like.${path}/%`;
-        })
-        .join(',');
+      const folderIds = proofFolders.map((f: any) => f.id);
 
+      // Query by folder_id for reliable matching
       const { data: proofFiles } = await supabase
         .from('files')
         .select('id, storage_path, mime_type, metadata')
         .eq('tenant_id', tenantId)
         .eq('is_folder', false)
         .ilike('mime_type', 'image/%')
-        .or(orConditions)
+        .in('folder_id', folderIds)
         .order('created_at', { ascending: false })
         .limit(5);
 
@@ -120,18 +116,26 @@ export async function resolveLandingPageAssets(input: AssetResolverInput): Promi
         for (const file of proofFiles) {
           try {
             const meta = file.metadata as Record<string, any> | null;
+            // Priority: stored public URL > generate public URL > signed URL
             let imageUrl = meta?.url as string | undefined;
+            
             if (!imageUrl) {
               const bucket = (meta?.bucket as string) || 'tenant-files';
-              if (bucket === 'tenant-files') {
-                const { data: signedData } = await supabase.storage.from(bucket).createSignedUrl(file.storage_path, 3600);
-                imageUrl = signedData?.signedUrl;
-              } else {
-                const { data: pubData } = supabase.storage.from(bucket).getPublicUrl(file.storage_path);
-                imageUrl = pubData?.publicUrl;
+              // Always try public URL first (works for store-assets)
+              const { data: pubData } = supabase.storage.from(bucket).getPublicUrl(file.storage_path);
+              imageUrl = pubData?.publicUrl;
+              
+              // If tenant-files bucket (private), use signed URL with long expiry
+              if (bucket === 'tenant-files' && imageUrl) {
+                const { data: signedData } = await supabase.storage.from(bucket).createSignedUrl(file.storage_path, 86400); // 24h
+                imageUrl = signedData?.signedUrl || imageUrl;
               }
             }
-            if (imageUrl) socialProofImages.push(imageUrl);
+            
+            // Validate URL is not empty/malformed
+            if (imageUrl && imageUrl.startsWith('http')) {
+              socialProofImages.push(imageUrl);
+            }
           } catch {
             // non-blocking
           }
