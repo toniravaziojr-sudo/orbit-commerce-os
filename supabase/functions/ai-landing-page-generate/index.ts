@@ -799,10 +799,15 @@ Retorne o JSON completo com os textos melhorados.`;
 
 // ========== INTENT CLASSIFICATION ==========
 
-type AdjustmentIntent = 'text' | 'style' | 'asset' | 'structure';
+type AdjustmentIntent = 'text' | 'style' | 'asset' | 'structure' | 'template_swap';
 
 function classifyIntent(prompt: string): AdjustmentIntent {
   const lower = prompt.toLowerCase();
+  
+  // Template/mood swap: explicit template or mood change requests
+  if (/trocar?\s*(template|modelo|tema)|mudar?\s*(template|modelo|tema)|template\s+\w+|mood\s+\w+|mais\s+(luxo|bold|minimalista|orgânico|corporativo|neon|artesanal|tech|elegante|urbano)/.test(lower)) {
+    return 'template_swap';
+  }
   
   // Structure: adding/removing sections, swapping offers, reordering
   if (/adicionar?\s+(seção|bloco)|remover?\s+(seção|bloco)|trocar\s+(oferta|produto|card)|substituir|reordenar|mover\s+seção|novo\s+bloco/.test(lower)) {
