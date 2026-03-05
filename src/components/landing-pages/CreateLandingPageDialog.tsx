@@ -216,6 +216,8 @@ export function CreateLandingPageDialog({ open, onOpenChange }: CreateLandingPag
 
       if (genError) {
         console.error('Generation error:', genError);
+        // Set to draft since enhance won't run
+        await supabase.from('ai_landing_pages').update({ status: 'draft' }).eq('id', landingPage.id);
       }
 
       // Step 2: Trigger async image enhancement with recursive chunking (non-blocking)
@@ -233,6 +235,9 @@ export function CreateLandingPageDialog({ open, onOpenChange }: CreateLandingPag
             });
             if (error) {
               console.warn(`Image enhancement error (stage ${stage}):`, error);
+              // Set to draft on error so page doesn't stay stuck in 'generating'
+              await supabase.from('ai_landing_pages').update({ status: 'draft' }).eq('id', landingPage.id);
+              queryClient.invalidateQueries({ queryKey: ['ai-landing-pages'] });
               return;
             }
             console.log(`[LP-Enhance] Stage ${stage}: ${data?.enhanced || 0} sections enhanced, done: ${data?.done}`);
@@ -242,13 +247,24 @@ export function CreateLandingPageDialog({ open, onOpenChange }: CreateLandingPag
               await enhanceRecursive(data.nextIndex, data.nextStage);
             } else {
               console.log('[LP-Enhance] All sections enhanced!');
+              // Set status to 'draft' now that images are ready
+              await supabase
+                .from('ai_landing_pages')
+                .update({ status: 'draft' })
+                .eq('id', landingPage.id);
               queryClient.invalidateQueries({ queryKey: ['ai-landing-pages'] });
             }
           } catch (e) {
             console.warn('Image enhancement recursive error:', e);
+            // Set to draft on error so page doesn't stay stuck in 'generating'
+            await supabase.from('ai_landing_pages').update({ status: 'draft' }).eq('id', landingPage.id);
+            queryClient.invalidateQueries({ queryKey: ['ai-landing-pages'] });
           }
         };
         enhanceRecursive();
+      } else if (!genError) {
+        // No products to enhance, set status to draft immediately
+        await supabase.from('ai_landing_pages').update({ status: 'draft' }).eq('id', landingPage.id);
       }
 
       return landingPage;

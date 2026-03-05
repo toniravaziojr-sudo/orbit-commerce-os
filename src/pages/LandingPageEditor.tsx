@@ -382,8 +382,25 @@ export default function LandingPageEditor() {
     // V7: Schema rendering (priority)
     if (hasSchema) {
       const schema = landingPage!.generated_schema as unknown as LPSchema;
+      const isStillGenerating = landingPage?.status === 'generating';
       return (
-        <div className="w-full h-full overflow-auto" style={{ background: schema.colorScheme?.bg || '#fff' }}>
+        <div className="w-full h-full overflow-auto relative" style={{ background: schema.colorScheme?.bg || '#fff' }}>
+          {isStillGenerating && (
+            <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
+              <div className="text-center p-8 max-w-md">
+                <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Sparkles className="h-8 w-8 text-primary animate-pulse" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">Finalizando sua página...</h3>
+                <p className="text-muted-foreground text-sm">
+                  A IA está gerando as imagens e composições visuais. Isso pode levar de 1 a 3 minutos.
+                </p>
+                <div className="mt-4 w-48 mx-auto h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div className="h-full bg-primary/60 rounded-full animate-pulse" style={{ width: '60%' }} />
+                </div>
+              </div>
+            </div>
+          )}
           {showHeader && (
             <div className="bg-muted/50 border-b px-4 py-2 text-center text-xs text-muted-foreground">
               ⬆ Cabeçalho da loja será exibido aqui na página pública

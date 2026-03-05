@@ -1270,7 +1270,7 @@ serve(async (req) => {
         generated_css: null,
         generated_blocks: null,
         current_version: newVersion,
-        status: isCurrentlyPublished ? "published" : "draft",
+        status: isCurrentlyPublished ? "published" : (promptType === 'initial' ? 'generating' : 'draft'),
       metadata: {
           engineVersion: "v8.0",
           schemaFirst: true,
