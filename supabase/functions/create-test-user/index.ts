@@ -52,7 +52,7 @@ serve(async (req) => {
           plan: "unlimited",
           type: "customer",
           is_special: true, // Full access without restrictions
-          next_order_number: 1001
+          next_order_number: 1
         })
         .select()
         .single();

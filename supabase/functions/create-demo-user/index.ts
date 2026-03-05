@@ -47,7 +47,7 @@ serve(async (req) => {
           plan: "unlimited", // Full access
           type: "customer",
           is_special: false, // NOT special = no status indicators
-          next_order_number: 1001
+          next_order_number: 1
         })
         .select()
         .single();
