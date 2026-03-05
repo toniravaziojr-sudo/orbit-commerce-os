@@ -1325,7 +1325,7 @@ serve(async (req) => {
 
     if (versionError) console.error("[AI-LP-Generate] Version error:", versionError);
 
-    console.log(`[AI-LP-Generate v${VERSION}] Success! Version ${newVersion}, ${finalSchema.sections.length} sections, AI refined: ${aiRefinementUsed}`);
+    console.log(`[AI-LP-Generate v${VERSION}] Success! Version ${newVersion}, ${finalSchema.sections.length} sections, AI refined: ${aiRefinementUsed}, template=${finalSchema.templateId}, mood=${finalSchema.mood}`);
 
     // Determine intent for response metadata
     const adjustmentIntent = promptType === 'adjustment' ? classifyIntent(prompt) : null;
@@ -1334,7 +1334,10 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         version: newVersion,
-        engineVersion: "v7.1",
+        engineVersion: "v8.0",
+        templateId: finalSchema.templateId,
+        mood: finalSchema.mood,
+        variantSeed: finalSchema.variantSeed,
         schemaFirst: true,
         sectionCount: finalSchema.sections.length,
         aiRefinementUsed,
