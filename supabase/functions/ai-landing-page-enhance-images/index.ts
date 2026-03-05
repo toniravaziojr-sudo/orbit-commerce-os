@@ -263,28 +263,76 @@ function applyImageToSchema(schema: any, sectionId: string, imageField: string, 
 
 // ========== SCENE COMPOSITION PROMPT BUILDER ==========
 
+// V8.0: Mood-specific scene vibe pools for diversity
+const MOOD_SCENE_POOLS: Record<string, string[]> = {
+  luxury: [
+    'bancada de mármore Carrara branco polido, iluminação dourada suave de estúdio, reflexos elegantes, vasos de cristal desfocados',
+    'superfície de veludo escuro premium, bokeh dourado ao fundo, iluminação lateral cinematográfica, elementos de joalheria desfocados',
+    'estúdio fotográfico com fundo de vidro fumê, luzes spot direcionais, superfície espelhada preta, atmosfera sofisticada',
+    'penteadeira clássica com espelho dourado desfocado, flores frescas brancas, mármore rosé, luz natural suave de janela',
+  ],
+  bold: [
+    'superfície de concreto polido escuro, iluminação dramática lateral azulada, halteres desfocados ao fundo, atmosfera de ginásio premium',
+    'estúdio neon com fundo escuro intenso, LED vermelho e azul como accent, superfície metálica fosca, energia dinâmica',
+    'bancada industrial preta, spotlights dramáticos de cima, partículas de pó iluminadas, contraste extremo',
+    'superfície de aço escovado, backlight neon sutil, fumaça suave, atmosfera de alta performance',
+  ],
+  organic: [
+    'mesa de madeira rústica nobre, ingredientes naturais espalhados (folhas, sementes), iluminação quente de janela, folhas verdes',
+    'jardim ensolarado com mesa de pedra natural, ervas frescas ao redor, luz golden hour, fundo de vegetação desfocada',
+    'superfície de bambu com textura natural, gotas de orvalho, plantas tropicais ao fundo desfocado, luz suave matinal',
+    'bancada de cozinha rústica com linho natural, flores secas, iluminação quente lateral, atmosfera acolhedora',
+  ],
+  corporate: [
+    'mesa de escritório moderna minimalista, acabamento fosco escuro, LED ambiental azul/roxo sutil, setup clean',
+    'superfície branca polida com reflexo sutil, gradiente de luz lateral, formas geométricas abstratas desfocadas',
+    'desk setup premium com monitor ultra-wide desfocado ao fundo, iluminação bias azulada, superfície cinza grafite',
+    'mesa de reunião minimalista, fundo de vidro translúcido, iluminação difusa de escritório premium',
+  ],
+  minimal: [
+    'superfície elegante escura, gradiente de luz lateral suave, bokeh premium desfocado, iluminação de estúdio profissional',
+    'fundo infinito branco suave com sombra sutil, iluminação soft de estúdio, pureza visual, sem distração',
+    'superfície de concreto claro liso, luz natural indireta, sombras suaves geometricamente perfeitas, minimalismo absoluto',
+    'gradiente suave de cinza a branco, luz difusa de todas as direções, floating feeling, espaço limpo',
+  ],
+};
+
+// Seeded pick helper for scene vibes
+function seededScenePick(arr: string[], seed: number): string {
+  let s = seed;
+  s = (s * 1103515245 + 12345) & 0x7fffffff;
+  return arr[s % arr.length];
+}
+
 function buildCompositionPrompt(
   product: { name: string; tags?: string[] },
   storeName: string,
   spec: SectionSpec,
   hasDriveRefs: boolean,
   brandColors?: { primary?: string; accent?: string },
+  mood?: string,
+  variantSeed?: number,
 ): string {
   const nameAndTags = `${product.name} ${(product.tags || []).join(' ')}`.toLowerCase();
   
+  // V8.0: Use mood-based scene pool when available, with seed for reproducibility
   let sceneVibe: string;
+  const moodKey = mood || 'minimal';
+  const pool = MOOD_SCENE_POOLS[moodKey] || MOOD_SCENE_POOLS['minimal'];
+  const sceneSeed = (variantSeed || Date.now()) + (spec.promptSuffix.includes('CTA') ? 9999 : 0);
+  
+  // Start from mood pool, but enhance with niche-specific details
+  sceneVibe = seededScenePick(pool, sceneSeed);
+  
+  // Add niche-specific refinements on top of mood base
   if (/cabelo|shampoo|condicion|capilar|calvíc|queda|fio/.test(nameAndTags)) {
-    sceneVibe = `banheiro moderno premium, bancada de mármore escuro, gotas d'água sutis, iluminação dourada suave, plantas tropicais desfocadas ao fundo, toalha branca dobrada`;
+    sceneVibe += ', gotas d\'água sutis, toalha branca dobrada';
   } else if (/skin|pele|facial|anti.?idade|colág|sérum|creme|hidrat/.test(nameAndTags)) {
-    sceneVibe = `vanity table elegante, espelho dourado ao fundo desfocado, flores frescas, superfície de mármore branco, iluminação natural suave de janela`;
+    sceneVibe += ', flores frescas, textura de seda';
   } else if (/suplement|whey|proteín|creatina|bcaa|fitness|treino|músculo/.test(nameAndTags)) {
-    sceneVibe = `superfície de concreto polido escuro, iluminação dramática lateral azulada, halteres desfocados ao fundo`;
+    sceneVibe += ', shaker desfocado ao fundo, energia intensa';
   } else if (/aliment|comida|orgânic|natural|chá|café|erva/.test(nameAndTags)) {
-    sceneVibe = `mesa de madeira rústica nobre, ingredientes naturais espalhados, iluminação quente de janela, folhas verdes`;
-  } else if (/tech|eletrôn|gadget|smart|digital/.test(nameAndTags)) {
-    sceneVibe = `mesa de escritório moderna minimalista, acabamento fosco escuro, LED ambiental azul/roxo sutil`;
-  } else {
-    sceneVibe = `superfície elegante escura, gradiente de luz lateral suave, bokeh premium desfocado, iluminação de estúdio profissional`;
+    sceneVibe += ', ingredientes frescos ao redor, vapor sutil';
   }
 
   const brandNote = brandColors?.primary 
@@ -571,7 +619,10 @@ serve(async (req) => {
 
       console.log(`[AI-LP-Enhance] Generating ${spec.promptSuffix} composition...`);
       
-      const prompt = buildCompositionPrompt(product, storeName, spec, driveReferenceBase64s.length > 0, brandColors);
+      // V8.0: Extract mood and seed from schema for diversified scene prompts
+      const schemaMood = schema?.mood as string | undefined;
+      const schemaVariantSeed = schema?.variantSeed as number | undefined;
+      const prompt = buildCompositionPrompt(product, storeName, spec, driveReferenceBase64s.length > 0, brandColors, schemaMood, schemaVariantSeed);
       
       // Try pro model first, then flash — pass product image as primary reference
       let imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', prompt, productBase64, driveReferenceBase64s.length > 0 ? driveReferenceBase64s : undefined);

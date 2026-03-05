@@ -28,6 +28,32 @@ export interface AssetResolverInput {
   niche: string;
 }
 
+/** Helper: resolve public/signed URL from a file record */
+function resolveFileUrl(supabase: any, file: { storage_path: string; metadata: any }): string | Promise<string> {
+  try {
+    const meta = file.metadata as Record<string, any> | null;
+    // Priority: stored public URL > generate public URL > signed URL
+    const storedUrl = meta?.url as string | undefined;
+    if (storedUrl && storedUrl.startsWith('http')) return storedUrl;
+
+    const bucket = (meta?.bucket as string) || 'tenant-files';
+    const { data: pubData } = supabase.storage.from(bucket).getPublicUrl(file.storage_path);
+    const publicUrl = pubData?.publicUrl;
+
+    // For private buckets, return a promise that resolves to a signed URL
+    if (bucket === 'tenant-files' && publicUrl) {
+      return (async () => {
+        const { data: signedData } = await supabase.storage.from(bucket).createSignedUrl(file.storage_path, 86400);
+        return signedData?.signedUrl || publicUrl;
+      })();
+    }
+
+    return (publicUrl && publicUrl.startsWith('http')) ? publicUrl : '';
+  } catch {
+    return '';
+  }
+}
+
 /**
  * Deterministically resolves images for each LP slot.
  * No AI involvement — pure data lookups.
@@ -89,63 +115,75 @@ export async function resolveLandingPageAssets(input: AssetResolverInput): Promi
     }
   }
 
-  // 5. Social proof images from Drive — always use public URLs from store-assets bucket
+  // 5. Social proof images from Drive — V8.0: broader search with priority + fallback
   const socialProofImages: string[] = [];
   try {
+    // Step 1: Search folders with relevant names (highest priority)
     const { data: proofFolders } = await supabase
       .from('files')
-      .select('id, filename, storage_path')
+      .select('id, filename')
       .eq('tenant_id', tenantId)
       .eq('is_folder', true)
-      .or('filename.ilike.%feedback%,filename.ilike.%review%,filename.ilike.%prova%,filename.ilike.%resultado%,filename.ilike.%depoimento%')
+      .or('filename.ilike.%feedback%,filename.ilike.%review%,filename.ilike.%prova%,filename.ilike.%resultado%,filename.ilike.%depoimento%,filename.ilike.%antes%,filename.ilike.%depois%,filename.ilike.%social%,filename.ilike.%cliente%')
       .limit(10);
 
-    if (proofFolders && proofFolders.length > 0) {
-      const folderIds = proofFolders.map((f: any) => f.id);
+    const relevantFolderIds = proofFolders?.map((f: any) => f.id) || [];
+    console.log(`[AssetResolver] Social proof: found ${relevantFolderIds.length} relevant folders: ${proofFolders?.map((f: any) => f.filename).join(', ') || 'none'}`);
 
-      // Query by folder_id for reliable matching
+    // Step 2: Get images from relevant folders
+    if (relevantFolderIds.length > 0) {
       const { data: proofFiles } = await supabase
         .from('files')
         .select('id, storage_path, mime_type, metadata')
         .eq('tenant_id', tenantId)
         .eq('is_folder', false)
         .ilike('mime_type', 'image/%')
-        .in('folder_id', folderIds)
-      .order('created_at', { ascending: false })
+        .in('folder_id', relevantFolderIds)
+        .order('created_at', { ascending: false })
         .limit(24);
 
       if (proofFiles) {
         for (const file of proofFiles) {
-          try {
-            const meta = file.metadata as Record<string, any> | null;
-            // Priority: stored public URL > generate public URL > signed URL
-            let imageUrl = meta?.url as string | undefined;
-            
-            if (!imageUrl) {
-              const bucket = (meta?.bucket as string) || 'tenant-files';
-              // Always try public URL first (works for store-assets)
-              const { data: pubData } = supabase.storage.from(bucket).getPublicUrl(file.storage_path);
-              imageUrl = pubData?.publicUrl;
-              
-              // If tenant-files bucket (private), use signed URL with long expiry
-              if (bucket === 'tenant-files' && imageUrl) {
-                const { data: signedData } = await supabase.storage.from(bucket).createSignedUrl(file.storage_path, 86400); // 24h
-                imageUrl = signedData?.signedUrl || imageUrl;
-              }
-            }
-            
-            // Validate URL is not empty/malformed
-            if (imageUrl && imageUrl.startsWith('http')) {
-              socialProofImages.push(imageUrl);
-            }
-          } catch {
-            // non-blocking
+          const url = resolveFileUrl(supabase, file);
+          if (url) socialProofImages.push(typeof url === 'string' ? url : await url);
+        }
+      }
+    }
+
+    // Step 3: Fallback — if not enough images, search ALL tenant image files (non-folder)
+    if (socialProofImages.length < 3) {
+      console.log(`[AssetResolver] Social proof fallback: only ${socialProofImages.length} images, searching all tenant images...`);
+      const { data: allImages } = await supabase
+        .from('files')
+        .select('id, storage_path, mime_type, metadata, filename')
+        .eq('tenant_id', tenantId)
+        .eq('is_folder', false)
+        .ilike('mime_type', 'image/%')
+        .not('storage_path', 'ilike', '%lp-creatives%') // exclude AI-generated scenes
+        .order('created_at', { ascending: false })
+        .limit(30);
+
+      if (allImages) {
+        const existingSet = new Set(socialProofImages);
+        for (const file of allImages) {
+          if (socialProofImages.length >= 24) break;
+          const url = resolveFileUrl(supabase, file);
+          const resolved = typeof url === 'string' ? url : await url;
+          if (resolved && !existingSet.has(resolved)) {
+            socialProofImages.push(resolved);
+            existingSet.add(resolved);
           }
         }
       }
     }
-  } catch {
-    // non-blocking
+
+    if (socialProofImages.length === 0) {
+      console.warn(`[AssetResolver] ⚠️ WARNING: No social proof images found for tenant ${tenantId}. SocialProof section will be skipped.`);
+    } else {
+      console.log(`[AssetResolver] Social proof: resolved ${socialProofImages.length} images total`);
+    }
+  } catch (e) {
+    console.warn(`[AssetResolver] Social proof search error (non-blocking):`, e);
   }
 
   // 6. Benefit images = mix of product secondary images + stock
