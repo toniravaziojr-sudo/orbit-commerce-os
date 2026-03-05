@@ -25,8 +25,8 @@ export function HeroUrbanStreet({ data }: Props) {
     }}>
       {hasScene && (
         <>
-          <div className="absolute inset-0" style={{ background: `var(--lp-bg)`, opacity: 0.82 }} />
-          <div className="absolute inset-0" style={{ background: `linear-gradient(to right, var(--lp-bg)f5 0%, var(--lp-bg)bb 50%, transparent 100%)` }} />
+          <div className="absolute inset-0" style={{ background: `rgba(7,4,16,0.85)` }} />
+          <div className="absolute inset-0" style={{ background: `linear-gradient(to right, rgba(7,4,16,0.96) 0%, rgba(7,4,16,0.73) 50%, transparent 100%)` }} />
         </>
       )}
 

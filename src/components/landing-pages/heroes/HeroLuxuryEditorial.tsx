@@ -32,8 +32,8 @@ export function HeroLuxuryEditorial({ data }: Props) {
       {/* Overlays */}
       {hasScene ? (
         <>
-          <div className="absolute inset-0" style={{ background: `linear-gradient(to right, var(--lp-bg, #070A10)f5 0%, var(--lp-bg, #070A10)cc 40%, transparent 100%)` }} />
-          <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, transparent 40%, var(--lp-bg, #070A10)dd 100%)' }} />
+          <div className="absolute inset-0" style={{ background: `linear-gradient(to right, rgba(7,4,16,0.96) 0%, rgba(7,4,16,0.80) 40%, transparent 100%)` }} />
+          <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, transparent 40%, rgba(7,4,16,0.87) 100%)' }} />
         </>
       ) : (
         <>
@@ -41,7 +41,7 @@ export function HeroLuxuryEditorial({ data }: Props) {
           <div className="absolute -top-[300px] -right-[300px] w-[900px] h-[900px] rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, var(--lp-accent) 0%, transparent 60%)`, opacity: 0.06, filter: 'blur(100px)' }} />
           <div className="absolute -bottom-[200px] -left-[200px] w-[600px] h-[600px] rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, var(--lp-accent) 0%, transparent 60%)`, opacity: 0.04, filter: 'blur(80px)' }} />
           {/* Vignette */}
-          <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse at center, transparent 30%, var(--lp-bg)66 100%)` }} />
+          <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse at center, transparent 30%, rgba(7,4,16,0.40) 100%)` }} />
         </>
       )}
 

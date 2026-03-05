@@ -196,15 +196,15 @@
 .lp-text-legible h1,
 .lp-text-legible .lp-hero-title-enter h1,
 h1.lp-text-legible {
-  text-shadow: 0 2px 20px rgba(0,0,0,0.7), 0 4px 40px rgba(0,0,0,0.5);
+  text-shadow: 0 2px 8px rgba(0,0,0,0.9), 0 4px 24px rgba(0,0,0,0.8), 0 8px 48px rgba(0,0,0,0.6);
 }
 .lp-text-legible p,
 .lp-text-legible .lp-hero-title-enter p,
 p.lp-text-legible {
-  text-shadow: 0 1px 12px rgba(0,0,0,0.6), 0 2px 20px rgba(0,0,0,0.4);
+  text-shadow: 0 1px 6px rgba(0,0,0,0.9), 0 3px 16px rgba(0,0,0,0.7), 0 6px 32px rgba(0,0,0,0.5);
 }
 .lp-text-legible span {
-  text-shadow: 0 1px 8px rgba(0,0,0,0.5);
+  text-shadow: 0 1px 4px rgba(0,0,0,0.8), 0 2px 12px rgba(0,0,0,0.6);
 }
 
 /* ── Badge pulse ── */

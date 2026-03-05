@@ -25,8 +25,8 @@ export function HeroOrganicNature({ data }: Props) {
     }}>
       {hasScene && (
         <>
-          <div className="absolute inset-0" style={{ background: `linear-gradient(to right, var(--lp-bg)f5 0%, var(--lp-bg)cc 50%, var(--lp-bg)88 100%)` }} />
-          <div className="absolute inset-0" style={{ background: `radial-gradient(ellipse at center, transparent 40%, var(--lp-bg)dd 100%)` }} />
+          <div className="absolute inset-0" style={{ background: `linear-gradient(to right, rgba(7,4,16,0.96) 0%, rgba(7,4,16,0.80) 50%, rgba(7,4,16,0.53) 100%)` }} />
+          <div className="absolute inset-0" style={{ background: `radial-gradient(ellipse at center, transparent 40%, rgba(7,4,16,0.87) 100%)` }} />
         </>
       )}
 

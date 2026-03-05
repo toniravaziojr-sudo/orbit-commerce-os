@@ -27,7 +27,7 @@ function HeroSplitRight({ data }: { data: LPHeroProps }) {
   const bgStyle: React.CSSProperties = hasScene
     ? { backgroundImage: `url('${sceneDesktopUrl}')`, backgroundSize: 'cover', backgroundPosition: 'center' }
     : data.backgroundImageUrl
-    ? { background: `linear-gradient(135deg, var(--lp-bg, #070A10)ee 0%, var(--lp-bg, #070A10)cc 50%, var(--lp-bg, #070A10)88 100%), url('${data.backgroundImageUrl}') center/cover no-repeat` }
+    ? { background: `linear-gradient(135deg, rgba(7,4,16,0.93) 0%, rgba(7,4,16,0.80) 50%, rgba(7,4,16,0.53) 100%), url('${data.backgroundImageUrl}') center/cover no-repeat` }
     : {};
 
   return (
@@ -39,8 +39,8 @@ function HeroSplitRight({ data }: { data: LPHeroProps }) {
       {/* Ambient glows */}
       {hasScene ? (
         <>
-          <div className="absolute inset-0" style={{ background: `radial-gradient(ellipse at 20% 50%, var(--lp-bg, #070A10)f0 0%, transparent 65%), linear-gradient(to right, var(--lp-bg, #070A10)f5 0%, var(--lp-bg, #070A10)dd 35%, var(--lp-bg, #070A10)77 60%, transparent 100%)` }} />
-          <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, transparent 50%, var(--lp-bg, #070A10)dd 100%)' }} />
+          <div className="absolute inset-0" style={{ background: `radial-gradient(ellipse at 20% 50%, rgba(7,4,16,0.94) 0%, transparent 65%), linear-gradient(to right, rgba(7,4,16,0.96) 0%, rgba(7,4,16,0.87) 35%, rgba(7,4,16,0.47) 60%, transparent 100%)` }} />
+          <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, transparent 50%, rgba(7,4,16,0.87) 100%)' }} />
         </>
       ) : (
         <>
@@ -49,7 +49,7 @@ function HeroSplitRight({ data }: { data: LPHeroProps }) {
           {/* Bottom-left subtle glow */}
           <div className="absolute -bottom-[150px] -left-[150px] w-[600px] h-[600px] rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%)`, opacity: 0.04, filter: 'blur(100px)' }} />
           {/* Vignette */}
-          <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse at center, transparent 30%, var(--lp-bg, #070A10)66 100%), linear-gradient(180deg, var(--lp-bg) 0%, transparent 12%, transparent 88%, var(--lp-bg-alt) 100%)` }} />
+          <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse at center, transparent 30%, rgba(7,4,16,0.40) 100%), linear-gradient(180deg, var(--lp-bg) 0%, transparent 12%, transparent 88%, var(--lp-bg-alt) 100%)` }} />
           {/* Mesh gradient pattern */}
           <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(at 80% 20%, var(--lp-accent) 0%, transparent 50%), radial-gradient(at 20% 80%, var(--lp-accent) 0%, transparent 50%)`, opacity: 0.03 }} />
         </>
@@ -167,18 +167,18 @@ function HeroCentered({ data }: { data: LPHeroProps }) {
   const bgStyle: React.CSSProperties = hasScene
     ? { backgroundImage: `url('${sceneDesktopUrl}')`, backgroundSize: 'cover', backgroundPosition: 'center' }
     : data.backgroundImageUrl
-    ? { background: `linear-gradient(180deg, var(--lp-bg, #070A10)ee 0%, var(--lp-bg, #070A10)bb 100%), url('${data.backgroundImageUrl}') center/cover no-repeat` }
+    ? { background: `linear-gradient(180deg, rgba(7,4,16,0.93) 0%, rgba(7,4,16,0.73) 100%), url('${data.backgroundImageUrl}') center/cover no-repeat` }
     : {};
 
   return (
     <section className={`relative overflow-hidden lp-noise ${hasScene ? 'lp-hero-scene' : ''}`} style={{ ...bgStyle, minHeight: '100vh' }}>
       {hasScene && (
-        <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, var(--lp-bg, #070A10)dd 0%, var(--lp-bg, #070A10)99 40%, var(--lp-bg, #070A10)cc 100%)` }} />
+        <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, rgba(7,4,16,0.87) 0%, rgba(7,4,16,0.60) 40%, rgba(7,4,16,0.80) 100%)` }} />
       )}
       {!hasScene && (
         <>
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[900px] rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, var(--lp-accent) 0%, transparent 60%)`, opacity: 0.05, filter: 'blur(120px)' }} />
-          <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse at center, transparent 40%, var(--lp-bg, #070A10)55 100%)` }} />
+          <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse at center, transparent 40%, rgba(7,4,16,0.33) 100%)` }} />
         </>
       )}
 
