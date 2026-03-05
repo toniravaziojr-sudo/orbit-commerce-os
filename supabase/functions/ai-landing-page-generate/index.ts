@@ -45,29 +45,73 @@ interface GenerateRequest {
   briefing?: BriefingInput;
 }
 
-// ========== COLOR SCHEME PRESETS (same as V6) ==========
+// ========== BRAND-AWARE COLOR SCHEME ==========
 
-function getColorScheme(visualWeight: string, primaryColor: string) {
+interface BrandKit {
+  primaryColor: string;
+  secondaryColor?: string;
+  accentColor?: string;
+  logoUrl?: string;
+}
+
+/**
+ * Derives color scheme from tenant's actual brand colors.
+ * Uses brand colors for accents/CTAs, adapts to visualWeight for bg/text.
+ */
+function getColorScheme(visualWeight: string, brandKit: BrandKit) {
+  const { primaryColor, secondaryColor, accentColor } = brandKit;
+  const brand = primaryColor || '#6366f1';
+  const brandAccent = accentColor || secondaryColor || brand;
+  
+  // Helper: determine if a hex color is "dark" (for contrast decisions)
+  function isColorDark(hex: string): boolean {
+    const c = hex.replace('#', '');
+    const r = parseInt(c.substring(0, 2), 16);
+    const g = parseInt(c.substring(2, 4), 16);
+    const b = parseInt(c.substring(4, 6), 16);
+    return (r * 0.299 + g * 0.587 + b * 0.114) < 128;
+  }
+  
+  // Helper: lighten/darken hex color
+  function adjustColor(hex: string, amount: number): string {
+    const c = hex.replace('#', '');
+    const r = Math.min(255, Math.max(0, parseInt(c.substring(0, 2), 16) + amount));
+    const g = Math.min(255, Math.max(0, parseInt(c.substring(2, 4), 16) + amount));
+    const b = Math.min(255, Math.max(0, parseInt(c.substring(4, 6), 16) + amount));
+    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+  }
+
+  // Helper: hex to rgba
+  function hexToRgba(hex: string, alpha: number): string {
+    const c = hex.replace('#', '');
+    const r = parseInt(c.substring(0, 2), 16);
+    const g = parseInt(c.substring(2, 4), 16);
+    const b = parseInt(c.substring(4, 6), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  const ctaTextColor = isColorDark(brand) ? '#ffffff' : '#0a0a0a';
+
   switch (visualWeight) {
     case 'premium':
       return {
-        bg: '#0a0a0a', bgAlt: '#111111', text: '#ffffff', textMuted: 'rgba(255,255,255,0.7)',
-        accent: '#c9a96e', ctaBg: '#c9a96e', ctaText: '#0a0a0a',
+        bg: '#070A10', bgAlt: '#0B1220', text: '#F2F5FF', textMuted: 'rgba(242,245,255,0.7)',
+        accent: brandAccent, ctaBg: brand, ctaText: ctaTextColor,
         cardBg: 'rgba(255,255,255,0.04)', cardBorder: 'rgba(255,255,255,0.08)',
-        priceCurrent: '#c9a96e', priceOld: 'rgba(255,255,255,0.4)',
-        badgeBg: 'rgba(201,169,110,0.15)', badgeText: '#c9a96e',
+        priceCurrent: brandAccent, priceOld: 'rgba(255,255,255,0.4)',
+        badgeBg: hexToRgba(brandAccent, 0.15), badgeText: brandAccent,
         shadow: 'rgba(0,0,0,0.5)', divider: 'rgba(255,255,255,0.06)',
-        fontDisplay: "'Playfair Display', Georgia, serif",
+        fontDisplay: "'DM Serif Display', Georgia, serif",
         fontBody: "'Inter', -apple-system, sans-serif",
-        fontImportUrl: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap',
+        fontImportUrl: 'https://fonts.googleapis.com/css2?family=DM+Serif+Display:wght@400&family=Inter:wght@300;400;500;600;700&display=swap',
       };
     case 'comercial':
       return {
         bg: '#ffffff', bgAlt: '#f8f9fa', text: '#111827', textMuted: '#6b7280',
-        accent: primaryColor || '#ef4444', ctaBg: primaryColor || '#ef4444', ctaText: '#ffffff',
+        accent: brand, ctaBg: brand, ctaText: ctaTextColor,
         cardBg: '#ffffff', cardBorder: '#e5e7eb',
         priceCurrent: '#16a34a', priceOld: '#9ca3af',
-        badgeBg: '#fef2f2', badgeText: '#dc2626',
+        badgeBg: hexToRgba(brand, 0.08), badgeText: brand,
         shadow: 'rgba(0,0,0,0.1)', divider: '#f3f4f6',
         fontDisplay: "'Montserrat', -apple-system, sans-serif",
         fontBody: "'Open Sans', -apple-system, sans-serif",
@@ -76,7 +120,7 @@ function getColorScheme(visualWeight: string, primaryColor: string) {
     case 'minimalista':
       return {
         bg: '#fafafa', bgAlt: '#ffffff', text: '#1a1a1a', textMuted: '#666666',
-        accent: primaryColor || '#1a1a1a', ctaBg: '#1a1a1a', ctaText: '#ffffff',
+        accent: brand, ctaBg: '#1a1a1a', ctaText: '#ffffff',
         cardBg: '#ffffff', cardBorder: '#e5e7eb',
         priceCurrent: '#1a1a1a', priceOld: '#bbbbbb',
         badgeBg: '#f5f5f5', badgeText: '#333333',
@@ -88,10 +132,10 @@ function getColorScheme(visualWeight: string, primaryColor: string) {
     default: // 'direto'
       return {
         bg: '#ffffff', bgAlt: '#f9fafb', text: '#111827', textMuted: '#4b5563',
-        accent: primaryColor || '#2563eb', ctaBg: primaryColor || '#2563eb', ctaText: '#ffffff',
+        accent: brand, ctaBg: brand, ctaText: ctaTextColor,
         cardBg: '#ffffff', cardBorder: '#e5e7eb',
         priceCurrent: '#16a34a', priceOld: '#9ca3af',
-        badgeBg: `${primaryColor || '#2563eb'}15`, badgeText: primaryColor || '#2563eb',
+        badgeBg: hexToRgba(brand, 0.08), badgeText: brand,
         shadow: 'rgba(0,0,0,0.08)', divider: '#f3f4f6',
         fontDisplay: "'Inter', -apple-system, sans-serif",
         fontBody: "'Inter', -apple-system, sans-serif",
@@ -113,7 +157,7 @@ function installments(price: number, n = 12): string {
 
 interface BuildSchemaInput {
   storeName: string;
-  primaryColor: string;
+  brandKit: BrandKit;
   visualWeight: string;
   mainProduct: ProductData;
   allProducts: ProductData[];
@@ -128,7 +172,7 @@ interface BuildSchemaInput {
 }
 
 function buildBaseSchema(input: BuildSchemaInput) {
-  const c = getColorScheme(input.visualWeight, input.primaryColor);
+  const c = getColorScheme(input.visualWeight, input.brandKit);
   const p = input.mainProduct;
   
   const sections: any[] = [];
@@ -528,7 +572,13 @@ serve(async (req) => {
       .single();
 
     const storeName = storeSettings?.store_name || "Loja";
-    const primaryColor = storeSettings?.primary_color || "#6366f1";
+    const brandKit: BrandKit = {
+      primaryColor: storeSettings?.primary_color || "#6366f1",
+      secondaryColor: storeSettings?.secondary_color || undefined,
+      accentColor: storeSettings?.accent_color || undefined,
+      logoUrl: storeSettings?.logo_url || undefined,
+    };
+    console.log(`[AI-LP-Generate] BrandKit: primary=${brandKit.primaryColor}, secondary=${brandKit.secondaryColor}, accent=${brandKit.accentColor}`);
 
     // ===== STEP 1: FETCH PRODUCTS =====
     const allProducts: ProductData[] = [];
@@ -822,7 +872,7 @@ serve(async (req) => {
       // Build base schema from templates (instant, no AI)
       const baseSchema = buildBaseSchema({
         storeName,
-        primaryColor,
+        brandKit,
         visualWeight: enginePlan.resolvedVisualWeight,
         mainProduct: firstProduct,
         allProducts,
