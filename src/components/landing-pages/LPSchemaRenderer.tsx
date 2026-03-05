@@ -1,9 +1,10 @@
 // =============================================
-// LP SCHEMA RENDERER — V7.2
+// LP SCHEMA RENDERER — V8.0
 // Renders LPSchema using real React components
 // Uses --lp-* CSS variables for theming
 // Sanitizes AI copy (strips markdown)
 // Container queries for responsive builder preview
+// V8.0: Passes variant prop to each block
 // =============================================
 
 import { useMemo } from 'react';
@@ -26,19 +27,19 @@ interface LPSchemaRendererProps {
 }
 
 function renderSection(section: LPSection) {
-  const { id, type } = section;
+  const { id, type, variant } = section;
   const cleanProps = sanitizeLPSectionProps(section.props);
   switch (type) {
     case 'hero':
-      return <LPHero key={id} data={cleanProps} />;
+      return <LPHero key={id} data={cleanProps} variant={variant} />;
     case 'benefits':
-      return <LPBenefits key={id} data={cleanProps} />;
+      return <LPBenefits key={id} data={cleanProps} variant={variant} />;
     case 'testimonials':
-      return <LPTestimonials key={id} data={cleanProps} />;
+      return <LPTestimonials key={id} data={cleanProps} variant={variant} />;
     case 'social_proof':
       return <LPSocialProof key={id} data={cleanProps} />;
     case 'pricing':
-      return <LPPricing key={id} data={cleanProps} />;
+      return <LPPricing key={id} data={cleanProps} variant={variant} />;
     case 'faq':
       return <LPFaq key={id} data={cleanProps} />;
     case 'guarantee':
