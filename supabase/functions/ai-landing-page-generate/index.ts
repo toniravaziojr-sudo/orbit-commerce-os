@@ -60,8 +60,6 @@ interface BrandKit {
  */
 function getColorScheme(visualWeight: string, brandKit: BrandKit) {
   const { primaryColor, secondaryColor, accentColor } = brandKit;
-  const brand = primaryColor || '#6366f1';
-  const brandAccent = accentColor || secondaryColor || brand;
   
   // Helper: determine if a hex color is "dark" (for contrast decisions)
   function isColorDark(hex: string): boolean {
@@ -70,6 +68,47 @@ function getColorScheme(visualWeight: string, brandKit: BrandKit) {
     const g = parseInt(c.substring(2, 4), 16);
     const b = parseInt(c.substring(4, 6), 16);
     return (r * 0.299 + g * 0.587 + b * 0.114) < 128;
+  }
+  
+  // Helper: hex to HSL
+  function hexToHsl(hex: string): { h: number; s: number; l: number } {
+    const c = hex.replace('#', '');
+    let r = parseInt(c.substring(0, 2), 16) / 255;
+    let g = parseInt(c.substring(2, 4), 16) / 255;
+    let b = parseInt(c.substring(4, 6), 16) / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let h = 0, s = 0;
+    const l = (max + min) / 2;
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+      else if (max === g) h = ((b - r) / d + 2) / 6;
+      else h = ((r - g) / d + 4) / 6;
+    }
+    return { h: h * 360, s: s * 100, l: l * 100 };
+  }
+  
+  /**
+   * Sanitize "garish/neon" colors that look terrible as CTA buttons.
+   * Neon colors have very high saturation (>80%) and medium+ lightness.
+   * Examples: #05f009 (neon green), #ff00ff (magenta), #00ffff (cyan)
+   * Returns a premium fallback for garish colors, original otherwise.
+   */
+  function sanitizeBrandColor(hex: string): string {
+    if (!hex || hex.length < 4) return '#c9a96e'; // premium gold fallback
+    const hsl = hexToHsl(hex);
+    // Reject: saturation > 75% AND lightness between 35-75% = "neon/garish"
+    if (hsl.s > 75 && hsl.l > 35 && hsl.l < 75) {
+      console.log(`[BrandKit] Rejecting garish color ${hex} (S:${hsl.s.toFixed(0)}% L:${hsl.l.toFixed(0)}%), using premium fallback`);
+      return '#c9a96e'; // warm gold — works on dark and light backgrounds
+    }
+    // Reject: pure white or near-white as brand (not useful as CTA)
+    if (hsl.l > 90) {
+      console.log(`[BrandKit] Rejecting near-white color ${hex}, using premium fallback`);
+      return '#c9a96e';
+    }
+    return hex;
   }
   
   // Helper: lighten/darken hex color
@@ -90,6 +129,10 @@ function getColorScheme(visualWeight: string, brandKit: BrandKit) {
     return `rgba(${r},${g},${b},${alpha})`;
   }
 
+  // Sanitize brand colors — reject neon/garish, use premium fallback
+  const brand = sanitizeBrandColor(primaryColor || '#c9a96e');
+  const brandAccent = sanitizeBrandColor(accentColor || secondaryColor || brand);
+  
   const ctaTextColor = isColorDark(brand) ? '#ffffff' : '#0a0a0a';
 
   switch (visualWeight) {
