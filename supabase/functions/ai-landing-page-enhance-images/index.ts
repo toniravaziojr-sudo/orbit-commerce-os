@@ -619,7 +619,10 @@ serve(async (req) => {
 
       console.log(`[AI-LP-Enhance] Generating ${spec.promptSuffix} composition...`);
       
-      const prompt = buildCompositionPrompt(product, storeName, spec, driveReferenceBase64s.length > 0, brandColors);
+      // V8.0: Extract mood and seed from schema for diversified scene prompts
+      const schemaMood = schema?.mood as string | undefined;
+      const schemaVariantSeed = schema?.variantSeed as number | undefined;
+      const prompt = buildCompositionPrompt(product, storeName, spec, driveReferenceBase64s.length > 0, brandColors, schemaMood, schemaVariantSeed);
       
       // Try pro model first, then flash — pass product image as primary reference
       let imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', prompt, productBase64, driveReferenceBase64s.length > 0 ? driveReferenceBase64s : undefined);
