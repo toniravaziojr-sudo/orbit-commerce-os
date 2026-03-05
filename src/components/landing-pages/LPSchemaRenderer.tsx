@@ -31,18 +31,6 @@ interface LPSchemaRendererProps {
   schema: LPSchema;
 }
 
-const PREMIUM_HEROES: Record<string, React.FC<{ data: any }>> = {
-  luxury_editorial: HeroLuxuryEditorial,
-  bold_impact: HeroBoldImpact,
-  minimal_zen: HeroMinimalZen,
-  organic_nature: HeroOrganicNature,
-  corporate_trust: HeroCorporateTrust,
-  neon_energy: HeroNeonEnergy,
-  warm_artisan: HeroWarmArtisan,
-  tech_gradient: HeroTechGradient,
-  classic_elegant: HeroClassicElegant,
-  urban_street: HeroUrbanStreet,
-};
 
 const PREMIUM_CTAS: Record<string, React.FC<{ data: any }>> = {
   luxury_editorial: CtaLuxuryEditorial,
