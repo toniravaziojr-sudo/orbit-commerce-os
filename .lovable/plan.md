@@ -1,106 +1,139 @@
 
 
-# Diagnóstico Honesto: O que aconteceu e como resolver
+# Plano: MVP do Gerador de Landing Pages Premium
 
-## O Problema Real (sem rodeios)
+## Diagnóstico do Problema
 
-O Motor V5 foi construído com uma premissa que parece boa na teoria mas falha na prática:
+O sistema atual gera landing pages que parecem todas iguais porque:
 
-**A IA gera JSON estruturado que mapeia para componentes React genéricos do Builder.**
+1. **Os componentes React (LPHero, LPBenefits, LPPricing, etc.) compartilham o mesmo DNA visual** — variantes como `split_right` vs `centered` vs `glass_overlay` são rearranjos do mesmo design system pobre
+2. **Não existem "templates premium curados"** — o sistema combina seções genéricas em ordens diferentes, mas o visual de cada seção é idêntico
+3. **O chat de ajustes regenera o schema inteiro** via IA em vez de aplicar patches cirúrgicos em tokens/conteúdo
+4. **Falta a arquitetura híbrida** — Hero e CTA Final precisam de designs dedicados por template, não de variantes cosméticas
 
-O resultado é previsível: os componentes `TestimonialsBlock`, `PricingTableBlock`, `FAQBlock` etc. foram desenhados para **lojas e-commerce comuns** (com Tailwind utilitário básico, `py-8 container mx-auto px-4`). Eles **nunca** foram desenhados para páginas de vendas de alta conversão com visual premium.
-
-### O que aconteceu passo a passo:
-
-1. **Motor V4 funcionava** -- a IA gerava HTML/CSS livre, com total controle sobre layout, cores, tipografia, sombras, gradientes. O resultado era renderizado em iframe isolado. Tinha liberdade criativa total.
-
-2. **Problema de timeout** -- gerar HTML + imagens na mesma chamada estourava os 150s. Solução correta: separar em etapas.
-
-3. **Decisão errada** -- ao separar em etapas, mudamos **também** o formato de saída de HTML livre para JSON/blocos. Isso não era necessário para resolver o timeout. Misturamos dois problemas.
-
-4. **Resultado** -- a IA agora está presa a ~14 componentes genéricos com props fixas. Ela não pode controlar:
-   - Gradientes de fundo sofisticados
-   - Tipografia premium (Playfair Display, letter-spacing)
-   - Layouts assimétricos ou criativos
-   - Efeitos visuais (glass, blur, sombras profundas)
-   - Espaçamentos personalizados por seção
-   - Cores por seção (cada bloco herda o Tailwind padrão)
-
-5. **Os bugs (`.map is not a function`, dados como object)** são sintomas secundários -- a IA tenta encaixar conteúdo rico em props que não foram feitas para isso.
-
-### Resumo brutal:
-> O Motor V5 transforma um diretor criativo (IA com HTML livre) num operário de linha de montagem (IA preenchendo formulários de props). O resultado visual é inferior por design, não por bug.
-
----
-
-## A Solução Correta
-
-O timeout era o único problema real. A solução é **manter HTML livre + resolver o timeout separadamente**:
-
-### Plano: Motor V5.4 (HTML Livre + Timeout Resolvido)
+## Arquitetura Proposta
 
 ```text
-┌─────────────────────────────────────────────┐
-│  ETAPA 1: ai-landing-page-generate          │
-│  IA gera HTML/CSS COMPLETO (como V4)        │
-│  Usa imagens do catálogo (sem gerar novas)  │
-│  Tempo: ~30-60s (cabe nos 150s)             │
-│  Salva em: generated_html + generated_css   │
-└──────────────────┬──────────────────────────┘
-                   │
-┌──────────────────▼──────────────────────────┐
-│  ETAPA 2: ai-landing-page-enhance-images    │
-│  (já existe, mantém chunking por timeout)   │
-│  Gera imagens premium assíncronamente       │
-│  Substitui URLs no HTML salvo               │
-│  Tempo: ~30s por imagem, recursivo          │
-└─────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────┐
+│              10 TEMPLATE MASTERS                │
+│  Cada um define:                                │
+│  ├── HeroTemplate (componente React dedicado)   │
+│  ├── CtaFinalTemplate (componente dedicado)      │
+│  ├── Seções do meio via schema editável         │
+│  ├── Design tokens (cores, fonts, spacing)      │
+│  └── Mood lock (quais moods são permitidos)     │
+├─────────────────────────────────────────────────┤
+│              PIPELINE DE GERAÇÃO                │
+│  1. IA extrai cores do produto (já existe)      │
+│  2. Seleciona template + mood (seed-based)      │
+│  3. Monta schema com templateId → Hero/CTA      │
+│     dedicados + seções do meio editáveis        │
+│  4. Enhance images (já existe)                  │
+├─────────────────────────────────────────────────┤
+│              CHAT DE AJUSTES                    │
+│  IA classifica intent → aplica JSON Patch:      │
+│  ├── "mude CTA" → patch em section.props       │
+│  ├── "mais premium" → troca mood/tokens         │
+│  ├── "troque template" → swap templateId        │
+│  └── Histórico + rollback (já existe)           │
+└─────────────────────────────────────────────────┘
 ```
 
-### O que muda concretamente:
+## Fases de Implementação
 
-1. **Edge Function `ai-landing-page-generate`**: Volta a pedir HTML/CSS livre para a IA (como V4), mas **sem** gerar imagens (isso resolve o timeout). A IA usa as imagens do catálogo diretamente.
+### Fase 1 — 10 Templates Premium (Hero + CTA dedicados)
 
-2. **Renderização**: Volta para iframe com `wrapInDocumentShell()` (já existe no código, linhas 429-533). A pipeline de shell, CSS utilities e safety CSS **já está pronta**.
+Criar 10 componentes Hero e 10 CTA Final com designs visualmente distintos. Cada template terá identidade própria.
 
-3. **Editor e Preview**: Prioriza `generated_html` com iframe. O código do `LandingPageEditor.tsx` e `StorefrontAILandingPage.tsx` já tem o fallback para iframe -- basta inverter a prioridade.
+**Arquivo: `src/lib/landing-page-templates-registry.ts`**
+- Registry com os 10 templates: `luxury_editorial`, `bold_impact`, `minimal_zen`, `organic_nature`, `corporate_trust`, `neon_energy`, `warm_artisan`, `tech_gradient`, `classic_elegant`, `urban_street`
+- Cada entry define: `heroComponent`, `ctaComponent`, `allowedMoods`, `defaultTokens`
 
-4. **Enhance Images (Etapa 2)**: Continua igual -- busca seções do HTML, gera composições visuais premium, substitui as URLs. O chunking por timeout já funciona.
+**Arquivo: `src/components/landing-pages/heroes/`** (nova pasta)
+- 10 componentes Hero dedicados, cada um com design radicalmente diferente:
+  - `HeroLuxuryEditorial` — tipografia gigante serif, packshot flutuante com sombra dramática, fundo escuro com glow dourado
+  - `HeroBoldImpact` — Bebas Neue enorme, fundo com diagonal cortada, produto com drop-shadow colorido
+  - `HeroMinimalZen` — muito espaço negativo, tipografia fina, produto centralizado pequeno
+  - `HeroOrganicNature` — formas orgânicas (border-radius irregulares), tons terrosos
+  - `HeroCorporateTrust` — grid estruturado, badges de confiança, tipografia sem-serif pesada
+  - `HeroNeonEnergy` — fundo escuro com glows neon, bordas luminosas, tipografia condensada
+  - `HeroWarmArtisan` — textura de papel, tipografia manuscrita + serif, tons quentes
+  - `HeroTechGradient` — gradientes mesh vibrantes, tipografia geométrica, glassmorphism pesado
+  - `HeroClassicElegant` — composição editorial tipo revista, serifada, muito espaço, linha decorativa
+  - `HeroUrbanStreet` — fonte bold grotesque, elementos gráficos diagonais, alto contraste
 
-5. **Blocos V5 mantidos para o Builder**: Os componentes JSON/React continuam existindo para o Builder visual da loja. Eles simplesmente não são usados para landing pages de IA.
+**Arquivo: `src/components/landing-pages/ctas/`** (nova pasta)
+- 10 componentes CTA Final correspondentes, cada um mantendo a identidade visual do seu Hero
 
-### O que NÃO muda:
-- Auto-descoberta de kits (STEP 1B) -- mantida
-- Busca de provas sociais do Drive (STEP 3) -- mantida  
-- Engine Plan (archetype, niche, depth) -- mantido
-- CTA constraints no CSS -- mantidas
-- Header/Footer governance -- mantida
+**Alteração: `src/components/landing-pages/LPSchemaRenderer.tsx`**
+- O renderer lê `schema.templateId` e renderiza o Hero/CTA do template correspondente
+- Seções do meio (Benefits, Pricing, FAQ, Testimonials, Guarantee, SocialProof) continuam usando os componentes existentes (que já têm variantes)
+
+### Fase 2 — Design Tokens por Template
+
+**Arquivo: `src/lib/landing-page-template-tokens.ts`**
+- Cada template define tokens padrão: `borderRadius`, `cardStyle`, `shadowIntensity`, `spacing`, `overlayType`, `accentGlow`
+- Os tokens são injetados como CSS variables extras (`--lp-radius`, `--lp-glow-intensity`, etc.)
+- As seções do meio consomem esses tokens para se adaptar ao estilo do template
+
+**Alteração: `src/components/landing-pages/LPSchemaRenderer.tsx`**
+- Adicionar injeção de tokens do template como CSS variables no container root
+
+### Fase 3 — Atualizar Edge Function de Geração
+
+**Alteração: `supabase/functions/ai-landing-page-generate/index.ts`**
+- Expandir `TEMPLATES` de 6 receitas de narrativa para 10 templates premium
+- Cada template mapeia para o `templateId` do registry
+- `selectTemplate()` usa seed para escolher entre os 10, com diversidade garantida (min 6 diferentes para 10 gerações)
+- Mood selection fica atrelada ao template (`allowedMoods`)
+- Color scheme adapta-se ao template (tokens padrão do template + cores extraídas do produto)
+
+### Fase 4 — Chat de Ajustes por Patch
+
+**Alteração: `supabase/functions/ai-landing-page-generate/index.ts`** (fluxo `adjustment`)
+- Para `promptType: 'adjustment'`, em vez de regenerar o schema completo, a IA recebe o schema atual + o pedido do usuário
+- A IA retorna um JSON Patch (RFC 6902) ou objeto de mudanças parciais
+- Tipos de ajuste suportados:
+  - **Conteúdo**: muda texto de headline, CTA, FAQ, etc.
+  - **Tokens**: muda cores, fonts, radius
+  - **Template swap**: troca `templateId` (Hero/CTA mudam, seções do meio se adaptam)
+  - **Mood swap**: troca mood (fonts + color scheme recalculados)
+  - **Seção add/remove**: adiciona ou remove seções do meio
+- Histórico e rollback já existem via `ai_landing_page_versions`
+
+### Fase 5 — Schema v9.0
+
+**Alteração: `src/lib/landing-page-schema.ts`**
+- Adicionar campo `designTokens` ao schema (radius, glow, spacing overrides)
+- Expandir `LPTemplateId` para os 10 novos templates
+- Manter backward compat com v7.0/v8.0
+
+## Detalhes Técnicos
+
+### Cada Hero Premium terá:
+- Tipografia com `clamp()` para responsividade
+- Produto como overlay CSS (nunca redesenhado por IA)
+- Efeitos visuais únicos (glow, gradientes, texturas, sombras)
+- Min-height 100vh com composição editorial
+- Animações de entrada (`lp-hero-title-enter`)
+- Responsivo mobile-first
+
+### Critérios de aceite:
+- 10 gerações do mesmo produto → minimo 6 templates visualmente distintos
+- Chat altera template/tokens/copy sem quebrar
+- Produto nunca desaparece
+- Max 2 famílias de fonte / 2 weights por página
+- Sem placeholders ou seções vazias
 
 ### Arquivos afetados:
+- `src/lib/landing-page-templates-registry.ts` (novo)
+- `src/lib/landing-page-template-tokens.ts` (novo)
+- `src/components/landing-pages/heroes/*.tsx` (10 novos)
+- `src/components/landing-pages/ctas/*.tsx` (10 novos)
+- `src/components/landing-pages/LPSchemaRenderer.tsx` (modificado)
+- `src/lib/landing-page-schema.ts` (modificado)
+- `supabase/functions/ai-landing-page-generate/index.ts` (modificado)
+- `src/styles/lp-animations.css` (tokens adicionais)
 
-| Arquivo | Mudança |
-|---------|---------|
-| `supabase/functions/ai-landing-page-generate/index.ts` | Prompt volta a pedir HTML livre; salva em `generated_html` + `generated_css` em vez de `generated_blocks` |
-| `src/pages/LandingPageEditor.tsx` | Prioridade: `generated_html` (iframe) > `generated_blocks` (blocos) |
-| `src/pages/storefront/StorefrontAILandingPage.tsx` | Idem -- prioriza HTML no iframe |
-| `src/components/landing-pages/LandingPagePreviewDialog.tsx` | Idem |
-
-### Por que isso vai funcionar:
-- O Motor V4 **já produzia resultados bons** -- o HTML livre dá à IA controle total
-- O timeout é resolvido pela separação generate/enhance que **já existe**
-- A pipeline de shell/safety/CSS utilities **já está implementada** (linhas 429-533)
-- Não há componente novo para criar -- é reverter a decisão errada e manter a infraestrutura certa
-
-### Estimativa: 
-- 1 mudança na Edge Function (prompt + formato de saída)
-- 3 mudanças em componentes React (inverter prioridade de renderização)
-- Zero tabelas novas, zero componentes novos
-
----
-
-## Resposta direta à sua pergunta
-
-> Vamos conseguir desenvolver algo realmente bom aqui?
-
-Sim. O motor de geração de HTML livre já funcionava. O erro foi trocar o formato de saída (de HTML para JSON/blocos) junto com a solução de timeout, quando eram problemas independentes. A correção é cirúrgica: desfazer a troca de formato, manter a solução de timeout.
+### Estimativa: ~25 arquivos, implementação em 5-6 mensagens sequenciais
 
