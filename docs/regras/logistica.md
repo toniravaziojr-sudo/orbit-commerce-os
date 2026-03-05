@@ -77,6 +77,8 @@ O sistema aplica frete grátis se **qualquer** uma das 3 fontes for verdadeira:
 
 > Se um produto atingir qualquer uma dessas 3 regras, terá frete grátis.
 
+> **Integração com Barra de Conversão:** Quando `applyToExternalRules` está ativo na `BenefitConfig` (`store_settings.benefit_config`), a barra de progresso do carrinho também reconhece frete grátis vindo dessas 3 fontes, não apenas do valor mínimo configurado na barra. Ver `docs/regras/carrinho.md` → Barra de Conversão.
+
 ## Regras de Frete Grátis (Logística)
 
 ```typescript
