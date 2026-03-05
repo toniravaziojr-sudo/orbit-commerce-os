@@ -35,6 +35,7 @@ export interface BenefitConfig {
   rewardLabel: string;
   successLabel: string;
   progressColor: string;
+  applyToExternalRules?: boolean; // Ativa frete grátis para regras externas (produto, cupom, logística)
 }
 
 // Cross-sell configuration

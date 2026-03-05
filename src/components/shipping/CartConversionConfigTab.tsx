@@ -195,6 +195,20 @@ export function CartConversionConfigTab() {
             </div>
           </div>
 
+          {/* Apply to External Rules */}
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div className="space-y-0.5">
+              <Label>Ativar frete grátis para outras regras</Label>
+              <p className="text-sm text-muted-foreground">
+                Também concede frete grátis quando ativado por regras externas (cadastro do produto, cupons de desconto ou regras de logística)
+              </p>
+            </div>
+            <Switch
+              checked={config.applyToExternalRules ?? false}
+              onCheckedChange={(applyToExternalRules) => setConfig({ ...config, applyToExternalRules })}
+            />
+          </div>
+
           {/* Progress Color */}
           <div className="space-y-2">
             <Label htmlFor="progressColor">Cor da barra de progresso</Label>
