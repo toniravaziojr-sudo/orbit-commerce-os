@@ -12,7 +12,7 @@ export function LPSocialProof({ data }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const revealRef = useLPScrollReveal();
-  
+
   const validImages = data.imageUrls.filter(url => url && !failedUrls.has(url));
   if (validImages.length === 0) return null;
 
@@ -37,66 +37,50 @@ export function LPSocialProof({ data }: Props) {
                    validImages.length <= 6 ? 'grid-cols-2 md:grid-cols-3' : '';
 
   return (
-    <section 
+    <section
       ref={revealRef}
       id="resultados"
-      className="relative overflow-hidden px-[5%] py-16 md:py-24 lp-noise" 
+      className="relative overflow-hidden px-[5%] py-24 md:py-36 lp-noise"
       style={{ background: 'var(--lp-bg)' }}
     >
-      {/* Glow */}
-      <div 
-        className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full blur-[200px] opacity-[0.06] pointer-events-none"
-        style={{ background: 'var(--lp-accent)' }}
-      />
+      {/* Ambient glow */}
+      <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse at 50% 100%, var(--lp-accent) 0%, transparent 50%)`, opacity: 0.04 }} />
 
-      <div className="relative text-center max-w-[700px] mx-auto mb-14 lp-reveal">
-        <span
-          className="lp-badge-pulse inline-block px-5 py-2 rounded-full text-[11px] font-bold uppercase tracking-[0.2em] mb-5"
-          style={{ 
-            background: 'var(--lp-badge-bg)', 
-            color: 'var(--lp-badge-text)',
-            border: '1px solid var(--lp-card-border)',
-          }}
-        >
+      <div className="relative text-center max-w-[700px] mx-auto mb-16 lp-reveal">
+        <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[11px] font-bold uppercase tracking-[0.2em] mb-6" style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03))', color: 'var(--lp-badge-text)', border: '1px solid rgba(255,255,255,0.10)', backdropFilter: 'blur(12px)' }}>
+          <span className="w-2 h-2 rounded-full lp-dot-pulse" style={{ background: 'var(--lp-accent)' }} />
           {data.badge}
         </span>
-        <h2
-          className="font-extrabold leading-tight"
-          style={{ 
-            color: 'var(--lp-text)', 
-            fontFamily: 'var(--lp-font-display)',
-            fontSize: 'clamp(1.5rem, 2.6vw, 2.25rem)',
-          }}
-        >
-          {data.title}
+        <h2 className="font-extrabold leading-[1.05] tracking-[-0.02em]" style={{ color: 'var(--lp-text)', fontFamily: 'var(--lp-font-display)', fontSize: 'clamp(1.75rem, 3vw, 2.75rem)' }}>
+          <span className="lp-gradient-text">{data.title}</span>
         </h2>
       </div>
 
-      <div className="relative max-w-[1140px] mx-auto lp-reveal lp-reveal-delay-2">
+      <div className="relative max-w-[1200px] mx-auto lp-reveal lp-reveal-delay-2">
         {useCarousel ? (
           <>
             <button
               onClick={() => scroll('left')}
-              className="absolute -left-2 top-1/2 -translate-y-1/2 z-10 w-11 h-11 rounded-full flex items-center justify-center transition-all hover:scale-110"
-              style={{ 
-                background: 'var(--lp-card-bg)', 
-                border: '1px solid var(--lp-card-border)', 
-                color: 'var(--lp-text)', 
+              className="absolute -left-2 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-2xl flex items-center justify-center transition-all hover:scale-110 lp-glass-card"
+              style={{
+                background: 'linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04))',
+                border: '1px solid rgba(255,255,255,0.10)',
+                color: 'var(--lp-text)',
                 boxShadow: '0 4px 20px var(--lp-shadow)',
-                backdropFilter: 'blur(12px)',
+                backdropFilter: 'blur(16px)',
               }}
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
             <button
               onClick={() => scroll('right')}
-              className="absolute -right-2 top-1/2 -translate-y-1/2 z-10 w-11 h-11 rounded-full flex items-center justify-center transition-all hover:scale-110"
-              style={{ 
-                background: 'var(--lp-card-bg)', 
-                border: '1px solid var(--lp-card-border)', 
-                color: 'var(--lp-text)', 
+              className="absolute -right-2 top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-2xl flex items-center justify-center transition-all hover:scale-110 lp-glass-card"
+              style={{
+                background: 'linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04))',
+                border: '1px solid rgba(255,255,255,0.10)',
+                color: 'var(--lp-text)',
                 boxShadow: '0 4px 20px var(--lp-shadow)',
-                backdropFilter: 'blur(12px)',
+                backdropFilter: 'blur(16px)',
               }}
             >
               <ChevronRight className="w-5 h-5" />
@@ -105,22 +89,17 @@ export function LPSocialProof({ data }: Props) {
             <div
               ref={scrollRef}
               onScroll={handleScroll}
-              className="lp-sp-track flex gap-4 overflow-x-auto px-1 py-2"
-              style={{ 
-                scrollSnapType: 'x mandatory', 
-                WebkitOverflowScrolling: 'touch',
-                scrollbarWidth: 'none',
-                msOverflowStyle: 'none',
-              }}
+              className="lp-sp-track flex gap-5 overflow-x-auto px-1 py-2"
+              style={{ scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
               <style>{`.lp-sp-track::-webkit-scrollbar { display: none; }`}</style>
               {validImages.map((url, i) => (
-                <div 
-                  key={i} 
-                  className="lp-social-proof-item flex-shrink-0 overflow-hidden rounded-2xl transition-all duration-500 hover:scale-[1.03] group"
-                  style={{ 
-                    width: '280px',
-                    border: '1px solid var(--lp-card-border)',
+                <div
+                  key={i}
+                  className="lp-social-proof-item flex-shrink-0 overflow-hidden rounded-2xl transition-all duration-500 hover:scale-[1.03] group relative"
+                  style={{
+                    width: '300px',
+                    border: '1px solid rgba(255,255,255,0.08)',
                     boxShadow: '0 8px 32px var(--lp-shadow)',
                     scrollSnapAlign: 'start',
                   }}
@@ -128,15 +107,17 @@ export function LPSocialProof({ data }: Props) {
                   <img
                     src={url}
                     alt={`Resultado ${i + 1}`}
-                    className="w-full h-[320px] object-cover transition-transform duration-700 group-hover:scale-110"
+                    className="w-full h-[360px] object-cover transition-transform duration-700 group-hover:scale-110"
                     loading="lazy"
                     onError={() => setFailedUrls(prev => new Set(prev).add(url))}
                   />
+                  {/* Bottom gradient overlay */}
+                  <div className="absolute bottom-0 left-0 right-0 h-1/4" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.4), transparent)' }} />
                 </div>
               ))}
             </div>
 
-            <div className="flex justify-center gap-2 mt-8">
+            <div className="flex justify-center gap-2 mt-10">
               {Array.from({ length: totalPages }).map((_, i) => (
                 <button
                   key={i}
@@ -147,32 +128,33 @@ export function LPSocialProof({ data }: Props) {
                   }}
                   className="rounded-full transition-all duration-300"
                   style={{
-                    width: i === activeIndex ? '28px' : '8px',
+                    width: i === activeIndex ? '32px' : '8px',
                     height: '8px',
-                    background: i === activeIndex ? 'var(--lp-accent)' : 'var(--lp-card-border)',
+                    background: i === activeIndex ? 'var(--lp-accent)' : 'rgba(255,255,255,0.12)',
                   }}
                 />
               ))}
             </div>
           </>
         ) : (
-          <div className={`grid ${gridCols} gap-4`}>
+          <div className={`grid ${gridCols} gap-5`}>
             {validImages.map((url, i) => (
-              <div 
-                key={i} 
-                className="lp-scale-in overflow-hidden rounded-2xl transition-all duration-500 hover:scale-[1.03] group"
-                style={{ 
-                  border: '1px solid var(--lp-card-border)',
+              <div
+                key={i}
+                className="lp-scale-in overflow-hidden rounded-2xl transition-all duration-500 hover:scale-[1.03] group relative"
+                style={{
+                  border: '1px solid rgba(255,255,255,0.08)',
                   boxShadow: '0 8px 32px var(--lp-shadow)',
                 }}
               >
                 <img
                   src={url}
                   alt={`Resultado ${i + 1}`}
-                  className="w-full h-[320px] object-cover transition-transform duration-700 group-hover:scale-110"
+                  className="w-full h-[360px] object-cover transition-transform duration-700 group-hover:scale-110"
                   loading="lazy"
                   onError={() => setFailedUrls(prev => new Set(prev).add(url))}
                 />
+                <div className="absolute bottom-0 left-0 right-0 h-1/4" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.4), transparent)' }} />
               </div>
             ))}
           </div>
