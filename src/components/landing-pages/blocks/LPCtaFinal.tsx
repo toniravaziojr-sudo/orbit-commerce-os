@@ -8,99 +8,61 @@ interface Props {
 export function LPCtaFinal({ data }: Props) {
   const revealRef = useLPScrollReveal();
 
-  const sceneDesktopUrl = data.ctaSceneDesktopUrl || 
-    (data.productImageUrl?.includes('lp-creatives/') || data.productImageUrl?.includes('section-cta') 
-      ? data.productImageUrl : '');
+  // V4.1: Scene URLs are BACKGROUND-ONLY (no product in them)
+  const sceneDesktopUrl = data.ctaSceneDesktopUrl || '';
   const sceneMobileUrl = data.ctaSceneMobileUrl || sceneDesktopUrl;
-  const isScene = !!sceneDesktopUrl;
+  const hasScene = !!sceneDesktopUrl;
   const hasProductImage = !!data.productImageUrl;
 
-  // ── Scene banner mode ──
-  if (isScene) {
-    return (
-      <section 
-        ref={revealRef}
-        className="relative overflow-hidden lp-cta-scene lp-noise"
-        style={{
+  return (
+    <section 
+      ref={revealRef}
+      className={`relative overflow-hidden lp-noise ${hasScene ? 'lp-cta-scene' : ''}`}
+      style={{
+        ...(hasScene ? {
           backgroundImage: `url('${sceneDesktopUrl}')`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           minHeight: '460px',
-        }}
-      >
+        } : {
+          background: `linear-gradient(180deg, var(--lp-bg) 0%, var(--lp-bg-alt) 100%)`,
+        }),
+      }}
+    >
+      {/* Mobile scene swap */}
+      {hasScene && sceneMobileUrl && (
         <style>{`
           @media (max-width: 767px) {
             .lp-cta-scene { background-image: url('${sceneMobileUrl}') !important; }
           }
         `}</style>
-        {/* Strong overlay for text legibility — safe area */}
-        <div className="absolute inset-0" style={{
-          background: `
-            linear-gradient(to right, var(--lp-bg, #070A10)f2 0%, var(--lp-bg, #070A10)dd 45%, var(--lp-bg, #070A10)88 70%, transparent 100%)
-          `,
-        }} />
-        <div className="absolute inset-0" style={{
-          background: 'radial-gradient(ellipse at center, transparent 40%, var(--lp-bg, #070A10)cc 100%)',
-        }} />
+      )}
 
-        {/* Safe area layout: text LEFT, product RIGHT */}
-        <div className="relative grid grid-cols-1 md:grid-cols-[1fr_auto] gap-10 items-center px-[5%] py-20 md:py-28 max-w-[1000px] mx-auto lp-reveal" style={{ minHeight: '460px' }}>
-          <div className="text-center md:text-left max-w-[560px]">
-            <h2
-              className="lp-gradient-text font-extrabold leading-tight mb-5"
-              style={{ 
-                fontFamily: 'var(--lp-font-display)',
-                fontSize: 'clamp(1.5rem, 2.8vw, 2.5rem)',
-              }}
-            >
-              {data.title}
-            </h2>
-            <p
-              className="text-base leading-relaxed mb-7 max-w-[500px]"
-              style={{ color: 'var(--lp-text-muted)', fontFamily: 'var(--lp-font-body)' }}
-            >
-              {data.description}
-            </p>
-            {data.priceDisplay && (
-              <div
-                className="mb-7"
-                style={{ fontFamily: 'var(--lp-font-display)' }}
-                dangerouslySetInnerHTML={{ __html: data.priceDisplay }}
-              />
-            )}
-            <a
-              href={data.ctaUrl}
-              className="lp-cta-btn lp-cta-shimmer inline-block px-14 py-5 rounded-xl text-base font-bold uppercase tracking-wider transition-all duration-300 hover:opacity-90 hover:-translate-y-1 text-center"
-              style={{ 
-                background: `linear-gradient(135deg, var(--lp-cta-bg), var(--lp-accent))`,
-                color: 'var(--lp-cta-text)',
-                boxShadow: '0 8px 32px var(--lp-shadow), 0 0 0 1px rgba(255,255,255,0.08), 0 0 60px rgba(201,169,110,0.12)',
-                minWidth: '300px',
-                letterSpacing: '0.1em',
-              }}
-            >
-              {data.ctaText}
-            </a>
-          </div>
-        </div>
-      </section>
-    );
-  }
+      {/* Overlays for text legibility */}
+      {hasScene ? (
+        <>
+          <div className="absolute inset-0" style={{
+            background: `
+              linear-gradient(to right, var(--lp-bg, #070A10)f2 0%, var(--lp-bg, #070A10)dd 45%, var(--lp-bg, #070A10)88 70%, transparent 100%)
+            `,
+          }} />
+          <div className="absolute inset-0" style={{
+            background: 'radial-gradient(ellipse at center, transparent 40%, var(--lp-bg, #070A10)cc 100%)',
+          }} />
+        </>
+      ) : (
+        <div 
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full blur-[200px] opacity-[0.08] pointer-events-none"
+          style={{ background: 'var(--lp-accent)' }}
+        />
+      )}
 
-  // ── Standard 2-column mode — product RIGHT, text LEFT (safe area enforced) ──
-  return (
-    <section 
-      ref={revealRef}
-      className="relative overflow-hidden px-[5%] py-20 md:py-28 lp-noise" 
-      style={{ background: `linear-gradient(180deg, var(--lp-bg) 0%, var(--lp-bg-alt) 100%)` }}
-    >
+      {/* 2-column grid: text LEFT, product RIGHT (always) */}
       <div 
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full blur-[200px] opacity-[0.08] pointer-events-none"
-        style={{ background: 'var(--lp-accent)' }}
-      />
-      
-      <div className="relative grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-16 items-center max-w-[1000px] mx-auto lp-cta-final-grid">
-        {/* Text LEFT (always first on desktop) */}
+        className="relative grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-16 items-center px-[5%] py-20 md:py-28 max-w-[1000px] mx-auto lp-reveal"
+        style={{ minHeight: hasScene ? '460px' : undefined }}
+      >
+        {/* Text LEFT */}
         <div className="text-center md:text-left lp-reveal lp-reveal-delay-1 order-2 md:order-1">
           <h2
             className="lp-gradient-text font-extrabold leading-tight mb-5"
@@ -112,7 +74,7 @@ export function LPCtaFinal({ data }: Props) {
             {data.title}
           </h2>
           <p
-            className="text-base leading-relaxed mb-7"
+            className="text-base leading-relaxed mb-7 max-w-[500px]"
             style={{ color: 'var(--lp-text-muted)', fontFamily: 'var(--lp-font-body)' }}
           >
             {data.description}
@@ -139,10 +101,16 @@ export function LPCtaFinal({ data }: Props) {
           </a>
         </div>
 
-        {/* Product RIGHT (safe area — image never overlaps text) */}
+        {/* Product RIGHT — ALWAYS rendered as real packshot overlay */}
         <div className="flex justify-center lp-scale-in order-1 md:order-2">
           {hasProductImage ? (
             <div className="relative group">
+              {/* Contact shadow */}
+              <div 
+                className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[65%] h-[15px] rounded-full blur-[12px] opacity-[0.3]"
+                style={{ background: 'var(--lp-shadow, rgba(0,0,0,0.5))' }}
+              />
+              {/* Ambient glow */}
               <div 
                 className="absolute inset-0 rounded-full blur-[60px] opacity-[0.08] group-hover:opacity-[0.14] transition-opacity duration-500"
                 style={{ background: 'rgba(255,255,255,0.12)' }}
@@ -150,12 +118,16 @@ export function LPCtaFinal({ data }: Props) {
               <img
                 src={data.productImageUrl}
                 alt="Produto"
-                className="relative w-full max-w-[280px] max-h-[320px] object-contain transition-transform duration-700 group-hover:scale-105"
-                style={{ filter: `drop-shadow(0 20px 50px var(--lp-shadow))` }}
+                className="relative w-full object-contain transition-transform duration-700 group-hover:scale-105"
+                style={{ 
+                  filter: `drop-shadow(0 20px 50px var(--lp-shadow))`,
+                  maxWidth: 'clamp(200px, 24vw, 320px)',
+                  maxHeight: 'clamp(240px, 36vh, 400px)',
+                }}
               />
             </div>
           ) : (
-            /* Premium fallback when no product image (catalog was blocked) */
+            /* Premium fallback when no product image */
             <div className="relative w-full max-w-[400px] aspect-square rounded-3xl overflow-hidden flex items-center justify-center">
               <div className="absolute inset-0" style={{
                 background: `

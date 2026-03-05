@@ -88,14 +88,16 @@ export function normalizeAllCTAs(sections: any[]): any[] {
     switch (s.type) {
       case 'hero':
         s.props.ctaText = normalizeCTA(s.props.ctaText, 'hero');
-        s.props.productImageUrl = blockCatalogOutsidePricing(validateAssetUrl(s.props.productImageUrl));
+        // V4.1: NEVER block productImageUrl — it's the real packshot overlay (always visible)
+        s.props.productImageUrl = validateAssetUrl(s.props.productImageUrl);
         s.props.heroSceneDesktopUrl = validateAssetUrl(s.props.heroSceneDesktopUrl);
         s.props.heroSceneMobileUrl = validateAssetUrl(s.props.heroSceneMobileUrl);
         s.props.backgroundImageUrl = validateAssetUrl(s.props.backgroundImageUrl);
         break;
       case 'cta_final':
         s.props.ctaText = normalizeCTA(s.props.ctaText, 'cta_final');
-        s.props.productImageUrl = blockCatalogOutsidePricing(validateAssetUrl(s.props.productImageUrl));
+        // V4.1: NEVER block productImageUrl — it's the real packshot overlay (always visible)
+        s.props.productImageUrl = validateAssetUrl(s.props.productImageUrl);
         s.props.ctaSceneDesktopUrl = validateAssetUrl(s.props.ctaSceneDesktopUrl);
         s.props.ctaSceneMobileUrl = validateAssetUrl(s.props.ctaSceneMobileUrl);
         break;
