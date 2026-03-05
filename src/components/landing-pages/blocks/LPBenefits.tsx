@@ -12,6 +12,8 @@ export function LPBenefits({ data }: Props) {
     <div ref={revealRef}>
       {data.items.map((item, i) => {
         const isReverse = i % 2 !== 0;
+        const hasImage = !!item.imageUrl;
+
         return (
           <section
             key={i}
@@ -61,8 +63,11 @@ export function LPBenefits({ data }: Props) {
                   {item.description}
                 </p>
               </div>
+
+              {/* Visual column — premium art fallback when no scene image */}
               <div className={`flex justify-center lp-scale-in ${isReverse ? 'md:order-1' : ''} order-first md:order-none`}>
-                {item.imageUrl && (
+                {hasImage ? (
+                  /* Has a scene/creative image — render with glow */
                   <div className="relative group">
                     <div 
                       className="absolute inset-0 rounded-3xl blur-[50px] opacity-[0.10] group-hover:opacity-[0.20] transition-opacity duration-500"
@@ -73,9 +78,56 @@ export function LPBenefits({ data }: Props) {
                       alt={item.label}
                       className="relative w-full max-w-[420px] h-auto object-contain rounded-3xl transition-transform duration-700 group-hover:scale-[1.03]"
                       style={{ filter: `drop-shadow(0 25px 60px var(--lp-shadow))` }}
+                      onError={(e) => {
+                        // Hide broken images, show fallback art
+                        (e.currentTarget.parentElement as HTMLElement).style.display = 'none';
+                        const fallback = (e.currentTarget.parentElement?.parentElement?.querySelector('.lp-benefit-fallback-art') as HTMLElement);
+                        if (fallback) fallback.style.display = 'flex';
+                      }}
                     />
                   </div>
-                )}
+                ) : null}
+
+                {/* Premium fallback art — shown when no image or image is catalog (blocked) */}
+                <div 
+                  className="lp-benefit-fallback-art relative w-full max-w-[420px] aspect-[4/3] rounded-3xl overflow-hidden items-center justify-center"
+                  style={{ display: hasImage ? 'none' : 'flex' }}
+                >
+                  {/* Layered premium background */}
+                  <div className="absolute inset-0" style={{
+                    background: `
+                      radial-gradient(ellipse at 30% 30%, var(--lp-accent) 0%, transparent 60%),
+                      radial-gradient(ellipse at 70% 70%, var(--lp-card-bg) 0%, transparent 50%),
+                      linear-gradient(135deg, var(--lp-bg-alt) 0%, var(--lp-bg) 100%)
+                    `,
+                    opacity: 0.4,
+                  }} />
+                  <div className="absolute inset-0 rounded-3xl" style={{
+                    border: '1px solid var(--lp-card-border)',
+                    backdropFilter: 'blur(20px)',
+                  }} />
+                  {/* Decorative icon */}
+                  <div className="relative flex flex-col items-center gap-4">
+                    <div 
+                      className="w-20 h-20 rounded-full flex items-center justify-center"
+                      style={{ 
+                        background: 'var(--lp-badge-bg)',
+                        border: '2px solid var(--lp-card-border)',
+                        boxShadow: '0 0 40px var(--lp-shadow), 0 0 80px rgba(201,169,110,0.08)',
+                      }}
+                    >
+                      <span className="text-3xl" style={{ color: 'var(--lp-accent)' }}>
+                        {i === 0 ? '✦' : i === 1 ? '◆' : '★'}
+                      </span>
+                    </div>
+                    <span 
+                      className="text-xs font-bold uppercase tracking-[0.15em]"
+                      style={{ color: 'var(--lp-text-muted)', fontFamily: 'var(--lp-font-display)' }}
+                    >
+                      {item.label}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 

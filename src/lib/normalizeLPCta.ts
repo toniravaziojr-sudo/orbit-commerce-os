@@ -68,6 +68,16 @@ export function isCatalogImage(url: string): boolean {
 }
 
 /**
+ * Block catalog images (white bg cutouts) outside of Pricing.
+ * Returns empty string if catalog image detected, forcing premium fallback.
+ */
+export function blockCatalogOutsidePricing(url: string): string {
+  if (!url) return '';
+  if (isCatalogImage(url)) return '';
+  return url;
+}
+
+/**
  * Normalize all CTAs in an LP schema (mutates nothing, returns new object).
  * Also validates asset URLs with fallbacks.
  */
@@ -78,14 +88,14 @@ export function normalizeAllCTAs(sections: any[]): any[] {
     switch (s.type) {
       case 'hero':
         s.props.ctaText = normalizeCTA(s.props.ctaText, 'hero');
-        s.props.productImageUrl = validateAssetUrl(s.props.productImageUrl);
+        s.props.productImageUrl = blockCatalogOutsidePricing(validateAssetUrl(s.props.productImageUrl));
         s.props.heroSceneDesktopUrl = validateAssetUrl(s.props.heroSceneDesktopUrl);
         s.props.heroSceneMobileUrl = validateAssetUrl(s.props.heroSceneMobileUrl);
         s.props.backgroundImageUrl = validateAssetUrl(s.props.backgroundImageUrl);
         break;
       case 'cta_final':
         s.props.ctaText = normalizeCTA(s.props.ctaText, 'cta_final');
-        s.props.productImageUrl = validateAssetUrl(s.props.productImageUrl);
+        s.props.productImageUrl = blockCatalogOutsidePricing(validateAssetUrl(s.props.productImageUrl));
         s.props.ctaSceneDesktopUrl = validateAssetUrl(s.props.ctaSceneDesktopUrl);
         s.props.ctaSceneMobileUrl = validateAssetUrl(s.props.ctaSceneMobileUrl);
         break;
@@ -109,7 +119,7 @@ export function normalizeAllCTAs(sections: any[]): any[] {
         if (s.props.items) {
           s.props.items = s.props.items.map((item: any) => ({
             ...item,
-            imageUrl: validateAssetUrl(item.imageUrl),
+            imageUrl: blockCatalogOutsidePricing(validateAssetUrl(item.imageUrl)),
           }));
         }
         break;
