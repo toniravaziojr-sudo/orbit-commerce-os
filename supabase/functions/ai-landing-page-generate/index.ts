@@ -23,7 +23,9 @@ import {
 import { getNicheImages, getNicheImage } from "../_shared/landing-page-stock-images.ts";
 import { resolveLandingPageAssets, type ResolvedAssets } from "../_shared/landing-page-asset-resolver.ts";
 
-const VERSION = "7.0.0"; // Engine V7: Schema-First
+const VERSION = "7.1.0"; // Engine V7.1: Product-Color-Driven Design
+
+const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 // ========== CORS ==========
 
@@ -45,13 +47,91 @@ interface GenerateRequest {
   briefing?: BriefingInput;
 }
 
-// ========== BRAND-AWARE COLOR SCHEME ==========
+// ========== PRODUCT COLOR EXTRACTION ==========
 
 interface BrandKit {
   primaryColor: string;
   secondaryColor?: string;
   accentColor?: string;
   logoUrl?: string;
+  extractedFromProduct?: boolean;
+}
+
+/**
+ * Uses AI vision to extract dominant colors FROM the product image.
+ * These colors drive the page design (buttons, backgrounds, accents).
+ * The product itself is NEVER modified — only the page styling changes.
+ */
+async function extractColorsFromProductImage(
+  productImageUrl: string,
+  lovableApiKey: string,
+): Promise<{ primary: string; secondary: string; accent: string } | null> {
+  try {
+    console.log(`[AI-LP-Generate] Extracting colors from product image...`);
+    
+    const response = await fetch(LOVABLE_GATEWAY_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${lovableApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash-lite',
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: `Analyze this product image and extract the 3 most dominant/important colors from the PRODUCT PACKAGING (label, cap, bottle, box). 
+
+Return ONLY a JSON object with exactly this format, no other text:
+{"primary":"#hex","secondary":"#hex","accent":"#hex"}
+
+Rules:
+- "primary" = the most dominant color of the packaging/label
+- "secondary" = the second most prominent color  
+- "accent" = a contrasting highlight color from the design/label
+- All values must be valid hex colors (#RRGGBB format)
+- Do NOT return white (#ffffff) or near-white as primary — pick the next dominant color
+- Do NOT return transparent or background colors — focus on the PRODUCT itself
+- If the product is mostly dark (black bottle), use a rich dark shade for primary and pick label/accent colors for secondary/accent`
+            },
+            {
+              type: 'image_url',
+              image_url: { url: productImageUrl }
+            }
+          ]
+        }],
+        temperature: 0.1,
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn(`[AI-LP-Generate] Color extraction failed: ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    
+    // Parse JSON from response (may have markdown fences)
+    let jsonStr = content.trim();
+    if (jsonStr.startsWith('```')) {
+      jsonStr = jsonStr.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+    }
+    
+    const colors = JSON.parse(jsonStr);
+    
+    if (colors.primary && colors.secondary && colors.accent) {
+      console.log(`[AI-LP-Generate] Product colors extracted: primary=${colors.primary}, secondary=${colors.secondary}, accent=${colors.accent}`);
+      return colors;
+    }
+    
+    return null;
+  } catch (e) {
+    console.warn(`[AI-LP-Generate] Color extraction error:`, e);
+    return null;
+  }
 }
 
 /**
@@ -670,13 +750,14 @@ serve(async (req) => {
       .single();
 
     const storeName = storeSettings?.store_name || "Loja";
-    const brandKit: BrandKit = {
+    // BrandKit starts with store_settings as FALLBACK — will be overridden by product colors below
+    let brandKit: BrandKit = {
       primaryColor: storeSettings?.primary_color || "#6366f1",
       secondaryColor: storeSettings?.secondary_color || undefined,
       accentColor: storeSettings?.accent_color || undefined,
       logoUrl: storeSettings?.logo_url || undefined,
     };
-    console.log(`[AI-LP-Generate] BrandKit: primary=${brandKit.primaryColor}, secondary=${brandKit.secondaryColor}, accent=${brandKit.accentColor}`);
+    console.log(`[AI-LP-Generate] Store BrandKit (fallback): primary=${brandKit.primaryColor}`);
 
     // ===== STEP 1: FETCH PRODUCTS =====
     const allProducts: ProductData[] = [];
@@ -844,6 +925,30 @@ serve(async (req) => {
           }
           reviewCount = reviewsData.length;
         }
+      }
+    }
+
+    // ===== STEP 1B: EXTRACT COLORS FROM PRODUCT IMAGE =====
+    // Uses AI vision to analyze the product's packaging and extract dominant colors.
+    // These colors drive the PAGE DESIGN (buttons, backgrounds, accents) — the product itself is NEVER modified.
+    if (firstProduct?.primaryImage && promptType !== 'adjustment') {
+      try {
+        const lovableApiKey = Deno.env.get("LOVABLE_API_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || '';
+        const productColors = await extractColorsFromProductImage(firstProduct.primaryImage, lovableApiKey);
+        if (productColors) {
+          brandKit = {
+            ...brandKit,
+            primaryColor: productColors.primary,
+            secondaryColor: productColors.secondary,
+            accentColor: productColors.accent,
+            extractedFromProduct: true,
+          };
+          console.log(`[AI-LP-Generate] ✅ BrandKit overridden with PRODUCT colors: primary=${productColors.primary}, secondary=${productColors.secondary}, accent=${productColors.accent}`);
+        } else {
+          console.log(`[AI-LP-Generate] Product color extraction returned null, keeping store_settings colors`);
+        }
+      } catch (colorErr) {
+        console.warn(`[AI-LP-Generate] Product color extraction failed, keeping store_settings:`, colorErr);
       }
     }
 
@@ -1042,7 +1147,7 @@ serve(async (req) => {
     }
 
     // Ensure version field
-    finalSchema.version = '7.0';
+    finalSchema.version = '7.1';
 
     // ===== STEP 5: PERSIST =====
     const newVersion = (savedLandingPage?.current_version || 0) + 1;
@@ -1060,9 +1165,11 @@ serve(async (req) => {
         current_version: newVersion,
         status: isCurrentlyPublished ? "published" : "draft",
         metadata: {
-          engineVersion: "v7.0",
+          engineVersion: "v7.1",
           schemaFirst: true,
           aiRefinementUsed,
+          colorsFromProduct: brandKit.extractedFromProduct || false,
+          brandColors: { primary: brandKit.primaryColor, secondary: brandKit.secondaryColor, accent: brandKit.accentColor },
           visualWeight: enginePlan.resolvedVisualWeight,
           niche: enginePlan.resolvedNiche,
           sectionCount: finalSchema.sections.length,
@@ -1091,7 +1198,7 @@ serve(async (req) => {
         schema_content: finalSchema,
         created_by: userId,
         generation_metadata: {
-          engineVersion: "v7.0",
+          engineVersion: "v7.1",
           schemaFirst: true,
           aiRefinementUsed,
           model: aiRefinementUsed ? "google/gemini-2.5-flash" : "none",
@@ -1114,7 +1221,7 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         version: newVersion,
-        engineVersion: "v7.0",
+        engineVersion: "v7.1",
         schemaFirst: true,
         sectionCount: finalSchema.sections.length,
         aiRefinementUsed,
