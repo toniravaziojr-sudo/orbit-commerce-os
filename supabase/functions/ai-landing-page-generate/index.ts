@@ -124,6 +124,7 @@ interface BuildSchemaInput {
   ctaUrl: string;
   showHeader: boolean;
   showFooter: boolean;
+  storeBaseUrl: string; // e.g. https://loja.example.com or empty
 }
 
 function buildBaseSchema(input: BuildSchemaInput) {
@@ -205,7 +206,13 @@ function buildBaseSchema(input: BuildSchemaInput) {
       badge: 'OFERTAS ESPECIAIS',
       title: 'Escolha a melhor opção para você',
       subtitle: 'Quanto maior o kit, maior a economia',
-      cards: pricingProducts.map((prod, i) => ({
+      cards: pricingProducts.map((prod, i) => {
+        // Build product URL: /p/{slug} for storefront
+        const productUrl = prod.slug && input.storeBaseUrl
+          ? `${input.storeBaseUrl}/p/${prod.slug}`
+          : (prod.slug ? `/p/${prod.slug}` : input.ctaUrl);
+        
+        return {
         name: prod.name,
         imageUrl: (prod.id && input.assets.offerCardImages[prod.id]) || prod.primaryImage || input.assets.heroImageUrl,
         price: prod.price,
@@ -213,10 +220,11 @@ function buildBaseSchema(input: BuildSchemaInput) {
         discountPercent: prod.discountPercent || null,
         installments: installments(prod.price),
         ctaText: input.ctaText,
-        ctaUrl: input.ctaUrl, // Will be replaced per-kit in future
+        ctaUrl: productUrl,
         isFeatured: i === featuredIdx,
         featuredBadge: i === featuredIdx ? '🔥 MAIS VENDIDO' : undefined,
-      })),
+        };
+      }),
     },
   });
 
@@ -671,6 +679,14 @@ serve(async (req) => {
     const showHeader = savedLandingPage?.show_header ?? false;
     const showFooter = savedLandingPage?.show_footer ?? false;
 
+    // Resolve store base URL for product links
+    let storeBaseUrl = '';
+    try {
+      const { data: tenantData } = await supabase.from("tenants").select("slug").eq("id", tenantId).single();
+      const { data: domainRow } = await supabase.from("tenant_domains").select("domain").eq("tenant_id", tenantId).eq("type", "custom").eq("is_primary", true).maybeSingle();
+      storeBaseUrl = domainRow?.domain ? `https://${domainRow.domain}` : (tenantData?.slug ? `https://${tenantData.slug}.shops.comandocentral.com.br` : '');
+    } catch { /* non-blocking */ }
+
     // ===== V7: SCHEMA-FIRST GENERATION =====
 
     let finalSchema: any = null;
@@ -752,9 +768,8 @@ serve(async (req) => {
         ctaUrl,
         showHeader,
         showFooter,
+        storeBaseUrl,
       });
-
-      console.log(`[AI-LP-Generate] Base schema built: ${baseSchema.sections.length} sections`);
 
       // AI refines copy in the schema
       try {

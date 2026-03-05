@@ -20,7 +20,6 @@ export function LPHero({ data }: Props) {
           minHeight: '600px',
         }}
       >
-        {/* Gradient overlay for text readability */}
         <div 
           className="absolute inset-0 lp-hero-overlay"
           style={{
@@ -52,45 +51,11 @@ export function LPHero({ data }: Props) {
             >
               {data.subtitle}
             </p>
-            <ul className="mb-10 space-y-3">
-              {data.benefits.map((b, i) => (
-                <li
-                  key={i}
-                  className="flex items-start gap-3 text-base"
-                  style={{ color: 'var(--lp-text-muted)', fontFamily: 'var(--lp-font-body)' }}
-                >
-                  <span 
-                    className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mt-0.5"
-                    style={{ background: 'var(--lp-badge-bg)', color: 'var(--lp-accent)' }}
-                  >
-                    ✓
-                  </span>
-                  <span>{b}</span>
-                </li>
-              ))}
-            </ul>
-            <a
-              href={data.ctaUrl}
-              className="inline-block px-10 py-4.5 rounded-xl text-base font-bold uppercase tracking-wide transition-all duration-300 hover:opacity-90 hover:-translate-y-1 hover:shadow-2xl text-center min-w-[240px]"
-              style={{ 
-                background: `linear-gradient(135deg, var(--lp-cta-bg), var(--lp-accent))`,
-                color: 'var(--lp-cta-text)',
-                boxShadow: '0 8px 32px var(--lp-shadow)',
-              }}
-            >
-              {data.ctaText}
-            </a>
-            {data.priceDisplay && (
-              <p
-                className="mt-5 text-sm"
-                style={{ color: 'var(--lp-text-muted)', fontFamily: 'var(--lp-font-body)' }}
-                dangerouslySetInnerHTML={{ __html: data.priceDisplay }}
-              />
-            )}
+            {renderBenefits(data.benefits)}
+            {renderCTA(data)}
           </div>
         </div>
 
-        {/* Bottom divider */}
         <div 
           className="absolute bottom-0 left-0 right-0 h-px"
           style={{ background: `linear-gradient(90deg, transparent, var(--lp-divider), transparent)` }}
@@ -134,46 +99,13 @@ export function LPHero({ data }: Props) {
             {data.title}
           </h1>
           <p
-            className="text-base md:text-lg leading-relaxed mb-8 max-w-[520px]"
+            className="text-base md:text-lg leading-relaxed mb-6 max-w-[520px]"
             style={{ color: 'var(--lp-text-muted)', fontFamily: 'var(--lp-font-body)' }}
           >
             {data.subtitle}
           </p>
-          <ul className="mb-10 space-y-3">
-            {data.benefits.map((b, i) => (
-              <li
-                key={i}
-                className="flex items-start gap-3 text-base"
-                style={{ color: 'var(--lp-text-muted)', fontFamily: 'var(--lp-font-body)' }}
-              >
-                <span 
-                  className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mt-0.5"
-                  style={{ background: 'var(--lp-badge-bg)', color: 'var(--lp-accent)' }}
-                >
-                  ✓
-                </span>
-                <span>{b}</span>
-              </li>
-            ))}
-          </ul>
-          <a
-            href={data.ctaUrl}
-            className="inline-block px-10 py-4.5 rounded-xl text-base font-bold uppercase tracking-wide transition-all duration-300 hover:opacity-90 hover:-translate-y-1 hover:shadow-2xl text-center min-w-[240px]"
-            style={{ 
-              background: `linear-gradient(135deg, var(--lp-cta-bg), var(--lp-accent))`,
-              color: 'var(--lp-cta-text)',
-              boxShadow: '0 8px 32px var(--lp-shadow)',
-            }}
-          >
-            {data.ctaText}
-          </a>
-          {data.priceDisplay && (
-            <p
-              className="mt-5 text-sm"
-              style={{ color: 'var(--lp-text-muted)', fontFamily: 'var(--lp-font-body)' }}
-              dangerouslySetInnerHTML={{ __html: data.priceDisplay }}
-            />
-          )}
+          {renderBenefits(data.benefits)}
+          {renderCTA(data)}
         </div>
         <div className="flex items-center justify-center order-first md:order-last">
           {data.productImageUrl && (
@@ -198,5 +130,55 @@ export function LPHero({ data }: Props) {
         style={{ background: `linear-gradient(90deg, transparent, var(--lp-divider), transparent)` }}
       />
     </section>
+  );
+}
+
+// ── Shared sub-components ──
+
+function renderBenefits(benefits: string[]) {
+  return (
+    <ul className="mb-8 space-y-2.5">
+      {benefits.map((b, i) => (
+        <li
+          key={i}
+          className="flex items-start gap-3 text-[15px]"
+          style={{ color: 'var(--lp-text-muted)', fontFamily: 'var(--lp-font-body)' }}
+        >
+          <span 
+            className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold mt-0.5"
+            style={{ background: 'var(--lp-badge-bg)', color: 'var(--lp-accent)' }}
+          >
+            ✓
+          </span>
+          <span>{b}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function renderCTA(data: LPHeroProps) {
+  return (
+    <div>
+      <a
+        href={data.ctaUrl}
+        className="inline-block px-12 py-5 rounded-xl text-lg font-bold uppercase tracking-wider transition-all duration-300 hover:opacity-90 hover:-translate-y-1 hover:shadow-2xl text-center"
+        style={{ 
+          background: `linear-gradient(135deg, var(--lp-cta-bg), var(--lp-accent))`,
+          color: 'var(--lp-cta-text)',
+          boxShadow: '0 8px 32px var(--lp-shadow)',
+          minWidth: '280px',
+        }}
+      >
+        {data.ctaText}
+      </a>
+      {data.priceDisplay && (
+        <p
+          className="mt-4 text-sm"
+          style={{ color: 'var(--lp-text-muted)', fontFamily: 'var(--lp-font-body)' }}
+          dangerouslySetInnerHTML={{ __html: data.priceDisplay }}
+        />
+      )}
+    </div>
   );
 }
