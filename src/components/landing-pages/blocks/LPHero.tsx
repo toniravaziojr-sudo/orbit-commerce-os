@@ -39,8 +39,8 @@ function HeroSplitRight({ data }: { data: LPHeroProps }) {
       {/* Ambient glows */}
       {hasScene ? (
         <>
-          <div className="absolute inset-0" style={{ background: `radial-gradient(ellipse at 20% 50%, var(--lp-bg, #070A10)f0 0%, transparent 65%), linear-gradient(to right, var(--lp-bg, #070A10)f5 0%, var(--lp-bg, #070A10)dd 35%, var(--lp-bg, #070A10)77 60%, transparent 100%)` }} />
-          <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, transparent 50%, var(--lp-bg, #070A10)dd 100%)' }} />
+          <div className="absolute inset-0" style={{ background: `radial-gradient(ellipse at 20% 50%, rgba(7,4,16,0.94) 0%, transparent 65%), linear-gradient(to right, rgba(7,4,16,0.96) 0%, rgba(7,4,16,0.87) 35%, rgba(7,4,16,0.47) 60%, transparent 100%)` }} />
+          <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, transparent 50%, rgba(7,4,16,0.87) 100%)' }} />
         </>
       ) : (
         <>
