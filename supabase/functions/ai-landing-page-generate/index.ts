@@ -180,7 +180,7 @@ function buildBaseSchema(input: BuildSchemaInput) {
     });
   }
 
-  // Social Proof (if images exist)
+  // Social Proof (if images exist) — up to 24 images
   if (input.assets.socialProofImages.length > 0) {
     sections.push({
       id: 'social_proof',
@@ -188,7 +188,7 @@ function buildBaseSchema(input: BuildSchemaInput) {
       props: {
         badge: 'RESULTADOS REAIS',
         title: 'Transformações de quem já usa',
-        imageUrls: input.assets.socialProofImages.slice(0, 12),
+        imageUrls: input.assets.socialProofImages.slice(0, 24),
       },
     });
   }
@@ -337,6 +337,32 @@ Retorne o JSON completo com os textos melhorados.`;
   return { system, user };
 }
 
+// ========== INTENT CLASSIFICATION ==========
+
+type AdjustmentIntent = 'text' | 'style' | 'asset' | 'structure';
+
+function classifyIntent(prompt: string): AdjustmentIntent {
+  const lower = prompt.toLowerCase();
+  
+  // Structure: adding/removing sections, swapping offers, reordering
+  if (/adicionar?\s+(seção|bloco)|remover?\s+(seção|bloco)|trocar\s+(oferta|produto|card)|substituir|reordenar|mover\s+seção|novo\s+bloco/.test(lower)) {
+    return 'structure';
+  }
+  
+  // Asset: images, scenes, banners, visual compositions
+  if (/imagem|image|foto|photo|banner|visual|gerar.*imagem|trocar.*imagem|mudar.*imagem|renderiz|hero.*visual|composiç|cena|scene|background/.test(lower)) {
+    return 'asset';
+  }
+  
+  // Style: colors, fonts, spacing, design
+  if (/cor(es)?|font|tipografia|espaçamento|padding|margin|design|estilo|tema|dark|light|gradiente|sombra/.test(lower)) {
+    return 'style';
+  }
+  
+  // Default: text (titles, descriptions, CTAs, copy)
+  return 'text';
+}
+
 // ========== AI ADJUSTMENT FOR SCHEMA ==========
 
 function buildSchemaAdjustmentPrompt(params: {
@@ -344,10 +370,18 @@ function buildSchemaAdjustmentPrompt(params: {
   productName: string;
   prompt: string;
   currentSchema: any;
+  intent: AdjustmentIntent;
+  briefing?: any;
 }): { system: string; user: string } {
-  const { storeName, productName, prompt, currentSchema } = params;
+  const { storeName, productName, prompt, currentSchema, intent, briefing } = params;
+
+  // Build intent-specific constraints
+  const intentConstraints = getIntentConstraints(intent, briefing, currentSchema);
 
   const system = `Você é um editor de landing pages de alta conversão. Você recebe o schema JSON de uma landing page e uma solicitação de ajuste.
+
+## INTENÇÃO DETECTADA: ${intent.toUpperCase()}
+${intentConstraints}
 
 ## SUAS CAPACIDADES
 Você pode fazer QUALQUER tipo de ajuste na landing page:
@@ -369,16 +403,17 @@ Você pode fazer QUALQUER tipo de ajuste na landing page:
 7. Quando solicitado trocar um produto/oferta no pricing, altere o nome, preço, CTA e demais campos do card
 8. Quando solicitado criar uma seção, use a estrutura de seções existentes como referência
 9. REGRA DE CTA: Todos os ctaText DEVEM ser CURTOS (máximo 20 caracteres). Exemplos: "Comprar agora", "Quero meu kit", "Aproveitar oferta". PROIBIDO frases longas.
+${intent === 'structure' ? '10. REGRA DE PRICING: NÃO altere o NÚMERO de cards na seção pricing a menos que o usuário peça EXPLICITAMENTE para adicionar ou remover uma oferta. A quantidade de ofertas é definida pelo briefing original.' : ''}
 
 ## TIPOS DE SEÇÃO SUPORTADOS
-- hero: { badge, title, subtitle, benefits[], ctaText, ctaUrl, productImageUrl, backgroundImageUrl, priceDisplay }
+- hero: { badge, title, subtitle, benefits[], ctaText, ctaUrl, productImageUrl, backgroundImageUrl, heroSceneDesktopUrl, heroSceneMobileUrl, priceDisplay }
 - benefits: { items[{ label, title, description, imageUrl }] }
 - testimonials: { badge, title, subtitle, items[{ name, rating, comment }] }
 - social_proof: { badge, title, imageUrls[] }
 - pricing: { badge, title, subtitle, cards[{ name, imageUrl, price, compareAtPrice, discountPercent, installments, ctaText, ctaUrl, isFeatured, featuredBadge }] }
 - faq: { badge, title, items[{ question, answer }] }
 - guarantee: { title, description, badges[] }
-- cta_final: { title, description, productImageUrl, priceDisplay, ctaText, ctaUrl }
+- cta_final: { title, description, productImageUrl, ctaSceneDesktopUrl, ctaSceneMobileUrl, priceDisplay, ctaText, ctaUrl }
 
 ## CONTEXTO
 - Loja: ${storeName}
@@ -397,6 +432,29 @@ ${JSON.stringify(currentSchema, null, 2)}
 Retorne o JSON completo atualizado.`;
 
   return { system, user };
+}
+
+function getIntentConstraints(intent: AdjustmentIntent, briefing: any, currentSchema: any): string {
+  const pricingSection = currentSchema?.sections?.find((s: any) => s.type === 'pricing');
+  const currentCardCount = pricingSection?.props?.cards?.length || 0;
+
+  switch (intent) {
+    case 'text':
+      return `Foco: Alterar APENAS textos (títulos, descrições, CTAs, badges, benefícios, FAQs).
+NÃO altere URLs, preços numéricos, estrutura de seções ou cores.`;
+    case 'style':
+      return `Foco: Alterar cores, fontes, estilos visuais no colorScheme.
+NÃO altere textos de conteúdo ou estrutura de seções.`;
+    case 'asset':
+      return `Foco: O usuário quer alterar imagens/visuais. 
+Se pedir nova imagem/scene/banner, coloque URL vazia "" nos campos correspondentes — o sistema de enhance-images vai preencher automaticamente depois.
+NÃO altere textos de conteúdo ou estrutura.`;
+    case 'structure':
+      return `Foco: Alterar estrutura (adicionar/remover seções, trocar ofertas no pricing).
+REGRA DE PRICING LOCK: A seção pricing atualmente tem ${currentCardCount} cards. Mantenha esse número EXATO a menos que o usuário peça EXPLICITAMENTE para mudar a quantidade.
+Quando trocar uma oferta: substitua nome, preço, CTA do card — mantenha a posição e o isFeatured do card substituído.
+Anti-duplicidade: Máximo 1 seção hero e 1 social_proof.`;
+  }
 }
 
 // ========== JSON RESPONSE PARSER ==========
@@ -696,14 +754,17 @@ serve(async (req) => {
     let parseError: string | undefined;
 
     if (promptType === "adjustment" && savedLandingPage?.generated_schema) {
-      // ── ADJUSTMENT MODE: AI edits existing SCHEMA ──
-      console.log(`[AI-LP-Generate] V7 Schema adjustment mode`);
+      // ── ADJUSTMENT MODE: AI edits existing SCHEMA with intent routing ──
+      const intent = classifyIntent(prompt);
+      console.log(`[AI-LP-Generate] V7 Schema adjustment mode — intent: ${intent}`);
       
       const { system, user } = buildSchemaAdjustmentPrompt({
         storeName,
         productName: firstProduct?.name || 'Produto',
         prompt,
         currentSchema: savedLandingPage.generated_schema,
+        intent,
+        briefing: savedLandingPage.briefing,
       });
 
       resetAIRouterCache();
@@ -894,6 +955,9 @@ serve(async (req) => {
 
     console.log(`[AI-LP-Generate v${VERSION}] Success! Version ${newVersion}, ${finalSchema.sections.length} sections, AI refined: ${aiRefinementUsed}`);
 
+    // Determine intent for response metadata
+    const adjustmentIntent = promptType === 'adjustment' ? classifyIntent(prompt) : null;
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -902,6 +966,8 @@ serve(async (req) => {
         schemaFirst: true,
         sectionCount: finalSchema.sections.length,
         aiRefinementUsed,
+        intent: adjustmentIntent,
+        triggerEnhance: adjustmentIntent === 'asset',
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

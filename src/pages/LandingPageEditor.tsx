@@ -164,12 +164,6 @@ export default function LandingPageEditor() {
     }
   }, [landingPage?.status, refetch]);
 
-  // Detect if a prompt is requesting image changes
-  const isImageRelatedPrompt = (prompt: string): boolean => {
-    const lower = prompt.toLowerCase();
-    return /imagem|image|foto|photo|banner|visual|gerar.*imagem|trocar.*imagem|mudar.*imagem|renderiz|hero.*visual|composiç|cena|scene/.test(lower);
-  };
-
   // Send prompt mutation
   const sendPromptMutation = useMutation({
     mutationFn: async (prompt: string) => {
@@ -187,9 +181,13 @@ export default function LandingPageEditor() {
 
       if (error) throw error;
 
-      // If prompt is image-related, trigger image enhancement pipeline (recursive)
-      if (isImageRelatedPrompt(prompt)) {
-        console.log('[LP-Editor] Image-related prompt detected, triggering enhance pipeline...');
+      // Use server-side intent classification — trigger enhance when intent is 'asset'
+      // Also support legacy heuristic as fallback
+      const shouldEnhance = data?.triggerEnhance === true || 
+        /imagem|image|foto|photo|banner|visual|gerar.*imagem|trocar.*imagem|mudar.*imagem|renderiz|hero.*visual|composiç|cena|scene/.test(prompt.toLowerCase());
+
+      if (shouldEnhance) {
+        console.log(`[LP-Editor] Asset intent detected (server: ${data?.intent}), triggering enhance pipeline...`);
         const enhanceRecursive = async (startFromIndex = 0, stage = 1) => {
           try {
             const { data: enhData, error: enhErr } = await supabase.functions.invoke('ai-landing-page-enhance-images', {
