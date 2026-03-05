@@ -1,4 +1,5 @@
 import type { LPFaqProps } from '@/lib/landing-page-schema';
+import { useLPScrollReveal } from '@/hooks/useLPScrollReveal';
 import {
   Accordion,
   AccordionContent,
@@ -11,11 +12,13 @@ interface Props {
 }
 
 export function LPFaq({ data }: Props) {
+  const revealRef = useLPScrollReveal();
+
   return (
-    <section className="px-[5%] py-16 md:py-24" style={{ background: 'var(--lp-bg)' }}>
-      <div className="text-center max-w-[700px] mx-auto mb-14">
+    <section ref={revealRef} className="px-[5%] py-16 md:py-24 lp-noise" style={{ background: 'var(--lp-bg)' }}>
+      <div className="text-center max-w-[700px] mx-auto mb-14 lp-reveal">
         <span
-          className="inline-block px-5 py-2 rounded-full text-[11px] font-bold uppercase tracking-[0.2em] mb-5"
+          className="lp-badge-pulse inline-block px-5 py-2 rounded-full text-[11px] font-bold uppercase tracking-[0.2em] mb-5"
           style={{ 
             background: 'var(--lp-badge-bg)', 
             color: 'var(--lp-badge-text)',
@@ -41,13 +44,18 @@ export function LPFaq({ data }: Props) {
             <AccordionItem
               key={i}
               value={`faq-${i}`}
-              className="rounded-xl px-6 overflow-hidden relative"
+              className={`lp-reveal lp-reveal-delay-${Math.min(i + 1, 4)} rounded-xl px-6 overflow-hidden relative transition-all duration-300 hover:-translate-y-0.5`}
               style={{ 
                 background: 'var(--lp-card-bg)',
                 border: '1px solid var(--lp-card-border)',
-                backdropFilter: 'blur(8px)',
+                backdropFilter: 'blur(12px)',
               }}
             >
+              {/* Glass highlight */}
+              <div 
+                className="absolute top-0 left-0 right-0 h-px rounded-t-xl"
+                style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent)' }}
+              />
               <AccordionTrigger
                 className="text-left text-base font-semibold hover:no-underline py-5"
                 style={{ color: 'var(--lp-text)', fontFamily: 'var(--lp-font-body)' }}
@@ -57,7 +65,7 @@ export function LPFaq({ data }: Props) {
               <AccordionContent className="pb-5">
                 <p
                   className="text-sm leading-relaxed"
-                  style={{ color: 'var(--lp-text-muted)', fontFamily: 'var(--lp-font-body)' }}
+                  style={{ color: 'var(--lp-text-muted)', fontFamily: 'var(--lp-font-body)', lineHeight: '1.75' }}
                 >
                   {item.answer}
                 </p>
