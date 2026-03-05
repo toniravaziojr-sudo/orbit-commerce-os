@@ -158,11 +158,17 @@ export default function LandingPageEditor() {
       return () => clearInterval(interval);
     }
     // After page loads, refetch periodically to pick up async image enhancement
-    if (landingPage?.status === 'draft' && (landingPage?.generated_blocks || landingPage?.generated_html)) {
+    if (landingPage?.status === 'draft' && (landingPage?.generated_blocks || landingPage?.generated_html || landingPage?.generated_schema)) {
       const timer = setTimeout(() => refetch(), 30000);
       return () => clearTimeout(timer);
     }
   }, [landingPage?.status, refetch]);
+
+  // Detect if a prompt is requesting image changes
+  const isImageRelatedPrompt = (prompt: string): boolean => {
+    const lower = prompt.toLowerCase();
+    return /imagem|image|foto|photo|banner|visual|gerar.*imagem|trocar.*imagem|mudar.*imagem|renderiz|hero.*visual|composiç|cena|scene/.test(lower);
+  };
 
   // Send prompt mutation
   const sendPromptMutation = useMutation({
@@ -180,6 +186,26 @@ export default function LandingPageEditor() {
       });
 
       if (error) throw error;
+
+      // If prompt is image-related, trigger image enhancement pipeline
+      if (isImageRelatedPrompt(prompt)) {
+        console.log('[LP-Editor] Image-related prompt detected, triggering enhance pipeline...');
+        supabase.functions.invoke('ai-landing-page-enhance-images', {
+          body: {
+            landingPageId: id,
+            tenantId: tenant.id,
+            userId: user.id,
+            startFromIndex: 0,
+            stage: 1,
+          },
+        }).then(({ data: enhData }) => {
+          console.log('[LP-Editor] Enhance result:', enhData);
+          queryClient.invalidateQueries({ queryKey: ['ai-landing-page', id] });
+        }).catch(err => {
+          console.warn('[LP-Editor] Enhance error (non-blocking):', err);
+        });
+      }
+
       return data;
     },
     onSuccess: () => {

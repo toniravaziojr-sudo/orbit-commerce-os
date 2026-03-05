@@ -207,7 +207,7 @@ function buildBaseSchema(input: BuildSchemaInput) {
       subtitle: 'Quanto maior o kit, maior a economia',
       cards: pricingProducts.map((prod, i) => ({
         name: prod.name,
-        imageUrl: (prod.slug && input.assets.offerCardImages[prod.slug]) || prod.primaryImage || input.assets.heroImageUrl,
+        imageUrl: (prod.id && input.assets.offerCardImages[prod.id]) || prod.primaryImage || input.assets.heroImageUrl,
         price: prod.price,
         compareAtPrice: prod.compareAtPrice || null,
         discountPercent: prod.discountPercent || null,
@@ -418,7 +418,7 @@ serve(async (req) => {
     // Fetch the landing page
     const { data: savedLandingPage, error: lpError } = await supabase
       .from("ai_landing_pages")
-      .select("product_ids, reference_url, generated_html, generated_css, generated_schema, current_version, show_header, show_footer, briefing")
+      .select("product_ids, reference_url, generated_html, generated_css, generated_schema, current_version, show_header, show_footer, briefing, is_published")
       .eq("id", landingPageId)
       .single();
 
@@ -482,6 +482,7 @@ serve(async (req) => {
             : null;
 
           const pd: ProductData = {
+            id: p.id,
             name: p.name,
             slug: p.slug,
             price: p.price,
@@ -516,7 +517,7 @@ serve(async (req) => {
                 .select("id, name, slug, price, compare_at_price, product_format, status")
                 .in("id", kitParentIds)
                 .eq("product_format", "with_composition")
-                .eq("status", "active")
+                .in("status", ["active", "inactive"])
                 .is("deleted_at", null);
 
               if (kitProducts && kitProducts.length > 0) {
@@ -540,6 +541,7 @@ serve(async (req) => {
                     ? Math.round(((compareAt - kit.price) / compareAt) * 100)
                     : null;
                   kits.push({
+                    id: kit.id,
                     name: kit.name,
                     slug: kit.slug,
                     price: kit.price,
@@ -765,6 +767,9 @@ serve(async (req) => {
     // ===== STEP 5: PERSIST =====
     const newVersion = (savedLandingPage?.current_version || 0) + 1;
 
+    // Preserve published status if page was already published
+    const isCurrentlyPublished = savedLandingPage?.is_published === true;
+    
     const { error: updateError } = await supabase
       .from("ai_landing_pages")
       .update({
@@ -773,7 +778,7 @@ serve(async (req) => {
         generated_css: null,
         generated_blocks: null,
         current_version: newVersion,
-        status: "draft",
+        status: isCurrentlyPublished ? "published" : "draft",
         metadata: {
           engineVersion: "v7.0",
           schemaFirst: true,
