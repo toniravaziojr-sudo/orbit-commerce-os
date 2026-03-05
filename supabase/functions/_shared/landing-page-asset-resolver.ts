@@ -28,6 +28,32 @@ export interface AssetResolverInput {
   niche: string;
 }
 
+/** Helper: resolve public/signed URL from a file record */
+function resolveFileUrl(supabase: any, file: { storage_path: string; metadata: any }): string | Promise<string> {
+  try {
+    const meta = file.metadata as Record<string, any> | null;
+    // Priority: stored public URL > generate public URL > signed URL
+    const storedUrl = meta?.url as string | undefined;
+    if (storedUrl && storedUrl.startsWith('http')) return storedUrl;
+
+    const bucket = (meta?.bucket as string) || 'tenant-files';
+    const { data: pubData } = supabase.storage.from(bucket).getPublicUrl(file.storage_path);
+    const publicUrl = pubData?.publicUrl;
+
+    // For private buckets, return a promise that resolves to a signed URL
+    if (bucket === 'tenant-files' && publicUrl) {
+      return (async () => {
+        const { data: signedData } = await supabase.storage.from(bucket).createSignedUrl(file.storage_path, 86400);
+        return signedData?.signedUrl || publicUrl;
+      })();
+    }
+
+    return (publicUrl && publicUrl.startsWith('http')) ? publicUrl : '';
+  } catch {
+    return '';
+  }
+}
+
 /**
  * Deterministically resolves images for each LP slot.
  * No AI involvement — pure data lookups.
