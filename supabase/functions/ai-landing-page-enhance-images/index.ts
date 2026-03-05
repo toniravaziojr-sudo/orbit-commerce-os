@@ -274,13 +274,13 @@ function buildCompositionPrompt(
   
   let sceneVibe: string;
   if (/cabelo|shampoo|condicion|capilar|calvíc|queda|fio/.test(nameAndTags)) {
-    sceneVibe = `banheiro moderno premium, bancada de mármore escuro, gotas d'água, iluminação dourada suave, plantas tropicais desfocadas ao fundo, toalha branca`;
+    sceneVibe = `banheiro moderno premium, bancada de mármore escuro, gotas d'água sutis, iluminação dourada suave, plantas tropicais desfocadas ao fundo, toalha branca dobrada`;
   } else if (/skin|pele|facial|anti.?idade|colág|sérum|creme|hidrat/.test(nameAndTags)) {
-    sceneVibe = `vanity table elegante, espelho dourado ao fundo, flores frescas, superfície de mármore branco, iluminação natural suave`;
+    sceneVibe = `vanity table elegante, espelho dourado ao fundo desfocado, flores frescas, superfície de mármore branco, iluminação natural suave de janela`;
   } else if (/suplement|whey|proteín|creatina|bcaa|fitness|treino|músculo/.test(nameAndTags)) {
-    sceneVibe = `superfície de concreto polido escuro, iluminação dramática lateral azulada, equipamento fitness premium desfocado`;
+    sceneVibe = `superfície de concreto polido escuro, iluminação dramática lateral azulada, halteres desfocados ao fundo`;
   } else if (/aliment|comida|orgânic|natural|chá|café|erva/.test(nameAndTags)) {
-    sceneVibe = `mesa de madeira rústica nobre, ingredientes naturais, iluminação quente de janela, folhas verdes`;
+    sceneVibe = `mesa de madeira rústica nobre, ingredientes naturais espalhados, iluminação quente de janela, folhas verdes`;
   } else if (/tech|eletrôn|gadget|smart|digital/.test(nameAndTags)) {
     sceneVibe = `mesa de escritório moderna minimalista, acabamento fosco escuro, LED ambiental azul/roxo sutil`;
   } else {
@@ -288,7 +288,7 @@ function buildCompositionPrompt(
   }
 
   const brandNote = brandColors?.primary 
-    ? `Cores de destaque da marca: ${brandColors.primary}${brandColors.accent ? ` e ${brandColors.accent}` : ''}. Use nas luzes ambiente e reflexos sutis.`
+    ? `Cores de destaque da marca: ${brandColors.primary}${brandColors.accent ? ` e ${brandColors.accent}` : ''}. Use essas cores nas luzes ambiente, reflexos sutis e gradientes.`
     : '';
 
   const isMobile = spec.promptSuffix.includes('MOBILE');
@@ -296,42 +296,44 @@ function buildCompositionPrompt(
   const sectionLabel = isHero ? 'HERO' : 'CTA';
   const orientation = isMobile ? 'VERTICAL RETRATO 9:16 (1080x1920px)' : 'HORIZONTAL PAISAGEM 16:9 (1920x1080px)';
 
+  // V4.1: Background-only composition — product will be overlaid via CSS
   const layoutInstruction = isMobile
-    ? `- Produto centralizado no terço inferior da imagem, ocupando 40-55% da altura
-- Terço superior com área mais escura/gradiente para sobrepor texto branco
-- Produto inteiro visível (sem cortar topo da tampa/bomba ou base)`
-    : `- Produto posicionado no LADO DIREITO da imagem, ocupando 28-35% da largura
-- Lado esquerdo (60%) mais escuro com gradiente suave para sobrepor texto
-- Margem segura de 10% ao redor do produto (sem cortar nada)
-- Produto inteiro visível de cima a baixo`;
+    ? `- TODA a imagem é cenário/ambiente — SEM produto
+- Terço superior levemente mais escuro (gradiente) para acomodar texto branco sobreposto
+- Centro e terço inferior com elementos de cenário interessantes mas não muito carregados
+- A imagem servirá de FUNDO; o produto real será sobreposto via CSS no terço inferior`
+    : `- TODA a imagem é cenário/ambiente — SEM produto
+- Lado ESQUERDO (60%) deve ser mais escuro ou com gradiente para acomodar texto branco sobreposto
+- Lado DIREITO (40%) pode ter elementos de cenário mas com área "respirável" onde o produto será sobreposto via CSS
+- A imagem servirá de FUNDO; o produto real será sobreposto via CSS no lado direito`;
 
-  return `BANNER PREMIUM DE PRODUTO — ${sectionLabel} ${isMobile ? 'MOBILE' : 'DESKTOP'} (${orientation})
+  return `BACKGROUND PREMIUM PARA LANDING PAGE — ${sectionLabel} ${isMobile ? 'MOBILE' : 'DESKTOP'} (${orientation})
 
-TAREFA: Criar um banner fotorrealista premium para landing page de e-commerce.
-A PRIMEIRA IMAGEM ANEXADA é o produto "${product.name}" da marca "${storeName}".
-Você DEVE incluir EXATAMENTE este produto na composição — mesmas cores, mesmo rótulo, mesma forma.
+TAREFA: Criar um CENÁRIO/FUNDO fotorrealista premium para landing page de e-commerce.
+O produto "${product.name}" da marca "${storeName}" será sobreposto por cima via CSS — portanto NÃO inclua nenhum produto na imagem.
+${hasDriveRefs ? 'A primeira imagem anexada é o produto (apenas para referência de cores/atmosfera). As demais são referências de estilo da marca.' : 'A imagem anexada é o produto (apenas para referência de cores/atmosfera — NÃO reproduza o produto).'}
 
-COMPOSIÇÃO (${orientation}):
+COMPOSIÇÃO DO FUNDO (${orientation}):
 ${layoutInstruction}
 
 CENÁRIO/AMBIENTE:
 ${sceneVibe}
 
 REGRAS CRÍTICAS:
-1. O produto na imagem DEVE ser IDÊNTICO ao da foto de referência — mesmas cores, mesmo rótulo, mesma tipografia, mesma forma
-2. NÃO redesenhe, recolora ou modifique o produto de nenhuma forma
-3. O produto deve estar em PROPORÇÃO NATURAL (como uma foto de estúdio real)
-4. Profundidade de campo: produto nítido em foco, fundo com bokeh suave
-5. Iluminação cinematográfica que valoriza o produto com sombras naturais
-6. Qualidade de foto publicitária profissional (4K, sem ruído)
+1. NÃO inclua nenhum produto, frasco, embalagem, ou objeto de produto na imagem
+2. Gere APENAS o cenário/fundo/ambiente — superfícies, luzes, bokeh, texturas
+3. Profundidade de campo com bokeh suave e cinematográfico
+4. Iluminação premium de estúdio que criará atmosfera quando o produto for sobreposto
+5. Qualidade de foto publicitária profissional (4K, sem ruído, sem artefatos)
+6. O fundo deve ter boa harmonia cromática com as cores do produto de referência
 ${brandNote}
 
 PROIBIDO:
-- ❌ NÃO alterar cores/texto/design do produto
+- ❌ NÃO incluir nenhum produto, frasco, garrafa, caixa, embalagem ou item à venda
 - ❌ NÃO gerar texto, lettering, logos ou badges na imagem
-- ❌ NÃO usar fundo branco chapado
+- ❌ NÃO usar fundo branco chapado — o cenário deve ser rico e premium
 - ❌ NÃO incluir mãos, pessoas ou modelos
-- ❌ NÃO cortar nenhuma parte do produto${hasDriveRefs ? '\n\nAs imagens extras são referências de estilo da marca — use como inspiração de atmosfera/luz.' : ''}`;
+- ❌ NÃO incluir mockups ou representações de produtos`;
 }
 
 // ========== MAIN HANDLER ==========
