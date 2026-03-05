@@ -1439,11 +1439,12 @@ serve(async (req) => {
         schema_content: finalSchema,
         created_by: userId,
         generation_metadata: {
-          engineVersion: "v8.0",
+          engineVersion: "v9.0",
           schemaFirst: true,
           aiRefinementUsed,
           model: aiRefinementUsed ? "google/gemini-2.5-flash" : "none",
           templateId: finalSchema.templateId || null,
+          premiumTemplateId: finalSchema.premiumTemplateId || null,
           mood: finalSchema.mood || null,
           variantSeed: finalSchema.variantSeed || null,
           section_count: finalSchema.sections.length,
