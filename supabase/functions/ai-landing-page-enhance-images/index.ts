@@ -422,17 +422,21 @@ serve(async (req) => {
       );
     }
 
-    // 3. Store name + brand colors
+    // 3. Store name + brand colors (prefer schema colorScheme over store_settings)
     const { data: storeSettings } = await supabase
       .from("store_settings")
-      .select("store_name, primary_color, secondary_color, accent_color")
+      .select("store_name")
       .eq("tenant_id", tenantId)
       .single();
     const storeName = storeSettings?.store_name || "Loja";
+    
+    // Extract brand colors from schema colorScheme (which was derived from PRODUCT image)
+    const schemaColors = lp.generated_schema?.colorScheme;
     const brandColors = {
-      primary: storeSettings?.primary_color || undefined,
-      accent: storeSettings?.accent_color || storeSettings?.secondary_color || undefined,
+      primary: schemaColors?.accent || schemaColors?.ctaBg || undefined,
+      accent: schemaColors?.priceCurrent || schemaColors?.badgeText || undefined,
     };
+    console.log(`[AI-LP-Enhance] Using brand colors from schema: primary=${brandColors.primary}, accent=${brandColors.accent}`);
 
     // 4. Drive references — search brand/creative folders first, then product name (non-blocking)
     let driveReferenceBase64s: string[] = [];
