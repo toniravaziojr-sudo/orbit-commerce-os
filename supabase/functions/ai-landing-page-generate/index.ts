@@ -20,6 +20,7 @@ import {
   type ProductData,
   type ReviewData,
 } from "../_shared/landing-page-templates.ts";
+import { getNicheImages } from "../_shared/landing-page-stock-images.ts";
 
 const VERSION = "6.0.0"; // Engine V6: Templates + AI Copy
 
@@ -502,6 +503,11 @@ serve(async (req) => {
       }
 
       // Phase 1: Assemble from templates (instant, no AI needed)
+      // Resolve stock images for the niche
+      const nicheKey = enginePlan.resolvedNiche || 'geral';
+      const stockImages = getNicheImages(nicheKey);
+      console.log(`[AI-LP-Generate] Stock images resolved for niche: ${nicheKey}`);
+
       const templateInput: PageTemplateInput = {
         storeName,
         primaryColor,
@@ -515,6 +521,8 @@ serve(async (req) => {
         socialProofImages,
         ctaText,
         ctaUrl,
+        niche: nicheKey,
+        stockImages,
       };
 
       const assembled = assembleLandingPage(templateInput);
