@@ -24,7 +24,10 @@ export function HeroUrbanStreet({ data }: Props) {
       }),
     }}>
       {hasScene && (
-        <div className="absolute inset-0" style={{ background: `var(--lp-bg)`, opacity: 0.8 }} />
+        <>
+          <div className="absolute inset-0" style={{ background: `var(--lp-bg)`, opacity: 0.82 }} />
+          <div className="absolute inset-0" style={{ background: `linear-gradient(to right, var(--lp-bg)f5 0%, var(--lp-bg)bb 50%, transparent 100%)` }} />
+        </>
       )}
 
       {/* Diagonal stripes */}
