@@ -155,14 +155,17 @@ export function useOrderLimitCheck() {
 
   return useQuery({
     queryKey: ['order-limit-check', currentTenant?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<OrderLimitCheck | null> => {
       if (!currentTenant?.id) return null;
 
       const { data, error } = await supabase
         .rpc('check_tenant_order_limit', { p_tenant_id: currentTenant.id });
 
-      if (error) throw error;
-      return data?.[0] as OrderLimitCheck | null;
+      if (error) {
+        console.warn('[useOrderLimitCheck] RPC error:', error.message);
+        return null;
+      }
+      return (data?.[0] as OrderLimitCheck) ?? null;
     },
     enabled: !!currentTenant?.id,
     refetchInterval: 60000, // Refresh a cada minuto
