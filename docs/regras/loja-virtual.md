@@ -962,10 +962,171 @@ Quando o `ads-autopilot-strategist` dispara geração de LP, passa briefing com 
 
 ---
 
+---
+
+## AI Landing Pages — Engine V7.0 (Schema-First + React Renderer)
+
+### Arquitetura V7
+
+A V7 substitui o modelo de HTML gerado por IA por uma arquitetura **schema-first**, onde a IA gera um JSON estruturado (`LPSchema`) e o frontend renderiza com componentes React reais.
+
+```
+Briefing → Asset Resolver → IA (Gemini Flash) → LPSchema JSON → LPSchemaRenderer (React) → Página publicada
+```
+
+### Diferença Fundamental: V5/V6 vs V7
+
+| Aspecto | V5/V6 | V7 |
+|---------|-------|----|
+| **Output da IA** | HTML/CSS ou BlockNode JSON | `LPSchema` JSON estruturado |
+| **Renderização** | iframe (HTML) ou BlockRenderer (blocks) | `LPSchemaRenderer` (React nativo, sem iframe) |
+| **Componentes** | Genéricos do Builder ou HTML string | Blocos LP dedicados (`LPHero`, `LPPricing`, etc.) |
+| **Ajuste via chat** | Mutação de HTML bruto | Patch de schema JSON |
+| **Assets** | IA escolhe livremente | Asset Resolver determinístico por slot |
+| **Validação** | Sanitizer HTML | Zod schema estrito |
+| **Armazenamento** | `generated_html` / `generated_blocks` | `generated_schema` (JSONB) |
+| **Color scheme** | CSS inline / tema do builder | CSS variables `--lp-*` escopadas |
+
+### Prioridade de Renderização
+
+Em todos os pontos de renderização (`StorefrontAILandingPage`, `LandingPageEditor`, `LandingPagePreviewDialog`):
+
+```
+1. generated_schema  → LPSchemaRenderer (V7, React nativo)
+2. generated_html    → iframe via buildDocumentShell (V6 fallback)
+3. generated_blocks  → BlockRenderer (V5 legado)
+```
+
+### Schema Types (`src/lib/landing-page-schema.ts`)
+
+```typescript
+interface LPSchema {
+  version: '7.0';
+  visualStyle: 'premium' | 'comercial' | 'minimalista' | 'direto';
+  colorScheme: LPColorScheme;  // 18 tokens de cor + fontes
+  showHeader: boolean;
+  showFooter: boolean;
+  sections: LPSection[];       // 2-12 seções
+}
+```
+
+**Tipos de seção permitidos:** `hero`, `benefits`, `testimonials`, `social_proof`, `pricing`, `faq`, `guarantee`, `cta_final`
+
+Cada tipo tem **props tipadas** (não `Record<string, any>`). Validação via Zod (`zLPSchema`).
+
+### Componentes LP React (`src/components/landing-pages/blocks/`)
+
+| Componente | Arquivo | Responsabilidade |
+|---|---|---|
+| `LPHero` | `LPHero.tsx` | Hero split: imagem + copy + CTA → `#ofertas` |
+| `LPBenefits` | `LPBenefits.tsx` | Grid de benefícios com imagens alternadas |
+| `LPTestimonials` | `LPTestimonials.tsx` | Grid de depoimentos com estrelas |
+| `LPSocialProof` | `LPSocialProof.tsx` | Galeria de provas sociais (imagens do Drive) |
+| `LPPricing` | `LPPricing.tsx` | Cards de ofertas com destaque no kit recomendado |
+| `LPFaq` | `LPFaq.tsx` | Accordion de perguntas frequentes |
+| `LPGuarantee` | `LPGuarantee.tsx` | Seção de garantia com badges |
+| `LPCtaFinal` | `LPCtaFinal.tsx` | CTA final com imagem do produto e preço |
+
+**Regras dos componentes:**
+- Consomem CSS variables `--lp-*` (nunca inline colors soltas)
+- Nativamente responsivos via Tailwind
+- Sem iframe — renderizados como React nativo
+- Tipografia carregada via `<link>` no `LPSchemaRenderer`
+
+### Color Scheme — CSS Variables Escopadas
+
+As variáveis LP são namespaced (`--lp-*`) e ficam no wrapper da LP para não colidirem com `--theme-*` ou `--sf-*` do storefront:
+
+| Variável | Uso |
+|----------|-----|
+| `--lp-bg` / `--lp-bg-alt` | Fundos principal e alternativo |
+| `--lp-text` / `--lp-text-muted` | Texto e texto secundário |
+| `--lp-accent` | Cor de destaque |
+| `--lp-cta-bg` / `--lp-cta-text` | Botões CTA |
+| `--lp-card-bg` / `--lp-card-border` | Cards |
+| `--lp-price-current` / `--lp-price-old` | Preços |
+| `--lp-badge-bg` / `--lp-badge-text` | Badges |
+| `--lp-shadow` / `--lp-divider` | Sombras e divisores |
+| `--lp-font-display` / `--lp-font-body` | Tipografia |
+
+### LPSchemaRenderer (`src/components/landing-pages/LPSchemaRenderer.tsx`)
+
+- Recebe `LPSchema` como prop
+- Injeta `--lp-*` como CSS variables no wrapper
+- Carrega fontes via `<link rel="stylesheet">`
+- Mapeia `sections[]` → componente React correto
+- Usado em: `StorefrontAILandingPage`, `LandingPageEditor`, `LandingPagePreviewDialog`
+
+### Asset Resolver (`supabase/functions/_shared/landing-page-asset-resolver.ts`)
+
+Função determinística que resolve imagens por slot antes da IA agir:
+
+| Slot | Fonte |
+|------|-------|
+| `heroImageUrl` | Imagem primária do produto principal |
+| `heroBackgroundUrl` | Stock por nicho |
+| `offerCardImages` | Map `product_id → primary_image_url` (kits) |
+| `socialProofImages` | Pastas do Drive (feedback, review, prova, resultado, depoimento) |
+| `benefitImages` | Imagens secundárias do produto + stock |
+
+**REGRA:** A IA não escolhe imagens livremente. Ela recebe o mapa de assets resolvido.
+
+### CTA Links — Regra de 2 Níveis
+
+| Contexto | Destino |
+|----------|---------|
+| Hero / CTA final / CTAs contextuais | `#ofertas` (scroll) |
+| Botões dentro dos cards de pricing | Deep link real do kit (cart/checkout) |
+
+**REGRA:** Não usar a PDP do produto base como CTA quando a LP vende kits/ofertas.
+
+### Strategy Planner (IA → Schema)
+
+**Geração:** IA recebe contexto + assets + blocos disponíveis → retorna `LPSchema` JSON via tool calling → valida com Zod → salva em `generated_schema`
+
+**Ajuste via chat:** IA recebe schema atual + pedido → retorna schema patch → aplica → valida → salva nova versão
+
+**REGRA:** Ajuste via chat opera exclusivamente por schema patch. Nada de HTML.
+
+### Header/Footer — Sem Alteração
+
+- A IA **nunca** gera header/footer dentro da LP
+- `show_header` / `show_footer` continuam como flags do banco (fonte de verdade)
+- O runtime público injeta `StorefrontHeader` / `StorefrontFooter` reais fora do conteúdo
+- Container queries: `containerType: inline-size`, `containerName: storefront`
+- **REGRA:** Exatamente a mesma lógica de V5/V6. Sem alteração.
+
+### Presets Visuais
+
+| Style | Fundo | Tipografia Display | Tipografia Body |
+|-------|-------|--------------------|-----------------|
+| `premium` | Dark (#0a0a0a) | Playfair Display | Inter |
+| `comercial` | Branco (#fff) | Montserrat | Open Sans |
+| `minimalista` | Off-white (#fafafa) | Sora | Inter |
+| `direto` | Branco (#fff) | Inter | Inter |
+
+### Compatibilidade / Fallbacks
+
+- LPs com `generated_html` (V6) continuam funcionando via iframe
+- LPs com `generated_blocks` (V5) continuam funcionando via BlockRenderer
+- `buildDocumentShell`, `sanitizeAILandingPageHtml` mantidos para legado
+- Marketing pixels mantidos em LPs HTML (iframe)
+- Favicon/branding mantidos
+
+### Hero Banner IA (Fase 2 — Futuro)
+
+Geração de hero com IA de imagem é opcional e não bloqueia a V7:
+- Schema já suporta `backgroundImageUrl` no hero
+- Quando disponível, o sistema atualiza o schema com o asset gerado
+- Usa pipeline existente do `creative-image-generate`
+
+---
+
 ## Histórico de Alterações
 
 | Data | Alteração |
 |------|-----------|
+| 2026-03-05 | **ENGINE V7.0**: Migração para Schema-First + React Renderer. IA gera `LPSchema` JSON (não HTML). 8 blocos LP React com CSS variables `--lp-*`. Asset Resolver determinístico por slot. Ajustes via chat por schema patch. Renderização nativa sem iframe. Prioridade: schema > HTML > blocks. Coluna `generated_schema` (JSONB) em `ai_landing_pages`. |
 | 2026-03-04 | **ENGINE V5.0**: Migração para JSON-to-React — tool calling com `build_landing_page`, `assembleBlockTree()`, `generated_blocks` (JSONB), render via `PublicTemplateRenderer`. Auto-descoberta de kits via `product_components`. Busca de provas sociais em pastas do Drive. Fallback HTML legado mantido. |
 | 2026-03-04 | **AI LP CONTAINER FIX**: Wrappers de Header/Footer em `StorefrontAILandingPage.tsx` devem incluir `containerName: 'storefront'` para que Container Queries funcionem corretamente |
 | 2026-03-04 | **ENGINE V4.1**: Sanitização HTML (sanitizeAILandingPageHtml), prioridade de ativos (criativos > lifestyle > catálogo), badges condicionais, proibição de footer pela IA, CSS safety suavizado |
