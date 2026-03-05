@@ -37,6 +37,15 @@ export interface PageTemplateInput {
   socialProofImages: string[];
   ctaText: string;
   ctaUrl: string;
+  /** Resolved niche for stock image selection */
+  niche?: string;
+  /** Pre-resolved stock images per section */
+  stockImages?: {
+    hero: string[];
+    benefits: string[];
+    trust: string[];
+    lifestyle: string[];
+  };
 }
 
 // ========== COLOR SCHEMES ==========
@@ -166,14 +175,20 @@ function installments(price: number, n = 12): string {
 function sectionHero(input: PageTemplateInput, c: ReturnType<typeof getColorScheme>): string {
   const p = input.mainProduct;
   const img = p.primaryImage || '';
+  const heroStockBg = input.stockImages?.hero?.[0] || '';
   const benefits = [
     p.shortDescription || 'Resultados comprovados por milhares de clientes',
     'Fórmula exclusiva de alta performance',
     'Satisfação garantida ou seu dinheiro de volta',
   ];
 
+  // Use stock image as atmospheric background when available
+  const bgStyle = heroStockBg 
+    ? `background: linear-gradient(135deg, ${c.bg}ee 0%, ${c.bg}cc 50%, ${c.bg}88 100%), url('${heroStockBg}') center/cover no-repeat; ${c.bg === '#0a0a0a' || c.bg === '#111111' ? '' : ''}`
+    : `background: ${c.bg}`;
+
   return `
-<section class="lp-hero">
+<section class="lp-hero" style="${bgStyle}">
   <div class="lp-hero-content">
     <span class="lp-hero-badge">${p.brand || input.storeName}</span>
     <h1 class="lp-hero-title">${p.name}</h1>
@@ -192,13 +207,21 @@ function sectionHero(input: PageTemplateInput, c: ReturnType<typeof getColorSche
 
 function sectionBenefits(input: PageTemplateInput, c: ReturnType<typeof getColorScheme>): string {
   const p = input.mainProduct;
-  const images = p.allImages || [p.primaryImage || ''];
+  const productImages = p.allImages || [p.primaryImage || ''];
+  const stockBenefitImages = input.stockImages?.benefits || [];
   
-  // Generate 3 benefit blocks alternating image position
+  // Hybrid strategy: alternate product images with stock lifestyle images
+  const getBenefitImage = (index: number): string => {
+    // First block: product image (primary); Second: stock lifestyle; Third: product or stock
+    if (index === 0) return productImages[0] || stockBenefitImages[0] || '';
+    if (index === 1) return stockBenefitImages[0] || productImages[1] || productImages[0] || '';
+    return productImages[2] || productImages[1] || stockBenefitImages[1] || stockBenefitImages[0] || productImages[0] || '';
+  };
+
   const benefitBlocks = [
-    { label: 'QUALIDADE PREMIUM', title: 'Desenvolvido com os melhores ingredientes', desc: 'Cada detalhe foi pensado para entregar o máximo resultado. Tecnologia avançada combinada com ingredientes selecionados.', img: images[0] || '' },
-    { label: 'RESULTADO COMPROVADO', title: 'Aprovado por quem mais entende', desc: 'Milhares de clientes satisfeitos comprovam a eficácia. Resultados visíveis desde as primeiras utilizações.', img: images[1] || images[0] || '' },
-    { label: 'FÁCIL DE USAR', title: 'Praticidade no seu dia a dia', desc: 'Integre facilmente na sua rotina. Simples, rápido e eficiente — sem complicação.', img: images[2] || images[0] || '' },
+    { label: 'QUALIDADE PREMIUM', title: 'Desenvolvido com os melhores ingredientes', desc: 'Cada detalhe foi pensado para entregar o máximo resultado. Tecnologia avançada combinada com ingredientes selecionados.', img: getBenefitImage(0) },
+    { label: 'RESULTADO COMPROVADO', title: 'Aprovado por quem mais entende', desc: 'Milhares de clientes satisfeitos comprovam a eficácia. Resultados visíveis desde as primeiras utilizações.', img: getBenefitImage(1) },
+    { label: 'FÁCIL DE USAR', title: 'Praticidade no seu dia a dia', desc: 'Integre facilmente na sua rotina. Simples, rápido e eficiente — sem complicação.', img: getBenefitImage(2) },
   ];
 
   return benefitBlocks.map((b, i) => `
