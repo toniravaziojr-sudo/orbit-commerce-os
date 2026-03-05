@@ -1271,8 +1271,8 @@ serve(async (req) => {
         generated_blocks: null,
         current_version: newVersion,
         status: isCurrentlyPublished ? "published" : "draft",
-        metadata: {
-          engineVersion: "v7.1",
+      metadata: {
+          engineVersion: "v8.0",
           schemaFirst: true,
           aiRefinementUsed,
           colorsFromProduct: brandKit.extractedFromProduct || false,
@@ -1285,6 +1285,9 @@ serve(async (req) => {
           kitCount: kits.length,
           reviewCount,
           socialProofCount: finalSchema.sections.find((s: any) => s.type === 'social_proof')?.props?.imageUrls?.length || 0,
+          templateId: finalSchema.templateId || null,
+          mood: finalSchema.mood || null,
+          variantSeed: finalSchema.variantSeed || null,
         },
       })
       .eq("id", landingPageId);
