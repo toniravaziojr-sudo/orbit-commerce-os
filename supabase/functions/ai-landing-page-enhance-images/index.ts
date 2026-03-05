@@ -45,14 +45,16 @@ async function callImageModel(
   lovableApiKey: string,
   model: string,
   prompt: string,
-  productBase64: string,
+  productBase64: string | null,
   styleReferences?: string[],
 ): Promise<string | null> {
   const content: any[] = [
     { type: 'text', text: prompt },
-    // Product image is the PRIMARY reference — AI generates the banner WITH this product
-    { type: 'image_url', image_url: { url: 'data:image/png;base64,' + productBase64 } },
   ];
+  // Product image as STYLE REFERENCE only (for color/lighting matching, NOT to reproduce)
+  if (productBase64) {
+    content.push({ type: 'image_url', image_url: { url: 'data:image/png;base64,' + productBase64 } });
+  }
   // Additional style references from Drive (brand assets)
   if (styleReferences && styleReferences.length > 0) {
     for (const refB64 of styleReferences.slice(0, 2)) {
