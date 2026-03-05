@@ -57,7 +57,7 @@ function HeroSplitRight({ data }: { data: LPHeroProps }) {
 
       <div className="relative grid grid-cols-1 md:grid-cols-2 items-center gap-8 md:gap-16 px-[5%] py-28 md:py-0 max-w-[1200px] mx-auto" style={{ minHeight: hasScene ? '100vh' : '85vh' }}>
         {/* Text column */}
-        <div className="max-w-[600px] z-10">
+        <div className={`max-w-[600px] z-10 ${hasScene ? 'lp-text-legible' : ''}`}>
           {/* Badge */}
           <div className="lp-hero-title-enter">
             <span

@@ -41,7 +41,7 @@ export function HeroNeonEnergy({ data }: Props) {
 
       <div className="relative grid grid-cols-1 md:grid-cols-2 items-center gap-8 md:gap-16 px-[5%] py-28 md:py-0 max-w-[1200px] mx-auto" style={{ minHeight: '100vh' }}>
         
-        <div className="max-w-[600px] z-10">
+        <div className={`max-w-[600px] z-10 ${hasScene ? 'lp-text-legible' : ''}`}>
           {/* Neon badge */}
           <div className="lp-hero-title-enter">
             <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-[11px] font-bold uppercase tracking-[0.2em] mb-8" style={{
