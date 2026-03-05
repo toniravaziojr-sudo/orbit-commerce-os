@@ -16,7 +16,7 @@ export function CtaLuxuryEditorial({ data }: Props) {
     <section ref={ref} className="relative overflow-hidden lp-noise" style={{
       ...(hasScene ? { backgroundImage: `url('${data.ctaSceneDesktopUrl}')`, backgroundSize: 'cover', backgroundPosition: 'center', minHeight: '520px' } : { background: `linear-gradient(180deg, var(--lp-bg) 0%, var(--lp-bg-alt) 100%)` }),
     }}>
-      {hasScene && <div className="absolute inset-0" style={{ background: `linear-gradient(to right, var(--lp-bg)f0 0%, var(--lp-bg)cc 40%, transparent 100%)` }} />}
+      {hasScene && <div className="absolute inset-0" style={{ background: `linear-gradient(to right, rgba(7,4,16,0.94) 0%, rgba(7,4,16,0.80) 40%, transparent 100%)` }} />}
       {!hasScene && <div className="absolute top-0 left-0 right-0 h-px" style={{ background: `linear-gradient(90deg, transparent, var(--lp-accent), transparent)`, opacity: 0.2 }} />}
       
       <div className="relative grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-20 items-center px-[5%] py-24 md:py-32 max-w-[1100px] mx-auto lp-reveal">
