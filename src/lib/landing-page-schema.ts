@@ -169,7 +169,18 @@ export type LPTemplateId =
   | 'problem_solution'
   | 'routine'
   | 'comparison'
-  | 'minimal_premium';
+  | 'minimal_premium'
+  // V9.0 Premium Templates
+  | 'luxury_editorial'
+  | 'bold_impact'
+  | 'minimal_zen'
+  | 'organic_nature'
+  | 'corporate_trust'
+  | 'neon_energy'
+  | 'warm_artisan'
+  | 'tech_gradient'
+  | 'classic_elegant'
+  | 'urban_street';
 
 export type LPMood = 'luxury' | 'bold' | 'organic' | 'corporate' | 'minimal';
 
