@@ -49,10 +49,9 @@ function renderSection(section: LPSection, premiumTemplateId?: string) {
   const { id, type, variant } = section;
   const cleanProps = sanitizeLPSectionProps(section.props);
 
-  // Route Hero/CTA to premium template if available
-  if (type === 'hero' && premiumTemplateId && PREMIUM_HEROES[premiumTemplateId]) {
-    const HeroComp = PREMIUM_HEROES[premiumTemplateId];
-    return <HeroComp key={id} data={cleanProps} />;
+  // ALWAYS use HeroProductGradient for hero sections (universal standard)
+  if (type === 'hero') {
+    return <HeroProductGradient key={id} data={cleanProps} />;
   }
   if (type === 'cta_final' && premiumTemplateId && PREMIUM_CTAS[premiumTemplateId]) {
     const CtaComp = PREMIUM_CTAS[premiumTemplateId];
