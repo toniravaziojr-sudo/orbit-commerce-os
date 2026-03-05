@@ -1,7 +1,7 @@
 // =============================================
-// AI LANDING PAGE V7 — Schema Types + Zod Validation
-// Schema-first architecture: IA generates structured JSON,
-// system renders with React components
+// AI LANDING PAGE V8.0 — Schema Types + Zod Validation
+// V8.0: Variation Engine — Templates, Moods, Layout Variants
+// Backward compatible with V7.0 schemas
 // =============================================
 
 import { z } from 'zod';
@@ -53,7 +53,7 @@ export interface LPHeroProps {
   backgroundImageUrl?: string;
   heroSceneDesktopUrl?: string;
   heroSceneMobileUrl?: string;
-  priceDisplay?: string; // e.g. "De R$ 199,90 por R$ 149,90"
+  priceDisplay?: string;
 }
 
 // -- Benefits --
@@ -161,21 +161,85 @@ export interface LPSection<T extends LPSectionType = LPSectionType> {
   props: LPSectionPropsMap[T];
 }
 
+// ========== V8.0 TEMPLATE & MOOD TYPES ==========
+
+export type LPTemplateId = 
+  | 'direct_offer'
+  | 'proof_first'
+  | 'problem_solution'
+  | 'routine'
+  | 'comparison'
+  | 'minimal_premium';
+
+export type LPMood = 'luxury' | 'bold' | 'organic' | 'corporate' | 'minimal';
+
 // ========== MAIN SCHEMA ==========
 
 export type LPVisualStyle = 'premium' | 'comercial' | 'minimalista' | 'direto';
 
 export interface LPSchema {
-  version: '7.0';
+  version: '7.0' | '8.0';
   visualStyle: LPVisualStyle;
   colorScheme: LPColorScheme;
   showHeader: boolean;
   showFooter: boolean;
   sections: LPSection[];
+  // V8.0 fields (optional for backward compat)
+  templateId?: LPTemplateId;
+  mood?: LPMood;
+  variantSeed?: number;
 }
 
+// ========== MOOD PRESETS ==========
+
+export interface LPMoodPreset {
+  fontDisplay: string;
+  fontBody: string;
+  fontImportUrl: string;
+}
+
+export const LP_MOOD_PRESETS: Record<LPMood, LPMoodPreset> = {
+  luxury: {
+    fontDisplay: "'Playfair Display', Georgia, serif",
+    fontBody: "'Inter', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap',
+  },
+  bold: {
+    fontDisplay: "'Bebas Neue', Impact, sans-serif",
+    fontBody: "'Archivo', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Archivo:wght@400;500;600;700&display=swap',
+  },
+  organic: {
+    fontDisplay: "'Lora', Georgia, serif",
+    fontBody: "'Montserrat', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&family=Montserrat:wght@300;400;500;600&display=swap',
+  },
+  corporate: {
+    fontDisplay: "'Plus Jakarta Sans', -apple-system, sans-serif",
+    fontBody: "'Plus Jakarta Sans', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap',
+  },
+  minimal: {
+    fontDisplay: "'Sora', -apple-system, sans-serif",
+    fontBody: "'Inter', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap',
+  },
+};
+
+// ========== NICHE → MOOD GATING ==========
+
+export const NICHE_MOOD_MAP: Record<string, LPMood[]> = {
+  hair: ['luxury', 'organic', 'minimal'],
+  skincare: ['luxury', 'organic', 'minimal'],
+  cosmetics: ['luxury', 'organic', 'bold'],
+  supplements: ['bold', 'corporate', 'minimal'],
+  fitness: ['bold', 'corporate'],
+  food: ['organic', 'minimal', 'corporate'],
+  tech: ['corporate', 'minimal', 'bold'],
+  geral: ['luxury', 'bold', 'organic', 'corporate', 'minimal'],
+};
+
 // ========== VISUAL STYLE PRESETS ==========
-// Derived from V6 getColorScheme — same presets, now as data
 
 export const LP_COLOR_PRESETS: Record<LPVisualStyle, (primaryColor: string) => LPColorScheme> = {
   premium: () => ({
@@ -380,22 +444,24 @@ const zLPColorScheme = z.object({
 });
 
 export const zLPSchema = z.object({
-  version: z.literal('7.0'),
+  version: z.enum(['7.0', '8.0']),
   visualStyle: z.enum(['premium', 'comercial', 'minimalista', 'direto']),
   colorScheme: zLPColorScheme,
   showHeader: z.boolean(),
   showFooter: z.boolean(),
   sections: z.array(zLPSection).min(2).max(12),
+  // V8.0 optional fields
+  templateId: z.string().optional(),
+  mood: z.string().optional(),
+  variantSeed: z.number().optional(),
 }).refine(
   (schema) => {
-    // Anti-duplicity: max 1 social_proof section
     const socialProofCount = schema.sections.filter(s => s.type === 'social_proof').length;
     return socialProofCount <= 1;
   },
   { message: 'Schema cannot contain more than 1 social_proof section' }
 ).refine(
   (schema) => {
-    // Max 1 hero section
     const heroCount = schema.sections.filter(s => s.type === 'hero').length;
     return heroCount <= 1;
   },
