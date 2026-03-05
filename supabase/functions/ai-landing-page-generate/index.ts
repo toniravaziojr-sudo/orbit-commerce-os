@@ -1453,9 +1453,21 @@ serve(async (req) => {
           const rawContent = aiData.choices?.[0]?.message?.content || "";
           const parsed = parseJsonResponse(rawContent);
           if (parsed && parsed.sections && parsed.sections.length >= baseSchema.sections.length * 0.5) {
-            finalSchema = parsed;
+            // Merge AI-refined copy with structural fields from baseSchema
+            // The AI only refines text — it must NOT override template/token/mood fields
+            finalSchema = {
+              ...parsed,
+              premiumTemplateId: baseSchema.premiumTemplateId,
+              designTokens: baseSchema.designTokens,
+              mood: baseSchema.mood,
+              variantSeed: baseSchema.variantSeed,
+              templateId: baseSchema.templateId,
+              version: baseSchema.version,
+              showHeader: baseSchema.showHeader,
+              showFooter: baseSchema.showFooter,
+            };
             aiRefinementUsed = true;
-            console.log(`[AI-LP-Generate] AI copy refinement applied to schema`);
+            console.log(`[AI-LP-Generate] AI copy refinement applied — preserved premiumTemplateId=${baseSchema.premiumTemplateId}`);
           } else {
             console.warn("[AI-LP-Generate] AI schema output invalid, using base schema");
             finalSchema = baseSchema;
