@@ -256,6 +256,9 @@ export function CreateLandingPageDialog({ open, onOpenChange }: CreateLandingPag
             }
           } catch (e) {
             console.warn('Image enhancement recursive error:', e);
+            // Set to draft on error so page doesn't stay stuck in 'generating'
+            await supabase.from('ai_landing_pages').update({ status: 'draft' }).eq('id', landingPage.id);
+            queryClient.invalidateQueries({ queryKey: ['ai-landing-pages'] });
           }
         };
         enhanceRecursive();
