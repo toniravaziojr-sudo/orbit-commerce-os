@@ -150,6 +150,8 @@ function buildBaseSchema(input: BuildSchemaInput) {
       ctaUrl: input.ctaUrl,
       productImageUrl: input.assets.heroImageUrl,
       backgroundImageUrl: input.assets.heroBackgroundUrl || undefined,
+      heroSceneDesktopUrl: input.assets.heroSceneDesktopUrl || undefined,
+      heroSceneMobileUrl: input.assets.heroSceneMobileUrl || undefined,
       priceDisplay: p.compareAtPrice && p.compareAtPrice > p.price
         ? `De <s>${formatPrice(p.compareAtPrice)}</s> por <strong>${formatPrice(p.price)}</strong>`
         : undefined,
@@ -264,6 +266,8 @@ function buildBaseSchema(input: BuildSchemaInput) {
       title: 'Não perca essa oportunidade',
       description: `Garanta o seu ${p.name} agora mesmo com condições especiais.`,
       productImageUrl: input.assets.heroImageUrl,
+      ctaSceneDesktopUrl: input.assets.heroSceneDesktopUrl || undefined,
+      ctaSceneMobileUrl: input.assets.heroSceneMobileUrl || undefined,
       priceDisplay: p.compareAtPrice && p.compareAtPrice > p.price
         ? `<span style="text-decoration:line-through;color:${c.priceOld}">De ${formatPrice(p.compareAtPrice)}</span><br/><span style="font-size:2.4rem;font-weight:800;color:${c.priceCurrent}">${formatPrice(p.price)}</span>`
         : `<span style="font-size:2.4rem;font-weight:800;color:${c.priceCurrent}">${formatPrice(p.price)}</span>`,
