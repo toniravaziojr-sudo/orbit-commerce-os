@@ -114,6 +114,7 @@ export function HeroProductGradient({ data }: Props) {
                     maxWidth: 'min(280px, 70vw)',
                     maxHeight: '300px',
                     filter: 'drop-shadow(0 20px 40px rgba(0,0,0,0.4))',
+                    mixBlendMode: 'multiply',
                   }}
                 />
               </div>
