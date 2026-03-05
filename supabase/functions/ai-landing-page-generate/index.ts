@@ -303,6 +303,9 @@ Sua tarefa é melhorar APENAS os TEXTOS (títulos, subtítulos, descrições, be
 8. NÃO mude showHeader/showFooter
 9. NÃO invente URLs
 10. Melhore os textos para serem mais persuasivos, específicos ao nicho e orientados a conversão
+11. NUNCA use markdown nos textos — proibido usar **, *, ##, __, \`\` ou qualquer formatação markdown
+12. Todos os textos devem ser plain text puro, sem nenhuma marcação de formatação
+13. Use CAPS LOCK para dar ênfase, nunca asteriscos
 
 ## CONTEXTO
 - Loja: ${storeName}
@@ -345,6 +348,9 @@ function buildSchemaAdjustmentPrompt(params: {
 5. NÃO mude colorScheme, version ou visualStyle
 6. Você PODE reordenar seções, remover seções ou alterar textos conforme solicitado
 7. NÃO invente URLs
+8. NUNCA use markdown nos textos — proibido usar **, *, ##, __, \`\` ou qualquer formatação markdown
+9. Todos os textos devem ser plain text puro, sem nenhuma marcação de formatação
+10. Use CAPS LOCK para dar ênfase, nunca asteriscos
 
 ## CONTEXTO
 - Loja: ${storeName}
@@ -571,8 +577,32 @@ serve(async (req) => {
 
     // ===== STEP 2: RESOLVE ENGINE PLAN =====
     const fpProduct = allProducts[0];
+    
+    // Auto-detect visual style from prompt if no briefing.visualStyle
+    let effectiveBriefing = briefing || null;
+    if (!effectiveBriefing?.visualStyle && prompt) {
+      const promptLower = prompt.toLowerCase();
+      let detectedStyle: string | undefined;
+      if (promptLower.includes('premium') || promptLower.includes('luxo') || promptLower.includes('sofisticad') || promptLower.includes('elegante') || promptLower.includes('dark') || promptLower.includes('escur')) {
+        detectedStyle = 'premium';
+      } else if (promptLower.includes('minimalista') || promptLower.includes('clean') || promptLower.includes('limpo')) {
+        detectedStyle = 'minimalista';
+      } else if (promptLower.includes('comercial') || promptLower.includes('agressiv') || promptLower.includes('vend')) {
+        detectedStyle = 'comercial';
+      } else if (promptLower.includes('direto') || promptLower.includes('simples') || promptLower.includes('objetivo')) {
+        detectedStyle = 'direto';
+      }
+      if (detectedStyle) {
+        effectiveBriefing = { 
+          ...(effectiveBriefing || { objective: 'sale' as const, trafficTemp: 'cold' as const, trafficSource: 'meta' as const, awarenessLevel: 'pain_aware' as const }),
+          visualStyle: detectedStyle as any,
+        };
+        console.log(`[AI-LP-Generate] Auto-detected visualStyle from prompt: ${detectedStyle}`);
+      }
+    }
+    
     const enginePlan = resolveEnginePlan({
-      briefing: briefing || null,
+      briefing: effectiveBriefing,
       productType: null,
       tags: null,
       description: fpProduct?.description || null,
