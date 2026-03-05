@@ -166,31 +166,49 @@ function detectEnhanceableSections(blocks: any): SectionSpec[] {
   return specs;
 }
 
-// V7: Detect enhanceable sections from schema
+// V7: Detect enhanceable sections from schema — generates DESKTOP + MOBILE for hero and CTA
 function detectEnhanceableSchemaSections(schema: any): SectionSpec[] {
   const specs: SectionSpec[] = [];
   if (!schema?.sections) return specs;
   
   for (const section of schema.sections) {
     if (section.type === 'hero') {
-      // Hero: wide landscape for full-section background composition
+      // Hero DESKTOP: wide landscape, product RIGHT, text area LEFT
       specs.push({
         blockType: 'hero',
         blockId: section.id,
-        promptSuffix: 'HERO-PRODUCT',
-        aspectRatio: '16:9 (1920x1080 pixels, wide landscape for full-section background)',
-        imageField: 'productImageUrl',
+        promptSuffix: 'HERO-DESKTOP',
+        aspectRatio: '16:9 (1920x1080 pixels, wide landscape)',
+        imageField: 'heroSceneDesktopUrl',
+        isSchema: true,
+      });
+      // Hero MOBILE: tall portrait, product CENTER/BOTTOM, text area TOP
+      specs.push({
+        blockType: 'hero',
+        blockId: section.id,
+        promptSuffix: 'HERO-MOBILE',
+        aspectRatio: '9:16 (1080x1920 pixels, tall portrait)',
+        imageField: 'heroSceneMobileUrl',
         isSchema: true,
       });
     }
-    if (section.type === 'cta_final' && section.props?.productImageUrl) {
-      // CTA final product image
+    if (section.type === 'cta_final') {
+      // CTA DESKTOP: wide landscape
       specs.push({
         blockType: 'cta_final',
         blockId: section.id,
-        promptSuffix: 'CTA-PRODUCT',
-        aspectRatio: '1:1 (1024x1024 pixels, square)',
-        imageField: 'productImageUrl',
+        promptSuffix: 'CTA-DESKTOP',
+        aspectRatio: '16:9 (1920x1080 pixels, wide landscape)',
+        imageField: 'ctaSceneDesktopUrl',
+        isSchema: true,
+      });
+      // CTA MOBILE: tall portrait
+      specs.push({
+        blockType: 'cta_final',
+        blockId: section.id,
+        promptSuffix: 'CTA-MOBILE',
+        aspectRatio: '9:16 (1080x1920 pixels, tall portrait)',
+        imageField: 'ctaSceneMobileUrl',
         isSchema: true,
       });
     }
@@ -246,6 +264,7 @@ function buildCompositionPrompt(
   storeName: string,
   spec: SectionSpec,
   hasDriveRefs: boolean,
+  brandColors?: { primary?: string; accent?: string },
 ): string {
   const nameAndTags = `${product.name} ${(product.tags || []).join(' ')}`.toLowerCase();
   
@@ -253,34 +272,41 @@ function buildCompositionPrompt(
   if (/cabelo|shampoo|condicion|capilar|calvíc|queda|fio/.test(nameAndTags)) {
     sceneDescription = `Banheiro moderno premium com bancada de mármore escuro. Iluminação dourada suave vindo de uma janela lateral. Gotas d'água e névoa sutil ao redor do produto. Plantas tropicais desfocadas ao fundo. Toalha branca dobrada ao lado.`;
   } else if (/skin|pele|facial|anti.?idade|colág|sérum|creme|hidrat/.test(nameAndTags)) {
-    sceneDescription = `Vanity table elegante com espelho redondo dourado ao fundo. Flores frescas em vaso de vidro. Superfície de mármore branco com veios dourados. Iluminação natural suave de manhã. Gotas de produto ou ingredientes orgânicos decorativos.`;
+    sceneDescription = `Vanity table elegante com espelho redondo dourado ao fundo. Flores frescas em vaso de vidro. Superfície de mármore branco com veios dourados. Iluminação natural suave de manhã.`;
   } else if (/suplement|whey|proteín|creatina|bcaa|fitness|treino|músculo/.test(nameAndTags)) {
-    sceneDescription = `Superfície de concreto polido escuro texturizado. Iluminação dramática lateral com highlights azulados. Halteres ou equipamento fitness premium desfocado ao fundo. Atmosfera de academia high-end.`;
+    sceneDescription = `Superfície de concreto polido escuro texturizado. Iluminação dramática lateral com highlights azulados. Halteres ou equipamento fitness premium desfocado ao fundo.`;
   } else if (/aliment|comida|orgânic|natural|chá|café|erva/.test(nameAndTags)) {
-    sceneDescription = `Mesa de madeira rústica nobre com grãos e ingredientes naturais espalhados artisticamente. Iluminação natural quente de janela. Folhas verdes frescas. Texturas de linho e cerâmica artesanal.`;
+    sceneDescription = `Mesa de madeira rústica nobre com grãos e ingredientes naturais espalhados artisticamente. Iluminação natural quente de janela. Folhas verdes frescas.`;
   } else if (/tech|eletrôn|gadget|smart|digital/.test(nameAndTags)) {
-    sceneDescription = `Mesa de escritório moderna minimalista com acabamento fosco escuro. LED ambiental azul/roxo sutil. Superfície limpa com reflexo suave. Atmosfera futurista e clean.`;
+    sceneDescription = `Mesa de escritório moderna minimalista com acabamento fosco escuro. LED ambiental azul/roxo sutil. Superfície limpa com reflexo suave.`;
   } else {
-    sceneDescription = `Superfície elegante escura com gradiente de luz lateral suave. Reflexo sutil na superfície. Background com bokeh premium desfocado. Iluminação de estúdio profissional com key light e fill light.`;
+    sceneDescription = `Superfície elegante escura com gradiente de luz lateral suave. Reflexo sutil na superfície. Background com bokeh premium desfocado. Iluminação de estúdio profissional.`;
   }
 
-  const isProductShot = spec.promptSuffix.includes('PRODUCT');
-  
-  if (isProductShot) {
-    const isHero = spec.promptSuffix === 'HERO-PRODUCT';
-    
-    if (isHero) {
-      return `COMPOSIÇÃO VISUAL PREMIUM PARA BANNER HERO — WIDE LANDSCAPE
+  const brandColorInstruction = brandColors?.primary 
+    ? `\nCORES DA MARCA: A cor primária da marca é ${brandColors.primary}${brandColors.accent ? ` e a cor de destaque é ${brandColors.accent}` : ''}. Integre sutilmente essas cores na iluminação, reflexos ou detalhes do cenário para manter coerência com a identidade visual da marca.`
+    : '';
 
-TAREFA: Criar uma imagem WIDE (16:9, 1920x1080) para ser usada como BACKGROUND de uma seção hero de landing page premium.
+  const isMobile = spec.promptSuffix.includes('MOBILE');
+  const isDesktop = spec.promptSuffix.includes('DESKTOP');
+  const isHero = spec.promptSuffix.includes('HERO');
+
+  if (isMobile) {
+    return `COMPOSIÇÃO VISUAL PREMIUM — ${isHero ? 'HERO' : 'CTA'} MOBILE (RETRATO 9:16)
+
+TAREFA: Criar uma imagem VERTICAL (9:16, 1080x1920 pixels) para ${isHero ? 'banner hero' : 'seção CTA final'} de landing page premium em MOBILE.
 
 PRODUTO: "${product.name}" da marca "${storeName}"
 O produto anexado (com fundo transparente) deve ser integrado NATURALMENTE no cenário.
+${brandColorInstruction}
 
-COMPOSIÇÃO OBRIGATÓRIA:
-- O produto deve ficar posicionado no LADO DIREITO da imagem (ocupando ~40% da largura)
-- O LADO ESQUERDO deve ter espaço LIVRE/LIMPO (será usado para overlay de texto)
-- Formato WIDE horizontal (16:9)
+COMPOSIÇÃO OBRIGATÓRIA PARA MOBILE:
+- Formato VERTICAL RETRATO (9:16)
+- O produto deve estar posicionado no TERÇO INFERIOR da imagem, CENTRALIZADO
+- O TERÇO SUPERIOR deve ter espaço LIMPO (será usado para headline/texto)
+- Margem mínima de 12% em TODAS as bordas — NADA encostando nas bordas
+- O rótulo/etiqueta do produto deve estar 100% VISÍVEL e LEGÍVEL, nunca cortado
+- O produto INTEIRO deve aparecer na imagem, sem NENHUM corte
 
 CENÁRIO:
 ${sceneDescription}
@@ -290,79 +316,68 @@ REGRAS DE FIDELIDADE:
 2. NÃO altere ou invente texto/marca na embalagem
 3. Sombra de contato REALISTA sob o produto
 4. Profundidade de campo: produto nítido, fundo com bokeh sutil
-5. Iluminação de estúdio profissional coerente
+5. O produto deve ocupar no máximo 55% da altura da imagem
+
+PROIBIDO:
+- NÃO gerar texto, lettering, logos, selos ou badges na imagem
+- NÃO usar fundo branco ou chapado
+- NÃO cortar o produto — ele deve aparecer INTEIRO com margem generosa
+- NÃO colocar o produto no topo — ele deve estar no TERÇO INFERIOR${hasDriveRefs ? '\n\nREFERÊNCIAS DE ESTILO: Use as imagens extras como inspiração visual para composição, luz e atmosfera da marca.' : ''}`;
+  }
+
+  if (isDesktop) {
+    return `COMPOSIÇÃO VISUAL PREMIUM — ${isHero ? 'HERO' : 'CTA'} DESKTOP (PAISAGEM 16:9)
+
+TAREFA: Criar uma imagem WIDE (16:9, 1920x1080 pixels) para ${isHero ? 'banner hero' : 'seção CTA final'} de landing page premium em DESKTOP.
+
+PRODUTO: "${product.name}" da marca "${storeName}"
+O produto anexado (com fundo transparente) deve ser integrado NATURALMENTE no cenário.
+${brandColorInstruction}
+
+COMPOSIÇÃO OBRIGATÓRIA PARA DESKTOP:
+- Formato HORIZONTAL PAISAGEM (16:9)
+- O produto deve ficar posicionado no LADO DIREITO da imagem (ocupando ~35-40% da largura)
+- O LADO ESQUERDO (60% da largura) deve ter espaço LIMPO (será usado para texto/headline)
+- Margem mínima de 10% em TODAS as bordas — NADA encostando nas bordas
+- O rótulo/etiqueta do produto deve estar 100% VISÍVEL e LEGÍVEL, nunca cortado
+- O produto INTEIRO deve aparecer na imagem, sem NENHUM corte
+
+CENÁRIO:
+${sceneDescription}
+
+REGRAS DE FIDELIDADE:
+1. O produto DEVE aparecer EXATAMENTE como na referência — mesmo rótulo, cores, formato
+2. NÃO altere ou invente texto/marca na embalagem
+3. Sombra de contato REALISTA sob o produto
+4. Profundidade de campo: produto nítido, fundo com bokeh sutil
 
 PROIBIDO:
 - NÃO gerar texto, lettering, logos, selos ou badges na imagem
 - NÃO usar fundo branco ou chapado
 - NÃO colocar o produto no centro — ele deve estar à DIREITA
-- A imagem deve parecer UMA ÚNICA FOTOGRAFIA profissional de catálogo premium${hasDriveRefs ? '\n\nREFERÊNCIAS DE ESTILO: Use as imagens extras como inspiração visual.' : ''}`;
-    }
+- NÃO cortar o produto — ele deve aparecer INTEIRO com margem${hasDriveRefs ? '\n\nREFERÊNCIAS DE ESTILO: Use as imagens extras como inspiração visual para composição, luz e atmosfera da marca.' : ''}`;
+  }
 
-    return `COMPOSIÇÃO VISUAL PREMIUM DE PRODUTO — ${spec.promptSuffix}
+  // Fallback for V5 block specs
+  return `COMPOSIÇÃO VISUAL PREMIUM DE PRODUTO — ${spec.promptSuffix}
 
-TAREFA: Criar uma imagem fotorrealista premium do produto em um cenário elaborado. O produto anexado (com fundo transparente) deve ser integrado NATURALMENTE no cenário.
+TAREFA: Criar uma imagem fotorrealista premium do produto em um cenário elaborado.
 
 PRODUTO: "${product.name}" da marca "${storeName}"
+${brandColorInstruction}
 
 CENÁRIO:
 ${sceneDescription}
 
-REGRAS DE FIDELIDADE:
-1. O produto DEVE aparecer EXATAMENTE como na referência — mesmo rótulo, cores, formato
-2. NÃO altere ou invente texto/marca na embalagem
-3. Sombra de contato REALISTA sob o produto
-4. Profundidade de campo: produto nítido, fundo com bokeh sutil
-
 COMPOSIÇÃO (aspect ratio ${spec.aspectRatio}):
-- O produto é o HERÓI VISUAL central da imagem
+- O produto é o HERÓI VISUAL central
 - Cenário tridimensional envolvendo o produto
-- Iluminação de estúdio profissional
-- Color grading coeso e premium
+- O produto INTEIRO deve aparecer, sem cortes, com margem mínima de 10%
 
 PROIBIDO:
 - NÃO gerar texto, lettering, logos, selos ou badges
 - NÃO usar fundo branco ou chapado
-- NÃO fazer montagem visível
-- A imagem deve parecer UMA ÚNICA FOTOGRAFIA profissional${hasDriveRefs ? '\n\nREFERÊNCIAS DE ESTILO: Use as imagens extras como inspiração visual.' : ''}`;
-  }
-
-  return `COMPOSIÇÃO VISUAL COMPLETA PARA SEÇÃO DE LANDING PAGE — ${spec.promptSuffix}
-
-TAREFA PRINCIPAL: Criar uma imagem de seção COMPLETA e UNIFORME para uma landing page de vendas premium. Esta imagem será usada como background/visual de uma seção inteira — NÃO é uma foto de produto isolada.
-
-PRODUTO DE REFERÊNCIA: "${product.name}" pela marca "${storeName}"
-A imagem do produto anexada (com fundo transparente) DEVE ser integrada NATURALMENTE na composição.
-
-REGRAS ABSOLUTAS DE FIDELIDADE DO PRODUTO:
-1. O produto DEVE aparecer EXATAMENTE como na referência — mesmo rótulo, cores, formato, tipografia da embalagem
-2. NÃO altere, invente ou modifique texto, marca ou design da embalagem
-3. O produto deve parecer FOTOGRAFADO no cenário, não colado digitalmente
-
-CENÁRIO E AMBIENTAÇÃO:
-${sceneDescription}
-
-COMPOSIÇÃO DA CENA (aspect ratio ${spec.aspectRatio}):
-- O produto é o HERÓI VISUAL — posicionado com destaque (centro, regra dos terços, ou golden ratio)
-- O cenário ENVOLVE o produto — não é um fundo chapado, é um AMBIENTE tridimensional
-- Profundidade de campo: produto nítido, fundo com leve desfoque (bokeh)
-- Sombra de contato REALISTA sob o produto
-- Reflexos e highlights consistentes com a iluminação do cenário
-- A composição deve ter "respiro" — espaços para overlay de texto (lado esquerdo ou direita livre)
-
-QUALIDADE TÉCNICA:
-- Fotorrealismo de catálogo premium (nível Sephora, Apple, Nike)
-- Resolução e nitidez máximas
-- Color grading coeso em toda a imagem
-- Sem artefatos, sem bordas visíveis, sem aspecto de montagem
-- A imagem final deve parecer UMA ÚNICA FOTOGRAFIA profissional
-
-O QUE NÃO FAZER:
-- NÃO gerar texto, lettering ou tipografia na imagem
-- NÃO incluir logos, selos ou badges
-- NÃO fazer molduras, bordas ou frames
-- NÃO criar collages ou montagens — é UMA composição unificada
-- NÃO usar fundo branco ou chapado${hasDriveRefs ? '\n\nREFERÊNCIAS VISUAIS: As imagens extras são referências de estilo do lojista. Use como inspiração para composição e atmosfera, mas GERE uma imagem NOVA e ORIGINAL.' : ''}`;
+- NÃO cortar o produto${hasDriveRefs ? '\n\nREFERÊNCIAS DE ESTILO: Use as imagens extras como inspiração visual.' : ''}`;
 }
 
 // ========== MAIN HANDLER ==========
@@ -455,29 +470,63 @@ serve(async (req) => {
       );
     }
 
-    // 3. Store name
+    // 3. Store name + brand colors
     const { data: storeSettings } = await supabase
       .from("store_settings")
-      .select("store_name")
+      .select("store_name, primary_color, secondary_color, accent_color")
       .eq("tenant_id", tenantId)
       .single();
     const storeName = storeSettings?.store_name || "Loja";
+    const brandColors = {
+      primary: storeSettings?.primary_color || undefined,
+      accent: storeSettings?.accent_color || storeSettings?.secondary_color || undefined,
+    };
 
-    // 4. Drive references (non-blocking)
+    // 4. Drive references — search brand/creative folders first, then product name (non-blocking)
     let driveReferenceBase64s: string[] = [];
     try {
-      const searchTerm = product.name.split(' ').slice(0, 3).join(' ');
-      const { data: driveFiles } = await supabase
+      // Step 1: Search brand/creative folders
+      const { data: brandFolders } = await supabase
         .from("files")
-        .select("storage_path, metadata")
+        .select("id")
         .eq("tenant_id", tenantId)
-        .eq("is_folder", false)
-        .ilike("mime_type", "image/%")
-        .ilike("original_name", `%${searchTerm}%`)
-        .limit(3);
+        .eq("is_folder", true)
+        .or('filename.ilike.%criativo%,filename.ilike.%banner%,filename.ilike.%brand%,filename.ilike.%marca%,filename.ilike.%ads%,filename.ilike.%anúncio%,filename.ilike.%key visual%,filename.ilike.%gestor%')
+        .limit(10);
+
+      let driveFiles: any[] = [];
+      
+      if (brandFolders && brandFolders.length > 0) {
+        const folderIds = brandFolders.map((f: any) => f.id);
+        const { data: folderFiles } = await supabase
+          .from("files")
+          .select("storage_path, metadata")
+          .eq("tenant_id", tenantId)
+          .eq("is_folder", false)
+          .ilike("mime_type", "image/%")
+          .in("folder_id", folderIds)
+          .order("created_at", { ascending: false })
+          .limit(6);
+        driveFiles = folderFiles || [];
+        console.log(`[AI-LP-Enhance] Found ${driveFiles.length} files in brand/creative folders`);
+      }
+      
+      // Step 2: Fallback - search by product name if not enough brand references
+      if (driveFiles.length < 3) {
+        const searchTerm = product.name.split(' ').slice(0, 3).join(' ');
+        const { data: nameFiles } = await supabase
+          .from("files")
+          .select("storage_path, metadata")
+          .eq("tenant_id", tenantId)
+          .eq("is_folder", false)
+          .ilike("mime_type", "image/%")
+          .ilike("original_name", `%${searchTerm}%`)
+          .limit(3);
+        if (nameFiles) driveFiles = [...driveFiles, ...nameFiles];
+      }
 
       if (driveFiles?.length) {
-        for (const file of driveFiles.slice(0, 2)) {
+        for (const file of driveFiles.slice(0, 4)) {
           const meta = file.metadata as Record<string, any> | null;
           const bucket = (meta?.bucket as string) || 'tenant-files';
           let url: string | undefined;
@@ -562,7 +611,7 @@ serve(async (req) => {
 
       console.log(`[AI-LP-Enhance] Generating ${spec.promptSuffix} composition...`);
       
-      const prompt = buildCompositionPrompt(product, storeName, spec, driveReferenceBase64s.length > 0);
+      const prompt = buildCompositionPrompt(product, storeName, spec, driveReferenceBase64s.length > 0, brandColors);
       
       // Try pro model first, then flash
       let imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', prompt, referenceBase64, driveReferenceBase64s);
