@@ -1,0 +1,1 @@
+ALTER TABLE public.tenants ALTER COLUMN next_order_number SET DEFAULT 1;
