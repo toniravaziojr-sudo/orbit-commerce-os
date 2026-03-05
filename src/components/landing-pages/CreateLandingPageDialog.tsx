@@ -235,6 +235,9 @@ export function CreateLandingPageDialog({ open, onOpenChange }: CreateLandingPag
             });
             if (error) {
               console.warn(`Image enhancement error (stage ${stage}):`, error);
+              // Set to draft on error so page doesn't stay stuck in 'generating'
+              await supabase.from('ai_landing_pages').update({ status: 'draft' }).eq('id', landingPage.id);
+              queryClient.invalidateQueries({ queryKey: ['ai-landing-pages'] });
               return;
             }
             console.log(`[LP-Enhance] Stage ${stage}: ${data?.enhanced || 0} sections enhanced, done: ${data?.done}`);
