@@ -1,106 +1,152 @@
 
 
-# Diagnóstico Honesto: O que aconteceu e como resolver
+# Plano V8.0 — Variation Engine (Execução Final)
 
-## O Problema Real (sem rodeios)
+## Estado Atual do Código
 
-O Motor V5 foi construído com uma premissa que parece boa na teoria mas falha na prática:
-
-**A IA gera JSON estruturado que mapeia para componentes React genéricos do Builder.**
-
-O resultado é previsível: os componentes `TestimonialsBlock`, `PricingTableBlock`, `FAQBlock` etc. foram desenhados para **lojas e-commerce comuns** (com Tailwind utilitário básico, `py-8 container mx-auto px-4`). Eles **nunca** foram desenhados para páginas de vendas de alta conversão com visual premium.
-
-### O que aconteceu passo a passo:
-
-1. **Motor V4 funcionava** -- a IA gerava HTML/CSS livre, com total controle sobre layout, cores, tipografia, sombras, gradientes. O resultado era renderizado em iframe isolado. Tinha liberdade criativa total.
-
-2. **Problema de timeout** -- gerar HTML + imagens na mesma chamada estourava os 150s. Solução correta: separar em etapas.
-
-3. **Decisão errada** -- ao separar em etapas, mudamos **também** o formato de saída de HTML livre para JSON/blocos. Isso não era necessário para resolver o timeout. Misturamos dois problemas.
-
-4. **Resultado** -- a IA agora está presa a ~14 componentes genéricos com props fixas. Ela não pode controlar:
-   - Gradientes de fundo sofisticados
-   - Tipografia premium (Playfair Display, letter-spacing)
-   - Layouts assimétricos ou criativos
-   - Efeitos visuais (glass, blur, sombras profundas)
-   - Espaçamentos personalizados por seção
-   - Cores por seção (cada bloco herda o Tailwind padrão)
-
-5. **Os bugs (`.map is not a function`, dados como object)** são sintomas secundários -- a IA tenta encaixar conteúdo rico em props que não foram feitas para isso.
-
-### Resumo brutal:
-> O Motor V5 transforma um diretor criativo (IA com HTML livre) num operário de linha de montagem (IA preenchendo formulários de props). O resultado visual é inferior por design, não por bug.
+O sistema V7.1 gera **sempre a mesma estrutura**: `buildBaseSchema()` (linha 351 do generate) empilha seções em ordem fixa (Hero → Benefits → Testimonials → SocialProof → Pricing → FAQ → Guarantee → CTA). Cada seção tem 1 layout. O `visualStyle` é quase sempre `premium` (dark/gold). O `sceneVibe` no enhance-images tem 6 nichos mas todos seguem o mesmo padrão de prompt. O asset resolver busca social proof por `filename.ilike` com filtros frágeis.
 
 ---
 
-## A Solução Correta
+## Fase A — Templates + Variants + Preflight (80% do impacto)
 
-O timeout era o único problema real. A solução é **manter HTML livre + resolver o timeout separadamente**:
+### 1. Schema: novos campos com retrocompatibilidade
 
-### Plano: Motor V5.4 (HTML Livre + Timeout Resolvido)
+**Arquivo**: `src/lib/landing-page-schema.ts`
 
-```text
-┌─────────────────────────────────────────────┐
-│  ETAPA 1: ai-landing-page-generate          │
-│  IA gera HTML/CSS COMPLETO (como V4)        │
-│  Usa imagens do catálogo (sem gerar novas)  │
-│  Tempo: ~30-60s (cabe nos 150s)             │
-│  Salva em: generated_html + generated_css   │
-└──────────────────┬──────────────────────────┘
-                   │
-┌──────────────────▼──────────────────────────┐
-│  ETAPA 2: ai-landing-page-enhance-images    │
-│  (já existe, mantém chunking por timeout)   │
-│  Gera imagens premium assíncronamente       │
-│  Substitui URLs no HTML salvo               │
-│  Tempo: ~30s por imagem, recursivo          │
-└─────────────────────────────────────────────┘
-```
+- `version` aceita `'7.0' | '8.0'` (não quebra LPs antigas)
+- Novos campos opcionais no `LPSchema`: `templateId?: string`, `mood?: string`, `variantSeed?: number`
+- Defaults quando ausentes: `templateId = 'direct_offer'`, `mood = 'premium'`, `variantSeed = 0`
+- `variant` já existe no tipo `LPSection` — sem mudança
 
-### O que muda concretamente:
+### 2. Templates de narrativa (6 receitas)
 
-1. **Edge Function `ai-landing-page-generate`**: Volta a pedir HTML/CSS livre para a IA (como V4), mas **sem** gerar imagens (isso resolve o timeout). A IA usa as imagens do catálogo diretamente.
+**Arquivo**: `supabase/functions/ai-landing-page-generate/index.ts`
 
-2. **Renderização**: Volta para iframe com `wrapInDocumentShell()` (já existe no código, linhas 429-533). A pipeline de shell, CSS utilities e safety CSS **já está pronta**.
+Nova função `selectTemplate(seed, hasReviews, hasSocialProof)` que retorna um dos 6 templates com **pesos por disponibilidade de dados**:
 
-3. **Editor e Preview**: Prioriza `generated_html` com iframe. O código do `LandingPageEditor.tsx` e `StorefrontAILandingPage.tsx` já tem o fallback para iframe -- basta inverter a prioridade.
+| Template | Seções | Peso base |
+|----------|--------|-----------|
+| `direct_offer` | Hero, Pricing, Benefits, Testimonials*, FAQ, CTA | 20 |
+| `proof_first` | Hero, SocialProof*, Testimonials*, Pricing, Guarantee, CTA | 15 (0 se sem provas) |
+| `problem_solution` | Hero, Benefits, Testimonials*, Pricing, Guarantee, FAQ, CTA | 20 |
+| `routine` | Hero, Benefits, SocialProof*, Pricing, FAQ, CTA | 15 |
+| `comparison` | Hero, Benefits, Pricing, Testimonials*, FAQ, CTA | 15 |
+| `minimal_premium` | Hero, Benefits, Pricing, Guarantee, FAQ, CTA | 15 |
 
-4. **Enhance Images (Etapa 2)**: Continua igual -- busca seções do HTML, gera composições visuais premium, substitui as URLs. O chunking por timeout já funciona.
+Regras:
+- Template que depende de SocialProof/Testimonials tem peso 0 se dados insuficientes
+- Seed determina escolha (reprodutível)
+- Hero + Pricing + CTA obrigatórios em todos
 
-5. **Blocos V5 mantidos para o Builder**: Os componentes JSON/React continuam existindo para o Builder visual da loja. Eles simplesmente não são usados para landing pages de IA.
+Refatorar `buildBaseSchema()` para montar `sections[]` conforme template selecionado em vez da ordem fixa.
 
-### O que NÃO muda:
-- Auto-descoberta de kits (STEP 1B) -- mantida
-- Busca de provas sociais do Drive (STEP 3) -- mantida  
-- Engine Plan (archetype, niche, depth) -- mantido
-- CTA constraints no CSS -- mantidas
-- Header/Footer governance -- mantida
+### 3. Variantes de layout por seção
 
-### Arquivos afetados:
+Cada bloco recebe `variant` via seed. O `LPSchemaRenderer.tsx` passa `section.variant` como prop.
 
-| Arquivo | Mudança |
-|---------|---------|
-| `supabase/functions/ai-landing-page-generate/index.ts` | Prompt volta a pedir HTML livre; salva em `generated_html` + `generated_css` em vez de `generated_blocks` |
-| `src/pages/LandingPageEditor.tsx` | Prioridade: `generated_html` (iframe) > `generated_blocks` (blocos) |
-| `src/pages/storefront/StorefrontAILandingPage.tsx` | Idem -- prioriza HTML no iframe |
-| `src/components/landing-pages/LandingPagePreviewDialog.tsx` | Idem |
+| Seção | Variantes | Mudança no componente |
+|-------|-----------|----------------------|
+| **Hero** | `split_right` (atual), `centered`, `glass_overlay` | `LPHero.tsx`: switch com 3 layouts |
+| **Benefits** | `alternating_rows` (atual), `grid_cards`, `icon_list` | `LPBenefits.tsx`: switch com 3 layouts |
+| **Testimonials** | `cards` (atual), `quote_wall` | `LPTestimonials.tsx`: switch com 2 layouts |
+| **Pricing** | `horizontal_3col` (atual), `single_highlight` | `LPPricing.tsx`: switch com 2 layouts |
 
-### Por que isso vai funcionar:
-- O Motor V4 **já produzia resultados bons** -- o HTML livre dá à IA controle total
-- O timeout é resolvido pela separação generate/enhance que **já existe**
-- A pipeline de shell/safety/CSS utilities **já está implementada** (linhas 429-533)
-- Não há componente novo para criar -- é reverter a decisão errada e manter a infraestrutura certa
+Regra de contrato: **nenhuma variant exige campo extra** — todas usam os mesmos props.
 
-### Estimativa: 
-- 1 mudança na Edge Function (prompt + formato de saída)
-- 3 mudanças em componentes React (inverter prioridade de renderização)
-- Zero tabelas novas, zero componentes novos
+Regra de preflight:
+- Benefits sem imageUrl válido → forçar `icon_list`
+- FAQ com < 3 items → não incluir seção
+- Guarantee sem copy → não incluir seção
+
+### 4. Alternância de contraste entre seções
+
+No `buildBaseSchema()`, ao montar as seções, alternar o fundo:
+- Seção ímpar: `var(--lp-bg)`
+- Seção par: `var(--lp-bg-alt)`
+
+Isso já acontece parcialmente no Benefits (linha 21), mas deve ser sistemático.
+
+### 5. Seed persistido
+
+- `variantSeed = Math.floor(Math.random() * 100000)` na criação
+- Salvar no schema
+- Usar para `selectTemplate()` e atribuição de variants
+- "Gerar variação" = novo seed
 
 ---
 
-## Resposta direta à sua pergunta
+## Fase B — Moods visuais (fontes + cores)
 
-> Vamos conseguir desenvolver algo realmente bom aqui?
+### 6. Moods com gating por nicho
 
-Sim. O motor de geração de HTML livre já funcionava. O erro foi trocar o formato de saída (de HTML para JSON/blocos) junto com a solução de timeout, quando eram problemas independentes. A correção é cirúrgica: desfazer a troca de formato, manter a solução de timeout.
+**Arquivos**: `ai-landing-page-generate/index.ts` + `landing-page-schema.ts`
+
+5 moods com presets de fontes/cores, gated por nicho do produto:
+
+| Mood | Heading | Body | Quando usar |
+|------|---------|------|-------------|
+| `luxury` | Playfair Display | Inter | Cosmético, perfume, joias |
+| `bold` | Bebas Neue | Archivo | Suplemento, fitness, energia |
+| `organic` | Lora | Montserrat | Skincare, saúde, natural |
+| `corporate` | Plus Jakarta Sans | Plus Jakarta Sans | Tech, serviços |
+| `minimal` | Sora | Inter | Genérico, clean |
+
+Performance: max 2 famílias, 2 weights, `font-display: swap`.
+
+Nova `selectMood(niche, seed)` no generate que determina mood e aplica presets de cor/fonte no `colorScheme`.
+
+### 7. Scene prompts diversificados
+
+**Arquivo**: `ai-landing-page-enhance-images/index.ts`
+
+Pool de `sceneVibe` por mood no `buildCompositionPrompt()`:
+- `luxury`: ["marble vanity", "velvet backdrop", "glass studio"]
+- `bold`: ["concrete gym", "neon studio", "dark dramatic"]
+- `organic`: ["wood table with herbs", "sunlit garden", "bamboo surface"]
+
+Seleção via seed da LP para reprodutibilidade.
+
+---
+
+## Fase C — Fix do Drive (reviews/social proof)
+
+### 8. Asset resolver robusto
+
+**Arquivo**: `supabase/functions/_shared/landing-page-asset-resolver.ts`
+
+O filtro atual (linha 100) usa `filename.ilike.%feedback%` que é frágil. Correção:
+- Buscar TODAS as pastas do tenant que contêm imagens
+- Priorizar pastas com nomes relevantes (feedback, review, prova, resultado, depoimento)
+- Fallback: buscar imagens diretamente na raiz do Drive
+- Logar claramente quantas pastas e imagens encontradas
+- Se `socialProofImages.length === 0`, logar warning explícito
+
+---
+
+## Arquivos afetados
+
+| Arquivo | Fase | Mudança |
+|---------|------|---------|
+| `src/lib/landing-page-schema.ts` | A+B | Version aceita 7.0/8.0, campos opcionais, moods nos presets |
+| `supabase/functions/ai-landing-page-generate/index.ts` | A+B | selectTemplate, selectMood, seed, refatorar buildBaseSchema, preflight |
+| `supabase/functions/ai-landing-page-enhance-images/index.ts` | B | Scene prompt por mood |
+| `supabase/functions/_shared/landing-page-asset-resolver.ts` | C | Busca ampla de pastas |
+| `src/components/landing-pages/LPSchemaRenderer.tsx` | A | Passar variant para blocos |
+| `src/components/landing-pages/blocks/LPHero.tsx` | A | 3 variantes (split/centered/glass) |
+| `src/components/landing-pages/blocks/LPBenefits.tsx` | A | 3 variantes (alternating/grid/icon_list) |
+| `src/components/landing-pages/blocks/LPTestimonials.tsx` | A | 2 variantes (cards/quote_wall) |
+| `src/components/landing-pages/blocks/LPPricing.tsx` | A | 2 variantes (3col/single_highlight) |
+
+---
+
+## Critérios de aceite
+
+1. 10 gerações do mesmo produto geram pelo menos 4 templateIds diferentes e 3 combinações de variants
+2. LPs V7.0 antigas continuam renderizando sem erro (retrocompatibilidade)
+3. Nenhuma seção vazia ou com placeholder cinza
+4. Benefits sem imagem usa `icon_list` automaticamente
+5. Produto sempre visível no Hero/CTA (packshot overlay V4.1)
+6. Fontes limitadas a 2 famílias por página
+7. Reviews do Drive aparecem quando existem (log de debug)
 
