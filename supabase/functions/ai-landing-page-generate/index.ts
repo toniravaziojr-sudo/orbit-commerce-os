@@ -1260,45 +1260,126 @@ serve(async (req) => {
     if (promptType === "adjustment" && savedLandingPage?.generated_schema) {
       // ── ADJUSTMENT MODE: AI edits existing SCHEMA with intent routing ──
       const intent = classifyIntent(prompt);
-      console.log(`[AI-LP-Generate] V7 Schema adjustment mode — intent: ${intent}`);
+      console.log(`[AI-LP-Generate] V9 Schema adjustment mode — intent: ${intent}`);
       
-      const { system, user } = buildSchemaAdjustmentPrompt({
-        storeName,
-        productName: firstProduct?.name || 'Produto',
-        prompt,
-        currentSchema: savedLandingPage.generated_schema,
-        intent,
-        briefing: savedLandingPage.briefing,
-      });
+      // V9.0: Template swap can be done without AI — direct patch
+      if (intent === 'template_swap') {
+        const lower = prompt.toLowerCase();
+        const existingSchema = savedLandingPage.generated_schema as any;
+        
+        // Try to detect which premium template the user wants
+        const templateMatch = PREMIUM_TEMPLATES.find(t => lower.includes(t.id.replace('_', ' ')) || lower.includes(t.id));
+        
+        if (templateMatch) {
+          // Direct template swap — no AI needed
+          finalSchema = {
+            ...existingSchema,
+            premiumTemplateId: templateMatch.id,
+            mood: templateMatch.defaultMood,
+            designTokens: {
+              '--lp-radius': templateMatch.tokens.radius,
+              '--lp-card-style': templateMatch.tokens.cardStyle,
+              '--lp-shadow-intensity': templateMatch.tokens.shadowIntensity,
+              '--lp-section-py': templateMatch.tokens.sectionPaddingY,
+              '--lp-glow-intensity': String(templateMatch.tokens.accentGlow),
+              '--lp-divider-style': templateMatch.tokens.dividerStyle,
+            },
+            colorScheme: {
+              ...existingSchema.colorScheme,
+              fontDisplay: templateMatch.fontDisplay,
+              fontBody: templateMatch.fontBody,
+              fontImportUrl: templateMatch.fontImportUrl,
+            },
+          };
+          aiRefinementUsed = false;
+          console.log(`[AI-LP-Generate] V9 Direct template swap: ${templateMatch.id}`);
+        } else {
+          // Mood-based swap — find best matching template for requested mood
+          const moodKeywords: Record<string, LPMood> = {
+            'luxo': 'luxury', 'luxury': 'luxury', 'premium': 'luxury', 'elegante': 'luxury',
+            'bold': 'bold', 'impactante': 'bold', 'energia': 'bold', 'neon': 'bold',
+            'minimalista': 'minimal', 'clean': 'minimal', 'zen': 'minimal',
+            'orgânico': 'organic', 'natural': 'organic', 'artesanal': 'organic',
+            'corporativo': 'corporate', 'profissional': 'corporate', 'tech': 'corporate',
+          };
+          
+          let targetMood: LPMood | null = null;
+          for (const [kw, mood] of Object.entries(moodKeywords)) {
+            if (lower.includes(kw)) { targetMood = mood; break; }
+          }
+          
+          if (targetMood) {
+            const compatible = PREMIUM_TEMPLATES.filter(t => t.allowedMoods.includes(targetMood!));
+            const selected = compatible.length > 0 ? compatible[0] : PREMIUM_TEMPLATES[0];
+            
+            finalSchema = {
+              ...existingSchema,
+              premiumTemplateId: selected.id,
+              mood: targetMood,
+              designTokens: {
+                '--lp-radius': selected.tokens.radius,
+                '--lp-card-style': selected.tokens.cardStyle,
+                '--lp-shadow-intensity': selected.tokens.shadowIntensity,
+                '--lp-section-py': selected.tokens.sectionPaddingY,
+                '--lp-glow-intensity': String(selected.tokens.accentGlow),
+                '--lp-divider-style': selected.tokens.dividerStyle,
+              },
+              colorScheme: {
+                ...existingSchema.colorScheme,
+                fontDisplay: selected.fontDisplay,
+                fontBody: selected.fontBody,
+                fontImportUrl: selected.fontImportUrl,
+              },
+            };
+            aiRefinementUsed = false;
+            console.log(`[AI-LP-Generate] V9 Mood-based template swap: ${selected.id} (mood: ${targetMood})`);
+          } else {
+            // Fallback: let AI handle it
+            finalSchema = existingSchema;
+          }
+        }
+      }
+      
+      // If not already handled by template_swap, use AI
+      if (!finalSchema) {
+        const { system, user } = buildSchemaAdjustmentPrompt({
+          storeName,
+          productName: firstProduct?.name || 'Produto',
+          prompt,
+          currentSchema: savedLandingPage.generated_schema,
+          intent,
+          briefing: savedLandingPage.briefing,
+        });
 
-      resetAIRouterCache();
-      const aiResponse = await aiChatCompletion("google/gemini-2.5-flash", {
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-        temperature: 0.5,
-      }, {
-        supabaseUrl,
-        supabaseServiceKey: supabaseKey,
-        logPrefix: "[AI-LP-Schema-Adjust]",
-      });
+        resetAIRouterCache();
+        const aiResponse = await aiChatCompletion("google/gemini-2.5-flash", {
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: user },
+          ],
+          temperature: 0.5,
+        }, {
+          supabaseUrl,
+          supabaseServiceKey: supabaseKey,
+          logPrefix: "[AI-LP-Schema-Adjust]",
+        });
 
-      if (aiResponse.ok) {
-        const aiData = await aiResponse.json();
-        const rawContent = aiData.choices?.[0]?.message?.content || "";
-        const parsed = parseJsonResponse(rawContent);
-        if (parsed && parsed.sections && parsed.sections.length > 0) {
-          finalSchema = parsed;
-          aiRefinementUsed = true;
-          console.log(`[AI-LP-Generate] Schema adjustment applied: ${parsed.sections.length} sections`);
+        if (aiResponse.ok) {
+          const aiData = await aiResponse.json();
+          const rawContent = aiData.choices?.[0]?.message?.content || "";
+          const parsed = parseJsonResponse(rawContent);
+          if (parsed && parsed.sections && parsed.sections.length > 0) {
+            finalSchema = parsed;
+            aiRefinementUsed = true;
+            console.log(`[AI-LP-Generate] Schema adjustment applied: ${parsed.sections.length} sections`);
+          } else {
+            finalSchema = savedLandingPage.generated_schema;
+            parseError = 'AI schema adjustment returned invalid JSON, kept existing';
+          }
         } else {
           finalSchema = savedLandingPage.generated_schema;
-          parseError = 'AI schema adjustment returned invalid JSON, kept existing';
+          parseError = `AI schema adjustment failed: ${aiResponse.status}`;
         }
-      } else {
-        finalSchema = savedLandingPage.generated_schema;
-        parseError = `AI schema adjustment failed: ${aiResponse.status}`;
       }
 
     } else {
