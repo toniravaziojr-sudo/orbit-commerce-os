@@ -10,7 +10,7 @@ export function LPTestimonials({ data }: Props) {
   return (
     <section className="relative overflow-hidden px-[5%] py-16 md:py-24" style={{ background: 'var(--lp-bg-alt)' }}>
       <div 
-        className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full blur-[150px] opacity-5 pointer-events-none"
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full blur-[180px] opacity-[0.05] pointer-events-none"
         style={{ background: 'var(--lp-accent)' }}
       />
       
@@ -26,8 +26,12 @@ export function LPTestimonials({ data }: Props) {
           {data.badge}
         </span>
         <h2
-          className="text-2xl md:text-4xl font-extrabold leading-tight mb-4"
-          style={{ color: 'var(--lp-text)', fontFamily: 'var(--lp-font-display)' }}
+          className="font-extrabold leading-tight mb-4"
+          style={{ 
+            color: 'var(--lp-text)', 
+            fontFamily: 'var(--lp-font-display)',
+            fontSize: 'clamp(1.5rem, 2.6vw, 2.25rem)',
+          }}
         >
           {data.title}
         </h2>
@@ -35,17 +39,23 @@ export function LPTestimonials({ data }: Props) {
           {data.subtitle}
         </p>
       </div>
-      <div className="relative grid grid-cols-1 md:grid-cols-3 gap-6 max-w-[1100px] mx-auto">
+      <div className="relative grid grid-cols-1 md:grid-cols-3 gap-6 max-w-[1140px] mx-auto">
         {data.items.map((item, i) => (
           <div
             key={i}
-            className="rounded-2xl p-8 transition-all duration-300 hover:-translate-y-1"
+            className="rounded-2xl p-8 transition-all duration-300 hover:-translate-y-1 relative"
             style={{ 
               background: 'var(--lp-card-bg)', 
               border: '1px solid var(--lp-card-border)',
-              boxShadow: '0 4px 24px var(--lp-shadow)',
+              boxShadow: '0 8px 32px var(--lp-shadow)',
+              backdropFilter: 'blur(12px)',
             }}
           >
+            {/* Glass highlight */}
+            <div 
+              className="absolute top-0 left-0 right-0 h-px rounded-t-2xl"
+              style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent)' }}
+            />
             <div className="text-amber-400 text-lg mb-4 tracking-wider">{stars(item.rating)}</div>
             <p
               className="text-sm leading-relaxed mb-6"

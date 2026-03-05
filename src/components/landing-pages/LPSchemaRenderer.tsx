@@ -9,6 +9,7 @@
 import { useMemo } from 'react';
 import type { LPSchema, LPSection, LPSectionType, LPColorScheme } from '@/lib/landing-page-schema';
 import { sanitizeLPSectionProps } from '@/lib/sanitizeLPCopy';
+import { normalizeAllCTAs } from '@/lib/normalizeLPCta';
 import { LPHero } from './blocks/LPHero';
 import { LPBenefits } from './blocks/LPBenefits';
 import { LPTestimonials } from './blocks/LPTestimonials';
@@ -89,7 +90,7 @@ export function LPSchemaRenderer({ schema }: LPSchemaRendererProps) {
           containerName: 'lp-root',
         }}
       >
-        {schema.sections.map((section) => renderSection(section as LPSection))}
+        {normalizeAllCTAs(schema.sections).map((section) => renderSection(section as LPSection))}
       </div>
     </>
   );

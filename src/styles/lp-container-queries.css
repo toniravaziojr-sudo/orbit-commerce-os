@@ -1,7 +1,8 @@
 /* =============================================
- * LP Container Queries — Mobile Preview Fix
+ * LP Container Queries — Mobile Preview Fix V7.3
  * Ensures LP blocks respond to CONTAINER width (builder preview)
  * not just VIEWPORT width (browser window)
+ * Premium visual contract: glass, clamp typography, scene mode
  * ============================================= */
 
 @container lp-root (max-width: 767px) {
@@ -18,14 +19,8 @@
 
   /* Section padding */
   .md\:py-24 { padding-top: 3rem !important; padding-bottom: 3rem !important; }
+  .md\:py-28 { padding-top: 3.5rem !important; padding-bottom: 3.5rem !important; }
   .md\:p-14 { padding: 1.5rem !important; }
-
-  /* Typography */
-  .md\:text-\[3\.2rem\] { font-size: 1.75rem !important; line-height: 1.1 !important; }
-  .md\:text-\[2\.2rem\] { font-size: 1.375rem !important; }
-  .md\:text-4xl { font-size: 1.5rem !important; }
-  .md\:text-3xl { font-size: 1.25rem !important; }
-  .md\:text-lg { font-size: 1rem !important; }
 
   /* Text alignment */
   .md\:text-left { text-align: center !important; }
@@ -39,9 +34,6 @@
   /* Flexbox items */
   .order-first { order: -1 !important; }
 
-  /* Image heights */
-  .md\:h-\[300px\] { height: 200px !important; }
-
   /* Max widths for images */
   .max-w-\[480px\] { max-width: 280px !important; }
   .max-w-\[420px\] { max-width: 280px !important; }
@@ -49,12 +41,12 @@
 
   /* Hero scene mode: stack gracefully */
   .lp-hero-scene {
-    min-height: 500px !important;
+    min-height: 520px !important;
     background-size: cover !important;
     background-position: center top !important;
   }
   .lp-hero-scene .lp-hero-overlay {
-    background: linear-gradient(to bottom, var(--lp-bg, #0a0a0a)ee 0%, var(--lp-bg, #0a0a0a)dd 60%, var(--lp-bg, #0a0a0a)cc 100%) !important;
+    background: linear-gradient(to bottom, var(--lp-bg, #070A10)ee 0%, var(--lp-bg, #070A10)dd 60%, var(--lp-bg, #070A10)cc 100%) !important;
   }
   .lp-hero-scene .lp-hero-content {
     max-width: 100% !important;
@@ -76,6 +68,13 @@
     flex-shrink: 0 !important;
   }
 
-  /* Pricing cards: single column */
+  /* Pricing cards: single column, no scale */
   .scale-\[1\.03\] { transform: none !important; }
+
+  /* CTA buttons: full width on mobile */
+  .lp-cta-btn {
+    min-width: unset !important;
+    width: 100% !important;
+    max-width: 360px !important;
+  }
 }
