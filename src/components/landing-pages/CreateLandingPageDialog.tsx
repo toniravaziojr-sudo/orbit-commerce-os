@@ -256,6 +256,9 @@ export function CreateLandingPageDialog({ open, onOpenChange }: CreateLandingPag
           }
         };
         enhanceRecursive();
+      } else if (!genError) {
+        // No products to enhance, set status to draft immediately
+        await supabase.from('ai_landing_pages').update({ status: 'draft' }).eq('id', landingPage.id);
       }
 
       return landingPage;
