@@ -173,13 +173,24 @@ function detectEnhanceableSchemaSections(schema: any): SectionSpec[] {
   
   for (const section of schema.sections) {
     if (section.type === 'hero') {
-      // Hero needs a composed background image
+      // Hero product image - compose product in a premium scene
       specs.push({
         blockType: 'hero',
         blockId: section.id,
-        promptSuffix: 'HERO',
-        aspectRatio: '16:9 (1920x1080 pixels, landscape)',
-        imageField: 'backgroundImageUrl',
+        promptSuffix: 'HERO-PRODUCT',
+        aspectRatio: '3:4 (900x1200 pixels, portrait product shot)',
+        imageField: 'productImageUrl',
+        isSchema: true,
+      });
+    }
+    if (section.type === 'cta_final' && section.props?.productImageUrl) {
+      // CTA final product image
+      specs.push({
+        blockType: 'cta_final',
+        blockId: section.id,
+        promptSuffix: 'CTA-PRODUCT',
+        aspectRatio: '1:1 (1024x1024 pixels, square)',
+        imageField: 'productImageUrl',
         isSchema: true,
       });
     }
@@ -251,6 +262,39 @@ function buildCompositionPrompt(
     sceneDescription = `Mesa de escritório moderna minimalista com acabamento fosco escuro. LED ambiental azul/roxo sutil. Superfície limpa com reflexo suave. Atmosfera futurista e clean.`;
   } else {
     sceneDescription = `Superfície elegante escura com gradiente de luz lateral suave. Reflexo sutil na superfície. Background com bokeh premium desfocado. Iluminação de estúdio profissional com key light e fill light.`;
+  }
+
+  const isProductShot = spec.promptSuffix.includes('PRODUCT');
+  
+  if (isProductShot) {
+    return `COMPOSIÇÃO VISUAL PREMIUM DE PRODUTO — ${spec.promptSuffix}
+
+TAREFA: Criar uma imagem fotorrealista premium do produto em um cenário elaborado. O produto anexado (com fundo transparente) deve ser integrado NATURALMENTE no cenário como se fosse fotografado profissionalmente em estúdio.
+
+PRODUTO: "${product.name}" da marca "${storeName}"
+
+CENÁRIO:
+${sceneDescription}
+
+REGRAS DE FIDELIDADE:
+1. O produto DEVE aparecer EXATAMENTE como na referência — mesmo rótulo, cores, formato, tipografia
+2. NÃO altere, invente ou modifique texto, marca ou design da embalagem
+3. O produto deve parecer FOTOGRAFADO no cenário, não colado digitalmente
+4. Sombra de contato REALISTA sob o produto
+5. Reflexos e highlights consistentes com a iluminação do cenário
+6. Profundidade de campo: produto nítido, fundo com bokeh sutil
+
+COMPOSIÇÃO (aspect ratio ${spec.aspectRatio}):
+- O produto é o HERÓI VISUAL central da imagem
+- Cenário tridimensional envolvendo o produto
+- Iluminação de estúdio profissional (key light + fill light + rim light)
+- Color grading coeso e premium
+
+PROIBIDO:
+- NÃO gerar texto, lettering, logos, selos ou badges
+- NÃO usar fundo branco ou chapado
+- NÃO fazer montagem visível
+- A imagem deve parecer UMA ÚNICA FOTOGRAFIA profissional${hasDriveRefs ? '\n\nREFERÊNCIAS DE ESTILO: Use as imagens extras como inspiração visual.' : ''}`;
   }
 
   return `COMPOSIÇÃO VISUAL COMPLETA PARA SEÇÃO DE LANDING PAGE — ${spec.promptSuffix}
