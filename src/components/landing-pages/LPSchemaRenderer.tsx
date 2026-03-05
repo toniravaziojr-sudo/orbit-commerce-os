@@ -60,8 +60,6 @@ function renderSection(section: LPSection, premiumTemplateId?: string) {
 
   // Fallback to generic blocks (backward compat)
   switch (type) {
-    case 'hero':
-      return <LPHero key={id} data={cleanProps} variant={variant} />;
     case 'benefits':
       return <LPBenefits key={id} data={cleanProps} variant={variant} />;
     case 'testimonials':
