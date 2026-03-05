@@ -244,6 +244,43 @@ interface CartItem {
 
 ---
 
+## Barra de Conversão (Benefit Progress Bar)
+
+A barra de progresso incentiva o cliente a atingir um valor mínimo para ganhar benefícios.
+
+### Configuração (`BenefitConfig` em `store_settings.benefit_config`)
+
+| Campo | Tipo | Default | Descrição |
+|-------|------|---------|-----------|
+| `enabled` | boolean | false | Ativa/desativa a barra |
+| `mode` | `'free_shipping' \| 'gift'` | `'free_shipping'` | Tipo de benefício |
+| `thresholdValue` | number | 199 | Valor mínimo para atingir |
+| `rewardLabel` | string | `'Frete Grátis'` | Texto durante progresso |
+| `successLabel` | string | `'🎉 Parabéns!...'` | Texto ao atingir |
+| `progressColor` | string | `'#22c55e'` | Cor da barra |
+| `applyToExternalRules` | boolean? | false | Concede frete grátis também por regras externas |
+
+### `applyToExternalRules`
+
+Quando ativado, o frete grátis é concedido não apenas pela barra de conversão (valor mínimo), mas também quando qualquer regra externa se aplica:
+
+- **Cadastro do produto:** Campo `free_shipping` ativo no produto
+- **Cupom de desconto:** Cupom do tipo `free_shipping`
+- **Regras de logística:** Regras condicionais por região/valor/categoria
+
+Segue a **Hierarquia de Frete Grátis** documentada em `docs/regras/logistica.md`.
+
+### Arquivos
+
+| Arquivo | Responsabilidade |
+|---------|------------------|
+| `src/components/storefront/cart/BenefitProgressBar.tsx` | Componente visual da barra |
+| `src/components/shipping/CartConversionConfigTab.tsx` | UI de configuração admin |
+| `src/contexts/StorefrontConfigContext.tsx` | Provider com `useBenefit()` |
+| `src/lib/storeConfigTypes.ts` | Interface `BenefitConfig` |
+
+---
+
 ## Cálculo de Frete
 
 | Integração | Status |
