@@ -263,7 +263,7 @@ const zLPHeroProps = z.object({
   title: z.string().min(3).max(200),
   subtitle: z.string().max(500),
   benefits: z.array(z.string().max(200)).min(1).max(6),
-  ctaText: z.string().max(50),
+  ctaText: z.string().max(25),
   ctaUrl: z.string().max(200),
   productImageUrl: z.string(),
   backgroundImageUrl: z.string().optional(),
@@ -307,7 +307,7 @@ const zLPPricingProps = z.object({
     compareAtPrice: z.number().nullable().optional(),
     discountPercent: z.number().nullable().optional(),
     installments: z.string().max(100).optional(),
-    ctaText: z.string().max(50),
+    ctaText: z.string().max(25),
     ctaUrl: z.string().max(300),
     isFeatured: z.boolean(),
     featuredBadge: z.string().max(50).optional(),
@@ -334,7 +334,7 @@ const zLPCtaFinalProps = z.object({
   description: z.string().max(300),
   productImageUrl: z.string(),
   priceDisplay: z.string().max(100).optional(),
-  ctaText: z.string().max(50),
+  ctaText: z.string().max(25),
   ctaUrl: z.string().max(200),
 });
 

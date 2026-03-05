@@ -1,8 +1,9 @@
 // =============================================
-// LP SCHEMA RENDERER — V7.1
+// LP SCHEMA RENDERER — V7.2
 // Renders LPSchema using real React components
 // Uses --lp-* CSS variables for theming
 // Sanitizes AI copy (strips markdown)
+// Container queries for responsive builder preview
 // =============================================
 
 import { useMemo } from 'react';
@@ -16,6 +17,7 @@ import { LPPricing } from './blocks/LPPricing';
 import { LPFaq } from './blocks/LPFaq';
 import { LPGuarantee } from './blocks/LPGuarantee';
 import { LPCtaFinal } from './blocks/LPCtaFinal';
+import '@/styles/lp-container-queries.css';
 
 interface LPSchemaRendererProps {
   schema: LPSchema;
@@ -23,7 +25,6 @@ interface LPSchemaRendererProps {
 
 function renderSection(section: LPSection) {
   const { id, type } = section;
-  // Sanitize all text props to strip markdown artifacts from AI
   const cleanProps = sanitizeLPSectionProps(section.props);
   switch (type) {
     case 'hero':
@@ -74,7 +75,6 @@ export function LPSchemaRenderer({ schema }: LPSchemaRendererProps) {
 
   return (
     <>
-      {/* Font loading */}
       <link rel="stylesheet" href={schema.colorScheme.fontImportUrl} />
       <div
         className="w-full min-h-screen"
@@ -85,6 +85,8 @@ export function LPSchemaRenderer({ schema }: LPSchemaRendererProps) {
           color: schema.colorScheme.text,
           margin: 0,
           padding: 0,
+          containerType: 'inline-size',
+          containerName: 'lp-root',
         }}
       >
         {schema.sections.map((section) => renderSection(section as LPSection))}

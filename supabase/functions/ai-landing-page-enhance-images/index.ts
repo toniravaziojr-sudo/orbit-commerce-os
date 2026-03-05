@@ -173,12 +173,12 @@ function detectEnhanceableSchemaSections(schema: any): SectionSpec[] {
   
   for (const section of schema.sections) {
     if (section.type === 'hero') {
-      // Hero product image - compose product in a premium scene
+      // Hero: wide landscape for full-section background composition
       specs.push({
         blockType: 'hero',
         blockId: section.id,
         promptSuffix: 'HERO-PRODUCT',
-        aspectRatio: '4:5 (960x1200 pixels, tall portrait product shot for side-by-side layout)',
+        aspectRatio: '16:9 (1920x1080 pixels, wide landscape for full-section background)',
         imageField: 'productImageUrl',
         isSchema: true,
       });
@@ -267,9 +267,41 @@ function buildCompositionPrompt(
   const isProductShot = spec.promptSuffix.includes('PRODUCT');
   
   if (isProductShot) {
+    const isHero = spec.promptSuffix === 'HERO-PRODUCT';
+    
+    if (isHero) {
+      return `COMPOSIÇÃO VISUAL PREMIUM PARA BANNER HERO — WIDE LANDSCAPE
+
+TAREFA: Criar uma imagem WIDE (16:9, 1920x1080) para ser usada como BACKGROUND de uma seção hero de landing page premium.
+
+PRODUTO: "${product.name}" da marca "${storeName}"
+O produto anexado (com fundo transparente) deve ser integrado NATURALMENTE no cenário.
+
+COMPOSIÇÃO OBRIGATÓRIA:
+- O produto deve ficar posicionado no LADO DIREITO da imagem (ocupando ~40% da largura)
+- O LADO ESQUERDO deve ter espaço LIVRE/LIMPO (será usado para overlay de texto)
+- Formato WIDE horizontal (16:9)
+
+CENÁRIO:
+${sceneDescription}
+
+REGRAS DE FIDELIDADE:
+1. O produto DEVE aparecer EXATAMENTE como na referência — mesmo rótulo, cores, formato
+2. NÃO altere ou invente texto/marca na embalagem
+3. Sombra de contato REALISTA sob o produto
+4. Profundidade de campo: produto nítido, fundo com bokeh sutil
+5. Iluminação de estúdio profissional coerente
+
+PROIBIDO:
+- NÃO gerar texto, lettering, logos, selos ou badges na imagem
+- NÃO usar fundo branco ou chapado
+- NÃO colocar o produto no centro — ele deve estar à DIREITA
+- A imagem deve parecer UMA ÚNICA FOTOGRAFIA profissional de catálogo premium${hasDriveRefs ? '\n\nREFERÊNCIAS DE ESTILO: Use as imagens extras como inspiração visual.' : ''}`;
+    }
+
     return `COMPOSIÇÃO VISUAL PREMIUM DE PRODUTO — ${spec.promptSuffix}
 
-TAREFA: Criar uma imagem fotorrealista premium do produto em um cenário elaborado. O produto anexado (com fundo transparente) deve ser integrado NATURALMENTE no cenário como se fosse fotografado profissionalmente em estúdio.
+TAREFA: Criar uma imagem fotorrealista premium do produto em um cenário elaborado. O produto anexado (com fundo transparente) deve ser integrado NATURALMENTE no cenário.
 
 PRODUTO: "${product.name}" da marca "${storeName}"
 
@@ -277,17 +309,15 @@ CENÁRIO:
 ${sceneDescription}
 
 REGRAS DE FIDELIDADE:
-1. O produto DEVE aparecer EXATAMENTE como na referência — mesmo rótulo, cores, formato, tipografia
-2. NÃO altere, invente ou modifique texto, marca ou design da embalagem
-3. O produto deve parecer FOTOGRAFADO no cenário, não colado digitalmente
-4. Sombra de contato REALISTA sob o produto
-5. Reflexos e highlights consistentes com a iluminação do cenário
-6. Profundidade de campo: produto nítido, fundo com bokeh sutil
+1. O produto DEVE aparecer EXATAMENTE como na referência — mesmo rótulo, cores, formato
+2. NÃO altere ou invente texto/marca na embalagem
+3. Sombra de contato REALISTA sob o produto
+4. Profundidade de campo: produto nítido, fundo com bokeh sutil
 
 COMPOSIÇÃO (aspect ratio ${spec.aspectRatio}):
 - O produto é o HERÓI VISUAL central da imagem
 - Cenário tridimensional envolvendo o produto
-- Iluminação de estúdio profissional (key light + fill light + rim light)
+- Iluminação de estúdio profissional
 - Color grading coeso e premium
 
 PROIBIDO:

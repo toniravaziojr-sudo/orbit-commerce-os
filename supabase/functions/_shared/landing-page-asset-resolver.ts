@@ -109,8 +109,8 @@ export async function resolveLandingPageAssets(input: AssetResolverInput): Promi
         .eq('is_folder', false)
         .ilike('mime_type', 'image/%')
         .in('folder_id', folderIds)
-        .order('created_at', { ascending: false })
-        .limit(5);
+      .order('created_at', { ascending: false })
+        .limit(12);
 
       if (proofFiles) {
         for (const file of proofFiles) {

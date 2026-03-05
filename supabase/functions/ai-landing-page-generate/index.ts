@@ -187,7 +187,7 @@ function buildBaseSchema(input: BuildSchemaInput) {
       props: {
         badge: 'RESULTADOS REAIS',
         title: 'Transformações de quem já usa',
-        imageUrls: input.assets.socialProofImages.slice(0, 4),
+        imageUrls: input.assets.socialProofImages.slice(0, 12),
       },
     });
   }
@@ -306,6 +306,7 @@ Sua tarefa é melhorar APENAS os TEXTOS (títulos, subtítulos, descrições, be
 11. NUNCA use markdown nos textos — proibido usar **, *, ##, __, \`\` ou qualquer formatação markdown
 12. Todos os textos devem ser plain text puro, sem nenhuma marcação de formatação
 13. Use CAPS LOCK para dar ênfase, nunca asteriscos
+14. REGRA DE CTA: Todos os ctaText DEVEM ser CURTOS (máximo 20 caracteres). Exemplos corretos: "Comprar agora", "Quero meu kit", "Aproveitar oferta", "Garantir o meu". PROIBIDO usar frases longas ou explicativas nos botões.
 
 ## CONTEXTO
 - Loja: ${storeName}
@@ -359,6 +360,7 @@ Você pode fazer QUALQUER tipo de ajuste na landing page:
 6. Use CAPS LOCK para dar ênfase, nunca asteriscos
 7. Quando solicitado trocar um produto/oferta no pricing, altere o nome, preço, CTA e demais campos do card
 8. Quando solicitado criar uma seção, use a estrutura de seções existentes como referência
+9. REGRA DE CTA: Todos os ctaText DEVEM ser CURTOS (máximo 20 caracteres). Exemplos: "Comprar agora", "Quero meu kit", "Aproveitar oferta". PROIBIDO frases longas.
 
 ## TIPOS DE SEÇÃO SUPORTADOS
 - hero: { badge, title, subtitle, benefits[], ctaText, ctaUrl, productImageUrl, backgroundImageUrl, priceDisplay }
@@ -664,7 +666,7 @@ serve(async (req) => {
 
     console.log(`[AI-LP-Generate] Engine Plan: visual=${enginePlan.resolvedVisualWeight}, niche=${enginePlan.resolvedNiche}`);
 
-    const ctaText = enginePlan.defaultCTA || "COMPRAR AGORA";
+    const ctaText = "COMPRAR AGORA";
     const ctaUrl = "#ofertas";
     const showHeader = savedLandingPage?.show_header ?? false;
     const showFooter = savedLandingPage?.show_footer ?? false;

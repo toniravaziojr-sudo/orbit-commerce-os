@@ -1,0 +1,56 @@
+/* =============================================
+ * LP Container Queries — Mobile Preview Fix
+ * Ensures LP blocks respond to CONTAINER width (builder preview)
+ * not just VIEWPORT width (browser window)
+ * ============================================= */
+
+@container lp-root (max-width: 767px) {
+  /* Grid: force single column */
+  .md\:grid-cols-2 { grid-template-columns: 1fr !important; }
+  .md\:grid-cols-3 { grid-template-columns: 1fr !important; }
+  .md\:grid-cols-4 { grid-template-columns: repeat(2, 1fr) !important; }
+
+  /* Gaps */
+  .md\:gap-16 { gap: 2rem !important; }
+  .md\:gap-20 { gap: 2.5rem !important; }
+
+  /* Section padding */
+  .md\:py-24 { padding-top: 4rem !important; padding-bottom: 4rem !important; }
+  .md\:p-14 { padding: 2.5rem !important; }
+
+  /* Typography */
+  .md\:text-\[3\.2rem\] { font-size: 1.875rem !important; line-height: 1.1 !important; }
+  .md\:text-\[2\.2rem\] { font-size: 1.5rem !important; }
+  .md\:text-4xl { font-size: 1.5rem !important; }
+  .md\:text-3xl { font-size: 1.25rem !important; }
+  .md\:text-lg { font-size: 1rem !important; }
+
+  /* Text alignment */
+  .md\:text-left { text-align: center !important; }
+
+  /* Order: reset to natural flow in mobile */
+  .md\:order-last { order: 0 !important; }
+  .md\:order-2 { order: 0 !important; }
+  .md\:order-1 { order: 0 !important; }
+  .md\:order-none { order: 0 !important; }
+
+  /* Image heights */
+  .md\:h-\[300px\] { height: 200px !important; }
+
+  /* Hero scene mode: stack gracefully */
+  .lp-hero-scene {
+    min-height: auto !important;
+    background-size: cover !important;
+    background-position: center !important;
+  }
+  .lp-hero-scene .lp-hero-overlay {
+    background: linear-gradient(to bottom, var(--lp-bg, #0a0a0a)dd 0%, var(--lp-bg, #0a0a0a)cc 60%, var(--lp-bg, #0a0a0a)ee 100%) !important;
+  }
+  .lp-hero-scene .lp-hero-content {
+    max-width: 100% !important;
+    text-align: center !important;
+  }
+  .lp-hero-scene .lp-hero-content ul {
+    text-align: left !important;
+  }
+}
