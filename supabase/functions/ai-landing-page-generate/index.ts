@@ -23,7 +23,7 @@ import {
 import { getNicheImages, getNicheImage } from "../_shared/landing-page-stock-images.ts";
 import { resolveLandingPageAssets, type ResolvedAssets } from "../_shared/landing-page-asset-resolver.ts";
 
-const VERSION = "8.0.0"; // Engine V8.0: Variation Engine
+const VERSION = "9.0.0"; // Engine V9.0: Premium Template Masters + Patch Adjustments
 
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
