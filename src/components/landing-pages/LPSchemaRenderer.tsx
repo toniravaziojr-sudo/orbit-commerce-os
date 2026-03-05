@@ -17,17 +17,8 @@ import { LPPricing } from './blocks/LPPricing';
 import { LPFaq } from './blocks/LPFaq';
 import { LPGuarantee } from './blocks/LPGuarantee';
 import { LPCtaFinal } from './blocks/LPCtaFinal';
-// Premium Heroes
-import { HeroLuxuryEditorial } from './heroes/HeroLuxuryEditorial';
-import { HeroBoldImpact } from './heroes/HeroBoldImpact';
-import { HeroMinimalZen } from './heroes/HeroMinimalZen';
-import { HeroOrganicNature } from './heroes/HeroOrganicNature';
-import { HeroCorporateTrust } from './heroes/HeroCorporateTrust';
-import { HeroNeonEnergy } from './heroes/HeroNeonEnergy';
-import { HeroWarmArtisan } from './heroes/HeroWarmArtisan';
-import { HeroTechGradient } from './heroes/HeroTechGradient';
-import { HeroClassicElegant } from './heroes/HeroClassicElegant';
-import { HeroUrbanStreet } from './heroes/HeroUrbanStreet';
+// Universal Hero
+import { HeroProductGradient } from './heroes/HeroProductGradient';
 // Premium CTAs
 import { CtaLuxuryEditorial } from './ctas/CtaLuxuryEditorial';
 import { CtaBoldImpact } from './ctas/CtaBoldImpact';
