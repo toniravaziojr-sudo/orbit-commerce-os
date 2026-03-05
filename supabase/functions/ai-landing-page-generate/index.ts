@@ -1177,6 +1177,7 @@ serve(async (req) => {
       });
 
       // Build base schema from templates (instant, no AI)
+      const variantSeed = Math.floor(Math.random() * 100000);
       const baseSchema = buildBaseSchema({
         storeName,
         brandKit,
@@ -1191,6 +1192,8 @@ serve(async (req) => {
         showHeader,
         showFooter,
         storeBaseUrl,
+        variantSeed,
+        niche: nicheKey,
       });
 
       // AI refines copy in the schema
