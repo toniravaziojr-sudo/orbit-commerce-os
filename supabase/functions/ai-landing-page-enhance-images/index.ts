@@ -131,6 +131,7 @@ interface SectionSpec {
   promptSuffix: string;
   aspectRatio: string;
   imageField: string;
+  isSchema?: boolean; // V7 schema mode
 }
 
 function detectEnhanceableSections(blocks: any): SectionSpec[] {
@@ -165,6 +166,28 @@ function detectEnhanceableSections(blocks: any): SectionSpec[] {
   return specs;
 }
 
+// V7: Detect enhanceable sections from schema
+function detectEnhanceableSchemaSections(schema: any): SectionSpec[] {
+  const specs: SectionSpec[] = [];
+  if (!schema?.sections) return specs;
+  
+  for (const section of schema.sections) {
+    if (section.type === 'hero') {
+      // Hero needs a composed background image
+      specs.push({
+        blockType: 'hero',
+        blockId: section.id,
+        promptSuffix: 'HERO',
+        aspectRatio: '16:9 (1920x1080 pixels, landscape)',
+        imageField: 'backgroundImageUrl',
+        isSchema: true,
+      });
+    }
+  }
+  
+  return specs;
+}
+
 function applyImageToBlock(blocks: any, blockId: string, imageField: string, imageUrl: string): boolean {
   let updated = false;
   function walk(node: any) {
@@ -191,6 +214,18 @@ function applyImageToBlock(blocks: any, blockId: string, imageField: string, ima
   }
   walk(blocks);
   return updated;
+}
+
+// V7: Apply image to schema section
+function applyImageToSchema(schema: any, sectionId: string, imageField: string, imageUrl: string): boolean {
+  if (!schema?.sections) return false;
+  for (const section of schema.sections) {
+    if (section.id === sectionId && section.props) {
+      section.props[imageField] = imageUrl;
+      return true;
+    }
+  }
+  return false;
 }
 
 // ========== SCENE COMPOSITION PROMPT BUILDER ==========
@@ -282,10 +317,10 @@ serve(async (req) => {
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 1. Fetch landing page + blocks
+    // 1. Fetch landing page + blocks/schema
     const { data: lp, error: lpError } = await supabase
       .from("ai_landing_pages")
-      .select("id, product_ids, generated_blocks, current_version, metadata")
+      .select("id, product_ids, generated_blocks, generated_schema, current_version, metadata")
       .eq("id", landingPageId)
       .single();
 
@@ -297,9 +332,13 @@ serve(async (req) => {
       );
     }
 
-    if (!lp.generated_blocks) {
+    // Determine if V7 (schema) or V5 (blocks)
+    const isV7 = !!lp.generated_schema;
+    const hasContent = isV7 || !!lp.generated_blocks;
+
+    if (!hasContent) {
       return new Response(
-        JSON.stringify({ success: false, error: "No blocks to enhance — generate page first" }),
+        JSON.stringify({ success: false, error: "No content to enhance — generate page first" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -399,9 +438,12 @@ serve(async (req) => {
       );
     }
 
-    // 6. Detect enhanceable sections from the block tree
-    const blocks = JSON.parse(JSON.stringify(lp.generated_blocks));
-    const allSpecs = detectEnhanceableSections(blocks);
+    // 6. Detect enhanceable sections
+    const blocks = isV7 ? null : JSON.parse(JSON.stringify(lp.generated_blocks));
+    const schema = isV7 ? JSON.parse(JSON.stringify(lp.generated_schema)) : null;
+    const allSpecs = isV7 
+      ? detectEnhanceableSchemaSections(schema)
+      : detectEnhanceableSections(blocks);
 
     if (allSpecs.length === 0) {
       console.warn("[AI-LP-Enhance] No enhanceable sections found in blocks");
@@ -472,8 +514,10 @@ serve(async (req) => {
         continue;
       }
 
-      // Apply to block tree
-      const applied = applyImageToBlock(blocks, spec.blockId, spec.imageField, publicUrl);
+      // Apply to block tree or schema
+      const applied = spec.isSchema
+        ? applyImageToSchema(schema, spec.blockId, spec.imageField, publicUrl)
+        : applyImageToBlock(blocks, spec.blockId, spec.imageField, publicUrl);
       results.push({ section: spec.promptSuffix, url: publicUrl, applied });
       console.log(`[AI-LP-Enhance] ${spec.promptSuffix}: uploaded & ${applied ? 'applied' : 'NOT applied'}`);
     }
@@ -495,23 +539,30 @@ serve(async (req) => {
     const nextIndex = startFromIndex + results.length;
     const isDone = nextIndex >= allSpecs.length;
 
+    const updatePayload: Record<string, any> = {
+      metadata: {
+        ...existingMeta,
+        imageEnhancement: {
+          version: VERSION,
+          enhancedAt: new Date().toISOString(),
+          sections: allEnhancedSections,
+          totalEnhanced: allEnhancedSections.length,
+          totalSections: allSpecs.length,
+          stage,
+          done: isDone,
+        },
+      },
+    };
+    // Save to the right column based on content type
+    if (isV7) {
+      updatePayload.generated_schema = schema;
+    } else {
+      updatePayload.generated_blocks = blocks;
+    }
+
     const { error: updateError } = await supabase
       .from("ai_landing_pages")
-      .update({
-        generated_blocks: blocks,
-        metadata: {
-          ...existingMeta,
-          imageEnhancement: {
-            version: VERSION,
-            enhancedAt: new Date().toISOString(),
-            sections: allEnhancedSections,
-            totalEnhanced: allEnhancedSections.length,
-            totalSections: allSpecs.length,
-            stage,
-            done: isDone,
-          },
-        },
-      })
+      .update(updatePayload)
       .eq("id", landingPageId);
 
     if (updateError) {
