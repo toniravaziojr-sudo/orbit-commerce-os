@@ -178,6 +178,7 @@ export function HeroProductGradient({ data }: Props) {
                   filter: 'drop-shadow(0 24px 60px rgba(0,0,0,0.4))',
                   maxWidth: 'clamp(260px, 28vw, 420px)',
                   maxHeight: 'clamp(300px, 50vh, 550px)',
+                  mixBlendMode: 'multiply',
                 }}
               />
             </div>
