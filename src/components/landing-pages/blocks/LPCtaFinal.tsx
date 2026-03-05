@@ -5,21 +5,30 @@ interface Props {
 }
 
 export function LPCtaFinal({ data }: Props) {
-  const isScene = data.productImageUrl?.includes('lp-creatives/') || 
-                  data.productImageUrl?.includes('section-cta');
+  // Determine scene URL — prefer dedicated scene URLs over fallback detection
+  const sceneDesktopUrl = data.ctaSceneDesktopUrl || 
+    (data.productImageUrl?.includes('lp-creatives/') || data.productImageUrl?.includes('section-cta') 
+      ? data.productImageUrl : '');
+  const sceneMobileUrl = data.ctaSceneMobileUrl || sceneDesktopUrl;
+  const isScene = !!sceneDesktopUrl;
 
   // ── Scene banner mode ──
-  if (isScene && data.productImageUrl) {
+  if (isScene) {
     return (
       <section 
-        className="relative overflow-hidden"
+        className="relative overflow-hidden lp-cta-scene"
         style={{
-          backgroundImage: `url('${data.productImageUrl}')`,
+          backgroundImage: `url('${sceneDesktopUrl}')`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           minHeight: '420px',
         }}
       >
+        <style>{`
+          @media (max-width: 767px) {
+            .lp-cta-scene { background-image: url('${sceneMobileUrl}') !important; }
+          }
+        `}</style>
         <div className="absolute inset-0" style={{
           background: `
             radial-gradient(ellipse at center, var(--lp-bg, #070A10)88 0%, var(--lp-bg, #070A10)cc 100%),
