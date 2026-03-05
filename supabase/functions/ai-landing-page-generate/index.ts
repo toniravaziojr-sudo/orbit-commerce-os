@@ -171,25 +171,82 @@ interface BuildSchemaInput {
   storeBaseUrl: string; // e.g. https://loja.example.com or empty
 }
 
+// ── Variation pools to avoid identical pages ──
+const BENEFIT_POOL = [
+  [
+    { label: 'QUALIDADE PREMIUM', title: 'Desenvolvido com os melhores ingredientes', description: 'Cada detalhe foi pensado para entregar o máximo resultado. Tecnologia avançada combinada com ingredientes selecionados.' },
+    { label: 'RESULTADO COMPROVADO', title: 'Aprovado por quem mais entende', description: 'Milhares de clientes satisfeitos comprovam a eficácia. Resultados visíveis desde as primeiras utilizações.' },
+    { label: 'FÁCIL DE USAR', title: 'Praticidade no seu dia a dia', description: 'Integre facilmente na sua rotina. Simples, rápido e eficiente — sem complicação.' },
+  ],
+  [
+    { label: 'EXCLUSIVIDADE', title: 'Tecnologia que faz a diferença', description: 'Fórmula desenvolvida com ativos de última geração. Performance superior comprovada em testes rigorosos.' },
+    { label: 'CONFIANÇA', title: 'Escolha de milhares de clientes', description: 'Marca consolidada no mercado com avaliações reais e resultados consistentes.' },
+    { label: 'PRATICIDADE', title: 'Resultados sem complicação', description: 'Use de forma simples e veja resultados reais. Desenvolvido para se adaptar à sua rotina.' },
+  ],
+  [
+    { label: 'ALTA PERFORMANCE', title: 'Máxima eficácia garantida', description: 'Formulado para quem exige o melhor. Ingredientes premium selecionados criteriosamente.' },
+    { label: 'APROVAÇÃO TOTAL', title: 'Recomendado por especialistas', description: 'Reconhecido por profissionais da área. Qualidade atestada por quem mais entende do assunto.' },
+    { label: 'USO DIÁRIO', title: 'Perfeito para a rotina', description: 'Projetado para uso contínuo e prático. Integra-se naturalmente no seu dia a dia.' },
+  ],
+];
+
+const HERO_SUBTITLE_POOL = [
+  'Descubra por que milhares de pessoas já escolheram este produto.',
+  'A solução definitiva que você estava procurando. Resultados reais, comprovados.',
+  'Performance comprovada por quem mais exige. Experimente a diferença.',
+  'Milhares de clientes satisfeitos não podem estar errados. Prove você também.',
+];
+
+const CTA_FINAL_POOL = [
+  { title: 'Não perca essa oportunidade', desc: 'Garanta o seu {product} agora mesmo com condições especiais.' },
+  { title: 'Chegou a sua vez', desc: 'Faça como milhares de clientes satisfeitos. Garanta o seu {product} hoje.' },
+  { title: 'Oferta por tempo limitado', desc: 'Aproveite as condições exclusivas e leve o {product} para casa agora.' },
+  { title: 'Última chance', desc: 'Estoque limitado. Garanta o {product} com o melhor preço antes que acabe.' },
+];
+
+const FAQ_POOL = [
+  [
+    { q: 'O {product} realmente funciona?', a: 'Sim! Nosso produto é testado e aprovado por milhares de clientes satisfeitos. Os resultados são comprovados por avaliações reais.' },
+    { q: 'Qual o prazo de entrega?', a: 'Enviamos em até 24h úteis após a confirmação do pagamento. O prazo de entrega varia de acordo com a sua região.' },
+    { q: 'Posso parcelar minha compra?', a: 'Sim! Parcelamos em até 12x no cartão de crédito. O {product} por apenas {installments} sem juros.' },
+    { q: 'Tem garantia?', a: 'Oferecemos garantia de satisfação. Se não ficar satisfeito, devolvemos seu dinheiro.' },
+    { q: 'O produto é original?', a: 'Sim, 100% original e com nota fiscal. Somos {store}, revendedor autorizado.' },
+  ],
+  [
+    { q: 'Para quem é indicado o {product}?', a: 'Indicado para quem busca resultados reais e duradouros. Ideal para todos os tipos de necessidade.' },
+    { q: 'Quanto tempo leva para ver resultados?', a: 'A maioria dos clientes nota diferença logo nas primeiras utilizações. Resultados consistentes aparecem com o uso contínuo.' },
+    { q: 'Como faço para rastrear meu pedido?', a: 'Após o envio, você recebe um código de rastreamento por e-mail para acompanhar a entrega em tempo real.' },
+    { q: 'Posso trocar ou devolver?', a: 'Sim! Oferecemos política de troca e devolução sem complicação. Sua satisfação é nossa prioridade.' },
+    { q: 'Aceitam PIX e boleto?', a: 'Sim! Aceitamos PIX (aprovação instantânea), boleto bancário e cartão de crédito em até 12x.' },
+  ],
+];
+
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
 function buildBaseSchema(input: BuildSchemaInput) {
   const c = getColorScheme(input.visualWeight, input.brandKit);
   const p = input.mainProduct;
   
   const sections: any[] = [];
 
-  // Hero
+  // Hero — with variation
+  const heroSubtitle = p.shortDescription || p.description?.substring(0, 150) || pick(HERO_SUBTITLE_POOL);
+  const heroBenefits = [
+    p.shortDescription || pick(['Resultados comprovados por milhares de clientes', 'Performance de elite para quem exige o melhor', 'A escolha inteligente de quem busca qualidade']),
+    pick(['Fórmula exclusiva de alta performance', 'Tecnologia avançada de última geração', 'Ingredientes premium selecionados']),
+    pick(['Satisfação garantida ou seu dinheiro de volta', 'Garantia total de qualidade', 'Envio rápido para todo o Brasil']),
+  ];
+
   sections.push({
     id: 'hero',
     type: 'hero',
     props: {
       badge: p.brand || input.storeName,
       title: p.name,
-      subtitle: p.shortDescription || p.description?.substring(0, 150) || 'Descubra por que milhares de pessoas já escolheram este produto.',
-      benefits: [
-        p.shortDescription || 'Resultados comprovados por milhares de clientes',
-        'Fórmula exclusiva de alta performance',
-        'Satisfação garantida ou seu dinheiro de volta',
-      ],
+      subtitle: heroSubtitle,
+      benefits: heroBenefits,
       ctaText: input.ctaText,
       ctaUrl: input.ctaUrl,
       productImageUrl: input.assets.heroImageUrl,
@@ -202,12 +259,12 @@ function buildBaseSchema(input: BuildSchemaInput) {
     },
   });
 
-  // Benefits
-  const benefitItems = [
-    { label: 'QUALIDADE PREMIUM', title: 'Desenvolvido com os melhores ingredientes', description: 'Cada detalhe foi pensado para entregar o máximo resultado. Tecnologia avançada combinada com ingredientes selecionados.', imageUrl: input.assets.benefitImages[0] || '' },
-    { label: 'RESULTADO COMPROVADO', title: 'Aprovado por quem mais entende', description: 'Milhares de clientes satisfeitos comprovam a eficácia. Resultados visíveis desde as primeiras utilizações.', imageUrl: input.assets.benefitImages[1] || '' },
-    { label: 'FÁCIL DE USAR', title: 'Praticidade no seu dia a dia', description: 'Integre facilmente na sua rotina. Simples, rápido e eficiente — sem complicação.', imageUrl: input.assets.benefitImages[2] || '' },
-  ];
+  // Benefits — with rotation
+  const benefitSet = pick(BENEFIT_POOL);
+  const benefitItems = benefitSet.map((b, i) => ({
+    ...b,
+    imageUrl: input.assets.benefitImages[i] || '',
+  }));
   sections.push({ id: 'benefits', type: 'benefits', props: { items: benefitItems } });
 
   // Testimonials (if reviews exist)
@@ -218,8 +275,8 @@ function buildBaseSchema(input: BuildSchemaInput) {
       id: 'testimonials',
       type: 'testimonials',
       props: {
-        badge: 'AVALIAÇÕES REAIS',
-        title: 'O que nossos clientes dizem',
+        badge: pick(['AVALIAÇÕES REAIS', 'CLIENTES SATISFEITOS', 'DEPOIMENTOS VERIFICADOS']),
+        title: pick(['O que nossos clientes dizem', 'Quem usa, recomenda', 'Avaliações de quem já testou']),
         subtitle: `Nota média: ${avgRating}/5 — ${displayReviews.length}+ avaliações verificadas`,
         items: displayReviews.map(r => ({ name: r.name, rating: r.rating, comment: r.comment })),
       },
@@ -232,8 +289,8 @@ function buildBaseSchema(input: BuildSchemaInput) {
       id: 'social_proof',
       type: 'social_proof',
       props: {
-        badge: 'RESULTADOS REAIS',
-        title: 'Transformações de quem já usa',
+        badge: pick(['RESULTADOS REAIS', 'ANTES E DEPOIS', 'PROVA SOCIAL']),
+        title: pick(['Transformações de quem já usa', 'Resultados que falam por si', 'Veja quem já transformou sua rotina']),
         imageUrls: input.assets.socialProofImages.slice(0, 24),
       },
     });
@@ -249,45 +306,42 @@ function buildBaseSchema(input: BuildSchemaInput) {
     id: 'pricing',
     type: 'pricing',
     props: {
-      badge: 'OFERTAS ESPECIAIS',
-      title: 'Escolha a melhor opção para você',
-      subtitle: 'Quanto maior o kit, maior a economia',
+      badge: pick(['OFERTAS ESPECIAIS', 'CONDIÇÕES EXCLUSIVAS', 'KITS COM DESCONTO']),
+      title: pick(['Escolha a melhor opção para você', 'Monte seu kit ideal', 'Aproveite as melhores ofertas']),
+      subtitle: pick(['Quanto maior o kit, maior a economia', 'Compre mais, pague menos', 'Desconto progressivo em todos os kits']),
       cards: pricingProducts.map((prod, i) => {
-        // Build product URL: /p/{slug} for storefront
         const productUrl = prod.slug && input.storeBaseUrl
           ? `${input.storeBaseUrl}/p/${prod.slug}`
           : (prod.slug ? `/p/${prod.slug}` : input.ctaUrl);
         
         return {
-        name: prod.name,
-        imageUrl: (prod.id && input.assets.offerCardImages[prod.id]) || prod.primaryImage || input.assets.heroImageUrl,
-        price: prod.price,
-        compareAtPrice: prod.compareAtPrice || null,
-        discountPercent: prod.discountPercent || null,
-        installments: installments(prod.price),
-        ctaText: input.ctaText,
-        ctaUrl: productUrl,
-        isFeatured: i === featuredIdx,
-        featuredBadge: i === featuredIdx ? '🔥 MAIS VENDIDO' : undefined,
+          name: prod.name,
+          imageUrl: (prod.id && input.assets.offerCardImages[prod.id]) || prod.primaryImage || input.assets.heroImageUrl,
+          price: prod.price,
+          compareAtPrice: prod.compareAtPrice || null,
+          discountPercent: prod.discountPercent || null,
+          installments: installments(prod.price),
+          ctaText: input.ctaText,
+          ctaUrl: productUrl,
+          isFeatured: i === featuredIdx,
+          featuredBadge: i === featuredIdx ? pick(['🔥 MAIS VENDIDO', '⭐ MELHOR CUSTO-BENEFÍCIO', '🏆 MAIS POPULAR']) : undefined,
         };
       }),
     },
   });
 
-  // FAQ
+  // FAQ — with rotation
+  const faqSet = pick(FAQ_POOL);
   sections.push({
     id: 'faq',
     type: 'faq',
     props: {
       badge: 'DÚVIDAS FREQUENTES',
       title: 'Perguntas Frequentes',
-      items: [
-        { question: `O ${p.name} realmente funciona?`, answer: 'Sim! Nosso produto é testado e aprovado por milhares de clientes satisfeitos. Os resultados são comprovados por avaliações reais.' },
-        { question: 'Qual o prazo de entrega?', answer: 'Enviamos em até 24h úteis após a confirmação do pagamento. O prazo de entrega varia de acordo com a sua região.' },
-        { question: 'Posso parcelar minha compra?', answer: `Sim! Parcelamos em até 12x no cartão de crédito. O ${p.name} por apenas ${installments(p.price)} sem juros.` },
-        { question: 'Tem garantia?', answer: 'Oferecemos garantia de satisfação. Se não ficar satisfeito, devolvemos seu dinheiro.' },
-        { question: 'O produto é original?', answer: `Sim, 100% original e com nota fiscal. Somos ${input.storeName}, revendedor autorizado.` },
-      ],
+      items: faqSet.map(f => ({
+        question: f.q.replace('{product}', p.name).replace('{store}', input.storeName),
+        answer: f.a.replace('{product}', p.name).replace('{store}', input.storeName).replace('{installments}', installments(p.price)),
+      })),
     },
   });
 
@@ -296,19 +350,20 @@ function buildBaseSchema(input: BuildSchemaInput) {
     id: 'guarantee',
     type: 'guarantee',
     props: {
-      title: 'Garantia de Satisfação',
+      title: pick(['Garantia de Satisfação', 'Compra 100% Segura', 'Garantia Total']),
       description: `Sua compra é 100% segura. Se por qualquer motivo você não ficar satisfeito com o ${p.name}, devolvemos seu dinheiro integralmente. Sem burocracia, sem perguntas.`,
       badges: ['✓ Compra Segura', '✓ Pagamento Protegido', '✓ Envio Garantido'],
     },
   });
 
-  // CTA Final
+  // CTA Final — with variation
+  const ctaFinal = pick(CTA_FINAL_POOL);
   sections.push({
     id: 'cta_final',
     type: 'cta_final',
     props: {
-      title: 'Não perca essa oportunidade',
-      description: `Garanta o seu ${p.name} agora mesmo com condições especiais.`,
+      title: ctaFinal.title,
+      description: ctaFinal.desc.replace('{product}', p.name),
       productImageUrl: input.assets.heroImageUrl,
       ctaSceneDesktopUrl: input.assets.heroSceneDesktopUrl || undefined,
       ctaSceneMobileUrl: input.assets.heroSceneMobileUrl || undefined,

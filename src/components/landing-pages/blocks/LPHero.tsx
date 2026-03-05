@@ -167,16 +167,16 @@ export function LPHero({ data }: Props) {
         </div>
         <div className="flex items-center justify-center order-first md:order-last">
           {data.productImageUrl && (
-            <div className="relative lp-hero-title-enter" style={{ animationDelay: '0.3s' }}>
+            <div className="relative lp-hero-title-enter flex items-center justify-center" style={{ animationDelay: '0.3s' }}>
               <div 
-                className="absolute inset-0 rounded-full blur-[80px] opacity-[0.18] scale-75"
-                style={{ background: 'var(--lp-accent)' }}
+                className="absolute inset-0 rounded-full blur-[80px] opacity-[0.10] scale-75"
+                style={{ background: 'rgba(255,255,255,0.15)' }}
               />
               <img
                 src={data.productImageUrl}
                 alt="Produto"
-                className="relative w-full max-w-[480px] h-auto object-contain transition-transform duration-700 hover:scale-105"
-                style={{ filter: `drop-shadow(0 30px 80px var(--lp-shadow))` }}
+                className="relative w-full max-w-[320px] max-h-[380px] h-auto object-contain transition-transform duration-700 hover:scale-105"
+                style={{ filter: `drop-shadow(0 20px 50px var(--lp-shadow))` }}
               />
             </div>
           )}
