@@ -338,35 +338,53 @@ function buildSchemaAdjustmentPrompt(params: {
 }): { system: string; user: string } {
   const { storeName, productName, prompt, currentSchema } = params;
 
-  const system = `Você é um editor de landing pages. Você recebe o schema JSON de uma landing page e uma solicitação de ajuste.
+  const system = `Você é um editor de landing pages de alta conversão. Você recebe o schema JSON de uma landing page e uma solicitação de ajuste.
+
+## SUAS CAPACIDADES
+Você pode fazer QUALQUER tipo de ajuste na landing page:
+- Alterar textos, títulos, descrições, CTAs, badges
+- Alterar cores, estilos visuais
+- Adicionar, remover ou reordenar seções inteiras
+- Trocar produtos/ofertas na seção de pricing (substituir cards inteiros)
+- Criar novas seções (hero, benefits, testimonials, social_proof, pricing, faq, guarantee, cta_final)
+- Reconstruir seções existentes com novo conteúdo
+- Alterar a estrutura dos cards de oferta
 
 ## REGRAS
-1. Faça APENAS o ajuste solicitado
-2. RETORNE o schema JSON COMPLETO e VÁLIDO
-3. NÃO mude URLs de imagem (exceto se solicitado)
-4. NÃO mude preços (exceto se solicitado)
-5. NÃO mude colorScheme, version ou visualStyle
-6. Você PODE reordenar seções, remover seções ou alterar textos conforme solicitado
-7. NÃO invente URLs
-8. NUNCA use markdown nos textos — proibido usar **, *, ##, __, \`\` ou qualquer formatação markdown
-9. Todos os textos devem ser plain text puro, sem nenhuma marcação de formatação
-10. Use CAPS LOCK para dar ênfase, nunca asteriscos
+1. RETORNE o schema JSON COMPLETO e VÁLIDO — com todas as seções
+2. NÃO invente URLs de imagem — mantenha as existentes ou use "" se não houver
+3. NÃO mude colorScheme, version ou visualStyle a menos que solicitado
+4. NUNCA use markdown nos textos — proibido usar **, *, ##, __, \`\` ou qualquer formatação
+5. Todos os textos devem ser plain text puro
+6. Use CAPS LOCK para dar ênfase, nunca asteriscos
+7. Quando solicitado trocar um produto/oferta no pricing, altere o nome, preço, CTA e demais campos do card
+8. Quando solicitado criar uma seção, use a estrutura de seções existentes como referência
+
+## TIPOS DE SEÇÃO SUPORTADOS
+- hero: { badge, title, subtitle, benefits[], ctaText, ctaUrl, productImageUrl, backgroundImageUrl, priceDisplay }
+- benefits: { items[{ label, title, description, imageUrl }] }
+- testimonials: { badge, title, subtitle, items[{ name, rating, comment }] }
+- social_proof: { badge, title, imageUrls[] }
+- pricing: { badge, title, subtitle, cards[{ name, imageUrl, price, compareAtPrice, discountPercent, installments, ctaText, ctaUrl, isFeatured, featuredBadge }] }
+- faq: { badge, title, items[{ question, answer }] }
+- guarantee: { title, description, badges[] }
+- cta_final: { title, description, productImageUrl, priceDisplay, ctaText, ctaUrl }
 
 ## CONTEXTO
 - Loja: ${storeName}
-- Produto: ${productName}
+- Produto principal: ${productName}
 
 ## FORMATO DE SAÍDA
-Retorne APENAS o JSON completo do schema atualizado, sem markdown, sem explicações.`;
+Retorne APENAS o JSON completo do schema atualizado, sem markdown code fences, sem explicações.`;
 
-  const user = `Ajuste este schema de landing page:
+  const user = `Ajuste este schema de landing page conforme a solicitação abaixo.
 
-SOLICITAÇÃO: ${prompt}
+SOLICITAÇÃO DO USUÁRIO: ${prompt}
 
 SCHEMA ATUAL:
 ${JSON.stringify(currentSchema, null, 2)}
 
-Retorne o JSON completo com o ajuste aplicado.`;
+Retorne o JSON completo atualizado.`;
 
   return { system, user };
 }
@@ -499,37 +517,48 @@ serve(async (req) => {
           if (!firstProduct) firstProduct = pd;
         }
 
-        // Auto-discover kits
+        // Auto-discover kits — STRICT: only kits where ALL components are from selected products
         try {
+          // Step 1: Find kits that contain at least one of the selected products
           const { data: relatedKits } = await supabase
             .from("product_components")
-            .select("parent_product_id, quantity, component_product_id")
+            .select("parent_product_id, component_product_id")
             .in("component_product_id", productIds);
 
           if (relatedKits && relatedKits.length > 0) {
-            // Only include kits where ALL components are from selected products (strict matching)
-            // Group by parent_product_id to check composition
-            const kitComponentMap = new Map<string, Set<string>>();
-            for (const r of relatedKits) {
-              if (!kitComponentMap.has(r.parent_product_id)) {
-                kitComponentMap.set(r.parent_product_id, new Set());
-              }
-              kitComponentMap.get(r.parent_product_id)!.add(r.component_product_id);
-            }
-            
-            // Filter: only kits composed of the selected product(s)
-            const strictKitIds = [...kitComponentMap.entries()]
-              .filter(([parentId, components]) => {
-                // Kit must not be one of the selected products itself
-                if (productIds!.includes(parentId)) return false;
-                // All components must be from the selected products
-                for (const compId of components) {
-                  if (!productIds!.includes(compId)) return false;
+            // Get unique parent kit IDs (candidates)
+            const candidateKitIds = [...new Set(relatedKits.map((r: any) => r.parent_product_id))]
+              .filter((kitId: string) => !productIds!.includes(kitId));
+
+            if (candidateKitIds.length > 0) {
+              // Step 2: Fetch ALL components for each candidate kit (not just the matching ones)
+              const { data: allKitComponents } = await supabase
+                .from("product_components")
+                .select("parent_product_id, component_product_id")
+                .in("parent_product_id", candidateKitIds);
+
+              // Group ALL components by kit
+              const fullKitComponentMap = new Map<string, Set<string>>();
+              for (const r of (allKitComponents || [])) {
+                if (!fullKitComponentMap.has(r.parent_product_id)) {
+                  fullKitComponentMap.set(r.parent_product_id, new Set());
                 }
-                return true;
-              })
-              .map(([parentId]) => parentId)
-              .slice(0, 3); // Max 3 kits to match typical LP layout
+                fullKitComponentMap.get(r.parent_product_id)!.add(r.component_product_id);
+              }
+
+              // Step 3: STRICT filter — ALL components of the kit must be from selected products
+              const strictKitIds = [...fullKitComponentMap.entries()]
+                .filter(([_parentId, allComponents]) => {
+                  // Every single component must be one of the selected products
+                  for (const compId of allComponents) {
+                    if (!productIds!.includes(compId)) return false;
+                  }
+                  return allComponents.size > 0;
+                })
+                .map(([parentId]) => parentId)
+                .slice(0, 3); // Max 3 kits
+
+              console.log(`[AI-LP-Generate] Kit discovery: ${candidateKitIds.length} candidates → ${strictKitIds.length} strict matches`);
 
             if (strictKitIds.length > 0) {
               const { data: kitProducts } = await supabase
@@ -574,7 +603,8 @@ serve(async (req) => {
                 console.log(`[AI-LP-Generate] Auto-discovered ${kits.length} kits`);
               }
             }
-          }
+            } // end candidateKitIds.length > 0
+          } // end relatedKits
         } catch (kitErr) {
           console.warn("[AI-LP-Generate] Kit discovery error:", kitErr);
         }

@@ -5,9 +5,18 @@ interface Props {
 }
 
 export function LPHero({ data }: Props) {
+  // Detect if the product image is an AI-generated scene (not a raw catalog cutout)
+  const isEnhancedScene = data.productImageUrl?.includes('lp-creatives/') || 
+                          data.productImageUrl?.includes('section-hero');
+  
   const bgStyle: React.CSSProperties = data.backgroundImageUrl
     ? {
         background: `linear-gradient(135deg, var(--lp-bg, #0a0a0a)ee 0%, var(--lp-bg, #0a0a0a)cc 50%, var(--lp-bg, #0a0a0a)88 100%), url('${data.backgroundImageUrl}') center/cover no-repeat`,
+      }
+    : isEnhancedScene
+    ? {
+        // When we have an enhanced scene, use it as the section background too
+        background: `var(--lp-bg)`,
       }
     : {
         background: `linear-gradient(180deg, var(--lp-bg) 0%, var(--lp-bg-alt) 100%)`,
@@ -91,17 +100,31 @@ export function LPHero({ data }: Props) {
         <div className="flex items-center justify-center order-first md:order-last">
           {data.productImageUrl && (
             <div className="relative">
-              {/* Glow behind product */}
-              <div 
-                className="absolute inset-0 rounded-full blur-[60px] opacity-20 scale-75"
-                style={{ background: 'var(--lp-accent)' }}
-              />
-              <img
-                src={data.productImageUrl}
-                alt="Produto"
-                className="relative w-full max-w-[480px] h-auto object-contain transition-transform duration-500 hover:scale-105"
-                style={{ filter: `drop-shadow(0 20px 50px var(--lp-shadow))` }}
-              />
+              {isEnhancedScene ? (
+                /* Enhanced scene: render as full, rounded, premium image */
+                <img
+                  src={data.productImageUrl}
+                  alt="Produto"
+                  className="relative w-full max-w-[520px] h-auto rounded-2xl object-cover transition-transform duration-500 hover:scale-[1.02]"
+                  style={{ 
+                    boxShadow: '0 25px 60px var(--lp-shadow), 0 0 40px var(--lp-shadow)',
+                  }}
+                />
+              ) : (
+                /* Raw catalog cutout: use glow + drop-shadow treatment */
+                <>
+                  <div 
+                    className="absolute inset-0 rounded-full blur-[60px] opacity-20 scale-75"
+                    style={{ background: 'var(--lp-accent)' }}
+                  />
+                  <img
+                    src={data.productImageUrl}
+                    alt="Produto"
+                    className="relative w-full max-w-[480px] h-auto object-contain transition-transform duration-500 hover:scale-105"
+                    style={{ filter: `drop-shadow(0 20px 50px var(--lp-shadow))` }}
+                  />
+                </>
+              )}
             </div>
           )}
         </div>

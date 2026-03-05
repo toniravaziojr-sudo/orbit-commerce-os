@@ -178,7 +178,7 @@ function detectEnhanceableSchemaSections(schema: any): SectionSpec[] {
         blockType: 'hero',
         blockId: section.id,
         promptSuffix: 'HERO-PRODUCT',
-        aspectRatio: '3:4 (900x1200 pixels, portrait product shot)',
+        aspectRatio: '4:5 (960x1200 pixels, tall portrait product shot for side-by-side layout)',
         imageField: 'productImageUrl',
         isSchema: true,
       });
