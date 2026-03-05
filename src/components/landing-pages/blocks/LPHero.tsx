@@ -49,7 +49,7 @@ function HeroSplitRight({ data }: { data: LPHeroProps }) {
           {/* Bottom-left subtle glow */}
           <div className="absolute -bottom-[150px] -left-[150px] w-[600px] h-[600px] rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%)`, opacity: 0.04, filter: 'blur(100px)' }} />
           {/* Vignette */}
-          <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse at center, transparent 30%, var(--lp-bg, #070A10)66 100%), linear-gradient(180deg, var(--lp-bg) 0%, transparent 12%, transparent 88%, var(--lp-bg-alt) 100%)` }} />
+          <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse at center, transparent 30%, rgba(7,4,16,0.40) 100%), linear-gradient(180deg, var(--lp-bg) 0%, transparent 12%, transparent 88%, var(--lp-bg-alt) 100%)` }} />
           {/* Mesh gradient pattern */}
           <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(at 80% 20%, var(--lp-accent) 0%, transparent 50%), radial-gradient(at 20% 80%, var(--lp-accent) 0%, transparent 50%)`, opacity: 0.03 }} />
         </>
