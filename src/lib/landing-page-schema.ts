@@ -468,6 +468,9 @@ export const zLPSchema = z.object({
   templateId: z.string().optional(),
   mood: z.string().optional(),
   variantSeed: z.number().optional(),
+  // V9.0 optional fields
+  premiumTemplateId: z.string().optional(),
+  designTokens: z.record(z.string()).optional(),
 }).refine(
   (schema) => {
     const socialProofCount = schema.sections.filter(s => s.type === 'social_proof').length;

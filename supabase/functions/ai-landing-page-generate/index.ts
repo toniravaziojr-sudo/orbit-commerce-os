@@ -23,7 +23,7 @@ import {
 import { getNicheImages, getNicheImage } from "../_shared/landing-page-stock-images.ts";
 import { resolveLandingPageAssets, type ResolvedAssets } from "../_shared/landing-page-asset-resolver.ts";
 
-const VERSION = "8.0.0"; // Engine V8.0: Variation Engine
+const VERSION = "9.0.0"; // Engine V9.0: Premium Template Masters + Patch Adjustments
 
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
@@ -361,7 +361,7 @@ function seededPick<T>(arr: T[], rng: () => number): T {
   return arr[Math.floor(rng() * arr.length)];
 }
 
-// ── V8.0: Template definitions ──
+// ── V8.0: Template definitions (narrative recipes) ──
 type TemplateId = 'direct_offer' | 'proof_first' | 'problem_solution' | 'routine' | 'comparison' | 'minimal_premium';
 
 interface TemplateRecipe {
@@ -399,6 +399,114 @@ function selectTemplate(seed: number, hasReviews: boolean, hasSocialProof: boole
     if (roll <= 0) return t;
   }
   return eligible[eligible.length - 1];
+}
+
+// ── V9.0: Premium Template Masters ──
+// Each premium template maps to a dedicated Hero + CTA Final React component pair
+type PremiumTemplateId = 
+  | 'luxury_editorial' | 'bold_impact' | 'minimal_zen' | 'organic_nature' | 'corporate_trust'
+  | 'neon_energy' | 'warm_artisan' | 'tech_gradient' | 'classic_elegant' | 'urban_street';
+
+interface PremiumTemplateEntry {
+  id: PremiumTemplateId;
+  allowedMoods: LPMood[];
+  defaultMood: LPMood;
+  fontDisplay: string;
+  fontBody: string;
+  fontImportUrl: string;
+  /** Design tokens for CSS variable injection */
+  tokens: {
+    radius: string;
+    cardStyle: string;
+    shadowIntensity: string;
+    sectionPaddingY: string;
+    accentGlow: number;
+    dividerStyle: string;
+  };
+}
+
+const PREMIUM_TEMPLATES: PremiumTemplateEntry[] = [
+  {
+    id: 'luxury_editorial', allowedMoods: ['luxury', 'minimal'], defaultMood: 'luxury',
+    fontDisplay: "'Playfair Display', Georgia, serif", fontBody: "'Inter', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;800&family=Inter:wght@300;400;500;600&display=swap',
+    tokens: { radius: '20px', cardStyle: 'glass', shadowIntensity: 'dramatic', sectionPaddingY: 'clamp(80px, 10vw, 120px)', accentGlow: 0.08, dividerStyle: 'gradient' },
+  },
+  {
+    id: 'bold_impact', allowedMoods: ['bold', 'corporate'], defaultMood: 'bold',
+    fontDisplay: "'Bebas Neue', Impact, sans-serif", fontBody: "'Archivo', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Archivo:wght@400;500;600;700&display=swap',
+    tokens: { radius: '12px', cardStyle: 'solid', shadowIntensity: 'medium', sectionPaddingY: 'clamp(64px, 8vw, 100px)', accentGlow: 0.12, dividerStyle: 'line' },
+  },
+  {
+    id: 'minimal_zen', allowedMoods: ['minimal', 'luxury'], defaultMood: 'minimal',
+    fontDisplay: "'Sora', -apple-system, sans-serif", fontBody: "'Inter', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=Inter:wght@300;400;500&display=swap',
+    tokens: { radius: '8px', cardStyle: 'outline', shadowIntensity: 'subtle', sectionPaddingY: 'clamp(80px, 12vw, 140px)', accentGlow: 0.03, dividerStyle: 'none' },
+  },
+  {
+    id: 'organic_nature', allowedMoods: ['organic', 'minimal'], defaultMood: 'organic',
+    fontDisplay: "'Lora', Georgia, serif", fontBody: "'Montserrat', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&family=Montserrat:wght@300;400;500;600&display=swap',
+    tokens: { radius: '28px', cardStyle: 'elevated', shadowIntensity: 'medium', sectionPaddingY: 'clamp(72px, 9vw, 110px)', accentGlow: 0.06, dividerStyle: 'gradient' },
+  },
+  {
+    id: 'corporate_trust', allowedMoods: ['corporate', 'minimal'], defaultMood: 'corporate',
+    fontDisplay: "'Plus Jakarta Sans', -apple-system, sans-serif", fontBody: "'Plus Jakarta Sans', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap',
+    tokens: { radius: '12px', cardStyle: 'solid', shadowIntensity: 'subtle', sectionPaddingY: 'clamp(64px, 8vw, 96px)', accentGlow: 0.04, dividerStyle: 'line' },
+  },
+  {
+    id: 'neon_energy', allowedMoods: ['bold', 'luxury'], defaultMood: 'bold',
+    fontDisplay: "'Oswald', Impact, sans-serif", fontBody: "'Inter', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap',
+    tokens: { radius: '16px', cardStyle: 'glass', shadowIntensity: 'dramatic', sectionPaddingY: 'clamp(72px, 9vw, 110px)', accentGlow: 0.2, dividerStyle: 'gradient' },
+  },
+  {
+    id: 'warm_artisan', allowedMoods: ['organic', 'luxury'], defaultMood: 'organic',
+    fontDisplay: "'Cormorant Garamond', Georgia, serif", fontBody: "'Lato', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Lato:wght@300;400;700&display=swap',
+    tokens: { radius: '20px', cardStyle: 'elevated', shadowIntensity: 'medium', sectionPaddingY: 'clamp(80px, 10vw, 120px)', accentGlow: 0.05, dividerStyle: 'gradient' },
+  },
+  {
+    id: 'tech_gradient', allowedMoods: ['corporate', 'bold', 'minimal'], defaultMood: 'corporate',
+    fontDisplay: "'Space Grotesk', -apple-system, sans-serif", fontBody: "'Inter', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap',
+    tokens: { radius: '24px', cardStyle: 'glass', shadowIntensity: 'dramatic', sectionPaddingY: 'clamp(72px, 9vw, 110px)', accentGlow: 0.15, dividerStyle: 'gradient' },
+  },
+  {
+    id: 'classic_elegant', allowedMoods: ['luxury', 'minimal'], defaultMood: 'luxury',
+    fontDisplay: "'DM Serif Display', Georgia, serif", fontBody: "'DM Sans', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap',
+    tokens: { radius: '4px', cardStyle: 'outline', shadowIntensity: 'subtle', sectionPaddingY: 'clamp(88px, 11vw, 130px)', accentGlow: 0.04, dividerStyle: 'line' },
+  },
+  {
+    id: 'urban_street', allowedMoods: ['bold', 'corporate'], defaultMood: 'bold',
+    fontDisplay: "'Anton', Impact, sans-serif", fontBody: "'Barlow', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap',
+    tokens: { radius: '0px', cardStyle: 'solid', shadowIntensity: 'medium', sectionPaddingY: 'clamp(60px, 8vw, 96px)', accentGlow: 0.1, dividerStyle: 'none' },
+  },
+];
+
+/**
+ * V9.0: Select premium template based on seed + niche mood compatibility.
+ * Guarantees diversity: 10 generations → min 6 different templates.
+ */
+function selectPremiumTemplate(seed: number, niche: string): PremiumTemplateEntry {
+  const rng = seededRng(seed + 42424);
+  const nicheMoods = NICHE_MOOD_MAP[niche] || NICHE_MOOD_MAP['geral'];
+  
+  // Filter templates whose allowedMoods overlap with niche moods
+  const compatible = PREMIUM_TEMPLATES.filter(t => 
+    t.allowedMoods.some(m => nicheMoods.includes(m))
+  );
+  
+  // If somehow no compatible templates, use all
+  const pool = compatible.length >= 3 ? compatible : PREMIUM_TEMPLATES;
+  
+  // Deterministic selection from pool
+  const idx = Math.floor(rng() * pool.length);
+  return pool[idx];
 }
 
 // ── V8.0: Mood selection ──
@@ -599,8 +707,28 @@ function buildBaseSchema(input: BuildSchemaInput & { variantSeed?: number; niche
     }
   }
 
+  // V9.0: Select premium template and apply its fonts + tokens
+  const premiumTemplate = selectPremiumTemplate(seed, nicheKey);
+  
+  // Override fonts with premium template fonts
+  c.fontDisplay = premiumTemplate.fontDisplay;
+  c.fontBody = premiumTemplate.fontBody;
+  c.fontImportUrl = premiumTemplate.fontImportUrl;
+  
+  console.log(`[AI-LP-Generate] V9.0 Premium Template: ${premiumTemplate.id}, mood=${mood}`);
+
+  // Build design tokens map for CSS variable injection
+  const designTokens: Record<string, string> = {
+    '--lp-radius': premiumTemplate.tokens.radius,
+    '--lp-card-style': premiumTemplate.tokens.cardStyle,
+    '--lp-shadow-intensity': premiumTemplate.tokens.shadowIntensity,
+    '--lp-section-py': premiumTemplate.tokens.sectionPaddingY,
+    '--lp-glow-intensity': String(premiumTemplate.tokens.accentGlow),
+    '--lp-divider-style': premiumTemplate.tokens.dividerStyle,
+  };
+
   return {
-    version: '8.0' as const,
+    version: '9.0' as const,
     visualStyle: (input.visualWeight || 'premium') as any,
     colorScheme: c,
     showHeader: input.showHeader,
@@ -609,6 +737,8 @@ function buildBaseSchema(input: BuildSchemaInput & { variantSeed?: number; niche
     templateId: template.id,
     mood,
     variantSeed: seed,
+    premiumTemplateId: premiumTemplate.id,
+    designTokens,
   };
 }
 
@@ -669,10 +799,15 @@ Retorne o JSON completo com os textos melhorados.`;
 
 // ========== INTENT CLASSIFICATION ==========
 
-type AdjustmentIntent = 'text' | 'style' | 'asset' | 'structure';
+type AdjustmentIntent = 'text' | 'style' | 'asset' | 'structure' | 'template_swap';
 
 function classifyIntent(prompt: string): AdjustmentIntent {
   const lower = prompt.toLowerCase();
+  
+  // Template/mood swap: explicit template or mood change requests
+  if (/trocar?\s*(template|modelo|tema)|mudar?\s*(template|modelo|tema)|template\s+\w+|mood\s+\w+|mais\s+(luxo|bold|minimalista|orgânico|corporativo|neon|artesanal|tech|elegante|urbano)/.test(lower)) {
+    return 'template_swap';
+  }
   
   // Structure: adding/removing sections, swapping offers, reordering
   if (/adicionar?\s+(seção|bloco)|remover?\s+(seção|bloco)|trocar\s+(oferta|produto|card)|substituir|reordenar|mover\s+seção|novo\s+bloco/.test(lower)) {
@@ -784,6 +919,14 @@ NÃO altere textos de conteúdo ou estrutura.`;
 REGRA DE PRICING LOCK: A seção pricing atualmente tem ${currentCardCount} cards. Mantenha esse número EXATO a menos que o usuário peça EXPLICITAMENTE para mudar a quantidade.
 Quando trocar uma oferta: substitua nome, preço, CTA do card — mantenha a posição e o isFeatured do card substituído.
 Anti-duplicidade: Máximo 1 seção hero e 1 social_proof.`;
+    case 'template_swap':
+      return `Foco: O usuário quer trocar o template premium ou mood da página.
+TEMPLATES DISPONÍVEIS: luxury_editorial, bold_impact, minimal_zen, organic_nature, corporate_trust, neon_energy, warm_artisan, tech_gradient, classic_elegant, urban_street.
+MOODS DISPONÍVEIS: luxury, bold, organic, corporate, minimal.
+Altere o campo "premiumTemplateId" para o template solicitado.
+Se o mood atual não é compatível com o novo template, ajuste o campo "mood" também.
+Adapte o colorScheme (bg, text, accent) para combinar com o novo template/mood.
+NÃO altere textos de conteúdo, URLs de imagem, preços ou estrutura de seções.`;
   }
 }
 
@@ -1117,45 +1260,126 @@ serve(async (req) => {
     if (promptType === "adjustment" && savedLandingPage?.generated_schema) {
       // ── ADJUSTMENT MODE: AI edits existing SCHEMA with intent routing ──
       const intent = classifyIntent(prompt);
-      console.log(`[AI-LP-Generate] V7 Schema adjustment mode — intent: ${intent}`);
+      console.log(`[AI-LP-Generate] V9 Schema adjustment mode — intent: ${intent}`);
       
-      const { system, user } = buildSchemaAdjustmentPrompt({
-        storeName,
-        productName: firstProduct?.name || 'Produto',
-        prompt,
-        currentSchema: savedLandingPage.generated_schema,
-        intent,
-        briefing: savedLandingPage.briefing,
-      });
+      // V9.0: Template swap can be done without AI — direct patch
+      if (intent === 'template_swap') {
+        const lower = prompt.toLowerCase();
+        const existingSchema = savedLandingPage.generated_schema as any;
+        
+        // Try to detect which premium template the user wants
+        const templateMatch = PREMIUM_TEMPLATES.find(t => lower.includes(t.id.replace('_', ' ')) || lower.includes(t.id));
+        
+        if (templateMatch) {
+          // Direct template swap — no AI needed
+          finalSchema = {
+            ...existingSchema,
+            premiumTemplateId: templateMatch.id,
+            mood: templateMatch.defaultMood,
+            designTokens: {
+              '--lp-radius': templateMatch.tokens.radius,
+              '--lp-card-style': templateMatch.tokens.cardStyle,
+              '--lp-shadow-intensity': templateMatch.tokens.shadowIntensity,
+              '--lp-section-py': templateMatch.tokens.sectionPaddingY,
+              '--lp-glow-intensity': String(templateMatch.tokens.accentGlow),
+              '--lp-divider-style': templateMatch.tokens.dividerStyle,
+            },
+            colorScheme: {
+              ...existingSchema.colorScheme,
+              fontDisplay: templateMatch.fontDisplay,
+              fontBody: templateMatch.fontBody,
+              fontImportUrl: templateMatch.fontImportUrl,
+            },
+          };
+          aiRefinementUsed = false;
+          console.log(`[AI-LP-Generate] V9 Direct template swap: ${templateMatch.id}`);
+        } else {
+          // Mood-based swap — find best matching template for requested mood
+          const moodKeywords: Record<string, LPMood> = {
+            'luxo': 'luxury', 'luxury': 'luxury', 'premium': 'luxury', 'elegante': 'luxury',
+            'bold': 'bold', 'impactante': 'bold', 'energia': 'bold', 'neon': 'bold',
+            'minimalista': 'minimal', 'clean': 'minimal', 'zen': 'minimal',
+            'orgânico': 'organic', 'natural': 'organic', 'artesanal': 'organic',
+            'corporativo': 'corporate', 'profissional': 'corporate', 'tech': 'corporate',
+          };
+          
+          let targetMood: LPMood | null = null;
+          for (const [kw, mood] of Object.entries(moodKeywords)) {
+            if (lower.includes(kw)) { targetMood = mood; break; }
+          }
+          
+          if (targetMood) {
+            const compatible = PREMIUM_TEMPLATES.filter(t => t.allowedMoods.includes(targetMood!));
+            const selected = compatible.length > 0 ? compatible[0] : PREMIUM_TEMPLATES[0];
+            
+            finalSchema = {
+              ...existingSchema,
+              premiumTemplateId: selected.id,
+              mood: targetMood,
+              designTokens: {
+                '--lp-radius': selected.tokens.radius,
+                '--lp-card-style': selected.tokens.cardStyle,
+                '--lp-shadow-intensity': selected.tokens.shadowIntensity,
+                '--lp-section-py': selected.tokens.sectionPaddingY,
+                '--lp-glow-intensity': String(selected.tokens.accentGlow),
+                '--lp-divider-style': selected.tokens.dividerStyle,
+              },
+              colorScheme: {
+                ...existingSchema.colorScheme,
+                fontDisplay: selected.fontDisplay,
+                fontBody: selected.fontBody,
+                fontImportUrl: selected.fontImportUrl,
+              },
+            };
+            aiRefinementUsed = false;
+            console.log(`[AI-LP-Generate] V9 Mood-based template swap: ${selected.id} (mood: ${targetMood})`);
+          } else {
+            // Fallback: let AI handle it
+            finalSchema = existingSchema;
+          }
+        }
+      }
+      
+      // If not already handled by template_swap, use AI
+      if (!finalSchema) {
+        const { system, user } = buildSchemaAdjustmentPrompt({
+          storeName,
+          productName: firstProduct?.name || 'Produto',
+          prompt,
+          currentSchema: savedLandingPage.generated_schema,
+          intent,
+          briefing: savedLandingPage.briefing,
+        });
 
-      resetAIRouterCache();
-      const aiResponse = await aiChatCompletion("google/gemini-2.5-flash", {
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-        temperature: 0.5,
-      }, {
-        supabaseUrl,
-        supabaseServiceKey: supabaseKey,
-        logPrefix: "[AI-LP-Schema-Adjust]",
-      });
+        resetAIRouterCache();
+        const aiResponse = await aiChatCompletion("google/gemini-2.5-flash", {
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: user },
+          ],
+          temperature: 0.5,
+        }, {
+          supabaseUrl,
+          supabaseServiceKey: supabaseKey,
+          logPrefix: "[AI-LP-Schema-Adjust]",
+        });
 
-      if (aiResponse.ok) {
-        const aiData = await aiResponse.json();
-        const rawContent = aiData.choices?.[0]?.message?.content || "";
-        const parsed = parseJsonResponse(rawContent);
-        if (parsed && parsed.sections && parsed.sections.length > 0) {
-          finalSchema = parsed;
-          aiRefinementUsed = true;
-          console.log(`[AI-LP-Generate] Schema adjustment applied: ${parsed.sections.length} sections`);
+        if (aiResponse.ok) {
+          const aiData = await aiResponse.json();
+          const rawContent = aiData.choices?.[0]?.message?.content || "";
+          const parsed = parseJsonResponse(rawContent);
+          if (parsed && parsed.sections && parsed.sections.length > 0) {
+            finalSchema = parsed;
+            aiRefinementUsed = true;
+            console.log(`[AI-LP-Generate] Schema adjustment applied: ${parsed.sections.length} sections`);
+          } else {
+            finalSchema = savedLandingPage.generated_schema;
+            parseError = 'AI schema adjustment returned invalid JSON, kept existing';
+          }
         } else {
           finalSchema = savedLandingPage.generated_schema;
-          parseError = 'AI schema adjustment returned invalid JSON, kept existing';
+          parseError = `AI schema adjustment failed: ${aiResponse.status}`;
         }
-      } else {
-        finalSchema = savedLandingPage.generated_schema;
-        parseError = `AI schema adjustment failed: ${aiResponse.status}`;
       }
 
     } else {
@@ -1254,7 +1478,7 @@ serve(async (req) => {
     }
 
     // Ensure version field
-    finalSchema.version = '8.0';
+    finalSchema.version = '9.0';
 
     // ===== STEP 5: PERSIST =====
     const newVersion = (savedLandingPage?.current_version || 0) + 1;
@@ -1272,7 +1496,7 @@ serve(async (req) => {
         current_version: newVersion,
         status: isCurrentlyPublished ? "published" : (promptType === 'initial' ? 'generating' : 'draft'),
       metadata: {
-          engineVersion: "v8.0",
+          engineVersion: "v9.0",
           schemaFirst: true,
           aiRefinementUsed,
           colorsFromProduct: brandKit.extractedFromProduct || false,
@@ -1286,6 +1510,7 @@ serve(async (req) => {
           reviewCount,
           socialProofCount: finalSchema.sections.find((s: any) => s.type === 'social_proof')?.props?.imageUrls?.length || 0,
           templateId: finalSchema.templateId || null,
+          premiumTemplateId: finalSchema.premiumTemplateId || null,
           mood: finalSchema.mood || null,
           variantSeed: finalSchema.variantSeed || null,
         },
@@ -1308,11 +1533,12 @@ serve(async (req) => {
         schema_content: finalSchema,
         created_by: userId,
         generation_metadata: {
-          engineVersion: "v8.0",
+          engineVersion: "v9.0",
           schemaFirst: true,
           aiRefinementUsed,
           model: aiRefinementUsed ? "google/gemini-2.5-flash" : "none",
           templateId: finalSchema.templateId || null,
+          premiumTemplateId: finalSchema.premiumTemplateId || null,
           mood: finalSchema.mood || null,
           variantSeed: finalSchema.variantSeed || null,
           section_count: finalSchema.sections.length,
@@ -1334,8 +1560,9 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         version: newVersion,
-        engineVersion: "v8.0",
+        engineVersion: "v9.0",
         templateId: finalSchema.templateId,
+        premiumTemplateId: finalSchema.premiumTemplateId,
         mood: finalSchema.mood,
         variantSeed: finalSchema.variantSeed,
         schemaFirst: true,
