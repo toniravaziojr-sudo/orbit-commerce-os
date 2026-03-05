@@ -449,163 +449,166 @@ function assignVariant(sectionType: string, seed: number, index: number, hasImag
   }
 }
 
-function buildBaseSchema(input: BuildSchemaInput) {
+function buildBaseSchema(input: BuildSchemaInput & { variantSeed?: number; niche?: string }) {
   const c = getColorScheme(input.visualWeight, input.brandKit);
   const p = input.mainProduct;
+  const seed = input.variantSeed || Math.floor(Math.random() * 100000);
+  const nicheKey = input.niche || 'geral';
+
+  // V8.0: Select mood and apply font overrides
+  const mood = selectMood(nicheKey, seed);
+  const moodFonts = MOOD_FONTS[mood];
+  c.fontDisplay = moodFonts.display;
+  c.fontBody = moodFonts.body;
+  c.fontImportUrl = moodFonts.importUrl;
+
+  // V8.0: Select template based on data availability
+  const hasReviews = input.reviews.length > 0;
+  const hasSocialProof = input.assets.socialProofImages.length >= 3;
+  const template = selectTemplate(seed, hasReviews, hasSocialProof);
   
+  console.log(`[AI-LP-Generate] V8.0 Variation: template=${template.id}, mood=${mood}, seed=${seed}`);
+
+  // Build all section data
+  const sectionBuilders: Record<string, () => any> = {
+    hero: () => {
+      const heroSubtitle = p.shortDescription || p.description?.substring(0, 150) || pick(HERO_SUBTITLE_POOL);
+      const heroBenefits = [
+        p.shortDescription || pick(['Resultados comprovados por milhares de clientes', 'Performance de elite para quem exige o melhor', 'A escolha inteligente de quem busca qualidade']),
+        pick(['Fórmula exclusiva de alta performance', 'Tecnologia avançada de última geração', 'Ingredientes premium selecionados']),
+        pick(['Satisfação garantida ou seu dinheiro de volta', 'Garantia total de qualidade', 'Envio rápido para todo o Brasil']),
+      ];
+      return {
+        id: 'hero', type: 'hero',
+        variant: assignVariant('hero', seed, 0),
+        props: {
+          badge: p.brand || input.storeName, title: p.name, subtitle: heroSubtitle, benefits: heroBenefits,
+          ctaText: input.ctaText, ctaUrl: input.ctaUrl, productImageUrl: input.assets.heroImageUrl,
+          backgroundImageUrl: input.assets.heroBackgroundUrl || undefined,
+          heroSceneDesktopUrl: input.assets.heroSceneDesktopUrl || undefined,
+          heroSceneMobileUrl: input.assets.heroSceneMobileUrl || undefined,
+          priceDisplay: p.compareAtPrice && p.compareAtPrice > p.price ? `De <s>${formatPrice(p.compareAtPrice)}</s> por <strong>${formatPrice(p.price)}</strong>` : undefined,
+        },
+      };
+    },
+    benefits: () => {
+      const benefitSet = pick(BENEFIT_POOL);
+      const hasImages = input.assets.benefitImages.some(img => !!img);
+      return {
+        id: 'benefits', type: 'benefits',
+        variant: assignVariant('benefits', seed, 1, hasImages),
+        props: { items: benefitSet.map((b, i) => ({ ...b, imageUrl: input.assets.benefitImages[i] || '' })) },
+      };
+    },
+    testimonials: () => {
+      if (input.reviews.length === 0) return null;
+      const displayReviews = input.reviews.slice(0, 6);
+      const avgRating = (displayReviews.reduce((s, r) => s + r.rating, 0) / displayReviews.length).toFixed(1);
+      return {
+        id: 'testimonials', type: 'testimonials',
+        variant: assignVariant('testimonials', seed, 2),
+        props: {
+          badge: pick(['AVALIAÇÕES REAIS', 'CLIENTES SATISFEITOS', 'DEPOIMENTOS VERIFICADOS']),
+          title: pick(['O que nossos clientes dizem', 'Quem usa, recomenda', 'Avaliações de quem já testou']),
+          subtitle: `Nota média: ${avgRating}/5 — ${displayReviews.length}+ avaliações verificadas`,
+          items: displayReviews.map(r => ({ name: r.name, rating: r.rating, comment: r.comment })),
+        },
+      };
+    },
+    social_proof: () => {
+      if (input.assets.socialProofImages.length < 3) return null;
+      return {
+        id: 'social_proof', type: 'social_proof',
+        props: {
+          badge: pick(['RESULTADOS REAIS', 'ANTES E DEPOIS', 'PROVA SOCIAL']),
+          title: pick(['Transformações de quem já usa', 'Resultados que falam por si', 'Veja quem já transformou sua rotina']),
+          imageUrls: input.assets.socialProofImages.slice(0, 24),
+        },
+      };
+    },
+    pricing: () => {
+      const pricingProducts = input.kits.length > 0 ? [...input.kits] : [input.mainProduct];
+      pricingProducts.sort((a, b) => a.price - b.price);
+      const featuredIdx = pricingProducts.length === 3 ? 1 :
+        pricingProducts.reduce((best, prod, i) => (prod.discountPercent || 0) > (pricingProducts[best].discountPercent || 0) ? i : best, 0);
+      return {
+        id: 'pricing', type: 'pricing',
+        variant: assignVariant('pricing', seed, 4),
+        props: {
+          badge: pick(['OFERTAS ESPECIAIS', 'CONDIÇÕES EXCLUSIVAS', 'KITS COM DESCONTO']),
+          title: pick(['Escolha a melhor opção para você', 'Monte seu kit ideal', 'Aproveite as melhores ofertas']),
+          subtitle: pick(['Quanto maior o kit, maior a economia', 'Compre mais, pague menos', 'Desconto progressivo em todos os kits']),
+          cards: pricingProducts.map((prod, i) => {
+            const productUrl = prod.slug && input.storeBaseUrl ? `${input.storeBaseUrl}/p/${prod.slug}` : (prod.slug ? `/p/${prod.slug}` : input.ctaUrl);
+            return {
+              name: prod.name,
+              imageUrl: (prod.id && input.assets.offerCardImages[prod.id]) || prod.primaryImage || input.assets.heroImageUrl,
+              price: prod.price, compareAtPrice: prod.compareAtPrice || null, discountPercent: prod.discountPercent || null,
+              installments: installments(prod.price), ctaText: input.ctaText, ctaUrl: productUrl,
+              isFeatured: i === featuredIdx,
+              featuredBadge: i === featuredIdx ? pick(['🔥 MAIS VENDIDO', '⭐ MELHOR CUSTO-BENEFÍCIO', '🏆 MAIS POPULAR']) : undefined,
+            };
+          }),
+        },
+      };
+    },
+    faq: () => {
+      const faqSet = pick(FAQ_POOL);
+      if (faqSet.length < 3) return null;
+      return {
+        id: 'faq', type: 'faq',
+        props: {
+          badge: 'DÚVIDAS FREQUENTES', title: 'Perguntas Frequentes',
+          items: faqSet.map(f => ({ question: f.q.replace('{product}', p.name).replace('{store}', input.storeName), answer: f.a.replace('{product}', p.name).replace('{store}', input.storeName).replace('{installments}', installments(p.price)) })),
+        },
+      };
+    },
+    guarantee: () => ({
+      id: 'guarantee', type: 'guarantee',
+      props: {
+        title: pick(['Garantia de Satisfação', 'Compra 100% Segura', 'Garantia Total']),
+        description: `Sua compra é 100% segura. Se por qualquer motivo você não ficar satisfeito com o ${p.name}, devolvemos seu dinheiro integralmente. Sem burocracia, sem perguntas.`,
+        badges: ['✓ Compra Segura', '✓ Pagamento Protegido', '✓ Envio Garantido'],
+      },
+    }),
+    cta_final: () => {
+      const ctaFinal = pick(CTA_FINAL_POOL);
+      return {
+        id: 'cta_final', type: 'cta_final',
+        props: {
+          title: ctaFinal.title, description: ctaFinal.desc.replace('{product}', p.name),
+          productImageUrl: input.assets.heroImageUrl,
+          ctaSceneDesktopUrl: input.assets.heroSceneDesktopUrl || undefined,
+          ctaSceneMobileUrl: input.assets.heroSceneMobileUrl || undefined,
+          priceDisplay: p.compareAtPrice && p.compareAtPrice > p.price
+            ? `<span style="text-decoration:line-through;color:${c.priceOld}">De ${formatPrice(p.compareAtPrice)}</span><br/><span style="font-size:2.4rem;font-weight:800;color:${c.priceCurrent}">${formatPrice(p.price)}</span>`
+            : `<span style="font-size:2.4rem;font-weight:800;color:${c.priceCurrent}">${formatPrice(p.price)}</span>`,
+          ctaText: input.ctaText, ctaUrl: input.ctaUrl,
+        },
+      };
+    },
+  };
+
+  // Build sections from template order, skipping null (missing data)
   const sections: any[] = [];
-
-  // Hero — with variation
-  const heroSubtitle = p.shortDescription || p.description?.substring(0, 150) || pick(HERO_SUBTITLE_POOL);
-  const heroBenefits = [
-    p.shortDescription || pick(['Resultados comprovados por milhares de clientes', 'Performance de elite para quem exige o melhor', 'A escolha inteligente de quem busca qualidade']),
-    pick(['Fórmula exclusiva de alta performance', 'Tecnologia avançada de última geração', 'Ingredientes premium selecionados']),
-    pick(['Satisfação garantida ou seu dinheiro de volta', 'Garantia total de qualidade', 'Envio rápido para todo o Brasil']),
-  ];
-
-  sections.push({
-    id: 'hero',
-    type: 'hero',
-    props: {
-      badge: p.brand || input.storeName,
-      title: p.name,
-      subtitle: heroSubtitle,
-      benefits: heroBenefits,
-      ctaText: input.ctaText,
-      ctaUrl: input.ctaUrl,
-      productImageUrl: input.assets.heroImageUrl,
-      backgroundImageUrl: input.assets.heroBackgroundUrl || undefined,
-      heroSceneDesktopUrl: input.assets.heroSceneDesktopUrl || undefined,
-      heroSceneMobileUrl: input.assets.heroSceneMobileUrl || undefined,
-      priceDisplay: p.compareAtPrice && p.compareAtPrice > p.price
-        ? `De <s>${formatPrice(p.compareAtPrice)}</s> por <strong>${formatPrice(p.price)}</strong>`
-        : undefined,
-    },
-  });
-
-  // Benefits — with rotation
-  const benefitSet = pick(BENEFIT_POOL);
-  const benefitItems = benefitSet.map((b, i) => ({
-    ...b,
-    imageUrl: input.assets.benefitImages[i] || '',
-  }));
-  sections.push({ id: 'benefits', type: 'benefits', props: { items: benefitItems } });
-
-  // Testimonials (if reviews exist)
-  if (input.reviews.length > 0) {
-    const displayReviews = input.reviews.slice(0, 6);
-    const avgRating = (displayReviews.reduce((s, r) => s + r.rating, 0) / displayReviews.length).toFixed(1);
-    sections.push({
-      id: 'testimonials',
-      type: 'testimonials',
-      props: {
-        badge: pick(['AVALIAÇÕES REAIS', 'CLIENTES SATISFEITOS', 'DEPOIMENTOS VERIFICADOS']),
-        title: pick(['O que nossos clientes dizem', 'Quem usa, recomenda', 'Avaliações de quem já testou']),
-        subtitle: `Nota média: ${avgRating}/5 — ${displayReviews.length}+ avaliações verificadas`,
-        items: displayReviews.map(r => ({ name: r.name, rating: r.rating, comment: r.comment })),
-      },
-    });
+  for (const sectionType of template.sections) {
+    const builder = sectionBuilders[sectionType];
+    if (builder) {
+      const section = builder();
+      if (section) sections.push(section);
+    }
   }
-
-  // Social Proof (if images exist) — up to 24 images
-  if (input.assets.socialProofImages.length > 0) {
-    sections.push({
-      id: 'social_proof',
-      type: 'social_proof',
-      props: {
-        badge: pick(['RESULTADOS REAIS', 'ANTES E DEPOIS', 'PROVA SOCIAL']),
-        title: pick(['Transformações de quem já usa', 'Resultados que falam por si', 'Veja quem já transformou sua rotina']),
-        imageUrls: input.assets.socialProofImages.slice(0, 24),
-      },
-    });
-  }
-
-  // Pricing
-  const pricingProducts = input.kits.length > 0 ? [...input.kits] : [input.mainProduct];
-  pricingProducts.sort((a, b) => a.price - b.price);
-  const featuredIdx = pricingProducts.length === 3 ? 1 :
-    pricingProducts.reduce((best, prod, i) => (prod.discountPercent || 0) > (pricingProducts[best].discountPercent || 0) ? i : best, 0);
-
-  sections.push({
-    id: 'pricing',
-    type: 'pricing',
-    props: {
-      badge: pick(['OFERTAS ESPECIAIS', 'CONDIÇÕES EXCLUSIVAS', 'KITS COM DESCONTO']),
-      title: pick(['Escolha a melhor opção para você', 'Monte seu kit ideal', 'Aproveite as melhores ofertas']),
-      subtitle: pick(['Quanto maior o kit, maior a economia', 'Compre mais, pague menos', 'Desconto progressivo em todos os kits']),
-      cards: pricingProducts.map((prod, i) => {
-        const productUrl = prod.slug && input.storeBaseUrl
-          ? `${input.storeBaseUrl}/p/${prod.slug}`
-          : (prod.slug ? `/p/${prod.slug}` : input.ctaUrl);
-        
-        return {
-          name: prod.name,
-          imageUrl: (prod.id && input.assets.offerCardImages[prod.id]) || prod.primaryImage || input.assets.heroImageUrl,
-          price: prod.price,
-          compareAtPrice: prod.compareAtPrice || null,
-          discountPercent: prod.discountPercent || null,
-          installments: installments(prod.price),
-          ctaText: input.ctaText,
-          ctaUrl: productUrl,
-          isFeatured: i === featuredIdx,
-          featuredBadge: i === featuredIdx ? pick(['🔥 MAIS VENDIDO', '⭐ MELHOR CUSTO-BENEFÍCIO', '🏆 MAIS POPULAR']) : undefined,
-        };
-      }),
-    },
-  });
-
-  // FAQ — with rotation
-  const faqSet = pick(FAQ_POOL);
-  sections.push({
-    id: 'faq',
-    type: 'faq',
-    props: {
-      badge: 'DÚVIDAS FREQUENTES',
-      title: 'Perguntas Frequentes',
-      items: faqSet.map(f => ({
-        question: f.q.replace('{product}', p.name).replace('{store}', input.storeName),
-        answer: f.a.replace('{product}', p.name).replace('{store}', input.storeName).replace('{installments}', installments(p.price)),
-      })),
-    },
-  });
-
-  // Guarantee
-  sections.push({
-    id: 'guarantee',
-    type: 'guarantee',
-    props: {
-      title: pick(['Garantia de Satisfação', 'Compra 100% Segura', 'Garantia Total']),
-      description: `Sua compra é 100% segura. Se por qualquer motivo você não ficar satisfeito com o ${p.name}, devolvemos seu dinheiro integralmente. Sem burocracia, sem perguntas.`,
-      badges: ['✓ Compra Segura', '✓ Pagamento Protegido', '✓ Envio Garantido'],
-    },
-  });
-
-  // CTA Final — with variation
-  const ctaFinal = pick(CTA_FINAL_POOL);
-  sections.push({
-    id: 'cta_final',
-    type: 'cta_final',
-    props: {
-      title: ctaFinal.title,
-      description: ctaFinal.desc.replace('{product}', p.name),
-      productImageUrl: input.assets.heroImageUrl,
-      ctaSceneDesktopUrl: input.assets.heroSceneDesktopUrl || undefined,
-      ctaSceneMobileUrl: input.assets.heroSceneMobileUrl || undefined,
-      priceDisplay: p.compareAtPrice && p.compareAtPrice > p.price
-        ? `<span style="text-decoration:line-through;color:${c.priceOld}">De ${formatPrice(p.compareAtPrice)}</span><br/><span style="font-size:2.4rem;font-weight:800;color:${c.priceCurrent}">${formatPrice(p.price)}</span>`
-        : `<span style="font-size:2.4rem;font-weight:800;color:${c.priceCurrent}">${formatPrice(p.price)}</span>`,
-      ctaText: input.ctaText,
-      ctaUrl: input.ctaUrl,
-    },
-  });
 
   return {
-    version: '7.0' as const,
+    version: '8.0' as const,
     visualStyle: (input.visualWeight || 'premium') as any,
     colorScheme: c,
     showHeader: input.showHeader,
     showFooter: input.showFooter,
     sections,
+    templateId: template.id,
+    mood,
+    variantSeed: seed,
   };
 }
 
