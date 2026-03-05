@@ -6,17 +6,32 @@ interface Props {
 
 export function LPGuarantee({ data }: Props) {
   return (
-    <section className="px-[5%] py-12 md:py-20" style={{ background: 'var(--lp-bg-alt)' }}>
-      <div className="max-w-[700px] mx-auto text-center">
-        <div className="text-5xl mb-5">🛡️</div>
+    <section className="px-[5%] py-16 md:py-24" style={{ background: 'var(--lp-bg-alt)' }}>
+      <div 
+        className="max-w-[700px] mx-auto text-center rounded-2xl p-10 md:p-14"
+        style={{ 
+          background: 'var(--lp-card-bg)',
+          border: '1px solid var(--lp-card-border)',
+          boxShadow: '0 8px 40px var(--lp-shadow)',
+        }}
+      >
+        <div 
+          className="w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center text-4xl"
+          style={{ 
+            background: 'var(--lp-badge-bg)',
+            border: '2px solid var(--lp-accent)',
+          }}
+        >
+          🛡️
+        </div>
         <h2
-          className="text-2xl md:text-4xl font-extrabold leading-tight mb-4"
+          className="text-2xl md:text-3xl font-extrabold leading-tight mb-5"
           style={{ color: 'var(--lp-text)', fontFamily: 'var(--lp-font-display)' }}
         >
           {data.title}
         </h2>
         <p
-          className="text-base leading-relaxed mb-7"
+          className="text-base leading-relaxed mb-8 max-w-[520px] mx-auto"
           style={{ color: 'var(--lp-text-muted)', fontFamily: 'var(--lp-font-body)' }}
         >
           {data.description}
@@ -25,8 +40,12 @@ export function LPGuarantee({ data }: Props) {
           {data.badges.map((badge, i) => (
             <span
               key={i}
-              className="px-4 py-2 rounded-lg text-sm font-semibold"
-              style={{ background: 'var(--lp-badge-bg)', color: 'var(--lp-badge-text)' }}
+              className="px-5 py-2.5 rounded-xl text-sm font-semibold"
+              style={{ 
+                background: 'var(--lp-badge-bg)', 
+                color: 'var(--lp-badge-text)',
+                border: '1px solid var(--lp-card-border)',
+              }}
             >
               {badge}
             </span>

@@ -541,7 +541,7 @@ export default function LandingPageEditor() {
               <Button
                 size="sm"
                 onClick={() => publishMutation.mutate()}
-                disabled={publishMutation.isPending || !landingPage.generated_html}
+                disabled={publishMutation.isPending || (!landingPage.generated_html && !landingPage.generated_schema)}
               >
                 <Globe className="h-4 w-4 mr-1" />
                 Publicar

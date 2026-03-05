@@ -1,11 +1,13 @@
 // =============================================
-// LP SCHEMA RENDERER — V7
+// LP SCHEMA RENDERER — V7.1
 // Renders LPSchema using real React components
 // Uses --lp-* CSS variables for theming
+// Sanitizes AI copy (strips markdown)
 // =============================================
 
 import { useMemo } from 'react';
 import type { LPSchema, LPSection, LPSectionType, LPColorScheme } from '@/lib/landing-page-schema';
+import { sanitizeLPSectionProps } from '@/lib/sanitizeLPCopy';
 import { LPHero } from './blocks/LPHero';
 import { LPBenefits } from './blocks/LPBenefits';
 import { LPTestimonials } from './blocks/LPTestimonials';
@@ -20,24 +22,26 @@ interface LPSchemaRendererProps {
 }
 
 function renderSection(section: LPSection) {
-  const { id, type, props } = section;
+  const { id, type } = section;
+  // Sanitize all text props to strip markdown artifacts from AI
+  const cleanProps = sanitizeLPSectionProps(section.props);
   switch (type) {
     case 'hero':
-      return <LPHero key={id} data={props as any} />;
+      return <LPHero key={id} data={cleanProps} />;
     case 'benefits':
-      return <LPBenefits key={id} data={props as any} />;
+      return <LPBenefits key={id} data={cleanProps} />;
     case 'testimonials':
-      return <LPTestimonials key={id} data={props as any} />;
+      return <LPTestimonials key={id} data={cleanProps} />;
     case 'social_proof':
-      return <LPSocialProof key={id} data={props as any} />;
+      return <LPSocialProof key={id} data={cleanProps} />;
     case 'pricing':
-      return <LPPricing key={id} data={props as any} />;
+      return <LPPricing key={id} data={cleanProps} />;
     case 'faq':
-      return <LPFaq key={id} data={props as any} />;
+      return <LPFaq key={id} data={cleanProps} />;
     case 'guarantee':
-      return <LPGuarantee key={id} data={props as any} />;
+      return <LPGuarantee key={id} data={cleanProps} />;
     case 'cta_final':
-      return <LPCtaFinal key={id} data={props as any} />;
+      return <LPCtaFinal key={id} data={cleanProps} />;
     default:
       return null;
   }

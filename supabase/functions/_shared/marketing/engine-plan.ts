@@ -37,6 +37,7 @@ export interface BriefingInput {
   awarenessLevel: AwarenessLevel;
   preferredCTA?: PreferredCTA;
   restrictions?: Restriction[];
+  visualStyle?: VisualWeight;
 }
 
 export interface Assumption {
@@ -320,7 +321,8 @@ export function resolveEnginePlan(params: ResolveEnginePlanParams): EnginePlanIn
   const resolvedNiche = resolveNiche(productType, tags, description);
   const resolvedArchetype = resolveArchetype(briefing.objective, resolvedNiche);
   const resolvedDepth = resolveDepth(briefing.trafficTemp, price);
-  const resolvedVisualWeight = resolveVisualWeight(resolvedNiche, briefing.trafficSource);
+  // Use briefing.visualStyle as override if provided
+  const resolvedVisualWeight = briefing.visualStyle || resolveVisualWeight(resolvedNiche, briefing.trafficSource);
   const proofStrength = resolveProofStrength(reviewCount);
   const defaultCTA = resolveDefaultCTA(briefing.objective, briefing.preferredCTA);
 
