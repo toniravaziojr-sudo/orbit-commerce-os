@@ -1402,7 +1402,7 @@ serve(async (req) => {
         current_version: newVersion,
         status: isCurrentlyPublished ? "published" : (promptType === 'initial' ? 'generating' : 'draft'),
       metadata: {
-          engineVersion: "v8.0",
+          engineVersion: "v9.0",
           schemaFirst: true,
           aiRefinementUsed,
           colorsFromProduct: brandKit.extractedFromProduct || false,
@@ -1416,6 +1416,7 @@ serve(async (req) => {
           reviewCount,
           socialProofCount: finalSchema.sections.find((s: any) => s.type === 'social_proof')?.props?.imageUrls?.length || 0,
           templateId: finalSchema.templateId || null,
+          premiumTemplateId: finalSchema.premiumTemplateId || null,
           mood: finalSchema.mood || null,
           variantSeed: finalSchema.variantSeed || null,
         },
