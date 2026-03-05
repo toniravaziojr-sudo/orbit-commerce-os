@@ -16,7 +16,7 @@ export function LPCtaFinal({ data }: Props) {
         style={{ background: 'var(--lp-accent)' }}
       />
       
-      <div className="relative grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-16 items-center max-w-[1000px] mx-auto">
+      <div className="relative grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-16 items-center max-w-[1000px] mx-auto lp-cta-final-grid">
         <div className="flex justify-center">
           {data.productImageUrl && (
             <div className="relative group">
@@ -55,14 +55,15 @@ export function LPCtaFinal({ data }: Props) {
           )}
           <a
             href={data.ctaUrl}
-            className="inline-block px-12 py-5 rounded-xl text-lg font-bold uppercase tracking-wide transition-all duration-300 hover:opacity-90 hover:-translate-y-1 hover:shadow-2xl text-center min-w-[280px]"
+            className="inline-block px-12 py-5 rounded-xl text-lg font-bold uppercase tracking-wider transition-all duration-300 hover:opacity-90 hover:-translate-y-1 hover:shadow-2xl text-center"
             style={{ 
               background: `linear-gradient(135deg, var(--lp-cta-bg), var(--lp-accent))`,
               color: 'var(--lp-cta-text)',
               boxShadow: '0 8px 32px var(--lp-shadow)',
+              minWidth: '280px',
             }}
           >
-            🔥 {data.ctaText}
+            {data.ctaText}
           </a>
         </div>
       </div>
