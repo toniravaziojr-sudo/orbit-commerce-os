@@ -458,7 +458,7 @@ const zLPColorScheme = z.object({
 });
 
 export const zLPSchema = z.object({
-  version: z.enum(['7.0', '8.0']),
+  version: z.enum(['7.0', '8.0', '9.0']),
   visualStyle: z.enum(['premium', 'comercial', 'minimalista', 'direto']),
   colorScheme: zLPColorScheme,
   showHeader: z.boolean(),
