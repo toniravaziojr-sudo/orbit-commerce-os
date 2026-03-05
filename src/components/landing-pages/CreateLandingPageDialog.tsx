@@ -242,6 +242,11 @@ export function CreateLandingPageDialog({ open, onOpenChange }: CreateLandingPag
               await enhanceRecursive(data.nextIndex, data.nextStage);
             } else {
               console.log('[LP-Enhance] All sections enhanced!');
+              // Set status to 'draft' now that images are ready
+              await supabase
+                .from('ai_landing_pages')
+                .update({ status: 'draft' })
+                .eq('id', landingPage.id);
               queryClient.invalidateQueries({ queryKey: ['ai-landing-pages'] });
             }
           } catch (e) {
