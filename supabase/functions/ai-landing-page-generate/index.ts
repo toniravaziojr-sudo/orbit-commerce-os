@@ -919,6 +919,14 @@ NÃO altere textos de conteúdo ou estrutura.`;
 REGRA DE PRICING LOCK: A seção pricing atualmente tem ${currentCardCount} cards. Mantenha esse número EXATO a menos que o usuário peça EXPLICITAMENTE para mudar a quantidade.
 Quando trocar uma oferta: substitua nome, preço, CTA do card — mantenha a posição e o isFeatured do card substituído.
 Anti-duplicidade: Máximo 1 seção hero e 1 social_proof.`;
+    case 'template_swap':
+      return `Foco: O usuário quer trocar o template premium ou mood da página.
+TEMPLATES DISPONÍVEIS: luxury_editorial, bold_impact, minimal_zen, organic_nature, corporate_trust, neon_energy, warm_artisan, tech_gradient, classic_elegant, urban_street.
+MOODS DISPONÍVEIS: luxury, bold, organic, corporate, minimal.
+Altere o campo "premiumTemplateId" para o template solicitado.
+Se o mood atual não é compatível com o novo template, ajuste o campo "mood" também.
+Adapte o colorScheme (bg, text, accent) para combinar com o novo template/mood.
+NÃO altere textos de conteúdo, URLs de imagem, preços ou estrutura de seções.`;
   }
 }
 
