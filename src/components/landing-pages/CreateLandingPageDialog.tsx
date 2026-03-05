@@ -216,6 +216,8 @@ export function CreateLandingPageDialog({ open, onOpenChange }: CreateLandingPag
 
       if (genError) {
         console.error('Generation error:', genError);
+        // Set to draft since enhance won't run
+        await supabase.from('ai_landing_pages').update({ status: 'draft' }).eq('id', landingPage.id);
       }
 
       // Step 2: Trigger async image enhancement with recursive chunking (non-blocking)
