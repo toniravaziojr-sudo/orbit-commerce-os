@@ -167,7 +167,7 @@ function HeroCentered({ data }: { data: LPHeroProps }) {
   const bgStyle: React.CSSProperties = hasScene
     ? { backgroundImage: `url('${sceneDesktopUrl}')`, backgroundSize: 'cover', backgroundPosition: 'center' }
     : data.backgroundImageUrl
-    ? { background: `linear-gradient(180deg, var(--lp-bg, #070A10)ee 0%, var(--lp-bg, #070A10)bb 100%), url('${data.backgroundImageUrl}') center/cover no-repeat` }
+    ? { background: `linear-gradient(180deg, rgba(7,4,16,0.93) 0%, rgba(7,4,16,0.73) 100%), url('${data.backgroundImageUrl}') center/cover no-repeat` }
     : {};
 
   return (
