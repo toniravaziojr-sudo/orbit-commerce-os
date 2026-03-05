@@ -51,6 +51,8 @@ export interface LPHeroProps {
   ctaUrl: string;
   productImageUrl: string;
   backgroundImageUrl?: string;
+  heroSceneDesktopUrl?: string;
+  heroSceneMobileUrl?: string;
   priceDisplay?: string; // e.g. "De R$ 199,90 por R$ 149,90"
 }
 
@@ -132,6 +134,8 @@ export interface LPCtaFinalProps {
   title: string;
   description: string;
   productImageUrl: string;
+  ctaSceneDesktopUrl?: string;
+  ctaSceneMobileUrl?: string;
   priceDisplay?: string;
   ctaText: string;
   ctaUrl: string;
@@ -267,6 +271,8 @@ const zLPHeroProps = z.object({
   ctaUrl: z.string().max(200),
   productImageUrl: z.string(),
   backgroundImageUrl: z.string().optional(),
+  heroSceneDesktopUrl: z.string().optional(),
+  heroSceneMobileUrl: z.string().optional(),
   priceDisplay: z.string().max(100).optional(),
 });
 
@@ -333,6 +339,8 @@ const zLPCtaFinalProps = z.object({
   title: z.string().max(150),
   description: z.string().max(300),
   productImageUrl: z.string(),
+  ctaSceneDesktopUrl: z.string().optional(),
+  ctaSceneMobileUrl: z.string().optional(),
   priceDisplay: z.string().max(100).optional(),
   ctaText: z.string().max(25),
   ctaUrl: z.string().max(200),
@@ -378,7 +386,21 @@ export const zLPSchema = z.object({
   showHeader: z.boolean(),
   showFooter: z.boolean(),
   sections: z.array(zLPSection).min(2).max(12),
-});
+}).refine(
+  (schema) => {
+    // Anti-duplicity: max 1 social_proof section
+    const socialProofCount = schema.sections.filter(s => s.type === 'social_proof').length;
+    return socialProofCount <= 1;
+  },
+  { message: 'Schema cannot contain more than 1 social_proof section' }
+).refine(
+  (schema) => {
+    // Max 1 hero section
+    const heroCount = schema.sections.filter(s => s.type === 'hero').length;
+    return heroCount <= 1;
+  },
+  { message: 'Schema cannot contain more than 1 hero section' }
+);
 
 /**
  * Validate an LP schema. Returns the parsed schema or throws.

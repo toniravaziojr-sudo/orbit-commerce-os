@@ -13,6 +13,8 @@ interface ProductImageData {
 export interface ResolvedAssets {
   heroImageUrl: string;
   heroBackgroundUrl: string;
+  heroSceneDesktopUrl: string;
+  heroSceneMobileUrl: string;
   offerCardImages: Record<string, string>; // product_id → primary image URL
   socialProofImages: string[];
   benefitImages: string[];
@@ -110,7 +112,7 @@ export async function resolveLandingPageAssets(input: AssetResolverInput): Promi
         .ilike('mime_type', 'image/%')
         .in('folder_id', folderIds)
       .order('created_at', { ascending: false })
-        .limit(12);
+        .limit(24);
 
       if (proofFiles) {
         for (const file of proofFiles) {
@@ -160,11 +162,17 @@ export async function resolveLandingPageAssets(input: AssetResolverInput): Promi
     mainProductImages[2] || mainProductImages[1] || stockBenefitImages[1] || mainProductImages[0] || '',
   ];
 
-  console.log(`[AssetResolver] Resolved: hero=${!!heroImageUrl}, bg=${!!heroBackgroundUrl}, kits=${Object.keys(offerCardImages).length}, proof=${socialProofImages.length}, benefits=${benefitImages.filter(Boolean).length}`);
+  // 7. Scene URLs — initially empty, filled by enhance-images pipeline
+  const heroSceneDesktopUrl = '';
+  const heroSceneMobileUrl = '';
+
+  console.log(`[AssetResolver] Resolved: hero=${!!heroImageUrl}, bg=${!!heroBackgroundUrl}, sceneDesktop=${!!heroSceneDesktopUrl}, sceneMobile=${!!heroSceneMobileUrl}, kits=${Object.keys(offerCardImages).length}, proof=${socialProofImages.length}, benefits=${benefitImages.filter(Boolean).length}`);
 
   return {
     heroImageUrl,
     heroBackgroundUrl,
+    heroSceneDesktopUrl,
+    heroSceneMobileUrl,
     offerCardImages,
     socialProofImages,
     benefitImages,

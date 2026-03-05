@@ -5,21 +5,31 @@ interface Props {
 }
 
 export function LPHero({ data }: Props) {
-  const isEnhancedScene = data.productImageUrl?.includes('lp-creatives/') || 
-                          data.productImageUrl?.includes('section-hero');
+  // Determine scene URL — prefer dedicated scene URLs over fallback detection
+  const sceneDesktopUrl = data.heroSceneDesktopUrl || 
+    (data.productImageUrl?.includes('lp-creatives/') || data.productImageUrl?.includes('section-hero') 
+      ? data.productImageUrl : '');
+  const sceneMobileUrl = data.heroSceneMobileUrl || sceneDesktopUrl;
+  const isScene = !!sceneDesktopUrl;
 
   // ── SCENE MODE: Enhanced image as full-section background ──
-  if (isEnhancedScene && data.productImageUrl) {
+  if (isScene) {
     return (
       <section
         className="relative overflow-hidden lp-hero-scene"
         style={{
-          backgroundImage: `url('${data.productImageUrl}')`,
+          backgroundImage: `url('${sceneDesktopUrl}')`,
           backgroundSize: 'cover',
           backgroundPosition: 'right center',
           minHeight: '640px',
         }}
       >
+        {/* Mobile-specific background via CSS */}
+        <style>{`
+          @media (max-width: 767px) {
+            .lp-hero-scene { background-image: url('${sceneMobileUrl}') !important; background-position: center !important; }
+          }
+        `}</style>
         {/* Multi-layer overlay for depth */}
         <div className="absolute inset-0" style={{
           background: `
