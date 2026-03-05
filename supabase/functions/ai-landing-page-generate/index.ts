@@ -1384,7 +1384,7 @@ serve(async (req) => {
     }
 
     // Ensure version field
-    finalSchema.version = '8.0';
+    finalSchema.version = '9.0';
 
     // ===== STEP 5: PERSIST =====
     const newVersion = (savedLandingPage?.current_version || 0) + 1;
