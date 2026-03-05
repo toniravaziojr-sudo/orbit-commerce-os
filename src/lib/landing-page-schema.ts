@@ -189,7 +189,7 @@ export type LPMood = 'luxury' | 'bold' | 'organic' | 'corporate' | 'minimal';
 export type LPVisualStyle = 'premium' | 'comercial' | 'minimalista' | 'direto';
 
 export interface LPSchema {
-  version: '7.0' | '8.0';
+  version: '7.0' | '8.0' | '9.0';
   visualStyle: LPVisualStyle;
   colorScheme: LPColorScheme;
   showHeader: boolean;
@@ -199,6 +199,9 @@ export interface LPSchema {
   templateId?: LPTemplateId;
   mood?: LPMood;
   variantSeed?: number;
+  // V9.0 fields
+  premiumTemplateId?: string;
+  designTokens?: Record<string, string>;
 }
 
 // ========== MOOD PRESETS ==========
