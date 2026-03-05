@@ -507,15 +507,35 @@ serve(async (req) => {
             .in("component_product_id", productIds);
 
           if (relatedKits && relatedKits.length > 0) {
-            const kitParentIds = [...new Set(relatedKits.map((r: any) => r.parent_product_id))].filter(
-              (id: string) => !productIds!.includes(id)
-            ).slice(0, 6);
+            // Only include kits where ALL components are from selected products (strict matching)
+            // Group by parent_product_id to check composition
+            const kitComponentMap = new Map<string, Set<string>>();
+            for (const r of relatedKits) {
+              if (!kitComponentMap.has(r.parent_product_id)) {
+                kitComponentMap.set(r.parent_product_id, new Set());
+              }
+              kitComponentMap.get(r.parent_product_id)!.add(r.component_product_id);
+            }
+            
+            // Filter: only kits composed of the selected product(s)
+            const strictKitIds = [...kitComponentMap.entries()]
+              .filter(([parentId, components]) => {
+                // Kit must not be one of the selected products itself
+                if (productIds!.includes(parentId)) return false;
+                // All components must be from the selected products
+                for (const compId of components) {
+                  if (!productIds!.includes(compId)) return false;
+                }
+                return true;
+              })
+              .map(([parentId]) => parentId)
+              .slice(0, 3); // Max 3 kits to match typical LP layout
 
-            if (kitParentIds.length > 0) {
+            if (strictKitIds.length > 0) {
               const { data: kitProducts } = await supabase
                 .from("products")
                 .select("id, name, slug, price, compare_at_price, product_format, status")
-                .in("id", kitParentIds)
+                .in("id", strictKitIds)
                 .eq("product_format", "with_composition")
                 .in("status", ["active", "inactive"])
                 .is("deleted_at", null);

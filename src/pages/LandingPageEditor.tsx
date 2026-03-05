@@ -187,23 +187,34 @@ export default function LandingPageEditor() {
 
       if (error) throw error;
 
-      // If prompt is image-related, trigger image enhancement pipeline
+      // If prompt is image-related, trigger image enhancement pipeline (recursive)
       if (isImageRelatedPrompt(prompt)) {
         console.log('[LP-Editor] Image-related prompt detected, triggering enhance pipeline...');
-        supabase.functions.invoke('ai-landing-page-enhance-images', {
-          body: {
-            landingPageId: id,
-            tenantId: tenant.id,
-            userId: user.id,
-            startFromIndex: 0,
-            stage: 1,
-          },
-        }).then(({ data: enhData }) => {
-          console.log('[LP-Editor] Enhance result:', enhData);
-          queryClient.invalidateQueries({ queryKey: ['ai-landing-page', id] });
-        }).catch(err => {
-          console.warn('[LP-Editor] Enhance error (non-blocking):', err);
-        });
+        const enhanceRecursive = async (startFromIndex = 0, stage = 1) => {
+          try {
+            const { data: enhData, error: enhErr } = await supabase.functions.invoke('ai-landing-page-enhance-images', {
+              body: {
+                landingPageId: id,
+                tenantId: tenant!.id,
+                userId: user!.id,
+                startFromIndex,
+                stage,
+              },
+            });
+            if (enhErr) {
+              console.warn('[LP-Editor] Enhance error:', enhErr);
+              return;
+            }
+            console.log(`[LP-Editor] Enhance stage ${stage}: ${enhData?.enhanced || 0} sections, done: ${enhData?.done}`);
+            queryClient.invalidateQueries({ queryKey: ['ai-landing-page', id] });
+            if (enhData && !enhData.done && enhData.nextIndex != null) {
+              await enhanceRecursive(enhData.nextIndex, enhData.nextStage || stage + 1);
+            }
+          } catch (err) {
+            console.warn('[LP-Editor] Enhance error (non-blocking):', err);
+          }
+        };
+        enhanceRecursive();
       }
 
       return data;

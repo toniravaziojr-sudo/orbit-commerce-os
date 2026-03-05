@@ -217,7 +217,8 @@ export function LandingPageChatInput({
           placeholder={placeholder}
           className="min-h-[80px] resize-none flex-1"
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && e.metaKey) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
               handleSubmit();
             }
           }}
@@ -257,7 +258,7 @@ export function LandingPageChatInput({
         Aplicar Ajuste
       </Button>
       <p className="text-[10px] text-muted-foreground text-center">
-        ⌘ + Enter para enviar
+        Enter para enviar · Shift + Enter para nova linha
       </p>
 
       {/* Drive Picker Modal */}
