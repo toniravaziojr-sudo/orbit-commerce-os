@@ -107,8 +107,8 @@ export function LPPricing({ data }: Props) {
                 <img
                   src={card.imageUrl}
                   alt={card.name}
-                  className="relative w-[180px] h-[180px] object-contain mx-auto transition-transform duration-500 group-hover:scale-110"
-                  style={{ filter: `drop-shadow(0 15px 40px var(--lp-shadow))` }}
+                  className="relative w-[140px] h-[140px] object-contain mx-auto transition-transform duration-500 group-hover:scale-110"
+                  style={{ filter: `drop-shadow(0 10px 30px var(--lp-shadow))` }}
                 />
               </div>
             )}

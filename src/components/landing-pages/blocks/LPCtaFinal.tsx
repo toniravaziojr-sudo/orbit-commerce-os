@@ -144,14 +144,14 @@ export function LPCtaFinal({ data }: Props) {
           {hasProductImage ? (
             <div className="relative group">
               <div 
-                className="absolute inset-0 rounded-full blur-[60px] opacity-[0.12] group-hover:opacity-[0.22] transition-opacity duration-500"
-                style={{ background: 'var(--lp-accent)' }}
+                className="absolute inset-0 rounded-full blur-[60px] opacity-[0.08] group-hover:opacity-[0.14] transition-opacity duration-500"
+                style={{ background: 'rgba(255,255,255,0.12)' }}
               />
               <img
                 src={data.productImageUrl}
                 alt="Produto"
-                className="relative w-full max-w-[400px] object-contain transition-transform duration-700 group-hover:scale-105"
-                style={{ filter: `drop-shadow(0 30px 80px var(--lp-shadow))` }}
+                className="relative w-full max-w-[280px] max-h-[320px] object-contain transition-transform duration-700 group-hover:scale-105"
+                style={{ filter: `drop-shadow(0 20px 50px var(--lp-shadow))` }}
               />
             </div>
           ) : (
