@@ -15,21 +15,21 @@ export function LPBenefits({ data }: Props) {
             className="relative overflow-hidden px-[5%] py-16 md:py-24"
             style={{ background: i % 2 === 0 ? 'var(--lp-bg)' : 'var(--lp-bg-alt)' }}
           >
-            {/* Subtle accent glow */}
+            {/* Radial accent glow */}
             <div 
-              className="absolute opacity-5 blur-[100px] pointer-events-none rounded-full"
+              className="absolute opacity-[0.06] blur-[120px] pointer-events-none rounded-full"
               style={{ 
                 background: 'var(--lp-accent)',
-                width: '400px',
-                height: '400px',
+                width: '450px',
+                height: '450px',
                 top: '50%',
                 transform: 'translateY(-50%)',
-                [isReverse ? 'left' : 'right']: '-100px',
+                [isReverse ? 'left' : 'right']: '-120px',
               }}
             />
             
             <div
-              className={`relative grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-20 items-center max-w-[1100px] mx-auto`}
+              className={`relative grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-20 items-center max-w-[1140px] mx-auto`}
             >
               <div className={isReverse ? 'md:order-2' : ''}>
                 <span
@@ -38,13 +38,18 @@ export function LPBenefits({ data }: Props) {
                     background: 'var(--lp-badge-bg)', 
                     color: 'var(--lp-badge-text)',
                     border: '1px solid var(--lp-card-border)',
+                    backdropFilter: 'blur(8px)',
                   }}
                 >
                   {item.label}
                 </span>
                 <h2
-                  className="text-2xl md:text-[2.2rem] font-bold leading-tight mb-5"
-                  style={{ color: 'var(--lp-text)', fontFamily: 'var(--lp-font-display)' }}
+                  className="font-bold leading-tight mb-5"
+                  style={{ 
+                    color: 'var(--lp-text)', 
+                    fontFamily: 'var(--lp-font-display)',
+                    fontSize: 'clamp(1.5rem, 2.6vw, 2.125rem)',
+                  }}
                 >
                   {item.title}
                 </h2>
@@ -59,14 +64,14 @@ export function LPBenefits({ data }: Props) {
                 {item.imageUrl && (
                   <div className="relative group">
                     <div 
-                      className="absolute inset-0 rounded-2xl blur-[30px] opacity-10 group-hover:opacity-20 transition-opacity"
+                      className="absolute inset-0 rounded-3xl blur-[40px] opacity-[0.08] group-hover:opacity-[0.15] transition-opacity"
                       style={{ background: 'var(--lp-accent)' }}
                     />
                     <img
                       src={item.imageUrl}
                       alt={item.label}
-                      className="relative w-full max-w-[420px] h-auto object-contain rounded-2xl transition-transform duration-500 group-hover:scale-[1.02]"
-                      style={{ filter: `drop-shadow(0 15px 40px var(--lp-shadow))` }}
+                      className="relative w-full max-w-[420px] h-auto object-contain rounded-3xl transition-transform duration-500 group-hover:scale-[1.02]"
+                      style={{ filter: `drop-shadow(0 20px 60px var(--lp-shadow))` }}
                     />
                   </div>
                 )}

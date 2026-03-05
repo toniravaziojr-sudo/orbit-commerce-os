@@ -175,24 +175,24 @@ export interface LPSchema {
 
 export const LP_COLOR_PRESETS: Record<LPVisualStyle, (primaryColor: string) => LPColorScheme> = {
   premium: () => ({
-    bg: '#0a0a0a',
-    bgAlt: '#111111',
-    text: '#ffffff',
-    textMuted: 'rgba(255,255,255,0.7)',
+    bg: '#070A10',
+    bgAlt: '#0B1220',
+    text: '#F2F5FF',
+    textMuted: 'rgba(242,245,255,0.72)',
     accent: '#c9a96e',
     ctaBg: '#c9a96e',
-    ctaText: '#0a0a0a',
-    cardBg: 'rgba(255,255,255,0.04)',
-    cardBorder: 'rgba(255,255,255,0.08)',
-    priceCurrent: '#c9a96e',
-    priceOld: 'rgba(255,255,255,0.4)',
-    badgeBg: 'rgba(201,169,110,0.15)',
+    ctaText: '#FFFFFF',
+    cardBg: 'rgba(255,255,255,0.05)',
+    cardBorder: 'rgba(255,255,255,0.10)',
+    priceCurrent: '#FFFFFF',
+    priceOld: 'rgba(242,245,255,0.55)',
+    badgeBg: 'rgba(201,169,110,0.12)',
     badgeText: '#c9a96e',
-    shadow: 'rgba(0,0,0,0.5)',
+    shadow: 'rgba(0,0,0,0.55)',
     divider: 'rgba(255,255,255,0.06)',
-    fontDisplay: "'Playfair Display', Georgia, serif",
+    fontDisplay: "'DM Serif Display', 'Playfair Display', Georgia, serif",
     fontBody: "'Inter', -apple-system, sans-serif",
-    fontImportUrl: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap',
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Playfair+Display:wght@400;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap',
   }),
   comercial: (primaryColor) => ({
     bg: '#ffffff',
@@ -293,7 +293,7 @@ const zLPTestimonialsProps = z.object({
 const zLPSocialProofProps = z.object({
   badge: z.string().max(50),
   title: z.string().max(150),
-  imageUrls: z.array(z.string()).min(1).max(8),
+  imageUrls: z.array(z.string()).min(1).max(24),
 });
 
 const zLPPricingProps = z.object({

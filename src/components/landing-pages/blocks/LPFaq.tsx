@@ -25,8 +25,12 @@ export function LPFaq({ data }: Props) {
           {data.badge}
         </span>
         <h2
-          className="text-2xl md:text-4xl font-extrabold leading-tight"
-          style={{ color: 'var(--lp-text)', fontFamily: 'var(--lp-font-display)' }}
+          className="font-extrabold leading-tight"
+          style={{ 
+            color: 'var(--lp-text)', 
+            fontFamily: 'var(--lp-font-display)',
+            fontSize: 'clamp(1.5rem, 2.6vw, 2.25rem)',
+          }}
         >
           {data.title}
         </h2>
@@ -37,10 +41,11 @@ export function LPFaq({ data }: Props) {
             <AccordionItem
               key={i}
               value={`faq-${i}`}
-              className="rounded-xl px-6 overflow-hidden"
+              className="rounded-xl px-6 overflow-hidden relative"
               style={{ 
                 background: 'var(--lp-card-bg)',
                 border: '1px solid var(--lp-card-border)',
+                backdropFilter: 'blur(8px)',
               }}
             >
               <AccordionTrigger
