@@ -33,8 +33,10 @@ const makeMinimalSchema = (premiumTemplateId?: string): LPSchema => ({
       id: "hero",
       type: "hero",
       props: {
+        badge: "TEST",
         title: "Test Product",
         subtitle: "Best product ever",
+        benefits: ["Benefit 1", "Benefit 2"],
         ctaText: "Buy Now",
         ctaUrl: "#",
         productImageUrl: "https://example.com/product.png",
