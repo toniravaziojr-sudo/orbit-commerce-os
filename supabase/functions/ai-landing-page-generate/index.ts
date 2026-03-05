@@ -1369,9 +1369,18 @@ serve(async (req) => {
           const rawContent = aiData.choices?.[0]?.message?.content || "";
           const parsed = parseJsonResponse(rawContent);
           if (parsed && parsed.sections && parsed.sections.length > 0) {
-            finalSchema = parsed;
+            const existingSchema = savedLandingPage.generated_schema as any;
+            // Preserve structural fields the AI might strip
+            finalSchema = {
+              ...parsed,
+              premiumTemplateId: parsed.premiumTemplateId || existingSchema.premiumTemplateId,
+              designTokens: parsed.designTokens || existingSchema.designTokens,
+              mood: parsed.mood || existingSchema.mood,
+              variantSeed: parsed.variantSeed || existingSchema.variantSeed,
+              templateId: parsed.templateId || existingSchema.templateId,
+            };
             aiRefinementUsed = true;
-            console.log(`[AI-LP-Generate] Schema adjustment applied: ${parsed.sections.length} sections`);
+            console.log(`[AI-LP-Generate] Schema adjustment applied: ${parsed.sections.length} sections, premiumTemplateId=${finalSchema.premiumTemplateId}`);
           } else {
             finalSchema = savedLandingPage.generated_schema;
             parseError = 'AI schema adjustment returned invalid JSON, kept existing';
@@ -1453,9 +1462,21 @@ serve(async (req) => {
           const rawContent = aiData.choices?.[0]?.message?.content || "";
           const parsed = parseJsonResponse(rawContent);
           if (parsed && parsed.sections && parsed.sections.length >= baseSchema.sections.length * 0.5) {
-            finalSchema = parsed;
+            // Merge AI-refined copy with structural fields from baseSchema
+            // The AI only refines text — it must NOT override template/token/mood fields
+            finalSchema = {
+              ...parsed,
+              premiumTemplateId: baseSchema.premiumTemplateId,
+              designTokens: baseSchema.designTokens,
+              mood: baseSchema.mood,
+              variantSeed: baseSchema.variantSeed,
+              templateId: baseSchema.templateId,
+              version: baseSchema.version,
+              showHeader: baseSchema.showHeader,
+              showFooter: baseSchema.showFooter,
+            };
             aiRefinementUsed = true;
-            console.log(`[AI-LP-Generate] AI copy refinement applied to schema`);
+            console.log(`[AI-LP-Generate] AI copy refinement applied — preserved premiumTemplateId=${baseSchema.premiumTemplateId}`);
           } else {
             console.warn("[AI-LP-Generate] AI schema output invalid, using base schema");
             finalSchema = baseSchema;
