@@ -1369,9 +1369,18 @@ serve(async (req) => {
           const rawContent = aiData.choices?.[0]?.message?.content || "";
           const parsed = parseJsonResponse(rawContent);
           if (parsed && parsed.sections && parsed.sections.length > 0) {
-            finalSchema = parsed;
+            const existingSchema = savedLandingPage.generated_schema as any;
+            // Preserve structural fields the AI might strip
+            finalSchema = {
+              ...parsed,
+              premiumTemplateId: parsed.premiumTemplateId || existingSchema.premiumTemplateId,
+              designTokens: parsed.designTokens || existingSchema.designTokens,
+              mood: parsed.mood || existingSchema.mood,
+              variantSeed: parsed.variantSeed || existingSchema.variantSeed,
+              templateId: parsed.templateId || existingSchema.templateId,
+            };
             aiRefinementUsed = true;
-            console.log(`[AI-LP-Generate] Schema adjustment applied: ${parsed.sections.length} sections`);
+            console.log(`[AI-LP-Generate] Schema adjustment applied: ${parsed.sections.length} sections, premiumTemplateId=${finalSchema.premiumTemplateId}`);
           } else {
             finalSchema = savedLandingPage.generated_schema;
             parseError = 'AI schema adjustment returned invalid JSON, kept existing';
