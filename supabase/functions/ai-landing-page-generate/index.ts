@@ -707,8 +707,28 @@ function buildBaseSchema(input: BuildSchemaInput & { variantSeed?: number; niche
     }
   }
 
+  // V9.0: Select premium template and apply its fonts + tokens
+  const premiumTemplate = selectPremiumTemplate(seed, nicheKey);
+  
+  // Override fonts with premium template fonts
+  c.fontDisplay = premiumTemplate.fontDisplay;
+  c.fontBody = premiumTemplate.fontBody;
+  c.fontImportUrl = premiumTemplate.fontImportUrl;
+  
+  console.log(`[AI-LP-Generate] V9.0 Premium Template: ${premiumTemplate.id}, mood=${mood}`);
+
+  // Build design tokens map for CSS variable injection
+  const designTokens: Record<string, string> = {
+    '--lp-radius': premiumTemplate.tokens.radius,
+    '--lp-card-style': premiumTemplate.tokens.cardStyle,
+    '--lp-shadow-intensity': premiumTemplate.tokens.shadowIntensity,
+    '--lp-section-py': premiumTemplate.tokens.sectionPaddingY,
+    '--lp-glow-intensity': String(premiumTemplate.tokens.accentGlow),
+    '--lp-divider-style': premiumTemplate.tokens.dividerStyle,
+  };
+
   return {
-    version: '8.0' as const,
+    version: '9.0' as const,
     visualStyle: (input.visualWeight || 'premium') as any,
     colorScheme: c,
     showHeader: input.showHeader,
@@ -717,6 +737,8 @@ function buildBaseSchema(input: BuildSchemaInput & { variantSeed?: number; niche
     templateId: template.id,
     mood,
     variantSeed: seed,
+    premiumTemplateId: premiumTemplate.id,
+    designTokens,
   };
 }
 
