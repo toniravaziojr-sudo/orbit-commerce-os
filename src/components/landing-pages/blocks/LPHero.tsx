@@ -27,7 +27,7 @@ function HeroSplitRight({ data }: { data: LPHeroProps }) {
   const bgStyle: React.CSSProperties = hasScene
     ? { backgroundImage: `url('${sceneDesktopUrl}')`, backgroundSize: 'cover', backgroundPosition: 'center' }
     : data.backgroundImageUrl
-    ? { background: `linear-gradient(135deg, var(--lp-bg, #070A10)ee 0%, var(--lp-bg, #070A10)cc 50%, var(--lp-bg, #070A10)88 100%), url('${data.backgroundImageUrl}') center/cover no-repeat` }
+    ? { background: `linear-gradient(135deg, rgba(7,4,16,0.93) 0%, rgba(7,4,16,0.80) 50%, rgba(7,4,16,0.53) 100%), url('${data.backgroundImageUrl}') center/cover no-repeat` }
     : {};
 
   return (
