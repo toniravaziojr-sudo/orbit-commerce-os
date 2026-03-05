@@ -9,7 +9,7 @@ import type { LPSchema, LPSection, LPSectionType, LPColorScheme } from '@/lib/la
 import { sanitizeLPSectionProps } from '@/lib/sanitizeLPCopy';
 import { normalizeAllCTAs } from '@/lib/normalizeLPCta';
 import { buildTokenCssVariables } from '@/lib/landing-page-template-tokens';
-import { LPHero } from './blocks/LPHero';
+
 import { LPBenefits } from './blocks/LPBenefits';
 import { LPTestimonials } from './blocks/LPTestimonials';
 import { LPSocialProof } from './blocks/LPSocialProof';
@@ -17,17 +17,8 @@ import { LPPricing } from './blocks/LPPricing';
 import { LPFaq } from './blocks/LPFaq';
 import { LPGuarantee } from './blocks/LPGuarantee';
 import { LPCtaFinal } from './blocks/LPCtaFinal';
-// Premium Heroes
-import { HeroLuxuryEditorial } from './heroes/HeroLuxuryEditorial';
-import { HeroBoldImpact } from './heroes/HeroBoldImpact';
-import { HeroMinimalZen } from './heroes/HeroMinimalZen';
-import { HeroOrganicNature } from './heroes/HeroOrganicNature';
-import { HeroCorporateTrust } from './heroes/HeroCorporateTrust';
-import { HeroNeonEnergy } from './heroes/HeroNeonEnergy';
-import { HeroWarmArtisan } from './heroes/HeroWarmArtisan';
-import { HeroTechGradient } from './heroes/HeroTechGradient';
-import { HeroClassicElegant } from './heroes/HeroClassicElegant';
-import { HeroUrbanStreet } from './heroes/HeroUrbanStreet';
+// Universal Hero
+import { HeroProductGradient } from './heroes/HeroProductGradient';
 // Premium CTAs
 import { CtaLuxuryEditorial } from './ctas/CtaLuxuryEditorial';
 import { CtaBoldImpact } from './ctas/CtaBoldImpact';
@@ -40,18 +31,6 @@ interface LPSchemaRendererProps {
   schema: LPSchema;
 }
 
-const PREMIUM_HEROES: Record<string, React.FC<{ data: any }>> = {
-  luxury_editorial: HeroLuxuryEditorial,
-  bold_impact: HeroBoldImpact,
-  minimal_zen: HeroMinimalZen,
-  organic_nature: HeroOrganicNature,
-  corporate_trust: HeroCorporateTrust,
-  neon_energy: HeroNeonEnergy,
-  warm_artisan: HeroWarmArtisan,
-  tech_gradient: HeroTechGradient,
-  classic_elegant: HeroClassicElegant,
-  urban_street: HeroUrbanStreet,
-};
 
 const PREMIUM_CTAS: Record<string, React.FC<{ data: any }>> = {
   luxury_editorial: CtaLuxuryEditorial,
@@ -70,10 +49,9 @@ function renderSection(section: LPSection, premiumTemplateId?: string) {
   const { id, type, variant } = section;
   const cleanProps = sanitizeLPSectionProps(section.props);
 
-  // Route Hero/CTA to premium template if available
-  if (type === 'hero' && premiumTemplateId && PREMIUM_HEROES[premiumTemplateId]) {
-    const HeroComp = PREMIUM_HEROES[premiumTemplateId];
-    return <HeroComp key={id} data={cleanProps} />;
+  // ALWAYS use HeroProductGradient for hero sections (universal standard)
+  if (type === 'hero') {
+    return <HeroProductGradient key={id} data={cleanProps} />;
   }
   if (type === 'cta_final' && premiumTemplateId && PREMIUM_CTAS[premiumTemplateId]) {
     const CtaComp = PREMIUM_CTAS[premiumTemplateId];
@@ -82,8 +60,6 @@ function renderSection(section: LPSection, premiumTemplateId?: string) {
 
   // Fallback to generic blocks (backward compat)
   switch (type) {
-    case 'hero':
-      return <LPHero key={id} data={cleanProps} variant={variant} />;
     case 'benefits':
       return <LPBenefits key={id} data={cleanProps} variant={variant} />;
     case 'testimonials':
