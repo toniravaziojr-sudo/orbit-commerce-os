@@ -23,6 +23,8 @@ import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRe
 import { BlockRenderer } from '@/components/builder/BlockRenderer';
 import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
 import { useEffect, useRef, useState, useMemo } from 'react';
+import { LPSchemaRenderer } from '@/components/landing-pages/LPSchemaRenderer';
+import type { LPSchema } from '@/lib/landing-page-schema';
 
 interface AILandingPageData {
   id: string;
@@ -239,12 +241,13 @@ export default function StorefrontAILandingPage() {
     );
   }
 
-  // V5: Check for blocks OR HTML
+  // V7: Check for schema, V6: HTML, V5: blocks
+  const hasSchema = !!landingPage?.generated_schema;
   const hasBlocks = landingPage?.generated_blocks && 
     (landingPage.generated_blocks as any)?.children?.length > 0;
   const hasHtml = !!landingPage?.generated_html;
 
-  if (!tenantInfo || !landingPage || (!hasBlocks && !hasHtml)) {
+  if (!tenantInfo || !landingPage || (!hasSchema && !hasBlocks && !hasHtml)) {
     return <NotFound />;
   }
 
@@ -264,6 +267,42 @@ export default function StorefrontAILandingPage() {
   }
 
   const resolvedTenantSlug = tenantSlug || tenantInfo.tenantSlug || '';
+  const shouldShowHeader = landingPage.show_header ?? false;
+  const shouldShowFooter = landingPage.show_footer ?? false;
+
+  // ===== V7: SCHEMA RENDERING (priority) =====
+  if (hasSchema) {
+    const schema = landingPage.generated_schema as unknown as LPSchema;
+
+    const schemaContent = (
+      <LPSchemaRenderer schema={schema} />
+    );
+
+    return (
+      <TenantSlugContext.Provider value={resolvedTenantSlug}>
+        <CartProvider tenantSlug={resolvedTenantSlug}>
+          <DiscountProvider>
+            <StorefrontConfigProvider tenantId={tenantInfo.tenantId}>
+              <StorefrontThemeInjector tenantSlug={resolvedTenantSlug} />
+              <div className="w-full min-h-screen" style={{ margin: 0, padding: 0, isolation: 'isolate' }}>
+                {shouldShowHeader && (
+                  <div style={{ containerType: 'inline-size', containerName: 'storefront' }} className="storefront-header-wrapper">
+                    <StorefrontHeader key={`header-${resolvedTenantSlug}`} />
+                  </div>
+                )}
+                {schemaContent}
+                {shouldShowFooter && (
+                  <div style={{ containerType: 'inline-size', containerName: 'storefront' }} className="storefront-footer-wrapper">
+                    <StorefrontFooter key={`footer-${resolvedTenantSlug}`} />
+                  </div>
+                )}
+              </div>
+            </StorefrontConfigProvider>
+          </DiscountProvider>
+        </CartProvider>
+      </TenantSlugContext.Provider>
+    );
+  }
 
   // ===== FALLBACK: BLOCKS RENDERING (legacy V5 content) =====
   if (!hasHtml && hasBlocks) {
@@ -326,9 +365,6 @@ export default function StorefrontAILandingPage() {
     faviconTag,
     extraCss: sanitizedCss || undefined,
   });
-
-  const shouldShowHeader = landingPage.show_header ?? false;
-  const shouldShowFooter = landingPage.show_footer ?? false;
 
   // Iframe styling: when height is known, lock it. Otherwise allow natural flow.
   const hasCalculatedHeight = iframeHeight && iframeHeight > 100;

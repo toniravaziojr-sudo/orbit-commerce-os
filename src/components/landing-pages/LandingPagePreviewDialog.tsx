@@ -7,6 +7,8 @@
 import { useState } from "react";
 import { sanitizeAILandingPageHtml } from "@/lib/sanitizeAILandingPageHtml";
 import { buildDocumentShell } from "@/lib/aiLandingPageShell";
+import { LPSchemaRenderer } from "@/components/landing-pages/LPSchemaRenderer";
+import type { LPSchema } from "@/lib/landing-page-schema";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -48,7 +50,7 @@ export function LandingPagePreviewDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from('ai_landing_pages')
-        .select('name, slug, generated_html, generated_css, generated_blocks, is_published')
+        .select('name, slug, generated_html, generated_css, generated_blocks, generated_schema, is_published')
         .eq('id', landingPageId)
         .single();
       
@@ -58,6 +60,8 @@ export function LandingPagePreviewDialog({
     enabled: open && !!landingPageId,
   });
 
+  const hasSchema = landingPage?.generated_schema &&
+    (landingPage.generated_schema as any)?.version === '7.0';
   const hasBlocks = landingPage?.generated_blocks && 
     (landingPage.generated_blocks as any)?.children?.length > 0;
 
@@ -66,12 +70,22 @@ export function LandingPagePreviewDialog({
       return <Skeleton className="w-full h-full" />;
     }
 
-    if (!landingPage?.generated_html && !hasBlocks) {
+    if (!landingPage?.generated_html && !hasBlocks && !hasSchema) {
       return (
         <div className="flex items-center justify-center h-full bg-muted/50">
           <p className="text-muted-foreground">
             Esta landing page ainda não foi gerada
           </p>
+        </div>
+      );
+    }
+
+    // V7: Schema rendering (priority)
+    if (hasSchema) {
+      const schema = landingPage!.generated_schema as unknown as LPSchema;
+      return (
+        <div className="w-full h-full overflow-auto">
+          <LPSchemaRenderer schema={schema} />
         </div>
       );
     }

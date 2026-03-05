@@ -7,6 +7,8 @@ import { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { sanitizeAILandingPageHtml } from "@/lib/sanitizeAILandingPageHtml";
 import { buildDocumentShell } from "@/lib/aiLandingPageShell";
+import { LPSchemaRenderer } from "@/components/landing-pages/LPSchemaRenderer";
+import type { LPSchema } from "@/lib/landing-page-schema";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { BlockRenderer } from "@/components/builder/BlockRenderer";
 import { BlockNode, BlockRenderContext } from "@/lib/builder/types";
@@ -57,6 +59,7 @@ interface LandingPageData {
   generated_html: string | null;
   generated_css: string | null;
   generated_blocks: BlockNode | null;
+  generated_schema: any | null;
   current_version: number;
   reference_url: string | null;
   initial_prompt: string | null;
@@ -284,13 +287,14 @@ export default function LandingPageEditor() {
     return () => window.removeEventListener('message', handler);
   }, []);
 
-  // V5: Check for blocks OR HTML
+  // V7/V5/V6: Check for schema, blocks, or HTML
+  const hasSchema = !!landingPage?.generated_schema;
   const hasBlocks = landingPage?.generated_blocks && 
     (landingPage.generated_blocks as any)?.children?.length > 0;
   const hasHtml = !!landingPage?.generated_html;
 
   const renderPreview = () => {
-    if (!hasBlocks && !hasHtml) {
+    if (!hasSchema && !hasBlocks && !hasHtml) {
       const isGeneratingStatus = landingPage?.status === 'generating';
       return (
         <div className="flex items-center justify-center h-full bg-muted/30">
@@ -336,6 +340,26 @@ export default function LandingPageEditor() {
               </>
             )}
           </div>
+        </div>
+      );
+    }
+
+    // V7: Schema rendering (priority)
+    if (hasSchema) {
+      const schema = landingPage!.generated_schema as unknown as LPSchema;
+      return (
+        <div className="w-full h-full overflow-auto" style={{ background: schema.colorScheme?.bg || '#fff' }}>
+          {showHeader && (
+            <div className="bg-muted/50 border-b px-4 py-2 text-center text-xs text-muted-foreground">
+              ⬆ Cabeçalho da loja será exibido aqui na página pública
+            </div>
+          )}
+          <LPSchemaRenderer schema={schema} />
+          {showFooter && (
+            <div className="bg-muted/50 border-t px-4 py-2 text-center text-xs text-muted-foreground">
+              ⬇ Rodapé da loja será exibido aqui na página pública
+            </div>
+          )}
         </div>
       );
     }
