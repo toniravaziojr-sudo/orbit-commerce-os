@@ -1466,8 +1466,9 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         version: newVersion,
-        engineVersion: "v8.0",
+        engineVersion: "v9.0",
         templateId: finalSchema.templateId,
+        premiumTemplateId: finalSchema.premiumTemplateId,
         mood: finalSchema.mood,
         variantSeed: finalSchema.variantSeed,
         schemaFirst: true,
