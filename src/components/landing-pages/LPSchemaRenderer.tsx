@@ -9,7 +9,7 @@ import type { LPSchema, LPSection, LPSectionType, LPColorScheme } from '@/lib/la
 import { sanitizeLPSectionProps } from '@/lib/sanitizeLPCopy';
 import { normalizeAllCTAs } from '@/lib/normalizeLPCta';
 import { buildTokenCssVariables } from '@/lib/landing-page-template-tokens';
-import { LPHero } from './blocks/LPHero';
+
 import { LPBenefits } from './blocks/LPBenefits';
 import { LPTestimonials } from './blocks/LPTestimonials';
 import { LPSocialProof } from './blocks/LPSocialProof';
