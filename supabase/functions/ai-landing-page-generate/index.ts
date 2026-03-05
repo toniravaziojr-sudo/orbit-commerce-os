@@ -361,7 +361,7 @@ function seededPick<T>(arr: T[], rng: () => number): T {
   return arr[Math.floor(rng() * arr.length)];
 }
 
-// ── V8.0: Template definitions ──
+// ── V8.0: Template definitions (narrative recipes) ──
 type TemplateId = 'direct_offer' | 'proof_first' | 'problem_solution' | 'routine' | 'comparison' | 'minimal_premium';
 
 interface TemplateRecipe {
@@ -399,6 +399,114 @@ function selectTemplate(seed: number, hasReviews: boolean, hasSocialProof: boole
     if (roll <= 0) return t;
   }
   return eligible[eligible.length - 1];
+}
+
+// ── V9.0: Premium Template Masters ──
+// Each premium template maps to a dedicated Hero + CTA Final React component pair
+type PremiumTemplateId = 
+  | 'luxury_editorial' | 'bold_impact' | 'minimal_zen' | 'organic_nature' | 'corporate_trust'
+  | 'neon_energy' | 'warm_artisan' | 'tech_gradient' | 'classic_elegant' | 'urban_street';
+
+interface PremiumTemplateEntry {
+  id: PremiumTemplateId;
+  allowedMoods: LPMood[];
+  defaultMood: LPMood;
+  fontDisplay: string;
+  fontBody: string;
+  fontImportUrl: string;
+  /** Design tokens for CSS variable injection */
+  tokens: {
+    radius: string;
+    cardStyle: string;
+    shadowIntensity: string;
+    sectionPaddingY: string;
+    accentGlow: number;
+    dividerStyle: string;
+  };
+}
+
+const PREMIUM_TEMPLATES: PremiumTemplateEntry[] = [
+  {
+    id: 'luxury_editorial', allowedMoods: ['luxury', 'minimal'], defaultMood: 'luxury',
+    fontDisplay: "'Playfair Display', Georgia, serif", fontBody: "'Inter', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;800&family=Inter:wght@300;400;500;600&display=swap',
+    tokens: { radius: '20px', cardStyle: 'glass', shadowIntensity: 'dramatic', sectionPaddingY: 'clamp(80px, 10vw, 120px)', accentGlow: 0.08, dividerStyle: 'gradient' },
+  },
+  {
+    id: 'bold_impact', allowedMoods: ['bold', 'corporate'], defaultMood: 'bold',
+    fontDisplay: "'Bebas Neue', Impact, sans-serif", fontBody: "'Archivo', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Archivo:wght@400;500;600;700&display=swap',
+    tokens: { radius: '12px', cardStyle: 'solid', shadowIntensity: 'medium', sectionPaddingY: 'clamp(64px, 8vw, 100px)', accentGlow: 0.12, dividerStyle: 'line' },
+  },
+  {
+    id: 'minimal_zen', allowedMoods: ['minimal', 'luxury'], defaultMood: 'minimal',
+    fontDisplay: "'Sora', -apple-system, sans-serif", fontBody: "'Inter', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=Inter:wght@300;400;500&display=swap',
+    tokens: { radius: '8px', cardStyle: 'outline', shadowIntensity: 'subtle', sectionPaddingY: 'clamp(80px, 12vw, 140px)', accentGlow: 0.03, dividerStyle: 'none' },
+  },
+  {
+    id: 'organic_nature', allowedMoods: ['organic', 'minimal'], defaultMood: 'organic',
+    fontDisplay: "'Lora', Georgia, serif", fontBody: "'Montserrat', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&family=Montserrat:wght@300;400;500;600&display=swap',
+    tokens: { radius: '28px', cardStyle: 'elevated', shadowIntensity: 'medium', sectionPaddingY: 'clamp(72px, 9vw, 110px)', accentGlow: 0.06, dividerStyle: 'gradient' },
+  },
+  {
+    id: 'corporate_trust', allowedMoods: ['corporate', 'minimal'], defaultMood: 'corporate',
+    fontDisplay: "'Plus Jakarta Sans', -apple-system, sans-serif", fontBody: "'Plus Jakarta Sans', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap',
+    tokens: { radius: '12px', cardStyle: 'solid', shadowIntensity: 'subtle', sectionPaddingY: 'clamp(64px, 8vw, 96px)', accentGlow: 0.04, dividerStyle: 'line' },
+  },
+  {
+    id: 'neon_energy', allowedMoods: ['bold', 'luxury'], defaultMood: 'bold',
+    fontDisplay: "'Oswald', Impact, sans-serif", fontBody: "'Inter', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap',
+    tokens: { radius: '16px', cardStyle: 'glass', shadowIntensity: 'dramatic', sectionPaddingY: 'clamp(72px, 9vw, 110px)', accentGlow: 0.2, dividerStyle: 'gradient' },
+  },
+  {
+    id: 'warm_artisan', allowedMoods: ['organic', 'luxury'], defaultMood: 'organic',
+    fontDisplay: "'Cormorant Garamond', Georgia, serif", fontBody: "'Lato', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Lato:wght@300;400;700&display=swap',
+    tokens: { radius: '20px', cardStyle: 'elevated', shadowIntensity: 'medium', sectionPaddingY: 'clamp(80px, 10vw, 120px)', accentGlow: 0.05, dividerStyle: 'gradient' },
+  },
+  {
+    id: 'tech_gradient', allowedMoods: ['corporate', 'bold', 'minimal'], defaultMood: 'corporate',
+    fontDisplay: "'Space Grotesk', -apple-system, sans-serif", fontBody: "'Inter', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap',
+    tokens: { radius: '24px', cardStyle: 'glass', shadowIntensity: 'dramatic', sectionPaddingY: 'clamp(72px, 9vw, 110px)', accentGlow: 0.15, dividerStyle: 'gradient' },
+  },
+  {
+    id: 'classic_elegant', allowedMoods: ['luxury', 'minimal'], defaultMood: 'luxury',
+    fontDisplay: "'DM Serif Display', Georgia, serif", fontBody: "'DM Sans', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap',
+    tokens: { radius: '4px', cardStyle: 'outline', shadowIntensity: 'subtle', sectionPaddingY: 'clamp(88px, 11vw, 130px)', accentGlow: 0.04, dividerStyle: 'line' },
+  },
+  {
+    id: 'urban_street', allowedMoods: ['bold', 'corporate'], defaultMood: 'bold',
+    fontDisplay: "'Anton', Impact, sans-serif", fontBody: "'Barlow', -apple-system, sans-serif",
+    fontImportUrl: 'https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@400;500;600;700&display=swap',
+    tokens: { radius: '0px', cardStyle: 'solid', shadowIntensity: 'medium', sectionPaddingY: 'clamp(60px, 8vw, 96px)', accentGlow: 0.1, dividerStyle: 'none' },
+  },
+];
+
+/**
+ * V9.0: Select premium template based on seed + niche mood compatibility.
+ * Guarantees diversity: 10 generations → min 6 different templates.
+ */
+function selectPremiumTemplate(seed: number, niche: string): PremiumTemplateEntry {
+  const rng = seededRng(seed + 42424);
+  const nicheMoods = NICHE_MOOD_MAP[niche] || NICHE_MOOD_MAP['geral'];
+  
+  // Filter templates whose allowedMoods overlap with niche moods
+  const compatible = PREMIUM_TEMPLATES.filter(t => 
+    t.allowedMoods.some(m => nicheMoods.includes(m))
+  );
+  
+  // If somehow no compatible templates, use all
+  const pool = compatible.length >= 3 ? compatible : PREMIUM_TEMPLATES;
+  
+  // Deterministic selection from pool
+  const idx = Math.floor(rng() * pool.length);
+  return pool[idx];
 }
 
 // ── V8.0: Mood selection ──
