@@ -173,7 +173,7 @@ function HeroCentered({ data }: { data: LPHeroProps }) {
   return (
     <section className={`relative overflow-hidden lp-noise ${hasScene ? 'lp-hero-scene' : ''}`} style={{ ...bgStyle, minHeight: '100vh' }}>
       {hasScene && (
-        <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, var(--lp-bg, #070A10)dd 0%, var(--lp-bg, #070A10)99 40%, var(--lp-bg, #070A10)cc 100%)` }} />
+        <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, rgba(7,4,16,0.87) 0%, rgba(7,4,16,0.60) 40%, rgba(7,4,16,0.80) 100%)` }} />
       )}
       {!hasScene && (
         <>
