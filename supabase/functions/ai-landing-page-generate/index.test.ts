@@ -38,9 +38,7 @@ Deno.test("rejects invalid landing page ID with 500", async () => {
     }),
   });
 
-  // Should fail because the landing page doesn't exist
   const data = await res.json();
-  await res.body?.cancel();
   assertEquals(data.success, false);
 });
 
