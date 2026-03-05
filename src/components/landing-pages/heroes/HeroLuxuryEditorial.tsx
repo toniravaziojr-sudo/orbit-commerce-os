@@ -49,7 +49,7 @@ export function HeroLuxuryEditorial({ data }: Props) {
       <div className="relative grid grid-cols-1 md:grid-cols-2 items-center gap-8 md:gap-20 px-[5%] py-28 md:py-0 max-w-[1200px] mx-auto" style={{ minHeight: '100vh' }}>
         
         {/* Text — editorial serif */}
-        <div className="max-w-[600px] z-10">
+        <div className={`max-w-[600px] z-10 ${hasScene ? 'lp-text-legible' : ''}`}>
           {/* Thin decorative line */}
           <div className="lp-hero-title-enter hidden md:block w-20 h-[1.5px] mb-10" style={{ background: `linear-gradient(90deg, var(--lp-accent), transparent)`, opacity: 0.6 }} />
           

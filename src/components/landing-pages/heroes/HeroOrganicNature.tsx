@@ -24,7 +24,10 @@ export function HeroOrganicNature({ data }: Props) {
       }),
     }}>
       {hasScene && (
-        <div className="absolute inset-0" style={{ background: `linear-gradient(to right, var(--lp-bg)ee 0%, var(--lp-bg)aa 50%, transparent 100%)` }} />
+        <>
+          <div className="absolute inset-0" style={{ background: `linear-gradient(to right, var(--lp-bg)f5 0%, var(--lp-bg)cc 50%, var(--lp-bg)88 100%)` }} />
+          <div className="absolute inset-0" style={{ background: `radial-gradient(ellipse at center, transparent 40%, var(--lp-bg)dd 100%)` }} />
+        </>
       )}
 
       {/* Organic blob shapes */}
@@ -48,7 +51,7 @@ export function HeroOrganicNature({ data }: Props) {
       <div className="relative grid grid-cols-1 md:grid-cols-2 items-center gap-10 md:gap-16 px-[5%] py-28 md:py-0 max-w-[1200px] mx-auto" style={{ minHeight: '100vh' }}>
         
         {/* Text — warm serif */}
-        <div className="max-w-[560px] z-10">
+        <div className={`max-w-[560px] z-10 ${hasScene ? 'lp-text-legible' : ''}`}>
           <div className="lp-hero-title-enter mb-8">
             <span className="inline-flex items-center gap-2 px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.2em]" style={{
               color: 'var(--lp-accent)',
