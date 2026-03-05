@@ -348,6 +348,107 @@ function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+// ── V8.0: Seeded RNG for reproducible variation ──
+function seededRng(seed: number) {
+  let s = seed;
+  return () => {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    return s / 0x7fffffff;
+  };
+}
+
+function seededPick<T>(arr: T[], rng: () => number): T {
+  return arr[Math.floor(rng() * arr.length)];
+}
+
+// ── V8.0: Template definitions ──
+type TemplateId = 'direct_offer' | 'proof_first' | 'problem_solution' | 'routine' | 'comparison' | 'minimal_premium';
+
+interface TemplateRecipe {
+  id: TemplateId;
+  sections: string[]; // section types in order
+  weight: number;
+  requiresProof?: boolean;
+  requiresReviews?: boolean;
+}
+
+const TEMPLATES: TemplateRecipe[] = [
+  { id: 'direct_offer', sections: ['hero', 'pricing', 'benefits', 'testimonials', 'faq', 'cta_final'], weight: 20, requiresReviews: true },
+  { id: 'proof_first', sections: ['hero', 'social_proof', 'testimonials', 'pricing', 'guarantee', 'cta_final'], weight: 15, requiresProof: true, requiresReviews: true },
+  { id: 'problem_solution', sections: ['hero', 'benefits', 'testimonials', 'pricing', 'guarantee', 'faq', 'cta_final'], weight: 20, requiresReviews: true },
+  { id: 'routine', sections: ['hero', 'benefits', 'social_proof', 'pricing', 'faq', 'cta_final'], weight: 15, requiresProof: true },
+  { id: 'comparison', sections: ['hero', 'benefits', 'pricing', 'testimonials', 'faq', 'cta_final'], weight: 15, requiresReviews: true },
+  { id: 'minimal_premium', sections: ['hero', 'benefits', 'pricing', 'guarantee', 'faq', 'cta_final'], weight: 15 },
+];
+
+function selectTemplate(seed: number, hasReviews: boolean, hasSocialProof: boolean): TemplateRecipe {
+  const rng = seededRng(seed);
+  const eligible = TEMPLATES.map(t => {
+    let w = t.weight;
+    if (t.requiresProof && !hasSocialProof) w = 0;
+    if (t.requiresReviews && !hasReviews) w = Math.max(0, w - 10);
+    return { ...t, weight: w };
+  }).filter(t => t.weight > 0);
+
+  if (eligible.length === 0) return TEMPLATES[5]; // minimal_premium fallback
+
+  const totalWeight = eligible.reduce((s, t) => s + t.weight, 0);
+  let roll = rng() * totalWeight;
+  for (const t of eligible) {
+    roll -= t.weight;
+    if (roll <= 0) return t;
+  }
+  return eligible[eligible.length - 1];
+}
+
+// ── V8.0: Mood selection ──
+type LPMood = 'luxury' | 'bold' | 'organic' | 'corporate' | 'minimal';
+
+const NICHE_MOOD_MAP: Record<string, LPMood[]> = {
+  hair: ['luxury', 'organic', 'minimal'],
+  skincare: ['luxury', 'organic', 'minimal'],
+  cosmetics: ['luxury', 'organic', 'bold'],
+  supplements: ['bold', 'corporate', 'minimal'],
+  fitness: ['bold', 'corporate'],
+  food: ['organic', 'minimal', 'corporate'],
+  tech: ['corporate', 'minimal', 'bold'],
+  geral: ['luxury', 'bold', 'organic', 'corporate', 'minimal'],
+};
+
+const MOOD_FONTS: Record<LPMood, { display: string; body: string; importUrl: string }> = {
+  luxury: { display: "'Playfair Display', Georgia, serif", body: "'Inter', -apple-system, sans-serif", importUrl: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap' },
+  bold: { display: "'Bebas Neue', Impact, sans-serif", body: "'Archivo', -apple-system, sans-serif", importUrl: 'https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Archivo:wght@400;500;600;700&display=swap' },
+  organic: { display: "'Lora', Georgia, serif", body: "'Montserrat', -apple-system, sans-serif", importUrl: 'https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&family=Montserrat:wght@300;400;500;600&display=swap' },
+  corporate: { display: "'Plus Jakarta Sans', -apple-system, sans-serif", body: "'Plus Jakarta Sans', -apple-system, sans-serif", importUrl: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap' },
+  minimal: { display: "'Sora', -apple-system, sans-serif", body: "'Inter', -apple-system, sans-serif", importUrl: 'https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap' },
+};
+
+function selectMood(niche: string, seed: number): LPMood {
+  const rng = seededRng(seed + 7777);
+  const candidates = NICHE_MOOD_MAP[niche] || NICHE_MOOD_MAP['geral'];
+  return seededPick(candidates, rng);
+}
+
+// ── V8.0: Variant assignment ──
+const HERO_VARIANTS = ['split_right', 'centered', 'glass_overlay'];
+const BENEFITS_VARIANTS = ['alternating_rows', 'grid_cards', 'icon_list'];
+const TESTIMONIALS_VARIANTS = ['cards', 'quote_wall'];
+const PRICING_VARIANTS = ['horizontal_3col', 'single_highlight'];
+
+function assignVariant(sectionType: string, seed: number, index: number, hasImages?: boolean): string | undefined {
+  const rng = seededRng(seed + index * 31337);
+  switch (sectionType) {
+    case 'hero': return seededPick(HERO_VARIANTS, rng);
+    case 'benefits': {
+      if (!hasImages) return 'icon_list';
+      return seededPick(BENEFITS_VARIANTS, rng);
+    }
+    case 'testimonials': return seededPick(TESTIMONIALS_VARIANTS, rng);
+    case 'pricing': return seededPick(PRICING_VARIANTS, rng);
+    default: return undefined;
+  }
+}
+
 function buildBaseSchema(input: BuildSchemaInput) {
   const c = getColorScheme(input.visualWeight, input.brandKit);
   const p = input.mainProduct;
