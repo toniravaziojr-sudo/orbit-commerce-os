@@ -464,7 +464,7 @@ Para isso, o registro DNS da outra versão precisa de PROXY ATIVADO (nuvem laran
 **IMPORTANTE:**
 - O sistema NÃO gerencia esse redirect. É responsabilidade do usuário configurar no Cloudflare.
 - O registro DNS de redirect **PRECISA do proxy ativado** (nuvem laranja) — sem proxy, Redirect Rules não funcionam.
-- O CNAME que aponta para `shops.comandocentral.com.br` (domínio servido) deve permanecer em **DNS-only** (nuvem cinza).
+- O CNAME que aponta para `shops.comandocentral.com.br` (domínio servido) deve ser **Proxied (nuvem laranja)** se a zona do cliente estiver no Cloudflare (O2O), ou **DNS-only** se estiver fora do Cloudflare. Ver seção "Proxy Status do CNAME (Orange-to-Orange)".
 - Page Rules NÃO funcionam sem proxy; prefira **Redirect Rules**.
 
 ---
