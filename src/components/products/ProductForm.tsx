@@ -1641,9 +1641,11 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                               </FormControl>
                               <SelectContent>
                                 <SelectItem value="default">Usar padrão da logística</SelectItem>
-                                <SelectItem value="PAC">PAC (Correios)</SelectItem>
-                                <SelectItem value="SEDEX">SEDEX (Correios)</SelectItem>
-                                <SelectItem value="Mini Envios">Mini Envios (Correios)</SelectItem>
+                                {availableShippingMethods.map((method) => (
+                                  <SelectItem key={method.value} value={method.value}>
+                                    {method.label}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                             <FormDescription>
