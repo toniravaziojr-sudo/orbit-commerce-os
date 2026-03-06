@@ -24,16 +24,22 @@ export function AddDomainDialog({ open, onOpenChange }: AddDomainDialogProps) {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [createdDomain, setCreatedDomain] = useState<TenantDomain | null>(null);
+  const [companionDomain, setCompanionDomain] = useState<TenantDomain | null>(null);
   const [copiedToken, setCopiedToken] = useState(false);
+  const [copiedCompanionToken, setCopiedCompanionToken] = useState(false);
   const [copiedCname, setCopiedCname] = useState(false);
+  const [copiedCnameWww, setCopiedCnameWww] = useState(false);
 
   const handleClose = () => {
     setStep('input');
     setDomain('');
     setError(null);
     setCreatedDomain(null);
+    setCompanionDomain(null);
     setCopiedToken(false);
+    setCopiedCompanionToken(false);
     setCopiedCname(false);
+    setCopiedCnameWww(false);
     onOpenChange(false);
   };
 
@@ -50,7 +56,8 @@ export function AddDomainDialog({ open, onOpenChange }: AddDomainDialogProps) {
     try {
       const result = await addDomain(domain);
       if (result) {
-        setCreatedDomain(result);
+        setCreatedDomain(result.primary);
+        setCompanionDomain(result.companion);
         setStep('instructions');
       }
     } finally {
@@ -66,7 +73,6 @@ export function AddDomainDialog({ open, onOpenChange }: AddDomainDialogProps) {
   };
 
   const domainType = domain ? getDomainType(domain) : null;
-  const createdDomainType = createdDomain ? getDomainType(createdDomain.domain) : null;
 
   // Get raw domain type (preserves www as subdomain) for DNS purposes
   const getRawDomainType = (d: string): 'apex' | 'subdomain' => {
@@ -80,25 +86,32 @@ export function AddDomainDialog({ open, onOpenChange }: AddDomainDialogProps) {
     return parts.length <= 2 ? 'apex' : 'subdomain';
   };
 
-  // Extrai o subdomínio do domínio completo (ex: "loja" de "loja.exemplo.com.br")
-  const getSubdomainName = () => {
-    if (!createdDomain) return 'www';
-    const parts = createdDomain.domain.split('.');
+  // Extrai o subdomínio do domínio completo
+  const getSubdomainName = (d: string) => {
+    const parts = d.split('.');
     return parts.length > 2 ? parts[0] : '';
   };
 
   // Compute the correct TXT record name based on the domain
-  const getTxtRecordName = () => {
-    if (!createdDomain) return '_cc-verify';
-    const sub = getSubdomainName();
+  const getTxtRecordName = (d: string) => {
+    const sub = getSubdomainName(d);
     if (sub) {
       return `_cc-verify.${sub}`;
     }
     return '_cc-verify';
   };
 
-  const isWwwDomain = createdDomain?.domain.toLowerCase().startsWith('www.') ?? false;
-  const isApexDomain = createdDomain ? getRawDomainType(createdDomain.domain) === 'apex' : false;
+  // Determine which is apex and which is www
+  const isApexWithWww = createdDomain && companionDomain;
+  const apexDomain = isApexWithWww
+    ? (getRawDomainType(createdDomain.domain) === 'apex' ? createdDomain : companionDomain)
+    : null;
+  const wwwDomain = isApexWithWww
+    ? (getRawDomainType(createdDomain.domain) === 'apex' ? companionDomain : createdDomain)
+    : null;
+
+  // For non-apex subdomains (loja, blog, etc.) - no companion
+  const isSimpleSubdomain = createdDomain && !companionDomain;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -120,7 +133,7 @@ export function AddDomainDialog({ open, onOpenChange }: AddDomainDialogProps) {
                 <Label htmlFor="domain">Domínio</Label>
                 <Input
                   id="domain"
-                  placeholder="meusite.com.br ou loja.meusite.com.br"
+                  placeholder="meusite.com.br ou www.meusite.com.br"
                   value={domain}
                   onChange={(e) => {
                     setDomain(e.target.value);
@@ -134,6 +147,11 @@ export function AddDomainDialog({ open, onOpenChange }: AddDomainDialogProps) {
                 {domain && !error && domainType && (
                   <p className="text-sm text-muted-foreground">
                     Tipo detectado: <strong>{domainType === 'apex' ? 'Domínio raiz' : 'Subdomínio'}</strong>
+                    {(domainType === 'apex' || domain.toLowerCase().startsWith('www.')) && (
+                      <span className="block text-xs mt-1">
+                        ✅ Ambas as versões (com e sem www) serão configuradas automaticamente.
+                      </span>
+                    )}
                   </p>
                 )}
               </div>
@@ -164,8 +182,18 @@ export function AddDomainDialog({ open, onOpenChange }: AddDomainDialogProps) {
                 Configure seu DNS
               </DialogTitle>
               <DialogDescription>
-                Siga as instruções abaixo para verificar a propriedade do domínio{' '}
-                <strong>{createdDomain?.domain}</strong>.
+                {isApexWithWww ? (
+                  <>
+                    Siga as instruções abaixo para configurar{' '}
+                    <strong>{apexDomain?.domain}</strong> e{' '}
+                    <strong>{wwwDomain?.domain}</strong>.
+                  </>
+                ) : (
+                  <>
+                    Siga as instruções abaixo para verificar a propriedade do domínio{' '}
+                    <strong>{createdDomain?.domain}</strong>.
+                  </>
+                )}
               </DialogDescription>
             </DialogHeader>
 
@@ -188,101 +216,207 @@ export function AddDomainDialog({ open, onOpenChange }: AddDomainDialogProps) {
                 </Badge>
               </div>
 
-              {/* Step 1: TXT Verification */}
+              {/* ===== STEP 1: TXT Verification ===== */}
               <Alert className="border-primary/50">
                 <CheckCircle className="h-4 w-4" />
                 <AlertTitle>
-                  Passo 1: Acesse o painel de DNS do seu domínio (Cloudflare, Registro.br, etc.)
+                  Passo 1: Crie os registros TXT de verificação
                 </AlertTitle>
                 <AlertDescription>
-                  <p className="mb-3 mt-2 font-medium">Crie um registro TXT com:</p>
-                  <div className="space-y-2 text-sm bg-muted p-3 rounded">
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Tipo:</span>
-                      <code className="bg-background px-2 py-0.5 rounded font-mono">TXT</code>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <span className="text-muted-foreground">Nome/Host:</span>
-                      <div className="flex items-center gap-1">
-                        <code className="bg-background px-2 py-1 rounded font-mono text-primary font-bold">
-                          {getTxtRecordName()}
-                        </code>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0"
-                          onClick={() => handleCopy(getTxtRecordName(), setCopiedToken)}
-                        >
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        No Cloudflare, digite apenas "<strong>{getTxtRecordName()}</strong>" (sem o domínio)
-                      </p>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <span className="text-muted-foreground">Valor (copie exatamente):</span>
-                      <div className="flex items-center gap-1">
-                        <code className="bg-primary/10 border border-primary/30 px-2 py-1 rounded font-mono text-primary font-bold break-all">
-                          cc-verify={createdDomain?.verification_token}
-                        </code>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0 flex-shrink-0"
-                          onClick={() => handleCopy(`cc-verify=${createdDomain?.verification_token}`, setCopiedToken)}
-                        >
-                          {copiedToken ? <CheckCircle className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
-                        </Button>
-                      </div>
-                      <p className="text-xs text-destructive font-medium">
-                        ⚠️ O valor deve ser EXATAMENTE este. Cada domínio tem seu próprio token.
-                      </p>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">TTL:</span>
-                      <code className="bg-background px-2 py-0.5 rounded font-mono">Auto ou 300</code>
-                    </div>
-                  </div>
+                  <p className="mb-3 mt-2 text-sm text-muted-foreground">
+                    Acesse o painel de DNS do seu domínio (Cloudflare, Registro.br, etc.) e crie {isApexWithWww ? 'os registros' : 'o registro'} abaixo:
+                  </p>
 
-                  {/* For apex domains, also show the www TXT record */}
-                  {isApexDomain && (
-                    <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/20 rounded border border-amber-200 dark:border-amber-800">
-                      <p className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-2">
-                        📌 Se quiser que <code className="bg-background px-1 rounded">www.{createdDomain?.domain}</code> também funcione, crie um segundo TXT:
-                      </p>
-                      <div className="space-y-1 text-sm">
-                        <div className="flex items-center gap-2">
-                          <span className="text-muted-foreground">Nome:</span>
-                          <code className="bg-background px-2 py-0.5 rounded font-mono font-bold">_cc-verify.www</code>
+                  {isApexWithWww && apexDomain && wwwDomain ? (
+                    <div className="space-y-3">
+                      {/* Apex TXT */}
+                      <div className="bg-muted p-3 rounded space-y-2 text-sm">
+                        <p className="font-medium text-primary">
+                          📋 TXT para <code className="bg-background px-1 rounded">{apexDomain.domain}</code> (sem www)
+                        </p>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Tipo:</span>
+                          <code className="bg-background px-2 py-0.5 rounded font-mono">TXT</code>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-muted-foreground">Nome/Host:</span>
+                          <div className="flex items-center gap-1">
+                            <code className="bg-background px-2 py-1 rounded font-mono text-primary font-bold">
+                              {getTxtRecordName(apexDomain.domain)}
+                            </code>
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0"
+                              onClick={() => handleCopy(getTxtRecordName(apexDomain.domain), setCopiedToken)}>
+                              {copiedToken ? <CheckCircle className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1">
                           <span className="text-muted-foreground">Valor:</span>
-                          <span className="text-xs text-muted-foreground">(será gerado ao cadastrar www como domínio separado)</span>
+                          <div className="flex items-center gap-1">
+                            <code className="bg-primary/10 border border-primary/30 px-2 py-1 rounded font-mono text-primary font-bold break-all">
+                              cc-verify={apexDomain.verification_token}
+                            </code>
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 flex-shrink-0"
+                              onClick={() => handleCopy(`cc-verify=${apexDomain.verification_token}`, setCopiedToken)}>
+                              {copiedToken ? <CheckCircle className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                            </Button>
+                          </div>
                         </div>
+                      </div>
+
+                      {/* WWW TXT */}
+                      <div className="bg-muted p-3 rounded space-y-2 text-sm">
+                        <p className="font-medium text-primary">
+                          📋 TXT para <code className="bg-background px-1 rounded">{wwwDomain.domain}</code> (com www)
+                        </p>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Tipo:</span>
+                          <code className="bg-background px-2 py-0.5 rounded font-mono">TXT</code>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-muted-foreground">Nome/Host:</span>
+                          <div className="flex items-center gap-1">
+                            <code className="bg-background px-2 py-1 rounded font-mono text-primary font-bold">
+                              {getTxtRecordName(wwwDomain.domain)}
+                            </code>
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0"
+                              onClick={() => handleCopy(getTxtRecordName(wwwDomain.domain), setCopiedCompanionToken)}>
+                              {copiedCompanionToken ? <CheckCircle className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-muted-foreground">Valor:</span>
+                          <div className="flex items-center gap-1">
+                            <code className="bg-primary/10 border border-primary/30 px-2 py-1 rounded font-mono text-primary font-bold break-all">
+                              cc-verify={wwwDomain.verification_token}
+                            </code>
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0 flex-shrink-0"
+                              onClick={() => handleCopy(`cc-verify=${wwwDomain.verification_token}`, setCopiedCompanionToken)}>
+                              {copiedCompanionToken ? <CheckCircle className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center text-sm px-1">
+                        <span className="text-muted-foreground">TTL:</span>
+                        <code className="bg-muted px-2 py-0.5 rounded font-mono">Auto ou 300</code>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Simple subdomain - single TXT */
+                    <div className="space-y-2 text-sm bg-muted p-3 rounded">
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Tipo:</span>
+                        <code className="bg-background px-2 py-0.5 rounded font-mono">TXT</code>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-muted-foreground">Nome/Host:</span>
+                        <div className="flex items-center gap-1">
+                          <code className="bg-background px-2 py-1 rounded font-mono text-primary font-bold">
+                            {getTxtRecordName(createdDomain!.domain)}
+                          </code>
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0"
+                            onClick={() => handleCopy(getTxtRecordName(createdDomain!.domain), setCopiedToken)}>
+                            {copiedToken ? <CheckCircle className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-muted-foreground">Valor (copie exatamente):</span>
+                        <div className="flex items-center gap-1">
+                          <code className="bg-primary/10 border border-primary/30 px-2 py-1 rounded font-mono text-primary font-bold break-all">
+                            cc-verify={createdDomain?.verification_token}
+                          </code>
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 flex-shrink-0"
+                            onClick={() => handleCopy(`cc-verify=${createdDomain?.verification_token}`, setCopiedToken)}>
+                            {copiedToken ? <CheckCircle className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">TTL:</span>
+                        <code className="bg-background px-2 py-0.5 rounded font-mono">Auto ou 300</code>
                       </div>
                     </div>
                   )}
 
-                  {/* For www domains, also mention root TXT */}
-                  {isWwwDomain && (
-                    <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/20 rounded border border-amber-200 dark:border-amber-800">
-                      <p className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-2">
-                        📌 Se quiser que <code className="bg-background px-1 rounded">{createdDomain?.domain.replace(/^www\./i, '')}</code> (sem www) também funcione, cadastre-o como domínio separado.
-                      </p>
-                    </div>
-                  )}
+                  <p className="text-xs text-destructive font-medium mt-2">
+                    ⚠️ O valor de cada TXT deve ser EXATAMENTE o mostrado acima. Cada domínio tem seu próprio token.
+                  </p>
                 </AlertDescription>
               </Alert>
 
-              {/* Step 2: CNAME/DNS Pointing */}
+              {/* ===== STEP 2: CNAME/DNS Pointing ===== */}
               <Alert>
                 <Info className="h-4 w-4" />
                 <AlertTitle>
                   Passo 2: Configure o apontamento DNS
                 </AlertTitle>
                 <AlertDescription>
-                  {createdDomainType === 'subdomain' ? (
+                  {isApexWithWww && apexDomain ? (
+                    <>
+                      <p className="mb-3 mt-2">Crie os dois registros <strong>CNAME</strong> abaixo:</p>
+                      <div className="space-y-3">
+                        {/* Apex CNAME */}
+                        <div className="bg-muted p-3 rounded space-y-1 text-sm">
+                          <p className="font-medium text-primary mb-2">
+                            📋 CNAME para <code className="bg-background px-1 rounded">{apexDomain.domain}</code> (raiz)
+                          </p>
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Tipo:</span>
+                            <code className="bg-background px-2 py-0.5 rounded font-mono">CNAME</code>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Nome:</span>
+                            <code className="bg-background px-2 py-0.5 rounded font-mono">@</code>
+                          </div>
+                          <div className="flex justify-between items-center gap-2">
+                            <span className="text-muted-foreground">Destino:</span>
+                            <div className="flex items-center gap-1">
+                              <code className="bg-background px-2 py-0.5 rounded font-mono">{DEFAULT_TARGET_HOSTNAME}</code>
+                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0"
+                                onClick={() => handleCopy(DEFAULT_TARGET_HOSTNAME, setCopiedCname)}>
+                                {copiedCname ? <CheckCircle className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                              </Button>
+                            </div>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            No Cloudflare, use CNAME Flattening. Proxy: <strong>DNS-only (nuvem cinza)</strong>.
+                          </p>
+                        </div>
+
+                        {/* WWW CNAME */}
+                        <div className="bg-muted p-3 rounded space-y-1 text-sm">
+                          <p className="font-medium text-primary mb-2">
+                            📋 CNAME para <code className="bg-background px-1 rounded">{wwwDomain?.domain}</code> (www)
+                          </p>
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Tipo:</span>
+                            <code className="bg-background px-2 py-0.5 rounded font-mono">CNAME</code>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Nome:</span>
+                            <code className="bg-background px-2 py-0.5 rounded font-mono">www</code>
+                          </div>
+                          <div className="flex justify-between items-center gap-2">
+                            <span className="text-muted-foreground">Destino:</span>
+                            <div className="flex items-center gap-1">
+                              <code className="bg-background px-2 py-0.5 rounded font-mono">{DEFAULT_TARGET_HOSTNAME}</code>
+                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0"
+                                onClick={() => handleCopy(DEFAULT_TARGET_HOSTNAME, setCopiedCnameWww)}>
+                                {copiedCnameWww ? <CheckCircle className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                              </Button>
+                            </div>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Proxy: <strong>DNS-only (nuvem cinza)</strong>.
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  ) : isSimpleSubdomain ? (
                     <>
                       <p className="mb-3 mt-2">Crie um registro <strong>CNAME</strong> para apontar seu subdomínio:</p>
                       <div className="space-y-2 text-sm bg-muted p-3 rounded">
@@ -293,71 +427,22 @@ export function AddDomainDialog({ open, onOpenChange }: AddDomainDialogProps) {
                         <div className="flex justify-between items-center">
                           <span className="text-muted-foreground">Nome/Host:</span>
                           <code className="bg-background px-2 py-0.5 rounded font-mono">
-                            {getSubdomainName()}
+                            {getSubdomainName(createdDomain!.domain)}
                           </code>
                         </div>
                         <div className="flex justify-between items-center gap-2">
                           <span className="text-muted-foreground">Destino:</span>
                           <div className="flex items-center gap-1">
                             <code className="bg-background px-2 py-0.5 rounded font-mono">{DEFAULT_TARGET_HOSTNAME}</code>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0"
-                              onClick={() => handleCopy(DEFAULT_TARGET_HOSTNAME, setCopiedCname)}
-                            >
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0"
+                              onClick={() => handleCopy(DEFAULT_TARGET_HOSTNAME, setCopiedCname)}>
                               {copiedCname ? <CheckCircle className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
                             </Button>
                           </div>
                         </div>
                       </div>
                     </>
-                  ) : (
-                    <>
-                      <p className="mb-3 mt-2">Para domínio raiz, você tem duas opções:</p>
-                      
-                      <div className="space-y-3">
-                        <div className="bg-muted p-3 rounded">
-                          <p className="font-medium text-sm mb-2">Opção A - CNAME Flattening (Recomendado)</p>
-                          <p className="text-xs text-muted-foreground mb-2">
-                            Se seu provedor suportar (Cloudflare, Vercel DNS, etc.):
-                          </p>
-                          <div className="space-y-1 text-sm">
-                            <div className="flex justify-between items-center">
-                              <span className="text-muted-foreground">Tipo:</span>
-                              <code className="bg-background px-2 py-0.5 rounded font-mono">CNAME</code>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-muted-foreground">Nome:</span>
-                              <code className="bg-background px-2 py-0.5 rounded font-mono">@</code>
-                            </div>
-                            <div className="flex justify-between items-center gap-2">
-                              <span className="text-muted-foreground">Destino:</span>
-                              <div className="flex items-center gap-1">
-                                <code className="bg-background px-2 py-0.5 rounded font-mono">{DEFAULT_TARGET_HOSTNAME}</code>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 w-6 p-0"
-                                  onClick={() => handleCopy(DEFAULT_TARGET_HOSTNAME, setCopiedCname)}
-                                >
-                                  {copiedCname ? <CheckCircle className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="bg-muted p-3 rounded">
-                          <p className="font-medium text-sm mb-2">Opção B - Usar www como principal</p>
-                          <p className="text-xs text-muted-foreground">
-                            Configure <code className="bg-background px-1 rounded">www.{createdDomain?.domain}</code> com CNAME e 
-                            crie um redirecionamento do domínio raiz para www no seu provedor.
-                          </p>
-                        </div>
-                      </div>
-                    </>
-                  )}
+                  ) : null}
                 </AlertDescription>
               </Alert>
 
@@ -369,8 +454,8 @@ export function AddDomainDialog({ open, onOpenChange }: AddDomainDialogProps) {
                 </AlertTitle>
                 <AlertDescription>
                   <p className="mt-2">
-                    Após a verificação do domínio e configuração do DNS, clique em{' '}
-                    <strong>"Ativar SSL"</strong> na lista de domínios para habilitar HTTPS automático.
+                    Após a verificação e configuração do DNS, clique em{' '}
+                    <strong>"Ativar SSL"</strong> em cada domínio na lista para habilitar HTTPS automático.
                   </p>
                   <p className="mt-2 text-xs text-muted-foreground">
                     O certificado SSL é gratuito e renovado automaticamente.
@@ -378,12 +463,24 @@ export function AddDomainDialog({ open, onOpenChange }: AddDomainDialogProps) {
                 </AlertDescription>
               </Alert>
 
+              {/* Info about both domains */}
+              {isApexWithWww && (
+                <div className="flex items-start gap-2 p-3 bg-green-50 dark:bg-green-950/20 rounded border border-green-200 dark:border-green-800">
+                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-green-800 dark:text-green-200">
+                    ✅ Ambos os domínios (<strong>{apexDomain?.domain}</strong> e <strong>{wwwDomain?.domain}</strong>) 
+                    foram cadastrados automaticamente. Após verificar e ativar o SSL em ambos, defina 
+                    o que preferir como <strong>Principal</strong> — o outro redirecionará automaticamente.
+                  </p>
+                </div>
+              )}
+
               {/* Footer note */}
               <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 rounded border border-amber-200 dark:border-amber-800">
                 <Info className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
                 <p className="text-xs text-amber-800 dark:text-amber-200">
                   A propagação DNS pode levar de alguns minutos até 48 horas. 
-                  Após criar o registro, clique em "Verificar agora" na lista de domínios.
+                  Após criar os registros, clique em "Verificar agora" na lista de domínios.
                 </p>
               </div>
             </div>
