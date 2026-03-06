@@ -156,7 +156,7 @@ export default function StorefrontLandingPage() {
   const [searchParams] = useSearchParams();
   const isPreviewMode = searchParams.get('preview') === '1';
 
-  const { storeSettings, headerMenu, footerMenu, categories, isPublished, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
+  const { storeSettings, headerMenu, footerMenu, categories, isPublished, isLoading: storeLoading, globalLayout: bootstrapGlobalLayout, pageOverrides: bootstrapPageOverrides } = usePublicStorefront(tenantSlug || '');
   const { data: pageData, isLoading: pageLoading, error } = usePublicLandingPage(tenantSlug || '', pageSlug || '', isPreviewMode);
 
   // Fetch category settings for product blocks
