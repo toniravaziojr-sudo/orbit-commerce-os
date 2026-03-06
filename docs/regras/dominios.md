@@ -253,7 +253,7 @@ shops.comandocentral.com.br/*    →  shops-router
 const {
   domains,           // Lista de domínios
   isLoading,
-  addDomain,         // Adicionar custom domain (retorna { primary, companion })
+  addDomain,         // Adicionar custom domain (retorna TenantDomain)
   verifyDomain,      // Verificar DNS
   provisionSSL,      // Criar Custom Hostname
   checkSSLStatus,    // Verificar SSL
