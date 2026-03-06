@@ -71,11 +71,38 @@ O sistema aplica frete grátis se **qualquer** uma das 3 fontes for verdadeira:
 
 | Prioridade | Fonte | Descrição |
 |------------|-------|-----------|
-| 1 (Máxima) | **Produto** | Campo `free_shipping` no cadastro do produto. Se ativado, frete é grátis sempre. |
+| 1 (Máxima) | **Produto** | Campo `free_shipping` no cadastro do produto. Opcionalmente restrito a um método específico via `free_shipping_method`. |
 | 2 | **Cupom** | Cupom de desconto do tipo `free_shipping`. Substitui regras de logística. |
 | 3 | **Regras de Logística** | Regras condicionais por região, valor mínimo, categoria, etc. |
 
 > Se um produto atingir qualquer uma dessas 3 regras, terá frete grátis.
+
+### Frete Grátis por Método Específico (v1.1)
+
+O frete grátis pode ser vinculado a um **método de envio específico** (ex: PAC), mantendo os demais (ex: SEDEX) com preço integral como upgrades pagos.
+
+| Configuração | Tabela/Coluna | Descrição |
+|---|---|---|
+| Global (padrão) | `store_settings.default_free_shipping_method` | Método padrão para frete grátis de todos os produtos |
+| Por produto (override) | `products.free_shipping_method` | Sobrescreve o global para um produto específico |
+
+**Hierarquia de resolução:** `products.free_shipping_method` → `store_settings.default_free_shipping_method` → frete grátis em TODOS os métodos (se ambos NULL).
+
+**Comportamento na UI:**
+- O método gratuito é **pré-selecionado** automaticamente no calculador de frete e checkout
+- Badge verde **"FRETE GRÁTIS"** com valor R$ 0,00 e preço original riscado
+- Demais métodos exibem preço integral normalmente
+
+**Comportamento na Edge Function (`shipping-quote`):**
+- Identifica o método por `service_name` ou `carrier` (case-insensitive, `includes`)
+- Zera o `price` apenas da opção correspondente
+- Preserva `original_price` para exibição de "de/por"
+- Marca com `is_free: true`
+
+**Select dinâmico no ProductForm:**
+- As opções do select de `free_shipping_method` vêm dos `shipping_providers` ativos do tenant (hook `useAvailableShippingMethods`)
+- Para Correios, filtra pelos `service_codes` configurados no provider
+- Opção "Usar padrão da logística" = `null` (herda global)
 
 > **Integração com Barra de Conversão:** Quando `applyToExternalRules` está ativo na `BenefitConfig` (`store_settings.benefit_config`), a barra de progresso do carrinho também reconhece frete grátis vindo dessas 3 fontes, não apenas do valor mínimo configurado na barra. Ver `docs/regras/carrinho.md` → Barra de Conversão.
 

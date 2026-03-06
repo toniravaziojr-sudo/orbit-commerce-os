@@ -100,7 +100,7 @@ interface Product {
   tags: string[] | null;
   requires_shipping: boolean | null;
   free_shipping: boolean;          // Frete grátis no produto (prioridade máxima)
-  taxable: boolean | null;
+  free_shipping_method: string | null; // Método específico para frete grátis (ex: 'PAC', 'SEDEX'). NULL = usa padrão da logística (store_settings.default_free_shipping_method)
   tax_code: string | null;
   cest: string | null;
   origin_code: string | null;
