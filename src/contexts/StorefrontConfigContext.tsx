@@ -68,7 +68,7 @@ export function useShipping() {
 interface BenefitContextValue {
   config: BenefitConfig;
   isLoading: boolean;
-  getProgress: (cartTotal: number) => {
+  getProgress: (cartTotal: number, externalFreeShipping?: boolean) => {
     enabled: boolean;
     progress: number;
     remaining: number;
@@ -426,15 +426,18 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
 
   // Benefit progress function
   const getProgress = useMemo(() => {
-    return (cartTotal: number) => {
+    return (cartTotal: number, externalFreeShipping?: boolean) => {
       if (!benefitConfig.enabled) {
         return { enabled: false, progress: 0, remaining: 0, achieved: false, label: '' };
       }
 
+      // If applyToExternalRules is on and external rules grant free shipping, show achieved
+      const achievedByExternal = benefitConfig.applyToExternalRules && externalFreeShipping;
+
       const threshold = benefitConfig.thresholdValue;
-      const progress = Math.min((cartTotal / threshold) * 100, 100);
-      const remaining = Math.max(threshold - cartTotal, 0);
-      const achieved = cartTotal >= threshold;
+      const progress = achievedByExternal ? 100 : Math.min((cartTotal / threshold) * 100, 100);
+      const remaining = achievedByExternal ? 0 : Math.max(threshold - cartTotal, 0);
+      const achieved = achievedByExternal || cartTotal >= threshold;
 
       return {
         enabled: true,
