@@ -553,12 +553,12 @@ O sistema **não gerencia** o redirect entre www e apex. Isso é responsabilidad
 - Registro CNAME com proxy ativado para www
 - Configuração de Redirect Rule com expressão dinâmica
 
-### UI: Avisos no AddDomainDialog
+### UI: Avisos no AddDomainDialog e DomainInstructionsDialog
 
-O componente `AddDomainDialog` exibe:
+Os componentes `AddDomainDialog` e `DomainInstructionsDialog` exibem:
 - Aviso âmbar para domínio raiz (sobre CNAME Flattening)
+- Aviso âmbar sobre **proxy O2O**: se DNS do cliente está no Cloudflare, o CNAME servido deve estar com proxy ativado (nuvem laranja 🟠) para evitar Erro 1014
 - Instruções detalhadas de redirect (registro A/CNAME + Redirect Rule) contextuais ao tipo de domínio
-- Aviso laranja para usuários Cloudflare sobre proxy desativado no CNAME servido
 
 ### Regras
 
