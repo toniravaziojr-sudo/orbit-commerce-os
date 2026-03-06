@@ -68,7 +68,7 @@ export function useShipping() {
 interface BenefitContextValue {
   config: BenefitConfig;
   isLoading: boolean;
-  getProgress: (cartTotal: number) => {
+  getProgress: (cartTotal: number, externalFreeShipping?: boolean) => {
     enabled: boolean;
     progress: number;
     remaining: number;
