@@ -324,14 +324,57 @@ export function AddDomainDialog({ open, onOpenChange, onDomainAdded }: AddDomain
                   <p className="font-semibold">💡 Quer que com www e sem www funcionem?</p>
                   <p>
                     Cadastre aqui apenas <strong>um</strong> deles (o que será servido pela loja).
-                    Para que o outro redirecione, configure um <strong>redirect</strong> no seu gerenciador de DNS.
+                    Para que o outro redirecione, siga os passos abaixo no Cloudflare:
                   </p>
-                  <p>
-                    Exemplo: se cadastrou <code className="bg-background px-1 rounded">www.seusite.com.br</code>,
-                    crie um redirect de <code className="bg-background px-1 rounded">seusite.com.br</code> → <code className="bg-background px-1 rounded">https://www.seusite.com.br</code> no Cloudflare (Page Rules ou Redirect Rules).
-                  </p>
+                  {isWww ? (
+                    <div className="mt-2 space-y-2 p-2 bg-blue-100/50 dark:bg-blue-900/30 rounded">
+                      <p className="font-semibold text-[11px]">Para redirecionar o domínio raiz → www:</p>
+                      <ol className="list-decimal list-inside space-y-1">
+                        <li>
+                          Crie um registro <strong>A</strong> no DNS:{' '}
+                          <code className="bg-background px-1 rounded">@</code> →{' '}
+                          <code className="bg-background px-1 rounded">192.0.2.1</code>{' '}
+                          com <strong>proxy ativado</strong> (nuvem laranja)
+                        </li>
+                        <li>
+                          Vá em <strong>Rules → Redirect Rules</strong> e crie uma regra:
+                        </li>
+                      </ol>
+                      <div className="ml-4 space-y-1">
+                        <p>• <strong>When:</strong> Hostname equals <code className="bg-background px-1 rounded">{createdDomain?.domain.replace(/^www\./, '')}</code></p>
+                        <p>• <strong>Then:</strong> Dynamic redirect → <code className="bg-background px-1 rounded text-[10px]">concat("https://{createdDomain?.domain}", http.request.uri.path)</code></p>
+                        <p>• <strong>Status:</strong> 301 (Permanente)</p>
+                        <p>• <strong>Preserve query string:</strong> ✅</p>
+                      </div>
+                    </div>
+                  ) : isApex ? (
+                    <div className="mt-2 space-y-2 p-2 bg-blue-100/50 dark:bg-blue-900/30 rounded">
+                      <p className="font-semibold text-[11px]">Para redirecionar www → domínio raiz:</p>
+                      <ol className="list-decimal list-inside space-y-1">
+                        <li>
+                          Crie um registro <strong>CNAME</strong> no DNS:{' '}
+                          <code className="bg-background px-1 rounded">www</code> →{' '}
+                          <code className="bg-background px-1 rounded">{createdDomain?.domain}</code>{' '}
+                          com <strong>proxy ativado</strong> (nuvem laranja)
+                        </li>
+                        <li>
+                          Vá em <strong>Rules → Redirect Rules</strong> e crie uma regra:
+                        </li>
+                      </ol>
+                      <div className="ml-4 space-y-1">
+                        <p>• <strong>When:</strong> Hostname equals <code className="bg-background px-1 rounded">www.{createdDomain?.domain}</code></p>
+                        <p>• <strong>Then:</strong> Dynamic redirect → <code className="bg-background px-1 rounded text-[10px]">concat("https://{createdDomain?.domain}", http.request.uri.path)</code></p>
+                        <p>• <strong>Status:</strong> 301 (Permanente)</p>
+                        <p>• <strong>Preserve query string:</strong> ✅</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p>
+                      Exemplo: configure um redirect no Cloudflare (Rules → Redirect Rules) da versão alternativa do domínio.
+                    </p>
+                  )}
                   <p className="text-[10px] text-blue-600 dark:text-blue-400 mt-1">
-                    Gerenciadores como Cloudflare, Vercel DNS e Route53 oferecem essa funcionalidade gratuitamente.
+                    ⚠️ O registro A ou CNAME de redirect <strong>precisa do proxy ativado</strong> (nuvem laranja) para que o Redirect Rule funcione.
                   </p>
                 </div>
               </div>
