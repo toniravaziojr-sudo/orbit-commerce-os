@@ -41,6 +41,7 @@ import { validateSlugFormat, generateSlug as generateSlugFromPolicy, RESERVED_SL
 import { useToast } from '@/hooks/use-toast';
 import { GenerateSeoButton } from '@/components/seo/GenerateSeoButton';
 import { AIDescriptionButton } from './AIDescriptionButton';
+import { useAvailableShippingMethods } from '@/hooks/useAvailableShippingMethods';
 
 const productSchema = z.object({
   // === CAMPOS OBRIGATÓRIOS BÁSICOS ===
