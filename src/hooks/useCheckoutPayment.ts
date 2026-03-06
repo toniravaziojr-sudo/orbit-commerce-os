@@ -236,8 +236,14 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
       });
 
       if (paymentError) {
-        console.error('[Checkout] Step 2 FAILED:', paymentError);
+        console.error('[Checkout] Step 2 FAILED (invoke error):', paymentError);
         throw new Error(paymentError.message || 'Erro ao processar pagamento');
+      }
+
+      // Check if payment was rejected by the gateway
+      if (paymentData?.success === false) {
+        console.error('[Checkout] Step 2 FAILED (gateway rejection):', paymentData.error);
+        throw new Error(paymentData.error || 'Pagamento recusado. Tente novamente.');
       }
       
       console.log('[Checkout] Step 2 OK - Payment processed');
