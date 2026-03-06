@@ -2001,10 +2001,12 @@ Página reorganizada em 3 abas:
 
 ## Storefront Bootstrap (`storefront-bootstrap`)
 
-### Versão Atual: v1.0.0
+### Versão Atual: v2.0.0
 
-### Visão Geral
-Edge Function que consolida todas as queries iniciais do storefront em uma única chamada server-side, eliminando a cascata de requests individuais.
+### v2.0.0: Consolidação Completa (8 queries paralelas)
+- **Antes (v1.0.0)**: 7 queries paralelas, mas hooks frontend ainda faziam queries extras para `global_layout`, `page_overrides` e `categorySettings` (~13 queries total)
+- **Depois (v2.0.0)**: 8+ queries paralelas no servidor + hook extrai `globalLayout`, `pageOverrides` e `categorySettings` do template. Frontend faz **1 única chamada**.
+- **Resultado**: Redução de ~13 queries para 1, eliminando waterfalls
 
 ### Queries Paralelas (Promise.allSettled)
 
@@ -2016,7 +2018,16 @@ Edge Function que consolida todas as queries iniciais do storefront em uma únic
 | Q4 | Categorias ativas | `categories` |
 | Q5 | Template publicado | `storefront_template_sets` |
 | Q6 | Domínio customizado | `tenant_domains` |
-| Q7 | Produtos (opcional) | `products` + `product_images` |
+| Q7 | Global layout | `storefront_global_layout` |
+| Q8 | Page overrides | `storefront_page_overrides` |
+| Q9 | Produtos (opcional) | `products` + `product_images` |
+
+### Dados Derivados (extraídos no frontend pelo hook)
+
+O hook `usePublicStorefront` extrai automaticamente do `published_content`:
+- `globalLayout` ← `template.published_content.themeSettings.globalLayout`
+- `pageOverrides` ← `template.published_content.themeSettings.pageOverrides`
+- `categorySettings` ← `template.published_content.themeSettings.pageSettings.category`
 
 ### Parâmetros de Entrada
 
@@ -2039,7 +2050,15 @@ Cache-Control: public, max-age=60, s-maxage=120
 |------|---------|-----------|
 | `useStorefrontBootstrap` | `src/hooks/useStorefrontBootstrap.ts` | `tenant_slug` |
 | `useStorefrontBootstrapById` | `src/hooks/useStorefrontBootstrap.ts` | `tenant_id` |
-| `usePublicStorefront` | `src/hooks/useStorefront.ts` | `tenant_slug` (usa bootstrap internamente) |
+| `usePublicStorefront` | `src/hooks/useStorefront.ts` | `tenant_slug` (usa bootstrap + extrai layout/settings) |
+
+### Regras de Uso
+
+| ❌ Proibido | ✅ Correto |
+|-------------|------------|
+| `usePublicTemplate` em páginas storefront | Usar `bootstrapTemplate` de `usePublicStorefront` |
+| Query separada para `global_layout` | Usar `bootstrapGlobalLayout` de `usePublicStorefront` |
+| Query separada para `categorySettings` | Usar `bootstrapCategorySettings` de `usePublicStorefront` |
 
 ---
 

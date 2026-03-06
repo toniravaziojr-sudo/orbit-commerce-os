@@ -631,21 +631,32 @@ Endpoint centralizado para geração de SEO otimizado via IA (Gemini).
 
 ### Visão Geral
 
-O storefront utiliza uma Edge Function `storefront-bootstrap` que consolida 6+ queries em uma única chamada server-side, reduzindo drasticamente o tempo de carregamento inicial.
+O storefront utiliza uma Edge Function `storefront-bootstrap` (v2.0.0) que consolida **8 queries paralelas** em uma única chamada server-side, eliminando cascatas (waterfalls) e reduzindo o carregamento de ~13 queries para 1.
 
 ### Arquitetura
 
 ```
-Browser → storefront-bootstrap (Edge Function)
+Browser → storefront-bootstrap (Edge Function v2.0.0)
               ├─ Q1: store_settings
               ├─ Q2: header menu + items
               ├─ Q3: footer menu + items
               ├─ Q4: categories (active)
-              ├─ Q5: template set (published)
+              ├─ Q5: template set (published_content)
               ├─ Q6: custom domain
-              └─ Q7: products (opcional)
-         ← Single JSON response
+              ├─ Q7: storefront_global_layout
+              ├─ Q8: storefront_page_overrides
+              └─ Q9: products (opcional)
+         ← Single JSON response (inclui global_layout, page_overrides, category_settings extraídos do template)
 ```
+
+### Dados Derivados do Template (sem queries extras)
+
+O hook `usePublicStorefront` extrai automaticamente do `published_content` do template:
+- `globalLayout` → `published_content.themeSettings.globalLayout`
+- `pageOverrides` → `published_content.themeSettings.pageOverrides`
+- `categorySettings` → `published_content.themeSettings.pageSettings.category`
+
+**PROIBIDO**: Fazer queries separadas para `usePublicTemplate`, `usePublicGlobalLayout` ou `categorySettings` quando `usePublicStorefront` já fornece esses dados via bootstrap.
 
 ### Hooks
 
@@ -653,7 +664,21 @@ Browser → storefront-bootstrap (Edge Function)
 |------|---------|-----|
 | `useStorefrontBootstrap` | `src/hooks/useStorefrontBootstrap.ts` | Bootstrap por `tenant_slug` |
 | `useStorefrontBootstrapById` | `src/hooks/useStorefrontBootstrap.ts` | Bootstrap por `tenant_id` |
-| `usePublicStorefront` | `src/hooks/useStorefront.ts` | Hook público que usa bootstrap internamente |
+| `usePublicStorefront` | `src/hooks/useStorefront.ts` | Hook público que usa bootstrap + extrai layout/settings |
+
+### Dados Retornados por `usePublicStorefront`
+
+| Campo | Tipo | Origem |
+|-------|------|--------|
+| `tenant` | object | bootstrap |
+| `storeSettings` | object | bootstrap |
+| `headerMenu` | object | bootstrap |
+| `footerMenu` | object | bootstrap |
+| `categories` | array | bootstrap |
+| `template` | object | bootstrap (published_content completo) |
+| `globalLayout` | object | extraído de template.themeSettings |
+| `pageOverrides` | object | extraído de template.themeSettings |
+| `categorySettings` | object | extraído de template.themeSettings.pageSettings |
 
 ### Cache
 
@@ -668,6 +693,8 @@ Browser → storefront-bootstrap (Edge Function)
 | Regra | Descrição |
 |-------|-----------|
 | **Proibido** queries individuais para dados iniciais | Usar `usePublicStorefront` que chama bootstrap |
+| **Proibido** `usePublicTemplate` em páginas storefront | Dados já vêm via bootstrap |
+| **Proibido** query separada para `global_layout` | Usar `bootstrapGlobalLayout` de `usePublicStorefront` |
 | **Obrigatório** `staleTime` ≥ 2 min | Evitar re-fetches desnecessários |
 | **Opcional** `include_products` | Só incluir produtos quando necessário (home) |
 
@@ -680,7 +707,18 @@ Browser → storefront-bootstrap (Edge Function)
 | `categories` | `storefront-bootstrap` |
 | `storefront_template_sets` | `storefront-bootstrap` |
 | `tenant_domains` | `storefront-bootstrap` |
+| `storefront_global_layout` | `storefront-bootstrap` |
+| `storefront_page_overrides` | `storefront-bootstrap` |
 | `products` + `product_images` | `storefront-bootstrap` (opcional) |
+
+### Páginas que Usam Bootstrap Direto (sem queries extras)
+
+| Página | Arquivo | Dados do Bootstrap |
+|--------|---------|-------------------|
+| Home | `StorefrontHome.tsx` | template, globalLayout, pageOverrides, categorySettings |
+| Produto | `StorefrontProduct.tsx` | template, productSettings, miniCart, categorySettings |
+| Categoria | `StorefrontCategory.tsx` | template, globalLayout, pageOverrides, categorySettings |
+| Carrinho | `StorefrontCart.tsx` | template, globalLayout, pageOverrides, categorySettings |
 
 ---
 

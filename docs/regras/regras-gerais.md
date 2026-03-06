@@ -610,7 +610,7 @@ useQuery({
 |---------------|--------|-----------|
 | `scheduler-tick` | Hybrid Dispatcher | Steps 4-7 executam em paralelo via `Promise.allSettled` |
 | `reconcile-payments` | Concurrent Batches | Tenants processados em paralelo, pagamentos em batches de 5 |
-| `storefront-bootstrap` | Single-Request Bundle | 6+ queries em paralelo, retorna tudo em uma chamada |
+| `storefront-bootstrap` | Single-Request Bundle v2.0 | 8+ queries em paralelo + extração de layout/settings do template. Reduz ~13 queries frontend para 1 |
 
 ### Proibições
 
