@@ -32,6 +32,7 @@ export function AddDomainDialog({ open, onOpenChange, onDomainAdded }: AddDomain
   const [copiedCnameWww, setCopiedCnameWww] = useState(false);
 
   const handleClose = () => {
+    const hadDomain = !!createdDomain;
     setStep('input');
     setDomain('');
     setError(null);
@@ -42,6 +43,9 @@ export function AddDomainDialog({ open, onOpenChange, onDomainAdded }: AddDomain
     setCopiedCname(false);
     setCopiedCnameWww(false);
     onOpenChange(false);
+    if (hadDomain && onDomainAdded) {
+      onDomainAdded();
+    }
   };
 
   const handleSubmit = async () => {
