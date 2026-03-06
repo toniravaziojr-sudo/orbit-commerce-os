@@ -8,7 +8,7 @@
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useEffect, useMemo } from 'react';
 import { usePublicStorefront } from '@/hooks/useStorefront';
-import { usePublicGlobalLayout } from '@/hooks/useGlobalLayoutIntegration';
+// usePublicGlobalLayout removed — globalLayout now comes from bootstrap via usePublicStorefront
 import { CheckoutStepWizard } from '@/components/storefront/checkout/CheckoutStepWizard';
 import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeaderContent';
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
