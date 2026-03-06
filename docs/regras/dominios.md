@@ -372,10 +372,30 @@ Cliente acessa provedor de DNS (Cloudflare, Registro.br, GoDaddy, etc.)
 Cria TXT de verificação
 Cria CNAME apontando para shops.comandocentral.com.br
 ↓
-Se usar Cloudflare: proxy DESLIGADO (nuvem cinza / DNS-only) no CNAME
+Se usar Cloudflare: ver seção "Proxy Status do CNAME (Orange-to-Orange)" abaixo
 ↓
 Aguarda propagação (até 48h)
 ```
+
+#### ⚠️ Proxy Status do CNAME servido — Regra Orange-to-Orange (O2O)
+
+**REGRA CRÍTICA:** O proxy status do CNAME que aponta para `shops.comandocentral.com.br` depende de **onde a zona do cliente está hospedada**:
+
+| Cenário | Proxy Status | Motivo |
+|---------|-------------|--------|
+| Zona do cliente **no Cloudflare** (mesma ou outra conta) | **Proxied (🟠 nuvem laranja)** | Ativa roteamento Orange-to-Orange (O2O) — sem isso, Erro 1014 |
+| Zona do cliente **fora do Cloudflare** (GoDaddy, Registro.br, etc.) | **DNS-only (cinza)** ou N/A | Sem proxy do Cloudflare; Custom Hostname funciona direto |
+
+**Por que isso é necessário?**
+
+Quando ambas as zonas (a do cliente e `comandocentral.com.br`) estão no Cloudflare, um CNAME DNS-only de uma conta para outra dispara o **Erro 1014: CNAME Cross-User Banned**. Mesmo com Custom Hostname ativo, o Cloudflare bloqueia na camada DNS antes de chegar ao Custom Hostname.
+
+A solução é ativar o **proxy (nuvem laranja)** no CNAME do cliente. Isso ativa o roteamento **Orange-to-Orange (O2O)**, onde o Cloudflare reconhece internamente o Custom Hostname e roteia o tráfego corretamente entre as zonas.
+
+**Diagnóstico rápido:**
+- Erro 1014 no domínio custom + Custom Hostname ativo no painel → **cliente está no Cloudflare com CNAME DNS-only → trocar para Proxied**
+
+**IMPORTANTE:** Essa regra se aplica APENAS ao CNAME do domínio servido (o que aponta para `shops.comandocentral.com.br`). Os registros de redirect (A dummy, etc.) seguem suas próprias regras de proxy.
 
 ### 3. Verificação
 
