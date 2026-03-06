@@ -350,11 +350,6 @@ export function DomainSettingsContent() {
                             Principal
                           </Badge>
                         )}
-                        {isApexRedirect && (
-                          <Badge variant="outline" className="shrink-0 gap-1 text-muted-foreground">
-                            🔀 Redirect
-                          </Badge>
-                        )}
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <Badge variant={statusConfig.variant} className="gap-1">
