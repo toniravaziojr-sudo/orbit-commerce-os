@@ -253,7 +253,7 @@ serve(async (req) => {
     // Save transaction to database with order_id only
     // Note: checkout_id is NOT used here because it has FK to checkouts table
     // and we're now linking via order_id (FK to orders table)
-    const charge = pagarmeResponse.charges?.[0];
+    const charge = firstCharge || pagarmeResponse.charges?.[0];
     const transactionData = {
       tenant_id: payload.tenant_id,
       order_id: payload.order_id || null, // Link to order for get-order lookup
