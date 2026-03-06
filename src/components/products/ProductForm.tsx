@@ -567,6 +567,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           warranty_type: data.warranty_type || null,
           warranty_duration: data.warranty_duration || null,
           free_shipping: data.free_shipping ?? false,
+          free_shipping_method: data.free_shipping ? (data.free_shipping_method || null) : null,
         });
 
         // Save pending data using the new product ID
