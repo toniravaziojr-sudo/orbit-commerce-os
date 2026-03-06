@@ -1,7 +1,7 @@
 # Domínios e DNS — Regras e Especificações
 
 > **Status:** ✅ Ready  
-> **Última atualização:** 2025-01-19
+> **Última atualização:** 2026-03-06
 
 ---
 
@@ -253,15 +253,29 @@ shops.comandocentral.com.br/*    →  shops-router
 const {
   domains,           // Lista de domínios
   isLoading,
-  addDomain,         // Adicionar custom domain
+  addDomain,         // Adicionar custom domain (retorna { primary, companion })
   verifyDomain,      // Verificar DNS
   provisionSSL,      // Criar Custom Hostname
   checkSSLStatus,    // Verificar SSL
   setPrimaryDomain,  // Definir como principal
   removeDomain,      // Remover (exceto platform_subdomain)
   provisionDefaultDomain, // Provisionar padrão
+  refetch,           // Recarregar lista de domínios
 } = useTenantDomains();
 ```
+
+### AddDomainDialog
+
+```typescript
+// Props
+interface AddDomainDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onDomainAdded?: () => void; // Callback para recarregar lista após adicionar domínio
+}
+```
+
+**IMPORTANTE:** O `DomainSettingsContent` deve passar `refetch` como `onDomainAdded` para sincronizar a lista após o dialog fechar.
 
 ### usePrimaryPublicHost
 
@@ -319,7 +333,10 @@ Sistema valida formato e gera token
 Exibe instruções de DNS COM o nome correto do TXT:
   - AddDomainDialog usa getTxtRecordName() dinâmico
   - Para subdomínios (www, loja, etc.): _cc-verify.{sub}
-  - Para apex: _cc-verify
+  - Para apex (incluindo .com.br): _cc-verify
+  - IMPORTANTE: getSubdomainName() considera TLDs de duas partes (.com.br, .co.uk)
+    - respeiteohomem.com.br → apex → TXT: _cc-verify
+    - www.respeiteohomem.com.br → sub "www" → TXT: _cc-verify.www
   - Token é exibido com botão de copiar e destaque visual
 ```
 
@@ -340,6 +357,7 @@ Quando o domínio adicionado é um **domínio apex** (ex: `respeiteohomem.com.br
 
 4. **O prefixo `www.` é preservado** na lógica de classificação para garantir o nome correto do registro TXT
 5. **Após ambos verificados**, o usuário define qual é o **Principal** — o outro redireciona automaticamente via Worker
+6. **Instrução de CNAME apex inclui aviso**: se já existir registro A/AAAA/CNAME para `@`, instruir o usuário a alterar o destino (não duplicar)
 
 #### Regras para Subdomínio (ex: `loja.cliente.com.br`)
 
@@ -442,6 +460,8 @@ const NO_REDIRECT_PATHS = [
 | Criar Custom Hostname para `*.shops` | ACM wildcard já cobre |
 | Deletar `platform_subdomain` | Proibido - é backup imutável |
 | Usar `fallbackOrigin` como canonical em prod | Só para dev/preview |
+| `getSubdomainName` sem tratar TLDs de 2 partes | Usar lógica com `twoPartTLDs` array |
+| Mostrar `_cc-verify.respeiteohomem` para apex `.com.br` | Correto: `_cc-verify` (sem sufixo) |
 
 ---
 
