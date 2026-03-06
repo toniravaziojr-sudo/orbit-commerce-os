@@ -145,6 +145,10 @@ export function usePublicStorefront(tenantSlug: string) {
   const footerMenu = bootstrap?.footer_menu || { menu: null, items: [] };
   const categories = bootstrap?.categories || [];
   const products = bootstrap?.products || [];
+  const globalLayout = bootstrap?.global_layout || null;
+  const pageOverrides = bootstrap?.page_overrides || {};
+  const categorySettings = bootstrap?.category_settings || null;
+  const template = bootstrap?.template || null;
 
   const isLoading = bootstrapLoading;
   const isPublished = storeSettings?.is_published ?? false;
@@ -156,6 +160,10 @@ export function usePublicStorefront(tenantSlug: string) {
     footerMenu,
     categories,
     products,
+    globalLayout,
+    pageOverrides,
+    categorySettings,
+    template,
     isLoading,
     isPublished,
   };
