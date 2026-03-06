@@ -134,6 +134,7 @@ interface ProductImage {
 export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) {
   const { createProduct, updateProduct } = useProducts();
   const { categories } = useCategories();
+  const { methods: availableShippingMethods } = useAvailableShippingMethods();
   const { toast } = useToast();
   const isEditing = !!product;
   const [productImages, setProductImages] = useState<ProductImage[]>([]);
