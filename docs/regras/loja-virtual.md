@@ -679,6 +679,7 @@ O hook `usePublicStorefront` extrai automaticamente do `published_content` do te
 | `globalLayout` | object | extraído de template.themeSettings |
 | `pageOverrides` | object | extraído de template.themeSettings |
 | `categorySettings` | object | extraído de template.themeSettings.pageSettings |
+| `customDomain` | string \| null | bootstrap (tenant_domains) |
 
 ### Cache
 
@@ -695,8 +696,21 @@ O hook `usePublicStorefront` extrai automaticamente do `published_content` do te
 | **Proibido** queries individuais para dados iniciais | Usar `usePublicStorefront` que chama bootstrap |
 | **Proibido** `usePublicTemplate` em páginas storefront | Dados já vêm via bootstrap |
 | **Proibido** query separada para `global_layout` | Usar `bootstrapGlobalLayout` de `usePublicStorefront` |
+| **Proibido** query separada para `custom_domain` | Usar `customDomain` de `usePublicStorefront` (NÃO usar `useTenantCanonicalDomain` no layout) |
+| **Proibido** `StorefrontHead` fazer query própria | Recebe `storeSettings` via props |
+| **Proibido** `usePublicThemeSettings` sem bootstrap | Passar `bootstrapTemplate` como 2º param para evitar 3+ queries |
 | **Obrigatório** `staleTime` ≥ 2 min | Evitar re-fetches desnecessários |
 | **Opcional** `include_products` | Só incluir produtos quando necessário (home) |
+
+### Componentes que Recebem Dados via Props (sem queries próprias)
+
+| Componente | Arquivo | Props do Bootstrap |
+|------------|---------|-------------------|
+| `StorefrontHead` | `StorefrontHead.tsx` | `storeSettings` (favicon, title, SEO) |
+| `LcpPreloader` | `LcpPreloader.tsx` | `bootstrapTemplate` (extrai banner do home) |
+| `StorefrontThemeInjector` | `StorefrontThemeInjector.tsx` | `bootstrapTemplate` (passa para `usePublicThemeSettings`) |
+
+**IMPORTANTE — Favicon**: `StorefrontHead` NÃO restaura favicon da plataforma no cleanup. Isso evita o "flickering" entre favicon do tenant e da plataforma durante navegação.
 
 ### Mapeamento
 
