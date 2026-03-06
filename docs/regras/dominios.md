@@ -321,12 +321,41 @@ Exibe instruções de DNS:
   - TXT: _cc-verify.loja → cc-verify=TOKEN
 ```
 
+#### Regras para Domínio Apex (raiz) + www
+
+Quando o domínio adicionado é um **domínio apex** (ex: `respeiteohomem.com.br`), o sistema:
+
+1. **Classifica como apex** usando `getDomainType()` — considera TLDs de duas partes (`.com.br`, `.co.uk`)
+2. **Instrui o cliente a criar DOIS conjuntos de registros DNS:**
+
+| Registro | Nome | Destino/Valor | Propósito |
+|----------|------|---------------|-----------|
+| CNAME | `@` (raiz) | `shops.comandocentral.com.br` | Apontar domínio raiz |
+| CNAME | `www` | `shops.comandocentral.com.br` | Apontar subdomínio www |
+| TXT | `_cc-verify` | `cc-verify=TOKEN` | Verificar domínio raiz |
+| TXT | `_cc-verify.www` | `cc-verify=TOKEN` | Verificar subdomínio www |
+
+3. **O sistema trata `www.dominio.com` e `dominio.com` como entidades distintas** para fins de verificação DNS
+4. **O prefixo `www.` é preservado** na lógica de classificação (`getRawDomainType`) para garantir o nome correto do registro TXT
+5. **Após ambos verificados**, o sistema pode redirecionar `www` → raiz (ou vice-versa) via Worker
+
+#### Regras para Subdomínio (ex: `loja.cliente.com.br`)
+
+Quando é um **subdomínio**, apenas UM conjunto é necessário:
+
+| Registro | Nome | Destino/Valor |
+|----------|------|---------------|
+| CNAME | `loja` | `shops.comandocentral.com.br` |
+| TXT | `_cc-verify.loja` | `cc-verify=TOKEN` |
+
 ### 2. Cliente configura DNS
 
 ```
 Cliente acessa provedor de DNS (Cloudflare, GoDaddy, etc.)
 ↓
-Adiciona registros CNAME e TXT
+Adiciona registros CNAME e TXT (conforme instruções acima)
+↓
+Importante: Proxy deve estar DESLIGADO (nuvem cinza / "DNS only")
 ↓
 Aguarda propagação (até 48h)
 ```
