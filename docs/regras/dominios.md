@@ -1,7 +1,7 @@
 # Domínios e DNS — Regras e Especificações
 
 > **Status:** ✅ Ready  
-> **Última atualização:** 2025-01-19
+> **Última atualização:** 2026-03-06
 
 ---
 
