@@ -144,29 +144,9 @@ export function DomainSettingsContent() {
     toast.success('URL copiada!');
   };
 
-  // Helper: check if a domain is the apex companion of a www domain
-  const isApexRedirectDomain = (domain: TenantDomain): boolean => {
-    const d = domain.domain.toLowerCase();
-    // If it's NOT a www domain, check if there's a www companion in the list
-    if (!d.startsWith('www.')) {
-      const wwwCompanion = domains.find(
-        dd => dd.domain.toLowerCase() === `www.${d}` && dd.type === 'custom'
-      );
-      return !!wwwCompanion;
-    }
-    return false;
-  };
-
   const getNextAction = (domain: TenantDomain) => {
-    // Apex domains that are redirect-only: only allow verification (for TXT), no SSL
-    const isApexRedirect = isApexRedirectDomain(domain);
-
     if (domain.status !== 'verified') {
       return { label: 'Verificar DNS', action: () => verifyDomain(domain.id), disabled: isVerifying === domain.id };
-    }
-    // Apex redirect domains don't need SSL or Custom Hostname
-    if (isApexRedirect) {
-      return null;
     }
     if (domain.ssl_status === 'none' || domain.ssl_status === 'failed') {
       return { label: 'Ativar SSL', action: () => provisionSSL(domain.id), disabled: isProvisioning === domain.id };
@@ -353,7 +333,7 @@ export function DomainSettingsContent() {
                 const SslIcon = sslConfig.icon;
                 const nextAction = getNextAction(domain);
                 const isFullyActive = domain.status === 'verified' && domain.ssl_status === 'active';
-                const isApexRedirect = isApexRedirectDomain(domain);
+                
 
                 return (
                   <div 
@@ -368,11 +348,6 @@ export function DomainSettingsContent() {
                           <Badge variant="default" className="shrink-0 gap-1">
                             <Star className="h-3 w-3" />
                             Principal
-                          </Badge>
-                        )}
-                        {isApexRedirect && (
-                          <Badge variant="outline" className="shrink-0 gap-1 text-muted-foreground">
-                            🔀 Redirect
                           </Badge>
                         )}
                       </div>
@@ -414,7 +389,7 @@ export function DomainSettingsContent() {
                             {nextAction.label}
                           </Button>
                         )}
-                        {isFullyActive && !domain.is_primary && !isApexRedirect && (
+                        {isFullyActive && !domain.is_primary && (
                           <Button
                             variant="outline"
                             size="sm"
@@ -491,7 +466,7 @@ export function DomainSettingsContent() {
                     <li>
                       <strong>Nome/Host:</strong>{' '}
                       <code className="bg-muted px-1 rounded">_cc-verify</code> para domínio raiz, ou{' '}
-                      <code className="bg-muted px-1 rounded">_cc-verify.SUBDOMINIO</code> para subdomínios (incluindo <code className="bg-muted px-1 rounded">_cc-verify.www</code> para www)
+                      <code className="bg-muted px-1 rounded">_cc-verify.SUBDOMINIO</code> para subdomínios
                     </li>
                     <li><strong>Valor:</strong> O token fornecido (formato: cc-verify=xxxx)</li>
                   </ul>
@@ -500,32 +475,23 @@ export function DomainSettingsContent() {
 
               <Alert>
                 <Info className="h-4 w-4" />
-                <AlertTitle>Passo 2: Apontamento DNS</AlertTitle>
+                <AlertTitle>Passo 2: Apontamento CNAME</AlertTitle>
                 <AlertDescription>
                   <div className="mt-2 space-y-2 text-sm">
-                    <p><strong>O domínio <code className="bg-muted px-1 rounded">www</code> é o domínio servido pela loja:</strong></p>
-                    <ul className="list-disc list-inside ml-2 space-y-1">
-                      <li>
-                        <strong>CNAME <code className="bg-muted px-1 rounded">www</code></strong> → {' '}
-                        <code className="bg-muted px-1 rounded">{STOREFRONT_CNAME_TARGET}</code>
-                        <Button variant="ghost" size="sm" onClick={handleCopyTarget} className="ml-2 h-6">
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                      </li>
-                    </ul>
-                    <p className="mt-2"><strong>O domínio raiz (sem www) deve redirecionar para o www:</strong></p>
-                    <ul className="list-disc list-inside ml-2 space-y-1 text-xs text-muted-foreground">
-                      <li><strong>Registro.br:</strong> Use "Redirecionamento Web" nas configurações da zona DNS</li>
-                      <li><strong>Cloudflare:</strong> Use Page Rules ou Redirect Rules</li>
-                      <li><strong>Outros:</strong> Procure "URL redirect" ou "Forwarding" no painel de DNS</li>
-                    </ul>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      💡 <strong>Por que?</strong> O sistema não depende de CNAME no apex (raiz) como fluxo padrão, 
-                      pois muitos provedores DNS não suportam isso de forma compatível ou previsível. 
-                      O <code>www</code> é o domínio efetivamente servido pela infraestrutura.
+                    <p>Crie um registro <strong>CNAME</strong> apontando seu domínio para:</p>
+                    <div className="flex items-center gap-2 p-2 bg-muted rounded">
+                      <code className="font-mono">{STOREFRONT_CNAME_TARGET}</code>
+                      <Button variant="ghost" size="sm" onClick={handleCopyTarget} className="h-6">
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                      ⚠️ <strong>Domínio raiz (sem www):</strong> Alguns provedores (como Registro.br) não suportam CNAME no raiz. 
+                      Nesse caso, use um gerenciador como o <strong>Cloudflare</strong> (gratuito, suporta CNAME Flattening) 
+                      ou cadastre a versão <code className="bg-muted px-1 rounded">www</code> do domínio.
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      💡 Se usar Cloudflare, o CNAME do <code>www</code> deve estar em modo <strong>"Somente DNS"</strong> (nuvem cinza).
+                      💡 Se usar Cloudflare, mantenha o proxy <strong>desativado</strong> (nuvem cinza / DNS-only) no CNAME.
                     </p>
                   </div>
                 </AlertDescription>
@@ -535,18 +501,18 @@ export function DomainSettingsContent() {
                 <ShieldCheck className="h-4 w-4" />
                 <AlertTitle>Passo 3: Ativação do SSL</AlertTitle>
                 <AlertDescription>
-                  Após o DNS do <strong>www</strong> propagar (pode levar até 48h), clique em "Ativar SSL" para habilitar HTTPS.
-                  O certificado será provisionado automaticamente. O domínio raiz não precisa de SSL — ele apenas redireciona.
+                  Após o DNS propagar (pode levar até 48h), clique em "Ativar SSL" para habilitar HTTPS.
+                  O certificado será provisionado automaticamente.
                 </AlertDescription>
               </Alert>
 
-              <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
-                <Info className="h-4 w-4 text-amber-600" />
-                <AlertTitle className="text-amber-800 dark:text-amber-200">Arquitetura www + raiz</AlertTitle>
-                <AlertDescription className="text-amber-700 dark:text-amber-300 text-xs">
-                  O <code className="bg-background px-1 rounded">www.exemplo.com.br</code> é o domínio principal servido pelo Comando Central (CNAME + SSL).
-                  O <code className="bg-background px-1 rounded">exemplo.com.br</code> (raiz) é apenas um domínio de entrada que redireciona para o www.
-                  Ambos são cadastrados automaticamente ao adicionar qualquer um dos dois.
+              <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-800">
+                <Info className="h-4 w-4 text-blue-600" />
+                <AlertTitle className="text-blue-800 dark:text-blue-200">Quer usar com www e sem www?</AlertTitle>
+                <AlertDescription className="text-blue-700 dark:text-blue-300 text-xs">
+                  Cadastre aqui apenas <strong>um</strong> deles (o que será servido pela loja).
+                  Para que o outro redirecione, configure um <strong>redirect</strong> no seu gerenciador de DNS 
+                  (ex: Cloudflare Page Rules, Redirect Rules).
                 </AlertDescription>
               </Alert>
             </CardContent>

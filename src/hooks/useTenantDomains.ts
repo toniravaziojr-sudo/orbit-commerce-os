@@ -74,33 +74,8 @@ export function useTenantDomains() {
     fetchDomains();
   }, [fetchDomains]);
 
-  // Detect if domain is apex or www and return the companion
-  const getCompanionDomain = (domain: string): string | null => {
-    const normalized = normalizeDomain(domain, false);
-    const isWww = normalized.startsWith('www.');
-    
-    if (isWww) {
-      // www → return apex
-      return normalized.replace(/^www\./, '');
-    }
-    
-    // Check if it's an apex domain
-    const parts = normalized.split('.');
-    const twoPartTLDs = ['com.br', 'org.br', 'net.br', 'co.uk', 'com.au', 'co.nz'];
-    const lastTwoParts = parts.slice(-2).join('.');
-    const isApex = twoPartTLDs.includes(lastTwoParts) ? parts.length <= 3 : parts.length <= 2;
-    
-    if (isApex) {
-      // apex → return www
-      return `www.${normalized}`;
-    }
-    
-    // For other subdomains (loja, blog, etc.), no companion
-    return null;
-  };
-
-  // Add a custom domain + its companion (apex↔www) automatically
-  const addDomain = async (rawDomain: string): Promise<{ primary: TenantDomain; companion: TenantDomain | null } | null> => {
+  // Add a single custom domain (no companion auto-creation)
+  const addDomain = async (rawDomain: string): Promise<TenantDomain | null> => {
     if (!currentTenant?.id) {
       toast.error('Tenant não encontrado');
       return null;
@@ -108,11 +83,8 @@ export function useTenantDomains() {
 
     const domain = normalizeDomain(rawDomain);
     const verification_token = generateVerificationToken();
-    const companionDomain = getCompanionDomain(domain);
-    const companionToken = companionDomain ? generateVerificationToken() : null;
 
     try {
-      // Insert primary domain
       const { data, error } = await supabase
         .from('tenant_domains')
         .insert({
@@ -137,45 +109,9 @@ export function useTenantDomains() {
         return null;
       }
 
-      // Insert companion domain (apex↔www) silently
-      let companionData: TenantDomain | null = null;
-      if (companionDomain && companionToken) {
-        const { data: compData, error: compError } = await supabase
-          .from('tenant_domains')
-          .insert({
-            tenant_id: currentTenant.id,
-            domain: companionDomain,
-            type: 'custom',
-            verification_token: companionToken,
-            status: 'pending',
-            is_primary: false,
-            ssl_status: 'none',
-            target_hostname: DEFAULT_TARGET_HOSTNAME,
-          })
-          .select()
-          .single();
-
-        if (compError) {
-          if (compError.code === '23505') {
-            // Companion already exists, fetch it
-            const { data: existing } = await supabase
-              .from('tenant_domains')
-              .select('*')
-              .eq('tenant_id', currentTenant.id)
-              .eq('domain', companionDomain)
-              .single();
-            companionData = existing as TenantDomain | null;
-          } else {
-            console.warn('Failed to create companion domain:', compError);
-          }
-        } else {
-          companionData = compData as TenantDomain;
-        }
-      }
-
       toast.success('Domínio adicionado com sucesso');
       await fetchDomains();
-      return { primary: data as TenantDomain, companion: companionData };
+      return data as TenantDomain;
     } catch (error) {
       console.error('Error adding domain:', error);
       toast.error('Erro ao adicionar domínio');
