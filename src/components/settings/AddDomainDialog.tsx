@@ -68,12 +68,37 @@ export function AddDomainDialog({ open, onOpenChange }: AddDomainDialogProps) {
   const domainType = domain ? getDomainType(domain) : null;
   const createdDomainType = createdDomain ? getDomainType(createdDomain.domain) : null;
 
+  // Get raw domain type (preserves www as subdomain) for DNS purposes
+  const getRawDomainType = (d: string): 'apex' | 'subdomain' => {
+    const normalized = normalizeDomain(d, false);
+    const parts = normalized.split('.');
+    const twoPartTLDs = ['com.br', 'org.br', 'net.br', 'co.uk', 'com.au', 'co.nz'];
+    const lastTwoParts = parts.slice(-2).join('.');
+    if (twoPartTLDs.includes(lastTwoParts)) {
+      return parts.length <= 3 ? 'apex' : 'subdomain';
+    }
+    return parts.length <= 2 ? 'apex' : 'subdomain';
+  };
+
   // Extrai o subdomínio do domínio completo (ex: "loja" de "loja.exemplo.com.br")
   const getSubdomainName = () => {
     if (!createdDomain) return 'www';
     const parts = createdDomain.domain.split('.');
-    return parts.length > 2 ? parts[0] : 'www';
+    return parts.length > 2 ? parts[0] : '';
   };
+
+  // Compute the correct TXT record name based on the domain
+  const getTxtRecordName = () => {
+    if (!createdDomain) return '_cc-verify';
+    const sub = getSubdomainName();
+    if (sub) {
+      return `_cc-verify.${sub}`;
+    }
+    return '_cc-verify';
+  };
+
+  const isWwwDomain = createdDomain?.domain.toLowerCase().startsWith('www.') ?? false;
+  const isApexDomain = createdDomain ? getRawDomainType(createdDomain.domain) === 'apex' : false;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
