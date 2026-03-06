@@ -144,9 +144,29 @@ export function DomainSettingsContent() {
     toast.success('URL copiada!');
   };
 
+  // Helper: check if a domain is the apex companion of a www domain
+  const isApexRedirectDomain = (domain: TenantDomain): boolean => {
+    const d = domain.domain.toLowerCase();
+    // If it's NOT a www domain, check if there's a www companion in the list
+    if (!d.startsWith('www.')) {
+      const wwwCompanion = domains.find(
+        dd => dd.domain.toLowerCase() === `www.${d}` && dd.type === 'custom'
+      );
+      return !!wwwCompanion;
+    }
+    return false;
+  };
+
   const getNextAction = (domain: TenantDomain) => {
+    // Apex domains that are redirect-only: only allow verification (for TXT), no SSL
+    const isApexRedirect = isApexRedirectDomain(domain);
+
     if (domain.status !== 'verified') {
       return { label: 'Verificar DNS', action: () => verifyDomain(domain.id), disabled: isVerifying === domain.id };
+    }
+    // Apex redirect domains don't need SSL or Custom Hostname
+    if (isApexRedirect) {
+      return null;
     }
     if (domain.ssl_status === 'none' || domain.ssl_status === 'failed') {
       return { label: 'Ativar SSL', action: () => provisionSSL(domain.id), disabled: isProvisioning === domain.id };
