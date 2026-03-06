@@ -464,7 +464,7 @@ export function DomainSettingsContent() {
                     <li>
                       <strong>Nome/Host:</strong>{' '}
                       <code className="bg-muted px-1 rounded">_cc-verify</code> para domínio raiz, ou{' '}
-                      <code className="bg-muted px-1 rounded">_cc-verify.SUBDOMINIO</code> para subdomínios
+                      <code className="bg-muted px-1 rounded">_cc-verify.SUBDOMINIO</code> para subdomínios (incluindo <code className="bg-muted px-1 rounded">_cc-verify.www</code> para www)
                     </li>
                     <li><strong>Valor:</strong> O token fornecido (formato: cc-verify=xxxx)</li>
                   </ul>
@@ -473,27 +473,27 @@ export function DomainSettingsContent() {
 
               <Alert>
                 <Info className="h-4 w-4" />
-                <AlertTitle>Passo 2: Apontamento (CNAME ou A)</AlertTitle>
+                <AlertTitle>Passo 2: Apontamento (CNAME)</AlertTitle>
                 <AlertDescription>
-                  Após verificar, aponte seu domínio para nossa infraestrutura:
                   <div className="mt-2 space-y-2 text-sm">
-                    <p><strong>Para subdomínios (ex: loja.seusite.com.br):</strong></p>
-                    <ul className="list-disc list-inside ml-2">
-                      <li><strong>Tipo:</strong> CNAME</li>
-                      <li><strong>Nome:</strong> loja (ou seu subdomínio)</li>
+                    <p><strong>Para que a loja funcione com e sem www:</strong></p>
+                    <ul className="list-disc list-inside ml-2 space-y-1">
                       <li>
-                        <strong>Valor:</strong>{' '}
+                        <strong>CNAME <code className="bg-muted px-1 rounded">www</code></strong> → {' '}
                         <code className="bg-muted px-1 rounded">{STOREFRONT_CNAME_TARGET}</code>
                         <Button variant="ghost" size="sm" onClick={handleCopyTarget} className="ml-2 h-6">
                           <Copy className="h-3 w-3" />
                         </Button>
                       </li>
+                      <li>
+                        <strong>CNAME <code className="bg-muted px-1 rounded">@</code></strong> (raiz) → {' '}
+                        <code className="bg-muted px-1 rounded">{STOREFRONT_CNAME_TARGET}</code>
+                        <span className="text-xs text-muted-foreground ml-1">(requer CNAME Flattening — Cloudflare suporta)</span>
+                      </li>
                     </ul>
-                    <p className="mt-2"><strong>Para domínio raiz (ex: seusite.com.br):</strong></p>
-                    <ul className="list-disc list-inside ml-2">
-                      <li>Use CNAME flattening se disponível, ou</li>
-                      <li>Configure registros A conforme instruções específicas</li>
-                    </ul>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      💡 <strong>Dica:</strong> Se usar Cloudflare, ambos os CNAMEs devem estar em modo <strong>"Somente DNS"</strong> (nuvem cinza) para que o SSL funcione corretamente.
+                    </p>
                   </div>
                 </AlertDescription>
               </Alert>
@@ -504,6 +504,16 @@ export function DomainSettingsContent() {
                 <AlertDescription>
                   Após o DNS propagar (pode levar até 48h), clique em "Ativar SSL" para habilitar HTTPS.
                   O certificado será provisionado automaticamente.
+                </AlertDescription>
+              </Alert>
+
+              <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+                <Info className="h-4 w-4 text-amber-600" />
+                <AlertTitle className="text-amber-800 dark:text-amber-200">www e raiz como domínios separados</AlertTitle>
+                <AlertDescription className="text-amber-700 dark:text-amber-300 text-xs">
+                  No sistema, <code className="bg-background px-1 rounded">www.exemplo.com.br</code> e{' '}
+                  <code className="bg-background px-1 rounded">exemplo.com.br</code> são tratados como domínios separados.
+                  Se quiser que ambos funcionem, adicione os dois e defina um como Principal — o outro redirecionará automaticamente.
                 </AlertDescription>
               </Alert>
             </CardContent>
