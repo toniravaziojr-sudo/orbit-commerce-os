@@ -149,8 +149,8 @@ export function StorefrontFooterContent({
   // Use bootstrap data with DB fallback
   const storeSettings: StoreSettingsData | null = bootstrapStoreSettings || dbStoreSettings || null;
 
-  // Fetch categories for footer links
-  const { data: categories } = useQuery({
+  // Fetch categories — ONLY when bootstrap not provided
+  const { data: dbCategories } = useQuery({
     queryKey: ['categories-footer', tenantSlug],
     queryFn: async () => {
       if (!tenantSlug) return [];
@@ -171,9 +171,11 @@ export function StorefrontFooterContent({
       
       return data || [];
     },
-    enabled: !!tenantSlug,
+    enabled: !!tenantSlug && shouldQueryDb,
     staleTime: 1000 * 60 * 5,
   });
+
+  const categories: Category[] = bootstrapCategories || dbCategories || [];
 
   // Fetch footer menus (footer_1 and footer_2)
   const { data: footerMenus } = useQuery({
