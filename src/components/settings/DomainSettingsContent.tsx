@@ -389,7 +389,7 @@ export function DomainSettingsContent() {
                             {nextAction.label}
                           </Button>
                         )}
-                        {isFullyActive && !domain.is_primary && !isApexRedirect && (
+                        {isFullyActive && !domain.is_primary && (
                           <Button
                             variant="outline"
                             size="sm"
