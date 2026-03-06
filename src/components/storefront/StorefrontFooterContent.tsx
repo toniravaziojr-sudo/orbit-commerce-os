@@ -71,7 +71,7 @@ interface StorefrontFooterContentProps {
   /** Visibility override for footer menu 2 (passed from PublicTemplateRenderer) */
   showFooter2Override?: boolean;
   /** Bootstrap data: skip store_settings query when provided */
-  bootstrapStoreSettings?: StoreSettingsData | null;
+  bootstrapStoreSettings?: StoreSettingsData | Record<string, any> | null;
   /** Bootstrap data: skip categories query when provided */
   bootstrapCategories?: Category[];
   /** Bootstrap data: skip footer menus query when provided */
