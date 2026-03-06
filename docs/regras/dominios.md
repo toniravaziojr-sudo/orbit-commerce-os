@@ -323,12 +323,13 @@ Exibe instruções de DNS COM o nome correto do TXT:
   - Token é exibido com botão de copiar e destaque visual
 ```
 
-#### Regras para Domínio Apex (raiz) + www
+#### Regras para Domínio Apex (raiz) ↔ www (Fluxo Unificado)
 
-Quando o domínio adicionado é um **domínio apex** (ex: `respeiteohomem.com.br`), o sistema:
+Quando o domínio adicionado é um **domínio apex** (ex: `respeiteohomem.com.br`) OU **www** (ex: `www.respeiteohomem.com.br`), o sistema:
 
-1. **Classifica como apex** usando `getDomainType()` — considera TLDs de duas partes (`.com.br`, `.co.uk`)
-2. **Instrui o cliente a criar DOIS conjuntos de registros DNS:**
+1. **Cria automaticamente AMBOS os registros** (apex + www) no banco — o usuário NÃO precisa cadastrar duas vezes
+2. **Exibe instruções completas para os dois domínios** no mesmo fluxo (dois TXTs + dois CNAMEs)
+3. **Cada domínio gera seu próprio token** — o token do apex ≠ token do www
 
 | Registro | Nome | Destino/Valor | Propósito |
 |----------|------|---------------|-----------|
@@ -337,11 +338,8 @@ Quando o domínio adicionado é um **domínio apex** (ex: `respeiteohomem.com.br
 | TXT | `_cc-verify` | `cc-verify=TOKEN_APEX` | Verificar domínio raiz |
 | TXT | `_cc-verify.www` | `cc-verify=TOKEN_WWW` | Verificar subdomínio www |
 
-3. **O sistema trata `www.dominio.com` e `dominio.com` como entidades distintas** para fins de verificação DNS
-4. **Cada domínio gera seu próprio token** — o token do apex ≠ token do www
-5. **O prefixo `www.` é preservado** na lógica de classificação (`getRawDomainType`) para garantir o nome correto do registro TXT
-6. **AddDomainDialog exibe aviso contextual** instruindo o usuário a cadastrar o outro domínio (www ou raiz) separadamente
-7. **Após ambos verificados**, o sistema pode redirecionar `www` → raiz (ou vice-versa) via Worker
+4. **O prefixo `www.` é preservado** na lógica de classificação para garantir o nome correto do registro TXT
+5. **Após ambos verificados**, o usuário define qual é o **Principal** — o outro redireciona automaticamente via Worker
 
 #### Regras para Subdomínio (ex: `loja.cliente.com.br`)
 
