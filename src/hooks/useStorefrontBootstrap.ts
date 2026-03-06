@@ -3,7 +3,6 @@ import { supabase } from '@/integrations/supabase/client';
 
 /**
  * Hook que carrega TODOS os dados iniciais do storefront em uma única chamada.
- * Substitui múltiplas queries individuais por uma edge function otimizada.
  * 
  * staleTime: 2 minutos — dados de storefront mudam raramente
  * gcTime: 5 minutos — mantém cache por mais tempo
@@ -13,10 +12,24 @@ export interface BootstrapData {
   store_settings: any;
   header_menu: { menu: any; items: any[] };
   footer_menu: { menu: any; items: any[] };
+  footer_2_menu: { menu: any; items: any[] };
   categories: any[];
   template: any;
   custom_domain: string | null;
   is_published: boolean;
+  global_layout: any;
+  page_overrides: Record<string, any>;
+  category_settings: any;
+  pages: any[];
+  resolved_domain?: {
+    tenant_slug: string;
+    tenant_id: string;
+    domain_type: 'platform_subdomain' | 'custom';
+    canonical_origin: string;
+    primary_public_host: string;
+    is_primary: boolean;
+    has_custom_primary: boolean;
+  };
   products?: any[];
 }
 
@@ -42,8 +55,8 @@ export function useStorefrontBootstrap(
       return data as BootstrapData;
     },
     enabled: !!tenantSlug,
-    staleTime: 2 * 60 * 1000, // 2 minutos
-    gcTime: 5 * 60 * 1000, // 5 minutos
+    staleTime: 2 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
   });
 }
 
@@ -72,6 +85,37 @@ export function useStorefrontBootstrapById(
       return data as BootstrapData;
     },
     enabled: !!tenantId,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Hook para bootstrap por hostname (usado em TenantStorefrontLayout para domínios custom)
+ * Unifica resolve-domain + bootstrap em uma única chamada
+ */
+export function useStorefrontBootstrapByHostname(
+  hostname: string | undefined,
+  options?: { includeProducts?: boolean }
+) {
+  return useQuery<BootstrapData | null>({
+    queryKey: ['storefront-bootstrap-hostname', hostname, options?.includeProducts],
+    queryFn: async () => {
+      if (!hostname) return null;
+
+      const { data, error } = await supabase.functions.invoke('storefront-bootstrap', {
+        body: {
+          hostname,
+          include_products: options?.includeProducts ?? false,
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.success) return null;
+
+      return data as BootstrapData;
+    },
+    enabled: !!hostname,
     staleTime: 2 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
   });
