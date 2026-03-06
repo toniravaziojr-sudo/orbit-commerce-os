@@ -147,7 +147,7 @@ export function StorefrontFooterContent({
   });
 
   // Use bootstrap data with DB fallback
-  const storeSettings: StoreSettingsData | null = bootstrapStoreSettings || dbStoreSettings || null;
+  const storeSettings = (bootstrapStoreSettings || dbStoreSettings || null) as StoreSettingsData | null;
 
   // Fetch categories — ONLY when bootstrap not provided
   const { data: dbCategories } = useQuery({
