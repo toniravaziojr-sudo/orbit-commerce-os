@@ -525,7 +525,8 @@ export function DomainSettingsContent() {
       {/* Dialogs */}
       <AddDomainDialog 
         open={addDialogOpen} 
-        onOpenChange={setAddDialogOpen} 
+        onOpenChange={setAddDialogOpen}
+        onDomainAdded={refetch}
       />
 
       {instructionsDialog && (
