@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 interface AddDomainDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onDomainAdded?: () => void;
 }
 
 type Step = 'input' | 'instructions';
