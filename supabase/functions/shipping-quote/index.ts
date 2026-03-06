@@ -22,6 +22,9 @@ interface ShippingQuoteRequest {
     width?: number;
     length?: number;
     price: number;
+    product_id?: string;
+    free_shipping?: boolean;
+    free_shipping_method?: string | null;
   }>;
   store_host?: string;
   tenant_id?: string; // fallback for dev
