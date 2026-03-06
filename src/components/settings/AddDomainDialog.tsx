@@ -363,7 +363,7 @@ export function AddDomainDialog({ open, onOpenChange, onDomainAdded }: AddDomain
                   {isApexWithWww && apexDomain ? (
                     <>
                       <p className="mb-3 mt-2">Crie os dois registros <strong>CNAME</strong> abaixo:</p>
-                      <div className="space-y-3">
+                     <div className="space-y-3">
                         {/* Apex CNAME */}
                         <div className="bg-muted p-3 rounded space-y-1 text-sm">
                           <p className="font-medium text-primary mb-2">
@@ -391,7 +391,7 @@ export function AddDomainDialog({ open, onOpenChange, onDomainAdded }: AddDomain
                             No Cloudflare, use CNAME Flattening. Proxy: <strong>DNS-only (nuvem cinza)</strong>.
                           </p>
                           <p className="text-xs text-destructive font-medium mt-1">
-                            ⚠️ Se já existir um registro A, AAAA ou CNAME para <code>@</code>, <strong>delete-o primeiro</strong> antes de criar este CNAME. O Cloudflare não permite dois registros do mesmo tipo para o mesmo host.
+                            ⚠️ Se já existir um registro A, AAAA ou CNAME para <code>@</code> apontando para outro destino, <strong>altere o destino</strong> para <code>{DEFAULT_TARGET_HOSTNAME}</code>. Se já estiver apontando corretamente, ignore este passo.
                           </p>
                         </div>
 
