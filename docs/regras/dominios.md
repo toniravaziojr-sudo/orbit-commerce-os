@@ -487,7 +487,7 @@ const publicHost = (cfHost || edgeHost).toLowerCase();
 
 1. Request chega em `{slug}.shops.comandocentral.com.br` ou domínio custom
 2. Worker chama `resolve-domain` com o hostname **exato** (incluindo www se presente)
-3. `resolve-domain` busca na tabela com `.or(domain.eq.${hostname},domain.eq.${hostnameWithoutWww})`
+3. `resolve-domain` busca na tabela com `.or(domain.eq.${hostname},domain.eq.${hostnameWithoutWww},domain.eq.${hostnameWithWww})` — ou seja, busca o hostname exato, sem www e com www (3 variações)
 4. Se `has_custom_primary=true` e host atual ≠ primary:
    - 301 Redirect para `https://{primary_public_host}{path}{query}`
 5. Se não tem custom primary ou é o host correto:
