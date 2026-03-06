@@ -40,6 +40,9 @@ interface PublicTemplateRendererProps {
   // For page overrides
   pageType?: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'institutional' | 'landing_page' | 'tracking' | 'blog';
   pageId?: string; // For institutional/landing_page
+  // Pre-fetched data from bootstrap to avoid duplicate queries
+  bootstrapGlobalLayout?: any;
+  bootstrapPageOverrides?: any;
 }
 
 export function PublicTemplateRenderer({
@@ -52,16 +55,25 @@ export function PublicTemplateRenderer({
   isCheckout = false,
   pageType = 'home',
   pageId,
+  bootstrapGlobalLayout,
+  bootstrapPageOverrides,
 }: PublicTemplateRendererProps) {
   // Fetch global layout
-  const { data: globalLayout, isLoading: layoutLoading } = usePublicGlobalLayout(context.tenantSlug);
+  const { data: globalLayout, isLoading: layoutLoading } = usePublicGlobalLayout(context.tenantSlug, bootstrapGlobalLayout);
 
-  // Fetch page overrides
+  // Fetch page overrides - use bootstrap data if available
   const isTemplate = !['institutional', 'landing_page'].includes(pageType);
+  const hasBootstrapOverrides = bootstrapPageOverrides && isTemplate && bootstrapPageOverrides[pageType];
+  
   const { data: pageOverrides, isLoading: overridesLoading } = useQuery({
     queryKey: ['public-page-overrides', context.tenantSlug, pageType, pageId],
     queryFn: async () => {
-      // Get tenant ID from slug
+      // Use bootstrap data if available for template pages
+      if (hasBootstrapOverrides) {
+        return (bootstrapPageOverrides[pageType] as PageOverrides) || null;
+      }
+
+      // Fallback: fetch from DB (for institutional/landing pages or when no bootstrap)
       const { data: tenant } = await supabase
         .from('tenants')
         .select('id')
@@ -71,7 +83,6 @@ export function PublicTemplateRenderer({
       if (!tenant) return null;
 
       if (isTemplate) {
-        // Fetch from storefront_page_templates
         const { data } = await supabase
           .from('storefront_page_templates')
           .select('page_overrides')
@@ -81,7 +92,6 @@ export function PublicTemplateRenderer({
 
         return (data?.page_overrides as PageOverrides) || null;
       } else {
-        // Fetch from store_pages
         if (!pageId) return null;
         const { data } = await supabase
           .from('store_pages')
