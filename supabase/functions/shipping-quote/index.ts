@@ -1147,6 +1147,22 @@ serve(async (req) => {
       console.log(`[ShippingQuote] Carrier options count: ${carrierOptions.length}`);
     }
 
+    // ========== APPLY PRODUCT-LEVEL FREE SHIPPING TO SPECIFIC METHOD ==========
+    const defaultFreeMethod = (storeSettings as any)?.default_free_shipping_method as string | null;
+    
+    // Check if ANY item has product-level free_shipping
+    const hasFreeShippingItems = items.some(item => item.free_shipping === true);
+    
+    // Determine free shipping method: product override > global default
+    let freeShippingMethod: string | null = null;
+    if (hasFreeShippingItems) {
+      // Check for per-product override first
+      const productOverride = items.find(item => item.free_shipping && item.free_shipping_method);
+      freeShippingMethod = productOverride?.free_shipping_method || defaultFreeMethod || null;
+      
+      console.log(`[ShippingQuote] Product free shipping active, method: ${freeShippingMethod || 'ALL'}`);
+    }
+
     // ========== COMBINE RULE OPTIONS + CARRIER OPTIONS ==========
     // Rule options come first (Frete Grátis should appear first if matched)
     let allOptions = [...ruleOptions, ...carrierOptions];
@@ -1156,8 +1172,38 @@ serve(async (req) => {
     // Deduplicate carrier options (rules are not deduplicated against carriers)
     const dedupedCarrierOptions = deduplicateOptions(carrierOptions);
     
-    // Final combined: rules first, then deduped carrier options
-    const finalOptions = [...ruleOptions, ...dedupedCarrierOptions];
+    // Apply product-level free shipping to the configured method
+    let processedCarrierOptions = dedupedCarrierOptions;
+    if (hasFreeShippingItems && freeShippingMethod) {
+      const methodLower = freeShippingMethod.toLowerCase();
+      processedCarrierOptions = dedupedCarrierOptions.map(opt => {
+        const optNameLower = opt.service_name.toLowerCase();
+        const optCarrierLower = opt.carrier.toLowerCase();
+        // Match by service name containing the method (e.g., "PAC" in "PAC (Correios)")
+        if (optNameLower.includes(methodLower) || optCarrierLower.includes(methodLower)) {
+          return {
+            ...opt,
+            original_price: opt.price,
+            price: 0,
+            is_free: true,
+            metadata: { ...opt.metadata, free_shipping_reason: 'product', free_shipping_method: freeShippingMethod },
+          };
+        }
+        return opt;
+      });
+    } else if (hasFreeShippingItems && !freeShippingMethod) {
+      // No specific method configured = ALL methods are free (legacy behavior)
+      processedCarrierOptions = dedupedCarrierOptions.map(opt => ({
+        ...opt,
+        original_price: opt.price,
+        price: 0,
+        is_free: true,
+        metadata: { ...opt.metadata, free_shipping_reason: 'product_all' },
+      }));
+    }
+    
+    // Final combined: rules first, then processed carrier options
+    const finalOptions = [...ruleOptions, ...processedCarrierOptions];
     
     console.log(`[ShippingQuote] After deduplication: ${finalOptions.length}`);
 
