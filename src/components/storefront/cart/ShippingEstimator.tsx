@@ -57,6 +57,9 @@ export function ShippingEstimator() {
           length: 10,
           quantity: item.quantity,
           price: item.price,
+          product_id: item.id,
+          free_shipping: item.free_shipping || false,
+          free_shipping_method: (item as any).free_shipping_method || null,
         }));
         options = await quoteAsync(cepDigits, subtotal, cartItems);
       } else {
@@ -64,8 +67,10 @@ export function ShippingEstimator() {
         options = quote(cepDigits, subtotal);
       }
       
-      // Apply product-level free shipping (highest priority)
-      if (allItemsFreeShipping && options.length > 0) {
+      // Note: Product-level free shipping is now handled server-side in shipping-quote
+      // The API returns is_free=true and price=0 for the configured method
+      // Legacy fallback: if all items free shipping and no API-level handling
+      if (allItemsFreeShipping && options.length > 0 && !options.some(opt => opt.isFree)) {
         options = options.map(opt => ({ ...opt, price: 0, isFree: true }));
       }
 
