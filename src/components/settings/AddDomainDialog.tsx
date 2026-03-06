@@ -475,38 +475,31 @@ export function AddDomainDialog({ open, onOpenChange, onDomainAdded }: AddDomain
               {isApexWithWww && (
                 <div className="flex items-start gap-2 p-3 bg-green-50 dark:bg-green-950/20 rounded border border-green-200 dark:border-green-800">
                   <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                  <p className="text-xs text-green-800 dark:text-green-200">
-                    ✅ Ambos os domínios (<strong>{apexDomain?.domain}</strong> e <strong>{wwwDomain?.domain}</strong>) 
-                    foram cadastrados automaticamente. Após verificar e ativar o SSL em ambos, defina 
-                    o que preferir como <strong>Principal</strong> — o outro redirecionará automaticamente.
-                  </p>
+                  <div className="text-xs text-green-800 dark:text-green-200 space-y-1">
+                    <p>
+                      ✅ <strong>{wwwDomain?.domain}</strong> será o domínio principal da sua loja, servido 
+                      diretamente pelo Comando Central (CNAME + SSL).
+                    </p>
+                    <p>
+                      🔀 <strong>{apexDomain?.domain}</strong> deve apenas redirecionar para o www no seu 
+                      provedor de DNS. Não é necessário CNAME nem SSL para o domínio raiz.
+                    </p>
+                  </div>
                 </div>
               )}
 
-              {/* Cloudflare warning */}
+              {/* Cloudflare warning - only for CNAME records */}
               <div className="flex items-start gap-2 p-3 bg-orange-50 dark:bg-orange-950/20 rounded border border-orange-300 dark:border-orange-800">
                 <AlertTriangle className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
                 <div className="text-xs text-orange-800 dark:text-orange-200 space-y-1">
                   <p className="font-semibold">⚠️ Usa Cloudflare como DNS do seu domínio?</p>
                   <p>
                     Se o seu domínio está configurado no Cloudflare (nameservers apontando para o Cloudflare), 
-                    o <strong>domínio raiz (apex)</strong> pode apresentar <strong>Erro 1014</strong> devido ao 
-                    CNAME Cross-User Ban do Cloudflare. Subdomínios (ex: loja.seusite.com.br) funcionam normalmente.
+                    certifique-se de que o proxy esteja <strong>desativado</strong> (nuvem cinza / DNS-only) 
+                    no registro CNAME do <code>www</code> apontado para <code>{DEFAULT_TARGET_HOSTNAME}</code>.
                   </p>
-                  <p className="font-medium">Para resolver:</p>
-                  <ul className="list-disc pl-4 space-y-0.5">
-                    <li>
-                      <strong>Opção 1 (Recomendada):</strong> Transfira o DNS para o seu registrador 
-                      (ex: Registro.br → "Utilizar DNS do Registro.br") e crie os CNAMEs lá.
-                    </li>
-                    <li>
-                      <strong>Opção 2:</strong> Mantenha no Cloudflare, mas certifique-se de que o proxy esteja 
-                      <strong> desativado</strong> (nuvem cinza / DNS-only) em todos os registros CNAME apontados 
-                      para <code>{DEFAULT_TARGET_HOSTNAME}</code>.
-                    </li>
-                  </ul>
                   <p className="text-[10px] text-orange-600 dark:text-orange-400 mt-1">
-                    Esse problema NÃO ocorre com outros provedores de DNS (Registro.br, GoDaddy, Namecheap, Route53, etc.).
+                    Outros provedores de DNS (Registro.br, GoDaddy, Namecheap, Route53, etc.) não precisam desta configuração.
                   </p>
                 </div>
               </div>
