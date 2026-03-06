@@ -8,30 +8,35 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MapPin, ShoppingCart } from 'lucide-react';
 import { FreeShippingRulesTab } from './FreeShippingRulesTab';
 import { CartConversionConfigTab } from './CartConversionConfigTab';
+import { DefaultFreeShippingMethodConfig } from './DefaultFreeShippingMethodConfig';
 
 export function FreeShippingSubTabs() {
   const [activeSubTab, setActiveSubTab] = useState('regras');
 
   return (
-    <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
-      <TabsList className="mb-6">
-        <TabsTrigger value="regras" className="gap-2">
-          <MapPin className="h-4 w-4" />
-          Regras de Frete Grátis
-        </TabsTrigger>
-        <TabsTrigger value="conversao" className="gap-2">
-          <ShoppingCart className="h-4 w-4" />
-          Conversão de Carrinho
-        </TabsTrigger>
-      </TabsList>
+    <div className="space-y-6">
+      <DefaultFreeShippingMethodConfig />
 
-      <TabsContent value="regras">
-        <FreeShippingRulesTab />
-      </TabsContent>
+      <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
+        <TabsList className="mb-6">
+          <TabsTrigger value="regras" className="gap-2">
+            <MapPin className="h-4 w-4" />
+            Regras de Frete Grátis
+          </TabsTrigger>
+          <TabsTrigger value="conversao" className="gap-2">
+            <ShoppingCart className="h-4 w-4" />
+            Conversão de Carrinho
+          </TabsTrigger>
+        </TabsList>
 
-      <TabsContent value="conversao">
-        <CartConversionConfigTab />
-      </TabsContent>
-    </Tabs>
+        <TabsContent value="regras">
+          <FreeShippingRulesTab />
+        </TabsContent>
+
+        <TabsContent value="conversao">
+          <CartConversionConfigTab />
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }
