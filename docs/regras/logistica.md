@@ -104,6 +104,13 @@ O frete grátis pode ser vinculado a um **método de envio específico** (ex: PA
 - Para Correios, filtra pelos `service_codes` configurados no provider
 - Opção "Usar padrão da logística" = `null` (herda global)
 
+**UI de configuração global:**
+- Componente `DefaultFreeShippingMethodConfig` em `src/components/shipping/DefaultFreeShippingMethodConfig.tsx`
+- Renderizado no topo da aba Frete Grátis (`FreeShippingSubTabs`), acima das sub-tabs de regras e conversão
+- Persiste em `store_settings.default_free_shipping_method`
+- Select dinâmico com as mesmas opções dos providers ativos (`useAvailableShippingMethods`)
+- Opção "Todos os métodos (sem restrição)" = `null`
+
 > **Integração com Barra de Conversão:** Quando `applyToExternalRules` está ativo na `BenefitConfig` (`store_settings.benefit_config`), a barra de progresso do carrinho também reconhece frete grátis vindo dessas 3 fontes, não apenas do valor mínimo configurado na barra. Ver `docs/regras/carrinho.md` → Barra de Conversão.
 
 ## Regras de Frete Grátis (Logística)
