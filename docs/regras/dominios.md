@@ -416,15 +416,36 @@ Se o usuário quiser que ambas as versões (com e sem www) funcionem:
 ```
 O domínio cadastrado no sistema é o domínio "servido"
 ↓
-A outra versão deve redirecionar via gerenciador de DNS:
-  - Cloudflare: Page Rules ou Redirect Rules
-  - Outros: "URL redirect" ou "Forwarding"
+A outra versão deve redirecionar via Cloudflare Redirect Rules
 ↓
-Ex: respeiteohomem.com.br → https://www.respeiteohomem.com.br
-    ou vice-versa
+Para isso, o registro DNS da outra versão precisa de PROXY ATIVADO (nuvem laranja)
 ```
 
-**IMPORTANTE:** O sistema NÃO gerencia esse redirect. É responsabilidade do usuário configurar no seu gerenciador de DNS.
+#### Cenário: Cadastrou `www.seusite.com.br` e quer que `seusite.com.br` redirecione
+
+1. No DNS do Cloudflare, crie: `A @ → 192.0.2.1` com **proxy ativado** (nuvem laranja)
+   - O IP `192.0.2.1` é um endereço dummy (RFC 5737) — o tráfego nunca chega lá
+   - O proxy precisa estar ativo para que Redirect Rules funcionem
+2. Em **Rules → Redirect Rules**, crie:
+   - **When:** Hostname equals `seusite.com.br`
+   - **Then:** Dynamic redirect → `concat("https://www.seusite.com.br", http.request.uri.path)`
+   - **Status:** 301 (Permanente)
+   - **Preserve query string:** ✅
+
+#### Cenário: Cadastrou `seusite.com.br` e quer que `www.seusite.com.br` redirecione
+
+1. No DNS do Cloudflare, crie: `CNAME www → seusite.com.br` com **proxy ativado** (nuvem laranja)
+2. Em **Rules → Redirect Rules**, crie:
+   - **When:** Hostname equals `www.seusite.com.br`
+   - **Then:** Dynamic redirect → `concat("https://seusite.com.br", http.request.uri.path)`
+   - **Status:** 301 (Permanente)
+   - **Preserve query string:** ✅
+
+**IMPORTANTE:**
+- O sistema NÃO gerencia esse redirect. É responsabilidade do usuário configurar no Cloudflare.
+- O registro DNS de redirect **PRECISA do proxy ativado** (nuvem laranja) — sem proxy, Redirect Rules não funcionam.
+- O CNAME que aponta para `shops.comandocentral.com.br` (domínio servido) deve permanecer em **DNS-only** (nuvem cinza).
+- Page Rules NÃO funcionam sem proxy; prefira **Redirect Rules**.
 
 ---
 
