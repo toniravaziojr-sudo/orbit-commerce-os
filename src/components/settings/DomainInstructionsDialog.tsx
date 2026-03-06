@@ -203,10 +203,51 @@ export function DomainInstructionsDialog({
           {/* Tip: redirect for the other version */}
           <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-950/20 rounded border border-blue-200 dark:border-blue-800">
             <Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
-            <p className="text-xs text-blue-800 dark:text-blue-200">
-              💡 Para que a versão com e sem <code className="bg-background px-1 rounded">www</code> funcionem,
-              configure um <strong>redirect</strong> da outra versão no seu gerenciador de DNS (ex: Cloudflare Page Rules).
-            </p>
+            <div className="text-xs text-blue-800 dark:text-blue-200 space-y-1">
+              <p className="font-semibold">💡 Quer que com www e sem www funcionem?</p>
+              {domain.domain.toLowerCase().startsWith('www.') ? (
+                <div className="space-y-2">
+                  <p>Para redirecionar o domínio raiz para www, no Cloudflare:</p>
+                  <ol className="list-decimal list-inside space-y-1">
+                    <li>
+                      Crie registro <strong>A</strong>:{' '}
+                      <code className="bg-background px-1 rounded">@</code> →{' '}
+                      <code className="bg-background px-1 rounded">192.0.2.1</code>{' '}
+                      com <strong>proxy ativado</strong> (nuvem laranja)
+                    </li>
+                    <li>
+                      Em <strong>Rules → Redirect Rules</strong>, crie regra:<br />
+                      When: Hostname equals <code className="bg-background px-1 rounded">{domain.domain.replace(/^www\./i, '')}</code><br />
+                      Then: 301 → <code className="bg-background px-1 rounded text-[10px]">concat("https://{domain.domain}", http.request.uri.path)</code>
+                    </li>
+                  </ol>
+                </div>
+              ) : isApex ? (
+                <div className="space-y-2">
+                  <p>Para redirecionar www para o domínio raiz, no Cloudflare:</p>
+                  <ol className="list-decimal list-inside space-y-1">
+                    <li>
+                      Crie registro <strong>CNAME</strong>:{' '}
+                      <code className="bg-background px-1 rounded">www</code> →{' '}
+                      <code className="bg-background px-1 rounded">{domain.domain}</code>{' '}
+                      com <strong>proxy ativado</strong> (nuvem laranja)
+                    </li>
+                    <li>
+                      Em <strong>Rules → Redirect Rules</strong>, crie regra:<br />
+                      When: Hostname equals <code className="bg-background px-1 rounded">www.{domain.domain}</code><br />
+                      Then: 301 → <code className="bg-background px-1 rounded text-[10px]">concat("https://{domain.domain}", http.request.uri.path)</code>
+                    </li>
+                  </ol>
+                </div>
+              ) : (
+                <p>
+                  Configure um <strong>redirect</strong> da outra versão no seu gerenciador de DNS (ex: Cloudflare Redirect Rules).
+                </p>
+              )}
+              <p className="text-[10px] text-blue-600 dark:text-blue-400">
+                ⚠️ O registro de redirect precisa do <strong>proxy ativado</strong> (nuvem laranja) para funcionar.
+              </p>
+            </div>
           </div>
 
           {/* Footer note */}
