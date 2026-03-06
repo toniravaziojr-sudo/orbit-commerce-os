@@ -253,7 +253,7 @@ shops.comandocentral.com.br/*    →  shops-router
 const {
   domains,           // Lista de domínios
   isLoading,
-  addDomain,         // Adicionar custom domain (retorna { primary, companion })
+  addDomain,         // Adicionar custom domain (retorna TenantDomain)
   verifyDomain,      // Verificar DNS
   provisionSSL,      // Criar Custom Hostname
   checkSSLStatus,    // Verificar SSL
@@ -323,6 +323,13 @@ getPublicCheckoutUrl(slug, custom)
 
 ## Fluxo de Cadastro de Domínio Custom
 
+### Regra Principal: Um Domínio = Uma Entrada
+
+O sistema cadastra **exatamente um domínio** por vez. Não há criação automática de companion (apex↔www).
+O usuário escolhe qual domínio será servido pela loja e cadastra apenas esse.
+
+Se o usuário quiser que ambas as versões (com e sem www) funcionem, ele configura um **redirect** da outra versão no seu gerenciador de DNS (ex: Cloudflare Page Rules).
+
 ### 1. Cliente adiciona domínio
 
 ```
@@ -330,81 +337,42 @@ Admin → Configurações → Domínios → "Adicionar Domínio"
 ↓
 Sistema valida formato e gera token
 ↓
-Exibe instruções de DNS COM o nome correto do TXT:
-  - AddDomainDialog usa getTxtRecordName() dinâmico
-  - Para subdomínios (www, loja, etc.): _cc-verify.{sub}
-  - Para apex (incluindo .com.br): _cc-verify
-  - IMPORTANTE: getSubdomainName() considera TLDs de duas partes (.com.br, .co.uk)
-    - respeiteohomem.com.br → apex → TXT: _cc-verify
-    - www.respeiteohomem.com.br → sub "www" → TXT: _cc-verify.www
-  - Token é exibido com botão de copiar e destaque visual
+Cria UMA entrada no banco (tenant_domains)
+↓
+Exibe instruções de DNS:
+  - TXT de verificação com nome correto (_cc-verify ou _cc-verify.{sub})
+  - CNAME apontando para shops.comandocentral.com.br
+  - Aviso sobre domínio raiz (CNAME Flattening necessário)
+  - Dica sobre redirect da outra versão (www↔apex)
 ```
 
-#### Regra Oficial: www = Domínio Servido, Apex = Redirect
+#### Instruções por tipo de domínio
 
-**Regra do sistema:**
-- O domínio **www** é sempre o domínio principal servido pelo Comando Central
-- O domínio **apex (raiz)** é tratado como domínio de entrada/redirecionamento
-- O sistema **não depende de CNAME no apex** como fluxo padrão, pois muitos provedores DNS/registradores não suportam isso de forma compatível ou previsível
-
-**Justificativa técnica:** CNAME no apex não é universalmente suportado. Provedores como Registro.br proíbem CNAME no apex. Cloudflare faz CNAME flattening que gera Erro 1014 em contextos cross-account. O sistema não deve depender de um mecanismo que falha em cenários comuns.
-
-#### Fluxo Unificado Apex ↔ www
-
-Quando o domínio adicionado é um **domínio apex** (ex: `respeiteohomem.com.br`) OU **www** (ex: `www.respeiteohomem.com.br`), o sistema:
-
-1. **Cria automaticamente AMBOS os registros** (apex + www) no banco — o usuário NÃO precisa cadastrar duas vezes
-2. **Cada domínio gera seu próprio token** — o token do apex ≠ token do www
-3. **Exibe instruções diferenciadas** para cada um:
-
-##### Instruções para o www (domínio servido)
+##### Domínio raiz (ex: `respeiteohomem.com.br`)
 
 | Registro | Nome | Destino/Valor | Propósito |
 |----------|------|---------------|-----------|
-| CNAME | `www` | `shops.comandocentral.com.br` | Apontar domínio principal |
-| TXT | `_cc-verify.www` | `cc-verify=TOKEN_WWW` | Verificar propriedade |
+| TXT | `_cc-verify` | `cc-verify=TOKEN` | Verificar propriedade |
+| CNAME | `@` | `shops.comandocentral.com.br` | Apontar domínio |
 
-##### Instruções para o apex (domínio de redirect)
+⚠️ **CNAME no raiz requer gerenciador com CNAME Flattening** (ex: Cloudflare). Provedores tradicionais como Registro.br não suportam. Nesses casos, o sistema orienta o usuário a cadastrar a versão `www` ou migrar o DNS para Cloudflare.
 
-| Registro | Nome | Valor | Propósito |
-|----------|------|-------|-----------|
-| TXT | `_cc-verify` | `cc-verify=TOKEN_APEX` | Verificar propriedade |
-| Redirect | `@` | `https://www.dominio.com.br` | Redirecionar para www |
+##### Subdomínio (ex: `www.respeiteohomem.com.br` ou `loja.cliente.com.br`)
 
-**O apex NÃO recebe instrução de CNAME.** O redirecionamento é configurado no provedor DNS do cliente:
-- **Registro.br:** "Redirecionamento Web" nas configurações da zona
-- **Cloudflare:** Page Rules ou Redirect Rules
-- **Outros:** Opção "URL redirect" ou "Forwarding" no painel
-
-4. O **www** é definido como **Principal** automaticamente
-5. O apex é registrado para fins de verificação de propriedade, mas **não recebe Custom Hostname nem SSL** — ele apenas redireciona
-
-##### O que o sistema provisiona
-
-| Domínio | TXT Verificação | CNAME | Custom Hostname | SSL | Primary |
-|---------|----------------|-------|-----------------|-----|---------|
-| **www.dominio.com.br** | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **dominio.com.br** | ✅ | ❌ | ❌ | ❌ | ❌ |
-
-#### Regras para Subdomínio (ex: `loja.cliente.com.br`)
-
-Quando é um **subdomínio** (não www), apenas UM conjunto é necessário:
-
-| Registro | Nome | Destino/Valor |
-|----------|------|---------------|
-| CNAME | `loja` | `shops.comandocentral.com.br` |
-| TXT | `_cc-verify.loja` | `cc-verify=TOKEN` |
+| Registro | Nome | Destino/Valor | Propósito |
+|----------|------|---------------|-----------|
+| TXT | `_cc-verify.{sub}` | `cc-verify=TOKEN` | Verificar propriedade |
+| CNAME | `{sub}` (www, loja, etc.) | `shops.comandocentral.com.br` | Apontar domínio |
 
 ### 2. Cliente configura DNS
 
 ```
-Cliente acessa provedor de DNS (Registro.br, Cloudflare, GoDaddy, etc.)
+Cliente acessa provedor de DNS (Cloudflare, Registro.br, GoDaddy, etc.)
 ↓
-Para www: Cria CNAME www → shops.comandocentral.com.br
-Para apex: Configura redirecionamento web para https://www.dominio.com.br
-Cria registros TXT de verificação
+Cria TXT de verificação
+Cria CNAME apontando para shops.comandocentral.com.br
 ↓
-Se usar Cloudflare: proxy DESLIGADO (nuvem cinza / DNS-only) no CNAME do www
+Se usar Cloudflare: proxy DESLIGADO (nuvem cinza / DNS-only) no CNAME
 ↓
 Aguarda propagação (até 48h)
 ```
@@ -422,26 +390,41 @@ Se TXT válido → status='verified'
 ### 4. Provisionamento SSL
 
 ```
-Cliente clica "Ativar SSL" (apenas no www)
+Cliente clica "Ativar SSL"
 ↓
-Sistema cria Custom Hostname no Cloudflare para o www
+Sistema cria Custom Hostname no Cloudflare
 ↓
 Cloudflare emite certificado DV (1-5 min)
 ↓
 ssl_status='active'
 ```
 
-**NOTA:** O apex NÃO precisa de SSL provisionado pelo sistema. O redirecionamento acontece no nível do registrador, antes do tráfego chegar ao Comando Central.
-
 ### 5. Definir como Principal
 
 ```
-O www é automaticamente o domínio principal
+Domínio ativo pode ser definido como principal
 ↓
-Todos os links da loja usam o www
+Todos os links da loja usam esse domínio
 ↓
-O apex redireciona para o www (configurado pelo cliente no registrador)
+Platform subdomain redireciona para o domínio principal
 ```
+
+### 6. Redirect da outra versão (opcional)
+
+Se o usuário quiser que ambas as versões (com e sem www) funcionem:
+
+```
+O domínio cadastrado no sistema é o domínio "servido"
+↓
+A outra versão deve redirecionar via gerenciador de DNS:
+  - Cloudflare: Page Rules ou Redirect Rules
+  - Outros: "URL redirect" ou "Forwarding"
+↓
+Ex: respeiteohomem.com.br → https://www.respeiteohomem.com.br
+    ou vice-versa
+```
+
+**IMPORTANTE:** O sistema NÃO gerencia esse redirect. É responsabilidade do usuário configurar no seu gerenciador de DNS.
 
 ---
 
@@ -472,10 +455,9 @@ const NO_REDIRECT_PATHS = [
 
 | Componente | Local | Propósito |
 |------------|-------|-----------|
-| `DomainsList` | `src/components/settings/DomainsList.tsx` | Lista de domínios |
-| `AddDomainDialog` | `src/components/settings/AddDomainDialog.tsx` | Modal adicionar |
-| `DomainStatusBadge` | `src/components/settings/DomainStatusBadge.tsx` | Badge de status |
-| `DNSInstructions` | `src/components/settings/DNSInstructions.tsx` | Instruções DNS |
+| `AddDomainDialog` | `src/components/settings/AddDomainDialog.tsx` | Modal adicionar domínio |
+| `DomainInstructionsDialog` | `src/components/settings/DomainInstructionsDialog.tsx` | Ver instruções de um domínio |
+| `DomainSettingsContent` | `src/components/settings/DomainSettingsContent.tsx` | Painel completo de domínios |
 | `DomainsPlatformSettings` | `src/components/integrations/DomainsPlatformSettings.tsx` | Config Cloudflare (admin) |
 
 ---
@@ -491,45 +473,45 @@ const NO_REDIRECT_PATHS = [
 | Usar `fallbackOrigin` como canonical em prod | Só para dev/preview |
 | `getSubdomainName` sem tratar TLDs de 2 partes | Usar lógica com `twoPartTLDs` array |
 | Mostrar `_cc-verify.respeiteohomem` para apex `.com.br` | Correto: `_cc-verify` (sem sufixo) |
-| Instruir CNAME `@` para apex como fluxo padrão | Correto: instruir redirect do apex para www |
-| Provisionar Custom Hostname/SSL para apex | Apenas www recebe Custom Hostname e SSL |
-| Depender de CNAME no apex | O sistema não deve depender disso |
+| Criar companion apex↔www automaticamente | Sistema cria UMA entrada por domínio |
+| Assumir que www ou apex será criado junto | Cada domínio é independente |
 
 ---
 
 ## ⚠️ Limitações Conhecidas
 
-### Domínio Apex (raiz) — Não servido diretamente
+### Domínio Apex (raiz) — Requer CNAME Flattening
 
-O sistema **não serve** o domínio apex diretamente. O apex é tratado como domínio de entrada que redireciona para o www. Motivos:
+CNAME no domínio raiz não é universalmente suportado:
 
-1. **CNAME no apex não é universalmente suportado** — muitos provedores DNS/registradores não suportam CNAME no apex de forma compatível ou previsível
-2. **Cloudflare (Erro 1014)** — CNAME flattening em contexto cross-account gera erro
-3. **Registro.br** — Proíbe CNAME no apex (campo nome não aceita `@`)
-4. **Simplicidade operacional** — Padronizar www como domínio servido reduz suporte e simplifica onboarding
+1. **Registro.br** — Não suporta CNAME no apex
+2. **Cloudflare** — Suporta via CNAME Flattening (proxy deve estar desativado para nosso caso)
+3. **Route53, Vercel DNS** — Suportam via ALIAS/CNAME Flattening
 
-### Fallback quando o provedor não suporta redirect
+Se o provedor não suporta, o sistema orienta o usuário a:
+- Cadastrar a versão `www` do domínio, ou
+- Migrar o DNS para um gerenciador como Cloudflare (gratuito)
 
-Se o provedor DNS do cliente não oferece redirecionamento web nativo:
-- O cliente pode usar um serviço externo de redirect (ex: redirect.pizza, freedns)
-- Ou simplesmente usar apenas o www, sem redirect do apex
+### Redirect da outra versão (www↔apex)
 
-### UI: Aviso no AddDomainDialog
+O sistema **não gerencia** o redirect entre www e apex. Isso é responsabilidade do usuário, configurado no gerenciador de DNS. As instruções orientam como fazer isso em Cloudflare (Page Rules / Redirect Rules).
+
+### UI: Avisos no AddDomainDialog
 
 O componente `AddDomainDialog` exibe:
-- Aviso verde explicando que www é o domínio principal e apex é redirect
-- Aviso laranja para usuários Cloudflare sobre proxy desativado no CNAME do www
-- Instruções claras de como configurar o redirect no registrador
+- Aviso âmbar para domínio raiz (sobre CNAME Flattening)
+- Dica azul sobre redirect da outra versão
+- Aviso laranja para usuários Cloudflare sobre proxy desativado
 
 ### Regras
 
 | Regra | Descrição |
 |-------|-----------|
-| **www = domínio servido** | Sempre instruir CNAME do www para `shops.comandocentral.com.br` |
-| **Apex = redirect** | Sempre instruir redirect do apex para `https://www.dominio.com.br` |
-| **Sem CNAME no apex** | Não instruir CNAME `@` como fluxo padrão |
-| **Não bloquear cadastro** | O sistema NÃO deve impedir o cadastro do apex — apenas orientar redirect |
-| **Instrução de proxy** | Para Cloudflare: DNS-only (nuvem cinza) no CNAME do www |
+| **Um domínio = uma entrada** | Sistema cria exatamente um registro por domínio cadastrado |
+| **Sem companion automático** | Não criar apex+www juntos automaticamente |
+| **CNAME para todos** | Instrução é sempre CNAME, com aviso sobre apex |
+| **Redirect é externo** | Redirect www↔apex é responsabilidade do usuário no DNS |
+| **Instrução de proxy** | Para Cloudflare: DNS-only (nuvem cinza) no CNAME |
 
 ---
 
@@ -543,6 +525,8 @@ O componente `AddDomainDialog` exibe:
 - [ ] Canonical redirect funciona de platform subdomain para custom domain
 - [ ] Links na loja usam domínio primary corretamente
 - [ ] Worker deleta Host header antes de proxiar (evita 404)
+- [ ] AddDomain cria UMA entrada (sem companion)
+- [ ] Instruções DNS corretas para apex vs subdomínio
 
 ---
 
