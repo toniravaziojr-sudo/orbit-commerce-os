@@ -91,9 +91,18 @@ export function AddDomainDialog({ open, onOpenChange, onDomainAdded }: AddDomain
     return parts.length <= 2 ? 'apex' : 'subdomain';
   };
 
-  // Extrai o subdomínio do domínio completo
+  // Extrai o subdomínio do domínio completo (considerando TLDs de duas partes)
   const getSubdomainName = (d: string) => {
-    const parts = d.split('.');
+    const normalized = normalizeDomain(d, false);
+    const parts = normalized.split('.');
+    const twoPartTLDs = ['com.br', 'org.br', 'net.br', 'co.uk', 'com.au', 'co.nz'];
+    const lastTwoParts = parts.slice(-2).join('.');
+    
+    if (twoPartTLDs.includes(lastTwoParts)) {
+      // For two-part TLDs: respeiteohomem.com.br = apex (no sub), www.respeiteohomem.com.br = sub "www"
+      return parts.length > 3 ? parts[0] : '';
+    }
+    // For single-part TLDs: example.com = apex (no sub), www.example.com = sub "www"
     return parts.length > 2 ? parts[0] : '';
   };
 
