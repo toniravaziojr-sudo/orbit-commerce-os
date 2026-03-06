@@ -4,7 +4,21 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Copy, CheckCircle, Info, Globe, ShieldCheck, ArrowRight } from 'lucide-react';
 import { TenantDomain } from '@/hooks/useTenantDomains';
-import { getDomainType } from '@/lib/normalizeDomain';
+import { getDomainType, normalizeDomain } from '@/lib/normalizeDomain';
+
+/**
+ * Get domain type WITHOUT stripping www - for DNS purposes www IS a subdomain
+ */
+function getRawDomainType(domain: string): 'apex' | 'subdomain' {
+  const normalized = normalizeDomain(domain, false); // Do NOT remove www
+  const parts = normalized.split('.');
+  const twoPartTLDs = ['com.br', 'org.br', 'net.br', 'co.uk', 'com.au', 'co.nz'];
+  const lastTwoParts = parts.slice(-2).join('.');
+  if (twoPartTLDs.includes(lastTwoParts)) {
+    return parts.length <= 3 ? 'apex' : 'subdomain';
+  }
+  return parts.length <= 2 ? 'apex' : 'subdomain';
+}
 import { toast } from 'sonner';
 import { useState } from 'react';
 
