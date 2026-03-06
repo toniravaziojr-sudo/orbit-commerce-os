@@ -7,7 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Info, Copy, CheckCircle, ArrowRight, ShieldCheck, Globe } from 'lucide-react';
 import { useTenantDomains, TenantDomain, DEFAULT_TARGET_HOSTNAME } from '@/hooks/useTenantDomains';
-import { validateDomainFormat, getDomainType } from '@/lib/normalizeDomain';
+import { validateDomainFormat, getDomainType, normalizeDomain } from '@/lib/normalizeDomain';
 import { toast } from 'sonner';
 
 interface AddDomainDialogProps {
