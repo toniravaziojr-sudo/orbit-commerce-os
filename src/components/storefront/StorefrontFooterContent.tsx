@@ -177,8 +177,8 @@ export function StorefrontFooterContent({
 
   const categories: Category[] = bootstrapCategories || dbCategories || [];
 
-  // Fetch footer menus (footer_1 and footer_2)
-  const { data: footerMenus } = useQuery({
+  // Fetch footer menus — ONLY when bootstrap not provided
+  const { data: dbFooterMenus } = useQuery({
     queryKey: ['footer-menus', tenantSlug],
     queryFn: async () => {
       if (!tenantSlug) return { footer1: null, footer2: null };
@@ -190,7 +190,6 @@ export function StorefrontFooterContent({
       
       if (!tenant) return { footer1: null, footer2: null };
       
-      // Fetch all footer menus
       const { data: menus } = await supabase
         .from('menus')
         .select('id, name, location')
@@ -199,11 +198,9 @@ export function StorefrontFooterContent({
       
       if (!menus || menus.length === 0) return { footer1: null, footer2: null };
       
-      // Find footer_1 (or legacy 'footer') and footer_2
       const footer1Menu = menus.find(m => m.location === 'footer_1' || m.location === 'footer');
       const footer2Menu = menus.find(m => m.location === 'footer_2');
       
-      // Fetch items for each menu
       const fetchItems = async (menuId: string | undefined) => {
         if (!menuId) return [];
         const { data: items } = await supabase
@@ -224,12 +221,14 @@ export function StorefrontFooterContent({
         footer2: footer2Menu ? { name: footer2Menu.name, items: footer2Items } : null,
       };
     },
-    enabled: !!tenantSlug,
+    enabled: !!tenantSlug && shouldQueryDb,
     staleTime: 1000 * 60 * 5,
   });
 
-  // Fetch pages for resolving page menu item URLs
-  const { data: pagesData } = useQuery({
+  const footerMenus: FooterMenuData = bootstrapFooterMenus || dbFooterMenus || { footer1: null, footer2: null };
+
+  // Fetch pages — ONLY when bootstrap not provided
+  const { data: dbPagesData } = useQuery({
     queryKey: ['storefront-pages-footer', tenantSlug],
     queryFn: async () => {
       if (!tenantSlug) return [];
@@ -249,9 +248,11 @@ export function StorefrontFooterContent({
       
       return data || [];
     },
-    enabled: !!tenantSlug,
+    enabled: !!tenantSlug && shouldQueryDb,
     staleTime: 1000 * 60 * 5,
   });
+
+  const pagesData = bootstrapPages || dbPagesData || [];
 
   const baseUrl = getStoreBaseUrl(tenantSlug);
   const footer1Items: MenuItem[] = footerMenus?.footer1?.items || [];
