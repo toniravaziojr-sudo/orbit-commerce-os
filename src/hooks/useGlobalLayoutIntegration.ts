@@ -779,12 +779,32 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
 /**
  * Hook for public storefront to get global layout by tenant slug.
  * PUBLIC reads from PUBLISHED columns (published_header_config, etc.)
+ * 
+ * OPTIMIZED: Accepts pre-fetched bootstrap data to avoid duplicate queries.
+ * When bootstrapData is provided, uses it directly instead of querying.
  */
-export function usePublicGlobalLayout(tenantSlug: string) {
+export function usePublicGlobalLayout(tenantSlug: string, bootstrapData?: any) {
   return useQuery({
     queryKey: ['public-global-layout', tenantSlug],
     queryFn: async () => {
-      // Get tenant ID from slug
+      // If bootstrap data is available, use it directly (no extra queries!)
+      if (bootstrapData) {
+        const gl = bootstrapData;
+        return {
+          header_config: (gl.header_config as unknown as BlockNode) || defaultHeaderConfig,
+          footer_config: (gl.footer_config as unknown as BlockNode) || defaultFooterConfig,
+          checkout_header_config: (gl.checkout_header_config as unknown as BlockNode) || defaultCheckoutHeaderConfig,
+          checkout_footer_config: (gl.checkout_footer_config as unknown as BlockNode) || defaultCheckoutFooterConfig,
+          header_enabled: gl.header_enabled ?? true,
+          footer_enabled: gl.footer_enabled ?? true,
+          show_footer_1: gl.show_footer_1 ?? true,
+          show_footer_2: gl.show_footer_2 ?? true,
+          isDefault: false,
+          needsMigration: false,
+        } as GlobalLayoutData;
+      }
+
+      // Fallback: fetch from DB (for pages that don't use bootstrap)
       const { data: tenant, error: tenantError } = await supabase
         .from('tenants')
         .select('id')
@@ -843,5 +863,7 @@ export function usePublicGlobalLayout(tenantSlug: string) {
     },
     enabled: !!tenantSlug,
     staleTime: 1000 * 60 * 5, // 5 minutes
+    // If bootstrap data provided, this is instant (no network call)
+    ...(bootstrapData ? { initialData: undefined } : {}),
   });
 }
