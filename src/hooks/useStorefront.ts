@@ -48,7 +48,7 @@ export interface StoreSettings {
 }
 
 // Helper to parse social_custom from Json
-function parseSocialCustom(data: Json | null): Array<{ label: string; url: string; icon?: string }> | null {
+export function parseSocialCustom(data: Json | null): Array<{ label: string; url: string; icon?: string }> | null {
   if (!data || !Array.isArray(data)) return null;
   return data.map((item) => {
     if (typeof item === 'object' && item !== null && !Array.isArray(item)) {

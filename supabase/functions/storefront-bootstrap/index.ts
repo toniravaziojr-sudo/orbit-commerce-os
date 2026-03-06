@@ -1,13 +1,14 @@
 // ============================================
 // STOREFRONT BOOTSTRAP - Single-request storefront data loader
-// v3.0.0: Added store_pages + footer_2 menu to eliminate client-side duplicate queries
+// v4.0.0: Accepts hostname for unified resolve+bootstrap (eliminates 1 roundtrip)
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { resolveTenantFromHostname } from '../_shared/resolveTenant.ts';
 
 // ===== VERSION =====
-const VERSION = "v3.0.0"; // Added store_pages (Q9) + footer_2 menu (Q10)
+const VERSION = "v4.0.0"; // Unified resolve-domain + bootstrap
 // ====================
 
 const corsHeaders = {
@@ -28,27 +29,60 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    let body: { tenant_slug?: string; tenant_id?: string; include_products?: boolean } = {};
+    let body: { 
+      tenant_slug?: string; 
+      tenant_id?: string; 
+      hostname?: string;
+      include_products?: boolean;
+    } = {};
     try {
       body = await req.json();
     } catch {
       // defaults
     }
 
-    const { tenant_slug, tenant_id: directTenantId, include_products = false } = body;
+    const { tenant_slug, tenant_id: directTenantId, hostname, include_products = false } = body;
 
-    if (!tenant_slug && !directTenantId) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'tenant_slug ou tenant_id obrigatório' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // 1. Resolve tenant
+    // === STEP 1: Resolve tenant ===
     let tenantId = directTenantId;
     let tenant: any = null;
+    let resolvedDomain: any = null;
 
-    if (tenant_slug && !tenantId) {
+    if (hostname && !tenant_slug && !directTenantId) {
+      // NEW: Resolve from hostname (unified flow — eliminates resolve-domain call)
+      const resolveResult = await resolveTenantFromHostname(supabase, hostname);
+      
+      if (!resolveResult.found) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Tenant não encontrado para este domínio',
+            resolve_error: resolveResult.error || null,
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      tenantId = resolveResult.tenant_id;
+      resolvedDomain = {
+        tenant_slug: resolveResult.tenant_slug,
+        tenant_id: resolveResult.tenant_id,
+        domain_type: resolveResult.domain_type,
+        canonical_origin: resolveResult.canonical_origin,
+        primary_public_host: resolveResult.primary_public_host,
+        is_primary: resolveResult.is_primary,
+        has_custom_primary: resolveResult.has_custom_primary,
+      };
+
+      // Fetch full tenant data
+      const { data } = await supabase
+        .from('tenants')
+        .select('id, name, slug, logo_url')
+        .eq('id', tenantId)
+        .maybeSingle();
+      tenant = data;
+
+    } else if (tenant_slug && !tenantId) {
       const { data, error } = await supabase
         .from('tenants')
         .select('id, name, slug, logo_url')
@@ -79,7 +113,7 @@ serve(async (req) => {
       );
     }
 
-    // 2. Run ALL queries in parallel via Promise.allSettled
+    // === STEP 2: Run ALL queries in parallel ===
     const parallelStart = Date.now();
 
     const queries: Promise<any>[] = [
@@ -114,7 +148,7 @@ serve(async (req) => {
         .eq('is_active', true)
         .order('sort_order'),
       
-      // Q5: Published template set (includes published_content for all pages)
+      // Q5: Published template set
       supabase
         .from('storefront_template_sets')
         .select('id, published_content, is_published, base_preset')
@@ -122,32 +156,34 @@ serve(async (req) => {
         .eq('is_published', true)
         .maybeSingle(),
       
-      // Q6: Custom domain (primary)
-      supabase
-        .from('tenant_domains')
-        .select('domain')
-        .eq('tenant_id', tenantId)
-        .eq('type', 'custom')
-        .eq('is_primary', true)
-        .eq('status', 'verified')
-        .eq('ssl_status', 'active')
-        .maybeSingle(),
+      // Q6: Custom domain (primary) — skip if already resolved from hostname
+      resolvedDomain
+        ? Promise.resolve({ data: resolvedDomain.has_custom_primary ? { domain: resolvedDomain.primary_public_host } : null, error: null })
+        : supabase
+            .from('tenant_domains')
+            .select('domain')
+            .eq('tenant_id', tenantId)
+            .eq('type', 'custom')
+            .eq('is_primary', true)
+            .eq('status', 'verified')
+            .eq('ssl_status', 'active')
+            .maybeSingle(),
       
-      // Q7: Global layout (published configs for header/footer)
+      // Q7: Global layout
       supabase
         .from('storefront_global_layout')
         .select('published_header_config, published_footer_config, published_checkout_header_config, published_checkout_footer_config, header_config, footer_config, checkout_header_config, checkout_footer_config, header_enabled, footer_enabled, show_footer_1, show_footer_2')
         .eq('tenant_id', tenantId)
         .maybeSingle(),
       
-      // Q8: Page overrides for category page
+      // Q8: Page overrides
       supabase
         .from('storefront_page_templates')
         .select('page_type, page_overrides')
         .eq('tenant_id', tenantId)
         .in('page_type', ['category', 'product', 'cart', 'checkout', 'home']),
 
-      // Q9: Published store pages (for Header/Footer menu link resolution)
+      // Q9: Published store pages
       supabase
         .from('store_pages')
         .select('id, slug, type')
@@ -163,7 +199,7 @@ serve(async (req) => {
         .maybeSingle(),
     ];
 
-    // Optional: Include products (for home page initial render)
+    // Optional: Include products
     if (include_products) {
       queries.push(
         supabase
@@ -216,7 +252,7 @@ serve(async (req) => {
       };
     };
 
-    // Format global layout - use PUBLISHED columns with fallback to legacy
+    // Format global layout
     const globalLayout = globalLayoutRaw ? {
       header_config: globalLayoutRaw.published_header_config || globalLayoutRaw.header_config || null,
       footer_config: globalLayoutRaw.published_footer_config || globalLayoutRaw.footer_config || null,
@@ -228,7 +264,7 @@ serve(async (req) => {
       show_footer_2: globalLayoutRaw.show_footer_2 ?? true,
     } : null;
 
-    // Format page overrides as a map { home: {...}, category: {...}, ... }
+    // Format page overrides
     const pageOverrides: Record<string, any> = {};
     if (Array.isArray(pageOverridesRaw)) {
       for (const row of pageOverridesRaw) {
@@ -238,7 +274,7 @@ serve(async (req) => {
       }
     }
 
-    // Extract categorySettings from template published_content
+    // Extract categorySettings from template
     let categorySettings = null;
     if (templateSet?.published_content) {
       const content = templateSet.published_content as Record<string, any>;
@@ -262,6 +298,8 @@ serve(async (req) => {
       page_overrides: pageOverrides,
       category_settings: categorySettings,
       pages: storePages || [],
+      // Include resolved domain info when hostname was used
+      ...(resolvedDomain ? { resolved_domain: resolvedDomain } : {}),
       ...(include_products ? { products: products || [] } : {}),
       _meta: {
         query_count: results.length,

@@ -1,30 +1,23 @@
 // =============================================
 // TENANT STOREFRONT LAYOUT
-// Wrapper for storefront when accessed via custom domain or platform subdomain
-// Resolves tenant from hostname instead of URL param
+// v2.0.0: Unified resolve-domain + bootstrap in single Edge Function call
+// Resolves tenant from hostname via storefront-bootstrap directly
 // POLICY: "Domínio muda, tudo muda" - SEM REDIRECTS
-// OPTIMIZED: Uses bootstrap data for custom_domain (no separate useTenantCanonicalDomain query)
 // =============================================
 
-import { createContext, useContext, Suspense, lazy } from 'react';
+import { createContext, useContext, Suspense, lazy, useMemo } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { CartProvider } from '@/contexts/CartContext';
 import { DiscountProvider } from '@/contexts/DiscountContext';
 import { StorefrontConfigProvider } from '@/contexts/StorefrontConfigContext';
 import { MarketingTrackerProvider } from '@/components/storefront/MarketingTrackerProvider';
-import { usePublicStorefront } from '@/hooks/useStorefront';
 import { StorefrontHead } from '@/components/storefront/StorefrontHead';
 import { LcpPreloader } from '@/components/storefront/LcpPreloader';
 import { StorefrontThemeInjector } from '@/components/storefront/StorefrontThemeInjector';
-import { 
-  isPlatformSubdomain, 
-  extractTenantFromPlatformSubdomain,
-  isAppDomain,
-  SAAS_CONFIG,
-} from '@/lib/canonicalDomainService';
-import { supabase } from '@/integrations/supabase/client';
-import { useQuery } from '@tanstack/react-query';
+import { isAppDomain } from '@/lib/canonicalDomainService';
+import { useStorefrontBootstrapByHostname } from '@/hooks/useStorefrontBootstrap';
+import { parseSocialCustom } from '@/hooks/useStorefront';
 
 // Context to provide tenantSlug to child components when not in URL
 export const TenantSlugContext = createContext<string>('');
@@ -33,102 +26,35 @@ export function useTenantSlugFromContext(): string {
   return useContext(TenantSlugContext);
 }
 
-interface ResolveResult {
-  tenant: { id: string; slug: string };
-  primaryPublicHost: string;
-  canonicalOrigin: string;
-  shouldRedirect: boolean;
-}
-
-/**
- * Resolve tenant from current hostname and determine if redirect is needed
- */
-function useTenantFromHostname(): { data: ResolveResult | null; isLoading: boolean; error: Error | null } {
-  const hostname = typeof window !== 'undefined' 
-    ? window.location.hostname.toLowerCase().replace(/^www\./, '') 
-    : '';
-  
-  return useQuery({
-    queryKey: ['resolve-tenant-hostname', hostname],
-    queryFn: async (): Promise<ResolveResult | null> => {
-      if (!hostname) return null;
-      
-      if (isAppDomain(hostname)) return null;
-      
-      const fallbackHost = new URL(SAAS_CONFIG.fallbackOrigin).hostname;
-      if (hostname === fallbackHost) return null;
-      
-      // Call resolve-domain edge function
-      const { data: resolveData, error: resolveError } = await supabase.functions.invoke('resolve-domain', {
-        body: { hostname },
-      });
-      
-      if (resolveError || !resolveData?.found) {
-        // Fallback: direct DB lookup for platform subdomain
-        if (isPlatformSubdomain(hostname)) {
-          const slug = extractTenantFromPlatformSubdomain(hostname);
-          if (slug) {
-            const { data: tenant } = await supabase
-              .from('tenants')
-              .select('id, slug')
-              .eq('slug', slug)
-              .single();
-            
-            if (tenant) {
-              return {
-                tenant,
-                primaryPublicHost: hostname,
-                canonicalOrigin: `https://${hostname}`,
-                shouldRedirect: false,
-              };
-            }
-          }
-        }
-        return null;
-      }
-      
-      const tenant = {
-        id: resolveData.tenant_id,
-        slug: resolveData.tenant_slug,
-      };
-      
-      const primaryHost = resolveData.primary_public_host || hostname;
-      const shouldRedirect = hostname !== primaryHost;
-      
-      return {
-        tenant,
-        primaryPublicHost: primaryHost,
-        canonicalOrigin: resolveData.canonical_origin || `https://${primaryHost}`,
-        shouldRedirect,
-      };
-    },
-    staleTime: 1000 * 60 * 2,
-    enabled: !!hostname && !isAppDomain(hostname),
-  });
-}
-
 export function TenantStorefrontLayout() {
-  const { data: resolveResult, isLoading: isTenantLoading, error } = useTenantFromHostname();
-  
-  const tenant = resolveResult?.tenant || null;
+  // Get hostname once
+  const hostname = useMemo(() => {
+    if (typeof window === 'undefined') return undefined;
+    const h = window.location.hostname.toLowerCase().replace(/^www\./, '');
+    if (isAppDomain(h)) return undefined;
+    return h;
+  }, []);
+
+  // Single call: resolves domain + fetches all bootstrap data
+  const { data: bootstrap, isLoading, error } = useStorefrontBootstrapByHostname(hostname, {
+    includeProducts: true,
+  });
+
+  const tenant = bootstrap?.tenant || null;
   const tenantSlug = tenant?.slug || '';
-  
-  // Single bootstrap call — provides ALL data including custom_domain
-  const { 
-    tenant: storefrontTenant, 
-    storeSettings, 
-    isLoading: isStoreLoading, 
-    isPublished,
-    customDomain,
-    template: bootstrapTemplate,
-  } = usePublicStorefront(tenantSlug);
+  const storeSettings = bootstrap?.store_settings
+    ? { ...bootstrap.store_settings, social_custom: parseSocialCustom(bootstrap.store_settings.social_custom) }
+    : null;
+  const customDomain = bootstrap?.custom_domain || null;
+  const isPublished = bootstrap?.is_published ?? false;
+  const bootstrapTemplate = bootstrap?.template || null;
 
   // Check for preview mode
   const searchParams = new URLSearchParams(window.location.search);
   const isPreview = searchParams.get('preview') === '1';
 
-  // Show loading while resolving tenant
-  if (isTenantLoading || isStoreLoading) {
+  // Show loading while resolving
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
