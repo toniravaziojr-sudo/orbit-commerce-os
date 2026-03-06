@@ -385,6 +385,9 @@ export function AddDomainDialog({ open, onOpenChange }: AddDomainDialogProps) {
                           <p className="text-xs text-muted-foreground mt-1">
                             No Cloudflare, use CNAME Flattening. Proxy: <strong>DNS-only (nuvem cinza)</strong>.
                           </p>
+                          <p className="text-xs text-destructive font-medium mt-1">
+                            ⚠️ Se já existir um registro A, AAAA ou CNAME para <code>@</code>, <strong>delete-o primeiro</strong> antes de criar este CNAME. O Cloudflare não permite dois registros do mesmo tipo para o mesmo host.
+                          </p>
                         </div>
 
                         {/* WWW CNAME */}
