@@ -29,6 +29,7 @@ import {
 export interface ShippingQuote {
   code?: string;
   price: number;
+  originalPrice?: number; // Price before free shipping override
   deliveryDays: number;
   label: string;
   carrier?: string;
@@ -382,9 +383,11 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
               service_name?: string;
               label?: string; 
               carrier?: string; 
-              price: unknown; 
+              price: unknown;
+              original_price?: unknown;
               estimated_days?: unknown;
               deliveryDays?: unknown;
+              is_free?: boolean;
             }) => {
               // Safe conversion - handle string/number/undefined
               const safePrice = typeof opt.price === 'number' 
@@ -394,15 +397,22 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
               const safeDays = typeof rawDays === 'number' 
                 ? rawDays 
                 : parseInt(String(rawDays), 10) || 5;
+              const safeOriginalPrice = opt.original_price != null
+                ? (typeof opt.original_price === 'number' ? opt.original_price : parseFloat(String(opt.original_price)) || 0)
+                : undefined;
+              
+              // is_free from API takes precedence, then check isFreeShipping threshold
+              const optionIsFree = opt.is_free === true || isFreeShipping;
               
               return {
                 code: opt.service_code || opt.code,
                 label: opt.service_name || opt.label || 'Frete',
                 carrier: opt.carrier,
-                sourceProvider: opt.source_provider, // Track where quote came from
-                price: isFreeShipping ? 0 : safePrice,
+                sourceProvider: opt.source_provider,
+                price: optionIsFree ? 0 : safePrice,
+                originalPrice: safeOriginalPrice,
                 deliveryDays: safeDays,
-                isFree: isFreeShipping,
+                isFree: optionIsFree,
               };
             });
           }

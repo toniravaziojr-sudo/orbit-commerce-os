@@ -13109,6 +13109,7 @@ export type Database = {
           description: string | null
           external_reference: string | null
           free_shipping: boolean
+          free_shipping_method: string | null
           gtin: string | null
           has_variants: boolean | null
           height: number | null
@@ -13161,6 +13162,7 @@ export type Database = {
           description?: string | null
           external_reference?: string | null
           free_shipping?: boolean
+          free_shipping_method?: string | null
           gtin?: string | null
           has_variants?: boolean | null
           height?: number | null
@@ -13213,6 +13215,7 @@ export type Database = {
           description?: string | null
           external_reference?: string | null
           free_shipping?: boolean
+          free_shipping_method?: string | null
           gtin?: string | null
           has_variants?: boolean | null
           height?: number | null
@@ -14547,6 +14550,7 @@ export type Database = {
           created_at: string
           custom_css: string | null
           custom_scripts: string | null
+          default_free_shipping_method: string | null
           facebook_pixel_id: string | null
           favicon_file_id: string | null
           favicon_files: Json | null
@@ -14593,6 +14597,7 @@ export type Database = {
           created_at?: string
           custom_css?: string | null
           custom_scripts?: string | null
+          default_free_shipping_method?: string | null
           facebook_pixel_id?: string | null
           favicon_file_id?: string | null
           favicon_files?: Json | null
@@ -14639,6 +14644,7 @@ export type Database = {
           created_at?: string
           custom_css?: string | null
           custom_scripts?: string | null
+          default_free_shipping_method?: string | null
           facebook_pixel_id?: string | null
           favicon_file_id?: string | null
           favicon_files?: Json | null

@@ -17,6 +17,7 @@ export interface ShippingOption {
   carrier?: string;        // Carrier name (e.g., "Correios", "Jadlog")
   sourceProvider?: string; // Source of quote: frenet, correios, loggi
   price: number;
+  originalPrice?: number;  // Price before free shipping override
   deliveryDays: number;
   label: string;
   isFree: boolean;

@@ -98,6 +98,7 @@ const productSchema = z.object({
   tags: z.array(z.string()).nullable().optional(),
   requires_shipping: z.boolean().nullable().optional(),
   free_shipping: z.boolean().optional(),
+  free_shipping_method: z.string().nullable().optional(),
   taxable: z.boolean().nullable().optional(),
   tax_code: z.string().max(50).nullable().optional(),
   cest: z.string().max(20).nullable().optional()
@@ -287,6 +288,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       tags: product?.tags ?? [],
       requires_shipping: product?.requires_shipping ?? true,
       free_shipping: (product as any)?.free_shipping ?? false,
+      free_shipping_method: (product as any)?.free_shipping_method ?? null,
       taxable: product?.taxable ?? true,
       tax_code: product?.tax_code ?? '',
       cest: product?.cest ?? '',
@@ -565,6 +567,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           warranty_type: data.warranty_type || null,
           warranty_duration: data.warranty_duration || null,
           free_shipping: data.free_shipping ?? false,
+          free_shipping_method: data.free_shipping ? (data.free_shipping_method || null) : null,
         });
 
         // Save pending data using the new product ID
@@ -1618,6 +1621,37 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                         </FormItem>
                       )}
                     />
+
+                    {form.watch('free_shipping') && (
+                      <FormField
+                        control={form.control}
+                        name="free_shipping_method"
+                        render={({ field }) => (
+                          <FormItem className="ml-4 pl-4 border-l-2 border-green-200 dark:border-green-900">
+                            <FormLabel>Método de envio gratuito</FormLabel>
+                            <Select
+                              value={field.value || 'default'}
+                              onValueChange={(val) => field.onChange(val === 'default' ? null : val)}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Usar padrão da logística" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="default">Usar padrão da logística</SelectItem>
+                                <SelectItem value="PAC">PAC (Correios)</SelectItem>
+                                <SelectItem value="SEDEX">SEDEX (Correios)</SelectItem>
+                                <SelectItem value="Mini Envios">Mini Envios (Correios)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormDescription>
+                              Escolha qual método será gratuito. Os demais continuam com preço normal.
+                            </FormDescription>
+                          </FormItem>
+                        )}
+                      />
+                    )}
 
                     <FormField
                       control={form.control}
