@@ -515,14 +515,17 @@ Se o provedor não suporta, o sistema orienta o usuário a:
 
 ### Redirect da outra versão (www↔apex)
 
-O sistema **não gerencia** o redirect entre www e apex. Isso é responsabilidade do usuário, configurado no gerenciador de DNS. As instruções orientam como fazer isso em Cloudflare (Page Rules / Redirect Rules).
+O sistema **não gerencia** o redirect entre www e apex. Isso é responsabilidade do usuário, configurado no Cloudflare (Redirect Rules). A UI agora exibe instruções detalhadas incluindo:
+- Registro A dummy (`192.0.2.1`) com proxy ativado para apex
+- Registro CNAME com proxy ativado para www
+- Configuração de Redirect Rule com expressão dinâmica
 
 ### UI: Avisos no AddDomainDialog
 
 O componente `AddDomainDialog` exibe:
 - Aviso âmbar para domínio raiz (sobre CNAME Flattening)
-- Dica azul sobre redirect da outra versão
-- Aviso laranja para usuários Cloudflare sobre proxy desativado
+- Instruções detalhadas de redirect (registro A/CNAME + Redirect Rule) contextuais ao tipo de domínio
+- Aviso laranja para usuários Cloudflare sobre proxy desativado no CNAME servido
 
 ### Regras
 
@@ -531,8 +534,9 @@ O componente `AddDomainDialog` exibe:
 | **Um domínio = uma entrada** | Sistema cria exatamente um registro por domínio cadastrado |
 | **Sem companion automático** | Não criar apex+www juntos automaticamente |
 | **CNAME para todos** | Instrução é sempre CNAME, com aviso sobre apex |
-| **Redirect é externo** | Redirect www↔apex é responsabilidade do usuário no DNS |
-| **Instrução de proxy** | Para Cloudflare: DNS-only (nuvem cinza) no CNAME |
+| **Redirect é externo** | Redirect www↔apex é responsabilidade do usuário no Cloudflare |
+| **Instrução de proxy** | CNAME servido: DNS-only (cinza). Registro de redirect: proxy ativado (laranja) |
+| **Registro A dummy** | Para redirect de apex: `A @ → 192.0.2.1` com proxy (RFC 5737) |
 
 ---
 
