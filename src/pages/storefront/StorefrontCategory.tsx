@@ -78,9 +78,20 @@ export default function StorefrontCategory() {
   const templateIsLoading = isPreviewMode ? previewTemplate.isLoading : false;
   const templateError = isPreviewMode ? previewTemplate.error : null;
 
-  // Show loading state while any data is still loading
-  const isAnyLoading = categoryLoading || templateIsLoading || storeLoading;
-  
+  // Check preview access
+  const canPreview = isPreviewMode 
+    ? ('canPreview' in previewTemplate ? Boolean(previewTemplate.canPreview) : true) 
+    : true;
+
+  // Redirect to public URL if preview mode is requested but user can't access preview
+  useEffect(() => {
+    if (isPreviewMode && !canPreview && !previewTemplate.isLoading) {
+      const basePath = getStoreBaseUrl(tenantSlug || '');
+      const cleanPath = `${basePath}/c/${categorySlug}${getCleanQueryString(searchParams)}`;
+      navigate(cleanPath, { replace: true });
+    }
+  }, [isPreviewMode, canPreview, previewTemplate.isLoading, tenantSlug, categorySlug, searchParams, navigate]);
+
   // If category not found and not loading - show 404, never redirect to home
   if (!category && !isAnyLoading) {
     return (
