@@ -335,6 +335,26 @@ serve(async (req) => {
       }
     }
 
+    // If charge failed, return error with details
+    if (charge?.status === 'failed') {
+      const lastTx = charge.last_transaction;
+      const failureReason = lastTx?.acquirer_message || lastTx?.reason || 
+        lastTx?.gateway_response?.errors?.map((e: any) => e.message).join(', ') || 
+        'Pagamento recusado pela operadora';
+
+      return new Response(JSON.stringify({
+        success: false,
+        error: failureReason,
+        status: 'failed',
+        transaction_id: transaction?.id,
+        provider_id: pagarmeResponse.id,
+        payment_data: transactionData.payment_data,
+      }), {
+        status: 200, // HTTP 200 but success:false (follows edge-functions.md pattern)
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     return new Response(JSON.stringify({
       success: true,
       transaction_id: transaction?.id,
