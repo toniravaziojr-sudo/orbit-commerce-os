@@ -56,6 +56,11 @@ interface StoreSettingsData {
   contact_support_hours: string | null;
 }
 
+interface FooterMenuData {
+  footer1: { name: string; items: MenuItem[] } | null;
+  footer2: { name: string; items: MenuItem[] } | null;
+}
+
 interface StorefrontFooterContentProps {
   tenantSlug: string;
   /** Footer config from global layout - has PRIORITY over store_settings */
@@ -65,16 +70,25 @@ interface StorefrontFooterContentProps {
   showFooter1Override?: boolean;
   /** Visibility override for footer menu 2 (passed from PublicTemplateRenderer) */
   showFooter2Override?: boolean;
+  /** Bootstrap data: skip store_settings query when provided */
+  bootstrapStoreSettings?: StoreSettingsData | null;
+  /** Bootstrap data: skip categories query when provided */
+  bootstrapCategories?: Category[];
+  /** Bootstrap data: skip footer menus query when provided */
+  bootstrapFooterMenus?: FooterMenuData;
+  /** Bootstrap data: skip pages query when provided */
+  bootstrapPages?: Array<{ id: string; slug: string; type: string }>;
+  /** Bootstrap data: tenant ID to skip tenant lookup for newsletter */
+  bootstrapTenantId?: string;
 }
 
 /**
  * StorefrontFooterContent - Single source of truth for footer rendering
  * 
  * Data priority:
- * 1. footerConfig (from storefront_global_layout) - when defined
- * 2. store_settings - fallback for all fields
- * 
- * If footer is disabled (toggle OFF), parent should not render this component.
+ * 1. Bootstrap props (from storefront-bootstrap edge function) - when provided
+ * 2. footerConfig (from storefront_global_layout) - for display config
+ * 3. Direct DB queries - fallback only when bootstrap not available (e.g. isEditing)
  */
 export function StorefrontFooterContent({ 
   tenantSlug, 
@@ -82,7 +96,14 @@ export function StorefrontFooterContent({
   isEditing = false,
   showFooter1Override,
   showFooter2Override,
+  bootstrapStoreSettings,
+  bootstrapCategories,
+  bootstrapFooterMenus,
+  bootstrapPages,
+  bootstrapTenantId,
 }: StorefrontFooterContentProps) {
+  // Use bootstrap data when available; only query DB as fallback (editing mode or no bootstrap)
+  const shouldQueryDb = !bootstrapStoreSettings && !bootstrapCategories;
   // Fetch store settings as fallback data source
   const { data: storeSettings } = useQuery({
     queryKey: ['store-settings-footer', tenantSlug],
