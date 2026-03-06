@@ -20,7 +20,7 @@ export default function StorefrontThankYou() {
   const navigate = useNavigate();
   const isPreviewMode = searchParams.get('preview') === '1';
 
-  const { storeSettings, headerMenu, footerMenu, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
+  const { storeSettings, headerMenu, footerMenu, isLoading: storeLoading, globalLayout: bootstrapGlobalLayout, pageOverrides: bootstrapPageOverrides } = usePublicStorefront(tenantSlug || '');
   
   // Use preview hook if in preview mode, otherwise use public hook
   const publicTemplate = usePublicTemplate(tenantSlug || '', 'thank_you');
@@ -85,6 +85,8 @@ export default function StorefrontThankYou() {
       error={template.error}
       isPreviewMode={isPreviewMode}
       canPreview={canPreview}
+      bootstrapGlobalLayout={isPreviewMode ? undefined : bootstrapGlobalLayout}
+      bootstrapPageOverrides={isPreviewMode ? undefined : bootstrapPageOverrides}
     />
   );
 }

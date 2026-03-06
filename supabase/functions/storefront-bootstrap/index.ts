@@ -1,13 +1,13 @@
 // ============================================
 // STOREFRONT BOOTSTRAP - Single-request storefront data loader
-// v1.0.0: Bundles tenant, settings, menus, categories, and template in one call
+// v3.0.0: Added store_pages + footer_2 menu to eliminate client-side duplicate queries
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v2.0.0"; // Added global_layout + page_overrides to eliminate waterfall queries
+const VERSION = "v3.0.0"; // Added store_pages (Q9) + footer_2 menu (Q10)
 // ====================
 
 const corsHeaders = {
@@ -146,6 +146,21 @@ serve(async (req) => {
         .select('page_type, page_overrides')
         .eq('tenant_id', tenantId)
         .in('page_type', ['category', 'product', 'cart', 'checkout', 'home']),
+
+      // Q9: Published store pages (for Header/Footer menu link resolution)
+      supabase
+        .from('store_pages')
+        .select('id, slug, type')
+        .eq('tenant_id', tenantId)
+        .eq('is_published', true),
+
+      // Q10: Footer 2 menu + items
+      supabase
+        .from('menus')
+        .select('*, menu_items(*)')
+        .eq('tenant_id', tenantId)
+        .eq('location', 'footer_2')
+        .maybeSingle(),
     ];
 
     // Optional: Include products (for home page initial render)
@@ -187,7 +202,9 @@ serve(async (req) => {
     const customDomainRow = getResult(5);
     const globalLayoutRaw = getResult(6);
     const pageOverridesRaw = getResult(7);
-    const products = include_products ? getResult(8) : undefined;
+    const storePages = getResult(8);
+    const footer2MenuRaw = getResult(9);
+    const products = include_products ? getResult(10) : undefined;
 
     // Format menus
     const formatMenu = (raw: any) => {
@@ -236,6 +253,7 @@ serve(async (req) => {
       store_settings: storeSettings,
       header_menu: formatMenu(headerMenuRaw),
       footer_menu: formatMenu(footerMenuRaw),
+      footer_2_menu: formatMenu(footer2MenuRaw),
       categories: categories || [],
       template: templateSet,
       custom_domain: customDomainRow?.domain || null,
@@ -243,6 +261,7 @@ serve(async (req) => {
       global_layout: globalLayout,
       page_overrides: pageOverrides,
       category_settings: categorySettings,
+      pages: storePages || [],
       ...(include_products ? { products: products || [] } : {}),
       _meta: {
         query_count: results.length,

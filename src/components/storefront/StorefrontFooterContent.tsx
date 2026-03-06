@@ -56,6 +56,11 @@ interface StoreSettingsData {
   contact_support_hours: string | null;
 }
 
+interface FooterMenuData {
+  footer1: { name: string; items: MenuItem[] } | null;
+  footer2: { name: string; items: MenuItem[] } | null;
+}
+
 interface StorefrontFooterContentProps {
   tenantSlug: string;
   /** Footer config from global layout - has PRIORITY over store_settings */
@@ -65,16 +70,25 @@ interface StorefrontFooterContentProps {
   showFooter1Override?: boolean;
   /** Visibility override for footer menu 2 (passed from PublicTemplateRenderer) */
   showFooter2Override?: boolean;
+  /** Bootstrap data: skip store_settings query when provided */
+  bootstrapStoreSettings?: StoreSettingsData | Record<string, any> | null;
+  /** Bootstrap data: skip categories query when provided */
+  bootstrapCategories?: Category[];
+  /** Bootstrap data: skip footer menus query when provided */
+  bootstrapFooterMenus?: FooterMenuData;
+  /** Bootstrap data: skip pages query when provided */
+  bootstrapPages?: Array<{ id: string; slug: string; type: string }>;
+  /** Bootstrap data: tenant ID to skip tenant lookup for newsletter */
+  bootstrapTenantId?: string;
 }
 
 /**
  * StorefrontFooterContent - Single source of truth for footer rendering
  * 
  * Data priority:
- * 1. footerConfig (from storefront_global_layout) - when defined
- * 2. store_settings - fallback for all fields
- * 
- * If footer is disabled (toggle OFF), parent should not render this component.
+ * 1. Bootstrap props (from storefront-bootstrap edge function) - when provided
+ * 2. footerConfig (from storefront_global_layout) - for display config
+ * 3. Direct DB queries - fallback only when bootstrap not available (e.g. isEditing)
  */
 export function StorefrontFooterContent({ 
   tenantSlug, 
@@ -82,9 +96,16 @@ export function StorefrontFooterContent({
   isEditing = false,
   showFooter1Override,
   showFooter2Override,
+  bootstrapStoreSettings,
+  bootstrapCategories,
+  bootstrapFooterMenus,
+  bootstrapPages,
+  bootstrapTenantId,
 }: StorefrontFooterContentProps) {
-  // Fetch store settings as fallback data source
-  const { data: storeSettings } = useQuery({
+  // Use bootstrap data when available; only query DB as fallback (editing mode or no bootstrap)
+  const shouldQueryDb = !bootstrapStoreSettings && !bootstrapCategories;
+  // Fetch store settings — ONLY when bootstrap not provided
+  const { data: dbStoreSettings } = useQuery({
     queryKey: ['store-settings-footer', tenantSlug],
     queryFn: async () => {
       if (!tenantSlug) return null;
@@ -121,12 +142,15 @@ export function StorefrontFooterContent({
       
       return data as StoreSettingsData | null;
     },
-    enabled: !!tenantSlug,
+    enabled: !!tenantSlug && shouldQueryDb,
     staleTime: 1000 * 60 * 5,
   });
 
-  // Fetch categories for footer links
-  const { data: categories } = useQuery({
+  // Use bootstrap data with DB fallback
+  const storeSettings = (bootstrapStoreSettings || dbStoreSettings || null) as StoreSettingsData | null;
+
+  // Fetch categories — ONLY when bootstrap not provided
+  const { data: dbCategories } = useQuery({
     queryKey: ['categories-footer', tenantSlug],
     queryFn: async () => {
       if (!tenantSlug) return [];
@@ -147,12 +171,14 @@ export function StorefrontFooterContent({
       
       return data || [];
     },
-    enabled: !!tenantSlug,
+    enabled: !!tenantSlug && shouldQueryDb,
     staleTime: 1000 * 60 * 5,
   });
 
-  // Fetch footer menus (footer_1 and footer_2)
-  const { data: footerMenus } = useQuery({
+  const categories: Category[] = bootstrapCategories || dbCategories || [];
+
+  // Fetch footer menus — ONLY when bootstrap not provided
+  const { data: dbFooterMenus } = useQuery({
     queryKey: ['footer-menus', tenantSlug],
     queryFn: async () => {
       if (!tenantSlug) return { footer1: null, footer2: null };
@@ -164,7 +190,6 @@ export function StorefrontFooterContent({
       
       if (!tenant) return { footer1: null, footer2: null };
       
-      // Fetch all footer menus
       const { data: menus } = await supabase
         .from('menus')
         .select('id, name, location')
@@ -173,11 +198,9 @@ export function StorefrontFooterContent({
       
       if (!menus || menus.length === 0) return { footer1: null, footer2: null };
       
-      // Find footer_1 (or legacy 'footer') and footer_2
       const footer1Menu = menus.find(m => m.location === 'footer_1' || m.location === 'footer');
       const footer2Menu = menus.find(m => m.location === 'footer_2');
       
-      // Fetch items for each menu
       const fetchItems = async (menuId: string | undefined) => {
         if (!menuId) return [];
         const { data: items } = await supabase
@@ -198,12 +221,14 @@ export function StorefrontFooterContent({
         footer2: footer2Menu ? { name: footer2Menu.name, items: footer2Items } : null,
       };
     },
-    enabled: !!tenantSlug,
+    enabled: !!tenantSlug && shouldQueryDb,
     staleTime: 1000 * 60 * 5,
   });
 
-  // Fetch pages for resolving page menu item URLs
-  const { data: pagesData } = useQuery({
+  const footerMenus: FooterMenuData = bootstrapFooterMenus || dbFooterMenus || { footer1: null, footer2: null };
+
+  // Fetch pages — ONLY when bootstrap not provided
+  const { data: dbPagesData } = useQuery({
     queryKey: ['storefront-pages-footer', tenantSlug],
     queryFn: async () => {
       if (!tenantSlug) return [];
@@ -223,9 +248,11 @@ export function StorefrontFooterContent({
       
       return data || [];
     },
-    enabled: !!tenantSlug,
+    enabled: !!tenantSlug && shouldQueryDb,
     staleTime: 1000 * 60 * 5,
   });
+
+  const pagesData = bootstrapPages || dbPagesData || [];
 
   const baseUrl = getStoreBaseUrl(tenantSlug);
   const footer1Items: MenuItem[] = footerMenus?.footer1?.items || [];
@@ -479,7 +506,7 @@ export function StorefrontFooterContent({
   const newsletterSuccessMessage = getString('newsletterSuccessMessage', null, 'Inscrito com sucesso!') || 'Inscrito com sucesso!';
   const newsletterListId = getString('newsletterListId', null, '');
 
-  // Fetch tenant_id for newsletter form
+  // Fetch tenant_id for newsletter form — use bootstrap when available
   const { data: tenantData } = useQuery({
     queryKey: ['tenant-id-footer', tenantSlug],
     queryFn: async () => {
@@ -491,10 +518,10 @@ export function StorefrontFooterContent({
         .single();
       return tenant;
     },
-    enabled: !!tenantSlug && showNewsletter,
+    enabled: !!tenantSlug && showNewsletter && !bootstrapTenantId,
     staleTime: 1000 * 60 * 30,
   });
-  const tenantId = tenantData?.id;
+  const tenantId = bootstrapTenantId || tenantData?.id;
 
   // Footer custom styles
   const footerStyle: React.CSSProperties = {

@@ -20,7 +20,7 @@ import type { Json } from '@/integrations/supabase/types';
 
 export default function StorefrontBlogPost() {
   const { tenantSlug, postSlug } = useParams<{ tenantSlug?: string; postSlug: string }>();
-  const { storeSettings, headerMenu, footerMenu, categories, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
+  const { storeSettings, headerMenu, footerMenu, categories, isLoading: storeLoading, globalLayout: bootstrapGlobalLayout, pageOverrides: bootstrapPageOverrides } = usePublicStorefront(tenantSlug || '');
   const basePath = getStoreBaseUrl(tenantSlug || '');
 
   // Fetch blog post by slug
@@ -134,6 +134,8 @@ export default function StorefrontBlogPost() {
       <PublicTemplateRenderer
         content={post.content as unknown as BlockNode}
         context={context}
+        bootstrapGlobalLayout={bootstrapGlobalLayout}
+        bootstrapPageOverrides={bootstrapPageOverrides}
       />
     );
   }

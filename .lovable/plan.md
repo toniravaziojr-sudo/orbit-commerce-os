@@ -1,193 +1,106 @@
 
 
-# Plano Final de Otimizacao de Performance do Storefront v3.0
+# Diagnóstico Honesto: O que aconteceu e como resolver
 
-## Diagnostico Confirmado
+## O Problema Real (sem rodeios)
 
-Cascata atual para dominio customizado (ex: respeiteohomem.com.br):
+O Motor V5 foi construído com uma premissa que parece boa na teoria mas falha na prática:
+
+**A IA gera JSON estruturado que mapeia para componentes React genéricos do Builder.**
+
+O resultado é previsível: os componentes `TestimonialsBlock`, `PricingTableBlock`, `FAQBlock` etc. foram desenhados para **lojas e-commerce comuns** (com Tailwind utilitário básico, `py-8 container mx-auto px-4`). Eles **nunca** foram desenhados para páginas de vendas de alta conversão com visual premium.
+
+### O que aconteceu passo a passo:
+
+1. **Motor V4 funcionava** -- a IA gerava HTML/CSS livre, com total controle sobre layout, cores, tipografia, sombras, gradientes. O resultado era renderizado em iframe isolado. Tinha liberdade criativa total.
+
+2. **Problema de timeout** -- gerar HTML + imagens na mesma chamada estourava os 150s. Solução correta: separar em etapas.
+
+3. **Decisão errada** -- ao separar em etapas, mudamos **também** o formato de saída de HTML livre para JSON/blocos. Isso não era necessário para resolver o timeout. Misturamos dois problemas.
+
+4. **Resultado** -- a IA agora está presa a ~14 componentes genéricos com props fixas. Ela não pode controlar:
+   - Gradientes de fundo sofisticados
+   - Tipografia premium (Playfair Display, letter-spacing)
+   - Layouts assimétricos ou criativos
+   - Efeitos visuais (glass, blur, sombras profundas)
+   - Espaçamentos personalizados por seção
+   - Cores por seção (cada bloco herda o Tailwind padrão)
+
+5. **Os bugs (`.map is not a function`, dados como object)** são sintomas secundários -- a IA tenta encaixar conteúdo rico em props que não foram feitas para isso.
+
+### Resumo brutal:
+> O Motor V5 transforma um diretor criativo (IA com HTML livre) num operário de linha de montagem (IA preenchendo formulários de props). O resultado visual é inferior por design, não por bug.
+
+---
+
+## A Solução Correta
+
+O timeout era o único problema real. A solução é **manter HTML livre + resolver o timeout separadamente**:
+
+### Plano: Motor V5.4 (HTML Livre + Timeout Resolvido)
 
 ```text
-index.html ("Comando Central" + favicon plataforma = flickering)
-  → JS Bundle (~200KB gz)
-    → resolve-domain (Edge Function #1, ~300-500ms)
-      → storefront-bootstrap (Edge Function #2, ~400-800ms)
-        → Footer: 5 queries extras (tenant x4, settings, categories, menus footer_1+footer_2, pages)
-        → Header: 2 queries extras (pages, globalLayout)
-        → Paginas internas: globalLayout sem bootstrap
-          → RENDER FINAL (~5s)
+┌─────────────────────────────────────────────┐
+│  ETAPA 1: ai-landing-page-generate          │
+│  IA gera HTML/CSS COMPLETO (como V4)        │
+│  Usa imagens do catálogo (sem gerar novas)  │
+│  Tempo: ~30-60s (cabe nos 150s)             │
+│  Salva em: generated_html + generated_css   │
+└──────────────────┬──────────────────────────┘
+                   │
+┌──────────────────▼──────────────────────────┐
+│  ETAPA 2: ai-landing-page-enhance-images    │
+│  (já existe, mantém chunking por timeout)   │
+│  Gera imagens premium assíncronamente       │
+│  Substitui URLs no HTML salvo               │
+│  Tempo: ~30s por imagem, recursivo          │
+└─────────────────────────────────────────────┘
 ```
 
-Dados faltantes no bootstrap confirmados:
-- `store_pages` (id, slug, type) — Header e Footer buscam separadamente
-- `footer_2` menu + items — Bootstrap so traz footer/footer_1
-- Cada query do Footer faz lookup de tenant por slug (4 lookups redundantes)
+### O que muda concretamente:
+
+1. **Edge Function `ai-landing-page-generate`**: Volta a pedir HTML/CSS livre para a IA (como V4), mas **sem** gerar imagens (isso resolve o timeout). A IA usa as imagens do catálogo diretamente.
+
+2. **Renderização**: Volta para iframe com `wrapInDocumentShell()` (já existe no código, linhas 429-533). A pipeline de shell, CSS utilities e safety CSS **já está pronta**.
+
+3. **Editor e Preview**: Prioriza `generated_html` com iframe. O código do `LandingPageEditor.tsx` e `StorefrontAILandingPage.tsx` já tem o fallback para iframe -- basta inverter a prioridade.
+
+4. **Enhance Images (Etapa 2)**: Continua igual -- busca seções do HTML, gera composições visuais premium, substitui as URLs. O chunking por timeout já funciona.
+
+5. **Blocos V5 mantidos para o Builder**: Os componentes JSON/React continuam existindo para o Builder visual da loja. Eles simplesmente não são usados para landing pages de IA.
+
+### O que NÃO muda:
+- Auto-descoberta de kits (STEP 1B) -- mantida
+- Busca de provas sociais do Drive (STEP 3) -- mantida  
+- Engine Plan (archetype, niche, depth) -- mantido
+- CTA constraints no CSS -- mantidas
+- Header/Footer governance -- mantida
+
+### Arquivos afetados:
+
+| Arquivo | Mudança |
+|---------|---------|
+| `supabase/functions/ai-landing-page-generate/index.ts` | Prompt volta a pedir HTML livre; salva em `generated_html` + `generated_css` em vez de `generated_blocks` |
+| `src/pages/LandingPageEditor.tsx` | Prioridade: `generated_html` (iframe) > `generated_blocks` (blocos) |
+| `src/pages/storefront/StorefrontAILandingPage.tsx` | Idem -- prioriza HTML no iframe |
+| `src/components/landing-pages/LandingPagePreviewDialog.tsx` | Idem |
+
+### Por que isso vai funcionar:
+- O Motor V4 **já produzia resultados bons** -- o HTML livre dá à IA controle total
+- O timeout é resolvido pela separação generate/enhance que **já existe**
+- A pipeline de shell/safety/CSS utilities **já está implementada** (linhas 429-533)
+- Não há componente novo para criar -- é reverter a decisão errada e manter a infraestrutura certa
+
+### Estimativa: 
+- 1 mudança na Edge Function (prompt + formato de saída)
+- 3 mudanças em componentes React (inverter prioridade de renderização)
+- Zero tabelas novas, zero componentes novos
 
 ---
 
-## 7 Fases de Execucao
+## Resposta direta à sua pergunta
 
-### FASE 1 — Expandir bootstrap + eliminar queries duplicadas (Footer/Header)
-**Economia: ~1.5-2.5s | Risco: Medio**
+> Vamos conseguir desenvolver algo realmente bom aqui?
 
-**1a. Edge Function `storefront-bootstrap`:**
-- Adicionar Q9: `store_pages` (id, slug, type, is_published=true)
-- Adicionar Q10: `footer_2` menu + items (hoje so busca footer/footer_1)
-- Retornar: `pages: [...]`, `footer_2_menu: { menu, items }`
-
-**1b. `StorefrontFooterContent.tsx`:**
-- Adicionar props opcionais: `bootstrapStoreSettings`, `bootstrapCategories`, `bootstrapFooterMenus`, `bootstrapPages`
-- Quando props presentes: usar direto, pular queries
-- Manter queries como fallback apenas para `isEditing=true`
-
-**1c. `StorefrontFooter.tsx`:**
-- Consumir dados de `usePublicStorefront` e passar via props
-
-**1d. `StorefrontHeader.tsx` / `HeaderBlock`:**
-- Passar `bootstrapPages` e `bootstrapGlobalLayout` via props
-- Manter fetch proprio apenas quando `isEditing=true`
-
-**Criterio de aceite:** Footer e Header geram ZERO queries de rede quando bootstrap disponivel.
-
----
-
-### FASE 2 — Propagacao completa do bootstrap para TODAS as paginas
-**Economia: ~200-600ms | Risco: Medio**
-
-Paginas que NAO passam `bootstrapGlobalLayout` ao `PublicTemplateRenderer`:
-- `StorefrontBlog.tsx`, `StorefrontBlogPost.tsx`, `StorefrontTracking.tsx`
-- `StorefrontThankYou.tsx`, `StorefrontLandingPage.tsx`, `StorefrontPage.tsx`
-- `StorefrontCheckout.tsx` (usa `usePublicGlobalLayout` sem bootstrap)
-
-**Acao:** Em cada pagina, extrair `globalLayout` e `pageOverrides` do `usePublicStorefront` e passar como props.
-
-**Criterio de aceite:** `usePublicGlobalLayout` nunca dispara query de rede quando bootstrap disponivel.
-
----
-
-### FASE 3 — Unificar resolve-domain + storefront-bootstrap
-**Economia: ~300-500ms | Risco: Medio-Alto**
-
-**Abordagem (sem duplicar logica):** Extrair a logica de resolucao de dominio para uma funcao utilitaria compartilhada (`_shared/resolveTenant.ts`) e reutiliza-la em ambas edge functions. `storefront-bootstrap` aceita `hostname` como parametro alternativo e chama essa funcao internamente.
-
-**Arquivos:**
-- `supabase/functions/_shared/resolveTenant.ts` — Funcao pura de resolucao (extraida de resolve-domain)
-- `supabase/functions/storefront-bootstrap/index.ts` — Aceitar `hostname`, chamar `resolveTenant()`
-- `supabase/functions/resolve-domain/index.ts` — Importar de `_shared/resolveTenant.ts`
-- `src/components/storefront/TenantStorefrontLayout.tsx` — Chamar bootstrap com hostname direto, eliminar `useTenantFromHostname`
-- `src/hooks/useStorefrontBootstrap.ts` — Adicionar variante por hostname
-
-**Criterio de aceite:** Para dominio customizado, apenas 1 Edge Function call antes do render.
-
-**Rollout:** Validar em dominio custom + subdominio + preview antes de remover fallback.
-
----
-
-### FASE 4 — Reducao de payload (remover produtos do bootstrap)
-**Economia: ~100-300ms payload | Risco: Baixo**
-
-Remover `include_products: true` da chamada em `usePublicStorefront`. Blocos de produto fazem fetch proprio.
-
-**Criterio de aceite:** Payload do bootstrap reduz ~30-50%.
-
----
-
-### FASE 4B — Otimizacao de assets, imagens e LCP
-**Economia: variavel (LCP mobile) | Risco: Baixo**
-
-**Acao:**
-- Garantir hero banner passa por `wsrv.nl` com WebP/resize correto (1920px desktop, 768px mobile)
-- Garantir logo do header passa por transform (200px)
-- Revisar `LcpPreloader` para confirmar que URLs preloaded sao as transformadas (nao raw)
-- Adicionar `Cache-Control: public, max-age=31536000, immutable` nos response headers de assets estaticos (JS/CSS) via config
-- Validar que imagens abaixo da dobra usam `loading="lazy"` e acima usam `fetchPriority="high"`
-
-**Criterio de aceite:** Hero banner LCP usa URL transformada via wsrv.nl. Assets estaticos tem cache de longa duracao.
-
----
-
-### FASE 5 — Limpar index.html (eliminar branding incorreto)
-**Risco: Baixo | Impacto: Percepcao visual**
-
-Remover do `index.html`:
-- Title "Comando Central - Plataforma E-commerce"
-- Meta description/author da plataforma
-- Links de favicon (favicon.ico, favicon-16x16, favicon-32x32, apple-touch-icon, manifest)
-- Tags OG e Twitter da plataforma
-- Manter apenas: `<meta charset>`, `<meta viewport>`, `<meta name="theme-color">`, `<script>` do bundle
-- Title vazio ou generico ("Carregando...")
-
-**Criterio de aceite:** A aba do navegador NAO exibe "Comando Central" nem favicon da plataforma durante carregamento de loja de tenant. Rotas admin continuam injetando seus proprios metadados via React Helmet.
-
----
-
-### FASE 6 — Auditoria de navegacao interna + bundle/code splitting
-**Risco: Baixo | Economia: variavel**
-
-**6a. Mapear queries por transicao de rota:**
-- Home → Produto: quais queries re-executam?
-- Produto → Categoria: idem
-- Qualquer rota → Checkout: idem
-
-**6b. Eliminar refetches redundantes:**
-- Confirmar Header/Footer estao FORA do `<Outlet>` (no Layout, nao desmontam)
-- Confirmar `staleTime` adequado em dados estruturais
-- Confirmar providers globais nao causam rerender completo
-
-**6c. Auditoria de bundle/code splitting:**
-- Mapear tamanho dos chunks em home, produto, categoria, checkout
-- Validar que rotas storefront estao separadas do admin (lazy loading)
-- Verificar se ha importacoes do admin vazando para storefront
-- Confirmar `React.lazy()` nas rotas de paginas do storefront
-
-**6d. Prefetch:**
-- Considerar prefetch de dados ao hover em links criticos (produto, categoria)
-
-**Criterio de aceite:**
-- Home → Produto: max 1-2 queries novas (produto + breadcrumb)
-- Zero re-fetch de tenant/settings/menus entre paginas
-- Chunks do storefront isolados do admin
-
----
-
-## Metricas de Validacao (medir antes/depois de cada fase)
-
-| Metrica | Como medir | Meta |
-|---------|-----------|------|
-| Edge/API calls na home (cold) | Network tab | 1 (apos Fase 3), 2 antes |
-| Queries redundantes estruturais | Network tab | 0 |
-| Lookups duplicados de tenant | Network tab | 0 |
-| Queries Header/Footer fora bootstrap | Network tab | 0 |
-| Tempo bootstrap (server) | `_meta.query_duration_ms` | < 500ms |
-| Payload bootstrap (size) | Network tab | < 50KB gz |
-| LCP mobile | PageSpeed/Lighthouse | < 3s |
-| Tempo home → produto | Manual | < 1s |
-| Branding incorreto na aba | Visual | Ausente |
-
----
-
-## Criterios de Aceite Globais
-
-1. Home nao dispara queries duplicadas de tenant
-2. Header/Footer nao consultam dados que ja vieram no bootstrap
-3. Primeira abertura: max 1 Edge Function call (apos Fase 3)
-4. Navegacao interna: zero re-fetch de dados estruturais
-5. Aba do navegador nao exibe "Comando Central" nem favicon da plataforma durante carregamento de tenant
-6. Hero banner LCP usa imagem transformada (WebP, tamanho correto)
-7. Nenhuma regressao no builder (modo edicao usa queries proprias)
-8. Logica de resolucao de dominio compartilhada (sem duplicacao entre edge functions)
-9. Chunks storefront isolados do admin
-
----
-
-## Ordem de Execucao
-
-1. **Fase 1** → maior impacto absoluto (elimina ~10 queries redundantes)
-2. **Fase 2** → complementa Fase 1 (propagacao completa)
-3. **Fase 3** → unifica chamadas (requer Fase 1+2 estaveis)
-4. **Fase 4** → reduz payload
-5. **Fase 4B** → otimiza assets/LCP
-6. **Fase 5** → corrige branding visual
-7. **Fase 6** → auditoria de navegacao + bundle
-
-**Rollout:** Medir antes/depois a cada fase. Validar em dominio custom + subdominio + preview. Manter fallbacks durante transicao.
+Sim. O motor de geração de HTML livre já funcionava. O erro foi trocar o formato de saída (de HTML para JSON/blocos) junto com a solução de timeout, quando eram problemas independentes. A correção é cirúrgica: desfazer a troca de formato, manter a solução de timeout.
 

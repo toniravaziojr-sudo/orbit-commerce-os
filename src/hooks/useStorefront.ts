@@ -143,6 +143,7 @@ export function usePublicStorefront(tenantSlug: string) {
 
   const headerMenu = bootstrap?.header_menu || { menu: null, items: [] };
   const footerMenu = bootstrap?.footer_menu || { menu: null, items: [] };
+  const footer2Menu = bootstrap?.footer_2_menu || { menu: null, items: [] };
   const categories = bootstrap?.categories || [];
   const products = bootstrap?.products || [];
   const globalLayout = bootstrap?.global_layout || null;
@@ -150,6 +151,7 @@ export function usePublicStorefront(tenantSlug: string) {
   const categorySettings = bootstrap?.category_settings || null;
   const template = bootstrap?.template || null;
   const customDomain = bootstrap?.custom_domain || null;
+  const pages = bootstrap?.pages || [];
 
   const isLoading = bootstrapLoading;
   const isPublished = storeSettings?.is_published ?? false;
@@ -159,6 +161,7 @@ export function usePublicStorefront(tenantSlug: string) {
     storeSettings,
     headerMenu,
     footerMenu,
+    footer2Menu,
     categories,
     products,
     globalLayout,
@@ -166,6 +169,7 @@ export function usePublicStorefront(tenantSlug: string) {
     categorySettings,
     template,
     customDomain,
+    pages,
     isLoading,
     isPublished,
   };

@@ -8,7 +8,7 @@
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useEffect, useMemo } from 'react';
 import { usePublicStorefront } from '@/hooks/useStorefront';
-import { usePublicGlobalLayout } from '@/hooks/useGlobalLayoutIntegration';
+// usePublicGlobalLayout removed — globalLayout now comes from bootstrap via usePublicStorefront
 import { CheckoutStepWizard } from '@/components/storefront/checkout/CheckoutStepWizard';
 import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeaderContent';
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
@@ -34,8 +34,8 @@ export default function StorefrontCheckout() {
     }
   }, [searchParams, tenantSlug, navigate]);
 
-  const { tenant, storeSettings, isLoading } = usePublicStorefront(tenantSlug || '');
-  const { data: globalLayout, isLoading: layoutLoading } = usePublicGlobalLayout(tenantSlug || '');
+  const { tenant, storeSettings, isLoading, globalLayout } = usePublicStorefront(tenantSlug || '');
+  const layoutLoading = false; // globalLayout comes from bootstrap, no extra query needed
 
   // Build checkout header config with ABSOLUTE PRIORITY for checkout props
   // Visual props (colors/logo) are inherited from global ONLY if NOT explicitly set in checkout
