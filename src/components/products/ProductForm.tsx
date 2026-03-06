@@ -288,6 +288,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       tags: product?.tags ?? [],
       requires_shipping: product?.requires_shipping ?? true,
       free_shipping: (product as any)?.free_shipping ?? false,
+      free_shipping_method: (product as any)?.free_shipping_method ?? null,
       taxable: product?.taxable ?? true,
       tax_code: product?.tax_code ?? '',
       cest: product?.cest ?? '',
