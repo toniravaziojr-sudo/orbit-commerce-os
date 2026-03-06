@@ -185,7 +185,9 @@ serve(async (req) => {
     const categories = getResult(3);
     const templateSet = getResult(4);
     const customDomainRow = getResult(5);
-    const products = include_products ? getResult(6) : undefined;
+    const globalLayoutRaw = getResult(6);
+    const pageOverridesRaw = getResult(7);
+    const products = include_products ? getResult(8) : undefined;
 
     // Format menus
     const formatMenu = (raw: any) => {
@@ -197,6 +199,37 @@ serve(async (req) => {
       };
     };
 
+    // Format global layout - use PUBLISHED columns with fallback to legacy
+    const globalLayout = globalLayoutRaw ? {
+      header_config: globalLayoutRaw.published_header_config || globalLayoutRaw.header_config || null,
+      footer_config: globalLayoutRaw.published_footer_config || globalLayoutRaw.footer_config || null,
+      checkout_header_config: globalLayoutRaw.published_checkout_header_config || globalLayoutRaw.checkout_header_config || null,
+      checkout_footer_config: globalLayoutRaw.published_checkout_footer_config || globalLayoutRaw.checkout_footer_config || null,
+      header_enabled: globalLayoutRaw.header_enabled ?? true,
+      footer_enabled: globalLayoutRaw.footer_enabled ?? true,
+      show_footer_1: globalLayoutRaw.show_footer_1 ?? true,
+      show_footer_2: globalLayoutRaw.show_footer_2 ?? true,
+    } : null;
+
+    // Format page overrides as a map { home: {...}, category: {...}, ... }
+    const pageOverrides: Record<string, any> = {};
+    if (Array.isArray(pageOverridesRaw)) {
+      for (const row of pageOverridesRaw) {
+        if (row.page_type && row.page_overrides) {
+          pageOverrides[row.page_type] = row.page_overrides;
+        }
+      }
+    }
+
+    // Extract categorySettings from template published_content
+    let categorySettings = null;
+    if (templateSet?.published_content) {
+      const content = templateSet.published_content as Record<string, any>;
+      const themeSettings = content?.themeSettings as Record<string, any> | undefined;
+      const pageSettings = themeSettings?.pageSettings as Record<string, any> | undefined;
+      categorySettings = pageSettings?.category || null;
+    }
+
     const response = {
       success: true,
       tenant,
@@ -207,6 +240,9 @@ serve(async (req) => {
       template: templateSet,
       custom_domain: customDomainRow?.domain || null,
       is_published: storeSettings?.is_published ?? false,
+      global_layout: globalLayout,
+      page_overrides: pageOverrides,
+      category_settings: categorySettings,
       ...(include_products ? { products: products || [] } : {}),
       _meta: {
         query_count: results.length,
