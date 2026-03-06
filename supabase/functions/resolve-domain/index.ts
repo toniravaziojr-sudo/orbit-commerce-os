@@ -79,11 +79,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Normalize hostname (lowercase, remove www. prefix for lookup)
+    // Normalize hostname (lowercase, trim)
     const normalizedHostname = hostname.toLowerCase().trim();
     const hostnameWithoutWww = normalizedHostname.replace(/^www\./, '');
+    // Also generate the www version for reverse lookup
+    const hostnameWithWww = hostnameWithoutWww.startsWith('www.') ? hostnameWithoutWww : `www.${hostnameWithoutWww}`;
     
-    console.log(`[resolve-domain] Looking up: ${normalizedHostname} (without www: ${hostnameWithoutWww})`);
+    console.log(`[resolve-domain] Looking up: ${normalizedHostname} (without www: ${hostnameWithoutWww}, with www: ${hostnameWithWww})`);
 
     // Check if this is the app domain (admin panel)
     if (isAppDomain(hostnameWithoutWww)) {
