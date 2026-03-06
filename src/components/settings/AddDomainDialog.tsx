@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Info, Copy, CheckCircle, ArrowRight, ShieldCheck, Globe } from 'lucide-react';
+import { Loader2, Info, Copy, CheckCircle, ArrowRight, ShieldCheck, Globe, AlertTriangle } from 'lucide-react';
 import { useTenantDomains, TenantDomain, DEFAULT_TARGET_HOSTNAME } from '@/hooks/useTenantDomains';
 import { validateDomainFormat, getDomainType, normalizeDomain } from '@/lib/normalizeDomain';
 import { toast } from 'sonner';
