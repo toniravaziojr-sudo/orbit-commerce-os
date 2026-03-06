@@ -328,8 +328,11 @@ export default {
       return new Response('Access via correct domain', { status: 404 });
     }
 
+    // IMPORTANTE: NÃO remover www. do hostname.
+    // A edge function resolve-domain já faz a busca com e sem www.
+    // Isso permite que o lojista cadastre tanto "www.site.com" quanto "site.com" no painel.
     const cfHost = request.headers.get('cf-connecting-host');
-    const publicHost = (cfHost || edgeHost).toLowerCase().replace(/^www\./, '');
+    const publicHost = (cfHost || edgeHost).toLowerCase();
 
     // ========== EDGE FUNCTION PROXY ==========
     // Proxy de integrações: /integrations/meta/* ou /meta/* → Edge Functions

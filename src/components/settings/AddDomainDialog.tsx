@@ -287,8 +287,21 @@ export function AddDomainDialog({ open, onOpenChange, onDomainAdded }: AddDomain
                     </div>
                   </div>
 
+                  {/* Cloudflare O2O warning */}
+                  <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/20 rounded border border-amber-200 dark:border-amber-800">
+                    <p className="text-xs text-amber-800 dark:text-amber-200">
+                      <strong>⚠️ Se seu DNS está no Cloudflare:</strong> O CNAME que aponta para{' '}
+                      <code className="bg-background px-1 rounded">{DEFAULT_TARGET_HOSTNAME}</code>{' '}
+                      <strong>deve estar com proxy ativado</strong> (nuvem laranja 🟠). Sem isso, ocorrerá o Erro 1014.
+                    </p>
+                    <p className="text-xs text-amber-800 dark:text-amber-200 mt-1">
+                      Se seu DNS <strong>não</strong> está no Cloudflare (GoDaddy, Registro.br, etc.), 
+                      deixe como DNS-only (padrão).
+                    </p>
+                  </div>
+
                   {isApex && (
-                    <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/20 rounded border border-amber-200 dark:border-amber-800">
+                    <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-950/20 rounded border border-amber-200 dark:border-amber-800">
                       <p className="text-xs text-amber-800 dark:text-amber-200">
                         <strong>⚠️ Domínio raiz (sem www):</strong> Alguns provedores de DNS tradicionais (como Registro.br)
                         não suportam CNAME no domínio raiz. Se for o caso, você precisa usar um gerenciador de DNS 
