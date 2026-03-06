@@ -59,7 +59,7 @@ export function PublicTemplateRenderer({
   bootstrapPageOverrides,
 }: PublicTemplateRendererProps) {
   // Fetch global layout
-  const { data: globalLayout, isLoading: layoutLoading } = usePublicGlobalLayout(context.tenantSlug);
+  const { data: globalLayout, isLoading: layoutLoading } = usePublicGlobalLayout(context.tenantSlug, bootstrapGlobalLayout);
 
   // Fetch page overrides
   const isTemplate = !['institutional', 'landing_page'].includes(pageType);
