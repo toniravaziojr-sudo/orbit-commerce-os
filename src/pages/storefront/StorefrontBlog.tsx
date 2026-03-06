@@ -24,7 +24,7 @@ export default function StorefrontBlog() {
   const navigate = useNavigate();
   const isPreviewMode = searchParams.get('preview') === '1';
 
-  const { storeSettings, headerMenu, footerMenu, categories: allCategories, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
+  const { storeSettings, headerMenu, footerMenu, categories: allCategories, isLoading: storeLoading, globalLayout: bootstrapGlobalLayout, pageOverrides: bootstrapPageOverrides } = usePublicStorefront(tenantSlug || '');
   
   // Fetch category settings for product blocks that may appear on blog pages
   const defaultCategorySettings: CategorySettings = {
