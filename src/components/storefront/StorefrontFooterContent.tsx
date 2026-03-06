@@ -506,7 +506,7 @@ export function StorefrontFooterContent({
   const newsletterSuccessMessage = getString('newsletterSuccessMessage', null, 'Inscrito com sucesso!') || 'Inscrito com sucesso!';
   const newsletterListId = getString('newsletterListId', null, '');
 
-  // Fetch tenant_id for newsletter form
+  // Fetch tenant_id for newsletter form — use bootstrap when available
   const { data: tenantData } = useQuery({
     queryKey: ['tenant-id-footer', tenantSlug],
     queryFn: async () => {
@@ -518,10 +518,10 @@ export function StorefrontFooterContent({
         .single();
       return tenant;
     },
-    enabled: !!tenantSlug && showNewsletter,
+    enabled: !!tenantSlug && showNewsletter && !bootstrapTenantId,
     staleTime: 1000 * 60 * 30,
   });
-  const tenantId = tenantData?.id;
+  const tenantId = bootstrapTenantId || tenantData?.id;
 
   // Footer custom styles
   const footerStyle: React.CSSProperties = {
