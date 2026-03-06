@@ -119,10 +119,8 @@ export function TenantStorefrontLayout() {
     storeSettings, 
     isLoading: isStoreLoading, 
     isPublished,
+    customDomain,
   } = usePublicStorefront(tenantSlug);
-
-  // custom_domain comes from bootstrap — NO separate useTenantCanonicalDomain query needed
-  const customDomain = storeSettings?.custom_domain as string | null ?? null;
 
   // Check for preview mode
   const searchParams = new URLSearchParams(window.location.search);
