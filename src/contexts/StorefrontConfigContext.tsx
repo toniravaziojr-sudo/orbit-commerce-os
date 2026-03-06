@@ -29,6 +29,7 @@ import {
 export interface ShippingQuote {
   code?: string;
   price: number;
+  originalPrice?: number; // Price before free shipping override
   deliveryDays: number;
   label: string;
   carrier?: string;
