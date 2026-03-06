@@ -555,7 +555,8 @@ O componente `AddDomainDialog` exibe:
 | **Sem companion automático** | Não criar apex+www juntos automaticamente |
 | **CNAME para todos** | Instrução é sempre CNAME, com aviso sobre apex |
 | **Redirect é externo** | Redirect www↔apex é responsabilidade do usuário no Cloudflare |
-| **Instrução de proxy** | CNAME servido: DNS-only (cinza). Registro de redirect: proxy ativado (laranja) |
+| **Instrução de proxy (CNAME servido)** | Se zona no Cloudflare: Proxied (laranja/O2O). Se zona fora: DNS-only (cinza) |
+| **Instrução de proxy (redirect)** | Registro de redirect: sempre proxy ativado (laranja) |
 | **Registro A dummy** | Para redirect de apex: `A @ → 192.0.2.1` com proxy (RFC 5737) |
 
 ---
