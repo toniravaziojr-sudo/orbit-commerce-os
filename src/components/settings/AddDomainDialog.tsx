@@ -18,7 +18,7 @@ interface AddDomainDialogProps {
 
 type Step = 'input' | 'instructions';
 
-export function AddDomainDialog({ open, onOpenChange }: AddDomainDialogProps) {
+export function AddDomainDialog({ open, onOpenChange, onDomainAdded }: AddDomainDialogProps) {
   const { addDomain } = useTenantDomains();
   const [step, setStep] = useState<Step>('input');
   const [domain, setDomain] = useState('');
