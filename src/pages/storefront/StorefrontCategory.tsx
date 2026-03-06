@@ -1,22 +1,35 @@
 // =============================================
 // STOREFRONT CATEGORY - Public category page via Builder
 // =============================================
+// OPTIMIZED v2: Uses bootstrap data for template + categorySettings (no extra queries)
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { usePublicCategory, usePublicStorefront } from '@/hooks/useStorefront';
-import { usePublicTemplate } from '@/hooks/usePublicTemplate';
 import { usePreviewTemplate } from '@/hooks/usePreviewTemplate';
 import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRenderer';
 import { Storefront404 } from '@/components/storefront/Storefront404';
-import { BlockRenderContext } from '@/lib/builder/types';
-import { supabase } from '@/integrations/supabase/client';
+import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
 import { getCleanQueryString } from '@/lib/sanitizePublicUrl';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { getStoreBaseUrl } from '@/lib/publicUrls';
 import { useMarketingEvents } from '@/hooks/useMarketingEvents';
 import { CategorySettings } from '@/hooks/usePageSettings';
+import { getDefaultTemplate } from '@/lib/builder/defaults';
+
+const defaultCategorySettings: CategorySettings = {
+  showCategoryName: true,
+  showBanner: true,
+  showRatings: true,
+  showAddToCartButton: true,
+  quickBuyEnabled: false,
+  showBadges: true,
+  buyNowButtonText: 'Comprar agora',
+  customButtonEnabled: false,
+  customButtonText: '',
+  customButtonColor: '',
+  customButtonLink: '',
+};
 
 export default function StorefrontCategory() {
   const tenantSlug = useTenantSlug();
@@ -26,7 +39,13 @@ export default function StorefrontCategory() {
   const isPreviewMode = searchParams.get('preview') === '1';
   const { trackViewCategory } = useMarketingEvents();
 
-  const { storeSettings, headerMenu, footerMenu, categories: allCategories, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
+  const { 
+    storeSettings, headerMenu, footerMenu, categories: allCategories, isLoading: storeLoading,
+    globalLayout: bootstrapGlobalLayout,
+    pageOverrides: bootstrapPageOverrides,
+    categorySettings: bootstrapCategorySettings,
+    template: bootstrapTemplate,
+  } = usePublicStorefront(tenantSlug || '');
   const { category, products, isLoading: categoryLoading } = usePublicCategory(tenantSlug || '', categorySlug || '');
   
   // Track category view when category loads
@@ -41,85 +60,26 @@ export default function StorefrontCategory() {
     }
   }, [category?.id, categoryLoading, isPreviewMode, trackViewCategory, products]);
   
-  // Fetch category settings from PUBLISHED template set content
-  // CRITICAL: Must read from published_content, NOT from page_overrides (which reflects draft)
-  const defaultCategorySettings: CategorySettings = {
-    showCategoryName: true,
-    showBanner: true,
-    showRatings: true,
-    showAddToCartButton: true,
-    quickBuyEnabled: false,
-    showBadges: true,
-    buyNowButtonText: 'Comprar agora',
-    customButtonEnabled: false,
-    customButtonText: '',
-    customButtonColor: '',
-    customButtonLink: '',
-  };
+  // Derive template content from bootstrap (no extra queries in normal mode!)
+  const templateContent = useMemo<BlockNode>(() => {
+    if (!bootstrapTemplate?.published_content) return getDefaultTemplate('category');
+    const content = bootstrapTemplate.published_content as Record<string, BlockNode | null>;
+    return content?.category || getDefaultTemplate('category');
+  }, [bootstrapTemplate]);
 
-  const { data: categorySettings } = useQuery({
-    queryKey: ['category-settings-published', tenantSlug, isPreviewMode],
-    queryFn: async () => {
-      const { data: tenant } = await supabase
-        .from('tenants')
-        .select('id')
-        .eq('slug', tenantSlug || '')
-        .single();
-      
-      if (!tenant) return defaultCategorySettings;
-      
-      // Get store settings to find the published template
-      const { data: storeSettings } = await supabase
-        .from('store_settings')
-        .select('published_template_id')
-        .eq('tenant_id', tenant.id)
-        .maybeSingle();
-      
-      const templateSetId = storeSettings?.published_template_id;
-      
-      if (!templateSetId) {
-        // Fallback to page_overrides if no published template (legacy)
-        const { data } = await supabase
-          .from('storefront_page_templates')
-          .select('page_overrides')
-          .eq('tenant_id', tenant.id)
-          .eq('page_type', 'category')
-          .maybeSingle();
-        
-        const overrides = data?.page_overrides as Record<string, unknown> | null;
-        const saved = (overrides?.categorySettings as CategorySettings) || {};
-        return { ...defaultCategorySettings, ...saved };
-      }
-      
-      // Read from published_content (or draft_content if preview mode)
-      const contentField = isPreviewMode ? 'draft_content' : 'published_content';
-      const { data: templateSet } = await supabase
-        .from('storefront_template_sets')
-        .select(contentField)
-        .eq('id', templateSetId)
-        .eq('tenant_id', tenant.id)
-        .single();
-      
-      if (!templateSet) return defaultCategorySettings;
-      
-      const content = (templateSet as any)[contentField] as Record<string, unknown> | null;
-      const themeSettings = content?.themeSettings as Record<string, unknown> | undefined;
-      const pageSettings = themeSettings?.pageSettings as Record<string, unknown> | undefined;
-      const saved = (pageSettings?.category as CategorySettings) || {};
-      
-      return { ...defaultCategorySettings, ...saved };
-    },
-    enabled: !!tenantSlug,
-  });
-  
-  // Use preview hook if in preview mode, otherwise use public hook
-  const publicTemplate = usePublicTemplate(tenantSlug || '', 'category');
+  const categorySettings = useMemo(() => {
+    return { ...defaultCategorySettings, ...(bootstrapCategorySettings || {}) };
+  }, [bootstrapCategorySettings]);
+
+  // Use preview hook ONLY in preview mode
   const previewTemplate = usePreviewTemplate(tenantSlug || '', 'category');
   
-  const template = isPreviewMode ? previewTemplate : publicTemplate;
+  const content = isPreviewMode ? previewTemplate.content : templateContent;
+  const templateIsLoading = isPreviewMode ? previewTemplate.isLoading : false;
+  const templateError = isPreviewMode ? previewTemplate.error : null;
 
   // Show loading state while any data is still loading
-  const isAnyLoading = categoryLoading || template.isLoading || storeLoading;
+  const isAnyLoading = categoryLoading || templateIsLoading || storeLoading;
   
   // If category not found and not loading - show 404, never redirect to home
   if (!category && !isAnyLoading) {
@@ -132,35 +92,16 @@ export default function StorefrontCategory() {
     );
   }
 
-  // Category data is now rendered via CategoryBannerBlock in the template
-  // No need for categoryHeaderSlot - removed to avoid duplication
-
   // Build context for block rendering with category data
-  // CRITICAL: Pass all categorySettings to context for blocks to consume
   const context: BlockRenderContext & { categories?: any[]; categorySettings?: CategorySettings } = {
     tenantSlug: tenantSlug || '',
     isPreview: isPreviewMode,
     pageType: 'category',
-    // Pass showRatings setting for product cards (legacy)
     showRatings: categorySettings?.showRatings !== false,
-    // Pass full categorySettings for CategoryPageLayout to consume
-    categorySettings: categorySettings || {
-      showCategoryName: true,
-      showBanner: true,
-      showRatings: true,
-      showAddToCartButton: true,
-      quickBuyEnabled: false,
-      showBadges: true,
-      buyNowButtonText: 'Comprar agora',
-      customButtonEnabled: false,
-      customButtonText: '',
-      customButtonColor: '',
-      customButtonLink: '',
-    },
+    categorySettings,
     settings: {
       store_name: storeSettings?.store_name || undefined,
       logo_url: storeSettings?.logo_url || undefined,
-      // NOTE: primary_color removed - colors managed via Configuração do tema > Cores
       social_instagram: storeSettings?.social_instagram || undefined,
       social_facebook: storeSettings?.social_facebook || undefined,
       social_whatsapp: storeSettings?.social_whatsapp || undefined,
@@ -184,7 +125,6 @@ export default function StorefrontCategory() {
       url: item.url || undefined,
     })),
     categories: allCategories?.map(c => ({ id: c.id, slug: c.slug })),
-    // Category-specific context
     category: category ? {
       id: category.id,
       name: category.name,
@@ -206,27 +146,29 @@ export default function StorefrontCategory() {
 
   // Check preview access
   const canPreview = isPreviewMode 
-    ? ('canPreview' in template ? Boolean(template.canPreview) : true) 
+    ? ('canPreview' in previewTemplate ? Boolean(previewTemplate.canPreview) : true) 
     : true;
 
   // Redirect to public URL if preview mode is requested but user can't access preview
   useEffect(() => {
-    if (isPreviewMode && !canPreview && !template.isLoading) {
+    if (isPreviewMode && !canPreview && !previewTemplate.isLoading) {
       const basePath = getStoreBaseUrl(tenantSlug || '');
       const cleanPath = `${basePath}/c/${categorySlug}${getCleanQueryString(searchParams)}`;
       navigate(cleanPath, { replace: true });
     }
-  }, [isPreviewMode, canPreview, template.isLoading, tenantSlug, categorySlug, searchParams, navigate]);
+  }, [isPreviewMode, canPreview, previewTemplate.isLoading, tenantSlug, categorySlug, searchParams, navigate]);
 
   return (
     <PublicTemplateRenderer
-      content={template.content}
+      content={content}
       context={context}
-      isLoading={template.isLoading || storeLoading || categoryLoading}
-      error={template.error}
+      isLoading={templateIsLoading || storeLoading || categoryLoading}
+      error={templateError}
       isPreviewMode={isPreviewMode}
       canPreview={canPreview}
       pageType="category"
+      bootstrapGlobalLayout={isPreviewMode ? undefined : bootstrapGlobalLayout}
+      bootstrapPageOverrides={isPreviewMode ? undefined : bootstrapPageOverrides}
     />
   );
 }
