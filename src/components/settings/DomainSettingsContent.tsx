@@ -500,10 +500,10 @@ export function DomainSettingsContent() {
 
               <Alert>
                 <Info className="h-4 w-4" />
-                <AlertTitle>Passo 2: Apontamento (CNAME)</AlertTitle>
+                <AlertTitle>Passo 2: Apontamento DNS</AlertTitle>
                 <AlertDescription>
                   <div className="mt-2 space-y-2 text-sm">
-                    <p><strong>Para que a loja funcione com e sem www:</strong></p>
+                    <p><strong>O domínio <code className="bg-muted px-1 rounded">www</code> é o domínio servido pela loja:</strong></p>
                     <ul className="list-disc list-inside ml-2 space-y-1">
                       <li>
                         <strong>CNAME <code className="bg-muted px-1 rounded">www</code></strong> → {' '}
@@ -512,14 +512,20 @@ export function DomainSettingsContent() {
                           <Copy className="h-3 w-3" />
                         </Button>
                       </li>
-                      <li>
-                        <strong>CNAME <code className="bg-muted px-1 rounded">@</code></strong> (raiz) → {' '}
-                        <code className="bg-muted px-1 rounded">{STOREFRONT_CNAME_TARGET}</code>
-                        <span className="text-xs text-muted-foreground ml-1">(requer CNAME Flattening — Cloudflare suporta)</span>
-                      </li>
+                    </ul>
+                    <p className="mt-2"><strong>O domínio raiz (sem www) deve redirecionar para o www:</strong></p>
+                    <ul className="list-disc list-inside ml-2 space-y-1 text-xs text-muted-foreground">
+                      <li><strong>Registro.br:</strong> Use "Redirecionamento Web" nas configurações da zona DNS</li>
+                      <li><strong>Cloudflare:</strong> Use Page Rules ou Redirect Rules</li>
+                      <li><strong>Outros:</strong> Procure "URL redirect" ou "Forwarding" no painel de DNS</li>
                     </ul>
                     <p className="mt-2 text-xs text-muted-foreground">
-                      💡 <strong>Dica:</strong> Se usar Cloudflare, ambos os CNAMEs devem estar em modo <strong>"Somente DNS"</strong> (nuvem cinza) para que o SSL funcione corretamente.
+                      💡 <strong>Por que?</strong> O sistema não depende de CNAME no apex (raiz) como fluxo padrão, 
+                      pois muitos provedores DNS não suportam isso de forma compatível ou previsível. 
+                      O <code>www</code> é o domínio efetivamente servido pela infraestrutura.
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      💡 Se usar Cloudflare, o CNAME do <code>www</code> deve estar em modo <strong>"Somente DNS"</strong> (nuvem cinza).
                     </p>
                   </div>
                 </AlertDescription>
@@ -529,18 +535,18 @@ export function DomainSettingsContent() {
                 <ShieldCheck className="h-4 w-4" />
                 <AlertTitle>Passo 3: Ativação do SSL</AlertTitle>
                 <AlertDescription>
-                  Após o DNS propagar (pode levar até 48h), clique em "Ativar SSL" para habilitar HTTPS.
-                  O certificado será provisionado automaticamente.
+                  Após o DNS do <strong>www</strong> propagar (pode levar até 48h), clique em "Ativar SSL" para habilitar HTTPS.
+                  O certificado será provisionado automaticamente. O domínio raiz não precisa de SSL — ele apenas redireciona.
                 </AlertDescription>
               </Alert>
 
               <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
                 <Info className="h-4 w-4 text-amber-600" />
-                <AlertTitle className="text-amber-800 dark:text-amber-200">www e raiz como domínios separados</AlertTitle>
+                <AlertTitle className="text-amber-800 dark:text-amber-200">Arquitetura www + raiz</AlertTitle>
                 <AlertDescription className="text-amber-700 dark:text-amber-300 text-xs">
-                  No sistema, <code className="bg-background px-1 rounded">www.exemplo.com.br</code> e{' '}
-                  <code className="bg-background px-1 rounded">exemplo.com.br</code> são tratados como domínios separados.
-                  Se quiser que ambos funcionem, adicione os dois e defina um como Principal — o outro redirecionará automaticamente.
+                  O <code className="bg-background px-1 rounded">www.exemplo.com.br</code> é o domínio principal servido pelo Comando Central (CNAME + SSL).
+                  O <code className="bg-background px-1 rounded">exemplo.com.br</code> (raiz) é apenas um domínio de entrada que redireciona para o www.
+                  Ambos são cadastrados automaticamente ao adicionar qualquer um dos dois.
                 </AlertDescription>
               </Alert>
             </CardContent>
