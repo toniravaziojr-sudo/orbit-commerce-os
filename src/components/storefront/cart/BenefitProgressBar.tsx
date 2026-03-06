@@ -1,10 +1,12 @@
 // =============================================
 // BENEFIT PROGRESS BAR - Shows progress toward free shipping/gift
 // Uses centralized cartTotals for consistency
+// Supports applyToExternalRules: checks product free_shipping + coupon free_shipping
 // =============================================
 
 import { useBenefit } from '@/contexts/StorefrontConfigContext';
 import { useCart } from '@/contexts/CartContext';
+import { useDiscount } from '@/contexts/DiscountContext';
 import { Gift, Truck, Check } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { calculateCartTotals, formatPrice } from '@/lib/cartTotals';
@@ -12,6 +14,7 @@ import { calculateCartTotals, formatPrice } from '@/lib/cartTotals';
 export function BenefitProgressBar() {
   const { items, shipping } = useCart();
   const { config, getProgress, isLoading } = useBenefit();
+  const { appliedDiscount } = useDiscount();
 
   // Use centralized totals calculation
   const totals = calculateCartTotals({
@@ -22,7 +25,15 @@ export function BenefitProgressBar() {
 
   if (isLoading) return null;
 
-  const { enabled, progress, remaining, achieved, label } = getProgress(totals.subtotal);
+  // Check external free shipping sources:
+  // 1. Any cart item with free_shipping flag from product registration
+  const hasProductFreeShipping = items.some(item => item.free_shipping === true);
+  // 2. Coupon granting free shipping
+  const hasCouponFreeShipping = appliedDiscount?.free_shipping === true;
+  
+  const externalFreeShipping = hasProductFreeShipping || hasCouponFreeShipping;
+
+  const { enabled, progress, remaining, achieved, label } = getProgress(totals.subtotal, externalFreeShipping);
 
   if (!enabled) return null;
 
