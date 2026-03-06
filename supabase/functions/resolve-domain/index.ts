@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
         type,
         tenants!inner(slug)
       `)
-      .or(`domain.eq.${normalizedHostname},domain.eq.${hostnameWithoutWww}`)
+      .or(`domain.eq.${normalizedHostname},domain.eq.${hostnameWithoutWww},domain.eq.${hostnameWithWww}`)
       .eq('status', 'verified')
       .eq('ssl_status', 'active')
       .eq('type', 'custom')
