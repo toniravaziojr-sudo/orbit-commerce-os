@@ -371,43 +371,12 @@ export function AddDomainDialog({ open, onOpenChange, onDomainAdded }: AddDomain
                 <AlertDescription>
                   {isApexWithWww && apexDomain ? (
                     <>
-                      <p className="mb-3 mt-2">Crie os dois registros <strong>CNAME</strong> abaixo:</p>
+                      <p className="mb-3 mt-2">Configure o <strong>www</strong> como domínio principal da loja:</p>
                      <div className="space-y-3">
-                        {/* Apex CNAME */}
-                        <div className="bg-muted p-3 rounded space-y-1 text-sm">
+                        {/* WWW CNAME - PRIMARY */}
+                        <div className="bg-muted p-3 rounded space-y-1 text-sm border-l-4 border-primary">
                           <p className="font-medium text-primary mb-2">
-                            📋 CNAME para <code className="bg-background px-1 rounded">{apexDomain.domain}</code> (raiz)
-                          </p>
-                          <div className="flex justify-between items-center">
-                            <span className="text-muted-foreground">Tipo:</span>
-                            <code className="bg-background px-2 py-0.5 rounded font-mono">CNAME</code>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-muted-foreground">Nome:</span>
-                            <code className="bg-background px-2 py-0.5 rounded font-mono">@</code>
-                          </div>
-                          <div className="flex justify-between items-center gap-2">
-                            <span className="text-muted-foreground">Destino:</span>
-                            <div className="flex items-center gap-1">
-                              <code className="bg-background px-2 py-0.5 rounded font-mono">{DEFAULT_TARGET_HOSTNAME}</code>
-                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0"
-                                onClick={() => handleCopy(DEFAULT_TARGET_HOSTNAME, setCopiedCname)}>
-                                {copiedCname ? <CheckCircle className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
-                              </Button>
-                            </div>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            No Cloudflare, use CNAME Flattening. Proxy: <strong>DNS-only (nuvem cinza)</strong>.
-                          </p>
-                          <p className="text-xs text-destructive font-medium mt-1">
-                            ⚠️ Se já existir um registro A, AAAA ou CNAME para <code>@</code> apontando para outro destino, <strong>altere o destino</strong> para <code>{DEFAULT_TARGET_HOSTNAME}</code>. Se já estiver apontando corretamente, ignore este passo.
-                          </p>
-                        </div>
-
-                        {/* WWW CNAME */}
-                        <div className="bg-muted p-3 rounded space-y-1 text-sm">
-                          <p className="font-medium text-primary mb-2">
-                            📋 CNAME para <code className="bg-background px-1 rounded">{wwwDomain?.domain}</code> (www)
+                            📋 CNAME para <code className="bg-background px-1 rounded">{wwwDomain?.domain}</code> (domínio principal)
                           </p>
                           <div className="flex justify-between items-center">
                             <span className="text-muted-foreground">Tipo:</span>
@@ -428,7 +397,29 @@ export function AddDomainDialog({ open, onOpenChange, onDomainAdded }: AddDomain
                             </div>
                           </div>
                           <p className="text-xs text-muted-foreground mt-1">
-                            Proxy: <strong>DNS-only (nuvem cinza)</strong>.
+                            Se usar Cloudflare, mantenha o proxy <strong>desativado</strong> (nuvem cinza / DNS-only).
+                          </p>
+                        </div>
+
+                        {/* Apex REDIRECT instruction */}
+                        <div className="bg-muted p-3 rounded space-y-1 text-sm">
+                          <p className="font-medium text-primary mb-2">
+                            🔀 Redirecionamento para <code className="bg-background px-1 rounded">{apexDomain.domain}</code> (raiz)
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            O domínio raiz (<code>{apexDomain.domain}</code>) deve <strong>redirecionar</strong> para{' '}
+                            <code>{wwwDomain?.domain}</code>. Ele não será servido diretamente pelo Comando Central.
+                          </p>
+                          <div className="mt-2 space-y-1">
+                            <p className="text-xs font-medium">Como configurar:</p>
+                            <ul className="text-xs text-muted-foreground list-disc pl-4 space-y-0.5">
+                              <li><strong>Registro.br:</strong> Use a opção "Redirecionamento Web" nas configurações da zona DNS.</li>
+                              <li><strong>Cloudflare:</strong> Use uma regra de redirecionamento (Page Rules ou Redirect Rules).</li>
+                              <li><strong>Outros provedores:</strong> Procure a opção de "URL redirect" ou "Forwarding" no painel de DNS.</li>
+                            </ul>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Redirecione: <code>{apexDomain.domain}</code> → <code>https://{wwwDomain?.domain}</code>
                           </p>
                         </div>
                       </div>
