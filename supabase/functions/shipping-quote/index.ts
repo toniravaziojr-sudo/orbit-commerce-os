@@ -32,15 +32,17 @@ interface ShippingQuoteRequest {
 }
 
 interface ShippingOption {
-  source_provider: string; // frenet, correios, loggi, free_rule, custom_rule
+  source_provider: string; // frenet, correios, loggi, free_rule, custom_rule, product_free
   carrier: string; // Carrier name (e.g., "Correios", "Jadlog")
   service_code: string;
   service_name: string;
   price: number;
+  original_price?: number; // Original price before free shipping override
   estimated_days: number;
   estimated_days_min?: number;
   estimated_days_max?: number;
   delivery_date?: string;
+  is_free?: boolean; // Explicitly marked as free shipping
   metadata?: Record<string, unknown>;
 }
 
