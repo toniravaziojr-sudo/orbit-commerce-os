@@ -127,6 +127,7 @@ export type ProductFormData = Omit<Product,
   regulatory_info?: Record<string, any> | null;
   warranty_type?: string | null;
   warranty_duration?: string | null;
+  free_shipping_method?: string | null;
 };
 export type CategoryFormData = Omit<Category, 'id' | 'tenant_id' | 'created_at' | 'updated_at'>;
 
