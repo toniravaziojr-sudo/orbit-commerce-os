@@ -93,6 +93,7 @@ export default function StorefrontCategory() {
   }, [isPreviewMode, canPreview, previewTemplate.isLoading, tenantSlug, categorySlug, searchParams, navigate]);
 
   // If category not found and not loading - show 404, never redirect to home
+  const isAnyLoading = categoryLoading || templateIsLoading || storeLoading;
   if (!category && !isAnyLoading) {
     return (
       <Storefront404 
@@ -154,20 +155,6 @@ export default function StorefrontCategory() {
       image_url: p.product_images?.[0]?.url || undefined,
     })),
   };
-
-  // Check preview access
-  const canPreview = isPreviewMode 
-    ? ('canPreview' in previewTemplate ? Boolean(previewTemplate.canPreview) : true) 
-    : true;
-
-  // Redirect to public URL if preview mode is requested but user can't access preview
-  useEffect(() => {
-    if (isPreviewMode && !canPreview && !previewTemplate.isLoading) {
-      const basePath = getStoreBaseUrl(tenantSlug || '');
-      const cleanPath = `${basePath}/c/${categorySlug}${getCleanQueryString(searchParams)}`;
-      navigate(cleanPath, { replace: true });
-    }
-  }, [isPreviewMode, canPreview, previewTemplate.isLoading, tenantSlug, categorySlug, searchParams, navigate]);
 
   return (
     <PublicTemplateRenderer
