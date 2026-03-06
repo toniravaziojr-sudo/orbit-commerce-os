@@ -85,6 +85,8 @@ export default function StorefrontThankYou() {
       error={template.error}
       isPreviewMode={isPreviewMode}
       canPreview={canPreview}
+      bootstrapGlobalLayout={isPreviewMode ? undefined : bootstrapGlobalLayout}
+      bootstrapPageOverrides={isPreviewMode ? undefined : bootstrapPageOverrides}
     />
   );
 }

@@ -154,6 +154,8 @@ export default function StorefrontBlog() {
       isPreviewMode={isPreviewMode}
       canPreview={canPreview}
       pageType="blog"
+      bootstrapGlobalLayout={isPreviewMode ? undefined : bootstrapGlobalLayout}
+      bootstrapPageOverrides={isPreviewMode ? undefined : bootstrapPageOverrides}
     />
   );
 }

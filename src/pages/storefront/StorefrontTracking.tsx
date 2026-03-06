@@ -82,6 +82,8 @@ export default function StorefrontTracking() {
       isPreviewMode={isPreviewMode}
       canPreview={canPreview}
       pageType="tracking"
+      bootstrapGlobalLayout={isPreviewMode ? undefined : bootstrapGlobalLayout}
+      bootstrapPageOverrides={isPreviewMode ? undefined : bootstrapPageOverrides}
     />
   );
 }
