@@ -7,7 +7,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v1.0.0"; // Initial: single-request bootstrap for storefront
+const VERSION = "v2.0.0"; // Added global_layout + page_overrides to eliminate waterfall queries
 // ====================
 
 const corsHeaders = {
