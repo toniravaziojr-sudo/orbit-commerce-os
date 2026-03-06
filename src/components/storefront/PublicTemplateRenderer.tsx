@@ -55,6 +55,8 @@ export function PublicTemplateRenderer({
   isCheckout = false,
   pageType = 'home',
   pageId,
+  bootstrapGlobalLayout,
+  bootstrapPageOverrides,
 }: PublicTemplateRendererProps) {
   // Fetch global layout
   const { data: globalLayout, isLoading: layoutLoading } = usePublicGlobalLayout(context.tenantSlug);
