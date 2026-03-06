@@ -465,6 +465,40 @@ const NO_REDIRECT_PATHS = [
 
 ---
 
+## ⚠️ Limitação: Domínios Apex no Cloudflare (Erro 1014)
+
+### Problema
+
+Quando o domínio do cliente está configurado **como zona no Cloudflare** (nameservers apontando para o Cloudflare), domínios **apex (raiz)** apresentam **Erro 1014: CNAME Cross-User Banned**.
+
+**Causa:** O Cloudflare realiza **CNAME flattening** internamente para domínios apex. Quando o destino do CNAME (`shops.comandocentral.com.br`) pertence a outra conta Cloudflare, o Cloudflare bloqueia a resolução por segurança.
+
+**Subdomínios NÃO são afetados** — `loja.cliente.com.br` ou `www.cliente.com.br` funcionam normalmente porque não passam por CNAME flattening.
+
+**Este problema é EXCLUSIVO do Cloudflare.** Outros provedores DNS (Registro.br, GoDaddy, Namecheap, Route53, etc.) funcionam sem problemas.
+
+### Soluções para o Cliente
+
+| Opção | Descrição | Estabilidade |
+|-------|-----------|--------------|
+| **1. Transferir DNS para registrador (Recomendada)** | No Registro.br: "Utilizar DNS do Registro.br". Criar CNAMEs lá. | ✅ Estável |
+| **2. DNS-only no Cloudflare** | Manter no Cloudflare com proxy **desativado** (nuvem cinza) em todos os registros CNAME | ⚠️ Pode não resolver para apex |
+| **3. Usar apenas subdomínio** | Usar `www.cliente.com.br` ou `loja.cliente.com.br` como primary | ✅ Estável |
+
+### UI: Aviso no AddDomainDialog
+
+O componente `AddDomainDialog` exibe um alerta laranja (`AlertTriangle`) na etapa de instruções DNS, informando sobre essa limitação e as soluções disponíveis. O aviso aparece para **todos os domínios** (apex e subdomínio) pois o sistema não tem como saber se o cliente usa Cloudflare.
+
+### Regras
+
+| Regra | Descrição |
+|-------|-----------|
+| **Aviso obrigatório** | O alerta sobre Cloudflare DEVE estar presente no fluxo de cadastro |
+| **Não bloquear cadastro** | O sistema NÃO deve impedir o cadastro — apenas alertar |
+| **Instrução de proxy** | Sempre instruir "DNS-only (nuvem cinza)" nos CNAMEs |
+
+---
+
 ## Checklist de Validação
 
 - [ ] Todo tenant tem domínio padrão ao criar conta
