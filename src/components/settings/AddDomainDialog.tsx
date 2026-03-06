@@ -492,6 +492,34 @@ export function AddDomainDialog({ open, onOpenChange, onDomainAdded }: AddDomain
                 </div>
               )}
 
+              {/* Cloudflare warning */}
+              <div className="flex items-start gap-2 p-3 bg-orange-50 dark:bg-orange-950/20 rounded border border-orange-300 dark:border-orange-800">
+                <AlertTriangle className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
+                <div className="text-xs text-orange-800 dark:text-orange-200 space-y-1">
+                  <p className="font-semibold">⚠️ Usa Cloudflare como DNS do seu domínio?</p>
+                  <p>
+                    Se o seu domínio está configurado no Cloudflare (nameservers apontando para o Cloudflare), 
+                    o <strong>domínio raiz (apex)</strong> pode apresentar <strong>Erro 1014</strong> devido ao 
+                    CNAME Cross-User Ban do Cloudflare. Subdomínios (ex: loja.seusite.com.br) funcionam normalmente.
+                  </p>
+                  <p className="font-medium">Para resolver:</p>
+                  <ul className="list-disc pl-4 space-y-0.5">
+                    <li>
+                      <strong>Opção 1 (Recomendada):</strong> Transfira o DNS para o seu registrador 
+                      (ex: Registro.br → "Utilizar DNS do Registro.br") e crie os CNAMEs lá.
+                    </li>
+                    <li>
+                      <strong>Opção 2:</strong> Mantenha no Cloudflare, mas certifique-se de que o proxy esteja 
+                      <strong> desativado</strong> (nuvem cinza / DNS-only) em todos os registros CNAME apontados 
+                      para <code>{DEFAULT_TARGET_HOSTNAME}</code>.
+                    </li>
+                  </ul>
+                  <p className="text-[10px] text-orange-600 dark:text-orange-400 mt-1">
+                    Esse problema NÃO ocorre com outros provedores de DNS (Registro.br, GoDaddy, Namecheap, Route53, etc.).
+                  </p>
+                </div>
+              </div>
+
               {/* Footer note */}
               <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 rounded border border-amber-200 dark:border-amber-800">
                 <Info className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
