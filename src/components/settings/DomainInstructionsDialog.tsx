@@ -55,9 +55,16 @@ export function DomainInstructionsDialog({
     setTimeout(() => setter(false), 2000);
   };
 
-  // Extrai o subdomínio do domínio completo (ex: "loja" de "loja.exemplo.com.br", "www" de "www.exemplo.com.br")
+  // Extrai o subdomínio do domínio completo (considerando TLDs de duas partes como .com.br)
   const getSubdomainName = () => {
-    const parts = domain.domain.split('.');
+    const normalized = domain.domain.toLowerCase().trim();
+    const parts = normalized.split('.');
+    const twoPartTLDs = ['com.br', 'org.br', 'net.br', 'co.uk', 'com.au', 'co.nz'];
+    const lastTwoParts = parts.slice(-2).join('.');
+    
+    if (twoPartTLDs.includes(lastTwoParts)) {
+      return parts.length > 3 ? parts[0] : '';
+    }
     return parts.length > 2 ? parts[0] : '';
   };
 

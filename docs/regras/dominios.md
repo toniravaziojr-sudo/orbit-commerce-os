@@ -319,7 +319,10 @@ Sistema valida formato e gera token
 Exibe instruções de DNS COM o nome correto do TXT:
   - AddDomainDialog usa getTxtRecordName() dinâmico
   - Para subdomínios (www, loja, etc.): _cc-verify.{sub}
-  - Para apex: _cc-verify
+  - Para apex (incluindo .com.br): _cc-verify
+  - IMPORTANTE: getSubdomainName() considera TLDs de duas partes (.com.br, .co.uk)
+    - respeiteohomem.com.br → apex → TXT: _cc-verify
+    - www.respeiteohomem.com.br → sub "www" → TXT: _cc-verify.www
   - Token é exibido com botão de copiar e destaque visual
 ```
 
