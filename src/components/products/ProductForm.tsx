@@ -1622,6 +1622,37 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       )}
                     />
 
+                    {form.watch('free_shipping') && (
+                      <FormField
+                        control={form.control}
+                        name="free_shipping_method"
+                        render={({ field }) => (
+                          <FormItem className="ml-4 pl-4 border-l-2 border-green-200 dark:border-green-900">
+                            <FormLabel>Método de envio gratuito</FormLabel>
+                            <Select
+                              value={field.value || 'default'}
+                              onValueChange={(val) => field.onChange(val === 'default' ? null : val)}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Usar padrão da logística" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="default">Usar padrão da logística</SelectItem>
+                                <SelectItem value="PAC">PAC (Correios)</SelectItem>
+                                <SelectItem value="SEDEX">SEDEX (Correios)</SelectItem>
+                                <SelectItem value="Mini Envios">Mini Envios (Correios)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormDescription>
+                              Escolha qual método será gratuito. Os demais continuam com preço normal.
+                            </FormDescription>
+                          </FormItem>
+                        )}
+                      />
+                    )}
+
                     <FormField
                       control={form.control}
                       name="requires_shipping"
