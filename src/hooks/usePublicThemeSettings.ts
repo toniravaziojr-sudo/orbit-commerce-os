@@ -63,8 +63,19 @@ interface PublicThemeSettingsResult {
 /**
  * Hook to read published themeSettings for public storefront
  * Reads from the active published template set's published_content.themeSettings
+ * 
+ * OPTIMIZATION: If bootstrapTemplate is provided (from usePublicStorefront),
+ * skips all queries and extracts themeSettings directly from bootstrap data.
  */
-export function usePublicThemeSettings(tenantSlug: string): PublicThemeSettingsResult {
+export function usePublicThemeSettings(
+  tenantSlug: string,
+  bootstrapTemplate?: any,
+): PublicThemeSettingsResult {
+  // If bootstrap data is available, extract themeSettings directly — no queries needed
+  const bootstrapThemeSettings = bootstrapTemplate?.published_content
+    ? ((bootstrapTemplate.published_content as Record<string, unknown>)?.themeSettings as ThemeSettings | undefined) || null
+    : undefined; // undefined means "no bootstrap", null means "bootstrap but no settings"
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['public-theme-settings', tenantSlug],
     queryFn: async () => {
@@ -141,15 +152,21 @@ export function usePublicThemeSettings(tenantSlug: string): PublicThemeSettingsR
 
       return publishedContent.themeSettings as ThemeSettings;
     },
-    enabled: !!tenantSlug,
-    staleTime: 1000 * 60 * 2, // Cache for 2 minutes - allows quick updates after publishing
-    gcTime: 1000 * 60 * 10, // Keep in cache for 10 minutes
+    // SKIP query entirely when bootstrap data is available
+    enabled: !!tenantSlug && bootstrapThemeSettings === undefined,
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 10,
   });
 
+  // Use bootstrap data if available, otherwise query data
+  const resolvedThemeSettings = bootstrapThemeSettings !== undefined
+    ? bootstrapThemeSettings
+    : (data || null);
+
   return {
-    themeSettings: data || null,
-    isLoading,
-    error: error as Error | null,
+    themeSettings: resolvedThemeSettings,
+    isLoading: bootstrapThemeSettings !== undefined ? false : isLoading,
+    error: bootstrapThemeSettings !== undefined ? null : (error as Error | null),
   };
 }
 
