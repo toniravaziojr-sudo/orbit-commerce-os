@@ -24,9 +24,15 @@ export function DomainInstructionsDialog({
   const [copiedToken, setCopiedToken] = useState(false);
   const [copiedCname, setCopiedCname] = useState(false);
 
-  const domainType = getDomainType(domain.domain);
+  // Use raw domain type WITHOUT stripping www - www IS a subdomain for DNS purposes
+  const rawDomainType = getRawDomainType(domain.domain);
   const isVerified = domain.status === 'verified';
   const hasSSL = domain.ssl_status === 'active';
+
+  // Detect if this is a www subdomain
+  const isWwwDomain = domain.domain.toLowerCase().startsWith('www.');
+  // Get the root domain (without www)
+  const rootDomain = isWwwDomain ? domain.domain.replace(/^www\./i, '') : domain.domain;
 
   const handleCopy = (text: string, setter: (v: boolean) => void) => {
     navigator.clipboard.writeText(text);
@@ -35,16 +41,17 @@ export function DomainInstructionsDialog({
     setTimeout(() => setter(false), 2000);
   };
 
-  // Extrai o subdomínio do domínio completo (ex: "loja" de "loja.exemplo.com.br")
+  // Extrai o subdomínio do domínio completo (ex: "loja" de "loja.exemplo.com.br", "www" de "www.exemplo.com.br")
   const getSubdomainName = () => {
     const parts = domain.domain.split('.');
-    return parts.length > 2 ? parts[0] : 'www';
+    return parts.length > 2 ? parts[0] : '';
   };
 
-  // Para subdomínios, o TXT deve ser _cc-verify.subdominio (ex: _cc-verify.loja)
+  // Para subdomínios (incluindo www), o TXT deve ser _cc-verify.subdominio
   const getTxtRecordName = () => {
-    if (domainType === 'subdomain') {
-      return `_cc-verify.${getSubdomainName()}`;
+    const sub = getSubdomainName();
+    if (sub) {
+      return `_cc-verify.${sub}`;
     }
     return '_cc-verify';
   };
