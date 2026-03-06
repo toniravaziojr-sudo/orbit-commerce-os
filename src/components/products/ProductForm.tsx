@@ -41,6 +41,7 @@ import { validateSlugFormat, generateSlug as generateSlugFromPolicy, RESERVED_SL
 import { useToast } from '@/hooks/use-toast';
 import { GenerateSeoButton } from '@/components/seo/GenerateSeoButton';
 import { AIDescriptionButton } from './AIDescriptionButton';
+import { useAvailableShippingMethods } from '@/hooks/useAvailableShippingMethods';
 
 const productSchema = z.object({
   // === CAMPOS OBRIGATÓRIOS BÁSICOS ===
@@ -133,6 +134,7 @@ interface ProductImage {
 export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) {
   const { createProduct, updateProduct } = useProducts();
   const { categories } = useCategories();
+  const { methods: availableShippingMethods } = useAvailableShippingMethods();
   const { toast } = useToast();
   const isEditing = !!product;
   const [productImages, setProductImages] = useState<ProductImage[]>([]);
@@ -1640,9 +1642,11 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                               </FormControl>
                               <SelectContent>
                                 <SelectItem value="default">Usar padrão da logística</SelectItem>
-                                <SelectItem value="PAC">PAC (Correios)</SelectItem>
-                                <SelectItem value="SEDEX">SEDEX (Correios)</SelectItem>
-                                <SelectItem value="Mini Envios">Mini Envios (Correios)</SelectItem>
+                                {availableShippingMethods.map((method) => (
+                                  <SelectItem key={method.value} value={method.value}>
+                                    {method.label}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                             <FormDescription>
