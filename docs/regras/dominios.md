@@ -460,6 +460,8 @@ const NO_REDIRECT_PATHS = [
 | Criar Custom Hostname para `*.shops` | ACM wildcard já cobre |
 | Deletar `platform_subdomain` | Proibido - é backup imutável |
 | Usar `fallbackOrigin` como canonical em prod | Só para dev/preview |
+| `getSubdomainName` sem tratar TLDs de 2 partes | Usar lógica com `twoPartTLDs` array |
+| Mostrar `_cc-verify.respeiteohomem` para apex `.com.br` | Correto: `_cc-verify` (sem sufixo) |
 
 ---
 
