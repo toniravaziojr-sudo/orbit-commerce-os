@@ -114,7 +114,7 @@ serve(async (req) => {
         .eq('is_active', true)
         .order('sort_order'),
       
-      // Q5: Published template set
+      // Q5: Published template set (includes published_content for all pages)
       supabase
         .from('storefront_template_sets')
         .select('id, published_content, is_published, base_preset')
@@ -132,6 +132,20 @@ serve(async (req) => {
         .eq('status', 'verified')
         .eq('ssl_status', 'active')
         .maybeSingle(),
+      
+      // Q7: Global layout (published configs for header/footer)
+      supabase
+        .from('storefront_global_layout')
+        .select('published_header_config, published_footer_config, published_checkout_header_config, published_checkout_footer_config, header_config, footer_config, checkout_header_config, checkout_footer_config, header_enabled, footer_enabled, show_footer_1, show_footer_2')
+        .eq('tenant_id', tenantId)
+        .maybeSingle(),
+      
+      // Q8: Page overrides for category page
+      supabase
+        .from('storefront_page_templates')
+        .select('page_type, page_overrides')
+        .eq('tenant_id', tenantId)
+        .in('page_type', ['category', 'product', 'cart', 'checkout', 'home']),
     ];
 
     // Optional: Include products (for home page initial render)
