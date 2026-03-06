@@ -98,6 +98,7 @@ const productSchema = z.object({
   tags: z.array(z.string()).nullable().optional(),
   requires_shipping: z.boolean().nullable().optional(),
   free_shipping: z.boolean().optional(),
+  free_shipping_method: z.string().nullable().optional(),
   taxable: z.boolean().nullable().optional(),
   tax_code: z.string().max(50).nullable().optional(),
   cest: z.string().max(20).nullable().optional()
