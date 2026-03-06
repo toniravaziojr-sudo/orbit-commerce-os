@@ -509,10 +509,23 @@ export function DomainSettingsContent() {
               <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-800">
                 <Info className="h-4 w-4 text-blue-600" />
                 <AlertTitle className="text-blue-800 dark:text-blue-200">Quer usar com www e sem www?</AlertTitle>
-                <AlertDescription className="text-blue-700 dark:text-blue-300 text-xs">
-                  Cadastre aqui apenas <strong>um</strong> deles (o que será servido pela loja).
-                  Para que o outro redirecione, configure um <strong>redirect</strong> no seu gerenciador de DNS 
-                  (ex: Cloudflare Page Rules, Redirect Rules).
+                <AlertDescription className="text-blue-700 dark:text-blue-300 text-xs space-y-2">
+                  <p>
+                    Cadastre aqui apenas <strong>um</strong> deles (o que será servido pela loja).
+                    Para que o outro redirecione, configure no Cloudflare:
+                  </p>
+                  <ol className="list-decimal list-inside space-y-1">
+                    <li>
+                      Crie um registro <strong>A</strong> para <code className="bg-muted px-1 rounded">@</code> →{' '}
+                      <code className="bg-muted px-1 rounded">192.0.2.1</code> com <strong>proxy ativado</strong> (nuvem laranja)
+                    </li>
+                    <li>
+                      Em <strong>Rules → Redirect Rules</strong>, crie um redirect 301 do domínio alternativo para o cadastrado
+                    </li>
+                  </ol>
+                  <p className="text-[10px]">
+                    ⚠️ O registro de redirect precisa do proxy ativado (nuvem laranja) para funcionar.
+                  </p>
                 </AlertDescription>
               </Alert>
             </CardContent>
