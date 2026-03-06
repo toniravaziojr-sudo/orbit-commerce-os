@@ -6,18 +6,17 @@ import { CartProvider } from '@/contexts/CartContext';
 import { DiscountProvider } from '@/contexts/DiscountContext';
 import { StorefrontConfigProvider } from '@/contexts/StorefrontConfigContext';
 import { MarketingTrackerProvider } from '@/components/storefront/MarketingTrackerProvider';
-import { useTenantCanonicalDomain } from '@/hooks/useTenantCanonicalDomain';
 import { StorefrontHead } from '@/components/storefront/StorefrontHead';
 import { LcpPreloader } from '@/components/storefront/LcpPreloader';
 /**
  * StorefrontLayout - Used for /store/:tenantSlug routes (legacy/app domain)
  * This layout is ONLY used when accessed via the app domain or fallback origin.
  * No redirects are performed here - routing is handled by App.tsx.
+ * OPTIMIZED: Uses customDomain from bootstrap (no separate useTenantCanonicalDomain query)
  */
 export function StorefrontLayout() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
-  const { tenant, isLoading, isPublished } = usePublicStorefront(tenantSlug || '');
-  const { domain: customDomain, isLoading: isDomainLoading } = useTenantCanonicalDomain(tenant?.id);
+  const { tenant, storeSettings, isLoading, isPublished, customDomain, template: bootstrapTemplate } = usePublicStorefront(tenantSlug || '');
 
   // Check for preview mode
   const searchParams = new URLSearchParams(window.location.search);
@@ -30,8 +29,10 @@ export function StorefrontLayout() {
         <StorefrontLayoutContent
           tenant={tenant}
           tenantSlug={tenantSlug || ''}
+          storeSettings={storeSettings}
           customDomain={customDomain}
-          isLoading={isLoading || isDomainLoading}
+          bootstrapTemplate={bootstrapTemplate}
+          isLoading={isLoading}
           isPublished={isPublished}
           isPreview={isPreview}
         />
@@ -44,14 +45,18 @@ export function StorefrontLayout() {
 function StorefrontLayoutContent({
   tenant,
   tenantSlug,
+  storeSettings,
   customDomain,
+  bootstrapTemplate,
   isLoading,
   isPublished,
   isPreview,
 }: {
   tenant: any;
   tenantSlug: string;
+  storeSettings: any;
   customDomain: string | null;
+  bootstrapTemplate: any;
   isLoading: boolean;
   isPublished: boolean;
   isPreview: boolean;
@@ -93,8 +98,8 @@ function StorefrontLayoutContent({
   return (
     <StorefrontConfigProvider tenantId={tenant.id} customDomain={customDomain}>
       <MarketingTrackerProvider tenantId={tenant.id}>
-        <StorefrontHead tenantId={tenant.id} />
-        <LcpPreloader tenantId={tenant.id} />
+        <StorefrontHead tenantId={tenant.id} storeSettings={storeSettings} />
+        <LcpPreloader tenantId={tenant.id} bootstrapTemplate={bootstrapTemplate} />
         <Suspense fallback={null}>
           <DomainDisabledGuard tenantSlug={tenantSlug}>
             <div className="min-h-screen flex flex-col bg-white">

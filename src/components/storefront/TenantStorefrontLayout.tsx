@@ -3,7 +3,7 @@
 // Wrapper for storefront when accessed via custom domain or platform subdomain
 // Resolves tenant from hostname instead of URL param
 // POLICY: "Domínio muda, tudo muda" - SEM REDIRECTS
-// When custom domain is active, platform subdomain shows "domain disabled" page
+// OPTIMIZED: Uses bootstrap data for custom_domain (no separate useTenantCanonicalDomain query)
 // =============================================
 
 import { createContext, useContext, Suspense, lazy } from 'react';
@@ -13,7 +13,6 @@ import { CartProvider } from '@/contexts/CartContext';
 import { DiscountProvider } from '@/contexts/DiscountContext';
 import { StorefrontConfigProvider } from '@/contexts/StorefrontConfigContext';
 import { MarketingTrackerProvider } from '@/components/storefront/MarketingTrackerProvider';
-import { useTenantCanonicalDomain } from '@/hooks/useTenantCanonicalDomain';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { StorefrontHead } from '@/components/storefront/StorefrontHead';
 import { LcpPreloader } from '@/components/storefront/LcpPreloader';
@@ -54,23 +53,18 @@ function useTenantFromHostname(): { data: ResolveResult | null; isLoading: boole
     queryFn: async (): Promise<ResolveResult | null> => {
       if (!hostname) return null;
       
-      // If on app domain or fallback origin, we shouldn't be here (handled by App.tsx)
-      if (isAppDomain(hostname)) {
-        return null;
-      }
+      if (isAppDomain(hostname)) return null;
       
       const fallbackHost = new URL(SAAS_CONFIG.fallbackOrigin).hostname;
-      if (hostname === fallbackHost) {
-        return null;
-      }
+      if (hostname === fallbackHost) return null;
       
-      // Call resolve-domain edge function to get complete info
+      // Call resolve-domain edge function
       const { data: resolveData, error: resolveError } = await supabase.functions.invoke('resolve-domain', {
         body: { hostname },
       });
       
       if (resolveError || !resolveData?.found) {
-        // Try fallback: direct DB lookup for platform subdomain
+        // Fallback: direct DB lookup for platform subdomain
         if (isPlatformSubdomain(hostname)) {
           const slug = extractTenantFromPlatformSubdomain(hostname);
           if (slug) {
@@ -81,34 +75,18 @@ function useTenantFromHostname(): { data: ResolveResult | null; isLoading: boole
               .single();
             
             if (tenant) {
-              // Check for primary custom domain
-              const { data: primaryDomain } = await supabase
-                .from('tenant_domains')
-                .select('domain')
-                .eq('tenant_id', tenant.id)
-                .eq('type', 'custom')
-                .eq('is_primary', true)
-                .eq('status', 'verified')
-                .eq('ssl_status', 'active')
-                .maybeSingle();
-              
-              const primaryHost = primaryDomain?.domain || hostname;
-              const shouldRedirect = !!primaryDomain && hostname !== primaryDomain.domain;
-              
               return {
                 tenant,
-                primaryPublicHost: primaryHost,
-                canonicalOrigin: `https://${primaryHost}`,
-                shouldRedirect,
+                primaryPublicHost: hostname,
+                canonicalOrigin: `https://${hostname}`,
+                shouldRedirect: false,
               };
             }
           }
         }
-        
         return null;
       }
       
-      // Use resolve-domain response
       const tenant = {
         id: resolveData.tenant_id,
         slug: resolveData.tenant_slug,
@@ -124,7 +102,7 @@ function useTenantFromHostname(): { data: ResolveResult | null; isLoading: boole
         shouldRedirect,
       };
     },
-    staleTime: 1000 * 60 * 2, // Cache for 2 minutes
+    staleTime: 1000 * 60 * 2,
     enabled: !!hostname && !isAppDomain(hostname),
   });
 }
@@ -135,21 +113,22 @@ export function TenantStorefrontLayout() {
   const tenant = resolveResult?.tenant || null;
   const tenantSlug = tenant?.slug || '';
   
-  const { tenant: storefrontTenant, storeSettings, isLoading: isStoreLoading, isPublished } = 
-    usePublicStorefront(tenantSlug);
-  
-  const { domain: customDomain, isLoading: isDomainLoading } = 
-    useTenantCanonicalDomain(tenant?.id);
+  // Single bootstrap call — provides ALL data including custom_domain
+  const { 
+    tenant: storefrontTenant, 
+    storeSettings, 
+    isLoading: isStoreLoading, 
+    isPublished,
+    customDomain,
+    template: bootstrapTemplate,
+  } = usePublicStorefront(tenantSlug);
 
   // Check for preview mode
   const searchParams = new URLSearchParams(window.location.search);
   const isPreview = searchParams.get('preview') === '1';
 
-  // NO REDIRECTS - DomainDisabledGuard handles showing "domain disabled" page
-  // when accessing .shops subdomain while custom domain is active
-
   // Show loading while resolving tenant
-  if (isTenantLoading || isStoreLoading || isDomainLoading) {
+  if (isTenantLoading || isStoreLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
@@ -191,9 +170,9 @@ export function TenantStorefrontLayout() {
       <DiscountProvider>
         <StorefrontConfigProvider tenantId={tenant.id} customDomain={customDomain}>
           <MarketingTrackerProvider tenantId={tenant.id}>
-            <StorefrontHead tenantId={tenant.id} />
-            <LcpPreloader tenantId={tenant.id} />
-            <StorefrontThemeInjector tenantSlug={tenantSlug} />
+            <StorefrontHead tenantId={tenant.id} storeSettings={storeSettings} />
+            <LcpPreloader tenantId={tenant.id} bootstrapTemplate={bootstrapTemplate} />
+            <StorefrontThemeInjector tenantSlug={tenantSlug} bootstrapTemplate={bootstrapTemplate} />
             <Suspense fallback={null}>
               <DomainDisabledGuard tenantSlug={tenantSlug}>
                 <div className="min-h-screen flex flex-col bg-white">
@@ -203,7 +182,6 @@ export function TenantStorefrontLayout() {
                     </div>
                   )}
                   <main className="flex-1">
-                    {/* Pass tenantSlug via context since it's not in URL */}
                     <TenantSlugContext.Provider value={tenantSlug}>
                       <Outlet />
                     </TenantSlugContext.Provider>

@@ -149,6 +149,7 @@ export function usePublicStorefront(tenantSlug: string) {
   const pageOverrides = bootstrap?.page_overrides || {};
   const categorySettings = bootstrap?.category_settings || null;
   const template = bootstrap?.template || null;
+  const customDomain = bootstrap?.custom_domain || null;
 
   const isLoading = bootstrapLoading;
   const isPublished = storeSettings?.is_published ?? false;
@@ -164,6 +165,7 @@ export function usePublicStorefront(tenantSlug: string) {
     pageOverrides,
     categorySettings,
     template,
+    customDomain,
     isLoading,
     isPublished,
   };
