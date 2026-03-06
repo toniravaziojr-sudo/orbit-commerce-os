@@ -174,6 +174,15 @@ export function DomainInstructionsDialog({
                 </div>
               </div>
 
+              {/* Cloudflare O2O warning */}
+              <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-950/20 rounded border border-amber-200 dark:border-amber-800">
+                <p className="text-xs text-amber-800 dark:text-amber-200">
+                  <strong>⚠️ Se seu DNS está no Cloudflare:</strong> O CNAME deve estar com{' '}
+                  <strong>proxy ativado</strong> (nuvem laranja 🟠). Sem isso, ocorre o Erro 1014.
+                  {' '}Se seu DNS <strong>não</strong> está no Cloudflare, deixe como DNS-only.
+                </p>
+              </div>
+
               {isApex && (
                 <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
                   ⚠️ Domínio raiz: se seu provedor não suporta CNAME no raiz, use um gerenciador como 
