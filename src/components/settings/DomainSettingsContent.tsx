@@ -87,6 +87,7 @@ export function DomainSettingsContent() {
     setPrimaryDomain, 
     removeDomain,
     provisionDefaultDomain,
+    refetch,
   } = useTenantDomains();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [instructionsDialog, setInstructionsDialog] = useState<TenantDomain | null>(null);
@@ -524,7 +525,8 @@ export function DomainSettingsContent() {
       {/* Dialogs */}
       <AddDomainDialog 
         open={addDialogOpen} 
-        onOpenChange={setAddDialogOpen} 
+        onOpenChange={setAddDialogOpen}
+        onDomainAdded={refetch}
       />
 
       {instructionsDialog && (
