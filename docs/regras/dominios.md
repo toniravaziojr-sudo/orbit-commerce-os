@@ -357,6 +357,7 @@ Quando o domínio adicionado é um **domínio apex** (ex: `respeiteohomem.com.br
 
 4. **O prefixo `www.` é preservado** na lógica de classificação para garantir o nome correto do registro TXT
 5. **Após ambos verificados**, o usuário define qual é o **Principal** — o outro redireciona automaticamente via Worker
+6. **Instrução de CNAME apex inclui aviso**: se já existir registro A/AAAA/CNAME para `@`, instruir o usuário a alterar o destino (não duplicar)
 
 #### Regras para Subdomínio (ex: `loja.cliente.com.br`)
 
