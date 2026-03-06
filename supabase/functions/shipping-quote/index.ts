@@ -939,7 +939,7 @@ serve(async (req) => {
         .eq('supports_quote', true),
       supabase
         .from('store_settings')
-        .select('settings')
+        .select('settings, default_free_shipping_method')
         .eq('tenant_id', resolvedTenantId)
         .single(),
     ]);
