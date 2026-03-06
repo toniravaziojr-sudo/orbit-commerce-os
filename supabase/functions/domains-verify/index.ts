@@ -50,9 +50,9 @@ async function lookupTXTRecords(domain: string): Promise<string[]> {
       return [];
     }
 
-    // Extract TXT record values (remove quotes if present)
+    // Extract TXT record values (remove all surrounding quotes, including nested/escaped)
     const records = data.Answer.map((record) => 
-      record.data.replace(/^"|"$/g, "").trim()
+      record.data.replace(/^"+|"+$/g, "").replace(/\\"/g, "").trim()
     );
     
     console.log(`[domains-verify] Found TXT records:`, records);
