@@ -54,6 +54,7 @@ export function DomainInstructionsDialog({
 
   const getCnameName = () => {
     const sub = getSubdomainName();
+    if (sub === 'www') return 'www / @';
     if (sub) return sub;
     return '@';
   };
