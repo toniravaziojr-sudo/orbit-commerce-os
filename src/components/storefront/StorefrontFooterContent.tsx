@@ -104,8 +104,8 @@ export function StorefrontFooterContent({
 }: StorefrontFooterContentProps) {
   // Use bootstrap data when available; only query DB as fallback (editing mode or no bootstrap)
   const shouldQueryDb = !bootstrapStoreSettings && !bootstrapCategories;
-  // Fetch store settings as fallback data source
-  const { data: storeSettings } = useQuery({
+  // Fetch store settings — ONLY when bootstrap not provided
+  const { data: dbStoreSettings } = useQuery({
     queryKey: ['store-settings-footer', tenantSlug],
     queryFn: async () => {
       if (!tenantSlug) return null;
@@ -142,9 +142,12 @@ export function StorefrontFooterContent({
       
       return data as StoreSettingsData | null;
     },
-    enabled: !!tenantSlug,
+    enabled: !!tenantSlug && shouldQueryDb,
     staleTime: 1000 * 60 * 5,
   });
+
+  // Use bootstrap data with DB fallback
+  const storeSettings: StoreSettingsData | null = bootstrapStoreSettings || dbStoreSettings || null;
 
   // Fetch categories for footer links
   const { data: categories } = useQuery({
