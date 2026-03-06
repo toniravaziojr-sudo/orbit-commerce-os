@@ -47,6 +47,7 @@ function StorefrontLayoutContent({
   tenantSlug,
   storeSettings,
   customDomain,
+  bootstrapTemplate,
   isLoading,
   isPublished,
   isPreview,
@@ -55,6 +56,7 @@ function StorefrontLayoutContent({
   tenantSlug: string;
   storeSettings: any;
   customDomain: string | null;
+  bootstrapTemplate: any;
   isLoading: boolean;
   isPublished: boolean;
   isPreview: boolean;
@@ -97,7 +99,7 @@ function StorefrontLayoutContent({
     <StorefrontConfigProvider tenantId={tenant.id} customDomain={customDomain}>
       <MarketingTrackerProvider tenantId={tenant.id}>
         <StorefrontHead tenantId={tenant.id} storeSettings={storeSettings} />
-        <LcpPreloader tenantId={tenant.id} />
+        <LcpPreloader tenantId={tenant.id} bootstrapTemplate={bootstrapTemplate} />
         <Suspense fallback={null}>
           <DomainDisabledGuard tenantSlug={tenantSlug}>
             <div className="min-h-screen flex flex-col bg-white">
