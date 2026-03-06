@@ -224,16 +224,36 @@ serve(async (req) => {
 
     const pagarmeResponse = await response.json();
     console.log('Pagar.me response status:', response.status);
+    console.log('Pagar.me full response:', JSON.stringify(pagarmeResponse, null, 2));
 
     if (!response.ok) {
-      console.error('Pagar.me error:', pagarmeResponse);
+      console.error('Pagar.me API error:', JSON.stringify(pagarmeResponse));
       throw new Error(pagarmeResponse.message || 'Failed to create charge');
+    }
+
+    // Check charge-level failure
+    const firstCharge = pagarmeResponse.charges?.[0];
+    if (firstCharge?.status === 'failed') {
+      const lastTx = firstCharge.last_transaction;
+      const gatewayResponse = lastTx?.gateway_response;
+      const acquirerMessage = lastTx?.acquirer_message || lastTx?.reason || '';
+      const gatewayMessage = gatewayResponse?.errors?.map((e: any) => e.message).join(', ') || '';
+      const failureReason = acquirerMessage || gatewayMessage || firstCharge.status;
+      console.error('[Pagar.me] Charge FAILED:', JSON.stringify({
+        charge_id: firstCharge.id,
+        status: firstCharge.status,
+        last_transaction: lastTx,
+        gateway_response: gatewayResponse,
+        acquirer_message: acquirerMessage,
+      }));
+      // Don't throw - still save the transaction but include error details
+      console.error(`[Pagar.me] Failure reason: ${failureReason}`);
     }
 
     // Save transaction to database with order_id only
     // Note: checkout_id is NOT used here because it has FK to checkouts table
     // and we're now linking via order_id (FK to orders table)
-    const charge = pagarmeResponse.charges?.[0];
+    const charge = firstCharge || pagarmeResponse.charges?.[0];
     const transactionData = {
       tenant_id: payload.tenant_id,
       order_id: payload.order_id || null, // Link to order for get-order lookup
@@ -313,6 +333,26 @@ serve(async (req) => {
       } else if (!emitError) {
         console.log(`[Pagar.me] Emitted payment_status_changed event (${eventNewStatus}) for order ${payload.order_id}`);
       }
+    }
+
+    // If charge failed, return error with details
+    if (charge?.status === 'failed') {
+      const lastTx = charge.last_transaction;
+      const failureReason = lastTx?.acquirer_message || lastTx?.reason || 
+        lastTx?.gateway_response?.errors?.map((e: any) => e.message).join(', ') || 
+        'Pagamento recusado pela operadora';
+
+      return new Response(JSON.stringify({
+        success: false,
+        error: failureReason,
+        status: 'failed',
+        transaction_id: transaction?.id,
+        provider_id: pagarmeResponse.id,
+        payment_data: transactionData.payment_data,
+      }), {
+        status: 200, // HTTP 200 but success:false (follows edge-functions.md pattern)
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     return new Response(JSON.stringify({
