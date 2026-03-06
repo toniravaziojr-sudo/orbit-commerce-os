@@ -353,6 +353,7 @@ export function DomainSettingsContent() {
                 const SslIcon = sslConfig.icon;
                 const nextAction = getNextAction(domain);
                 const isFullyActive = domain.status === 'verified' && domain.ssl_status === 'active';
+                const isApexRedirect = isApexRedirectDomain(domain);
 
                 return (
                   <div 
