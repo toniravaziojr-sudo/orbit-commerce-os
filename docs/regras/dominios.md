@@ -316,9 +316,11 @@ Admin → Configurações → Domínios → "Adicionar Domínio"
 ↓
 Sistema valida formato e gera token
 ↓
-Exibe instruções de DNS:
-  - CNAME: loja → shops.comandocentral.com.br
-  - TXT: _cc-verify.loja → cc-verify=TOKEN
+Exibe instruções de DNS COM o nome correto do TXT:
+  - AddDomainDialog usa getTxtRecordName() dinâmico
+  - Para subdomínios (www, loja, etc.): _cc-verify.{sub}
+  - Para apex: _cc-verify
+  - Token é exibido com botão de copiar e destaque visual
 ```
 
 #### Regras para Domínio Apex (raiz) + www
@@ -332,12 +334,14 @@ Quando o domínio adicionado é um **domínio apex** (ex: `respeiteohomem.com.br
 |----------|------|---------------|-----------|
 | CNAME | `@` (raiz) | `shops.comandocentral.com.br` | Apontar domínio raiz |
 | CNAME | `www` | `shops.comandocentral.com.br` | Apontar subdomínio www |
-| TXT | `_cc-verify` | `cc-verify=TOKEN` | Verificar domínio raiz |
-| TXT | `_cc-verify.www` | `cc-verify=TOKEN` | Verificar subdomínio www |
+| TXT | `_cc-verify` | `cc-verify=TOKEN_APEX` | Verificar domínio raiz |
+| TXT | `_cc-verify.www` | `cc-verify=TOKEN_WWW` | Verificar subdomínio www |
 
 3. **O sistema trata `www.dominio.com` e `dominio.com` como entidades distintas** para fins de verificação DNS
-4. **O prefixo `www.` é preservado** na lógica de classificação (`getRawDomainType`) para garantir o nome correto do registro TXT
-5. **Após ambos verificados**, o sistema pode redirecionar `www` → raiz (ou vice-versa) via Worker
+4. **Cada domínio gera seu próprio token** — o token do apex ≠ token do www
+5. **O prefixo `www.` é preservado** na lógica de classificação (`getRawDomainType`) para garantir o nome correto do registro TXT
+6. **AddDomainDialog exibe aviso contextual** instruindo o usuário a cadastrar o outro domínio (www ou raiz) separadamente
+7. **Após ambos verificados**, o sistema pode redirecionar `www` → raiz (ou vice-versa) via Worker
 
 #### Regras para Subdomínio (ex: `loja.cliente.com.br`)
 
