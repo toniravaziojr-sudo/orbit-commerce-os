@@ -120,6 +120,7 @@ export function TenantStorefrontLayout() {
     isLoading: isStoreLoading, 
     isPublished,
     customDomain,
+    template: bootstrapTemplate,
   } = usePublicStorefront(tenantSlug);
 
   // Check for preview mode
@@ -170,8 +171,8 @@ export function TenantStorefrontLayout() {
         <StorefrontConfigProvider tenantId={tenant.id} customDomain={customDomain}>
           <MarketingTrackerProvider tenantId={tenant.id}>
             <StorefrontHead tenantId={tenant.id} storeSettings={storeSettings} />
-            <LcpPreloader tenantId={tenant.id} />
-            <StorefrontThemeInjector tenantSlug={tenantSlug} />
+            <LcpPreloader tenantId={tenant.id} bootstrapTemplate={bootstrapTemplate} />
+            <StorefrontThemeInjector tenantSlug={tenantSlug} bootstrapTemplate={bootstrapTemplate} />
             <Suspense fallback={null}>
               <DomainDisabledGuard tenantSlug={tenantSlug}>
                 <div className="min-h-screen flex flex-col bg-white">
