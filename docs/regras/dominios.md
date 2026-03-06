@@ -316,9 +316,11 @@ Admin → Configurações → Domínios → "Adicionar Domínio"
 ↓
 Sistema valida formato e gera token
 ↓
-Exibe instruções de DNS:
-  - CNAME: loja → shops.comandocentral.com.br
-  - TXT: _cc-verify.loja → cc-verify=TOKEN
+Exibe instruções de DNS COM o nome correto do TXT:
+  - AddDomainDialog usa getTxtRecordName() dinâmico
+  - Para subdomínios (www, loja, etc.): _cc-verify.{sub}
+  - Para apex: _cc-verify
+  - Token é exibido com botão de copiar e destaque visual
 ```
 
 #### Regras para Domínio Apex (raiz) + www
