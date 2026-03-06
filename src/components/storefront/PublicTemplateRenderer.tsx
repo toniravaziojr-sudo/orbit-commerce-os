@@ -40,6 +40,9 @@ interface PublicTemplateRendererProps {
   // For page overrides
   pageType?: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'institutional' | 'landing_page' | 'tracking' | 'blog';
   pageId?: string; // For institutional/landing_page
+  // Pre-fetched data from bootstrap to avoid duplicate queries
+  bootstrapGlobalLayout?: any;
+  bootstrapPageOverrides?: any;
 }
 
 export function PublicTemplateRenderer({
