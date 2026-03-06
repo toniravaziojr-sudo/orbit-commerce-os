@@ -471,13 +471,26 @@ Para isso, o registro DNS da outra versão precisa de PROXY ATIVADO (nuvem laran
 
 ## Canonical Redirect (Worker)
 
+### Hostname no Worker
+
+O Worker **NÃO remove `www.`** do hostname. O hostname exato do navegador é preservado e enviado para a edge function `resolve-domain`, que faz a busca com e sem www na tabela `tenant_domains`.
+
+Isso permite que o lojista cadastre tanto `www.site.com.br` quanto `site.com.br` — o sistema resolve ambos corretamente.
+
+```javascript
+// Worker - linha de publicHost (SEM strip de www)
+const publicHost = (cfHost || edgeHost).toLowerCase();
+// ❌ ERRADO: .replace(/^www\./, '') — NÃO fazer isso
+```
+
 ### Comportamento
 
-1. Request chega em `{slug}.shops.comandocentral.com.br`
-2. Worker chama `resolve-domain` para obter `primary_public_host`
-3. Se `has_custom_primary=true` e host atual ≠ primary:
+1. Request chega em `{slug}.shops.comandocentral.com.br` ou domínio custom
+2. Worker chama `resolve-domain` com o hostname **exato** (incluindo www se presente)
+3. `resolve-domain` busca na tabela com `.or(domain.eq.${hostname},domain.eq.${hostnameWithoutWww})`
+4. Se `has_custom_primary=true` e host atual ≠ primary:
    - 301 Redirect para `https://{primary_public_host}{path}{query}`
-4. Se não tem custom primary ou é o host correto:
+5. Se não tem custom primary ou é o host correto:
    - Proxia para origin
 
 ### Paths que NÃO fazem redirect
@@ -540,12 +553,12 @@ O sistema **não gerencia** o redirect entre www e apex. Isso é responsabilidad
 - Registro CNAME com proxy ativado para www
 - Configuração de Redirect Rule com expressão dinâmica
 
-### UI: Avisos no AddDomainDialog
+### UI: Avisos no AddDomainDialog e DomainInstructionsDialog
 
-O componente `AddDomainDialog` exibe:
+Os componentes `AddDomainDialog` e `DomainInstructionsDialog` exibem:
 - Aviso âmbar para domínio raiz (sobre CNAME Flattening)
+- Aviso âmbar sobre **proxy O2O**: se DNS do cliente está no Cloudflare, o CNAME servido deve estar com proxy ativado (nuvem laranja 🟠) para evitar Erro 1014
 - Instruções detalhadas de redirect (registro A/CNAME + Redirect Rule) contextuais ao tipo de domínio
-- Aviso laranja para usuários Cloudflare sobre proxy desativado no CNAME servido
 
 ### Regras
 
