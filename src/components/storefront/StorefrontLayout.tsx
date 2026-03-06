@@ -16,7 +16,7 @@ import { LcpPreloader } from '@/components/storefront/LcpPreloader';
  */
 export function StorefrontLayout() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
-  const { tenant, storeSettings, isLoading, isPublished, customDomain } = usePublicStorefront(tenantSlug || '');
+  const { tenant, storeSettings, isLoading, isPublished, customDomain, template: bootstrapTemplate } = usePublicStorefront(tenantSlug || '');
 
   // Check for preview mode
   const searchParams = new URLSearchParams(window.location.search);
@@ -31,6 +31,7 @@ export function StorefrontLayout() {
           tenantSlug={tenantSlug || ''}
           storeSettings={storeSettings}
           customDomain={customDomain}
+          bootstrapTemplate={bootstrapTemplate}
           isLoading={isLoading}
           isPublished={isPublished}
           isPreview={isPreview}
