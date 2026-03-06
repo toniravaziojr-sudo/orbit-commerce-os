@@ -134,6 +134,8 @@ export default function StorefrontBlogPost() {
       <PublicTemplateRenderer
         content={post.content as unknown as BlockNode}
         context={context}
+        bootstrapGlobalLayout={bootstrapGlobalLayout}
+        bootstrapPageOverrides={bootstrapPageOverrides}
       />
     );
   }

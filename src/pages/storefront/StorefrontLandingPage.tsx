@@ -317,6 +317,8 @@ export default function StorefrontLandingPage() {
       canPreview={true}
       pageType="landing_page"
       pageId={pageData.pageId}
+      bootstrapGlobalLayout={bootstrapGlobalLayout}
+      bootstrapPageOverrides={bootstrapPageOverrides}
     />
   );
 }

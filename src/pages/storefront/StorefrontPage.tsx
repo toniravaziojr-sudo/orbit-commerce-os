@@ -237,6 +237,8 @@ export default function StorefrontPage() {
       canPreview={canPreview}
       pageType="institutional"
       pageId={pageData.pageId}
+      bootstrapGlobalLayout={isPreviewMode ? undefined : bootstrapGlobalLayout}
+      bootstrapPageOverrides={isPreviewMode ? undefined : bootstrapPageOverrides}
     />
   );
 }
