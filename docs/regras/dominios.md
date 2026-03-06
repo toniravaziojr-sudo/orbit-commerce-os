@@ -253,15 +253,29 @@ shops.comandocentral.com.br/*    →  shops-router
 const {
   domains,           // Lista de domínios
   isLoading,
-  addDomain,         // Adicionar custom domain
+  addDomain,         // Adicionar custom domain (retorna { primary, companion })
   verifyDomain,      // Verificar DNS
   provisionSSL,      // Criar Custom Hostname
   checkSSLStatus,    // Verificar SSL
   setPrimaryDomain,  // Definir como principal
   removeDomain,      // Remover (exceto platform_subdomain)
   provisionDefaultDomain, // Provisionar padrão
+  refetch,           // Recarregar lista de domínios
 } = useTenantDomains();
 ```
+
+### AddDomainDialog
+
+```typescript
+// Props
+interface AddDomainDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onDomainAdded?: () => void; // Callback para recarregar lista após adicionar domínio
+}
+```
+
+**IMPORTANTE:** O `DomainSettingsContent` deve passar `refetch` como `onDomainAdded` para sincronizar a lista após o dialog fechar.
 
 ### usePrimaryPublicHost
 
