@@ -187,8 +187,8 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
   if (inStock) {
     const mainImageThumb = mainImage ? escapeHtml(optimizeImageUrl(mainImage.url, 120, 75)) : '';
     ctaHtml = `<div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:400px;">
-      ${showAddToCartButton ? `<button data-sf-action="add-to-cart" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${mainImageThumb}" style="padding:14px 32px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;width:100%;">Adicionar ao carrinho</button>` : ''}
-      ${showBuyNowButton ? `<button data-sf-action="buy-now" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${mainImageThumb}" style="padding:14px 32px;background:transparent;color:var(--theme-button-primary-bg,#1a1a1a);border:2px solid var(--theme-button-primary-bg,#1a1a1a);border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;width:100%;">${escapeHtml(buyNowButtonText)}</button>` : ''}
+      ${showAddToCartButton ? `<button data-sf-action="add-to-cart" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${mainImageThumb}" class="sf-btn-primary" style="padding:14px 32px;border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;width:100%;">Adicionar ao carrinho</button>` : ''}
+      ${showBuyNowButton ? `<button data-sf-action="buy-now" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${mainImageThumb}" class="sf-btn-outline-primary" style="padding:14px 32px;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;width:100%;">${escapeHtml(buyNowButtonText)}</button>` : ''}
       ${whatsappButtonHtml}
     </div>`;
   } else {
