@@ -1616,10 +1616,11 @@ serve(async (req) => {
           'X-Prerender-At': prerendered.generated_at || '',
         },
       });
+      }
     }
 
     // === STEP 2: LIVE FALLBACK — Run base queries in parallel ===
-    console.log(`[storefront-html][${VERSION}] No prerender for ${normalizedPath}, falling back to live render`);
+    console.log(`[storefront-html][${VERSION}] ${bypassPrerender ? 'BYPASS MODE' : 'No prerender for'} ${normalizedPath}, live render`);
     const queryStart = Date.now();
     
     // Base queries (all pages need these)
