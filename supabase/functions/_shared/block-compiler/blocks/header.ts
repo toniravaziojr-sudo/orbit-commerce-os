@@ -240,7 +240,6 @@ export function headerToStaticHTML(context: CompilerContext): string {
         <div class="sf-header-desktop" style="display:flex;align-items:center;justify-content:space-between;height:64px;gap:16px;">
           <div style="display:flex;align-items:center;gap:12px;flex:1;">
             ${showSearch ? `<button data-sf-action="toggle-search" style="display:flex;align-items:center;gap:6px;background:rgba(128,128,128,0.1);border:none;cursor:pointer;padding:8px 14px;border-radius:8px;color:${escapeHtml(headerTextColor)};" aria-label="Buscar">${searchSvg}<span style="font-size:13px;opacity:0.7;">Pesquisar</span></button>` : ''}
-            ${featuredPromoHtml}
           </div>
           <a href="/" style="flex-shrink:0;display:flex;align-items:center;">${logoHtml}</a>
           <div style="display:flex;align-items:center;gap:12px;flex:1;justify-content:flex-end;">
