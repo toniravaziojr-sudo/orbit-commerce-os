@@ -938,6 +938,13 @@ serve(async (req) => {
     const totalMs = Date.now() - startTime;
     const canonicalUrl = `https://${hostname}${canonicalPath}`;
 
+    // Build nav items for mobile menu
+    const navItemsHtml = menuItems
+      .filter((item: any) => !item.parent_id)
+      .slice(0, 12)
+      .map((item: any) => `<a href="${escapeHtml(item.url || '#')}">${escapeHtml(item.label)}</a>`)
+      .join('');
+
     const html = buildFullPage({
       title: pageTitle,
       description: pageDescription,
@@ -956,6 +963,7 @@ serve(async (req) => {
       queryMs,
       totalMs,
       extraHead,
+      navItemsHtml,
     });
 
     console.log(`[storefront-html] ${route.type}${route.slug ? '/' + route.slug : ''} rendered in ${totalMs}ms (resolve=${resolveMs}ms, queries=${queryMs}ms)`);
