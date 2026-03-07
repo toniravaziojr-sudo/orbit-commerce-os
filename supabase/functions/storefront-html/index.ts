@@ -1445,8 +1445,14 @@ serve(async (req) => {
     const menuItems = headerMenuRaw?.menu_items 
       ? [...headerMenuRaw.menu_items].sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
       : [];
-    const headerHtml = renderHeader(storeSettings, tenant, menuItems, categories || [], tenantSlug);
+    // Use published_header_config if available, fallback to header_config
+    const headerConfig = globalLayout?.published_header_config || globalLayout?.header_config || null;
+    const headerHtml = renderHeader(storeSettings, tenant, menuItems, categories || [], tenantSlug, headerConfig);
     const footerHtml = renderFooter(storeSettings, tenant);
+    
+    // Extract categorySettings from template themeSettings
+    const pageSettings = themeSettings?.pageSettings as Record<string, any> | undefined;
+    const categorySettings = pageSettings?.category || null;
 
     // === STEP 3: Route-specific rendering ===
     let bodyHtml = '';
