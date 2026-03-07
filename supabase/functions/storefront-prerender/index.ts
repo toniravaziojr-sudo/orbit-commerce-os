@@ -1,14 +1,22 @@
 // ============================================
 // STOREFRONT PRERENDER — Server-side pre-rendering job
-// v1.0.0: Orchestrates HTML generation for all public routes
+// v1.1.0: Fresh render bypass + version-safe atomic activation
 // Triggered by publish flow. Calls storefront-html for each route.
 // Stores results in storefront_prerendered_pages for fast serving.
+//
+// KEY GUARANTEES:
+// 1. Always sends X-Prerender-Bypass: 1 so storefront-html never returns
+//    stale cached HTML from the prerendered_pages table.
+// 2. Pages are written with status='pending' and a publish_version UUID.
+//    Only after ALL pages succeed, the batch is atomically activated
+//    (pending→active) and the previous version deactivated.
+// 3. If the job fails partially, the old active pages remain untouched.
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const VERSION = "v1.0.0";
+const VERSION = "v1.1.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,9 +26,7 @@ const corsHeaders = {
 interface PrerenderRequest {
   tenant_id: string;
   trigger_type?: 'publish' | 'product_update' | 'category_update' | 'manual';
-  // Optional: only re-render specific pages
   paths?: string[];
-  // Optional: specific entity IDs that changed
   entity_ids?: string[];
 }
 
@@ -79,7 +85,7 @@ serve(async (req) => {
       });
     }
 
-    // Get tenant hostname for calling storefront-html
+    // Get tenant hostname
     const { data: tenant } = await supabase
       .from('tenants')
       .select('slug, custom_domain')
@@ -93,25 +99,22 @@ serve(async (req) => {
       });
     }
 
-    // Use custom domain if available, otherwise platform subdomain
     const hostname = tenant.custom_domain || `${tenant.slug}.shops.comandocentral.com.br`;
+
+    // Generate a unique publish_version for atomic activation
+    const publishVersion = crypto.randomUUID();
 
     // === Determine which pages to render ===
     const pagesToRender: { path: string; page_type: string; entity_id?: string }[] = [];
 
     if (paths && paths.length > 0) {
-      // Specific paths requested (targeted invalidation)
       for (const p of paths) {
-        const pageType = getPageTypeFromPath(p);
-        pagesToRender.push({ path: p, page_type: pageType });
+        pagesToRender.push({ path: p, page_type: getPageTypeFromPath(p) });
       }
     } else {
       // Full publish: render all public pages
-      
-      // 1. Home
       pagesToRender.push({ path: '/', page_type: 'home' });
 
-      // 2. All active products
       const { data: products } = await supabase
         .from('products')
         .select('id, slug')
@@ -122,15 +125,10 @@ serve(async (req) => {
 
       if (products) {
         for (const p of products) {
-          pagesToRender.push({
-            path: `/produto/${p.slug}`,
-            page_type: 'product',
-            entity_id: p.id,
-          });
+          pagesToRender.push({ path: `/produto/${p.slug}`, page_type: 'product', entity_id: p.id });
         }
       }
 
-      // 3. All active categories
       const { data: categories } = await supabase
         .from('categories')
         .select('id, slug')
@@ -140,15 +138,10 @@ serve(async (req) => {
 
       if (categories) {
         for (const c of categories) {
-          pagesToRender.push({
-            path: `/categoria/${c.slug}`,
-            page_type: 'category',
-            entity_id: c.id,
-          });
+          pagesToRender.push({ path: `/categoria/${c.slug}`, page_type: 'category', entity_id: c.id });
         }
       }
 
-      // 4. Published institutional pages
       const { data: storePages } = await supabase
         .from('store_pages')
         .select('id, slug')
@@ -158,15 +151,10 @@ serve(async (req) => {
 
       if (storePages) {
         for (const sp of storePages) {
-          pagesToRender.push({
-            path: `/p/${sp.slug}`,
-            page_type: 'institutional',
-            entity_id: sp.id,
-          });
+          pagesToRender.push({ path: `/p/${sp.slug}`, page_type: 'institutional', entity_id: sp.id });
         }
       }
 
-      // 5. Blog index + posts
       pagesToRender.push({ path: '/blog', page_type: 'blog' });
 
       const { data: blogPosts } = await supabase
@@ -178,11 +166,7 @@ serve(async (req) => {
 
       if (blogPosts) {
         for (const bp of blogPosts) {
-          pagesToRender.push({
-            path: `/blog/${bp.slug}`,
-            page_type: 'blog_post',
-            entity_id: bp.id,
-          });
+          pagesToRender.push({ path: `/blog/${bp.slug}`, page_type: 'blog_post', entity_id: bp.id });
         }
       }
     }
@@ -198,6 +182,7 @@ serve(async (req) => {
         started_at: new Date().toISOString(),
         metadata: {
           hostname,
+          publish_version: publishVersion,
           trigger_entity_ids: entity_ids || [],
           requested_paths: paths || [],
         },
@@ -210,7 +195,7 @@ serve(async (req) => {
     }
 
     const jobId = job?.id;
-    console.log(`[storefront-prerender] Job ${jobId}: rendering ${pagesToRender.length} pages for ${hostname}`);
+    console.log(`[storefront-prerender] Job ${jobId}: rendering ${pagesToRender.length} pages (version=${publishVersion})`);
 
     // === Render pages in batches ===
     const BATCH_SIZE = 5;
@@ -225,12 +210,14 @@ serve(async (req) => {
       const batchResults = await Promise.allSettled(
         batch.map(async (page) => {
           try {
-            // Call storefront-html to get the rendered HTML
             const renderUrl = `${storefrontHtmlUrl}?hostname=${encodeURIComponent(hostname)}&path=${encodeURIComponent(page.path)}`;
             const response = await fetch(renderUrl, {
               method: 'GET',
               headers: {
                 'Accept': 'text/html',
+                // CRITICAL: Forces storefront-html to skip prerender lookup
+                // and always generate fresh HTML from the database
+                'X-Prerender-Bypass': '1',
               },
             });
 
@@ -240,7 +227,8 @@ serve(async (req) => {
 
             const htmlContent = await response.text();
 
-            // Upsert into storefront_prerendered_pages
+            // Save with status='pending' — NOT active yet
+            // Will be activated atomically after all pages succeed
             const { error: upsertError } = await supabase
               .from('storefront_prerendered_pages')
               .upsert(
@@ -250,13 +238,14 @@ serve(async (req) => {
                   page_type: page.page_type,
                   html_content: htmlContent,
                   entity_id: page.entity_id || null,
-                  status: 'active',
+                  status: 'pending',
+                  publish_version: publishVersion,
                   error_message: null,
                   generated_at: new Date().toISOString(),
                   metadata: {
                     source_version: VERSION,
                     storefront_html_version: response.headers.get('X-Storefront-Version') || 'unknown',
-                    render_time_ms: parseInt(response.headers.get('Server-Timing')?.match(/total;dur=(\d+)/)?.[1] || '0'),
+                    render_mode: response.headers.get('X-Render-Mode') || 'live',
                     html_size_bytes: htmlContent.length,
                   },
                 },
@@ -274,7 +263,6 @@ serve(async (req) => {
         })
       );
 
-      // Process batch results
       for (const result of batchResults) {
         processedPages++;
         if (result.status === 'fulfilled') {
@@ -296,10 +284,37 @@ serve(async (req) => {
           .update({
             processed_pages: processedPages,
             failed_pages: failedPages,
-            errors: errors.slice(-20), // Keep last 20 errors
+            errors: errors.slice(-20),
           })
           .eq('id', jobId);
       }
+    }
+
+    // === ATOMIC ACTIVATION ===
+    // Only activate the new version if we had at least some success
+    const successCount = processedPages - failedPages;
+    const isFullSuccess = failedPages === 0;
+    const isPartialSuccess = successCount > 0;
+
+    if (isPartialSuccess) {
+      // Step 1: Deactivate all previous active pages for this tenant
+      await supabase
+        .from('storefront_prerendered_pages')
+        .update({ status: 'stale' })
+        .eq('tenant_id', tenant_id)
+        .eq('status', 'active');
+
+      // Step 2: Activate all pending pages from THIS publish version
+      await supabase
+        .from('storefront_prerendered_pages')
+        .update({ status: 'active' })
+        .eq('tenant_id', tenant_id)
+        .eq('publish_version', publishVersion)
+        .eq('status', 'pending');
+
+      console.log(`[storefront-prerender] Activated version ${publishVersion}: ${successCount} pages${isFullSuccess ? '' : ` (${failedPages} failed, will use live fallback)`}`);
+    } else {
+      console.error(`[storefront-prerender] All pages failed, keeping previous version active`);
     }
 
     // Finalize job
@@ -316,14 +331,16 @@ serve(async (req) => {
         .eq('id', jobId);
     }
 
-    console.log(`[storefront-prerender] Job ${jobId}: completed. ${processedPages - failedPages}/${pagesToRender.length} pages rendered, ${failedPages} failed`);
+    console.log(`[storefront-prerender] Job ${jobId}: completed. ${successCount}/${pagesToRender.length} pages rendered, ${failedPages} failed`);
 
     return new Response(JSON.stringify({
       success: true,
       job_id: jobId,
+      publish_version: publishVersion,
       total_pages: pagesToRender.length,
-      rendered: processedPages - failedPages,
+      rendered: successCount,
       failed: failedPages,
+      activated: isPartialSuccess,
       errors: errors.slice(0, 5),
     }), {
       status: 200,

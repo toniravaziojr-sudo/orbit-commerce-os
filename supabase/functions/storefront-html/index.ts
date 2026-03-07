@@ -1588,17 +1588,20 @@ serve(async (req) => {
     const tenantSlug = resolveResult.tenant_slug;
 
     // === STEP 1.5: Check pre-rendered pages (fast path) ===
-    // Normalize path for lookup
+    // X-Prerender-Bypass: used by storefront-prerender job to force fresh render
+    const bypassPrerender = req.headers.get('x-prerender-bypass') === '1';
     const normalizedPath = path === '' ? '/' : path.replace(/\/+$/, '') || '/';
-    const { data: prerendered } = await supabase
-      .from('storefront_prerendered_pages')
-      .select('html_content, generated_at, metadata')
-      .eq('tenant_id', tenantId)
-      .eq('path', normalizedPath)
-      .eq('status', 'active')
-      .maybeSingle();
 
-    if (prerendered?.html_content) {
+    if (!bypassPrerender) {
+      const { data: prerendered } = await supabase
+        .from('storefront_prerendered_pages')
+        .select('html_content, generated_at, metadata')
+        .eq('tenant_id', tenantId)
+        .eq('path', normalizedPath)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (prerendered?.html_content) {
       const totalMs = Date.now() - startTime;
       console.log(`[storefront-html][${VERSION}] PRE-RENDERED HIT: ${normalizedPath} (resolve=${resolveMs}ms, total=${totalMs}ms)`);
       return new Response(prerendered.html_content, {
@@ -1613,10 +1616,11 @@ serve(async (req) => {
           'X-Prerender-At': prerendered.generated_at || '',
         },
       });
+      }
     }
 
     // === STEP 2: LIVE FALLBACK — Run base queries in parallel ===
-    console.log(`[storefront-html][${VERSION}] No prerender for ${normalizedPath}, falling back to live render`);
+    console.log(`[storefront-html][${VERSION}] ${bypassPrerender ? 'BYPASS MODE' : 'No prerender for'} ${normalizedPath}, live render`);
     const queryStart = Date.now();
     
     // Base queries (all pages need these)
