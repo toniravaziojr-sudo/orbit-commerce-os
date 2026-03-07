@@ -201,6 +201,7 @@ export function footerToStaticHTML(context: CompilerContext): string {
       </div>`;
     }).join('');
     
+    // Desktop: N columns side by side. Mobile: 1 column stacked vertically (matches Builder grid-cols-1 sm:grid-cols-2 lg:grid-cols-4)
     imageSectionsHtml = `
       <div style="border-top:1px solid rgba(255,255,255,0.1);margin-top:32px;padding-top:24px;">
         <div class="sf-footer-images-grid" style="display:grid;grid-template-columns:repeat(${allImageSections.length},1fr);gap:24px;">
@@ -238,9 +239,12 @@ export function footerToStaticHTML(context: CompilerContext): string {
       <style>
         @media(max-width:768px){
           footer .sf-footer-grid{grid-template-columns:1fr !important;text-align:center !important;}
-          footer .sf-footer-images-grid{grid-template-columns:repeat(2,1fr) !important;}
+          footer .sf-footer-images-grid{grid-template-columns:1fr !important;}
           footer .sf-footer-newsletter-row{flex-direction:column !important;text-align:center !important;}
           footer .sf-footer-newsletter-row form{min-width:100% !important;max-width:100% !important;}
+        }
+        @media(min-width:640px) and (max-width:1023px){
+          footer .sf-footer-images-grid{grid-template-columns:repeat(2,1fr) !important;}
         }
       </style>
     </footer>`;

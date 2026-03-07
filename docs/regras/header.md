@@ -402,6 +402,7 @@ const handleMobileMenuNavigate = (url: string) => {
 | 2025-03-04 | Fallback de cor no badge de Featured Promos: se `featuredPromosBgColor` for vazio, igual ao texto, ou igual ao fundo do header, o sistema ignora a cor inválida e usa `sf-btn-primary` (cor primária do tema). Previne botão invisível em todos os tenants |
 | 2026-03-06 | **PERFORMANCE v3.0.0**: HeaderBlock agora aceita `bootstrapPages` e `bootstrapGlobalLayout` via props. No storefront público, consome dados do bootstrap (ZERO queries). No builder, mantém fetching próprio como fallback |
 | 2025-03-04 | Mobile secondary bar: badge de Featured Promos agora usa `sf-btn-primary` + `featuredPromosStyle` (paridade com desktop) |
+| 2026-03-07 | Mobile menu público: adicionadas seções REDES SOCIAIS e barra de busca. Busca mobile abre overlay de busca principal. Scroll fix com `-webkit-overflow-scrolling:touch` |
 
 ---
 

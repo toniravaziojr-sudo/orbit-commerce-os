@@ -82,11 +82,12 @@ export function infoHighlightsToStaticHTML(
   }).join('');
 
   // React component uses: py-6 border-y bg-muted/20
-  return `<section style="padding:24px 0;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;background:rgba(0,0,0,0.02);">
+  return `<section class="sf-info-highlights" style="padding:24px 0;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;background:rgba(0,0,0,0.02);">
     <div style="max-width:1280px;margin:0 auto;padding:0 16px;">
       <div style="display:flex;${isHorizontal ? 'flex-direction:row;flex-wrap:wrap;justify-content:center;align-items:center;' : 'flex-direction:column;align-items:flex-start;'}gap:24px;">
         ${itemsHtml}
       </div>
     </div>
+    <style>@media(max-width:768px){.sf-info-highlights{padding:16px 0 !important;}.sf-info-highlights [style*="gap:24px"]{gap:12px !important;}.sf-info-highlights [style*="min-width:200px"]{min-width:140px !important;flex:0 0 calc(50% - 8px) !important;}}</style>
   </section>`;
 }
