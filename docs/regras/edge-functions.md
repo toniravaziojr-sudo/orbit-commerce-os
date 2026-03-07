@@ -2416,3 +2416,34 @@ cachePurge.full(tenantId);
 - LCP preload é gerado por rota: home (banner), produto (imagem principal), blog post (capa)
 - O preload responsivo usa `imagesrcset` + `imagesizes` para que o browser escolha a melhor variante
 - `optimizeImageUrl()` via wsrv.nl garante WebP + resize em todos os preloads
+
+---
+
+## storefront-html — Phase 8: Cart Bridge Edge↔SPA (v5.1.0)
+
+### Problema resolvido
+
+O script de hidratação edge e o React CartContext usavam **chaves e formatos diferentes** de localStorage, causando perda do carrinho ao navegar de páginas edge-rendered para rotas SPA (/carrinho, /checkout).
+
+### Solução
+
+| Aspecto | Antes (v4.0.0) | Depois (v5.1.0) |
+|---------|----------------|------------------|
+| **Chave localStorage** | `sf_cart_{slug}` | `storefront_cart_{slug}` |
+| **Formato items** | `{id,name,price,image,variantId,qty}` | `{id,product_id,variant_id,name,sku,price,quantity,image_url}` |
+| **Formato raiz** | `[...items]` (array puro) | `{items:[...],shipping:{...}}` (objeto com shipping) |
+| **Compatibilidade** | Isolado — SPA não lê | Bidirecional — edge escreve, React lê |
+
+### Migração automática
+
+O script edge detecta o formato antigo (`sf_cart_{slug}`) e migra:
+1. Lê do antigo key
+2. Converte `{id,qty,image,variantId}` → `{product_id,quantity,image_url,variant_id}`
+3. Salva no novo key com `{items, shipping}`
+4. Remove o antigo key
+
+### Regras
+- **NUNCA** usar `sf_cart_` como chave — sempre `storefront_cart_`
+- O campo `id` no item do carrinho é um UUID do item (não o product_id)
+- `product_id` é o ID real do produto no banco
+- CartContext já suporta leitura de ambos os formatos (array legado e objeto com `.items`)

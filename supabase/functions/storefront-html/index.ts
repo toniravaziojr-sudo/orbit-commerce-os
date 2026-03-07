@@ -9,7 +9,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveTenantFromHostname } from '../_shared/resolveTenant.ts';
 
 // ===== VERSION =====
-const VERSION = "v5.0.0"; // Phase 7: Font preload + LCP optimization + dns-prefetch
+const VERSION = "v5.1.0"; // Phase 8: Unified cart format (edge ↔ SPA bridge)
 // ====================
 
 // ============================================
@@ -725,21 +725,62 @@ function buildFullPage(opts: {
     window.__SF_TIMING = { resolve: ${opts.resolveMs}, queries: ${opts.queryMs}, total: ${opts.totalMs} };
     window.__SF_TENANT = { slug: "${escapeHtml(opts.tenantSlug)}", id: "${escapeHtml(opts.tenantId)}" };
 
-    // ====== HYDRATION SCRIPT (Phase 3) ======
+    // ====== HYDRATION SCRIPT (Phase 3 + Phase 8: Unified Cart Format) ======
     (function(){
       var SUPABASE_URL = "https://ojssezfjhdvvncsqyhyq.supabase.co";
       var SUPABASE_KEY = "${escapeHtml(Deno.env.get('SUPABASE_ANON_KEY') || '')}";
       var TENANT_SLUG = "${escapeHtml(opts.tenantSlug)}";
-      var CART_KEY = "sf_cart_" + TENANT_SLUG;
+      // UNIFIED KEY: same as React CartContext (storefront_cart_{slug})
+      var CART_KEY = "storefront_cart_" + TENANT_SLUG;
+      var OLD_CART_KEY = "sf_cart_" + TENANT_SLUG; // legacy key for migration
 
-      // === Cart state ===
-      var cart = JSON.parse(localStorage.getItem(CART_KEY) || "[]");
-      function saveCart(){ localStorage.setItem(CART_KEY, JSON.stringify(cart)); updateCartUI(); }
+      // === Cart state (React-compatible format) ===
+      // Format: { items: [{id, product_id, variant_id, name, sku, price, quantity, image_url}], shipping: {cep, options, selected} }
+      function loadCart(){
+        try {
+          var stored = localStorage.getItem(CART_KEY);
+          if(stored){
+            var parsed = JSON.parse(stored);
+            if(parsed && parsed.items && Array.isArray(parsed.items)) return parsed.items;
+            if(Array.isArray(parsed)) return parsed; // legacy array
+          }
+          // Migrate from old key if exists
+          var oldStored = localStorage.getItem(OLD_CART_KEY);
+          if(oldStored){
+            var oldParsed = JSON.parse(oldStored);
+            if(Array.isArray(oldParsed) && oldParsed.length > 0){
+              var migrated = oldParsed.map(function(item){
+                return {
+                  id: item.id || crypto.randomUUID(),
+                  product_id: item.id,
+                  variant_id: item.variantId || undefined,
+                  name: item.name,
+                  sku: "",
+                  price: item.price,
+                  quantity: item.qty || item.quantity || 1,
+                  image_url: item.image || item.image_url || ""
+                };
+              });
+              localStorage.removeItem(OLD_CART_KEY);
+              return migrated;
+            }
+          }
+        } catch(e){}
+        return [];
+      }
+
+      var cart = loadCart();
+      function saveCart(){
+        localStorage.setItem(CART_KEY, JSON.stringify({
+          items: cart,
+          shipping: { cep: "", options: [], selected: null }
+        }));
+        updateCartUI();
+      }
       function updateCartUI(){
         var countEls = document.querySelectorAll("[data-sf-cart-count]");
-        var total = cart.reduce(function(s,i){return s+i.qty},0);
+        var total = cart.reduce(function(s,i){return s+(i.quantity||1)},0);
         countEls.forEach(function(el){ el.textContent=total; el.style.display=total>0?"flex":"none"; });
-        // Update drawer
         var itemsEl = document.querySelector("[data-sf-cart-items]");
         var footerEl = document.querySelector("[data-sf-cart-footer]");
         var totalEl = document.querySelector("[data-sf-cart-total]");
@@ -750,21 +791,34 @@ function buildFullPage(opts: {
           return;
         }
         if(footerEl) footerEl.style.display="block";
-        var priceTotal = cart.reduce(function(s,i){return s+(i.price*i.qty)},0);
+        var priceTotal = cart.reduce(function(s,i){return s+(i.price*(i.quantity||1))},0);
         if(totalEl) totalEl.textContent="R$ "+priceTotal.toFixed(2).replace(".",",");
         itemsEl.innerHTML = cart.map(function(item,idx){
+          var img = item.image_url || item.image || "";
           return '<div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid #f0f0f0;">' +
-            (item.image ? '<img src="'+item.image+'" style="width:64px;height:64px;object-fit:cover;border-radius:6px;">' : '') +
+            (img ? '<img src="'+img+'" style="width:64px;height:64px;object-fit:cover;border-radius:6px;">' : '') +
             '<div style="flex:1;"><p style="font-size:14px;font-weight:500;">'+item.name+'</p>' +
-            '<p style="font-size:13px;color:#666;margin-top:4px;">R$ '+(item.price).toFixed(2).replace(".",",")+' × '+item.qty+'</p></div>' +
+            '<p style="font-size:13px;color:#666;margin-top:4px;">R$ '+(item.price).toFixed(2).replace(".",",")+' × '+(item.quantity||1)+'</p></div>' +
             '<button data-sf-action="remove-cart-item" data-index="'+idx+'" style="background:none;border:none;cursor:pointer;color:#999;font-size:18px;">×</button></div>';
         }).join("");
       }
 
       function addToCart(productId, name, price, image, variantId){
-        var key = productId + (variantId||"");
-        var existing = cart.find(function(i){return (i.id+""+(i.variantId||""))===key});
-        if(existing){ existing.qty++; } else { cart.push({id:productId,name:name,price:price,image:image,variantId:variantId,qty:1}); }
+        var existing = cart.find(function(i){return i.product_id===productId && (i.variant_id||"")===(variantId||"")});
+        if(existing){
+          existing.quantity = (existing.quantity||1) + 1;
+        } else {
+          cart.push({
+            id: crypto.randomUUID(),
+            product_id: productId,
+            variant_id: variantId || undefined,
+            name: name,
+            sku: "",
+            price: price,
+            quantity: 1,
+            image_url: image || ""
+          });
+        }
         saveCart();
         // Open cart drawer
         var drawer = document.querySelector("[data-sf-cart-drawer]");

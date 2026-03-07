@@ -38,6 +38,41 @@ Sistema de carrinho de compras com mini-cart, página completa e ofertas de cros
 │  • CartItem (item individual)                                           │
 │  • CartSummary (resumo com totais)                                      │
 └─────────────────────────────────────────────────────────────────────────┘
+
+### Formato Unificado localStorage (Phase 8 - v5.1.0)
+
+**Chave:** `storefront_cart_{tenantSlug}`
+
+**Formato:**
+```json
+{
+  "items": [
+    {
+      "id": "uuid",           // UUID único do item no carrinho
+      "product_id": "uuid",   // ID do produto no banco
+      "variant_id": "uuid",   // ID da variante (opcional)
+      "name": "Produto X",
+      "sku": "",
+      "price": 99.90,
+      "quantity": 2,
+      "image_url": "https://...",
+      "free_shipping": false
+    }
+  ],
+  "shipping": {
+    "cep": "",
+    "options": [],
+    "selected": null
+  }
+}
+```
+
+**REGRA CRÍTICA:** Tanto o script de hidratação edge (vanilla JS) quanto o React
+CartContext usam a **mesma chave e formato**. Isso garante que ao navegar de uma 
+página edge-rendered para /carrinho (SPA), o carrinho é preservado.
+
+**Migração automática:** O script edge detecta o formato antigo (`sf_cart_{slug}`)
+e migra automaticamente para o novo formato na primeira carga.
 ```
 
 ---
