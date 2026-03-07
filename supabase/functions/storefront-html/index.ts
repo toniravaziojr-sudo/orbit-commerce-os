@@ -397,9 +397,10 @@ function renderProductPage(product: any, images: any[], storeSettings: any, host
 // CATEGORY PAGE RENDERER
 // ============================================
 function renderCategoryPage(category: any, products: any[], hostname: string): string {
-  const categoryBanner = category.banner_url 
+  const bannerUrl = category.banner_desktop_url;
+  const categoryBanner = bannerUrl 
     ? `<div style="position:relative;width:100%;height:200px;overflow:hidden;background:#f5f5f5;">
-        <img src="${escapeHtml(optimizeImageUrl(category.banner_url, 1920, 80))}" alt="${escapeHtml(category.name)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" loading="eager">
+        <img src="${escapeHtml(optimizeImageUrl(bannerUrl, 1920, 80))}" alt="${escapeHtml(category.name)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" loading="eager">
         <div style="position:absolute;inset:0;background:rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;">
           <h1 style="font-size:clamp(24px,4vw,40px);font-weight:700;color:#fff;font-family:var(--sf-heading-font);">${escapeHtml(category.name)}</h1>
         </div>
