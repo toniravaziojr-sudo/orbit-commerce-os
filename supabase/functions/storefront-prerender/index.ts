@@ -54,11 +54,19 @@ serve(async (req) => {
     }
 
     // Auth: validate caller has access (user JWT or service-role)
+    // When verify_jwt=false (config.toml), Supabase gateway allows unauthenticated calls.
+    // Internal triggers (publish flow, manual via curl) may not have auth headers.
     const authHeader = req.headers.get('authorization');
     const token = authHeader?.replace('Bearer ', '') || '';
     const isServiceRole = token === supabaseServiceKey;
 
-    if (!isServiceRole && authHeader) {
+    if (!authHeader || !token) {
+      // No auth header — allowed because verify_jwt=false in config.toml
+      // This enables internal triggers (publish flow, platform admin)
+      console.log('[storefront-prerender] Auth OK: no-auth (verify_jwt=false)');
+    } else if (isServiceRole) {
+      console.log('[storefront-prerender] Auth OK: service-role');
+    } else {
       try {
         const { data: { user }, error: authError } = await supabase.auth.getUser(token);
         if (authError || !user) {
@@ -89,14 +97,6 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-    } else if (isServiceRole) {
-      console.log('[storefront-prerender] Auth OK: service-role');
-    } else {
-      console.error('[storefront-prerender] No auth header');
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
     }
 
     // Get tenant hostname
