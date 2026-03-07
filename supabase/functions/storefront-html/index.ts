@@ -926,8 +926,8 @@ serve(async (req) => {
         );
       }
 
-      // Fetch images, category breadcrumb, reviews, related products, and buy-together in parallel
-      const [imagesResult, categoryResult, reviewsResult, relatedResult, buyTogetherResult] = await Promise.all([
+      // Fetch images, category breadcrumb, reviews, related products, buy-together, and variants in parallel
+      const [imagesResult, categoryResult, reviewsResult, relatedResult, buyTogetherResult, variantsResult] = await Promise.all([
         supabase
           .from('product_images')
           .select('id, url, alt_text, is_primary, sort_order')
