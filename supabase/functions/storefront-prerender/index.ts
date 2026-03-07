@@ -42,7 +42,7 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Auth validation
+    // Auth validation — supports both user JWT and service-role key
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -52,12 +52,16 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Invalid token' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    const isServiceRole = token === supabaseServiceKey;
+
+    if (!isServiceRole) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: 'Invalid token' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
     }
 
     const body: PrerenderRequest = await req.json();
@@ -70,19 +74,22 @@ serve(async (req) => {
       });
     }
 
-    // Verify user has access to tenant
-    const { data: role } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .eq('tenant_id', tenant_id)
-      .single();
+    // Verify access (skip for service role — trusted server call)
+    if (!isServiceRole) {
+      const { data: { user } } = await supabase.auth.getUser(token);
+      const { data: role } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user!.id)
+        .eq('tenant_id', tenant_id)
+        .single();
 
-    if (!role) {
-      return new Response(JSON.stringify({ error: 'No access to tenant' }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      if (!role) {
+        return new Response(JSON.stringify({ error: 'No access to tenant' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
     }
 
     // Get tenant hostname
@@ -101,8 +108,8 @@ serve(async (req) => {
 
     const hostname = tenant.custom_domain || `${tenant.slug}.shops.comandocentral.com.br`;
 
-    // Generate a unique publish_version for atomic activation
-    const publishVersion = crypto.randomUUID();
+    // Generate a unique publish_version for atomic activation (integer timestamp)
+    const publishVersion = Date.now();
 
     // === Determine which pages to render ===
     const pagesToRender: { path: string; page_type: string; entity_id?: string }[] = [];
