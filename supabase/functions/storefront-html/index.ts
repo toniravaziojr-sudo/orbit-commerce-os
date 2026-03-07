@@ -1,6 +1,6 @@
 // ============================================
 // STOREFRONT HTML — Edge-Rendered Storefront
-// v6.0.0: Faithful header/footer + optimized queries
+// v7.0.0: Full footer from footer_config + footer menus + image sections
 // Resolves tenant from hostname, renders full HTML
 // ============================================
 
@@ -9,7 +9,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveTenantFromHostname } from '../_shared/resolveTenant.ts';
 
 // ===== VERSION =====
-const VERSION = "v6.0.0"; // Phase 10: Faithful header with notice bar, colors, featured promos + product card badges/ratings
+const VERSION = "v7.0.0"; // Phase 11: Full footer with newsletter, contact, social, menus, badges, payment/security/shipping sections
 // ====================
 
 // ============================================
