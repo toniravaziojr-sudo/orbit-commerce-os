@@ -430,14 +430,41 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
         .sf-gallery-dot.active{background:var(--theme-button-primary-bg,#1a1a1a);}
         @media(min-width:768px){.sf-gallery-mobile{display:none!important;}.sf-gallery-desktop{display:block!important;}}
         @media(max-width:767px){.sf-gallery-mobile{display:block!important;}.sf-gallery-desktop{display:none!important;}}
+        .sf-lightbox-overlay{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.95);display:none;align-items:center;justify-content:center;flex-direction:column;}
+        .sf-lightbox-overlay.open{display:flex;}
+        .sf-lightbox-img{max-width:90vw;max-height:80vh;object-fit:contain;transition:transform 0.2s ease;touch-action:none;user-select:none;-webkit-user-select:none;}
+        .sf-lightbox-controls{position:absolute;top:16px;right:16px;display:flex;gap:8px;z-index:10;}
+        .sf-lightbox-btn{width:40px;height:40px;border-radius:50%;border:none;background:rgba(255,255,255,0.15);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:20px;backdrop-filter:blur(4px);transition:background .2s;}
+        .sf-lightbox-btn:hover{background:rgba(255,255,255,0.3);}
+        .sf-lightbox-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,0.15);color:#fff;border:none;border-radius:50%;width:44px;height:44px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:24px;backdrop-filter:blur(4px);transition:background .2s;}
+        .sf-lightbox-nav:hover{background:rgba(255,255,255,0.3);}
+        .sf-lightbox-nav.prev{left:16px;}
+        .sf-lightbox-nav.next{right:16px;}
+        .sf-lightbox-counter{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,0.7);font-size:14px;background:rgba(0,0,0,0.5);padding:4px 12px;border-radius:20px;}
       </style>
+      ${showGallery ? `
+      <!-- Lightbox overlay -->
+      <div class="sf-lightbox-overlay" data-sf-lightbox>
+        <div class="sf-lightbox-controls">
+          <button class="sf-lightbox-btn" data-sf-lightbox-zoom-out title="Reduzir">−</button>
+          <button class="sf-lightbox-btn" data-sf-lightbox-zoom-in title="Ampliar">+</button>
+          <button class="sf-lightbox-btn" data-sf-lightbox-close title="Fechar">✕</button>
+        </div>
+        ${images.length > 1 ? `
+          <button class="sf-lightbox-nav prev" data-sf-lightbox-prev>‹</button>
+          <button class="sf-lightbox-nav next" data-sf-lightbox-next>›</button>
+        ` : ''}
+        <img class="sf-lightbox-img" data-sf-lightbox-img src="" alt="">
+        ${images.length > 1 ? `<div class="sf-lightbox-counter" data-sf-lightbox-counter></div>` : ''}
+      </div>
+      ` : ''}
       <div class="sf-pdp-grid" style="display:grid;grid-template-columns:1fr;gap:32px;">
         <!-- Gallery -->
         ${showGallery ? `
         <div>
           <!-- Desktop gallery (static) -->
           <div class="sf-gallery-desktop" style="display:block;">
-            ${optimizedMain ? `<img src="${escapeHtml(optimizedMain)}" alt="${escapeHtml(product.name)}" style="width:100%;aspect-ratio:1;object-fit:contain;border-radius:8px;background:#f9f9f9;" loading="eager" fetchpriority="high" data-sf-gallery-main>` : ''}
+            ${optimizedMain ? `<img src="${escapeHtml(optimizedMain)}" alt="${escapeHtml(product.name)}" style="width:100%;aspect-ratio:1;object-fit:contain;border-radius:8px;background:#f9f9f9;cursor:zoom-in;" loading="eager" fetchpriority="high" data-sf-gallery-main data-sf-lightbox-trigger="0">` : ''}
             ${thumbsHtml ? `<div style="display:flex;gap:8px;margin-top:12px;overflow-x:auto;" data-sf-gallery-thumbs>${thumbsHtml}</div>` : ''}
           </div>
           <!-- Mobile gallery (swipeable carousel) -->
@@ -445,7 +472,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
             <div class="sf-gallery-track" data-sf-gallery-track>
               ${[mainImage, ...otherImages].filter(Boolean).map((img, idx) => {
                 const src = optimizeImageUrl(img!.url, 800, 85);
-                return `<div class="sf-gallery-slide"><img src="${escapeHtml(src)}" alt="${escapeHtml(img!.alt_text || product.name)}" style="width:100%;aspect-ratio:1;object-fit:contain;background:#f9f9f9;border-radius:8px;" ${idx === 0 ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"'} data-sf-gallery-slide-img></div>`;
+                return `<div class="sf-gallery-slide"><img src="${escapeHtml(src)}" alt="${escapeHtml(img!.alt_text || product.name)}" style="width:100%;aspect-ratio:1;object-fit:contain;background:#f9f9f9;border-radius:8px;cursor:zoom-in;" ${idx === 0 ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"'} data-sf-gallery-slide-img data-sf-lightbox-trigger="${idx}"></div>`;
               }).join('')}
             </div>
             ${images.length > 1 ? `<div class="sf-gallery-dots" data-sf-gallery-dots>
