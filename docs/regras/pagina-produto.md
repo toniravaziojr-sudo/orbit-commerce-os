@@ -1,8 +1,8 @@
 # Página de Produto — Regras e Especificações
 
-> **Status:** FUNCIONAL ✅ — Core + Seções + Variantes + Galeria Mobile implementados  
+> **Status:** FUNCIONAL ✅ — Core + Seções + Variantes + Galeria Mobile + Lightbox/Zoom implementados  
 > **Última atualização:** 2026-03-07  
-> **Arquitetura:** v8.1.3 — block-compiler com variantes, swipe mobile, thumbnail click, quick buy
+> **Arquitetura:** v8.1.4 — block-compiler com variantes, swipe mobile, thumbnail click, quick buy, lightbox com zoom
 
 ## Visão Geral
 
