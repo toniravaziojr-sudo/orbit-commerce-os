@@ -358,6 +358,165 @@ function renderBanner(banner: BannerData): string {
 }
 
 // ============================================
+// BLOCK EXTRACTION — Walk content tree to find all blocks
+// ============================================
+interface ContentBlock {
+  type: string;
+  props: any;
+  id: string;
+}
+
+function extractAllBlocks(node: any): ContentBlock[] {
+  if (!node) return [];
+  const blocks: ContentBlock[] = [];
+  
+  const blockTypes = ['Banner', 'HeroBanner', 'FeaturedCategories', 'FeaturedProducts', 'ImageCarousel', 'TextBlock', 'RichText'];
+  
+  if (node.type && blockTypes.includes(node.type)) {
+    blocks.push({ type: node.type, props: node.props || {}, id: node.id || '' });
+  }
+  
+  if (node.children && Array.isArray(node.children)) {
+    for (const child of node.children) {
+      blocks.push(...extractAllBlocks(child));
+    }
+  }
+  
+  return blocks;
+}
+
+function extractProductIdsFromBlocks(blocks: ContentBlock[]): string[] {
+  const ids: string[] = [];
+  for (const block of blocks) {
+    if (block.type === 'FeaturedProducts' && block.props.productIds) {
+      ids.push(...block.props.productIds);
+    }
+  }
+  return [...new Set(ids)];
+}
+
+function extractCategoryIdsFromBlocks(blocks: ContentBlock[]): string[] {
+  const ids: string[] = [];
+  for (const block of blocks) {
+    if (block.type === 'FeaturedCategories' && block.props.items) {
+      ids.push(...block.props.items.map((i: any) => i.categoryId).filter(Boolean));
+    }
+  }
+  return [...new Set(ids)];
+}
+
+// ============================================
+// FEATURED CATEGORIES RENDERER
+// ============================================
+function renderFeaturedCategories(block: ContentBlock, categoriesData: any[]): string {
+  const { title, items, mobileStyle } = block.props;
+  if (!items || items.length === 0) return '';
+  
+  const categoryMap = new Map(categoriesData.map((c: any) => [c.id, c]));
+  const validCategories = items
+    .map((item: any) => categoryMap.get(item.categoryId))
+    .filter(Boolean);
+  
+  if (validCategories.length === 0) return '';
+  
+  const categoryCards = validCategories.map((cat: any) => {
+    const imgUrl = optimizeImageUrl(cat.image_url, 300, 80);
+    return `
+      <a href="/categoria/${escapeHtml(cat.slug)}" style="display:flex;flex-direction:column;align-items:center;text-decoration:none;gap:8px;">
+        <div style="width:120px;height:120px;border-radius:50%;overflow:hidden;background:#f0f0f0;flex-shrink:0;">
+          ${imgUrl ? `<img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(cat.name)}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">` : ''}
+        </div>
+        <span style="font-size:14px;font-weight:500;color:var(--theme-text-primary,#1a1a1a);text-align:center;">${escapeHtml(cat.name)}</span>
+      </a>`;
+  }).join('');
+  
+  return `
+    <section style="max-width:1280px;margin:0 auto;padding:32px 16px;">
+      ${title ? `<h2 style="font-size:clamp(20px,3vw,28px);font-weight:700;margin-bottom:24px;font-family:var(--sf-heading-font);color:var(--theme-text-primary,#1a1a1a);">${escapeHtml(title)}</h2>` : ''}
+      <div style="display:flex;flex-wrap:wrap;gap:24px;justify-content:center;">
+        ${categoryCards}
+      </div>
+    </section>`;
+}
+
+// ============================================
+// FEATURED PRODUCTS RENDERER
+// ============================================
+function renderFeaturedProducts(block: ContentBlock, productsData: any[], productImagesMap: Map<string, string>): string {
+  const { title, columns, showPrice, showButton, buttonText, productIds } = block.props;
+  if (!productIds || productIds.length === 0) return '';
+  
+  const productMap = new Map(productsData.map((p: any) => [p.id, p]));
+  const validProducts = productIds
+    .map((id: string) => productMap.get(id))
+    .filter(Boolean);
+  
+  if (validProducts.length === 0) return '';
+  
+  const cols = columns || 4;
+  
+  const productCards = validProducts.map((product: any) => {
+    const imgUrl = optimizeImageUrl(productImagesMap.get(product.id) || '', 400, 80);
+    const hasDiscount = product.compare_at_price && product.compare_at_price > product.price;
+    
+    return `
+      <a href="/produto/${escapeHtml(product.slug)}" style="display:block;text-decoration:none;color:inherit;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #f0f0f0;transition:box-shadow 0.2s;">
+        <div style="aspect-ratio:1;overflow:hidden;background:#f5f5f5;">
+          ${imgUrl ? `<img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(product.name)}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">` : ''}
+        </div>
+        <div style="padding:12px;">
+          <h3 style="font-size:14px;font-weight:500;margin-bottom:8px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--theme-text-primary,#1a1a1a);">${escapeHtml(product.name)}</h3>
+          ${showPrice !== false ? `
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              ${hasDiscount ? `<span style="font-size:12px;color:#999;text-decoration:line-through;">${formatPriceFromDecimal(product.compare_at_price)}</span>` : ''}
+              <span style="font-size:16px;font-weight:700;color:var(--theme-text-primary,#1a1a1a);">${formatPriceFromDecimal(product.price)}</span>
+            </div>
+          ` : ''}
+          ${showButton ? `
+            <div style="margin-top:12px;">
+              <span style="display:block;text-align:center;padding:10px 16px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border-radius:6px;font-weight:600;font-size:14px;">${escapeHtml(buttonText || 'Ver produto')}</span>
+            </div>
+          ` : ''}
+        </div>
+      </a>`;
+  }).join('');
+  
+  return `
+    <section style="max-width:1280px;margin:0 auto;padding:32px 16px;">
+      ${title ? `<h2 style="font-size:clamp(20px,3vw,28px);font-weight:700;margin-bottom:24px;font-family:var(--sf-heading-font);color:var(--theme-text-primary,#1a1a1a);">${escapeHtml(title)}</h2>` : ''}
+      <div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:16px;">
+        ${productCards}
+      </div>
+      <style>@media(max-width:768px){section > div[style*="grid-template-columns"]{grid-template-columns:repeat(2,1fr) !important;}}</style>
+    </section>`;
+}
+
+// ============================================
+// IMAGE CAROUSEL RENDERER
+// ============================================
+function renderImageCarousel(block: ContentBlock): string {
+  const { images, title } = block.props;
+  if (!images || images.length === 0) return '';
+  
+  const imagesHtml = images.map((img: any) => {
+    const src = optimizeImageUrl(img.srcDesktop || img.src, 1200, 85);
+    if (!src) return '';
+    const wrapperTag = img.linkUrl ? 'a' : 'div';
+    const hrefAttr = img.linkUrl ? ` href="${escapeHtml(img.linkUrl)}"` : '';
+    return `<${wrapperTag}${hrefAttr} style="flex-shrink:0;width:100%;">
+      <img src="${escapeHtml(src)}" alt="${escapeHtml(img.alt || img.caption || '')}" style="width:100%;height:auto;display:block;border-radius:8px;" loading="lazy">
+    </${wrapperTag}>`;
+  }).join('');
+  
+  return `
+    <section style="max-width:1280px;margin:0 auto;padding:32px 16px;">
+      ${title ? `<h2 style="font-size:clamp(20px,3vw,28px);font-weight:700;margin-bottom:24px;font-family:var(--sf-heading-font);">${escapeHtml(title)}</h2>` : ''}
+      <div style="display:flex;overflow-x:auto;gap:16px;scroll-snap-type:x mandatory;">
+        ${imagesHtml}
+      </div>
+    </section>`;
+}
+// ============================================
 // PRODUCT PAGE RENDERER
 // ============================================
 function renderProductPage(product: any, images: any[], storeSettings: any, hostname: string): string {
