@@ -1,8 +1,8 @@
 # Página de Produto — Regras e Especificações
 
-> **Status:** FUNCIONAL ✅ — Core + Seções + Variantes + Galeria Mobile implementados  
+> **Status:** FUNCIONAL ✅ — Core + Seções + Variantes + Galeria Mobile + Lightbox/Zoom implementados  
 > **Última atualização:** 2026-03-07  
-> **Arquitetura:** v8.1.3 — block-compiler com variantes, swipe mobile, thumbnail click, quick buy
+> **Arquitetura:** v8.1.4 — block-compiler com variantes, swipe mobile, thumbnail click, quick buy, lightbox com zoom
 
 ## Visão Geral
 
@@ -130,8 +130,8 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 | Layout desktop | Imagem grande + thumbnails | Imagem grande + thumbnails ✅ |
 | Thumbnail click | ✅ Troca imagem principal | ✅ Via hydration JS |
 | Layout mobile | Carousel swipe | ✅ Swipe carousel com dots |
-| Zoom | Hover/Pinch zoom | ❌ Não suportado |
-| Lightbox | Click abre fullscreen | ❌ Não suportado |
+| Zoom | Hover/Pinch zoom | ✅ Lightbox com zoom +/- e pinch-to-zoom mobile |
+| Lightbox | Click abre fullscreen | ✅ Overlay fullscreen com navegação e zoom |
 
 ---
 
@@ -236,8 +236,8 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 - [x] ~~**Breadcrumb**: React tem — compilador não tem~~ → Implementado v8.1.0
 - [x] ~~**Galeria mobile**: Sem swipe/carousel~~ → Implementado v8.1.3 (scroll-snap + dots)
 - [x] ~~**Thumbnail click**: Sem troca de imagem~~ → Implementado v8.1.3
-- [ ] **Zoom**: Sem hover/pinch zoom
-- [ ] **Lightbox**: Sem fullscreen
+- [x] ~~**Zoom**: Sem hover/pinch zoom~~ → Implementado v8.1.4 (lightbox fullscreen + pinch-to-zoom + zoom buttons)
+- [x] ~~**Lightbox**: Sem fullscreen~~ → Implementado v8.1.4 (overlay com navegação prev/next + teclado)
 - [x] ~~**Botão "Comprar agora"**: Compilador não tem CTA separado~~ → Implementado v8.1.0
 - [x] ~~**Quantidade**: React tem seletor de quantidade~~ → Implementado v8.1.0
 - [x] ~~**Frete**: Placeholder HTML sem JS funcional~~ → Implementado v8.1.0
