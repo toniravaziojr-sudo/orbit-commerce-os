@@ -474,22 +474,6 @@ export default {
       try {
         // Call storefront-html Edge Function
         const edgeFnUrl = `${SUPABASE_URL}/functions/v1/storefront-html`;
-        const edgeFnRes = await fetch(edgeFnUrl, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Forwarded-Host': publicHost,
-          },
-          // Pass hostname and path as query params for the edge function
-          ...(function() {
-            const fnUrl = new URL(edgeFnUrl);
-            fnUrl.searchParams.set('hostname', publicHost);
-            fnUrl.searchParams.set('path', url.pathname);
-            return { url: fnUrl.toString() };
-          })(),
-        });
-
-        // Override: actually construct URL properly
         const fnUrl = new URL(edgeFnUrl);
         fnUrl.searchParams.set('hostname', publicHost);
         fnUrl.searchParams.set('path', url.pathname);
