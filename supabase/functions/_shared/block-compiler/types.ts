@@ -165,6 +165,17 @@ export interface CompilerContext {
       image_url?: string;
     };
   };
+
+
+  /** Dynamic badges assigned to products (from "Aumentar Ticket" > Selos) */
+  productBadges: Map<string, Array<{
+    id: string;
+    name: string;
+    background_color: string;
+    text_color: string;
+    shape: 'square' | 'rectangular' | 'circular' | 'pill';
+    position: 'left' | 'center' | 'right';
+  }>>;
 }
 
 export interface ProductData {
