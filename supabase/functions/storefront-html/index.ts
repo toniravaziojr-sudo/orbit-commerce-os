@@ -1,7 +1,8 @@
 // ============================================
 // STOREFRONT HTML — Edge-Rendered Storefront
-// v7.0.0: Full footer from footer_config + footer menus + image sections
-// Resolves tenant from hostname, renders full HTML
+// v7.1.0: Pre-render lookup + live fallback
+// Resolves tenant from hostname, serves pre-rendered HTML if available,
+// falls back to live rendering otherwise.
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -9,7 +10,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveTenantFromHostname } from '../_shared/resolveTenant.ts';
 
 // ===== VERSION =====
-const VERSION = "v7.0.0"; // Phase 11: Full footer with newsletter, contact, social, menus, badges, payment/security/shipping sections
+const VERSION = "v7.1.0"; // Pre-render lookup: serve from storefront_prerendered_pages if available
 // ====================
 
 // ============================================
