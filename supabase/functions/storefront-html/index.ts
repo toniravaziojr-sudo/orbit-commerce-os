@@ -69,12 +69,35 @@ function generateThemeCss(themeSettings: any): string {
   const bodyFont = getFontFamily(typography?.bodyFont || 'inter');
   const baseFontSize = typography?.baseFontSize || 16;
   
+  // ALL color variables — must match getStorefrontThemeCss() in usePublicThemeSettings.ts
   const colorVars: string[] = [];
   if (colors?.buttonPrimaryBg) colorVars.push(`--theme-button-primary-bg: ${colors.buttonPrimaryBg};`);
   if (colors?.buttonPrimaryText) colorVars.push(`--theme-button-primary-text: ${colors.buttonPrimaryText};`);
   if (colors?.buttonPrimaryHover) colorVars.push(`--theme-button-primary-hover: ${colors.buttonPrimaryHover};`);
+  if (colors?.buttonSecondaryBg) colorVars.push(`--theme-button-secondary-bg: ${colors.buttonSecondaryBg};`);
+  if (colors?.buttonSecondaryText) colorVars.push(`--theme-button-secondary-text: ${colors.buttonSecondaryText};`);
+  if (colors?.buttonSecondaryHover) colorVars.push(`--theme-button-secondary-hover: ${colors.buttonSecondaryHover};`);
   if (colors?.textPrimary) colorVars.push(`--theme-text-primary: ${colors.textPrimary};`);
   if (colors?.textSecondary) colorVars.push(`--theme-text-secondary: ${colors.textSecondary};`);
+  if (colors?.priceColor) colorVars.push(`--theme-price-color: ${colors.priceColor};`);
+  // WhatsApp button colors
+  const whatsappColor = colors?.whatsappColor || '#25D366';
+  const whatsappHover = colors?.whatsappHover || '#128C7E';
+  colorVars.push(`--theme-whatsapp-color: ${whatsappColor};`);
+  colorVars.push(`--theme-whatsapp-hover: ${whatsappHover};`);
+  // Accent color
+  const accentColor = colors?.accentColor || '#22c55e';
+  if (colors?.accentColor) colorVars.push(`--theme-accent-color: ${colors.accentColor};`);
+  // Tag colors — success inherits from accent if not set
+  const successBg = colors?.successBg || accentColor;
+  colorVars.push(`--theme-success-bg: ${successBg};`);
+  if (colors?.successText) colorVars.push(`--theme-success-text: ${colors.successText};`);
+  if (colors?.warningBg) colorVars.push(`--theme-warning-bg: ${colors.warningBg};`);
+  if (colors?.warningText) colorVars.push(`--theme-warning-text: ${colors.warningText};`);
+  if (colors?.dangerBg) colorVars.push(`--theme-danger-bg: ${colors.dangerBg};`);
+  if (colors?.dangerText) colorVars.push(`--theme-danger-text: ${colors.dangerText};`);
+  if (colors?.highlightBg) colorVars.push(`--theme-highlight-bg: ${colors.highlightBg};`);
+  if (colors?.highlightText) colorVars.push(`--theme-highlight-text: ${colors.highlightText};`);
 
   return `
     :root {
@@ -274,6 +297,10 @@ function buildFullPage(opts: {
     /* Notice bar marquee animation */
     @keyframes sf-marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
     .sf-notice-marquee{will-change:transform;}
+    /* Notice bar fade rotation */
+    @keyframes sf-notice-fade-in{0%{opacity:0}100%{opacity:1}}
+    @keyframes sf-notice-fade-out{0%{opacity:1}100%{opacity:0}}
+    .sf-notice-text{transition:opacity 300ms ease-out;}
     /* Header layout responsive */
     @media(max-width:768px){
       .sf-header-desktop{display:none !important;}
@@ -285,6 +312,31 @@ function buildFullPage(opts: {
     }
     /* Dropdown hover */
     .sf-dropdown:hover .sf-dropdown-menu{display:block !important;}
+    /* Attendance dropdown */
+    .sf-attendance-dropdown .sf-attendance-menu{display:none;position:absolute;top:100%;right:0;margin-top:8px;min-width:280px;max-width:320px;padding:16px;background:#fff;border:1px solid #eee;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.12);z-index:60;}
+    .sf-attendance-dropdown:hover .sf-attendance-menu{display:block;}
+    .sf-attendance-item{display:flex;align-items:flex-start;gap:12px;padding:8px;border-radius:8px;text-decoration:none;color:inherit;transition:background 0.15s;}
+    .sf-attendance-item:hover{background:#f5f5f5;}
+    .sf-attendance-icon{margin-top:2px;padding:6px;border-radius:6px;display:flex;align-items:center;justify-content:center;}
+    /* Featured promo thumbnail hover */
+    .sf-featured-promo{position:relative;}
+    .sf-featured-promo .sf-featured-thumb{display:none;position:absolute;top:100%;left:0;margin-top:8px;z-index:50;border-radius:8px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.15);border:1px solid #eee;}
+    .sf-featured-promo:hover .sf-featured-thumb{display:block;}
+    /* Button theme styles — mirrors usePublicThemeSettings.ts */
+    .sf-btn-primary{background:var(--theme-button-primary-bg,#1a1a1a) !important;color:var(--theme-button-primary-text,#fff) !important;transition:all 0.2s ease !important;}
+    .sf-btn-primary:hover:not(:disabled){background:var(--theme-button-primary-hover,var(--theme-button-primary-bg,#333)) !important;transform:translateY(-1px) !important;filter:brightness(1.05) !important;}
+    .sf-btn-outline-primary{background:transparent !important;color:var(--theme-button-primary-bg,#1a1a1a) !important;border:1px solid var(--theme-button-primary-bg,#1a1a1a) !important;transition:all 0.2s ease !important;}
+    .sf-btn-outline-primary:hover:not(:disabled){background:var(--theme-button-primary-bg,#1a1a1a) !important;color:var(--theme-button-primary-text,#fff) !important;border-color:var(--theme-button-primary-bg,#1a1a1a) !important;transform:translateY(-1px) !important;}
+    .sf-btn-secondary{background:var(--theme-button-secondary-bg,#e5e5e5) !important;color:var(--theme-button-secondary-text,#1a1a1a) !important;transition:all 0.2s ease !important;}
+    .sf-btn-secondary:hover:not(:disabled){background:var(--theme-button-secondary-hover,var(--theme-button-secondary-bg,#d5d5d5)) !important;transform:translateY(-1px) !important;filter:brightness(1.05) !important;}
+    /* Accent color classes */
+    .sf-accent-icon,.sf-accent-check,.sf-accent-text{color:var(--theme-accent-color,#22c55e) !important;}
+    .sf-accent-bg{background:var(--theme-accent-color,#22c55e) !important;color:#fff !important;}
+    /* Tag colors */
+    .sf-tag-success{background:var(--theme-success-bg,#22c55e) !important;color:var(--theme-success-text,#fff) !important;}
+    .sf-tag-warning{background:var(--theme-warning-bg,#f97316) !important;color:var(--theme-warning-text,#fff) !important;}
+    .sf-tag-danger{background:var(--theme-danger-bg,#ef4444) !important;color:var(--theme-danger-text,#fff) !important;}
+    .sf-tag-highlight{background:var(--theme-highlight-bg,#3b82f6) !important;color:var(--theme-highlight-text,#fff) !important;}
     /* Search overlay */
     .sf-search-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;align-items:flex-start;justify-content:center;padding-top:80px;}
     .sf-search-overlay.active{display:flex;}
@@ -484,6 +536,38 @@ function buildFullPage(opts: {
 
       // Init cart UI on load
       updateCartUI();
+
+      // === NOTICE BAR TEXT ROTATION (fade/slide modes) ===
+      var noticeBar=document.querySelector(".sf-notice-bar[data-sf-notice-texts]");
+      if(noticeBar){
+        try{
+          var texts=JSON.parse(noticeBar.dataset.sfNoticeTexts||"[]");
+          var anim=noticeBar.dataset.sfNoticeAnimation||"fade";
+          if(texts.length>1){
+            var idx=0;
+            var span=noticeBar.querySelector(".sf-notice-text");
+            if(span){
+              setInterval(function(){
+                // Exit
+                if(anim==="fade"){span.style.opacity="0";}
+                else if(anim==="slide-vertical"){span.style.opacity="0";span.style.transform="translateY(-100%)";}
+                setTimeout(function(){
+                  idx=(idx+1)%texts.length;
+                  span.textContent=texts[idx];
+                  // Enter
+                  if(anim==="slide-vertical"){span.style.transform="translateY(100%)";}
+                  requestAnimationFrame(function(){
+                    requestAnimationFrame(function(){
+                      span.style.opacity="1";
+                      span.style.transform="translateY(0)";
+                    });
+                  });
+                },300);
+              },4000);
+            }
+          }
+        }catch(e){}
+      }
 
       // === PRODUCT VARIANT SELECTOR HYDRATION ===
       var variantSelector=document.querySelector("[data-sf-variant-selector]");

@@ -187,8 +187,8 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
   if (inStock) {
     const mainImageThumb = mainImage ? escapeHtml(optimizeImageUrl(mainImage.url, 120, 75)) : '';
     ctaHtml = `<div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:400px;">
-      ${showAddToCartButton ? `<button data-sf-action="add-to-cart" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${mainImageThumb}" style="padding:14px 32px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;width:100%;">Adicionar ao carrinho</button>` : ''}
-      ${showBuyNowButton ? `<button data-sf-action="buy-now" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${mainImageThumb}" style="padding:14px 32px;background:transparent;color:var(--theme-button-primary-bg,#1a1a1a);border:2px solid var(--theme-button-primary-bg,#1a1a1a);border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;width:100%;">${escapeHtml(buyNowButtonText)}</button>` : ''}
+      ${showAddToCartButton ? `<button data-sf-action="add-to-cart" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${mainImageThumb}" class="sf-btn-primary" style="padding:14px 32px;border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;width:100%;">Adicionar ao carrinho</button>` : ''}
+      ${showBuyNowButton ? `<button data-sf-action="buy-now" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${mainImageThumb}" class="sf-btn-outline-primary" style="padding:14px 32px;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;width:100%;">${escapeHtml(buyNowButtonText)}</button>` : ''}
       ${whatsappButtonHtml}
     </div>`;
   } else {
@@ -288,7 +288,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
             ${savings > 0 ? `<p style="font-size:13px;color:#999;text-decoration:line-through;">${formatPriceFromDecimal(originalTotal)}</p>` : ''}
             <p style="font-size:22px;font-weight:700;color:var(--theme-price-color,var(--theme-text-primary,#1a1a1a));">${formatPriceFromDecimal(comboPrice)}</p>
             ${savings > 0 ? `<p style="font-size:12px;color:#16a34a;font-weight:600;">Economize ${formatPriceFromDecimal(savings)}</p>` : ''}
-            <button data-sf-action="add-to-cart" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${escapeHtml(mainImg)}" data-extra-product-id="${sp.id}" data-extra-product-name="${escapeHtml(sp.name)}" data-extra-product-price="${sp.price}" data-extra-product-image="${escapeHtml(spImg)}" style="margin-top:12px;padding:12px 24px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;width:100%;">Adicionar ambos ao carrinho</button>
+            <button data-sf-action="add-to-cart" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${escapeHtml(mainImg)}" data-extra-product-id="${sp.id}" data-extra-product-name="${escapeHtml(sp.name)}" data-extra-product-price="${sp.price}" data-extra-product-image="${escapeHtml(spImg)}" class="sf-btn-primary" style="margin-top:12px;padding:12px 24px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;width:100%;">Adicionar ambos ao carrinho</button>
           </div>
         </div>
       </div>`;
