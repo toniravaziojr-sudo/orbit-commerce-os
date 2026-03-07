@@ -248,7 +248,7 @@ export function headerToStaticHTML(context: CompilerContext): string {
             ${showCart ? `<button data-sf-action="open-cart" aria-label="Carrinho" style="background:none;border:none;cursor:pointer;padding:4px;position:relative;color:${escapeHtml(headerIconColor)};">${cartSvg}<span data-sf-cart-count style="display:none;position:absolute;top:-4px;right:-4px;background:var(--theme-button-primary-bg,#e53e3e);color:#fff;font-size:11px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;">0</span></button>` : ''}
           </div>
         </div>
-        ${showHeaderMenu ? `<nav class="sf-nav-desktop" style="display:flex;align-items:center;gap:24px;padding:8px 0;justify-content:center;border-top:1px solid rgba(255,255,255,0.1);">${navItemsHtml}</nav>` : ''}
+        ${showHeaderMenu || featuredPromosEnabled ? `<nav class="sf-nav-desktop" style="display:flex;align-items:center;gap:24px;padding:8px 0;justify-content:center;border-top:1px solid rgba(255,255,255,0.1);">${featuredPromoHtml}${navItemsHtml}</nav>` : ''}
       </div>
       <!-- MOBILE -->
       <div class="sf-header-mobile" style="display:none;align-items:center;justify-content:space-between;padding:12px 16px;">
