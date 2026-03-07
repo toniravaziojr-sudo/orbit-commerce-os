@@ -42,7 +42,7 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 
 | Modo | Quando | Como |
 |------|--------|------|
-| **Edge-Rendered** (v5.0.0) | Domínio custom ou subdomínio `.shops.` em produção | Edge Function `storefront-html` retorna HTML completo com conteúdo real |
+| **Edge-Rendered** (v8.0.0) | Domínio custom ou subdomínio `.shops.` em produção | Edge Function `storefront-html` retorna HTML completo via block-compiler |
 | **SPA Bootstrap** (v4.0.0) | Preview no admin (`/store/{slug}`) e fallback | React SPA com `storefront-bootstrap` JSON |
 
 ### Arquitetura Edge-Rendered (Produção)
@@ -56,44 +56,40 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 └─────────────────────────────────────────────────────────────────────────┘
                                      ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
-│             EDGE FUNCTION: storefront-html (v7.1.0)                     │
+│             EDGE FUNCTION: storefront-html (v8.0.0)                     │
 │  Arquivo: supabase/functions/storefront-html/index.ts                  │
 │  Resolução: supabase/functions/_shared/resolveTenant.ts                │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  1. Recebe hostname (query param, x-forwarded-host ou POST)            │
 │  2. resolveTenantFromHostname() → tenant_id + tenant_slug              │
 │  3. Pre-render lookup: storefront_prerendered_pages (fast path)        │
-│  4. Live fallback: queries paralelas + renderização                    │
+│  4. Live fallback: queries paralelas + renderização via block-compiler │
 │  5. Retorna text/html com Cache-Control: s-maxage=120                  │
 │  6. Server-Timing headers para diagnóstico                             │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  SSR Home — Block-to-HTML Compiler (v7.1.0):                           │
-│  • Usa compileBlockTree() com a MESMA fonte de verdade do builder      │
+│  Block-to-HTML Compiler (v8.0.0) — TODAS as rotas:                     │
+│  • Home: compileBlockTree() com published_content (fonte de verdade)   │
+│  • Header: headerToStaticHTML() via block-compiler                     │
+│  • Footer: footerToStaticHTML() via block-compiler                     │
+│  • Produto: productPageToStaticHTML() via block-compiler               │
+│  • Categoria: categoryPageToStaticHTML() via block-compiler            │
+│  • Blog: blogIndexToStaticHTML() / blogPostToStaticHTML()              │
+│  • Institucional: institutionalPageToStaticHTML()                       │
 │  • Compiladores co-localizados: _shared/block-compiler/blocks/         │
-│  • Blocos suportados: Page, Section, HeroBanner, Banner,               │
+│  • Blocos de home: Page, Section, HeroBanner, Banner,                  │
 │    FeaturedCategories, FeaturedProducts, ImageCarousel, InfoHighlights  │
-│  • Header/Footer: AINDA usam renderers manuais (migração pendente)    │
-│  • Produto/Categoria/Blog/Institucional: renderers manuais (pendente) │
-├─────────────────────────────────────────────────────────────────────────┤
-│  Queries na Home (v7.1.0):                                             │
-│  • storefront_global_layout → header bg, notice bar, footer config     │
-│  • storefront_menus (footer_1, footer_2) + items → menus do rodapé     │
-│  • products (por IDs extraídos da árvore de blocos)                    │
-│  • product_images (por IDs dos produtos)                               │
-│  • categories (por IDs extraídos da árvore de blocos)                  │
-│  • category_settings (via themeSettings.pageSettings.category)         │
+│  • ZERO renderers manuais legados restantes                            │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  Rotas suportadas:                                                      │
-│  • / → Home (SSR completo: header + todos os blocos + footer)          │
+│  • / → Home (block-compiler: header + blocos + footer)                 │
 │  • /produto/:slug → Página de produto (galeria + info + JSON-LD)       │
 │  • /categoria/:slug → Página de categoria (banner + grid)              │
 │  • /p/:slug → Página institucional (store_pages)                       │
-│  • /blog → Índice do blog (grid 3 colunas, paginado)                  │
+│  • /blog → Índice do blog (grid 3 colunas)                             │
 │  • /blog/:slug → Post do blog (capa + conteúdo + JSON-LD BlogPosting) │
 │  • /:slug → Fallback para página institucional por slug direto         │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  Hidratação JS (Phase 3 - v3.0.0):                                     │
-│  • Script inline ~4KB — não requer bundle externo                      │
+│  Hidratação JS (vanilla ~4KB):                                         │
 │  • Carrinho: localStorage, drawer lateral, add/remove                  │
 │  • Busca: overlay com search em tempo real via REST API                │
 │  • Menu mobile: toggle com overlay fullscreen                          │
