@@ -240,7 +240,7 @@ export function headerToStaticHTML(context: CompilerContext): string {
       <button type="button" style="display:flex;align-items:center;gap:6px;padding:6px 14px;border:1px solid ${escapeHtml(headerIconColor || '#ccc')}30;border-radius:20px;font-size:12px;font-weight:500;color:${escapeHtml(headerTextColor)};white-space:nowrap;background:none;cursor:pointer;">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${escapeHtml(headerIconColor)}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
         Atendimento
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="${escapeHtml(headerIconColor)}" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
       <div class="sf-attendance-menu">
         <div style="display:flex;flex-direction:column;gap:4px;">
