@@ -202,6 +202,170 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
   }
   const jsonLd = JSON.stringify(jsonLdObj);
 
+  // === BUY TOGETHER SECTION ===
+  let buyTogetherHtml = '';
+  if (showBuyTogether && context.currentBuyTogether) {
+    const bt = context.currentBuyTogether;
+    const sp = bt.suggestedProduct;
+    const mainImg = mainImage ? optimizeImageUrl(mainImage.url, 200, 80) : '';
+    const spImg = sp.image_url ? optimizeImageUrl(sp.image_url, 200, 80) : '';
+    
+    const originalTotal = product.price + sp.price;
+    let comboPrice = originalTotal;
+    if (bt.discount_type === 'percentage') {
+      comboPrice = originalTotal * (1 - bt.discount_value / 100);
+    } else if (bt.discount_type === 'fixed') {
+      comboPrice = Math.max(0, originalTotal - bt.discount_value);
+    }
+    const savings = originalTotal - comboPrice;
+
+    buyTogetherHtml = `
+      <div style="margin-top:48px;border-top:1px solid #eee;padding-top:32px;">
+        <h2 style="font-size:20px;font-weight:600;font-family:var(--sf-heading-font);margin-bottom:20px;">${escapeHtml(bt.title || 'Compre Junto')}</h2>
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:24px;background:#f9fafb;border-radius:12px;border:1px solid #eee;">
+          <div style="text-align:center;flex:1;min-width:120px;">
+            ${mainImg ? `<img src="${escapeHtml(mainImg)}" alt="${escapeHtml(product.name)}" style="width:100px;height:100px;object-fit:contain;margin:0 auto;border-radius:8px;">` : ''}
+            <p style="font-size:13px;font-weight:500;margin-top:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;margin-left:auto;margin-right:auto;">${escapeHtml(product.name)}</p>
+            <p style="font-size:14px;font-weight:600;color:var(--theme-price-color,var(--theme-text-primary,#1a1a1a));">${formatPriceFromDecimal(product.price)}</p>
+          </div>
+          <span style="font-size:28px;font-weight:700;color:var(--theme-button-primary-bg,#1a1a1a);">+</span>
+          <div style="text-align:center;flex:1;min-width:120px;">
+            ${spImg ? `<img src="${escapeHtml(spImg)}" alt="${escapeHtml(sp.name)}" style="width:100px;height:100px;object-fit:contain;margin:0 auto;border-radius:8px;">` : ''}
+            <p style="font-size:13px;font-weight:500;margin-top:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;margin-left:auto;margin-right:auto;">${escapeHtml(sp.name)}</p>
+            <p style="font-size:14px;font-weight:600;color:var(--theme-price-color,var(--theme-text-primary,#1a1a1a));">${formatPriceFromDecimal(sp.price)}</p>
+          </div>
+          <div style="text-align:center;flex:1;min-width:160px;padding:16px;background:#fff;border-radius:8px;border:1px solid #eee;">
+            <p style="font-size:13px;color:#666;margin-bottom:4px;">Comprando juntos</p>
+            ${savings > 0 ? `<p style="font-size:13px;color:#999;text-decoration:line-through;">${formatPriceFromDecimal(originalTotal)}</p>` : ''}
+            <p style="font-size:22px;font-weight:700;color:var(--theme-price-color,var(--theme-text-primary,#1a1a1a));">${formatPriceFromDecimal(comboPrice)}</p>
+            ${savings > 0 ? `<p style="font-size:12px;color:#16a34a;font-weight:600;">Economize ${formatPriceFromDecimal(savings)}</p>` : ''}
+            <button data-sf-action="add-to-cart" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${escapeHtml(mainImg)}" data-extra-product-id="${sp.id}" data-extra-product-name="${escapeHtml(sp.name)}" data-extra-product-price="${sp.price}" data-extra-product-image="${escapeHtml(spImg)}" style="margin-top:12px;padding:12px 24px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;width:100%;">Adicionar ambos ao carrinho</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // === REVIEWS SECTION ===
+  let reviewsSectionHtml = '';
+  const reviewsList = context.currentProductReviews || [];
+  if (showReviews && reviewsList.length > 0) {
+    const totalReviews = reviewsList.length;
+    const avgRating = reviewsList.reduce((s, r) => s + r.rating, 0) / totalReviews;
+    
+    // Distribution
+    const dist = [5, 4, 3, 2, 1].map(star => {
+      const count = reviewsList.filter(r => r.rating === star).length;
+      return { star, count, pct: Math.round((count / totalReviews) * 100) };
+    });
+
+    const distBarsHtml = dist.map(d =>
+      `<div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:12px;font-weight:500;width:12px;text-align:right;">${d.star}</span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="#facc15" stroke="#facc15" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        <div style="flex:1;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden;">
+          <div style="width:${d.pct}%;height:100%;background:#facc15;border-radius:4px;"></div>
+        </div>
+        <span style="font-size:12px;color:#666;width:24px;text-align:right;">${d.count}</span>
+      </div>`
+    ).join('');
+
+    const reviewCardsHtml = reviewsList.slice(0, 10).map(r => {
+      const starsHtml = renderStars(r.rating);
+      const dateStr = new Date(r.created_at).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' });
+      const verifiedHtml = r.is_verified_purchase
+        ? `<span style="display:inline-flex;align-items:center;gap:3px;color:#16a34a;font-size:12px;">✓ Compra verificada</span>`
+        : '';
+      const mediaHtml = r.media_urls && r.media_urls.length > 0
+        ? `<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">${r.media_urls.map(url => 
+            `<img src="${escapeHtml(optimizeImageUrl(url, 120, 75))}" alt="Mídia" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid #eee;" loading="lazy">`
+          ).join('')}</div>`
+        : '';
+      return `<div style="padding:16px;border:1px solid #eee;border-radius:12px;background:#fff;">
+        <div style="display:flex;align-items:center;gap:4px;margin-bottom:8px;">${starsHtml}</div>
+        ${r.title ? `<h4 style="font-size:14px;font-weight:600;margin-bottom:4px;">${escapeHtml(r.title)}</h4>` : ''}
+        ${r.content ? `<p style="font-size:14px;color:#555;line-height:1.6;">${escapeHtml(r.content)}</p>` : ''}
+        ${mediaHtml}
+        <div style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:#888;">
+          <span style="font-weight:500;color:#444;">${escapeHtml(r.customer_name)}</span>
+          <span>•</span>
+          <span>${dateStr}</span>
+          ${verifiedHtml}
+        </div>
+      </div>`;
+    }).join('');
+
+    reviewsSectionHtml = `
+      <div style="margin-top:48px;border-top:1px solid #eee;padding-top:32px;" id="reviews-section">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <h2 style="font-size:20px;font-weight:600;font-family:var(--sf-heading-font);">Avaliações</h2>
+          <span style="font-size:14px;color:#666;margin-left:auto;">(${totalReviews} avaliação${totalReviews > 1 ? 'ões' : ''})</span>
+        </div>
+        <div style="display:flex;gap:24px;margin-bottom:24px;padding:20px;background:#f9fafb;border-radius:12px;border:1px solid #eee;flex-wrap:wrap;">
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:120px;">
+            <span style="font-size:36px;font-weight:700;letter-spacing:-1px;">${avgRating.toFixed(1).replace('.', ',')}</span>
+            <div style="display:flex;align-items:center;gap:1px;margin-top:4px;">${renderStars(avgRating)}</div>
+            <span style="font-size:12px;color:#666;margin-top:4px;">${totalReviews} avaliação${totalReviews > 1 ? 'ões' : ''}</span>
+          </div>
+          <div style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:4px;">${distBarsHtml}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;">${reviewCardsHtml}</div>
+      </div>`;
+  } else if (showReviews && reviewsList.length === 0) {
+    // Empty state
+    reviewsSectionHtml = `
+      <div style="margin-top:48px;border-top:1px solid #eee;padding-top:32px;" id="reviews-section">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <h2 style="font-size:20px;font-weight:600;font-family:var(--sf-heading-font);">Avaliações</h2>
+        </div>
+        <div style="text-align:center;padding:40px 16px;color:#999;background:#f9fafb;border-radius:12px;border:1px dashed #ddd;">
+          <p style="font-weight:500;">Ainda não há avaliações para este produto.</p>
+          <p style="font-size:13px;margin-top:4px;">Seja o primeiro a avaliar!</p>
+        </div>
+      </div>`;
+  }
+
+  // === RELATED PRODUCTS SECTION ===
+  let relatedHtml = '';
+  const relatedProducts = context.currentRelatedProducts || [];
+  if (showRelatedProducts && relatedProducts.length > 0) {
+    const relatedCardsHtml = relatedProducts.map(rp => {
+      const rpImg = rp.image_url ? optimizeImageUrl(rp.image_url, 400, 80) : '';
+      const rpHasDiscount = rp.compare_at_price && rp.compare_at_price > rp.price;
+      const rpDiscountPct = rpHasDiscount ? Math.round((1 - rp.price / rp.compare_at_price!) * 100) : 0;
+      let rpRatingHtml = '';
+      if (rp.avg_rating && rp.review_count && rp.review_count > 0) {
+        rpRatingHtml = `<div style="display:flex;align-items:center;gap:4px;margin-top:4px;">
+          <div style="display:flex;gap:1px;">${renderStars(rp.avg_rating)}</div>
+          <span style="font-size:11px;color:#666;">(${rp.review_count})</span>
+        </div>`;
+      }
+      return `<a href="/produto/${escapeHtml(rp.slug)}" style="display:block;text-decoration:none;color:inherit;border:1px solid #eee;border-radius:10px;overflow:hidden;background:#fff;transition:box-shadow .2s;">
+        <div style="aspect-ratio:1;background:#f5f5f5;overflow:hidden;position:relative;">
+          ${rpImg ? `<img src="${escapeHtml(rpImg)}" alt="${escapeHtml(rp.name)}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">` : ''}
+          ${rpHasDiscount ? `<span style="position:absolute;top:8px;left:8px;background:#dc2626;color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;">-${rpDiscountPct}%</span>` : ''}
+          ${rp.free_shipping ? `<span style="position:absolute;top:8px;right:8px;background:#dcfce7;color:#16a34a;font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;">Frete grátis</span>` : ''}
+        </div>
+        <div style="padding:12px;">
+          <p style="font-size:13px;font-weight:500;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(rp.name)}</p>
+          ${rpRatingHtml}
+          <div style="margin-top:6px;">
+            ${rpHasDiscount ? `<span style="font-size:12px;color:#999;text-decoration:line-through;">${formatPriceFromDecimal(rp.compare_at_price!)}</span> ` : ''}
+            <span style="font-size:16px;font-weight:700;color:var(--theme-price-color,var(--theme-text-primary,#1a1a1a));">${formatPriceFromDecimal(rp.price)}</span>
+          </div>
+        </div>
+      </a>`;
+    }).join('');
+
+    relatedHtml = `
+      <div style="margin-top:48px;border-top:1px solid #eee;padding-top:32px;">
+        <h2 style="font-size:20px;font-weight:600;font-family:var(--sf-heading-font);margin-bottom:20px;">${escapeHtml(relatedProductsTitle)}</h2>
+        <style>@media(min-width:640px){.sf-related-grid{grid-template-columns:repeat(2,1fr)!important}}@media(min-width:1024px){.sf-related-grid{grid-template-columns:repeat(4,1fr)!important}}</style>
+        <div class="sf-related-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;">${relatedCardsHtml}</div>
+      </div>`;
+  }
+
   return `
     <script type="application/ld+json">${jsonLd}</script>
     <div style="max-width:1280px;margin:0 auto;padding:24px 16px;">
@@ -238,11 +402,14 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
           ${highlightHtml}
         </div>
       </div>
+      ${buyTogetherHtml}
       ${showDescription && product.description ? `
         <div style="margin-top:48px;border-top:1px solid #eee;padding-top:32px;">
           <h2 style="font-size:20px;font-weight:600;font-family:var(--sf-heading-font);margin-bottom:16px;">Descrição</h2>
           <div style="font-size:15px;line-height:1.8;color:var(--theme-text-secondary,#444);">${product.description}</div>
         </div>
       ` : ''}
+      ${reviewsSectionHtml}
+      ${relatedHtml}
     </div>`;
 };
