@@ -231,6 +231,18 @@ O componente `PaymentIconsQuickSelect` permite adicionar ícones de pagamento pr
 
 **Regra Fixa:** Usar classes `sf-*` (container queries) em vez de `md:`, `lg:` (media queries) dentro do storefront.
 
+### Layout de Selos no Mobile (REGRA CRÍTICA)
+
+No mobile (< 768px), as seções de selos (Pagamento, Segurança, Frete, Lojas Oficiais) devem empilhar **verticalmente** em 1 coluna (`grid-template-columns: 1fr`), refletindo o layout do Builder que usa `grid-cols-1 sm:grid-cols-2 lg:grid-cols-4`.
+
+| Breakpoint | Colunas | Classe |
+|------------|---------|--------|
+| < 640px | 1 coluna (vertical) | `.sf-footer-images-grid` |
+| 640-1023px | 2 colunas | `.sf-footer-images-grid` |
+| ≥ 1024px | N colunas (por seção) | `.sf-footer-images-grid` |
+
+**PROIBIDO**: Usar `repeat(2,1fr)` no mobile — causa layout horizontal desorganizado.
+
 ---
 
 ## Dados Demo (Builder)
