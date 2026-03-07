@@ -1,8 +1,8 @@
 # Página de Categoria — Regras e Especificações
 
-> **Status:** FUNCIONAL ✅ — Core implementado  
+> **Status:** FUNCIONAL ✅ — Core + Filtros + Ordenação + Paginação  
 > **Última atualização:** 2026-03-07  
-> **Arquitetura:** v8.1.0 — block-compiler com `published_content.category` + `compileBlockTree()`
+> **Arquitetura:** v8.1.2 — block-compiler com filtros/sort/load-more client-side
 
 ## Visão Geral
 
