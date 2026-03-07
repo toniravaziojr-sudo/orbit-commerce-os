@@ -409,7 +409,7 @@ export default {
           },
           isCanonical,
           edgeFunctionRoutes: Object.keys(EDGE_FUNCTION_ROUTES),
-          strategy: 'path_translation_with_internal_follow',
+          strategy: 'edge_rendered_html_first',
           status: resolved?.tenantSlug ? 'OK' : 'TENANT_NOT_FOUND',
         }, null, 2),
         { 
@@ -456,8 +456,61 @@ export default {
       }
     }
 
-    // ========== PATH TRANSLATION ==========
-    // Browser pede /, Worker busca /store/{tenant} no origin
+    // ========== PHASE 4: EDGE-RENDERED HTML FIRST ==========
+    // For navigation requests (Accept: text/html), route to storefront-html Edge Function
+    // For assets, API calls, etc., continue to origin SPA
+    const acceptHeader = (request.headers.get('Accept') || '').toLowerCase();
+    const isNavigationRequest = request.method === 'GET' 
+      && acceptHeader.includes('text/html')
+      && !isStaticPath(url.pathname)
+      && !isApiPath(url.pathname);
+
+    // Routes that must go to SPA (require full JS interactivity)
+    const SPA_ONLY_ROUTES = ['carrinho', 'checkout', 'obrigado', 'minha-conta'];
+    const cleanPath = url.pathname.replace(/^\/+/, '').toLowerCase();
+    const isSpaOnlyRoute = SPA_ONLY_ROUTES.some(r => cleanPath === r || cleanPath.startsWith(r + '/'));
+
+    if (isNavigationRequest && !isSpaOnlyRoute && SUPABASE_URL) {
+      try {
+        // Call storefront-html Edge Function
+        const edgeFnUrl = `${SUPABASE_URL}/functions/v1/storefront-html`;
+        const fnUrl = new URL(edgeFnUrl);
+        fnUrl.searchParams.set('hostname', publicHost);
+        fnUrl.searchParams.set('path', url.pathname);
+        
+        const htmlRes = await fetch(fnUrl.toString(), {
+          method: 'GET',
+          headers: {
+            'X-Forwarded-Host': publicHost,
+            'X-Forwarded-Proto': 'https',
+            'X-Tenant-Slug': tenantSlug,
+          },
+        });
+
+        // If edge function returned valid HTML (200, 404 with HTML), use it
+        if (htmlRes.ok || (htmlRes.status === 404 && (htmlRes.headers.get('content-type') || '').includes('text/html'))) {
+          const resHeaders = new Headers();
+          for (const [key, value] of htmlRes.headers.entries()) {
+            resHeaders.set(key, value);
+          }
+          resHeaders.set('X-CC-Tenant', tenantSlug);
+          resHeaders.set('X-CC-Render-Mode', 'edge-html');
+          resHeaders.set('X-CC-Domain-Type', domainType);
+          
+          return new Response(htmlRes.body, {
+            status: htmlRes.status,
+            headers: resHeaders,
+          });
+        }
+        
+        // Edge function failed — fall through to SPA
+        console.error(`[Worker] Edge HTML returned ${htmlRes.status}, falling back to SPA`);
+      } catch (e) {
+        console.error('[Worker] Edge HTML error, falling back to SPA:', e);
+      }
+    }
+
+    // ========== SPA FALLBACK (PATH TRANSLATION) ==========
     const originPath = buildOriginPath(url.pathname, tenantSlug);
     const originUrl = `https://${ORIGIN_HOST}${originPath}${url.search || ''}`;
 

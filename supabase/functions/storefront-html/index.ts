@@ -9,7 +9,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveTenantFromHostname } from '../_shared/resolveTenant.ts';
 
 // ===== VERSION =====
-const VERSION = "v2.0.0"; // Phase 2: Product + Category routes
+const VERSION = "v3.0.0"; // Phase 3: Hydration script + interactive elements
 // ====================
 
 // ============================================
@@ -234,8 +234,16 @@ function renderHeader(
         <a href="/" style="flex-shrink:0;">${logoHtml}</a>
         <nav style="display:flex;align-items:center;gap:24px;overflow-x:auto;">${navItems}</nav>
         <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
-          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+          <button data-sf-action="toggle-search" aria-label="Buscar" style="background:none;border:none;cursor:pointer;padding:4px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </button>
+          <button data-sf-action="open-cart" aria-label="Carrinho" style="background:none;border:none;cursor:pointer;padding:4px;position:relative;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+            <span data-sf-cart-count style="display:none;position:absolute;top:-4px;right:-4px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);font-size:11px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;">0</span>
+          </button>
+          <button data-sf-action="toggle-mobile-menu" aria-label="Menu" style="background:none;border:none;cursor:pointer;padding:4px;display:none;" class="sf-mobile-menu-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
         </div>
       </div>
     </header>`;
@@ -377,7 +385,7 @@ function renderProductPage(product: any, images: any[], storeSettings: any, host
             <p style="font-size:13px;color:#666;">em até 12x de ${formatPriceFromDecimal(product.price / 12)} sem juros</p>
             ${product.short_description ? `<p style="font-size:15px;color:var(--theme-text-secondary,#555);line-height:1.6;">${escapeHtml(product.short_description)}</p>` : ''}
             ${product.stock_quantity > 0 
-              ? `<button style="margin-top:8px;padding:14px 32px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;width:100%;max-width:400px;">Adicionar ao carrinho</button>` 
+              ? `<button data-sf-action="add-to-cart" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${escapeHtml(optimizeImageUrl(mainImage?.url, 120, 75))}" style="margin-top:8px;padding:14px 32px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;width:100%;max-width:400px;">Adicionar ao carrinho</button>` 
               : `<p style="margin-top:8px;padding:14px;background:#fef2f2;color:#dc2626;border-radius:8px;text-align:center;font-weight:500;">Produto indisponível</p>`
             }
             ${product.free_shipping ? `<p style="font-size:13px;color:#16a34a;font-weight:500;margin-top:4px;">🚚 Frete grátis</p>` : ''}
@@ -492,6 +500,7 @@ function buildFullPage(opts: {
   queryMs: number;
   totalMs: number;
   extraHead?: string;
+  navItemsHtml?: string;
 }): string {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -521,10 +530,197 @@ function buildFullPage(opts: {
     <div id="sf-hydrate-root" data-tenant="${escapeHtml(opts.tenantSlug)}" data-hostname="${escapeHtml(opts.hostname)}"></div>
   </main>
   ${opts.footerHtml}
+  <style>
+    /* Search overlay */
+    .sf-search-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;align-items:flex-start;justify-content:center;padding-top:80px;}
+    .sf-search-overlay.active{display:flex;}
+    .sf-search-box{background:#fff;border-radius:12px;padding:16px;width:90%;max-width:560px;box-shadow:0 20px 60px rgba(0,0,0,0.2);}
+    .sf-search-input{width:100%;padding:12px 16px;border:2px solid #eee;border-radius:8px;font-size:16px;outline:none;font-family:var(--sf-body-font);}
+    .sf-search-input:focus{border-color:var(--theme-button-primary-bg,#1a1a1a);}
+    .sf-search-results{margin-top:12px;max-height:320px;overflow-y:auto;}
+    .sf-search-item{display:flex;align-items:center;gap:12px;padding:10px;border-radius:8px;cursor:pointer;text-decoration:none;color:inherit;}
+    .sf-search-item:hover{background:#f5f5f5;}
+    /* Mobile menu */
+    .sf-mobile-nav{display:none;position:fixed;inset:0;background:#fff;z-index:90;padding:60px 24px 24px;overflow-y:auto;flex-direction:column;gap:16px;}
+    .sf-mobile-nav.active{display:flex;}
+    .sf-mobile-nav a{font-size:18px;font-weight:500;padding:12px 0;border-bottom:1px solid #f0f0f0;}
+    /* Mobile responsive */
+    @media(max-width:768px){
+      header nav{display:none !important;}
+      .sf-mobile-menu-btn{display:block !important;}
+    }
+    /* Cart drawer */
+    .sf-cart-drawer{display:none;position:fixed;top:0;right:0;bottom:0;width:380px;max-width:90vw;background:#fff;z-index:100;box-shadow:-10px 0 30px rgba(0,0,0,0.1);flex-direction:column;}
+    .sf-cart-drawer.active{display:flex;}
+    .sf-cart-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:99;}
+    .sf-cart-backdrop.active{display:block;}
+  </style>
+
+  <!-- Search overlay -->
+  <div class="sf-search-overlay" data-sf-search-overlay>
+    <div class="sf-search-box">
+      <input class="sf-search-input" data-sf-search-input placeholder="Buscar produtos..." autofocus>
+      <div class="sf-search-results" data-sf-search-results></div>
+    </div>
+  </div>
+
+  <!-- Mobile nav -->
+  <div class="sf-mobile-nav" data-sf-mobile-nav>
+    <button data-sf-action="close-mobile-menu" style="position:absolute;top:16px;right:16px;background:none;border:none;cursor:pointer;">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    ${opts.navItemsHtml || ''}
+  </div>
+
+  <!-- Cart drawer -->
+  <div class="sf-cart-backdrop" data-sf-cart-backdrop></div>
+  <div class="sf-cart-drawer" data-sf-cart-drawer>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #eee;">
+      <h3 style="font-size:18px;font-weight:600;font-family:var(--sf-heading-font);">Carrinho</h3>
+      <button data-sf-action="close-cart" style="background:none;border:none;cursor:pointer;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div data-sf-cart-items style="flex:1;overflow-y:auto;padding:20px;">
+      <p style="text-align:center;color:#999;padding:40px 0;">Seu carrinho está vazio</p>
+    </div>
+    <div data-sf-cart-footer style="display:none;padding:16px 20px;border-top:1px solid #eee;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:12px;font-weight:600;">
+        <span>Total</span>
+        <span data-sf-cart-total>R$ 0,00</span>
+      </div>
+      <a href="/carrinho" style="display:block;text-align:center;padding:14px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border-radius:8px;font-weight:600;font-size:16px;">Finalizar compra</a>
+    </div>
+  </div>
+
   <script>
     window.__SF_SERVER_RENDERED = true;
     window.__SF_TIMING = { resolve: ${opts.resolveMs}, queries: ${opts.queryMs}, total: ${opts.totalMs} };
     window.__SF_TENANT = { slug: "${escapeHtml(opts.tenantSlug)}", id: "${escapeHtml(opts.tenantId)}" };
+
+    // ====== HYDRATION SCRIPT (Phase 3) ======
+    (function(){
+      var SUPABASE_URL = "https://ojssezfjhdvvncsqyhyq.supabase.co";
+      var SUPABASE_KEY = "${escapeHtml(Deno.env.get('SUPABASE_ANON_KEY') || '')}";
+      var TENANT_SLUG = "${escapeHtml(opts.tenantSlug)}";
+      var CART_KEY = "sf_cart_" + TENANT_SLUG;
+
+      // === Cart state ===
+      var cart = JSON.parse(localStorage.getItem(CART_KEY) || "[]");
+      function saveCart(){ localStorage.setItem(CART_KEY, JSON.stringify(cart)); updateCartUI(); }
+      function updateCartUI(){
+        var countEls = document.querySelectorAll("[data-sf-cart-count]");
+        var total = cart.reduce(function(s,i){return s+i.qty},0);
+        countEls.forEach(function(el){ el.textContent=total; el.style.display=total>0?"flex":"none"; });
+        // Update drawer
+        var itemsEl = document.querySelector("[data-sf-cart-items]");
+        var footerEl = document.querySelector("[data-sf-cart-footer]");
+        var totalEl = document.querySelector("[data-sf-cart-total]");
+        if(!itemsEl) return;
+        if(cart.length===0){
+          itemsEl.innerHTML='<p style="text-align:center;color:#999;padding:40px 0;">Seu carrinho está vazio</p>';
+          if(footerEl) footerEl.style.display="none";
+          return;
+        }
+        if(footerEl) footerEl.style.display="block";
+        var priceTotal = cart.reduce(function(s,i){return s+(i.price*i.qty)},0);
+        if(totalEl) totalEl.textContent="R$ "+priceTotal.toFixed(2).replace(".",",");
+        itemsEl.innerHTML = cart.map(function(item,idx){
+          return '<div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid #f0f0f0;">' +
+            (item.image ? '<img src="'+item.image+'" style="width:64px;height:64px;object-fit:cover;border-radius:6px;">' : '') +
+            '<div style="flex:1;"><p style="font-size:14px;font-weight:500;">'+item.name+'</p>' +
+            '<p style="font-size:13px;color:#666;margin-top:4px;">R$ '+(item.price).toFixed(2).replace(".",",")+' × '+item.qty+'</p></div>' +
+            '<button data-sf-action="remove-cart-item" data-index="'+idx+'" style="background:none;border:none;cursor:pointer;color:#999;font-size:18px;">×</button></div>';
+        }).join("");
+      }
+
+      function addToCart(productId, name, price, image, variantId){
+        var key = productId + (variantId||"");
+        var existing = cart.find(function(i){return (i.id+""+(i.variantId||""))===key});
+        if(existing){ existing.qty++; } else { cart.push({id:productId,name:name,price:price,image:image,variantId:variantId,qty:1}); }
+        saveCart();
+        // Open cart drawer
+        var drawer = document.querySelector("[data-sf-cart-drawer]");
+        var backdrop = document.querySelector("[data-sf-cart-backdrop]");
+        if(drawer) drawer.classList.add("active");
+        if(backdrop) backdrop.classList.add("active");
+      }
+
+      // === Search ===
+      var searchTimer = null;
+      function doSearch(query){
+        var resultsEl = document.querySelector("[data-sf-search-results]");
+        if(!resultsEl||!query||query.length<2){if(resultsEl) resultsEl.innerHTML=""; return;}
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(function(){
+          fetch(SUPABASE_URL+"/rest/v1/products?tenant_id=eq."+window.__SF_TENANT.id+"&status=eq.active&deleted_at=is.null&name=ilike.*"+encodeURIComponent(query)+"*&select=name,slug,price,product_images(url)&limit=8",{
+            headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY}
+          }).then(function(r){return r.json()}).then(function(products){
+            if(!products||!products.length){resultsEl.innerHTML='<p style="padding:16px;color:#999;text-align:center;">Nenhum resultado</p>';return;}
+            resultsEl.innerHTML=products.map(function(p){
+              var img=p.product_images&&p.product_images[0]?p.product_images[0].url:"";
+              var thumb=img?"https://wsrv.nl/?url="+encodeURIComponent(img)+"&w=60&q=75&output=webp":"";
+              return '<a href="/produto/'+p.slug+'" class="sf-search-item">'+(thumb?'<img src="'+thumb+'" style="width:48px;height:48px;object-fit:cover;border-radius:6px;">':'')+
+                '<div><p style="font-size:14px;font-weight:500;">'+p.name+'</p><p style="font-size:13px;color:#666;">R$ '+p.price.toFixed(2).replace(".",",")+'</p></div></a>';
+            }).join("");
+          }).catch(function(){resultsEl.innerHTML="";});
+        },300);
+      }
+
+      // === Event delegation ===
+      document.addEventListener("click", function(e){
+        var btn = e.target.closest("[data-sf-action]");
+        if(!btn) {
+          // Close search on overlay click
+          var overlay = e.target.closest("[data-sf-search-overlay]");
+          if(overlay && e.target === overlay) overlay.classList.remove("active");
+          return;
+        }
+        var action = btn.getAttribute("data-sf-action");
+        if(action==="toggle-search"){
+          var overlay = document.querySelector("[data-sf-search-overlay]");
+          if(overlay){overlay.classList.toggle("active"); var input=overlay.querySelector("input"); if(input)input.focus();}
+        } else if(action==="open-cart"){
+          document.querySelector("[data-sf-cart-drawer]")?.classList.add("active");
+          document.querySelector("[data-sf-cart-backdrop]")?.classList.add("active");
+        } else if(action==="close-cart"){
+          document.querySelector("[data-sf-cart-drawer]")?.classList.remove("active");
+          document.querySelector("[data-sf-cart-backdrop]")?.classList.remove("active");
+        } else if(action==="toggle-mobile-menu"){
+          document.querySelector("[data-sf-mobile-nav]")?.classList.toggle("active");
+        } else if(action==="close-mobile-menu"){
+          document.querySelector("[data-sf-mobile-nav]")?.classList.remove("active");
+        } else if(action==="add-to-cart"){
+          addToCart(btn.dataset.productId, btn.dataset.productName, parseFloat(btn.dataset.productPrice), btn.dataset.productImage, btn.dataset.variantId);
+        } else if(action==="remove-cart-item"){
+          var idx = parseInt(btn.dataset.index);
+          cart.splice(idx,1); saveCart();
+        }
+      });
+
+      // Cart backdrop close
+      document.querySelector("[data-sf-cart-backdrop]")?.addEventListener("click",function(){
+        document.querySelector("[data-sf-cart-drawer]")?.classList.remove("active");
+        this.classList.remove("active");
+      });
+
+      // Search input
+      var searchInput = document.querySelector("[data-sf-search-input]");
+      if(searchInput) searchInput.addEventListener("input",function(){doSearch(this.value)});
+
+      // ESC key
+      document.addEventListener("keydown",function(e){
+        if(e.key==="Escape"){
+          document.querySelector("[data-sf-search-overlay]")?.classList.remove("active");
+          document.querySelector("[data-sf-cart-drawer]")?.classList.remove("active");
+          document.querySelector("[data-sf-cart-backdrop]")?.classList.remove("active");
+          document.querySelector("[data-sf-mobile-nav]")?.classList.remove("active");
+        }
+      });
+
+      // Init cart UI on load
+      updateCartUI();
+    })();
   </script>
 </body>
 </html>`;
@@ -742,6 +938,13 @@ serve(async (req) => {
     const totalMs = Date.now() - startTime;
     const canonicalUrl = `https://${hostname}${canonicalPath}`;
 
+    // Build nav items for mobile menu
+    const navItemsHtml = menuItems
+      .filter((item: any) => !item.parent_id)
+      .slice(0, 12)
+      .map((item: any) => `<a href="${escapeHtml(item.url || '#')}">${escapeHtml(item.label)}</a>`)
+      .join('');
+
     const html = buildFullPage({
       title: pageTitle,
       description: pageDescription,
@@ -760,6 +963,7 @@ serve(async (req) => {
       queryMs,
       totalMs,
       extraHead,
+      navItemsHtml,
     });
 
     console.log(`[storefront-html] ${route.type}${route.slug ? '/' + route.slug : ''} rendered in ${totalMs}ms (resolve=${resolveMs}ms, queries=${queryMs}ms)`);
