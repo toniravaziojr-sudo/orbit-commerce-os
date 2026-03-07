@@ -1061,6 +1061,13 @@ serve(async (req) => {
       pageDescription = product.seo_description || product.short_description || '';
       canonicalPath = `/produto/${product.slug}`;
       ogImage = images?.[0]?.url || ogImage;
+      
+      // LCP preload: product main image
+      const mainImg = images?.find((i: any) => i.is_primary) || images?.[0];
+      if (mainImg?.url) {
+        const optMain = optimizeImageUrl(mainImg.url, 800, 85);
+        lcpPreloadTag = `<link rel="preload" as="image" href="${escapeHtml(optMain)}" fetchpriority="high">`;
+      }
 
     } else if (route.type === 'category' && route.slug) {
       // CATEGORY
