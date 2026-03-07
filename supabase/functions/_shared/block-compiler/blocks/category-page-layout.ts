@@ -64,8 +64,8 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
         </div>` : ''}
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
-        <label style="font-size:13px;color:var(--theme-text-secondary,#555);white-space:nowrap;">Ordenar:</label>
-        <select data-sf-sort style="padding:6px 28px 6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff;cursor:pointer;outline:none;color:var(--theme-text-primary,#1a1a1a);appearance:auto;">
+        <label style="font-size:13px;color:#555;white-space:nowrap;">Ordenar:</label>
+        <select data-sf-sort style="padding:6px 28px 6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff;cursor:pointer;outline:none;color:#1a1a1a;appearance:auto;">
           <option value="default">Relevância</option>
           <option value="price-asc">Menor preço</option>
           <option value="price-desc">Maior preço</option>
