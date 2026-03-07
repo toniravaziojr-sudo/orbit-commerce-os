@@ -101,7 +101,7 @@ export function featuredProductsToStaticHTML(
       </div>
       <div style="padding:8px 12px 12px;">
         ${ratingsHtml}
-        <h3 style="font-size:13px;font-weight:500;margin-bottom:6px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--theme-text-primary,#1a1a1a);">${escapeHtml(p.name)}</h3>
+        <h3 style="font-size:13px;font-weight:500;margin-bottom:6px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:inherit;">${escapeHtml(p.name)}</h3>
         ${showPrice ? `
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
             ${hasDiscount ? `<span style="font-size:11px;color:#999;text-decoration:line-through;">${formatPriceFromDecimal(p.compare_at_price!)}</span>` : ''}
@@ -114,7 +114,7 @@ export function featuredProductsToStaticHTML(
   }).join('');
 
   return `<section style="max-width:1280px;margin:0 auto;padding:32px 16px;">
-    ${title ? `<h2 style="font-size:clamp(20px,3vw,28px);font-weight:700;margin-bottom:24px;font-family:var(--sf-heading-font);color:var(--theme-text-primary,#1a1a1a);">${escapeHtml(title)}</h2>` : ''}
+    ${title ? `<h2 style="font-size:clamp(20px,3vw,28px);font-weight:700;margin-bottom:24px;font-family:var(--sf-heading-font);color:inherit;">${escapeHtml(title)}</h2>` : ''}
     <div class="sf-fp-grid" style="display:grid;grid-template-columns:repeat(${columnsDesktop},1fr);gap:16px;">
       ${productCards}
     </div>
