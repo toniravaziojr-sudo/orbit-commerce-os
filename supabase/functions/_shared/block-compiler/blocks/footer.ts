@@ -86,14 +86,14 @@ export function footerToStaticHTML(context: CompilerContext): string {
   if (showNewsletter) {
     newsletterHtml = `
       <div style="background:${escapeHtml(footerBgColor)};padding:32px 16px;border-bottom:1px solid rgba(255,255,255,0.1);">
-        <div style="max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:24px;">
+        <div class="sf-footer-newsletter-row" style="max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:24px;">
           <div>
             <h3 style="font-size:18px;font-weight:700;color:${escapeHtml(footerTitlesColor)};text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">${escapeHtml(newsletterTitle)}</h3>
             ${newsletterSubtitle ? `<p style="font-size:13px;color:${escapeHtml(footerTextColor)};opacity:0.8;">${escapeHtml(newsletterSubtitle)}</p>` : ''}
           </div>
           <form style="display:flex;gap:0;min-width:300px;max-width:500px;flex:1;" onsubmit="event.preventDefault();">
             <input type="email" placeholder="Seu e-mail" style="flex:1;padding:10px 16px;border:1px solid rgba(255,255,255,0.2);border-right:none;border-radius:4px 0 0 4px;background:rgba(255,255,255,0.1);color:#fff;font-size:14px;outline:none;">
-            <button type="submit" style="padding:10px 20px;background:var(--theme-button-primary-bg,#e53e3e);color:#fff;border:none;border-radius:0 4px 4px 0;font-weight:600;cursor:pointer;">
+            <button type="submit" class="sf-btn-primary" style="padding:10px 20px;border:none;border-radius:0 4px 4px 0;font-weight:600;cursor:pointer;">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
           </form>
@@ -203,7 +203,7 @@ export function footerToStaticHTML(context: CompilerContext): string {
     
     imageSectionsHtml = `
       <div style="border-top:1px solid rgba(255,255,255,0.1);margin-top:32px;padding-top:24px;">
-        <div style="display:grid;grid-template-columns:repeat(${allImageSections.length},1fr);gap:24px;">
+        <div class="sf-footer-images-grid" style="display:grid;grid-template-columns:repeat(${allImageSections.length},1fr);gap:24px;">
           ${sectionCols}
         </div>
       </div>`;
@@ -229,7 +229,7 @@ export function footerToStaticHTML(context: CompilerContext): string {
     <footer style="background:${escapeHtml(footerBgColor)};color:${escapeHtml(footerTextColor)};margin-top:48px;">
       ${newsletterHtml}
       <div style="max-width:1280px;margin:0 auto;padding:40px 16px;">
-        <div style="display:grid;grid-template-columns:repeat(${gridCols},1fr);gap:32px;">
+        <div class="sf-footer-grid" style="display:grid;grid-template-columns:repeat(${gridCols},1fr);gap:32px;">
           ${col1Html}${col2Html}${col3Html}${col4Html}
         </div>
         ${imageSectionsHtml}
@@ -237,8 +237,10 @@ export function footerToStaticHTML(context: CompilerContext): string {
       </div>
       <style>
         @media(max-width:768px){
-          footer > div > div[style*="grid-template-columns"]{grid-template-columns:1fr !important;text-align:center !important;}
-          footer > div > div > div[style*="grid-template-columns"]{grid-template-columns:repeat(2,1fr) !important;}
+          footer .sf-footer-grid{grid-template-columns:1fr !important;text-align:center !important;}
+          footer .sf-footer-images-grid{grid-template-columns:repeat(2,1fr) !important;}
+          footer .sf-footer-newsletter-row{flex-direction:column !important;text-align:center !important;}
+          footer .sf-footer-newsletter-row form{min-width:100% !important;max-width:100% !important;}
         }
       </style>
     </footer>`;

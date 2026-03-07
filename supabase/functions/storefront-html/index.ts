@@ -311,16 +311,22 @@ function buildFullPage(opts: {
       .sf-header-mobile{display:none !important;}
     }
     /* Dropdown hover */
+    .sf-dropdown{padding:8px 0;}
+    .sf-dropdown .sf-dropdown-menu{padding-top:8px;}
     .sf-dropdown:hover .sf-dropdown-menu{display:block !important;}
-    /* Attendance dropdown */
-    .sf-attendance-dropdown .sf-attendance-menu{display:none !important;position:absolute;top:100%;right:0;margin-top:8px;min-width:280px;max-width:320px;padding:16px;background:#fff;border:1px solid #eee;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.12);z-index:60;}
+    .sf-dropdown-item:hover{background:#f5f5f5;}
+    /* Attendance dropdown — use padding-top bridge to prevent gap */
+    .sf-attendance-dropdown .sf-attendance-menu{display:none !important;position:absolute;top:100%;right:0;padding-top:8px;min-width:280px;max-width:320px;z-index:60;}
+    .sf-attendance-dropdown .sf-attendance-menu > div{padding:16px;background:#fff;border:1px solid #eee;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.12);}
     .sf-attendance-dropdown:hover .sf-attendance-menu{display:block !important;}
     .sf-attendance-item{display:flex;align-items:flex-start;gap:12px;padding:8px;border-radius:8px;text-decoration:none;color:inherit;transition:background 0.15s;}
     .sf-attendance-item:hover{background:#f5f5f5;}
     .sf-attendance-icon{margin-top:2px;padding:6px;border-radius:6px;display:flex;align-items:center;justify-content:center;}
     /* Featured promo thumbnail hover */
     .sf-featured-promo{position:relative;}
-    .sf-featured-promo .sf-featured-thumb{display:none;position:absolute;top:100%;left:0;margin-top:8px;z-index:50;border-radius:8px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.15);border:1px solid #eee;}
+    .sf-featured-promo .sf-featured-thumb{display:none;position:absolute;top:100%;left:0;padding-top:8px;z-index:50;}
+    .sf-featured-promo .sf-featured-thumb img{border-radius:8px 8px 0 0;}
+    .sf-featured-promo .sf-featured-thumb > div:last-child{border-radius:0 0 8px 8px;}
     .sf-featured-promo:hover .sf-featured-thumb{display:block;}
     /* Button theme styles — mirrors usePublicThemeSettings.ts */
     .sf-btn-primary{background:var(--theme-button-primary-bg,#1a1a1a) !important;color:var(--theme-button-primary-text,#fff) !important;transition:all 0.2s ease !important;}
@@ -347,9 +353,11 @@ function buildFullPage(opts: {
     .sf-search-item{display:flex;align-items:center;gap:12px;padding:10px;border-radius:8px;cursor:pointer;text-decoration:none;color:inherit;}
     .sf-search-item:hover{background:#f5f5f5;}
     /* Mobile menu */
-    .sf-mobile-nav{display:none;position:fixed;inset:0;background:#fff;z-index:90;padding:60px 24px 24px;overflow-y:auto;flex-direction:column;gap:16px;}
+    .sf-mobile-nav{display:none;position:fixed;inset:0;z-index:90;overflow-y:auto;flex-direction:column;gap:0;}
     .sf-mobile-nav.active{display:flex;}
-    .sf-mobile-nav a{font-size:18px;font-weight:500;padding:12px 0;border-bottom:1px solid #f0f0f0;}
+    .sf-mobile-nav a,.sf-mobile-nav .sf-mobile-nav-item{font-size:18px;font-weight:500;padding:16px 24px;border-bottom:1px solid rgba(128,128,128,0.15);display:block;text-decoration:none;}
+    .sf-mobile-nav .sf-mobile-contact{padding:16px 24px;border-top:1px solid rgba(128,128,128,0.15);margin-top:auto;}
+    .sf-mobile-nav .sf-mobile-contact a{font-size:14px;padding:10px 0;border-bottom:none;}
     /* Cart drawer */
     .sf-cart-drawer{position:fixed;top:0;right:-400px;width:min(400px,100vw);height:100vh;background:#fff;z-index:110;transition:right .3s;box-shadow:-8px 0 24px rgba(0,0,0,0.15);display:flex;flex-direction:column;}
     .sf-cart-drawer.active{right:0;}
@@ -1615,12 +1623,66 @@ serve(async (req) => {
     const totalMs = Date.now() - startTime;
     const canonicalUrl = `https://${hostname}${canonicalPath}`;
 
-    // Build nav items for mobile menu
-    const navItemsHtml = menuItems
+    // Build nav items for mobile menu — matches builder mobile drawer
+    const headerConfig = globalLayout?.published_header_config || globalLayout?.header_config || null;
+    const hProps = headerConfig?.props || {};
+    const mobileHeaderBg = String(hProps.headerBgColor || '#ffffff');
+    const mobileHeaderText = String(hProps.headerTextColor || '#1a1a1a');
+    const mobileCustomerAreaEnabled = Boolean(hProps.customerAreaEnabled);
+    const mobileFeaturedPromosEnabled = Boolean(hProps.featuredPromosEnabled);
+    const mobileFeaturedPromosLabel = String(hProps.featuredPromosLabel || 'Promoções');
+    const mobileFeaturedPromosTarget = String(hProps.featuredPromosTarget || hProps.featuredPromosDestination || '');
+    let mobileFeaturedUrl = '#';
+    if (mobileFeaturedPromosTarget.startsWith('category:')) mobileFeaturedUrl = `/categoria/${mobileFeaturedPromosTarget.replace('category:', '')}`;
+    else if (mobileFeaturedPromosTarget.startsWith('page:')) mobileFeaturedUrl = `/p/${mobileFeaturedPromosTarget.replace('page:', '')}`;
+    
+    // Build child map for mobile
+    const mobileChildrenMap = new Map<string, any[]>();
+    menuItems.filter((item: any) => item.parent_id).forEach((item: any) => {
+      const arr = mobileChildrenMap.get(item.parent_id) || [];
+      arr.push(item);
+      mobileChildrenMap.set(item.parent_id, arr);
+    });
+    
+    const mobileMenuItemsHtml = menuItems
       .filter((item: any) => !item.parent_id)
       .slice(0, 12)
-      .map((item: any) => `<a href="${escapeHtml(item.url || '#')}">${escapeHtml(item.label)}</a>`)
-      .join('');
+      .map((item: any) => {
+        const children = mobileChildrenMap.get(item.id) || [];
+        if (children.length > 0) {
+          const childLinks = children
+            .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+            .map((child: any) => `<a href="${escapeHtml(child.url || '#')}" style="font-size:15px;padding:10px 24px 10px 40px;opacity:0.8;">${escapeHtml(child.label)}</a>`)
+            .join('');
+          return `<div class="sf-mobile-nav-item">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;cursor:pointer;" onclick="var sub=this.nextElementSibling;var arrow=this.querySelector('svg');if(sub.style.display==='none'){sub.style.display='flex';arrow.style.transform='rotate(180deg)';}else{sub.style.display='none';arrow.style.transform='rotate(0)';}">
+              <span style="font-size:18px;font-weight:500;">${escapeHtml(item.label)}</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transition:transform 0.2s;"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div style="display:none;flex-direction:column;border-top:1px solid rgba(128,128,128,0.1);">${childLinks}</div>
+          </div>`;
+        }
+        return `<a href="${escapeHtml(item.url || '#')}">${escapeHtml(item.label)}</a>`;
+      }).join('');
+    
+    // Mobile contact section
+    const mobileWhatsApp = storeSettings?.social_whatsapp || '';
+    const mobilePhone = storeSettings?.contact_phone || '';
+    const mobileEmail = storeSettings?.contact_email || '';
+    const mobileContact: string[] = [];
+    if (mobileWhatsApp) mobileContact.push(`<a href="https://wa.me/${mobileWhatsApp.replace(/\\D/g, '')}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg> WhatsApp</a>`);
+    if (mobilePhone) mobileContact.push(`<a href="tel:${mobilePhone.replace(/\\D/g, '')}" style="display:flex;align-items:center;gap:8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.87.36 1.72.7 2.53a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.81.34 1.66.57 2.53.7A2 2 0 0 1 22 16.92z"/></svg> Telefone</a>`);
+    if (mobileEmail) mobileContact.push(`<a href="mailto:${escapeHtml(mobileEmail)}" style="display:flex;align-items:center;gap:8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Email</a>`);
+    
+    const mobileContactHtml = mobileContact.length > 0 ? `<div class="sf-mobile-contact"><div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;opacity:0.6;margin-bottom:12px;">CONTATO</div>${mobileContact.join('')}</div>` : '';
+    
+    // Featured promo for mobile
+    const mobileFeaturedHtml = mobileFeaturedPromosEnabled ? `<a href="${escapeHtml(mobileFeaturedUrl)}" style="font-weight:600;">${escapeHtml(mobileFeaturedPromosLabel)}</a>` : '';
+    
+    // Account for mobile
+    const mobileAccountHtml = mobileCustomerAreaEnabled ? `<a href="/minha-conta" style="display:flex;align-items:center;gap:8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Minha Conta</a>` : '';
+    
+    const navItemsHtml = `<div style="background:${escapeHtml(mobileHeaderBg)};color:${escapeHtml(mobileHeaderText)};min-height:100%;display:flex;flex-direction:column;">${mobileMenuItemsHtml}${mobileFeaturedHtml}${mobileAccountHtml}${mobileContactHtml}</div>`;
 
     const html = buildFullPage({
       title: pageTitle,
