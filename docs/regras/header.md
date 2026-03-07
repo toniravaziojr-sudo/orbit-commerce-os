@@ -48,35 +48,34 @@
 | 4 | `menus` (location='header') | Menu de navegação do header |
 | 5 | Dados Demo | Fallback quando `isEditing=true` e sem dados reais |
 
-### Arquitetura de Dados Auto-Suficiente (REGRA CRÍTICA)
+### Arquitetura de Dados — Dual Mode (Bootstrap + Fallback)
 
-O `HeaderBlock` (em `BlockRenderer.tsx`) busca seus próprios dados diretamente do banco via `useQuery`, **sem depender de dados passados via context pelas páginas pai**. Isso espelha o padrão do `FooterBlock`/`StorefrontFooterContent`.
+O `HeaderBlock` (em `BlockRenderer.tsx`) opera em dois modos:
+
+**1. Modo Público (storefront):** Recebe dados via props do bootstrap (`bootstrapPages`, `bootstrapGlobalLayout`). **ZERO queries de rede** quando bootstrap disponível.
+
+**2. Modo Builder (`isEditing=true`):** Busca dados diretamente do banco via `useQuery` (auto-suficiente).
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                    HEADER — FETCHING AUTO-SUFICIENTE                     │
+│                    HEADER — DUAL MODE                                    │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  useQuery(['header-categories-self', tenantId])                         │
-│    → categories (id, slug, name) com is_active=true                     │
+│  MODO PÚBLICO (bootstrap disponível):                                    │
+│    → Recebe bootstrapPages, bootstrapGlobalLayout via props              │
+│    → ZERO queries de rede                                                │
 │                                                                          │
-│  useQuery(['header-menu-self', tenantId])                                │
-│    → menu_items do menu com location='header'                           │
+│  MODO BUILDER (isEditing=true, sem bootstrap):                           │
+│    useQuery(['header-categories-self', tenantId])                        │
+│    useQuery(['header-menu-self', tenantId])                               │
+│    useQuery(['header-pages-for-menu', tenantId])                         │
+│    staleTime: 5 minutos                                                  │
 │                                                                          │
-│  useQuery(['header-pages-for-menu', tenantId])                           │
-│    → store_pages publicadas (id, slug, type)                            │
-│                                                                          │
-│  Prioridade: DB direto > context (fallback) > dados demo                │
-│  staleTime: 5 minutos                                                    │
-│  Desabilitado quando isEditing=true (usa context do builder)            │
+│  Prioridade: bootstrap props > DB direto > context > dados demo          │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Por que auto-suficiente?**
-- Em domínios customizados, `baseUrl` retorna `''`. Se o context estiver vazio, links ficam quebrados.
-- O fetching direto garante que categorias e menus sempre estejam disponíveis, independente do pipeline de dados da página pai.
-- No builder (`isEditing=true`), o fetching direto é desabilitado para manter a fidelidade dos rascunhos.
-
-> ⚠️ **PROIBIDO**: Remover o fetching auto-suficiente do HeaderBlock ou torná-lo dependente exclusivamente de dados do context.
+> ⚠️ **PROIBIDO**: Remover o fetching de fallback do HeaderBlock (necessário para o builder).
+> ⚠️ **PROIBIDO**: Header fazer queries no storefront público quando bootstrap está disponível.
 
 ### Herança de Logo (REGRA CRÍTICA)
 
@@ -401,6 +400,7 @@ const handleMobileMenuNavigate = (url: string) => {
 | 2025-03-01 | Menu mobile: substituído `<Link>`/`<LinkWrapper>` por `<button>` + `handleMobileMenuNavigate()` (navegação programática) — fix para cliques não navegarem dentro do Sheet/Radix Dialog |
 | 2025-03-01 | HeaderBlock tornado auto-suficiente — fetching direto de categorias, menus e páginas via `useQuery` (padrão espelhado do Footer), eliminando dependência de context para domínios customizados |
 | 2025-03-04 | Fallback de cor no badge de Featured Promos: se `featuredPromosBgColor` for vazio, igual ao texto, ou igual ao fundo do header, o sistema ignora a cor inválida e usa `sf-btn-primary` (cor primária do tema). Previne botão invisível em todos os tenants |
+| 2026-03-06 | **PERFORMANCE v3.0.0**: HeaderBlock agora aceita `bootstrapPages` e `bootstrapGlobalLayout` via props. No storefront público, consome dados do bootstrap (ZERO queries). No builder, mantém fetching próprio como fallback |
 | 2025-03-04 | Mobile secondary bar: badge de Featured Promos agora usa `sf-btn-primary` + `featuredPromosStyle` (paridade com desktop) |
 
 ---

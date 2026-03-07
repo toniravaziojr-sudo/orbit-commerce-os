@@ -46,18 +46,21 @@ A Loja Virtual é o módulo central de e-commerce que permite criar, personaliza
 └─────────────────────────────────────────────────────────────────────────┘
                                      ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                      RESOLUÇÃO DE TENANT                                │
-│  Arquivo: supabase/functions/resolve-domain                            │
+│               RESOLUÇÃO DE TENANT + BOOTSTRAP UNIFICADO                  │
+│  Arquivo: supabase/functions/storefront-bootstrap (v4.0.0)              │
+│  Lógica de resolução: supabase/functions/_shared/resolveTenant.ts       │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  • Recebe hostname → retorna tenant_id + primary_host                  │
-│  • Verifica status SSL do domínio customizado                          │
-│  • Redireciona para domínio canônico quando necessário                 │
+│  • Aceita hostname → resolve tenant + carrega todos os dados            │
+│  • Aceita tenant_slug ou tenant_id → carrega dados diretamente          │
+│  • 1 ÚNICA chamada Edge Function para domínios custom (antes eram 2)    │
+│  • resolve-domain ainda existe como fallback (usa _shared/resolveTenant)│
 └─────────────────────────────────────────────────────────────────────────┘
                                      ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                      LAYOUT DO STOREFRONT                               │
 │  Arquivos: StorefrontLayout.tsx, TenantStorefrontLayout.tsx            │
 ├─────────────────────────────────────────────────────────────────────────┤
+│  • TenantStorefrontLayout: usa useStorefrontBootstrapByHostname        │
 │  • CartProvider (estado global do carrinho)                             │
 │  • DiscountProvider (cupons aplicados)                                  │
 │  • StorefrontConfigProvider (configs de frete, benefícios, ofertas)    │
@@ -72,6 +75,7 @@ A Loja Virtual é o módulo central de e-commerce que permite criar, personaliza
 │  • Busca dados reais (produtos, categorias, pedidos)                   │
 │  • Monta BlockRenderContext                                             │
 │  • Renderiza via PublicTemplateRenderer                                │
+│  • TODAS passam bootstrapGlobalLayout ao PublicTemplateRenderer        │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -631,23 +635,38 @@ Endpoint centralizado para geração de SEO otimizado via IA (Gemini).
 
 ### Visão Geral
 
-O storefront utiliza uma Edge Function `storefront-bootstrap` (v2.0.0) que consolida **8 queries paralelas** em uma única chamada server-side, eliminando cascatas (waterfalls) e reduzindo o carregamento de ~13 queries para 1.
+O storefront utiliza uma Edge Function `storefront-bootstrap` (v4.0.0) que consolida **12 queries paralelas + resolução de domínio** em uma única chamada server-side.
+
+**Evolução:**
+- **v2.0.0**: 8 queries paralelas, resolve-domain separado (2 Edge Function calls)
+- **v3.0.0**: +2 queries (store_pages, footer_2 menu), Footer/Header consomem bootstrap via props
+- **v4.0.0**: Aceita `hostname` — unifica resolve-domain + bootstrap em 1 chamada
 
 ### Arquitetura
 
 ```
-Browser → storefront-bootstrap (Edge Function v2.0.0)
+Browser → storefront-bootstrap (Edge Function v4.0.0)
+              ├─ [hostname?] → _shared/resolveTenant.ts (resolve tenant internamente)
               ├─ Q1: store_settings
               ├─ Q2: header menu + items
-              ├─ Q3: footer menu + items
+              ├─ Q3: footer menu + items (footer_1 / legacy 'footer')
               ├─ Q4: categories (active)
               ├─ Q5: template set (published_content)
-              ├─ Q6: custom domain
+              ├─ Q6: custom domain (skip se já resolvido via hostname)
               ├─ Q7: storefront_global_layout
               ├─ Q8: storefront_page_overrides
-              └─ Q9: products (opcional)
-         ← Single JSON response (inclui global_layout, page_overrides, category_settings extraídos do template)
+              ├─ Q9: store_pages (published — para Header/Footer menu links)
+              ├─ Q10: footer_2 menu + items
+              └─ Q11: products (opcional)
+         ← Single JSON response
 ```
+
+### Resolução de Domínio Compartilhada
+
+A lógica de resolução de domínio foi extraída para `supabase/functions/_shared/resolveTenant.ts`:
+- Usada por `storefront-bootstrap` (quando recebe `hostname`)
+- Usada por `resolve-domain` (que agora é wrapper fino)
+- **PROIBIDO** duplicar lógica de resolução em outras funções
 
 ### Dados Derivados do Template (sem queries extras)
 
@@ -664,6 +683,7 @@ O hook `usePublicStorefront` extrai automaticamente do `published_content` do te
 |------|---------|-----|
 | `useStorefrontBootstrap` | `src/hooks/useStorefrontBootstrap.ts` | Bootstrap por `tenant_slug` |
 | `useStorefrontBootstrapById` | `src/hooks/useStorefrontBootstrap.ts` | Bootstrap por `tenant_id` |
+| `useStorefrontBootstrapByHostname` | `src/hooks/useStorefrontBootstrap.ts` | Bootstrap por `hostname` (unifica resolve + bootstrap) |
 | `usePublicStorefront` | `src/hooks/useStorefront.ts` | Hook público que usa bootstrap + extrai layout/settings |
 
 ### Dados Retornados por `usePublicStorefront`
@@ -674,12 +694,14 @@ O hook `usePublicStorefront` extrai automaticamente do `published_content` do te
 | `storeSettings` | object | bootstrap |
 | `headerMenu` | object | bootstrap |
 | `footerMenu` | object | bootstrap |
+| `footer2Menu` | object | bootstrap (v3.0.0+) |
 | `categories` | array | bootstrap |
 | `template` | object | bootstrap (published_content completo) |
-| `globalLayout` | object | extraído de template.themeSettings |
-| `pageOverrides` | object | extraído de template.themeSettings |
+| `globalLayout` | object | bootstrap (storefront_global_layout published columns) |
+| `pageOverrides` | object | bootstrap (storefront_page_templates) |
 | `categorySettings` | object | extraído de template.themeSettings.pageSettings |
 | `customDomain` | string \| null | bootstrap (tenant_domains) |
+| `pages` | array | bootstrap (store_pages published, v3.0.0+) |
 
 ### Cache
 
@@ -695,44 +717,60 @@ O hook `usePublicStorefront` extrai automaticamente do `published_content` do te
 |-------|-----------|
 | **Proibido** queries individuais para dados iniciais | Usar `usePublicStorefront` que chama bootstrap |
 | **Proibido** `usePublicTemplate` em páginas storefront | Dados já vêm via bootstrap |
-| **Proibido** query separada para `global_layout` | Usar `bootstrapGlobalLayout` de `usePublicStorefront` |
-| **Proibido** query separada para `custom_domain` | Usar `customDomain` de `usePublicStorefront` (NÃO usar `useTenantCanonicalDomain` no layout) |
+| **Proibido** query separada para `global_layout` | Usar `globalLayout` de `usePublicStorefront` |
+| **Proibido** query separada para `custom_domain` | Usar `customDomain` de `usePublicStorefront` |
+| **Proibido** query separada para `store_pages` | Usar `pages` de `usePublicStorefront` |
+| **Proibido** query separada para `footer_2` menu | Usar `footer2Menu` de `usePublicStorefront` |
 | **Proibido** `StorefrontHead` fazer query própria | Recebe `storeSettings` via props |
-| **Proibido** `usePublicThemeSettings` sem bootstrap | Passar `bootstrapTemplate` como 2º param para evitar 3+ queries |
+| **Proibido** `usePublicThemeSettings` sem bootstrap | Passar `bootstrapTemplate` como 2º param |
+| **Proibido** Header/Footer fazer queries próprias (público) | Recebem dados via props do bootstrap |
 | **Obrigatório** `staleTime` ≥ 2 min | Evitar re-fetches desnecessários |
+| **Obrigatório** todas as páginas passarem `bootstrapGlobalLayout` | Ao `PublicTemplateRenderer` para evitar query extra |
 | **Opcional** `include_products` | Só incluir produtos quando necessário (home) |
 
-### Componentes que Recebem Dados via Props (sem queries próprias)
+### Componentes que Recebem Dados via Props (sem queries próprias no modo público)
 
 | Componente | Arquivo | Props do Bootstrap |
 |------------|---------|-------------------|
 | `StorefrontHead` | `StorefrontHead.tsx` | `storeSettings` (favicon, title, SEO) |
 | `LcpPreloader` | `LcpPreloader.tsx` | `bootstrapTemplate` (extrai banner do home) |
 | `StorefrontThemeInjector` | `StorefrontThemeInjector.tsx` | `bootstrapTemplate` (passa para `usePublicThemeSettings`) |
+| `StorefrontFooterContent` | `StorefrontFooterContent.tsx` | `bootstrapStoreSettings`, `bootstrapCategories`, `bootstrapFooterMenus`, `bootstrapPages` |
+| `StorefrontHeader` / `HeaderBlock` | `StorefrontHeader.tsx` | `bootstrapPages`, `bootstrapGlobalLayout` |
 
-**IMPORTANTE — Favicon**: `StorefrontHead` NÃO restaura favicon da plataforma no cleanup. Isso evita o "flickering" entre favicon do tenant e da plataforma durante navegação.
+**IMPORTANTE — Favicon**: `StorefrontHead` NÃO restaura favicon da plataforma no cleanup.
+
+**IMPORTANTE — Header/Footer**: No modo `isEditing=true` (builder), Header e Footer continuam usando queries próprias. As props de bootstrap são usadas apenas no storefront público.
 
 ### Mapeamento
 
 | Tabela | Edge Function |
 |--------|---------------|
 | `store_settings` | `storefront-bootstrap` |
-| `menus` + `menu_items` | `storefront-bootstrap` |
+| `menus` + `menu_items` | `storefront-bootstrap` (header, footer_1, footer_2) |
 | `categories` | `storefront-bootstrap` |
 | `storefront_template_sets` | `storefront-bootstrap` |
 | `tenant_domains` | `storefront-bootstrap` |
 | `storefront_global_layout` | `storefront-bootstrap` |
-| `storefront_page_overrides` | `storefront-bootstrap` |
+| `storefront_page_templates` | `storefront-bootstrap` |
+| `store_pages` | `storefront-bootstrap` |
 | `products` + `product_images` | `storefront-bootstrap` (opcional) |
 
-### Páginas que Usam Bootstrap Direto (sem queries extras)
+### Páginas que Passam bootstrapGlobalLayout ao PublicTemplateRenderer
 
-| Página | Arquivo | Dados do Bootstrap |
-|--------|---------|-------------------|
-| Home | `StorefrontHome.tsx` | template, globalLayout, pageOverrides, categorySettings |
-| Produto | `StorefrontProduct.tsx` | template, productSettings, miniCart, categorySettings |
-| Categoria | `StorefrontCategory.tsx` | template, globalLayout, pageOverrides, categorySettings |
-| Carrinho | `StorefrontCart.tsx` | template, globalLayout, pageOverrides, categorySettings |
+| Página | Arquivo |
+|--------|---------|
+| Home | `StorefrontHome.tsx` |
+| Produto | `StorefrontProduct.tsx` |
+| Categoria | `StorefrontCategory.tsx` |
+| Carrinho | `StorefrontCart.tsx` |
+| Blog | `StorefrontBlog.tsx` |
+| Blog Post | `StorefrontBlogPost.tsx` |
+| Rastreio | `StorefrontTracking.tsx` |
+| Obrigado | `StorefrontThankYou.tsx` |
+| Página Institucional | `StorefrontPage.tsx` |
+| Landing Page | `StorefrontLandingPage.tsx` |
+| Checkout | `StorefrontCheckout.tsx` |
 
 ---
 

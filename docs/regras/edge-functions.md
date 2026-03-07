@@ -2001,12 +2001,25 @@ Página reorganizada em 3 abas:
 
 ## Storefront Bootstrap (`storefront-bootstrap`)
 
-### Versão Atual: v2.0.0
+### Versão Atual: v4.0.0
 
-### v2.0.0: Consolidação Completa (8 queries paralelas)
-- **Antes (v1.0.0)**: 7 queries paralelas, mas hooks frontend ainda faziam queries extras para `global_layout`, `page_overrides` e `categorySettings` (~13 queries total)
-- **Depois (v2.0.0)**: 8+ queries paralelas no servidor + hook extrai `globalLayout`, `pageOverrides` e `categorySettings` do template. Frontend faz **1 única chamada**.
-- **Resultado**: Redução de ~13 queries para 1, eliminando waterfalls
+### Histórico de Versões
+
+| Versão | Mudança |
+|--------|---------|
+| **v4.0.0** | Aceita `hostname` — unifica resolve-domain + bootstrap (1 chamada em vez de 2). Lógica de resolução extraída para `_shared/resolveTenant.ts` |
+| **v3.0.0** | +2 queries: `store_pages` (Q9) e `footer_2` menu (Q10). Footer/Header consomem dados via props |
+| **v2.0.0** | 8 queries paralelas + hook extrai `globalLayout`, `pageOverrides`, `categorySettings` do template |
+| **v1.0.0** | 7 queries paralelas, hooks frontend ainda faziam queries extras |
+
+### Resolução de Domínio Compartilhada
+
+A lógica de resolução de domínio está em `supabase/functions/_shared/resolveTenant.ts`:
+- **Exporta:** `resolveTenantFromHostname(supabase, hostname)` → `ResolvedTenant | ResolveNotFound`
+- **Exporta:** `parsePlatformSubdomain(hostname)` → `string | null`
+- **Exporta:** `isAppDomain(hostname)` → `boolean`
+- **Usada por:** `storefront-bootstrap` (quando recebe `hostname`) e `resolve-domain`
+- **PROIBIDO** duplicar lógica de resolução em outras edge functions
 
 ### Queries Paralelas (Promise.allSettled)
 
@@ -2014,30 +2027,42 @@ Página reorganizada em 3 abas:
 |---|------|--------|
 | Q1 | Store settings | `store_settings` |
 | Q2 | Header menu + items | `menus` + `menu_items` |
-| Q3 | Footer menu + items | `menus` + `menu_items` |
+| Q3 | Footer menu + items (footer_1/legacy) | `menus` + `menu_items` |
 | Q4 | Categorias ativas | `categories` |
 | Q5 | Template publicado | `storefront_template_sets` |
-| Q6 | Domínio customizado | `tenant_domains` |
+| Q6 | Domínio customizado (skip se hostname) | `tenant_domains` |
 | Q7 | Global layout | `storefront_global_layout` |
-| Q8 | Page overrides | `storefront_page_overrides` |
-| Q9 | Produtos (opcional) | `products` + `product_images` |
-
-### Dados Derivados (extraídos no frontend pelo hook)
-
-O hook `usePublicStorefront` extrai automaticamente do `published_content`:
-- `globalLayout` ← `template.published_content.themeSettings.globalLayout`
-- `pageOverrides` ← `template.published_content.themeSettings.pageOverrides`
-- `categorySettings` ← `template.published_content.themeSettings.pageSettings.category`
+| Q8 | Page overrides | `storefront_page_templates` |
+| Q9 | Store pages publicadas | `store_pages` |
+| Q10 | Footer 2 menu + items | `menus` + `menu_items` |
+| Q11 | Produtos (opcional) | `products` + `product_images` |
 
 ### Parâmetros de Entrada
 
 | Param | Tipo | Obrigatório | Descrição |
 |-------|------|-------------|-----------|
+| `hostname` | string | ✅* | Hostname do browser (unifica resolve + bootstrap) |
 | `tenant_slug` | string | ✅* | Slug do tenant |
 | `tenant_id` | string | ✅* | ID direto do tenant |
 | `include_products` | boolean | ❌ | Incluir produtos (default: false) |
 
-*Um dos dois é obrigatório.
+*Um dos três é obrigatório. `hostname` é preferido para domínios custom (elimina 1 roundtrip).
+
+### Resposta Adicional (quando `hostname` usado)
+
+```json
+{
+  "resolved_domain": {
+    "tenant_slug": "minha-loja",
+    "tenant_id": "uuid",
+    "domain_type": "custom",
+    "canonical_origin": "https://loja.cliente.com.br",
+    "primary_public_host": "loja.cliente.com.br",
+    "is_primary": true,
+    "has_custom_primary": true
+  }
+}
+```
 
 ### Cache HTTP
 ```
@@ -2050,15 +2075,21 @@ Cache-Control: public, max-age=60, s-maxage=120
 |------|---------|-----------|
 | `useStorefrontBootstrap` | `src/hooks/useStorefrontBootstrap.ts` | `tenant_slug` |
 | `useStorefrontBootstrapById` | `src/hooks/useStorefrontBootstrap.ts` | `tenant_id` |
-| `usePublicStorefront` | `src/hooks/useStorefront.ts` | `tenant_slug` (usa bootstrap + extrai layout/settings) |
+| `useStorefrontBootstrapByHostname` | `src/hooks/useStorefrontBootstrap.ts` | `hostname` (unificado) |
+| `usePublicStorefront` | `src/hooks/useStorefront.ts` | `tenant_slug` (usa bootstrap + extrai tudo) |
 
 ### Regras de Uso
 
 | ❌ Proibido | ✅ Correto |
 |-------------|------------|
-| `usePublicTemplate` em páginas storefront | Usar `bootstrapTemplate` de `usePublicStorefront` |
-| Query separada para `global_layout` | Usar `bootstrapGlobalLayout` de `usePublicStorefront` |
-| Query separada para `categorySettings` | Usar `bootstrapCategorySettings` de `usePublicStorefront` |
+| `usePublicTemplate` em páginas storefront | Usar `template` de `usePublicStorefront` |
+| Query separada para `global_layout` | Usar `globalLayout` de `usePublicStorefront` |
+| Query separada para `categorySettings` | Usar `categorySettings` de `usePublicStorefront` |
+| Query separada para `store_pages` | Usar `pages` de `usePublicStorefront` |
+| Query separada para `footer_2` menu | Usar `footer2Menu` de `usePublicStorefront` |
+| Header/Footer fazendo queries no público | Receber dados via props do bootstrap |
+| Página sem `bootstrapGlobalLayout` | TODAS as páginas devem passar ao `PublicTemplateRenderer` |
+| `resolve-domain` + `storefront-bootstrap` em sequência | Usar `hostname` no bootstrap (1 chamada) |
 
 ---
 
