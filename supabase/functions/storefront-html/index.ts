@@ -91,9 +91,16 @@ function generateThemeCss(themeSettings: any): string {
 }
 
 // ============================================
-// GOOGLE FONTS LINK GENERATOR
+// GOOGLE FONTS LINK GENERATOR + PRELOAD
 // ============================================
-function getGoogleFontsLink(themeSettings: any): string {
+interface FontResult {
+  /** <link rel="preconnect"> + <link rel="stylesheet"> tags */
+  stylesheetTags: string;
+  /** <link rel="preload" as="style"> for critical font CSS */
+  preloadTags: string;
+}
+
+function getGoogleFontsData(themeSettings: any): FontResult {
   const fonts = new Set<string>();
   const headingFont = themeSettings?.typography?.headingFont || 'inter';
   const bodyFont = themeSettings?.typography?.bodyFont || 'inter';
@@ -110,9 +117,26 @@ function getGoogleFontsLink(themeSettings: any): string {
   if (fontNameMap[headingFont]) fonts.add(fontNameMap[headingFont]);
   if (fontNameMap[bodyFont]) fonts.add(fontNameMap[bodyFont]);
   
-  if (fonts.size === 0) return '';
+  if (fonts.size === 0) return { stylesheetTags: '', preloadTags: '' };
+  
   const families = Array.from(fonts).map(f => `family=${f}:wght@400;500;600;700`).join('&');
-  return `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?${families}&display=swap" rel="stylesheet">`;
+  const cssUrl = `https://fonts.googleapis.com/css2?${families}&display=swap`;
+  
+  // Preload the CSS file itself for faster font discovery
+  const preloadTags = `<link rel="preload" href="${cssUrl}" as="style">`;
+  
+  const stylesheetTags = [
+    '<link rel="preconnect" href="https://fonts.googleapis.com">',
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>',
+    `<link href="${cssUrl}" rel="stylesheet">`,
+  ].join('\n  ');
+  
+  return { stylesheetTags, preloadTags };
+}
+
+// Backward compat wrapper
+function getGoogleFontsLink(themeSettings: any): string {
+  return getGoogleFontsData(themeSettings).stylesheetTags;
 }
 
 // ============================================
