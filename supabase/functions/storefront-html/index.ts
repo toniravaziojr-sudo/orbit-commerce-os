@@ -334,13 +334,22 @@ function renderBanner(banner: BannerData): string {
   const wrapperTag = linkUrl && !buttonText ? 'a' : 'div';
   const wrapperHref = linkUrl && !buttonText ? ` href="${escapeHtml(linkUrl)}"` : '';
 
+  const hasOverlayContent = !!(title || subtitle || buttonText);
+  const isAutoHeight = height === 'auto';
+  // When height is auto AND there's no overlay text, let the image flow naturally (no absolute positioning)
+  // When height is explicit OR there's overlay text, use absolute positioning for the image
+  const useAbsoluteImage = !isAutoHeight || hasOverlayContent;
+  const containerHeight = isAutoHeight 
+    ? (hasOverlayContent ? 'min-height:400px;' : '') 
+    : `height:${height};`;
+
   return `
     ${preloadTag}
-    <${wrapperTag}${wrapperHref} style="position:relative;width:100%;${height !== 'auto' ? `height:${height};` : ''}overflow:hidden;display:flex;align-items:center;justify-content:${justifyContent};background:#f5f5f5;">
+    <${wrapperTag}${wrapperHref} style="position:relative;width:100%;${containerHeight}overflow:hidden;${useAbsoluteImage ? `display:flex;align-items:center;justify-content:${justifyContent};` : ''}background:#f5f5f5;">
       ${optimizedDesktop ? `
         <picture>
           ${optimizedMobile !== optimizedDesktop ? `<source srcset="${escapeHtml(optimizedMobile)}" media="(max-width:768px)">` : ''}
-          <img src="${escapeHtml(optimizedDesktop)}" alt="${escapeHtml(title || 'Banner')}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" loading="eager" fetchpriority="high">
+          <img src="${escapeHtml(optimizedDesktop)}" alt="${escapeHtml(title || 'Banner')}" style="${useAbsoluteImage ? 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;' : 'width:100%;height:auto;display:block;'}" loading="eager" fetchpriority="high">
         </picture>
       ` : ''}
       ${overlayHtml}
