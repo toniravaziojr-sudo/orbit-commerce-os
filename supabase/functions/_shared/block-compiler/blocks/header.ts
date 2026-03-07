@@ -95,22 +95,50 @@ export function headerToStaticHTML(context: CompilerContext): string {
     childrenMap.set(item.parent_id, arr);
   });
   
+  // Menu visual style
+  const menuVisualStyle = String(props.menuVisualStyle || 'classic');
+  const menuShowParentTitle = props.menuShowParentTitle ?? true;
+  
   const navItemsHtml = rootItems.map((item: any) => {
     const url = item.url || '#';
     const children = childrenMap.get(item.id) || [];
     
     if (children.length > 0) {
+      // Header with parent title (Classic & Elegant styles)
+      let headerHtml = '';
+      if (menuShowParentTitle && menuVisualStyle !== 'minimal') {
+        headerHtml = `<div style="padding:8px 16px 6px;border-bottom:1px solid #f0f0f0;margin-bottom:4px;">
+          <span style="font-size:12px;font-weight:600;color:#1a1a1a;${menuVisualStyle === 'classic' ? 'text-transform:uppercase;letter-spacing:0.5px;' : ''}">${escapeHtml(item.label)}</span>
+        </div>`;
+      }
+      
       const childLinks = children
         .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-        .map((child: any) => `<a href="${escapeHtml(child.url || '#')}" style="display:block;padding:8px 16px;color:#1a1a1a;font-size:13px;white-space:nowrap;border-radius:4px;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='transparent'">${escapeHtml(child.label)}</a>`)
+        .map((child: any) => `<a href="${escapeHtml(child.url || '#')}" class="sf-dropdown-item" style="display:block;padding:8px 16px;color:#1a1a1a;font-size:13px;white-space:nowrap;border-radius:4px;">${escapeHtml(child.label)}</a>`)
         .join('');
+      
+      // Footer "Ver todos" link (Classic style)
+      let footerHtml = '';
+      if (menuVisualStyle === 'classic') {
+        footerHtml = `<div style="border-top:1px solid #f0f0f0;margin-top:4px;padding:6px 16px;">
+          <a href="${escapeHtml(url)}" style="font-size:12px;font-weight:500;color:var(--theme-button-primary-bg,#1a1a1a);display:flex;align-items:center;gap:4px;">Ver todos <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></a>
+        </div>`;
+      }
+      
+      // Dropdown arrow: only Classic style shows it
+      const arrowSvg = menuVisualStyle === 'classic'
+        ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="${escapeHtml(headerTextColor)}" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>`
+        : '';
+      
       return `<div class="sf-dropdown" style="position:relative;">
         <a href="${escapeHtml(url)}" style="color:${escapeHtml(headerTextColor)};font-size:14px;font-weight:500;white-space:nowrap;display:flex;align-items:center;gap:4px;">
           ${escapeHtml(item.label)}
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          ${arrowSvg}
         </a>
-        <div class="sf-dropdown-menu" style="display:none;position:absolute;top:100%;left:0;background:#fff;border:1px solid #eee;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:8px;min-width:200px;z-index:60;">
+        <div class="sf-dropdown-menu" style="display:none;position:absolute;top:100%;left:0;background:#fff;border:1px solid #eee;border-radius:${menuVisualStyle === 'elegant' ? '12px' : '8px'};box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:8px 0;min-width:200px;z-index:60;">
+          ${headerHtml}
           ${childLinks}
+          ${footerHtml}
         </div>
       </div>`;
     }
