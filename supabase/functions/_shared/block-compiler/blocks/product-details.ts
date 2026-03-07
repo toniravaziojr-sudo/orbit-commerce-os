@@ -126,7 +126,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
         `<button type="button" data-sf-variant-option data-option-name="${escapeHtml(name)}" data-option-value="${escapeHtml(value)}" style="padding:8px 16px;font-size:14px;font-weight:500;border-radius:6px;border:1px solid #ddd;background:#fff;color:#1a1a1a;cursor:pointer;transition:all .15s;">${escapeHtml(value)}</button>`
       ).join('');
       return `<div data-sf-variant-group="${escapeHtml(name)}" style="margin-bottom:12px;">
-        <label style="font-size:14px;font-weight:500;color:var(--theme-text-primary,#1a1a1a);display:block;margin-bottom:6px;">${escapeHtml(name)}: <span data-sf-variant-selected-label="${escapeHtml(name)}" style="font-weight:400;color:var(--theme-text-secondary,#666);"></span></label>
+        <label style="font-size:14px;font-weight:500;color:#1a1a1a;display:block;margin-bottom:6px;">${escapeHtml(name)}: <span data-sf-variant-selected-label="${escapeHtml(name)}" style="font-weight:400;color:#666;"></span></label>
         <div style="display:flex;flex-wrap:wrap;gap:8px;">${buttonsHtml}</div>
       </div>`;
     }).join('');
