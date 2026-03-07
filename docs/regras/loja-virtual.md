@@ -56,35 +56,32 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 └─────────────────────────────────────────────────────────────────────────┘
                                      ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
-│             EDGE FUNCTION: storefront-html (v7.0.0)                     │
+│             EDGE FUNCTION: storefront-html (v7.1.0)                     │
 │  Arquivo: supabase/functions/storefront-html/index.ts                  │
 │  Resolução: supabase/functions/_shared/resolveTenant.ts                │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  1. Recebe hostname (query param, x-forwarded-host ou POST)            │
 │  2. resolveTenantFromHostname() → tenant_id + tenant_slug              │
-│  3. Queries paralelas: settings, menu, categorias, template,           │
-│     global_layout, footer menus, produtos, category_settings           │
-│  4. SSR completo: header, hero, categorias, produtos, carrossel,       │
-│     footer (newsletter, redes sociais, selos, menus dinâmicos)         │
+│  3. Pre-render lookup: storefront_prerendered_pages (fast path)        │
+│  4. Live fallback: queries paralelas + renderização                    │
 │  5. Retorna text/html com Cache-Control: s-maxage=120                  │
 │  6. Server-Timing headers para diagnóstico                             │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  SSR Home — Blocos renderizados server-side (v6.0.0+):                 │
-│  • HeroBanner: imagens desktop/mobile, overlay, CTA                   │
-│  • FeaturedCategories: grid responsivo com imagens e nomes             │
-│  • FeaturedProducts: cards com badges, preços, botões duplos           │
-│  • ImageCarousel: carrossel de banners com auto-play                   │
-│  • Header: barra de avisos animada (marquee), menu 3 colunas,         │
-│    ícones coloridos, menu mobile hamburger                             │
-│  • Footer: menus dinâmicos (footer_1/footer_2), newsletter bar,       │
-│    redes sociais, selos de segurança/pagamento, dados legais           │
+│  SSR Home — Block-to-HTML Compiler (v7.1.0):                           │
+│  • Usa compileBlockTree() com a MESMA fonte de verdade do builder      │
+│  • Compiladores co-localizados: _shared/block-compiler/blocks/         │
+│  • Blocos suportados: Page, Section, HeroBanner, Banner,               │
+│    FeaturedCategories, FeaturedProducts, ImageCarousel, InfoHighlights  │
+│  • Header/Footer: AINDA usam renderers manuais (migração pendente)    │
+│  • Produto/Categoria/Blog/Institucional: renderers manuais (pendente) │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  Queries adicionais na Home (v7.0.0):                                  │
+│  Queries na Home (v7.1.0):                                             │
 │  • storefront_global_layout → header bg, notice bar, footer config     │
 │  • storefront_menus (footer_1, footer_2) + items → menus do rodapé     │
-│  • products (por IDs dos blocos) → dados reais de produtos             │
-│  • categories (por IDs dos blocos) → dados reais de categorias         │
-│  • category_settings → badges e configurações visuais                  │
+│  • products (por IDs extraídos da árvore de blocos)                    │
+│  • product_images (por IDs dos produtos)                               │
+│  • categories (por IDs extraídos da árvore de blocos)                  │
+│  • category_settings (via themeSettings.pageSettings.category)         │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  Rotas suportadas:                                                      │
 │  • / → Home (SSR completo: header + todos os blocos + footer)          │
