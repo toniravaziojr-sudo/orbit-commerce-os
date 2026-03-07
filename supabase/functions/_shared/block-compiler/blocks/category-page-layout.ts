@@ -86,7 +86,7 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
     const hasDiscount = p.compare_at_price && p.compare_at_price > p.price;
     const discountPercent = hasDiscount ? Math.round((1 - p.price / p.compare_at_price!) * 100) : 0;
 
-    // Badges — dynamic + static
+    // Badges — horizontal row matching ProductCardBadges (React uses flex row)
     let badgesHtml = '';
     if (showBadges) {
       const badges: string[] = [];
@@ -94,13 +94,14 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
       const dynamicBadges = context.productBadges.get(p.id) || [];
       for (const db of dynamicBadges.slice(0, 3)) {
         const shapeRadius = db.shape === 'circular' || db.shape === 'pill' ? '12px' : db.shape === 'square' ? '2px' : '4px';
-        badges.push(`<span style="background:${db.background_color};color:${db.text_color};font-size:10px;font-weight:700;padding:3px 8px;border-radius:${shapeRadius};max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(db.name)}</span>`);
+        badges.push(`<span style="background:${db.background_color};color:${db.text_color};font-size:10px;font-weight:600;padding:3px 8px;border-radius:${shapeRadius};max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(db.name)}</span>`);
       }
       // Static badges
-      if (p.free_shipping) badges.push(`<span style="background:#16a34a;color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;">FRETE GRÁTIS</span>`);
-      if (hasDiscount && discountPercent >= 10) badges.push(`<span style="background:#dc2626;color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;">-${discountPercent}%</span>`);
+      if (p.free_shipping) badges.push(`<span style="background:#16a34a;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;">FRETE GRÁTIS</span>`);
+      if (hasDiscount && discountPercent >= 10) badges.push(`<span style="background:#dc2626;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;">-${discountPercent}%</span>`);
       if (badges.length > 0) {
-        badgesHtml = `<div style="position:absolute;top:8px;left:8px;display:flex;flex-direction:column;gap:4px;z-index:2;">${badges.slice(0, 3).join('')}</div>`;
+        // Horizontal row at top-left (matches ProductCardBadges component)
+        badgesHtml = `<div style="position:absolute;top:6px;left:6px;display:flex;align-items:center;gap:4px;z-index:2;pointer-events:none;flex-wrap:nowrap;overflow:hidden;">${badges.slice(0, 3).join('')}</div>`;
       }
     }
 
@@ -146,18 +147,18 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
         data-discount-pct="${discountPercent}"
         data-index="${index}"
         style="${hiddenByPagination ? 'display:none;' : ''}">
-        <a href="/produto/${escapeHtml(p.slug)}" style="display:block;text-decoration:none;color:inherit;border-radius:8px;overflow:hidden;border:1px solid #f0f0f0;transition:box-shadow .2s;position:relative;height:100%;display:flex;flex-direction:column;">
+        <a href="/produto/${escapeHtml(p.slug)}" class="sf-cat-card-link" style="display:flex;flex-direction:column;text-decoration:none;color:inherit;border-radius:8px;overflow:hidden;border:1px solid var(--theme-card-border,#f0f0f0);transition:box-shadow .2s;position:relative;height:100%;background:var(--theme-card-bg,#fff);">
           ${badgesHtml}
           <div style="aspect-ratio:1;background:#f9f9f9;overflow:hidden;">
-            ${optimized ? `<img src="${escapeHtml(optimized)}" alt="${escapeHtml(p.name)}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">` : ''}
+            ${optimized ? `<img src="${escapeHtml(optimized)}" alt="${escapeHtml(p.name)}" style="width:100%;height:100%;object-fit:cover;transition:transform .3s;" loading="lazy">` : ''}
           </div>
-          <div style="padding:12px;flex:1;display:flex;flex-direction:column;" onclick="event.preventDefault();event.stopPropagation();">
+          <div style="padding:8px 12px 12px;flex:1;display:flex;flex-direction:column;" onclick="event.preventDefault();event.stopPropagation();">
             ${ratingsHtml}
-            <p style="font-size:14px;font-weight:500;line-height:1.4;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(p.name)}</p>
-            <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:auto;">
-              ${hasDiscount ? `<span style="font-size:12px;color:#999;text-decoration:line-through;">${formatPriceFromDecimal(p.compare_at_price!)}</span>` : ''}
-              <span style="font-size:16px;font-weight:700;color:var(--theme-price-color, var(--theme-text-primary,#1a1a1a));">${formatPriceFromDecimal(p.price)}</span>
-              ${hasDiscount ? `<span style="font-size:11px;font-weight:600;color:#16a34a;background:#dcfce7;padding:1px 6px;border-radius:3px;">-${discountPercent}%</span>` : ''}
+            <p style="font-size:13px;font-weight:500;line-height:1.4;margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(p.name)}</p>
+            <div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;margin-top:auto;">
+              ${hasDiscount ? `<span style="font-size:11px;color:#999;text-decoration:line-through;">${formatPriceFromDecimal(p.compare_at_price!)}</span>` : ''}
+              <span style="font-size:14px;font-weight:700;color:var(--theme-price-color, var(--theme-text-primary,#1a1a1a));">${formatPriceFromDecimal(p.price)}</span>
+              ${hasDiscount ? `<span style="font-size:10px;font-weight:600;color:#16a34a;background:#dcfce7;padding:1px 6px;border-radius:3px;">-${discountPercent}%</span>` : ''}
             </div>
             <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
               ${buttonsHtml.join('')}
@@ -206,6 +207,8 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
         @media(min-width:640px) { .sf-cat-grid { grid-template-columns: repeat(3, 1fr); } }
         @media(min-width:1024px) { .sf-cat-grid { grid-template-columns: repeat(${columns}, 1fr); } }
         .sf-cat-card { transition: opacity .2s; }
+        .sf-cat-card-link:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .sf-cat-card-link:hover img { transform: scale(1.05); }
         [data-sf-filter-label] { transition: background .15s, border-color .15s; }
         [data-sf-filter-label]:has(input:checked) { border-color: var(--theme-button-primary-bg,#1a1a1a); background: #f0f0f0; }
         @media(max-width:639px) {

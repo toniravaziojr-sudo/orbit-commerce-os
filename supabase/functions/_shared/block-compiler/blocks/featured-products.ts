@@ -46,7 +46,7 @@ export function featuredProductsToStaticHTML(
     const hasDiscount = p.compare_at_price && p.compare_at_price > p.price;
     const discountPercent = hasDiscount ? Math.round((1 - p.price / p.compare_at_price!) * 100) : 0;
 
-    // Badges — static (frete grátis, desconto) + dynamic (from product_badges)
+    // Badges — horizontal row matching ProductCardBadges (React uses flex row, not column)
     let badgesHtml = '';
     if (showBadges) {
       const badges: string[] = [];
@@ -54,13 +54,14 @@ export function featuredProductsToStaticHTML(
       const dynamicBadges = context.productBadges.get(p.id) || [];
       for (const db of dynamicBadges.slice(0, 3)) {
         const shapeRadius = db.shape === 'circular' || db.shape === 'pill' ? '12px' : db.shape === 'square' ? '2px' : '4px';
-        badges.push(`<span style="background:${db.background_color};color:${db.text_color};font-size:10px;font-weight:700;padding:3px 8px;border-radius:${shapeRadius};max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(db.name)}</span>`);
+        badges.push(`<span style="background:${db.background_color};color:${db.text_color};font-size:10px;font-weight:600;padding:3px 8px;border-radius:${shapeRadius};max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(db.name)}</span>`);
       }
       // Static badges
-      if (p.free_shipping) badges.push(`<span style="background:#16a34a;color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;">FRETE GRÁTIS</span>`);
-      if (hasDiscount && discountPercent >= 10) badges.push(`<span style="background:#dc2626;color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;">-${discountPercent}%</span>`);
+      if (p.free_shipping) badges.push(`<span style="background:#16a34a;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;">FRETE GRÁTIS</span>`);
+      if (hasDiscount && discountPercent >= 10) badges.push(`<span style="background:#dc2626;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;">-${discountPercent}%</span>`);
       if (badges.length > 0) {
-        badgesHtml = `<div style="position:absolute;top:8px;left:8px;display:flex;flex-direction:column;gap:4px;z-index:2;">${badges.slice(0, 3).join('')}</div>`;
+        // Horizontal row at top-left (matches ProductCardBadges component)
+        badgesHtml = `<div style="position:absolute;top:6px;left:6px;display:flex;align-items:center;gap:4px;z-index:2;pointer-events:none;flex-wrap:nowrap;overflow:hidden;">${badges.slice(0, 3).join('')}</div>`;
       }
     }
 
@@ -74,37 +75,37 @@ export function featuredProductsToStaticHTML(
       </div>`;
     }
 
-    // Buttons container
+    // Buttons container — matches React ProductCard sf-btn-outline-primary / sf-btn-primary
     let buttonsHtml = '';
     const buttons: string[] = [];
     
     if (showAddToCartButton) {
-      buttons.push(`<button data-sf-action="add-to-cart" data-product-id="${p.id}" data-product-name="${escapeHtml(p.name)}" data-product-price="${p.price}" data-product-image="${escapeHtml(context.productImages.get(p.id) || '')}" style="width:100%;padding:8px;background:transparent;border:1px solid #ddd;border-radius:4px;cursor:pointer;font-size:13px;color:var(--theme-text-primary,#1a1a1a);display:flex;align-items:center;justify-content:center;gap:6px;">
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18"/></svg>
+      buttons.push(`<button data-sf-action="add-to-cart" data-product-id="${p.id}" data-product-name="${escapeHtml(p.name)}" data-product-price="${p.price}" data-product-image="${escapeHtml(context.productImages.get(p.id) || '')}" style="width:100%;padding:6px 8px;background:transparent;border:1px solid var(--theme-button-primary-bg,#1a1a1a);border-radius:6px;cursor:pointer;font-size:12px;color:var(--theme-button-primary-bg,#1a1a1a);display:flex;align-items:center;justify-content:center;gap:6px;transition:background .15s,color .15s;" onmouseover="this.style.background='var(--theme-button-primary-bg,#1a1a1a)';this.style.color='var(--theme-button-primary-text,#fff)'" onmouseout="this.style.background='transparent';this.style.color='var(--theme-button-primary-bg,#1a1a1a)'">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
         Adicionar
       </button>`);
     }
     
     if (quickBuyEnabled) {
-      buttons.push(`<a href="/produto/${escapeHtml(p.slug)}" style="display:block;width:100%;padding:8px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600;text-align:center;text-decoration:none;">${escapeHtml(buyNowButtonText)}</a>`);
+      buttons.push(`<button data-sf-action="buy-now" data-product-id="${p.id}" data-product-name="${escapeHtml(p.name)}" data-product-price="${p.price}" data-product-image="${escapeHtml(context.productImages.get(p.id) || '')}" style="display:block;width:100%;padding:6px 8px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;text-align:center;">${escapeHtml(buyNowButtonText)}</button>`);
     }
     
     if (buttons.length > 0) {
       buttonsHtml = `<div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">${buttons.join('')}</div>`;
     }
 
-    return `<a href="/produto/${escapeHtml(p.slug)}" style="display:block;text-decoration:none;color:inherit;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #f0f0f0;transition:box-shadow 0.2s;position:relative;">
+    return `<a href="/produto/${escapeHtml(p.slug)}" class="sf-fp-card" style="display:block;text-decoration:none;color:inherit;background:var(--theme-card-bg,#fff);border-radius:8px;overflow:hidden;border:1px solid var(--theme-card-border,#f0f0f0);transition:box-shadow 0.2s;position:relative;">
       ${badgesHtml}
       <div style="aspect-ratio:1;overflow:hidden;background:#f5f5f5;">
-        ${imgUrl ? `<img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(p.name)}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">` : ''}
+        ${imgUrl ? `<img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(p.name)}" style="width:100%;height:100%;object-fit:cover;transition:transform .3s;" loading="lazy">` : ''}
       </div>
-      <div style="padding:12px;">
+      <div style="padding:8px 12px 12px;">
         ${ratingsHtml}
-        <h3 style="font-size:14px;font-weight:500;margin-bottom:8px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--theme-text-primary,#1a1a1a);">${escapeHtml(p.name)}</h3>
+        <h3 style="font-size:13px;font-weight:500;margin-bottom:6px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--theme-text-primary,#1a1a1a);">${escapeHtml(p.name)}</h3>
         ${showPrice ? `
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            ${hasDiscount ? `<span style="font-size:12px;color:#999;text-decoration:line-through;">${formatPriceFromDecimal(p.compare_at_price!)}</span>` : ''}
-            <span style="font-size:16px;font-weight:700;color:var(--theme-text-primary,#1a1a1a);">${formatPriceFromDecimal(p.price)}</span>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            ${hasDiscount ? `<span style="font-size:11px;color:#999;text-decoration:line-through;">${formatPriceFromDecimal(p.compare_at_price!)}</span>` : ''}
+            <span style="font-size:14px;font-weight:700;color:var(--theme-price-color,var(--theme-text-primary,#1a1a1a));">${formatPriceFromDecimal(p.price)}</span>
           </div>
         ` : ''}
         ${buttonsHtml}
@@ -117,6 +118,10 @@ export function featuredProductsToStaticHTML(
     <div class="sf-fp-grid" style="display:grid;grid-template-columns:repeat(${columnsDesktop},1fr);gap:16px;">
       ${productCards}
     </div>
-    <style>@media(max-width:768px){.sf-fp-grid{grid-template-columns:repeat(${columnsMobile},1fr) !important;}}</style>
+    <style>
+      @media(max-width:768px){.sf-fp-grid{grid-template-columns:repeat(${columnsMobile},1fr) !important;}}
+      .sf-fp-card:hover{box-shadow:0 4px 12px rgba(0,0,0,0.08);}
+      .sf-fp-card:hover img{transform:scale(1.05);}
+    </style>
   </section>`;
 }
