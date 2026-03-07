@@ -205,7 +205,7 @@ export function headerToStaticHTML(context: CompilerContext): string {
         Atendimento
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
-      <div class="sf-attendance-menu" style="display:none;">
+      <div class="sf-attendance-menu">
         <div style="display:flex;flex-direction:column;gap:4px;">
           ${items.join('')}
         </div>
