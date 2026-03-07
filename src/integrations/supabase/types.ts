@@ -14824,6 +14824,121 @@ export type Database = {
           },
         ]
       }
+      storefront_prerender_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          errors: Json | null
+          failed_pages: number
+          id: string
+          metadata: Json | null
+          processed_pages: number
+          started_at: string | null
+          status: string
+          tenant_id: string
+          total_pages: number
+          trigger_type: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          errors?: Json | null
+          failed_pages?: number
+          id?: string
+          metadata?: Json | null
+          processed_pages?: number
+          started_at?: string | null
+          status?: string
+          tenant_id: string
+          total_pages?: number
+          trigger_type?: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          errors?: Json | null
+          failed_pages?: number
+          id?: string
+          metadata?: Json | null
+          processed_pages?: number
+          started_at?: string | null
+          status?: string
+          tenant_id?: string
+          total_pages?: number
+          trigger_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "storefront_prerender_jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      storefront_prerendered_pages: {
+        Row: {
+          created_at: string
+          css_content: string | null
+          entity_id: string | null
+          error_message: string | null
+          generated_at: string
+          html_content: string
+          id: string
+          metadata: Json | null
+          page_type: string
+          path: string
+          publish_version: number
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          css_content?: string | null
+          entity_id?: string | null
+          error_message?: string | null
+          generated_at?: string
+          html_content: string
+          id?: string
+          metadata?: Json | null
+          page_type?: string
+          path: string
+          publish_version?: number
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          css_content?: string | null
+          entity_id?: string | null
+          error_message?: string | null
+          generated_at?: string
+          html_content?: string
+          id?: string
+          metadata?: Json | null
+          page_type?: string
+          path?: string
+          publish_version?: number
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "storefront_prerendered_pages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       storefront_runtime_violations: {
         Row: {
           created_at: string
