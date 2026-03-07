@@ -38,7 +38,16 @@ export function headerToStaticHTML(context: CompilerContext): string {
   const noticeTextColor = props.noticeTextColor && String(props.noticeTextColor).trim()
     ? String(props.noticeTextColor)
     : '#ffffff';
-  const noticeAnimation = String(props.noticeAnimation || 'fade');
+  const rawNoticeAnimation = String(props.noticeAnimation || 'fade');
+  const noticeAnimation = rawNoticeAnimation === 'slide' ? 'slide-vertical' : rawNoticeAnimation;
+  
+  // Notice action
+  const noticeActionEnabled = Boolean(props.noticeActionEnabled);
+  const noticeActionLabel = String(props.noticeActionLabel || '');
+  const noticeActionUrl = String(props.noticeActionUrl || '');
+  const noticeActionTarget = String(props.noticeActionTarget || '_self');
+  const noticeActionTextColor = String(props.noticeActionTextColor || '');
+  const isActionValid = noticeActionEnabled && noticeActionLabel && noticeActionUrl;
   
   // Featured promos
   const featuredPromosEnabled = Boolean(props.featuredPromosEnabled);
@@ -65,6 +74,8 @@ export function headerToStaticHTML(context: CompilerContext): string {
   const whatsApp = storeSettings?.social_whatsapp || '';
   const contactPhone = storeSettings?.contact_phone || '';
   const contactEmail = storeSettings?.contact_email || '';
+  const contactAddress = storeSettings?.contact_address || '';
+  const supportHours = storeSettings?.contact_support_hours || '';
   const hasContactInfo = whatsApp || contactPhone || contactEmail;
   
   // Build nav items from menuItems
@@ -103,11 +114,14 @@ export function headerToStaticHTML(context: CompilerContext): string {
     ? `<img src="${escapeHtml(optimizedLogo)}" alt="${escapeHtml(storeName)}" style="height:${logoHeight};width:auto;max-width:180px;" loading="eager" fetchpriority="high">`
     : `<span style="font-size:20px;font-weight:700;font-family:var(--sf-heading-font);color:${escapeHtml(headerTextColor)};">${escapeHtml(storeName)}</span>`;
 
-  // Notice bar
+  // Notice bar — supports marquee AND fade/slide rotation
   let noticeBarHtml = '';
   if (noticeEnabled && noticeTexts.length > 0) {
+    const actionHtml = isActionValid ? `<a href="${escapeHtml(noticeActionUrl)}" target="${escapeHtml(noticeActionTarget)}" ${noticeActionTarget === '_blank' ? 'rel="noopener noreferrer"' : ''} style="margin-left:8px;text-decoration:underline;font-size:12px;font-weight:500;opacity:0.9;color:${escapeHtml(noticeActionTextColor || noticeTextColor)};">${escapeHtml(noticeActionLabel)}</a>` : '';
+    
     if (noticeAnimation === 'marquee' || noticeAnimation === 'slide-horizontal') {
-      const allTexts = noticeTexts.map(t => `<span style="padding:0 32px;">${escapeHtml(t)}</span>`).join('');
+      const firstText = noticeTexts[0];
+      const allTexts = `<span style="padding:0 32px;">${escapeHtml(firstText)}</span>${actionHtml}`;
       noticeBarHtml = `
         <div style="background:${escapeHtml(noticeBgColor)};color:${escapeHtml(noticeTextColor)};padding:8px 16px;text-align:center;font-size:13px;font-weight:500;overflow:hidden;white-space:nowrap;">
           <div class="sf-notice-marquee" style="display:inline-flex;animation:sf-marquee 20s linear infinite;">
@@ -115,14 +129,17 @@ export function headerToStaticHTML(context: CompilerContext): string {
           </div>
         </div>`;
     } else {
+      // Fade or slide-vertical: show first text, JS rotates through them
+      const textsDataAttr = noticeTexts.length > 1 ? ` data-sf-notice-texts='${escapeHtml(JSON.stringify(noticeTexts))}'` : '';
       noticeBarHtml = `
-        <div style="background:${escapeHtml(noticeBgColor)};color:${escapeHtml(noticeTextColor)};padding:8px 16px;text-align:center;font-size:13px;font-weight:500;">
-          ${escapeHtml(noticeTexts[0])}
+        <div class="sf-notice-bar" style="background:${escapeHtml(noticeBgColor)};color:${escapeHtml(noticeTextColor)};padding:8px 16px;text-align:center;font-size:13px;font-weight:500;overflow:hidden;"${textsDataAttr} data-sf-notice-animation="${escapeHtml(noticeAnimation)}">
+          <span class="sf-notice-text" style="display:inline-block;transition:opacity 300ms ease-out,transform 300ms ease-out;">${escapeHtml(noticeTexts[0])}</span>
+          ${actionHtml}
         </div>`;
     }
   }
   
-  // Featured promo badge
+  // Featured promo badge with thumbnail hover
   const promoBadgeStyle = featuredPromosBgColor
     ? `background:${escapeHtml(featuredPromosBgColor)};color:${escapeHtml(featuredPromosTextColor)};`
     : `background:var(--theme-button-primary-bg,#1a1a1a);color:${escapeHtml(featuredPromosTextColor)};`;
@@ -130,21 +147,70 @@ export function headerToStaticHTML(context: CompilerContext): string {
   let featuredPromoHtml = '';
   if (featuredPromosEnabled) {
     const thumbHtml = featuredPromosThumbnail
-      ? `<img src="${escapeHtml(optimizeImageUrl(featuredPromosThumbnail, 32, 80))}" alt="" style="width:20px;height:20px;border-radius:50%;object-fit:cover;">`
+      ? `<div class="sf-featured-thumb"><img src="${escapeHtml(optimizeImageUrl(featuredPromosThumbnail, 240, 80))}" alt="${escapeHtml(featuredPromosLabel)}" style="width:240px;height:96px;object-fit:cover;"><div style="padding:6px;text-align:center;${featuredPromosBgColor ? `background:${escapeHtml(featuredPromosBgColor)};` : 'background:var(--theme-button-primary-bg,#1a1a1a);'}"><span style="font-size:12px;font-weight:500;color:${escapeHtml(featuredPromosTextColor)};">${escapeHtml(featuredPromosLabel)}</span></div></div>`
       : '';
-    featuredPromoHtml = `<a href="${escapeHtml(featuredPromosUrl)}" style="${promoBadgeStyle}padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap;text-decoration:none;">
-      ${thumbHtml}${escapeHtml(featuredPromosLabel)}
-    </a>`;
+    featuredPromoHtml = `<div class="sf-featured-promo">
+      <a href="${escapeHtml(featuredPromosUrl)}" style="${promoBadgeStyle}padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap;text-decoration:none;">
+        ${escapeHtml(featuredPromosLabel)}
+      </a>
+      ${thumbHtml}
+    </div>`;
   }
   
-  // Attendance button
+  // Attendance dropdown (mirrors HeaderAttendanceDropdown.tsx)
   let attendanceHtml = '';
   if (hasContactInfo) {
-    const waLink = whatsApp ? `https://wa.me/${whatsApp.replace(/\D/g, '')}` : '#';
-    attendanceHtml = `<a href="${escapeHtml(waLink)}" style="display:flex;align-items:center;gap:6px;padding:6px 14px;border:1px solid ${escapeHtml(headerIconColor || '#ccc')};border-radius:20px;font-size:12px;font-weight:500;color:${escapeHtml(headerTextColor)};white-space:nowrap;text-decoration:none;" target="_blank" rel="noopener noreferrer">
-      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${escapeHtml(headerIconColor)}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-      Atendimento
-    </a>`;
+    const items: string[] = [];
+    
+    if (contactPhone) {
+      const phoneClean = contactPhone.replace(/\D/g, '');
+      items.push(`<a href="tel:+${phoneClean}" class="sf-attendance-item">
+        <div class="sf-attendance-icon" style="background:#eff6ff;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div>
+        <div><p style="font-size:11px;font-weight:500;color:#666;">Compre por telefone</p><p style="font-size:13px;font-weight:600;color:#1a1a1a;">${escapeHtml(contactPhone)}</p></div>
+      </a>`);
+    }
+    
+    if (whatsApp) {
+      const waClean = whatsApp.replace(/\D/g, '');
+      items.push(`<a href="https://wa.me/${waClean}" target="_blank" rel="noopener noreferrer" class="sf-attendance-item">
+        <div class="sf-attendance-icon" style="background:#f0fdf4;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg></div>
+        <div><p style="font-size:11px;font-weight:500;color:#666;">Fale no WhatsApp</p><p style="font-size:13px;font-weight:600;color:#1a1a1a;">${escapeHtml(whatsApp)}</p></div>
+      </a>`);
+    }
+    
+    if (contactEmail) {
+      items.push(`<a href="mailto:${escapeHtml(contactEmail)}" class="sf-attendance-item">
+        <div class="sf-attendance-icon" style="background:#fef2f2;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div>
+        <div><p style="font-size:11px;font-weight:500;color:#666;">E-mail</p><p style="font-size:13px;font-weight:600;color:#1a1a1a;">${escapeHtml(contactEmail)}</p></div>
+      </a>`);
+    }
+    
+    if (contactAddress) {
+      items.push(`<div class="sf-attendance-item">
+        <div class="sf-attendance-icon" style="background:#faf5ff;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9333ea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+        <div><p style="font-size:11px;font-weight:500;color:#666;">Endereço</p><p style="font-size:13px;color:#1a1a1a;line-height:1.4;">${escapeHtml(contactAddress)}</p></div>
+      </div>`);
+    }
+    
+    if (supportHours) {
+      items.push(`<div class="sf-attendance-item" style="border-top:1px solid #f0f0f0;padding-top:12px;">
+        <div class="sf-attendance-icon" style="background:#fffbeb;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <div><p style="font-size:11px;font-weight:500;color:#666;">Horário de atendimento</p><p style="font-size:13px;color:#1a1a1a;">${escapeHtml(supportHours)}</p></div>
+      </div>`);
+    }
+    
+    attendanceHtml = `<div class="sf-attendance-dropdown" style="position:relative;">
+      <button type="button" style="display:flex;align-items:center;gap:6px;padding:6px 14px;border:1px solid ${escapeHtml(headerIconColor || '#ccc')}30;border-radius:20px;font-size:12px;font-weight:500;color:${escapeHtml(headerTextColor)};white-space:nowrap;background:none;cursor:pointer;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${escapeHtml(headerIconColor)}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
+        Atendimento
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="sf-attendance-menu" style="display:none;">
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          ${items.join('')}
+        </div>
+      </div>
+    </div>`;
   }
   
   // Account icon
