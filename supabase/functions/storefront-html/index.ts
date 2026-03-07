@@ -1017,6 +1017,25 @@ serve(async (req) => {
       const homeContent = publishedContent?.home || null;
       const banner = findFirstBanner(homeContent);
       bodyHtml = banner ? renderBanner(banner) : '';
+      
+      // LCP preload: responsive banner image
+      if (banner) {
+        const desktopImg = banner.mode === 'carousel' && banner.slides?.[0]
+          ? (banner.slides[0].imageDesktop || banner.imageDesktop)
+          : banner.imageDesktop;
+        const mobileImg = banner.mode === 'carousel' && banner.slides?.[0]
+          ? (banner.slides[0].imageMobile || banner.slides[0].imageDesktop || banner.imageMobile || desktopImg)
+          : (banner.imageMobile || desktopImg);
+        
+        const optDesktop = optimizeImageUrl(desktopImg, 1920, 85);
+        const optMobile = optimizeImageUrl(mobileImg, 768, 80);
+        
+        if (optDesktop && optMobile && optDesktop !== optMobile) {
+          lcpPreloadTag = `<link rel="preload" as="image" imagesrcset="${escapeHtml(optMobile)} 768w, ${escapeHtml(optDesktop)} 1920w" imagesizes="100vw" fetchpriority="high">`;
+        } else if (optDesktop) {
+          lcpPreloadTag = `<link rel="preload" as="image" href="${escapeHtml(optDesktop)}" fetchpriority="high">`;
+        }
+      }
 
     } else if (route.type === 'product' && route.slug) {
       // PRODUCT
