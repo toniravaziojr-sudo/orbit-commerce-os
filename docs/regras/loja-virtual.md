@@ -56,7 +56,7 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 └─────────────────────────────────────────────────────────────────────────┘
                                      ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
-│             EDGE FUNCTION: storefront-html (v1.0.0)                     │
+│             EDGE FUNCTION: storefront-html (v3.0.0)                     │
 │  Arquivo: supabase/functions/storefront-html/index.ts                  │
 │  Resolução: supabase/functions/_shared/resolveTenant.ts                │
 ├─────────────────────────────────────────────────────────────────────────┤
@@ -72,6 +72,20 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 │  • /produto/:slug → Página de produto (galeria + info + JSON-LD)       │
 │  • /categoria/:slug → Página de categoria (banner + grid)              │
 │  • /:slug → Página institucional                                        │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Hidratação JS (Phase 3 - v3.0.0):                                     │
+│  • Script inline ~4KB — não requer bundle externo                      │
+│  • Carrinho: localStorage, drawer lateral, add/remove                  │
+│  • Busca: overlay com search em tempo real via REST API                │
+│  • Menu mobile: toggle com overlay fullscreen                          │
+│  • Botões usam data-sf-action="add-to-cart|toggle-search|open-cart"    │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Cloudflare Worker routing (Phase 4 - v3.0.0):                         │
+│  • Worker verifica Accept: text/html em GET requests                   │
+│  • Rotas SPA-only (carrinho, checkout, minha-conta) → SPA fallback    │
+│  • Demais rotas → storefront-html Edge Function primeiro              │
+│  • Se edge function falha → fallback automático para SPA              │
+│  • Header X-CC-Render-Mode: edge-html indica modo ativo               │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  Performance: TTFB ~200-500ms (vs ~2-4s no modelo SPA)                 │
 │  Cache: public, s-maxage=120, stale-while-revalidate=300               │
