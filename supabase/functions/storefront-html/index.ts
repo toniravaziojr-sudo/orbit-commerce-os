@@ -548,18 +548,20 @@ function buildFullPage(opts: {
             var span=noticeBar.querySelector(".sf-notice-text");
             if(span){
               setInterval(function(){
-                // Exit
+                // Exit animation
                 if(anim==="fade"){span.style.opacity="0";}
                 else if(anim==="slide-vertical"){span.style.opacity="0";span.style.transform="translateY(-100%)";}
+                else if(anim==="slide-horizontal"){span.style.opacity="0";span.style.transform="translateX(-100%)";}
                 setTimeout(function(){
                   idx=(idx+1)%texts.length;
                   span.textContent=texts[idx];
-                  // Enter
+                  // Enter from reset position
                   if(anim==="slide-vertical"){span.style.transform="translateY(100%)";}
+                  else if(anim==="slide-horizontal"){span.style.transform="translateX(100%)";}
                   requestAnimationFrame(function(){
                     requestAnimationFrame(function(){
                       span.style.opacity="1";
-                      span.style.transform="translateY(0)";
+                      span.style.transform="translateY(0) translateX(0)";
                     });
                   });
                 },300);
