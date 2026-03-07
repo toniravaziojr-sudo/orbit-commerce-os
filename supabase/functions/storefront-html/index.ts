@@ -1027,13 +1027,49 @@ serve(async (req) => {
     const templateSet = allResults[4].status === 'fulfilled' ? (allResults[4] as any).value.data : null;
     const globalLayout = allResults[5].status === 'fulfilled' ? (allResults[5] as any).value.data : null;
     const footerMenusRaw = allResults[6].status === 'fulfilled' ? (allResults[6] as any).value.data || [] : [];
+    const publishedPages = allResults[7].status === 'fulfilled' ? (allResults[7] as any).value.data || [] : [];
 
-    // Build footer menus structure
+    // Build footer menus structure with URL resolution and unpublished page filtering
     const footer1Menu = footerMenusRaw.find((m: any) => m.location === 'footer_1' || m.location === 'footer');
     const footer2Menu = footerMenusRaw.find((m: any) => m.location === 'footer_2');
+    
+    // Helper: resolve menu item URL and filter out unpublished pages
+    const resolveFooterMenuItems = (items: any[]): any[] => {
+      if (!items) return [];
+      return items
+        .map((item: any) => {
+          const itemType = item.item_type === 'link' ? 'external' : item.item_type;
+          
+          if (itemType === 'external') {
+            return item.url ? { ...item, url: item.url } : null;
+          }
+          if (itemType === 'category') {
+            if (!item.ref_id) return null;
+            const cat = (categories || []).find((c: any) => c.id === item.ref_id);
+            if (!cat) return null;
+            return { ...item, url: `/categoria/${cat.slug}` };
+          }
+          if (itemType === 'page') {
+            if (!item.ref_id) return null;
+            const page = publishedPages.find((p: any) => p.id === item.ref_id);
+            if (!page) return null; // Page not published or doesn't exist
+            const prefix = page.type === 'landing_page' ? '/lp/' : '/p/';
+            return { ...item, url: `${prefix}${page.slug}` };
+          }
+          if (itemType === 'blog') {
+            return { ...item, url: '/blog' };
+          }
+          if (itemType === 'tracking') {
+            return { ...item, url: '/rastreio' };
+          }
+          return item.url ? item : null;
+        })
+        .filter(Boolean);
+    };
+    
     const footerMenus = {
-      footer1: footer1Menu ? { name: footer1Menu.name, items: footer1Menu.menu_items || [] } : { name: '', items: [] },
-      footer2: footer2Menu ? { name: footer2Menu.name, items: footer2Menu.menu_items || [] } : { name: '', items: [] },
+      footer1: footer1Menu ? { name: footer1Menu.name, items: resolveFooterMenuItems(footer1Menu.menu_items || []) } : { name: '', items: [] },
+      footer2: footer2Menu ? { name: footer2Menu.name, items: resolveFooterMenuItems(footer2Menu.menu_items || []) } : { name: '', items: [] },
     };
 
     if (!storeSettings?.is_published) {
