@@ -1623,12 +1623,66 @@ serve(async (req) => {
     const totalMs = Date.now() - startTime;
     const canonicalUrl = `https://${hostname}${canonicalPath}`;
 
-    // Build nav items for mobile menu
-    const navItemsHtml = menuItems
+    // Build nav items for mobile menu — matches builder mobile drawer
+    const headerConfig = globalLayout?.published_header_config || globalLayout?.header_config || null;
+    const hProps = headerConfig?.props || {};
+    const mobileHeaderBg = String(hProps.headerBgColor || '#ffffff');
+    const mobileHeaderText = String(hProps.headerTextColor || '#1a1a1a');
+    const mobileCustomerAreaEnabled = Boolean(hProps.customerAreaEnabled);
+    const mobileFeaturedPromosEnabled = Boolean(hProps.featuredPromosEnabled);
+    const mobileFeaturedPromosLabel = String(hProps.featuredPromosLabel || 'Promoções');
+    const mobileFeaturedPromosTarget = String(hProps.featuredPromosTarget || hProps.featuredPromosDestination || '');
+    let mobileFeaturedUrl = '#';
+    if (mobileFeaturedPromosTarget.startsWith('category:')) mobileFeaturedUrl = `/categoria/${mobileFeaturedPromosTarget.replace('category:', '')}`;
+    else if (mobileFeaturedPromosTarget.startsWith('page:')) mobileFeaturedUrl = `/p/${mobileFeaturedPromosTarget.replace('page:', '')}`;
+    
+    // Build child map for mobile
+    const mobileChildrenMap = new Map<string, any[]>();
+    menuItems.filter((item: any) => item.parent_id).forEach((item: any) => {
+      const arr = mobileChildrenMap.get(item.parent_id) || [];
+      arr.push(item);
+      mobileChildrenMap.set(item.parent_id, arr);
+    });
+    
+    const mobileMenuItemsHtml = menuItems
       .filter((item: any) => !item.parent_id)
       .slice(0, 12)
-      .map((item: any) => `<a href="${escapeHtml(item.url || '#')}">${escapeHtml(item.label)}</a>`)
-      .join('');
+      .map((item: any) => {
+        const children = mobileChildrenMap.get(item.id) || [];
+        if (children.length > 0) {
+          const childLinks = children
+            .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+            .map((child: any) => `<a href="${escapeHtml(child.url || '#')}" style="font-size:15px;padding:10px 24px 10px 40px;opacity:0.8;">${escapeHtml(child.label)}</a>`)
+            .join('');
+          return `<div class="sf-mobile-nav-item">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;cursor:pointer;" onclick="var sub=this.nextElementSibling;var arrow=this.querySelector('svg');if(sub.style.display==='none'){sub.style.display='flex';arrow.style.transform='rotate(180deg)';}else{sub.style.display='none';arrow.style.transform='rotate(0)';}">
+              <span style="font-size:18px;font-weight:500;">${escapeHtml(item.label)}</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transition:transform 0.2s;"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div style="display:none;flex-direction:column;border-top:1px solid rgba(128,128,128,0.1);">${childLinks}</div>
+          </div>`;
+        }
+        return `<a href="${escapeHtml(item.url || '#')}">${escapeHtml(item.label)}</a>`;
+      }).join('');
+    
+    // Mobile contact section
+    const mobileWhatsApp = storeSettings?.social_whatsapp || '';
+    const mobilePhone = storeSettings?.contact_phone || '';
+    const mobileEmail = storeSettings?.contact_email || '';
+    const mobileContact: string[] = [];
+    if (mobileWhatsApp) mobileContact.push(`<a href="https://wa.me/${mobileWhatsApp.replace(/\\D/g, '')}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg> WhatsApp</a>`);
+    if (mobilePhone) mobileContact.push(`<a href="tel:${mobilePhone.replace(/\\D/g, '')}" style="display:flex;align-items:center;gap:8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.87.36 1.72.7 2.53a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.81.34 1.66.57 2.53.7A2 2 0 0 1 22 16.92z"/></svg> Telefone</a>`);
+    if (mobileEmail) mobileContact.push(`<a href="mailto:${escapeHtml(mobileEmail)}" style="display:flex;align-items:center;gap:8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Email</a>`);
+    
+    const mobileContactHtml = mobileContact.length > 0 ? `<div class="sf-mobile-contact"><div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;opacity:0.6;margin-bottom:12px;">CONTATO</div>${mobileContact.join('')}</div>` : '';
+    
+    // Featured promo for mobile
+    const mobileFeaturedHtml = mobileFeaturedPromosEnabled ? `<a href="${escapeHtml(mobileFeaturedUrl)}" style="font-weight:600;">${escapeHtml(mobileFeaturedPromosLabel)}</a>` : '';
+    
+    // Account for mobile
+    const mobileAccountHtml = mobileCustomerAreaEnabled ? `<a href="/minha-conta" style="display:flex;align-items:center;gap:8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Minha Conta</a>` : '';
+    
+    const navItemsHtml = `<div style="background:${escapeHtml(mobileHeaderBg)};color:${escapeHtml(mobileHeaderText)};min-height:100%;display:flex;flex-direction:column;">${mobileMenuItemsHtml}${mobileFeaturedHtml}${mobileAccountHtml}${mobileContactHtml}</div>`;
 
     const html = buildFullPage({
       title: pageTitle,
