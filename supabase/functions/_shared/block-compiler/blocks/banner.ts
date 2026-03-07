@@ -76,9 +76,12 @@ export function bannerToStaticHTML(
   
   // Image positioning
   const useAbsoluteImage = !isAutoHeight || hasCTA;
+  // When needsAspect is true, image must fill the aspect-ratio container (parity with HeroBannerBlock)
   const imgStyle = useAbsoluteImage
     ? 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;'
-    : 'width:100%;height:auto;display:block;';
+    : needsAspect
+      ? 'width:100%;height:100%;object-fit:cover;display:block;'
+      : 'width:100%;height:auto;display:block;';
 
   // Overlay
   const overlayHtml = overlayOpacity > 0
