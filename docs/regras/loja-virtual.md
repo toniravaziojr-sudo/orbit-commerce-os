@@ -101,8 +101,10 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 │  • Blocos de home: Page, Section, HeroBanner, Banner,                  │
 │    FeaturedCategories, FeaturedProducts, ImageCarousel, InfoHighlights  │
 │  • ZERO renderers manuais legados restantes                            │
-│  • Paridade visual v8.2.0: badges horizontais, --theme-price-color,    │
-│    hover effects em cards, Banner aspect-ratio responsivo 21/9→21/7    │
+│  • Paridade visual v8.2.1: badges horizontais, --theme-price-color,    │
+│    hover effects em cards, Banner aspect-ratio responsivo 21/9→21/7,   │
+│    Banner img object-fit:cover no container aspect-ratio (gap fix)     │
+│  • ⚑ BASELINE ESTÁVEL — frente encerrada em 2026-03-07                │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  Rotas suportadas:                                                      │
 │  • / → Home (block-compiler: header + blocos + footer)                 │
