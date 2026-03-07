@@ -684,6 +684,12 @@ Endpoint centralizado para geração de SEO otimizado via IA (Gemini).
 | `storefront_global_layout` | Configs globais (header_config, footer_config) |
 | `page_templates` | Templates de páginas institucionais |
 
+### Pre-Render
+
+| Tabela | Descrição |
+|--------|-----------|
+| `storefront_prerendered_pages` | HTML pré-renderizado por rota/tenant. Colunas: `tenant_id`, `path`, `html`, `page_type`, `publish_version` (bigint), `is_active` (bool), `slug`, `created_at`, `updated_at` |
+
 ### Conteúdo
 
 | Tabela | Descrição |
