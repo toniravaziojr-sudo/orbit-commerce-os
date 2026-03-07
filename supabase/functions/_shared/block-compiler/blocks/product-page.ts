@@ -101,7 +101,7 @@ export function productPageToStaticHTML(data: ProductPageData): string {
           ${product.brand ? `<p style="font-size:14px;color:var(--theme-text-secondary,#666);">${escapeHtml(product.brand)}</p>` : ''}
           <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;">
             ${hasDiscount ? `<span style="font-size:14px;color:#999;text-decoration:line-through;">${formatPriceFromDecimal(product.compare_at_price!)}</span>` : ''}
-            <span style="font-size:28px;font-weight:700;color:var(--theme-text-primary,#1a1a1a);">${formatPriceFromDecimal(product.price)}</span>
+            <span style="font-size:28px;font-weight:700;color:var(--theme-price-color,#1a1a1a);">${formatPriceFromDecimal(product.price)}</span>
             ${hasDiscount ? `<span style="font-size:13px;font-weight:600;color:#16a34a;background:#dcfce7;padding:2px 8px;border-radius:4px;">-${discountPercent}%</span>` : ''}
           </div>
           <p style="font-size:13px;color:#666;">em até 12x de ${installmentValue} sem juros</p>

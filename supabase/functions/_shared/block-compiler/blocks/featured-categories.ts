@@ -47,7 +47,7 @@ export function featuredCategoriesToStaticHTML(
   return `<section style="padding:24px 0 32px;">
     <div style="max-width:1280px;margin:0 auto;padding:0 16px;">
       ${title ? `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
-        <h2 style="font-size:clamp(20px,3vw,28px);font-weight:700;font-family:var(--sf-heading-font);color:var(--theme-text-primary,#1a1a1a);">${escapeHtml(title)}</h2>
+        <h2 style="font-size:clamp(20px,3vw,28px);font-weight:700;font-family:var(--sf-heading-font);color:inherit;">${escapeHtml(title)}</h2>
       </div>` : ''}
       <div class="sf-cat-grid" style="display:grid;gap:24px;justify-items:center;">
         ${categoryCards}
