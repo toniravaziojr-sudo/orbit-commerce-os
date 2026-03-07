@@ -382,8 +382,6 @@ serve(async (req) => {
     const categories = categoriesResult.status === 'fulfilled' ? categoriesResult.value.data : [];
     const templateSet = templateResult.status === 'fulfilled' ? templateResult.value.data : null;
 
-    console.log(`[storefront-html] tenantId=${tenantId}, storeSettings=${JSON.stringify(storeSettings ? { is_published: storeSettings.is_published, store_name: storeSettings.store_name } : null)}, settingsError=${settingsResult.status === 'fulfilled' ? JSON.stringify(settingsResult.value.error) : 'rejected'}`);
-
     // Not published?
     if (!storeSettings?.is_published) {
       return new Response(
