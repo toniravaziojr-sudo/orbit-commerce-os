@@ -237,8 +237,10 @@ export function footerToStaticHTML(context: CompilerContext): string {
       </div>
       <style>
         @media(max-width:768px){
-          footer > div > div[style*="grid-template-columns"]{grid-template-columns:1fr !important;text-align:center !important;}
-          footer > div > div > div[style*="grid-template-columns"]{grid-template-columns:repeat(2,1fr) !important;}
+          footer .sf-footer-grid{grid-template-columns:1fr !important;text-align:center !important;}
+          footer .sf-footer-images-grid{grid-template-columns:repeat(2,1fr) !important;}
+          footer .sf-footer-newsletter-row{flex-direction:column !important;text-align:center !important;}
+          footer .sf-footer-newsletter-row form{min-width:100% !important;max-width:100% !important;}
         }
       </style>
     </footer>`;
