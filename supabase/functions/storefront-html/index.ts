@@ -375,7 +375,7 @@ function buildFullPage(opts: {
 
   <!-- Mobile Nav -->
   <nav class="sf-mobile-nav" data-sf-mobile-nav>
-    <button style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:24px;cursor:pointer;" data-sf-action="toggle-mobile-menu">&times;</button>
+    <button style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:24px;cursor:pointer;color:inherit;" data-sf-action="toggle-mobile-menu">&times;</button>
     ${opts.navItemsHtml || ''}
   </nav>
 
@@ -662,7 +662,7 @@ function buildFullPage(opts: {
               }else{
                 gb.style.borderColor="#ddd";
                 gb.style.background="#fff";
-                gb.style.color="var(--theme-text-primary,#1a1a1a)";
+                gb.style.color="#1a1a1a";
               }
             });
             // Update selected label

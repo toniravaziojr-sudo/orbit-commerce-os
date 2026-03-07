@@ -44,14 +44,14 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
   const filterBarHtml = `
     <div data-sf-cat-controls style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:20px;padding:16px;background:#f9fafb;border-radius:10px;border:1px solid #eee;">
       <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:200px;flex-wrap:wrap;">
-        <span style="font-size:13px;font-weight:600;color:var(--theme-text-primary,#1a1a1a);white-space:nowrap;">Filtros:</span>
+        <span style="font-size:13px;font-weight:600;color:#1a1a1a;white-space:nowrap;">Filtros:</span>
         ${hasFreeShipping ? `
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;color:var(--theme-text-secondary,#555);cursor:pointer;white-space:nowrap;padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;user-select:none;" data-sf-filter-label="free-shipping">
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;color:#555;cursor:pointer;white-space:nowrap;padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;user-select:none;" data-sf-filter-label="free-shipping">
           <input type="checkbox" data-sf-filter="free-shipping" style="accent-color:var(--theme-button-primary-bg,#1a1a1a);cursor:pointer;">
           🚚 Frete grátis
         </label>` : ''}
         ${hasDiscounts ? `
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;color:var(--theme-text-secondary,#555);cursor:pointer;white-space:nowrap;padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;user-select:none;" data-sf-filter-label="on-sale">
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;color:#555;cursor:pointer;white-space:nowrap;padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;user-select:none;" data-sf-filter-label="on-sale">
           <input type="checkbox" data-sf-filter="on-sale" style="accent-color:var(--theme-button-primary-bg,#1a1a1a);cursor:pointer;">
           🏷️ Em promoção
         </label>` : ''}
@@ -64,8 +64,8 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
         </div>` : ''}
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
-        <label style="font-size:13px;color:var(--theme-text-secondary,#555);white-space:nowrap;">Ordenar:</label>
-        <select data-sf-sort style="padding:6px 28px 6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff;cursor:pointer;outline:none;color:var(--theme-text-primary,#1a1a1a);appearance:auto;">
+        <label style="font-size:13px;color:#555;white-space:nowrap;">Ordenar:</label>
+        <select data-sf-sort style="padding:6px 28px 6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff;cursor:pointer;outline:none;color:#1a1a1a;appearance:auto;">
           <option value="default">Relevância</option>
           <option value="price-asc">Menor preço</option>
           <option value="price-desc">Maior preço</option>
@@ -77,7 +77,7 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
     </div>`;
 
   // Product count (will be updated by JS)
-  const countHtml = `<p data-sf-cat-count style="font-size:14px;color:var(--theme-text-secondary,#666);margin-bottom:16px;">${totalProducts} produto${totalProducts !== 1 ? 's' : ''}</p>`;
+  const countHtml = `<p data-sf-cat-count style="font-size:14px;color:#666;margin-bottom:16px;">${totalProducts} produto${totalProducts !== 1 ? 's' : ''}</p>`;
 
   // Product cards — each card gets data attributes for client-side filtering
   const cardsHtml = products.map((p, index) => {

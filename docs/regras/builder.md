@@ -1538,3 +1538,44 @@ Para adicionar novos presets no futuro:
 4. Adicionar lógica no `createTemplate` mutation
 5. Adicionar UI no `StorefrontTemplatesTab.tsx`
 6. Documentar neste arquivo
+
+---
+
+## Regras Globais de Compilação Builder ↔ Storefront (v8.2.2)
+
+> **REGRA CRÍTICA:** Estas invariantes devem ser respeitadas em TODOS os block-compilers.
+
+### Cores e Tipografia
+
+| Elemento | Variável/Cor | Regra |
+|----------|-------------|-------|
+| body text | `#1a1a1a` | **NUNCA** usar `--theme-text-primary` no body — causa "theme bleeding" |
+| Títulos (h2, h3) | `color: inherit` | Herda da seção pai, não força cor |
+| Nomes de produto/categoria | `color: inherit` | Idem |
+| Preços | `var(--theme-price-color, var(--theme-text-primary, #1a1a1a))` | Única exceção — preço pode usar theme vars |
+| Filtros/labels de UI | `#1a1a1a` / `#555` / `#666` | Cores fixas, sem theme vars (evita bleed) |
+
+### Botões
+
+| Regra | Descrição |
+|-------|-----------|
+| Sem JS inline hover | Usar classes `sf-btn-primary`, `sf-btn-outline-primary`, `sf-btn-secondary` |
+| Variáveis do tema | `--theme-button-primary-bg`, `--theme-button-primary-text`, `--theme-button-primary-hover` |
+| Newsletter footer | Usa `sf-btn-primary` (não cor hardcoded) |
+
+### Dropdowns e Menus
+
+| Regra | Descrição |
+|-------|-----------|
+| Sem gap de hover | Usar `padding-top bridge` (não `margin-top`) para manter hover contínuo |
+| Menus filtrados | Renderizar apenas itens `is_published = true` (páginas e categorias) |
+| Featured promo fallback | Se `textColor == bgColor` ou `bgColor == headerBgColor`, usar primary do tema |
+
+### Mobile Nav
+
+| Regra | Descrição |
+|-------|-----------|
+| Herança de cores | Drawer herda `headerBgColor` e `headerTextColor` via style inline |
+| Botão fechar | `color: inherit` (herda do container) |
+| Sub-menus | Acordeão colapsável com `opacity: 0.8` para subitens |
+| Seção contato | Consome `social_whatsapp`, `contact_phone`, `contact_email` de `store_settings` |

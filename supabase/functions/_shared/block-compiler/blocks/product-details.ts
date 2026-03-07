@@ -64,7 +64,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
       crumbs.push(`<a href="/categoria/${escapeHtml(category.slug)}" style="color:var(--theme-text-secondary,#666);text-decoration:none;font-size:13px;">${escapeHtml(category.name)}</a>`);
     }
     crumbs.push(`<span style="color:#999;font-size:12px;">›</span>`);
-    crumbs.push(`<span style="color:var(--theme-text-primary,#1a1a1a);font-size:13px;font-weight:500;">${escapeHtml(product.name)}</span>`);
+    crumbs.push(`<span style="color:#1a1a1a;font-size:13px;font-weight:500;">${escapeHtml(product.name)}</span>`);
     breadcrumbHtml = `<nav aria-label="breadcrumb" style="margin-bottom:16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">${crumbs.join('')}</nav>`;
   }
 
@@ -73,7 +73,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
   if (product.avg_rating && product.review_count && product.review_count > 0) {
     ratingHtml = `<div style="display:flex;align-items:center;gap:6px;margin-top:-8px;">
       <div style="display:flex;align-items:center;gap:1px;">${renderStars(product.avg_rating)}</div>
-      <span style="font-size:14px;font-weight:600;color:var(--theme-text-primary,#1a1a1a);">${product.avg_rating.toFixed(1)}</span>
+      <span style="font-size:14px;font-weight:600;color:#1a1a1a;">${product.avg_rating.toFixed(1)}</span>
       <span style="font-size:13px;color:var(--theme-text-secondary,#666);">(${product.review_count} avaliação${product.review_count > 1 ? 'ões' : ''})</span>
     </div>`;
   }
@@ -123,10 +123,10 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
     const groupsHtml = Array.from(groupsMap.entries()).map(([name, valuesSet]) => {
       const values = Array.from(valuesSet);
       const buttonsHtml = values.map(value =>
-        `<button type="button" data-sf-variant-option data-option-name="${escapeHtml(name)}" data-option-value="${escapeHtml(value)}" style="padding:8px 16px;font-size:14px;font-weight:500;border-radius:6px;border:1px solid #ddd;background:#fff;color:var(--theme-text-primary,#1a1a1a);cursor:pointer;transition:all .15s;">${escapeHtml(value)}</button>`
+        `<button type="button" data-sf-variant-option data-option-name="${escapeHtml(name)}" data-option-value="${escapeHtml(value)}" style="padding:8px 16px;font-size:14px;font-weight:500;border-radius:6px;border:1px solid #ddd;background:#fff;color:#1a1a1a;cursor:pointer;transition:all .15s;">${escapeHtml(value)}</button>`
       ).join('');
       return `<div data-sf-variant-group="${escapeHtml(name)}" style="margin-bottom:12px;">
-        <label style="font-size:14px;font-weight:500;color:var(--theme-text-primary,#1a1a1a);display:block;margin-bottom:6px;">${escapeHtml(name)}: <span data-sf-variant-selected-label="${escapeHtml(name)}" style="font-weight:400;color:var(--theme-text-secondary,#666);"></span></label>
+        <label style="font-size:14px;font-weight:500;color:#1a1a1a;display:block;margin-bottom:6px;">${escapeHtml(name)}: <span data-sf-variant-selected-label="${escapeHtml(name)}" style="font-weight:400;color:#666;"></span></label>
         <div style="display:flex;flex-wrap:wrap;gap:8px;">${buttonsHtml}</div>
       </div>`;
     }).join('');
