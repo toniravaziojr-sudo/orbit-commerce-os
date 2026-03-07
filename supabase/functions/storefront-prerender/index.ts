@@ -100,13 +100,23 @@ serve(async (req) => {
     }
 
     // Get tenant hostname
-    const { data: tenant } = await supabase
+    console.log('[storefront-prerender] Fetching tenant...');
+    const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
       .select('slug, custom_domain')
       .eq('id', tenant_id)
       .single();
 
+    if (tenantError) {
+      console.error('[storefront-prerender] Tenant query error:', tenantError);
+      return new Response(JSON.stringify({ error: 'Tenant query failed', details: tenantError.message }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     if (!tenant) {
+      console.error('[storefront-prerender] Tenant not found for id:', tenant_id);
       return new Response(JSON.stringify({ error: 'Tenant not found' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -114,9 +124,11 @@ serve(async (req) => {
     }
 
     const hostname = tenant.custom_domain || `${tenant.slug}.shops.comandocentral.com.br`;
+    console.log(`[storefront-prerender] Tenant: ${tenant.slug}, hostname: ${hostname}`);
 
     // Generate a unique publish_version for atomic activation (integer timestamp)
     const publishVersion = Date.now();
+    console.log(`[storefront-prerender] publishVersion: ${publishVersion}`);
 
     // === Determine which pages to render ===
     const pagesToRender: { path: string; page_type: string; entity_id?: string }[] = [];
