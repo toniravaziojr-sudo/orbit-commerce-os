@@ -136,8 +136,8 @@ export function BannerBlock({
 
   // Get current slide data
   const currentSlide = isCarousel ? safeSlides[currentIndex] || safeSlides[0] : null;
-  const currentDesktopImage = isCarousel ? currentSlide?.imageDesktop : imageDesktop;
-  const currentMobileImage = isCarousel 
+  const rawDesktopImage = isCarousel ? currentSlide?.imageDesktop : imageDesktop;
+  const rawMobileImage = isCarousel 
     ? (currentSlide?.imageMobile || currentSlide?.imageDesktop) 
     : (imageMobile || imageDesktop);
   const currentTitle = isCarousel ? currentSlide?.title : title;
@@ -145,6 +145,14 @@ export function BannerBlock({
   const currentButtonText = isCarousel ? currentSlide?.buttonText : buttonText;
   const currentButtonUrl = isCarousel ? currentSlide?.buttonUrl : buttonUrl;
   const currentLinkUrl = isCarousel ? currentSlide?.linkUrl : linkUrl;
+
+  // Apply wsrv.nl transform for public mode (matches LcpPreloader URLs)
+  const currentDesktopImage = isBuilderMode 
+    ? rawDesktopImage 
+    : (rawDesktopImage ? getHeroBannerImageUrl(rawDesktopImage, 'desktop') : undefined);
+  const currentMobileImage = isBuilderMode 
+    ? rawMobileImage 
+    : (rawMobileImage ? getHeroBannerImageUrl(rawMobileImage, 'mobile') : undefined);
 
   // Empty state
   if (!currentDesktopImage && !backgroundColor) {
