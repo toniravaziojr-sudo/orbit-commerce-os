@@ -553,7 +553,7 @@ serve(async (req) => {
     if (route.type === 'product' && route.slug) {
       routeQueries.push(
         supabase.from('products')
-          .select('id, name, slug, sku, price, compare_at_price, description, short_description, brand, stock_quantity, status, free_shipping, seo_title, seo_description, has_variants, tags')
+          .select('id, name, slug, sku, price, compare_at_price, description, short_description, brand, stock_quantity, status, free_shipping, seo_title, seo_description, has_variants, tags, avg_rating, review_count, allow_backorder')
           .eq('tenant_id', tenantId)
           .eq('slug', route.slug)
           .is('deleted_at', null)

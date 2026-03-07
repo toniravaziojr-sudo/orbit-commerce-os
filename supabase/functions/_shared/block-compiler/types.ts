@@ -90,6 +90,14 @@ export interface CompilerContext {
     tags?: string[];
     seo_title?: string;
     seo_description?: string;
+    avg_rating?: number;
+    review_count?: number;
+    allow_backorder?: boolean;
+  };
+  /** Category breadcrumb for current product */
+  currentProductCategory?: {
+    name: string;
+    slug: string;
   };
   /** Images for the current product */
   currentProductImages?: Array<{
