@@ -77,7 +77,7 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
     </div>`;
 
   // Product count (will be updated by JS)
-  const countHtml = `<p data-sf-cat-count style="font-size:14px;color:var(--theme-text-secondary,#666);margin-bottom:16px;">${totalProducts} produto${totalProducts !== 1 ? 's' : ''}</p>`;
+  const countHtml = `<p data-sf-cat-count style="font-size:14px;color:#666;margin-bottom:16px;">${totalProducts} produto${totalProducts !== 1 ? 's' : ''}</p>`;
 
   // Product cards — each card gets data attributes for client-side filtering
   const cardsHtml = products.map((p, index) => {
