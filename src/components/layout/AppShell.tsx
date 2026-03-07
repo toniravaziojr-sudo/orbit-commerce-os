@@ -7,6 +7,10 @@ import { AdminModeProvider } from "@/contexts/AdminModeContext";
 import { AdminErrorBoundary } from "./AdminErrorBoundary";
 
 export function AppShell() {
+  useEffect(() => {
+    document.title = 'Comando Central';
+  }, []);
+
   return (
     <AdminModeProvider>
       <AdminErrorBoundary>
