@@ -422,13 +422,38 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
       <style>
         @media(min-width:768px) { .sf-pdp-grid { grid-template-columns: 1fr 1fr !important; } }
         input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
+        .sf-gallery-track{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;gap:0;}
+        .sf-gallery-track::-webkit-scrollbar{display:none;}
+        .sf-gallery-slide{flex:0 0 100%;scroll-snap-align:start;}
+        .sf-gallery-dots{display:flex;justify-content:center;gap:6px;margin-top:10px;}
+        .sf-gallery-dot{width:8px;height:8px;border-radius:50%;background:#d1d5db;border:none;padding:0;cursor:pointer;transition:background .2s;}
+        .sf-gallery-dot.active{background:var(--theme-button-primary-bg,#1a1a1a);}
+        @media(min-width:768px){.sf-gallery-mobile{display:none!important;}.sf-gallery-desktop{display:block!important;}}
+        @media(max-width:767px){.sf-gallery-mobile{display:block!important;}.sf-gallery-desktop{display:none!important;}}
       </style>
       <div class="sf-pdp-grid" style="display:grid;grid-template-columns:1fr;gap:32px;">
         <!-- Gallery -->
         ${showGallery ? `
         <div>
-          ${optimizedMain ? `<img src="${escapeHtml(optimizedMain)}" alt="${escapeHtml(product.name)}" style="width:100%;aspect-ratio:1;object-fit:contain;border-radius:8px;background:#f9f9f9;" loading="eager" fetchpriority="high">` : ''}
-          ${thumbsHtml ? `<div style="display:flex;gap:8px;margin-top:12px;overflow-x:auto;">${thumbsHtml}</div>` : ''}
+          <!-- Desktop gallery (static) -->
+          <div class="sf-gallery-desktop" style="display:block;">
+            ${optimizedMain ? `<img src="${escapeHtml(optimizedMain)}" alt="${escapeHtml(product.name)}" style="width:100%;aspect-ratio:1;object-fit:contain;border-radius:8px;background:#f9f9f9;" loading="eager" fetchpriority="high" data-sf-gallery-main>` : ''}
+            ${thumbsHtml ? `<div style="display:flex;gap:8px;margin-top:12px;overflow-x:auto;" data-sf-gallery-thumbs>${thumbsHtml}</div>` : ''}
+          </div>
+          <!-- Mobile gallery (swipeable carousel) -->
+          <div class="sf-gallery-mobile" style="display:none;position:relative;">
+            <div class="sf-gallery-track" data-sf-gallery-track>
+              ${[mainImage, ...otherImages].filter(Boolean).map((img, idx) => {
+                const src = optimizeImageUrl(img!.url, 800, 85);
+                return `<div class="sf-gallery-slide"><img src="${escapeHtml(src)}" alt="${escapeHtml(img!.alt_text || product.name)}" style="width:100%;aspect-ratio:1;object-fit:contain;background:#f9f9f9;border-radius:8px;" ${idx === 0 ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"'} data-sf-gallery-slide-img></div>`;
+              }).join('')}
+            </div>
+            ${images.length > 1 ? `<div class="sf-gallery-dots" data-sf-gallery-dots>
+              ${[mainImage, ...otherImages].filter(Boolean).map((_, idx) =>
+                `<button class="sf-gallery-dot${idx === 0 ? ' active' : ''}" data-sf-dot-index="${idx}" aria-label="Imagem ${idx + 1}"></button>`
+              ).join('')}
+            </div>` : ''}
+          </div>
         </div>
         ` : ''}
         <!-- Info -->
