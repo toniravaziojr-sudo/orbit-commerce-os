@@ -97,6 +97,14 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 │  • Se edge function falha → fallback automático para SPA              │
 │  • Header X-CC-Render-Mode: edge-html indica modo ativo               │
 ├─────────────────────────────────────────────────────────────────────────┤
+│  LCP & Font Optimization (Phase 7 - v5.0.0):                           │
+│  • <link rel="preload" as="style"> para Google Fonts CSS               │
+│  • <link rel="preload" as="image" imagesrcset> responsivo para banner  │
+│  • <link rel="preload" as="image"> para imagem principal do produto    │
+│  • <link rel="preload" as="image"> para capa do blog post             │
+│  • dns-prefetch para wsrv.nl, fonts.googleapis.com, fonts.gstatic.com │
+│  • fetchpriority="high" em imagens LCP (banner, produto, blog cover)  │
+├─────────────────────────────────────────────────────────────────────────┤
 │  Performance: TTFB ~200-500ms (vs ~2-4s no modelo SPA)                 │
 │  Cache: public, s-maxage=120, stale-while-revalidate=300               │
 │  Dados no window: __SF_SERVER_RENDERED, __SF_TIMING, __SF_TENANT       │
