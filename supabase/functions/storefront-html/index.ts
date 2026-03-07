@@ -1534,7 +1534,7 @@ serve(async (req) => {
             blockHtmlParts.push(renderFeaturedCategories(block, featuredCategories));
             break;
           case 'FeaturedProducts':
-            blockHtmlParts.push(renderFeaturedProducts(block, featuredProducts, productImagesMap));
+            blockHtmlParts.push(renderFeaturedProducts(block, featuredProducts, productImagesMap, categorySettings));
             break;
           case 'ImageCarousel':
             blockHtmlParts.push(renderImageCarousel(block));
