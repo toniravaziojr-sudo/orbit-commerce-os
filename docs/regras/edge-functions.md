@@ -2135,3 +2135,77 @@ Fetch all pending payments
   → Promise.allSettled(tenants.map(processTenant))
       → Each tenant: batches of 5 payments via Promise.allSettled
 ```
+
+---
+
+## Storefront HTML (`storefront-html`)
+
+### Versão Atual: v1.0.0
+
+### Visão Geral
+
+Edge Function que retorna **HTML completo e renderizado** para o storefront público, eliminando a dependência do bootstrap client-side (SPA) para a primeira pintura de conteúdo.
+
+### Motivação
+
+O modelo SPA anterior exigia: JS carrega → Edge Function bootstrap (JSON) → React renderiza → conteúdo visível (~2-4s). O modelo edge-rendered entrega HTML útil no primeiro byte (~200-500ms).
+
+### Fluxo de Execução
+
+```
+Request (hostname) → resolveTenantFromHostname()
+  → Promise.allSettled([
+      tenant, store_settings, header_menu, categories, template_set
+    ])
+  → Render HTML string (head + header + hero/banner)
+  → Response text/html + Cache-Control + Server-Timing
+```
+
+### Entrada
+
+| Parâmetro | Fonte | Descrição |
+|-----------|-------|-----------|
+| `hostname` | Query param `?hostname=` | Hostname do domínio custom |
+| `hostname` | Header `x-forwarded-host` | Alternativa para proxy Cloudflare |
+| `hostname` | POST body `{ hostname }` | Alternativa para testes |
+| `path` | Query param `?path=` | Rota da página (/, /produto/:slug, /categoria/:slug) |
+
+### Saída
+
+| Header | Valor | Descrição |
+|--------|-------|-----------|
+| `Content-Type` | `text/html; charset=utf-8` | HTML completo |
+| `Cache-Control` | `public, s-maxage=120, stale-while-revalidate=300, max-age=60` | Cache no edge |
+| `Server-Timing` | `resolve;dur=X, queries;dur=Y, total;dur=Z` | Diagnóstico |
+| `X-Storefront-Version` | `v1.0.0` | Versão da função |
+| `X-Tenant` | `tenant-slug` | Tenant resolvido |
+
+### Rotas Suportadas
+
+| Rota | Conteúdo Renderizado |
+|------|---------------------|
+| `/` | Home: header + hero banner (acima da dobra) |
+| `/produto/:slug` | Produto: galeria + info + preço + JSON-LD |
+| `/categoria/:slug` | Categoria: banner + grid de produtos |
+| `/:slug` | Página institucional |
+
+### Dados Injetados no Window (para hidratação futura)
+
+```javascript
+window.__SF_SERVER_RENDERED = true;
+window.__SF_TIMING = { resolve: ms, queries: ms, total: ms };
+window.__SF_TENANT = { slug: "...", id: "..." };
+```
+
+### Dependências Compartilhadas
+
+- `_shared/resolveTenant.ts` — resolução de tenant por hostname
+- Queries diretas via Supabase service role (sem RLS)
+
+### Checklist de Manutenção
+
+- [ ] Ao alterar `store_settings` schema → atualizar queries em storefront-html
+- [ ] Ao alterar `storefront_template_sets` schema → atualizar extração de themeSettings
+- [ ] Ao alterar menus/categorias → verificar renderização do header
+- [ ] Ao alterar BannerBlock props → atualizar `findFirstBanner()` e `renderBanner()`
+- [ ] Ao adicionar novas rotas → atualizar parser de path e renderer
