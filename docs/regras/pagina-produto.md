@@ -229,12 +229,13 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 
 ### Funcionalidades Ausentes no Compilador
 
-- [ ] **Variantes**: Sem renderização de seletores (cor, tamanho, custom) — esperado para HTML estático
+- [x] ~~**Variantes**: Sem renderização de seletores~~ → Implementado v8.1.3 (botões + hydration JS)
 - [x] ~~**Avaliações**: Seção de reviews não renderizada~~ → Implementado v8.1.1
 - [x] ~~**Compre Junto**: Seção não renderizada~~ → Implementado v8.1.1
 - [x] ~~**Produtos Relacionados**: Carousel não renderizado~~ → Grid responsivo v8.1.1
 - [x] ~~**Breadcrumb**: React tem — compilador não tem~~ → Implementado v8.1.0
-- [ ] **Galeria mobile**: Sem swipe/carousel — apenas imagem estática
+- [x] ~~**Galeria mobile**: Sem swipe/carousel~~ → Implementado v8.1.3 (scroll-snap + dots)
+- [x] ~~**Thumbnail click**: Sem troca de imagem~~ → Implementado v8.1.3
 - [ ] **Zoom**: Sem hover/pinch zoom
 - [ ] **Lightbox**: Sem fullscreen
 - [x] ~~**Botão "Comprar agora"**: Compilador não tem CTA separado~~ → Implementado v8.1.0
@@ -248,4 +249,3 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 ### Dead Code
 
 - [ ] `_shared/block-compiler/blocks/product-page.ts` — remover
-- [ ] `_shared/block-compiler/blocks/category-page.ts` — remover
