@@ -89,7 +89,7 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 │    - is_active: true (ativa) / false (stale)                            │
 │    - Tipos: home, product, category, blog_index, blog_post              │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  Block-to-HTML Compiler (v8.0.0) — Live Fallback para TODAS as rotas:  │
+│  Block-to-HTML Compiler (v8.2.0) — Live Fallback para TODAS as rotas:  │
 │  • Home: compileBlockTree() com published_content (fonte de verdade)   │
 │  • Header: headerToStaticHTML() via block-compiler                     │
 │  • Footer: footerToStaticHTML() via block-compiler                     │
@@ -101,6 +101,8 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 │  • Blocos de home: Page, Section, HeroBanner, Banner,                  │
 │    FeaturedCategories, FeaturedProducts, ImageCarousel, InfoHighlights  │
 │  • ZERO renderers manuais legados restantes                            │
+│  • Paridade visual v8.2.0: badges horizontais, --theme-price-color,    │
+│    hover effects em cards, Banner aspect-ratio responsivo 21/9→21/7    │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  Rotas suportadas:                                                      │
 │  • / → Home (block-compiler: header + blocos + footer)                 │
