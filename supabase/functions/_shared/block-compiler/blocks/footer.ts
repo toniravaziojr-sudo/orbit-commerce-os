@@ -86,7 +86,7 @@ export function footerToStaticHTML(context: CompilerContext): string {
   if (showNewsletter) {
     newsletterHtml = `
       <div style="background:${escapeHtml(footerBgColor)};padding:32px 16px;border-bottom:1px solid rgba(255,255,255,0.1);">
-        <div style="max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:24px;">
+        <div class="sf-footer-newsletter-row" style="max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:24px;">
           <div>
             <h3 style="font-size:18px;font-weight:700;color:${escapeHtml(footerTitlesColor)};text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">${escapeHtml(newsletterTitle)}</h3>
             ${newsletterSubtitle ? `<p style="font-size:13px;color:${escapeHtml(footerTextColor)};opacity:0.8;">${escapeHtml(newsletterSubtitle)}</p>` : ''}
