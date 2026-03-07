@@ -1,11 +1,14 @@
 // =============================================
 // CATEGORY PAGE LAYOUT COMPILER — Block compiler for CategoryPageLayout
 // Mirrors: src/components/builder/blocks/CategoryPageLayout.tsx
-// Renders product grid with filters, ratings, badges, cart buttons
+// Renders product grid with filters, sorting, pagination, ratings, badges, cart buttons
+// v8.1.2: Added client-side filters, sorting, and load more
 // =============================================
 
 import type { BlockCompilerFn, CompilerContext } from '../types.ts';
 import { escapeHtml, optimizeImageUrl, formatPriceFromDecimal } from '../utils.ts';
+
+const PRODUCTS_PER_PAGE = 24;
 
 export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
   props: Record<string, unknown>,
@@ -27,12 +30,57 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
   const customButtonLink = cs.customButtonLink || '';
 
   const columns = (props.columns as number) || 4;
+  const totalProducts = products.length;
+  const hasMoreThanOnePage = totalProducts > PRODUCTS_PER_PAGE;
 
-  // Product count
-  const countHtml = `<p style="font-size:14px;color:var(--theme-text-secondary,#666);margin-bottom:24px;">${products.length} produto${products.length !== 1 ? 's' : ''}</p>`;
+  // Compute price range for filter
+  const prices = products.map(p => p.price).filter(Boolean);
+  const minPrice = prices.length > 0 ? Math.floor(Math.min(...prices)) : 0;
+  const maxPrice = prices.length > 0 ? Math.ceil(Math.max(...prices)) : 1000;
+  const hasFreeShipping = products.some(p => p.free_shipping);
+  const hasDiscounts = products.some(p => p.compare_at_price && p.compare_at_price > p.price);
 
-  // Product cards
-  const cardsHtml = products.map((p) => {
+  // === FILTER BAR + SORT ===
+  const filterBarHtml = `
+    <div data-sf-cat-controls style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:20px;padding:16px;background:#f9fafb;border-radius:10px;border:1px solid #eee;">
+      <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:200px;flex-wrap:wrap;">
+        <span style="font-size:13px;font-weight:600;color:var(--theme-text-primary,#1a1a1a);white-space:nowrap;">Filtros:</span>
+        ${hasFreeShipping ? `
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;color:var(--theme-text-secondary,#555);cursor:pointer;white-space:nowrap;padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;user-select:none;" data-sf-filter-label="free-shipping">
+          <input type="checkbox" data-sf-filter="free-shipping" style="accent-color:var(--theme-button-primary-bg,#1a1a1a);cursor:pointer;">
+          🚚 Frete grátis
+        </label>` : ''}
+        ${hasDiscounts ? `
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;color:var(--theme-text-secondary,#555);cursor:pointer;white-space:nowrap;padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;user-select:none;" data-sf-filter-label="on-sale">
+          <input type="checkbox" data-sf-filter="on-sale" style="accent-color:var(--theme-button-primary-bg,#1a1a1a);cursor:pointer;">
+          🏷️ Em promoção
+        </label>` : ''}
+        ${maxPrice - minPrice > 10 ? `
+        <div style="display:flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;">
+          <span style="font-size:12px;color:#666;white-space:nowrap;">Preço:</span>
+          <input type="number" data-sf-filter="price-min" placeholder="Min" min="${minPrice}" max="${maxPrice}" style="width:70px;padding:4px 6px;border:1px solid #eee;border-radius:4px;font-size:12px;outline:none;">
+          <span style="font-size:12px;color:#999;">–</span>
+          <input type="number" data-sf-filter="price-max" placeholder="Max" min="${minPrice}" max="${maxPrice}" style="width:70px;padding:4px 6px;border:1px solid #eee;border-radius:4px;font-size:12px;outline:none;">
+        </div>` : ''}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <label style="font-size:13px;color:var(--theme-text-secondary,#555);white-space:nowrap;">Ordenar:</label>
+        <select data-sf-sort style="padding:6px 28px 6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff;cursor:pointer;outline:none;color:var(--theme-text-primary,#1a1a1a);appearance:auto;">
+          <option value="default">Relevância</option>
+          <option value="price-asc">Menor preço</option>
+          <option value="price-desc">Maior preço</option>
+          <option value="name-asc">A → Z</option>
+          <option value="name-desc">Z → A</option>
+          <option value="discount">Maior desconto</option>
+        </select>
+      </div>
+    </div>`;
+
+  // Product count (will be updated by JS)
+  const countHtml = `<p data-sf-cat-count style="font-size:14px;color:var(--theme-text-secondary,#666);margin-bottom:16px;">${totalProducts} produto${totalProducts !== 1 ? 's' : ''}</p>`;
+
+  // Product cards — each card gets data attributes for client-side filtering
+  const cardsHtml = products.map((p, index) => {
     const imgUrl = p.product_images?.[0]?.url;
     const optimized = optimizeImageUrl(imgUrl, 400, 80);
     const hasDiscount = p.compare_at_price && p.compare_at_price > p.price;
@@ -63,46 +111,71 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
 
     // Buttons (same order as builder: 1. Add to cart, 2. Custom, 3. Buy now)
     const buttonsHtml: string[] = [];
-
-    // 1. Add to cart button
     if (showAddToCartButton) {
       buttonsHtml.push(`<button data-sf-action="add-to-cart" data-product-id="${p.id}" data-product-name="${escapeHtml(p.name)}" data-product-price="${p.price}" data-product-image="${escapeHtml(imgUrl || '')}" style="width:100%;padding:8px;background:transparent;border:1px solid var(--theme-button-primary-bg,#1a1a1a);border-radius:6px;cursor:pointer;font-size:12px;color:var(--theme-button-primary-bg,#1a1a1a);display:flex;align-items:center;justify-content:center;gap:6px;">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
         Adicionar
       </button>`);
     }
-
-    // 2. Custom button
     if (customButtonEnabled && customButtonText) {
       const customStyle = customButtonBgColor
         ? `background:${customButtonBgColor};color:${customButtonTextColor};border:none;`
         : `background:var(--theme-button-secondary-bg,#f5f5f5);color:var(--theme-button-secondary-text,#333);border:none;`;
       buttonsHtml.push(`<a href="${escapeHtml(customButtonLink || '#')}" style="display:block;width:100%;padding:8px;${customStyle}border-radius:6px;font-size:12px;text-align:center;text-decoration:none;">${escapeHtml(customButtonText)}</a>`);
     }
-
-    // 3. Buy now / primary CTA
     buttonsHtml.push(`<a href="/produto/${escapeHtml(p.slug)}" style="display:block;width:100%;padding:8px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border-radius:6px;font-size:12px;text-align:center;text-decoration:none;font-weight:500;">${escapeHtml(buyNowButtonText)}</a>`);
 
+    // Hidden beyond first page initially
+    const hiddenByPagination = hasMoreThanOnePage && index >= PRODUCTS_PER_PAGE;
+
     return `
-      <a href="/produto/${escapeHtml(p.slug)}" style="display:block;text-decoration:none;color:inherit;border-radius:8px;overflow:hidden;border:1px solid #f0f0f0;transition:box-shadow .2s;position:relative;">
-        ${badgesHtml}
-        <div style="aspect-ratio:1;background:#f9f9f9;overflow:hidden;">
-          ${optimized ? `<img src="${escapeHtml(optimized)}" alt="${escapeHtml(p.name)}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">` : ''}
-        </div>
-        <div style="padding:12px;" onclick="event.preventDefault();event.stopPropagation();">
-          ${ratingsHtml}
-          <p style="font-size:14px;font-weight:500;line-height:1.4;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(p.name)}</p>
-          <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
-            ${hasDiscount ? `<span style="font-size:12px;color:#999;text-decoration:line-through;">${formatPriceFromDecimal(p.compare_at_price!)}</span>` : ''}
-            <span style="font-size:16px;font-weight:700;color:var(--theme-price-color, var(--theme-text-primary,#1a1a1a));">${formatPriceFromDecimal(p.price)}</span>
-            ${hasDiscount ? `<span style="font-size:11px;font-weight:600;color:#16a34a;background:#dcfce7;padding:1px 6px;border-radius:3px;">-${discountPercent}%</span>` : ''}
+      <div class="sf-cat-card" data-sf-product-card
+        data-price="${p.price}"
+        data-name="${escapeHtml(p.name)}"
+        data-free-shipping="${p.free_shipping ? '1' : '0'}"
+        data-has-discount="${hasDiscount ? '1' : '0'}"
+        data-discount-pct="${discountPercent}"
+        data-index="${index}"
+        style="${hiddenByPagination ? 'display:none;' : ''}">
+        <a href="/produto/${escapeHtml(p.slug)}" style="display:block;text-decoration:none;color:inherit;border-radius:8px;overflow:hidden;border:1px solid #f0f0f0;transition:box-shadow .2s;position:relative;height:100%;display:flex;flex-direction:column;">
+          ${badgesHtml}
+          <div style="aspect-ratio:1;background:#f9f9f9;overflow:hidden;">
+            ${optimized ? `<img src="${escapeHtml(optimized)}" alt="${escapeHtml(p.name)}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">` : ''}
           </div>
-          <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
-            ${buttonsHtml.join('')}
+          <div style="padding:12px;flex:1;display:flex;flex-direction:column;" onclick="event.preventDefault();event.stopPropagation();">
+            ${ratingsHtml}
+            <p style="font-size:14px;font-weight:500;line-height:1.4;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(p.name)}</p>
+            <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:auto;">
+              ${hasDiscount ? `<span style="font-size:12px;color:#999;text-decoration:line-through;">${formatPriceFromDecimal(p.compare_at_price!)}</span>` : ''}
+              <span style="font-size:16px;font-weight:700;color:var(--theme-price-color, var(--theme-text-primary,#1a1a1a));">${formatPriceFromDecimal(p.price)}</span>
+              ${hasDiscount ? `<span style="font-size:11px;font-weight:600;color:#16a34a;background:#dcfce7;padding:1px 6px;border-radius:3px;">-${discountPercent}%</span>` : ''}
+            </div>
+            <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+              ${buttonsHtml.join('')}
+            </div>
           </div>
-        </div>
-      </a>`;
+        </a>
+      </div>`;
   }).join('');
+
+  // Load more button
+  const loadMoreHtml = hasMoreThanOnePage ? `
+    <div data-sf-load-more-wrap style="text-align:center;margin-top:32px;">
+      <button data-sf-action="load-more" style="padding:12px 40px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">
+        Carregar mais produtos
+      </button>
+      <p data-sf-load-more-info style="font-size:12px;color:#999;margin-top:8px;">
+        Exibindo ${Math.min(PRODUCTS_PER_PAGE, totalProducts)} de ${totalProducts} produtos
+      </p>
+    </div>` : '';
+
+  // No results placeholder (hidden by default, shown by JS)
+  const noResultsHtml = `
+    <div data-sf-no-results style="display:none;text-align:center;padding:48px 16px;color:#999;">
+      <p style="font-size:16px;font-weight:500;margin-bottom:8px;">Nenhum produto encontrado</p>
+      <p style="font-size:13px;">Tente ajustar os filtros para ver mais resultados.</p>
+      <button data-sf-action="clear-filters" style="margin-top:16px;padding:8px 24px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:6px;font-size:13px;cursor:pointer;">Limpar filtros</button>
+    </div>`;
 
   // JSON-LD
   const jsonLd = category ? JSON.stringify({
@@ -111,18 +184,27 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
     "name": category.name,
     "description": category.description || '',
     "url": `https://${context.hostname}/categoria/${category.slug}`,
-    "numberOfItems": products.length,
+    "numberOfItems": totalProducts,
   }) : '';
 
   return `
     ${jsonLd ? `<script type="application/ld+json">${jsonLd}</script>` : ''}
-    <div style="max-width:1280px;margin:0 auto;padding:24px 16px;">
+    <div style="max-width:1280px;margin:0 auto;padding:24px 16px;" data-sf-cat-container data-page-size="${PRODUCTS_PER_PAGE}" data-total="${totalProducts}">
+      ${filterBarHtml}
       ${countHtml}
       <style>
         .sf-cat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
         @media(min-width:640px) { .sf-cat-grid { grid-template-columns: repeat(3, 1fr); } }
         @media(min-width:1024px) { .sf-cat-grid { grid-template-columns: repeat(${columns}, 1fr); } }
+        .sf-cat-card { transition: opacity .2s; }
+        [data-sf-filter-label] { transition: background .15s, border-color .15s; }
+        [data-sf-filter-label]:has(input:checked) { border-color: var(--theme-button-primary-bg,#1a1a1a); background: #f0f0f0; }
+        @media(max-width:639px) {
+          [data-sf-cat-controls] { flex-direction: column; align-items: stretch !important; }
+        }
       </style>
-      <div class="sf-cat-grid">${cardsHtml}</div>
+      <div class="sf-cat-grid" data-sf-cat-grid>${cardsHtml}</div>
+      ${noResultsHtml}
+      ${loadMoreHtml}
     </div>`;
 };
