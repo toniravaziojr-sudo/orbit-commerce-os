@@ -2277,3 +2277,89 @@ window.__SF_TENANT = { slug: "...", id: "..." };
 - [ ] Ao alterar produtos schema → atualizar `renderProductPage()` e data-attributes
 - [ ] Ao adicionar SPA-only routes → atualizar `SPA_ONLY_ROUTES` no Worker
 - [ ] Ao alterar anon key → script de hidratação usa env var do Deno
+
+---
+
+## Storefront Cache Purge (`storefront-cache-purge`)
+
+### Versão Atual: v1.0.0
+
+### Visão Geral
+
+Edge Function que invalida o cache do HTML edge-rendered no Cloudflare. Chamada automaticamente pelo admin após salvar templates, e disponível via utilitário client-side para produtos, categorias, settings e menus.
+
+### Fluxo de Execução
+
+```
+Admin salva (template/produto/settings)
+  → cachePurge.template(tenantId) [fire-and-forget]
+  → Edge Function: storefront-cache-purge
+  → Valida auth (Bearer token do usuário)
+  → Verifica user_roles (acesso ao tenant)
+  → Busca domains ativos + slug do tenant
+  → Cloudflare API: purge_cache (por prefixo ou por URLs)
+```
+
+### Entrada (POST body)
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `tenant_id` | UUID | ID do tenant |
+| `resource_type` | string | `product`, `category`, `template`, `settings`, `menu`, `full` |
+| `resource_slug` | string? | Slug específico para purge direcionado |
+
+### Estratégia de Purge por Tipo
+
+| resource_type | Método | URLs/Prefixos |
+|---------------|--------|---------------|
+| `product` | files | `/produto/{slug}` + `/` (home pode ter destaques) |
+| `category` | files | `/categoria/{slug}` + `/` |
+| `template` | prefix | Todas as páginas de todos os hosts do tenant |
+| `settings` | prefix | Todas as páginas (afeta header/footer/tema) |
+| `menu` | prefix | Todas as páginas (afeta navegação) |
+| `full` | prefix | Purge total do tenant |
+
+### Integração Client-Side
+
+Arquivo: `src/lib/storefrontCachePurge.ts`
+
+```typescript
+import { cachePurge } from '@/lib/storefrontCachePurge';
+
+// Após publicar template
+cachePurge.template(tenantId);
+
+// Após salvar produto
+cachePurge.product(tenantId, productSlug);
+
+// Após salvar categoria
+cachePurge.category(tenantId, categorySlug);
+
+// Após salvar settings da loja
+cachePurge.settings(tenantId);
+
+// Após salvar menu
+cachePurge.menu(tenantId);
+
+// Purge total (nuclear)
+cachePurge.full(tenantId);
+```
+
+### Integrações Automáticas (v1.0.0)
+
+| Hook | Quando | Tipo de purge |
+|------|--------|---------------|
+| `useTemplateSetSave.publishTemplateSet` | Publicar template | `template` |
+
+### Secrets Necessários
+
+| Secret | Descrição |
+|--------|-----------|
+| `CLOUDFLARE_API_TOKEN` | Token da API Cloudflare com permissão Zone:Cache Purge:Edit |
+| `CLOUDFLARE_ZONE_ID` | Zone ID da zona comandocentral.com.br |
+
+### Checklist de Manutenção
+
+- [ ] Ao adicionar novos pontos de save no admin → integrar `cachePurge.*` no onSuccess
+- [ ] Ao adicionar novos tipos de domínio → verificar query de domains no purge
+- [ ] Ao mudar estrutura de URLs do storefront → atualizar mapeamento de resource_type → URLs
