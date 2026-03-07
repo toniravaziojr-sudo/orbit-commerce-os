@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { coreProductsApi } from '@/lib/coreApi';
+import { cachePurge } from '@/lib/storefrontCachePurge';
 
 export interface Product {
   id: string;
@@ -167,9 +168,10 @@ export function useProducts() {
       
       return result.data;
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['products', currentTenant?.id] });
       toast.success('Produto criado com sucesso!');
+      if (currentTenant?.id) cachePurge.product(currentTenant.id, data?.slug);
     },
     onError: (error: Error) => {
       console.error('Error creating product:', error);
@@ -191,9 +193,10 @@ export function useProducts() {
       
       return result.data;
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['products', currentTenant?.id] });
       toast.success('Produto atualizado com sucesso!');
+      if (currentTenant?.id) cachePurge.product(currentTenant.id, data?.slug);
     },
     onError: (error: Error) => {
       console.error('Error updating product:', error);
@@ -271,9 +274,10 @@ export function useCategories() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['categories', currentTenant?.id] });
       toast.success('Categoria criada com sucesso!');
+      if (currentTenant?.id) cachePurge.category(currentTenant.id, data?.slug);
     },
     onError: (error: Error) => {
       console.error('Error creating category:', error);
@@ -297,9 +301,10 @@ export function useCategories() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['categories', currentTenant?.id] });
       toast.success('Categoria atualizada com sucesso!');
+      if (currentTenant?.id) cachePurge.category(currentTenant.id, data?.slug);
     },
     onError: (error: Error) => {
       console.error('Error updating category:', error);

@@ -56,7 +56,7 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 └─────────────────────────────────────────────────────────────────────────┘
                                      ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
-│             EDGE FUNCTION: storefront-html (v3.0.0)                     │
+│             EDGE FUNCTION: storefront-html (v4.0.0)                     │
 │  Arquivo: supabase/functions/storefront-html/index.ts                  │
 │  Resolução: supabase/functions/_shared/resolveTenant.ts                │
 ├─────────────────────────────────────────────────────────────────────────┤
@@ -71,7 +71,10 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 │  • / → Home (header + hero banner acima da dobra)                      │
 │  • /produto/:slug → Página de produto (galeria + info + JSON-LD)       │
 │  • /categoria/:slug → Página de categoria (banner + grid)              │
-│  • /:slug → Página institucional                                        │
+│  • /p/:slug → Página institucional (store_pages)                       │
+│  • /blog → Índice do blog (grid 3 colunas, paginado)                  │
+│  • /blog/:slug → Post do blog (capa + conteúdo + JSON-LD BlogPosting) │
+│  • /:slug → Fallback para página institucional por slug direto         │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  Hidratação JS (Phase 3 - v3.0.0):                                     │
 │  • Script inline ~4KB — não requer bundle externo                      │
@@ -80,9 +83,16 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 │  • Menu mobile: toggle com overlay fullscreen                          │
 │  • Botões usam data-sf-action="add-to-cart|toggle-search|open-cart"    │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  Cloudflare Worker routing (Phase 4 - v3.0.0):                         │
+│  Cache Invalidation (Phase 5 - v1.0.0):                                │
+│  • Edge Function: storefront-cache-purge                               │
+│  • Client utility: src/lib/storefrontCachePurge.ts                     │
+│  • Hooks integrados: useTemplateSetSave, useProducts, useCategories,   │
+│    useMenus, useMenuItems, useStoreSettings                            │
+│  • Fire-and-forget: não bloqueia fluxo do admin                        │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Cloudflare Worker routing (Phase 4):                                   │
 │  • Worker verifica Accept: text/html em GET requests                   │
-│  • Rotas SPA-only (carrinho, checkout, minha-conta) → SPA fallback    │
+│  • Rotas SPA-only (carrinho, checkout, obrigado, minha-conta) → SPA   │
 │  • Demais rotas → storefront-html Edge Function primeiro              │
 │  • Se edge function falha → fallback automático para SPA              │
 │  • Header X-CC-Render-Mode: edge-html indica modo ativo               │

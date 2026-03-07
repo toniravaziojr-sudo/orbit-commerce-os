@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { cachePurge } from '@/lib/storefrontCachePurge';
 
 export interface Menu {
   id: string;
@@ -65,6 +66,7 @@ export function useMenus() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['menus'] });
       toast({ title: 'Menu criado com sucesso!' });
+      if (currentTenant?.id) cachePurge.menu(currentTenant.id);
     },
     onError: (error: Error) => {
       toast({ title: 'Erro ao criar menu', description: error.message, variant: 'destructive' });
@@ -86,6 +88,7 @@ export function useMenus() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['menus'] });
       toast({ title: 'Menu atualizado!' });
+      if (currentTenant?.id) cachePurge.menu(currentTenant.id);
     },
     onError: (error: Error) => {
       toast({ title: 'Erro ao atualizar menu', description: error.message, variant: 'destructive' });
@@ -150,6 +153,7 @@ export function useMenuItems(menuId: string | null) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['menu-items', menuId] });
       toast({ title: 'Item adicionado!' });
+      if (currentTenant?.id) cachePurge.menu(currentTenant.id);
     },
     onError: (error: Error) => {
       toast({ title: 'Erro ao adicionar item', description: error.message, variant: 'destructive' });
@@ -171,6 +175,7 @@ export function useMenuItems(menuId: string | null) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['menu-items', menuId] });
       toast({ title: 'Item atualizado!' });
+      if (currentTenant?.id) cachePurge.menu(currentTenant.id);
     },
     onError: (error: Error) => {
       toast({ title: 'Erro ao atualizar item', description: error.message, variant: 'destructive' });

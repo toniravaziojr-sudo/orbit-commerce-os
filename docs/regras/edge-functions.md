@@ -2345,11 +2345,20 @@ cachePurge.menu(tenantId);
 cachePurge.full(tenantId);
 ```
 
-### Integrações Automáticas (v1.0.0)
+### Integrações Automáticas (v4.0.0 — Phase 6)
 
 | Hook | Quando | Tipo de purge |
 |------|--------|---------------|
 | `useTemplateSetSave.publishTemplateSet` | Publicar template | `template` |
+| `useProducts.createProduct` | Criar produto | `product` |
+| `useProducts.updateProduct` | Atualizar produto | `product` (com slug) |
+| `useCategories.createCategory` | Criar categoria | `category` |
+| `useCategories.updateCategory` | Atualizar categoria | `category` (com slug) |
+| `useMenus.createMenu` | Criar menu | `menu` |
+| `useMenus.updateMenu` | Atualizar menu | `menu` |
+| `useMenuItems.createItem` | Adicionar item de menu | `menu` |
+| `useMenuItems.updateItem` | Atualizar item de menu | `menu` |
+| `useStoreSettings.upsertSettings` | Salvar configurações | `settings` |
 
 ### Secrets Necessários
 

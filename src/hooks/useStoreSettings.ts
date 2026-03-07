@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import type { Json } from '@/integrations/supabase/types';
+import { cachePurge } from '@/lib/storefrontCachePurge';
 import { useEffect, useRef } from 'react';
 import { 
   backfillStorefrontAssets,
@@ -178,6 +179,7 @@ export function useStoreSettings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['store-settings'] });
       toast({ title: 'Configurações salvas!' });
+      if (currentTenant?.id) cachePurge.settings(currentTenant.id);
     },
     onError: (error: Error) => {
       toast({ title: 'Erro ao salvar configurações', description: error.message, variant: 'destructive' });

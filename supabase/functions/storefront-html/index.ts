@@ -9,7 +9,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveTenantFromHostname } from '../_shared/resolveTenant.ts';
 
 // ===== VERSION =====
-const VERSION = "v3.0.0"; // Phase 3: Hydration script + interactive elements
+const VERSION = "v4.0.0"; // Phase 6: Institutional pages + Blog + Full cache purge integration
 // ====================
 
 // ============================================
@@ -169,7 +169,7 @@ function formatPriceFromDecimal(value: number): string {
 // ROUTE PARSER
 // ============================================
 interface ParsedRoute {
-  type: 'home' | 'product' | 'category' | 'page' | 'unknown';
+  type: 'home' | 'product' | 'category' | 'page' | 'blog_index' | 'blog_post' | 'unknown';
   slug?: string;
 }
 
@@ -186,17 +186,24 @@ function parseRoute(path: string): ParsedRoute {
   const categoryMatch = clean.match(/^categoria\/(.+)$/);
   if (categoryMatch) return { type: 'category', slug: categoryMatch[1] };
   
-  // /p/:slug (institutional pages) — skip for now
+  // /p/:slug (institutional pages)
   const pageMatch = clean.match(/^p\/(.+)$/);
   if (pageMatch) return { type: 'page', slug: pageMatch[1] };
+
+  // /blog/:slug (blog post)
+  const blogPostMatch = clean.match(/^blog\/(.+)$/);
+  if (blogPostMatch) return { type: 'blog_post', slug: blogPostMatch[1] };
+
+  // /blog (blog index)
+  if (clean === 'blog') return { type: 'blog_index' };
   
   // Known non-page routes
-  const knownRoutes = ['carrinho', 'checkout', 'obrigado', 'rastreio', 'blog', 'minha-conta'];
+  const knownRoutes = ['carrinho', 'checkout', 'obrigado', 'rastreio', 'minha-conta'];
   if (knownRoutes.some(r => clean === r || clean.startsWith(r + '/'))) {
     return { type: 'unknown' };
   }
   
-  // Fallback: could be an institutional page
+  // Fallback: could be an institutional page by slug directly
   return { type: 'page', slug: clean };
 }
 
@@ -462,6 +469,89 @@ function renderCategoryPage(category: any, products: any[], hostname: string): s
       </style>
       <div class="sf-cat-grid">${productsGrid}</div>
     </div>`;
+}
+
+// ============================================
+// INSTITUTIONAL PAGE RENDERER
+// ============================================
+function renderInstitutionalPage(page: any): string {
+  const content = page.content;
+  // Institutional pages store content as a block tree; render the text content
+  // For edge-rendered, we extract the textual content for SEO
+  const pageBody = page.body_html || page.description || '';
+  
+  return `
+    <div style="max-width:800px;margin:0 auto;padding:48px 16px;">
+      <h1 style="font-size:clamp(24px,4vw,36px);font-weight:700;font-family:var(--sf-heading-font);margin-bottom:24px;line-height:1.3;">${escapeHtml(page.title)}</h1>
+      ${pageBody ? `<div style="font-size:15px;line-height:1.8;color:var(--theme-text-secondary,#444);">${pageBody}</div>` : ''}
+    </div>`;
+}
+
+// ============================================
+// BLOG INDEX RENDERER
+// ============================================
+function renderBlogIndex(posts: any[], storeName: string): string {
+  const postsGrid = posts.map((post: any) => {
+    const imgUrl = post.cover_image_url;
+    const optimized = imgUrl ? optimizeImageUrl(imgUrl, 400, 80) : '';
+    const dateStr = post.published_at
+      ? new Date(post.published_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+      : '';
+
+    return `
+      <a href="/blog/${escapeHtml(post.slug)}" style="display:block;text-decoration:none;color:inherit;border-radius:8px;overflow:hidden;border:1px solid #f0f0f0;transition:box-shadow .2s;">
+        ${optimized ? `<div style="aspect-ratio:16/9;background:#f9f9f9;overflow:hidden;"><img src="${escapeHtml(optimized)}" alt="${escapeHtml(post.title)}" style="width:100%;height:100%;object-fit:cover;" loading="lazy"></div>` : ''}
+        <div style="padding:16px;">
+          <p style="font-size:16px;font-weight:600;line-height:1.4;margin-bottom:8px;font-family:var(--sf-heading-font);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(post.title)}</p>
+          ${post.excerpt ? `<p style="font-size:14px;color:var(--theme-text-secondary,#666);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(post.excerpt)}</p>` : ''}
+          ${dateStr ? `<p style="font-size:12px;color:#999;margin-top:8px;">${dateStr}</p>` : ''}
+        </div>
+      </a>`;
+  }).join('');
+
+  return `
+    <div style="max-width:1280px;margin:0 auto;padding:48px 16px;">
+      <h1 style="font-size:clamp(24px,4vw,36px);font-weight:700;font-family:var(--sf-heading-font);margin-bottom:32px;">Blog</h1>
+      <style>
+        .sf-blog-grid { display: grid; grid-template-columns: repeat(1, 1fr); gap: 24px; }
+        @media(min-width:640px) { .sf-blog-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media(min-width:1024px) { .sf-blog-grid { grid-template-columns: repeat(3, 1fr); } }
+      </style>
+      <div class="sf-blog-grid">${postsGrid}</div>
+      ${posts.length === 0 ? '<p style="text-align:center;color:#999;padding:48px 0;">Nenhum post publicado ainda.</p>' : ''}
+    </div>`;
+}
+
+// ============================================
+// BLOG POST RENDERER
+// ============================================
+function renderBlogPost(post: any, hostname: string): string {
+  const coverUrl = post.cover_image_url;
+  const optimizedCover = coverUrl ? optimizeImageUrl(coverUrl, 1200, 85) : '';
+  const dateStr = post.published_at
+    ? new Date(post.published_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
+    : '';
+
+  // JSON-LD for blog post
+  const jsonLd = JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "headline": post.title,
+    "description": post.excerpt || '',
+    "image": coverUrl || undefined,
+    "datePublished": post.published_at || post.created_at,
+    "url": `https://${hostname}/blog/${post.slug}`,
+    "author": post.author_name ? { "@type": "Person", "name": post.author_name } : undefined,
+  });
+
+  return `
+    <script type="application/ld+json">${jsonLd}</script>
+    <article style="max-width:800px;margin:0 auto;padding:48px 16px;">
+      ${optimizedCover ? `<img src="${escapeHtml(optimizedCover)}" alt="${escapeHtml(post.title)}" style="width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:12px;margin-bottom:32px;" loading="eager" fetchpriority="high">` : ''}
+      <h1 style="font-size:clamp(24px,4vw,40px);font-weight:700;font-family:var(--sf-heading-font);line-height:1.3;margin-bottom:16px;">${escapeHtml(post.title)}</h1>
+      ${dateStr ? `<p style="font-size:14px;color:#999;margin-bottom:32px;">${dateStr}</p>` : ''}
+      <div style="font-size:16px;line-height:1.8;color:var(--theme-text-secondary,#333);">${post.content || post.body_html || ''}</div>
+    </article>`;
 }
 
 // ============================================
@@ -815,6 +905,33 @@ serve(async (req) => {
           .eq('is_active', true)
           .maybeSingle()
       );
+    } else if (route.type === 'page' && route.slug) {
+      routeQueries.push(
+        supabase.from('store_pages')
+          .select('id, title, slug, body_html, description, seo_title, seo_description, content, is_published')
+          .eq('tenant_id', tenantId)
+          .eq('slug', route.slug)
+          .eq('is_published', true)
+          .maybeSingle()
+      );
+    } else if (route.type === 'blog_post' && route.slug) {
+      routeQueries.push(
+        supabase.from('blog_posts')
+          .select('id, title, slug, excerpt, content, body_html, cover_image_url, published_at, created_at, author_name, seo_title, seo_description, status')
+          .eq('tenant_id', tenantId)
+          .eq('slug', route.slug)
+          .eq('status', 'published')
+          .maybeSingle()
+      );
+    } else if (route.type === 'blog_index') {
+      routeQueries.push(
+        supabase.from('blog_posts')
+          .select('id, title, slug, excerpt, cover_image_url, published_at, author_name')
+          .eq('tenant_id', tenantId)
+          .eq('status', 'published')
+          .order('published_at', { ascending: false })
+          .limit(24)
+      );
     }
 
     const allResults = await Promise.allSettled([...baseQueries, ...routeQueries]);
@@ -929,6 +1046,54 @@ serve(async (req) => {
       pageDescription = category.seo_description || category.description || '';
       canonicalPath = `/categoria/${category.slug}`;
       ogImage = category.banner_desktop_url || category.image_url || ogImage;
+
+    } else if (route.type === 'page' && route.slug) {
+      // INSTITUTIONAL PAGE
+      const pageResult = allResults[5];
+      const page = pageResult?.status === 'fulfilled' ? (pageResult as any).value.data : null;
+
+      if (!page) {
+        return new Response(
+          `<!DOCTYPE html><html><head><title>Página não encontrada</title></head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;"><h1>Página não encontrada</h1></body></html>`,
+          { status: 404, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+        );
+      }
+
+      bodyHtml = renderInstitutionalPage(page);
+      pageTitle = page.seo_title || `${page.title} | ${storeName}`;
+      pageDescription = page.seo_description || page.description || '';
+      canonicalPath = `/p/${page.slug}`;
+
+    } else if (route.type === 'blog_index') {
+      // BLOG INDEX
+      const postsResult = allResults[5];
+      const posts = postsResult?.status === 'fulfilled' ? (postsResult as any).value.data || [] : [];
+
+      bodyHtml = renderBlogIndex(posts, storeName);
+      pageTitle = `Blog | ${storeName}`;
+      pageDescription = `Confira as últimas novidades do ${storeName}`;
+      canonicalPath = '/blog';
+
+    } else if (route.type === 'blog_post' && route.slug) {
+      // BLOG POST
+      const postResult = allResults[5];
+      const post = postResult?.status === 'fulfilled' ? (postResult as any).value.data : null;
+
+      if (!post) {
+        return new Response(
+          `<!DOCTYPE html><html><head><title>Post não encontrado</title></head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;"><h1>Post não encontrado</h1></body></html>`,
+          { status: 404, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+        );
+      }
+
+      bodyHtml = renderBlogPost(post, hostname);
+      pageTitle = post.seo_title || `${post.title} | ${storeName}`;
+      pageDescription = post.seo_description || post.excerpt || '';
+      canonicalPath = `/blog/${post.slug}`;
+      ogImage = post.cover_image_url || ogImage;
+
+      // Increment view count (fire-and-forget)
+      supabase.rpc('increment_blog_view_count', { post_id: post.id }).then(() => {}).catch(() => {});
 
     } else {
       // Unknown route — return minimal page, let client-side handle
