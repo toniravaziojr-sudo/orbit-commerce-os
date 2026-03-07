@@ -236,8 +236,8 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 - [x] ~~**Breadcrumb**: React tem — compilador não tem~~ → Implementado v8.1.0
 - [x] ~~**Galeria mobile**: Sem swipe/carousel~~ → Implementado v8.1.3 (scroll-snap + dots)
 - [x] ~~**Thumbnail click**: Sem troca de imagem~~ → Implementado v8.1.3
-- [ ] **Zoom**: Sem hover/pinch zoom
-- [ ] **Lightbox**: Sem fullscreen
+- [x] ~~**Zoom**: Sem hover/pinch zoom~~ → Implementado v8.1.4 (lightbox fullscreen + pinch-to-zoom + zoom buttons)
+- [x] ~~**Lightbox**: Sem fullscreen~~ → Implementado v8.1.4 (overlay com navegação prev/next + teclado)
 - [x] ~~**Botão "Comprar agora"**: Compilador não tem CTA separado~~ → Implementado v8.1.0
 - [x] ~~**Quantidade**: React tem seletor de quantidade~~ → Implementado v8.1.0
 - [x] ~~**Frete**: Placeholder HTML sem JS funcional~~ → Implementado v8.1.0
