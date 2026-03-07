@@ -42,10 +42,10 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 
 | Modo | Quando | Como |
 |------|--------|------|
-| **Edge-Rendered** (v8.0.0) | Domínio custom ou subdomínio `.shops.` em produção | Edge Function `storefront-html` retorna HTML completo via block-compiler |
+| **Edge-Rendered** (v8.1.4) | Domínio custom ou subdomínio `.shops.` em produção | Edge Function `storefront-html` serve HTML pré-renderizado (fast path) ou live render (fallback) |
 | **SPA Bootstrap** (v4.0.0) | Preview no admin (`/store/{slug}`) e fallback | React SPA com `storefront-bootstrap` JSON |
 
-### Arquitetura Edge-Rendered (Produção)
+### Arquitetura Edge-Rendered (Produção) — Fast Path + Live Fallback
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -56,18 +56,40 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 └─────────────────────────────────────────────────────────────────────────┘
                                      ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
-│             EDGE FUNCTION: storefront-html (v8.0.0)                     │
+│             EDGE FUNCTION: storefront-html (v8.1.4)                     │
 │  Arquivo: supabase/functions/storefront-html/index.ts                  │
 │  Resolução: supabase/functions/_shared/resolveTenant.ts                │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  1. Recebe hostname (query param, x-forwarded-host ou POST)            │
 │  2. resolveTenantFromHostname() → tenant_id + tenant_slug              │
-│  3. Pre-render lookup: storefront_prerendered_pages (fast path)        │
-│  4. Live fallback: queries paralelas + renderização via block-compiler │
+│  3. ★ FAST PATH (prioridade): lookup em storefront_prerendered_pages   │
+│     → Se encontra página ativa: retorna HTML imediatamente (~50-100ms) │
+│     → Header: X-Render-Mode: prerendered                               │
+│  4. LIVE FALLBACK: queries paralelas + block-compiler (se sem prerender)│
+│     → Header: X-Render-Mode: live                                       │
 │  5. Retorna text/html com Cache-Control: s-maxage=120                  │
 │  6. Server-Timing headers para diagnóstico                             │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  Block-to-HTML Compiler (v8.0.0) — TODAS as rotas:                     │
+│  Pre-Render Pipeline (v8.1.4):                                          │
+│                                                                          │
+│  Publish (admin) → storefront-prerender (Edge Function assíncrona)      │
+│       ↓                                                                  │
+│  storefront-prerender:                                                   │
+│    1. Resolve tenant → busca slug + domínio ativo em tenant_domains     │
+│    2. Para cada rota (home, produtos, categorias, blog):                │
+│       - Chama storefront-html com X-Prerender-Bypass: 1                 │
+│       - storefront-html ignora lookup prerendered, faz live render      │
+│       - HTML fresco retornado                                            │
+│    3. Insere/atualiza storefront_prerendered_pages                      │
+│    4. publish_version = Date.now() (bigint) para ativação atômica      │
+│    5. Marca páginas antigas como stale                                   │
+│                                                                          │
+│  Tabela: storefront_prerendered_pages                                    │
+│    - tenant_id, path, html, page_type, publish_version (bigint)         │
+│    - is_active: true (ativa) / false (stale)                            │
+│    - Tipos: home, product, category, blog_index, blog_post              │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Block-to-HTML Compiler (v8.0.0) — Live Fallback para TODAS as rotas:  │
 │  • Home: compileBlockTree() com published_content (fonte de verdade)   │
 │  • Header: headerToStaticHTML() via block-compiler                     │
 │  • Footer: footerToStaticHTML() via block-compiler                     │
@@ -123,7 +145,10 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 │  • dns-prefetch para wsrv.nl, fonts.googleapis.com, fonts.gstatic.com │
 │  • fetchpriority="high" em imagens LCP (banner, produto, blog cover)  │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  Performance: TTFB ~300-500ms (vs ~2-4s no modelo SPA)                 │
+│  Performance:                                                            │
+│  • Fast Path (prerendered): TTFB ~50-100ms (lookup + serve)            │
+│  • Live Fallback: TTFB ~300-500ms (queries + compile)                  │
+│  • SPA Legacy: TTFB ~2-4s (bootstrap + React hydration)                │
 │  Cache: public, s-maxage=120, stale-while-revalidate=300               │
 │  Dados no window: __SF_SERVER_RENDERED, __SF_TIMING, __SF_TENANT       │
 └─────────────────────────────────────────────────────────────────────────┘
