@@ -697,9 +697,9 @@ function renderFeaturedProducts(block: ContentBlock, productsData: any[], produc
         ${productCards}
       </div>
       <style>@media(max-width:768px){section > div[style*="grid-template-columns"]{grid-template-columns:repeat(2,1fr) !important;}}</style>
-    </section>`;}
-
+    </section>`;
 }
+
 
 // ============================================
 // IMAGE CAROUSEL RENDERER
