@@ -692,6 +692,7 @@ serve(async (req) => {
     } else if (route.type === 'category' && route.slug) {
       // CATEGORY
       const categoryResult = allResults[5];
+      console.log(`[storefront-html] Category result status: ${categoryResult?.status}, value: ${JSON.stringify(categoryResult?.status === 'fulfilled' ? (categoryResult as any).value : categoryResult)}`);
       const category = categoryResult?.status === 'fulfilled' ? (categoryResult as any).value.data : null;
 
       if (!category) {
