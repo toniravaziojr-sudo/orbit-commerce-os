@@ -1386,6 +1386,25 @@ serve(async (req) => {
       compilerContext.currentCategory = category;
       compilerContext.categoryProducts = flatProducts;
 
+      // Fetch dynamic badges for category products
+      if (flatProducts.length > 0) {
+        const catPIds = flatProducts.map((p: any) => p.id);
+        const { data: catBadgeRows } = await supabase
+          .from('product_badge_assignments')
+          .select('product_id, badge:product_badges(id, name, background_color, text_color, shape, position, is_active)')
+          .in('product_id', catPIds);
+        if (catBadgeRows) {
+          compilerContext.productBadges = new Map();
+          for (const row of catBadgeRows as any[]) {
+            if (row.badge?.is_active) {
+              const existing = compilerContext.productBadges.get(row.product_id) || [];
+              existing.push(row.badge);
+              compilerContext.productBadges.set(row.product_id, existing);
+            }
+          }
+        }
+      }
+
       // Use published_content.category block tree if available
       const categoryContent = publishedContent?.category as BlockNode | null;
       if (categoryContent) {
