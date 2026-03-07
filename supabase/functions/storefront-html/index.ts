@@ -591,6 +591,48 @@ function buildFullPage(opts: {
         }
       }
 
+      // === GALLERY HYDRATION: Swipe dots + Thumbnail click + Pinch zoom ===
+      var galleryTrack=document.querySelector("[data-sf-gallery-track]");
+      if(galleryTrack){
+        var dots=[].slice.call(document.querySelectorAll("[data-sf-dot-index]"));
+        var slides=[].slice.call(galleryTrack.querySelectorAll(".sf-gallery-slide"));
+        // Dots sync on scroll
+        var scrollTimeout;
+        galleryTrack.addEventListener("scroll",function(){
+          clearTimeout(scrollTimeout);
+          scrollTimeout=setTimeout(function(){
+            var scrollLeft=galleryTrack.scrollLeft;
+            var slideW=galleryTrack.offsetWidth;
+            var idx=Math.round(scrollLeft/slideW);
+            dots.forEach(function(d,i){d.classList.toggle("active",i===idx);});
+          },50);
+        });
+        // Dot click
+        dots.forEach(function(dot){
+          dot.addEventListener("click",function(){
+            var idx=parseInt(this.dataset.sfDotIndex)||0;
+            galleryTrack.scrollTo({left:idx*galleryTrack.offsetWidth,behavior:"smooth"});
+          });
+        });
+      }
+      // Desktop thumbnail click → swap main image
+      var thumbsContainer=document.querySelector("[data-sf-gallery-thumbs]");
+      var mainGalleryImg=document.querySelector("[data-sf-gallery-main]");
+      if(thumbsContainer&&mainGalleryImg){
+        thumbsContainer.addEventListener("click",function(e){
+          var img=e.target.closest("img");
+          if(!img)return;
+          // Swap: get the full-size URL from thumb src (replace w=120 with w=800)
+          var fullSrc=img.src.replace(/w=120/,"w=800").replace(/q=75/,"q=85");
+          mainGalleryImg.src=fullSrc;
+          // Highlight active thumb
+          [].slice.call(thumbsContainer.querySelectorAll("img")).forEach(function(t){
+            t.style.borderColor=t===img?"var(--theme-button-primary-bg,#1a1a1a)":"#eee";
+            t.style.borderWidth=t===img?"2px":"1px";
+          });
+        });
+      }
+
       // === CATEGORY FILTERS, SORT & LOAD MORE ===
       var catContainer=document.querySelector("[data-sf-cat-container]");
       if(catContainer){
