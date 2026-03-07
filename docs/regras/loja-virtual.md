@@ -101,9 +101,19 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 │  • Blocos de home: Page, Section, HeroBanner, Banner,                  │
 │    FeaturedCategories, FeaturedProducts, ImageCarousel, InfoHighlights  │
 │  • ZERO renderers manuais legados restantes                            │
-│  • Paridade visual v8.2.1: badges horizontais, --theme-price-color,    │
+│  • Paridade visual v8.2.2: badges horizontais, --theme-price-color,    │
 │    hover effects em cards, Banner aspect-ratio responsivo 21/9→21/7,   │
 │    Banner img object-fit:cover no container aspect-ratio (gap fix)     │
+│  • Regras globais de compilação (v8.2.2):                              │
+│    - body text = #1a1a1a (NÃO usa --theme-text-primary)               │
+│    - Títulos e nomes = color:inherit                                    │
+│    - Preços = var(--theme-price-color, fallback)                       │
+│    - Filtros/labels = cores fixas (#1a1a1a, #555), sem theme vars      │
+│    - Botões = classes sf-btn-* com variáveis do tema (sem JS inline)   │
+│    - Dropdowns = padding-top bridge (sem gap de hover)                 │
+│    - Menus = apenas itens is_published=true                            │
+│    - Fallback de cor: textColor==bgColor → usa primary do tema         │
+│    - Mobile nav: herda headerBgColor/headerTextColor                   │
 │  • ⚑ BASELINE ESTÁVEL — frente encerrada em 2026-03-07                │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  Rotas suportadas:                                                      │
