@@ -56,19 +56,38 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 └─────────────────────────────────────────────────────────────────────────┘
                                      ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
-│             EDGE FUNCTION: storefront-html (v4.0.0)                     │
+│             EDGE FUNCTION: storefront-html (v7.0.0)                     │
 │  Arquivo: supabase/functions/storefront-html/index.ts                  │
 │  Resolução: supabase/functions/_shared/resolveTenant.ts                │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  1. Recebe hostname (query param, x-forwarded-host ou POST)            │
 │  2. resolveTenantFromHostname() → tenant_id + tenant_slug              │
-│  3. Queries paralelas: settings, menu, categorias, template            │
-│  4. Renderiza HTML completo: <head>, header, hero/banner, meta OG     │
+│  3. Queries paralelas: settings, menu, categorias, template,           │
+│     global_layout, footer menus, produtos, category_settings           │
+│  4. SSR completo: header, hero, categorias, produtos, carrossel,       │
+│     footer (newsletter, redes sociais, selos, menus dinâmicos)         │
 │  5. Retorna text/html com Cache-Control: s-maxage=120                  │
 │  6. Server-Timing headers para diagnóstico                             │
 ├─────────────────────────────────────────────────────────────────────────┤
+│  SSR Home — Blocos renderizados server-side (v6.0.0+):                 │
+│  • HeroBanner: imagens desktop/mobile, overlay, CTA                   │
+│  • FeaturedCategories: grid responsivo com imagens e nomes             │
+│  • FeaturedProducts: cards com badges, preços, botões duplos           │
+│  • ImageCarousel: carrossel de banners com auto-play                   │
+│  • Header: barra de avisos animada (marquee), menu 3 colunas,         │
+│    ícones coloridos, menu mobile hamburger                             │
+│  • Footer: menus dinâmicos (footer_1/footer_2), newsletter bar,       │
+│    redes sociais, selos de segurança/pagamento, dados legais           │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Queries adicionais na Home (v7.0.0):                                  │
+│  • storefront_global_layout → header bg, notice bar, footer config     │
+│  • storefront_menus (footer_1, footer_2) + items → menus do rodapé     │
+│  • products (por IDs dos blocos) → dados reais de produtos             │
+│  • categories (por IDs dos blocos) → dados reais de categorias         │
+│  • category_settings → badges e configurações visuais                  │
+├─────────────────────────────────────────────────────────────────────────┤
 │  Rotas suportadas:                                                      │
-│  • / → Home (header + hero banner acima da dobra)                      │
+│  • / → Home (SSR completo: header + todos os blocos + footer)          │
 │  • /produto/:slug → Página de produto (galeria + info + JSON-LD)       │
 │  • /categoria/:slug → Página de categoria (banner + grid)              │
 │  • /p/:slug → Página institucional (store_pages)                       │
@@ -111,7 +130,7 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 │  • dns-prefetch para wsrv.nl, fonts.googleapis.com, fonts.gstatic.com │
 │  • fetchpriority="high" em imagens LCP (banner, produto, blog cover)  │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  Performance: TTFB ~200-500ms (vs ~2-4s no modelo SPA)                 │
+│  Performance: TTFB ~300-500ms (vs ~2-4s no modelo SPA)                 │
 │  Cache: public, s-maxage=120, stale-while-revalidate=300               │
 │  Dados no window: __SF_SERVER_RENDERED, __SF_TIMING, __SF_TENANT       │
 └─────────────────────────────────────────────────────────────────────────┘
