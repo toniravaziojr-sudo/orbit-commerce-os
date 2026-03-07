@@ -1904,7 +1904,7 @@ serve(async (req) => {
 
     } else if (route.type === 'blog_index') {
       // BLOG INDEX
-      const postsResult = allResults[6];
+      const postsResult = allResults[7];
       const posts = postsResult?.status === 'fulfilled' ? (postsResult as any).value.data || [] : [];
 
       bodyHtml = renderBlogIndex(posts, storeName);
