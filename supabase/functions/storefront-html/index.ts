@@ -375,7 +375,7 @@ function buildFullPage(opts: {
 
   <!-- Mobile Nav -->
   <nav class="sf-mobile-nav" data-sf-mobile-nav>
-    <button style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:24px;cursor:pointer;" data-sf-action="toggle-mobile-menu">&times;</button>
+    <button style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:24px;cursor:pointer;color:inherit;" data-sf-action="toggle-mobile-menu">&times;</button>
     ${opts.navItemsHtml || ''}
   </nav>
 
