@@ -215,7 +215,7 @@ serve(async (req) => {
 
     console.log(`[storefront-prerender] Total pages to render: ${pagesToRender.length}`);
 
-    // Create job record
+    console.log('[storefront-prerender] Creating job record...');
     const { data: job, error: jobError } = await supabase
       .from('storefront_prerender_jobs')
       .insert({
