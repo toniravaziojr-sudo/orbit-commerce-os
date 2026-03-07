@@ -1,6 +1,6 @@
 // ============================================
 // STOREFRONT HTML — Edge-Rendered Storefront
-// v8.0.0: All routes using block-compiler architecture
+// v8.1.0: Category + Product routes use compileBlockTree(published_content) — full parity
 // Resolves tenant from hostname, serves pre-rendered HTML if available,
 // falls back to live rendering otherwise.
 // ============================================
