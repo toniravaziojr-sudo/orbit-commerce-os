@@ -113,7 +113,6 @@ export function bannerToStaticHTML(
 
   // Aspect ratio for auto height without CTA
   // Match React: aspect-[21/9] on mobile, aspect-[21/7] on desktop
-  const needsAspect = isAutoHeight && !hasCTA;
   const aspectClass = needsAspect ? 'sf-banner-auto' : '';
   const aspectStyleTag = needsAspect ? '<style>.sf-banner-auto{aspect-ratio:21/9;}@media(min-width:768px){.sf-banner-auto{aspect-ratio:21/7;}}</style>' : '';
 
