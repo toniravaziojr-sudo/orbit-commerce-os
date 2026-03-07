@@ -179,6 +179,7 @@ export function useStoreSettings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['store-settings'] });
       toast({ title: 'Configurações salvas!' });
+      if (currentTenant?.id) cachePurge.settings(currentTenant.id);
     },
     onError: (error: Error) => {
       toast({ title: 'Erro ao salvar configurações', description: error.message, variant: 'destructive' });
