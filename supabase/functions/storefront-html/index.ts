@@ -994,7 +994,9 @@ serve(async (req) => {
     const publishedContent = templateSet?.published_content as Record<string, any> | null;
     const themeSettings = publishedContent?.themeSettings || null;
     const themeCss = generateThemeCss(themeSettings);
-    const googleFontsLink = getGoogleFontsLink(themeSettings);
+    const fontsData = getGoogleFontsData(themeSettings);
+    const googleFontsLink = fontsData.stylesheetTags;
+    const fontPreloadTags = fontsData.preloadTags;
     const menuItems = headerMenuRaw?.menu_items 
       ? [...headerMenuRaw.menu_items].sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
       : [];
@@ -1008,6 +1010,7 @@ serve(async (req) => {
     let canonicalPath = '/';
     let ogImage = storeSettings?.logo_url || tenant?.logo_url || '';
     let extraHead = '';
+    let lcpPreloadTag = '';
 
     if (route.type === 'home') {
       // HOME — banner from template
