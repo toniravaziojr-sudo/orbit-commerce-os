@@ -110,7 +110,7 @@ function generateThemeCss(themeSettings: any): string {
     body {
       font-family: var(--sf-body-font);
       font-size: var(--sf-base-font-size);
-      color: var(--theme-text-primary, #1a1a1a);
+      color: #1a1a1a;
       background: #fff;
       -webkit-font-smoothing: antialiased;
     }

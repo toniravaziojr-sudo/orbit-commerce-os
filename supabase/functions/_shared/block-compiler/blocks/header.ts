@@ -52,9 +52,17 @@ export function headerToStaticHTML(context: CompilerContext): string {
   // Featured promos
   const featuredPromosEnabled = Boolean(props.featuredPromosEnabled);
   const featuredPromosLabel = String(props.featuredPromosLabel || 'Promoções');
-  const featuredPromosBgColor = String(props.featuredPromosBgColor || '');
-  const featuredPromosTextColor = String(props.featuredPromosTextColor || '#ffffff');
+  const rawFeaturedPromosBgColor = String(props.featuredPromosBgColor || '');
+  const rawFeaturedPromosTextColor = String(props.featuredPromosTextColor || '#ffffff');
   const featuredPromosTarget = String(props.featuredPromosTarget || props.featuredPromosDestination || '');
+  
+  // Fallback: if bg is empty, equals text color, or equals header bg (invisible), use primary
+  // Mirrors logic in StorefrontHeaderContent.tsx
+  const isFeaturedBgInvalid = !rawFeaturedPromosBgColor
+    || rawFeaturedPromosBgColor.toLowerCase() === rawFeaturedPromosTextColor.toLowerCase()
+    || rawFeaturedPromosBgColor.toLowerCase() === (headerBgColor || '').toLowerCase();
+  const featuredPromosBgColor = isFeaturedBgInvalid ? '' : rawFeaturedPromosBgColor;
+  const featuredPromosTextColor = rawFeaturedPromosTextColor || '#ffffff';
   const featuredPromosThumbnail = String(props.featuredPromosThumbnail || '');
   
   // Build featured promos URL
