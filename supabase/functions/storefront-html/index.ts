@@ -1811,7 +1811,7 @@ serve(async (req) => {
 
     } else if (route.type === 'product' && route.slug) {
       // PRODUCT
-      const productResult = allResults[6];
+      const productResult = allResults[7];
       const product = productResult?.status === 'fulfilled' ? (productResult as any).value.data : null;
 
       if (!product || product.status !== 'active') {
