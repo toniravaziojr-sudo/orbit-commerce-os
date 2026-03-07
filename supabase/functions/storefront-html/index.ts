@@ -961,6 +961,13 @@ serve(async (req) => {
           .order('priority', { ascending: false })
           .limit(1)
           .maybeSingle(),
+        // Variants
+        product.has_variants ? supabase
+          .from('product_variants')
+          .select('id, sku, price, compare_at_price, stock_quantity, image_url, is_active, option1_name, option1_value, option2_name, option2_value, option3_name, option3_value')
+          .eq('product_id', product.id)
+          .eq('is_active', true)
+          .order('position', { ascending: true }) : Promise.resolve({ data: [] }),
       ]);
       const images = imagesResult.data;
       const productCategory = categoryResult.data?.categories;
