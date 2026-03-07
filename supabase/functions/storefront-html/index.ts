@@ -1146,6 +1146,24 @@ serve(async (req) => {
         }
         compilerContext.categories = new Map(featuredCategories.map((c: any) => [c.id, c]));
         
+        // Fetch dynamic badges for home products
+        if (featuredProducts.length > 0) {
+          const pIds = featuredProducts.map((p: any) => p.id);
+          const { data: badgeRows } = await supabase
+            .from('product_badge_assignments')
+            .select('product_id, badge:product_badges(id, name, background_color, text_color, shape, position, is_active)')
+            .in('product_id', pIds);
+          if (badgeRows) {
+            for (const row of badgeRows as any[]) {
+              if (row.badge?.is_active) {
+                const existing = compilerContext.productBadges.get(row.product_id) || [];
+                existing.push(row.badge);
+                compilerContext.productBadges.set(row.product_id, existing);
+              }
+            }
+          }
+        }
+        
         bodyHtml = compileBlockTree(homeContent, compilerContext);
         console.log(`[storefront-html][${VERSION}] Home compiled via block-compiler`);
       }
