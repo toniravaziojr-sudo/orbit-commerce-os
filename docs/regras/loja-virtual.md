@@ -373,7 +373,7 @@ O hook `usePreviewTemplate` é responsável por carregar o conteúdo do rascunho
 
 | Bloco | Arquivo | Descrição |
 |-------|---------|-----------|
-| `Banner` | `BannerBlock.tsx` | Banner único ou carrossel (modo: `single` / `carousel`) |
+| `Banner` | `BannerBlock.tsx` | Banner único ou carrossel (modo: `single` / `carousel`). Compiler: aspect-ratio responsivo `21/9` (mobile) → `21/7` (desktop via `@media min-width:768px`), classe `.sf-banner-auto`. |
 | `ImageCarousel` | `ImageCarouselBlock.tsx` | Carrossel de imagens |
 | `ImageGallery` | `ImageGalleryBlock.tsx` | Galeria de imagens |
 | `VideoCarousel` | `VideoCarouselBlock.tsx` | Carrossel de vídeos |
