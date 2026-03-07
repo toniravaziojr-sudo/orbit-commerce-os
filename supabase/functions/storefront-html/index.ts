@@ -603,6 +603,8 @@ function buildFullPage(opts: {
   faviconUrl: string;
   ogImage: string;
   googleFontsLink: string;
+  fontPreloadTags?: string;
+  lcpPreloadTag?: string;
   themeCss: string;
   headerHtml: string;
   bodyHtml: string;
