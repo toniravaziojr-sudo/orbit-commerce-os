@@ -1,6 +1,8 @@
 # Página de Categoria — Regras e Especificações
 
-> **Status:** FUNCIONAL ✅ — Core implementado
+> **Status:** FUNCIONAL ✅ — Core implementado  
+> **Última atualização:** 2026-03-07  
+> **Arquitetura:** v8.1.0 — block-compiler com `published_content.category` + `compileBlockTree()`
 
 ## Visão Geral
 
@@ -14,13 +16,41 @@ Página de listagem de produtos filtrados por categoria.
 
 ---
 
+## Arquitetura de Renderização (v8.1.0)
+
+### Fluxo Público (Edge Function `storefront-html`)
+
+```
+1. Resolve tenant pelo hostname
+2. Busca published_content do storefront
+3. Se published_content.category existe:
+   → compileBlockTree(published_content.category, context)
+4. Se NÃO existe:
+   → Fallback: árvore de blocos padrão (CategoryBanner + CategoryPageLayout)
+5. Dados injetados no CompilerContext:
+   - currentCategory (dados da categoria)
+   - categoryProducts (produtos com imagens, ratings, etc.)
+   - categorySettings (settings do tema)
+```
+
+### Compiladores de Bloco Usados
+
+| Bloco | Compilador | Arquivo |
+|-------|-----------|---------|
+| `CategoryBanner` | `categoryBannerToStaticHTML` | `_shared/block-compiler/blocks/category-banner.ts` |
+| `CategoryPageLayout` | `categoryPageLayoutToStaticHTML` | `_shared/block-compiler/blocks/category-page-layout.ts` |
+
+### Arquivo Legado (DEAD CODE)
+
+> ⚠️ `_shared/block-compiler/blocks/category-page.ts` (`categoryPageToStaticHTML`) é código morto — não é importado por nenhum arquivo. Mantido temporariamente. Pode ser removido.
+
+---
+
 ## Estrutura Visual
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                              HEADER                                      │
-├─────────────────────────────────────────────────────────────────────────┤
-│  BREADCRUMB: Home > Categoria                                           │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  ┌───────────────────────────────────────────────────────────────────┐  │
 │  │                     BANNER DA CATEGORIA                            │  │
@@ -30,22 +60,15 @@ Página de listagem de produtos filtrados por categoria.
 │  NOME DA CATEGORIA                                                       │
 │  Descrição opcional da categoria                                         │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐                                                        │
-│  │  FILTROS    │  ┌─────────────────────────────────────────────────┐  │
-│  │  (sidebar)  │  │  [Ordenar: Relevância ▼]  [X produtos]          │  │
-│  │             │  ├─────────────────────────────────────────────────┤  │
-│  │ □ Subcat 1  │  │  ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐              │  │
-│  │ □ Subcat 2  │  │  │ Pro │ │ Pro │ │ Pro │ │ Pro │              │  │
-│  │             │  │  │ 1   │ │ 2   │ │ 3   │ │ 4   │              │  │
-│  │ Preço       │  │  └─────┘ └─────┘ └─────┘ └─────┘              │  │
-│  │ R$ [__-__]  │  │                                                 │  │
-│  │             │  │  ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐              │  │
-│  │ Tamanho     │  │  │ Pro │ │ Pro │ │ Pro │ │ Pro │              │  │
-│  │ □ P □ M □ G │  │  │ 5   │ │ 6   │ │ 7   │ │ 8   │              │  │
-│  │             │  │  └─────┘ └─────┘ └─────┘ └─────┘              │  │
-│  └─────────────┘  │                                                 │  │
-│                   │  [Carregar mais] ou [Paginação]                 │  │
-│                   └─────────────────────────────────────────────────┘  │
+│  [X produtos]                                                             │
+│  ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐                                       │
+│  │ Pro │ │ Pro │ │ Pro │ │ Pro │                                       │
+│  │ 1   │ │ 2   │ │ 3   │ │ 4   │                                       │
+│  └─────┘ └─────┘ └─────┘ └─────┘                                       │
+│  ┌─────┐ ┌─────┐ ┌─────┐ ┌─────┐                                       │
+│  │ Pro │ │ Pro │ │ Pro │ │ Pro │                                       │
+│  │ 5   │ │ 6   │ │ 7   │ │ 8   │                                       │
+│  └─────┘ └─────┘ └─────┘ └─────┘                                       │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                              FOOTER                                      │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -55,14 +78,22 @@ Página de listagem de produtos filtrados por categoria.
 
 ## Componentes
 
+### React (Builder / SPA)
+
 | Componente | Arquivo | Função |
 |------------|---------|--------|
 | `StorefrontCategory` | `src/pages/storefront/StorefrontCategory.tsx` | Página container |
-| `CategoryPageLayout` | `src/components/builder/blocks/CategoryPageLayout.tsx` | Layout principal |
-| `ProductGrid` | `src/components/storefront/ProductGrid.tsx` | Grid de produtos |
-| `ProductCard` | `src/components/storefront/ProductCard.tsx` | Card individual |
-| `CategoryFilters` | `src/components/storefront/CategoryFilters.tsx` | Sidebar de filtros |
-| `CategoryBanner` | `src/components/storefront/CategoryBanner.tsx` | Banner topo |
+| `CategoryPageLayout` | `src/components/builder/blocks/CategoryPageLayout.tsx` | Layout principal com filtros + grid |
+| `CategoryBannerBlock` | `src/components/builder/blocks/CategoryBannerBlock.tsx` | Banner topo |
+| `ProductCard` | `src/components/builder/blocks/shared/ProductCard.tsx` | Card compartilhado |
+| `CategoryFilters` | `src/components/builder/blocks/CategoryFilters.tsx` | Sidebar de filtros |
+
+### Compiladores (Edge Function)
+
+| Compilador | Arquivo | Mirror de |
+|-----------|---------|-----------|
+| `categoryBannerToStaticHTML` | `_shared/block-compiler/blocks/category-banner.ts` | `CategoryBannerBlock.tsx` |
+| `categoryPageLayoutToStaticHTML` | `_shared/block-compiler/blocks/category-page-layout.ts` | `CategoryPageLayout.tsx` |
 
 ---
 
@@ -76,22 +107,14 @@ Página de listagem de produtos filtrados por categoria.
 | `quickBuyEnabled` | boolean | false | Compra rápida |
 | `buyNowButtonText` | string | "Comprar agora" | Texto CTA |
 | `showBanner` | boolean | true | Banner da categoria |
+| `showCategoryName` | boolean | true | Nome da categoria |
+| `bannerOverlayOpacity` | number | 0 | Opacidade overlay (0-100) |
 | `customButtonEnabled` | boolean | false | Botão custom |
 | `customButtonText` | string | "" | Texto do botão |
-| `customButtonColor` | string | "" | Cor do texto (deprecated, usar customButtonTextColor) |
-| `customButtonLink` | string | "" | Link do botão |
 | `customButtonBgColor` | string | "" | Cor de fundo do botão |
-| `customButtonTextColor` | string | "" | Cor do texto do botão |
+| `customButtonTextColor` | string | "#ffffff" | Cor do texto do botão |
 | `customButtonHoverColor` | string | "" | Cor de fundo no hover |
-
----
-
-## Hooks
-
-| Hook | Função |
-|------|--------|
-| `usePublicCategory` | Busca categoria + produtos |
-| `useCart` | Operações de carrinho |
+| `customButtonLink` | string | "" | Link do botão |
 
 ---
 
@@ -101,67 +124,37 @@ Página de listagem de produtos filtrados por categoria.
 |-------|-------|
 | Desktop | `category.banner_desktop_url` |
 | Mobile | `category.banner_mobile_url` |
-| Fallback | `category.image_url` |
+| Fallback | `category.image_url` (apenas no React; compilador não usa fallback) |
 
 ### Overlay
 
-| Prop | Default | Descrição |
-|------|---------|-----------|
-| `overlayOpacity` | `0` | Opacidade do overlay escuro (0-100). Default 0 = sem escurecimento |
+| Prop | Origem | Default | Descrição |
+|------|--------|---------|-----------|
+| `bannerOverlayOpacity` | Theme settings | `0` | Opacidade do overlay escuro (0-100). Default 0 = sem escurecimento |
 
-> **Nota (2025-01-25):** Default alterado de 40 para 0 para evitar escurecimento automático dos banners.
-
----
-
-## Ordenação
-
-| Opção | Descrição |
-|-------|-----------|
-| `relevance` | Ordem padrão (sort_order) |
-| `price_asc` | Menor preço |
-| `price_desc` | Maior preço |
-| `name_asc` | A-Z |
-| `name_desc` | Z-A |
-| `newest` | Mais recentes |
-| `bestseller` | Mais vendidos |
+> **Nota:** O compilador usa `overlayOpacity` da prop do bloco, enquanto o React usa `bannerOverlayOpacity` do theme settings. Essa é uma **divergência de paridade** conhecida.
 
 ---
 
-## Filtros Disponíveis
+## Ordem dos Botões no Card
 
-| Filtro | Tipo |
-|--------|------|
-| Subcategorias | Checkbox |
-| Faixa de preço | Range slider |
-| Atributos (cor, tamanho) | Checkbox/Swatch |
-| Disponibilidade | Toggle |
-| Avaliação mínima | Stars |
+A ordem dos botões nos cards de produto é fixa e obrigatória:
 
----
+1. **Adicionar ao carrinho** (se `showAddToCartButton = true`)
+2. **Botão personalizado** (se `customButtonEnabled = true`)
+3. **Comprar agora / CTA principal** (sempre visível)
 
-## Product Card
-
-| Elemento | Visibilidade | Cor |
-|----------|--------------|-----|
-| Imagem | Sempre | — |
-| Nome | Sempre | `--theme-text-primary` |
-| Preço | Sempre | `--theme-price-color` (fallback: `--theme-text-primary`) |
-| Preço original | Se houver desconto | `text-muted-foreground` (riscado) |
-| Estrelas | Se `showRatings=true` | — |
-| Badges | Se `showBadges=true` | — |
-| Botão carrinho | Se `showAddToCartButton=true` | — |
-
-> **OBRIGATÓRIO:** O preço principal (valor com desconto) DEVE usar `var(--theme-price-color, var(--theme-text-primary, currentColor))` com classe `sf-price-color`. NÃO usar `--theme-text-primary` diretamente nos preços.
+> Compilador e React devem respeitar essa mesma ordem.
 
 ---
 
-## Paginação
+## Grid Responsivo
 
-| Modo | Comportamento |
-|------|---------------|
-| `infinite` | Scroll infinito |
-| `loadMore` | Botão "Carregar mais" |
-| `pagination` | Paginação numérica |
+| Breakpoint | Colunas |
+|-----------|---------|
+| < 640px | 2 colunas |
+| 640px+ | 3 colunas |
+| 1024px+ | N colunas (prop `columns`, default 4) |
 
 ---
 
@@ -169,27 +162,32 @@ Página de listagem de produtos filtrados por categoria.
 
 | Meta | Fonte |
 |------|-------|
-| `<title>` | `category.seo_title` ou `category.name` |
+| `<title>` | `category.seo_title` ou `category.name \| storeName` |
 | `description` | `category.seo_description` ou `category.description` |
-| OG Image | `category.image_url` |
-| Schema | CollectionPage + ItemList (JSON-LD) |
+| OG Image | `category.banner_desktop_url` ou `category.image_url` |
+| Schema | CollectionPage + numberOfItems (JSON-LD) |
 
 ---
 
-## Responsividade
+## Dados no CompilerContext
 
-| Elemento | Desktop | Mobile |
-|----------|---------|--------|
-| Grid | 4 colunas | 2 colunas |
-| Filtros | Sidebar fixa | Drawer/Modal |
-| Banner | Full width | Aspect ajustado |
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `currentCategory` | object | `{ id, name, slug, description, banner_desktop_url, banner_mobile_url, image_url, seo_title, seo_description }` |
+| `categoryProducts` | array | Produtos com `product_images`, `avg_rating`, `review_count`, `free_shipping` |
+| `categorySettings` | object | Settings extraídos de `themeSettings.pageSettings.category` |
 
 ---
 
-## Pendências
+## Pendências / Divergências Conhecidas
 
-- [ ] Filtros dinâmicos por atributos
-- [ ] Quick view modal
-- [ ] Comparar produtos
-- [ ] Salvar filtros na URL
-- [ ] Skeleton loading avançado
+- [ ] **Filtros**: React tem sidebar com filtros dinâmicos (`CategoryFilters`) — compilador NÃO tem filtros
+- [ ] **Paginação/Load More**: React suporta — compilador renderiza até 48 produtos fixo
+- [ ] **Ordenação**: React tem seletor de ordenação — compilador não tem
+- [ ] **Quick Buy**: React suporta compra rápida — compilador não tem
+- [ ] **Mini Cart Drawer**: React integra com `MiniCartDrawer` — compilador usa drawer genérico do shell
+- [ ] **Product Badge System**: React usa `useProductBadgesForProducts` com badges dinâmicos — compilador só tem "FRETE GRÁTIS" e desconto %
+- [ ] **Banner overlay**: React usa `bannerOverlayOpacity` do theme settings; compilador usa `overlayOpacity` da prop
+- [ ] **Banner fallback**: React faz fallback para `image_url`; compilador só usa `banner_desktop_url`
+- [ ] **Hover effects**: React tem estados hover nos botões — compilador não tem
+- [ ] `category-page.ts` é dead code — pode ser removido
