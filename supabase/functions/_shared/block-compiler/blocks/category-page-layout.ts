@@ -44,7 +44,7 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
   const filterBarHtml = `
     <div data-sf-cat-controls style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:20px;padding:16px;background:#f9fafb;border-radius:10px;border:1px solid #eee;">
       <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:200px;flex-wrap:wrap;">
-        <span style="font-size:13px;font-weight:600;color:var(--theme-text-primary,#1a1a1a);white-space:nowrap;">Filtros:</span>
+        <span style="font-size:13px;font-weight:600;color:#1a1a1a;white-space:nowrap;">Filtros:</span>
         ${hasFreeShipping ? `
         <label style="display:flex;align-items:center;gap:4px;font-size:13px;color:var(--theme-text-secondary,#555);cursor:pointer;white-space:nowrap;padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;user-select:none;" data-sf-filter-label="free-shipping">
           <input type="checkbox" data-sf-filter="free-shipping" style="accent-color:var(--theme-button-primary-bg,#1a1a1a);cursor:pointer;">
