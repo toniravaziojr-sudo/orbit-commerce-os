@@ -500,6 +500,7 @@ function buildFullPage(opts: {
   queryMs: number;
   totalMs: number;
   extraHead?: string;
+  navItemsHtml?: string;
 }): string {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
