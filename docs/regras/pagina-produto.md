@@ -1,6 +1,8 @@
 # Página de Produto — Regras e Especificações
 
-> **Status:** FUNCIONAL ✅ — Core implementado
+> **Status:** FUNCIONAL ✅ — Core implementado  
+> **Última atualização:** 2026-03-07  
+> **Arquitetura:** v8.1.0 — block-compiler com `published_content.product` + `compileBlockTree()`
 
 ## Visão Geral
 
@@ -14,42 +16,59 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 
 ---
 
+## Arquitetura de Renderização (v8.1.0)
+
+### Fluxo Público (Edge Function `storefront-html`)
+
+```
+1. Resolve tenant pelo hostname
+2. Busca published_content do storefront
+3. Se published_content.product existe:
+   → compileBlockTree(published_content.product, context)
+4. Se NÃO existe:
+   → Fallback: árvore de blocos padrão (Section > ProductDetails)
+5. Dados injetados no CompilerContext:
+   - currentProduct (dados do produto)
+   - currentProductImages (imagens ordenadas)
+   - productSettings (settings do tema)
+   - storeSettings (WhatsApp, telefone, etc.)
+```
+
+### Compiladores de Bloco Usados
+
+| Bloco | Compilador | Arquivo |
+|-------|-----------|---------|
+| `ProductDetails` | `productDetailsToStaticHTML` | `_shared/block-compiler/blocks/product-details.ts` |
+
+### Arquivo Legado (DEAD CODE)
+
+> ⚠️ `_shared/block-compiler/blocks/product-page.ts` (`productPageToStaticHTML`) é código morto — não é importado por nenhum arquivo. Pode ser removido.
+
+---
+
 ## Estrutura Visual
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                              HEADER                                      │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  BREADCRUMB: Home > Categoria > Produto                                 │
-├─────────────────────────────────────────────────────────────────────────┤
 │  ┌────────────────────────────┐  ┌────────────────────────────────────┐ │
-│  │                            │  │  NOME DO PRODUTO                   │ │
-│  │      GALERIA DE IMAGENS    │  │  ★★★★☆ (123 avaliações)            │ │
-│  │                            │  │                                    │ │
-│  │   [Img principal]          │  │  R$ 199,90  ou 12x de R$ 16,66    │ │
-│  │                            │  │  ▼ Preço original: R$ 249,90       │ │
-│  │   [thumb] [thumb] [thumb]  │  │                                    │ │
-│  │                            │  │  [Seletor de Variantes]            │ │
+│  │                            │  │  BADGES (Frete Grátis, -X% OFF)   │ │
+│  │      GALERIA DE IMAGENS    │  │  NOME DO PRODUTO                   │ │
+│  │                            │  │  Marca                              │ │
+│  │   [Img principal]          │  │  R$ 199,90  ~~R$ 249,90~~ -20%    │ │
+│  │                            │  │  em até 12x de R$ 16,66            │ │
+│  │   [thumb] [thumb] [thumb]  │  │  Descrição curta                   │ │
+│  │                            │  │  Estoque (últimas N / em estoque)  │ │
 │  └────────────────────────────┘  │                                    │ │
-│                                  │  [Quantidade: - 1 +]               │ │
-│                                  │                                    │ │
 │                                  │  [🛒 ADICIONAR AO CARRINHO]        │ │
 │                                  │  [💬 COMPRAR PELO WHATSAPP]        │ │
 │                                  │                                    │ │
 │                                  │  📦 Calcular Frete: [CEP] [OK]     │ │
+│                                  │  [Imagens de destaque adicional]   │ │
 │                                  └────────────────────────────────────┘ │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  COMPRE JUNTO (Buy Together)                                            │
-│  [Produto A] + [Produto B] = R$ 299,90 (Economize R$ 50)               │
-├─────────────────────────────────────────────────────────────────────────┤
-│  DESCRIÇÃO                                                               │
-│  [Conteúdo HTML/Markdown do produto]                                    │
-├─────────────────────────────────────────────────────────────────────────┤
-│  AVALIAÇÕES                                                              │
-│  [Lista de reviews] [Formulário para avaliar]                           │
-├─────────────────────────────────────────────────────────────────────────┤
-│  PRODUTOS RELACIONADOS (Slider horizontal / Embla Carousel)             │
-│  [Carousel - usa ProductCard compartilhado c/ categorySettings do tema] │
+│  DESCRIÇÃO (HTML do produto)                                            │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                              FOOTER                                      │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -59,135 +78,167 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 
 ## Componentes
 
+### React (Builder / SPA)
+
 | Componente | Arquivo | Função |
 |------------|---------|--------|
 | `StorefrontProduct` | `src/pages/storefront/StorefrontProduct.tsx` | Página container |
 | `ProductDetailsBlock` | `src/components/builder/blocks/ProductDetailsBlock.tsx` | Layout principal |
-| `ProductPageSections` | `src/components/storefront/ProductPageSections.tsx` | Seções abaixo (Compre Junto, Descrição, Reviews, Relacionados) |
-| `RelatedProductsSection` | `src/components/storefront/sections/RelatedProductsSection.tsx` | Produtos relacionados (usa ProductCard compartilhado) |
+| `ProductPageSections` | `src/components/storefront/ProductPageSections.tsx` | Seções abaixo (Descrição, Reviews, Relacionados) |
+| `RelatedProductsSection` | `src/components/storefront/sections/RelatedProductsSection.tsx` | Produtos relacionados |
 | `ProductGallery` | `src/components/storefront/product/ProductGallery.tsx` | Galeria de imagens |
 | `ProductVariantSelector` | `src/components/storefront/product/ProductVariantSelector.tsx` | Seletor de variantes |
 | `ProductReviews` | `src/components/storefront/product/ProductReviews.tsx` | Seção de avaliações |
 | `BuyTogetherSection` | `src/components/storefront/product/BuyTogetherSection.tsx` | Compre junto |
 | `ShippingCalculator` | `src/components/storefront/ShippingCalculator.tsx` | Cálculo de frete |
 
----
+### Compiladores (Edge Function)
 
-## Settings (Builder)
-
-| Setting | Tipo | Default | Descrição |
-|---------|------|---------|-----------|
-| `showGallery` | boolean | true | Exibe galeria |
-| `showDescription` | boolean | true | Exibe descrição |
-| `showVariants` | boolean | true | Exibe variantes |
-| `showStock` | boolean | true | Exibe estoque |
-| `showReviews` | boolean | true | Exibe avaliações |
-| `showBuyTogether` | boolean | true | Exibe compre junto |
-| `showRelatedProducts` | boolean | true | Exibe relacionados (slider horizontal com Embla Carousel) |
-| `relatedProductsTitle` | string | "Produtos Relacionados" | Título customizável da seção |
-| `showWhatsAppButton` | boolean | true | Botão WhatsApp |
-| `showAddToCartButton` | boolean | true | Botão carrinho |
-| `showBadges` | boolean | true | Selos do produto |
-| `showShippingCalculator` | boolean | true | Calculadora frete |
-| `buyNowButtonText` | string | "Comprar agora" | Texto do CTA |
+| Compilador | Arquivo | Mirror de |
+|-----------|---------|-----------|
+| `productDetailsToStaticHTML` | `_shared/block-compiler/blocks/product-details.ts` | `ProductDetailsBlock.tsx` |
 
 ---
 
-## Hooks
+## Settings (Builder — productSettings)
 
-| Hook | Função |
-|------|--------|
-| `usePublicProduct` | Busca produto por slug |
-| `useProductReviews` | Avaliações do produto |
-| `useBuyTogetherRules` | Regras de compre junto |
-| `useCart` | Operações de carrinho |
+| Setting | Tipo | Default | Descrição | No Compilador? |
+|---------|------|---------|-----------|----------------|
+| `showGallery` | boolean | true | Exibe galeria | ✅ |
+| `showDescription` | boolean | true | Exibe descrição | ✅ |
+| `showVariants` | boolean | true | Exibe variantes | ⚠️ Respeitado mas sem renderização de variantes |
+| `showStock` | boolean | true | Exibe estoque | ✅ |
+| `showReviews` | boolean | true | Exibe avaliações | ⚠️ Respeitado mas sem renderização de reviews |
+| `showBuyTogether` | boolean | true | Exibe compre junto | ⚠️ Respeitado mas sem renderização |
+| `showRelatedProducts` | boolean | true | Exibe relacionados | ⚠️ Respeitado mas sem renderização |
+| `relatedProductsTitle` | string | "Produtos Relacionados" | Título customizável | ⚠️ Lido mas não usado |
+| `showWhatsAppButton` | boolean | true | Botão WhatsApp | ✅ |
+| `showAddToCartButton` | boolean | true | Botão carrinho | ✅ |
+| `showBadges` | boolean | true | Selos do produto | ✅ |
+| `showShippingCalculator` | boolean | true | Calculadora frete | ✅ (placeholder HTML) |
+| `buyNowButtonText` | string | "Comprar agora" | Texto do CTA | ⚠️ Não usado (compilador não tem botão buy now separado) |
+| `showAdditionalHighlight` | boolean | false | Imagens de destaque | ✅ |
+| `additionalHighlightImagesDesktop` | array | [] | Imagens desktop | ✅ |
+| `additionalHighlightImagesMobile` | array | [] | Imagens mobile | ✅ |
 
 ---
 
 ## Galeria de Imagens
 
-| Comportamento | Desktop | Mobile |
-|---------------|---------|--------|
-| Layout | Imagem grande + thumbnails | Carousel swipe |
-| Zoom | Hover zoom | Pinch zoom |
-| Lightbox | Click abre fullscreen | Tap abre fullscreen |
+| Comportamento | React | Compilador |
+|---------------|-------|-----------|
+| Layout desktop | Imagem grande + thumbnails | Imagem grande + thumbnails ✅ |
+| Layout mobile | Carousel swipe | Imagem estática (sem swipe) ❌ |
+| Zoom | Hover/Pinch zoom | Não suportado ❌ |
+| Lightbox | Click abre fullscreen | Não suportado ❌ |
 
 ---
 
 ## Variantes
 
-| Tipo | Exibição |
-|------|----------|
-| `color` | Swatches coloridos |
-| `size` | Botões de tamanho |
-| `custom` | Dropdown ou botões |
+| Aspecto | React | Compilador |
+|---------|-------|-----------|
+| Swatches de cor | ✅ | ❌ Não renderizado |
+| Botões de tamanho | ✅ | ❌ Não renderizado |
+| Dropdown custom | ✅ | ❌ Não renderizado |
+| Atualização de preço | ✅ | ❌ N/A (estático) |
+
+> **Nota:** Variantes são interativas por natureza. O compilador gera HTML estático, então variantes só funcionam após hydration no SPA. Isso é esperado.
 
 ---
 
 ## Compre Junto (Buy Together)
 
-| Regra | Descrição |
-|-------|-----------|
-| **Fonte** | Tabela `buy_together_rules` |
-| **Filtro** | `trigger_product_id = produto atual` |
-| **Desconto** | `percent` ou `fixed` |
-| **Exibição** | Produto A + Produto B = Total com desconto |
+| Aspecto | React | Compilador |
+|---------|-------|-----------|
+| Renderização | ✅ `BuyTogetherSection` | ❌ Não renderizado |
 
 ---
 
 ## Avaliações
 
-| Campo | Descrição |
-|-------|-----------|
-| `rating` | 1-5 estrelas |
-| `title` | Título da avaliação |
-| `content` | Texto da avaliação |
-| `author_name` | Nome do autor |
-| `is_verified` | Compra verificada |
-| `is_approved` | Aprovado para exibição |
+| Aspecto | React | Compilador |
+|---------|-------|-----------|
+| Lista de reviews | ✅ `ProductReviews` | ❌ Não renderizado |
+| Rating médio | ✅ Estrelas | ❌ Não renderizado |
+| Formulário | ✅ | ❌ N/A |
+
+---
+
+## Produtos Relacionados
+
+| Aspecto | React | Compilador |
+|---------|-------|-----------|
+| Carousel | ✅ Embla Carousel | ❌ Não renderizado |
+| Herda categorySettings | ✅ | ❌ N/A |
 
 ---
 
 ## SEO
 
-| Meta | Fonte |
-|------|-------|
-| `<title>` | `product.seo_title` ou `product.name` |
-| `description` | `product.seo_description` ou `product.short_description` |
-| OG Image | Primeira imagem do produto |
-| Schema | Product (JSON-LD) |
+| Meta | Fonte | Compilador |
+|------|-------|-----------|
+| `<title>` | `product.seo_title` ou `product.name \| storeName` | ✅ |
+| `description` | `product.seo_description` ou `product.short_description` | ✅ |
+| OG Image | Primeira imagem do produto | ✅ |
+| Schema | Product JSON-LD (name, image, sku, brand, offers) | ✅ |
+| Preload LCP | `<link rel="preload">` da imagem principal | ✅ |
 
 ---
 
-## Produtos Relacionados — Herança de Configurações
+## Cálculo de Frete
 
-A seção de produtos relacionados (`RelatedProductsSection`) utiliza o componente compartilhado `ProductCard` e **herda obrigatoriamente** as configurações de `categorySettings` do tema (Configurações do tema > Páginas > Categorias).
-
-| Configuração herdada | Efeito nos Relacionados |
-|----------------------|------------------------|
-| `showRatings` | Exibe/oculta estrelas nos cards |
-| `showBadges` | Exibe/oculta selos (Mais Vendido, Frete Grátis, etc.) |
-| `showAddToCartButton` | Exibe/oculta botão "Adicionar ao carrinho" |
-| `quickBuyEnabled` | Exibe/oculta botão "Comprar agora" |
-| `customButtonEnabled` | Exibe/oculta botão personalizado (WhatsApp, etc.) |
-| `customButtonText/Color/Link` | Texto, cor e link do botão personalizado |
-
-### Fluxo de dados
-
-```
-StorefrontProduct.tsx → templateSettings.categorySettings
-  → BlockRenderer (context.categorySettings)
-    → ProductPageSections (prop categorySettings)
-      → RelatedProductsSection (prop categorySettings)
-        → ProductCard (prop settings)
-```
+| Aspecto | React | Compilador |
+|---------|-------|-----------|
+| Input de CEP | ✅ | ✅ (placeholder HTML com `data-sf-shipping-cep`) |
+| Chamada API | ✅ Via hook | ⚠️ Precisa de JS client-side para funcionar |
+| Resultados | ✅ Lista de opções | ⚠️ `data-sf-shipping-results` placeholder |
 
 ---
 
-## Pendências
+## WhatsApp
 
-- [ ] Zoom avançado na galeria
-- [ ] Vídeo na galeria
-- [ ] Questions & Answers
-- [ ] Notificar quando disponível
-- [ ] Comparador de produtos
+| Aspecto | React | Compilador |
+|---------|-------|-----------|
+| Botão | ✅ | ✅ |
+| Número | `storeSettings.social_whatsapp` ou `contact_phone` | ✅ |
+| Mensagem | Template com nome do produto | ✅ |
+
+---
+
+## Dados no CompilerContext
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `currentProduct` | object | Todos os campos do produto (name, price, sku, brand, stock, etc.) |
+| `currentProductImages` | array | Imagens ordenadas por `sort_order` com `is_primary` |
+| `productSettings` | object | Settings extraídos de `themeSettings.pageSettings.product` |
+| `storeSettings` | object | `social_whatsapp`, `contact_phone`, etc. |
+
+---
+
+## Pendências / Divergências Conhecidas
+
+### Funcionalidades Ausentes no Compilador
+
+- [ ] **Variantes**: Sem renderização de seletores (cor, tamanho, custom) — esperado para HTML estático
+- [ ] **Avaliações**: Seção de reviews não renderizada
+- [ ] **Compre Junto**: Seção não renderizada
+- [ ] **Produtos Relacionados**: Carousel não renderizado
+- [ ] **Breadcrumb**: React tem — compilador não tem
+- [ ] **Galeria mobile**: Sem swipe/carousel — apenas imagem estática
+- [ ] **Zoom**: Sem hover/pinch zoom
+- [ ] **Lightbox**: Sem fullscreen
+- [ ] **Botão "Comprar agora"**: Compilador não tem CTA separado de buy now (apenas "Adicionar ao carrinho")
+- [ ] **Quantidade**: React tem seletor de quantidade — compilador não tem
+- [ ] **Frete**: Placeholder HTML sem JS funcional integrado
+
+### Divergências de Estilo
+
+- [ ] **Preço no product-page.ts legado**: Usa `--theme-text-primary` em vez de `--theme-price-color` — mas esse arquivo é dead code
+- [ ] **Banner fallback no compilador**: Não usa `image_url` como fallback (React usa)
+
+### Dead Code
+
+- [ ] `_shared/block-compiler/blocks/product-page.ts` — remover
+- [ ] `_shared/block-compiler/blocks/category-page.ts` — remover
