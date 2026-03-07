@@ -662,7 +662,7 @@ function buildFullPage(opts: {
               }else{
                 gb.style.borderColor="#ddd";
                 gb.style.background="#fff";
-                gb.style.color="var(--theme-text-primary,#1a1a1a)";
+                gb.style.color="#1a1a1a";
               }
             });
             // Update selected label
