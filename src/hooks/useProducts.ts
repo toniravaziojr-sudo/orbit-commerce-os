@@ -168,9 +168,10 @@ export function useProducts() {
       
       return result.data;
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['products', currentTenant?.id] });
       toast.success('Produto criado com sucesso!');
+      if (currentTenant?.id) cachePurge.product(currentTenant.id, data?.slug);
     },
     onError: (error: Error) => {
       console.error('Error creating product:', error);
