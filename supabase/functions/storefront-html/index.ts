@@ -806,7 +806,7 @@ serve(async (req) => {
       }
 
     } else if (route.type === 'category' && route.slug) {
-      // CATEGORY — using block-compiler
+      // CATEGORY — using block-compiler with published_content.category tree
       const categoryResult = allResults[7];
       const category = categoryResult?.status === 'fulfilled' ? (categoryResult as any).value.data : null;
 
@@ -842,12 +842,32 @@ serve(async (req) => {
           }),
         }));
 
-      bodyHtml = categoryPageToStaticHTML({
-        category,
-        products: flatProducts,
-        hostname,
-        categorySettings,
-      });
+      // Inject route-specific data into compiler context
+      compilerContext.currentCategory = category;
+      compilerContext.categoryProducts = flatProducts;
+
+      // Use published_content.category block tree if available
+      const categoryContent = publishedContent?.category as BlockNode | null;
+      if (categoryContent) {
+        bodyHtml = compileBlockTree(categoryContent, compilerContext);
+        console.log(`[storefront-html][${VERSION}] Category compiled via compileBlockTree(published_content.category)`);
+      } else {
+        // Fallback: default category template structure
+        const defaultCategoryTree: BlockNode = {
+          id: 'root', type: 'Page', props: {},
+          children: [
+            { id: 'h', type: 'Header', props: {} },
+            { id: 'cb', type: 'CategoryBanner', props: { showTitle: true, titlePosition: 'center', overlayOpacity: 0, height: 'md' } },
+            { id: 's', type: 'Section', props: { paddingY: 0 }, children: [
+              { id: 'cpl', type: 'CategoryPageLayout', props: { showFilters: true, columns: 4, limit: 24 } },
+            ]},
+            { id: 'f', type: 'Footer', props: {} },
+          ],
+        };
+        bodyHtml = compileBlockTree(defaultCategoryTree, compilerContext);
+        console.log(`[storefront-html][${VERSION}] Category compiled via default block tree (no published_content.category)`);
+      }
+
       pageTitle = category.seo_title || `${category.name} | ${storeName}`;
       pageDescription = category.seo_description || category.description || '';
       canonicalPath = `/categoria/${category.slug}`;
