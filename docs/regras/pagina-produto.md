@@ -128,9 +128,10 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 | Comportamento | React | Compilador |
 |---------------|-------|-----------|
 | Layout desktop | Imagem grande + thumbnails | Imagem grande + thumbnails ✅ |
-| Layout mobile | Carousel swipe | Imagem estática (sem swipe) ❌ |
-| Zoom | Hover/Pinch zoom | Não suportado ❌ |
-| Lightbox | Click abre fullscreen | Não suportado ❌ |
+| Thumbnail click | ✅ Troca imagem principal | ✅ Via hydration JS |
+| Layout mobile | Carousel swipe | ✅ Swipe carousel com dots |
+| Zoom | Hover/Pinch zoom | ❌ Não suportado |
+| Lightbox | Click abre fullscreen | ❌ Não suportado |
 
 ---
 
@@ -138,12 +139,13 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 
 | Aspecto | React | Compilador |
 |---------|-------|-----------|
-| Swatches de cor | ✅ | ❌ Não renderizado |
-| Botões de tamanho | ✅ | ❌ Não renderizado |
-| Dropdown custom | ✅ | ❌ Não renderizado |
-| Atualização de preço | ✅ | ❌ N/A (estático) |
+| Swatches de cor | ✅ | ✅ Botões com seleção via hydration JS |
+| Botões de tamanho | ✅ | ✅ Botões com seleção via hydration JS |
+| Atualização de preço | ✅ | ✅ Via hydration JS (atualiza preço, estoque, imagem) |
+| CTA bloqueado até seleção | ✅ | ✅ Botões desabilitados até variante selecionada |
+| Variant ID no carrinho | ✅ | ✅ `data-variant-id` passado ao addToCart |
 
-> **Nota:** Variantes são interativas por natureza. O compilador gera HTML estático, então variantes só funcionam após hydration no SPA. Isso é esperado.
+> **Nota:** Variantes são renderizadas como HTML estático (botões) e hidratadas via vanilla JS para interatividade completa.
 
 ---
 
