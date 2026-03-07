@@ -385,7 +385,7 @@ function renderProductPage(product: any, images: any[], storeSettings: any, host
             <p style="font-size:13px;color:#666;">em até 12x de ${formatPriceFromDecimal(product.price / 12)} sem juros</p>
             ${product.short_description ? `<p style="font-size:15px;color:var(--theme-text-secondary,#555);line-height:1.6;">${escapeHtml(product.short_description)}</p>` : ''}
             ${product.stock_quantity > 0 
-              ? `<button style="margin-top:8px;padding:14px 32px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;width:100%;max-width:400px;">Adicionar ao carrinho</button>` 
+              ? `<button data-sf-action="add-to-cart" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${escapeHtml(optimizeImageUrl(mainImage?.url, 120, 75))}" style="margin-top:8px;padding:14px 32px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;width:100%;max-width:400px;">Adicionar ao carrinho</button>` 
               : `<p style="margin-top:8px;padding:14px;background:#fef2f2;color:#dc2626;border-radius:8px;text-align:center;font-weight:500;">Produto indisponível</p>`
             }
             ${product.free_shipping ? `<p style="font-size:13px;color:#16a34a;font-weight:500;margin-top:4px;">🚚 Frete grátis</p>` : ''}
