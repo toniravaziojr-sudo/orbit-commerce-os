@@ -51,7 +51,7 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
           🚚 Frete grátis
         </label>` : ''}
         ${hasDiscounts ? `
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;color:var(--theme-text-secondary,#555);cursor:pointer;white-space:nowrap;padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;user-select:none;" data-sf-filter-label="on-sale">
+        <label style="display:flex;align-items:center;gap:4px;font-size:13px;color:#555;cursor:pointer;white-space:nowrap;padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;user-select:none;" data-sf-filter-label="on-sale">
           <input type="checkbox" data-sf-filter="on-sale" style="accent-color:var(--theme-button-primary-bg,#1a1a1a);cursor:pointer;">
           🏷️ Em promoção
         </label>` : ''}
