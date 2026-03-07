@@ -8,6 +8,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveTenantFromHostname } from '../_shared/resolveTenant.ts';
+import { compileBlockTree, extractProductIds, extractCategoryIds } from '../_shared/block-compiler/index.ts';
+import type { CompilerContext, BlockNode } from '../_shared/block-compiler/types.ts';
 
 // ===== VERSION =====
 const VERSION = "v7.1.0"; // Pre-render lookup: serve from storefront_prerendered_pages if available
