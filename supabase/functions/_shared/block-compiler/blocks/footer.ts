@@ -93,7 +93,7 @@ export function footerToStaticHTML(context: CompilerContext): string {
           </div>
           <form style="display:flex;gap:0;min-width:300px;max-width:500px;flex:1;" onsubmit="event.preventDefault();">
             <input type="email" placeholder="Seu e-mail" style="flex:1;padding:10px 16px;border:1px solid rgba(255,255,255,0.2);border-right:none;border-radius:4px 0 0 4px;background:rgba(255,255,255,0.1);color:#fff;font-size:14px;outline:none;">
-            <button type="submit" style="padding:10px 20px;background:var(--theme-button-primary-bg,#e53e3e);color:#fff;border:none;border-radius:0 4px 4px 0;font-weight:600;cursor:pointer;">
+            <button type="submit" class="sf-btn-primary" style="padding:10px 20px;border:none;border-radius:0 4px 4px 0;font-weight:600;cursor:pointer;">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
           </form>
