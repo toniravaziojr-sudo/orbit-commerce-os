@@ -1598,7 +1598,7 @@ serve(async (req) => {
 
     } else if (route.type === 'category' && route.slug) {
       // CATEGORY
-      const categoryResult = allResults[5];
+      const categoryResult = allResults[6];
       const category = categoryResult?.status === 'fulfilled' ? (categoryResult as any).value.data : null;
 
       if (!category) {
