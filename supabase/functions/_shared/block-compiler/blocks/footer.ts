@@ -229,7 +229,7 @@ export function footerToStaticHTML(context: CompilerContext): string {
     <footer style="background:${escapeHtml(footerBgColor)};color:${escapeHtml(footerTextColor)};margin-top:48px;">
       ${newsletterHtml}
       <div style="max-width:1280px;margin:0 auto;padding:40px 16px;">
-        <div style="display:grid;grid-template-columns:repeat(${gridCols},1fr);gap:32px;">
+        <div class="sf-footer-grid" style="display:grid;grid-template-columns:repeat(${gridCols},1fr);gap:32px;">
           ${col1Html}${col2Html}${col3Html}${col4Html}
         </div>
         ${imageSectionsHtml}
