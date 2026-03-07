@@ -445,6 +445,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
           <p style="font-size:13px;color:#666;">em até 12x de ${installmentValue} sem juros</p>
           ${product.short_description ? `<p style="font-size:15px;color:var(--theme-text-secondary,#555);line-height:1.6;">${escapeHtml(product.short_description)}</p>` : ''}
           ${stockHtml}
+          ${variantSelectorHtml}
           ${quantityHtml}
           ${ctaHtml}
           ${shippingHtml}

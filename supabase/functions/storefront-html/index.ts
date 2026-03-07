@@ -1035,6 +1035,7 @@ serve(async (req) => {
       compilerContext.currentProductReviews = reviews;
       compilerContext.currentRelatedProducts = relatedProducts;
       compilerContext.currentBuyTogether = buyTogetherCtx;
+      compilerContext.currentProductVariants = variantsResult.data || [];
       if (productCategory) {
         compilerContext.currentProductCategory = { name: productCategory.name, slug: productCategory.slug };
       }

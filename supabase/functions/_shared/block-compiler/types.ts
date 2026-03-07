@@ -133,6 +133,23 @@ export interface CompilerContext {
     image_url?: string;
   }>;
 
+  /** Variants for the current product */
+  currentProductVariants?: Array<{
+    id: string;
+    sku?: string;
+    price: number;
+    compare_at_price?: number;
+    stock_quantity: number;
+    image_url?: string;
+    is_active: boolean;
+    option1_name?: string;
+    option1_value?: string;
+    option2_name?: string;
+    option2_value?: string;
+    option3_name?: string;
+    option3_value?: string;
+  }>;
+
   /** Buy together rule for the current product */
   currentBuyTogether?: {
     id: string;
