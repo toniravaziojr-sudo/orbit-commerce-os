@@ -365,7 +365,7 @@ serve(async (req) => {
       // Q1: Tenant info
       supabase.from('tenants').select('id, name, slug, logo_url').eq('id', tenantId).maybeSingle(),
       // Q2: Store settings
-      supabase.from('store_settings').select('store_name, logo_url, store_description, social_instagram, social_facebook, social_whatsapp, contact_phone, contact_email, is_published, favicon_url, seo_title, seo_description, seo_image_url').eq('tenant_id', tenantId).maybeSingle(),
+      supabase.from('store_settings').select('store_name, logo_url, store_description, social_instagram, social_facebook, social_whatsapp, contact_phone, contact_email, is_published, favicon_url, seo_title, seo_description').eq('tenant_id', tenantId).maybeSingle(),
       // Q3: Header menu + items
       supabase.from('menus').select('*, menu_items(*)').eq('tenant_id', tenantId).eq('location', 'header').maybeSingle(),
       // Q4: Active categories (for menu fallback)
