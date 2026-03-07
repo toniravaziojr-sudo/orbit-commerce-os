@@ -9,7 +9,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveTenantFromHostname } from '../_shared/resolveTenant.ts';
 
 // ===== VERSION =====
-const VERSION = "v4.0.0"; // Phase 6: Institutional pages + Blog + Full cache purge integration
+const VERSION = "v5.0.0"; // Phase 7: Font preload + LCP optimization + dns-prefetch
 // ====================
 
 // ============================================
@@ -91,9 +91,16 @@ function generateThemeCss(themeSettings: any): string {
 }
 
 // ============================================
-// GOOGLE FONTS LINK GENERATOR
+// GOOGLE FONTS LINK GENERATOR + PRELOAD
 // ============================================
-function getGoogleFontsLink(themeSettings: any): string {
+interface FontResult {
+  /** <link rel="preconnect"> + <link rel="stylesheet"> tags */
+  stylesheetTags: string;
+  /** <link rel="preload" as="style"> for critical font CSS */
+  preloadTags: string;
+}
+
+function getGoogleFontsData(themeSettings: any): FontResult {
   const fonts = new Set<string>();
   const headingFont = themeSettings?.typography?.headingFont || 'inter';
   const bodyFont = themeSettings?.typography?.bodyFont || 'inter';
@@ -110,9 +117,26 @@ function getGoogleFontsLink(themeSettings: any): string {
   if (fontNameMap[headingFont]) fonts.add(fontNameMap[headingFont]);
   if (fontNameMap[bodyFont]) fonts.add(fontNameMap[bodyFont]);
   
-  if (fonts.size === 0) return '';
+  if (fonts.size === 0) return { stylesheetTags: '', preloadTags: '' };
+  
   const families = Array.from(fonts).map(f => `family=${f}:wght@400;500;600;700`).join('&');
-  return `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?${families}&display=swap" rel="stylesheet">`;
+  const cssUrl = `https://fonts.googleapis.com/css2?${families}&display=swap`;
+  
+  // Preload the CSS file itself for faster font discovery
+  const preloadTags = `<link rel="preload" href="${cssUrl}" as="style">`;
+  
+  const stylesheetTags = [
+    '<link rel="preconnect" href="https://fonts.googleapis.com">',
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>',
+    `<link href="${cssUrl}" rel="stylesheet">`,
+  ].join('\n  ');
+  
+  return { stylesheetTags, preloadTags };
+}
+
+// Backward compat wrapper
+function getGoogleFontsLink(themeSettings: any): string {
+  return getGoogleFontsData(themeSettings).stylesheetTags;
 }
 
 // ============================================
@@ -579,6 +603,8 @@ function buildFullPage(opts: {
   faviconUrl: string;
   ogImage: string;
   googleFontsLink: string;
+  fontPreloadTags?: string;
+  lcpPreloadTag?: string;
   themeCss: string;
   headerHtml: string;
   bodyHtml: string;
@@ -602,6 +628,11 @@ function buildFullPage(opts: {
   <link rel="canonical" href="${escapeHtml(opts.canonicalUrl)}">
   ${opts.faviconUrl ? `<link rel="icon" href="${escapeHtml(optimizeImageUrl(opts.faviconUrl, 32, 90))}" type="image/x-icon">` : ''}
   
+  <!-- DNS Prefetch for external domains -->
+  <link rel="dns-prefetch" href="https://wsrv.nl">
+  <link rel="dns-prefetch" href="https://fonts.googleapis.com">
+  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+  
   <!-- Open Graph -->
   <meta property="og:title" content="${escapeHtml(opts.title)}">
   <meta property="og:description" content="${escapeHtml(opts.description)}">
@@ -609,7 +640,13 @@ function buildFullPage(opts: {
   <meta property="og:url" content="${escapeHtml(opts.canonicalUrl)}">
   ${opts.ogImage ? `<meta property="og:image" content="${escapeHtml(opts.ogImage)}">` : ''}
   
+  <!-- Font preloading (before stylesheet to start fetch early) -->
+  ${opts.fontPreloadTags || ''}
   ${opts.googleFontsLink}
+  
+  <!-- LCP image preload (responsive) -->
+  ${opts.lcpPreloadTag || ''}
+  
   <style>${opts.themeCss}</style>
   ${opts.extraHead || ''}
 </head>
@@ -957,7 +994,9 @@ serve(async (req) => {
     const publishedContent = templateSet?.published_content as Record<string, any> | null;
     const themeSettings = publishedContent?.themeSettings || null;
     const themeCss = generateThemeCss(themeSettings);
-    const googleFontsLink = getGoogleFontsLink(themeSettings);
+    const fontsData = getGoogleFontsData(themeSettings);
+    const googleFontsLink = fontsData.stylesheetTags;
+    const fontPreloadTags = fontsData.preloadTags;
     const menuItems = headerMenuRaw?.menu_items 
       ? [...headerMenuRaw.menu_items].sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
       : [];
@@ -971,12 +1010,32 @@ serve(async (req) => {
     let canonicalPath = '/';
     let ogImage = storeSettings?.logo_url || tenant?.logo_url || '';
     let extraHead = '';
+    let lcpPreloadTag = '';
 
     if (route.type === 'home') {
       // HOME — banner from template
       const homeContent = publishedContent?.home || null;
       const banner = findFirstBanner(homeContent);
       bodyHtml = banner ? renderBanner(banner) : '';
+      
+      // LCP preload: responsive banner image
+      if (banner) {
+        const desktopImg = banner.mode === 'carousel' && banner.slides?.[0]
+          ? (banner.slides[0].imageDesktop || banner.imageDesktop)
+          : banner.imageDesktop;
+        const mobileImg = banner.mode === 'carousel' && banner.slides?.[0]
+          ? (banner.slides[0].imageMobile || banner.slides[0].imageDesktop || banner.imageMobile || desktopImg)
+          : (banner.imageMobile || desktopImg);
+        
+        const optDesktop = optimizeImageUrl(desktopImg, 1920, 85);
+        const optMobile = optimizeImageUrl(mobileImg, 768, 80);
+        
+        if (optDesktop && optMobile && optDesktop !== optMobile) {
+          lcpPreloadTag = `<link rel="preload" as="image" imagesrcset="${escapeHtml(optMobile)} 768w, ${escapeHtml(optDesktop)} 1920w" imagesizes="100vw" fetchpriority="high">`;
+        } else if (optDesktop) {
+          lcpPreloadTag = `<link rel="preload" as="image" href="${escapeHtml(optDesktop)}" fetchpriority="high">`;
+        }
+      }
 
     } else if (route.type === 'product' && route.slug) {
       // PRODUCT
@@ -1002,6 +1061,13 @@ serve(async (req) => {
       pageDescription = product.seo_description || product.short_description || '';
       canonicalPath = `/produto/${product.slug}`;
       ogImage = images?.[0]?.url || ogImage;
+      
+      // LCP preload: product main image
+      const mainImg = images?.find((i: any) => i.is_primary) || images?.[0];
+      if (mainImg?.url) {
+        const optMain = optimizeImageUrl(mainImg.url, 800, 85);
+        lcpPreloadTag = `<link rel="preload" as="image" href="${escapeHtml(optMain)}" fetchpriority="high">`;
+      }
 
     } else if (route.type === 'category' && route.slug) {
       // CATEGORY
@@ -1091,6 +1157,11 @@ serve(async (req) => {
       pageDescription = post.seo_description || post.excerpt || '';
       canonicalPath = `/blog/${post.slug}`;
       ogImage = post.cover_image_url || ogImage;
+      
+      // LCP preload: blog cover image
+      if (post.cover_image_url) {
+        lcpPreloadTag = `<link rel="preload" as="image" href="${escapeHtml(optimizeImageUrl(post.cover_image_url, 1200, 85))}" fetchpriority="high">`;
+      }
 
       // Increment view count (fire-and-forget)
       supabase.rpc('increment_blog_view_count', { post_id: post.id }).then(() => {}).catch(() => {});
@@ -1117,6 +1188,8 @@ serve(async (req) => {
       faviconUrl,
       ogImage,
       googleFontsLink,
+      fontPreloadTags,
+      lcpPreloadTag,
       themeCss,
       headerHtml,
       bodyHtml,
