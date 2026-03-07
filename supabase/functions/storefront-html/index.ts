@@ -1479,7 +1479,7 @@ serve(async (req) => {
       if (neededProductIds.length > 0) {
         homeDataQueries.push(
           supabase.from('products')
-            .select('id, name, slug, price, compare_at_price, status')
+            .select('id, name, slug, price, compare_at_price, status, free_shipping')
             .eq('tenant_id', tenantId)
             .in('id', neededProductIds)
             .is('deleted_at', null)
