@@ -240,44 +240,209 @@ function renderHeader(
   tenant: any, 
   menuItems: any[],
   categories: any[],
-  tenantSlug: string
+  tenantSlug: string,
+  headerConfig?: any
 ): string {
   const storeName = storeSettings?.store_name || tenant?.name || 'Loja';
   const logoUrl = storeSettings?.logo_url || tenant?.logo_url;
   const optimizedLogo = logoUrl ? optimizeImageUrl(logoUrl, 200, 90) : '';
   
-  const navItems = menuItems
-    .filter((item: any) => !item.parent_id)
-    .slice(0, 8)
-    .map((item: any) => {
-      const url = item.url || '#';
-      return `<a href="${escapeHtml(url)}" style="color:var(--theme-text-primary,#1a1a1a);font-size:14px;font-weight:500;white-space:nowrap;">${escapeHtml(item.label)}</a>`;
-    })
-    .join('');
+  // Extract header config props
+  const props = headerConfig?.props || {};
+  const headerBgColor = String(props.headerBgColor || '');
+  const headerTextColor = String(props.headerTextColor || '#1a1a1a');
+  const headerIconColor = String(props.headerIconColor || headerTextColor);
+  const showSearch = props.showSearch ?? true;
+  const showCart = props.showCart ?? true;
+  const sticky = props.sticky ?? true;
+  const logoSize = String(props.logoSize || 'medium');
+  
+  // Notice bar props
+  const noticeEnabled = Boolean(props.noticeEnabled);
+  const noticeTexts: string[] = Array.isArray(props.noticeTexts) && props.noticeTexts.length > 0
+    ? props.noticeTexts.filter((t: any) => typeof t === 'string' && t.trim())
+    : props.noticeText ? [String(props.noticeText)] : [];
+  const noticeBgColor = props.noticeBgColor && String(props.noticeBgColor).trim() 
+    ? String(props.noticeBgColor) 
+    : 'var(--theme-button-primary-bg, #1a1a1a)';
+  const noticeTextColor = props.noticeTextColor && String(props.noticeTextColor).trim()
+    ? String(props.noticeTextColor) 
+    : '#ffffff';
+  const noticeAnimation = String(props.noticeAnimation || 'fade');
+  
+  // Featured promos
+  const featuredPromosEnabled = Boolean(props.featuredPromosEnabled);
+  const featuredPromosLabel = String(props.featuredPromosLabel || 'Promoções');
+  const featuredPromosBgColor = String(props.featuredPromosBgColor || '');
+  const featuredPromosTextColor = String(props.featuredPromosTextColor || '#ffffff');
+  const featuredPromosDestination = String(props.featuredPromosTarget || props.featuredPromosDestination || '');
+  const featuredPromosThumbnail = String(props.featuredPromosThumbnail || '');
+  
+  // Customer area
+  const customerAreaEnabled = Boolean(props.customerAreaEnabled);
+  
+  // Build featured promos URL
+  let featuredPromosUrl = '#';
+  if (featuredPromosDestination.startsWith('category:')) {
+    const catSlug = featuredPromosDestination.replace('category:', '');
+    featuredPromosUrl = `/categoria/${catSlug}`;
+  } else if (featuredPromosDestination.startsWith('page:')) {
+    const pageSlug = featuredPromosDestination.replace('page:', '');
+    featuredPromosUrl = `/p/${pageSlug}`;
+  }
+  
+  // Logo height based on size
+  const logoHeight = logoSize === 'small' ? '32px' : logoSize === 'large' ? '56px' : '40px';
+  
+  // Contact info
+  const whatsAppNumber = storeSettings?.social_whatsapp || '';
+  const contactPhone = storeSettings?.contact_phone || '';
+  const contactEmail = storeSettings?.contact_email || '';
+  const hasContactInfo = whatsAppNumber || contactPhone || contactEmail;
+  
+  // Build nav items
+  const rootMenuItems = menuItems.filter((item: any) => !item.parent_id).slice(0, 8);
+  const childrenMap = new Map<string, any[]>();
+  menuItems.filter((item: any) => item.parent_id).forEach((item: any) => {
+    const arr = childrenMap.get(item.parent_id) || [];
+    arr.push(item);
+    childrenMap.set(item.parent_id, arr);
+  });
+  
+  const navItems = rootMenuItems.map((item: any) => {
+    const url = item.url || '#';
+    const children = childrenMap.get(item.id) || [];
+    const hasChildren = children.length > 0;
+    
+    if (hasChildren) {
+      const childLinks = children
+        .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        .map((child: any) => `<a href="${escapeHtml(child.url || '#')}" style="display:block;padding:8px 16px;color:#1a1a1a;font-size:13px;white-space:nowrap;border-radius:4px;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='transparent'">${escapeHtml(child.label)}</a>`)
+        .join('');
+      return `<div class="sf-dropdown" style="position:relative;">
+        <a href="${escapeHtml(url)}" style="color:${escapeHtml(headerTextColor)};font-size:14px;font-weight:500;white-space:nowrap;display:flex;align-items:center;gap:4px;">
+          ${escapeHtml(item.label)}
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </a>
+        <div class="sf-dropdown-menu" style="display:none;position:absolute;top:100%;left:0;background:#fff;border:1px solid #eee;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:8px;min-width:200px;z-index:60;">
+          ${childLinks}
+        </div>
+      </div>`;
+    }
+    
+    return `<a href="${escapeHtml(url)}" style="color:${escapeHtml(headerTextColor)};font-size:14px;font-weight:500;white-space:nowrap;">${escapeHtml(item.label)}</a>`;
+  }).join('');
 
   const logoHtml = optimizedLogo
-    ? `<img src="${escapeHtml(optimizedLogo)}" alt="${escapeHtml(storeName)}" style="max-height:48px;width:auto;" loading="eager" fetchpriority="high">`
-    : `<span style="font-size:20px;font-weight:700;font-family:var(--sf-heading-font);">${escapeHtml(storeName)}</span>`;
+    ? `<img src="${escapeHtml(optimizedLogo)}" alt="${escapeHtml(storeName)}" style="height:${logoHeight};width:auto;max-width:180px;" loading="eager" fetchpriority="high">`
+    : `<span style="font-size:20px;font-weight:700;font-family:var(--sf-heading-font);color:${escapeHtml(headerTextColor)};">${escapeHtml(storeName)}</span>`;
+
+  // Notice bar HTML
+  let noticeBarHtml = '';
+  if (noticeEnabled && noticeTexts.length > 0) {
+    const firstText = noticeTexts[0];
+    if (noticeAnimation === 'marquee' || noticeAnimation === 'slide-horizontal') {
+      // Marquee / slide-horizontal: scrolling text
+      const allTexts = noticeTexts.map(t => `<span style="padding:0 32px;">${escapeHtml(t)}</span>`).join('');
+      noticeBarHtml = `
+        <div style="background:${escapeHtml(noticeBgColor)};color:${escapeHtml(noticeTextColor)};padding:8px 16px;text-align:center;font-size:13px;font-weight:500;overflow:hidden;white-space:nowrap;">
+          <div class="sf-notice-marquee" style="display:inline-flex;animation:sf-marquee 20s linear infinite;">
+            ${allTexts}${allTexts}
+          </div>
+        </div>`;
+    } else {
+      noticeBarHtml = `
+        <div style="background:${escapeHtml(noticeBgColor)};color:${escapeHtml(noticeTextColor)};padding:8px 16px;text-align:center;font-size:13px;font-weight:500;">
+          ${escapeHtml(firstText)}
+        </div>`;
+    }
+  }
+  
+  // Featured promos badge
+  const featuredPromosBadgeStyle = featuredPromosBgColor
+    ? `background:${escapeHtml(featuredPromosBgColor)};color:${escapeHtml(featuredPromosTextColor)};`
+    : `background:var(--theme-button-primary-bg,#1a1a1a);color:${escapeHtml(featuredPromosTextColor)};`;
+  
+  let featuredPromoHtml = '';
+  if (featuredPromosEnabled) {
+    const thumbHtml = featuredPromosThumbnail 
+      ? `<img src="${escapeHtml(optimizeImageUrl(featuredPromosThumbnail, 32, 80))}" alt="" style="width:20px;height:20px;border-radius:50%;object-fit:cover;">`
+      : '';
+    featuredPromoHtml = `<a href="${escapeHtml(featuredPromosUrl)}" style="${featuredPromosBadgeStyle}padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap;text-decoration:none;">
+      ${thumbHtml}${escapeHtml(featuredPromosLabel)}
+    </a>`;
+  }
+  
+  // Atendimento button
+  let attendanceHtml = '';
+  if (hasContactInfo) {
+    attendanceHtml = `<a href="${whatsAppNumber ? `https://wa.me/${whatsAppNumber.replace(/\D/g, '')}` : '#'}" style="display:flex;align-items:center;gap:6px;padding:6px 14px;border:1px solid ${escapeHtml(headerIconColor || '#ccc')};border-radius:20px;font-size:12px;font-weight:500;color:${escapeHtml(headerTextColor)};white-space:nowrap;text-decoration:none;" target="_blank" rel="noopener noreferrer">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${escapeHtml(headerIconColor)}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      Atendimento
+    </a>`;
+  }
+  
+  // Account button
+  let accountHtml = '';
+  if (customerAreaEnabled) {
+    accountHtml = `<a href="/minha-conta" style="padding:4px;color:${escapeHtml(headerIconColor)};" aria-label="Minha Conta">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    </a>`;
+  }
+
+  const bgStyle = headerBgColor ? `background:${escapeHtml(headerBgColor)};` : 'background:#fff;';
 
   return `
-    <header style="background:#fff;border-bottom:1px solid #eee;padding:12px 0;position:sticky;top:0;z-index:50;">
-      <div style="max-width:1280px;margin:0 auto;padding:0 16px;display:flex;align-items:center;justify-content:space-between;gap:16px;">
+    ${noticeBarHtml}
+    <header style="${bgStyle}border-bottom:1px solid rgba(0,0,0,0.08);padding:0;${sticky ? 'position:sticky;top:0;' : ''}z-index:50;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+      <div style="max-width:1280px;margin:0 auto;padding:0 16px;">
+        <!-- DESKTOP: 3-column layout (Search | Logo | Actions) -->
+        <div class="sf-header-desktop" style="display:flex;align-items:center;justify-content:space-between;height:64px;gap:16px;">
+          <!-- LEFT: Search + Featured Promo -->
+          <div style="display:flex;align-items:center;gap:12px;flex:1;">
+            ${showSearch ? `
+              <button data-sf-action="toggle-search" style="display:flex;align-items:center;gap:6px;background:rgba(128,128,128,0.1);border:none;cursor:pointer;padding:8px 14px;border-radius:8px;color:${escapeHtml(headerTextColor)};" aria-label="Buscar">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${escapeHtml(headerIconColor)}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <span style="font-size:13px;opacity:0.7;">Pesquisar</span>
+              </button>
+            ` : ''}
+            ${featuredPromoHtml}
+          </div>
+          
+          <!-- CENTER: Logo -->
+          <a href="/" style="flex-shrink:0;display:flex;align-items:center;">${logoHtml}</a>
+          
+          <!-- RIGHT: Attendance + Account + Cart -->
+          <div style="display:flex;align-items:center;gap:12px;flex:1;justify-content:flex-end;">
+            ${attendanceHtml}
+            ${accountHtml}
+            ${showCart ? `
+              <button data-sf-action="open-cart" aria-label="Carrinho" style="background:none;border:none;cursor:pointer;padding:4px;position:relative;color:${escapeHtml(headerIconColor)};">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+                <span data-sf-cart-count style="display:none;position:absolute;top:-4px;right:-4px;background:var(--theme-button-primary-bg,#e53e3e);color:#fff;font-size:11px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;">0</span>
+              </button>
+            ` : ''}
+          </div>
+        </div>
+        
+        <!-- NAV BAR (below logo row) -->
+        <nav class="sf-nav-desktop" style="display:flex;align-items:center;gap:24px;padding:8px 0;justify-content:center;border-top:1px solid rgba(255,255,255,0.1);">${navItems}</nav>
+      </div>
+      
+      <!-- MOBILE HEADER -->
+      <div class="sf-header-mobile" style="display:none;align-items:center;justify-content:space-between;padding:12px 16px;">
+        <button data-sf-action="toggle-mobile-menu" aria-label="Menu" style="background:none;border:none;cursor:pointer;padding:4px;color:${escapeHtml(headerIconColor)};">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
         <a href="/" style="flex-shrink:0;">${logoHtml}</a>
-        <nav style="display:flex;align-items:center;gap:24px;overflow-x:auto;">${navItems}</nav>
-        <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
-          <button data-sf-action="toggle-search" aria-label="Buscar" style="background:none;border:none;cursor:pointer;padding:4px;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          </button>
-          <button data-sf-action="open-cart" aria-label="Carrinho" style="background:none;border:none;cursor:pointer;padding:4px;position:relative;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-            <span data-sf-cart-count style="display:none;position:absolute;top:-4px;right:-4px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);font-size:11px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;">0</span>
-          </button>
-          <button data-sf-action="toggle-mobile-menu" aria-label="Menu" style="background:none;border:none;cursor:pointer;padding:4px;display:none;" class="sf-mobile-menu-btn">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-          </button>
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${showSearch ? `<button data-sf-action="toggle-search" aria-label="Buscar" style="background:none;border:none;cursor:pointer;padding:4px;color:${escapeHtml(headerIconColor)};"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>` : ''}
+          ${showCart ? `<button data-sf-action="open-cart" aria-label="Carrinho" style="background:none;border:none;cursor:pointer;padding:4px;position:relative;color:${escapeHtml(headerIconColor)};"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18"/><path d="M16 10a4 4 0 01-8 0"/></svg><span data-sf-cart-count style="display:none;position:absolute;top:-4px;right:-4px;background:var(--theme-button-primary-bg,#e53e3e);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;">0</span></button>` : ''}
         </div>
       </div>
-    </header>`;
+    </header>`;}
+
+
 }
 
 function renderBanner(banner: BannerData): string {
