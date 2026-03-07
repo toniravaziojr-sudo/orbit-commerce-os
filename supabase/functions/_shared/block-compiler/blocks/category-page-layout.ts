@@ -86,14 +86,21 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
     const hasDiscount = p.compare_at_price && p.compare_at_price > p.price;
     const discountPercent = hasDiscount ? Math.round((1 - p.price / p.compare_at_price!) * 100) : 0;
 
-    // Badges
+    // Badges — dynamic + static
     let badgesHtml = '';
     if (showBadges) {
       const badges: string[] = [];
+      // Dynamic badges from "Aumentar Ticket" system
+      const dynamicBadges = context.productBadges.get(p.id) || [];
+      for (const db of dynamicBadges.slice(0, 3)) {
+        const shapeRadius = db.shape === 'circular' || db.shape === 'pill' ? '12px' : db.shape === 'square' ? '2px' : '4px';
+        badges.push(`<span style="background:${db.background_color};color:${db.text_color};font-size:10px;font-weight:700;padding:3px 8px;border-radius:${shapeRadius};max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(db.name)}</span>`);
+      }
+      // Static badges
       if (p.free_shipping) badges.push(`<span style="background:#16a34a;color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;">FRETE GRÁTIS</span>`);
       if (hasDiscount && discountPercent >= 10) badges.push(`<span style="background:#dc2626;color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;">-${discountPercent}%</span>`);
       if (badges.length > 0) {
-        badgesHtml = `<div style="position:absolute;top:8px;left:8px;display:flex;flex-direction:column;gap:4px;z-index:2;">${badges.join('')}</div>`;
+        badgesHtml = `<div style="position:absolute;top:8px;left:8px;display:flex;flex-direction:column;gap:4px;z-index:2;">${badges.slice(0, 3).join('')}</div>`;
       }
     }
 

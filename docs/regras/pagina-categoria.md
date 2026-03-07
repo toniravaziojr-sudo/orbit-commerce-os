@@ -1,8 +1,8 @@
 # Página de Categoria — Regras e Especificações
 
-> **Status:** FUNCIONAL ✅ — Core + Filtros + Ordenação + Paginação  
+> **Status:** FUNCIONAL ✅ — Core + Filtros + Ordenação + Paginação + Badges Dinâmicos  
 > **Última atualização:** 2026-03-07  
-> **Arquitetura:** v8.1.2 — block-compiler com filtros/sort/load-more client-side
+> **Arquitetura:** v8.1.4 — block-compiler com filtros/sort/load-more client-side + badges dinâmicos
 
 ## Visão Geral
 
