@@ -219,6 +219,7 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 |-------|------|-----------|
 | `currentProduct` | object | Todos os campos do produto (name, price, sku, brand, stock, etc.) |
 | `currentProductImages` | array | Imagens ordenadas por `sort_order` com `is_primary` |
+| `currentProductVariants` | array | Variantes ativas com option1/2/3, preço, estoque, imagem |
 | `productSettings` | object | Settings extraídos de `themeSettings.pageSettings.product` |
 | `storeSettings` | object | `social_whatsapp`, `contact_phone`, etc. |
 
