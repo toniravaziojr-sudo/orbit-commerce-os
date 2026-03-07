@@ -1331,24 +1331,69 @@ Geração de hero com IA de imagem é opcional e não bloqueia a V7:
 
 ## Validação Operacional do Fast Path (Prerender)
 
+### Métricas Reais de Produção (Março 2026)
+
+| Tenant | Tipo | Páginas Ativas | Home TTFB | Produto TTFB | Categoria TTFB |
+|--------|------|---------------|-----------|-------------|----------------|
+| **Respeite o Homem** | Custom domain | 47 (1H + 33P + 12C + 1B) | 229ms | ~300ms | ~300ms |
+| **Amazgan** | Subdomínio plataforma | 12 (1H + 9P + 1C + 1B) | 235ms | 292ms | 280ms |
+
+**Comparação Live Render vs Prerender:**
+
+| Modo | Home | Produto | Observação |
+|------|------|---------|------------|
+| **Prerender (fast path)** | ~230ms | ~290ms | Lookup + serve direto |
+| **Live render (fallback)** | ~500ms | ~600ms | Queries + compile |
+| **SPA (legado)** | ~2-4s | ~3-5s | Bootstrap + React + hydration |
+
 ### Como verificar se o fast path está ativo no público
 
 | Método | Comando/Ação | Indicador de Sucesso |
 |--------|-------------|---------------------|
-| **Header HTTP** | Inspecionar resposta no navegador (DevTools → Network) | `X-Render-Mode: prerendered` |
+| **Header HTTP** | DevTools → Network → Response Headers | `X-Render-Mode: prerendered` |
 | **Endpoint /_debug** | `GET https://{dominio}/_debug` | `strategy: "edge_rendered_html_first"` |
-| **Logs da Edge Function** | Verificar logs de `storefront-html` | `PRE-RENDERED HIT: /{path}` |
-| **Tabela no banco** | Query `storefront_prerendered_pages WHERE is_active = true` | Registros com `html` preenchido |
-| **Timing** | Server-Timing header na resposta | `resolve` < 500ms, `total` < 700ms (cold), < 100ms (warm) |
+| **Logs da Edge Function** | Logs de `storefront-html` | `PRE-RENDERED HIT: /{path}` |
+| **Tabela no banco** | `SELECT * FROM storefront_prerendered_pages WHERE status = 'active'` | Registros com `html_content` preenchido |
+| **Server-Timing** | Header na resposta HTTP | `resolve` < 500ms, `total` < 700ms (cold) |
+| **X-Prerender-At** | Header na resposta HTTP | Timestamp da última pré-renderização |
+
+### Checklist Operacional
+
+#### ✅ Como saber se o prerender está funcionando
+1. Verificar `X-Render-Mode: prerendered` nos headers da resposta
+2. Confirmar registros `status = 'active'` em `storefront_prerendered_pages` para o tenant
+3. `Server-Timing: total` deve ser < 300ms (cold) vs ~500ms no live render
+
+#### ⚠️ Como saber se caiu em live fallback
+1. `X-Render-Mode: live` nos headers → prerender não encontrado
+2. Logs: sem "PRE-RENDERED HIT", mostra "rendered in Xms" com queries
+3. `Server-Timing: total` > 400ms consistentemente
+
+#### 🔄 Como republicar / atualizar prerender
+1. **Via admin:** Publicar template no Builder → dispara `storefront-prerender` automaticamente
+2. **Manual:** `POST storefront-prerender` com `{"tenant_id": "...", "trigger_type": "manual"}`
+3. O pipeline marca páginas antigas como `stale` e ativa as novas atomicamente
+
+#### 🔍 Como validar headers/logs rapidamente
+```bash
+# Teste rápido via curl
+curl -sI "https://{dominio}/" | grep -E "X-Render-Mode|Server-Timing|X-Prerender-At"
+
+# Verificar no banco
+SELECT path, status, publish_version, generated_at 
+FROM storefront_prerendered_pages 
+WHERE tenant_id = '{id}' AND status = 'active';
+```
 
 ### Se o fast path NÃO está ativo
 
 | Sintoma | Causa Provável | Solução |
 |---------|----------------|---------|
-| `X-Render-Mode: live` | Página não pré-renderizada | Re-publicar template |
-| Tabela `storefront_prerendered_pages` vazia | `storefront-prerender` não executou | Verificar se está em `config.toml` com `verify_jwt = false` |
-| Erro no prerender | Tenant não encontrado | Verificar `tenant_domains` (domínio primário ativo) |
+| `X-Render-Mode: live` | Página não pré-renderizada para essa rota | Re-publicar template |
+| Tabela `storefront_prerendered_pages` vazia | `storefront-prerender` não executou | Verificar config.toml (`verify_jwt = false`) |
+| Erro no prerender | Tenant não encontrado | Verificar slug em `tenants` + domínio em `tenant_domains` |
 | `publish_version` truncado | Coluna `int4` em vez de `bigint` | Migrar para `bigint` |
+| Auth 401 no trigger manual | Função exige auth header | Usar sem auth (verify_jwt=false) ou JWT válido |
 
 ### Bugs Corrigidos nesta Frente (Março 2026)
 
@@ -1358,6 +1403,18 @@ Geração de hero com IA de imagem é opcional e não bloqueia a V7:
 | `publish_version` overflow/truncamento | Coluna `int4` não suporta `Date.now()` (~13 dígitos) | Migrada para `bigint` |
 | Tenant não encontrado no prerender | Query buscava `tenants.custom_domain` (coluna inexistente) | Corrigido para buscar slug em `tenants` + domínio em `tenant_domains` |
 | Páginas nunca marcadas como `active` | Falha silenciosa no pipeline por erros acima | Resolvido com correções cumulativas |
+| Auth 401 em trigger manual | Código exigia auth header mesmo com verify_jwt=false | Adicionado bypass para chamadas sem auth header |
+
+### Validação Multi-Tenant Confirmada
+
+| Aspecto | Respeite o Homem | Amazgan |
+|---------|------------------|---------|
+| **Domínio** | Custom (respeiteohomem.com.br) | Subdomínio (amazgan.shops.cc.com.br) |
+| **Páginas pré-renderizadas** | 47 | 12 |
+| **X-Render-Mode** | ✅ prerendered | ✅ prerendered |
+| **Home TTFB** | 229ms | 235ms |
+| **Pipeline publish→prerender** | ✅ Automático | ✅ Manual + automático |
+| **Ativação atômica** | ✅ | ✅ |
 
 ---
 
