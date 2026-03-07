@@ -203,7 +203,7 @@ export function footerToStaticHTML(context: CompilerContext): string {
     
     imageSectionsHtml = `
       <div style="border-top:1px solid rgba(255,255,255,0.1);margin-top:32px;padding-top:24px;">
-        <div style="display:grid;grid-template-columns:repeat(${allImageSections.length},1fr);gap:24px;">
+        <div class="sf-footer-images-grid" style="display:grid;grid-template-columns:repeat(${allImageSections.length},1fr);gap:24px;">
           ${sectionCols}
         </div>
       </div>`;
