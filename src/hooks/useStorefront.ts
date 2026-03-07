@@ -119,7 +119,7 @@ export function usePublicStorefront(tenantSlug: string) {
     queryKey: ['storefront-bootstrap', tenantSlug],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke('storefront-bootstrap', {
-        body: { tenant_slug: tenantSlug, include_products: true },
+        body: { tenant_slug: tenantSlug },
       });
 
       if (error) throw error;
