@@ -939,7 +939,7 @@ serve(async (req) => {
           status: 200,
           headers: {
             'Content-Type': 'text/html; charset=utf-8',
-            'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600, max-age=60',
+            'Cache-Control': 'public, s-maxage=900, stale-while-revalidate=1800, max-age=120',
             'Server-Timing': `resolve;dur=${resolveMs}, total;dur=${totalMs}`,
             'X-Storefront-Version': VERSION,
             'X-Tenant': tenantSlug,
