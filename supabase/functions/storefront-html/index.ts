@@ -12,8 +12,6 @@ import { compileBlockTree, extractProductIds, extractCategoryIds } from '../_sha
 import type { CompilerContext, BlockNode } from '../_shared/block-compiler/types.ts';
 import { headerToStaticHTML } from '../_shared/block-compiler/blocks/header.ts';
 import { footerToStaticHTML } from '../_shared/block-compiler/blocks/footer.ts';
-import { categoryPageToStaticHTML } from '../_shared/block-compiler/blocks/category-page.ts';
-import { productPageToStaticHTML } from '../_shared/block-compiler/blocks/product-page.ts';
 import { blogIndexToStaticHTML, blogPostToStaticHTML } from '../_shared/block-compiler/blocks/blog.ts';
 import { institutionalPageToStaticHTML } from '../_shared/block-compiler/blocks/institutional-page.ts';
 
