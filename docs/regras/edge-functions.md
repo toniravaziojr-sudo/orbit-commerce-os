@@ -2140,11 +2140,11 @@ Fetch all pending payments
 
 ## Storefront HTML (`storefront-html`)
 
-### Versão Atual: v1.0.0
+### Versão Atual: v3.0.0
 
 ### Visão Geral
 
-Edge Function que retorna **HTML completo e renderizado** para o storefront público, eliminando a dependência do bootstrap client-side (SPA) para a primeira pintura de conteúdo.
+Edge Function que retorna **HTML completo e renderizado** para o storefront público, eliminando a dependência do bootstrap client-side (SPA) para a primeira pintura de conteúdo. Inclui script de hidratação inline para interatividade (carrinho, busca, menu mobile).
 
 ### Motivação
 
@@ -2155,9 +2155,10 @@ O modelo SPA anterior exigia: JS carrega → Edge Function bootstrap (JSON) → 
 ```
 Request (hostname) → resolveTenantFromHostname()
   → Promise.allSettled([
-      tenant, store_settings, header_menu, categories, template_set
+      tenant, store_settings, header_menu, categories, template_set,
+      ...route_specific_queries (product/category)
     ])
-  → Render HTML string (head + header + hero/banner)
+  → Render HTML string (head + header + body + footer + hydration script)
   → Response text/html + Cache-Control + Server-Timing
 ```
 
@@ -2177,19 +2178,82 @@ Request (hostname) → resolveTenantFromHostname()
 | `Content-Type` | `text/html; charset=utf-8` | HTML completo |
 | `Cache-Control` | `public, s-maxage=120, stale-while-revalidate=300, max-age=60` | Cache no edge |
 | `Server-Timing` | `resolve;dur=X, queries;dur=Y, total;dur=Z` | Diagnóstico |
-| `X-Storefront-Version` | `v1.0.0` | Versão da função |
+| `X-Storefront-Version` | `v3.0.0` | Versão da função |
 | `X-Tenant` | `tenant-slug` | Tenant resolvido |
+| `X-Route` | `home`, `product/slug`, `category/slug` | Rota renderizada |
 
 ### Rotas Suportadas
 
 | Rota | Conteúdo Renderizado |
 |------|---------------------|
 | `/` | Home: header + hero banner (acima da dobra) |
-| `/produto/:slug` | Produto: galeria + info + preço + JSON-LD |
+| `/produto/:slug` | Produto: galeria + info + preço + JSON-LD + botão add-to-cart |
 | `/categoria/:slug` | Categoria: banner + grid de produtos |
-| `/:slug` | Página institucional |
+| `/:slug` | Página institucional (fallback) |
 
-### Dados Injetados no Window (para hidratação futura)
+### Hidratação JS (v3.0.0)
+
+Script inline (~4KB) embutido no HTML que ativa interatividade sem bundle externo.
+
+#### Componentes Hidratados
+
+| Componente | data-sf-action | Descrição |
+|------------|---------------|-----------|
+| Busca | `toggle-search` | Overlay com input + busca em tempo real via REST API |
+| Carrinho | `open-cart`, `close-cart` | Drawer lateral com items do localStorage |
+| Add to cart | `add-to-cart` | Botão na PDP com `data-product-*` attributes |
+| Remove item | `remove-cart-item` | Remove item do carrinho por `data-index` |
+| Menu mobile | `toggle-mobile-menu`, `close-mobile-menu` | Menu fullscreen em `<768px` |
+
+#### Cart Storage
+
+```
+localStorage key: sf_cart_{tenantSlug}
+Formato: [{ id, name, price, image, variantId, qty }]
+```
+
+#### Busca em Tempo Real
+
+```
+GET /rest/v1/products?tenant_id=eq.{id}&status=eq.active&name=ilike.*{query}*&select=name,slug,price,product_images(url)&limit=8
+Headers: apikey + Authorization (anon key)
+Debounce: 300ms, mínimo 2 caracteres
+```
+
+#### CSS Responsivo Incluído
+
+```css
+@media(max-width:768px) {
+  header nav { display: none; }        /* Esconde nav desktop */
+  .sf-mobile-menu-btn { display: block; } /* Mostra hamburger */
+}
+```
+
+### Cloudflare Worker Routing (Phase 4)
+
+O Worker `shops-router` foi atualizado para priorizar a Edge Function HTML:
+
+```
+GET + Accept: text/html + !SPA_ONLY_ROUTE
+  → storefront-html?hostname={host}&path={path}
+  → Se OK ou 404 com HTML → serve resposta
+  → Se erro → fallback para SPA (path translation)
+
+Rotas SPA-only (sempre vão para SPA):
+  - /carrinho
+  - /checkout
+  - /obrigado
+  - /minha-conta
+```
+
+Headers adicionados pelo Worker:
+| Header | Valor | Descrição |
+|--------|-------|-----------|
+| `X-CC-Render-Mode` | `edge-html` | Indica que foi renderizado pela Edge Function |
+| `X-CC-Tenant` | slug | Tenant resolvido |
+| `X-CC-Domain-Type` | `custom` ou `platform_subdomain` | Tipo do domínio |
+
+### Dados Injetados no Window
 
 ```javascript
 window.__SF_SERVER_RENDERED = true;
@@ -2201,6 +2265,7 @@ window.__SF_TENANT = { slug: "...", id: "..." };
 
 - `_shared/resolveTenant.ts` — resolução de tenant por hostname
 - Queries diretas via Supabase service role (sem RLS)
+- `SUPABASE_ANON_KEY` — usado pelo script de hidratação para busca REST
 
 ### Checklist de Manutenção
 
@@ -2208,4 +2273,7 @@ window.__SF_TENANT = { slug: "...", id: "..." };
 - [ ] Ao alterar `storefront_template_sets` schema → atualizar extração de themeSettings
 - [ ] Ao alterar menus/categorias → verificar renderização do header
 - [ ] Ao alterar BannerBlock props → atualizar `findFirstBanner()` e `renderBanner()`
-- [ ] Ao adicionar novas rotas → atualizar parser de path e renderer
+- [ ] Ao adicionar novas rotas → atualizar `parseRoute()` e renderer
+- [ ] Ao alterar produtos schema → atualizar `renderProductPage()` e data-attributes
+- [ ] Ao adicionar SPA-only routes → atualizar `SPA_ONLY_ROUTES` no Worker
+- [ ] Ao alterar anon key → script de hidratação usa env var do Deno
