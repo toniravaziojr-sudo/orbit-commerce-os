@@ -95,6 +95,7 @@ Este diretório contém as regras e especificações separadas por módulo para 
 ### ⚙️ SISTEMA
 | Arquivo | Descrição | Status |
 |---------|-----------|--------|
+| [central-comando.md](./central-comando.md) | Central de Comando (Dashboard, Agenda, Widgets) | ✅ Ready |
 | [usuarios-permissoes.md](./usuarios-permissoes.md) | Usuários e RBAC | ✅ Ready |
 | [planos-billing.md](./planos-billing.md) | Planos e Cobrança | ✅ Ready |
 | [integracoes.md](./integracoes.md) | Hub de Integrações | 🟧 Pending |
@@ -109,7 +110,7 @@ Este diretório contém as regras e especificações separadas por módulo para 
 
 | Status | Quantidade | Significado |
 |--------|------------|-------------|
-| ✅ Ready | **33** | 100% funcional e validado |
+| ✅ Ready | **34** | 100% funcional e validado |
 | 🟧 Pending | **7** | Em construção/incompleto |
 
 ---
