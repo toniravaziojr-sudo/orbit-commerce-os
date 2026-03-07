@@ -1660,6 +1660,15 @@ serve(async (req) => {
     const categories = allResults[3].status === 'fulfilled' ? (allResults[3] as any).value.data : [];
     const templateSet = allResults[4].status === 'fulfilled' ? (allResults[4] as any).value.data : null;
     const globalLayout = allResults[5].status === 'fulfilled' ? (allResults[5] as any).value.data : null;
+    const footerMenusRaw = allResults[6].status === 'fulfilled' ? (allResults[6] as any).value.data || [] : [];
+
+    // Build footer menus structure
+    const footer1Menu = footerMenusRaw.find((m: any) => m.location === 'footer_1' || m.location === 'footer');
+    const footer2Menu = footerMenusRaw.find((m: any) => m.location === 'footer_2');
+    const footerMenus = {
+      footer1: footer1Menu ? { name: footer1Menu.name, items: footer1Menu.menu_items || [] } : { name: '', items: [] },
+      footer2: footer2Menu ? { name: footer2Menu.name, items: footer2Menu.menu_items || [] } : { name: '', items: [] },
+    };
 
     if (!storeSettings?.is_published) {
       return new Response(
@@ -1682,8 +1691,9 @@ serve(async (req) => {
       : [];
     // Use published_header_config if available, fallback to header_config
     const headerConfig = globalLayout?.published_header_config || globalLayout?.header_config || null;
+    const footerConfig = globalLayout?.published_footer_config || globalLayout?.footer_config || null;
     const headerHtml = renderHeader(storeSettings, tenant, menuItems, categories || [], tenantSlug, headerConfig);
-    const footerHtml = renderFooter(storeSettings, tenant);
+    const footerHtml = renderFooter(storeSettings, tenant, footerConfig, footerMenus);
     
     // Extract categorySettings from template themeSettings
     const pageSettings = themeSettings?.pageSettings as Record<string, any> | undefined;
