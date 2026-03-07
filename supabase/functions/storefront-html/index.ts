@@ -905,6 +905,33 @@ serve(async (req) => {
           .eq('is_active', true)
           .maybeSingle()
       );
+    } else if (route.type === 'page' && route.slug) {
+      routeQueries.push(
+        supabase.from('store_pages')
+          .select('id, title, slug, body_html, description, seo_title, seo_description, content, is_published')
+          .eq('tenant_id', tenantId)
+          .eq('slug', route.slug)
+          .eq('is_published', true)
+          .maybeSingle()
+      );
+    } else if (route.type === 'blog_post' && route.slug) {
+      routeQueries.push(
+        supabase.from('blog_posts')
+          .select('id, title, slug, excerpt, content, body_html, cover_image_url, published_at, created_at, author_name, seo_title, seo_description, status')
+          .eq('tenant_id', tenantId)
+          .eq('slug', route.slug)
+          .eq('status', 'published')
+          .maybeSingle()
+      );
+    } else if (route.type === 'blog_index') {
+      routeQueries.push(
+        supabase.from('blog_posts')
+          .select('id, title, slug, excerpt, cover_image_url, published_at, author_name')
+          .eq('tenant_id', tenantId)
+          .eq('status', 'published')
+          .order('published_at', { ascending: false })
+          .limit(24)
+      );
     }
 
     const allResults = await Promise.allSettled([...baseQueries, ...routeQueries]);
@@ -1019,6 +1046,54 @@ serve(async (req) => {
       pageDescription = category.seo_description || category.description || '';
       canonicalPath = `/categoria/${category.slug}`;
       ogImage = category.banner_desktop_url || category.image_url || ogImage;
+
+    } else if (route.type === 'page' && route.slug) {
+      // INSTITUTIONAL PAGE
+      const pageResult = allResults[5];
+      const page = pageResult?.status === 'fulfilled' ? (pageResult as any).value.data : null;
+
+      if (!page) {
+        return new Response(
+          `<!DOCTYPE html><html><head><title>Página não encontrada</title></head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;"><h1>Página não encontrada</h1></body></html>`,
+          { status: 404, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+        );
+      }
+
+      bodyHtml = renderInstitutionalPage(page);
+      pageTitle = page.seo_title || `${page.title} | ${storeName}`;
+      pageDescription = page.seo_description || page.description || '';
+      canonicalPath = `/p/${page.slug}`;
+
+    } else if (route.type === 'blog_index') {
+      // BLOG INDEX
+      const postsResult = allResults[5];
+      const posts = postsResult?.status === 'fulfilled' ? (postsResult as any).value.data || [] : [];
+
+      bodyHtml = renderBlogIndex(posts, storeName);
+      pageTitle = `Blog | ${storeName}`;
+      pageDescription = `Confira as últimas novidades do ${storeName}`;
+      canonicalPath = '/blog';
+
+    } else if (route.type === 'blog_post' && route.slug) {
+      // BLOG POST
+      const postResult = allResults[5];
+      const post = postResult?.status === 'fulfilled' ? (postResult as any).value.data : null;
+
+      if (!post) {
+        return new Response(
+          `<!DOCTYPE html><html><head><title>Post não encontrado</title></head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;"><h1>Post não encontrado</h1></body></html>`,
+          { status: 404, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+        );
+      }
+
+      bodyHtml = renderBlogPost(post, hostname);
+      pageTitle = post.seo_title || `${post.title} | ${storeName}`;
+      pageDescription = post.seo_description || post.excerpt || '';
+      canonicalPath = `/blog/${post.slug}`;
+      ogImage = post.cover_image_url || ogImage;
+
+      // Increment view count (fire-and-forget)
+      supabase.rpc('increment_blog_view_count', { post_id: post.id }).then(() => {}).catch(() => {});
 
     } else {
       // Unknown route — return minimal page, let client-side handle
