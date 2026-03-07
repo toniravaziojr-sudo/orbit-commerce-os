@@ -1323,10 +1323,43 @@ Geração de hero com IA de imagem é opcional e não bloqueia a V7:
 
 ---
 
+## Validação Operacional do Fast Path (Prerender)
+
+### Como verificar se o fast path está ativo no público
+
+| Método | Comando/Ação | Indicador de Sucesso |
+|--------|-------------|---------------------|
+| **Header HTTP** | Inspecionar resposta no navegador (DevTools → Network) | `X-Render-Mode: prerendered` |
+| **Endpoint /_debug** | `GET https://{dominio}/_debug` | `strategy: "edge_rendered_html_first"` |
+| **Logs da Edge Function** | Verificar logs de `storefront-html` | `PRE-RENDERED HIT: /{path}` |
+| **Tabela no banco** | Query `storefront_prerendered_pages WHERE is_active = true` | Registros com `html` preenchido |
+| **Timing** | Server-Timing header na resposta | `resolve` < 500ms, `total` < 700ms (cold), < 100ms (warm) |
+
+### Se o fast path NÃO está ativo
+
+| Sintoma | Causa Provável | Solução |
+|---------|----------------|---------|
+| `X-Render-Mode: live` | Página não pré-renderizada | Re-publicar template |
+| Tabela `storefront_prerendered_pages` vazia | `storefront-prerender` não executou | Verificar se está em `config.toml` com `verify_jwt = false` |
+| Erro no prerender | Tenant não encontrado | Verificar `tenant_domains` (domínio primário ativo) |
+| `publish_version` truncado | Coluna `int4` em vez de `bigint` | Migrar para `bigint` |
+
+### Bugs Corrigidos nesta Frente (Março 2026)
+
+| Bug | Causa Raiz | Correção |
+|-----|-----------|----------|
+| `storefront-prerender` nunca executava | Função não declarada em `config.toml` | Adicionada com `verify_jwt = false` |
+| `publish_version` overflow/truncamento | Coluna `int4` não suporta `Date.now()` (~13 dígitos) | Migrada para `bigint` |
+| Tenant não encontrado no prerender | Query buscava `tenants.custom_domain` (coluna inexistente) | Corrigido para buscar slug em `tenants` + domínio em `tenant_domains` |
+| Páginas nunca marcadas como `active` | Falha silenciosa no pipeline por erros acima | Resolvido com correções cumulativas |
+
+---
+
 ## Histórico de Alterações
 
 | Data | Alteração |
 |------|-----------|
+| 2026-03-07 | **PRERENDER FAST PATH ATIVO (v8.1.4)**: Pipeline completo validado em produção. `storefront-prerender` declarada em config.toml (verify_jwt=false). `publish_version` migrado para bigint. Lookup de tenant corrigido (tenant_domains em vez de tenants.custom_domain). 47 páginas pré-renderizadas para Respeite o Homem (1 Home, 33 Produtos, 12 Categorias, 1 Blog). PRE-RENDERED HIT confirmado em logs. Header X-Render-Mode: prerendered implementado. Pipeline: Publish → storefront-prerender → storefront_prerendered_pages → storefront-html (fast path). |
 | 2026-03-07 | **PERFORMANCE FASE 6**: App.tsx — 100% dos imports convertidos para `lazy()`. Admin (~80 pages + AppShell) e Storefront (Layout + páginas) em bundles isolados. Suspense global com spinner. 5 imports não utilizados removidos. Redução estimada de ~60-70% no bundle inicial para visitantes da storefront. |
 | 2026-03-07 | **PERFORMANCE FASE 4+4B+5**: Removido `include_products` do bootstrap (payload ~30-50% menor). BannerBlock agora aplica wsrv.nl transform em modo público (match com LcpPreloader). index.html limpo de branding "Comando Central" (title genérico "Carregando...", sem favicon/OG/meta da plataforma). AppShell injeta `document.title = 'Comando Central'` para rotas admin. |
 | 2026-03-06 | **PERFORMANCE FASES 1-3**: Bootstrap v4.0.0 com 12 queries paralelas (+ store_pages Q9, footer_2 Q10). Header/Footer usam bootstrap props (zero queries extras). Unificação resolve-domain + bootstrap via _shared/resolveTenant.ts. Todas as páginas passam bootstrapGlobalLayout. |
