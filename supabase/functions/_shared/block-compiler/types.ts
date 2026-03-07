@@ -32,6 +32,8 @@ export interface CompilerContext {
   themeSettings: any;
   /** Category display settings */
   categorySettings: any;
+  /** Product display settings */
+  productSettings: any;
   /** Store settings */
   storeSettings: any;
   /** Menu items for header */
@@ -42,6 +44,61 @@ export interface CompilerContext {
   globalLayout: any;
   /** Tenant data */
   tenant: any;
+
+  // === Route-specific data ===
+  
+  /** Current category data (for category pages) */
+  currentCategory?: {
+    id: string;
+    name: string;
+    slug: string;
+    description?: string;
+    image_url?: string;
+    banner_desktop_url?: string;
+    banner_mobile_url?: string;
+  };
+  /** Products list for current category page */
+  categoryProducts?: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    price: number;
+    compare_at_price?: number;
+    stock_quantity?: number;
+    status?: string;
+    free_shipping?: boolean;
+    avg_rating?: number;
+    review_count?: number;
+    product_images?: Array<{ url: string; is_primary?: boolean; sort_order?: number }>;
+  }>;
+
+  /** Current product data (for product pages) */
+  currentProduct?: {
+    id: string;
+    name: string;
+    slug: string;
+    sku?: string;
+    price: number;
+    compare_at_price?: number;
+    description?: string;
+    short_description?: string;
+    brand?: string;
+    stock_quantity?: number;
+    status?: string;
+    free_shipping?: boolean;
+    has_variants?: boolean;
+    tags?: string[];
+    seo_title?: string;
+    seo_description?: string;
+  };
+  /** Images for the current product */
+  currentProductImages?: Array<{
+    id?: string;
+    url: string;
+    alt_text?: string;
+    is_primary?: boolean;
+    sort_order?: number;
+  }>;
 }
 
 export interface ProductData {

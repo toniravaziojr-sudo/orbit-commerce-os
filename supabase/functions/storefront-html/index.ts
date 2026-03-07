@@ -1,6 +1,6 @@
 // ============================================
 // STOREFRONT HTML — Edge-Rendered Storefront
-// v8.0.0: All routes using block-compiler architecture
+// v8.1.0: Category + Product routes use compileBlockTree(published_content) — full parity
 // Resolves tenant from hostname, serves pre-rendered HTML if available,
 // falls back to live rendering otherwise.
 // ============================================
@@ -12,13 +12,11 @@ import { compileBlockTree, extractProductIds, extractCategoryIds } from '../_sha
 import type { CompilerContext, BlockNode } from '../_shared/block-compiler/types.ts';
 import { headerToStaticHTML } from '../_shared/block-compiler/blocks/header.ts';
 import { footerToStaticHTML } from '../_shared/block-compiler/blocks/footer.ts';
-import { categoryPageToStaticHTML } from '../_shared/block-compiler/blocks/category-page.ts';
-import { productPageToStaticHTML } from '../_shared/block-compiler/blocks/product-page.ts';
 import { blogIndexToStaticHTML, blogPostToStaticHTML } from '../_shared/block-compiler/blocks/blog.ts';
 import { institutionalPageToStaticHTML } from '../_shared/block-compiler/blocks/institutional-page.ts';
 
 // ===== VERSION =====
-const VERSION = "v8.0.0"; // All routes migrated to block-compiler
+const VERSION = "v8.1.0"; // Category + Product routes use compileBlockTree(published_content)
 // ====================
 
 // ============================================
@@ -653,6 +651,7 @@ serve(async (req) => {
       categories: new Map((categories || []).map((c: any) => [c.id, c])),
       themeSettings,
       categorySettings,
+      productSettings,
       storeSettings,
       menuItems,
       footerMenus,
@@ -754,7 +753,7 @@ serve(async (req) => {
       }
 
     } else if (route.type === 'product' && route.slug) {
-      // PRODUCT — using block-compiler
+      // PRODUCT — using block-compiler with published_content.product tree
       const productResult = allResults[7];
       const product = productResult?.status === 'fulfilled' ? (productResult as any).value.data : null;
 
@@ -771,13 +770,31 @@ serve(async (req) => {
         .eq('product_id', product.id)
         .order('sort_order');
 
-      bodyHtml = productPageToStaticHTML({
-        product,
-        images: images || [],
-        hostname,
-        storeSettings,
-        productSettings,
-      });
+      // Inject route-specific data into compiler context
+      compilerContext.currentProduct = product;
+      compilerContext.currentProductImages = images || [];
+
+      // Use published_content.product block tree if available
+      const productContent = publishedContent?.product as BlockNode | null;
+      if (productContent) {
+        bodyHtml = compileBlockTree(productContent, compilerContext);
+        console.log(`[storefront-html][${VERSION}] Product compiled via compileBlockTree(published_content.product)`);
+      } else {
+        // Fallback: default product template structure
+        const defaultProductTree: BlockNode = {
+          id: 'root', type: 'Page', props: {},
+          children: [
+            { id: 'h', type: 'Header', props: {} },
+            { id: 's', type: 'Section', props: { paddingY: 32 }, children: [
+              { id: 'pd', type: 'ProductDetails', props: {} },
+            ]},
+            { id: 'f', type: 'Footer', props: {} },
+          ],
+        };
+        bodyHtml = compileBlockTree(defaultProductTree, compilerContext);
+        console.log(`[storefront-html][${VERSION}] Product compiled via default block tree (no published_content.product)`);
+      }
+
       pageTitle = product.seo_title || `${product.name} | ${storeName}`;
       pageDescription = product.seo_description || product.short_description || '';
       canonicalPath = `/produto/${product.slug}`;
@@ -789,7 +806,7 @@ serve(async (req) => {
       }
 
     } else if (route.type === 'category' && route.slug) {
-      // CATEGORY — using block-compiler
+      // CATEGORY — using block-compiler with published_content.category tree
       const categoryResult = allResults[7];
       const category = categoryResult?.status === 'fulfilled' ? (categoryResult as any).value.data : null;
 
@@ -825,12 +842,32 @@ serve(async (req) => {
           }),
         }));
 
-      bodyHtml = categoryPageToStaticHTML({
-        category,
-        products: flatProducts,
-        hostname,
-        categorySettings,
-      });
+      // Inject route-specific data into compiler context
+      compilerContext.currentCategory = category;
+      compilerContext.categoryProducts = flatProducts;
+
+      // Use published_content.category block tree if available
+      const categoryContent = publishedContent?.category as BlockNode | null;
+      if (categoryContent) {
+        bodyHtml = compileBlockTree(categoryContent, compilerContext);
+        console.log(`[storefront-html][${VERSION}] Category compiled via compileBlockTree(published_content.category)`);
+      } else {
+        // Fallback: default category template structure
+        const defaultCategoryTree: BlockNode = {
+          id: 'root', type: 'Page', props: {},
+          children: [
+            { id: 'h', type: 'Header', props: {} },
+            { id: 'cb', type: 'CategoryBanner', props: { showTitle: true, titlePosition: 'center', overlayOpacity: 0, height: 'md' } },
+            { id: 's', type: 'Section', props: { paddingY: 0 }, children: [
+              { id: 'cpl', type: 'CategoryPageLayout', props: { showFilters: true, columns: 4, limit: 24 } },
+            ]},
+            { id: 'f', type: 'Footer', props: {} },
+          ],
+        };
+        bodyHtml = compileBlockTree(defaultCategoryTree, compilerContext);
+        console.log(`[storefront-html][${VERSION}] Category compiled via default block tree (no published_content.category)`);
+      }
+
       pageTitle = category.seo_title || `${category.name} | ${storeName}`;
       pageDescription = category.seo_description || category.description || '';
       canonicalPath = `/categoria/${category.slug}`;
