@@ -181,9 +181,9 @@ A ordem dos botões nos cards de produto é fixa e obrigatória:
 
 ## Pendências / Divergências Conhecidas
 
-- [ ] **Filtros**: React tem sidebar com filtros dinâmicos (`CategoryFilters`) — compilador NÃO tem filtros
-- [ ] **Paginação/Load More**: React suporta — compilador renderiza até 48 produtos fixo
-- [ ] **Ordenação**: React tem seletor de ordenação — compilador não tem
+- [x] ~~**Filtros**: React tem sidebar com filtros dinâmicos~~ → Implementado v8.1.2 (frete grátis, promoção, faixa de preço — client-side JS)
+- [x] ~~**Paginação/Load More**: React suporta~~ → Implementado v8.1.2 (24 por página + "Carregar mais")
+- [x] ~~**Ordenação**: React tem seletor de ordenação~~ → Implementado v8.1.2 (relevância, preço, nome, desconto)
 - [ ] **Quick Buy**: React suporta compra rápida — compilador não tem
 - [ ] **Mini Cart Drawer**: React integra com `MiniCartDrawer` — compilador usa drawer genérico do shell
 - [ ] **Product Badge System**: React usa `useProductBadgesForProducts` com badges dinâmicos — compilador só tem "FRETE GRÁTIS" e desconto %
@@ -191,3 +191,37 @@ A ordem dos botões nos cards de produto é fixa e obrigatória:
 - [ ] **Banner fallback**: React faz fallback para `image_url`; compilador só usa `banner_desktop_url`
 - [ ] **Hover effects**: React tem estados hover nos botões — compilador não tem
 - [ ] `category-page.ts` é dead code — pode ser removido
+
+## Filtros, Ordenação e Paginação (v8.1.2)
+
+### Filtros Client-Side
+| Filtro | Tipo | Descrição |
+|--------|------|-----------|
+| Frete grátis | checkbox | Filtra `data-free-shipping="1"` |
+| Em promoção | checkbox | Filtra `data-has-discount="1"` |
+| Faixa de preço | range (min/max) | Filtra por `data-price` com debounce 400ms |
+
+### Ordenação
+| Opção | Valor | Lógica |
+|-------|-------|--------|
+| Relevância | `default` | Ordem original do servidor |
+| Menor preço | `price-asc` | `data-price` crescente |
+| Maior preço | `price-desc` | `data-price` decrescente |
+| A → Z | `name-asc` | `data-name` alfabético |
+| Z → A | `name-desc` | `data-name` reverso |
+| Maior desconto | `discount` | `data-discount-pct` decrescente |
+
+### Paginação (Load More)
+- Página inicial: 24 produtos
+- Botão "Carregar mais produtos" revela próxima página
+- Contador atualizado: "Exibindo X de Y produtos"
+- Estado "Nenhum produto encontrado" com botão "Limpar filtros"
+
+### Dados nos Cards
+Cada card de produto tem atributos `data-*` para filtragem client-side:
+- `data-price` — preço decimal
+- `data-name` — nome do produto (escaped)
+- `data-free-shipping` — "1" ou "0"
+- `data-has-discount` — "1" ou "0"
+- `data-discount-pct` — percentual de desconto
+- `data-index` — posição original
