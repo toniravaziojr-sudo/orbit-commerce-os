@@ -1669,7 +1669,7 @@ serve(async (req) => {
 
     } else if (route.type === 'blog_post' && route.slug) {
       // BLOG POST
-      const postResult = allResults[5];
+      const postResult = allResults[6];
       const post = postResult?.status === 'fulfilled' ? (postResult as any).value.data : null;
 
       if (!post) {
