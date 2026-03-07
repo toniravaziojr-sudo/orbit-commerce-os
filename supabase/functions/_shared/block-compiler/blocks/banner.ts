@@ -108,12 +108,15 @@ export function bannerToStaticHTML(
   }
 
   // Aspect ratio for auto height without CTA
-  const aspectStyle = isAutoHeight && !hasCTA ? 'aspect-ratio:21/9;' : '';
+  // Match React: aspect-[21/9] on mobile, aspect-[21/7] on desktop
+  const needsAspect = isAutoHeight && !hasCTA;
+  const aspectClass = needsAspect ? 'sf-banner-auto' : '';
+  const aspectStyleTag = needsAspect ? '<style>.sf-banner-auto{aspect-ratio:21/9;}@media(min-width:768px){.sf-banner-auto{aspect-ratio:21/7;}}</style>' : '';
 
   const wrapperTag = currentLinkUrl && !hasCTA ? 'a' : 'div';
   const wrapperHref = currentLinkUrl && !hasCTA ? ` href="${escapeHtml(currentLinkUrl)}"` : '';
 
-  return `<${wrapperTag}${wrapperHref} style="position:relative;${widthStyle}${containerHeight}overflow:hidden;${useAbsoluteImage ? `display:flex;align-items:center;justify-content:${justifyContent};` : ''}${aspectStyle}${backgroundColor && !optDesktop ? `background-color:${escapeHtml(backgroundColor)};` : 'background:#f5f5f5;'}">
+  return `${aspectStyleTag}<${wrapperTag}${wrapperHref} class="${aspectClass}" style="position:relative;${widthStyle}${containerHeight}overflow:hidden;${useAbsoluteImage ? `display:flex;align-items:center;justify-content:${justifyContent};` : ''}${backgroundColor && !optDesktop ? `background-color:${escapeHtml(backgroundColor)};` : 'background:#f5f5f5;'}">
     ${imageHtml}
     ${overlayHtml}
     ${ctaHtml}
