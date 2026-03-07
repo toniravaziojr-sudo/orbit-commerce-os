@@ -408,6 +408,8 @@ function buildFullPage(opts: {
           var qtyInput=document.querySelector("[data-sf-qty-input]");
           var qty=qtyInput?parseInt(qtyInput.value)||1:1;
           for(var q=0;q<qty;q++) addToCart(btn.dataset.productId, btn.dataset.productName, parseFloat(btn.dataset.productPrice), btn.dataset.productImage, btn.dataset.variantId);
+          // Buy Together: if extra product data exists, add that too
+          if(btn.dataset.extraProductId){addToCart(btn.dataset.extraProductId,btn.dataset.extraProductName,parseFloat(btn.dataset.extraProductPrice),btn.dataset.extraProductImage);}
         } else if(action==="buy-now"){
           e.preventDefault();e.stopPropagation();
           var qtyInput2=document.querySelector("[data-sf-qty-input]");
