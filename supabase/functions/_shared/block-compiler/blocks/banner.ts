@@ -67,6 +67,7 @@ export function bannerToStaticHTML(
 
   const hasCTA = !!(currentTitle || currentSubtitle || currentButtonText);
   const isAutoHeight = cssHeight === 'auto';
+  const needsAspect = isAutoHeight && !hasCTA;
 
   // Container sizing
   const widthStyle = bannerWidth === 'full' ? 'width:100%;' : 'max-width:1280px;margin-left:auto;margin-right:auto;';
