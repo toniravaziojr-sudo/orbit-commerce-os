@@ -297,6 +297,10 @@ function buildFullPage(opts: {
     /* Notice bar marquee animation */
     @keyframes sf-marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
     .sf-notice-marquee{will-change:transform;}
+    /* Notice bar fade rotation */
+    @keyframes sf-notice-fade-in{0%{opacity:0}100%{opacity:1}}
+    @keyframes sf-notice-fade-out{0%{opacity:1}100%{opacity:0}}
+    .sf-notice-text{transition:opacity 300ms ease-out;}
     /* Header layout responsive */
     @media(max-width:768px){
       .sf-header-desktop{display:none !important;}
@@ -308,6 +312,31 @@ function buildFullPage(opts: {
     }
     /* Dropdown hover */
     .sf-dropdown:hover .sf-dropdown-menu{display:block !important;}
+    /* Attendance dropdown */
+    .sf-attendance-dropdown .sf-attendance-menu{display:none;position:absolute;top:100%;right:0;margin-top:8px;min-width:280px;max-width:320px;padding:16px;background:#fff;border:1px solid #eee;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.12);z-index:60;}
+    .sf-attendance-dropdown:hover .sf-attendance-menu{display:block;}
+    .sf-attendance-item{display:flex;align-items:flex-start;gap:12px;padding:8px;border-radius:8px;text-decoration:none;color:inherit;transition:background 0.15s;}
+    .sf-attendance-item:hover{background:#f5f5f5;}
+    .sf-attendance-icon{margin-top:2px;padding:6px;border-radius:6px;display:flex;align-items:center;justify-content:center;}
+    /* Featured promo thumbnail hover */
+    .sf-featured-promo{position:relative;}
+    .sf-featured-promo .sf-featured-thumb{display:none;position:absolute;top:100%;left:0;margin-top:8px;z-index:50;border-radius:8px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.15);border:1px solid #eee;}
+    .sf-featured-promo:hover .sf-featured-thumb{display:block;}
+    /* Button theme styles — mirrors usePublicThemeSettings.ts */
+    .sf-btn-primary{background:var(--theme-button-primary-bg,#1a1a1a) !important;color:var(--theme-button-primary-text,#fff) !important;transition:all 0.2s ease !important;}
+    .sf-btn-primary:hover:not(:disabled){background:var(--theme-button-primary-hover,var(--theme-button-primary-bg,#333)) !important;transform:translateY(-1px) !important;filter:brightness(1.05) !important;}
+    .sf-btn-outline-primary{background:transparent !important;color:var(--theme-button-primary-bg,#1a1a1a) !important;border:1px solid var(--theme-button-primary-bg,#1a1a1a) !important;transition:all 0.2s ease !important;}
+    .sf-btn-outline-primary:hover:not(:disabled){background:var(--theme-button-primary-bg,#1a1a1a) !important;color:var(--theme-button-primary-text,#fff) !important;border-color:var(--theme-button-primary-bg,#1a1a1a) !important;transform:translateY(-1px) !important;}
+    .sf-btn-secondary{background:var(--theme-button-secondary-bg,#e5e5e5) !important;color:var(--theme-button-secondary-text,#1a1a1a) !important;transition:all 0.2s ease !important;}
+    .sf-btn-secondary:hover:not(:disabled){background:var(--theme-button-secondary-hover,var(--theme-button-secondary-bg,#d5d5d5)) !important;transform:translateY(-1px) !important;filter:brightness(1.05) !important;}
+    /* Accent color classes */
+    .sf-accent-icon,.sf-accent-check,.sf-accent-text{color:var(--theme-accent-color,#22c55e) !important;}
+    .sf-accent-bg{background:var(--theme-accent-color,#22c55e) !important;color:#fff !important;}
+    /* Tag colors */
+    .sf-tag-success{background:var(--theme-success-bg,#22c55e) !important;color:var(--theme-success-text,#fff) !important;}
+    .sf-tag-warning{background:var(--theme-warning-bg,#f97316) !important;color:var(--theme-warning-text,#fff) !important;}
+    .sf-tag-danger{background:var(--theme-danger-bg,#ef4444) !important;color:var(--theme-danger-text,#fff) !important;}
+    .sf-tag-highlight{background:var(--theme-highlight-bg,#3b82f6) !important;color:var(--theme-highlight-text,#fff) !important;}
     /* Search overlay */
     .sf-search-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;align-items:flex-start;justify-content:center;padding-top:80px;}
     .sf-search-overlay.active{display:flex;}
