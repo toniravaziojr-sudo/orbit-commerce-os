@@ -1729,6 +1729,7 @@ serve(async (req) => {
       totalMs,
       extraHead,
       navItemsHtml,
+      mobileSearchHtml,
     });
 
     console.log(`[storefront-html] ${route.type}${route.slug ? '/' + route.slug : ''} rendered in ${totalMs}ms (resolve=${resolveMs}ms, queries=${queryMs}ms)`);
