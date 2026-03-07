@@ -46,18 +46,21 @@ A Loja Virtual é o módulo central de e-commerce que permite criar, personaliza
 └─────────────────────────────────────────────────────────────────────────┘
                                      ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                      RESOLUÇÃO DE TENANT                                │
-│  Arquivo: supabase/functions/resolve-domain                            │
+│               RESOLUÇÃO DE TENANT + BOOTSTRAP UNIFICADO                  │
+│  Arquivo: supabase/functions/storefront-bootstrap (v4.0.0)              │
+│  Lógica de resolução: supabase/functions/_shared/resolveTenant.ts       │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  • Recebe hostname → retorna tenant_id + primary_host                  │
-│  • Verifica status SSL do domínio customizado                          │
-│  • Redireciona para domínio canônico quando necessário                 │
+│  • Aceita hostname → resolve tenant + carrega todos os dados            │
+│  • Aceita tenant_slug ou tenant_id → carrega dados diretamente          │
+│  • 1 ÚNICA chamada Edge Function para domínios custom (antes eram 2)    │
+│  • resolve-domain ainda existe como fallback (usa _shared/resolveTenant)│
 └─────────────────────────────────────────────────────────────────────────┘
                                      ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                      LAYOUT DO STOREFRONT                               │
 │  Arquivos: StorefrontLayout.tsx, TenantStorefrontLayout.tsx            │
 ├─────────────────────────────────────────────────────────────────────────┤
+│  • TenantStorefrontLayout: usa useStorefrontBootstrapByHostname        │
 │  • CartProvider (estado global do carrinho)                             │
 │  • DiscountProvider (cupons aplicados)                                  │
 │  • StorefrontConfigProvider (configs de frete, benefícios, ofertas)    │
@@ -72,6 +75,7 @@ A Loja Virtual é o módulo central de e-commerce que permite criar, personaliza
 │  • Busca dados reais (produtos, categorias, pedidos)                   │
 │  • Monta BlockRenderContext                                             │
 │  • Renderiza via PublicTemplateRenderer                                │
+│  • TODAS passam bootstrapGlobalLayout ao PublicTemplateRenderer        │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
