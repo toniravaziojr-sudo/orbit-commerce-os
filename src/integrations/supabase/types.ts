@@ -13098,6 +13098,7 @@ export type Database = {
       products: {
         Row: {
           allow_backorder: boolean | null
+          avg_rating: number | null
           barcode: string | null
           brand: string | null
           cest: string | null
@@ -13129,6 +13130,7 @@ export type Database = {
           published_at: string | null
           regulatory_info: Json | null
           requires_shipping: boolean | null
+          review_count: number | null
           seo_description: string | null
           seo_title: string | null
           short_description: string | null
@@ -13151,6 +13153,7 @@ export type Database = {
         }
         Insert: {
           allow_backorder?: boolean | null
+          avg_rating?: number | null
           barcode?: string | null
           brand?: string | null
           cest?: string | null
@@ -13182,6 +13185,7 @@ export type Database = {
           published_at?: string | null
           regulatory_info?: Json | null
           requires_shipping?: boolean | null
+          review_count?: number | null
           seo_description?: string | null
           seo_title?: string | null
           short_description?: string | null
@@ -13204,6 +13208,7 @@ export type Database = {
         }
         Update: {
           allow_backorder?: boolean | null
+          avg_rating?: number | null
           barcode?: string | null
           brand?: string | null
           cest?: string | null
@@ -13235,6 +13240,7 @@ export type Database = {
           published_at?: string | null
           regulatory_info?: Json | null
           requires_shipping?: boolean | null
+          review_count?: number | null
           seo_description?: string | null
           seo_title?: string | null
           short_description?: string | null
