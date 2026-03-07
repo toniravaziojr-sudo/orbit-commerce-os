@@ -253,6 +253,7 @@ function buildFullPage(opts: {
   totalMs: number;
   extraHead?: string;
   navItemsHtml?: string;
+  mobileSearchHtml?: string;
 }): string {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
