@@ -89,7 +89,7 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 │    - is_active: true (ativa) / false (stale)                            │
 │    - Tipos: home, product, category, blog_index, blog_post              │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  Block-to-HTML Compiler (v8.2.0) — Live Fallback para TODAS as rotas:  │
+│  Block-to-HTML Compiler (v8.2.1) — Live Fallback para TODAS as rotas:  │
 │  • Home: compileBlockTree() com published_content (fonte de verdade)   │
 │  • Header: headerToStaticHTML() via block-compiler                     │
 │  • Footer: footerToStaticHTML() via block-compiler                     │
@@ -101,8 +101,10 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 │  • Blocos de home: Page, Section, HeroBanner, Banner,                  │
 │    FeaturedCategories, FeaturedProducts, ImageCarousel, InfoHighlights  │
 │  • ZERO renderers manuais legados restantes                            │
-│  • Paridade visual v8.2.0: badges horizontais, --theme-price-color,    │
-│    hover effects em cards, Banner aspect-ratio responsivo 21/9→21/7    │
+│  • Paridade visual v8.2.1: badges horizontais, --theme-price-color,    │
+│    hover effects em cards, Banner aspect-ratio responsivo 21/9→21/7,   │
+│    Banner img object-fit:cover no container aspect-ratio (gap fix)     │
+│  • ⚑ BASELINE ESTÁVEL — frente encerrada em 2026-03-07                │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  Rotas suportadas:                                                      │
 │  • / → Home (block-compiler: header + blocos + footer)                 │
@@ -1427,6 +1429,7 @@ WHERE tenant_id = '{id}' AND status = 'active';
 | 2026-03-07 | **PRERENDER MULTI-TENANT VALIDADO (v8.1.4)**: Fast path confirmado em 2 tenants (Respeite=47 páginas, Amazgan=12 páginas). `X-Render-Mode: prerendered` + `X-Prerender-At` em ambos. TTFB ~230ms (home) vs ~500ms live. Auth bypass adicionado para triggers internos. Checklist operacional documentado. Pipeline multi-tenant encerrado com validação completa. |
 | 2026-03-07 | **PERFORMANCE FASE 6**: App.tsx — 100% dos imports convertidos para `lazy()`. Admin (~80 pages + AppShell) e Storefront (Layout + páginas) em bundles isolados. Suspense global com spinner. 5 imports não utilizados removidos. Redução estimada de ~60-70% no bundle inicial para visitantes da storefront. |
 | 2026-03-07 | **PERFORMANCE FASE 4+4B+5**: Removido `include_products` do bootstrap (payload ~30-50% menor). BannerBlock agora aplica wsrv.nl transform em modo público (match com LcpPreloader). index.html limpo de branding "Comando Central" (title genérico "Carregando...", sem favicon/OG/meta da plataforma). AppShell injeta `document.title = 'Comando Central'` para rotas admin. |
+| 2026-03-07 | **BASELINE ESTÁVEL v8.2.1**: Storefront pública encerrada como baseline. Performance consolidada (TTFB ~100ms), paridade visual principal consolidada, multi-tenant validado, prerender fast path ativo. Banner compiler: img object-fit:cover no container aspect-ratio corrige gap residual abaixo do hero. Frente congelada — só reabrir para bug real. |
 | 2026-03-06 | **PERFORMANCE FASES 1-3**: Bootstrap v4.0.0 com 12 queries paralelas (+ store_pages Q9, footer_2 Q10). Header/Footer usam bootstrap props (zero queries extras). Unificação resolve-domain + bootstrap via _shared/resolveTenant.ts. Todas as páginas passam bootstrapGlobalLayout. |
 | 2026-03-05 | **ENGINE V7.0**: Migração para Schema-First + React Renderer. IA gera `LPSchema` JSON (não HTML). 8 blocos LP React com CSS variables `--lp-*`. Asset Resolver determinístico por slot. Ajustes via chat por schema patch. Renderização nativa sem iframe. Prioridade: schema > HTML > blocks. Coluna `generated_schema` (JSONB) em `ai_landing_pages`. |
 | 2026-03-04 | **ENGINE V5.0**: Migração para JSON-to-React — tool calling com `build_landing_page`, `assembleBlockTree()`, `generated_blocks` (JSONB), render via `PublicTemplateRenderer`. Auto-descoberta de kits via `product_components`. Busca de provas sociais em pastas do Drive. Fallback HTML legado mantido. |
