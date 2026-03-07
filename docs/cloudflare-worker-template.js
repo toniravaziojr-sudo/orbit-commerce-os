@@ -488,11 +488,27 @@ export default {
         });
 
         // If edge function returned valid HTML (200, 404 with HTML), use it
-        if (htmlRes.ok || (htmlRes.status === 404 && (htmlRes.headers.get('content-type') || '').includes('text/html'))) {
+        // NOTE: Supabase Gateway overrides Content-Type to text/plain and adds CSP sandbox.
+        // We must force correct headers for the browser/crawlers to interpret as HTML.
+        const fnContentType = (htmlRes.headers.get('content-type') || '').toLowerCase();
+        const hasHtmlBody = htmlRes.ok || htmlRes.status === 404;
+        // Check if the response is actually HTML (by our custom header or body inspection)
+        const isHtmlResponse = hasHtmlBody && (
+          fnContentType.includes('text/html') || 
+          fnContentType.includes('text/plain') || // Supabase Gateway rewrites html→plain
+          htmlRes.headers.get('x-storefront-version') // Our edge function always sets this
+        );
+
+        if (isHtmlResponse) {
           const resHeaders = new Headers();
           for (const [key, value] of htmlRes.headers.entries()) {
+            const lk = key.toLowerCase();
+            // Skip Supabase Gateway security headers that break HTML rendering
+            if (lk === 'content-security-policy' || lk === 'x-content-type-options') continue;
             resHeaders.set(key, value);
           }
+          // CRITICAL: Force correct Content-Type — Supabase Gateway sets text/plain
+          resHeaders.set('Content-Type', 'text/html; charset=utf-8');
           resHeaders.set('X-CC-Tenant', tenantSlug);
           resHeaders.set('X-CC-Render-Mode', 'edge-html');
           resHeaders.set('X-CC-Domain-Type', domainType);
