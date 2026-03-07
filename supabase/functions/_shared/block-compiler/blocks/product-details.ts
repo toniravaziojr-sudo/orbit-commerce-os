@@ -64,7 +64,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
       crumbs.push(`<a href="/categoria/${escapeHtml(category.slug)}" style="color:var(--theme-text-secondary,#666);text-decoration:none;font-size:13px;">${escapeHtml(category.name)}</a>`);
     }
     crumbs.push(`<span style="color:#999;font-size:12px;">›</span>`);
-    crumbs.push(`<span style="color:var(--theme-text-primary,#1a1a1a);font-size:13px;font-weight:500;">${escapeHtml(product.name)}</span>`);
+    crumbs.push(`<span style="color:#1a1a1a;font-size:13px;font-weight:500;">${escapeHtml(product.name)}</span>`);
     breadcrumbHtml = `<nav aria-label="breadcrumb" style="margin-bottom:16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">${crumbs.join('')}</nav>`;
   }
 
