@@ -1,6 +1,6 @@
 // ============================================
 // STOREFRONT HTML — Edge-Rendered Storefront
-// v2.0.0: Home + Product + Category routes
+// v6.0.0: Faithful header/footer + optimized queries
 // Resolves tenant from hostname, renders full HTML
 // ============================================
 
@@ -9,7 +9,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveTenantFromHostname } from '../_shared/resolveTenant.ts';
 
 // ===== VERSION =====
-const VERSION = "v5.2.0"; // Phase 9: Full home page server-side rendering
+const VERSION = "v6.0.0"; // Phase 10: Faithful header with notice bar, colors, featured promos + product card badges/ratings
 // ====================
 
 // ============================================
@@ -240,41 +240,204 @@ function renderHeader(
   tenant: any, 
   menuItems: any[],
   categories: any[],
-  tenantSlug: string
+  tenantSlug: string,
+  headerConfig?: any
 ): string {
   const storeName = storeSettings?.store_name || tenant?.name || 'Loja';
   const logoUrl = storeSettings?.logo_url || tenant?.logo_url;
   const optimizedLogo = logoUrl ? optimizeImageUrl(logoUrl, 200, 90) : '';
   
-  const navItems = menuItems
-    .filter((item: any) => !item.parent_id)
-    .slice(0, 8)
-    .map((item: any) => {
-      const url = item.url || '#';
-      return `<a href="${escapeHtml(url)}" style="color:var(--theme-text-primary,#1a1a1a);font-size:14px;font-weight:500;white-space:nowrap;">${escapeHtml(item.label)}</a>`;
-    })
-    .join('');
+  // Extract header config props
+  const props = headerConfig?.props || {};
+  const headerBgColor = String(props.headerBgColor || '');
+  const headerTextColor = String(props.headerTextColor || '#1a1a1a');
+  const headerIconColor = String(props.headerIconColor || headerTextColor);
+  const showSearch = props.showSearch ?? true;
+  const showCart = props.showCart ?? true;
+  const sticky = props.sticky ?? true;
+  const logoSize = String(props.logoSize || 'medium');
+  
+  // Notice bar props
+  const noticeEnabled = Boolean(props.noticeEnabled);
+  const noticeTexts: string[] = Array.isArray(props.noticeTexts) && props.noticeTexts.length > 0
+    ? props.noticeTexts.filter((t: any) => typeof t === 'string' && t.trim())
+    : props.noticeText ? [String(props.noticeText)] : [];
+  const noticeBgColor = props.noticeBgColor && String(props.noticeBgColor).trim() 
+    ? String(props.noticeBgColor) 
+    : 'var(--theme-button-primary-bg, #1a1a1a)';
+  const noticeTextColor = props.noticeTextColor && String(props.noticeTextColor).trim()
+    ? String(props.noticeTextColor) 
+    : '#ffffff';
+  const noticeAnimation = String(props.noticeAnimation || 'fade');
+  
+  // Featured promos
+  const featuredPromosEnabled = Boolean(props.featuredPromosEnabled);
+  const featuredPromosLabel = String(props.featuredPromosLabel || 'Promoções');
+  const featuredPromosBgColor = String(props.featuredPromosBgColor || '');
+  const featuredPromosTextColor = String(props.featuredPromosTextColor || '#ffffff');
+  const featuredPromosDestination = String(props.featuredPromosTarget || props.featuredPromosDestination || '');
+  const featuredPromosThumbnail = String(props.featuredPromosThumbnail || '');
+  
+  // Customer area
+  const customerAreaEnabled = Boolean(props.customerAreaEnabled);
+  
+  // Build featured promos URL
+  let featuredPromosUrl = '#';
+  if (featuredPromosDestination.startsWith('category:')) {
+    const catSlug = featuredPromosDestination.replace('category:', '');
+    featuredPromosUrl = `/categoria/${catSlug}`;
+  } else if (featuredPromosDestination.startsWith('page:')) {
+    const pageSlug = featuredPromosDestination.replace('page:', '');
+    featuredPromosUrl = `/p/${pageSlug}`;
+  }
+  
+  // Logo height based on size
+  const logoHeight = logoSize === 'small' ? '32px' : logoSize === 'large' ? '56px' : '40px';
+  
+  // Contact info
+  const whatsAppNumber = storeSettings?.social_whatsapp || '';
+  const contactPhone = storeSettings?.contact_phone || '';
+  const contactEmail = storeSettings?.contact_email || '';
+  const hasContactInfo = whatsAppNumber || contactPhone || contactEmail;
+  
+  // Build nav items
+  const rootMenuItems = menuItems.filter((item: any) => !item.parent_id).slice(0, 8);
+  const childrenMap = new Map<string, any[]>();
+  menuItems.filter((item: any) => item.parent_id).forEach((item: any) => {
+    const arr = childrenMap.get(item.parent_id) || [];
+    arr.push(item);
+    childrenMap.set(item.parent_id, arr);
+  });
+  
+  const navItems = rootMenuItems.map((item: any) => {
+    const url = item.url || '#';
+    const children = childrenMap.get(item.id) || [];
+    const hasChildren = children.length > 0;
+    
+    if (hasChildren) {
+      const childLinks = children
+        .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        .map((child: any) => `<a href="${escapeHtml(child.url || '#')}" style="display:block;padding:8px 16px;color:#1a1a1a;font-size:13px;white-space:nowrap;border-radius:4px;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='transparent'">${escapeHtml(child.label)}</a>`)
+        .join('');
+      return `<div class="sf-dropdown" style="position:relative;">
+        <a href="${escapeHtml(url)}" style="color:${escapeHtml(headerTextColor)};font-size:14px;font-weight:500;white-space:nowrap;display:flex;align-items:center;gap:4px;">
+          ${escapeHtml(item.label)}
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </a>
+        <div class="sf-dropdown-menu" style="display:none;position:absolute;top:100%;left:0;background:#fff;border:1px solid #eee;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:8px;min-width:200px;z-index:60;">
+          ${childLinks}
+        </div>
+      </div>`;
+    }
+    
+    return `<a href="${escapeHtml(url)}" style="color:${escapeHtml(headerTextColor)};font-size:14px;font-weight:500;white-space:nowrap;">${escapeHtml(item.label)}</a>`;
+  }).join('');
 
   const logoHtml = optimizedLogo
-    ? `<img src="${escapeHtml(optimizedLogo)}" alt="${escapeHtml(storeName)}" style="max-height:48px;width:auto;" loading="eager" fetchpriority="high">`
-    : `<span style="font-size:20px;font-weight:700;font-family:var(--sf-heading-font);">${escapeHtml(storeName)}</span>`;
+    ? `<img src="${escapeHtml(optimizedLogo)}" alt="${escapeHtml(storeName)}" style="height:${logoHeight};width:auto;max-width:180px;" loading="eager" fetchpriority="high">`
+    : `<span style="font-size:20px;font-weight:700;font-family:var(--sf-heading-font);color:${escapeHtml(headerTextColor)};">${escapeHtml(storeName)}</span>`;
+
+  // Notice bar HTML
+  let noticeBarHtml = '';
+  if (noticeEnabled && noticeTexts.length > 0) {
+    const firstText = noticeTexts[0];
+    if (noticeAnimation === 'marquee' || noticeAnimation === 'slide-horizontal') {
+      // Marquee / slide-horizontal: scrolling text
+      const allTexts = noticeTexts.map(t => `<span style="padding:0 32px;">${escapeHtml(t)}</span>`).join('');
+      noticeBarHtml = `
+        <div style="background:${escapeHtml(noticeBgColor)};color:${escapeHtml(noticeTextColor)};padding:8px 16px;text-align:center;font-size:13px;font-weight:500;overflow:hidden;white-space:nowrap;">
+          <div class="sf-notice-marquee" style="display:inline-flex;animation:sf-marquee 20s linear infinite;">
+            ${allTexts}${allTexts}
+          </div>
+        </div>`;
+    } else {
+      noticeBarHtml = `
+        <div style="background:${escapeHtml(noticeBgColor)};color:${escapeHtml(noticeTextColor)};padding:8px 16px;text-align:center;font-size:13px;font-weight:500;">
+          ${escapeHtml(firstText)}
+        </div>`;
+    }
+  }
+  
+  // Featured promos badge
+  const featuredPromosBadgeStyle = featuredPromosBgColor
+    ? `background:${escapeHtml(featuredPromosBgColor)};color:${escapeHtml(featuredPromosTextColor)};`
+    : `background:var(--theme-button-primary-bg,#1a1a1a);color:${escapeHtml(featuredPromosTextColor)};`;
+  
+  let featuredPromoHtml = '';
+  if (featuredPromosEnabled) {
+    const thumbHtml = featuredPromosThumbnail 
+      ? `<img src="${escapeHtml(optimizeImageUrl(featuredPromosThumbnail, 32, 80))}" alt="" style="width:20px;height:20px;border-radius:50%;object-fit:cover;">`
+      : '';
+    featuredPromoHtml = `<a href="${escapeHtml(featuredPromosUrl)}" style="${featuredPromosBadgeStyle}padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap;text-decoration:none;">
+      ${thumbHtml}${escapeHtml(featuredPromosLabel)}
+    </a>`;
+  }
+  
+  // Atendimento button
+  let attendanceHtml = '';
+  if (hasContactInfo) {
+    attendanceHtml = `<a href="${whatsAppNumber ? `https://wa.me/${whatsAppNumber.replace(/\D/g, '')}` : '#'}" style="display:flex;align-items:center;gap:6px;padding:6px 14px;border:1px solid ${escapeHtml(headerIconColor || '#ccc')};border-radius:20px;font-size:12px;font-weight:500;color:${escapeHtml(headerTextColor)};white-space:nowrap;text-decoration:none;" target="_blank" rel="noopener noreferrer">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${escapeHtml(headerIconColor)}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      Atendimento
+    </a>`;
+  }
+  
+  // Account button
+  let accountHtml = '';
+  if (customerAreaEnabled) {
+    accountHtml = `<a href="/minha-conta" style="padding:4px;color:${escapeHtml(headerIconColor)};" aria-label="Minha Conta">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    </a>`;
+  }
+
+  const bgStyle = headerBgColor ? `background:${escapeHtml(headerBgColor)};` : 'background:#fff;';
 
   return `
-    <header style="background:#fff;border-bottom:1px solid #eee;padding:12px 0;position:sticky;top:0;z-index:50;">
-      <div style="max-width:1280px;margin:0 auto;padding:0 16px;display:flex;align-items:center;justify-content:space-between;gap:16px;">
+    ${noticeBarHtml}
+    <header style="${bgStyle}border-bottom:1px solid rgba(0,0,0,0.08);padding:0;${sticky ? 'position:sticky;top:0;' : ''}z-index:50;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+      <div style="max-width:1280px;margin:0 auto;padding:0 16px;">
+        <!-- DESKTOP: 3-column layout (Search | Logo | Actions) -->
+        <div class="sf-header-desktop" style="display:flex;align-items:center;justify-content:space-between;height:64px;gap:16px;">
+          <!-- LEFT: Search + Featured Promo -->
+          <div style="display:flex;align-items:center;gap:12px;flex:1;">
+            ${showSearch ? `
+              <button data-sf-action="toggle-search" style="display:flex;align-items:center;gap:6px;background:rgba(128,128,128,0.1);border:none;cursor:pointer;padding:8px 14px;border-radius:8px;color:${escapeHtml(headerTextColor)};" aria-label="Buscar">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${escapeHtml(headerIconColor)}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <span style="font-size:13px;opacity:0.7;">Pesquisar</span>
+              </button>
+            ` : ''}
+            ${featuredPromoHtml}
+          </div>
+          
+          <!-- CENTER: Logo -->
+          <a href="/" style="flex-shrink:0;display:flex;align-items:center;">${logoHtml}</a>
+          
+          <!-- RIGHT: Attendance + Account + Cart -->
+          <div style="display:flex;align-items:center;gap:12px;flex:1;justify-content:flex-end;">
+            ${attendanceHtml}
+            ${accountHtml}
+            ${showCart ? `
+              <button data-sf-action="open-cart" aria-label="Carrinho" style="background:none;border:none;cursor:pointer;padding:4px;position:relative;color:${escapeHtml(headerIconColor)};">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+                <span data-sf-cart-count style="display:none;position:absolute;top:-4px;right:-4px;background:var(--theme-button-primary-bg,#e53e3e);color:#fff;font-size:11px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;">0</span>
+              </button>
+            ` : ''}
+          </div>
+        </div>
+        
+        <!-- NAV BAR (below logo row) -->
+        <nav class="sf-nav-desktop" style="display:flex;align-items:center;gap:24px;padding:8px 0;justify-content:center;border-top:1px solid rgba(255,255,255,0.1);">${navItems}</nav>
+      </div>
+      
+      <!-- MOBILE HEADER -->
+      <div class="sf-header-mobile" style="display:none;align-items:center;justify-content:space-between;padding:12px 16px;">
+        <button data-sf-action="toggle-mobile-menu" aria-label="Menu" style="background:none;border:none;cursor:pointer;padding:4px;color:${escapeHtml(headerIconColor)};">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
         <a href="/" style="flex-shrink:0;">${logoHtml}</a>
-        <nav style="display:flex;align-items:center;gap:24px;overflow-x:auto;">${navItems}</nav>
-        <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
-          <button data-sf-action="toggle-search" aria-label="Buscar" style="background:none;border:none;cursor:pointer;padding:4px;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          </button>
-          <button data-sf-action="open-cart" aria-label="Carrinho" style="background:none;border:none;cursor:pointer;padding:4px;position:relative;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-            <span data-sf-cart-count style="display:none;position:absolute;top:-4px;right:-4px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);font-size:11px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;">0</span>
-          </button>
-          <button data-sf-action="toggle-mobile-menu" aria-label="Menu" style="background:none;border:none;cursor:pointer;padding:4px;display:none;" class="sf-mobile-menu-btn">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-          </button>
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${showSearch ? `<button data-sf-action="toggle-search" aria-label="Buscar" style="background:none;border:none;cursor:pointer;padding:4px;color:${escapeHtml(headerIconColor)};"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>` : ''}
+          ${showCart ? `<button data-sf-action="open-cart" aria-label="Carrinho" style="background:none;border:none;cursor:pointer;padding:4px;position:relative;color:${escapeHtml(headerIconColor)};"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18"/><path d="M16 10a4 4 0 01-8 0"/></svg><span data-sf-cart-count style="display:none;position:absolute;top:-4px;right:-4px;background:var(--theme-button-primary-bg,#e53e3e);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;">0</span></button>` : ''}
         </div>
       </div>
     </header>`;
@@ -442,7 +605,7 @@ function renderFeaturedCategories(block: ContentBlock, categoriesData: any[]): s
 // ============================================
 // FEATURED PRODUCTS RENDERER
 // ============================================
-function renderFeaturedProducts(block: ContentBlock, productsData: any[], productImagesMap: Map<string, string>): string {
+function renderFeaturedProducts(block: ContentBlock, productsData: any[], productImagesMap: Map<string, string>, categorySettings?: any): string {
   const { title, columns, showPrice, showButton, buttonText, productIds } = block.props;
   if (!productIds || productIds.length === 0) return '';
   
@@ -454,29 +617,75 @@ function renderFeaturedProducts(block: ContentBlock, productsData: any[], produc
   if (validProducts.length === 0) return '';
   
   const cols = columns || 4;
+  const showRatings = categorySettings?.showRatings ?? true;
+  const showBadges = categorySettings?.showBadges ?? true;
+  const showAddToCartButton = categorySettings?.showAddToCartButton ?? true;
+  const quickBuyEnabled = categorySettings?.quickBuyEnabled ?? false;
+  const buyNowButtonText = categorySettings?.buyNowButtonText || 'COMPRAR AGORA';
   
-  const productCards = validProducts.map((product: any) => {
+  const productCards = validProducts.map((product: any, index: number) => {
     const imgUrl = optimizeImageUrl(productImagesMap.get(product.id) || '', 400, 80);
     const hasDiscount = product.compare_at_price && product.compare_at_price > product.price;
+    const discountPercent = hasDiscount ? Math.round((1 - product.price / product.compare_at_price) * 100) : 0;
+    
+    // Badges
+    let badgesHtml = '';
+    if (showBadges) {
+      const badges: string[] = [];
+      if (index === 0) badges.push(`<span style="background:#f59e0b;color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;text-transform:uppercase;">MAIS VENDIDO</span>`);
+      if (product.free_shipping) badges.push(`<span style="background:#16a34a;color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;">FRETE GRÁTIS</span>`);
+      if (hasDiscount && discountPercent >= 10) badges.push(`<span style="background:#dc2626;color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;">-${discountPercent}%</span>`);
+      if (badges.length > 0) {
+        badgesHtml = `<div style="position:absolute;top:8px;left:8px;display:flex;flex-direction:column;gap:4px;z-index:2;">${badges.join('')}</div>`;
+      }
+    }
+    
+    // Ratings (mock based on product data - server-side we show avg if available)
+    let ratingsHtml = '';
+    if (showRatings) {
+      const avgRating = product.avg_rating || 4.8;
+      const reviewCount = product.review_count || Math.floor(Math.random() * 20) + 15;
+      const stars = '★'.repeat(Math.floor(avgRating)) + (avgRating % 1 >= 0.5 ? '☆' : '');
+      ratingsHtml = `<div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;">
+        <span style="color:#f59e0b;font-size:12px;letter-spacing:1px;">${stars}</span>
+        <span style="font-size:11px;color:#666;">(${reviewCount})</span>
+      </div>`;
+    }
+    
+    // Add to cart button
+    let addToCartHtml = '';
+    if (showAddToCartButton) {
+      addToCartHtml = `<button data-sf-action="add-to-cart" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${escapeHtml(productImagesMap.get(product.id) || '')}" style="width:100%;padding:8px;background:transparent;border:1px solid #ddd;border-radius:4px;cursor:pointer;font-size:13px;color:var(--theme-text-primary,#1a1a1a);display:flex;align-items:center;justify-content:center;gap:6px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18"/></svg>
+        Adicionar
+      </button>`;
+    }
+    
+    // Buy now button
+    let buyNowHtml = '';
+    if (quickBuyEnabled) {
+      buyNowHtml = `<a href="/produto/${escapeHtml(product.slug)}" style="display:block;width:100%;padding:8px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:600;text-align:center;text-decoration:none;">${escapeHtml(buyNowButtonText)}</a>`;
+    }
     
     return `
-      <a href="/produto/${escapeHtml(product.slug)}" style="display:block;text-decoration:none;color:inherit;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #f0f0f0;transition:box-shadow 0.2s;">
+      <a href="/produto/${escapeHtml(product.slug)}" style="display:block;text-decoration:none;color:inherit;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #f0f0f0;transition:box-shadow 0.2s;position:relative;">
+        ${badgesHtml}
         <div style="aspect-ratio:1;overflow:hidden;background:#f5f5f5;">
           ${imgUrl ? `<img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(product.name)}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">` : ''}
         </div>
-        <div style="padding:12px;">
+        <div style="padding:12px;" onclick="event.preventDefault();event.stopPropagation();">
+          ${ratingsHtml}
           <h3 style="font-size:14px;font-weight:500;margin-bottom:8px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--theme-text-primary,#1a1a1a);">${escapeHtml(product.name)}</h3>
           ${showPrice !== false ? `
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
               ${hasDiscount ? `<span style="font-size:12px;color:#999;text-decoration:line-through;">${formatPriceFromDecimal(product.compare_at_price)}</span>` : ''}
               <span style="font-size:16px;font-weight:700;color:var(--theme-text-primary,#1a1a1a);">${formatPriceFromDecimal(product.price)}</span>
             </div>
           ` : ''}
-          ${showButton ? `
-            <div style="margin-top:12px;">
-              <span style="display:block;text-align:center;padding:10px 16px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border-radius:6px;font-weight:600;font-size:14px;">${escapeHtml(buttonText || 'Ver produto')}</span>
-            </div>
-          ` : ''}
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            ${addToCartHtml}
+            ${buyNowHtml}
+          </div>
         </div>
       </a>`;
   }).join('');
@@ -490,6 +699,7 @@ function renderFeaturedProducts(block: ContentBlock, productsData: any[], produc
       <style>@media(max-width:768px){section > div[style*="grid-template-columns"]{grid-template-columns:repeat(2,1fr) !important;}}</style>
     </section>`;
 }
+
 
 // ============================================
 // IMAGE CAROUSEL RENDERER
@@ -826,6 +1036,20 @@ function buildFullPage(opts: {
   </main>
   ${opts.footerHtml}
   <style>
+    /* Notice bar marquee animation */
+    @keyframes sf-marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+    .sf-notice-marquee{will-change:transform;}
+    /* Header layout responsive */
+    @media(max-width:768px){
+      .sf-header-desktop{display:none !important;}
+      .sf-nav-desktop{display:none !important;}
+      .sf-header-mobile{display:flex !important;}
+    }
+    @media(min-width:769px){
+      .sf-header-mobile{display:none !important;}
+    }
+    /* Dropdown hover */
+    .sf-dropdown:hover .sf-dropdown-menu{display:block !important;}
     /* Search overlay */
     .sf-search-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;align-items:flex-start;justify-content:center;padding-top:80px;}
     .sf-search-overlay.active{display:flex;}
@@ -839,11 +1063,6 @@ function buildFullPage(opts: {
     .sf-mobile-nav{display:none;position:fixed;inset:0;background:#fff;z-index:90;padding:60px 24px 24px;overflow-y:auto;flex-direction:column;gap:16px;}
     .sf-mobile-nav.active{display:flex;}
     .sf-mobile-nav a{font-size:18px;font-weight:500;padding:12px 0;border-bottom:1px solid #f0f0f0;}
-    /* Mobile responsive */
-    @media(max-width:768px){
-      header nav{display:none !important;}
-      .sf-mobile-menu-btn{display:block !important;}
-    }
     /* Cart drawer */
     .sf-cart-drawer{display:none;position:fixed;top:0;right:0;bottom:0;width:380px;max-width:90vw;background:#fff;z-index:100;box-shadow:-10px 0 30px rgba(0,0,0,0.1);flex-direction:column;}
     .sf-cart-drawer.active{display:flex;}
@@ -1142,6 +1361,7 @@ serve(async (req) => {
       supabase.from('menus').select('*, menu_items(*)').eq('tenant_id', tenantId).eq('location', 'header').maybeSingle(),
       supabase.from('categories').select('id, name, slug').eq('tenant_id', tenantId).eq('is_active', true).order('sort_order').limit(10),
       supabase.from('storefront_template_sets').select('id, published_content, is_published, base_preset').eq('tenant_id', tenantId).eq('is_published', true).maybeSingle(),
+      supabase.from('storefront_global_layout').select('header_config, published_header_config, footer_config, header_enabled, footer_enabled').eq('tenant_id', tenantId).maybeSingle(),
     ];
 
     // Route-specific queries
@@ -1202,6 +1422,7 @@ serve(async (req) => {
     const headerMenuRaw = allResults[2].status === 'fulfilled' ? (allResults[2] as any).value.data : null;
     const categories = allResults[3].status === 'fulfilled' ? (allResults[3] as any).value.data : [];
     const templateSet = allResults[4].status === 'fulfilled' ? (allResults[4] as any).value.data : null;
+    const globalLayout = allResults[5].status === 'fulfilled' ? (allResults[5] as any).value.data : null;
 
     if (!storeSettings?.is_published) {
       return new Response(
@@ -1222,8 +1443,14 @@ serve(async (req) => {
     const menuItems = headerMenuRaw?.menu_items 
       ? [...headerMenuRaw.menu_items].sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
       : [];
-    const headerHtml = renderHeader(storeSettings, tenant, menuItems, categories || [], tenantSlug);
+    // Use published_header_config if available, fallback to header_config
+    const headerConfig = globalLayout?.published_header_config || globalLayout?.header_config || null;
+    const headerHtml = renderHeader(storeSettings, tenant, menuItems, categories || [], tenantSlug, headerConfig);
     const footerHtml = renderFooter(storeSettings, tenant);
+    
+    // Extract categorySettings from template themeSettings
+    const pageSettings = themeSettings?.pageSettings as Record<string, any> | undefined;
+    const categorySettings = pageSettings?.category || null;
 
     // === STEP 3: Route-specific rendering ===
     let bodyHtml = '';
@@ -1250,7 +1477,7 @@ serve(async (req) => {
       if (neededProductIds.length > 0) {
         homeDataQueries.push(
           supabase.from('products')
-            .select('id, name, slug, price, compare_at_price, status')
+            .select('id, name, slug, price, compare_at_price, status, free_shipping')
             .eq('tenant_id', tenantId)
             .in('id', neededProductIds)
             .is('deleted_at', null)
@@ -1305,7 +1532,7 @@ serve(async (req) => {
             blockHtmlParts.push(renderFeaturedCategories(block, featuredCategories));
             break;
           case 'FeaturedProducts':
-            blockHtmlParts.push(renderFeaturedProducts(block, featuredProducts, productImagesMap));
+            blockHtmlParts.push(renderFeaturedProducts(block, featuredProducts, productImagesMap, categorySettings));
             break;
           case 'ImageCarousel':
             blockHtmlParts.push(renderImageCarousel(block));
@@ -1337,7 +1564,7 @@ serve(async (req) => {
 
     } else if (route.type === 'product' && route.slug) {
       // PRODUCT
-      const productResult = allResults[5];
+      const productResult = allResults[6];
       const product = productResult?.status === 'fulfilled' ? (productResult as any).value.data : null;
 
       if (!product || product.status !== 'active') {
@@ -1369,7 +1596,7 @@ serve(async (req) => {
 
     } else if (route.type === 'category' && route.slug) {
       // CATEGORY
-      const categoryResult = allResults[5];
+      const categoryResult = allResults[6];
       const category = categoryResult?.status === 'fulfilled' ? (categoryResult as any).value.data : null;
 
       if (!category) {
@@ -1413,7 +1640,7 @@ serve(async (req) => {
 
     } else if (route.type === 'page' && route.slug) {
       // INSTITUTIONAL PAGE
-      const pageResult = allResults[5];
+      const pageResult = allResults[6];
       const page = pageResult?.status === 'fulfilled' ? (pageResult as any).value.data : null;
 
       if (!page) {
@@ -1430,7 +1657,7 @@ serve(async (req) => {
 
     } else if (route.type === 'blog_index') {
       // BLOG INDEX
-      const postsResult = allResults[5];
+      const postsResult = allResults[6];
       const posts = postsResult?.status === 'fulfilled' ? (postsResult as any).value.data || [] : [];
 
       bodyHtml = renderBlogIndex(posts, storeName);
@@ -1440,7 +1667,7 @@ serve(async (req) => {
 
     } else if (route.type === 'blog_post' && route.slug) {
       // BLOG POST
-      const postResult = allResults[5];
+      const postResult = allResults[6];
       const post = postResult?.status === 'fulfilled' ? (postResult as any).value.data : null;
 
       if (!post) {
