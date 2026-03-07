@@ -196,6 +196,7 @@ const App = () => {
           <AuthProvider>
             <CommandAssistantProvider>
               <CommandAssistantPanel />
+              <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>}>
               <Routes>
               {/* Public routes (always available) */}
               <Route path="/auth" element={<Auth />} />
