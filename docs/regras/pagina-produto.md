@@ -151,7 +151,8 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 
 | Aspecto | React | Compilador |
 |---------|-------|-----------|
-| Renderização | ✅ `BuyTogetherSection` | ❌ Não renderizado |
+| Renderização | ✅ `BuyTogetherSection` | ✅ Renderizado com preço combo e desconto |
+| Adicionar ambos | ✅ | ✅ Via `data-sf-action="add-to-cart"` com `data-extra-product-*` |
 
 ---
 
@@ -159,9 +160,12 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 
 | Aspecto | React | Compilador |
 |---------|-------|-----------|
-| Lista de reviews | ✅ `ProductReviews` | ❌ Não renderizado |
-| Rating médio | ✅ Estrelas | ❌ Não renderizado |
-| Formulário | ✅ | ❌ N/A |
+| Rating resumo (topo) | ✅ Estrelas + contagem | ✅ Estrelas + contagem |
+| Distribuição por nota | ✅ Barras de progresso | ✅ Barras de progresso |
+| Lista de reviews | ✅ `ProductReviewsSection` | ✅ Até 10 reviews com estrelas, autor, data, mídia |
+| Compra verificada | ✅ Badge verde | ✅ Badge verde |
+| Formulário | ✅ | ❌ N/A (HTML estático, requer SPA) |
+| Lightbox de mídia | ✅ Dialog | ❌ N/A |
 
 ---
 
@@ -169,8 +173,9 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 
 | Aspecto | React | Compilador |
 |---------|-------|-----------|
-| Carousel | ✅ Embla Carousel | ❌ Não renderizado |
-| Herda categorySettings | ✅ | ❌ N/A |
+| Grid responsivo | ✅ Embla Carousel | ✅ Grid 2→4 colunas |
+| Herda categorySettings | ✅ | ⚠️ Parcial (badges/rating inline) |
+| Título customizável | ✅ | ✅ `relatedProductsTitle` |
 
 ---
 
