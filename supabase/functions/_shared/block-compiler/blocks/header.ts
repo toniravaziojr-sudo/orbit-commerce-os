@@ -184,7 +184,7 @@ export function headerToStaticHTML(context: CompilerContext): string {
   let featuredPromoHtml = '';
   if (featuredPromosEnabled) {
     const thumbHtml = featuredPromosThumbnail
-      ? `<div class="sf-featured-thumb"><img src="${escapeHtml(optimizeImageUrl(featuredPromosThumbnail, 240, 80))}" alt="${escapeHtml(featuredPromosLabel)}" style="width:240px;height:96px;object-fit:cover;"><div style="padding:6px;text-align:center;${featuredPromosBgColor ? `background:${escapeHtml(featuredPromosBgColor)};` : 'background:var(--theme-button-primary-bg,#1a1a1a);'}"><span style="font-size:12px;font-weight:500;color:${escapeHtml(featuredPromosTextColor)};">${escapeHtml(featuredPromosLabel)}</span></div></div>`
+      ? `<div class="sf-featured-thumb"><img src="${escapeHtml(optimizeImageUrl(featuredPromosThumbnail, 240, 80))}" alt="${escapeHtml(featuredPromosLabel)}" style="width:240px;height:96px;object-fit:cover;"><div style="padding:6px;text-align:center;background:#fff;"><span style="font-size:12px;font-weight:500;color:#1a1a1a;">${escapeHtml(featuredPromosLabel)}</span></div></div>`
       : '';
     featuredPromoHtml = `<div class="sf-featured-promo">
       <a href="${escapeHtml(featuredPromosUrl)}" style="${promoBadgeStyle}padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap;text-decoration:none;">
