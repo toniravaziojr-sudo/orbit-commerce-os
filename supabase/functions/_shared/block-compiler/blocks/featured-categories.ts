@@ -40,7 +40,7 @@ export function featuredCategoriesToStaticHTML(
       <div class="sf-cat-circle" style="border-radius:50%;overflow:hidden;background:#f0f0f0;flex-shrink:0;transition:all 0.2s;">
         ${imgUrl ? `<img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(cat!.name)}" style="width:100%;height:100%;object-fit:cover;transition:transform 0.3s;" loading="lazy">` : ''}
       </div>
-      ${showName ? `<span class="sf-cat-name" style="font-weight:500;text-align:center;margin-top:8px;transition:color 0.2s;color:var(--theme-text-primary,#1a1a1a);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(cat!.name)}</span>` : ''}
+      ${showName ? `<span class="sf-cat-name" style="font-weight:500;text-align:center;margin-top:8px;transition:color 0.2s;color:inherit;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(cat!.name)}</span>` : ''}
     </a>`;
   }).join('');
 
