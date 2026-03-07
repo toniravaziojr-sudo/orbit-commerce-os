@@ -613,7 +613,7 @@ serve(async (req) => {
     } else if (route.type === 'category' && route.slug) {
       routeQueries.push(
         supabase.from('categories')
-          .select('id, name, slug, description, banner_url, seo_title, seo_description')
+          .select('id, name, slug, description, image_url, banner_desktop_url, banner_mobile_url, seo_title, seo_description')
           .eq('tenant_id', tenantId)
           .eq('slug', route.slug)
           .eq('is_active', true)
