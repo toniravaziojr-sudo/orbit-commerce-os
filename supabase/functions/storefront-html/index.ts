@@ -69,12 +69,35 @@ function generateThemeCss(themeSettings: any): string {
   const bodyFont = getFontFamily(typography?.bodyFont || 'inter');
   const baseFontSize = typography?.baseFontSize || 16;
   
+  // ALL color variables — must match getStorefrontThemeCss() in usePublicThemeSettings.ts
   const colorVars: string[] = [];
   if (colors?.buttonPrimaryBg) colorVars.push(`--theme-button-primary-bg: ${colors.buttonPrimaryBg};`);
   if (colors?.buttonPrimaryText) colorVars.push(`--theme-button-primary-text: ${colors.buttonPrimaryText};`);
   if (colors?.buttonPrimaryHover) colorVars.push(`--theme-button-primary-hover: ${colors.buttonPrimaryHover};`);
+  if (colors?.buttonSecondaryBg) colorVars.push(`--theme-button-secondary-bg: ${colors.buttonSecondaryBg};`);
+  if (colors?.buttonSecondaryText) colorVars.push(`--theme-button-secondary-text: ${colors.buttonSecondaryText};`);
+  if (colors?.buttonSecondaryHover) colorVars.push(`--theme-button-secondary-hover: ${colors.buttonSecondaryHover};`);
   if (colors?.textPrimary) colorVars.push(`--theme-text-primary: ${colors.textPrimary};`);
   if (colors?.textSecondary) colorVars.push(`--theme-text-secondary: ${colors.textSecondary};`);
+  if (colors?.priceColor) colorVars.push(`--theme-price-color: ${colors.priceColor};`);
+  // WhatsApp button colors
+  const whatsappColor = colors?.whatsappColor || '#25D366';
+  const whatsappHover = colors?.whatsappHover || '#128C7E';
+  colorVars.push(`--theme-whatsapp-color: ${whatsappColor};`);
+  colorVars.push(`--theme-whatsapp-hover: ${whatsappHover};`);
+  // Accent color
+  const accentColor = colors?.accentColor || '#22c55e';
+  if (colors?.accentColor) colorVars.push(`--theme-accent-color: ${colors.accentColor};`);
+  // Tag colors — success inherits from accent if not set
+  const successBg = colors?.successBg || accentColor;
+  colorVars.push(`--theme-success-bg: ${successBg};`);
+  if (colors?.successText) colorVars.push(`--theme-success-text: ${colors.successText};`);
+  if (colors?.warningBg) colorVars.push(`--theme-warning-bg: ${colors.warningBg};`);
+  if (colors?.warningText) colorVars.push(`--theme-warning-text: ${colors.warningText};`);
+  if (colors?.dangerBg) colorVars.push(`--theme-danger-bg: ${colors.dangerBg};`);
+  if (colors?.dangerText) colorVars.push(`--theme-danger-text: ${colors.dangerText};`);
+  if (colors?.highlightBg) colorVars.push(`--theme-highlight-bg: ${colors.highlightBg};`);
+  if (colors?.highlightText) colorVars.push(`--theme-highlight-text: ${colors.highlightText};`);
 
   return `
     :root {
