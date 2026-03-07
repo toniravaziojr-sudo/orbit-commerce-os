@@ -118,6 +118,10 @@ export function featuredProductsToStaticHTML(
     <div class="sf-fp-grid" style="display:grid;grid-template-columns:repeat(${columnsDesktop},1fr);gap:16px;">
       ${productCards}
     </div>
-    <style>@media(max-width:768px){.sf-fp-grid{grid-template-columns:repeat(${columnsMobile},1fr) !important;}}</style>
+    <style>
+      @media(max-width:768px){.sf-fp-grid{grid-template-columns:repeat(${columnsMobile},1fr) !important;}}
+      .sf-fp-card:hover{box-shadow:0 4px 12px rgba(0,0,0,0.08);}
+      .sf-fp-card:hover img{transform:scale(1.05);}
+    </style>
   </section>`;
 }
