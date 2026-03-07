@@ -100,13 +100,23 @@ serve(async (req) => {
     }
 
     // Get tenant hostname
-    const { data: tenant } = await supabase
+    console.log('[storefront-prerender] Fetching tenant...');
+    const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
       .select('slug, custom_domain')
       .eq('id', tenant_id)
       .single();
 
+    if (tenantError) {
+      console.error('[storefront-prerender] Tenant query error:', tenantError);
+      return new Response(JSON.stringify({ error: 'Tenant query failed', details: tenantError.message }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     if (!tenant) {
+      console.error('[storefront-prerender] Tenant not found for id:', tenant_id);
       return new Response(JSON.stringify({ error: 'Tenant not found' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -114,9 +124,11 @@ serve(async (req) => {
     }
 
     const hostname = tenant.custom_domain || `${tenant.slug}.shops.comandocentral.com.br`;
+    console.log(`[storefront-prerender] Tenant: ${tenant.slug}, hostname: ${hostname}`);
 
     // Generate a unique publish_version for atomic activation (integer timestamp)
     const publishVersion = Date.now();
+    console.log(`[storefront-prerender] publishVersion: ${publishVersion}`);
 
     // === Determine which pages to render ===
     const pagesToRender: { path: string; page_type: string; entity_id?: string }[] = [];
@@ -127,9 +139,11 @@ serve(async (req) => {
       }
     } else {
       // Full publish: render all public pages
+      console.log('[storefront-prerender] Building pages list...');
       pagesToRender.push({ path: '/', page_type: 'home' });
 
-      const { data: products } = await supabase
+      console.log('[storefront-prerender] Fetching products...');
+      const { data: products, error: productsError } = await supabase
         .from('products')
         .select('id, slug')
         .eq('tenant_id', tenant_id)
@@ -137,55 +151,71 @@ serve(async (req) => {
         .is('deleted_at', null)
         .limit(500);
 
+      if (productsError) {
+        console.error('[storefront-prerender] Products query error:', productsError);
+      }
+
       if (products) {
         for (const p of products) {
           pagesToRender.push({ path: `/produto/${p.slug}`, page_type: 'product', entity_id: p.id });
         }
       }
+      console.log(`[storefront-prerender] Products found: ${products?.length || 0}`);
 
-      const { data: categories } = await supabase
+      console.log('[storefront-prerender] Fetching categories...');
+      const { data: categories, error: catError } = await supabase
         .from('categories')
         .select('id, slug')
         .eq('tenant_id', tenant_id)
         .eq('is_active', true)
         .limit(100);
 
+      if (catError) console.error('[storefront-prerender] Categories error:', catError);
       if (categories) {
         for (const c of categories) {
           pagesToRender.push({ path: `/categoria/${c.slug}`, page_type: 'category', entity_id: c.id });
         }
       }
+      console.log(`[storefront-prerender] Categories found: ${categories?.length || 0}`);
 
-      const { data: storePages } = await supabase
+      console.log('[storefront-prerender] Fetching store pages...');
+      const { data: storePages, error: pagesError } = await supabase
         .from('store_pages')
         .select('id, slug')
         .eq('tenant_id', tenant_id)
         .eq('is_published', true)
         .limit(50);
 
+      if (pagesError) console.error('[storefront-prerender] Pages error:', pagesError);
       if (storePages) {
         for (const sp of storePages) {
           pagesToRender.push({ path: `/p/${sp.slug}`, page_type: 'institutional', entity_id: sp.id });
         }
       }
+      console.log(`[storefront-prerender] Store pages found: ${storePages?.length || 0}`);
 
       pagesToRender.push({ path: '/blog', page_type: 'blog' });
 
-      const { data: blogPosts } = await supabase
+      console.log('[storefront-prerender] Fetching blog posts...');
+      const { data: blogPosts, error: blogError } = await supabase
         .from('blog_posts')
         .select('id, slug')
         .eq('tenant_id', tenant_id)
         .eq('status', 'published')
         .limit(100);
 
+      if (blogError) console.error('[storefront-prerender] Blog error:', blogError);
       if (blogPosts) {
         for (const bp of blogPosts) {
           pagesToRender.push({ path: `/blog/${bp.slug}`, page_type: 'blog_post', entity_id: bp.id });
         }
       }
+      console.log(`[storefront-prerender] Blog posts found: ${blogPosts?.length || 0}`);
     }
 
-    // Create job record
+    console.log(`[storefront-prerender] Total pages to render: ${pagesToRender.length}`);
+
+    console.log('[storefront-prerender] Creating job record...');
     const { data: job, error: jobError } = await supabase
       .from('storefront_prerender_jobs')
       .insert({
