@@ -1592,11 +1592,13 @@ serve(async (req) => {
     // Base queries (all pages need these)
     const baseQueries = [
       supabase.from('tenants').select('id, name, slug, logo_url').eq('id', tenantId).maybeSingle(),
-      supabase.from('store_settings').select('store_name, logo_url, store_description, social_instagram, social_facebook, social_whatsapp, contact_phone, contact_email, is_published, favicon_url, seo_title, seo_description').eq('tenant_id', tenantId).maybeSingle(),
+      supabase.from('store_settings').select('store_name, logo_url, store_description, social_instagram, social_facebook, social_whatsapp, social_tiktok, social_youtube, contact_phone, contact_email, contact_address, contact_support_hours, business_legal_name, business_cnpj, is_published, favicon_url, seo_title, seo_description').eq('tenant_id', tenantId).maybeSingle(),
       supabase.from('menus').select('*, menu_items(*)').eq('tenant_id', tenantId).eq('location', 'header').maybeSingle(),
       supabase.from('categories').select('id, name, slug').eq('tenant_id', tenantId).eq('is_active', true).order('sort_order').limit(10),
       supabase.from('storefront_template_sets').select('id, published_content, is_published, base_preset').eq('tenant_id', tenantId).eq('is_published', true).maybeSingle(),
-      supabase.from('storefront_global_layout').select('header_config, published_header_config, footer_config, header_enabled, footer_enabled').eq('tenant_id', tenantId).maybeSingle(),
+      supabase.from('storefront_global_layout').select('header_config, published_header_config, footer_config, published_footer_config, header_enabled, footer_enabled').eq('tenant_id', tenantId).maybeSingle(),
+      // Footer menus (footer_1 and footer_2)
+      supabase.from('menus').select('id, name, location, menu_items(id, label, url, item_type, ref_id, sort_order)').eq('tenant_id', tenantId).in('location', ['footer', 'footer_1', 'footer_2']),
     ];
 
     // Route-specific queries
