@@ -732,7 +732,7 @@ serve(async (req) => {
       pageTitle = category.seo_title || `${category.name} | ${storeName}`;
       pageDescription = category.seo_description || category.description || '';
       canonicalPath = `/categoria/${category.slug}`;
-      ogImage = category.banner_url || ogImage;
+      ogImage = category.banner_desktop_url || category.image_url || ogImage;
 
     } else {
       // Unknown route — return minimal page, let client-side handle
