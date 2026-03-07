@@ -753,7 +753,7 @@ serve(async (req) => {
       }
 
     } else if (route.type === 'product' && route.slug) {
-      // PRODUCT — using block-compiler
+      // PRODUCT — using block-compiler with published_content.product tree
       const productResult = allResults[7];
       const product = productResult?.status === 'fulfilled' ? (productResult as any).value.data : null;
 
@@ -770,13 +770,31 @@ serve(async (req) => {
         .eq('product_id', product.id)
         .order('sort_order');
 
-      bodyHtml = productPageToStaticHTML({
-        product,
-        images: images || [],
-        hostname,
-        storeSettings,
-        productSettings,
-      });
+      // Inject route-specific data into compiler context
+      compilerContext.currentProduct = product;
+      compilerContext.currentProductImages = images || [];
+
+      // Use published_content.product block tree if available
+      const productContent = publishedContent?.product as BlockNode | null;
+      if (productContent) {
+        bodyHtml = compileBlockTree(productContent, compilerContext);
+        console.log(`[storefront-html][${VERSION}] Product compiled via compileBlockTree(published_content.product)`);
+      } else {
+        // Fallback: default product template structure
+        const defaultProductTree: BlockNode = {
+          id: 'root', type: 'Page', props: {},
+          children: [
+            { id: 'h', type: 'Header', props: {} },
+            { id: 's', type: 'Section', props: { paddingY: 32 }, children: [
+              { id: 'pd', type: 'ProductDetails', props: {} },
+            ]},
+            { id: 'f', type: 'Footer', props: {} },
+          ],
+        };
+        bodyHtml = compileBlockTree(defaultProductTree, compilerContext);
+        console.log(`[storefront-html][${VERSION}] Product compiled via default block tree (no published_content.product)`);
+      }
+
       pageTitle = product.seo_title || `${product.name} | ${storeName}`;
       pageDescription = product.seo_description || product.short_description || '';
       canonicalPath = `/produto/${product.slug}`;
