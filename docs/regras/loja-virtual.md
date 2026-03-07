@@ -83,6 +83,12 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 │  • Menu mobile: toggle com overlay fullscreen                          │
 │  • Botões usam data-sf-action="add-to-cart|toggle-search|open-cart"    │
 ├─────────────────────────────────────────────────────────────────────────┤
+│  Cart Bridge Edge↔SPA (Phase 8 - v5.1.0):                              │
+│  • Formato unificado: storefront_cart_{slug} (mesmo do React)          │
+│  • Items: {id, product_id, variant_id, name, sku, price, quantity}     │
+│  • Migração automática do formato antigo (sf_cart_{slug})              │
+│  • Transição edge→SPA preserva carrinho (mesmo localStorage key)      │
+├─────────────────────────────────────────────────────────────────────────┤
 │  Cache Invalidation (Phase 5 - v1.0.0):                                │
 │  • Edge Function: storefront-cache-purge                               │
 │  • Client utility: src/lib/storefrontCachePurge.ts                     │
