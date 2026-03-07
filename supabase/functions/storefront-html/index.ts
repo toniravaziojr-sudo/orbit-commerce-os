@@ -807,8 +807,8 @@ serve(async (req) => {
         );
       }
 
-      // Fetch images and category breadcrumb in parallel
-      const [imagesResult, categoryResult] = await Promise.all([
+      // Fetch images, category breadcrumb, reviews, related products, and buy-together in parallel
+      const [imagesResult, categoryResult, reviewsResult, relatedResult, buyTogetherResult] = await Promise.all([
         supabase
           .from('product_images')
           .select('id, url, alt_text, is_primary, sort_order')
@@ -820,13 +820,95 @@ serve(async (req) => {
           .eq('product_id', product.id)
           .limit(1)
           .maybeSingle(),
+        supabase
+          .from('product_reviews')
+          .select('id, customer_name, rating, title, content, created_at, is_verified_purchase, media_urls')
+          .eq('product_id', product.id)
+          .eq('status', 'approved')
+          .order('created_at', { ascending: false })
+          .limit(20),
+        // Related products: get IDs then fetch product data
+        supabase
+          .from('related_products')
+          .select('related_product_id, position')
+          .eq('product_id', product.id)
+          .order('position')
+          .limit(8),
+        supabase
+          .from('buy_together_rules')
+          .select('id, title, discount_type, discount_value, suggested_product_id')
+          .eq('trigger_product_id', product.id)
+          .eq('is_active', true)
+          .order('priority', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
       ]);
       const images = imagesResult.data;
       const productCategory = categoryResult.data?.categories;
+      const reviews = reviewsResult.data || [];
+      const relatedIds = (relatedResult.data || []).map((r: any) => r.related_product_id);
+
+      // Fetch related products and buy-together suggested product in parallel
+      const secondaryQueries: Promise<any>[] = [];
+      if (relatedIds.length > 0) {
+        secondaryQueries.push(
+          supabase.from('products')
+            .select('id, name, slug, price, compare_at_price, free_shipping, avg_rating, review_count, product_images(url, is_primary, sort_order)')
+            .in('id', relatedIds)
+            .eq('status', 'active')
+            .is('deleted_at', null)
+        );
+      } else {
+        secondaryQueries.push(Promise.resolve({ data: [] }));
+      }
+      const btRule = buyTogetherResult.data;
+      if (btRule?.suggested_product_id) {
+        secondaryQueries.push(
+          supabase.from('products')
+            .select('id, name, slug, price, compare_at_price, product_images(url, is_primary, sort_order)')
+            .eq('id', btRule.suggested_product_id)
+            .eq('status', 'active')
+            .is('deleted_at', null)
+            .maybeSingle()
+        );
+      } else {
+        secondaryQueries.push(Promise.resolve({ data: null }));
+      }
+      const [relatedProductsResult, btProductResult] = await Promise.all(secondaryQueries);
+
+      // Build related products list preserving order
+      const relatedProductsRaw = relatedProductsResult.data || [];
+      const relatedProducts = relatedIds
+        .map((id: string) => relatedProductsRaw.find((p: any) => p.id === id))
+        .filter(Boolean)
+        .map((p: any) => {
+          const primaryImg = p.product_images?.find((i: any) => i.is_primary) || p.product_images?.[0];
+          return { ...p, image_url: primaryImg?.url || '', product_images: undefined };
+        });
+
+      // Build buy-together context
+      let buyTogetherCtx: any = undefined;
+      if (btRule && btProductResult.data) {
+        const sp = btProductResult.data;
+        const spImg = sp.product_images?.find((i: any) => i.is_primary) || sp.product_images?.[0];
+        buyTogetherCtx = {
+          id: btRule.id,
+          title: btRule.title,
+          discount_type: btRule.discount_type,
+          discount_value: btRule.discount_value,
+          suggestedProduct: {
+            id: sp.id, name: sp.name, slug: sp.slug, price: sp.price,
+            compare_at_price: sp.compare_at_price, image_url: spImg?.url || '',
+          },
+        };
+      }
 
       // Inject route-specific data into compiler context
       compilerContext.currentProduct = product;
       compilerContext.currentProductImages = images || [];
+      compilerContext.currentProductReviews = reviews;
+      compilerContext.currentRelatedProducts = relatedProducts;
+      compilerContext.currentBuyTogether = buyTogetherCtx;
       if (productCategory) {
         compilerContext.currentProductCategory = { name: productCategory.name, slug: productCategory.slug };
       }
