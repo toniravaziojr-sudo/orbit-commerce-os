@@ -130,8 +130,8 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 | Layout desktop | Imagem grande + thumbnails | Imagem grande + thumbnails ✅ |
 | Thumbnail click | ✅ Troca imagem principal | ✅ Via hydration JS |
 | Layout mobile | Carousel swipe | ✅ Swipe carousel com dots |
-| Zoom | Hover/Pinch zoom | ❌ Não suportado |
-| Lightbox | Click abre fullscreen | ❌ Não suportado |
+| Zoom | Hover/Pinch zoom | ✅ Lightbox com zoom +/- e pinch-to-zoom mobile |
+| Lightbox | Click abre fullscreen | ✅ Overlay fullscreen com navegação e zoom |
 
 ---
 
