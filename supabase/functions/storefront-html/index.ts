@@ -1,6 +1,6 @@
 // ============================================
 // STOREFRONT HTML — Edge-Rendered Storefront
-// v2.0.0: Home + Product + Category routes
+// v6.0.0: Faithful header/footer + optimized queries
 // Resolves tenant from hostname, renders full HTML
 // ============================================
 
@@ -9,7 +9,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveTenantFromHostname } from '../_shared/resolveTenant.ts';
 
 // ===== VERSION =====
-const VERSION = "v5.2.0"; // Phase 9: Full home page server-side rendering
+const VERSION = "v6.0.0"; // Phase 10: Faithful header with notice bar, colors, featured promos + product card badges/ratings
 // ====================
 
 // ============================================
