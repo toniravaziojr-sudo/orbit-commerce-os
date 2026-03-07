@@ -764,15 +764,29 @@ serve(async (req) => {
         );
       }
 
-      const { data: images } = await supabase
-        .from('product_images')
-        .select('id, url, alt_text, is_primary, sort_order')
-        .eq('product_id', product.id)
-        .order('sort_order');
+      // Fetch images and category breadcrumb in parallel
+      const [imagesResult, categoryResult] = await Promise.all([
+        supabase
+          .from('product_images')
+          .select('id, url, alt_text, is_primary, sort_order')
+          .eq('product_id', product.id)
+          .order('sort_order'),
+        supabase
+          .from('product_categories')
+          .select('categories!inner(name, slug)')
+          .eq('product_id', product.id)
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      const images = imagesResult.data;
+      const productCategory = categoryResult.data?.categories;
 
       // Inject route-specific data into compiler context
       compilerContext.currentProduct = product;
       compilerContext.currentProductImages = images || [];
+      if (productCategory) {
+        compilerContext.currentProductCategory = { name: productCategory.name, slug: productCategory.slug };
+      }
 
       // Use published_content.product block tree if available
       const productContent = publishedContent?.product as BlockNode | null;
