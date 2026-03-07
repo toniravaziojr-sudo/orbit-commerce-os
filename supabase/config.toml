@@ -704,3 +704,6 @@ verify_jwt = false
 
 [functions.storefront-cache-purge]
 verify_jwt = false
+
+[functions.storefront-prerender]
+verify_jwt = false
