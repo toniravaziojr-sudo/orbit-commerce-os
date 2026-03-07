@@ -1424,6 +1424,7 @@ serve(async (req) => {
     const headerMenuRaw = allResults[2].status === 'fulfilled' ? (allResults[2] as any).value.data : null;
     const categories = allResults[3].status === 'fulfilled' ? (allResults[3] as any).value.data : [];
     const templateSet = allResults[4].status === 'fulfilled' ? (allResults[4] as any).value.data : null;
+    const globalLayout = allResults[5].status === 'fulfilled' ? (allResults[5] as any).value.data : null;
 
     if (!storeSettings?.is_published) {
       return new Response(
