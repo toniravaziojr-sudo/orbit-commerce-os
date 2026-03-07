@@ -2372,3 +2372,47 @@ cachePurge.full(tenantId);
 - [ ] Ao adicionar novos pontos de save no admin → integrar `cachePurge.*` no onSuccess
 - [ ] Ao adicionar novos tipos de domínio → verificar query de domains no purge
 - [ ] Ao mudar estrutura de URLs do storefront → atualizar mapeamento de resource_type → URLs
+
+---
+
+## storefront-html — Phase 7: LCP & Font Optimization (v5.0.0)
+
+### Otimizações implementadas:
+
+| Otimização | Descrição | Impacto |
+|------------|-----------|---------|
+| **Font CSS Preload** | `<link rel="preload" as="style">` para o CSS do Google Fonts | Inicia download ~200ms antes |
+| **DNS Prefetch** | `dns-prefetch` para wsrv.nl, fonts.googleapis.com, fonts.gstatic.com | Resolve DNS antecipadamente |
+| **Banner LCP (responsivo)** | `<link rel="preload" as="image" imagesrcset="...">` com versões mobile (768w) e desktop (1920w) | LCP ~500ms mais rápido na home |
+| **Produto LCP** | `<link rel="preload" as="image">` para imagem principal do produto (800px) | LCP ~300ms mais rápido em PDP |
+| **Blog Cover LCP** | `<link rel="preload" as="image">` para capa do blog post (1200px) | LCP ~300ms mais rápido em posts |
+| **fetchpriority="high"** | Aplicado em todas as imagens LCP (banner, produto, blog) | Browser prioriza download |
+
+### Estrutura do `<head>` otimizado:
+
+```html
+<!-- 1. DNS Prefetch (resolvem DNS sem bloquear) -->
+<link rel="dns-prefetch" href="https://wsrv.nl">
+<link rel="dns-prefetch" href="https://fonts.googleapis.com">
+<link rel="dns-prefetch" href="https://fonts.gstatic.com">
+
+<!-- 2. Font CSS Preload (inicia fetch antes do parser chegar no stylesheet) -->
+<link rel="preload" href="https://fonts.googleapis.com/css2?..." as="style">
+
+<!-- 3. Google Fonts Stylesheet -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?..." rel="stylesheet">
+
+<!-- 4. LCP Image Preload (responsivo para banner) -->
+<link rel="preload" as="image" imagesrcset="mobile.webp 768w, desktop.webp 1920w" imagesizes="100vw" fetchpriority="high">
+
+<!-- 5. CSS inline (theme) -->
+<style>:root { ... }</style>
+```
+
+### Regras:
+- `getGoogleFontsData()` retorna tanto `stylesheetTags` quanto `preloadTags`
+- LCP preload é gerado por rota: home (banner), produto (imagem principal), blog post (capa)
+- O preload responsivo usa `imagesrcset` + `imagesizes` para que o browser escolha a melhor variante
+- `optimizeImageUrl()` via wsrv.nl garante WebP + resize em todos os preloads
