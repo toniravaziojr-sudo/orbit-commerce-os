@@ -169,7 +169,7 @@ function formatPriceFromDecimal(value: number): string {
 // ROUTE PARSER
 // ============================================
 interface ParsedRoute {
-  type: 'home' | 'product' | 'category' | 'page' | 'unknown';
+  type: 'home' | 'product' | 'category' | 'page' | 'blog_index' | 'blog_post' | 'unknown';
   slug?: string;
 }
 
@@ -186,17 +186,24 @@ function parseRoute(path: string): ParsedRoute {
   const categoryMatch = clean.match(/^categoria\/(.+)$/);
   if (categoryMatch) return { type: 'category', slug: categoryMatch[1] };
   
-  // /p/:slug (institutional pages) — skip for now
+  // /p/:slug (institutional pages)
   const pageMatch = clean.match(/^p\/(.+)$/);
   if (pageMatch) return { type: 'page', slug: pageMatch[1] };
+
+  // /blog/:slug (blog post)
+  const blogPostMatch = clean.match(/^blog\/(.+)$/);
+  if (blogPostMatch) return { type: 'blog_post', slug: blogPostMatch[1] };
+
+  // /blog (blog index)
+  if (clean === 'blog') return { type: 'blog_index' };
   
   // Known non-page routes
-  const knownRoutes = ['carrinho', 'checkout', 'obrigado', 'rastreio', 'blog', 'minha-conta'];
+  const knownRoutes = ['carrinho', 'checkout', 'obrigado', 'rastreio', 'minha-conta'];
   if (knownRoutes.some(r => clean === r || clean.startsWith(r + '/'))) {
     return { type: 'unknown' };
   }
   
-  // Fallback: could be an institutional page
+  // Fallback: could be an institutional page by slug directly
   return { type: 'page', slug: clean };
 }
 
