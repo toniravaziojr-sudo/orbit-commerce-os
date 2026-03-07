@@ -119,17 +119,18 @@ export function headerToStaticHTML(context: CompilerContext): string {
   if (noticeEnabled && noticeTexts.length > 0) {
     const actionHtml = isActionValid ? `<a href="${escapeHtml(noticeActionUrl)}" target="${escapeHtml(noticeActionTarget)}" ${noticeActionTarget === '_blank' ? 'rel="noopener noreferrer"' : ''} style="margin-left:8px;text-decoration:underline;font-size:12px;font-weight:500;opacity:0.9;color:${escapeHtml(noticeActionTextColor || noticeTextColor)};">${escapeHtml(noticeActionLabel)}</a>` : '';
     
-    if (noticeAnimation === 'marquee' || noticeAnimation === 'slide-horizontal') {
-      const firstText = noticeTexts[0];
-      const allTexts = `<span style="padding:0 32px;">${escapeHtml(firstText)}</span>${actionHtml}`;
+    if (noticeAnimation === 'marquee') {
+      // Marquee: continuous horizontal scroll with ALL texts concatenated
+      const allTextSpans = noticeTexts.map(t => `<span style="padding:0 32px;">${escapeHtml(t)}</span>`).join('');
+      const marqueeContent = `${allTextSpans}${actionHtml}`;
       noticeBarHtml = `
         <div style="background:${escapeHtml(noticeBgColor)};color:${escapeHtml(noticeTextColor)};padding:8px 16px;text-align:center;font-size:13px;font-weight:500;overflow:hidden;white-space:nowrap;">
           <div class="sf-notice-marquee" style="display:inline-flex;animation:sf-marquee 20s linear infinite;">
-            ${allTexts}${allTexts}
+            ${marqueeContent}${marqueeContent}
           </div>
         </div>`;
     } else {
-      // Fade or slide-vertical: show first text, JS rotates through them
+      // Fade, slide-vertical, slide-horizontal: show first text, JS rotates
       const textsDataAttr = noticeTexts.length > 1 ? ` data-sf-notice-texts='${escapeHtml(JSON.stringify(noticeTexts))}'` : '';
       noticeBarHtml = `
         <div class="sf-notice-bar" style="background:${escapeHtml(noticeBgColor)};color:${escapeHtml(noticeTextColor)};padding:8px 16px;text-align:center;font-size:13px;font-weight:500;overflow:hidden;"${textsDataAttr} data-sf-notice-animation="${escapeHtml(noticeAnimation)}">
