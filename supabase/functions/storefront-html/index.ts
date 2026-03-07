@@ -1235,19 +1235,95 @@ serve(async (req) => {
     let lcpPreloadTag = '';
 
     if (route.type === 'home') {
-      // HOME — banner from template
+      // HOME — render ALL blocks from published template
       const homeContent = publishedContent?.home || null;
-      const banner = findFirstBanner(homeContent);
-      bodyHtml = banner ? renderBanner(banner) : '';
+      const blocks = extractAllBlocks(homeContent);
       
-      // LCP preload: responsive banner image
+      // Extract IDs needed for data fetching
+      const neededProductIds = extractProductIdsFromBlocks(blocks);
+      const neededCategoryIds = extractCategoryIdsFromBlocks(blocks);
+      
+      // Fetch additional data in parallel
+      const homeDataQueries: Promise<any>[] = [];
+      
+      // Query 0: Featured products with their primary images
+      if (neededProductIds.length > 0) {
+        homeDataQueries.push(
+          supabase.from('products')
+            .select('id, name, slug, price, compare_at_price, status')
+            .eq('tenant_id', tenantId)
+            .in('id', neededProductIds)
+            .is('deleted_at', null)
+        );
+        homeDataQueries.push(
+          supabase.from('product_images')
+            .select('product_id, url, is_primary, sort_order')
+            .in('product_id', neededProductIds)
+            .order('sort_order')
+        );
+      } else {
+        homeDataQueries.push(Promise.resolve({ data: [] }));
+        homeDataQueries.push(Promise.resolve({ data: [] }));
+      }
+      
+      // Query 2: Featured categories with images
+      if (neededCategoryIds.length > 0) {
+        homeDataQueries.push(
+          supabase.from('categories')
+            .select('id, name, slug, image_url')
+            .eq('tenant_id', tenantId)
+            .in('id', neededCategoryIds)
+            .eq('is_active', true)
+        );
+      } else {
+        homeDataQueries.push(Promise.resolve({ data: [] }));
+      }
+      
+      const homeResults = await Promise.allSettled(homeDataQueries);
+      
+      const featuredProducts = homeResults[0].status === 'fulfilled' ? (homeResults[0] as any).value.data || [] : [];
+      const productImages = homeResults[1].status === 'fulfilled' ? (homeResults[1] as any).value.data || [] : [];
+      const featuredCategories = homeResults[2].status === 'fulfilled' ? (homeResults[2] as any).value.data || [] : [];
+      
+      // Build product → primary image map
+      const productImagesMap = new Map<string, string>();
+      for (const img of productImages) {
+        if (!productImagesMap.has(img.product_id) || img.is_primary) {
+          productImagesMap.set(img.product_id, img.url);
+        }
+      }
+      
+      // Render all blocks in order
+      const blockHtmlParts: string[] = [];
+      for (const block of blocks) {
+        switch (block.type) {
+          case 'Banner':
+          case 'HeroBanner':
+            blockHtmlParts.push(renderBanner({ type: block.type, ...block.props }));
+            break;
+          case 'FeaturedCategories':
+            blockHtmlParts.push(renderFeaturedCategories(block, featuredCategories));
+            break;
+          case 'FeaturedProducts':
+            blockHtmlParts.push(renderFeaturedProducts(block, featuredProducts, productImagesMap));
+            break;
+          case 'ImageCarousel':
+            blockHtmlParts.push(renderImageCarousel(block));
+            break;
+        }
+      }
+      bodyHtml = blockHtmlParts.join('\n');
+      
+      // LCP preload: responsive banner image (from first banner)
+      const banner = blocks.find(b => b.type === 'Banner' || b.type === 'HeroBanner');
       if (banner) {
-        const desktopImg = banner.mode === 'carousel' && banner.slides?.[0]
-          ? (banner.slides[0].imageDesktop || banner.imageDesktop)
-          : banner.imageDesktop;
-        const mobileImg = banner.mode === 'carousel' && banner.slides?.[0]
-          ? (banner.slides[0].imageMobile || banner.slides[0].imageDesktop || banner.imageMobile || desktopImg)
-          : (banner.imageMobile || desktopImg);
+        const bannerProps = banner.props;
+        const desktopImg = bannerProps.mode === 'carousel' && bannerProps.slides?.[0]
+          ? (bannerProps.slides[0].imageDesktop || bannerProps.imageDesktop)
+          : bannerProps.imageDesktop;
+        const mobileImg = bannerProps.mode === 'carousel' && bannerProps.slides?.[0]
+          ? (bannerProps.slides[0].imageMobile || bannerProps.slides[0].imageDesktop || bannerProps.imageMobile || desktopImg)
+          : (bannerProps.imageMobile || desktopImg);
         
         const optDesktop = optimizeImageUrl(desktopImg, 1920, 85);
         const optMobile = optimizeImageUrl(mobileImg, 768, 80);
