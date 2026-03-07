@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import { AppSidebar } from "./AppSidebar";
 import { AppHeader } from "./AppHeader";
@@ -6,6 +7,10 @@ import { AdminModeProvider } from "@/contexts/AdminModeContext";
 import { AdminErrorBoundary } from "./AdminErrorBoundary";
 
 export function AppShell() {
+  useEffect(() => {
+    document.title = 'Comando Central';
+  }, []);
+
   return (
     <AdminModeProvider>
       <AdminErrorBoundary>

@@ -36,9 +36,7 @@ export function TenantStorefrontLayout() {
   }, []);
 
   // Single call: resolves domain + fetches all bootstrap data
-  const { data: bootstrap, isLoading, error } = useStorefrontBootstrapByHostname(hostname, {
-    includeProducts: true,
-  });
+  const { data: bootstrap, isLoading, error } = useStorefrontBootstrapByHostname(hostname);
 
   const tenant = bootstrap?.tenant || null;
   const tenantSlug = tenant?.slug || '';
