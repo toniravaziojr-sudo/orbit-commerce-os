@@ -1,8 +1,8 @@
 # Página de Produto — Regras e Especificações
 
-> **Status:** FUNCIONAL ✅ — Core + Seções implementados  
+> **Status:** FUNCIONAL ✅ — Core + Seções + Variantes + Galeria Mobile implementados  
 > **Última atualização:** 2026-03-07  
-> **Arquitetura:** v8.1.1 — block-compiler com `published_content.product` + reviews + relacionados + compre junto
+> **Arquitetura:** v8.1.3 — block-compiler com variantes, swipe mobile, thumbnail click, quick buy
 
 ## Visão Geral
 
