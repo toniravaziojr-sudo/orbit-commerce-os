@@ -1086,7 +1086,7 @@ serve(async (req) => {
         .eq('products.tenant_id', tenantId)
         .eq('products.status', 'active')
         .is('products.deleted_at', null)
-        .limit(48);
+        .limit(200);
 
       const flatProducts = (categoryProducts || [])
         .map((pc: any) => pc.products)
