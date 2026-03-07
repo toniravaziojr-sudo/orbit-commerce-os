@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { cachePurge } from '@/lib/storefrontCachePurge';
 import type { BlockNode } from '@/lib/builder/types';
 import type { Json } from '@/integrations/supabase/types';
 
@@ -164,12 +165,16 @@ export function useTemplateSetSave() {
       queryClient.invalidateQueries({ queryKey: ['public-global-layout'] });
       
       // CRITICAL: Invalidate PUBLIC storefront queries so visitors see updates immediately
-      // This ensures the published content is fetched fresh after publishing
       queryClient.invalidateQueries({ queryKey: ['public-template'] });
       queryClient.invalidateQueries({ queryKey: ['public-theme-settings'] });
       queryClient.invalidateQueries({ queryKey: ['public-page-template'] });
       queryClient.invalidateQueries({ queryKey: ['category-settings-published'] });
       queryClient.invalidateQueries({ queryKey: ['public-storefront'] });
+
+      // PHASE 5: Purge edge-rendered HTML cache (fire-and-forget)
+      if (currentTenant?.id) {
+        cachePurge.template(currentTenant.id);
+      }
       
       toast.success('Template publicado com sucesso!');
     },

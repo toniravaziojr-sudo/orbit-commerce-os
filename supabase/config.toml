@@ -701,3 +701,6 @@ verify_jwt = false
 
 [functions.storefront-html]
 verify_jwt = false
+
+[functions.storefront-cache-purge]
+verify_jwt = false
