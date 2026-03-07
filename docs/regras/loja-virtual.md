@@ -42,10 +42,10 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 
 | Modo | Quando | Como |
 |------|--------|------|
-| **Edge-Rendered** (v8.0.0) | Domínio custom ou subdomínio `.shops.` em produção | Edge Function `storefront-html` retorna HTML completo via block-compiler |
+| **Edge-Rendered** (v8.1.4) | Domínio custom ou subdomínio `.shops.` em produção | Edge Function `storefront-html` serve HTML pré-renderizado (fast path) ou live render (fallback) |
 | **SPA Bootstrap** (v4.0.0) | Preview no admin (`/store/{slug}`) e fallback | React SPA com `storefront-bootstrap` JSON |
 
-### Arquitetura Edge-Rendered (Produção)
+### Arquitetura Edge-Rendered (Produção) — Fast Path + Live Fallback
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -56,18 +56,40 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 └─────────────────────────────────────────────────────────────────────────┘
                                      ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
-│             EDGE FUNCTION: storefront-html (v8.0.0)                     │
+│             EDGE FUNCTION: storefront-html (v8.1.4)                     │
 │  Arquivo: supabase/functions/storefront-html/index.ts                  │
 │  Resolução: supabase/functions/_shared/resolveTenant.ts                │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  1. Recebe hostname (query param, x-forwarded-host ou POST)            │
 │  2. resolveTenantFromHostname() → tenant_id + tenant_slug              │
-│  3. Pre-render lookup: storefront_prerendered_pages (fast path)        │
-│  4. Live fallback: queries paralelas + renderização via block-compiler │
+│  3. ★ FAST PATH (prioridade): lookup em storefront_prerendered_pages   │
+│     → Se encontra página ativa: retorna HTML imediatamente (~50-100ms) │
+│     → Header: X-Render-Mode: prerendered                               │
+│  4. LIVE FALLBACK: queries paralelas + block-compiler (se sem prerender)│
+│     → Header: X-Render-Mode: live                                       │
 │  5. Retorna text/html com Cache-Control: s-maxage=120                  │
 │  6. Server-Timing headers para diagnóstico                             │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  Block-to-HTML Compiler (v8.0.0) — TODAS as rotas:                     │
+│  Pre-Render Pipeline (v8.1.4):                                          │
+│                                                                          │
+│  Publish (admin) → storefront-prerender (Edge Function assíncrona)      │
+│       ↓                                                                  │
+│  storefront-prerender:                                                   │
+│    1. Resolve tenant → busca slug + domínio ativo em tenant_domains     │
+│    2. Para cada rota (home, produtos, categorias, blog):                │
+│       - Chama storefront-html com X-Prerender-Bypass: 1                 │
+│       - storefront-html ignora lookup prerendered, faz live render      │
+│       - HTML fresco retornado                                            │
+│    3. Insere/atualiza storefront_prerendered_pages                      │
+│    4. publish_version = Date.now() (bigint) para ativação atômica      │
+│    5. Marca páginas antigas como stale                                   │
+│                                                                          │
+│  Tabela: storefront_prerendered_pages                                    │
+│    - tenant_id, path, html, page_type, publish_version (bigint)         │
+│    - is_active: true (ativa) / false (stale)                            │
+│    - Tipos: home, product, category, blog_index, blog_post              │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Block-to-HTML Compiler (v8.0.0) — Live Fallback para TODAS as rotas:  │
 │  • Home: compileBlockTree() com published_content (fonte de verdade)   │
 │  • Header: headerToStaticHTML() via block-compiler                     │
 │  • Footer: footerToStaticHTML() via block-compiler                     │
@@ -123,7 +145,10 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 │  • dns-prefetch para wsrv.nl, fonts.googleapis.com, fonts.gstatic.com │
 │  • fetchpriority="high" em imagens LCP (banner, produto, blog cover)  │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  Performance: TTFB ~300-500ms (vs ~2-4s no modelo SPA)                 │
+│  Performance:                                                            │
+│  • Fast Path (prerendered): TTFB ~50-100ms (lookup + serve)            │
+│  • Live Fallback: TTFB ~300-500ms (queries + compile)                  │
+│  • SPA Legacy: TTFB ~2-4s (bootstrap + React hydration)                │
 │  Cache: public, s-maxage=120, stale-while-revalidate=300               │
 │  Dados no window: __SF_SERVER_RENDERED, __SF_TIMING, __SF_TENANT       │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -658,6 +683,12 @@ Endpoint centralizado para geração de SEO otimizado via IA (Gemini).
 | `storefront_template_sets` | Templates do storefront (draft + published) |
 | `storefront_global_layout` | Configs globais (header_config, footer_config) |
 | `page_templates` | Templates de páginas institucionais |
+
+### Pre-Render
+
+| Tabela | Descrição |
+|--------|-----------|
+| `storefront_prerendered_pages` | HTML pré-renderizado por rota/tenant. Colunas: `tenant_id`, `path`, `html`, `page_type`, `publish_version` (bigint), `is_active` (bool), `slug`, `created_at`, `updated_at` |
 
 ### Conteúdo
 
@@ -1298,10 +1329,43 @@ Geração de hero com IA de imagem é opcional e não bloqueia a V7:
 
 ---
 
+## Validação Operacional do Fast Path (Prerender)
+
+### Como verificar se o fast path está ativo no público
+
+| Método | Comando/Ação | Indicador de Sucesso |
+|--------|-------------|---------------------|
+| **Header HTTP** | Inspecionar resposta no navegador (DevTools → Network) | `X-Render-Mode: prerendered` |
+| **Endpoint /_debug** | `GET https://{dominio}/_debug` | `strategy: "edge_rendered_html_first"` |
+| **Logs da Edge Function** | Verificar logs de `storefront-html` | `PRE-RENDERED HIT: /{path}` |
+| **Tabela no banco** | Query `storefront_prerendered_pages WHERE is_active = true` | Registros com `html` preenchido |
+| **Timing** | Server-Timing header na resposta | `resolve` < 500ms, `total` < 700ms (cold), < 100ms (warm) |
+
+### Se o fast path NÃO está ativo
+
+| Sintoma | Causa Provável | Solução |
+|---------|----------------|---------|
+| `X-Render-Mode: live` | Página não pré-renderizada | Re-publicar template |
+| Tabela `storefront_prerendered_pages` vazia | `storefront-prerender` não executou | Verificar se está em `config.toml` com `verify_jwt = false` |
+| Erro no prerender | Tenant não encontrado | Verificar `tenant_domains` (domínio primário ativo) |
+| `publish_version` truncado | Coluna `int4` em vez de `bigint` | Migrar para `bigint` |
+
+### Bugs Corrigidos nesta Frente (Março 2026)
+
+| Bug | Causa Raiz | Correção |
+|-----|-----------|----------|
+| `storefront-prerender` nunca executava | Função não declarada em `config.toml` | Adicionada com `verify_jwt = false` |
+| `publish_version` overflow/truncamento | Coluna `int4` não suporta `Date.now()` (~13 dígitos) | Migrada para `bigint` |
+| Tenant não encontrado no prerender | Query buscava `tenants.custom_domain` (coluna inexistente) | Corrigido para buscar slug em `tenants` + domínio em `tenant_domains` |
+| Páginas nunca marcadas como `active` | Falha silenciosa no pipeline por erros acima | Resolvido com correções cumulativas |
+
+---
+
 ## Histórico de Alterações
 
 | Data | Alteração |
 |------|-----------|
+| 2026-03-07 | **PRERENDER FAST PATH ATIVO (v8.1.4)**: Pipeline completo validado em produção. `storefront-prerender` declarada em config.toml (verify_jwt=false). `publish_version` migrado para bigint. Lookup de tenant corrigido (tenant_domains em vez de tenants.custom_domain). 47 páginas pré-renderizadas para Respeite o Homem (1 Home, 33 Produtos, 12 Categorias, 1 Blog). PRE-RENDERED HIT confirmado em logs. Header X-Render-Mode: prerendered implementado. Pipeline: Publish → storefront-prerender → storefront_prerendered_pages → storefront-html (fast path). |
 | 2026-03-07 | **PERFORMANCE FASE 6**: App.tsx — 100% dos imports convertidos para `lazy()`. Admin (~80 pages + AppShell) e Storefront (Layout + páginas) em bundles isolados. Suspense global com spinner. 5 imports não utilizados removidos. Redução estimada de ~60-70% no bundle inicial para visitantes da storefront. |
 | 2026-03-07 | **PERFORMANCE FASE 4+4B+5**: Removido `include_products` do bootstrap (payload ~30-50% menor). BannerBlock agora aplica wsrv.nl transform em modo público (match com LcpPreloader). index.html limpo de branding "Comando Central" (title genérico "Carregando...", sem favicon/OG/meta da plataforma). AppShell injeta `document.title = 'Comando Central'` para rotas admin. |
 | 2026-03-06 | **PERFORMANCE FASES 1-3**: Bootstrap v4.0.0 com 12 queries paralelas (+ store_pages Q9, footer_2 Q10). Header/Footer usam bootstrap props (zero queries extras). Unificação resolve-domain + bootstrap via _shared/resolveTenant.ts. Todas as páginas passam bootstrapGlobalLayout. |
