@@ -9,7 +9,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveTenantFromHostname } from '../_shared/resolveTenant.ts';
 
 // ===== VERSION =====
-const VERSION = "v2.0.0"; // Phase 2: Product + Category routes
+const VERSION = "v3.0.0"; // Phase 3: Hydration script + interactive elements
 // ====================
 
 // ============================================
