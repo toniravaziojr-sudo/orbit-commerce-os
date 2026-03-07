@@ -8,6 +8,7 @@ import { BlockRenderContext } from '@/lib/builder/types';
 import { cn } from '@/lib/utils';
 import { ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { getHeroBannerImageUrl } from '@/lib/imageTransform';
 
 interface BannerSlide {
   id: string;
