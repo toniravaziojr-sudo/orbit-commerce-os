@@ -698,3 +698,6 @@ verify_jwt = false
 
 [functions.storefront-bootstrap]
 verify_jwt = false
+
+[functions.storefront-html]
+verify_jwt = false
