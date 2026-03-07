@@ -9,7 +9,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveTenantFromHostname } from '../_shared/resolveTenant.ts';
 
 // ===== VERSION =====
-const VERSION = "v5.0.0"; // Phase 7: Font preload + LCP optimization + dns-prefetch
+const VERSION = "v5.1.0"; // Phase 8: Unified cart format (edge ↔ SPA bridge)
 // ====================
 
 // ============================================
