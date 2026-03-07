@@ -1,8 +1,8 @@
 # Página de Produto — Regras e Especificações
 
-> **Status:** FUNCIONAL ✅ — Core implementado  
+> **Status:** FUNCIONAL ✅ — Core + Seções implementados  
 > **Última atualização:** 2026-03-07  
-> **Arquitetura:** v8.1.0 — block-compiler com `published_content.product` + `compileBlockTree()`
+> **Arquitetura:** v8.1.1 — block-compiler com `published_content.product` + reviews + relacionados + compre junto
 
 ## Visão Geral
 
