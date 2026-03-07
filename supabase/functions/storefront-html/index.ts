@@ -651,6 +651,7 @@ serve(async (req) => {
       categories: new Map((categories || []).map((c: any) => [c.id, c])),
       themeSettings,
       categorySettings,
+      productSettings,
       storeSettings,
       menuItems,
       footerMenus,
