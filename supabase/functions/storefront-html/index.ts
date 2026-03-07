@@ -485,6 +485,154 @@ function buildFullPage(opts: {
       // Init cart UI on load
       updateCartUI();
 
+      // === PRODUCT VARIANT SELECTOR HYDRATION ===
+      var variantSelector=document.querySelector("[data-sf-variant-selector]");
+      if(variantSelector){
+        var variantDataEl=variantSelector.querySelector("[data-sf-variant-data]");
+        var variants=variantDataEl?JSON.parse(variantDataEl.textContent||"[]"):[];
+        var selectedOpts={};
+        var allOptionBtns=[].slice.call(variantSelector.querySelectorAll("[data-sf-variant-option]"));
+
+        function findMatchingVariant(){
+          var optNames=Object.keys(selectedOpts);
+          // Count how many option groups exist
+          var groupEls=variantSelector.querySelectorAll("[data-sf-variant-group]");
+          if(optNames.length!==groupEls.length)return null;
+          return variants.find(function(v){
+            return optNames.every(function(name){
+              var val=selectedOpts[name];
+              if(v.o1n===name&&v.o1v===val)return true;
+              if(v.o2n===name&&v.o2v===val)return true;
+              if(v.o3n===name&&v.o3v===val)return true;
+              return false;
+            });
+          })||null;
+        }
+
+        function updateVariantUI(variant){
+          // Update price display
+          var priceEl=document.querySelector("[data-sf-pdp-price]");
+          if(!priceEl){
+            // Fallback: find the main price element in the info column
+            var infoCol=document.querySelector(".sf-pdp-grid")?.children[1];
+            if(infoCol){
+              var priceDivs=infoCol.querySelectorAll("span");
+              for(var pi=0;pi<priceDivs.length;pi++){
+                if(priceDivs[pi].style.fontSize==="28px"){priceEl=priceDivs[pi];break;}
+              }
+            }
+          }
+          if(variant&&priceEl){
+            priceEl.textContent="R$ "+variant.price.toFixed(2).replace(".",",");
+          }
+          // Update stock text
+          var stockEl=document.querySelector("[data-sf-stock-text]");
+          if(variant&&stockEl){
+            var sq=variant.stock_quantity||0;
+            if(sq>0&&sq<=5){stockEl.textContent="Últimas "+sq+" unidades!";stockEl.style.color="#dc2626";}
+            else if(sq>5){stockEl.textContent="Em estoque";stockEl.style.color="#16a34a";}
+            else{stockEl.textContent="Indisponível";stockEl.style.color="#dc2626";}
+          }
+          // Update gallery main image if variant has image
+          if(variant&&variant.image_url){
+            var mainImg=document.querySelector(".sf-pdp-grid img[fetchpriority]");
+            if(mainImg)mainImg.src=variant.image_url.indexOf("wsrv.nl")>=0?variant.image_url:"https://wsrv.nl/?url="+encodeURIComponent(variant.image_url)+"&w=800&q=85&output=webp";
+          }
+          // Update CTA buttons with variant ID
+          if(variant){
+            document.querySelectorAll("[data-sf-action='add-to-cart'],[data-sf-action='buy-now']").forEach(function(btn){
+              if(btn.closest("[data-sf-variant-selector]"))return;// skip if inside variant selector
+              btn.dataset.variantId=variant.id;
+              btn.dataset.productPrice=variant.price;
+              btn.disabled=false;
+              btn.style.opacity="1";
+            });
+            // Update qty max
+            var qtyInput=document.querySelector("[data-sf-qty-input]");
+            if(qtyInput)qtyInput.max=variant.stock_quantity||99;
+          }
+        }
+
+        allOptionBtns.forEach(function(btn){
+          btn.addEventListener("click",function(){
+            var name=this.dataset.optionName;
+            var value=this.dataset.optionValue;
+            selectedOpts[name]=value;
+            // Update button styles
+            var groupBtns=variantSelector.querySelectorAll('[data-sf-variant-option][data-option-name="'+name+'"]');
+            groupBtns.forEach(function(gb){
+              if(gb.dataset.optionValue===value){
+                gb.style.borderColor="var(--theme-button-primary-bg,#1a1a1a)";
+                gb.style.background="var(--theme-button-primary-bg,#1a1a1a)";
+                gb.style.color="var(--theme-button-primary-text,#fff)";
+              }else{
+                gb.style.borderColor="#ddd";
+                gb.style.background="#fff";
+                gb.style.color="var(--theme-text-primary,#1a1a1a)";
+              }
+            });
+            // Update selected label
+            var labelEl=variantSelector.querySelector('[data-sf-variant-selected-label="'+name+'"]');
+            if(labelEl)labelEl.textContent=value;
+            // Find matching variant
+            var match=findMatchingVariant();
+            updateVariantUI(match);
+          });
+        });
+
+        // If product has variants, disable CTA until variant is selected
+        var groupCount=variantSelector.querySelectorAll("[data-sf-variant-group]").length;
+        if(groupCount>0){
+          document.querySelectorAll("[data-sf-action='add-to-cart'],[data-sf-action='buy-now']").forEach(function(btn){
+            if(btn.closest("[data-sf-variant-selector]"))return;
+            btn.disabled=true;
+            btn.style.opacity="0.5";
+          });
+        }
+      }
+
+      // === GALLERY HYDRATION: Swipe dots + Thumbnail click + Pinch zoom ===
+      var galleryTrack=document.querySelector("[data-sf-gallery-track]");
+      if(galleryTrack){
+        var dots=[].slice.call(document.querySelectorAll("[data-sf-dot-index]"));
+        var slides=[].slice.call(galleryTrack.querySelectorAll(".sf-gallery-slide"));
+        // Dots sync on scroll
+        var scrollTimeout;
+        galleryTrack.addEventListener("scroll",function(){
+          clearTimeout(scrollTimeout);
+          scrollTimeout=setTimeout(function(){
+            var scrollLeft=galleryTrack.scrollLeft;
+            var slideW=galleryTrack.offsetWidth;
+            var idx=Math.round(scrollLeft/slideW);
+            dots.forEach(function(d,i){d.classList.toggle("active",i===idx);});
+          },50);
+        });
+        // Dot click
+        dots.forEach(function(dot){
+          dot.addEventListener("click",function(){
+            var idx=parseInt(this.dataset.sfDotIndex)||0;
+            galleryTrack.scrollTo({left:idx*galleryTrack.offsetWidth,behavior:"smooth"});
+          });
+        });
+      }
+      // Desktop thumbnail click → swap main image
+      var thumbsContainer=document.querySelector("[data-sf-gallery-thumbs]");
+      var mainGalleryImg=document.querySelector("[data-sf-gallery-main]");
+      if(thumbsContainer&&mainGalleryImg){
+        thumbsContainer.addEventListener("click",function(e){
+          var img=e.target.closest("img");
+          if(!img)return;
+          // Swap: get the full-size URL from thumb src (replace w=120 with w=800)
+          var fullSrc=img.src.replace(/w=120/,"w=800").replace(/q=75/,"q=85");
+          mainGalleryImg.src=fullSrc;
+          // Highlight active thumb
+          [].slice.call(thumbsContainer.querySelectorAll("img")).forEach(function(t){
+            t.style.borderColor=t===img?"var(--theme-button-primary-bg,#1a1a1a)":"#eee";
+            t.style.borderWidth=t===img?"2px":"1px";
+          });
+        });
+      }
+
       // === CATEGORY FILTERS, SORT & LOAD MORE ===
       var catContainer=document.querySelector("[data-sf-cat-container]");
       if(catContainer){
@@ -926,8 +1074,8 @@ serve(async (req) => {
         );
       }
 
-      // Fetch images, category breadcrumb, reviews, related products, and buy-together in parallel
-      const [imagesResult, categoryResult, reviewsResult, relatedResult, buyTogetherResult] = await Promise.all([
+      // Fetch images, category breadcrumb, reviews, related products, buy-together, and variants in parallel
+      const [imagesResult, categoryResult, reviewsResult, relatedResult, buyTogetherResult, variantsResult] = await Promise.all([
         supabase
           .from('product_images')
           .select('id, url, alt_text, is_primary, sort_order')
@@ -961,6 +1109,13 @@ serve(async (req) => {
           .order('priority', { ascending: false })
           .limit(1)
           .maybeSingle(),
+        // Variants
+        product.has_variants ? supabase
+          .from('product_variants')
+          .select('id, sku, price, compare_at_price, stock_quantity, image_url, is_active, option1_name, option1_value, option2_name, option2_value, option3_name, option3_value')
+          .eq('product_id', product.id)
+          .eq('is_active', true)
+          .order('position', { ascending: true }) : Promise.resolve({ data: [] }),
       ]);
       const images = imagesResult.data;
       const productCategory = categoryResult.data?.categories;
@@ -1028,6 +1183,7 @@ serve(async (req) => {
       compilerContext.currentProductReviews = reviews;
       compilerContext.currentRelatedProducts = relatedProducts;
       compilerContext.currentBuyTogether = buyTogetherCtx;
+      compilerContext.currentProductVariants = variantsResult.data || [];
       if (productCategory) {
         compilerContext.currentProductCategory = { name: productCategory.name, slug: productCategory.slug };
       }

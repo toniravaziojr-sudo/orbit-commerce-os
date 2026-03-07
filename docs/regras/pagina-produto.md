@@ -1,8 +1,8 @@
 # Página de Produto — Regras e Especificações
 
-> **Status:** FUNCIONAL ✅ — Core + Seções implementados  
+> **Status:** FUNCIONAL ✅ — Core + Seções + Variantes + Galeria Mobile implementados  
 > **Última atualização:** 2026-03-07  
-> **Arquitetura:** v8.1.1 — block-compiler com `published_content.product` + reviews + relacionados + compre junto
+> **Arquitetura:** v8.1.3 — block-compiler com variantes, swipe mobile, thumbnail click, quick buy
 
 ## Visão Geral
 
@@ -128,9 +128,10 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 | Comportamento | React | Compilador |
 |---------------|-------|-----------|
 | Layout desktop | Imagem grande + thumbnails | Imagem grande + thumbnails ✅ |
-| Layout mobile | Carousel swipe | Imagem estática (sem swipe) ❌ |
-| Zoom | Hover/Pinch zoom | Não suportado ❌ |
-| Lightbox | Click abre fullscreen | Não suportado ❌ |
+| Thumbnail click | ✅ Troca imagem principal | ✅ Via hydration JS |
+| Layout mobile | Carousel swipe | ✅ Swipe carousel com dots |
+| Zoom | Hover/Pinch zoom | ❌ Não suportado |
+| Lightbox | Click abre fullscreen | ❌ Não suportado |
 
 ---
 
@@ -138,12 +139,13 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 
 | Aspecto | React | Compilador |
 |---------|-------|-----------|
-| Swatches de cor | ✅ | ❌ Não renderizado |
-| Botões de tamanho | ✅ | ❌ Não renderizado |
-| Dropdown custom | ✅ | ❌ Não renderizado |
-| Atualização de preço | ✅ | ❌ N/A (estático) |
+| Swatches de cor | ✅ | ✅ Botões com seleção via hydration JS |
+| Botões de tamanho | ✅ | ✅ Botões com seleção via hydration JS |
+| Atualização de preço | ✅ | ✅ Via hydration JS (atualiza preço, estoque, imagem) |
+| CTA bloqueado até seleção | ✅ | ✅ Botões desabilitados até variante selecionada |
+| Variant ID no carrinho | ✅ | ✅ `data-variant-id` passado ao addToCart |
 
-> **Nota:** Variantes são interativas por natureza. O compilador gera HTML estático, então variantes só funcionam após hydration no SPA. Isso é esperado.
+> **Nota:** Variantes são renderizadas como HTML estático (botões) e hidratadas via vanilla JS para interatividade completa.
 
 ---
 
@@ -217,6 +219,7 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 |-------|------|-----------|
 | `currentProduct` | object | Todos os campos do produto (name, price, sku, brand, stock, etc.) |
 | `currentProductImages` | array | Imagens ordenadas por `sort_order` com `is_primary` |
+| `currentProductVariants` | array | Variantes ativas com option1/2/3, preço, estoque, imagem |
 | `productSettings` | object | Settings extraídos de `themeSettings.pageSettings.product` |
 | `storeSettings` | object | `social_whatsapp`, `contact_phone`, etc. |
 
@@ -226,12 +229,13 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 
 ### Funcionalidades Ausentes no Compilador
 
-- [ ] **Variantes**: Sem renderização de seletores (cor, tamanho, custom) — esperado para HTML estático
+- [x] ~~**Variantes**: Sem renderização de seletores~~ → Implementado v8.1.3 (botões + hydration JS)
 - [x] ~~**Avaliações**: Seção de reviews não renderizada~~ → Implementado v8.1.1
 - [x] ~~**Compre Junto**: Seção não renderizada~~ → Implementado v8.1.1
 - [x] ~~**Produtos Relacionados**: Carousel não renderizado~~ → Grid responsivo v8.1.1
 - [x] ~~**Breadcrumb**: React tem — compilador não tem~~ → Implementado v8.1.0
-- [ ] **Galeria mobile**: Sem swipe/carousel — apenas imagem estática
+- [x] ~~**Galeria mobile**: Sem swipe/carousel~~ → Implementado v8.1.3 (scroll-snap + dots)
+- [x] ~~**Thumbnail click**: Sem troca de imagem~~ → Implementado v8.1.3
 - [ ] **Zoom**: Sem hover/pinch zoom
 - [ ] **Lightbox**: Sem fullscreen
 - [x] ~~**Botão "Comprar agora"**: Compilador não tem CTA separado~~ → Implementado v8.1.0
@@ -245,4 +249,3 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 ### Dead Code
 
 - [ ] `_shared/block-compiler/blocks/product-page.ts` — remover
-- [ ] `_shared/block-compiler/blocks/category-page.ts` — remover

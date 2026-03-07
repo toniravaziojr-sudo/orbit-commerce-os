@@ -92,10 +92,59 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
   if (showStock) {
     const qty = product.stock_quantity ?? 0;
     if (qty > 0 && qty <= 5) {
-      stockHtml = `<p style="font-size:13px;color:#dc2626;font-weight:500;">Últimas ${qty} unidades!</p>`;
+      stockHtml = `<p style="font-size:13px;color:#dc2626;font-weight:500;" data-sf-stock-text>Últimas ${qty} unidades!</p>`;
     } else if (qty > 5) {
-      stockHtml = `<p style="font-size:13px;color:#16a34a;font-weight:500;">Em estoque</p>`;
+      stockHtml = `<p style="font-size:13px;color:#16a34a;font-weight:500;" data-sf-stock-text>Em estoque</p>`;
     }
+  }
+
+  // === VARIANT SELECTOR ===
+  const showVariants = ps.showVariants ?? true;
+  const variants = context.currentProductVariants || [];
+  let variantSelectorHtml = '';
+  if (showVariants && variants.length > 0) {
+    // Extract option groups from variants
+    const groupsMap = new Map<string, Set<string>>();
+    for (const v of variants) {
+      if (v.option1_name && v.option1_value) {
+        if (!groupsMap.has(v.option1_name)) groupsMap.set(v.option1_name, new Set());
+        groupsMap.get(v.option1_name)!.add(v.option1_value);
+      }
+      if (v.option2_name && v.option2_value) {
+        if (!groupsMap.has(v.option2_name)) groupsMap.set(v.option2_name, new Set());
+        groupsMap.get(v.option2_name)!.add(v.option2_value);
+      }
+      if (v.option3_name && v.option3_value) {
+        if (!groupsMap.has(v.option3_name)) groupsMap.set(v.option3_name, new Set());
+        groupsMap.get(v.option3_name)!.add(v.option3_value);
+      }
+    }
+
+    const groupsHtml = Array.from(groupsMap.entries()).map(([name, valuesSet]) => {
+      const values = Array.from(valuesSet);
+      const buttonsHtml = values.map(value =>
+        `<button type="button" data-sf-variant-option data-option-name="${escapeHtml(name)}" data-option-value="${escapeHtml(value)}" style="padding:8px 16px;font-size:14px;font-weight:500;border-radius:6px;border:1px solid #ddd;background:#fff;color:var(--theme-text-primary,#1a1a1a);cursor:pointer;transition:all .15s;">${escapeHtml(value)}</button>`
+      ).join('');
+      return `<div data-sf-variant-group="${escapeHtml(name)}" style="margin-bottom:12px;">
+        <label style="font-size:14px;font-weight:500;color:var(--theme-text-primary,#1a1a1a);display:block;margin-bottom:6px;">${escapeHtml(name)}: <span data-sf-variant-selected-label="${escapeHtml(name)}" style="font-weight:400;color:var(--theme-text-secondary,#666);"></span></label>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">${buttonsHtml}</div>
+      </div>`;
+    }).join('');
+
+    // Embed variant data as JSON for hydration
+    const variantData = variants.map(v => ({
+      id: v.id, sku: v.sku || '', price: v.price, compare_at_price: v.compare_at_price,
+      stock_quantity: v.stock_quantity, image_url: v.image_url || '',
+      o1n: v.option1_name, o1v: v.option1_value,
+      o2n: v.option2_name, o2v: v.option2_value,
+      o3n: v.option3_name, o3v: v.option3_value,
+    }));
+
+    variantSelectorHtml = `
+      <div data-sf-variant-selector style="margin-top:4px;">
+        ${groupsHtml}
+        <script type="application/json" data-sf-variant-data>${JSON.stringify(variantData)}</script>
+      </div>`;
   }
 
   // Badges
@@ -373,13 +422,38 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
       <style>
         @media(min-width:768px) { .sf-pdp-grid { grid-template-columns: 1fr 1fr !important; } }
         input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
+        .sf-gallery-track{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;gap:0;}
+        .sf-gallery-track::-webkit-scrollbar{display:none;}
+        .sf-gallery-slide{flex:0 0 100%;scroll-snap-align:start;}
+        .sf-gallery-dots{display:flex;justify-content:center;gap:6px;margin-top:10px;}
+        .sf-gallery-dot{width:8px;height:8px;border-radius:50%;background:#d1d5db;border:none;padding:0;cursor:pointer;transition:background .2s;}
+        .sf-gallery-dot.active{background:var(--theme-button-primary-bg,#1a1a1a);}
+        @media(min-width:768px){.sf-gallery-mobile{display:none!important;}.sf-gallery-desktop{display:block!important;}}
+        @media(max-width:767px){.sf-gallery-mobile{display:block!important;}.sf-gallery-desktop{display:none!important;}}
       </style>
       <div class="sf-pdp-grid" style="display:grid;grid-template-columns:1fr;gap:32px;">
         <!-- Gallery -->
         ${showGallery ? `
         <div>
-          ${optimizedMain ? `<img src="${escapeHtml(optimizedMain)}" alt="${escapeHtml(product.name)}" style="width:100%;aspect-ratio:1;object-fit:contain;border-radius:8px;background:#f9f9f9;" loading="eager" fetchpriority="high">` : ''}
-          ${thumbsHtml ? `<div style="display:flex;gap:8px;margin-top:12px;overflow-x:auto;">${thumbsHtml}</div>` : ''}
+          <!-- Desktop gallery (static) -->
+          <div class="sf-gallery-desktop" style="display:block;">
+            ${optimizedMain ? `<img src="${escapeHtml(optimizedMain)}" alt="${escapeHtml(product.name)}" style="width:100%;aspect-ratio:1;object-fit:contain;border-radius:8px;background:#f9f9f9;" loading="eager" fetchpriority="high" data-sf-gallery-main>` : ''}
+            ${thumbsHtml ? `<div style="display:flex;gap:8px;margin-top:12px;overflow-x:auto;" data-sf-gallery-thumbs>${thumbsHtml}</div>` : ''}
+          </div>
+          <!-- Mobile gallery (swipeable carousel) -->
+          <div class="sf-gallery-mobile" style="display:none;position:relative;">
+            <div class="sf-gallery-track" data-sf-gallery-track>
+              ${[mainImage, ...otherImages].filter(Boolean).map((img, idx) => {
+                const src = optimizeImageUrl(img!.url, 800, 85);
+                return `<div class="sf-gallery-slide"><img src="${escapeHtml(src)}" alt="${escapeHtml(img!.alt_text || product.name)}" style="width:100%;aspect-ratio:1;object-fit:contain;background:#f9f9f9;border-radius:8px;" ${idx === 0 ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"'} data-sf-gallery-slide-img></div>`;
+              }).join('')}
+            </div>
+            ${images.length > 1 ? `<div class="sf-gallery-dots" data-sf-gallery-dots>
+              ${[mainImage, ...otherImages].filter(Boolean).map((_, idx) =>
+                `<button class="sf-gallery-dot${idx === 0 ? ' active' : ''}" data-sf-dot-index="${idx}" aria-label="Imagem ${idx + 1}"></button>`
+              ).join('')}
+            </div>` : ''}
+          </div>
         </div>
         ` : ''}
         <!-- Info -->
@@ -396,6 +470,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
           <p style="font-size:13px;color:#666;">em até 12x de ${installmentValue} sem juros</p>
           ${product.short_description ? `<p style="font-size:15px;color:var(--theme-text-secondary,#555);line-height:1.6;">${escapeHtml(product.short_description)}</p>` : ''}
           ${stockHtml}
+          ${variantSelectorHtml}
           ${quantityHtml}
           ${ctaHtml}
           ${shippingHtml}

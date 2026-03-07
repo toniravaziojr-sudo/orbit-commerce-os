@@ -109,7 +109,7 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
       </div>`;
     }
 
-    // Buttons (same order as builder: 1. Add to cart, 2. Custom, 3. Buy now)
+    // Buttons (same order as builder: 1. Add to cart, 2. Custom, 3. Buy now / Quick buy)
     const buttonsHtml: string[] = [];
     if (showAddToCartButton) {
       buttonsHtml.push(`<button data-sf-action="add-to-cart" data-product-id="${p.id}" data-product-name="${escapeHtml(p.name)}" data-product-price="${p.price}" data-product-image="${escapeHtml(imgUrl || '')}" style="width:100%;padding:8px;background:transparent;border:1px solid var(--theme-button-primary-bg,#1a1a1a);border-radius:6px;cursor:pointer;font-size:12px;color:var(--theme-button-primary-bg,#1a1a1a);display:flex;align-items:center;justify-content:center;gap:6px;">
@@ -123,7 +123,9 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
         : `background:var(--theme-button-secondary-bg,#f5f5f5);color:var(--theme-button-secondary-text,#333);border:none;`;
       buttonsHtml.push(`<a href="${escapeHtml(customButtonLink || '#')}" style="display:block;width:100%;padding:8px;${customStyle}border-radius:6px;font-size:12px;text-align:center;text-decoration:none;">${escapeHtml(customButtonText)}</a>`);
     }
-    buttonsHtml.push(`<a href="/produto/${escapeHtml(p.slug)}" style="display:block;width:100%;padding:8px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border-radius:6px;font-size:12px;text-align:center;text-decoration:none;font-weight:500;">${escapeHtml(buyNowButtonText)}</a>`);
+    if (quickBuyEnabled) {
+      buttonsHtml.push(`<button data-sf-action="buy-now" data-product-id="${p.id}" data-product-name="${escapeHtml(p.name)}" data-product-price="${p.price}" data-product-image="${escapeHtml(imgUrl || '')}" style="width:100%;padding:8px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:6px;font-size:12px;text-align:center;font-weight:500;cursor:pointer;">${escapeHtml(buyNowButtonText)}</button>`);
+    }
 
     // Hidden beyond first page initially
     const hiddenByPagination = hasMoreThanOnePage && index >= PRODUCTS_PER_PAGE;
