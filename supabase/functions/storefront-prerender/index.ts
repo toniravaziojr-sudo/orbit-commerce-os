@@ -139,15 +139,21 @@ serve(async (req) => {
       }
     } else {
       // Full publish: render all public pages
+      console.log('[storefront-prerender] Building pages list...');
       pagesToRender.push({ path: '/', page_type: 'home' });
 
-      const { data: products } = await supabase
+      console.log('[storefront-prerender] Fetching products...');
+      const { data: products, error: productsError } = await supabase
         .from('products')
         .select('id, slug')
         .eq('tenant_id', tenant_id)
         .eq('status', 'active')
         .is('deleted_at', null)
         .limit(500);
+
+      if (productsError) {
+        console.error('[storefront-prerender] Products query error:', productsError);
+      }
 
       if (products) {
         for (const p of products) {
