@@ -94,18 +94,18 @@ export function featuredProductsToStaticHTML(
       buttonsHtml = `<div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">${buttons.join('')}</div>`;
     }
 
-    return `<a href="/produto/${escapeHtml(p.slug)}" style="display:block;text-decoration:none;color:inherit;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #f0f0f0;transition:box-shadow 0.2s;position:relative;">
+    return `<a href="/produto/${escapeHtml(p.slug)}" class="sf-fp-card" style="display:block;text-decoration:none;color:inherit;background:var(--theme-card-bg,#fff);border-radius:8px;overflow:hidden;border:1px solid var(--theme-card-border,#f0f0f0);transition:box-shadow 0.2s;position:relative;">
       ${badgesHtml}
       <div style="aspect-ratio:1;overflow:hidden;background:#f5f5f5;">
-        ${imgUrl ? `<img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(p.name)}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">` : ''}
+        ${imgUrl ? `<img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(p.name)}" style="width:100%;height:100%;object-fit:cover;transition:transform .3s;" loading="lazy">` : ''}
       </div>
-      <div style="padding:12px;">
+      <div style="padding:8px 12px 12px;">
         ${ratingsHtml}
-        <h3 style="font-size:14px;font-weight:500;margin-bottom:8px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--theme-text-primary,#1a1a1a);">${escapeHtml(p.name)}</h3>
+        <h3 style="font-size:13px;font-weight:500;margin-bottom:6px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--theme-text-primary,#1a1a1a);">${escapeHtml(p.name)}</h3>
         ${showPrice ? `
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            ${hasDiscount ? `<span style="font-size:12px;color:#999;text-decoration:line-through;">${formatPriceFromDecimal(p.compare_at_price!)}</span>` : ''}
-            <span style="font-size:16px;font-weight:700;color:var(--theme-text-primary,#1a1a1a);">${formatPriceFromDecimal(p.price)}</span>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            ${hasDiscount ? `<span style="font-size:11px;color:#999;text-decoration:line-through;">${formatPriceFromDecimal(p.compare_at_price!)}</span>` : ''}
+            <span style="font-size:14px;font-weight:700;color:var(--theme-price-color,var(--theme-text-primary,#1a1a1a));">${formatPriceFromDecimal(p.price)}</span>
           </div>
         ` : ''}
         ${buttonsHtml}
