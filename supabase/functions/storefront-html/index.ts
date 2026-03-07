@@ -1074,6 +1074,7 @@ serve(async (req) => {
       footerMenus,
       globalLayout,
       tenant,
+      productBadges: new Map(),
     };
 
     // Generate header and footer using block-compiler
