@@ -1527,7 +1527,7 @@ serve(async (req) => {
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=300, max-age=60',
+        'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200, max-age=120',
         'Server-Timing': `resolve;dur=${resolveMs}, queries;dur=${queryMs}, total;dur=${totalMs}`,
         'X-Storefront-Version': VERSION,
         'X-Tenant': tenantSlug,
