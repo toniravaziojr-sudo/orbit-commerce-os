@@ -537,6 +537,38 @@ function buildFullPage(opts: {
       // Init cart UI on load
       updateCartUI();
 
+      // === NOTICE BAR TEXT ROTATION (fade/slide modes) ===
+      var noticeBar=document.querySelector(".sf-notice-bar[data-sf-notice-texts]");
+      if(noticeBar){
+        try{
+          var texts=JSON.parse(noticeBar.dataset.sfNoticeTexts||"[]");
+          var anim=noticeBar.dataset.sfNoticeAnimation||"fade";
+          if(texts.length>1){
+            var idx=0;
+            var span=noticeBar.querySelector(".sf-notice-text");
+            if(span){
+              setInterval(function(){
+                // Exit
+                if(anim==="fade"){span.style.opacity="0";}
+                else if(anim==="slide-vertical"){span.style.opacity="0";span.style.transform="translateY(-100%)";}
+                setTimeout(function(){
+                  idx=(idx+1)%texts.length;
+                  span.textContent=texts[idx];
+                  // Enter
+                  if(anim==="slide-vertical"){span.style.transform="translateY(100%)";}
+                  requestAnimationFrame(function(){
+                    requestAnimationFrame(function(){
+                      span.style.opacity="1";
+                      span.style.transform="translateY(0)";
+                    });
+                  });
+                },300);
+              },4000);
+            }
+          }
+        }catch(e){}
+      }
+
       // === PRODUCT VARIANT SELECTOR HYDRATION ===
       var variantSelector=document.querySelector("[data-sf-variant-selector]");
       if(variantSelector){
