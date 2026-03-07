@@ -1676,6 +1676,10 @@ serve(async (req) => {
     const mobileWhatsApp = storeSettings?.social_whatsapp || '';
     const mobilePhone = storeSettings?.contact_phone || '';
     const mobileEmail = storeSettings?.contact_email || '';
+    const mobileSocialFacebook = storeSettings?.social_facebook || '';
+    const mobileSocialInstagram = storeSettings?.social_instagram || '';
+    const mobileSocialTiktok = storeSettings?.social_tiktok || '';
+    const mobileSocialYoutube = storeSettings?.social_youtube || '';
     const mobileContact: string[] = [];
     if (mobileWhatsApp) mobileContact.push(`<a href="https://wa.me/${mobileWhatsApp.replace(/\\D/g, '')}" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg> WhatsApp</a>`);
     if (mobilePhone) mobileContact.push(`<a href="tel:${mobilePhone.replace(/\\D/g, '')}" style="display:flex;align-items:center;gap:8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.87.36 1.72.7 2.53a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.81.34 1.66.57 2.53.7A2 2 0 0 1 22 16.92z"/></svg> Telefone</a>`);
@@ -1683,13 +1687,25 @@ serve(async (req) => {
     
     const mobileContactHtml = mobileContact.length > 0 ? `<div class="sf-mobile-contact"><div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;opacity:0.6;margin-bottom:12px;">CONTATO</div>${mobileContact.join('')}</div>` : '';
     
+    // Social links for mobile menu
+    const mobileSocialLinks: string[] = [];
+    if (mobileSocialFacebook) mobileSocialLinks.push(`<a href="${escapeHtml(mobileSocialFacebook)}" target="_blank" rel="noopener noreferrer" aria-label="Facebook"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg></a>`);
+    if (mobileSocialInstagram) mobileSocialLinks.push(`<a href="${escapeHtml(mobileSocialInstagram)}" target="_blank" rel="noopener noreferrer" aria-label="Instagram"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor"/></svg></a>`);
+    if (mobileSocialTiktok) mobileSocialLinks.push(`<a href="${escapeHtml(mobileSocialTiktok)}" target="_blank" rel="noopener noreferrer" aria-label="TikTok"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg></a>`);
+    if (mobileSocialYoutube) mobileSocialLinks.push(`<a href="${escapeHtml(mobileSocialYoutube)}" target="_blank" rel="noopener noreferrer" aria-label="YouTube"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19.1c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"/><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02" fill="#fff"/></svg></a>`);
+    const mobileSocialHtml = mobileSocialLinks.length > 0 ? `<div class="sf-mobile-social"><div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;opacity:0.6;margin-bottom:12px;">REDES SOCIAIS</div><div style="display:flex;gap:12px;">${mobileSocialLinks.join('')}</div></div>` : '';
+    
     // Featured promo for mobile
     const mobileFeaturedHtml = mobileFeaturedPromosEnabled ? `<a href="${escapeHtml(mobileFeaturedUrl)}" style="font-weight:600;">${escapeHtml(mobileFeaturedPromosLabel)}</a>` : '';
     
     // Account for mobile
     const mobileAccountHtml = mobileCustomerAreaEnabled ? `<a href="/minha-conta" style="display:flex;align-items:center;gap:8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Minha Conta</a>` : '';
     
-    const navItemsHtml = `<div style="background:${escapeHtml(mobileHeaderBg)};color:${escapeHtml(mobileHeaderText)};min-height:100%;display:flex;flex-direction:column;">${mobileMenuItemsHtml}${mobileFeaturedHtml}${mobileAccountHtml}${mobileContactHtml}</div>`;
+    // Search bar for mobile
+    const mobileShowSearch = hProps.showSearch ?? true;
+    const mobileSearchHtml = mobileShowSearch ? `<div class="sf-mobile-search"><input type="text" placeholder="O que você procura?" data-sf-mobile-search-input></div>` : '';
+    
+    const navItemsHtml = `<div style="background:${escapeHtml(mobileHeaderBg)};color:${escapeHtml(mobileHeaderText)};min-height:100%;display:flex;flex-direction:column;">${mobileMenuItemsHtml}${mobileFeaturedHtml}${mobileAccountHtml}${mobileContactHtml}${mobileSocialHtml}</div>`;
 
     const html = buildFullPage({
       title: pageTitle,
