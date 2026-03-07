@@ -6,125 +6,125 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
-import { AppShell } from "@/components/layout/AppShell";
 import { GatedRoute, FeatureGatedRoute } from "@/components/layout/GatedRoute";
 import { CommandAssistantProvider, CommandAssistantPanel } from "@/components/command-assistant";
-
-// Admin Pages
-import Dashboard from "@/pages/Dashboard";
-import Executions from "@/pages/Executions";
-import Orders from "@/pages/Orders";
-import OrderNew from "@/pages/OrderNew";
-import OrderDetail from "@/pages/OrderDetail";
-import Products from "@/pages/Products";
-import Categories from "@/pages/Categories";
-import Menus from "@/pages/Menus";
-import Pages from "@/pages/Pages";
-import Customers from "@/pages/Customers";
-import CustomerDetail from "@/pages/CustomerDetail";
-import Notifications from "@/pages/Notifications";
-import Support from "@/pages/Support";
-import Media from "@/pages/Media";
-import MediaCampaignDetail from "@/pages/MediaCampaignDetail";
-import Campaigns from "@/pages/Campaigns";
-import AdsManager from "@/pages/AdsManager";
-import Creatives from "@/pages/Creatives";
-import Integrations from "@/pages/Integrations";
-import Marketing from "@/pages/Marketing";
-import Finance from "@/pages/Finance";
-import Fiscal from "@/pages/Fiscal";
-import FiscalProductsConfig from "@/pages/FiscalProductsConfig";
-import OperationNaturesSettings from "@/pages/OperationNaturesSettings";
-import Purchases from "@/pages/Purchases";
-import Settings from "@/pages/Settings";
-import Domains from "@/pages/Domains";
-import StorefrontSettings from "@/pages/StorefrontSettings";
-import StorefrontBuilder from "@/pages/StorefrontBuilder";
-import PageBuilder from "@/pages/PageBuilder";
-import PageTemplates from "@/pages/PageTemplates";
-import TemplateBuilder from "@/pages/TemplateBuilder";
-import LandingPages from "@/pages/LandingPages";
-import LandingPageEditor from "@/pages/LandingPageEditor";
-import BillingSettings from "@/pages/settings/BillingSettings";
-import AddPaymentMethod from "@/pages/settings/AddPaymentMethod";
-
-
-import Reviews from "@/pages/Reviews";
-import Offers from "@/pages/Offers";
-import Discounts from "@/pages/Discounts";
-import AbandonedCheckouts from "@/pages/AbandonedCheckouts";
-import StoreConfigSettings from "@/pages/StoreConfigSettings";
-import CartAndCheckout from "@/pages/CartAndCheckout";
-import UrlDiagnostics from "@/pages/UrlDiagnostics";
-import HealthMonitor from "@/pages/HealthMonitor";
-import Shipments from "@/pages/Shipments";
-import ShippingDashboard from "@/pages/ShippingDashboard";
-import ShippingSettings from "@/pages/ShippingSettings";
-import Auth from "@/pages/Auth";
-import AwaitingConfirmation from "@/pages/AwaitingConfirmation";
-import AcceptInvite from "@/pages/AcceptInvite";
-import SystemUsers from "@/pages/SystemUsers";
-import CreateStore from "@/pages/CreateStore";
-import NoAccess from "@/pages/NoAccess";
-import ResetPassword from "@/pages/ResetPassword";
-import StartPlan from "@/pages/start/StartPlan";
-import StartInfo from "@/pages/start/StartInfo";
-import StartPending from "@/pages/start/StartPending";
-import CompleteSignup from "@/pages/start/CompleteSignup";
-import GettingStarted from "@/pages/GettingStarted";
-import SystemEmails from "@/pages/SystemEmails";
-import PlatformIntegrations from "@/pages/PlatformIntegrations";
-import Attribution from "@/pages/Attribution";
-import Emails from "@/pages/Emails";
-import EmailMarketing from "@/pages/EmailMarketing";
-import EmailMarketingListDetail from "@/pages/EmailMarketingListDetail";
-import EmailMarketingCampaignBuilder from "@/pages/EmailMarketingCampaignBuilder";
-import EmailMarketingAutomationBuilder from "@/pages/EmailMarketingAutomationBuilder";
-import Import from "@/pages/Import";
-import Blog from "@/pages/Blog";
-import BlogCampaigns from "@/pages/BlogCampaigns";
-import BlogCampaignDetail from "@/pages/BlogCampaignDetail";
-import BlogPostEditor from "@/pages/BlogPostEditor";
-import Quizzes from "@/pages/Quizzes";
-import { QuizEditor } from "@/components/quizzes";
-import BlockSuggestions from "@/pages/BlockSuggestions";
-import DemoEstruturaPage from "@/pages/DemoEstruturaPage";
-import DemoLandingPage from "@/pages/DemoLandingPage";
-
-import MetaOAuthCallback from "@/pages/MetaOAuthCallback";
-import MeliOAuthCallback from "@/pages/MeliOAuthCallback";
-import YouTubeCallback from "@/pages/integrations/YouTubeCallback";
-import TikTokOAuthCallback from "@/pages/TikTokOAuthCallback";
-import NotFound from "@/pages/NotFound";
-import Marketplaces from "@/pages/Marketplaces";
-import MercadoLivre from "@/pages/marketplaces/MercadoLivre";
-import Shopee from "@/pages/marketplaces/Shopee";
-import Olist from "@/pages/marketplaces/Olist";
-import TikTokShop from "@/pages/marketplaces/TikTokShop";
-import Files from "@/pages/Files";
-import Reports from "@/pages/Reports";
-
-import CommandCenter from "@/pages/CommandCenter";
-import ChatGPT from "@/pages/ChatGPT";
-import AIMemories from "@/pages/AIMemories";
-import AccountData from "@/pages/account/AccountData";
-import AccountBilling from "@/pages/account/Billing";
-import PlatformBilling from "@/pages/platform/PlatformBilling";
-import PlatformAnnouncements from "@/pages/platform/PlatformAnnouncements";
-import PlatformTutorials from "@/pages/platform/PlatformTutorials";
- import PlatformTools from "@/pages/platform/PlatformTools";
-import PlatformTenants from "@/pages/platform/PlatformTenants";
-import Influencers from "@/pages/Influencers";
-
-import Affiliates from "@/pages/Affiliates";
-import SupportCenter from "@/pages/SupportCenter";
-import AIPackages from "@/pages/AIPackages";
-import QAStorefront from "@/pages/admin/QAStorefront";
-
-// Storefront Pages — LAZY LOADED for code splitting (reduces initial JS bundle ~1.2MB)
-import { StorefrontLayout } from "@/components/storefront/StorefrontLayout";
-import { TenantStorefrontLayout } from "@/components/storefront/TenantStorefrontLayout";
 import { lazy, Suspense } from "react";
+
+// =============================================
+// LAZY LOADED PAGES — Code splitting for performance
+// Admin pages are lazy-loaded so storefront visitors don't download admin code
+// Storefront pages are lazy-loaded so admin visitors don't download storefront code
+// =============================================
+
+// Auth & Public Pages (always needed, small — keep static)
+import Auth from "@/pages/Auth";
+import NotFound from "@/pages/NotFound";
+
+// Admin Shell — lazy loaded (heavy: sidebar, navigation, providers)
+const AppShell = lazy(() => import("@/components/layout/AppShell").then(m => ({ default: m.AppShell })));
+
+// Admin Pages — LAZY LOADED (isolated from storefront bundle)
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const Executions = lazy(() => import("@/pages/Executions"));
+const Orders = lazy(() => import("@/pages/Orders"));
+const OrderNew = lazy(() => import("@/pages/OrderNew"));
+const OrderDetail = lazy(() => import("@/pages/OrderDetail"));
+const Products = lazy(() => import("@/pages/Products"));
+const Categories = lazy(() => import("@/pages/Categories"));
+const Menus = lazy(() => import("@/pages/Menus"));
+const Pages = lazy(() => import("@/pages/Pages"));
+const Customers = lazy(() => import("@/pages/Customers"));
+const CustomerDetail = lazy(() => import("@/pages/CustomerDetail"));
+const Notifications = lazy(() => import("@/pages/Notifications"));
+const Support = lazy(() => import("@/pages/Support"));
+const Media = lazy(() => import("@/pages/Media"));
+const MediaCampaignDetail = lazy(() => import("@/pages/MediaCampaignDetail"));
+const Campaigns = lazy(() => import("@/pages/Campaigns"));
+const AdsManager = lazy(() => import("@/pages/AdsManager"));
+const Creatives = lazy(() => import("@/pages/Creatives"));
+const Integrations = lazy(() => import("@/pages/Integrations"));
+const Finance = lazy(() => import("@/pages/Finance"));
+const Fiscal = lazy(() => import("@/pages/Fiscal"));
+const FiscalProductsConfig = lazy(() => import("@/pages/FiscalProductsConfig"));
+const OperationNaturesSettings = lazy(() => import("@/pages/OperationNaturesSettings"));
+const Purchases = lazy(() => import("@/pages/Purchases"));
+const Settings = lazy(() => import("@/pages/Settings"));
+const Domains = lazy(() => import("@/pages/Domains"));
+const StorefrontSettings = lazy(() => import("@/pages/StorefrontSettings"));
+const StorefrontBuilder = lazy(() => import("@/pages/StorefrontBuilder"));
+const PageBuilder = lazy(() => import("@/pages/PageBuilder"));
+const PageTemplates = lazy(() => import("@/pages/PageTemplates"));
+const TemplateBuilder = lazy(() => import("@/pages/TemplateBuilder"));
+const LandingPageEditor = lazy(() => import("@/pages/LandingPageEditor"));
+const BillingSettings = lazy(() => import("@/pages/settings/BillingSettings"));
+const AddPaymentMethod = lazy(() => import("@/pages/settings/AddPaymentMethod"));
+const Reviews = lazy(() => import("@/pages/Reviews"));
+const Offers = lazy(() => import("@/pages/Offers"));
+const Discounts = lazy(() => import("@/pages/Discounts"));
+const AbandonedCheckouts = lazy(() => import("@/pages/AbandonedCheckouts"));
+const UrlDiagnostics = lazy(() => import("@/pages/UrlDiagnostics"));
+const HealthMonitor = lazy(() => import("@/pages/HealthMonitor"));
+const Shipments = lazy(() => import("@/pages/Shipments"));
+const ShippingDashboard = lazy(() => import("@/pages/ShippingDashboard"));
+const ShippingSettings = lazy(() => import("@/pages/ShippingSettings"));
+const AwaitingConfirmation = lazy(() => import("@/pages/AwaitingConfirmation"));
+const AcceptInvite = lazy(() => import("@/pages/AcceptInvite"));
+const SystemUsers = lazy(() => import("@/pages/SystemUsers"));
+const CreateStore = lazy(() => import("@/pages/CreateStore"));
+const NoAccess = lazy(() => import("@/pages/NoAccess"));
+const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
+const StartPlan = lazy(() => import("@/pages/start/StartPlan"));
+const StartInfo = lazy(() => import("@/pages/start/StartInfo"));
+const StartPending = lazy(() => import("@/pages/start/StartPending"));
+const CompleteSignup = lazy(() => import("@/pages/start/CompleteSignup"));
+const GettingStarted = lazy(() => import("@/pages/GettingStarted"));
+const SystemEmails = lazy(() => import("@/pages/SystemEmails"));
+const PlatformIntegrations = lazy(() => import("@/pages/PlatformIntegrations"));
+const Attribution = lazy(() => import("@/pages/Attribution"));
+const Emails = lazy(() => import("@/pages/Emails"));
+const EmailMarketing = lazy(() => import("@/pages/EmailMarketing"));
+const EmailMarketingListDetail = lazy(() => import("@/pages/EmailMarketingListDetail"));
+const EmailMarketingCampaignBuilder = lazy(() => import("@/pages/EmailMarketingCampaignBuilder"));
+const EmailMarketingAutomationBuilder = lazy(() => import("@/pages/EmailMarketingAutomationBuilder"));
+const Import = lazy(() => import("@/pages/Import"));
+const Blog = lazy(() => import("@/pages/Blog"));
+const BlogCampaignDetail = lazy(() => import("@/pages/BlogCampaignDetail"));
+const BlogPostEditor = lazy(() => import("@/pages/BlogPostEditor"));
+const Quizzes = lazy(() => import("@/pages/Quizzes"));
+const QuizEditor = lazy(() => import("@/components/quizzes").then(m => ({ default: m.QuizEditor })));
+const BlockSuggestions = lazy(() => import("@/pages/BlockSuggestions"));
+const DemoEstruturaPage = lazy(() => import("@/pages/DemoEstruturaPage"));
+const DemoLandingPage = lazy(() => import("@/pages/DemoLandingPage"));
+const MetaOAuthCallback = lazy(() => import("@/pages/MetaOAuthCallback"));
+const MeliOAuthCallback = lazy(() => import("@/pages/MeliOAuthCallback"));
+const YouTubeCallback = lazy(() => import("@/pages/integrations/YouTubeCallback"));
+const TikTokOAuthCallback = lazy(() => import("@/pages/TikTokOAuthCallback"));
+const Marketplaces = lazy(() => import("@/pages/Marketplaces"));
+const MercadoLivre = lazy(() => import("@/pages/marketplaces/MercadoLivre"));
+const Shopee = lazy(() => import("@/pages/marketplaces/Shopee"));
+const Olist = lazy(() => import("@/pages/marketplaces/Olist"));
+const TikTokShop = lazy(() => import("@/pages/marketplaces/TikTokShop"));
+const Files = lazy(() => import("@/pages/Files"));
+const Reports = lazy(() => import("@/pages/Reports"));
+const CommandCenter = lazy(() => import("@/pages/CommandCenter"));
+const ChatGPT = lazy(() => import("@/pages/ChatGPT"));
+const AIMemories = lazy(() => import("@/pages/AIMemories"));
+const AccountData = lazy(() => import("@/pages/account/AccountData"));
+const AccountBilling = lazy(() => import("@/pages/account/Billing"));
+const PlatformBilling = lazy(() => import("@/pages/platform/PlatformBilling"));
+const PlatformAnnouncements = lazy(() => import("@/pages/platform/PlatformAnnouncements"));
+const PlatformTutorials = lazy(() => import("@/pages/platform/PlatformTutorials"));
+const PlatformTools = lazy(() => import("@/pages/platform/PlatformTools"));
+const PlatformTenants = lazy(() => import("@/pages/platform/PlatformTenants"));
+const Influencers = lazy(() => import("@/pages/Influencers"));
+const Affiliates = lazy(() => import("@/pages/Affiliates"));
+const SupportCenter = lazy(() => import("@/pages/SupportCenter"));
+const AIPackages = lazy(() => import("@/pages/AIPackages"));
+const QAStorefront = lazy(() => import("@/pages/admin/QAStorefront"));
+
+// Storefront Pages — LAZY LOADED (isolated from admin bundle)
+const StorefrontLayout = lazy(() => import("@/components/storefront/StorefrontLayout").then(m => ({ default: m.StorefrontLayout })));
+const TenantStorefrontLayout = lazy(() => import("@/components/storefront/TenantStorefrontLayout").then(m => ({ default: m.TenantStorefrontLayout })));
 
 const StorefrontHome = lazy(() => import("@/pages/storefront/StorefrontHome"));
 const StorefrontCategory = lazy(() => import("@/pages/storefront/StorefrontCategory"));
@@ -196,6 +196,7 @@ const App = () => {
           <AuthProvider>
             <CommandAssistantProvider>
               <CommandAssistantPanel />
+              <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>}>
               <Routes>
               {/* Public routes (always available) */}
               <Route path="/auth" element={<Auth />} />
@@ -446,6 +447,7 @@ const App = () => {
 
               <Route path="*" element={<NotFound />} />
             </Routes>
+              </Suspense>
             </CommandAssistantProvider>
           </AuthProvider>
         </BrowserRouter>
