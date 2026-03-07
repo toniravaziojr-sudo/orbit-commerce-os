@@ -107,6 +107,47 @@ export interface CompilerContext {
     is_primary?: boolean;
     sort_order?: number;
   }>;
+
+  /** Approved reviews for the current product */
+  currentProductReviews?: Array<{
+    id: string;
+    customer_name: string;
+    rating: number;
+    title?: string;
+    content?: string;
+    created_at: string;
+    is_verified_purchase?: boolean;
+    media_urls?: string[];
+  }>;
+
+  /** Related products for the current product */
+  currentRelatedProducts?: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    price: number;
+    compare_at_price?: number;
+    free_shipping?: boolean;
+    avg_rating?: number;
+    review_count?: number;
+    image_url?: string;
+  }>;
+
+  /** Buy together rule for the current product */
+  currentBuyTogether?: {
+    id: string;
+    title?: string;
+    discount_type: string;
+    discount_value: number;
+    suggestedProduct: {
+      id: string;
+      name: string;
+      slug: string;
+      price: number;
+      compare_at_price?: number;
+      image_url?: string;
+    };
+  };
 }
 
 export interface ProductData {

@@ -1,8 +1,8 @@
 # Página de Produto — Regras e Especificações
 
-> **Status:** FUNCIONAL ✅ — Core implementado  
+> **Status:** FUNCIONAL ✅ — Core + Seções implementados  
 > **Última atualização:** 2026-03-07  
-> **Arquitetura:** v8.1.0 — block-compiler com `published_content.product` + `compileBlockTree()`
+> **Arquitetura:** v8.1.1 — block-compiler com `published_content.product` + reviews + relacionados + compre junto
 
 ## Visão Geral
 
@@ -151,7 +151,8 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 
 | Aspecto | React | Compilador |
 |---------|-------|-----------|
-| Renderização | ✅ `BuyTogetherSection` | ❌ Não renderizado |
+| Renderização | ✅ `BuyTogetherSection` | ✅ Renderizado com preço combo e desconto |
+| Adicionar ambos | ✅ | ✅ Via `data-sf-action="add-to-cart"` com `data-extra-product-*` |
 
 ---
 
@@ -159,9 +160,12 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 
 | Aspecto | React | Compilador |
 |---------|-------|-----------|
-| Lista de reviews | ✅ `ProductReviews` | ❌ Não renderizado |
-| Rating médio | ✅ Estrelas | ❌ Não renderizado |
-| Formulário | ✅ | ❌ N/A |
+| Rating resumo (topo) | ✅ Estrelas + contagem | ✅ Estrelas + contagem |
+| Distribuição por nota | ✅ Barras de progresso | ✅ Barras de progresso |
+| Lista de reviews | ✅ `ProductReviewsSection` | ✅ Até 10 reviews com estrelas, autor, data, mídia |
+| Compra verificada | ✅ Badge verde | ✅ Badge verde |
+| Formulário | ✅ | ❌ N/A (HTML estático, requer SPA) |
+| Lightbox de mídia | ✅ Dialog | ❌ N/A |
 
 ---
 
@@ -169,8 +173,9 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 
 | Aspecto | React | Compilador |
 |---------|-------|-----------|
-| Carousel | ✅ Embla Carousel | ❌ Não renderizado |
-| Herda categorySettings | ✅ | ❌ N/A |
+| Grid responsivo | ✅ Embla Carousel | ✅ Grid 2→4 colunas |
+| Herda categorySettings | ✅ | ⚠️ Parcial (badges/rating inline) |
+| Título customizável | ✅ | ✅ `relatedProductsTitle` |
 
 ---
 
@@ -222,20 +227,19 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 ### Funcionalidades Ausentes no Compilador
 
 - [ ] **Variantes**: Sem renderização de seletores (cor, tamanho, custom) — esperado para HTML estático
-- [ ] **Avaliações**: Seção de reviews não renderizada
-- [ ] **Compre Junto**: Seção não renderizada
-- [ ] **Produtos Relacionados**: Carousel não renderizado
-- [ ] **Breadcrumb**: React tem — compilador não tem
+- [x] ~~**Avaliações**: Seção de reviews não renderizada~~ → Implementado v8.1.1
+- [x] ~~**Compre Junto**: Seção não renderizada~~ → Implementado v8.1.1
+- [x] ~~**Produtos Relacionados**: Carousel não renderizado~~ → Grid responsivo v8.1.1
+- [x] ~~**Breadcrumb**: React tem — compilador não tem~~ → Implementado v8.1.0
 - [ ] **Galeria mobile**: Sem swipe/carousel — apenas imagem estática
 - [ ] **Zoom**: Sem hover/pinch zoom
 - [ ] **Lightbox**: Sem fullscreen
-- [ ] **Botão "Comprar agora"**: Compilador não tem CTA separado de buy now (apenas "Adicionar ao carrinho")
-- [ ] **Quantidade**: React tem seletor de quantidade — compilador não tem
-- [ ] **Frete**: Placeholder HTML sem JS funcional integrado
+- [x] ~~**Botão "Comprar agora"**: Compilador não tem CTA separado~~ → Implementado v8.1.0
+- [x] ~~**Quantidade**: React tem seletor de quantidade~~ → Implementado v8.1.0
+- [x] ~~**Frete**: Placeholder HTML sem JS funcional~~ → Implementado v8.1.0
 
 ### Divergências de Estilo
 
-- [ ] **Preço no product-page.ts legado**: Usa `--theme-text-primary` em vez de `--theme-price-color` — mas esse arquivo é dead code
 - [ ] **Banner fallback no compilador**: Não usa `image_url` como fallback (React usa)
 
 ### Dead Code
