@@ -36,15 +36,51 @@ A Loja Virtual é o módulo central de e-commerce que permite criar, personaliza
 
 ## Arquitetura
 
+### Modelo Dual: SPA (Admin/Preview) + Edge-Rendered (Produção)
+
+A partir da v5.0.0, o storefront público opera em **dois modos**:
+
+| Modo | Quando | Como |
+|------|--------|------|
+| **Edge-Rendered** (v5.0.0) | Domínio custom ou subdomínio `.shops.` em produção | Edge Function `storefront-html` retorna HTML completo com conteúdo real |
+| **SPA Bootstrap** (v4.0.0) | Preview no admin (`/store/{slug}`) e fallback | React SPA com `storefront-bootstrap` JSON |
+
+### Arquitetura Edge-Rendered (Produção)
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                         DOMÍNIOS DE ACESSO                              │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  • Domínio próprio: loja.cliente.com.br                                 │
 │  • Subdomínio gratuito: {tenant}.shops.comandocentral.com.br           │
-│  • Modo preview: ?preview=1 (acesso a draft_content)                   │
 └─────────────────────────────────────────────────────────────────────────┘
                                      ↓
+┌─────────────────────────────────────────────────────────────────────────┐
+│             EDGE FUNCTION: storefront-html (v1.0.0)                     │
+│  Arquivo: supabase/functions/storefront-html/index.ts                  │
+│  Resolução: supabase/functions/_shared/resolveTenant.ts                │
+├─────────────────────────────────────────────────────────────────────────┤
+│  1. Recebe hostname (query param, x-forwarded-host ou POST)            │
+│  2. resolveTenantFromHostname() → tenant_id + tenant_slug              │
+│  3. Queries paralelas: settings, menu, categorias, template            │
+│  4. Renderiza HTML completo: <head>, header, hero/banner, meta OG     │
+│  5. Retorna text/html com Cache-Control: s-maxage=120                  │
+│  6. Server-Timing headers para diagnóstico                             │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Rotas suportadas:                                                      │
+│  • / → Home (header + hero banner acima da dobra)                      │
+│  • /produto/:slug → Página de produto (galeria + info + JSON-LD)       │
+│  • /categoria/:slug → Página de categoria (banner + grid)              │
+│  • /:slug → Página institucional                                        │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Performance: TTFB ~200-500ms (vs ~2-4s no modelo SPA)                 │
+│  Cache: public, s-maxage=120, stale-while-revalidate=300               │
+│  Dados no window: __SF_SERVER_RENDERED, __SF_TIMING, __SF_TENANT       │
+└─────────────────────────────────────────────────────────────────────────┘
+
+### Arquitetura SPA Bootstrap (Admin Preview / Fallback)
+
+```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │               RESOLUÇÃO DE TENANT + BOOTSTRAP UNIFICADO                  │
 │  Arquivo: supabase/functions/storefront-bootstrap (v4.0.0)              │
