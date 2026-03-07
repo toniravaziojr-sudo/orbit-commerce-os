@@ -451,6 +451,10 @@ function buildFullPage(opts: {
         }
       });
 
+      // CEP mask
+      var cepEl=document.querySelector("[data-sf-shipping-cep]");
+      if(cepEl)cepEl.addEventListener("input",function(){var v=this.value.replace(/\D/g,"");if(v.length>5)v=v.slice(0,5)+"-"+v.slice(5,8);else v=v.slice(0,8);this.value=v;});
+
       // Search overlay close on click outside
       document.querySelector("[data-sf-search-overlay]")?.addEventListener("click",function(e){
         if(e.target===this)this.classList.remove("active");
