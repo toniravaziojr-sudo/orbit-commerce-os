@@ -405,10 +405,49 @@ function buildFullPage(opts: {
           document.querySelector("[data-sf-cart-backdrop]")?.classList.toggle("active");
         } else if(action==="add-to-cart"){
           e.preventDefault();e.stopPropagation();
-          addToCart(btn.dataset.productId, btn.dataset.productName, parseFloat(btn.dataset.productPrice), btn.dataset.productImage, btn.dataset.variantId);
+          var qtyInput=document.querySelector("[data-sf-qty-input]");
+          var qty=qtyInput?parseInt(qtyInput.value)||1:1;
+          for(var q=0;q<qty;q++) addToCart(btn.dataset.productId, btn.dataset.productName, parseFloat(btn.dataset.productPrice), btn.dataset.productImage, btn.dataset.variantId);
+        } else if(action==="buy-now"){
+          e.preventDefault();e.stopPropagation();
+          var qtyInput2=document.querySelector("[data-sf-qty-input]");
+          var qty2=qtyInput2?parseInt(qtyInput2.value)||1:1;
+          for(var q2=0;q2<qty2;q2++) addToCart(btn.dataset.productId, btn.dataset.productName, parseFloat(btn.dataset.productPrice), btn.dataset.productImage, btn.dataset.variantId);
+          window.location.href="/checkout";
         } else if(action==="remove-cart-item"){
           var idx = parseInt(btn.dataset.index);
           cart.splice(idx,1); saveCart();
+        } else if(action==="qty-minus"){
+          var inp=document.querySelector("[data-sf-qty-input]");
+          if(inp){var v=parseInt(inp.value)||1;if(v>1)inp.value=v-1;}
+        } else if(action==="qty-plus"){
+          var inp2=document.querySelector("[data-sf-qty-input]");
+          if(inp2){var v2=parseInt(inp2.value)||1;var mx=parseInt(inp2.max)||99;if(v2<mx)inp2.value=v2+1;}
+        } else if(action==="calc-shipping"){
+          e.preventDefault();
+          var box=btn.closest("[data-sf-shipping-box]");
+          var cepInput=box?.querySelector("[data-sf-shipping-cep]");
+          var resultsEl2=box?.querySelector("[data-sf-shipping-results]");
+          if(!cepInput||!resultsEl2)return;
+          var cep=cepInput.value.replace(/\D/g,"");
+          if(cep.length!==8){resultsEl2.innerHTML='<p style="font-size:13px;color:#dc2626;">CEP inválido</p>';return;}
+          resultsEl2.innerHTML='<p style="font-size:13px;color:#666;">Calculando...</p>';
+          var pId=box.dataset.productId;
+          var pPrice=parseFloat(box.dataset.productPrice)||0;
+          var supabaseUrl2="${Deno.env.get('SUPABASE_URL')}";
+          var supabaseKey2="${Deno.env.get('SUPABASE_ANON_KEY') || ''}";
+          fetch(supabaseUrl2+"/functions/v1/shipping-quote",{
+            method:"POST",
+            headers:{"Content-Type":"application/json","apikey":supabaseKey2,"Authorization":"Bearer "+supabaseKey2,"x-store-host":HOSTNAME},
+            body:JSON.stringify({recipient_cep:cep,store_host:HOSTNAME,items:[{quantity:1,price:pPrice,product_id:pId,weight:0.3}]})
+          }).then(function(r){return r.json()}).then(function(data){
+            if(!data.options||data.options.length===0){resultsEl2.innerHTML='<p style="font-size:13px;color:#666;">Nenhuma opção de frete disponível para este CEP.</p>';return;}
+            resultsEl2.innerHTML=data.options.map(function(opt){
+              var priceText=opt.is_free||opt.price===0?'<span style="color:#16a34a;font-weight:600;">Grátis</span>':'R$ '+opt.price.toFixed(2).replace(".",",");
+              var daysText=opt.estimated_days===1?'1 dia útil':opt.estimated_days+' dias úteis';
+              return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0;"><div><p style="font-size:14px;font-weight:500;">'+opt.service_name+'</p><p style="font-size:12px;color:#666;">'+daysText+'</p></div><div style="font-size:14px;font-weight:600;">'+priceText+'</div></div>';
+            }).join("");
+          }).catch(function(){resultsEl2.innerHTML='<p style="font-size:13px;color:#dc2626;">Erro ao calcular frete. Tente novamente.</p>';});
         }
       });
 
