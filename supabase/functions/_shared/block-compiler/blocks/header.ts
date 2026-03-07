@@ -119,17 +119,18 @@ export function headerToStaticHTML(context: CompilerContext): string {
   if (noticeEnabled && noticeTexts.length > 0) {
     const actionHtml = isActionValid ? `<a href="${escapeHtml(noticeActionUrl)}" target="${escapeHtml(noticeActionTarget)}" ${noticeActionTarget === '_blank' ? 'rel="noopener noreferrer"' : ''} style="margin-left:8px;text-decoration:underline;font-size:12px;font-weight:500;opacity:0.9;color:${escapeHtml(noticeActionTextColor || noticeTextColor)};">${escapeHtml(noticeActionLabel)}</a>` : '';
     
-    if (noticeAnimation === 'marquee' || noticeAnimation === 'slide-horizontal') {
-      const firstText = noticeTexts[0];
-      const allTexts = `<span style="padding:0 32px;">${escapeHtml(firstText)}</span>${actionHtml}`;
+    if (noticeAnimation === 'marquee') {
+      // Marquee: continuous horizontal scroll with ALL texts concatenated
+      const allTextSpans = noticeTexts.map(t => `<span style="padding:0 32px;">${escapeHtml(t)}</span>`).join('');
+      const marqueeContent = `${allTextSpans}${actionHtml}`;
       noticeBarHtml = `
         <div style="background:${escapeHtml(noticeBgColor)};color:${escapeHtml(noticeTextColor)};padding:8px 16px;text-align:center;font-size:13px;font-weight:500;overflow:hidden;white-space:nowrap;">
           <div class="sf-notice-marquee" style="display:inline-flex;animation:sf-marquee 20s linear infinite;">
-            ${allTexts}${allTexts}
+            ${marqueeContent}${marqueeContent}
           </div>
         </div>`;
     } else {
-      // Fade or slide-vertical: show first text, JS rotates through them
+      // Fade, slide-vertical, slide-horizontal: show first text, JS rotates
       const textsDataAttr = noticeTexts.length > 1 ? ` data-sf-notice-texts='${escapeHtml(JSON.stringify(noticeTexts))}'` : '';
       noticeBarHtml = `
         <div class="sf-notice-bar" style="background:${escapeHtml(noticeBgColor)};color:${escapeHtml(noticeTextColor)};padding:8px 16px;text-align:center;font-size:13px;font-weight:500;overflow:hidden;"${textsDataAttr} data-sf-notice-animation="${escapeHtml(noticeAnimation)}">
@@ -205,7 +206,7 @@ export function headerToStaticHTML(context: CompilerContext): string {
         Atendimento
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
-      <div class="sf-attendance-menu" style="display:none;">
+      <div class="sf-attendance-menu">
         <div style="display:flex;flex-direction:column;gap:4px;">
           ${items.join('')}
         </div>
@@ -240,7 +241,6 @@ export function headerToStaticHTML(context: CompilerContext): string {
         <div class="sf-header-desktop" style="display:flex;align-items:center;justify-content:space-between;height:64px;gap:16px;">
           <div style="display:flex;align-items:center;gap:12px;flex:1;">
             ${showSearch ? `<button data-sf-action="toggle-search" style="display:flex;align-items:center;gap:6px;background:rgba(128,128,128,0.1);border:none;cursor:pointer;padding:8px 14px;border-radius:8px;color:${escapeHtml(headerTextColor)};" aria-label="Buscar">${searchSvg}<span style="font-size:13px;opacity:0.7;">Pesquisar</span></button>` : ''}
-            ${featuredPromoHtml}
           </div>
           <a href="/" style="flex-shrink:0;display:flex;align-items:center;">${logoHtml}</a>
           <div style="display:flex;align-items:center;gap:12px;flex:1;justify-content:flex-end;">
@@ -249,7 +249,7 @@ export function headerToStaticHTML(context: CompilerContext): string {
             ${showCart ? `<button data-sf-action="open-cart" aria-label="Carrinho" style="background:none;border:none;cursor:pointer;padding:4px;position:relative;color:${escapeHtml(headerIconColor)};">${cartSvg}<span data-sf-cart-count style="display:none;position:absolute;top:-4px;right:-4px;background:var(--theme-button-primary-bg,#e53e3e);color:#fff;font-size:11px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;">0</span></button>` : ''}
           </div>
         </div>
-        ${showHeaderMenu ? `<nav class="sf-nav-desktop" style="display:flex;align-items:center;gap:24px;padding:8px 0;justify-content:center;border-top:1px solid rgba(255,255,255,0.1);">${navItemsHtml}</nav>` : ''}
+        ${showHeaderMenu || featuredPromosEnabled ? `<nav class="sf-nav-desktop" style="display:flex;align-items:center;gap:24px;padding:8px 0;justify-content:center;border-top:1px solid rgba(255,255,255,0.1);">${featuredPromoHtml}${navItemsHtml}</nav>` : ''}
       </div>
       <!-- MOBILE -->
       <div class="sf-header-mobile" style="display:none;align-items:center;justify-content:space-between;padding:12px 16px;">
