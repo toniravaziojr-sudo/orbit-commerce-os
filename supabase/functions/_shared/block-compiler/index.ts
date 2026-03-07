@@ -28,6 +28,9 @@ import { featuredCategoriesToStaticHTML } from './blocks/featured-categories.ts'
 import { featuredProductsToStaticHTML } from './blocks/featured-products.ts';
 import { imageCarouselToStaticHTML } from './blocks/image-carousel.ts';
 import { infoHighlightsToStaticHTML } from './blocks/info-highlights.ts';
+import { categoryBannerToStaticHTML } from './blocks/category-banner.ts';
+import { categoryPageLayoutToStaticHTML } from './blocks/category-page-layout.ts';
+import { productDetailsToStaticHTML } from './blocks/product-details.ts';
 
 /**
  * Registry mapping block type → compiler function.
@@ -47,9 +50,16 @@ const COMPILER_REGISTRY: Record<string, BlockCompilerFn> = {
   'ImageCarousel': imageCarouselToStaticHTML,
   'InfoHighlights': infoHighlightsToStaticHTML,
   
-  // E-commerce blocks
+  // E-commerce blocks — Home
   'FeaturedCategories': featuredCategoriesToStaticHTML,
   'FeaturedProducts': featuredProductsToStaticHTML,
+  
+  // E-commerce blocks — Category page
+  'CategoryBanner': categoryBannerToStaticHTML,
+  'CategoryPageLayout': categoryPageLayoutToStaticHTML,
+  
+  // E-commerce blocks — Product page
+  'ProductDetails': productDetailsToStaticHTML,
 };
 
 /**
@@ -74,7 +84,7 @@ export const UNSUPPORTED_BLOCKS = new Set([
   'FeatureList', 'ContentColumns', 'StepsTimeline',
   'CountdownTimer', 'LogosCarousel', 'StatsNumbers',
   'ImageGallery', 'Accordion', 'HTMLSection',
-  'CategoryBanner', 'CategoryPageLayout', 'CategoryFilters',
+  'CategoryFilters',
   'CartDemo', 'CheckoutDemo', 'CustomBlock',
   'NewsletterForm', 'NewsletterPopup', 'Map', 'SocialFeed',
   'PersonalizedProducts', 'LivePurchases', 'PricingTable',
