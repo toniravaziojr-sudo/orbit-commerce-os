@@ -1183,6 +1183,8 @@ serve(async (req) => {
       faviconUrl,
       ogImage,
       googleFontsLink,
+      fontPreloadTags,
+      lcpPreloadTag,
       themeCss,
       headerHtml,
       bodyHtml,
