@@ -101,8 +101,8 @@ serve(async (req) => {
 
     const hostname = tenant.custom_domain || `${tenant.slug}.shops.comandocentral.com.br`;
 
-    // Generate a unique publish_version for atomic activation
-    const publishVersion = crypto.randomUUID();
+    // Generate a unique publish_version for atomic activation (integer timestamp)
+    const publishVersion = Date.now();
 
     // === Determine which pages to render ===
     const pagesToRender: { path: string; page_type: string; entity_id?: string }[] = [];
