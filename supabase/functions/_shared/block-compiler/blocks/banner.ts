@@ -67,6 +67,7 @@ export function bannerToStaticHTML(
 
   const hasCTA = !!(currentTitle || currentSubtitle || currentButtonText);
   const isAutoHeight = cssHeight === 'auto';
+  const needsAspect = isAutoHeight && !hasCTA;
 
   // Container sizing
   const widthStyle = bannerWidth === 'full' ? 'width:100%;' : 'max-width:1280px;margin-left:auto;margin-right:auto;';
@@ -76,9 +77,12 @@ export function bannerToStaticHTML(
   
   // Image positioning
   const useAbsoluteImage = !isAutoHeight || hasCTA;
+  // When needsAspect is true, image must fill the aspect-ratio container (parity with HeroBannerBlock)
   const imgStyle = useAbsoluteImage
     ? 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;'
-    : 'width:100%;height:auto;display:block;';
+    : needsAspect
+      ? 'width:100%;height:100%;object-fit:cover;display:block;'
+      : 'width:100%;height:auto;display:block;';
 
   // Overlay
   const overlayHtml = overlayOpacity > 0
@@ -109,7 +113,6 @@ export function bannerToStaticHTML(
 
   // Aspect ratio for auto height without CTA
   // Match React: aspect-[21/9] on mobile, aspect-[21/7] on desktop
-  const needsAspect = isAutoHeight && !hasCTA;
   const aspectClass = needsAspect ? 'sf-banner-auto' : '';
   const aspectStyleTag = needsAspect ? '<style>.sf-banner-auto{aspect-ratio:21/9;}@media(min-width:768px){.sf-banner-auto{aspect-ratio:21/7;}}</style>' : '';
 
