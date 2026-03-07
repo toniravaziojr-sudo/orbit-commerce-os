@@ -1363,6 +1363,7 @@ serve(async (req) => {
       supabase.from('menus').select('*, menu_items(*)').eq('tenant_id', tenantId).eq('location', 'header').maybeSingle(),
       supabase.from('categories').select('id, name, slug').eq('tenant_id', tenantId).eq('is_active', true).order('sort_order').limit(10),
       supabase.from('storefront_template_sets').select('id, published_content, is_published, base_preset').eq('tenant_id', tenantId).eq('is_published', true).maybeSingle(),
+      supabase.from('storefront_global_layout').select('header_config, published_header_config, footer_config, header_enabled, footer_enabled').eq('tenant_id', tenantId).maybeSingle(),
     ];
 
     // Route-specific queries
