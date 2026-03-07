@@ -36,36 +36,15 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
-
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Auth validation — supports both user JWT and service-role key
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const isServiceRole = token === supabaseServiceKey;
-
-    if (!isServiceRole) {
-      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-      if (authError || !user) {
-        return new Response(JSON.stringify({ error: 'Invalid token' }), {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-    }
-
+    console.log('[storefront-prerender] Parsing request body...');
     const body: PrerenderRequest = await req.json();
     const { tenant_id, trigger_type = 'publish', paths, entity_ids } = body;
+    console.log(`[storefront-prerender] tenant_id=${tenant_id}, trigger=${trigger_type}`);
 
     if (!tenant_id) {
       return new Response(JSON.stringify({ error: 'tenant_id required' }), {
@@ -74,22 +53,50 @@ serve(async (req) => {
       });
     }
 
-    // Verify access (skip for service role — trusted server call)
-    if (!isServiceRole) {
-      const { data: { user } } = await supabase.auth.getUser(token);
-      const { data: role } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user!.id)
-        .eq('tenant_id', tenant_id)
-        .single();
+    // Auth: validate caller has access (user JWT or service-role)
+    const authHeader = req.headers.get('authorization');
+    const token = authHeader?.replace('Bearer ', '') || '';
+    const isServiceRole = token === supabaseServiceKey;
 
-      if (!role) {
-        return new Response(JSON.stringify({ error: 'No access to tenant' }), {
-          status: 403,
+    if (!isServiceRole && authHeader) {
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+        if (authError || !user) {
+          console.error('[storefront-prerender] Auth failed:', authError?.message);
+          return new Response(JSON.stringify({ error: 'Invalid token' }), {
+            status: 401,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        const { data: role } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .eq('tenant_id', tenant_id)
+          .single();
+        if (!role) {
+          console.error('[storefront-prerender] No tenant access for user:', user.id);
+          return new Response(JSON.stringify({ error: 'No access to tenant' }), {
+            status: 403,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        console.log(`[storefront-prerender] Auth OK: user=${user.id}, role=${role.role}`);
+      } catch (authErr: any) {
+        console.error('[storefront-prerender] Auth exception:', authErr.message);
+        return new Response(JSON.stringify({ error: 'Auth error' }), {
+          status: 401,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+    } else if (isServiceRole) {
+      console.log('[storefront-prerender] Auth OK: service-role');
+    } else {
+      console.error('[storefront-prerender] No auth header');
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // Get tenant hostname
