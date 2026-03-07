@@ -1,7 +1,8 @@
 // ============================================
 // STOREFRONT HTML — Edge-Rendered Storefront
-// v7.0.0: Full footer from footer_config + footer menus + image sections
-// Resolves tenant from hostname, renders full HTML
+// v7.1.0: Pre-render lookup + live fallback
+// Resolves tenant from hostname, serves pre-rendered HTML if available,
+// falls back to live rendering otherwise.
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -9,7 +10,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveTenantFromHostname } from '../_shared/resolveTenant.ts';
 
 // ===== VERSION =====
-const VERSION = "v7.0.0"; // Phase 11: Full footer with newsletter, contact, social, menus, badges, payment/security/shipping sections
+const VERSION = "v7.1.0"; // Pre-render lookup: serve from storefront_prerendered_pages if available
 // ====================
 
 // ============================================
@@ -1586,7 +1587,36 @@ serve(async (req) => {
     const tenantId = resolveResult.tenant_id;
     const tenantSlug = resolveResult.tenant_slug;
 
-    // === STEP 2: Run base queries in parallel (always needed) ===
+    // === STEP 1.5: Check pre-rendered pages (fast path) ===
+    // Normalize path for lookup
+    const normalizedPath = path === '' ? '/' : path.replace(/\/+$/, '') || '/';
+    const { data: prerendered } = await supabase
+      .from('storefront_prerendered_pages')
+      .select('html_content, generated_at, metadata')
+      .eq('tenant_id', tenantId)
+      .eq('path', normalizedPath)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    if (prerendered?.html_content) {
+      const totalMs = Date.now() - startTime;
+      console.log(`[storefront-html][${VERSION}] PRE-RENDERED HIT: ${normalizedPath} (resolve=${resolveMs}ms, total=${totalMs}ms)`);
+      return new Response(prerendered.html_content, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600, max-age=60',
+          'Server-Timing': `resolve;dur=${resolveMs}, total;dur=${totalMs}`,
+          'X-Storefront-Version': VERSION,
+          'X-Tenant': tenantSlug,
+          'X-Render-Mode': 'prerendered',
+          'X-Prerender-At': prerendered.generated_at || '',
+        },
+      });
+    }
+
+    // === STEP 2: LIVE FALLBACK — Run base queries in parallel ===
+    console.log(`[storefront-html][${VERSION}] No prerender for ${normalizedPath}, falling back to live render`);
     const queryStart = Date.now();
     
     // Base queries (all pages need these)
