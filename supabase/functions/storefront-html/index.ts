@@ -313,8 +313,8 @@ function buildFullPage(opts: {
     /* Dropdown hover */
     .sf-dropdown:hover .sf-dropdown-menu{display:block !important;}
     /* Attendance dropdown */
-    .sf-attendance-dropdown .sf-attendance-menu{display:none;position:absolute;top:100%;right:0;margin-top:8px;min-width:280px;max-width:320px;padding:16px;background:#fff;border:1px solid #eee;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.12);z-index:60;}
-    .sf-attendance-dropdown:hover .sf-attendance-menu{display:block;}
+    .sf-attendance-dropdown .sf-attendance-menu{display:none !important;position:absolute;top:100%;right:0;margin-top:8px;min-width:280px;max-width:320px;padding:16px;background:#fff;border:1px solid #eee;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.12);z-index:60;}
+    .sf-attendance-dropdown:hover .sf-attendance-menu{display:block !important;}
     .sf-attendance-item{display:flex;align-items:flex-start;gap:12px;padding:8px;border-radius:8px;text-decoration:none;color:inherit;transition:background 0.15s;}
     .sf-attendance-item:hover{background:#f5f5f5;}
     .sf-attendance-icon{margin-top:2px;padding:6px;border-radius:6px;display:flex;align-items:center;justify-content:center;}
