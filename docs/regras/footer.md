@@ -40,10 +40,30 @@
 
 | Prioridade | Fonte | Descrição |
 |------------|-------|-----------|
-| 1 | `footer_config` | JSON em `storefront_global_layout` |
-| 2 | `store_settings` | Dados do tenant (logo, nome, contato, redes) |
-| 3 | `menus` (location='footer_1', 'footer_2') | Menus do footer |
-| 4 | Dados Demo | Fallback quando `isEditing=true` e sem dados reais |
+| 1 | `footer_config` | JSON em `storefront_global_layout` (via bootstrap `globalLayout`) |
+| 2 | `store_settings` | Dados do tenant (logo, nome, contato, redes) — via bootstrap props |
+| 3 | `menus` (location='footer_1', 'footer_2') | Menus do footer — via bootstrap props |
+| 4 | `store_pages` | Páginas publicadas — via bootstrap props |
+| 5 | Dados Demo | Fallback quando `isEditing=true` e sem dados reais |
+
+### Arquitetura de Dados — Dual Mode (Bootstrap + Fallback)
+
+O `StorefrontFooterContent` opera em dois modos:
+
+**1. Modo Público (storefront):** Recebe dados via props opcionais do bootstrap. **ZERO queries de rede**.
+
+Props de bootstrap:
+| Prop | Tipo | Descrição |
+|------|------|-----------|
+| `bootstrapStoreSettings` | object \| null | Store settings do bootstrap |
+| `bootstrapCategories` | array \| null | Categorias ativas |
+| `bootstrapFooterMenus` | object \| null | `{ footer1: {menu, items}, footer2: {menu, items} }` |
+| `bootstrapPages` | array \| null | Store pages publicadas |
+
+**2. Modo Builder (`isEditing=true`):** Busca dados diretamente do banco via `useQuery` (auto-suficiente).
+
+> ⚠️ **PROIBIDO**: Footer fazer queries no storefront público quando bootstrap props estão disponíveis.
+> ⚠️ **PROIBIDO**: Remover o fetching de fallback (necessário para o builder).
 
 ---
 
