@@ -626,6 +626,11 @@ function buildFullPage(opts: {
   <link rel="canonical" href="${escapeHtml(opts.canonicalUrl)}">
   ${opts.faviconUrl ? `<link rel="icon" href="${escapeHtml(optimizeImageUrl(opts.faviconUrl, 32, 90))}" type="image/x-icon">` : ''}
   
+  <!-- DNS Prefetch for external domains -->
+  <link rel="dns-prefetch" href="https://wsrv.nl">
+  <link rel="dns-prefetch" href="https://fonts.googleapis.com">
+  <link rel="dns-prefetch" href="https://fonts.gstatic.com">
+  
   <!-- Open Graph -->
   <meta property="og:title" content="${escapeHtml(opts.title)}">
   <meta property="og:description" content="${escapeHtml(opts.description)}">
@@ -633,7 +638,13 @@ function buildFullPage(opts: {
   <meta property="og:url" content="${escapeHtml(opts.canonicalUrl)}">
   ${opts.ogImage ? `<meta property="og:image" content="${escapeHtml(opts.ogImage)}">` : ''}
   
+  <!-- Font preloading (before stylesheet to start fetch early) -->
+  ${opts.fontPreloadTags || ''}
   ${opts.googleFontsLink}
+  
+  <!-- LCP image preload (responsive) -->
+  ${opts.lcpPreloadTag || ''}
+  
   <style>${opts.themeCss}</style>
   ${opts.extraHead || ''}
 </head>
