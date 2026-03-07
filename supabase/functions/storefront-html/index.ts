@@ -398,7 +398,7 @@ serve(async (req) => {
     const faviconUrl = storeSettings?.favicon_url || '';
     const seoTitle = storeSettings?.seo_title || storeName;
     const seoDescription = storeSettings?.seo_description || storeDescription;
-    const seoImage = storeSettings?.seo_image_url || storeSettings?.logo_url || tenant?.logo_url || '';
+    const seoImage = storeSettings?.logo_url || tenant?.logo_url || '';
 
     // Extract themeSettings from template published_content
     const publishedContent = templateSet?.published_content as Record<string, any> | null;
