@@ -187,13 +187,26 @@ POST /zones/{zone_id}/custom_hostnames
 
 ### 6. resolve-domain
 
-**Propósito:** Resolver hostname para tenant (usado pelo Worker)
+**Propósito:** Resolver hostname para tenant (usado pelo Worker e como fallback)
 
 | Campo | Valor |
 |-------|-------|
 | **Rota** | `GET/POST /resolve-domain` |
 | **Auth** | Público |
 | **verify_jwt** | `false` |
+| **Versão** | v2.0.0 — Refatorado para usar `_shared/resolveTenant.ts` |
+
+> **NOTA (v4.0.0 do bootstrap):** Para o storefront, `storefront-bootstrap` aceita `hostname` diretamente e faz a resolução internamente usando a mesma lógica compartilhada. `resolve-domain` continua existindo para o Worker e outros consumidores.
+
+**Lógica Compartilhada:**
+```
+supabase/functions/_shared/resolveTenant.ts
+  ├─ resolveTenantFromHostname(supabase, hostname) → ResolvedTenant | ResolveNotFound
+  ├─ parsePlatformSubdomain(hostname) → string | null
+  └─ isAppDomain(hostname) → boolean
+```
+
+**PROIBIDO:** Duplicar lógica de resolução de domínio. Sempre importar de `_shared/resolveTenant.ts`.
 
 **Response:**
 ```typescript
