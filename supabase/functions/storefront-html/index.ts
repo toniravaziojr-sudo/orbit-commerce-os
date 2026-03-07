@@ -1157,6 +1157,11 @@ serve(async (req) => {
       pageDescription = post.seo_description || post.excerpt || '';
       canonicalPath = `/blog/${post.slug}`;
       ogImage = post.cover_image_url || ogImage;
+      
+      // LCP preload: blog cover image
+      if (post.cover_image_url) {
+        lcpPreloadTag = `<link rel="preload" as="image" href="${escapeHtml(optimizeImageUrl(post.cover_image_url, 1200, 85))}" fetchpriority="high">`;
+      }
 
       // Increment view count (fire-and-forget)
       supabase.rpc('increment_blog_view_count', { post_id: post.id }).then(() => {}).catch(() => {});
