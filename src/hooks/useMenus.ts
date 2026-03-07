@@ -88,6 +88,7 @@ export function useMenus() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['menus'] });
       toast({ title: 'Menu atualizado!' });
+      if (currentTenant?.id) cachePurge.menu(currentTenant.id);
     },
     onError: (error: Error) => {
       toast({ title: 'Erro ao atualizar menu', description: error.message, variant: 'destructive' });
