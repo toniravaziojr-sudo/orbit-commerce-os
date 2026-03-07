@@ -1191,6 +1191,7 @@ serve(async (req) => {
     } else if (route.type === 'product' && route.slug) {
       // PRODUCT — using block-compiler with published_content.product tree
       const productResult = allResults[7];
+      console.log(`[storefront-html] Product result index 7: status=${productResult?.status}, hasData=${!!(productResult?.status === 'fulfilled' && (productResult as any).value?.data)}, error=${productResult?.status === 'rejected' ? (productResult as any).reason : (productResult?.status === 'fulfilled' ? (productResult as any).value?.error?.message : 'n/a')}`);
       const product = productResult?.status === 'fulfilled' ? (productResult as any).value.data : null;
 
       if (!product || product.status !== 'active') {
