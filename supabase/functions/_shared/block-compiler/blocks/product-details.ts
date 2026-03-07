@@ -92,10 +92,59 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
   if (showStock) {
     const qty = product.stock_quantity ?? 0;
     if (qty > 0 && qty <= 5) {
-      stockHtml = `<p style="font-size:13px;color:#dc2626;font-weight:500;">Últimas ${qty} unidades!</p>`;
+      stockHtml = `<p style="font-size:13px;color:#dc2626;font-weight:500;" data-sf-stock-text>Últimas ${qty} unidades!</p>`;
     } else if (qty > 5) {
-      stockHtml = `<p style="font-size:13px;color:#16a34a;font-weight:500;">Em estoque</p>`;
+      stockHtml = `<p style="font-size:13px;color:#16a34a;font-weight:500;" data-sf-stock-text>Em estoque</p>`;
     }
+  }
+
+  // === VARIANT SELECTOR ===
+  const showVariants = ps.showVariants ?? true;
+  const variants = context.currentProductVariants || [];
+  let variantSelectorHtml = '';
+  if (showVariants && variants.length > 0) {
+    // Extract option groups from variants
+    const groupsMap = new Map<string, Set<string>>();
+    for (const v of variants) {
+      if (v.option1_name && v.option1_value) {
+        if (!groupsMap.has(v.option1_name)) groupsMap.set(v.option1_name, new Set());
+        groupsMap.get(v.option1_name)!.add(v.option1_value);
+      }
+      if (v.option2_name && v.option2_value) {
+        if (!groupsMap.has(v.option2_name)) groupsMap.set(v.option2_name, new Set());
+        groupsMap.get(v.option2_name)!.add(v.option2_value);
+      }
+      if (v.option3_name && v.option3_value) {
+        if (!groupsMap.has(v.option3_name)) groupsMap.set(v.option3_name, new Set());
+        groupsMap.get(v.option3_name)!.add(v.option3_value);
+      }
+    }
+
+    const groupsHtml = Array.from(groupsMap.entries()).map(([name, valuesSet]) => {
+      const values = Array.from(valuesSet);
+      const buttonsHtml = values.map(value =>
+        `<button type="button" data-sf-variant-option data-option-name="${escapeHtml(name)}" data-option-value="${escapeHtml(value)}" style="padding:8px 16px;font-size:14px;font-weight:500;border-radius:6px;border:1px solid #ddd;background:#fff;color:var(--theme-text-primary,#1a1a1a);cursor:pointer;transition:all .15s;">${escapeHtml(value)}</button>`
+      ).join('');
+      return `<div data-sf-variant-group="${escapeHtml(name)}" style="margin-bottom:12px;">
+        <label style="font-size:14px;font-weight:500;color:var(--theme-text-primary,#1a1a1a);display:block;margin-bottom:6px;">${escapeHtml(name)}: <span data-sf-variant-selected-label="${escapeHtml(name)}" style="font-weight:400;color:var(--theme-text-secondary,#666);"></span></label>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">${buttonsHtml}</div>
+      </div>`;
+    }).join('');
+
+    // Embed variant data as JSON for hydration
+    const variantData = variants.map(v => ({
+      id: v.id, sku: v.sku || '', price: v.price, compare_at_price: v.compare_at_price,
+      stock_quantity: v.stock_quantity, image_url: v.image_url || '',
+      o1n: v.option1_name, o1v: v.option1_value,
+      o2n: v.option2_name, o2v: v.option2_value,
+      o3n: v.option3_name, o3v: v.option3_value,
+    }));
+
+    variantSelectorHtml = `
+      <div data-sf-variant-selector style="margin-top:4px;">
+        ${groupsHtml}
+        <script type="application/json" data-sf-variant-data>${JSON.stringify(variantData)}</script>
+      </div>`;
   }
 
   // Badges
