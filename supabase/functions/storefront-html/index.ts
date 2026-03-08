@@ -1161,43 +1161,44 @@ serve(async (req) => {
     const footer1Menu = footerMenusRaw.find((m: any) => m.location === 'footer_1' || m.location === 'footer');
     const footer2Menu = footerMenusRaw.find((m: any) => m.location === 'footer_2');
     
-    // Helper: resolve menu item URL and filter out unpublished pages
-    const resolveFooterMenuItems = (items: any[]): any[] => {
+    // Helper: resolve menu item URL based on item_type + ref_id
+    // Used by header, footer, and mobile nav — mirrors buildMenuItemUrl() from SPA
+    const resolveMenuItemUrl = (item: any): any | null => {
+      const itemType = item.item_type === 'link' ? 'external' : item.item_type;
+      
+      if (itemType === 'external') {
+        return item.url ? { ...item, url: item.url } : null;
+      }
+      if (itemType === 'category') {
+        if (!item.ref_id) return null;
+        const cat = (categories || []).find((c: any) => c.id === item.ref_id);
+        if (!cat) return null;
+        return { ...item, url: `/categoria/${cat.slug}` };
+      }
+      if (itemType === 'page') {
+        if (!item.ref_id) return null;
+        const page = publishedPages.find((p: any) => p.id === item.ref_id);
+        if (!page) return null; // Page not published or doesn't exist
+        const prefix = page.type === 'landing_page' ? '/lp/' : '/p/';
+        return { ...item, url: `${prefix}${page.slug}` };
+      }
+      if (itemType === 'blog') {
+        return { ...item, url: '/blog' };
+      }
+      if (itemType === 'tracking') {
+        return { ...item, url: '/rastreio' };
+      }
+      return item.url ? item : null;
+    };
+    
+    const resolveMenuItems = (items: any[]): any[] => {
       if (!items) return [];
-      return items
-        .map((item: any) => {
-          const itemType = item.item_type === 'link' ? 'external' : item.item_type;
-          
-          if (itemType === 'external') {
-            return item.url ? { ...item, url: item.url } : null;
-          }
-          if (itemType === 'category') {
-            if (!item.ref_id) return null;
-            const cat = (categories || []).find((c: any) => c.id === item.ref_id);
-            if (!cat) return null;
-            return { ...item, url: `/categoria/${cat.slug}` };
-          }
-          if (itemType === 'page') {
-            if (!item.ref_id) return null;
-            const page = publishedPages.find((p: any) => p.id === item.ref_id);
-            if (!page) return null; // Page not published or doesn't exist
-            const prefix = page.type === 'landing_page' ? '/lp/' : '/p/';
-            return { ...item, url: `${prefix}${page.slug}` };
-          }
-          if (itemType === 'blog') {
-            return { ...item, url: '/blog' };
-          }
-          if (itemType === 'tracking') {
-            return { ...item, url: '/rastreio' };
-          }
-          return item.url ? item : null;
-        })
-        .filter(Boolean);
+      return items.map(resolveMenuItemUrl).filter(Boolean);
     };
     
     const footerMenus = {
-      footer1: footer1Menu ? { name: footer1Menu.name, items: resolveFooterMenuItems(footer1Menu.menu_items || []) } : { name: '', items: [] },
-      footer2: footer2Menu ? { name: footer2Menu.name, items: resolveFooterMenuItems(footer2Menu.menu_items || []) } : { name: '', items: [] },
+      footer1: footer1Menu ? { name: footer1Menu.name, items: resolveMenuItems(footer1Menu.menu_items || []) } : { name: '', items: [] },
+      footer2: footer2Menu ? { name: footer2Menu.name, items: resolveMenuItems(footer2Menu.menu_items || []) } : { name: '', items: [] },
     };
 
     if (!storeSettings?.is_published) {
@@ -1217,7 +1218,7 @@ serve(async (req) => {
     const googleFontsLink = fontsData.stylesheetTags;
     const fontPreloadTags = fontsData.preloadTags;
     const menuItems = headerMenuRaw?.menu_items 
-      ? [...headerMenuRaw.menu_items].sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      ? resolveMenuItems([...headerMenuRaw.menu_items].sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0)))
       : [];
     
     // Extract settings
