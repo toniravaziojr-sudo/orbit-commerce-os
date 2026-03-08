@@ -207,14 +207,13 @@ function parseRoute(path: string): ParsedRoute {
   
   if (!clean || clean === '/') return { type: 'home' };
   
-  const productMatch = clean.match(/^produto\/(.+)$/);
+  // Product: /produto/slug OR /p/slug (SPA short prefix)
+  const productMatch = clean.match(/^(?:produto|p)\/(.+)$/);
   if (productMatch) return { type: 'product', slug: productMatch[1] };
   
-  const categoryMatch = clean.match(/^categoria\/(.+)$/);
+  // Category: /categoria/slug OR /c/slug (SPA short prefix)
+  const categoryMatch = clean.match(/^(?:categoria|c)\/(.+)$/);
   if (categoryMatch) return { type: 'category', slug: categoryMatch[1] };
-  
-  const pageMatch = clean.match(/^p\/(.+)$/);
-  if (pageMatch) return { type: 'page', slug: pageMatch[1] };
 
   const blogPostMatch = clean.match(/^blog\/(.+)$/);
   if (blogPostMatch) return { type: 'blog_post', slug: blogPostMatch[1] };
@@ -226,6 +225,7 @@ function parseRoute(path: string): ParsedRoute {
     return { type: 'unknown' };
   }
   
+  // Generic page (institutional pages, etc.)
   return { type: 'page', slug: clean };
 }
 
