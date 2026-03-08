@@ -337,7 +337,7 @@
     text-align: left !important;
   }
   .sf-footer-seals-grid {
-    grid-template-columns: repeat(4, 1fr) !important;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important;
     container-type: normal !important;
     max-width: 1280px !important;
     margin-left: auto !important;
