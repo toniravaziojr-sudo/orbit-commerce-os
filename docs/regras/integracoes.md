@@ -34,7 +34,7 @@ Hub central de integrações com serviços externos: pagamentos, redes sociais, 
 |-----|-----------|
 | Resumo | Dashboard de status geral |
 | Email e Domínios | SendGrid, Cloudflare (plataforma) |
-| WhatsApp | Z-API manager, Meta Cloud API (plataforma) |
+| WhatsApp | Meta WhatsApp Cloud API (único provider) |
 | Fiscal | Nuvem Fiscal, Focus NFe |
 | Logística | Loggi OAuth global |
 | IA | Gemini Nativa, OpenAI Nativa, Lovable AI Gateway (fallback), Firecrawl |
@@ -137,9 +137,9 @@ A aba `domain-email` unifica duas seções:
 ### 4. WhatsApp
 | Provider | Status | Descrição |
 |----------|--------|-----------|
-| WhatsApp Cloud API | ✅ Modo Teste Ready | Oficial Meta |
-| Z-API | 🟧 Pending | Não-oficial |
-| Evolution API | 🟧 Pending | Self-hosted |
+| WhatsApp Cloud API (Meta) | ✅ Ready | Único provider — Oficial Meta |
+
+> **Z-API e Evolution API foram removidos do sistema em 2026-03-08.** Meta Cloud API é o único provider suportado.
 
 #### Modo Teste – WhatsApp Cloud API (Meta)
 

@@ -77,7 +77,7 @@ evento (events_inbox) → process-events (cron 1min) → notifications (fila) �
 |-------|--------|-----------|
 | Email | ✅ Ready | Via SendGrid |
 | Push Web | 🟧 Pending | Web Push API |
-| WhatsApp | ✅ Ready | Via Meta/Z-API |
+| WhatsApp | ✅ Ready | Via Meta WhatsApp Cloud API (único provider) |
 | SMS | 🟧 Pending | Via providers |
 
 ---
