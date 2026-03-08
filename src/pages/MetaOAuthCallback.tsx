@@ -234,13 +234,6 @@ export default function MetaOAuthCallback() {
         return;
       }
 
-      // Reconexão: tokens atualizados, ativos mantidos — sucesso direto
-      if (data.isReconnection && !data.requiresAssetSelection) {
-        setStep("success");
-        notifyParentAndClose(true);
-        return;
-      }
-
       if (data.requiresAssetSelection && data.connection?.businesses) {
         const bizList = data.connection.businesses as BusinessPortfolio[];
         setBusinesses(bizList);
