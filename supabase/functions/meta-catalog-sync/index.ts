@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v5.0.0"; // Migrated from deprecated /batch to /items_batch endpoint. Field changes: image_url→image_link, url→link, name→title, price as "VALUE CURRENCY" string.
+const VERSION = "v5.1.0"; // Added: server-side image validation (HEAD+dimensions), payload/response audit per item, image pre-validation with error details
 // ===================
 
 const corsHeaders = {
@@ -11,6 +11,7 @@ const corsHeaders = {
 };
 
 const GRAPH_API_VERSION = "v21.0";
+const META_MIN_IMAGE_SIZE = 500; // Meta requires minimum 500x500 for catalog
 
 /** Strip HTML tags from text */
 function stripHtml(html: string): string {
@@ -33,6 +34,194 @@ function formatPrice(valueCents: number, currency = "BRL"): string {
   return `${value} ${currency}`;
 }
 
+/**
+ * Validate an image URL server-side:
+ * - HEAD request to check status, content-type, content-length
+ * - If PNG/JPEG, try to read actual dimensions from the binary header
+ */
+async function validateImageUrl(url: string): Promise<{
+  valid: boolean;
+  status?: number;
+  contentType?: string;
+  contentLength?: number;
+  width?: number;
+  height?: number;
+  error?: string;
+  redirectUrl?: string;
+}> {
+  if (!url) return { valid: false, error: "URL vazia" };
+
+  try {
+    // First do HEAD to check basic accessibility
+    const headResp = await fetch(url, { method: "HEAD", redirect: "follow" });
+    const contentType = headResp.headers.get("content-type") || "";
+    const contentLength = parseInt(headResp.headers.get("content-length") || "0", 10);
+    const finalUrl = headResp.url; // After redirects
+
+    if (!headResp.ok) {
+      return {
+        valid: false,
+        status: headResp.status,
+        contentType,
+        error: `HTTP ${headResp.status}`,
+        redirectUrl: finalUrl !== url ? finalUrl : undefined,
+      };
+    }
+
+    // Check content type
+    const isImage = contentType.startsWith("image/");
+    if (!isImage) {
+      return {
+        valid: false,
+        status: headResp.status,
+        contentType,
+        contentLength,
+        error: `Content-Type não é imagem: ${contentType}`,
+      };
+    }
+
+    // Check content length (must be > 0)
+    if (contentLength === 0) {
+      // Some servers don't return content-length on HEAD, try GET with range
+      const rangeResp = await fetch(url, {
+        method: "GET",
+        headers: { Range: "bytes=0-0" },
+        redirect: "follow",
+      });
+      if (!rangeResp.ok && rangeResp.status !== 206) {
+        return {
+          valid: false,
+          status: rangeResp.status,
+          contentType,
+          error: "Arquivo vazio ou inacessível",
+        };
+      }
+    }
+
+    // Try to get image dimensions by reading first bytes
+    let width: number | undefined;
+    let height: number | undefined;
+
+    try {
+      // Read first 32KB to get dimensions from header
+      const getResp = await fetch(url, {
+        method: "GET",
+        headers: { Range: "bytes=0-32767" },
+        redirect: "follow",
+      });
+
+      if (getResp.ok || getResp.status === 206) {
+        const buffer = await getResp.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        const dims = getImageDimensions(bytes, contentType);
+        if (dims) {
+          width = dims.width;
+          height = dims.height;
+        }
+      }
+    } catch {
+      // If range request fails, we'll skip dimension check
+      console.warn(`[image-validate] Could not read dimensions for ${url}`);
+    }
+
+    // Validate dimensions against Meta minimum
+    if (width !== undefined && height !== undefined) {
+      if (width < META_MIN_IMAGE_SIZE || height < META_MIN_IMAGE_SIZE) {
+        return {
+          valid: false,
+          status: headResp.status,
+          contentType,
+          contentLength,
+          width,
+          height,
+          error: `Imagem ${width}x${height} abaixo do mínimo Meta (${META_MIN_IMAGE_SIZE}x${META_MIN_IMAGE_SIZE})`,
+          redirectUrl: finalUrl !== url ? finalUrl : undefined,
+        };
+      }
+    }
+
+    return {
+      valid: true,
+      status: headResp.status,
+      contentType,
+      contentLength: contentLength || undefined,
+      width,
+      height,
+      redirectUrl: finalUrl !== url ? finalUrl : undefined,
+    };
+  } catch (err) {
+    return { valid: false, error: `Fetch error: ${String(err)}` };
+  }
+}
+
+/**
+ * Read image dimensions from binary header bytes
+ */
+function getImageDimensions(
+  bytes: Uint8Array,
+  contentType: string
+): { width: number; height: number } | null {
+  try {
+    // PNG: bytes 16-23 contain width (4 bytes BE) and height (4 bytes BE) in IHDR
+    if (contentType.includes("png") || (bytes[0] === 0x89 && bytes[1] === 0x50)) {
+      if (bytes.length >= 24) {
+        const width =
+          (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
+        const height =
+          (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
+        if (width > 0 && height > 0 && width < 100000 && height < 100000) {
+          return { width, height };
+        }
+      }
+    }
+
+    // JPEG: scan for SOF markers (0xFF 0xC0-0xCF, excluding 0xC4 and 0xCC)
+    if (contentType.includes("jpeg") || contentType.includes("jpg") || (bytes[0] === 0xFF && bytes[1] === 0xD8)) {
+      let i = 2;
+      while (i < bytes.length - 9) {
+        if (bytes[i] !== 0xFF) { i++; continue; }
+        const marker = bytes[i + 1];
+        if (
+          marker >= 0xC0 && marker <= 0xCF &&
+          marker !== 0xC4 && marker !== 0xC8 && marker !== 0xCC
+        ) {
+          const height = (bytes[i + 5] << 8) | bytes[i + 6];
+          const width = (bytes[i + 7] << 8) | bytes[i + 8];
+          if (width > 0 && height > 0) {
+            return { width, height };
+          }
+        }
+        const segLen = (bytes[i + 2] << 8) | bytes[i + 3];
+        i += 2 + segLen;
+      }
+    }
+
+    // WebP: RIFF header, VP8 chunk
+    if (contentType.includes("webp") || (bytes[0] === 0x52 && bytes[1] === 0x49)) {
+      if (bytes.length >= 30 && String.fromCharCode(...bytes.slice(0, 4)) === "RIFF") {
+        // VP8 lossy
+        if (bytes[12] === 0x56 && bytes[13] === 0x50 && bytes[14] === 0x38 && bytes[15] === 0x20) {
+          const width = ((bytes[26] | (bytes[27] << 8)) & 0x3FFF);
+          const height = ((bytes[28] | (bytes[29] << 8)) & 0x3FFF);
+          return { width, height };
+        }
+        // VP8L lossless
+        if (bytes[12] === 0x56 && bytes[13] === 0x50 && bytes[14] === 0x38 && bytes[15] === 0x4C) {
+          if (bytes.length >= 25) {
+            const b0 = bytes[21], b1 = bytes[22], b2 = bytes[23], b3 = bytes[24];
+            const width = 1 + (((b1 & 0x3F) << 8) | b0);
+            const height = 1 + (((b3 & 0xF) << 10) | (b2 << 2) | ((b1 & 0xC0) >> 6));
+            return { width, height };
+          }
+        }
+      }
+    }
+  } catch {
+    // Silent fail
+  }
+  return null;
+}
+
 Deno.serve(async (req) => {
   console.log(`[meta-catalog-sync][${VERSION}] Request received`);
 
@@ -48,7 +237,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { tenantId, catalogId, productIds, action } = body;
 
-    // === DELETE action: remove products from Meta catalog ===
+    // === DELETE action ===
     if (action === "delete") {
       if (!tenantId || !catalogId || !productIds?.length) {
         return new Response(
@@ -72,18 +261,14 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Get SKUs for these product IDs
       const { data: prods } = await supabase
         .from("products")
         .select("id, sku")
         .in("id", productIds);
 
-      // Use /items_batch for delete too
       const deleteRequests = (prods || []).map((p: any) => ({
         method: "DELETE",
-        data: {
-          id: p.sku || p.id,
-        },
+        data: { id: p.sku || p.id },
       }));
 
       const deleteUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/${catalogId}/items_batch`;
@@ -101,7 +286,6 @@ Deno.serve(async (req) => {
       const delBody = await delResp.json();
       console.log(`[meta-catalog-sync] DELETE response:`, JSON.stringify(delBody));
 
-      // Remove from meta_catalog_items
       for (const p of prods || []) {
         await supabase
           .from("meta_catalog_items")
@@ -117,6 +301,7 @@ Deno.serve(async (req) => {
       );
     }
 
+    // === SYNC action (default) ===
     if (!tenantId || !catalogId) {
       return new Response(
         JSON.stringify({ success: false, error: "tenantId and catalogId are required" }),
@@ -178,26 +363,29 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`[meta-catalog-sync] ${products.length} products to sync via /items_batch`);
+    console.log(`[meta-catalog-sync] ${products.length} products to sync`);
 
-    // Get ALL images for products ordered by sort_order
+    // Get ALL images for products - SAME query structure as UI uses
+    // Ordered by sort_order ASC, created_at ASC for deterministic ordering
     const productIdList = products.map((p: any) => p.id);
     const { data: images } = await supabase
       .from("product_images")
-      .select("product_id, url, is_primary, sort_order")
+      .select("product_id, url, is_primary, sort_order, created_at")
       .in("product_id", productIdList)
-      .order("sort_order", { ascending: true });
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true });
 
-    // Build image maps
+    // Build image maps with deterministic ordering
     const primaryImageMap: Record<string, string> = {};
     const allImagesMap: Record<string, string[]> = {};
-    
+
     for (const img of images || []) {
       if (!img.url) continue;
       if (!allImagesMap[img.product_id]) {
         allImagesMap[img.product_id] = [];
       }
       allImagesMap[img.product_id].push(img.url);
+      // Primary: explicit is_primary flag OR first image by sort order
       if (img.is_primary || !primaryImageMap[img.product_id]) {
         primaryImageMap[img.product_id] = img.url;
       }
@@ -224,15 +412,69 @@ Deno.serve(async (req) => {
 
     console.log(`[meta-catalog-sync] Store URL: ${storeBaseUrl}`);
 
-    // Build batch requests using /items_batch format
+    // ===== PRE-VALIDATE ALL PRIMARY IMAGES =====
+    console.log(`[meta-catalog-sync] Validating ${Object.keys(primaryImageMap).length} primary images...`);
+    const imageValidations: Record<string, Awaited<ReturnType<typeof validateImageUrl>>> = {};
+
+    // Validate all images in parallel (batches of 10 to avoid overwhelming)
+    const validationEntries = Object.entries(primaryImageMap);
+    for (let vi = 0; vi < validationEntries.length; vi += 10) {
+      const batch = validationEntries.slice(vi, vi + 10);
+      const results = await Promise.all(
+        batch.map(([pid, url]) => validateImageUrl(url).then(r => ({ pid, result: r })))
+      );
+      for (const { pid, result } of results) {
+        imageValidations[pid] = result;
+        if (!result.valid) {
+          console.warn(`[meta-catalog-sync] ❌ Image INVALID for product ${pid}: ${result.error} (${result.width}x${result.height}) URL: ${primaryImageMap[pid]}`);
+        } else {
+          console.log(`[meta-catalog-sync] ✅ Image OK for product ${pid}: ${result.width}x${result.height} (${result.contentType})`);
+        }
+      }
+    }
+
+    // Build batch items with per-product audit
     const batchItems: any[] = [];
-    
+    const productPayloads: Record<string, any> = {}; // productId -> payload for audit
+    const imageErrors: Array<{ productId: string; sku: string; name: string; error: string; dimensions?: string }> = [];
+
     for (const product of products) {
       const productUrl = `${storeBaseUrl}/produto/${product.slug || product.id}`;
       const priceCents = Math.round((product.price || 0) * 100);
       const primaryImage = primaryImageMap[product.id] || "";
       const allImages = allImagesMap[product.id] || [];
       const additionalImages = allImages.filter(u => u !== primaryImage).slice(0, 50);
+
+      // Check image validation result
+      const imgValidation = imageValidations[product.id];
+      if (primaryImage && imgValidation && !imgValidation.valid) {
+        imageErrors.push({
+          productId: product.id,
+          sku: product.sku || "",
+          name: product.name || "",
+          error: imgValidation.error || "Imagem inválida",
+          dimensions: imgValidation.width && imgValidation.height
+            ? `${imgValidation.width}x${imgValidation.height}`
+            : undefined,
+        });
+
+        // Save validation error to meta_catalog_items
+        await supabase
+          .from("meta_catalog_items")
+          .upsert({
+            tenant_id: tenantId,
+            product_id: product.id,
+            catalog_id: catalogId,
+            status: "image_error",
+            last_error: imgValidation.error,
+            last_synced_at: new Date().toISOString(),
+            last_image_validation: imgValidation,
+            sync_version: VERSION,
+          }, { onConflict: "tenant_id,product_id,catalog_id" });
+
+        console.warn(`[meta-catalog-sync] SKIPPING product SKU=${product.sku} - image validation failed: ${imgValidation.error}`);
+        continue; // Skip this product - don't send broken images to Meta
+      }
 
       // Description
       let description = product.short_description || "";
@@ -244,11 +486,8 @@ Deno.serve(async (req) => {
       }
       description = description.substring(0, 9999);
 
-      // /items_batch uses different field names than legacy /batch:
-      // name → title, url → link, image_url → image_link, additional_image_urls → additional_image_link
-      // price: integer+currency → "VALUE CURRENCY" string
       const productData: Record<string, any> = {
-        id: product.sku || product.id, // was retailer_id in /batch, now id inside data
+        id: product.sku || product.id,
         title: product.name || "Produto",
         description,
         link: productUrl,
@@ -268,7 +507,7 @@ Deno.serve(async (req) => {
         productData.additional_image_link = additionalImages;
       }
 
-      // Sale price: compare_at_price is the "original" (higher), price is the "sale"
+      // Sale price
       if (product.compare_at_price && product.compare_at_price > product.price) {
         const originalCents = Math.round(product.compare_at_price * 100);
         productData.price = formatPrice(originalCents);
@@ -285,12 +524,19 @@ Deno.serve(async (req) => {
         productData.rich_text_description = product.description.substring(0, 9999);
       }
 
-      console.log(`[meta-catalog-sync] Product SKU=${product.sku} image_link="${productData.image_link || 'NONE'}" price="${productData.price}" additional=${additionalImages.length}`);
+      // Store payload for audit
+      productPayloads[product.id] = productData;
+
+      console.log(`[meta-catalog-sync] Product SKU=${product.sku} image_link="${productData.image_link || 'NONE'}" price="${productData.price}" additional=${additionalImages.length} img_valid=${imgValidation?.valid ?? 'no-image'} img_dims=${imgValidation?.width}x${imgValidation?.height}`);
 
       batchItems.push({
         method: "CREATE",
         data: productData,
       });
+    }
+
+    if (imageErrors.length > 0) {
+      console.warn(`[meta-catalog-sync] ${imageErrors.length} products skipped due to image validation errors:`, JSON.stringify(imageErrors));
     }
 
     // Send to /items_batch in chunks of 4999
@@ -299,12 +545,22 @@ Deno.serve(async (req) => {
     let totalErrors = 0;
     const errorDetails: any[] = [];
 
+    // Track which products are in each batch for audit
+    const batchProductMap: any[] = []; // index -> product
+    let batchIdx = 0;
+    for (const product of products) {
+      if (productPayloads[product.id]) {
+        batchProductMap[batchIdx] = product;
+        batchIdx++;
+      }
+    }
+
     for (let i = 0; i < batchItems.length; i += BATCH_SIZE) {
       const batch = batchItems.slice(i, i + BATCH_SIZE);
 
       try {
         const batchUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/${catalogId}/items_batch`;
-        
+
         const formData = new URLSearchParams({
           access_token: accessToken,
           item_type: "PRODUCT_ITEM",
@@ -312,7 +568,7 @@ Deno.serve(async (req) => {
           requests: JSON.stringify(batch),
         });
 
-        console.log(`[meta-catalog-sync] Sending batch ${i}-${i + batch.length} to ${batchUrl}`);
+        console.log(`[meta-catalog-sync] Sending batch ${i}-${i + batch.length} to items_batch`);
 
         const batchResponse = await fetch(batchUrl, {
           method: "POST",
@@ -321,32 +577,32 @@ Deno.serve(async (req) => {
         });
 
         const responseBody = await batchResponse.json();
+        const responseStr = JSON.stringify(responseBody).substring(0, 5000);
 
         if (batchResponse.ok && responseBody) {
           const handles = responseBody.handles || [];
           const validationStatus = responseBody.validation_status || [];
           const warnings = responseBody.warnings || [];
-          
-          console.log(`[meta-catalog-sync] Batch response: handles=${handles.length}, validation_status=${validationStatus.length}, warnings=${warnings.length}`);
-          console.log(`[meta-catalog-sync][DEBUG] Full response:`, JSON.stringify(responseBody).substring(0, 3000));
 
-          // Count errors from validation_status
+          console.log(`[meta-catalog-sync] Batch OK: handles=${handles.length}, validation_status=${validationStatus.length}, warnings=${warnings.length}`);
+          console.log(`[meta-catalog-sync][DEBUG] Response:`, responseStr);
+
           let batchErrors = 0;
           for (const vs of validationStatus) {
             if (vs.errors && vs.errors.length > 0) {
               batchErrors++;
-              const product = products[i + validationStatus.indexOf(vs)];
+              const product = batchProductMap[i + validationStatus.indexOf(vs)];
               errorDetails.push({
                 productId: product?.id,
+                sku: product?.sku,
                 name: product?.name,
                 retailer_id: vs.retailer_id || vs.id,
                 errors: vs.errors,
               });
-              console.warn(`[meta-catalog-sync] Validation error for ${vs.retailer_id || vs.id}:`, JSON.stringify(vs.errors));
+              console.warn(`[meta-catalog-sync] Meta validation error for ${vs.retailer_id || vs.id}:`, JSON.stringify(vs.errors));
             }
           }
 
-          // Log warnings (items_batch provides them unlike legacy /batch)
           if (warnings.length > 0) {
             console.warn(`[meta-catalog-sync] Warnings:`, JSON.stringify(warnings).substring(0, 2000));
           }
@@ -354,12 +610,17 @@ Deno.serve(async (req) => {
           totalSent += batch.length - batchErrors;
           totalErrors += batchErrors;
 
-          // Update meta_catalog_items
+          // Update meta_catalog_items with audit data
           for (let j = 0; j < batch.length; j++) {
-            const product = products[i + j];
+            const product = batchProductMap[i + j];
+            if (!product) continue;
+
             const itemId = batch[j].data.id;
             const hasError = validationStatus.some(
               (vs: any) => (vs.retailer_id === itemId || vs.id === itemId) && vs.errors?.length > 0
+            );
+            const itemValidation = validationStatus.find(
+              (vs: any) => vs.retailer_id === itemId || vs.id === itemId
             );
 
             await supabase
@@ -369,17 +630,38 @@ Deno.serve(async (req) => {
                 product_id: product.id,
                 catalog_id: catalogId,
                 status: hasError ? "error" : "synced",
-                last_error: hasError
-                  ? JSON.stringify(validationStatus.find((vs: any) => (vs.retailer_id === itemId || vs.id === itemId))?.errors)
-                  : null,
+                last_error: hasError ? JSON.stringify(itemValidation?.errors) : null,
                 last_synced_at: new Date().toISOString(),
+                last_payload: productPayloads[product.id] || null,
+                last_response: itemValidation || { batch_ok: true, handles: handles.length },
+                last_image_validation: imageValidations[product.id] || null,
+                sync_version: VERSION,
               }, { onConflict: "tenant_id,product_id,catalog_id" });
           }
         } else {
-          const errMsg = responseBody?.error?.message || JSON.stringify(responseBody).substring(0, 500);
+          const errMsg = responseBody?.error?.message || responseStr;
           totalErrors += batch.length;
-          console.error(`[meta-catalog-sync] Batch failed:`, errMsg);
+          console.error(`[meta-catalog-sync] Batch FAILED:`, errMsg);
           errorDetails.push({ batch: `${i}-${i + batch.length}`, error: errMsg });
+
+          // Save failure to all products in batch
+          for (let j = 0; j < batch.length; j++) {
+            const product = batchProductMap[i + j];
+            if (!product) continue;
+            await supabase
+              .from("meta_catalog_items")
+              .upsert({
+                tenant_id: tenantId,
+                product_id: product.id,
+                catalog_id: catalogId,
+                status: "error",
+                last_error: errMsg.substring(0, 1000),
+                last_synced_at: new Date().toISOString(),
+                last_payload: productPayloads[product.id] || null,
+                last_response: responseBody,
+                sync_version: VERSION,
+              }, { onConflict: "tenant_id,product_id,catalog_id" });
+          }
         }
       } catch (batchErr) {
         totalErrors += batch.length;
@@ -387,12 +669,20 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`[meta-catalog-sync] Done: ${totalSent} synced, ${totalErrors} errors of ${products.length} total`);
+    const skipped = imageErrors.length;
+    console.log(`[meta-catalog-sync] Done: ${totalSent} synced, ${totalErrors} errors, ${skipped} skipped (image validation) of ${products.length} total`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        data: { synced: totalSent, failed: totalErrors, total: products.length, errors: errorDetails.slice(0, 10) },
+        data: {
+          synced: totalSent,
+          failed: totalErrors,
+          skipped,
+          total: products.length,
+          errors: errorDetails.slice(0, 10),
+          imageErrors: imageErrors.slice(0, 10),
+        },
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
