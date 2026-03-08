@@ -111,6 +111,8 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
       value: order.total,
       items: order.items.map((item: any) => ({
         id: item.product_id,
+        sku: item.sku || item.product_sku,
+        meta_retailer_id: item.meta_retailer_id,
         name: item.product_name,
         price: item.unit_price,
         quantity: item.quantity,
