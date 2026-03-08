@@ -118,88 +118,98 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
       
       console.log('[Checkout] Totals:', { subtotal, shippingTotal: effectiveShippingTotal, discountAmount, total });
 
-      // 1. Create order via edge function (handles customer, order, order_items)
-      console.log('[Checkout] Step 1: Creating order via edge function');
-      const { data: orderData, error: orderError } = await supabase.functions.invoke('checkout-create-order', {
-        body: {
-          tenant_id: tenantId,
-          checkout_session_id: checkoutSessionId,
-          customer: {
-            name: customer.name,
-            email: customer.email,
-            phone: customer.phone,
-            cpf: customer.cpf,
-          },
-          shipping: {
-            street: shipping.street,
-            number: shipping.number,
-            complement: shipping.complement,
-            neighborhood: shipping.neighborhood,
-            city: shipping.city,
-            state: shipping.state,
-            postal_code: shipping.postalCode,
-            carrier: shippingOption?.carrier || shippingOption?.label || 'Frenet',
-            service_code: shippingOption?.code,
-            service_name: shippingOption?.label,
-            estimated_days: shippingOption?.deliveryDays,
-          },
-          items: items.map(item => ({
-            product_id: item.product_id,
-            product_name: item.name,
-            sku: item.sku,
-            quantity: item.quantity,
-            unit_price: item.price,
-            image_url: item.image_url,
-          })),
-          payment_method: method,
-          subtotal,
-          shipping_total: effectiveShippingTotal,
-          discount_total: discountAmount,
-          total,
-          // Discount data for persistence and redemption
-          discount: discount ? {
-            discount_id: discount.discount_id,
-            discount_code: discount.discount_code,
-            discount_name: discount.discount_name,
-            discount_type: discount.discount_type,
-            discount_amount: discount.discount_amount,
-            free_shipping: discount.free_shipping,
-          } : undefined,
-          // Attribution data for conversion tracking
-          attribution: attribution ? {
-            utm_source: attribution.utm_source,
-            utm_medium: attribution.utm_medium,
-            utm_campaign: attribution.utm_campaign,
-            utm_content: attribution.utm_content,
-            utm_term: attribution.utm_term,
-            gclid: attribution.gclid,
-            fbclid: attribution.fbclid,
-            ttclid: attribution.ttclid,
-            msclkid: attribution.msclkid,
-            referrer_url: attribution.referrer_url,
-            referrer_domain: attribution.referrer_domain,
-            landing_page: attribution.landing_page,
-            attribution_source: attribution.attribution_source,
-            attribution_medium: attribution.attribution_medium,
-            session_id: attribution.session_id,
-            first_touch_at: attribution.first_touch_at,
-          } : undefined,
-          // Affiliate data for conversion tracking
-          affiliate: affiliate ? {
-            affiliate_code: affiliate.affiliate_code,
-            captured_at: affiliate.captured_at,
-          } : undefined,
-        },
-      });
+      // 1. Create order OR reuse existing pending order (avoids duplicates on retry)
+      let orderId: string;
+      let orderNumber: string;
 
-      if (orderError || !orderData?.success) {
-        console.error('[Checkout] Step 1 FAILED:', orderError || orderData?.error);
-        throw new Error(orderError?.message || orderData?.error || 'Erro ao criar pedido');
+      if (pendingOrderRef) {
+        // Reuse existing order from a previous failed payment attempt
+        orderId = pendingOrderRef.orderId;
+        orderNumber = pendingOrderRef.orderNumber;
+        console.log('[Checkout] Step 1: Reusing existing order:', orderId, orderNumber);
+      } else {
+        // Create new order
+        console.log('[Checkout] Step 1: Creating order via edge function');
+        const { data: orderData, error: orderError } = await supabase.functions.invoke('checkout-create-order', {
+          body: {
+            tenant_id: tenantId,
+            checkout_session_id: checkoutSessionId,
+            customer: {
+              name: customer.name,
+              email: customer.email,
+              phone: customer.phone,
+              cpf: customer.cpf,
+            },
+            shipping: {
+              street: shipping.street,
+              number: shipping.number,
+              complement: shipping.complement,
+              neighborhood: shipping.neighborhood,
+              city: shipping.city,
+              state: shipping.state,
+              postal_code: shipping.postalCode,
+              carrier: shippingOption?.carrier || shippingOption?.label || 'Frenet',
+              service_code: shippingOption?.code,
+              service_name: shippingOption?.label,
+              estimated_days: shippingOption?.deliveryDays,
+            },
+            items: items.map(item => ({
+              product_id: item.product_id,
+              product_name: item.name,
+              sku: item.sku,
+              quantity: item.quantity,
+              unit_price: item.price,
+              image_url: item.image_url,
+            })),
+            payment_method: method,
+            subtotal,
+            shipping_total: effectiveShippingTotal,
+            discount_total: discountAmount,
+            total,
+            discount: discount ? {
+              discount_id: discount.discount_id,
+              discount_code: discount.discount_code,
+              discount_name: discount.discount_name,
+              discount_type: discount.discount_type,
+              discount_amount: discount.discount_amount,
+              free_shipping: discount.free_shipping,
+            } : undefined,
+            attribution: attribution ? {
+              utm_source: attribution.utm_source,
+              utm_medium: attribution.utm_medium,
+              utm_campaign: attribution.utm_campaign,
+              utm_content: attribution.utm_content,
+              utm_term: attribution.utm_term,
+              gclid: attribution.gclid,
+              fbclid: attribution.fbclid,
+              ttclid: attribution.ttclid,
+              msclkid: attribution.msclkid,
+              referrer_url: attribution.referrer_url,
+              referrer_domain: attribution.referrer_domain,
+              landing_page: attribution.landing_page,
+              attribution_source: attribution.attribution_source,
+              attribution_medium: attribution.attribution_medium,
+              session_id: attribution.session_id,
+              first_touch_at: attribution.first_touch_at,
+            } : undefined,
+            affiliate: affiliate ? {
+              affiliate_code: affiliate.affiliate_code,
+              captured_at: affiliate.captured_at,
+            } : undefined,
+          },
+        });
+
+        if (orderError || !orderData?.success) {
+          console.error('[Checkout] Step 1 FAILED:', orderError || orderData?.error);
+          throw new Error(orderError?.message || orderData?.error || 'Erro ao criar pedido');
+        }
+
+        orderId = orderData.order_id;
+        orderNumber = orderData.order_number;
+        // Store for potential retry
+        setPendingOrderRef({ orderId, orderNumber });
+        console.log('[Checkout] Step 1 OK - Order:', orderId, orderNumber);
       }
-
-      const orderId = orderData.order_id;
-      const orderNumber = orderData.order_number;
-      console.log('[Checkout] Step 1 OK - Order:', orderId, orderNumber);
 
       // 2. Process payment via Pagar.me edge function
       console.log('[Checkout] Step 2: Processing payment');
