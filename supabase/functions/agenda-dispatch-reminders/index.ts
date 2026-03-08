@@ -29,11 +29,14 @@ interface AgendaTask {
 interface WhatsAppConfig {
   id: string;
   tenant_id: string;
+  provider?: string;
   instance_id: string | null;
   instance_token: string | null;
   client_token: string | null;
   connection_status: string;
   phone_number: string | null;
+  phone_number_id?: string | null;
+  access_token?: string | null;
   is_enabled: boolean;
 }
 
