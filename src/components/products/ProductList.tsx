@@ -171,8 +171,35 @@ export function ProductList({ onCreateProduct, onEditProduct }: ProductListProps
     );
   }
 
+  // Status counts
+  const statusCounts = products.reduce((acc, p) => {
+    acc[p.status] = (acc[p.status] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
   return (
     <div className="space-y-4">
+      {/* Status counters */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <Badge variant="default" className="text-sm px-3 py-1">
+          {statusCounts['active'] || 0} Ativos
+        </Badge>
+        <Badge variant="outline" className="text-sm px-3 py-1">
+          {statusCounts['inactive'] || 0} Inativos
+        </Badge>
+        <Badge variant="secondary" className="text-sm px-3 py-1">
+          {statusCounts['draft'] || 0} Rascunhos
+        </Badge>
+        {(statusCounts['archived'] || 0) > 0 && (
+          <Badge variant="destructive" className="text-sm px-3 py-1">
+            {statusCounts['archived']} Arquivados
+          </Badge>
+        )}
+        <span className="text-sm text-muted-foreground ml-auto">
+          {products.length} produto{products.length !== 1 ? 's' : ''} no total
+        </span>
+      </div>
+
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
