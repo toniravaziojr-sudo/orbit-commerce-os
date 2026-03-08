@@ -219,16 +219,10 @@ Deno.serve(async (req) => {
 
     console.log(`[meta-catalog-sync] Store URL: ${storeBaseUrl}`);
 
-    // Check which products already exist in Meta catalog (to use UPDATE vs CREATE)
-    const { data: existingItems } = await supabase
-      .from("meta_catalog_items")
-      .select("product_id")
-      .eq("tenant_id", tenantId)
-      .eq("catalog_id", catalogId)
-      .in("product_id", productIdList);
-    
-    const existingProductIds = new Set((existingItems || []).map((item: any) => item.product_id));
-    console.log(`[meta-catalog-sync] ${existingProductIds.size} existing products will use UPDATE method`);
+    // Always use CREATE method with allow_upsert=true
+    // UPDATE method does NOT refresh images on products originally created without one
+    // CREATE+allow_upsert handles both new and existing products correctly
+    console.log(`[meta-catalog-sync] All products will use CREATE+allow_upsert method`);
 
     // Build batch requests using the /{catalog_id}/batch endpoint format
     const batchItems: any[] = [];
