@@ -356,7 +356,8 @@ function buildFullPage(opts: {
     /* Mobile menu */
     .sf-mobile-nav{display:none;position:fixed;inset:0;z-index:90;overflow-y:auto;-webkit-overflow-scrolling:touch;flex-direction:column;gap:0;}
     .sf-mobile-nav.active{display:flex;}
-    .sf-mobile-nav a,.sf-mobile-nav .sf-mobile-nav-item{font-size:18px;font-weight:500;padding:16px 24px;border-bottom:1px solid rgba(128,128,128,0.15);display:block;text-decoration:none;}
+    .sf-mobile-nav a{font-size:18px;font-weight:500;padding:16px 24px;border-bottom:1px solid rgba(128,128,128,0.15);display:block;text-decoration:none;}
+    .sf-mobile-nav .sf-mobile-nav-item{font-size:18px;font-weight:500;padding:0;border-bottom:1px solid rgba(128,128,128,0.15);display:block;text-decoration:none;}
     .sf-mobile-nav .sf-mobile-contact{padding:16px 24px;border-top:1px solid rgba(128,128,128,0.15);}
     .sf-mobile-nav .sf-mobile-contact a{font-size:14px;padding:10px 0;border-bottom:none;}
     .sf-mobile-nav .sf-mobile-social{padding:16px 24px;border-top:1px solid rgba(128,128,128,0.15);}
