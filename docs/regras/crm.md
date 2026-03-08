@@ -1,7 +1,7 @@
 # CRM (Notificações, Atendimento, Emails, Avaliações) — Regras e Especificações
 
 > **STATUS:** ✅ Ready (Emails, Notificações, Atendimento WhatsApp com IA via OpenAI, Avaliações)  
-> **Última atualização:** 2025-01-26
+> **Última atualização:** 2026-03-08
 
 ## Visão Geral
 
@@ -32,25 +32,50 @@ Módulo de relacionamento com cliente: notificações, atendimento/suporte, gest
 | `src/hooks/useAiSupportConfig.ts` | Configuração da IA |
 | `src/hooks/useAiChannelConfig.ts` | Configuração por canal |
 | `supabase/functions/ai-support-chat/index.ts` | Edge Function de IA |
+| `supabase/functions/process-events/index.ts` | Converte eventos em notificações |
+| `supabase/functions/run-notifications/index.ts` | Envia notificações (WhatsApp/Email) |
 
 ---
 
 ## 1. Notificações
 
-### Tipos de Notificação
-| Tipo | Canal | Descrição |
-|------|-------|-----------|
-| `order_confirmed` | Email | Pedido confirmado |
-| `order_shipped` | Email/Push | Pedido enviado |
-| `order_delivered` | Email/Push | Pedido entregue |
-| `payment_approved` | Email | Pagamento aprovado |
-| `payment_failed` | Email | Pagamento falhou |
-| `abandoned_cart` | Email | Carrinho abandonado |
+### Pipeline de Notificações (v8.2.6)
+
+O fluxo completo de notificações funciona assim:
+
+```
+evento (events_inbox) → process-events (cron 1min) → notifications (fila) → run-notifications (cron 1min) → envio real (WhatsApp/Email)
+```
+
+#### Cron Jobs Ativos
+| Job | Schedule | Edge Function | Descrição |
+|-----|----------|---------------|-----------|
+| `process-events-every-minute` | `* * * * *` | `process-events` | Processa eventos pendentes e gera notificações |
+| `run-notifications-every-minute` | `* * * * *` | `run-notifications` | Envia notificações agendadas via canal configurado |
+
+#### Pré-requisitos para Envio
+- **WhatsApp**: tenant precisa ter `whatsapp_configs` com `connection_status=connected` e `is_enabled=true`
+- **Email**: tenant precisa ter `email_provider_configs` verificado OU sistema precisa ter `system_email_config` verificado + `SENDGRID_API_KEY`
+
+### Tipos de Notificação (Regras V2)
+| rule_type | trigger_condition | Descrição |
+|-----------|-------------------|-----------|
+| `payment` | `pix_generated` | PIX gerado — mensagem de instruções |
+| `payment` | `payment_approved` | Pagamento confirmado |
+| `payment` | `boleto_generated` | Boleto gerado — mensagem com instruções |
+| `payment` | `declined` | Pagamento recusado |
+| `payment` | `expired` | Pagamento expirado |
+| `shipping` | `posted` | Pedido despachado |
+| `shipping` | `in_transit` | Em trânsito |
+| `shipping` | `delivered` | Entregue |
+| `shipping` | `returned` | Devolvido |
+| `abandoned_checkout` | — | Checkout abandonado |
+| `post_sale` | — | Pós-venda (1ª compra) |
 
 ### Canais
 | Canal | Status | Descrição |
 |-------|--------|-----------|
-| Email | ✅ Ready | Via Resend |
+| Email | ✅ Ready | Via SendGrid |
 | Push Web | 🟧 Pending | Web Push API |
 | WhatsApp | ✅ Ready | Via Meta/Z-API |
 | SMS | 🟧 Pending | Via providers |

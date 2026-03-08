@@ -1,7 +1,7 @@
 # Módulo: Pedidos (Admin)
 
 > **Status**: ✅ Funcional e Protegido  
-> **Última atualização**: 2025-01-19
+> **Última atualização**: 2026-03-08
 
 ---
 
@@ -446,10 +446,33 @@ type PaymentMethod =
 - `supabase/functions/core-orders/`
 - `supabase/functions/get-order/`
 - `supabase/functions/checkout-create-order/`
+- `supabase/functions/pagarme-webhook/` — sincroniza status via webhook + registra order_history
+- `supabase/functions/expire-stale-orders/` — cancela pedidos expirados via cron + registra order_history
 
 ---
 
-## 13. Pendências
+## 13. Ciclo de Vida Automatizado (v8.2.6)
+
+### 13.1 Expiração Automática (cron: `expire-stale-orders-every-15m`)
+| Tipo | Prazo | Ação |
+|------|-------|------|
+| PIX pendente | 1 hora | `status=cancelled`, `payment_status=cancelled` |
+| Boleto pendente | 4 dias | `status=cancelled`, `payment_status=cancelled` |
+| Pedido órfão (sem transação) | 30 min | `status=cancelled` |
+| `payment_status=declined` + `status=pending` | Imediato | `status=cancelled` |
+
+### 13.2 Registro em `order_history`
+Mudanças de status feitas por **webhook** (`pagarme-webhook`) e **cron** (`expire-stale-orders`) agora são registradas automaticamente em `order_history`:
+- `action`: `status_changed` ou `payment_status_changed`
+- `previous_value` / `new_value`: JSON com campo e valor
+- `description`: inclui origem (ex: "webhook Pagar.me", "PIX expirado (automático)")
+
+### 13.3 Prevenção de Duplicidade (Checkout)
+O checkout utiliza `sessionStorage` (`PENDING_ORDER_KEY`) para reutilizar o mesmo `orderId` em retentativas de pagamento, evitando pedidos duplicados.
+
+---
+
+## 14. Pendências
 
 - [ ] Exportação de pedidos (CSV/Excel)
 - [ ] Impressão de etiqueta de envio integrada
