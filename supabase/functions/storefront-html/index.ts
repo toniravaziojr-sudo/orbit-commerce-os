@@ -1,6 +1,6 @@
 // ============================================
 // STOREFRONT HTML — Edge-Rendered Storefront
-// v8.1.0: Category + Product routes use compileBlockTree(published_content) — full parity
+// v8.1.1: FIX allResults index offset — route-specific queries at index [8] after store_pages base query
 // Resolves tenant from hostname, serves pre-rendered HTML if available,
 // falls back to live rendering otherwise.
 // ============================================
@@ -16,7 +16,7 @@ import { blogIndexToStaticHTML, blogPostToStaticHTML } from '../_shared/block-co
 import { institutionalPageToStaticHTML } from '../_shared/block-compiler/blocks/institutional-page.ts';
 
 // ===== VERSION =====
-const VERSION = "v8.1.0"; // Category + Product routes use compileBlockTree(published_content)
+const VERSION = "v8.1.1"; // FIX: allResults index offset — route queries at [8] not [7]
 // ====================
 
 // ============================================
@@ -1357,7 +1357,7 @@ serve(async (req) => {
 
     } else if (route.type === 'product' && route.slug) {
       // PRODUCT — using block-compiler with published_content.product tree
-      const productResult = allResults[7];
+      const productResult = allResults[8];
       const product = productResult?.status === 'fulfilled' ? (productResult as any).value.data : null;
 
       if (!product || product.status !== 'active') {
@@ -1514,7 +1514,7 @@ serve(async (req) => {
 
     } else if (route.type === 'category' && route.slug) {
       // CATEGORY — using block-compiler with published_content.category tree
-      const categoryResult = allResults[7];
+      const categoryResult = allResults[8];
       const category = categoryResult?.status === 'fulfilled' ? (categoryResult as any).value.data : null;
 
       if (!category) {
@@ -1601,7 +1601,7 @@ serve(async (req) => {
 
     } else if (route.type === 'page' && route.slug) {
       // INSTITUTIONAL PAGE — using block-compiler
-      const pageResult = allResults[7];
+      const pageResult = allResults[8];
       const page = pageResult?.status === 'fulfilled' ? (pageResult as any).value.data : null;
 
       if (!page) {
@@ -1618,7 +1618,7 @@ serve(async (req) => {
 
     } else if (route.type === 'blog_index') {
       // BLOG INDEX — using block-compiler
-      const postsResult = allResults[7];
+      const postsResult = allResults[8];
       const posts = postsResult?.status === 'fulfilled' ? (postsResult as any).value.data || [] : [];
 
       bodyHtml = blogIndexToStaticHTML(posts, storeName);
@@ -1628,7 +1628,7 @@ serve(async (req) => {
 
     } else if (route.type === 'blog_post' && route.slug) {
       // BLOG POST — using block-compiler
-      const postResult = allResults[7];
+      const postResult = allResults[8];
       const post = postResult?.status === 'fulfilled' ? (postResult as any).value.data : null;
 
       if (!post) {
