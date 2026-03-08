@@ -499,8 +499,11 @@ Deno.serve(async (req) => {
       }
       description = description.substring(0, 9999);
 
+      // Use meta_retailer_id if set, otherwise fall back to SKU, then product UUID
+      const retailerId = product.meta_retailer_id || product.sku || product.id;
+
       const productData: Record<string, any> = {
-        id: product.sku || product.id,
+        id: retailerId,
         title: product.name || "Produto",
         description,
         link: productUrl,
