@@ -1010,38 +1010,46 @@ Sincroniza produtos locais com catálogos do Meta Commerce Manager via Graph API
 
 | Function | Ações | Descrição |
 |----------|-------|-----------|
-| `meta-catalog-sync` | `sync` | Envia produtos ativos para o catálogo Meta (v3.1.0) |
+| `meta-catalog-sync` | `sync` | Envia produtos ativos para o catálogo Meta (v4.0.0) |
 | `meta-catalog-daily-sync` | `auto` | Sync diário automático de todos os tenants (cron 02:00 BRT) |
 | `meta-catalog-create` | `list`, `create` | Lista catálogos existentes / Cria novo catálogo |
 
-### Formato de Produto (Commerce API — Graph API URLSearchParams)
+### Formato de Produto (Commerce Batch API — `/{catalog_id}/batch`)
 
-```text
-retailer_id=product-uuid
-name=Nome do Produto
-description=Descrição curta (plain text, sem HTML)
-url=https://www.dominio-real.com.br/produto/slug
-image_url=https://cdn.example.com/imagem.jpg
-additional_image_link=url1,url2,url3
-price=9990
-currency=BRL
-availability=in stock
-condition=new
-brand=Nome da Loja
-sale_price=7990
-sale_price_currency=BRL
-gtin=7891234567890
+```json
+{
+  "retailer_id": "SKU ou product-uuid",
+  "method": "CREATE",
+  "data": {
+    "name": "Nome do Produto",
+    "description": "Descrição curta (plain text, sem HTML)",
+    "url": "https://www.dominio-real.com.br/produto/slug",
+    "image_url": "https://cdn.example.com/imagem-principal.jpg",
+    "additional_image_urls": ["url2.jpg", "url3.jpg"],
+    "price": 9990,
+    "currency": "BRL",
+    "availability": "in stock",
+    "condition": "new",
+    "brand": "Nome da Loja",
+    "sale_price": 7990,
+    "gtin": "7891234567890",
+    "rich_text_description": "<p>Descrição completa com HTML</p>"
+  }
+}
 ```
 
 **Notas:**
-- Preço em **centavos** (ex: R$ 99,90 → `9990`) com `currency` separado
-- `description` usa **short_description** do produto (plain text). Fallback: `description` com HTML **stripado**. Nunca envia HTML.
+- Endpoint: `POST /{catalog_id}/batch` com `allow_upsert=true` e `requests` JSON array
+- Preço em **centavos** (ex: R$ 99,90 → `9990`) como number, `currency` separado
+- `description` usa **short_description** do produto (plain text). Fallback: `description` com HTML **stripado**. Nunca envia HTML na description.
+- `rich_text_description` inclui o HTML completo da descrição quando > 200 chars (para Commerce Manager)
 - `url` usa o **domínio personalizado verificado** do tenant (tabela `tenant_domains`, `is_primary=true, status=verified`). Fallback: subdomínio padrão.
 - `image_url` vem de `product_images` (coluna `sort_order`, prioriza `is_primary=true`)
-- `additional_image_link` até 9 imagens extras separadas por vírgula
-- `sale_price` só incluído se `compare_at_price > price`
+- `additional_image_urls` — JSON array com até 50 imagens extras (respeitando `sort_order`)
+- `sale_price` só incluído se `compare_at_price > price` (number em centavos)
 - `gtin` só incluído se produto tiver GTIN/EAN cadastrado
 - `availability` verifica `stock_quantity` — se ≤ 0, envia "out of stock"
+- Batch de até 4999 itens por request (limite Meta: 5000)
 
 ### Hook Frontend
 
@@ -1056,15 +1064,15 @@ Sincronização Manual (pós-onboarding):
 1. Tenant acessa Hub Meta → Catálogo
 2. Clica "Sincronizar Produtos"
 3. meta-catalog-sync busca produtos ativos do tenant
-4. Converte para formato Commerce API (URLSearchParams)
-5. POST /{catalog_id}/products em lotes de 50 via Batch API
+4. Converte para formato Commerce Batch API (JSON)
+5. POST /{catalog_id}/batch com allow_upsert=true
 6. Registra resultado em meta_catalog_items
 7. Produtos com erro ficam com status 'error' + mensagem
 
 Sincronização Automática (durante OAuth):
 1. Ao confirmar seleção de ativos, meta-save-selected-assets cria catálogo novo
 2. Busca TODOS os produtos ativos do tenant
-3. Envia em lotes de 50 via batch API
+3. Envia via batch API com allow_upsert=true
 4. Catálogo fica disponível no Meta Commerce Manager imediatamente
 
 Sincronização Diária Automática (cron):
