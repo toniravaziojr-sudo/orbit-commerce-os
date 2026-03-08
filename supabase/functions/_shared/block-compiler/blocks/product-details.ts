@@ -281,7 +281,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
           <div style="text-align:center;flex:1;min-width:120px;">
             ${spImg ? `<img src="${escapeHtml(spImg)}" alt="${escapeHtml(sp.name)}" style="width:100px;height:100px;object-fit:contain;margin:0 auto;border-radius:8px;">` : ''}
             <p style="font-size:13px;font-weight:500;margin-top:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;margin-left:auto;margin-right:auto;">${escapeHtml(sp.name)}</p>
-            <p style="font-size:14px;font-weight:600;color:var(--theme-price-color,var(--theme-text-primary,#1a1a1a));">${formatPriceFromDecimal(sp.price)}</p>
+            <p style="font-size:14px;font-weight:600;color:var(--theme-price-color,#1a1a1a);">${formatPriceFromDecimal(sp.price)}</p>
           </div>
           <div style="text-align:center;flex:1;min-width:160px;padding:16px;background:#fff;border-radius:8px;border:1px solid #eee;">
             <p style="font-size:13px;color:#666;margin-bottom:4px;">Comprando juntos</p>
