@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v4.2.0"; // Fix: always use CREATE+allow_upsert (UPDATE doesn't refresh images on products created without one)
+const VERSION = "v4.3.1"; // Confirmed: /batch uses url, image_url (not link/image_link). Delete+create fixes cached no-image state.
 // ===================
 
 const corsHeaders = {
@@ -247,6 +247,7 @@ Deno.serve(async (req) => {
       description = description.substring(0, 9999);
 
       // Build product data object for /{catalog_id}/batch
+      // NOTE: /batch endpoint uses url, image_url (NOT link/image_link which are for feeds/items_batch)
       const productData: Record<string, any> = {
         name: product.name || "Produto",
         description,
@@ -282,7 +283,6 @@ Deno.serve(async (req) => {
 
       // Rich text description (full HTML) if description is long
       if (product.description && stripHtml(product.description).length > 200) {
-        // Meta supports rich_text_description for commerce catalogs
         productData.rich_text_description = product.description.substring(0, 9999);
       }
 
