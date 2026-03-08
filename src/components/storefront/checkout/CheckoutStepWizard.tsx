@@ -608,6 +608,8 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           setPaymentStatus('approved');
           clearCart();
           clearDraft();
+          clearStoredAttribution();
+          clearStoredAffiliateData();
           toast.success('Pedido realizado com sucesso!');
           navigate(`${urls.thankYou()}?pedido=${encodeURIComponent(cleanOrderNumber)}`);
         } else {
