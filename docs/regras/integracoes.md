@@ -838,15 +838,23 @@ Ao confirmar a seleção de ativos, o `meta-save-selected-assets` ativa automati
 | **Publicação FB/IG** | Ativo via token OAuth + page selecionada | `marketplace_connections.metadata.assets` |
 | **Ads** | Contas de anúncio disponíveis para o Autopilot | `marketplace_connections.metadata.assets` |
 
-#### Criação Automática de Catálogo
+#### Criação/Reuso Automático de Catálogo
 
-Ao confirmar a seleção, o sistema:
-1. Busca o `business_id` associado à página selecionada
-2. Cria um catálogo NOVO via `POST /{business_id}/owned_product_catalogs` com nome `"Catálogo {storeName}"`
-3. Busca todos os produtos ativos do tenant
-4. Envia em lotes de 50 produtos via `POST /{catalog_id}/batch`
-5. Registra status em `meta_catalog_items`
-6. Salva `catalog_id` nos assets da conexão
+Ao confirmar a seleção, o sistema executa a lógica de **reuso antes de criar**:
+
+1. Verifica se `metadata.meta_catalog_id` e `metadata.meta_catalog_created_by_system === true` existem na conexão
+2. Se existir, valida via `GET /{catalog_id}?fields=id,name` se o catálogo ainda existe na Meta
+3. **Se válido:** reutiliza o catálogo existente (não cria novo)
+4. **Se inválido ou inexistente:** cria catálogo NOVO via `POST /{business_id}/owned_product_catalogs` com nome `"Catálogo {storeName}"`
+5. Busca todos os produtos ativos do tenant
+6. Envia em lotes de 50 produtos via `POST /{catalog_id}/batch`
+7. Registra status em `meta_catalog_items`
+8. Salva no metadata da conexão:
+   - `meta_catalog_id`: ID do catálogo (criado ou reutilizado)
+   - `meta_catalog_created_by_system: true`: flag que identifica catálogos gerenciados pelo sistema
+   - `assets.catalogs[]`: lista atualizada
+
+> **IMPORTANTE:** O sistema NUNCA considera catálogos criados externamente (fora do nosso sistema). Apenas catálogos com `meta_catalog_created_by_system === true` são candidatos a reuso. Isso evita conflitos com catálogos de terceiros.
 
 #### WhatsApp: Descoberta de Números
 
