@@ -16,7 +16,7 @@ import { blogIndexToStaticHTML, blogPostToStaticHTML } from '../_shared/block-co
 import { institutionalPageToStaticHTML } from '../_shared/block-compiler/blocks/institutional-page.ts';
 
 // ===== VERSION =====
-const VERSION = "v8.1.1"; // FIX: allResults index offset — route queries at [8] not [7]
+const VERSION = "v8.2.0"; // REFACTOR: named result extraction — no more numeric allResults[] indices
 // ====================
 
 // ============================================
