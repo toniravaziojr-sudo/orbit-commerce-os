@@ -80,17 +80,23 @@ export function useStorefrontUrls(tenantSlug: string): StorefrontUrls {
     // Base path: empty for custom/tenant domains, /store/{tenantSlug} for app/legacy
     const basePath = isOnCustomDomain ? '' : `/store/${tenantSlug}`;
     
+    // On custom domains, use long-form paths that the Cloudflare Worker recognizes
+    // On app/legacy domains, use short-form paths that the SPA router uses
+    const productPrefix = isOnCustomDomain ? '/produto' : `${basePath}/p`;
+    const categoryPrefix = isOnCustomDomain ? '/categoria' : `${basePath}/c`;
+    const pagePrefix = isOnCustomDomain ? '/page' : `${basePath}/page`;
+    
     return {
       home: () => basePath || '/',
       
       product: (productSlug: string | undefined) => {
         if (!hasValidSlug(productSlug)) return null;
-        return `${basePath}/p/${productSlug}`;
+        return `${productPrefix}/${productSlug}`;
       },
       
       category: (categorySlug: string | undefined) => {
         if (!hasValidSlug(categorySlug)) return null;
-        return `${basePath}/c/${categorySlug}`;
+        return `${categoryPrefix}/${categorySlug}`;
       },
       
       cart: () => `${basePath}/cart`,
@@ -106,7 +112,7 @@ export function useStorefrontUrls(tenantSlug: string): StorefrontUrls {
       
       page: (pageSlug: string | undefined) => {
         if (!hasValidSlug(pageSlug)) return null;
-        return `${basePath}/page/${pageSlug}`;
+        return `${pagePrefix}/${pageSlug}`;
       },
       
       landing: (landingSlug: string | undefined) => {
