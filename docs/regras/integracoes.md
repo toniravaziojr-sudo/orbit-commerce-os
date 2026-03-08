@@ -1010,13 +1010,20 @@ Sincroniza produtos locais com catálogos do Meta Commerce Manager via Graph API
 ### Fluxo de Sincronização
 
 ```text
-1. Tenant seleciona catálogo (ou cria novo)
+Sincronização Manual (pós-onboarding):
+1. Tenant acessa Hub Meta → Catálogo
 2. Clica "Sincronizar Produtos"
 3. meta-catalog-sync busca produtos ativos do tenant
 4. Converte para formato Commerce API
 5. POST /{catalog_id}/batch para Meta
 6. Registra resultado em meta_catalog_items
 7. Produtos com erro ficam com status 'error' + mensagem
+
+Sincronização Automática (durante OAuth):
+1. Ao confirmar seleção de ativos, meta-save-selected-assets cria catálogo novo
+2. Busca TODOS os produtos ativos do tenant
+3. Envia em lotes de 50 via batch API
+4. Catálogo fica disponível no Meta Commerce Manager imediatamente
 ```
 
 ---
