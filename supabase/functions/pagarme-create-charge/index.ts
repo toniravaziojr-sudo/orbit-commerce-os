@@ -291,6 +291,38 @@ serve(async (req) => {
       console.error('Database error:', dbError);
     }
 
+    // ==== SYNC ORDER STATUS for synchronous payments (credit card) ====
+    // When charge is immediately paid/failed, update order right away
+    // Don't rely solely on webhook which may arrive late or with incomplete payload
+    if (payload.order_id && charge?.status) {
+      const orderUpdate: Record<string, any> = { updated_at: new Date().toISOString() };
+      
+      if (charge.status === 'paid') {
+        orderUpdate.payment_status = 'approved';
+        orderUpdate.status = 'paid';
+        orderUpdate.paid_at = new Date().toISOString();
+        console.log(`[Pagar.me] Syncing order ${payload.order_id} → paid (synchronous)`);
+      } else if (charge.status === 'failed') {
+        orderUpdate.payment_status = 'declined';
+        console.log(`[Pagar.me] Syncing order ${payload.order_id} → declined (synchronous)`);
+      } else if (charge.status === 'pending' || charge.status === 'processing') {
+        orderUpdate.payment_status = 'pending';
+        orderUpdate.status = 'awaiting_payment';
+        console.log(`[Pagar.me] Syncing order ${payload.order_id} → awaiting_payment`);
+      }
+
+      if (Object.keys(orderUpdate).length > 1) {
+        const { error: orderUpdateError } = await supabase
+          .from('orders')
+          .update(orderUpdate)
+          .eq('id', payload.order_id);
+        
+        if (orderUpdateError) {
+          console.error('[Pagar.me] Error syncing order status:', orderUpdateError);
+        }
+      }
+    }
+
     // ==== EMIT CANONICAL EVENT for notifications (pix_generated / boleto_generated) ====
     if (payload.order_id && (payload.method === 'pix' || payload.method === 'boleto')) {
       const eventNewStatus = payload.method === 'pix' ? 'pix_generated' : 'boleto_generated';

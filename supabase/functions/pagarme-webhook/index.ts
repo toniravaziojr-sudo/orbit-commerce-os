@@ -34,9 +34,11 @@ serve(async (req) => {
     const pagarmeOrderId = payload.data?.id;
     const charge = payload.data?.charges?.[0];
     const chargeId = charge?.id;
-    const chargeStatus = charge?.status;
+    // FIX: Use charge status if available, fallback to order-level status
+    // Some Pagar.me events (e.g. order.paid) may not include full charges array
+    const chargeStatus = charge?.status || payload.data?.status;
 
-    console.log(`[${requestId}] Event: ${eventType}, EventId: ${eventId}, Order: ${pagarmeOrderId}, Charge: ${chargeId}, Status: ${chargeStatus}`);
+    console.log(`[${requestId}] Event: ${eventType}, EventId: ${eventId}, Order: ${pagarmeOrderId}, Charge: ${chargeId}, ChargeStatus: ${chargeStatus}, OrderStatus: ${payload.data?.status}`);
 
     if (!pagarmeOrderId) {
       console.log(`[${requestId}] No order ID in webhook payload, ignoring`);
