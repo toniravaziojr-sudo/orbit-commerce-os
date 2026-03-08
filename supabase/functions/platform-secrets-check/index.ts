@@ -100,7 +100,7 @@ serve(async (req) => {
     const loggiExternalServiceId = await checkCredential(supabaseUrl, supabaseServiceKey, 'LOGGI_EXTERNAL_SERVICE_ID');
     const firecrawlApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'FIRECRAWL_API_KEY');
     const lovableApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'LOVABLE_API_KEY');
-    const zapiClientToken = await checkCredential(supabaseUrl, supabaseServiceKey, 'ZAPI_CLIENT_TOKEN');
+    
     const openaiApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'OPENAI_API_KEY');
     const metaAppId = await checkCredential(supabaseUrl, supabaseServiceKey, 'META_APP_ID');
     const metaAppSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'META_APP_SECRET');
