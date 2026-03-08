@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v4.0.0"; // Fix: use /{catalog_id}/batch endpoint with all images, correct field names
+const VERSION = "v4.1.0"; // Fix: use UPDATE method for existing products to force image refresh
 // ===================
 
 const corsHeaders = {
