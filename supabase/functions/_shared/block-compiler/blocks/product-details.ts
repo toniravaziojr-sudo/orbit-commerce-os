@@ -275,18 +275,18 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
           <div style="text-align:center;flex:1;min-width:120px;">
             ${mainImg ? `<img src="${escapeHtml(mainImg)}" alt="${escapeHtml(product.name)}" style="width:100px;height:100px;object-fit:contain;margin:0 auto;border-radius:8px;">` : ''}
             <p style="font-size:13px;font-weight:500;margin-top:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;margin-left:auto;margin-right:auto;">${escapeHtml(product.name)}</p>
-            <p style="font-size:14px;font-weight:600;color:var(--theme-price-color,var(--theme-text-primary,#1a1a1a));">${formatPriceFromDecimal(product.price)}</p>
+            <p style="font-size:14px;font-weight:600;color:var(--theme-price-color,#1a1a1a);">${formatPriceFromDecimal(product.price)}</p>
           </div>
           <span style="font-size:28px;font-weight:700;color:var(--theme-button-primary-bg,#1a1a1a);">+</span>
           <div style="text-align:center;flex:1;min-width:120px;">
             ${spImg ? `<img src="${escapeHtml(spImg)}" alt="${escapeHtml(sp.name)}" style="width:100px;height:100px;object-fit:contain;margin:0 auto;border-radius:8px;">` : ''}
             <p style="font-size:13px;font-weight:500;margin-top:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;margin-left:auto;margin-right:auto;">${escapeHtml(sp.name)}</p>
-            <p style="font-size:14px;font-weight:600;color:var(--theme-price-color,var(--theme-text-primary,#1a1a1a));">${formatPriceFromDecimal(sp.price)}</p>
+            <p style="font-size:14px;font-weight:600;color:var(--theme-price-color,#1a1a1a);">${formatPriceFromDecimal(sp.price)}</p>
           </div>
           <div style="text-align:center;flex:1;min-width:160px;padding:16px;background:#fff;border-radius:8px;border:1px solid #eee;">
             <p style="font-size:13px;color:#666;margin-bottom:4px;">Comprando juntos</p>
             ${savings > 0 ? `<p style="font-size:13px;color:#999;text-decoration:line-through;">${formatPriceFromDecimal(originalTotal)}</p>` : ''}
-            <p style="font-size:22px;font-weight:700;color:var(--theme-price-color,var(--theme-text-primary,#1a1a1a));">${formatPriceFromDecimal(comboPrice)}</p>
+            <p style="font-size:22px;font-weight:700;color:var(--theme-price-color,#1a1a1a);">${formatPriceFromDecimal(comboPrice)}</p>
             ${savings > 0 ? `<p style="font-size:12px;color:#16a34a;font-weight:600;">Economize ${formatPriceFromDecimal(savings)}</p>` : ''}
             <button data-sf-action="add-to-cart" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${escapeHtml(mainImg)}" data-extra-product-id="${sp.id}" data-extra-product-name="${escapeHtml(sp.name)}" data-extra-product-price="${sp.price}" data-extra-product-image="${escapeHtml(spImg)}" class="sf-btn-primary" style="margin-top:12px;padding:12px 24px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;width:100%;">Adicionar ambos ao carrinho</button>
           </div>
@@ -401,7 +401,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
           ${rpRatingHtml}
           <div style="margin-top:6px;">
             ${rpHasDiscount ? `<span style="font-size:12px;color:#999;text-decoration:line-through;">${formatPriceFromDecimal(rp.compare_at_price!)}</span> ` : ''}
-            <span style="font-size:16px;font-weight:700;color:var(--theme-price-color,var(--theme-text-primary,#1a1a1a));">${formatPriceFromDecimal(rp.price)}</span>
+            <span style="font-size:16px;font-weight:700;color:var(--theme-price-color,#1a1a1a);">${formatPriceFromDecimal(rp.price)}</span>
           </div>
         </div>
       </a>`;
@@ -491,7 +491,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
           ${product.brand ? `<p style="font-size:14px;color:var(--theme-text-secondary,#666);">${escapeHtml(product.brand)}</p>` : ''}
           <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;">
             ${hasDiscount ? `<span style="font-size:14px;color:#999;text-decoration:line-through;">${formatPriceFromDecimal(product.compare_at_price!)}</span>` : ''}
-            <span style="font-size:28px;font-weight:700;color:var(--theme-price-color, var(--theme-text-primary,#1a1a1a));">${formatPriceFromDecimal(product.price)}</span>
+            <span style="font-size:28px;font-weight:700;color:var(--theme-price-color,#1a1a1a);">${formatPriceFromDecimal(product.price)}</span>
             ${hasDiscount ? `<span style="font-size:13px;font-weight:600;color:#16a34a;background:#dcfce7;padding:2px 8px;border-radius:4px;">-${discountPercent}%</span>` : ''}
           </div>
           <p style="font-size:13px;color:#666;">em até 12x de ${installmentValue} sem juros</p>

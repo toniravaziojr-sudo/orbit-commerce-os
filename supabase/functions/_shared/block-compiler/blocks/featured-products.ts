@@ -105,7 +105,7 @@ export function featuredProductsToStaticHTML(
         ${showPrice ? `
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
             ${hasDiscount ? `<span style="font-size:11px;color:#999;text-decoration:line-through;">${formatPriceFromDecimal(p.compare_at_price!)}</span>` : ''}
-            <span style="font-size:14px;font-weight:700;color:var(--theme-price-color,var(--theme-text-primary,#1a1a1a));">${formatPriceFromDecimal(p.price)}</span>
+            <span style="font-size:14px;font-weight:700;color:var(--theme-price-color,#1a1a1a);">${formatPriceFromDecimal(p.price)}</span>
           </div>
         ` : ''}
         ${buttonsHtml}
