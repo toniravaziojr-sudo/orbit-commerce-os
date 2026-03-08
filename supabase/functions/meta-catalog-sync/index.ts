@@ -215,6 +215,9 @@ Deno.serve(async (req) => {
         productData.rich_text_description = product.description.substring(0, 9999);
       }
 
+      // DEBUG: Log the exact payload for this product
+      console.log(`[meta-catalog-sync][DEBUG] Product SKU=${product.sku} name="${product.name}" image_url="${productData.image_url || 'NONE'}" additional_images=${additionalImages.length}`);
+
       batchItems.push({
         retailer_id: product.sku || product.id,
         method: "CREATE",
