@@ -446,6 +446,39 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ===== DELETE TOMBSTONED/RETIRED IDs FROM META =====
+    const { data: retiredIds } = await supabase
+      .from("meta_retired_ids")
+      .select("retired_id, product_id")
+      .in("product_id", productIdList)
+      .eq("channel", "meta");
+
+    if (retiredIds && retiredIds.length > 0) {
+      console.log(`[meta-catalog-sync] Found ${retiredIds.length} retired IDs to delete from Meta`);
+      const deleteRetiredRequests = retiredIds.map(r => ({
+        method: "DELETE",
+        data: { id: r.retired_id },
+      }));
+
+      try {
+        const delUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/${catalogId}/items_batch`;
+        const delForm = new URLSearchParams({
+          access_token: accessToken,
+          item_type: "PRODUCT_ITEM",
+          requests: JSON.stringify(deleteRetiredRequests),
+        });
+        const delResp = await fetch(delUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: delForm.toString(),
+        });
+        const delBody = await delResp.json();
+        console.log(`[meta-catalog-sync] Retired IDs delete response:`, JSON.stringify(delBody));
+      } catch (e) {
+        console.warn(`[meta-catalog-sync] Failed to delete retired IDs:`, e);
+      }
+    }
+
     // Build batch items with per-product audit
     const batchItems: any[] = [];
     const productPayloads: Record<string, any> = {}; // productId -> payload for audit
