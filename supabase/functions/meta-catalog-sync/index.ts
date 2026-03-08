@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v4.2.0"; // Fix: always use CREATE+allow_upsert (UPDATE doesn't refresh images on products created without one)
+const VERSION = "v4.3.0"; // Fix: use official Meta field names (image_link, link, additional_image_link)
 // ===================
 
 const corsHeaders = {
