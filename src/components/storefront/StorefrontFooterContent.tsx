@@ -1351,7 +1351,7 @@ export function StorefrontFooterContent({
 
         {/* Image Sections: Payment, Security, Shipping, Official Stores */}
         {hasImageSections && (
-          <div className="border-t mt-6 pt-6 px-6 sf-footer-seals-grid gap-6" style={{ display: 'grid' }}>
+          <div className="border-t mt-6 pt-6 px-6 sf-footer-seals-grid gap-6" style={{ display: 'grid', gridTemplateColumns: '1fr' }}>
             {/* Payment Methods - respects showPaymentMethods toggle */}
             {showPaymentMethods && paymentMethods.items.length > 0 && (
               <div className="text-center">
