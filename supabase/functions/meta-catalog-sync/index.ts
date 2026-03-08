@@ -1,16 +1,17 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-// ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.0.0"; // Initial: sync products to Meta Commerce catalog
-// ===========================================================
+// ===== VERSION =====
+const VERSION = "v2.0.0"; // Fix: use URLSearchParams instead of FormData, add placeholder image, increase limit
+// ===================
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 const GRAPH_API_VERSION = "v21.0";
+const PLACEHOLDER_IMAGE = "https://placehold.co/600x600/e2e8f0/64748b?text=Sem+Imagem";
 
 Deno.serve(async (req) => {
   console.log(`[meta-catalog-sync][${VERSION}] Request received`);
@@ -25,7 +26,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const body = await req.json();
-    const { tenantId, catalogId, productIds, action = "sync" } = body;
+    const { tenantId, catalogId, productIds } = body;
 
     if (!tenantId || !catalogId) {
       return new Response(
@@ -37,7 +38,7 @@ Deno.serve(async (req) => {
     // Get Meta connection
     const { data: connection, error: connError } = await supabase
       .from("marketplace_connections")
-      .select("*")
+      .select("access_token, expires_at, metadata")
       .eq("tenant_id", tenantId)
       .eq("marketplace", "meta")
       .eq("is_active", true)
@@ -50,7 +51,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check if token expired
     if (connection.expires_at && new Date(connection.expires_at) < new Date()) {
       return new Response(
         JSON.stringify({ success: false, error: "Token Meta expirado. Reconecte.", code: "TOKEN_EXPIRED" }),
@@ -60,24 +60,19 @@ Deno.serve(async (req) => {
 
     const accessToken = connection.access_token;
 
-    // Get page access token for catalog operations
-    const metadata = connection.metadata as any;
-    const pages = metadata?.assets?.pages || [];
-    // Use user access token for catalog API
-    const catalogToken = accessToken;
-
     // Build product query
     let productQuery = supabase
       .from("products")
-      .select("id, name, slug, sku, description, short_description, price, compare_at_price, brand, vendor, product_type, tags, weight, status, gtin, barcode")
+      .select("id, name, slug, sku, description, short_description, price, compare_at_price, brand, gtin, barcode")
       .eq("tenant_id", tenantId)
-      .eq("status", "active");
+      .eq("status", "active")
+      .is("deleted_at", null);
 
     if (productIds && productIds.length > 0) {
       productQuery = productQuery.in("id", productIds);
     }
 
-    const { data: products, error: prodError } = await productQuery.limit(100);
+    const { data: products, error: prodError } = await productQuery.limit(1000);
 
     if (prodError) {
       console.error(`[meta-catalog-sync] Error fetching products:`, prodError);
@@ -89,13 +84,15 @@ Deno.serve(async (req) => {
 
     if (!products || products.length === 0) {
       return new Response(
-        JSON.stringify({ success: true, data: { synced: 0, errors: [] } }),
+        JSON.stringify({ success: true, data: { synced: 0, failed: 0, total: 0 } }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    console.log(`[meta-catalog-sync] ${products.length} products to sync`);
+
     // Get images for products
-    const productIdList = products.map(p => p.id);
+    const productIdList = products.map((p: any) => p.id);
     const { data: images } = await supabase
       .from("product_images")
       .select("product_id, url, is_primary, position")
@@ -103,20 +100,13 @@ Deno.serve(async (req) => {
       .order("position", { ascending: true });
 
     const imageMap: Record<string, string> = {};
-    const additionalImagesMap: Record<string, string[]> = {};
     for (const img of images || []) {
       if (img.is_primary || !imageMap[img.product_id]) {
         imageMap[img.product_id] = img.url;
       }
-      if (!additionalImagesMap[img.product_id]) {
-        additionalImagesMap[img.product_id] = [];
-      }
-      if (additionalImagesMap[img.product_id].length < 10) {
-        additionalImagesMap[img.product_id].push(img.url);
-      }
     }
 
-    // Get store URL for product links
+    // Get store URL
     const { data: tenant } = await supabase
       .from("tenants")
       .select("slug, custom_domain")
@@ -125,114 +115,133 @@ Deno.serve(async (req) => {
 
     const storeBaseUrl = tenant?.custom_domain
       ? `https://${tenant.custom_domain}`
-      : `https://${tenant?.slug}.shops.comandocentral.com.br`;
+      : `https://${tenant?.slug || "loja"}.shops.comandocentral.com.br`;
 
-    // Sync each product to Meta catalog
-    const results: Array<{ productId: string; success: boolean; metaProductId?: string; error?: string }> = [];
-
+    // Build batch requests using URLSearchParams (not FormData)
+    const batchRequests: any[] = [];
     for (const product of products) {
+      const imageUrl = imageMap[product.id] || PLACEHOLDER_IMAGE;
+      const productUrl = `${storeBaseUrl}/produto/${product.slug || product.id}`;
+      const priceCents = Math.round((product.price || 0) * 100);
+      const description = (product.description || product.short_description || product.name || "Produto").substring(0, 5000);
+
+      const bodyParams: Record<string, string> = {
+        retailer_id: product.sku || product.id,
+        name: product.name || "Produto",
+        description,
+        url: productUrl,
+        image_url: imageUrl,
+        price: String(priceCents),
+        currency: "BRL",
+        availability: "in stock",
+        condition: "new",
+        brand: product.brand || tenant?.slug || "loja",
+      };
+
+      if (product.compare_at_price && product.compare_at_price > product.price) {
+        bodyParams.price = String(Math.round(product.compare_at_price * 100));
+        bodyParams.sale_price = String(priceCents);
+      }
+
+      if (product.gtin || product.barcode) {
+        bodyParams.gtin = product.gtin || product.barcode;
+      }
+
+      batchRequests.push({
+        method: "POST",
+        relative_url: `${catalogId}/products`,
+        body: new URLSearchParams(bodyParams).toString(),
+      });
+    }
+
+    // Send in batches of 50
+    const BATCH_SIZE = 50;
+    let totalSent = 0;
+    let totalErrors = 0;
+    const errorDetails: any[] = [];
+
+    for (let i = 0; i < batchRequests.length; i += BATCH_SIZE) {
+      const batch = batchRequests.slice(i, i + BATCH_SIZE);
+
       try {
-        const primaryImage = imageMap[product.id];
-        const additionalImages = additionalImagesMap[product.id] || [];
-        const productUrl = `${storeBaseUrl}/produto/${product.slug}`;
-
-        // Build Meta product data (Commerce API format)
-        const metaProduct: Record<string, any> = {
-          retailer_id: product.sku || product.id,
-          name: product.name,
-          description: product.description || product.short_description || product.name,
-          url: productUrl,
-          price: Math.round((product.price || 0) * 100), // cents
-          currency: "BRL",
-          availability: "in stock",
-          condition: "new",
-          brand: product.brand || "N/A",
-        };
-
-        if (primaryImage) {
-          metaProduct.image_url = primaryImage;
-        }
-        if (additionalImages.length > 1) {
-          metaProduct.additional_image_urls = JSON.stringify(additionalImages.slice(1));
-        }
-        if (product.compare_at_price && product.compare_at_price > product.price) {
-          metaProduct.sale_price = Math.round(product.price * 100);
-          metaProduct.price = Math.round(product.compare_at_price * 100);
-        }
-        if (product.gtin || product.barcode) {
-          metaProduct.gtin = product.gtin || product.barcode;
-        }
-        if (product.product_type) {
-          metaProduct.category = product.product_type;
-        }
-
-        // Send to Meta Commerce API
-        const formData = new FormData();
-        for (const [key, value] of Object.entries(metaProduct)) {
-          formData.append(key, String(value));
-        }
-
-        const graphUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/${catalogId}/products`;
-        const response = await fetch(graphUrl, {
+        const batchResponse = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/`, {
           method: "POST",
-          headers: { Authorization: `Bearer ${catalogToken}` },
-          body: formData,
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            access_token: accessToken,
+            batch: JSON.stringify(batch),
+          }).toString(),
         });
 
-        const responseText = await response.text();
-        let responseData: any;
-        try {
-          responseData = JSON.parse(responseText);
-        } catch {
-          responseData = { error: { message: responseText } };
-        }
+        if (batchResponse.ok) {
+          const batchResults = await batchResponse.json();
+          for (let j = 0; j < (batchResults || []).length; j++) {
+            const result = batchResults[j];
+            const product = products[i + j];
+            if (result && result.code >= 200 && result.code < 300) {
+              totalSent++;
+              // Parse body to get meta product id
+              let metaProductId = null;
+              try {
+                const bodyData = JSON.parse(result.body);
+                metaProductId = bodyData?.id;
+              } catch {}
+              
+              // Update catalog item
+              await supabase
+                .from("meta_catalog_items")
+                .upsert({
+                  tenant_id: tenantId,
+                  product_id: product.id,
+                  catalog_id: catalogId,
+                  meta_product_id: metaProductId,
+                  status: "synced",
+                  last_error: null,
+                  last_synced_at: new Date().toISOString(),
+                }, { onConflict: "tenant_id,product_id,catalog_id" });
+            } else {
+              totalErrors++;
+              let errorMsg = "Unknown error";
+              try {
+                const bodyData = JSON.parse(result.body);
+                errorMsg = bodyData?.error?.message || `Code ${result.code}`;
+              } catch {}
+              
+              errorDetails.push({ productId: product?.id, error: errorMsg });
+              console.warn(`[meta-catalog-sync] Product ${product?.id} failed: ${errorMsg}`);
 
-        if (!response.ok || responseData.error) {
-          const errorMsg = responseData.error?.message || `HTTP ${response.status}`;
-          console.error(`[meta-catalog-sync] Error syncing product ${product.id}:`, errorMsg);
-
-          // Update catalog item status
-          await supabase
-            .from("meta_catalog_items")
-            .upsert({
-              tenant_id: tenantId,
-              product_id: product.id,
-              catalog_id: catalogId,
-              status: "error",
-              last_error: errorMsg,
-              last_synced_at: new Date().toISOString(),
-            }, { onConflict: "tenant_id,product_id,catalog_id" });
-
-          results.push({ productId: product.id, success: false, error: errorMsg });
+              if (product) {
+                await supabase
+                  .from("meta_catalog_items")
+                  .upsert({
+                    tenant_id: tenantId,
+                    product_id: product.id,
+                    catalog_id: catalogId,
+                    status: "error",
+                    last_error: errorMsg,
+                    last_synced_at: new Date().toISOString(),
+                  }, { onConflict: "tenant_id,product_id,catalog_id" });
+              }
+            }
+          }
         } else {
-          const metaProductId = responseData.id;
-          console.log(`[meta-catalog-sync] Product ${product.id} synced → Meta ID: ${metaProductId}`);
-
-          await supabase
-            .from("meta_catalog_items")
-            .upsert({
-              tenant_id: tenantId,
-              product_id: product.id,
-              catalog_id: catalogId,
-              meta_product_id: metaProductId,
-              status: "synced",
-              last_error: null,
-              last_synced_at: new Date().toISOString(),
-            }, { onConflict: "tenant_id,product_id,catalog_id" });
-
-          results.push({ productId: product.id, success: true, metaProductId });
+          const errText = await batchResponse.text();
+          totalErrors += batch.length;
+          console.error(`[meta-catalog-sync] Batch ${i} failed:`, errText.substring(0, 300));
         }
-      } catch (err) {
-        console.error(`[meta-catalog-sync] Exception for product ${product.id}:`, err);
-        results.push({ productId: product.id, success: false, error: String(err) });
+      } catch (batchErr) {
+        totalErrors += batch.length;
+        console.error(`[meta-catalog-sync] Batch ${i} exception:`, batchErr);
       }
     }
 
-    const synced = results.filter(r => r.success).length;
-    const errors = results.filter(r => !r.success);
+    console.log(`[meta-catalog-sync] Done: ${totalSent} synced, ${totalErrors} errors of ${products.length} total`);
 
     return new Response(
-      JSON.stringify({ success: true, data: { synced, failed: errors.length, results } }),
+      JSON.stringify({
+        success: true,
+        data: { synced: totalSent, failed: totalErrors, total: products.length, errors: errorDetails.slice(0, 10) },
+      }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
