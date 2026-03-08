@@ -1,0 +1,1 @@
+UPDATE product_images SET url = 'https://ojssezfjhdvvncsqyhyq.supabase.co/storage/v1/object/public/product-images/f3e6dd0a-6a80-4832-b5fd-ec928ab5f68f/thumbs_oficiais_21.png' WHERE id = '6b7c5a36-5ecc-4b0d-9762-9d73a44f5222';
