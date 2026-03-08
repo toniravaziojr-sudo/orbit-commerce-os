@@ -70,7 +70,7 @@ export function headerToStaticHTML(context: CompilerContext): string {
   if (featuredPromosTarget.startsWith('category:')) {
     featuredPromosUrl = `/categoria/${featuredPromosTarget.replace('category:', '')}`;
   } else if (featuredPromosTarget.startsWith('page:')) {
-    featuredPromosUrl = `/p/${featuredPromosTarget.replace('page:', '')}`;
+    featuredPromosUrl = `/page/${featuredPromosTarget.replace('page:', '')}`;
   } else if (featuredPromosTarget.startsWith('landing_page:')) {
     featuredPromosUrl = `/lp/${featuredPromosTarget.replace('landing_page:', '')}`;
   }
