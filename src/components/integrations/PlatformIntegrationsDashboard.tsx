@@ -88,7 +88,7 @@ export function PlatformIntegrationsDashboard({ onNavigateToTab }: PlatformInteg
     );
   }
 
-  // Use integrations from API (includes zapi now)
+  // Use integrations from API
   const allIntegrations = integrations || [];
 
   return (

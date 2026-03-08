@@ -28,7 +28,7 @@ import { Navigate } from "react-router-dom";
  * Contains tabs for each integration:
  * - Resumo: Dashboard with status cards for all integrations
  * - Email e Domínios: SendGrid + Cloudflare unified settings
- * - WhatsApp: Z-API manager account configuration
+ * - WhatsApp: Meta WhatsApp Cloud API configuration
  * - Fiscal: Focus NFe token configuration
  * - Logística: Loggi OAuth configuration
  * - IA: Firecrawl and Lovable AI configuration
