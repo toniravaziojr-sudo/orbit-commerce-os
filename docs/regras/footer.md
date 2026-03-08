@@ -243,6 +243,25 @@ No mobile (< 768px), as seções de selos (Pagamento, Segurança, Frete, Lojas O
 
 **PROIBIDO**: Usar `repeat(2,1fr)` no mobile — causa layout horizontal desorganizado.
 
+### Técnica: Container Queries + Default Inline (Builder + Público)
+
+O grid de selos usa **duas camadas** para garantir paridade no builder e no público:
+
+1. **Default inline** `gridTemplateColumns: '1fr'` no `style` do grid — garante empilhamento vertical por padrão (mobile/builder canvas)
+2. **Container Query** `.sf-footer-seals-grid` com `@container storefront (min-width: 640px)` → `auto-fit` para desktop
+3. **Media Query** no compilador público: `.sf-footer-images-grid` com `@media (max-width:639px) { grid-template-columns: 1fr !important }`
+
+> ⚠️ **REGRA:** No builder (iframe escalonado), media queries NÃO funcionam corretamente. Usar container queries (`@container`) ou inline styles como default.
+
+### Compilador Público — Regras Específicas
+
+| Regra | Descrição |
+|-------|-----------|
+| **Filtragem de menus** | Itens de menu apontando para páginas com `is_published = false` são omitidos |
+| **Newsletter botão** | Usa classe `sf-btn-primary` (herda cor primária do tema), não cor hardcoded |
+| **Footer sem margin-top** | O `<footer>` NÃO tem `margin-top` — evita espaço em branco excessivo |
+| **YouTube SVG** | Usa versão stroke-based (contorno), consistente com demais ícones sociais |
+
 ---
 
 ## Dados Demo (Builder)
