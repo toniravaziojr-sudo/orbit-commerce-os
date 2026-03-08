@@ -933,10 +933,12 @@ type MetaScopePack = "atendimento" | "publicacao" | "ads" | "leads" | "catalogo"
 interface MetaAssets {
   pages: Array<{ id: string; name: string; access_token?: string }>;
   instagram_accounts: Array<{ id: string; username: string; page_id: string }>;
-  whatsapp_business_accounts: Array<{ id: string; name: string }>;
+  whatsapp_business_accounts: Array<{ id: string; name: string; phone_numbers?: Array<{ id: string; display_phone_number: string; verified_name: string; quality_rating?: string }> }>;
   ad_accounts: Array<{ id: string; name: string }>;
+  pixels: Array<{ id: string; name: string; ad_account_id: string }>;
   catalogs: Array<{ id: string; name: string }>;
   threads_profile: { id: string; username: string } | null;
+  selected_phone_number?: { id: string; display_phone_number: string; verified_name: string; waba_id: string } | null;
 }
 ```
 
