@@ -65,7 +65,11 @@ A divisão reflete nas permissões:
 > ### Automação Completa de Pixel & CAPI (v5.4.0)
 >
 > #### Pixel (Client-side)
-> O fluxo OAuth (`meta-oauth-callback`) descobre automaticamente os Pixels associados a cada conta de anúncios via `GET /{ad_account_id}/adspixels`. Os Pixels são exibidos como ativos selecionáveis no checklist de assets. Ao salvar, o `meta-save-selected-assets` sincroniza o Pixel primário selecionado para `marketing_integrations.meta_pixel_id` e ativa `meta_enabled=true`, eliminando a necessidade de configuração manual.
+> O fluxo OAuth (`meta-oauth-callback`) descobre automaticamente os Pixels associados a cada conta de anúncios via `GET /{ad_account_id}/adspixels`. Os Pixels são exibidos como ativos selecionáveis (radio button — seleção única) no checklist de assets. Ao salvar, o `meta-save-selected-assets` sincroniza o Pixel primário selecionado para `marketing_integrations.meta_pixel_id` e ativa `meta_enabled=true`, eliminando a necessidade de configuração manual.
+>
+> **Catálogo:** Ao confirmar a seleção de ativos, o sistema cria automaticamente um catálogo NOVO na Meta Commerce e envia todos os produtos ativos em lote (50/batch). O catálogo fica disponível imediatamente no Commerce Manager para campanhas de catálogo (FB) e sacolinha (IG).
+>
+> **WhatsApp:** O número de telefone selecionado é automaticamente populado em `whatsapp_configs` com `phone_number_id`, `waba_id`, `access_token`, `connection_status=connected` e `is_enabled=true`. Todas as automações (notificações de pedidos, suporte IA, lembretes) ficam operacionais imediatamente.
 >
 > O campo na UI é **somente leitura** com badge "Automático". Para alterar o pixel principal, o usuário edita os ativos conectados.
 >
