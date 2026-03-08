@@ -1045,6 +1045,9 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
               <Card>
                 <CardHeader>
                   <CardTitle>Imagens do Produto</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    💡 <strong>Dica:</strong> Use imagens com <strong>fundo branco</strong> como foto principal. Isso garante melhor apresentação na loja, catálogos (Google Shopping, Meta) e marketplaces. Nossos sistemas de IA já removem o fundo automaticamente quando necessário para criativos e banners.
+                  </p>
                 </CardHeader>
                 <CardContent>
                   {isEditing && product ? (
