@@ -254,6 +254,32 @@ O sistema permite enviar links de avaliação para clientes após a compra via n
 
 ---
 
+## Sincronização Automática de Rating (Trigger)
+
+> Adicionado em 2026-03-07
+
+A tabela `products` possui colunas `avg_rating` e `review_count` que são mantidas automaticamente pelo trigger `trg_sync_product_rating`.
+
+### Como funciona
+
+| Evento | Ação |
+|--------|------|
+| INSERT em `product_reviews` | Recalcula `avg_rating` e `review_count` para o produto |
+| UPDATE em `product_reviews` | Idem (ex: mudança de rating ou status) |
+| DELETE em `product_reviews` | Idem |
+
+### Função
+
+```sql
+-- sync_product_rating_counts()
+-- Calcula AVG(rating) e COUNT(*) de reviews aprovadas (status='approved')
+-- Atualiza products.avg_rating e products.review_count
+```
+
+> ⚠️ **REGRA:** Nunca atualizar `avg_rating` ou `review_count` manualmente na tabela `products` — o trigger é a fonte de verdade.
+
+---
+
 ## Arquivos Relacionados
 
 | Se for editar... | Leia este doc primeiro |

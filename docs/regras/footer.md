@@ -243,6 +243,25 @@ No mobile (< 768px), as seções de selos (Pagamento, Segurança, Frete, Lojas O
 
 **PROIBIDO**: Usar `repeat(2,1fr)` no mobile — causa layout horizontal desorganizado.
 
+### Técnica: Container Queries + Default Inline (Builder + Público)
+
+O grid de selos usa **duas camadas** para garantir paridade no builder e no público:
+
+1. **Default inline** `gridTemplateColumns: '1fr'` no `style` do grid — garante empilhamento vertical por padrão (mobile/builder canvas)
+2. **Container Query** `.sf-footer-seals-grid` com `@container storefront (min-width: 640px)` → `auto-fit` para desktop
+3. **Media Query** no compilador público: `.sf-footer-images-grid` com `@media (max-width:639px) { grid-template-columns: 1fr !important }`
+
+> ⚠️ **REGRA:** No builder (iframe escalonado), media queries NÃO funcionam corretamente. Usar container queries (`@container`) ou inline styles como default.
+
+### Compilador Público — Regras Específicas
+
+| Regra | Descrição |
+|-------|-----------|
+| **Filtragem de menus** | Itens de menu apontando para páginas com `is_published = false` são omitidos |
+| **Newsletter botão** | Usa classe `sf-btn-primary` (herda cor primária do tema), não cor hardcoded |
+| **Footer sem margin-top** | O `<footer>` NÃO tem `margin-top` — evita espaço em branco excessivo |
+| **YouTube SVG** | Usa versão stroke-based (contorno), consistente com demais ícones sociais |
+
 ---
 
 ## Dados Demo (Builder)
@@ -393,6 +412,7 @@ const hiddenCount = configuredItems.length - validItems.length;
 
 | Data | Alteração |
 |------|-----------|
+| 2026-03-08 | **PARIDADE v8.2.2**: Selos mobile usam container queries + default inline `1fr`. Newsletter botão usa `sf-btn-primary`. Footer compiler filtra `is_published`. YouTube SVG stroke-based. Removido `margin-top:48px` do footer |
 | 2026-03-06 | **PERFORMANCE v3.0.0**: Footer agora aceita `bootstrapStoreSettings`, `bootstrapCategories`, `bootstrapFooterMenus`, `bootstrapPages` via props. No storefront público: ZERO queries. No builder: fetching próprio como fallback. `footer_2` menu e `store_pages` incluídos no bootstrap server-side |
 | 2026-02-28 | **PERFORMANCE**: Selos, formas de envio e lojas oficiais agora usam `getLogoImageUrl()` com `loading="lazy"` e `decoding="async"` para otimização PageSpeed |
 | 2026-02-02 | **AJUSTE**: Bandeiras de pagamento agora são 30% menores que os outros selos para equilíbrio visual |
