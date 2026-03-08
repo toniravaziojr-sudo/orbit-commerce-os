@@ -292,9 +292,17 @@ export function headerToStaticHTML(context: CompilerContext): string {
         <button data-sf-action="toggle-mobile-menu" aria-label="Menu" style="background:none;border:none;cursor:pointer;padding:4px;color:${escapeHtml(headerIconColor)};">${menuSvg}</button>
         <a href="/" style="flex-shrink:0;">${logoHtml}</a>
         <div style="display:flex;align-items:center;gap:8px;">
-          ${showSearch ? `<button data-sf-action="toggle-search" aria-label="Buscar" style="background:none;border:none;cursor:pointer;padding:4px;color:${escapeHtml(headerIconColor)};"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>` : ''}
+          ${accountHtml}
           ${showCart ? `<button data-sf-action="open-cart" aria-label="Carrinho" style="background:none;border:none;cursor:pointer;padding:4px;position:relative;color:${escapeHtml(headerIconColor)};">${cartSvg}<span data-sf-cart-count style="display:none;position:absolute;top:-4px;right:-4px;background:var(--theme-button-primary-bg,#e53e3e);color:#fff;font-size:11px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;">0</span></button>` : ''}
         </div>
       </div>
+      <!-- MOBILE SECONDARY BAR: Search + Featured Promos (mirrors StorefrontHeaderContent mobile bar) -->
+      ${(showSearch || featuredPromosEnabled) ? `<div class="sf-header-mobile-secondary" style="display:none;align-items:center;padding:8px 16px;gap:12px;border-top:1px solid rgba(128,128,128,0.15);${headerBgColor ? `background:${escapeHtml(headerBgColor)};` : 'background:#fff;'}${showSearch && !featuredPromosEnabled ? 'justify-content:center;' : ''}${!showSearch && featuredPromosEnabled ? 'justify-content:center;' : ''}${showSearch && featuredPromosEnabled ? 'justify-content:space-between;' : ''}">
+        ${showSearch ? `<div style="position:relative;flex:1;max-width:200px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${escapeHtml(headerIconColor)}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" placeholder="Pesquisar" data-sf-action-click="toggle-search" readonly style="width:100%;padding:6px 10px 6px 32px;border:none;border-radius:6px;font-size:12px;background:rgba(128,128,128,0.1);color:${escapeHtml(headerTextColor)};cursor:pointer;outline:none;font-family:var(--sf-body-font);">
+        </div>` : ''}
+        ${featuredPromosEnabled ? `<a href="${escapeHtml(featuredPromosUrl)}" class="sf-btn-primary" style="font-size:12px;font-weight:700;padding:6px 12px;border-radius:6px;white-space:nowrap;text-decoration:none;">${escapeHtml(featuredPromosLabel)}</a>` : ''}
+      </div>` : ''}
     </header>`;
 }
