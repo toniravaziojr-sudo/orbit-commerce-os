@@ -220,12 +220,20 @@ function parseRoute(path: string): ParsedRoute {
 
   if (clean === 'blog') return { type: 'blog_index' };
   
-  const knownRoutes = ['carrinho', 'checkout', 'obrigado', 'rastreio', 'minha-conta'];
+  // Institutional page: /page/slug
+  const pageMatch = clean.match(/^page\/(.+)$/);
+  if (pageMatch) return { type: 'page', slug: pageMatch[1] };
+  
+  // Landing page: /lp/slug
+  const lpMatch = clean.match(/^lp\/(.+)$/);
+  if (lpMatch) return { type: 'landing_page', slug: lpMatch[1] };
+  
+  const knownRoutes = ['carrinho', 'checkout', 'obrigado', 'rastreio', 'minha-conta', 'cart', 'conta'];
   if (knownRoutes.some(r => clean === r || clean.startsWith(r + '/'))) {
     return { type: 'unknown' };
   }
   
-  // Generic page (institutional pages, etc.)
+  // Generic fallback — treat as institutional page
   return { type: 'page', slug: clean };
 }
 
@@ -1168,7 +1176,7 @@ serve(async (req) => {
         if (!item.ref_id) return null;
         const page = publishedPages.find((p: any) => p.id === item.ref_id);
         if (!page) return null; // Page not published or doesn't exist
-        const prefix = page.type === 'landing_page' ? '/lp/' : '/p/';
+        const prefix = page.type === 'landing_page' ? '/lp/' : '/page/';
         return { ...item, url: `${prefix}${page.slug}` };
       }
       if (itemType === 'blog') {
