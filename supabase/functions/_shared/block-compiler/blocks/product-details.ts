@@ -58,10 +58,10 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
   let breadcrumbHtml = '';
   {
     const crumbs: string[] = [];
-    crumbs.push(`<a href="/" style="color:var(--theme-text-secondary,#666);text-decoration:none;font-size:13px;">Início</a>`);
+    crumbs.push(`<a href="/" style="color:#666;text-decoration:none;font-size:13px;">Início</a>`);
     if (category) {
       crumbs.push(`<span style="color:#999;font-size:12px;">›</span>`);
-      crumbs.push(`<a href="/categoria/${escapeHtml(category.slug)}" style="color:var(--theme-text-secondary,#666);text-decoration:none;font-size:13px;">${escapeHtml(category.name)}</a>`);
+      crumbs.push(`<a href="/categoria/${escapeHtml(category.slug)}" style="color:#666;text-decoration:none;font-size:13px;">${escapeHtml(category.name)}</a>`);
     }
     crumbs.push(`<span style="color:#999;font-size:12px;">›</span>`);
     crumbs.push(`<span style="color:#1a1a1a;font-size:13px;font-weight:500;">${escapeHtml(product.name)}</span>`);
