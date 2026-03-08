@@ -1,0 +1,1 @@
+UPDATE public.storefront_prerendered_pages SET status = 'stale' WHERE status = 'ready';
