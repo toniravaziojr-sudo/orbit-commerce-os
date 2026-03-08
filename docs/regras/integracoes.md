@@ -1010,7 +1010,8 @@ Sincroniza produtos locais com catálogos do Meta Commerce Manager via Graph API
 
 | Function | Ações | Descrição |
 |----------|-------|-----------|
-| `meta-catalog-sync` | `sync` | Envia produtos ativos para o catálogo Meta |
+| `meta-catalog-sync` | `sync` | Envia produtos ativos para o catálogo Meta (v3.1.0) |
+| `meta-catalog-daily-sync` | `auto` | Sync diário automático de todos os tenants (cron 02:00 BRT) |
 | `meta-catalog-create` | `list`, `create` | Lista catálogos existentes / Cria novo catálogo |
 
 ### Formato de Produto (Commerce API — Graph API URLSearchParams)
