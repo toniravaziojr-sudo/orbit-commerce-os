@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v5.1.0"; // Added: server-side image validation (HEAD+dimensions), payload/response audit per item, image pre-validation with error details
+const VERSION = "v6.0.0"; // Added: meta_retailer_id support (external ID per channel), tombstone check, delete old poisoned IDs
 // ===================
 
 const corsHeaders = {
