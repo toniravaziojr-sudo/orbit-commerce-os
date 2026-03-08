@@ -120,7 +120,8 @@ export function featuredProductsToStaticHTML(
     </div>
     <style>
       @media(max-width:768px){
-        .sf-fp-section{padding:16px 8px !important;}
+        .sf-fp-section{padding:8px 8px 16px !important;}
+        .sf-fp-section h2{font-size:18px !important;margin-bottom:12px !important;}
         .sf-fp-grid{grid-template-columns:repeat(${columnsMobile},1fr) !important;gap:8px !important;}
         .sf-fp-card .sf-btn-primary,.sf-fp-card .sf-btn-outline-primary{font-size:11px !important;padding:5px 6px !important;}
         .sf-fp-card h3{font-size:12px !important;}
