@@ -2,16 +2,36 @@ import { useEffect, useState, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
   Loader2, CheckCircle, XCircle, Facebook, Instagram, MessageCircle, 
-  Megaphone, ShoppingBag, AtSign, Crosshair 
+  Megaphone, ShoppingBag, AtSign, Crosshair, Phone, Info
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
+interface PhoneNumber {
+  id: string;
+  display_phone_number: string;
+  verified_name: string;
+  quality_rating?: string;
+}
+
 interface DiscoveredAssets {
+  pages: Array<{ id: string; name: string; access_token?: string }>;
+  instagram_accounts: Array<{ id: string; username: string; page_id: string }>;
+  whatsapp_business_accounts: Array<{ id: string; name: string; phone_numbers: PhoneNumber[] }>;
+  ad_accounts: Array<{ id: string; name: string }>;
+  pixels: Array<{ id: string; name: string; ad_account_id: string }>;
+  catalogs: Array<{ id: string; name: string }>;
+  threads_profile: { id: string; username: string } | null;
+}
+
+interface SelectedAssets {
   pages: Array<{ id: string; name: string; access_token?: string }>;
   instagram_accounts: Array<{ id: string; username: string; page_id: string }>;
   whatsapp_business_accounts: Array<{ id: string; name: string }>;
@@ -19,6 +39,7 @@ interface DiscoveredAssets {
   pixels: Array<{ id: string; name: string; ad_account_id: string }>;
   catalogs: Array<{ id: string; name: string }>;
   threads_profile: { id: string; username: string } | null;
+  selected_phone_number: { id: string; display_phone_number: string; verified_name: string; waba_id: string } | null;
 }
 
 export default function MetaOAuthCallback() {
@@ -27,44 +48,67 @@ export default function MetaOAuthCallback() {
   const [status, setStatus] = useState<"loading" | "selecting" | "saving" | "success" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const [discoveredAssets, setDiscoveredAssets] = useState<DiscoveredAssets | null>(null);
-  const [selectedAssets, setSelectedAssets] = useState<DiscoveredAssets | null>(null);
+  const [selectedAssets, setSelectedAssets] = useState<SelectedAssets | null>(null);
   const [connectionData, setConnectionData] = useState<any>(null);
   const processedRef = useRef(false);
 
-  // Toggle helpers for each asset type
-  const togglePage = (pageId: string) => {
+  // Single-select handlers (radio button behavior)
+  const selectPage = (pageId: string) => {
     if (!selectedAssets || !discoveredAssets) return;
-    const exists = selectedAssets.pages.some(p => p.id === pageId);
+    const page = discoveredAssets.pages.find(p => p.id === pageId);
+    if (!page) return;
+    setSelectedAssets({ ...selectedAssets, pages: [page] });
+  };
+
+  const selectIg = (igId: string) => {
+    if (!selectedAssets || !discoveredAssets) return;
+    const ig = discoveredAssets.instagram_accounts.find(a => a.id === igId);
+    if (!ig) return;
+    setSelectedAssets({ ...selectedAssets, instagram_accounts: [ig] });
+  };
+
+  const selectWaba = (wabaId: string) => {
+    if (!selectedAssets || !discoveredAssets) return;
+    const waba = discoveredAssets.whatsapp_business_accounts.find(w => w.id === wabaId);
+    if (!waba) return;
+    // Reset phone selection when WABA changes
+    const firstPhone = waba.phone_numbers[0];
     setSelectedAssets({
       ...selectedAssets,
-      pages: exists 
-        ? selectedAssets.pages.filter(p => p.id !== pageId)
-        : [...selectedAssets.pages, discoveredAssets.pages.find(p => p.id === pageId)!],
+      whatsapp_business_accounts: [{ id: waba.id, name: waba.name }],
+      selected_phone_number: firstPhone ? {
+        id: firstPhone.id,
+        display_phone_number: firstPhone.display_phone_number,
+        verified_name: firstPhone.verified_name,
+        waba_id: waba.id,
+      } : null,
     });
   };
 
-  const toggleIg = (igId: string) => {
+  const selectPhone = (phoneId: string, wabaId: string) => {
     if (!selectedAssets || !discoveredAssets) return;
-    const exists = selectedAssets.instagram_accounts.some(a => a.id === igId);
+    const waba = discoveredAssets.whatsapp_business_accounts.find(w => w.id === wabaId);
+    const phone = waba?.phone_numbers.find(p => p.id === phoneId);
+    if (!phone) return;
     setSelectedAssets({
       ...selectedAssets,
-      instagram_accounts: exists
-        ? selectedAssets.instagram_accounts.filter(a => a.id !== igId)
-        : [...selectedAssets.instagram_accounts, discoveredAssets.instagram_accounts.find(a => a.id === igId)!],
+      selected_phone_number: {
+        id: phone.id,
+        display_phone_number: phone.display_phone_number,
+        verified_name: phone.verified_name,
+        waba_id: wabaId,
+      },
     });
   };
 
-  const toggleWaba = (wabaId: string) => {
+  const selectPixel = (pixelId: string) => {
     if (!selectedAssets || !discoveredAssets) return;
-    const exists = selectedAssets.whatsapp_business_accounts.some(w => w.id === wabaId);
-    setSelectedAssets({
-      ...selectedAssets,
-      whatsapp_business_accounts: exists
-        ? selectedAssets.whatsapp_business_accounts.filter(w => w.id !== wabaId)
-        : [...selectedAssets.whatsapp_business_accounts, discoveredAssets.whatsapp_business_accounts.find(w => w.id === wabaId)!],
-    });
+    const pixel = discoveredAssets.pixels.find(p => p.id === pixelId);
+    if (!pixel) return;
+    setSelectedAssets({ ...selectedAssets, pixels: [pixel] });
   };
 
+  // Ad accounts: multi-select (toggle)
   const toggleAdAccount = (accId: string) => {
     if (!selectedAssets || !discoveredAssets) return;
     const exists = selectedAssets.ad_accounts.some(a => a.id === accId);
@@ -73,28 +117,6 @@ export default function MetaOAuthCallback() {
       ad_accounts: exists
         ? selectedAssets.ad_accounts.filter(a => a.id !== accId)
         : [...selectedAssets.ad_accounts, discoveredAssets.ad_accounts.find(a => a.id === accId)!],
-    });
-  };
-
-  const togglePixel = (pixelId: string) => {
-    if (!selectedAssets || !discoveredAssets) return;
-    const exists = selectedAssets.pixels.some(p => p.id === pixelId);
-    setSelectedAssets({
-      ...selectedAssets,
-      pixels: exists
-        ? selectedAssets.pixels.filter(p => p.id !== pixelId)
-        : [...selectedAssets.pixels, discoveredAssets.pixels.find(p => p.id === pixelId)!],
-    });
-  };
-
-  const toggleCatalog = (catId: string) => {
-    if (!selectedAssets || !discoveredAssets) return;
-    const exists = selectedAssets.catalogs.some(c => c.id === catId);
-    setSelectedAssets({
-      ...selectedAssets,
-      catalogs: exists
-        ? selectedAssets.catalogs.filter(c => c.id !== catId)
-        : [...selectedAssets.catalogs, discoveredAssets.catalogs.find(c => c.id === catId)!],
     });
   };
 
@@ -177,18 +199,34 @@ export default function MetaOAuthCallback() {
         return;
       }
 
-      // Se requer seleção de ativos, mostrar tela de seleção
       if (data.requiresAssetSelection && data.connection?.assets) {
         const assets = data.connection.assets as DiscoveredAssets;
         setDiscoveredAssets(assets);
-        // Iniciar com tudo selecionado
-        setSelectedAssets({ ...assets });
+        
+        // Initialize with first item selected for single-select fields
+        const firstWaba = assets.whatsapp_business_accounts[0];
+        const firstPhone = firstWaba?.phone_numbers?.[0];
+        
+        setSelectedAssets({
+          pages: assets.pages.length > 0 ? [assets.pages[0]] : [],
+          instagram_accounts: assets.instagram_accounts.length > 0 ? [assets.instagram_accounts[0]] : [],
+          whatsapp_business_accounts: firstWaba ? [{ id: firstWaba.id, name: firstWaba.name }] : [],
+          ad_accounts: [...assets.ad_accounts], // All selected by default
+          pixels: assets.pixels.length > 0 ? [assets.pixels[0]] : [],
+          catalogs: [], // Will be created automatically
+          threads_profile: assets.threads_profile,
+          selected_phone_number: firstPhone && firstWaba ? {
+            id: firstPhone.id,
+            display_phone_number: firstPhone.display_phone_number,
+            verified_name: firstPhone.verified_name,
+            waba_id: firstWaba.id,
+          } : null,
+        });
         setConnectionData(data.connection);
         setStatus("selecting");
         return;
       }
 
-      // Fluxo antigo sem seleção
       setStatus("success");
       notifyParentAndClose(true);
 
@@ -204,7 +242,6 @@ export default function MetaOAuthCallback() {
     setStatus("saving");
 
     try {
-      // Buscar tenant_id do usuário atual
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Não autenticado");
 
@@ -241,20 +278,11 @@ export default function MetaOAuthCallback() {
     else navigate("/integrations", { replace: true });
   };
 
-  const totalAssets = discoveredAssets 
-    ? discoveredAssets.pages.length + discoveredAssets.instagram_accounts.length + 
-      discoveredAssets.whatsapp_business_accounts.length + discoveredAssets.ad_accounts.length + 
-      discoveredAssets.pixels.length + discoveredAssets.catalogs.length + (discoveredAssets.threads_profile ? 1 : 0)
-    : 0;
-
-  const selectedCount = selectedAssets
-    ? selectedAssets.pages.length + selectedAssets.instagram_accounts.length +
-      selectedAssets.whatsapp_business_accounts.length + selectedAssets.ad_accounts.length +
-      selectedAssets.pixels.length + selectedAssets.catalogs.length + (selectedAssets.threads_profile ? 1 : 0)
-    : 0;
-
   // Asset selection screen
   if (status === "selecting" && discoveredAssets && selectedAssets) {
+    const selectedWabaId = selectedAssets.whatsapp_business_accounts[0]?.id;
+    const selectedWaba = discoveredAssets.whatsapp_business_accounts.find(w => w.id === selectedWabaId);
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-lg">
@@ -264,138 +292,178 @@ export default function MetaOAuthCallback() {
             </div>
             <CardTitle className="text-lg">Conta conectada!</CardTitle>
             <CardDescription>
-              Selecione quais ativos deseja conectar ({selectedCount} de {totalAssets} selecionados)
+              Selecione os ativos que deseja integrar ao sistema
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 max-h-[60vh] overflow-y-auto">
-            {/* Pages */}
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                Um novo catálogo será criado automaticamente na Meta com os produtos da sua loja.
+              </AlertDescription>
+            </Alert>
+
+            {/* Pages - single select */}
             {discoveredAssets.pages.length > 0 && (
-              <AssetGroup
+              <AssetGroupSingle
                 icon={<Facebook className="h-4 w-4 text-blue-600" />}
-                title="Páginas"
-                count={selectedAssets.pages.length}
-                total={discoveredAssets.pages.length}
+                title="Página do Facebook"
+                subtitle="Selecione 1 página"
               >
-                {discoveredAssets.pages.map(page => (
-                  <AssetItem
-                    key={page.id}
-                    label={page.name}
-                    checked={selectedAssets.pages.some(p => p.id === page.id)}
-                    onToggle={() => togglePage(page.id)}
-                  />
-                ))}
-              </AssetGroup>
+                <RadioGroup 
+                  value={selectedAssets.pages[0]?.id || ""} 
+                  onValueChange={selectPage}
+                >
+                  {discoveredAssets.pages.map(page => (
+                    <div key={page.id} className="flex items-center gap-2 py-1">
+                      <RadioGroupItem value={page.id} id={`page-${page.id}`} />
+                      <Label htmlFor={`page-${page.id}`} className="text-sm cursor-pointer">{page.name}</Label>
+                    </div>
+                  ))}
+                </RadioGroup>
+              </AssetGroupSingle>
             )}
 
-            {/* Instagram */}
+            {/* Instagram - single select */}
             {discoveredAssets.instagram_accounts.length > 0 && (
-              <AssetGroup
+              <AssetGroupSingle
                 icon={<Instagram className="h-4 w-4 text-pink-600" />}
-                title="Instagram"
-                count={selectedAssets.instagram_accounts.length}
-                total={discoveredAssets.instagram_accounts.length}
+                title="Perfil do Instagram"
+                subtitle="Selecione 1 perfil"
               >
-                {discoveredAssets.instagram_accounts.map(ig => (
-                  <AssetItem
-                    key={ig.id}
-                    label={`@${ig.username}`}
-                    checked={selectedAssets.instagram_accounts.some(a => a.id === ig.id)}
-                    onToggle={() => toggleIg(ig.id)}
-                  />
-                ))}
-              </AssetGroup>
+                <RadioGroup 
+                  value={selectedAssets.instagram_accounts[0]?.id || ""} 
+                  onValueChange={selectIg}
+                >
+                  {discoveredAssets.instagram_accounts.map(ig => (
+                    <div key={ig.id} className="flex items-center gap-2 py-1">
+                      <RadioGroupItem value={ig.id} id={`ig-${ig.id}`} />
+                      <Label htmlFor={`ig-${ig.id}`} className="text-sm cursor-pointer">@{ig.username}</Label>
+                    </div>
+                  ))}
+                </RadioGroup>
+              </AssetGroupSingle>
             )}
 
-            {/* WhatsApp */}
+            {/* WhatsApp - single select WABA + single select phone */}
             {discoveredAssets.whatsapp_business_accounts.length > 0 && (
-              <AssetGroup
+              <AssetGroupSingle
                 icon={<MessageCircle className="h-4 w-4 text-green-600" />}
                 title="WhatsApp Business"
-                count={selectedAssets.whatsapp_business_accounts.length}
-                total={discoveredAssets.whatsapp_business_accounts.length}
+                subtitle="Selecione 1 conta e 1 número"
               >
-                {discoveredAssets.whatsapp_business_accounts.map(waba => (
-                  <AssetItem
-                    key={waba.id}
-                    label={waba.name}
-                    checked={selectedAssets.whatsapp_business_accounts.some(w => w.id === waba.id)}
-                    onToggle={() => toggleWaba(waba.id)}
-                  />
-                ))}
-              </AssetGroup>
+                <RadioGroup 
+                  value={selectedWabaId || ""} 
+                  onValueChange={selectWaba}
+                >
+                  {discoveredAssets.whatsapp_business_accounts.map(waba => (
+                    <div key={waba.id} className="space-y-2">
+                      <div className="flex items-center gap-2 py-1">
+                        <RadioGroupItem value={waba.id} id={`waba-${waba.id}`} />
+                        <Label htmlFor={`waba-${waba.id}`} className="text-sm cursor-pointer">{waba.name}</Label>
+                      </div>
+                      {/* Show phone numbers when this WABA is selected */}
+                      {selectedWabaId === waba.id && waba.phone_numbers.length > 0 && (
+                        <div className="ml-6 pl-3 border-l-2 border-green-200 space-y-1">
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Phone className="h-3 w-3" /> Número de telefone:
+                          </p>
+                          <RadioGroup
+                            value={selectedAssets.selected_phone_number?.id || ""}
+                            onValueChange={(phoneId) => selectPhone(phoneId, waba.id)}
+                          >
+                            {waba.phone_numbers.map(phone => (
+                              <div key={phone.id} className="flex items-center gap-2 py-0.5">
+                                <RadioGroupItem value={phone.id} id={`phone-${phone.id}`} />
+                                <Label htmlFor={`phone-${phone.id}`} className="text-xs cursor-pointer">
+                                  {phone.display_phone_number}
+                                  {phone.verified_name && (
+                                    <span className="text-muted-foreground ml-1">({phone.verified_name})</span>
+                                  )}
+                                </Label>
+                              </div>
+                            ))}
+                          </RadioGroup>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </RadioGroup>
+              </AssetGroupSingle>
             )}
 
-            {/* Ad Accounts */}
+            {/* Ad Accounts - multi select */}
             {discoveredAssets.ad_accounts.length > 0 && (
-              <AssetGroup
+              <AssetGroupSingle
                 icon={<Megaphone className="h-4 w-4 text-blue-600" />}
                 title="Contas de Anúncio"
-                count={selectedAssets.ad_accounts.length}
-                total={discoveredAssets.ad_accounts.length}
+                subtitle={`${selectedAssets.ad_accounts.length} de ${discoveredAssets.ad_accounts.length} selecionadas`}
               >
                 {discoveredAssets.ad_accounts.map(acc => (
-                  <AssetItem
-                    key={acc.id}
-                    label={acc.name}
-                    checked={selectedAssets.ad_accounts.some(a => a.id === acc.id)}
-                    onToggle={() => toggleAdAccount(acc.id)}
-                  />
+                  <div key={acc.id} className="flex items-center gap-2 py-1">
+                    <Checkbox
+                      id={`ad-${acc.id}`}
+                      checked={selectedAssets.ad_accounts.some(a => a.id === acc.id)}
+                      onCheckedChange={() => toggleAdAccount(acc.id)}
+                    />
+                    <Label htmlFor={`ad-${acc.id}`} className="text-sm cursor-pointer">{acc.name}</Label>
+                  </div>
                 ))}
-              </AssetGroup>
+              </AssetGroupSingle>
             )}
 
-            {/* Pixels */}
+            {/* Pixels - single select */}
             {discoveredAssets.pixels.length > 0 && (
-              <AssetGroup
+              <AssetGroupSingle
                 icon={<Crosshair className="h-4 w-4 text-purple-600" />}
-                title="Pixels"
-                count={selectedAssets.pixels.length}
-                total={discoveredAssets.pixels.length}
+                title="Pixel"
+                subtitle="Selecione 1 pixel"
               >
-                {discoveredAssets.pixels.map(pixel => (
-                  <AssetItem
-                    key={pixel.id}
-                    label={`${pixel.name} (${pixel.id})`}
-                    checked={selectedAssets.pixels.some(p => p.id === pixel.id)}
-                    onToggle={() => togglePixel(pixel.id)}
-                  />
-                ))}
-              </AssetGroup>
+                <RadioGroup 
+                  value={selectedAssets.pixels[0]?.id || ""} 
+                  onValueChange={selectPixel}
+                >
+                  {discoveredAssets.pixels.map(pixel => (
+                    <div key={pixel.id} className="flex items-center gap-2 py-1">
+                      <RadioGroupItem value={pixel.id} id={`pixel-${pixel.id}`} />
+                      <Label htmlFor={`pixel-${pixel.id}`} className="text-sm cursor-pointer">
+                        {pixel.name} <span className="text-xs text-muted-foreground">({pixel.id})</span>
+                      </Label>
+                    </div>
+                  ))}
+                </RadioGroup>
+              </AssetGroupSingle>
             )}
 
-            {/* Catalogs */}
-            {discoveredAssets.catalogs.length > 0 && (
-              <AssetGroup
-                icon={<ShoppingBag className="h-4 w-4 text-orange-600" />}
-                title="Catálogos"
-                count={selectedAssets.catalogs.length}
-                total={discoveredAssets.catalogs.length}
-              >
-                {discoveredAssets.catalogs.map(cat => (
-                  <AssetItem
-                    key={cat.id}
-                    label={cat.name}
-                    checked={selectedAssets.catalogs.some(c => c.id === cat.id)}
-                    onToggle={() => toggleCatalog(cat.id)}
-                  />
-                ))}
-              </AssetGroup>
-            )}
+            {/* Catálogo - info only, created automatically */}
+            <AssetGroupSingle
+              icon={<ShoppingBag className="h-4 w-4 text-orange-600" />}
+              title="Catálogo"
+              subtitle="Será criado automaticamente"
+            >
+              <p className="text-xs text-muted-foreground py-1">
+                Um novo catálogo será criado no Gerenciador de Comércio da Meta com todos os seus produtos ativos.
+              </p>
+            </AssetGroupSingle>
 
             {/* Threads */}
             {discoveredAssets.threads_profile && (
-              <AssetGroup
+              <AssetGroupSingle
                 icon={<AtSign className="h-4 w-4" />}
                 title="Threads"
-                count={selectedAssets.threads_profile ? 1 : 0}
-                total={1}
+                subtitle="Perfil vinculado"
               >
-                <AssetItem
-                  label={`@${discoveredAssets.threads_profile.username}`}
-                  checked={!!selectedAssets.threads_profile}
-                  onToggle={toggleThreads}
-                />
-              </AssetGroup>
+                <div className="flex items-center gap-2 py-1">
+                  <Checkbox
+                    id="threads"
+                    checked={!!selectedAssets.threads_profile}
+                    onCheckedChange={toggleThreads}
+                  />
+                  <Label htmlFor="threads" className="text-sm cursor-pointer">
+                    @{discoveredAssets.threads_profile.username}
+                  </Label>
+                </div>
+              </AssetGroupSingle>
             )}
 
             <Separator />
@@ -403,10 +471,9 @@ export default function MetaOAuthCallback() {
             <div className="flex gap-3 pt-2">
               <Button 
                 onClick={handleConfirmSelection} 
-                disabled={selectedCount === 0}
                 className="flex-1"
               >
-                Confirmar seleção ({selectedCount})
+                Confirmar e ativar integrações
               </Button>
               <Button variant="outline" onClick={handleClose}>
                 Cancelar
@@ -423,9 +490,10 @@ export default function MetaOAuthCallback() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md text-center">
-          <CardContent className="pt-8 pb-8">
+          <CardContent className="pt-8 pb-8 space-y-2">
             <Loader2 className="h-12 w-12 text-primary animate-spin mx-auto mb-4" />
-            <p className="text-muted-foreground">Salvando ativos selecionados...</p>
+            <p className="text-muted-foreground">Ativando integrações...</p>
+            <p className="text-xs text-muted-foreground">Configurando WhatsApp, Pixel, CAPI e Catálogo</p>
           </CardContent>
         </Card>
       </div>
@@ -443,12 +511,12 @@ export default function MetaOAuthCallback() {
           </div>
           <CardTitle>
             {status === "loading" && "Conectando..."}
-            {status === "success" && "Conectado com sucesso!"}
+            {status === "success" && "Tudo configurado!"}
             {status === "error" && "Erro na conexão"}
           </CardTitle>
           <CardDescription>
             {status === "loading" && "Finalizando a conexão com o Meta..."}
-            {status === "success" && "Sua conta Meta foi conectada. Fechando..."}
+            {status === "success" && "Todas as integrações foram ativadas automaticamente. Fechando..."}
             {status === "error" && errorMessage}
           </CardDescription>
         </CardHeader>
@@ -469,53 +537,30 @@ export default function MetaOAuthCallback() {
   );
 }
 
-// Sub-components
-function AssetGroup({ icon, title, count, total, children }: {
+// Helper components
+
+function AssetGroupSingle({ icon, title, subtitle, children }: {
   icon: React.ReactNode;
   title: string;
-  count: number;
-  total: number;
+  subtitle: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        {icon}
-        <span className="text-sm font-medium">{title}</span>
-        <Badge variant="outline" className="ml-auto text-xs">{count}/{total}</Badge>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {icon}
+          <span className="text-sm font-medium">{title}</span>
+        </div>
+        <Badge variant="outline" className="text-xs">{subtitle}</Badge>
       </div>
-      <div className="space-y-1 pl-6">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function AssetItem({ label, checked, onToggle }: {
-  label: string;
-  checked: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <div 
-      className="flex items-center gap-2 py-1 cursor-pointer hover:bg-muted/50 rounded px-2 -mx-2"
-      onClick={onToggle}
-    >
-      <Checkbox checked={checked} onCheckedChange={onToggle} />
-      <span className="text-sm">{label}</span>
+      <div className="pl-6">{children}</div>
     </div>
   );
 }
 
 function getErrorMessage(error: string, description: string): string {
-  const errorMessages: Record<string, string> = {
-    access_denied: "Você cancelou a autorização.",
-    missing_params: "Parâmetros de autorização ausentes.",
-    invalid_state: "Sessão expirada. Tente novamente.",
-    token_exchange_failed: "Erro ao obter tokens. Tente novamente.",
-    save_failed: "Erro ao salvar a conexão.",
-    not_configured: "Integração Meta não configurada.",
-    internal_error: "Erro interno.",
-  };
-  return description || errorMessages[error] || `Erro: ${error}`;
+  if (error === "access_denied") return "Acesso negado. Você cancelou a autorização.";
+  if (description) return description;
+  return `Erro: ${error}`;
 }
