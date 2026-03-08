@@ -1218,7 +1218,7 @@ serve(async (req) => {
     const googleFontsLink = fontsData.stylesheetTags;
     const fontPreloadTags = fontsData.preloadTags;
     const menuItems = headerMenuRaw?.menu_items 
-      ? [...headerMenuRaw.menu_items].sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      ? resolveMenuItems([...headerMenuRaw.menu_items].sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0)))
       : [];
     
     // Extract settings
