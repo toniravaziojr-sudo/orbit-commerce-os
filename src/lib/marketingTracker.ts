@@ -693,7 +693,7 @@ export class MarketingTracker {
     value: number;
     currency?: string;
     shippingTier: string;
-    items: Array<{ id: string; name: string; price: number; quantity: number; category?: string }>;
+    items: Array<{ id: string; sku?: string; metaContentId?: string | null; name: string; price: number; quantity: number; category?: string }>;
   }): void {
     const eventId = generateEventId();
     const currency = shipping.currency || 'BRL';
@@ -701,13 +701,13 @@ export class MarketingTracker {
     // Meta - custom event
     if (this.config.meta_enabled) {
       trackMetaEvent('AddShippingInfo', {
-        content_ids: shipping.items.map(i => i.id),
+        content_ids: shipping.items.map(i => resolveMetaContentId(i)),
         content_type: 'product',
         value: shipping.value,
         currency,
         shipping_tier: shipping.shippingTier,
         contents: shipping.items.map(i => ({
-          id: i.id,
+          id: resolveMetaContentId(i),
           quantity: i.quantity,
         })),
       }, eventId);
@@ -720,7 +720,7 @@ export class MarketingTracker {
         value: shipping.value,
         shipping_tier: shipping.shippingTier,
         items: shipping.items.map(i => ({
-          item_id: i.id,
+          item_id: i.sku || i.id,
           item_name: i.name,
           item_category: i.category,
           price: i.price,
@@ -732,7 +732,7 @@ export class MarketingTracker {
     // TikTok
     if (this.config.tiktok_enabled) {
       trackTikTokEvent('AddShippingInfo', {
-        content_ids: shipping.items.map(i => i.id),
+        content_ids: shipping.items.map(i => i.sku || i.id),
         content_type: 'product',
         value: shipping.value,
         currency,
@@ -745,7 +745,7 @@ export class MarketingTracker {
     value: number;
     currency?: string;
     paymentMethod: string;
-    items: Array<{ id: string; name: string; price: number; quantity: number; category?: string }>;
+    items: Array<{ id: string; sku?: string; metaContentId?: string | null; name: string; price: number; quantity: number; category?: string }>;
   }): void {
     const eventId = generateEventId();
     const currency = payment.currency || 'BRL';
@@ -753,12 +753,12 @@ export class MarketingTracker {
     // Meta - AddPaymentInfo standard event
     if (this.config.meta_enabled) {
       trackMetaEvent('AddPaymentInfo', {
-        content_ids: payment.items.map(i => i.id),
+        content_ids: payment.items.map(i => resolveMetaContentId(i)),
         content_type: 'product',
         value: payment.value,
         currency,
         contents: payment.items.map(i => ({
-          id: i.id,
+          id: resolveMetaContentId(i),
           quantity: i.quantity,
         })),
       }, eventId);
@@ -771,7 +771,7 @@ export class MarketingTracker {
         value: payment.value,
         payment_type: payment.paymentMethod,
         items: payment.items.map(i => ({
-          item_id: i.id,
+          item_id: i.sku || i.id,
           item_name: i.name,
           item_category: i.category,
           price: i.price,
@@ -783,7 +783,7 @@ export class MarketingTracker {
     // TikTok
     if (this.config.tiktok_enabled) {
       trackTikTokEvent('AddPaymentInfo', {
-        content_ids: payment.items.map(i => i.id),
+        content_ids: payment.items.map(i => i.sku || i.id),
         content_type: 'product',
         value: payment.value,
         currency,
