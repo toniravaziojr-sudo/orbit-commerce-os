@@ -408,6 +408,14 @@ const hiddenCount = configuredItems.length - validItems.length;
 
 ---
 
+## Resolução de URLs de Menu (Edge Compiler)
+
+No edge compiler, os itens de menu do footer passam pelo mesmo `resolveMenuItemUrl()` do header. Isso garante que `item_type: 'page'` com `ref_id` seja resolvido para `/p/{slug}` (somente páginas com `is_published: true`), e `item_type: 'category'` para `/categoria/{slug}`.
+
+> ⚠️ **REGRA**: Itens cujo `ref_id` aponte para página não publicada são **omitidos** do HTML renderizado.
+
+---
+
 ## Histórico de Alterações
 
 | Data | Alteração |

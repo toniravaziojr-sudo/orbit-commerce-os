@@ -405,6 +405,7 @@ const handleMobileMenuNavigate = (url: string) => {
 | 2026-03-08 | **PARIDADE v8.2.2**: Attendance dropdown usa padding-top bridge (não margin-top) para manter hover contínuo. Setinha usa cor do header (`headerIconColor`). Featured promo thumbnail no edge compiler com fallback de cor (branco/texto #1a1a1a). Menu dropdown inclui `menuShowParentTitle` e "Ver todos" (estilo Classic). Mobile nav tem background inline (`headerBgColor`/`headerTextColor`), padding fix (`.sf-mobile-nav-item` sem double padding), barra secundária com busca + featured promos badge, seções REDES SOCIAIS e CONTATO |
 | 2026-03-08 | Notice bar: modo `slide-horizontal` usa rotação JS (não marquee contínuo) — troca a cada 4s com transição suave |
 | 2026-03-07 | Mobile menu público: adicionadas seções REDES SOCIAIS e barra de busca. Busca mobile abre overlay de busca principal. Scroll fix com `-webkit-overflow-scrolling:touch` |
+| 2026-03-08 | **MENU URL RESOLUTION (v8.2.3)**: Criado helper `resolveMenuItemUrl()` no edge compiler (`storefront-html/index.ts`). Resolve `item_type` + `ref_id` em URLs válidas: `category` → `/categoria/{slug}`, `page` → `/p/{slug}`, `blog` → `/blog`, `tracking` → `/rastreio`, `external` → URL direta. Filtra páginas não publicadas. Corrige bug crítico onde menus tinham `href="#"` porque `item.url` era `null` no banco (apenas `ref_id` era salvo). Header, mobile nav e footer agora usam URLs resolvidas. Links nativos `<a href>` garantem navegação sem JS (progressive enhancement). |
 
 ---
 
