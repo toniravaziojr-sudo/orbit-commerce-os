@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v4.1.0"; // Fix: use UPDATE method for existing products to force image refresh
+const VERSION = "v4.2.0"; // Fix: always use CREATE+allow_upsert (UPDATE doesn't refresh images on products created without one)
 // ===================
 
 const corsHeaders = {
@@ -40,7 +40,73 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const body = await req.json();
-    const { tenantId, catalogId, productIds } = body;
+    const { tenantId, catalogId, productIds, action } = body;
+
+    // === DELETE action: remove products from Meta catalog ===
+    if (action === "delete") {
+      if (!tenantId || !catalogId || !productIds?.length) {
+        return new Response(
+          JSON.stringify({ success: false, error: "tenantId, catalogId and productIds required for delete" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data: connection } = await supabase
+        .from("marketplace_connections")
+        .select("access_token")
+        .eq("tenant_id", tenantId)
+        .eq("marketplace", "meta")
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (!connection) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Meta não conectada" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Get SKUs for these product IDs
+      const { data: prods } = await supabase
+        .from("products")
+        .select("id, sku")
+        .in("id", productIds);
+
+      const deleteRequests = (prods || []).map((p: any) => ({
+        retailer_id: p.sku || p.id,
+        method: "DELETE",
+        data: {},
+      }));
+
+      const deleteUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/${catalogId}/batch`;
+      const formData = new URLSearchParams({
+        access_token: connection.access_token,
+        requests: JSON.stringify(deleteRequests),
+      });
+
+      const delResp = await fetch(deleteUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: formData.toString(),
+      });
+      const delBody = await delResp.json();
+      console.log(`[meta-catalog-sync] DELETE response:`, JSON.stringify(delBody));
+
+      // Remove from meta_catalog_items
+      for (const p of prods || []) {
+        await supabase
+          .from("meta_catalog_items")
+          .delete()
+          .eq("tenant_id", tenantId)
+          .eq("product_id", p.id)
+          .eq("catalog_id", catalogId);
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, data: { deleted: deleteRequests.length } }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     if (!tenantId || !catalogId) {
       return new Response(
@@ -153,16 +219,10 @@ Deno.serve(async (req) => {
 
     console.log(`[meta-catalog-sync] Store URL: ${storeBaseUrl}`);
 
-    // Check which products already exist in Meta catalog (to use UPDATE vs CREATE)
-    const { data: existingItems } = await supabase
-      .from("meta_catalog_items")
-      .select("product_id")
-      .eq("tenant_id", tenantId)
-      .eq("catalog_id", catalogId)
-      .in("product_id", productIdList);
-    
-    const existingProductIds = new Set((existingItems || []).map((item: any) => item.product_id));
-    console.log(`[meta-catalog-sync] ${existingProductIds.size} existing products will use UPDATE method`);
+    // Always use CREATE method with allow_upsert=true
+    // UPDATE method does NOT refresh images on products originally created without one
+    // CREATE+allow_upsert handles both new and existing products correctly
+    console.log(`[meta-catalog-sync] All products will use CREATE+allow_upsert method`);
 
     // Build batch requests using the /{catalog_id}/batch endpoint format
     const batchItems: any[] = [];
@@ -226,15 +286,11 @@ Deno.serve(async (req) => {
         productData.rich_text_description = product.description.substring(0, 9999);
       }
 
-      // Use UPDATE for existing products (forces image refresh), CREATE for new ones
-      const isExisting = existingProductIds.has(product.id);
-      const method = isExisting ? "UPDATE" : "CREATE";
-      
-      console.log(`[meta-catalog-sync] Product SKU=${product.sku} method=${method} image_url="${productData.image_url || 'NONE'}" additional_images=${additionalImages.length}`);
+      console.log(`[meta-catalog-sync] Product SKU=${product.sku} method=CREATE image_url="${productData.image_url || 'NONE'}" additional_images=${additionalImages.length}`);
 
       batchItems.push({
         retailer_id: product.sku || product.id,
-        method,
+        method: "CREATE",
         data: productData,
       });
     }
