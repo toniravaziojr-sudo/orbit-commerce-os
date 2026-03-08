@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v2.0.0"; // Fix: use URLSearchParams instead of FormData, add placeholder image, increase limit
+const VERSION = "v3.0.0"; // Fix: images (sort_order), short_description, custom domain from tenant_domains, strip HTML
 // ===================
 
 const corsHeaders = {
@@ -11,7 +11,21 @@ const corsHeaders = {
 };
 
 const GRAPH_API_VERSION = "v21.0";
-const PLACEHOLDER_IMAGE = "https://placehold.co/600x600/e2e8f0/64748b?text=Sem+Imagem";
+
+/** Strip HTML tags from text */
+function stripHtml(html: string): string {
+  if (!html) return "";
+  return html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 Deno.serve(async (req) => {
   console.log(`[meta-catalog-sync][${VERSION}] Request received`);
@@ -63,7 +77,7 @@ Deno.serve(async (req) => {
     // Build product query
     let productQuery = supabase
       .from("products")
-      .select("id, name, slug, sku, description, short_description, price, compare_at_price, brand, gtin, barcode")
+      .select("id, name, slug, sku, description, short_description, price, compare_at_price, brand, gtin, barcode, weight, stock_quantity")
       .eq("tenant_id", tenantId)
       .eq("status", "active")
       .is("deleted_at", null);
@@ -91,56 +105,94 @@ Deno.serve(async (req) => {
 
     console.log(`[meta-catalog-sync] ${products.length} products to sync`);
 
-    // Get images for products
+    // Get ALL images for products (use sort_order, not position)
     const productIdList = products.map((p: any) => p.id);
     const { data: images } = await supabase
       .from("product_images")
-      .select("product_id, url, is_primary, position")
+      .select("product_id, url, is_primary, sort_order")
       .in("product_id", productIdList)
-      .order("position", { ascending: true });
+      .order("sort_order", { ascending: true });
 
+    // Build image map: product_id -> primary image URL
+    // Also build additional images map for additional_image_link
     const imageMap: Record<string, string> = {};
+    const additionalImagesMap: Record<string, string[]> = {};
     for (const img of images || []) {
+      if (!img.url) continue;
       if (img.is_primary || !imageMap[img.product_id]) {
         imageMap[img.product_id] = img.url;
       }
+      if (!additionalImagesMap[img.product_id]) {
+        additionalImagesMap[img.product_id] = [];
+      }
+      additionalImagesMap[img.product_id].push(img.url);
     }
 
-    // Get store URL
+    // Get store URL from tenant_domains (primary verified domain)
     const { data: tenant } = await supabase
       .from("tenants")
-      .select("slug, custom_domain")
+      .select("slug")
       .eq("id", tenantId)
       .single();
 
-    const storeBaseUrl = tenant?.custom_domain
-      ? `https://${tenant.custom_domain}`
+    const { data: primaryDomain } = await supabase
+      .from("tenant_domains")
+      .select("domain")
+      .eq("tenant_id", tenantId)
+      .eq("is_primary", true)
+      .eq("status", "verified")
+      .maybeSingle();
+
+    const storeBaseUrl = primaryDomain?.domain
+      ? `https://${primaryDomain.domain}`
       : `https://${tenant?.slug || "loja"}.shops.comandocentral.com.br`;
 
-    // Build batch requests using URLSearchParams (not FormData)
+    console.log(`[meta-catalog-sync] Store URL: ${storeBaseUrl}`);
+
+    // Build batch requests
     const batchRequests: any[] = [];
     for (const product of products) {
-      const imageUrl = imageMap[product.id] || PLACEHOLDER_IMAGE;
+      const imageUrl = imageMap[product.id] || "";
+      const additionalImages = (additionalImagesMap[product.id] || []).filter(u => u !== imageUrl).slice(0, 9);
       const productUrl = `${storeBaseUrl}/produto/${product.slug || product.id}`;
       const priceCents = Math.round((product.price || 0) * 100);
-      const description = (product.description || product.short_description || product.name || "Produto").substring(0, 5000);
+
+      // Use short_description (plain text) first, fallback to stripped HTML description
+      let description = product.short_description || "";
+      if (!description && product.description) {
+        description = stripHtml(product.description);
+      }
+      if (!description) {
+        description = product.name || "Produto";
+      }
+      // Meta limit: 9999 chars
+      description = description.substring(0, 9999);
 
       const bodyParams: Record<string, string> = {
         retailer_id: product.sku || product.id,
         name: product.name || "Produto",
         description,
         url: productUrl,
-        image_url: imageUrl,
-        price: String(priceCents),
-        currency: "BRL",
-        availability: "in stock",
+        availability: (product.stock_quantity !== null && product.stock_quantity <= 0) ? "out of stock" : "in stock",
         condition: "new",
         brand: product.brand || tenant?.slug || "loja",
+        price: `${priceCents} BRL`,
       };
 
+      // Image URL (required by Meta)
+      if (imageUrl) {
+        bodyParams.image_url = imageUrl;
+      }
+
+      // Additional images
+      if (additionalImages.length > 0) {
+        bodyParams.additional_image_link = additionalImages.join(",");
+      }
+
+      // Sale price handling
       if (product.compare_at_price && product.compare_at_price > product.price) {
-        bodyParams.price = String(Math.round(product.compare_at_price * 100));
-        bodyParams.sale_price = String(priceCents);
+        bodyParams.price = `${Math.round(product.compare_at_price * 100)} BRL`;
+        bodyParams.sale_price = `${priceCents} BRL`;
       }
 
       if (product.gtin || product.barcode) {
@@ -180,14 +232,12 @@ Deno.serve(async (req) => {
             const product = products[i + j];
             if (result && result.code >= 200 && result.code < 300) {
               totalSent++;
-              // Parse body to get meta product id
               let metaProductId = null;
               try {
                 const bodyData = JSON.parse(result.body);
                 metaProductId = bodyData?.id;
               } catch {}
               
-              // Update catalog item
               await supabase
                 .from("meta_catalog_items")
                 .upsert({
@@ -207,8 +257,8 @@ Deno.serve(async (req) => {
                 errorMsg = bodyData?.error?.message || `Code ${result.code}`;
               } catch {}
               
-              errorDetails.push({ productId: product?.id, error: errorMsg });
-              console.warn(`[meta-catalog-sync] Product ${product?.id} failed: ${errorMsg}`);
+              errorDetails.push({ productId: product?.id, name: product?.name, error: errorMsg });
+              console.warn(`[meta-catalog-sync] Product ${product?.name} failed: ${errorMsg}`);
 
               if (product) {
                 await supabase
