@@ -556,6 +556,16 @@ function buildFullPage(opts: {
         });
       }
 
+      // Mobile secondary bar search input — click opens overlay
+      var mobileSecondarySearch = document.querySelector("[data-sf-action-click='toggle-search']");
+      if(mobileSecondarySearch){
+        mobileSecondarySearch.addEventListener("click",function(){
+          document.querySelector("[data-sf-search-overlay]")?.classList.add("active");
+          var mainInput = document.querySelector("[data-sf-search-input]");
+          if(mainInput) mainInput.focus();
+        });
+      }
+
       // ESC key
       document.addEventListener("keydown",function(e){
         if(e.key==="Escape"){
