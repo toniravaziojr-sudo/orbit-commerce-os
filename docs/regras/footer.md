@@ -412,6 +412,7 @@ const hiddenCount = configuredItems.length - validItems.length;
 
 | Data | Alteração |
 |------|-----------|
+| 2026-03-08 | **PARIDADE v8.2.2**: Selos mobile usam container queries + default inline `1fr`. Newsletter botão usa `sf-btn-primary`. Footer compiler filtra `is_published`. YouTube SVG stroke-based. Removido `margin-top:48px` do footer |
 | 2026-03-06 | **PERFORMANCE v3.0.0**: Footer agora aceita `bootstrapStoreSettings`, `bootstrapCategories`, `bootstrapFooterMenus`, `bootstrapPages` via props. No storefront público: ZERO queries. No builder: fetching próprio como fallback. `footer_2` menu e `store_pages` incluídos no bootstrap server-side |
 | 2026-02-28 | **PERFORMANCE**: Selos, formas de envio e lojas oficiais agora usam `getLogoImageUrl()` com `loading="lazy"` e `decoding="async"` para otimização PageSpeed |
 | 2026-02-02 | **AJUSTE**: Bandeiras de pagamento agora são 30% menores que os outros selos para equilíbrio visual |
