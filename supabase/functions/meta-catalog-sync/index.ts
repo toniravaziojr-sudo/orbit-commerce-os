@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v4.0.0"; // Fix: use /{catalog_id}/batch endpoint with all images, correct field names
+const VERSION = "v4.1.0"; // Fix: use UPDATE method for existing products to force image refresh
 // ===================
 
 const corsHeaders = {
@@ -153,6 +153,17 @@ Deno.serve(async (req) => {
 
     console.log(`[meta-catalog-sync] Store URL: ${storeBaseUrl}`);
 
+    // Check which products already exist in Meta catalog (to use UPDATE vs CREATE)
+    const { data: existingItems } = await supabase
+      .from("meta_catalog_items")
+      .select("product_id")
+      .eq("tenant_id", tenantId)
+      .eq("catalog_id", catalogId)
+      .in("product_id", productIdList);
+    
+    const existingProductIds = new Set((existingItems || []).map((item: any) => item.product_id));
+    console.log(`[meta-catalog-sync] ${existingProductIds.size} existing products will use UPDATE method`);
+
     // Build batch requests using the /{catalog_id}/batch endpoint format
     const batchItems: any[] = [];
     
@@ -215,9 +226,15 @@ Deno.serve(async (req) => {
         productData.rich_text_description = product.description.substring(0, 9999);
       }
 
+      // Use UPDATE for existing products (forces image refresh), CREATE for new ones
+      const isExisting = existingProductIds.has(product.id);
+      const method = isExisting ? "UPDATE" : "CREATE";
+      
+      console.log(`[meta-catalog-sync] Product SKU=${product.sku} method=${method} image_url="${productData.image_url || 'NONE'}" additional_images=${additionalImages.length}`);
+
       batchItems.push({
         retailer_id: product.sku || product.id,
-        method: "CREATE",
+        method,
         data: productData,
       });
     }
@@ -256,6 +273,7 @@ Deno.serve(async (req) => {
           const validationStatus = responseBody.validation_status || [];
           
           console.log(`[meta-catalog-sync] Batch response: handles=${handles.length}, validation_status=${validationStatus.length}`);
+          console.log(`[meta-catalog-sync][DEBUG] Full batch response:`, JSON.stringify(responseBody).substring(0, 2000));
 
           // Count errors from validation_status
           let batchErrors = 0;
