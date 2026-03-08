@@ -40,7 +40,73 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const body = await req.json();
-    const { tenantId, catalogId, productIds } = body;
+    const { tenantId, catalogId, productIds, action } = body;
+
+    // === DELETE action: remove products from Meta catalog ===
+    if (action === "delete") {
+      if (!tenantId || !catalogId || !productIds?.length) {
+        return new Response(
+          JSON.stringify({ success: false, error: "tenantId, catalogId and productIds required for delete" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data: connection } = await supabase
+        .from("marketplace_connections")
+        .select("access_token")
+        .eq("tenant_id", tenantId)
+        .eq("marketplace", "meta")
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (!connection) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Meta não conectada" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Get SKUs for these product IDs
+      const { data: prods } = await supabase
+        .from("products")
+        .select("id, sku")
+        .in("id", productIds);
+
+      const deleteRequests = (prods || []).map((p: any) => ({
+        retailer_id: p.sku || p.id,
+        method: "DELETE",
+        data: {},
+      }));
+
+      const deleteUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/${catalogId}/batch`;
+      const formData = new URLSearchParams({
+        access_token: connection.access_token,
+        requests: JSON.stringify(deleteRequests),
+      });
+
+      const delResp = await fetch(deleteUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: formData.toString(),
+      });
+      const delBody = await delResp.json();
+      console.log(`[meta-catalog-sync] DELETE response:`, JSON.stringify(delBody));
+
+      // Remove from meta_catalog_items
+      for (const p of prods || []) {
+        await supabase
+          .from("meta_catalog_items")
+          .delete()
+          .eq("tenant_id", tenantId)
+          .eq("product_id", p.id)
+          .eq("catalog_id", catalogId);
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, data: { deleted: deleteRequests.length } }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     if (!tenantId || !catalogId) {
       return new Response(
