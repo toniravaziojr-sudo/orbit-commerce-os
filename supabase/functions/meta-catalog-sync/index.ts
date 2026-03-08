@@ -200,8 +200,9 @@ Deno.serve(async (req) => {
       // Sale price: compare_at_price is the "original" (higher), price is the "sale"
       if (product.compare_at_price && product.compare_at_price > product.price) {
         const originalCents = Math.round(product.compare_at_price * 100);
-        productData.price = `${originalCents} BRL`;
-        productData.sale_price = `${priceCents} BRL`;
+        productData.price = originalCents;
+        productData.sale_price = priceCents;
+        productData.sale_price_currency = "BRL";
       }
 
       // GTIN/Barcode
