@@ -422,6 +422,8 @@ export class MarketingTracker {
   // Track add to cart
   trackAddToCart(item: {
     id: string;
+    sku?: string;
+    metaContentId?: string | null;
     name: string;
     price: number;
     quantity: number;
@@ -431,18 +433,19 @@ export class MarketingTracker {
     const eventId = generateEventId();
     const currency = item.currency || 'BRL';
     const value = item.price * item.quantity;
+    const metaId = resolveMetaContentId(item);
 
     // Meta
     if (this.config.meta_enabled) {
       trackMetaEvent('AddToCart', {
-        content_ids: [item.id],
+        content_ids: [metaId],
         content_name: item.name,
         content_type: 'product',
         content_category: item.category,
         value,
         currency,
         contents: [{
-          id: item.id,
+          id: metaId,
           quantity: item.quantity,
         }],
       }, eventId);
@@ -454,7 +457,7 @@ export class MarketingTracker {
         currency,
         value,
         items: [{
-          item_id: item.id,
+          item_id: item.sku || item.id,
           item_name: item.name,
           item_category: item.category,
           price: item.price,
@@ -466,7 +469,7 @@ export class MarketingTracker {
     // TikTok
     if (this.config.tiktok_enabled) {
       trackTikTokEvent('AddToCart', {
-        content_id: item.id,
+        content_id: item.sku || item.id,
         content_name: item.name,
         content_type: 'product',
         content_category: item.category,
