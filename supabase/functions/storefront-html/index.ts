@@ -254,6 +254,8 @@ function buildFullPage(opts: {
   extraHead?: string;
   navItemsHtml?: string;
   mobileSearchHtml?: string;
+  mobileBgColor?: string;
+  mobileTextColor?: string;
 }): string {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
