@@ -418,6 +418,19 @@ Carrinho & Checkout → aba Checkout (no Builder)
 
 `CheckoutStepWizard.tsx` não passava `attribution`, `affiliateData` nem `checkoutSessionId` para `processPayment()`. Isso causava perda total de rastreamento comercial em todos os pedidos. Corrigido com passagem explícita dos 3 campos + limpeza pós-sucesso.
 
+### Bug Corrigido (v8.2.4) — Pedido aprovado mas status "pendente"
+
+**Problema:** Pedidos pagos na Pagar.me ficavam com `payment_status=pending` e `status=pending` no sistema. Três causas raiz:
+
+1. **`pagarme-create-charge`**: Não atualizava o pedido quando cartão de crédito era aprovado imediatamente (síncrono). Dependia 100% do webhook.
+2. **`pagarme-webhook`**: Extraía `chargeStatus` apenas de `payload.data.charges[0].status`. Alguns eventos Pagar.me (`order.paid`) podem não incluir o array `charges` completo, fazendo `chargeStatus=undefined` e caindo no `default` do switch sem atualizar nada.
+3. **Trigger `auto_tag_cliente_on_payment_approved`**: Verificava `NEW.payment_status = 'paid'` mas o enum `payment_status` usa `'approved'`, não `'paid'`. Isso causava erro SQL que bloqueava o UPDATE do pedido.
+
+**Correções:**
+- `pagarme-create-charge`: Agora sincroniza `orders.status` e `orders.payment_status` imediatamente quando a cobrança retorna status síncrono (paid/failed/pending)
+- `pagarme-webhook`: Agora usa fallback `payload.data?.status` quando `charges[0].status` não está disponível
+- Trigger: Corrigido de `'paid'` para `'approved'` no enum `payment_status`
+
 ---
 
 ## Pendências Conhecidas
