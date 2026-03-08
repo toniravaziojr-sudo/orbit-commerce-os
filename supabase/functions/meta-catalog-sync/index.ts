@@ -202,7 +202,6 @@ Deno.serve(async (req) => {
         const originalCents = Math.round(product.compare_at_price * 100);
         productData.price = originalCents;
         productData.sale_price = priceCents;
-        productData.sale_price_currency = "BRL";
       }
 
       // GTIN/Barcode
