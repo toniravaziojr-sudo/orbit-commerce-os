@@ -88,6 +88,6 @@ export function infoHighlightsToStaticHTML(
         ${itemsHtml}
       </div>
     </div>
-    <style>@media(max-width:768px){.sf-info-highlights{padding:12px 0 !important;}.sf-info-highlights [style*="gap:24px"]{gap:10px !important;}.sf-info-highlights [style*="min-width:200px"]{min-width:140px !important;flex:0 0 calc(50% - 8px) !important;}}</style>
+    <style>@media(max-width:768px){.sf-info-highlights{padding:8px 0 !important;}.sf-info-highlights [style*="gap:24px"]{gap:6px 8px !important;}.sf-info-highlights [style*="min-width:200px"]{min-width:0 !important;flex:0 0 calc(50% - 4px) !important;gap:6px !important;}.sf-info-highlights [style*="min-width:200px"] svg{width:16px !important;height:16px !important;}.sf-info-highlights [style*="min-width:200px"] [style*="padding:8px"]{padding:5px !important;}.sf-info-highlights [style*="min-width:200px"] [style*="font-size:14px"]{font-size:11px !important;}.sf-info-highlights [style*="min-width:200px"] [style*="font-size:12px"]{font-size:10px !important;}}</style>
   </section>`;
 }
