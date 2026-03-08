@@ -1,6 +1,6 @@
 // ============================================
 // STOREFRONT HTML — Edge-Rendered Storefront
-// v8.1.1: FIX allResults index offset — route-specific queries at index [8] after store_pages base query
+// v8.2.0: REFACTOR — named result extraction instead of numeric allResults[] indices
 // Resolves tenant from hostname, serves pre-rendered HTML if available,
 // falls back to live rendering otherwise.
 // ============================================
