@@ -259,6 +259,7 @@ Deno.serve(async (req) => {
           const validationStatus = responseBody.validation_status || [];
           
           console.log(`[meta-catalog-sync] Batch response: handles=${handles.length}, validation_status=${validationStatus.length}`);
+          console.log(`[meta-catalog-sync][DEBUG] Full batch response:`, JSON.stringify(responseBody).substring(0, 2000));
 
           // Count errors from validation_status
           let batchErrors = 0;
