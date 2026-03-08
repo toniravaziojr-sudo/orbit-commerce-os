@@ -542,6 +542,11 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
       
       // Account creation is now handled on the Thank You page (PONTO 2)
 
+      // Get attribution & affiliate data for conversion tracking
+      const sessionId = getCheckoutSessionId();
+      const attribution = getStoredAttribution();
+      const affiliate = getStoredAffiliateData();
+
       // Process REAL payment via Pagar.me
       const result = await processPayment({
         method: paymentMethod,
@@ -563,6 +568,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           cpf: formData.customerCpf,
         },
         card: paymentMethod === 'credit_card' ? cardData : undefined,
+        checkoutSessionId: sessionId || undefined,
         // Pass discount data
         discount: appliedDiscount ? {
           discount_id: appliedDiscount.discount_id,
@@ -572,6 +578,9 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           discount_amount: discountAmount,
           free_shipping: appliedDiscount.free_shipping,
         } : undefined,
+        // Attribution & affiliate for conversion tracking
+        attribution: attribution || undefined,
+        affiliate: affiliate || undefined,
       });
 
       if (result.success) {
