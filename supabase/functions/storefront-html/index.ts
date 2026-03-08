@@ -1168,7 +1168,7 @@ serve(async (req) => {
         if (!item.ref_id) return null;
         const page = publishedPages.find((p: any) => p.id === item.ref_id);
         if (!page) return null; // Page not published or doesn't exist
-        const prefix = page.type === 'landing_page' ? '/lp/' : '/p/';
+        const prefix = page.type === 'landing_page' ? '/lp/' : '/page/';
         return { ...item, url: `${prefix}${page.slug}` };
       }
       if (itemType === 'blog') {
