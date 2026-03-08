@@ -286,15 +286,11 @@ Deno.serve(async (req) => {
         productData.rich_text_description = product.description.substring(0, 9999);
       }
 
-      // Use UPDATE for existing products (forces image refresh), CREATE for new ones
-      const isExisting = existingProductIds.has(product.id);
-      const method = isExisting ? "UPDATE" : "CREATE";
-      
-      console.log(`[meta-catalog-sync] Product SKU=${product.sku} method=${method} image_url="${productData.image_url || 'NONE'}" additional_images=${additionalImages.length}`);
+      console.log(`[meta-catalog-sync] Product SKU=${product.sku} method=CREATE image_url="${productData.image_url || 'NONE'}" additional_images=${additionalImages.length}`);
 
       batchItems.push({
         retailer_id: product.sku || product.id,
-        method,
+        method: "CREATE",
         data: productData,
       });
     }
