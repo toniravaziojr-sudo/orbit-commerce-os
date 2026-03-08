@@ -254,6 +254,8 @@ function buildFullPage(opts: {
   extraHead?: string;
   navItemsHtml?: string;
   mobileSearchHtml?: string;
+  mobileBgColor?: string;
+  mobileTextColor?: string;
 }): string {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -380,7 +382,7 @@ function buildFullPage(opts: {
   </div>
 
   <!-- Mobile Nav -->
-  <nav class="sf-mobile-nav" data-sf-mobile-nav>
+  <nav class="sf-mobile-nav" data-sf-mobile-nav style="background:${escapeHtml(opts.mobileBgColor || '#1a1a1a')};color:${escapeHtml(opts.mobileTextColor || '#ffffff')};">
     <button style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:24px;cursor:pointer;color:inherit;z-index:2;" data-sf-action="toggle-mobile-menu">&times;</button>
     <div style="padding-top:48px;">
       ${opts.mobileSearchHtml || ''}
@@ -1742,6 +1744,8 @@ serve(async (req) => {
       extraHead,
       navItemsHtml,
       mobileSearchHtml,
+      mobileBgColor: mobileHeaderBg,
+      mobileTextColor: mobileHeaderText,
     });
 
     console.log(`[storefront-html] ${route.type}${route.slug ? '/' + route.slug : ''} rendered in ${totalMs}ms (resolve=${resolveMs}ms, queries=${queryMs}ms)`);
