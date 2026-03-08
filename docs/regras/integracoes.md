@@ -1013,30 +1013,34 @@ Sincroniza produtos locais com catálogos do Meta Commerce Manager via Graph API
 | `meta-catalog-sync` | `sync` | Envia produtos ativos para o catálogo Meta |
 | `meta-catalog-create` | `list`, `create` | Lista catálogos existentes / Cria novo catálogo |
 
-### Formato de Produto (Commerce API)
+### Formato de Produto (Commerce API — Graph API URLSearchParams)
 
-```json
-{
-  "retailer_id": "product-uuid",
-  "name": "Nome do Produto",
-  "description": "Descrição",
-  "url": "https://loja.com/produto/slug",
-  "image_url": "https://...",
-  "additional_image_urls": ["https://..."],
-  "price": 9990,
-  "currency": "BRL",
-  "availability": "in stock",
-  "brand": "Nome da Loja",
-  "sale_price": 7990,
-  "gtin": "7891234567890"
-}
+```text
+retailer_id=product-uuid
+name=Nome do Produto
+description=Descrição curta (plain text, sem HTML)
+url=https://www.dominio-real.com.br/produto/slug
+image_url=https://cdn.example.com/imagem.jpg
+additional_image_link=url1,url2,url3
+price=9990
+currency=BRL
+availability=in stock
+condition=new
+brand=Nome da Loja
+sale_price=7990
+sale_price_currency=BRL
+gtin=7891234567890
 ```
 
 **Notas:**
-- Preço em **centavos** (ex: R$ 99,90 → `9990`)
+- Preço em **centavos** (ex: R$ 99,90 → `9990`) com `currency` separado
+- `description` usa **short_description** do produto (plain text). Fallback: `description` com HTML **stripado**. Nunca envia HTML.
+- `url` usa o **domínio personalizado verificado** do tenant (tabela `tenant_domains`, `is_primary=true, status=verified`). Fallback: subdomínio padrão.
+- `image_url` vem de `product_images` (coluna `sort_order`, prioriza `is_primary=true`)
+- `additional_image_link` até 9 imagens extras separadas por vírgula
 - `sale_price` só incluído se `compare_at_price > price`
 - `gtin` só incluído se produto tiver GTIN/EAN cadastrado
-- Imagens adicionais vindas de `product_images` (até 10)
+- `availability` verifica `stock_quantity` — se ≤ 0, envia "out of stock"
 
 ### Hook Frontend
 
@@ -1051,8 +1055,8 @@ Sincronização Manual (pós-onboarding):
 1. Tenant acessa Hub Meta → Catálogo
 2. Clica "Sincronizar Produtos"
 3. meta-catalog-sync busca produtos ativos do tenant
-4. Converte para formato Commerce API
-5. POST /{catalog_id}/batch para Meta
+4. Converte para formato Commerce API (URLSearchParams)
+5. POST /{catalog_id}/products em lotes de 50 via Batch API
 6. Registra resultado em meta_catalog_items
 7. Produtos com erro ficam com status 'error' + mensagem
 
@@ -1061,6 +1065,14 @@ Sincronização Automática (durante OAuth):
 2. Busca TODOS os produtos ativos do tenant
 3. Envia em lotes de 50 via batch API
 4. Catálogo fica disponível no Meta Commerce Manager imediatamente
+
+Sincronização Diária Automática (cron):
+1. Edge Function `meta-catalog-daily-sync` executa via pg_cron às 02:00 BRT (05:00 UTC)
+2. Para cada tenant com conexão Meta ativa e catalog_id configurado:
+   a. Verifica se token não expirou
+   b. Chama `meta-catalog-sync` internamente
+3. Produtos novos, alterados ou removidos são reconciliados automaticamente
+4. Garante que alterações de preço, estoque, descrição e imagens reflitam no catálogo Meta
 ```
 
 ---
