@@ -110,7 +110,7 @@ serve(async (req) => {
         // Check if message is from us (outgoing)
         isFromMe = body.fromMe === true || body.isFromMe === true;
         
-        // Z-API webhook format
+        // Webhook format (phone field)
         if (body.phone) {
           customerPhone = (body.phone as string).replace(/\D/g, "");
           customerName = (body.senderName || body.pushName || body.contactName) as string || null;
