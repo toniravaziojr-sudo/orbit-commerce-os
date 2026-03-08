@@ -123,16 +123,20 @@ Deno.serve(async (req) => {
 
     if (template_name) {
       // Template message
+      const templateObj: any = {
+        name: template_name,
+        language: { code: template_language || "pt_BR" },
+      };
+      // Only include components if non-empty
+      if (template_components && template_components.length > 0) {
+        templateObj.components = template_components;
+      }
       messagePayload = {
         messaging_product: "whatsapp",
         recipient_type: "individual",
         to: formattedPhone,
         type: "template",
-        template: {
-          name: template_name,
-          language: { code: template_language || "pt_BR" },
-          components: template_components || [],
-        },
+        template: templateObj,
       };
     } else {
       // Text message (only allowed within 24h service window)
@@ -148,6 +152,9 @@ Deno.serve(async (req) => {
     // Send message via Meta Graph API
     const sendUrl = `https://graph.facebook.com/${graphApiVersion}/${phone_number_id}/messages`;
     
+    console.log(`[meta-whatsapp-send][${traceId}] URL: ${sendUrl}`);
+    console.log(`[meta-whatsapp-send][${traceId}] Payload:`, JSON.stringify(messagePayload));
+
     const sendResponse = await fetch(sendUrl, {
       method: "POST",
       headers: {
