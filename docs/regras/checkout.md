@@ -383,3 +383,47 @@ Carrinho & Checkout → aba Checkout (no Builder)
 | **Duplicatas** | Ordenar por `created_at DESC` + `LIMIT 1` |
 | **Busca por order_number** | Aceita com ou sem `#` (normaliza internamente) |
 | **Fallback** | Tenta `#XXXX`, depois `XXXX`, depois formatos legados |
+
+---
+
+## Tracking Comercial no Checkout (v8.2.3)
+
+### Attribution (UTM / GCLID / FBCLID / TTCLID)
+
+| Regra | Descrição |
+|-------|-----------|
+| **Captura** | `useStoredAttribution()` captura UTMs da URL e armazena em `sessionStorage` |
+| **Passagem** | `CheckoutStepWizard.tsx` passa `attribution` para `processPayment()` |
+| **Persistência** | `checkout-create-order` grava no campo `attribution` do pedido |
+| **Limpeza** | `clearStoredAttribution()` chamado após sucesso do pagamento |
+
+### Affiliate Tracking
+
+| Regra | Descrição |
+|-------|-----------|
+| **Captura** | `useAffiliateTracking(tenantId)` captura `?ref=` da URL |
+| **Passagem** | `CheckoutStepWizard.tsx` passa `affiliateId` para `processPayment()` |
+| **Persistência** | `checkout-create-order` grava `affiliate_id` no pedido |
+| **Limpeza** | `clearStoredAffiliateData()` chamado após sucesso do pagamento |
+
+### Checkout Session (Abandono)
+
+| Regra | Descrição |
+|-------|-----------|
+| **Criação** | `useCheckoutSession()` cria sessão ao entrar no checkout |
+| **Passagem** | `CheckoutStepWizard.tsx` passa `checkoutSessionId` para `processPayment()` |
+| **Atualização** | `checkout-create-order` marca sessão como `converted` |
+
+### Bug Corrigido (v8.2.3)
+
+`CheckoutStepWizard.tsx` não passava `attribution`, `affiliateData` nem `checkoutSessionId` para `processPayment()`. Isso causava perda total de rastreamento comercial em todos os pedidos. Corrigido com passagem explícita dos 3 campos + limpeza pós-sucesso.
+
+---
+
+## Pendências Conhecidas
+
+| Item | Status | Descrição |
+|------|--------|-----------|
+| **Parcelamento (installments)** | 🔴 Pendente | UI de seleção de parcelas não implementada; padrão `installments=1` |
+| **Desconto real PIX** | 🔴 Pendente | Desconto de 5% é apenas visual (badge); recálculo real do total no backend não implementado |
+| **CheckoutContent.tsx** | 🟡 Limpeza | Código legado que pode ser removido após migração completa para `CheckoutStepWizard` |
