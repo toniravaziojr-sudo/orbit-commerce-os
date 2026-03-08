@@ -382,7 +382,7 @@ function buildFullPage(opts: {
   </div>
 
   <!-- Mobile Nav -->
-  <nav class="sf-mobile-nav" data-sf-mobile-nav>
+  <nav class="sf-mobile-nav" data-sf-mobile-nav style="background:${escapeHtml(opts.mobileBgColor || '#1a1a1a')};color:${escapeHtml(opts.mobileTextColor || '#ffffff')};">
     <button style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:24px;cursor:pointer;color:inherit;z-index:2;" data-sf-action="toggle-mobile-menu">&times;</button>
     <div style="padding-top:48px;">
       ${opts.mobileSearchHtml || ''}
