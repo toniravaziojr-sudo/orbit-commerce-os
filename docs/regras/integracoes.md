@@ -762,9 +762,27 @@ A integração Meta usa **Scope Packs** para consentimento incremental. O tenant
 
 ### Seleção Granular de Ativos (DURANTE o OAuth)
 
-> **Adicionado em:** 2026-02-16
+> **Adicionado em:** 2026-02-16  
+> **Atualizado em:** 2026-03-08 — Seleção única (radio) + auto-ativação + criação automática de catálogo
 
 Após o OAuth, o callback descobre os ativos disponíveis mas **NÃO os salva automaticamente**. Em vez disso, redireciona para uma tela de seleção onde o lojista escolhe quais ativos conectar.
+
+#### ⚠️ REGRA CRÍTICA: Limites de Seleção por Ativo
+
+O sistema gerencia **apenas 1 instância** de cada tipo de ativo (exceto contas de anúncio). A UI **DEVE** usar radio buttons (seleção única) para estes:
+
+| Ativo | Tipo de Seleção | Máximo | Justificativa |
+|-------|-----------------|--------|---------------|
+| Página do Facebook | 🔘 Radio (única) | 1 | Sistema gerencia 1 página |
+| Perfil Instagram | 🔘 Radio (única) | 1 | Vinculado à página selecionada |
+| WABA (WhatsApp Business Account) | 🔘 Radio (única) | 1 | 1 WABA por tenant |
+| Número de Telefone WhatsApp | 🔘 Radio (única) | 1 | Após selecionar WABA, escolher 1 número |
+| Pixel | 🔘 Radio (única) | 1 | 1 pixel primário |
+| Catálogo | ❌ Não selecionável | Auto | Criado automaticamente (ver abaixo) |
+| Contas de Anúncio | ☑️ Checkbox (múltipla) | N | Pode ter múltiplas contas |
+| Perfil Threads | 🔘 Radio (única) | 1 | 1 perfil |
+
+**PROIBIDO:** Usar checkboxes para ativos que aceitam apenas 1 seleção.
 
 #### Fluxo
 
@@ -772,13 +790,63 @@ Após o OAuth, o callback descobre os ativos disponíveis mas **NÃO os salva au
 1. Usuário clica "Conectar" → popup Meta OAuth
 2. Autoriza permissões no Meta
 3. meta-oauth-callback troca code por token
-4. Callback descobre todos os ativos disponíveis
+4. Callback descobre todos os ativos disponíveis (incluindo phone_numbers de cada WABA)
 5. Salva em metadata com `pending_asset_selection: true`
 6. Redireciona para MetaOAuthCallback.tsx (tela de seleção)
-7. Lojista seleciona quais Pages, Instagram, Ad Accounts, Catalogs, etc. deseja
+7. Lojista seleciona: 1 Page, 1 Instagram, 1 WABA → 1 Número, N Ad Accounts, 1 Pixel
 8. Clica "Confirmar seleção"
-9. meta-save-selected-assets salva apenas os ativos selecionados
+9. meta-save-selected-assets:
+   a. Salva ativos selecionados
+   b. Cria catálogo NOVO na Meta Commerce e sincroniza produtos ativos
+   c. Popula whatsapp_configs com phone_number_id, waba_id e token
+   d. Sincroniza Pixel para marketing_integrations (meta_pixel_id + meta_enabled)
+   e. Sincroniza token CAPI para marketing_integrations (meta_access_token + meta_capi_enabled)
 10. `pending_asset_selection` → false, conexão ativa
+11. TODAS as integrações ficam operacionais imediatamente
+```
+
+#### Auto-ativação pós-seleção (v5.5.0)
+
+Ao confirmar a seleção de ativos, o `meta-save-selected-assets` ativa automaticamente:
+
+| Integração | Ação Automática | Tabela Afetada |
+|------------|----------------|----------------|
+| **WhatsApp** | Popula `phone_number_id`, `waba_id`, `access_token`, `connection_status=connected`, `is_enabled=true`, `provider=meta` | `whatsapp_configs` |
+| **Pixel (Client-side)** | Sincroniza `meta_pixel_id`, `meta_enabled=true` | `marketing_integrations` |
+| **CAPI (Server-side)** | Sincroniza `meta_access_token`, `meta_capi_enabled=true` | `marketing_integrations` |
+| **Catálogo** | Cria catálogo NOVO via Graph API e envia todos os produtos ativos em lote (50/batch) | `meta_catalog_items`, Meta Commerce |
+| **Publicação FB/IG** | Ativo via token OAuth + page selecionada | `marketplace_connections.metadata.assets` |
+| **Ads** | Contas de anúncio disponíveis para o Autopilot | `marketplace_connections.metadata.assets` |
+
+#### Criação Automática de Catálogo
+
+Ao confirmar a seleção, o sistema:
+1. Busca o `business_id` associado à página selecionada
+2. Cria um catálogo NOVO via `POST /{business_id}/owned_product_catalogs` com nome `"Catálogo {storeName}"`
+3. Busca todos os produtos ativos do tenant
+4. Envia em lotes de 50 produtos via `POST /{catalog_id}/batch`
+5. Registra status em `meta_catalog_items`
+6. Salva `catalog_id` nos assets da conexão
+
+#### WhatsApp: Descoberta de Números
+
+O callback OAuth descobre os números de telefone de cada WABA:
+
+```text
+GET /{waba_id}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating
+```
+
+A resposta é armazenada em `available_assets.whatsapp_business_accounts[].phone_numbers[]`.
+Na tela de seleção, após escolher 1 WABA, o usuário escolhe 1 número específico.
+
+O número selecionado é salvo em `metadata.assets.selected_phone_number`:
+```typescript
+{
+  id: string;              // phone_number_id (usado para enviar mensagens)
+  display_phone_number: string;  // Ex: "+55 11 99999-9999"
+  verified_name: string;   // Nome verificado do WhatsApp Business
+  waba_id: string;         // ID do WABA pai
+}
 ```
 
 #### Edge Function: `meta-save-selected-assets`
@@ -786,16 +854,16 @@ Após o OAuth, o callback descobre os ativos disponíveis mas **NÃO os salva au
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
 | `tenantId` | uuid | ID do tenant |
-| `selectedAssets` | MetaAssets | Ativos selecionados pelo usuário |
+| `selectedAssets` | MetaAssets | Ativos selecionados pelo usuário (incluindo `selected_phone_number`) |
 
-**Resposta:** `{ success: true }` ou `{ success: false, error: string }`
+**Resposta:** `{ success: true, catalogCreated: boolean, catalogProductsSynced: number }` ou `{ success: false, error: string }`
 
 #### Campos de controle em `marketplace_connections.metadata`
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
 | `pending_asset_selection` | boolean | `true` = aguardando seleção do lojista |
-| `available_assets` | MetaAssets | Todos os ativos encontrados (para exibir na tela de seleção) |
+| `available_assets` | MetaAssets | Todos os ativos encontrados (incluindo phone_numbers por WABA) |
 | `assets` | MetaAssets | Ativos efetivamente selecionados pelo lojista |
 | `asset_selection_completed_at` | string | Timestamp da seleção |
 | `asset_selection_by` | uuid | ID do usuário que selecionou |
