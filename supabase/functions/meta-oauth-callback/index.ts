@@ -11,22 +11,13 @@ const corsHeaders = {
  * Meta OAuth Callback
  * 
  * Recebe o code do Meta via POST (do frontend), valida state (anti-CSRF), 
- * troca por tokens, descobre assets (páginas, IG, WABA) e salva no banco por tenant.
+ * troca por tokens, descobre assets (páginas, IG, WABA + phone numbers) e salva no banco por tenant.
  * 
  * Contrato:
  * - Erro de negócio = HTTP 200 + { success: false, error, code }
  * - Sucesso = HTTP 200 + { success: true, ... }
- * 
- * Fluxo:
- * 1. Validar state no banco (anti-CSRF)
- * 2. Trocar code por access_token
- * 3. Trocar por long-lived token
- * 4. Descobrir assets (páginas, Instagram, WhatsApp)
- * 5. Salvar em marketplace_connections
- * 6. Retornar sucesso/erro JSON
  */
 serve(async (req) => {
-  // CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -35,11 +26,9 @@ serve(async (req) => {
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  // URL base do app para construir redirect_uri (deve ser igual ao cadastrado no Meta)
   const appBaseUrl = Deno.env.get("APP_URL") || "https://app.comandocentral.com.br";
 
   try {
-    // Espera body JSON com code e state
     const body = await req.json();
     const { code, state } = body;
 
@@ -89,13 +78,10 @@ serve(async (req) => {
       );
     }
 
-    // Construir redirect URI (deve ser igual ao usado em meta-oauth-start e cadastrado no Meta)
     const redirectUri = `${appBaseUrl}/integrations/meta/callback`;
-
-    // Trocar code por access_token (short-lived)
-    // Buscar versão da API configurada
     const graphVersion = await getCredential(supabaseUrl, supabaseServiceKey, "META_GRAPH_API_VERSION") || "v21.0";
     
+    // Trocar code por access_token (short-lived)
     const tokenUrl = new URL(`https://graph.facebook.com/${graphVersion}/oauth/access_token`);
     tokenUrl.searchParams.set("client_id", appId);
     tokenUrl.searchParams.set("redirect_uri", redirectUri);
@@ -128,7 +114,7 @@ serve(async (req) => {
     if (longLivedResponse.ok) {
       const longLivedData = await longLivedResponse.json();
       accessToken = longLivedData.access_token;
-      expiresIn = longLivedData.expires_in || 5184000; // 60 dias
+      expiresIn = longLivedData.expires_in || 5184000;
       console.log("[meta-oauth-callback] Long-lived token obtido");
     } else {
       console.warn("[meta-oauth-callback] Não foi possível obter long-lived token, usando short-lived");
@@ -144,13 +130,12 @@ serve(async (req) => {
       metaUserName = meData.name;
     }
 
-    // Descobrir assets disponíveis
-    const assets = await discoverMetaAssets(accessToken, scope_packs);
+    // Descobrir assets disponíveis (incluindo phone numbers por WABA)
+    const assets = await discoverMetaAssets(accessToken, scope_packs, graphVersion);
 
-    // Calcular expires_at
     const expiresAt = new Date(Date.now() + (expiresIn * 1000)).toISOString();
 
-    // Merge de scope_packs: buscar packs anteriores e unir com novos (consentimento incremental)
+    // Merge de scope_packs
     let mergedScopePacks = [...scope_packs];
     const { data: existingConnection } = await supabase
       .from("marketplace_connections")
@@ -167,7 +152,6 @@ serve(async (req) => {
     }
 
     // Salvar conexão com status pendente de seleção de ativos
-    // Os ativos completos ficam em pending_assets para o frontend mostrar a seleção
     const { error: upsertError } = await supabase
       .from("marketplace_connections")
       .upsert({
@@ -186,9 +170,9 @@ serve(async (req) => {
           connected_by: user_id,
           connected_at: new Date().toISOString(),
           scope_packs: mergedScopePacks,
-          assets: assets, // Salva todos descobertos inicialmente
-          pending_asset_selection: true, // Flag para frontend saber que precisa confirmar
-          discovered_assets: assets, // Backup completo dos descobertos
+          assets: assets,
+          pending_asset_selection: true,
+          discovered_assets: assets,
         },
       }, {
         onConflict: "tenant_id,marketplace",
@@ -204,7 +188,6 @@ serve(async (req) => {
 
     console.log(`[meta-oauth-callback] Conexão Meta salva com sucesso para tenant ${tenant_id} — aguardando seleção de ativos`);
 
-    // Retornar assets descobertos para frontend mostrar seleção
     return new Response(
       JSON.stringify({
         success: true,
@@ -236,12 +219,13 @@ serve(async (req) => {
 
 /**
  * Descobrir assets disponíveis na conta Meta
+ * Inclui phone numbers por WABA para seleção de número WhatsApp
  */
-async function discoverMetaAssets(accessToken: string, scopePacks: string[]) {
+async function discoverMetaAssets(accessToken: string, scopePacks: string[], graphVersion: string) {
   const assets: {
     pages: Array<{ id: string; name: string; access_token?: string }>;
     instagram_accounts: Array<{ id: string; username: string; page_id: string }>;
-    whatsapp_business_accounts: Array<{ id: string; name: string }>;
+    whatsapp_business_accounts: Array<{ id: string; name: string; phone_numbers: Array<{ id: string; display_phone_number: string; verified_name: string; quality_rating?: string }> }>;
     ad_accounts: Array<{ id: string; name: string }>;
     pixels: Array<{ id: string; name: string; ad_account_id: string }>;
     catalogs: Array<{ id: string; name: string }>;
@@ -257,8 +241,6 @@ async function discoverMetaAssets(accessToken: string, scopePacks: string[]) {
   };
 
   try {
-    const graphVersion = "v21.0";
-    
     // Buscar páginas do usuário
     const pagesResponse = await fetch(
       `https://graph.facebook.com/${graphVersion}/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${accessToken}`
@@ -293,7 +275,7 @@ async function discoverMetaAssets(accessToken: string, scopePacks: string[]) {
       }
     }
 
-    // Buscar WhatsApp Business Accounts
+    // Buscar WhatsApp Business Accounts + Phone Numbers
     if (scopePacks.includes("whatsapp")) {
       try {
         const businessResponse = await fetch(
@@ -310,9 +292,33 @@ async function discoverMetaAssets(accessToken: string, scopePacks: string[]) {
                 const wabaData = await wabaResponse.json();
                 if (wabaData.data) {
                   for (const waba of wabaData.data) {
+                    // Buscar phone numbers deste WABA
+                    const phoneNumbers: Array<{ id: string; display_phone_number: string; verified_name: string; quality_rating?: string }> = [];
+                    try {
+                      const phonesResponse = await fetch(
+                        `https://graph.facebook.com/${graphVersion}/${waba.id}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating&access_token=${accessToken}`
+                      );
+                      if (phonesResponse.ok) {
+                        const phonesData = await phonesResponse.json();
+                        if (phonesData.data) {
+                          for (const phone of phonesData.data) {
+                            phoneNumbers.push({
+                              id: phone.id,
+                              display_phone_number: phone.display_phone_number || phone.id,
+                              verified_name: phone.verified_name || "",
+                              quality_rating: phone.quality_rating,
+                            });
+                          }
+                        }
+                      }
+                    } catch (phoneError) {
+                      console.warn("[meta-oauth-callback] Erro ao buscar phone numbers de WABA", waba.id, ":", phoneError);
+                    }
+
                     assets.whatsapp_business_accounts.push({
                       id: waba.id,
                       name: waba.name || `WABA ${waba.id}`,
+                      phone_numbers: phoneNumbers,
                     });
                   }
                 }
@@ -346,7 +352,7 @@ async function discoverMetaAssets(accessToken: string, scopePacks: string[]) {
         console.warn("[meta-oauth-callback] Erro ao buscar Ad Accounts:", adsError);
       }
 
-      // Buscar Pixels de cada Ad Account descoberta
+      // Buscar Pixels de cada Ad Account
       for (const account of assets.ad_accounts) {
         try {
           const pixelsResponse = await fetch(
