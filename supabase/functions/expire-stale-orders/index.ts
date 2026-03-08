@@ -1,6 +1,7 @@
 // ============================================
 // EXPIRE STALE ORDERS - Auto-expire old pending PIX/Boleto orders
 // Runs via cron every 15 minutes
+// Also cleans up declined orders left with status=pending
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -33,7 +34,7 @@ serve(async (req) => {
     // Orders without any transaction: expire after 30 minutes (orphan orders)
     const orphanCutoff = new Date(now.getTime() - 30 * 60 * 1000).toISOString();
 
-    // 1. Expire old PIX orders
+    // 1. Expire old PIX orders (payment_status = 'pending' in DB enum)
     const { data: expiredPix, error: pixError } = await supabase
       .from('orders')
       .update({ 
@@ -77,51 +78,61 @@ serve(async (req) => {
       console.log(`[expire-stale-orders] Expired ${expiredBoleto?.length || 0} Boleto orders`);
     }
 
-    // 3. Cancel orphan orders (no payment transaction created)
-    // These are orders where the payment step failed before reaching the gateway
-    const { data: orphanOrders, error: orphanError } = await supabase.rpc('cancel_orphan_orders', {
-      p_cutoff: orphanCutoff,
-    });
+    // 3. Fix inconsistent orders: payment_status=declined but status still pending
+    // These should be cancelled to keep the admin clean
+    const { data: fixedDeclined, error: declinedError } = await supabase
+      .from('orders')
+      .update({
+        status: 'cancelled',
+        cancellation_reason: 'Pagamento recusado (sync automático)',
+        cancelled_at: now.toISOString(),
+        updated_at: now.toISOString(),
+      })
+      .eq('payment_status', 'declined')
+      .eq('status', 'pending')
+      .select('id, order_number, tenant_id');
 
-    // If RPC doesn't exist, use direct query approach
-    if (orphanError?.message?.includes('function') || orphanError?.code === '42883') {
-      // Fallback: find orders without transactions
-      const { data: pendingOrders } = await supabase
-        .from('orders')
-        .select('id, order_number')
-        .eq('payment_status', 'pending')
-        .in('status', ['pending', 'awaiting_payment'])
-        .lt('created_at', orphanCutoff);
-
-      if (pendingOrders && pendingOrders.length > 0) {
-        // Check which ones have no transactions
-        for (const order of pendingOrders) {
-          const { data: txCount } = await supabase
-            .from('payment_transactions')
-            .select('id', { count: 'exact', head: true })
-            .eq('order_id', order.id);
-
-          if (!txCount || txCount.length === 0) {
-            await supabase
-              .from('orders')
-              .update({
-                payment_status: 'cancelled',
-                status: 'cancelled',
-                cancellation_reason: 'Pedido sem pagamento (automático)',
-                cancelled_at: now.toISOString(),
-                updated_at: now.toISOString(),
-              })
-              .eq('id', order.id);
-
-            console.log(`[expire-stale-orders] Cancelled orphan order: ${order.order_number}`);
-          }
-        }
-      }
-    } else if (!orphanError) {
-      console.log(`[expire-stale-orders] Cancelled orphan orders:`, orphanOrders);
+    if (declinedError) {
+      console.error('[expire-stale-orders] Declined sync error:', declinedError);
+    } else {
+      console.log(`[expire-stale-orders] Fixed ${fixedDeclined?.length || 0} declined-but-pending orders`);
     }
 
-    // Also expire corresponding payment_transactions
+    // 4. Cancel orphan orders (no payment transaction created)
+    const { data: pendingOrders } = await supabase
+      .from('orders')
+      .select('id, order_number')
+      .eq('payment_status', 'pending')
+      .in('status', ['pending', 'awaiting_payment'])
+      .lt('created_at', orphanCutoff);
+
+    let orphanCount = 0;
+    if (pendingOrders && pendingOrders.length > 0) {
+      for (const order of pendingOrders) {
+        const { data: txData } = await supabase
+          .from('payment_transactions')
+          .select('id', { count: 'exact', head: true })
+          .eq('order_id', order.id);
+
+        if (!txData || txData.length === 0) {
+          await supabase
+            .from('orders')
+            .update({
+              payment_status: 'cancelled',
+              status: 'cancelled',
+              cancellation_reason: 'Pedido sem pagamento (automático)',
+              cancelled_at: now.toISOString(),
+              updated_at: now.toISOString(),
+            })
+            .eq('id', order.id);
+
+          orphanCount++;
+          console.log(`[expire-stale-orders] Cancelled orphan order: ${order.order_number}`);
+        }
+      }
+    }
+
+    // 5. Expire corresponding payment_transactions for PIX
     const { error: txExpireError } = await supabase
       .from('payment_transactions')
       .update({ status: 'expired', updated_at: now.toISOString() })
@@ -134,12 +145,14 @@ serve(async (req) => {
     }
 
     const totalExpired = (expiredPix?.length || 0) + (expiredBoleto?.length || 0);
-    console.log(`[expire-stale-orders] Total expired: ${totalExpired}`);
+    console.log(`[expire-stale-orders] Summary: expired=${totalExpired}, declined_fixed=${fixedDeclined?.length || 0}, orphans=${orphanCount}`);
 
     return new Response(JSON.stringify({
       success: true,
       expired_pix: expiredPix?.length || 0,
       expired_boleto: expiredBoleto?.length || 0,
+      declined_fixed: fixedDeclined?.length || 0,
+      orphans_cancelled: orphanCount,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
