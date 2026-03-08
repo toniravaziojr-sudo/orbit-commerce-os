@@ -397,7 +397,7 @@ const WHATSAPP_CACHE_TTL = 60000; // 1 minute
 interface WhatsAppConfig {
   id: string;
   tenant_id: string;
-  provider?: string; // 'zapi' | 'meta'
+  provider?: string;
   instance_id: string;
   instance_token: string;
   client_token: string | null;
@@ -415,14 +415,14 @@ async function getWhatsAppConfig(supabase: any, tenantId: string): Promise<Whats
     return cached.config;
   }
 
-  // Try to get connected config (prefer meta if both exist)
+  // Get connected Meta config
   const { data, error } = await supabase
     .from('whatsapp_configs')
     .select('*')
     .eq('tenant_id', tenantId)
     .eq('connection_status', 'connected')
     .eq('is_enabled', true)
-    .order('provider', { ascending: false }) // 'zapi' comes after 'meta'
+    .eq('provider', 'meta')
     .limit(1)
     .single();
 
@@ -436,7 +436,7 @@ async function getWhatsAppConfig(supabase: any, tenantId: string): Promise<Whats
   return data;
 }
 
-// Send WhatsApp - routes to Meta or Z-API based on provider
+// Send WhatsApp via Meta Cloud API
 async function sendWhatsApp(
   supabase: any,
   tenantId: string,
@@ -479,12 +479,7 @@ async function sendWhatsApp(
     };
   }
 
-  // Route based on provider
-  if (config.provider === 'meta') {
-    return await sendWhatsAppViaMeta(supabase, tenantId, cleanPhone, message, config);
-  } else {
-    return await sendWhatsAppViaZAPI(supabase, tenantId, cleanPhone, message, config);
-  }
+  return await sendWhatsAppViaMeta(supabase, tenantId, cleanPhone, message, config);
 }
 
 // Send WhatsApp via Meta Cloud API
