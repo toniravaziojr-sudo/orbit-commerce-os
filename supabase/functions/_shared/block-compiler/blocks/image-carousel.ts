@@ -80,7 +80,7 @@ export function imageCarouselToStaticHTML(
     dotsHtml = `<div style="display:flex;justify-content:center;gap:8px;margin-top:16px;">${dots}</div>`;
   }
 
-  return `<section style="max-width:1280px;margin:0 auto;padding:32px 16px;">
+  return `<section style="max-width:1280px;margin:0 auto;padding:16px 16px;">
     ${title ? `<h2 style="font-size:clamp(20px,3vw,28px);font-weight:700;margin-bottom:16px;text-align:center;font-family:var(--sf-heading-font);">${escapeHtml(title)}</h2>` : ''}
     <div style="overflow:hidden;border-radius:8px;">
       <div class="sf-ic-track" style="display:flex;gap:16px;scroll-snap-type:x mandatory;overflow-x:auto;">
