@@ -142,12 +142,10 @@ serve(async (req) => {
     if (allExpired.length > 0) {
       const historyEntries = allExpired.map(o => ({
         order_id: o.id,
-        tenant_id: o.tenant_id,
-        field_changed: 'status',
-        old_value: 'pending',
-        new_value: 'cancelled',
-        changed_by: 'cron:expire-stale-orders',
-        notes: o.reason,
+        action: 'status_changed',
+        previous_value: { status: 'pending' },
+        new_value: { status: 'cancelled' },
+        description: o.reason,
       }));
       
       const { error: historyError } = await supabase

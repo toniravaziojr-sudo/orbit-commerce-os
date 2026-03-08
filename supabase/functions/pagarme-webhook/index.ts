@@ -250,27 +250,25 @@ serve(async (req) => {
 
     // ==== RECORD ORDER HISTORY ====
     if (existingTransaction.order_id && (newPaymentStatus || newOrderStatus)) {
-      const historyEntries: Array<{order_id: string; tenant_id: string; field_changed: string; old_value: string | null; new_value: string; changed_by: string}> = [];
+      const historyEntries: Array<{order_id: string; action: string; previous_value: Record<string,unknown>; new_value: Record<string,unknown>; description: string}> = [];
       
       if (newPaymentStatus && newPaymentStatus !== existingTransaction.status) {
         historyEntries.push({
           order_id: existingTransaction.order_id,
-          tenant_id: existingTransaction.tenant_id,
-          field_changed: 'payment_status',
-          old_value: existingTransaction.status || null,
-          new_value: newPaymentStatus,
-          changed_by: 'webhook:pagarme',
+          action: 'payment_status_changed',
+          previous_value: { payment_status: existingTransaction.status },
+          new_value: { payment_status: newPaymentStatus },
+          description: `Pagamento: ${existingTransaction.status} → ${newPaymentStatus} (webhook Pagar.me)`,
         });
       }
       
       if (newOrderStatus) {
         historyEntries.push({
           order_id: existingTransaction.order_id,
-          tenant_id: existingTransaction.tenant_id,
-          field_changed: 'status',
-          old_value: null, // we don't have old order status here
-          new_value: newOrderStatus,
-          changed_by: 'webhook:pagarme',
+          action: 'status_changed',
+          previous_value: {},
+          new_value: { status: newOrderStatus },
+          description: `Status: → ${newOrderStatus} (webhook Pagar.me)`,
         });
       }
       
