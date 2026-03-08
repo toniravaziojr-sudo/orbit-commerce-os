@@ -482,7 +482,7 @@ export class MarketingTracker {
 
   // Track initiate checkout
   trackInitiateCheckout(cart: {
-    items: Array<{ id: string; name: string; price: number; quantity: number; category?: string }>;
+    items: Array<{ id: string; sku?: string; metaContentId?: string | null; name: string; price: number; quantity: number; category?: string }>;
     value: number;
     currency?: string;
   }): void {
@@ -492,13 +492,13 @@ export class MarketingTracker {
     // Meta
     if (this.config.meta_enabled) {
       trackMetaEvent('InitiateCheckout', {
-        content_ids: cart.items.map(i => i.id),
+        content_ids: cart.items.map(i => resolveMetaContentId(i)),
         content_type: 'product',
         value: cart.value,
         currency,
         num_items: cart.items.reduce((sum, i) => sum + i.quantity, 0),
         contents: cart.items.map(i => ({
-          id: i.id,
+          id: resolveMetaContentId(i),
           quantity: i.quantity,
         })),
       }, eventId);
@@ -510,7 +510,7 @@ export class MarketingTracker {
         currency,
         value: cart.value,
         items: cart.items.map(i => ({
-          item_id: i.id,
+          item_id: i.sku || i.id,
           item_name: i.name,
           item_category: i.category,
           price: i.price,
@@ -522,7 +522,7 @@ export class MarketingTracker {
     // TikTok
     if (this.config.tiktok_enabled) {
       trackTikTokEvent('InitiateCheckout', {
-        content_ids: cart.items.map(i => i.id),
+        content_ids: cart.items.map(i => i.sku || i.id),
         content_type: 'product',
         value: cart.value,
         currency,
@@ -536,7 +536,7 @@ export class MarketingTracker {
     order_id: string;
     value: number;
     currency?: string;
-    items: Array<{ id: string; name: string; price: number; quantity: number; category?: string }>;
+    items: Array<{ id: string; sku?: string; metaContentId?: string | null; name: string; price: number; quantity: number; category?: string }>;
   }): void {
     const eventId = generateEventId();
     const currency = order.currency || 'BRL';
@@ -551,13 +551,13 @@ export class MarketingTracker {
     // Meta
     if (this.config.meta_enabled) {
       trackMetaEvent('Purchase', {
-        content_ids: order.items.map(i => i.id),
+        content_ids: order.items.map(i => resolveMetaContentId(i)),
         content_type: 'product',
         value: order.value,
         currency,
         num_items: order.items.reduce((sum, i) => sum + i.quantity, 0),
         contents: order.items.map(i => ({
-          id: i.id,
+          id: resolveMetaContentId(i),
           quantity: i.quantity,
         })),
       }, eventId);
@@ -570,7 +570,7 @@ export class MarketingTracker {
         currency,
         value: order.value,
         items: order.items.map(i => ({
-          item_id: i.id,
+          item_id: i.sku || i.id,
           item_name: i.name,
           item_category: i.category,
           price: i.price,
@@ -582,7 +582,7 @@ export class MarketingTracker {
     // TikTok
     if (this.config.tiktok_enabled) {
       trackTikTokEvent('CompletePayment', {
-        content_ids: order.items.map(i => i.id),
+        content_ids: order.items.map(i => i.sku || i.id),
         content_type: 'product',
         value: order.value,
         currency,
