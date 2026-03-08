@@ -94,14 +94,14 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
       const dynamicBadges = context.productBadges.get(p.id) || [];
       for (const db of dynamicBadges.slice(0, 3)) {
         const shapeRadius = db.shape === 'circular' || db.shape === 'pill' ? '12px' : db.shape === 'square' ? '2px' : '4px';
-        badges.push(`<span style="background:${db.background_color};color:${db.text_color};font-size:10px;font-weight:600;padding:3px 8px;border-radius:${shapeRadius};max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(db.name)}</span>`);
+        badges.push(`<span style="background:${db.background_color};color:${db.text_color};font-size:10px;font-weight:600;padding:3px 8px;border-radius:${shapeRadius};white-space:nowrap;">${escapeHtml(db.name)}</span>`);
       }
       // Static badges
-      if (p.free_shipping) badges.push(`<span style="background:#16a34a;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;">FRETE GRÁTIS</span>`);
-      if (hasDiscount && discountPercent >= 10) badges.push(`<span style="background:#dc2626;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;">-${discountPercent}%</span>`);
+      if (p.free_shipping) badges.push(`<span style="background:#16a34a;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;white-space:nowrap;">FRETE GRÁTIS</span>`);
+      if (hasDiscount && discountPercent >= 10) badges.push(`<span style="background:#dc2626;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;white-space:nowrap;">-${discountPercent}%</span>`);
       if (badges.length > 0) {
         // Horizontal row at top-left (matches ProductCardBadges component)
-        badgesHtml = `<div style="position:absolute;top:6px;left:6px;display:flex;align-items:center;gap:4px;z-index:2;pointer-events:none;flex-wrap:nowrap;overflow:hidden;">${badges.slice(0, 3).join('')}</div>`;
+        badgesHtml = `<div style="position:absolute;top:6px;left:6px;right:6px;display:flex;align-items:center;gap:4px;z-index:2;pointer-events:none;flex-wrap:nowrap;overflow:hidden;">${badges.slice(0, 3).join('')}</div>`;
       }
     }
 
@@ -152,7 +152,7 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
           <div style="aspect-ratio:1;background:#f9f9f9;overflow:hidden;">
             ${optimized ? `<img src="${escapeHtml(optimized)}" alt="${escapeHtml(p.name)}" style="width:100%;height:100%;object-fit:cover;transition:transform .3s;" loading="lazy">` : ''}
           </div>
-          <div style="padding:8px 12px 12px;flex:1;display:flex;flex-direction:column;" onclick="event.preventDefault();event.stopPropagation();">
+          <div style="padding:8px 12px 12px;flex:1;display:flex;flex-direction:column;">
             ${ratingsHtml}
             <p style="font-size:13px;font-weight:500;line-height:1.4;margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(p.name)}</p>
             <div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;margin-top:auto;">
@@ -160,7 +160,7 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
               <span style="font-size:14px;font-weight:700;color:var(--theme-price-color, var(--theme-text-primary,#1a1a1a));">${formatPriceFromDecimal(p.price)}</span>
               ${hasDiscount ? `<span style="font-size:10px;font-weight:600;color:#16a34a;background:#dcfce7;padding:1px 6px;border-radius:3px;">-${discountPercent}%</span>` : ''}
             </div>
-            <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+            <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;" onclick="event.preventDefault();event.stopPropagation();">
               ${buttonsHtml.join('')}
             </div>
           </div>
