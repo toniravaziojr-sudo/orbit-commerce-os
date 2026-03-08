@@ -247,12 +247,11 @@ Deno.serve(async (req) => {
       description = description.substring(0, 9999);
 
       // Build product data object for /{catalog_id}/batch
-      // Official Meta field names: image_link, additional_image_link, link
-      // See: https://developers.facebook.com/docs/commerce-platform/catalog/fields/
+      // NOTE: /batch endpoint uses url, image_url (NOT link/image_link which are for feeds/items_batch)
       const productData: Record<string, any> = {
         name: product.name || "Produto",
         description,
-        link: productUrl,
+        url: productUrl,
         availability: (product.stock_quantity !== null && product.stock_quantity <= 0) ? "out of stock" : "in stock",
         condition: "new",
         brand: product.brand || tenant?.slug || "Loja",
@@ -260,16 +259,13 @@ Deno.serve(async (req) => {
         currency: "BRL",
       };
 
-      // Main image — send both field names for maximum compatibility
-      // image_link = official Meta catalog field; image_url = legacy /batch field
+      // Main image (required)
       if (primaryImage) {
-        productData.image_link = primaryImage;
         productData.image_url = primaryImage;
       }
 
-      // Additional images — comma-separated string (Meta spec) + array (legacy)
+      // Additional images as JSON array (up to 50)
       if (additionalImages.length > 0) {
-        productData.additional_image_link = additionalImages.join(",");
         productData.additional_image_urls = additionalImages;
       }
 
@@ -290,7 +286,7 @@ Deno.serve(async (req) => {
         productData.rich_text_description = product.description.substring(0, 9999);
       }
 
-      console.log(`[meta-catalog-sync] Product SKU=${product.sku} method=CREATE image_link="${productData.image_link || 'NONE'}" additional_images=${additionalImages.length}`);
+      console.log(`[meta-catalog-sync] Product SKU=${product.sku} method=CREATE image_url="${productData.image_url || 'NONE'}" additional_images=${additionalImages.length}`);
 
       batchItems.push({
         retailer_id: product.sku || product.id,
