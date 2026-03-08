@@ -309,9 +309,11 @@ function buildFullPage(opts: {
       .sf-header-desktop{display:none !important;}
       .sf-nav-desktop{display:none !important;}
       .sf-header-mobile{display:flex !important;}
+      .sf-header-mobile-secondary{display:flex !important;}
     }
     @media(min-width:769px){
       .sf-header-mobile{display:none !important;}
+      .sf-header-mobile-secondary{display:none !important;}
     }
     /* Dropdown hover */
     .sf-dropdown{padding:8px 0;}
