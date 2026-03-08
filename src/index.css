@@ -304,6 +304,9 @@
   .sf-footer-socials {
     justify-content: center !important;
   }
+  .sf-footer-seals-grid {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 @container storefront (min-width: 640px) {
