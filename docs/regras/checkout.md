@@ -431,6 +431,27 @@ Carrinho & Checkout → aba Checkout (no Builder)
 - `pagarme-webhook`: Agora usa fallback `payload.data?.status` quando `charges[0].status` não está disponível
 - Trigger: Corrigido de `'paid'` para `'approved'` no enum `payment_status`
 
+### Correção (v8.2.5) — Pedidos duplicados e órfãos
+
+**Problema:** Cada tentativa de pagamento criava um novo pedido, poluindo a lista. Pedidos sem transação ficavam como "órfãos".
+
+**Correções:**
+- `useCheckoutPayment`: Agora armazena `pendingOrderRef` (orderId + orderNumber) no state. Se o pagamento falha, a próxima tentativa reutiliza o pedido existente ao invés de criar outro.
+- `resetPayment()` limpa o ref para permitir um novo pedido em caso de mudança de contexto.
+- `pagarme-create-charge` (v8.2.4): Já sincroniza `orders.status` imediatamente quando o gateway retorna falha.
+
+### Automação (v8.2.5) — Expiração de PIX/Boleto pendentes
+
+**Edge function:** `expire-stale-orders` (cron a cada 15 min)
+
+| Tipo | Regra de expiração |
+|------|--------------------|
+| **PIX** | Cancela após 1 hora sem pagamento |
+| **Boleto** | Cancela após 4 dias (3 úteis + 1 grace) |
+| **Órfãos** | Cancela após 30 min se não tem nenhuma `payment_transaction` |
+
+Status aplicados: `payment_status='cancelled'`, `status='cancelled'`, com `cancellation_reason` descritivo.
+
 ---
 
 ## Pendências Conhecidas
