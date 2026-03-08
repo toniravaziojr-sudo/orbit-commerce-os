@@ -10415,11 +10415,15 @@ export type Database = {
           created_at: string
           id: string
           last_error: string | null
+          last_image_validation: Json | null
+          last_payload: Json | null
+          last_response: Json | null
           last_synced_at: string | null
           meta_product_id: string | null
           metadata: Json | null
           product_id: string
           status: string
+          sync_version: string | null
           tenant_id: string
           updated_at: string
         }
@@ -10428,11 +10432,15 @@ export type Database = {
           created_at?: string
           id?: string
           last_error?: string | null
+          last_image_validation?: Json | null
+          last_payload?: Json | null
+          last_response?: Json | null
           last_synced_at?: string | null
           meta_product_id?: string | null
           metadata?: Json | null
           product_id: string
           status?: string
+          sync_version?: string | null
           tenant_id: string
           updated_at?: string
         }
@@ -10441,11 +10449,15 @@ export type Database = {
           created_at?: string
           id?: string
           last_error?: string | null
+          last_image_validation?: Json | null
+          last_payload?: Json | null
+          last_response?: Json | null
           last_synced_at?: string | null
           meta_product_id?: string | null
           metadata?: Json | null
           product_id?: string
           status?: string
+          sync_version?: string | null
           tenant_id?: string
           updated_at?: string
         }
