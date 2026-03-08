@@ -187,11 +187,17 @@ serve(async (req) => {
       activationResults.whatsapp = "skipped";
     }
 
-    // 3. Criar catálogo novo na Meta Commerce Manager
-    // O catálogo será criado via Graph API usando o business_id do primeiro negócio
+    // 3. Criar ou reutilizar catálogo na Meta Commerce Manager
+    // Usa o business_id do portfólio selecionado pelo usuário
     if (oauthAccessToken) {
       try {
-        const catalogResult = await createMetaCatalog(supabase, tenantId, oauthAccessToken);
+        // Verificar se já existe catálogo criado pelo nosso sistema
+        const existingCatalogId = (metadata as any)?.meta_catalog_id || null;
+        const selectedBusinessId = selectedAssets.business_id || null;
+
+        const catalogResult = await createOrReuseCatalog(
+          supabase, tenantId, oauthAccessToken, selectedBusinessId, existingCatalogId
+        );
         activationResults.catalog = catalogResult.success ? "active" : "error";
         if (catalogResult.catalogId) {
           // Salvar o catalogId nos assets da conexão
@@ -205,7 +211,10 @@ serve(async (req) => {
                   catalogs: [{ id: catalogResult.catalogId, name: catalogResult.catalogName || "Catálogo da Loja" }],
                 },
                 meta_catalog_id: catalogResult.catalogId,
-                meta_catalog_created_at: new Date().toISOString(),
+                meta_catalog_created_by_system: true,
+                meta_catalog_created_at: catalogResult.isReused
+                  ? (metadata as any)?.meta_catalog_created_at || new Date().toISOString()
+                  : new Date().toISOString(),
               },
             })
             .eq("tenant_id", tenantId)
