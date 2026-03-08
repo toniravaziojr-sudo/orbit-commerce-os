@@ -1604,8 +1604,7 @@ serve(async (req) => {
 
     } else if (route.type === 'blog_index') {
       // BLOG INDEX — using block-compiler
-      const postsResult = allResults[8];
-      const posts = postsResult?.status === 'fulfilled' ? (postsResult as any).value.data || [] : [];
+      const posts = routeData || [];
 
       bodyHtml = blogIndexToStaticHTML(posts, storeName);
       pageTitle = `Blog | ${storeName}`;
