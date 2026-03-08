@@ -1,6 +1,6 @@
 // ============================================
 // STOREFRONT HTML — Edge-Rendered Storefront
-// v8.1.1: FIX allResults index offset — route-specific queries at index [8] after store_pages base query
+// v8.2.0: REFACTOR — named result extraction instead of numeric allResults[] indices
 // Resolves tenant from hostname, serves pre-rendered HTML if available,
 // falls back to live rendering otherwise.
 // ============================================
@@ -16,7 +16,7 @@ import { blogIndexToStaticHTML, blogPostToStaticHTML } from '../_shared/block-co
 import { institutionalPageToStaticHTML } from '../_shared/block-compiler/blocks/institutional-page.ts';
 
 // ===== VERSION =====
-const VERSION = "v8.1.1"; // FIX: allResults index offset — route queries at [8] not [7]
+const VERSION = "v8.2.0"; // REFACTOR: named result extraction — no more numeric allResults[] indices
 // ====================
 
 // ============================================
@@ -1082,80 +1082,69 @@ serve(async (req) => {
     console.log(`[storefront-html][${VERSION}] ${bypassPrerender ? 'BYPASS MODE' : 'No prerender for'} ${normalizedPath}, live render`);
     const queryStart = Date.now();
     
-    // Base queries (all pages need these)
-    const baseQueries = [
-      supabase.from('tenants').select('id, name, slug, logo_url').eq('id', tenantId).maybeSingle(),
-      supabase.from('store_settings').select('store_name, logo_url, store_description, social_instagram, social_facebook, social_whatsapp, social_tiktok, social_youtube, contact_phone, contact_email, contact_address, contact_support_hours, business_legal_name, business_cnpj, is_published, favicon_url, seo_title, seo_description').eq('tenant_id', tenantId).maybeSingle(),
-      supabase.from('menus').select('*, menu_items(*)').eq('tenant_id', tenantId).eq('location', 'header').maybeSingle(),
-      supabase.from('categories').select('id, name, slug').eq('tenant_id', tenantId).eq('is_active', true).order('sort_order').limit(10),
-      supabase.from('storefront_template_sets').select('id, published_content, is_published, base_preset').eq('tenant_id', tenantId).eq('is_published', true).maybeSingle(),
-      supabase.from('storefront_global_layout').select('header_config, published_header_config, footer_config, published_footer_config, header_enabled, footer_enabled').eq('tenant_id', tenantId).maybeSingle(),
-      supabase.from('menus').select('id, name, location, menu_items(id, label, url, item_type, ref_id, sort_order)').eq('tenant_id', tenantId).in('location', ['footer', 'footer_1', 'footer_2']),
-      // Query published pages for footer menu URL resolution
-      supabase.from('store_pages').select('id, slug, type, is_published').eq('tenant_id', tenantId).eq('is_published', true),
-    ];
+    // Base queries (all pages need these) — order doesn't matter, extracted by name
+    const baseQueryMap = {
+      tenant: supabase.from('tenants').select('id, name, slug, logo_url').eq('id', tenantId).maybeSingle(),
+      storeSettings: supabase.from('store_settings').select('store_name, logo_url, store_description, social_instagram, social_facebook, social_whatsapp, social_tiktok, social_youtube, contact_phone, contact_email, contact_address, contact_support_hours, business_legal_name, business_cnpj, is_published, favicon_url, seo_title, seo_description').eq('tenant_id', tenantId).maybeSingle(),
+      headerMenu: supabase.from('menus').select('*, menu_items(*)').eq('tenant_id', tenantId).eq('location', 'header').maybeSingle(),
+      categories: supabase.from('categories').select('id, name, slug').eq('tenant_id', tenantId).eq('is_active', true).order('sort_order').limit(10),
+      templateSet: supabase.from('storefront_template_sets').select('id, published_content, is_published, base_preset').eq('tenant_id', tenantId).eq('is_published', true).maybeSingle(),
+      globalLayout: supabase.from('storefront_global_layout').select('header_config, published_header_config, footer_config, published_footer_config, header_enabled, footer_enabled').eq('tenant_id', tenantId).maybeSingle(),
+      footerMenus: supabase.from('menus').select('id, name, location, menu_items(id, label, url, item_type, ref_id, sort_order)').eq('tenant_id', tenantId).in('location', ['footer', 'footer_1', 'footer_2']),
+      publishedPages: supabase.from('store_pages').select('id, slug, type, is_published').eq('tenant_id', tenantId).eq('is_published', true),
+    };
 
-    // Route-specific queries
-    const routeQueries: Promise<any>[] = [];
+    // Route-specific query (only one per request)
+    let routeQueryPromise: Promise<any> | null = null;
     if (route.type === 'product' && route.slug) {
-      routeQueries.push(
-        supabase.from('products')
-          .select('id, name, slug, sku, price, compare_at_price, description, short_description, brand, stock_quantity, status, free_shipping, seo_title, seo_description, has_variants, tags, avg_rating, review_count, allow_backorder')
-          .eq('tenant_id', tenantId)
-          .eq('slug', route.slug)
-          .is('deleted_at', null)
-          .maybeSingle()
-      );
+      routeQueryPromise = supabase.from('products')
+        .select('id, name, slug, sku, price, compare_at_price, description, short_description, brand, stock_quantity, status, free_shipping, seo_title, seo_description, has_variants, tags, avg_rating, review_count, allow_backorder')
+        .eq('tenant_id', tenantId).eq('slug', route.slug).is('deleted_at', null).maybeSingle();
     } else if (route.type === 'category' && route.slug) {
-      routeQueries.push(
-        supabase.from('categories')
-          .select('id, name, slug, description, image_url, banner_desktop_url, banner_mobile_url, seo_title, seo_description')
-          .eq('tenant_id', tenantId)
-          .eq('slug', route.slug)
-          .eq('is_active', true)
-          .maybeSingle()
-      );
+      routeQueryPromise = supabase.from('categories')
+        .select('id, name, slug, description, image_url, banner_desktop_url, banner_mobile_url, seo_title, seo_description')
+        .eq('tenant_id', tenantId).eq('slug', route.slug).eq('is_active', true).maybeSingle();
     } else if (route.type === 'page' && route.slug) {
-      routeQueries.push(
-        supabase.from('store_pages')
-          .select('id, title, slug, body_html, description, seo_title, seo_description, content, is_published')
-          .eq('tenant_id', tenantId)
-          .eq('slug', route.slug)
-          .eq('is_published', true)
-          .maybeSingle()
-      );
+      routeQueryPromise = supabase.from('store_pages')
+        .select('id, title, slug, body_html, description, seo_title, seo_description, content, is_published')
+        .eq('tenant_id', tenantId).eq('slug', route.slug).eq('is_published', true).maybeSingle();
     } else if (route.type === 'blog_post' && route.slug) {
-      routeQueries.push(
-        supabase.from('blog_posts')
-          .select('id, title, slug, excerpt, content, body_html, cover_image_url, published_at, created_at, author_name, seo_title, seo_description, status')
-          .eq('tenant_id', tenantId)
-          .eq('slug', route.slug)
-          .eq('status', 'published')
-          .maybeSingle()
-      );
+      routeQueryPromise = supabase.from('blog_posts')
+        .select('id, title, slug, excerpt, content, body_html, cover_image_url, published_at, created_at, author_name, seo_title, seo_description, status')
+        .eq('tenant_id', tenantId).eq('slug', route.slug).eq('status', 'published').maybeSingle();
     } else if (route.type === 'blog_index') {
-      routeQueries.push(
-        supabase.from('blog_posts')
-          .select('id, title, slug, excerpt, cover_image_url, published_at, author_name')
-          .eq('tenant_id', tenantId)
-          .eq('status', 'published')
-          .order('published_at', { ascending: false })
-          .limit(24)
-      );
+      routeQueryPromise = supabase.from('blog_posts')
+        .select('id, title, slug, excerpt, cover_image_url, published_at, author_name')
+        .eq('tenant_id', tenantId).eq('status', 'published').order('published_at', { ascending: false }).limit(24);
     }
 
-    const allResults = await Promise.allSettled([...baseQueries, ...routeQueries]);
+    // Execute ALL queries in parallel — base + route
+    const baseKeys = Object.keys(baseQueryMap) as (keyof typeof baseQueryMap)[];
+    const basePromises = baseKeys.map(k => baseQueryMap[k]);
+    const allPromises = routeQueryPromise ? [...basePromises, routeQueryPromise] : basePromises;
+    const allResults = await Promise.allSettled(allPromises);
     const queryMs = Date.now() - queryStart;
 
-    // Extract base results
-    const tenant = allResults[0].status === 'fulfilled' ? (allResults[0] as any).value.data : null;
-    const storeSettings = allResults[1].status === 'fulfilled' ? (allResults[1] as any).value.data : null;
-    const headerMenuRaw = allResults[2].status === 'fulfilled' ? (allResults[2] as any).value.data : null;
-    const categories = allResults[3].status === 'fulfilled' ? (allResults[3] as any).value.data : [];
-    const templateSet = allResults[4].status === 'fulfilled' ? (allResults[4] as any).value.data : null;
-    const globalLayout = allResults[5].status === 'fulfilled' ? (allResults[5] as any).value.data : null;
-    const footerMenusRaw = allResults[6].status === 'fulfilled' ? (allResults[6] as any).value.data || [] : [];
-    const publishedPages = allResults[7].status === 'fulfilled' ? (allResults[7] as any).value.data || [] : [];
+    // === Extract base results BY NAME (immune to index shifts) ===
+    const baseResults: Record<string, any> = {};
+    baseKeys.forEach((key, idx) => {
+      const r = allResults[idx];
+      baseResults[key] = r?.status === 'fulfilled' ? (r as any).value.data : null;
+    });
+
+    const tenant = baseResults.tenant;
+    const storeSettings = baseResults.storeSettings;
+    const headerMenuRaw = baseResults.headerMenu;
+    const categories = baseResults.categories || [];
+    const templateSet = baseResults.templateSet;
+    const globalLayout = baseResults.globalLayout;
+    const footerMenusRaw = baseResults.footerMenus || [];
+    const publishedPages = baseResults.publishedPages || [];
+
+    // Route-specific result — ALWAYS the last element, safe from base query additions
+    const routeData = routeQueryPromise
+      ? (allResults[baseKeys.length]?.status === 'fulfilled' ? (allResults[baseKeys.length] as any).value.data : null)
+      : null;
 
     // Build footer menus structure with URL resolution and unpublished page filtering
     const footer1Menu = footerMenusRaw.find((m: any) => m.location === 'footer_1' || m.location === 'footer');
@@ -1357,8 +1346,7 @@ serve(async (req) => {
 
     } else if (route.type === 'product' && route.slug) {
       // PRODUCT — using block-compiler with published_content.product tree
-      const productResult = allResults[8];
-      const product = productResult?.status === 'fulfilled' ? (productResult as any).value.data : null;
+      const product = routeData;
 
       if (!product || product.status !== 'active') {
         return new Response(
@@ -1514,8 +1502,7 @@ serve(async (req) => {
 
     } else if (route.type === 'category' && route.slug) {
       // CATEGORY — using block-compiler with published_content.category tree
-      const categoryResult = allResults[8];
-      const category = categoryResult?.status === 'fulfilled' ? (categoryResult as any).value.data : null;
+      const category = routeData;
 
       if (!category) {
         return new Response(
@@ -1601,8 +1588,7 @@ serve(async (req) => {
 
     } else if (route.type === 'page' && route.slug) {
       // INSTITUTIONAL PAGE — using block-compiler
-      const pageResult = allResults[8];
-      const page = pageResult?.status === 'fulfilled' ? (pageResult as any).value.data : null;
+      const page = routeData;
 
       if (!page) {
         return new Response(
@@ -1618,8 +1604,7 @@ serve(async (req) => {
 
     } else if (route.type === 'blog_index') {
       // BLOG INDEX — using block-compiler
-      const postsResult = allResults[8];
-      const posts = postsResult?.status === 'fulfilled' ? (postsResult as any).value.data || [] : [];
+      const posts = routeData || [];
 
       bodyHtml = blogIndexToStaticHTML(posts, storeName);
       pageTitle = `Blog | ${storeName}`;
@@ -1628,8 +1613,7 @@ serve(async (req) => {
 
     } else if (route.type === 'blog_post' && route.slug) {
       // BLOG POST — using block-compiler
-      const postResult = allResults[8];
-      const post = postResult?.status === 'fulfilled' ? (postResult as any).value.data : null;
+      const post = routeData;
 
       if (!post) {
         return new Response(
