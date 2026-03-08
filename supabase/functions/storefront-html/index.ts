@@ -1197,8 +1197,8 @@ serve(async (req) => {
     };
     
     const footerMenus = {
-      footer1: footer1Menu ? { name: footer1Menu.name, items: resolveFooterMenuItems(footer1Menu.menu_items || []) } : { name: '', items: [] },
-      footer2: footer2Menu ? { name: footer2Menu.name, items: resolveFooterMenuItems(footer2Menu.menu_items || []) } : { name: '', items: [] },
+      footer1: footer1Menu ? { name: footer1Menu.name, items: resolveMenuItems(footer1Menu.menu_items || []) } : { name: '', items: [] },
+      footer2: footer2Menu ? { name: footer2Menu.name, items: resolveMenuItems(footer2Menu.menu_items || []) } : { name: '', items: [] },
     };
 
     if (!storeSettings?.is_published) {
