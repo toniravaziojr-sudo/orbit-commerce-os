@@ -638,6 +638,8 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           setPaymentStatus('pending_payment');
           clearCart();
           clearDraft();
+          clearStoredAttribution();
+          clearStoredAffiliateData();
           navigate(`${urls.thankYou()}?pedido=${encodeURIComponent(cleanOrderNumber)}`);
         }
       } else {
