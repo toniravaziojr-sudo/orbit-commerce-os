@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v3.0.0"; // Fix: images (sort_order), short_description, custom domain from tenant_domains, strip HTML
+const VERSION = "v3.1.0"; // Fix: price/currency as separate fields for Graph API
 // ===================
 
 const corsHeaders = {
