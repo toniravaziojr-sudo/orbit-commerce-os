@@ -100,7 +100,7 @@ serve(async (req) => {
     const loggiExternalServiceId = await checkCredential(supabaseUrl, supabaseServiceKey, 'LOGGI_EXTERNAL_SERVICE_ID');
     const firecrawlApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'FIRECRAWL_API_KEY');
     const lovableApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'LOVABLE_API_KEY');
-    const zapiClientToken = await checkCredential(supabaseUrl, supabaseServiceKey, 'ZAPI_CLIENT_TOKEN');
+    
     const openaiApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'OPENAI_API_KEY');
     const metaAppId = await checkCredential(supabaseUrl, supabaseServiceKey, 'META_APP_ID');
     const metaAppSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'META_APP_SECRET');
@@ -265,21 +265,6 @@ serve(async (req) => {
         },
         sources: {
           OPENAI_API_KEY: openaiApiKey.source || '',
-        },
-      },
-      zapi: {
-        name: 'Z-API',
-        description: 'WhatsApp Business API (Client Token da conta gerenciadora)',
-        icon: 'MessageSquare',
-        docs: 'https://developer.z-api.io/',
-        secrets: {
-          ZAPI_CLIENT_TOKEN: zapiClientToken.exists,
-        },
-        previews: {
-          ZAPI_CLIENT_TOKEN: zapiClientToken.preview || '',
-        },
-        sources: {
-          ZAPI_CLIENT_TOKEN: zapiClientToken.source || '',
         },
       },
       whatsapp_meta: {

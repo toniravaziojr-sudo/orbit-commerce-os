@@ -49,9 +49,8 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // If no tenant_id in URL, try to resolve from Z-API instanceId
+    // If no tenant_id in URL, try to resolve from instanceId or phone
     if (!tenantId && channelType === "whatsapp") {
-      // Z-API sends instanceId in the webhook payload
       const instanceId = body.instanceId as string || body.instance_id as string;
       console.log("[support-webhook] Trying to resolve tenant from instanceId:", instanceId);
       
@@ -70,7 +69,6 @@ serve(async (req) => {
       
       // Also try to resolve from phone number if still no tenant
       if (!tenantId) {
-        // Z-API might send the destination phone (our number) in 'to' field
         const toPhone = (body.to as string || body.chatId as string)?.replace(/\D/g, "");
         console.log("[support-webhook] Trying to resolve tenant from phone:", toPhone);
         
@@ -112,7 +110,7 @@ serve(async (req) => {
         // Check if message is from us (outgoing)
         isFromMe = body.fromMe === true || body.isFromMe === true;
         
-        // Z-API webhook format
+        // Webhook format (phone field)
         if (body.phone) {
           customerPhone = (body.phone as string).replace(/\D/g, "");
           customerName = (body.senderName || body.pushName || body.contactName) as string || null;

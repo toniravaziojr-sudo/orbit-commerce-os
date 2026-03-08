@@ -29,11 +29,14 @@ interface AgendaTask {
 interface WhatsAppConfig {
   id: string;
   tenant_id: string;
+  provider?: string;
   instance_id: string | null;
   instance_token: string | null;
   client_token: string | null;
   connection_status: string;
   phone_number: string | null;
+  phone_number_id?: string | null;
+  access_token?: string | null;
   is_enabled: boolean;
 }
 
@@ -372,31 +375,39 @@ async function sendWhatsAppMessage(
     return { success: false, error: 'no_phone_number_configured' };
   }
 
+  if (!config.access_token || !config.phone_number_id) {
+    return { success: false, error: 'meta_config_incomplete' };
+  }
+
   // Format phone number
   let cleanPhone = config.phone_number.replace(/\D/g, '');
   if (cleanPhone.length === 11 || cleanPhone.length === 10) {
     cleanPhone = '55' + cleanPhone;
   }
 
-  // Z-API send
-  const baseUrl = `https://api.z-api.io/instances/${config.instance_id}/token/${config.instance_token}`;
+  // Send via Meta WhatsApp Cloud API
+  const graphApiVersion = 'v21.0';
+  const sendUrl = `https://graph.facebook.com/${graphApiVersion}/${config.phone_number_id}/messages`;
   
-  const response = await fetch(`${baseUrl}/send-text`, {
+  const response = await fetch(sendUrl, {
     method: 'POST',
     headers: {
+      'Authorization': `Bearer ${config.access_token}`,
       'Content-Type': 'application/json',
-      'Client-Token': config.client_token!,
     },
     body: JSON.stringify({
-      phone: cleanPhone,
-      message: message,
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: cleanPhone,
+      type: 'text',
+      text: { body: message },
     }),
   });
 
   const data = await response.json();
 
-  if (!response.ok || data.error) {
-    return { success: false, error: data.error || data.message || `HTTP ${response.status}` };
+  if (data.error) {
+    return { success: false, error: data.error.message || `HTTP ${response.status}` };
   }
 
   return { success: true };

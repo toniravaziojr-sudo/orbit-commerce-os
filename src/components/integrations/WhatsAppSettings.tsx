@@ -198,7 +198,7 @@ export function WhatsAppSettings() {
     }
     setIsTesting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("whatsapp-send", {
+      const { data, error } = await supabase.functions.invoke("meta-whatsapp-send", {
         body: { tenant_id: tenantId, phone: testPhoneInput.trim(), message: "🚀 Teste WhatsApp - Comando Central" },
       });
       if (error) throw error;

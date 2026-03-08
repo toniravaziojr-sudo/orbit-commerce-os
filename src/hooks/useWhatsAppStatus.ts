@@ -24,6 +24,7 @@ export function useWhatsAppStatus() {
         .from("whatsapp_configs")
         .select("id, connection_status, phone_number, last_error, is_enabled")
         .eq("tenant_id", tenantId)
+        .eq("provider", "meta")
         .maybeSingle();
 
       if (error) {

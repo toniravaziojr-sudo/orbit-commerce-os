@@ -29,7 +29,6 @@ export function PlatformIntegrationsDashboard({ onNavigateToTab }: PlatformInteg
     firecrawl: 'ai',
     lovable_ai: 'ai',
     openai: 'ai',
-    zapi: 'whatsapp',
     whatsapp_meta: 'whatsapp',
     meta_platform: 'meta',
     google_platform: 'google',
@@ -89,7 +88,7 @@ export function PlatformIntegrationsDashboard({ onNavigateToTab }: PlatformInteg
     );
   }
 
-  // Use integrations from API (includes zapi now)
+  // Use integrations from API
   const allIntegrations = integrations || [];
 
   return (

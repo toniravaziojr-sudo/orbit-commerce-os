@@ -397,7 +397,7 @@ const WHATSAPP_CACHE_TTL = 60000; // 1 minute
 interface WhatsAppConfig {
   id: string;
   tenant_id: string;
-  provider?: string; // 'zapi' | 'meta'
+  provider?: string;
   instance_id: string;
   instance_token: string;
   client_token: string | null;
@@ -415,14 +415,14 @@ async function getWhatsAppConfig(supabase: any, tenantId: string): Promise<Whats
     return cached.config;
   }
 
-  // Try to get connected config (prefer meta if both exist)
+  // Get connected Meta config
   const { data, error } = await supabase
     .from('whatsapp_configs')
     .select('*')
     .eq('tenant_id', tenantId)
     .eq('connection_status', 'connected')
     .eq('is_enabled', true)
-    .order('provider', { ascending: false }) // 'zapi' comes after 'meta'
+    .eq('provider', 'meta')
     .limit(1)
     .single();
 
@@ -436,7 +436,7 @@ async function getWhatsAppConfig(supabase: any, tenantId: string): Promise<Whats
   return data;
 }
 
-// Send WhatsApp - routes to Meta or Z-API based on provider
+// Send WhatsApp via Meta Cloud API
 async function sendWhatsApp(
   supabase: any,
   tenantId: string,
@@ -479,12 +479,7 @@ async function sendWhatsApp(
     };
   }
 
-  // Route based on provider
-  if (config.provider === 'meta') {
-    return await sendWhatsAppViaMeta(supabase, tenantId, cleanPhone, message, config);
-  } else {
-    return await sendWhatsAppViaZAPI(supabase, tenantId, cleanPhone, message, config);
-  }
+  return await sendWhatsAppViaMeta(supabase, tenantId, cleanPhone, message, config);
 }
 
 // Send WhatsApp via Meta Cloud API
@@ -596,106 +591,6 @@ async function sendWhatsAppViaMeta(
   }
 }
 
-// Send WhatsApp via Z-API (legacy)
-async function sendWhatsAppViaZAPI(
-  supabase: any,
-  tenantId: string,
-  cleanPhone: string,
-  message: string,
-  config: WhatsAppConfig
-): Promise<{ success: boolean; error?: string; response?: Record<string, unknown>; messageId?: string }> {
-  console.log(`[RunNotifications] Sending via Z-API to ${cleanPhone}`);
-
-  if (!config.instance_id || !config.instance_token) {
-    return {
-      success: false,
-      error: 'Credenciais do WhatsApp não configuradas (Instance ID/Token).',
-      response: { channel: 'whatsapp', to: cleanPhone, provider: 'zapi' }
-    };
-  }
-
-  if (!config.client_token) {
-    return {
-      success: false,
-      error: 'Client Token Z-API não configurado. Configure em Plataforma → Integrações.',
-      response: { channel: 'whatsapp', to: cleanPhone, provider: 'zapi' }
-    };
-  }
-
-  // Z-API send text message
-  const baseUrl = `https://api.z-api.io/instances/${config.instance_id}/token/${config.instance_token}`;
-  
-  try {
-    const sendRes = await fetch(`${baseUrl}/send-text`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Client-Token': config.client_token
-      },
-      body: JSON.stringify({
-        phone: cleanPhone,
-        message: message
-      })
-    });
-
-    const sendData = await sendRes.json();
-    console.log(`[RunNotifications] WhatsApp Z-API response:`, sendData);
-
-    if (!sendRes.ok || sendData.error) {
-      const errorMsg = sendData.error || sendData.message || `Z-API error: ${sendRes.status}`;
-      
-      // Log failed message
-      await supabase.from('whatsapp_messages').insert({
-        tenant_id: tenantId,
-        recipient_phone: cleanPhone,
-        message_content: message.substring(0, 500),
-        status: 'failed',
-        error_message: errorMsg,
-        provider_response: sendData,
-      });
-
-      return {
-        success: false,
-        error: errorMsg,
-        response: sendData
-      };
-    }
-
-    // Log successful message
-    await supabase.from('whatsapp_messages').insert({
-      tenant_id: tenantId,
-      recipient_phone: cleanPhone,
-      message_content: message.substring(0, 500),
-      status: 'sent',
-      provider_message_id: sendData.messageId || sendData.zapiMessageId,
-      provider_response: sendData,
-      sent_at: new Date().toISOString(),
-    });
-
-    // Register in unified Atendimento timeline
-    await registerInAttendanceTimeline(supabase, tenantId, cleanPhone, message, sendData.messageId || sendData.zapiMessageId, 'notification');
-
-    return {
-      success: true,
-      messageId: sendData.messageId || sendData.zapiMessageId,
-      response: {
-        channel: 'whatsapp',
-        provider: 'zapi',
-        to: cleanPhone,
-        from: config.phone_number,
-        ...sendData
-      }
-    };
-
-  } catch (error: any) {
-    console.error(`[RunNotifications] WhatsApp Z-API error:`, error);
-    return {
-      success: false,
-      error: error.message || 'Erro ao enviar WhatsApp',
-      response: { channel: 'whatsapp', provider: 'zapi', to: cleanPhone }
-    };
-  }
-}
 
 // Calculate backoff: 60s, 120s, 240s, 480s... up to 1 hour max
 function calculateBackoffSeconds(attemptNo: number): number {
@@ -892,7 +787,7 @@ Deno.serve(async (req) => {
           }
         }
       } else if (notification.channel === 'whatsapp') {
-        // WhatsApp via Z-API
+        // WhatsApp via Meta Cloud API
         sendResult = await sendWhatsApp(supabase, notification.tenant_id, notification.recipient, whatsappMessage);
       } else {
         sendResult = {

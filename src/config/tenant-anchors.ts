@@ -14,7 +14,6 @@ export const COMANDO_CENTRAL_TENANT_ID = 'cc000000-0000-0000-0000-000000000001';
 
 /**
  * Check if tenant is the special Respeite o Homem tenant
- * This tenant has Z-API enabled for WhatsApp
  */
 export function isRespeiteOHomemTenant(tenantId: string | undefined | null): boolean {
   return tenantId === RESPEITE_O_HOMEM_TENANT_ID;

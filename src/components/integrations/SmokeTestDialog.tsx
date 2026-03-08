@@ -162,17 +162,8 @@ export function SmokeTestDialog({ open, onOpenChange }: SmokeTestDialogProps) {
       // Test WhatsApp
       if (testWhatsapp) {
         try {
-          // Check which provider to use for this tenant
-          const { data: waConfig } = await supabase
-            .from('whatsapp_configs')
-            .select('provider')
-            .eq('tenant_id', selectedTenantId)
-            .eq('connection_status', 'connected')
-            .maybeSingle();
-
-          const sendFunction = waConfig?.provider === 'meta' ? 'meta-whatsapp-send' : 'whatsapp-send';
-          
-          const { data, error } = await supabase.functions.invoke(sendFunction, {
+          // Always use Meta WhatsApp send
+          const { data, error } = await supabase.functions.invoke('meta-whatsapp-send', {
             body: {
               tenant_id: selectedTenantId,
               phone: phone,
@@ -186,7 +177,7 @@ export function SmokeTestDialog({ open, onOpenChange }: SmokeTestDialogProps) {
             testResults.push({
               channel: 'whatsapp',
               success: true,
-              message: `WhatsApp enviado via ${waConfig?.provider || 'zapi'}`,
+              message: `WhatsApp enviado via Meta`,
             });
           } else {
             testResults.push({

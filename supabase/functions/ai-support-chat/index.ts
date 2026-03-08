@@ -1009,17 +1009,9 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
       console.log(`[ai-support-chat] Sending WhatsApp response...`);
       
       try {
-        const { data: waConfig } = await supabase
-          .from("whatsapp_configs")
-          .select("provider")
-          .eq("tenant_id", tenant_id)
-          .eq("connection_status", "connected")
-          .maybeSingle();
-
-        const sendFunction = waConfig?.provider === "meta" ? "meta-whatsapp-send" : "whatsapp-send";
-
+        // Always use Meta WhatsApp send
         const sendResponse = await fetch(
-          `${supabaseUrl}/functions/v1/${sendFunction}`,
+          `${supabaseUrl}/functions/v1/meta-whatsapp-send`,
           {
             method: "POST",
             headers: {
