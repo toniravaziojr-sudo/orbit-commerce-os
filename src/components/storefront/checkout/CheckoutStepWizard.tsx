@@ -33,6 +33,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { getCanonicalOrigin } from '@/lib/canonicalUrls';
 import { getStoreHost } from '@/lib/storeHost';
 import { useMarketingEvents } from '@/hooks/useMarketingEvents';
+import { getStoredAttribution, clearStoredAttribution } from '@/hooks/useAttribution';
+import { getStoredAffiliateData, clearStoredAffiliateData } from '@/lib/affiliateTracking';
 import {
   startCheckoutSession,
   heartbeatCheckoutSession,
