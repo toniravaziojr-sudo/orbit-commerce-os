@@ -825,6 +825,15 @@ O sistema gerencia **apenas 1 instância** de cada tipo de ativo (exceto contas 
 13. TODAS as integrações ficam operacionais imediatamente
 ```
 
+#### Reconexão (Renovação de Token)
+
+> **REGRA:** Ao reconectar (renovar token), o fluxo completo de seleção de ativos é **sempre** exibido, permitindo que o tenant troque Página, Instagram, WABA, Número de Telefone, Pixel e Contas de Anúncio a qualquer momento.
+>
+> - O `meta-oauth-callback` sempre define `pending_asset_selection: true` e executa asset discovery
+> - O `MetaOAuthCallback.tsx` sempre exibe os Steps 1 (Portfólio) e 2 (Seleção de Ativos)
+> - A tela nativa de reconexão do Meta ("Edit Settings") é controlada pelo Facebook e aparece automaticamente para apps previamente autorizados — isto é esperado e não interfere no fluxo
+> - O catálogo gerenciado (`meta_catalog_created_by_system`) é preservado entre reconexões (reuso automático)
+
 #### Auto-ativação pós-seleção (v5.5.0)
 
 Ao confirmar a seleção de ativos, o `meta-save-selected-assets` ativa automaticamente:
