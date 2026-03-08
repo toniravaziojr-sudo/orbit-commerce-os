@@ -260,6 +260,9 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
       
       console.log('[Checkout] Step 2 OK - Payment processed');
 
+      // Payment succeeded - clear pending order ref
+      setPendingOrderRef(null);
+
       // Build result
       const result: PaymentResult = {
         success: true,
@@ -285,6 +288,8 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      // NOTE: pendingOrderRef is intentionally NOT cleared here
+      // so the next retry reuses the same order instead of creating a duplicate
       const result: PaymentResult = {
         success: false,
         error: errorMessage,
