@@ -183,7 +183,8 @@ Deno.serve(async (req) => {
         availability: (product.stock_quantity !== null && product.stock_quantity <= 0) ? "out of stock" : "in stock",
         condition: "new",
         brand: product.brand || tenant?.slug || "Loja",
-        price: `${priceCents} BRL`,
+        price: priceCents,
+        currency: "BRL",
       };
 
       // Main image (required)
