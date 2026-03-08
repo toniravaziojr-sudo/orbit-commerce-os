@@ -375,15 +375,38 @@ async function syncProductsToCatalog(
     // Buscar produtos ativos (limit 1000 para primeira sync)
     const { data: products, error: prodError } = await supabase
       .from("products")
-      .select("id, name, description, price, compare_at_price, sku, status, slug, images")
+      .select("id, name, description, short_description, price, compare_at_price, sku, status, slug, brand, gtin, barcode")
       .eq("tenant_id", tenantId)
       .eq("status", "active")
       .is("deleted_at", null)
       .limit(1000);
 
-    if (prodError || !products || products.length === 0) {
+    if (prodError) {
+      console.error("[meta-save-selected-assets] Erro ao buscar produtos:", prodError);
+      return;
+    }
+
+    if (!products || products.length === 0) {
       console.log("[meta-save-selected-assets] Nenhum produto ativo para sincronizar ao catálogo");
       return;
+    }
+
+    console.log(`[meta-save-selected-assets] ${products.length} produtos ativos encontrados para sincronizar`);
+
+    // Buscar imagens dos produtos
+    const productIds = products.map((p: any) => p.id);
+    const { data: allImages } = await supabase
+      .from("product_images")
+      .select("product_id, url, is_primary, position")
+      .in("product_id", productIds)
+      .order("position", { ascending: true });
+
+    // Mapear imagem principal por produto
+    const imageMap: Record<string, string> = {};
+    for (const img of allImages || []) {
+      if (img.is_primary || !imageMap[img.product_id]) {
+        imageMap[img.product_id] = img.url;
+      }
     }
 
     // Buscar domínio da loja para URLs
@@ -397,34 +420,46 @@ async function syncProductsToCatalog(
       ? `https://${tenantData.custom_domain}` 
       : `https://${tenantData?.slug || 'loja'}.shops.comandocentral.com.br`;
 
-    // Enviar produtos em batch via API de Produtos do Catálogo
+    // Enviar produtos em batch via Graph API Batch Requests
     const batchRequests = [];
     for (const product of products) {
-      const imageUrl = product.images?.[0] || null;
+      const imageUrl = imageMap[product.id] || null;
       const productUrl = `${baseUrl}/produto/${product.slug || product.id}`;
       const priceCents = Math.round((product.price || 0) * 100);
+      const description = (product.description || product.short_description || product.name || "Produto").substring(0, 5000);
+
+      const bodyParams: Record<string, string> = {
+        retailer_id: product.sku || product.id,
+        name: product.name || "Produto",
+        description,
+        url: productUrl,
+        image_url: imageUrl || `${baseUrl}/placeholder.svg`,
+        price: `${priceCents} BRL`,
+        availability: "in stock",
+        condition: "new",
+        brand: product.brand || tenantData?.slug || "loja",
+      };
+
+      if (product.compare_at_price && product.compare_at_price > product.price) {
+        bodyParams.price = `${Math.round(product.compare_at_price * 100)} BRL`;
+        bodyParams.sale_price = `${priceCents} BRL`;
+      }
+
+      if (product.gtin || product.barcode) {
+        bodyParams.gtin = product.gtin || product.barcode;
+      }
 
       batchRequests.push({
         method: "POST",
         relative_url: `${catalogId}/products`,
-        body: new URLSearchParams({
-          retailer_id: product.id,
-          name: product.name || "Produto",
-          description: (product.description || product.name || "").substring(0, 5000),
-          url: productUrl,
-          image_url: imageUrl || `${baseUrl}/placeholder.svg`,
-          price: `${priceCents} BRL`,
-          availability: "in stock",
-          condition: "new",
-          brand: tenantData?.slug || "loja",
-          ...(product.compare_at_price ? { sale_price: `${priceCents} BRL` } : {}),
-        }).toString(),
+        body: new URLSearchParams(bodyParams).toString(),
       });
     }
 
     // Enviar em batches de 50
     const BATCH_SIZE = 50;
     let totalSent = 0;
+    let totalErrors = 0;
     
     for (let i = 0; i < batchRequests.length; i += BATCH_SIZE) {
       const batch = batchRequests.slice(i, i + BATCH_SIZE);
@@ -432,25 +467,35 @@ async function syncProductsToCatalog(
       try {
         const batchResponse = await fetch(`https://graph.facebook.com/${graphVersion}/`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
             access_token: accessToken,
             batch: JSON.stringify(batch),
-          }),
+          }).toString(),
         });
 
         if (batchResponse.ok) {
-          totalSent += batch.length;
+          const batchResults = await batchResponse.json();
+          for (const result of batchResults || []) {
+            if (result && result.code >= 200 && result.code < 300) {
+              totalSent++;
+            } else {
+              totalErrors++;
+              console.warn(`[meta-save-selected-assets] Produto falhou no batch:`, result?.body?.substring(0, 200));
+            }
+          }
         } else {
           const errText = await batchResponse.text();
-          console.warn(`[meta-save-selected-assets] Erro no batch ${i}-${i + batch.length}:`, errText);
+          totalErrors += batch.length;
+          console.warn(`[meta-save-selected-assets] Erro no batch ${i}-${i + batch.length}:`, errText.substring(0, 300));
         }
       } catch (batchErr) {
+        totalErrors += batch.length;
         console.warn(`[meta-save-selected-assets] Exceção no batch ${i}:`, batchErr);
       }
     }
 
-    console.log(`[meta-save-selected-assets] ${totalSent}/${products.length} produtos enviados ao catálogo ${catalogId}`);
+    console.log(`[meta-save-selected-assets] Sync catálogo: ${totalSent} OK, ${totalErrors} erros de ${products.length} produtos para catálogo ${catalogId}`);
 
   } catch (error) {
     console.error("[meta-save-selected-assets] Erro ao sincronizar produtos:", error);
