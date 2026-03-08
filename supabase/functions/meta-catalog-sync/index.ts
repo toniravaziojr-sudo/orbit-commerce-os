@@ -131,15 +131,16 @@ Deno.serve(async (req) => {
         description,
         url: productUrl,
         image_url: imageUrl,
-        price: `${priceCents} BRL`,
+        price: String(priceCents),
+        currency: "BRL",
         availability: "in stock",
         condition: "new",
         brand: product.brand || tenant?.slug || "loja",
       };
 
       if (product.compare_at_price && product.compare_at_price > product.price) {
-        bodyParams.price = `${Math.round(product.compare_at_price * 100)} BRL`;
-        bodyParams.sale_price = `${priceCents} BRL`;
+        bodyParams.price = String(Math.round(product.compare_at_price * 100));
+        bodyParams.sale_price = String(priceCents);
       }
 
       if (product.gtin || product.barcode) {
