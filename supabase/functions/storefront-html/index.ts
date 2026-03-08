@@ -1,6 +1,6 @@
 // ============================================
 // STOREFRONT HTML — Edge-Rendered Storefront
-// v8.1.0: Category + Product routes use compileBlockTree(published_content) — full parity
+// v8.1.1: FIX allResults index offset — route-specific queries at index [8] after store_pages base query
 // Resolves tenant from hostname, serves pre-rendered HTML if available,
 // falls back to live rendering otherwise.
 // ============================================
