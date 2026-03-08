@@ -132,7 +132,36 @@ serve(async (req) => {
       }
     }
 
-    // 5. Expire corresponding payment_transactions for PIX
+    // 5. Record order_history for all expired/cancelled orders
+    const allExpired = [
+      ...(expiredPix || []).map(o => ({ ...o, reason: 'PIX expirado (automático)' })),
+      ...(expiredBoleto || []).map(o => ({ ...o, reason: 'Boleto vencido (automático)' })),
+      ...(fixedDeclined || []).map(o => ({ ...o, reason: 'Pagamento recusado (sync automático)' })),
+    ];
+    
+    if (allExpired.length > 0) {
+      const historyEntries = allExpired.map(o => ({
+        order_id: o.id,
+        tenant_id: o.tenant_id,
+        field_changed: 'status',
+        old_value: 'pending',
+        new_value: 'cancelled',
+        changed_by: 'cron:expire-stale-orders',
+        notes: o.reason,
+      }));
+      
+      const { error: historyError } = await supabase
+        .from('order_history')
+        .insert(historyEntries);
+      
+      if (historyError) {
+        console.warn('[expire-stale-orders] Error recording history:', historyError);
+      } else {
+        console.log(`[expire-stale-orders] Recorded ${historyEntries.length} history entries`);
+      }
+    }
+
+    // 6. Expire corresponding payment_transactions for PIX
     const { error: txExpireError } = await supabase
       .from('payment_transactions')
       .update({ status: 'expired', updated_at: now.toISOString() })
