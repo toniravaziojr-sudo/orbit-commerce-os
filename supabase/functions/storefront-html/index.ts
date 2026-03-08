@@ -1661,7 +1661,7 @@ serve(async (req) => {
     const mobileFeaturedPromosTarget = String(hProps.featuredPromosTarget || hProps.featuredPromosDestination || '');
     let mobileFeaturedUrl = '#';
     if (mobileFeaturedPromosTarget.startsWith('category:')) mobileFeaturedUrl = `/categoria/${mobileFeaturedPromosTarget.replace('category:', '')}`;
-    else if (mobileFeaturedPromosTarget.startsWith('page:')) mobileFeaturedUrl = `/p/${mobileFeaturedPromosTarget.replace('page:', '')}`;
+    else if (mobileFeaturedPromosTarget.startsWith('page:')) mobileFeaturedUrl = `/page/${mobileFeaturedPromosTarget.replace('page:', '')}`;
     
     // Build child map for mobile
     const mobileChildrenMap = new Map<string, any[]>();
