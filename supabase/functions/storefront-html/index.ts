@@ -1613,8 +1613,7 @@ serve(async (req) => {
 
     } else if (route.type === 'blog_post' && route.slug) {
       // BLOG POST — using block-compiler
-      const postResult = allResults[8];
-      const post = postResult?.status === 'fulfilled' ? (postResult as any).value.data : null;
+      const post = routeData;
 
       if (!post) {
         return new Response(
