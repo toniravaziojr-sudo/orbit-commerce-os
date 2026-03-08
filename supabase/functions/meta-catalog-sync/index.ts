@@ -337,7 +337,7 @@ Deno.serve(async (req) => {
     // Build product query
     let productQuery = supabase
       .from("products")
-      .select("id, name, slug, sku, description, short_description, price, compare_at_price, brand, gtin, barcode, weight, stock_quantity, tags, product_format")
+      .select("id, name, slug, sku, description, short_description, price, compare_at_price, brand, gtin, barcode, weight, stock_quantity, tags, product_format, meta_retailer_id")
       .eq("tenant_id", tenantId)
       .eq("status", "active")
       .is("deleted_at", null);
