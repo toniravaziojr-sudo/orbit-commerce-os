@@ -1601,7 +1601,7 @@ serve(async (req) => {
 
     } else if (route.type === 'page' && route.slug) {
       // INSTITUTIONAL PAGE — using block-compiler
-      const pageResult = allResults[7];
+      const pageResult = allResults[8];
       const page = pageResult?.status === 'fulfilled' ? (pageResult as any).value.data : null;
 
       if (!page) {
