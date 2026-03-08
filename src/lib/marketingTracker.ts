@@ -368,6 +368,8 @@ export class MarketingTracker {
   // Track product view
   trackViewContent(product: {
     id: string;
+    sku?: string;
+    metaContentId?: string | null;
     name: string;
     price: number;
     currency?: string;
@@ -375,11 +377,12 @@ export class MarketingTracker {
   }): void {
     const eventId = generateEventId();
     const currency = product.currency || 'BRL';
+    const metaId = resolveMetaContentId(product);
 
     // Meta
     if (this.config.meta_enabled) {
       trackMetaEvent('ViewContent', {
-        content_ids: [product.id],
+        content_ids: [metaId],
         content_name: product.name,
         content_type: 'product',
         content_category: product.category,
@@ -394,7 +397,7 @@ export class MarketingTracker {
         currency,
         value: product.price,
         items: [{
-          item_id: product.id,
+          item_id: product.sku || product.id,
           item_name: product.name,
           item_category: product.category,
           price: product.price,
@@ -406,7 +409,7 @@ export class MarketingTracker {
     // TikTok
     if (this.config.tiktok_enabled) {
       trackTikTokEvent('ViewContent', {
-        content_id: product.id,
+        content_id: product.sku || product.id,
         content_name: product.name,
         content_type: 'product',
         content_category: product.category,
