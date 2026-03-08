@@ -176,6 +176,11 @@ serve(async (req) => {
         is_active: true,
         last_error: null,
         metadata: {
+          // Preservar metadados de catálogo na reconexão para reuso
+          ...(isReconnection ? {
+            meta_catalog_id: existingMeta?.meta_catalog_id,
+            meta_catalog_created_by_system: existingMeta?.meta_catalog_created_by_system,
+          } : {}),
           connected_by: user_id,
           connected_at: new Date().toISOString(),
           scope_packs: mergedScopePacks,
