@@ -34,7 +34,7 @@ Hub central de integrações com serviços externos: pagamentos, redes sociais, 
 |-----|-----------|
 | Resumo | Dashboard de status geral |
 | Email e Domínios | SendGrid, Cloudflare (plataforma) |
-| WhatsApp | Z-API manager, Meta Cloud API (plataforma) |
+| WhatsApp | Meta WhatsApp Cloud API (único provider) |
 | Fiscal | Nuvem Fiscal, Focus NFe |
 | Logística | Loggi OAuth global |
 | IA | Gemini Nativa, OpenAI Nativa, Lovable AI Gateway (fallback), Firecrawl |
