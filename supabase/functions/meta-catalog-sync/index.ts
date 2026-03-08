@@ -576,7 +576,7 @@ Deno.serve(async (req) => {
       // Store payload for audit
       productPayloads[product.id] = productData;
 
-      console.log(`[meta-catalog-sync] Product SKU=${product.sku} image_link="${productData.image_link || 'NONE'}" price="${productData.price}" additional=${additionalImages.length} img_valid=${imgValidation?.valid ?? 'no-image'} img_dims=${imgValidation?.width}x${imgValidation?.height}`);
+      console.log(`[meta-catalog-sync] Product SKU=${product.sku} retailer_id="${retailerId}" image_link="${productData.image_link || 'NONE'}" price="${productData.price}" additional=${additionalImages.length} img_valid=${imgValidation?.valid ?? 'no-image'} img_dims=${imgValidation?.width}x${imgValidation?.height}`);
 
       batchItems.push({
         method: "CREATE",
