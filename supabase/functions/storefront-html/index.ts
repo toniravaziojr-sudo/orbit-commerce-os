@@ -1346,8 +1346,7 @@ serve(async (req) => {
 
     } else if (route.type === 'product' && route.slug) {
       // PRODUCT — using block-compiler with published_content.product tree
-      const productResult = allResults[8];
-      const product = productResult?.status === 'fulfilled' ? (productResult as any).value.data : null;
+      const product = routeData;
 
       if (!product || product.status !== 'active') {
         return new Response(
