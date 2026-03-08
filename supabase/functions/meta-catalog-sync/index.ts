@@ -263,13 +263,26 @@ Deno.serve(async (req) => {
 
       const { data: prods } = await supabase
         .from("products")
-        .select("id, sku")
+        .select("id, sku, meta_retailer_id")
         .in("id", productIds);
 
-      const deleteRequests = (prods || []).map((p: any) => ({
-        method: "DELETE",
-        data: { id: p.sku || p.id },
-      }));
+      // Also check tombstoned IDs to delete those too
+      const { data: retiredIds } = await supabase
+        .from("meta_retired_ids")
+        .select("retired_id")
+        .in("product_id", productIds)
+        .eq("channel", "meta");
+
+      const deleteRequests: any[] = [];
+      for (const p of prods || []) {
+        // Use meta_retailer_id if set, otherwise SKU
+        const retailerId = p.meta_retailer_id || p.sku || p.id;
+        deleteRequests.push({ method: "DELETE", data: { id: retailerId } });
+      }
+      // Also delete any retired/tombstoned IDs
+      for (const r of retiredIds || []) {
+        deleteRequests.push({ method: "DELETE", data: { id: r.retired_id } });
+      }
 
       const deleteUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/${catalogId}/items_batch`;
       const formData = new URLSearchParams({
