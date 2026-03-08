@@ -130,12 +130,9 @@ serve(async (req) => {
       metaUserName = meData.name;
     }
 
-    // Descobrir portfólios empresariais e assets agrupados
-    const discovery = await discoverBusinessPortfolios(accessToken, scope_packs, graphVersion);
-
     const expiresAt = new Date(Date.now() + (expiresIn * 1000)).toISOString();
 
-    // Merge de scope_packs
+    // Verificar se já existe conexão com ativos selecionados (reconexão)
     let mergedScopePacks = [...scope_packs];
     const { data: existingConnection } = await supabase
       .from("marketplace_connections")
@@ -144,12 +141,78 @@ serve(async (req) => {
       .eq("marketplace", "meta")
       .maybeSingle();
 
-    if (existingConnection?.metadata) {
-      const existingMeta = existingConnection.metadata as { scope_packs?: string[] };
-      if (existingMeta.scope_packs) {
-        mergedScopePacks = [...new Set([...existingMeta.scope_packs, ...scope_packs])];
-      }
+    const existingMeta = existingConnection?.metadata as {
+      scope_packs?: string[];
+      assets?: Record<string, unknown>;
+      pending_asset_selection?: boolean;
+      meta_catalog_id?: string;
+      meta_catalog_created_by_system?: boolean;
+      [key: string]: unknown;
+    } | null;
+
+    if (existingMeta?.scope_packs) {
+      mergedScopePacks = [...new Set([...existingMeta.scope_packs, ...scope_packs])];
     }
+
+    // RECONEXÃO: se já tem ativos selecionados (não pendente), apenas atualizar tokens
+    const isReconnection = existingMeta && existingMeta.assets && existingMeta.pending_asset_selection !== true;
+
+    if (isReconnection) {
+      console.log(`[meta-oauth-callback] RECONEXÃO detectada para tenant ${tenant_id} — atualizando tokens, mantendo ativos existentes`);
+
+      // Descobrir portfólios atualizados (para manter businesses atualizado)
+      const discovery = await discoverBusinessPortfolios(accessToken, scope_packs, graphVersion);
+
+      const { error: upsertError } = await supabase
+        .from("marketplace_connections")
+        .upsert({
+          tenant_id: tenant_id,
+          marketplace: "meta",
+          external_user_id: metaUserId,
+          external_username: metaUserName,
+          access_token: accessToken,
+          refresh_token: null,
+          token_type: "Bearer",
+          expires_at: expiresAt,
+          scopes: mergedScopePacks,
+          is_active: true,
+          last_error: null,
+          metadata: {
+            ...existingMeta,
+            connected_by: user_id,
+            connected_at: new Date().toISOString(),
+            scope_packs: mergedScopePacks,
+            businesses: discovery.businesses,
+            pending_asset_selection: false,
+          },
+        }, {
+          onConflict: "tenant_id,marketplace",
+        });
+
+      if (upsertError) {
+        console.error("[meta-oauth-callback] Erro ao salvar reconexão:", upsertError);
+        return new Response(
+          JSON.stringify({ success: false, error: "Erro ao salvar a conexão", code: "SAVE_FAILED" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      console.log(`[meta-oauth-callback] Reconexão salva com sucesso — ativos preservados`);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          requiresAssetSelection: false,
+          isReconnection: true,
+          returnPath: return_path || "/integrations",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // PRIMEIRA CONEXÃO: descobrir portfólios e pedir seleção de ativos
+    console.log(`[meta-oauth-callback] Primeira conexão para tenant ${tenant_id} — descobrindo portfólios`);
+    const discovery = await discoverBusinessPortfolios(accessToken, scope_packs, graphVersion);
 
     // Salvar conexão com status pendente de seleção de ativos
     const { error: upsertError } = await supabase
