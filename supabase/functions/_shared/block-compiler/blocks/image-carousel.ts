@@ -80,7 +80,7 @@ export function imageCarouselToStaticHTML(
     dotsHtml = `<div style="display:flex;justify-content:center;gap:8px;margin-top:16px;">${dots}</div>`;
   }
 
-  return `<section style="max-width:1280px;margin:0 auto;padding:16px 16px;">
+  return `<section class="sf-ic-section" style="max-width:1280px;margin:0 auto;padding:16px 16px;">
     ${title ? `<h2 style="font-size:clamp(20px,3vw,28px);font-weight:700;margin-bottom:16px;text-align:center;font-family:var(--sf-heading-font);">${escapeHtml(title)}</h2>` : ''}
     <div style="overflow:hidden;border-radius:8px;">
       <div class="sf-ic-track" style="display:flex;gap:16px;scroll-snap-type:x mandatory;overflow-x:auto;">
@@ -90,7 +90,10 @@ export function imageCarouselToStaticHTML(
     ${dotsHtml}
     <style>
       .sf-ic-slide{width:${slideWidth};scroll-snap-align:start;}
-      @media(max-width:639px){.sf-ic-slide{width:100% !important;}}
+      @media(max-width:639px){
+        .sf-ic-section{padding:8px 8px !important;}
+        .sf-ic-slide{width:100% !important;}
+      }
       @media(min-width:640px) and (max-width:1023px){.sf-ic-slide{width:${slidesPerView > 2 ? '50%' : slideWidth} !important;}}
       .sf-ic-track{scrollbar-width:none;-ms-overflow-style:none;}
       .sf-ic-track::-webkit-scrollbar{display:none;}
