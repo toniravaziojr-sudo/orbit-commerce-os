@@ -148,6 +148,9 @@ Deno.serve(async (req) => {
     // Send message via Meta Graph API
     const sendUrl = `https://graph.facebook.com/${graphApiVersion}/${phone_number_id}/messages`;
     
+    console.log(`[meta-whatsapp-send][${traceId}] URL: ${sendUrl}`);
+    console.log(`[meta-whatsapp-send][${traceId}] Payload:`, JSON.stringify(messagePayload));
+
     const sendResponse = await fetch(sendUrl, {
       method: "POST",
       headers: {
