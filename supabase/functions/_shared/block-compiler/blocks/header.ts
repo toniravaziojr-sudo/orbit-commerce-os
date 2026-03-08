@@ -293,7 +293,7 @@ export function headerToStaticHTML(context: CompilerContext): string {
         <a href="/" style="flex-shrink:0;">${logoHtml}</a>
         <div style="display:flex;align-items:center;gap:8px;">
           ${accountHtml}
-          ${showCart ? `<button data-sf-action="open-cart" aria-label="Carrinho" style="background:none;border:none;cursor:pointer;padding:4px;position:relative;color:${escapeHtml(headerIconColor)};">${cartSvg}<span data-sf-cart-count style="display:none;position:absolute;top:-4px;right:-4px;background:var(--theme-button-primary-bg,#e53e3e);color:#fff;font-size:11px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;">0</span></button>` : ''}
+          ${showCart ? `<button data-sf-action="open-cart" aria-label="Carrinho" style="background:none;border:none;cursor:pointer;padding:4px;position:relative;color:${escapeHtml(headerIconColor)};">${cartSvg}<span data-sf-cart-count style="display:none;position:absolute;top:-4px;right:-4px;background:var(--theme-button-primary-bg,#e53e3e);color:#fff;font-size:11px;font-weight:700;min-width:18px;height:18px;border-radius:9px;align-items:center;justify-content:center;">0</span></button>` : ''}
         </div>
       </div>
       <!-- MOBILE SECONDARY BAR: Search + Featured Promos (mirrors StorefrontHeaderContent mobile bar) -->
