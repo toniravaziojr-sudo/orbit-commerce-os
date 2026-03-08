@@ -267,21 +267,6 @@ serve(async (req) => {
           OPENAI_API_KEY: openaiApiKey.source || '',
         },
       },
-      zapi: {
-        name: 'Z-API',
-        description: 'WhatsApp Business API (Client Token da conta gerenciadora)',
-        icon: 'MessageSquare',
-        docs: 'https://developer.z-api.io/',
-        secrets: {
-          ZAPI_CLIENT_TOKEN: zapiClientToken.exists,
-        },
-        previews: {
-          ZAPI_CLIENT_TOKEN: zapiClientToken.preview || '',
-        },
-        sources: {
-          ZAPI_CLIENT_TOKEN: zapiClientToken.source || '',
-        },
-      },
       whatsapp_meta: {
         name: 'WhatsApp Meta',
         description: 'WhatsApp Cloud API Oficial (Integrador)',
