@@ -248,6 +248,43 @@ serve(async (req) => {
       }
     }
 
+    // ==== RECORD ORDER HISTORY ====
+    if (existingTransaction.order_id && (newPaymentStatus || newOrderStatus)) {
+      const historyEntries: Array<{order_id: string; action: string; previous_value: Record<string,unknown>; new_value: Record<string,unknown>; description: string}> = [];
+      
+      if (newPaymentStatus && newPaymentStatus !== existingTransaction.status) {
+        historyEntries.push({
+          order_id: existingTransaction.order_id,
+          action: 'payment_status_changed',
+          previous_value: { payment_status: existingTransaction.status },
+          new_value: { payment_status: newPaymentStatus },
+          description: `Pagamento: ${existingTransaction.status} → ${newPaymentStatus} (webhook Pagar.me)`,
+        });
+      }
+      
+      if (newOrderStatus) {
+        historyEntries.push({
+          order_id: existingTransaction.order_id,
+          action: 'status_changed',
+          previous_value: {},
+          new_value: { status: newOrderStatus },
+          description: `Status: → ${newOrderStatus} (webhook Pagar.me)`,
+        });
+      }
+      
+      if (historyEntries.length > 0) {
+        const { error: historyError } = await supabase
+          .from('order_history')
+          .insert(historyEntries);
+        
+        if (historyError) {
+          console.warn(`[${requestId}] Error recording order history:`, historyError);
+        } else {
+          console.log(`[${requestId}] Recorded ${historyEntries.length} order history entries`);
+        }
+      }
+    }
+
     // ==== MARK EVENT AS PROCESSED ====
     await supabase
       .from('payment_events')
