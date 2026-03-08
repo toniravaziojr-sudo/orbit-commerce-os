@@ -113,7 +113,7 @@ export function featuredProductsToStaticHTML(
     </a>`;
   }).join('');
 
-  return `<section style="max-width:1280px;margin:0 auto;padding:32px 16px;">
+  return `<section class="sf-fp-section" style="max-width:1280px;margin:0 auto;padding:32px 16px;">
     ${title ? `<h2 style="font-size:clamp(20px,3vw,28px);font-weight:700;margin-bottom:24px;font-family:var(--sf-heading-font);color:inherit;">${escapeHtml(title)}</h2>` : ''}
     <div class="sf-fp-grid" style="display:grid;grid-template-columns:repeat(${columnsDesktop},1fr);gap:16px;">
       ${productCards}
