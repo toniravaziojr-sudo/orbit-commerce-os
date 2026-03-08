@@ -177,7 +177,7 @@ export function SmokeTestDialog({ open, onOpenChange }: SmokeTestDialogProps) {
             testResults.push({
               channel: 'whatsapp',
               success: true,
-              message: `WhatsApp enviado via ${waConfig?.provider || 'zapi'}`,
+              message: `WhatsApp enviado via Meta`,
             });
           } else {
             testResults.push({
