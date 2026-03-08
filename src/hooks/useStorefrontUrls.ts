@@ -140,7 +140,7 @@ export function useStorefrontUrls(tenantSlug: string): StorefrontUrls {
         if (item.item_type === 'category' && item.ref_id && categories) {
           const category = categories.find(c => c.id === item.ref_id);
           if (category) {
-            return `${basePath}/c/${category.slug}`;
+            return `${categoryPrefix}/${category.slug}`;
           }
         }
         
@@ -148,7 +148,7 @@ export function useStorefrontUrls(tenantSlug: string): StorefrontUrls {
         if (item.item_type === 'page' && item.ref_id && pages) {
           const page = pages.find(p => p.id === item.ref_id);
           if (page) {
-            return `${basePath}/page/${page.slug}`;
+            return `${pagePrefix}/${page.slug}`;
           }
         }
         
