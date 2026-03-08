@@ -88,6 +88,6 @@ export function infoHighlightsToStaticHTML(
         ${itemsHtml}
       </div>
     </div>
-    <style>@media(max-width:768px){.sf-info-highlights{padding:16px 0 !important;}.sf-info-highlights [style*="gap:24px"]{gap:12px !important;}.sf-info-highlights [style*="min-width:200px"]{min-width:140px !important;flex:0 0 calc(50% - 8px) !important;}}</style>
+    <style>@media(max-width:768px){.sf-info-highlights{padding:12px 0 !important;}.sf-info-highlights [style*="gap:24px"]{gap:10px !important;}.sf-info-highlights [style*="min-width:200px"]{min-width:140px !important;flex:0 0 calc(50% - 8px) !important;}}</style>
   </section>`;
 }

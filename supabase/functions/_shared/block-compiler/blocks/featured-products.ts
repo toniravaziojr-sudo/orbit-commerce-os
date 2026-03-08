@@ -54,14 +54,14 @@ export function featuredProductsToStaticHTML(
       const dynamicBadges = context.productBadges.get(p.id) || [];
       for (const db of dynamicBadges.slice(0, 3)) {
         const shapeRadius = db.shape === 'circular' || db.shape === 'pill' ? '12px' : db.shape === 'square' ? '2px' : '4px';
-        badges.push(`<span style="background:${db.background_color};color:${db.text_color};font-size:10px;font-weight:600;padding:3px 8px;border-radius:${shapeRadius};max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(db.name)}</span>`);
+        badges.push(`<span style="background:${db.background_color};color:${db.text_color};font-size:10px;font-weight:600;padding:3px 8px;border-radius:${shapeRadius};white-space:nowrap;">${escapeHtml(db.name)}</span>`);
       }
       // Static badges
-      if (p.free_shipping) badges.push(`<span style="background:#16a34a;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;">FRETE GRÁTIS</span>`);
-      if (hasDiscount && discountPercent >= 10) badges.push(`<span style="background:#dc2626;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;">-${discountPercent}%</span>`);
+      if (p.free_shipping) badges.push(`<span style="background:#16a34a;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;white-space:nowrap;">FRETE GRÁTIS</span>`);
+      if (hasDiscount && discountPercent >= 10) badges.push(`<span style="background:#dc2626;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;white-space:nowrap;">-${discountPercent}%</span>`);
       if (badges.length > 0) {
         // Horizontal row at top-left (matches ProductCardBadges component)
-        badgesHtml = `<div style="position:absolute;top:6px;left:6px;display:flex;align-items:center;gap:4px;z-index:2;pointer-events:none;flex-wrap:nowrap;overflow:hidden;">${badges.slice(0, 3).join('')}</div>`;
+        badgesHtml = `<div style="position:absolute;top:6px;left:6px;right:6px;display:flex;align-items:center;gap:4px;z-index:2;pointer-events:none;flex-wrap:nowrap;overflow:hidden;">${badges.slice(0, 3).join('')}</div>`;
       }
     }
 
@@ -113,13 +113,14 @@ export function featuredProductsToStaticHTML(
     </a>`;
   }).join('');
 
-  return `<section style="max-width:1280px;margin:0 auto;padding:32px 16px;">
+  return `<section class="sf-fp-section" style="max-width:1280px;margin:0 auto;padding:32px 16px;">
     ${title ? `<h2 style="font-size:clamp(20px,3vw,28px);font-weight:700;margin-bottom:24px;font-family:var(--sf-heading-font);color:inherit;">${escapeHtml(title)}</h2>` : ''}
     <div class="sf-fp-grid" style="display:grid;grid-template-columns:repeat(${columnsDesktop},1fr);gap:16px;">
       ${productCards}
     </div>
     <style>
       @media(max-width:768px){
+        .sf-fp-section{padding:16px 8px !important;}
         .sf-fp-grid{grid-template-columns:repeat(${columnsMobile},1fr) !important;gap:8px !important;}
         .sf-fp-card .sf-btn-primary,.sf-fp-card .sf-btn-outline-primary{font-size:11px !important;padding:5px 6px !important;}
         .sf-fp-card h3{font-size:12px !important;}
