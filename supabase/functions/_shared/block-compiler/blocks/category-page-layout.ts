@@ -160,7 +160,7 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
               <span style="font-size:14px;font-weight:700;color:var(--theme-price-color, var(--theme-text-primary,#1a1a1a));">${formatPriceFromDecimal(p.price)}</span>
               ${hasDiscount ? `<span style="font-size:10px;font-weight:600;color:#16a34a;background:#dcfce7;padding:1px 6px;border-radius:3px;">-${discountPercent}%</span>` : ''}
             </div>
-            <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+            <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;" onclick="event.preventDefault();event.stopPropagation();">
               ${buttonsHtml.join('')}
             </div>
           </div>

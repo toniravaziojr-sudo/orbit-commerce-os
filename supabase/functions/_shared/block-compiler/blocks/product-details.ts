@@ -174,7 +174,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
   const inStock = (product.stock_quantity ?? 0) > 0 || product.allow_backorder;
   const quantityHtml = inStock ? `
     <div style="display:flex;align-items:center;gap:12px;margin-top:4px;">
-      <span style="font-size:14px;font-weight:500;color:var(--theme-text-secondary,#555);">Quantidade:</span>
+      <span style="font-size:14px;font-weight:500;color:#555;">Quantidade:</span>
       <div style="display:flex;align-items:center;border:1px solid #ddd;border-radius:6px;overflow:hidden;">
         <button data-sf-action="qty-minus" style="width:36px;height:36px;border:none;background:#f5f5f5;cursor:pointer;font-size:18px;font-weight:600;color:#333;">−</button>
         <input type="number" value="1" min="1" max="${product.stock_quantity || 99}" data-sf-qty-input style="width:48px;height:36px;border:none;border-left:1px solid #ddd;border-right:1px solid #ddd;text-align:center;font-size:14px;font-weight:500;-moz-appearance:textfield;appearance:textfield;outline:none;">
