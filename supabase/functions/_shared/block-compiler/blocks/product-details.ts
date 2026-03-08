@@ -401,7 +401,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
           ${rpRatingHtml}
           <div style="margin-top:6px;">
             ${rpHasDiscount ? `<span style="font-size:12px;color:#999;text-decoration:line-through;">${formatPriceFromDecimal(rp.compare_at_price!)}</span> ` : ''}
-            <span style="font-size:16px;font-weight:700;color:var(--theme-price-color,var(--theme-text-primary,#1a1a1a));">${formatPriceFromDecimal(rp.price)}</span>
+            <span style="font-size:16px;font-weight:700;color:var(--theme-price-color,#1a1a1a);">${formatPriceFromDecimal(rp.price)}</span>
           </div>
         </div>
       </a>`;
