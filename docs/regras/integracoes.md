@@ -763,11 +763,24 @@ A integração Meta usa **Scope Packs** para consentimento incremental. O tenant
 ### Seleção Granular de Ativos (DURANTE o OAuth)
 
 > **Adicionado em:** 2026-02-16  
-> **Atualizado em:** 2026-03-08 — Seleção única (radio) + auto-ativação + criação automática de catálogo
+> **Atualizado em:** 2026-03-08 — Fluxo em 2 etapas: portfólio empresarial → ativos do portfólio
 
-Após o OAuth, o callback descobre os ativos disponíveis mas **NÃO os salva automaticamente**. Em vez disso, redireciona para uma tela de seleção onde o lojista escolhe quais ativos conectar.
+Após o OAuth, o callback descobre os **portfólios empresariais** e agrupa os ativos por portfólio. O lojista **primeiro escolhe 1 portfólio** e depois seleciona os ativos daquele portfólio.
 
-#### ⚠️ REGRA CRÍTICA: Limites de Seleção por Ativo
+#### ⚠️ REGRA CRÍTICA: Seleção de Portfólio Empresarial (Step 1)
+
+O edge function `meta-oauth-callback` descobre os portfólios via `/me/businesses` e busca os ativos **de cada portfólio** separadamente usando endpoints `/{business_id}/owned_*`:
+- `owned_pages` → Páginas + IG vinculado
+- `owned_whatsapp_business_accounts` → WABAs + phone numbers
+- `owned_ad_accounts` → Contas de anúncio + pixels
+
+**PROIBIDO:** Misturar ativos de portfólios diferentes. Cada ativo pertence a exatamente 1 portfólio.
+
+**Fallback:** Se o usuário não tem portfólios empresariais, cria-se um portfólio virtual "Conta Pessoal" com ativos do `/me/accounts`.
+
+**Skip automático:** Se houver apenas 1 portfólio, o Step 1 é pulado e o usuário vai direto para seleção de ativos.
+
+#### ⚠️ REGRA CRÍTICA: Limites de Seleção por Ativo (Step 2)
 
 O sistema gerencia **apenas 1 instância** de cada tipo de ativo (exceto contas de anúncio). A UI **DEVE** usar radio buttons (seleção única) para estes:
 
@@ -780,29 +793,36 @@ O sistema gerencia **apenas 1 instância** de cada tipo de ativo (exceto contas 
 | Pixel | 🔘 Radio (única) | 1 | 1 pixel primário |
 | Catálogo | ❌ Não selecionável | Auto | Criado automaticamente (ver abaixo) |
 | Contas de Anúncio | ☑️ Checkbox (múltipla) | N | Pode ter múltiplas contas |
-| Perfil Threads | 🔘 Radio (única) | 1 | 1 perfil |
+| Perfil Threads | 🔘 Radio (única) | 1 | 1 perfil (não pertence a portfólio) |
 
 **PROIBIDO:** Usar checkboxes para ativos que aceitam apenas 1 seleção.
 
-#### Fluxo
+#### Fluxo (2 etapas)
 
 ```text
 1. Usuário clica "Conectar" → popup Meta OAuth
 2. Autoriza permissões no Meta
 3. meta-oauth-callback troca code por token
-4. Callback descobre todos os ativos disponíveis (incluindo phone_numbers de cada WABA)
+4. Callback descobre portfólios empresariais e agrupa ativos por portfólio
 5. Salva em metadata com `pending_asset_selection: true`
-6. Redireciona para MetaOAuthCallback.tsx (tela de seleção)
-7. Lojista seleciona: 1 Page, 1 Instagram, 1 WABA → 1 Número, N Ad Accounts, 1 Pixel
-8. Clica "Confirmar seleção"
-9. meta-save-selected-assets:
-   a. Salva ativos selecionados
-   b. Cria catálogo NOVO na Meta Commerce e sincroniza produtos ativos
-   c. Popula whatsapp_configs com phone_number_id, waba_id e token
-   d. Sincroniza Pixel para marketing_integrations (meta_pixel_id + meta_enabled)
-   e. Sincroniza token CAPI para marketing_integrations (meta_access_token + meta_capi_enabled)
-10. `pending_asset_selection` → false, conexão ativa
-11. TODAS as integrações ficam operacionais imediatamente
+6. Redireciona para MetaOAuthCallback.tsx
+
+--- STEP 1: Seleção de Portfólio ---
+7a. Se múltiplos portfólios: lojista escolhe 1 portfólio empresarial
+7b. Se apenas 1 portfólio: pula direto para Step 2
+
+--- STEP 2: Seleção de Ativos (do portfólio escolhido) ---
+8. Exibe apenas ativos do portfólio selecionado
+9. Lojista seleciona: 1 Page, 1 Instagram, 1 WABA → 1 Número, N Ad Accounts, 1 Pixel
+10. Clica "Confirmar e ativar integrações"
+11. meta-save-selected-assets:
+    a. Salva ativos selecionados (com business_id e business_name)
+    b. Cria catálogo NOVO na Meta Commerce e sincroniza produtos ativos
+    c. Popula whatsapp_configs com phone_number_id, waba_id e token
+    d. Sincroniza Pixel para marketing_integrations (meta_pixel_id + meta_enabled)
+    e. Sincroniza token CAPI para marketing_integrations (meta_access_token + meta_capi_enabled)
+12. `pending_asset_selection` → false, conexão ativa
+13. TODAS as integrações ficam operacionais imediatamente
 ```
 
 #### Auto-ativação pós-seleção (v5.5.0)
