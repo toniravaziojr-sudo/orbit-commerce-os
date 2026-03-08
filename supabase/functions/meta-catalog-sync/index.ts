@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v4.3.1"; // Confirmed: /batch uses url, image_url (not link/image_link). Delete+create fixes cached no-image state.
+const VERSION = "v5.0.0"; // Migrated from deprecated /batch to /items_batch endpoint. Field changes: image_url→image_link, url→link, name→title, price as "VALUE CURRENCY" string.
 // ===================
 
 const corsHeaders = {
@@ -25,6 +25,12 @@ function stripHtml(html: string): string {
     .replace(/&#039;/g, "'")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/** Format price for /items_batch: "VALUE CURRENCY" e.g. "336.57 BRL" */
+function formatPrice(valueCents: number, currency = "BRL"): string {
+  const value = (valueCents / 100).toFixed(2);
+  return `${value} ${currency}`;
 }
 
 Deno.serve(async (req) => {
@@ -72,15 +78,18 @@ Deno.serve(async (req) => {
         .select("id, sku")
         .in("id", productIds);
 
+      // Use /items_batch for delete too
       const deleteRequests = (prods || []).map((p: any) => ({
-        retailer_id: p.sku || p.id,
         method: "DELETE",
-        data: {},
+        data: {
+          id: p.sku || p.id,
+        },
       }));
 
-      const deleteUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/${catalogId}/batch`;
+      const deleteUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/${catalogId}/items_batch`;
       const formData = new URLSearchParams({
         access_token: connection.access_token,
+        item_type: "PRODUCT_ITEM",
         requests: JSON.stringify(deleteRequests),
       });
 
@@ -140,7 +149,7 @@ Deno.serve(async (req) => {
 
     const accessToken = connection.access_token;
 
-    // Build product query — fetch ALL relevant fields
+    // Build product query
     let productQuery = supabase
       .from("products")
       .select("id, name, slug, sku, description, short_description, price, compare_at_price, brand, gtin, barcode, weight, stock_quantity, tags, product_format")
@@ -169,7 +178,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`[meta-catalog-sync] ${products.length} products to sync`);
+    console.log(`[meta-catalog-sync] ${products.length} products to sync via /items_batch`);
 
     // Get ALL images for products ordered by sort_order
     const productIdList = products.map((p: any) => p.id);
@@ -179,26 +188,22 @@ Deno.serve(async (req) => {
       .in("product_id", productIdList)
       .order("sort_order", { ascending: true });
 
-    // Build image maps: primary + additional (respecting exact sort_order)
+    // Build image maps
     const primaryImageMap: Record<string, string> = {};
     const allImagesMap: Record<string, string[]> = {};
     
     for (const img of images || []) {
       if (!img.url) continue;
-      
-      // Collect all images per product in order
       if (!allImagesMap[img.product_id]) {
         allImagesMap[img.product_id] = [];
       }
       allImagesMap[img.product_id].push(img.url);
-      
-      // Primary image: explicit is_primary flag or first by sort_order
       if (img.is_primary || !primaryImageMap[img.product_id]) {
         primaryImageMap[img.product_id] = img.url;
       }
     }
 
-    // Get store URL from tenant_domains (primary verified domain)
+    // Get store URL
     const { data: tenant } = await supabase
       .from("tenants")
       .select("slug")
@@ -219,12 +224,7 @@ Deno.serve(async (req) => {
 
     console.log(`[meta-catalog-sync] Store URL: ${storeBaseUrl}`);
 
-    // Always use CREATE method with allow_upsert=true
-    // UPDATE method does NOT refresh images on products originally created without one
-    // CREATE+allow_upsert handles both new and existing products correctly
-    console.log(`[meta-catalog-sync] All products will use CREATE+allow_upsert method`);
-
-    // Build batch requests using the /{catalog_id}/batch endpoint format
+    // Build batch requests using /items_batch format
     const batchItems: any[] = [];
     
     for (const product of products) {
@@ -232,11 +232,9 @@ Deno.serve(async (req) => {
       const priceCents = Math.round((product.price || 0) * 100);
       const primaryImage = primaryImageMap[product.id] || "";
       const allImages = allImagesMap[product.id] || [];
-      
-      // Additional images: all except the primary, up to 50 (Meta limit)
       const additionalImages = allImages.filter(u => u !== primaryImage).slice(0, 50);
 
-      // Use short_description (plain text) first, fallback to stripped HTML
+      // Description
       let description = product.short_description || "";
       if (!description && product.description) {
         description = stripHtml(product.description);
@@ -246,34 +244,35 @@ Deno.serve(async (req) => {
       }
       description = description.substring(0, 9999);
 
-      // Build product data object for /{catalog_id}/batch
-      // NOTE: /batch endpoint uses url, image_url (NOT link/image_link which are for feeds/items_batch)
+      // /items_batch uses different field names than legacy /batch:
+      // name → title, url → link, image_url → image_link, additional_image_urls → additional_image_link
+      // price: integer+currency → "VALUE CURRENCY" string
       const productData: Record<string, any> = {
-        name: product.name || "Produto",
+        id: product.sku || product.id, // was retailer_id in /batch, now id inside data
+        title: product.name || "Produto",
         description,
-        url: productUrl,
+        link: productUrl,
         availability: (product.stock_quantity !== null && product.stock_quantity <= 0) ? "out of stock" : "in stock",
         condition: "new",
         brand: product.brand || tenant?.slug || "Loja",
-        price: priceCents,
-        currency: "BRL",
+        price: formatPrice(priceCents),
       };
 
-      // Main image (required)
+      // Main image
       if (primaryImage) {
-        productData.image_url = primaryImage;
+        productData.image_link = primaryImage;
       }
 
-      // Additional images as JSON array (up to 50)
+      // Additional images
       if (additionalImages.length > 0) {
-        productData.additional_image_urls = additionalImages;
+        productData.additional_image_link = additionalImages;
       }
 
       // Sale price: compare_at_price is the "original" (higher), price is the "sale"
       if (product.compare_at_price && product.compare_at_price > product.price) {
         const originalCents = Math.round(product.compare_at_price * 100);
-        productData.price = originalCents;
-        productData.sale_price = priceCents;
+        productData.price = formatPrice(originalCents);
+        productData.sale_price = formatPrice(priceCents);
       }
 
       // GTIN/Barcode
@@ -281,21 +280,20 @@ Deno.serve(async (req) => {
         productData.gtin = product.gtin || product.barcode;
       }
 
-      // Rich text description (full HTML) if description is long
+      // Rich text description
       if (product.description && stripHtml(product.description).length > 200) {
         productData.rich_text_description = product.description.substring(0, 9999);
       }
 
-      console.log(`[meta-catalog-sync] Product SKU=${product.sku} method=CREATE image_url="${productData.image_url || 'NONE'}" additional_images=${additionalImages.length}`);
+      console.log(`[meta-catalog-sync] Product SKU=${product.sku} image_link="${productData.image_link || 'NONE'}" price="${productData.price}" additional=${additionalImages.length}`);
 
       batchItems.push({
-        retailer_id: product.sku || product.id,
         method: "CREATE",
         data: productData,
       });
     }
 
-    // Send to /{catalog_id}/batch in chunks of 4999 (Meta limit is 5000)
+    // Send to /items_batch in chunks of 4999
     const BATCH_SIZE = 4999;
     let totalSent = 0;
     let totalErrors = 0;
@@ -305,10 +303,11 @@ Deno.serve(async (req) => {
       const batch = batchItems.slice(i, i + BATCH_SIZE);
 
       try {
-        const batchUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/${catalogId}/batch`;
+        const batchUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/${catalogId}/items_batch`;
         
         const formData = new URLSearchParams({
           access_token: accessToken,
+          item_type: "PRODUCT_ITEM",
           allow_upsert: "true",
           requests: JSON.stringify(batch),
         });
@@ -324,12 +323,12 @@ Deno.serve(async (req) => {
         const responseBody = await batchResponse.json();
 
         if (batchResponse.ok && responseBody) {
-          // The /batch endpoint returns validation_status array
           const handles = responseBody.handles || [];
           const validationStatus = responseBody.validation_status || [];
+          const warnings = responseBody.warnings || [];
           
-          console.log(`[meta-catalog-sync] Batch response: handles=${handles.length}, validation_status=${validationStatus.length}`);
-          console.log(`[meta-catalog-sync][DEBUG] Full batch response:`, JSON.stringify(responseBody).substring(0, 2000));
+          console.log(`[meta-catalog-sync] Batch response: handles=${handles.length}, validation_status=${validationStatus.length}, warnings=${warnings.length}`);
+          console.log(`[meta-catalog-sync][DEBUG] Full response:`, JSON.stringify(responseBody).substring(0, 3000));
 
           // Count errors from validation_status
           let batchErrors = 0;
@@ -340,21 +339,27 @@ Deno.serve(async (req) => {
               errorDetails.push({
                 productId: product?.id,
                 name: product?.name,
-                retailer_id: vs.retailer_id,
+                retailer_id: vs.retailer_id || vs.id,
                 errors: vs.errors,
               });
-              console.warn(`[meta-catalog-sync] Validation error for ${vs.retailer_id}:`, JSON.stringify(vs.errors));
+              console.warn(`[meta-catalog-sync] Validation error for ${vs.retailer_id || vs.id}:`, JSON.stringify(vs.errors));
             }
+          }
+
+          // Log warnings (items_batch provides them unlike legacy /batch)
+          if (warnings.length > 0) {
+            console.warn(`[meta-catalog-sync] Warnings:`, JSON.stringify(warnings).substring(0, 2000));
           }
 
           totalSent += batch.length - batchErrors;
           totalErrors += batchErrors;
 
-          // Update meta_catalog_items for successfully synced products
+          // Update meta_catalog_items
           for (let j = 0; j < batch.length; j++) {
             const product = products[i + j];
+            const itemId = batch[j].data.id;
             const hasError = validationStatus.some(
-              (vs: any) => vs.retailer_id === batch[j].retailer_id && vs.errors?.length > 0
+              (vs: any) => (vs.retailer_id === itemId || vs.id === itemId) && vs.errors?.length > 0
             );
 
             await supabase
@@ -365,13 +370,13 @@ Deno.serve(async (req) => {
                 catalog_id: catalogId,
                 status: hasError ? "error" : "synced",
                 last_error: hasError
-                  ? JSON.stringify(validationStatus.find((vs: any) => vs.retailer_id === batch[j].retailer_id)?.errors)
+                  ? JSON.stringify(validationStatus.find((vs: any) => (vs.retailer_id === itemId || vs.id === itemId))?.errors)
                   : null,
                 last_synced_at: new Date().toISOString(),
               }, { onConflict: "tenant_id,product_id,catalog_id" });
           }
         } else {
-          const errMsg = responseBody?.error?.message || JSON.stringify(responseBody).substring(0, 300);
+          const errMsg = responseBody?.error?.message || JSON.stringify(responseBody).substring(0, 500);
           totalErrors += batch.length;
           console.error(`[meta-catalog-sync] Batch failed:`, errMsg);
           errorDetails.push({ batch: `${i}-${i + batch.length}`, error: errMsg });
