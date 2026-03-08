@@ -1514,7 +1514,7 @@ serve(async (req) => {
 
     } else if (route.type === 'category' && route.slug) {
       // CATEGORY — using block-compiler with published_content.category tree
-      const categoryResult = allResults[7];
+      const categoryResult = allResults[8];
       const category = categoryResult?.status === 'fulfilled' ? (categoryResult as any).value.data : null;
 
       if (!category) {
