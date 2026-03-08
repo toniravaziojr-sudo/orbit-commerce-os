@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
   Loader2, CheckCircle, XCircle, Facebook, Instagram, MessageCircle, 
-  Megaphone, ShoppingBag, AtSign, Crosshair, Phone, Info
+  Megaphone, ShoppingBag, AtSign, Crosshair, Phone, Info, Building2, ArrowRight
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -21,17 +21,19 @@ interface PhoneNumber {
   quality_rating?: string;
 }
 
-interface DiscoveredAssets {
+interface BusinessPortfolio {
+  id: string;
+  name: string;
   pages: Array<{ id: string; name: string; access_token?: string }>;
   instagram_accounts: Array<{ id: string; username: string; page_id: string }>;
   whatsapp_business_accounts: Array<{ id: string; name: string; phone_numbers: PhoneNumber[] }>;
   ad_accounts: Array<{ id: string; name: string }>;
   pixels: Array<{ id: string; name: string; ad_account_id: string }>;
-  catalogs: Array<{ id: string; name: string }>;
-  threads_profile: { id: string; username: string } | null;
 }
 
 interface SelectedAssets {
+  business_id: string;
+  business_name: string;
   pages: Array<{ id: string; name: string; access_token?: string }>;
   instagram_accounts: Array<{ id: string; username: string; page_id: string }>;
   whatsapp_business_accounts: Array<{ id: string; name: string }>;
@@ -42,36 +44,41 @@ interface SelectedAssets {
   selected_phone_number: { id: string; display_phone_number: string; verified_name: string; waba_id: string } | null;
 }
 
+type FlowStep = "loading" | "select_portfolio" | "select_assets" | "saving" | "success" | "error";
+
 export default function MetaOAuthCallback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [status, setStatus] = useState<"loading" | "selecting" | "saving" | "success" | "error">("loading");
+  const [step, setStep] = useState<FlowStep>("loading");
   const [errorMessage, setErrorMessage] = useState("");
-  const [discoveredAssets, setDiscoveredAssets] = useState<DiscoveredAssets | null>(null);
+  const [businesses, setBusinesses] = useState<BusinessPortfolio[]>([]);
+  const [threadsProfile, setThreadsProfile] = useState<{ id: string; username: string } | null>(null);
+  const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(null);
   const [selectedAssets, setSelectedAssets] = useState<SelectedAssets | null>(null);
   const [connectionData, setConnectionData] = useState<any>(null);
   const processedRef = useRef(false);
 
-  // Single-select handlers (radio button behavior)
+  const selectedPortfolio = businesses.find(b => b.id === selectedPortfolioId) || null;
+
+  // === Single-select handlers ===
   const selectPage = (pageId: string) => {
-    if (!selectedAssets || !discoveredAssets) return;
-    const page = discoveredAssets.pages.find(p => p.id === pageId);
+    if (!selectedAssets || !selectedPortfolio) return;
+    const page = selectedPortfolio.pages.find(p => p.id === pageId);
     if (!page) return;
     setSelectedAssets({ ...selectedAssets, pages: [page] });
   };
 
   const selectIg = (igId: string) => {
-    if (!selectedAssets || !discoveredAssets) return;
-    const ig = discoveredAssets.instagram_accounts.find(a => a.id === igId);
+    if (!selectedAssets || !selectedPortfolio) return;
+    const ig = selectedPortfolio.instagram_accounts.find(a => a.id === igId);
     if (!ig) return;
     setSelectedAssets({ ...selectedAssets, instagram_accounts: [ig] });
   };
 
   const selectWaba = (wabaId: string) => {
-    if (!selectedAssets || !discoveredAssets) return;
-    const waba = discoveredAssets.whatsapp_business_accounts.find(w => w.id === wabaId);
+    if (!selectedAssets || !selectedPortfolio) return;
+    const waba = selectedPortfolio.whatsapp_business_accounts.find(w => w.id === wabaId);
     if (!waba) return;
-    // Reset phone selection when WABA changes
     const firstPhone = waba.phone_numbers[0];
     setSelectedAssets({
       ...selectedAssets,
@@ -86,8 +93,8 @@ export default function MetaOAuthCallback() {
   };
 
   const selectPhone = (phoneId: string, wabaId: string) => {
-    if (!selectedAssets || !discoveredAssets) return;
-    const waba = discoveredAssets.whatsapp_business_accounts.find(w => w.id === wabaId);
+    if (!selectedAssets || !selectedPortfolio) return;
+    const waba = selectedPortfolio.whatsapp_business_accounts.find(w => w.id === wabaId);
     const phone = waba?.phone_numbers.find(p => p.id === phoneId);
     if (!phone) return;
     setSelectedAssets({
@@ -102,30 +109,60 @@ export default function MetaOAuthCallback() {
   };
 
   const selectPixel = (pixelId: string) => {
-    if (!selectedAssets || !discoveredAssets) return;
-    const pixel = discoveredAssets.pixels.find(p => p.id === pixelId);
+    if (!selectedAssets || !selectedPortfolio) return;
+    const pixel = selectedPortfolio.pixels.find(p => p.id === pixelId);
     if (!pixel) return;
     setSelectedAssets({ ...selectedAssets, pixels: [pixel] });
   };
 
-  // Ad accounts: multi-select (toggle)
+  // Ad accounts: multi-select
   const toggleAdAccount = (accId: string) => {
-    if (!selectedAssets || !discoveredAssets) return;
+    if (!selectedAssets || !selectedPortfolio) return;
     const exists = selectedAssets.ad_accounts.some(a => a.id === accId);
     setSelectedAssets({
       ...selectedAssets,
       ad_accounts: exists
         ? selectedAssets.ad_accounts.filter(a => a.id !== accId)
-        : [...selectedAssets.ad_accounts, discoveredAssets.ad_accounts.find(a => a.id === accId)!],
+        : [...selectedAssets.ad_accounts, selectedPortfolio.ad_accounts.find(a => a.id === accId)!],
     });
   };
 
   const toggleThreads = () => {
-    if (!selectedAssets || !discoveredAssets) return;
+    if (!selectedAssets) return;
     setSelectedAssets({
       ...selectedAssets,
-      threads_profile: selectedAssets.threads_profile ? null : discoveredAssets.threads_profile,
+      threads_profile: selectedAssets.threads_profile ? null : threadsProfile,
     });
+  };
+
+  // === Portfolio selection → advance to asset selection ===
+  const handleSelectPortfolio = (portfolioId: string) => {
+    setSelectedPortfolioId(portfolioId);
+    const portfolio = businesses.find(b => b.id === portfolioId);
+    if (!portfolio) return;
+
+    const firstWaba = portfolio.whatsapp_business_accounts[0];
+    const firstPhone = firstWaba?.phone_numbers?.[0];
+
+    setSelectedAssets({
+      business_id: portfolio.id,
+      business_name: portfolio.name,
+      pages: portfolio.pages.length > 0 ? [portfolio.pages[0]] : [],
+      instagram_accounts: portfolio.instagram_accounts.length > 0 ? [portfolio.instagram_accounts[0]] : [],
+      whatsapp_business_accounts: firstWaba ? [{ id: firstWaba.id, name: firstWaba.name }] : [],
+      ad_accounts: [...portfolio.ad_accounts],
+      pixels: portfolio.pixels.length > 0 ? [portfolio.pixels[0]] : [],
+      catalogs: [],
+      threads_profile: threadsProfile,
+      selected_phone_number: firstPhone && firstWaba ? {
+        id: firstPhone.id,
+        display_phone_number: firstPhone.display_phone_number,
+        verified_name: firstPhone.verified_name,
+        waba_id: firstWaba.id,
+      } : null,
+    });
+
+    setStep("select_assets");
   };
 
   const notifyParentAndClose = (success: boolean, error?: string) => {
@@ -139,9 +176,7 @@ export default function MetaOAuthCallback() {
       if (window.opener && !window.opener.closed) {
         window.opener.postMessage({ type: "meta:connected", success, error }, "*");
       }
-    } catch (e) {
-      // Expected with Google Translate
-    }
+    } catch (e) {}
 
     setTimeout(() => {
       try { if (window.opener && !window.opener.closed) window.close(); } catch {}
@@ -159,7 +194,7 @@ export default function MetaOAuthCallback() {
     const successParam = searchParams.get("success");
 
     if (successParam === "true") {
-      setStatus("success");
+      setStep("success");
       notifyParentAndClose(true);
       return;
     }
@@ -167,7 +202,7 @@ export default function MetaOAuthCallback() {
     if (error) {
       processedRef.current = true;
       const errMsg = getErrorMessage(error, errorDescription || "");
-      setStatus("error");
+      setStep("error");
       setErrorMessage(errMsg);
       notifyParentAndClose(false, errMsg);
       return;
@@ -180,7 +215,7 @@ export default function MetaOAuthCallback() {
     }
 
     processedRef.current = true;
-    setStatus("error");
+    setStep("error");
     setErrorMessage("Acesso inválido.");
     notifyParentAndClose(false, "Acesso inválido.");
   }, [searchParams]);
@@ -193,45 +228,32 @@ export default function MetaOAuthCallback() {
 
       if (error || !data?.success) {
         const errMsg = data?.error || error?.message || "Erro ao processar autorização";
-        setStatus("error");
+        setStep("error");
         setErrorMessage(errMsg);
         notifyParentAndClose(false, errMsg);
         return;
       }
 
-      if (data.requiresAssetSelection && data.connection?.assets) {
-        const assets = data.connection.assets as DiscoveredAssets;
-        setDiscoveredAssets(assets);
-        
-        // Initialize with first item selected for single-select fields
-        const firstWaba = assets.whatsapp_business_accounts[0];
-        const firstPhone = firstWaba?.phone_numbers?.[0];
-        
-        setSelectedAssets({
-          pages: assets.pages.length > 0 ? [assets.pages[0]] : [],
-          instagram_accounts: assets.instagram_accounts.length > 0 ? [assets.instagram_accounts[0]] : [],
-          whatsapp_business_accounts: firstWaba ? [{ id: firstWaba.id, name: firstWaba.name }] : [],
-          ad_accounts: [...assets.ad_accounts], // All selected by default
-          pixels: assets.pixels.length > 0 ? [assets.pixels[0]] : [],
-          catalogs: [], // Will be created automatically
-          threads_profile: assets.threads_profile,
-          selected_phone_number: firstPhone && firstWaba ? {
-            id: firstPhone.id,
-            display_phone_number: firstPhone.display_phone_number,
-            verified_name: firstPhone.verified_name,
-            waba_id: firstWaba.id,
-          } : null,
-        });
+      if (data.requiresAssetSelection && data.connection?.businesses) {
+        const bizList = data.connection.businesses as BusinessPortfolio[];
+        setBusinesses(bizList);
+        setThreadsProfile(data.connection.threads_profile || null);
         setConnectionData(data.connection);
-        setStatus("selecting");
+
+        // Se só tem 1 portfólio, pular direto para seleção de ativos
+        if (bizList.length === 1) {
+          handleSelectPortfolio(bizList[0].id);
+        } else {
+          setStep("select_portfolio");
+        }
         return;
       }
 
-      setStatus("success");
+      setStep("success");
       notifyParentAndClose(true);
 
     } catch (err) {
-      setStatus("error");
+      setStep("error");
       setErrorMessage("Erro inesperado. Tente novamente.");
       notifyParentAndClose(false, "Erro inesperado.");
     }
@@ -239,7 +261,7 @@ export default function MetaOAuthCallback() {
 
   async function handleConfirmSelection() {
     if (!selectedAssets) return;
-    setStatus("saving");
+    setStep("saving");
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -264,10 +286,10 @@ export default function MetaOAuthCallback() {
         throw new Error(data?.error || "Erro ao salvar seleção");
       }
 
-      setStatus("success");
+      setStep("success");
       notifyParentAndClose(true);
     } catch (err: any) {
-      setStatus("error");
+      setStep("error");
       setErrorMessage(err.message || "Erro ao salvar seleção");
       notifyParentAndClose(false, err.message);
     }
@@ -278,10 +300,61 @@ export default function MetaOAuthCallback() {
     else navigate("/integrations", { replace: true });
   };
 
-  // Asset selection screen
-  if (status === "selecting" && discoveredAssets && selectedAssets) {
+  // ==========================================
+  // STEP 1: Seleção de Portfólio Empresarial
+  // ==========================================
+  if (step === "select_portfolio" && businesses.length > 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-lg">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-2">
+              <Building2 className="h-10 w-10 text-blue-500" />
+            </div>
+            <CardTitle className="text-lg">Selecione o Portfólio Empresarial</CardTitle>
+            <CardDescription>
+              Escolha o portfólio cujos ativos você deseja integrar ao sistema. Os ativos exibidos serão apenas os deste portfólio.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {businesses.map(biz => {
+              const assetCount = biz.pages.length + biz.instagram_accounts.length + biz.whatsapp_business_accounts.length + biz.ad_accounts.length;
+              return (
+                <button
+                  key={biz.id}
+                  onClick={() => handleSelectPortfolio(biz.id)}
+                  className="w-full flex items-center justify-between p-4 rounded-lg border hover:border-primary hover:bg-accent/50 transition-colors text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm">
+                      {biz.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">{biz.name}</p>
+                      <p className="text-xs text-muted-foreground">{assetCount} ativo(s) de negócios</p>
+                    </div>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                </button>
+              );
+            })}
+
+            <Separator />
+            <Button variant="outline" onClick={handleClose} className="w-full">
+              Cancelar
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // STEP 2: Seleção de Ativos (do portfólio escolhido)
+  // ==========================================
+  if (step === "select_assets" && selectedPortfolio && selectedAssets) {
     const selectedWabaId = selectedAssets.whatsapp_business_accounts[0]?.id;
-    const selectedWaba = discoveredAssets.whatsapp_business_accounts.find(w => w.id === selectedWabaId);
+    const selectedWaba = selectedPortfolio.whatsapp_business_accounts.find(w => w.id === selectedWabaId);
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -292,77 +365,72 @@ export default function MetaOAuthCallback() {
             </div>
             <CardTitle className="text-lg">Conta conectada!</CardTitle>
             <CardDescription>
-              Selecione os ativos que deseja integrar ao sistema
+              Portfólio: <span className="font-semibold">{selectedPortfolio.name}</span>
+              {businesses.length > 1 && (
+                <Button variant="link" size="sm" className="ml-1 p-0 h-auto text-xs" onClick={() => setStep("select_portfolio")}>
+                  (trocar)
+                </Button>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 max-h-[60vh] overflow-y-auto">
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                Um novo catálogo será criado automaticamente na Meta com os produtos da sua loja.
+                Selecione <strong>1 ativo de cada tipo</strong>. Um catálogo será criado automaticamente na Meta com os produtos da sua loja.
               </AlertDescription>
             </Alert>
 
             {/* Pages - single select */}
-            {discoveredAssets.pages.length > 0 && (
-              <AssetGroupSingle
+            {selectedPortfolio.pages.length > 0 && (
+              <AssetGroup
                 icon={<Facebook className="h-4 w-4 text-blue-600" />}
                 title="Página do Facebook"
                 subtitle="Selecione 1 página"
               >
-                <RadioGroup 
-                  value={selectedAssets.pages[0]?.id || ""} 
-                  onValueChange={selectPage}
-                >
-                  {discoveredAssets.pages.map(page => (
+                <RadioGroup value={selectedAssets.pages[0]?.id || ""} onValueChange={selectPage}>
+                  {selectedPortfolio.pages.map(page => (
                     <div key={page.id} className="flex items-center gap-2 py-1">
                       <RadioGroupItem value={page.id} id={`page-${page.id}`} />
                       <Label htmlFor={`page-${page.id}`} className="text-sm cursor-pointer">{page.name}</Label>
                     </div>
                   ))}
                 </RadioGroup>
-              </AssetGroupSingle>
+              </AssetGroup>
             )}
 
             {/* Instagram - single select */}
-            {discoveredAssets.instagram_accounts.length > 0 && (
-              <AssetGroupSingle
+            {selectedPortfolio.instagram_accounts.length > 0 && (
+              <AssetGroup
                 icon={<Instagram className="h-4 w-4 text-pink-600" />}
                 title="Perfil do Instagram"
                 subtitle="Selecione 1 perfil"
               >
-                <RadioGroup 
-                  value={selectedAssets.instagram_accounts[0]?.id || ""} 
-                  onValueChange={selectIg}
-                >
-                  {discoveredAssets.instagram_accounts.map(ig => (
+                <RadioGroup value={selectedAssets.instagram_accounts[0]?.id || ""} onValueChange={selectIg}>
+                  {selectedPortfolio.instagram_accounts.map(ig => (
                     <div key={ig.id} className="flex items-center gap-2 py-1">
                       <RadioGroupItem value={ig.id} id={`ig-${ig.id}`} />
                       <Label htmlFor={`ig-${ig.id}`} className="text-sm cursor-pointer">@{ig.username}</Label>
                     </div>
                   ))}
                 </RadioGroup>
-              </AssetGroupSingle>
+              </AssetGroup>
             )}
 
             {/* WhatsApp - single select WABA + single select phone */}
-            {discoveredAssets.whatsapp_business_accounts.length > 0 && (
-              <AssetGroupSingle
+            {selectedPortfolio.whatsapp_business_accounts.length > 0 && (
+              <AssetGroup
                 icon={<MessageCircle className="h-4 w-4 text-green-600" />}
                 title="WhatsApp Business"
                 subtitle="Selecione 1 conta e 1 número"
               >
-                <RadioGroup 
-                  value={selectedWabaId || ""} 
-                  onValueChange={selectWaba}
-                >
-                  {discoveredAssets.whatsapp_business_accounts.map(waba => (
+                <RadioGroup value={selectedWabaId || ""} onValueChange={selectWaba}>
+                  {selectedPortfolio.whatsapp_business_accounts.map(waba => (
                     <div key={waba.id} className="space-y-2">
                       <div className="flex items-center gap-2 py-1">
                         <RadioGroupItem value={waba.id} id={`waba-${waba.id}`} />
                         <Label htmlFor={`waba-${waba.id}`} className="text-sm cursor-pointer">{waba.name}</Label>
                       </div>
-                      {/* Show phone numbers when this WABA is selected */}
                       {selectedWabaId === waba.id && waba.phone_numbers.length > 0 && (
                         <div className="ml-6 pl-3 border-l-2 border-green-200 space-y-1">
                           <p className="text-xs text-muted-foreground flex items-center gap-1">
@@ -389,17 +457,17 @@ export default function MetaOAuthCallback() {
                     </div>
                   ))}
                 </RadioGroup>
-              </AssetGroupSingle>
+              </AssetGroup>
             )}
 
             {/* Ad Accounts - multi select */}
-            {discoveredAssets.ad_accounts.length > 0 && (
-              <AssetGroupSingle
+            {selectedPortfolio.ad_accounts.length > 0 && (
+              <AssetGroup
                 icon={<Megaphone className="h-4 w-4 text-blue-600" />}
                 title="Contas de Anúncio"
-                subtitle={`${selectedAssets.ad_accounts.length} de ${discoveredAssets.ad_accounts.length} selecionadas`}
+                subtitle={`${selectedAssets.ad_accounts.length} de ${selectedPortfolio.ad_accounts.length}`}
               >
-                {discoveredAssets.ad_accounts.map(acc => (
+                {selectedPortfolio.ad_accounts.map(acc => (
                   <div key={acc.id} className="flex items-center gap-2 py-1">
                     <Checkbox
                       id={`ad-${acc.id}`}
@@ -409,21 +477,18 @@ export default function MetaOAuthCallback() {
                     <Label htmlFor={`ad-${acc.id}`} className="text-sm cursor-pointer">{acc.name}</Label>
                   </div>
                 ))}
-              </AssetGroupSingle>
+              </AssetGroup>
             )}
 
             {/* Pixels - single select */}
-            {discoveredAssets.pixels.length > 0 && (
-              <AssetGroupSingle
+            {selectedPortfolio.pixels.length > 0 && (
+              <AssetGroup
                 icon={<Crosshair className="h-4 w-4 text-purple-600" />}
                 title="Pixel"
                 subtitle="Selecione 1 pixel"
               >
-                <RadioGroup 
-                  value={selectedAssets.pixels[0]?.id || ""} 
-                  onValueChange={selectPixel}
-                >
-                  {discoveredAssets.pixels.map(pixel => (
+                <RadioGroup value={selectedAssets.pixels[0]?.id || ""} onValueChange={selectPixel}>
+                  {selectedPortfolio.pixels.map(pixel => (
                     <div key={pixel.id} className="flex items-center gap-2 py-1">
                       <RadioGroupItem value={pixel.id} id={`pixel-${pixel.id}`} />
                       <Label htmlFor={`pixel-${pixel.id}`} className="text-sm cursor-pointer">
@@ -432,23 +497,23 @@ export default function MetaOAuthCallback() {
                     </div>
                   ))}
                 </RadioGroup>
-              </AssetGroupSingle>
+              </AssetGroup>
             )}
 
-            {/* Catálogo - info only, created automatically */}
-            <AssetGroupSingle
+            {/* Catálogo - info */}
+            <AssetGroup
               icon={<ShoppingBag className="h-4 w-4 text-orange-600" />}
               title="Catálogo"
-              subtitle="Será criado automaticamente"
+              subtitle="Criação automática"
             >
               <p className="text-xs text-muted-foreground py-1">
                 Um novo catálogo será criado no Gerenciador de Comércio da Meta com todos os seus produtos ativos.
               </p>
-            </AssetGroupSingle>
+            </AssetGroup>
 
             {/* Threads */}
-            {discoveredAssets.threads_profile && (
-              <AssetGroupSingle
+            {threadsProfile && (
+              <AssetGroup
                 icon={<AtSign className="h-4 w-4" />}
                 title="Threads"
                 subtitle="Perfil vinculado"
@@ -460,19 +525,16 @@ export default function MetaOAuthCallback() {
                     onCheckedChange={toggleThreads}
                   />
                   <Label htmlFor="threads" className="text-sm cursor-pointer">
-                    @{discoveredAssets.threads_profile.username}
+                    @{threadsProfile.username}
                   </Label>
                 </div>
-              </AssetGroupSingle>
+              </AssetGroup>
             )}
 
             <Separator />
 
             <div className="flex gap-3 pt-2">
-              <Button 
-                onClick={handleConfirmSelection} 
-                className="flex-1"
-              >
+              <Button onClick={handleConfirmSelection} className="flex-1">
                 Confirmar e ativar integrações
               </Button>
               <Button variant="outline" onClick={handleClose}>
@@ -486,7 +548,7 @@ export default function MetaOAuthCallback() {
   }
 
   // Saving state
-  if (status === "saving") {
+  if (step === "saving") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md text-center">
@@ -500,33 +562,34 @@ export default function MetaOAuthCallback() {
     );
   }
 
+  // Loading / Success / Error
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4">
-            {status === "loading" && <Loader2 className="h-12 w-12 text-primary animate-spin" />}
-            {status === "success" && <CheckCircle className="h-12 w-12 text-green-500" />}
-            {status === "error" && <XCircle className="h-12 w-12 text-destructive" />}
+            {step === "loading" && <Loader2 className="h-12 w-12 text-primary animate-spin" />}
+            {step === "success" && <CheckCircle className="h-12 w-12 text-green-500" />}
+            {step === "error" && <XCircle className="h-12 w-12 text-destructive" />}
           </div>
           <CardTitle>
-            {status === "loading" && "Conectando..."}
-            {status === "success" && "Tudo configurado!"}
-            {status === "error" && "Erro na conexão"}
+            {step === "loading" && "Conectando..."}
+            {step === "success" && "Tudo configurado!"}
+            {step === "error" && "Erro na conexão"}
           </CardTitle>
           <CardDescription>
-            {status === "loading" && "Finalizando a conexão com o Meta..."}
-            {status === "success" && "Todas as integrações foram ativadas automaticamente. Fechando..."}
-            {status === "error" && errorMessage}
+            {step === "loading" && "Finalizando a conexão com o Meta..."}
+            {step === "success" && "Todas as integrações foram ativadas automaticamente. Fechando..."}
+            {step === "error" && errorMessage}
           </CardDescription>
         </CardHeader>
         <CardContent className="text-center">
-          {status === "error" && (
+          {step === "error" && (
             <Button onClick={handleClose} className="mt-4">
               {window.opener ? "Fechar" : "Voltar para Integrações"}
             </Button>
           )}
-          {status === "success" && (
+          {step === "success" && (
             <p className="text-sm text-muted-foreground mt-2">
               Esta janela será fechada automaticamente...
             </p>
@@ -537,9 +600,9 @@ export default function MetaOAuthCallback() {
   );
 }
 
-// Helper components
+// === Helper components ===
 
-function AssetGroupSingle({ icon, title, subtitle, children }: {
+function AssetGroup({ icon, title, subtitle, children }: {
   icon: React.ReactNode;
   title: string;
   subtitle: string;

@@ -11,7 +11,7 @@ const corsHeaders = {
  * Meta OAuth Callback
  * 
  * Recebe o code do Meta via POST (do frontend), valida state (anti-CSRF), 
- * troca por tokens, descobre assets (páginas, IG, WABA + phone numbers) e salva no banco por tenant.
+ * troca por tokens, descobre portfólios empresariais e assets agrupados por portfólio.
  * 
  * Contrato:
  * - Erro de negócio = HTTP 200 + { success: false, error, code }
@@ -130,8 +130,8 @@ serve(async (req) => {
       metaUserName = meData.name;
     }
 
-    // Descobrir assets disponíveis (incluindo phone numbers por WABA)
-    const assets = await discoverMetaAssets(accessToken, scope_packs, graphVersion);
+    // Descobrir portfólios empresariais e assets agrupados
+    const discovery = await discoverBusinessPortfolios(accessToken, scope_packs, graphVersion);
 
     const expiresAt = new Date(Date.now() + (expiresIn * 1000)).toISOString();
 
@@ -170,9 +170,8 @@ serve(async (req) => {
           connected_by: user_id,
           connected_at: new Date().toISOString(),
           scope_packs: mergedScopePacks,
-          assets: assets,
+          businesses: discovery.businesses,
           pending_asset_selection: true,
-          discovered_assets: assets,
         },
       }, {
         onConflict: "tenant_id,marketplace",
@@ -186,7 +185,25 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[meta-oauth-callback] Conexão Meta salva com sucesso para tenant ${tenant_id} — aguardando seleção de ativos`);
+    console.log(`[meta-oauth-callback] Conexão Meta salva com sucesso para tenant ${tenant_id} — aguardando seleção de portfólio e ativos`);
+
+    // Buscar threads profile (não pertence a portfólio)
+    let threadsProfile: { id: string; username: string } | null = null;
+    if (scope_packs.includes("threads")) {
+      try {
+        const threadsResponse = await fetch(
+          `https://graph.threads.net/v1.0/me?fields=id,username&access_token=${accessToken}`
+        );
+        if (threadsResponse.ok) {
+          const threadsData = await threadsResponse.json();
+          if (threadsData.id) {
+            threadsProfile = { id: threadsData.id, username: threadsData.username || threadsData.id };
+          }
+        }
+      } catch (e) {
+        console.warn("[meta-oauth-callback] Erro ao buscar Threads profile:", e);
+      }
+    }
 
     return new Response(
       JSON.stringify({
@@ -198,7 +215,8 @@ serve(async (req) => {
           externalUsername: metaUserName,
           expiresAt,
           scopePacks: scope_packs,
-          assets,
+          businesses: discovery.businesses,
+          threads_profile: threadsProfile,
         },
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -217,220 +235,269 @@ serve(async (req) => {
   }
 });
 
+interface BusinessPortfolio {
+  id: string;
+  name: string;
+  pages: Array<{ id: string; name: string; access_token?: string }>;
+  instagram_accounts: Array<{ id: string; username: string; page_id: string }>;
+  whatsapp_business_accounts: Array<{ id: string; name: string; phone_numbers: Array<{ id: string; display_phone_number: string; verified_name: string; quality_rating?: string }> }>;
+  ad_accounts: Array<{ id: string; name: string }>;
+  pixels: Array<{ id: string; name: string; ad_account_id: string }>;
+}
+
 /**
- * Descobrir assets disponíveis na conta Meta
- * Inclui phone numbers por WABA para seleção de número WhatsApp
+ * Descobrir portfólios empresariais e seus assets agrupados.
+ * Cada portfólio contém apenas os ativos que pertencem a ele.
  */
-async function discoverMetaAssets(accessToken: string, scopePacks: string[], graphVersion: string) {
-  const assets: {
-    pages: Array<{ id: string; name: string; access_token?: string }>;
-    instagram_accounts: Array<{ id: string; username: string; page_id: string }>;
-    whatsapp_business_accounts: Array<{ id: string; name: string; phone_numbers: Array<{ id: string; display_phone_number: string; verified_name: string; quality_rating?: string }> }>;
-    ad_accounts: Array<{ id: string; name: string }>;
-    pixels: Array<{ id: string; name: string; ad_account_id: string }>;
-    catalogs: Array<{ id: string; name: string }>;
-    threads_profile: { id: string; username: string } | null;
-  } = {
+async function discoverBusinessPortfolios(accessToken: string, scopePacks: string[], graphVersion: string) {
+  const businesses: BusinessPortfolio[] = [];
+
+  try {
+    // 1. Buscar portfólios empresariais (businesses)
+    const businessResponse = await fetch(
+      `https://graph.facebook.com/${graphVersion}/me/businesses?fields=id,name&access_token=${accessToken}`
+    );
+
+    if (!businessResponse.ok) {
+      console.warn("[meta-oauth-callback] Não foi possível buscar businesses");
+      // Fallback: criar portfólio "pessoal" com assets do /me
+      const fallback = await discoverPersonalAssets(accessToken, scopePacks, graphVersion);
+      businesses.push(fallback);
+      return { businesses };
+    }
+
+    const businessData = await businessResponse.json();
+    
+    if (!businessData.data || businessData.data.length === 0) {
+      // Sem portfólios: usar assets pessoais
+      const fallback = await discoverPersonalAssets(accessToken, scopePacks, graphVersion);
+      businesses.push(fallback);
+      return { businesses };
+    }
+
+    // 2. Para cada portfólio, buscar seus assets
+    for (const biz of businessData.data) {
+      const portfolio: BusinessPortfolio = {
+        id: biz.id,
+        name: biz.name || `Portfólio ${biz.id}`,
+        pages: [],
+        instagram_accounts: [],
+        whatsapp_business_accounts: [],
+        ad_accounts: [],
+        pixels: [],
+      };
+
+      // Buscar páginas do portfólio
+      try {
+        const pagesResp = await fetch(
+          `https://graph.facebook.com/${graphVersion}/${biz.id}/owned_pages?fields=id,name,access_token,instagram_business_account&access_token=${accessToken}`
+        );
+        if (pagesResp.ok) {
+          const pagesData = await pagesResp.json();
+          if (pagesData.data) {
+            for (const page of pagesData.data) {
+              portfolio.pages.push({
+                id: page.id,
+                name: page.name,
+                access_token: page.access_token,
+              });
+
+              // IG Business conectado à página
+              if (page.instagram_business_account) {
+                try {
+                  const igResp = await fetch(
+                    `https://graph.facebook.com/${graphVersion}/${page.instagram_business_account.id}?fields=id,username&access_token=${accessToken}`
+                  );
+                  if (igResp.ok) {
+                    const igData = await igResp.json();
+                    portfolio.instagram_accounts.push({
+                      id: igData.id,
+                      username: igData.username || igData.id,
+                      page_id: page.id,
+                    });
+                  }
+                } catch (e) {
+                  console.warn(`[meta-oauth-callback] Erro IG de página ${page.id}:`, e);
+                }
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn(`[meta-oauth-callback] Erro páginas do portfólio ${biz.id}:`, e);
+      }
+
+      // Buscar WABAs do portfólio + phone numbers
+      if (scopePacks.includes("whatsapp")) {
+        try {
+          const wabaResp = await fetch(
+            `https://graph.facebook.com/${graphVersion}/${biz.id}/owned_whatsapp_business_accounts?access_token=${accessToken}`
+          );
+          if (wabaResp.ok) {
+            const wabaData = await wabaResp.json();
+            if (wabaData.data) {
+              for (const waba of wabaData.data) {
+                const phoneNumbers: Array<{ id: string; display_phone_number: string; verified_name: string; quality_rating?: string }> = [];
+                try {
+                  const phonesResp = await fetch(
+                    `https://graph.facebook.com/${graphVersion}/${waba.id}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating&access_token=${accessToken}`
+                  );
+                  if (phonesResp.ok) {
+                    const phonesData = await phonesResp.json();
+                    if (phonesData.data) {
+                      for (const phone of phonesData.data) {
+                        phoneNumbers.push({
+                          id: phone.id,
+                          display_phone_number: phone.display_phone_number || phone.id,
+                          verified_name: phone.verified_name || "",
+                          quality_rating: phone.quality_rating,
+                        });
+                      }
+                    }
+                  }
+                } catch (e) {
+                  console.warn(`[meta-oauth-callback] Erro phones WABA ${waba.id}:`, e);
+                }
+                portfolio.whatsapp_business_accounts.push({
+                  id: waba.id,
+                  name: waba.name || `WABA ${waba.id}`,
+                  phone_numbers: phoneNumbers,
+                });
+              }
+            }
+          }
+        } catch (e) {
+          console.warn(`[meta-oauth-callback] Erro WABAs do portfólio ${biz.id}:`, e);
+        }
+      }
+
+      // Buscar Ad Accounts do portfólio
+      if (scopePacks.includes("ads")) {
+        try {
+          const adResp = await fetch(
+            `https://graph.facebook.com/${graphVersion}/${biz.id}/owned_ad_accounts?fields=id,name&access_token=${accessToken}`
+          );
+          if (adResp.ok) {
+            const adData = await adResp.json();
+            if (adData.data) {
+              for (const acc of adData.data) {
+                portfolio.ad_accounts.push({
+                  id: acc.id,
+                  name: acc.name || `Ad Account ${acc.id}`,
+                });
+              }
+            }
+          }
+        } catch (e) {
+          console.warn(`[meta-oauth-callback] Erro ad accounts do portfólio ${biz.id}:`, e);
+        }
+
+        // Buscar Pixels de cada Ad Account
+        for (const acc of portfolio.ad_accounts) {
+          try {
+            const pixResp = await fetch(
+              `https://graph.facebook.com/${graphVersion}/${acc.id}/adspixels?fields=id,name&access_token=${accessToken}`
+            );
+            if (pixResp.ok) {
+              const pixData = await pixResp.json();
+              if (pixData.data) {
+                for (const pixel of pixData.data) {
+                  portfolio.pixels.push({
+                    id: pixel.id,
+                    name: pixel.name || `Pixel ${pixel.id}`,
+                    ad_account_id: acc.id,
+                  });
+                }
+              }
+            }
+          } catch (e) {
+            console.warn(`[meta-oauth-callback] Erro pixels de ${acc.id}:`, e);
+          }
+        }
+      }
+
+      businesses.push(portfolio);
+    }
+
+  } catch (error) {
+    console.error("[meta-oauth-callback] Erro ao descobrir portfólios:", error);
+  }
+
+  return { businesses };
+}
+
+/**
+ * Fallback: quando não há portfólios empresariais, buscar assets pessoais do /me
+ */
+async function discoverPersonalAssets(accessToken: string, scopePacks: string[], graphVersion: string): Promise<BusinessPortfolio> {
+  const portfolio: BusinessPortfolio = {
+    id: "personal",
+    name: "Conta Pessoal",
     pages: [],
     instagram_accounts: [],
     whatsapp_business_accounts: [],
     ad_accounts: [],
     pixels: [],
-    catalogs: [],
-    threads_profile: null,
   };
 
   try {
-    // Buscar páginas do usuário
-    const pagesResponse = await fetch(
+    const pagesResp = await fetch(
       `https://graph.facebook.com/${graphVersion}/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${accessToken}`
     );
-    
-    if (pagesResponse.ok) {
-      const pagesData = await pagesResponse.json();
+    if (pagesResp.ok) {
+      const pagesData = await pagesResp.json();
       if (pagesData.data) {
         for (const page of pagesData.data) {
-          assets.pages.push({
-            id: page.id,
-            name: page.name,
-            access_token: page.access_token,
-          });
-
-          // Verificar se página tem IG Business conectado
+          portfolio.pages.push({ id: page.id, name: page.name, access_token: page.access_token });
           if (page.instagram_business_account) {
-            const igId = page.instagram_business_account.id;
-            const igResponse = await fetch(
-              `https://graph.facebook.com/${graphVersion}/${igId}?fields=id,username&access_token=${accessToken}`
-            );
-            if (igResponse.ok) {
-              const igData = await igResponse.json();
-              assets.instagram_accounts.push({
-                id: igData.id,
-                username: igData.username || igData.id,
-                page_id: page.id,
-              });
-            }
-          }
-        }
-      }
-    }
-
-    // Buscar WhatsApp Business Accounts + Phone Numbers
-    if (scopePacks.includes("whatsapp")) {
-      try {
-        const businessResponse = await fetch(
-          `https://graph.facebook.com/${graphVersion}/me/businesses?access_token=${accessToken}`
-        );
-        if (businessResponse.ok) {
-          const businessData = await businessResponse.json();
-          if (businessData.data) {
-            for (const business of businessData.data) {
-              const wabaResponse = await fetch(
-                `https://graph.facebook.com/${graphVersion}/${business.id}/owned_whatsapp_business_accounts?access_token=${accessToken}`
+            try {
+              const igResp = await fetch(
+                `https://graph.facebook.com/${graphVersion}/${page.instagram_business_account.id}?fields=id,username&access_token=${accessToken}`
               );
-              if (wabaResponse.ok) {
-                const wabaData = await wabaResponse.json();
-                if (wabaData.data) {
-                  for (const waba of wabaData.data) {
-                    // Buscar phone numbers deste WABA
-                    const phoneNumbers: Array<{ id: string; display_phone_number: string; verified_name: string; quality_rating?: string }> = [];
-                    try {
-                      const phonesResponse = await fetch(
-                        `https://graph.facebook.com/${graphVersion}/${waba.id}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating&access_token=${accessToken}`
-                      );
-                      if (phonesResponse.ok) {
-                        const phonesData = await phonesResponse.json();
-                        if (phonesData.data) {
-                          for (const phone of phonesData.data) {
-                            phoneNumbers.push({
-                              id: phone.id,
-                              display_phone_number: phone.display_phone_number || phone.id,
-                              verified_name: phone.verified_name || "",
-                              quality_rating: phone.quality_rating,
-                            });
-                          }
-                        }
-                      }
-                    } catch (phoneError) {
-                      console.warn("[meta-oauth-callback] Erro ao buscar phone numbers de WABA", waba.id, ":", phoneError);
-                    }
-
-                    assets.whatsapp_business_accounts.push({
-                      id: waba.id,
-                      name: waba.name || `WABA ${waba.id}`,
-                      phone_numbers: phoneNumbers,
-                    });
-                  }
-                }
+              if (igResp.ok) {
+                const igData = await igResp.json();
+                portfolio.instagram_accounts.push({ id: igData.id, username: igData.username || igData.id, page_id: page.id });
               }
-            }
+            } catch {}
           }
         }
-      } catch (wabaError) {
-        console.warn("[meta-oauth-callback] Erro ao buscar WABA:", wabaError);
       }
     }
 
-    // Buscar Ad Accounts
     if (scopePacks.includes("ads")) {
       try {
-        const adAccountsResponse = await fetch(
+        const adResp = await fetch(
           `https://graph.facebook.com/${graphVersion}/me/adaccounts?fields=id,name&access_token=${accessToken}`
         );
-        if (adAccountsResponse.ok) {
-          const adAccountsData = await adAccountsResponse.json();
-          if (adAccountsData.data) {
-            for (const account of adAccountsData.data) {
-              assets.ad_accounts.push({
-                id: account.id,
-                name: account.name || `Ad Account ${account.id}`,
-              });
+        if (adResp.ok) {
+          const adData = await adResp.json();
+          if (adData.data) {
+            for (const acc of adData.data) {
+              portfolio.ad_accounts.push({ id: acc.id, name: acc.name || `Ad Account ${acc.id}` });
             }
           }
         }
-      } catch (adsError) {
-        console.warn("[meta-oauth-callback] Erro ao buscar Ad Accounts:", adsError);
-      }
+      } catch {}
 
-      // Buscar Pixels de cada Ad Account
-      for (const account of assets.ad_accounts) {
+      for (const acc of portfolio.ad_accounts) {
         try {
-          const pixelsResponse = await fetch(
-            `https://graph.facebook.com/${graphVersion}/${account.id}/adspixels?fields=id,name&access_token=${accessToken}`
+          const pixResp = await fetch(
+            `https://graph.facebook.com/${graphVersion}/${acc.id}/adspixels?fields=id,name&access_token=${accessToken}`
           );
-          if (pixelsResponse.ok) {
-            const pixelsData = await pixelsResponse.json();
-            if (pixelsData.data) {
-              for (const pixel of pixelsData.data) {
-                assets.pixels.push({
-                  id: pixel.id,
-                  name: pixel.name || `Pixel ${pixel.id}`,
-                  ad_account_id: account.id,
-                });
+          if (pixResp.ok) {
+            const pixData = await pixResp.json();
+            if (pixData.data) {
+              for (const pixel of pixData.data) {
+                portfolio.pixels.push({ id: pixel.id, name: pixel.name || `Pixel ${pixel.id}`, ad_account_id: acc.id });
               }
             }
           }
-        } catch (pixelError) {
-          console.warn("[meta-oauth-callback] Erro ao buscar Pixels de", account.id, ":", pixelError);
-        }
+        } catch {}
       }
     }
-
-    // Buscar Catálogos
-    if (scopePacks.includes("catalogo")) {
-      try {
-        const businessResponse = await fetch(
-          `https://graph.facebook.com/${graphVersion}/me/businesses?access_token=${accessToken}`
-        );
-        if (businessResponse.ok) {
-          const businessData = await businessResponse.json();
-          if (businessData.data) {
-            for (const business of businessData.data) {
-              const catalogResponse = await fetch(
-                `https://graph.facebook.com/${graphVersion}/${business.id}/owned_product_catalogs?fields=id,name&access_token=${accessToken}`
-              );
-              if (catalogResponse.ok) {
-                const catalogData = await catalogResponse.json();
-                if (catalogData.data) {
-                  for (const catalog of catalogData.data) {
-                    assets.catalogs.push({
-                      id: catalog.id,
-                      name: catalog.name || `Catálogo ${catalog.id}`,
-                    });
-                  }
-                }
-              }
-            }
-          }
-        }
-      } catch (catalogError) {
-        console.warn("[meta-oauth-callback] Erro ao buscar catálogos:", catalogError);
-      }
-    }
-
-    // Buscar Threads Profile
-    if (scopePacks.includes("threads")) {
-      try {
-        const threadsResponse = await fetch(
-          `https://graph.threads.net/v1.0/me?fields=id,username&access_token=${accessToken}`
-        );
-        if (threadsResponse.ok) {
-          const threadsData = await threadsResponse.json();
-          if (threadsData.id) {
-            assets.threads_profile = {
-              id: threadsData.id,
-              username: threadsData.username || threadsData.id,
-            };
-          }
-        }
-      } catch (threadsError) {
-        console.warn("[meta-oauth-callback] Erro ao buscar Threads profile:", threadsError);
-      }
-    }
-
-  } catch (error) {
-    console.error("[meta-oauth-callback] Erro ao descobrir assets:", error);
+  } catch (e) {
+    console.error("[meta-oauth-callback] Erro assets pessoais:", e);
   }
 
-  return assets;
+  return portfolio;
 }
