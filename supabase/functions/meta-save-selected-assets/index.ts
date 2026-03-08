@@ -187,11 +187,17 @@ serve(async (req) => {
       activationResults.whatsapp = "skipped";
     }
 
-    // 3. Criar catálogo novo na Meta Commerce Manager
-    // O catálogo será criado via Graph API usando o business_id do primeiro negócio
+    // 3. Criar ou reutilizar catálogo na Meta Commerce Manager
+    // Usa o business_id do portfólio selecionado pelo usuário
     if (oauthAccessToken) {
       try {
-        const catalogResult = await createMetaCatalog(supabase, tenantId, oauthAccessToken);
+        // Verificar se já existe catálogo criado pelo nosso sistema
+        const existingCatalogId = (metadata as any)?.meta_catalog_id || null;
+        const selectedBusinessId = selectedAssets.business_id || null;
+
+        const catalogResult = await createOrReuseCatalog(
+          supabase, tenantId, oauthAccessToken, selectedBusinessId, existingCatalogId
+        );
         activationResults.catalog = catalogResult.success ? "active" : "error";
         if (catalogResult.catalogId) {
           // Salvar o catalogId nos assets da conexão
@@ -205,7 +211,10 @@ serve(async (req) => {
                   catalogs: [{ id: catalogResult.catalogId, name: catalogResult.catalogName || "Catálogo da Loja" }],
                 },
                 meta_catalog_id: catalogResult.catalogId,
-                meta_catalog_created_at: new Date().toISOString(),
+                meta_catalog_created_by_system: true,
+                meta_catalog_created_at: catalogResult.isReused
+                  ? (metadata as any)?.meta_catalog_created_at || new Date().toISOString()
+                  : new Date().toISOString(),
               },
             })
             .eq("tenant_id", tenantId)
@@ -240,13 +249,22 @@ serve(async (req) => {
 });
 
 /**
- * Criar catálogo na Meta Commerce Manager e agendar envio de produtos
+ * Criar ou reutilizar catálogo na Meta Commerce Manager.
+ * 
+ * Regra:
+ * 1. Se existingCatalogId (criado pelo nosso sistema antes), verificar se ainda existe na Meta
+ * 2. Se existir, apenas atualizar os produtos — não cria novo
+ * 3. Se não existir (ou nunca criou), criar novo catálogo
+ * 
+ * Usa o business_id do portfólio selecionado pelo usuário, não /me/businesses[0]
  */
-async function createMetaCatalog(
+async function createOrReuseCatalog(
   supabase: any,
   tenantId: string,
-  accessToken: string
-): Promise<{ success: boolean; catalogId?: string; catalogName?: string; error?: string }> {
+  accessToken: string,
+  selectedBusinessId: string | null,
+  existingCatalogId: string | null
+): Promise<{ success: boolean; catalogId?: string; catalogName?: string; isReused?: boolean; error?: string }> {
   const graphVersion = "v21.0";
 
   try {
@@ -266,25 +284,48 @@ async function createMetaCatalog(
     const storeName = storeSettings?.store_name || tenant?.name || "Minha Loja";
     const catalogName = `${storeName} - Catálogo`;
 
-    // Buscar business_id do usuário
-    const businessResponse = await fetch(
-      `https://graph.facebook.com/${graphVersion}/me/businesses?access_token=${accessToken}`
-    );
-    
-    if (!businessResponse.ok) {
-      console.warn("[meta-save-selected-assets] Não foi possível listar businesses para criar catálogo");
-      return { success: false, error: "Não foi possível acessar o Gerenciador de Negócios" };
+    // === REUSO: Verificar se catálogo existente ainda existe na Meta ===
+    if (existingCatalogId) {
+      try {
+        const checkResp = await fetch(
+          `https://graph.facebook.com/${graphVersion}/${existingCatalogId}?fields=id,name&access_token=${accessToken}`
+        );
+        if (checkResp.ok) {
+          const checkData = await checkResp.json();
+          console.log(`[meta-save-selected-assets] Catálogo existente encontrado: ${checkData.id} (${checkData.name}). Reutilizando.`);
+          
+          // Sincronizar produtos no catálogo existente
+          await syncProductsToCatalog(supabase, tenantId, existingCatalogId, accessToken, graphVersion);
+          
+          return { success: true, catalogId: existingCatalogId, catalogName: checkData.name || catalogName, isReused: true };
+        } else {
+          console.warn(`[meta-save-selected-assets] Catálogo ${existingCatalogId} não encontrado na Meta. Criando novo.`);
+        }
+      } catch (e) {
+        console.warn(`[meta-save-selected-assets] Erro ao verificar catálogo existente:`, e);
+      }
     }
 
-    const businessData = await businessResponse.json();
-    const businessId = businessData.data?.[0]?.id;
-    
+    // === CRIAÇÃO: Determinar business_id ===
+    let businessId = selectedBusinessId;
+
+    if (!businessId || businessId === "personal") {
+      // Fallback: buscar primeiro business do /me
+      const businessResponse = await fetch(
+        `https://graph.facebook.com/${graphVersion}/me/businesses?access_token=${accessToken}`
+      );
+      if (businessResponse.ok) {
+        const businessData = await businessResponse.json();
+        businessId = businessData.data?.[0]?.id || null;
+      }
+    }
+
     if (!businessId) {
-      console.warn("[meta-save-selected-assets] Nenhum business encontrado");
+      console.warn("[meta-save-selected-assets] Nenhum business encontrado para criar catálogo");
       return { success: false, error: "Nenhum Gerenciador de Negócios encontrado" };
     }
 
-    // Criar catálogo via Graph API
+    // Criar catálogo via Graph API usando o business_id correto
     const createResponse = await fetch(
       `https://graph.facebook.com/${graphVersion}/${businessId}/owned_product_catalogs`,
       {
@@ -308,13 +349,13 @@ async function createMetaCatalog(
 
     console.log(`[meta-save-selected-assets] Catálogo criado: ${catalogId} (${catalogName})`);
 
-    // Buscar produtos ativos da loja e enviar para o catálogo
+    // Sincronizar produtos
     await syncProductsToCatalog(supabase, tenantId, catalogId, accessToken, graphVersion);
 
-    return { success: true, catalogId, catalogName };
+    return { success: true, catalogId, catalogName, isReused: false };
 
   } catch (error) {
-    console.error("[meta-save-selected-assets] Erro ao criar catálogo:", error);
+    console.error("[meta-save-selected-assets] Erro ao criar/reutilizar catálogo:", error);
     return { success: false, error: error instanceof Error ? error.message : "Erro interno" };
   }
 }
