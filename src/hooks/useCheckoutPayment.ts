@@ -71,6 +71,8 @@ interface UseCheckoutPaymentOptions {
 export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentResult, setPaymentResult] = useState<PaymentResult | null>(null);
+  // Track the last created order to avoid duplicates on payment retry
+  const [pendingOrderRef, setPendingOrderRef] = useState<{ orderId: string; orderNumber: string } | null>(null);
 
   const processPayment = async ({
     method,
