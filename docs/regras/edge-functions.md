@@ -62,6 +62,9 @@ console.log(`[function-name][${VERSION}] Request received`);
 | `whatsapp_messages` | `meta-whatsapp-send`, `run-notifications`, `whatsapp-send` |
 | `notifications` | `run-notifications`, `process-events` |
 | `orders` | `pagarme-webhook`, `mercadopago-webhook` |
+| `meta_catalog_items` | `meta-catalog-sync`, `meta-catalog-daily-sync`, `meta-save-selected-assets` |
+| `product_images` | `meta-catalog-sync` (coluna `sort_order`, NÃO `position`) |
+| `tenant_domains` | `meta-catalog-sync` (domínio personalizado para product URL) |
 | `google_ad_campaigns` | `google-ads-campaigns`, `ads-autopilot-analyze`, `ads-autopilot-strategist`, `ads-autopilot-guardian` |
 | `google_ad_groups` | `google-ads-adgroups`, `ads-autopilot-execute-approved` |
 | `google_ad_ads` | `google-ads-ads`, `ads-autopilot-execute-approved` |
