@@ -303,6 +303,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
 
   const resetPayment = () => {
     setPaymentResult(null);
+    setPendingOrderRef(null);
   };
 
   return {
