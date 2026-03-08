@@ -10587,6 +10587,51 @@ export type Database = {
           },
         ]
       }
+      meta_retired_ids: {
+        Row: {
+          channel: string
+          id: string
+          product_id: string
+          reason: string | null
+          retired_at: string
+          retired_id: string
+          tenant_id: string
+        }
+        Insert: {
+          channel?: string
+          id?: string
+          product_id: string
+          reason?: string | null
+          retired_at?: string
+          retired_id: string
+          tenant_id: string
+        }
+        Update: {
+          channel?: string
+          id?: string
+          product_id?: string
+          reason?: string | null
+          retired_at?: string
+          retired_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_retired_ids_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_retired_ids_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meta_whatsapp_onboarding_states: {
         Row: {
           created_at: string | null
@@ -13131,6 +13176,7 @@ export type Database = {
           low_stock_threshold: number | null
           manage_stock: boolean | null
           meta_keywords: string | null
+          meta_retailer_id: string | null
           name: string
           ncm: string | null
           origin_code: string | null
@@ -13186,6 +13232,7 @@ export type Database = {
           low_stock_threshold?: number | null
           manage_stock?: boolean | null
           meta_keywords?: string | null
+          meta_retailer_id?: string | null
           name: string
           ncm?: string | null
           origin_code?: string | null
@@ -13241,6 +13288,7 @@ export type Database = {
           low_stock_threshold?: number | null
           manage_stock?: boolean | null
           meta_keywords?: string | null
+          meta_retailer_id?: string | null
           name?: string
           ncm?: string | null
           origin_code?: string | null

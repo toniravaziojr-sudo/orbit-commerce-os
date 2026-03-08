@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v5.1.0"; // Added: server-side image validation (HEAD+dimensions), payload/response audit per item, image pre-validation with error details
+const VERSION = "v6.0.0"; // Added: meta_retailer_id support (external ID per channel), tombstone check, delete old poisoned IDs
 // ===================
 
 const corsHeaders = {
@@ -263,13 +263,26 @@ Deno.serve(async (req) => {
 
       const { data: prods } = await supabase
         .from("products")
-        .select("id, sku")
+        .select("id, sku, meta_retailer_id")
         .in("id", productIds);
 
-      const deleteRequests = (prods || []).map((p: any) => ({
-        method: "DELETE",
-        data: { id: p.sku || p.id },
-      }));
+      // Also check tombstoned IDs to delete those too
+      const { data: retiredIds } = await supabase
+        .from("meta_retired_ids")
+        .select("retired_id")
+        .in("product_id", productIds)
+        .eq("channel", "meta");
+
+      const deleteRequests: any[] = [];
+      for (const p of prods || []) {
+        // Use meta_retailer_id if set, otherwise SKU
+        const retailerId = p.meta_retailer_id || p.sku || p.id;
+        deleteRequests.push({ method: "DELETE", data: { id: retailerId } });
+      }
+      // Also delete any retired/tombstoned IDs
+      for (const r of retiredIds || []) {
+        deleteRequests.push({ method: "DELETE", data: { id: r.retired_id } });
+      }
 
       const deleteUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/${catalogId}/items_batch`;
       const formData = new URLSearchParams({
@@ -337,7 +350,7 @@ Deno.serve(async (req) => {
     // Build product query
     let productQuery = supabase
       .from("products")
-      .select("id, name, slug, sku, description, short_description, price, compare_at_price, brand, gtin, barcode, weight, stock_quantity, tags, product_format")
+      .select("id, name, slug, sku, description, short_description, price, compare_at_price, brand, gtin, barcode, weight, stock_quantity, tags, product_format, meta_retailer_id")
       .eq("tenant_id", tenantId)
       .eq("status", "active")
       .is("deleted_at", null);
@@ -433,6 +446,39 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ===== DELETE TOMBSTONED/RETIRED IDs FROM META =====
+    const { data: retiredIds } = await supabase
+      .from("meta_retired_ids")
+      .select("retired_id, product_id")
+      .in("product_id", productIdList)
+      .eq("channel", "meta");
+
+    if (retiredIds && retiredIds.length > 0) {
+      console.log(`[meta-catalog-sync] Found ${retiredIds.length} retired IDs to delete from Meta`);
+      const deleteRetiredRequests = retiredIds.map(r => ({
+        method: "DELETE",
+        data: { id: r.retired_id },
+      }));
+
+      try {
+        const delUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/${catalogId}/items_batch`;
+        const delForm = new URLSearchParams({
+          access_token: accessToken,
+          item_type: "PRODUCT_ITEM",
+          requests: JSON.stringify(deleteRetiredRequests),
+        });
+        const delResp = await fetch(delUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: delForm.toString(),
+        });
+        const delBody = await delResp.json();
+        console.log(`[meta-catalog-sync] Retired IDs delete response:`, JSON.stringify(delBody));
+      } catch (e) {
+        console.warn(`[meta-catalog-sync] Failed to delete retired IDs:`, e);
+      }
+    }
+
     // Build batch items with per-product audit
     const batchItems: any[] = [];
     const productPayloads: Record<string, any> = {}; // productId -> payload for audit
@@ -486,8 +532,11 @@ Deno.serve(async (req) => {
       }
       description = description.substring(0, 9999);
 
+      // Use meta_retailer_id if set, otherwise fall back to SKU, then product UUID
+      const retailerId = product.meta_retailer_id || product.sku || product.id;
+
       const productData: Record<string, any> = {
-        id: product.sku || product.id,
+        id: retailerId,
         title: product.name || "Produto",
         description,
         link: productUrl,
@@ -527,7 +576,7 @@ Deno.serve(async (req) => {
       // Store payload for audit
       productPayloads[product.id] = productData;
 
-      console.log(`[meta-catalog-sync] Product SKU=${product.sku} image_link="${productData.image_link || 'NONE'}" price="${productData.price}" additional=${additionalImages.length} img_valid=${imgValidation?.valid ?? 'no-image'} img_dims=${imgValidation?.width}x${imgValidation?.height}`);
+      console.log(`[meta-catalog-sync] Product SKU=${product.sku} retailer_id="${retailerId}" image_link="${productData.image_link || 'NONE'}" price="${productData.price}" additional=${additionalImages.length} img_valid=${imgValidation?.valid ?? 'no-image'} img_dims=${imgValidation?.width}x${imgValidation?.height}`);
 
       batchItems.push({
         method: "CREATE",
