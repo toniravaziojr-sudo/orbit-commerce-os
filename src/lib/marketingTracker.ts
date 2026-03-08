@@ -25,6 +25,19 @@ export function formatCurrency(value: number): string {
   return value.toFixed(2);
 }
 
+/**
+ * Resolve the Meta content_id for a product.
+ * Priority: meta_retailer_id > sku > id (UUID as last resort)
+ * This MUST match the retailer_id used in the Meta Catalog.
+ */
+export function resolveMetaContentId(product: {
+  id: string;
+  sku?: string;
+  metaContentId?: string | null;
+}): string {
+  return product.metaContentId || product.sku || product.id;
+}
+
 // =============================================
 // FBP/FBC CAPTURE (for Meta Advanced Matching)
 // =============================================
