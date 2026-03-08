@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION =====
-const VERSION = "v4.3.0"; // Fix: use official Meta field names (image_link, link, additional_image_link)
+const VERSION = "v4.3.1"; // Confirmed: /batch uses url, image_url (not link/image_link). Delete+create fixes cached no-image state.
 // ===================
 
 const corsHeaders = {
