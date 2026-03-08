@@ -176,7 +176,8 @@ Deno.serve(async (req) => {
         availability: (product.stock_quantity !== null && product.stock_quantity <= 0) ? "out of stock" : "in stock",
         condition: "new",
         brand: product.brand || tenant?.slug || "loja",
-        price: `${priceCents} BRL`,
+        price: String(priceCents),
+        currency: "BRL",
       };
 
       // Image URL (required by Meta)
@@ -191,8 +192,9 @@ Deno.serve(async (req) => {
 
       // Sale price handling
       if (product.compare_at_price && product.compare_at_price > product.price) {
-        bodyParams.price = `${Math.round(product.compare_at_price * 100)} BRL`;
-        bodyParams.sale_price = `${priceCents} BRL`;
+        bodyParams.price = String(Math.round(product.compare_at_price * 100));
+        bodyParams.sale_price = String(priceCents);
+        bodyParams.sale_price_currency = "BRL";
       }
 
       if (product.gtin || product.barcode) {
