@@ -110,6 +110,7 @@ export function ProductCTAs({
     
     trackAddToCart({
       id: productId,
+      sku: productSku,
       name: productName,
       price: productPrice,
       quantity: quantity,

@@ -20,6 +20,8 @@ export function CartItemsList() {
     // Fire AddToCart event for quantity increase
     const eventData = {
       id: item.product_id,
+      sku: item.sku,
+      meta_retailer_id: item.meta_retailer_id,
       name: item.name,
       price: item.price,
       quantity: 1, // Incrementing by 1

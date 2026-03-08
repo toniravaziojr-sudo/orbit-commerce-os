@@ -39,6 +39,8 @@ export default function StorefrontProduct() {
     if (product && !productLoading && !isPreviewMode) {
       trackViewContent({
         id: product.id,
+        sku: product.sku,
+        meta_retailer_id: product.meta_retailer_id,
         name: product.name,
         price: product.price,
         category: category?.name,

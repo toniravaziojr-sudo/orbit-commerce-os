@@ -10,6 +10,7 @@ export interface CartItem {
   quantity: number;
   image_url?: string;
   free_shipping?: boolean;
+  meta_retailer_id?: string | null; // External ID for Meta catalog matching
 }
 
 export interface ShippingOption {

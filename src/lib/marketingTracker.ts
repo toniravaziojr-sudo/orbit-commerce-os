@@ -25,6 +25,19 @@ export function formatCurrency(value: number): string {
   return value.toFixed(2);
 }
 
+/**
+ * Resolve the Meta content_id for a product.
+ * Priority: meta_retailer_id > sku > id (UUID as last resort)
+ * This MUST match the retailer_id used in the Meta Catalog.
+ */
+export function resolveMetaContentId(product: {
+  id: string;
+  sku?: string;
+  metaContentId?: string | null;
+}): string {
+  return product.metaContentId || product.sku || product.id;
+}
+
 // =============================================
 // FBP/FBC CAPTURE (for Meta Advanced Matching)
 // =============================================
@@ -355,6 +368,8 @@ export class MarketingTracker {
   // Track product view
   trackViewContent(product: {
     id: string;
+    sku?: string;
+    metaContentId?: string | null;
     name: string;
     price: number;
     currency?: string;
@@ -362,11 +377,12 @@ export class MarketingTracker {
   }): void {
     const eventId = generateEventId();
     const currency = product.currency || 'BRL';
+    const metaId = resolveMetaContentId(product);
 
     // Meta
     if (this.config.meta_enabled) {
       trackMetaEvent('ViewContent', {
-        content_ids: [product.id],
+        content_ids: [metaId],
         content_name: product.name,
         content_type: 'product',
         content_category: product.category,
@@ -381,7 +397,7 @@ export class MarketingTracker {
         currency,
         value: product.price,
         items: [{
-          item_id: product.id,
+          item_id: product.sku || product.id,
           item_name: product.name,
           item_category: product.category,
           price: product.price,
@@ -393,7 +409,7 @@ export class MarketingTracker {
     // TikTok
     if (this.config.tiktok_enabled) {
       trackTikTokEvent('ViewContent', {
-        content_id: product.id,
+        content_id: product.sku || product.id,
         content_name: product.name,
         content_type: 'product',
         content_category: product.category,
@@ -406,6 +422,8 @@ export class MarketingTracker {
   // Track add to cart
   trackAddToCart(item: {
     id: string;
+    sku?: string;
+    metaContentId?: string | null;
     name: string;
     price: number;
     quantity: number;
@@ -415,18 +433,19 @@ export class MarketingTracker {
     const eventId = generateEventId();
     const currency = item.currency || 'BRL';
     const value = item.price * item.quantity;
+    const metaId = resolveMetaContentId(item);
 
     // Meta
     if (this.config.meta_enabled) {
       trackMetaEvent('AddToCart', {
-        content_ids: [item.id],
+        content_ids: [metaId],
         content_name: item.name,
         content_type: 'product',
         content_category: item.category,
         value,
         currency,
         contents: [{
-          id: item.id,
+          id: metaId,
           quantity: item.quantity,
         }],
       }, eventId);
@@ -438,7 +457,7 @@ export class MarketingTracker {
         currency,
         value,
         items: [{
-          item_id: item.id,
+          item_id: item.sku || item.id,
           item_name: item.name,
           item_category: item.category,
           price: item.price,
@@ -450,7 +469,7 @@ export class MarketingTracker {
     // TikTok
     if (this.config.tiktok_enabled) {
       trackTikTokEvent('AddToCart', {
-        content_id: item.id,
+        content_id: item.sku || item.id,
         content_name: item.name,
         content_type: 'product',
         content_category: item.category,
@@ -463,7 +482,7 @@ export class MarketingTracker {
 
   // Track initiate checkout
   trackInitiateCheckout(cart: {
-    items: Array<{ id: string; name: string; price: number; quantity: number; category?: string }>;
+    items: Array<{ id: string; sku?: string; metaContentId?: string | null; name: string; price: number; quantity: number; category?: string }>;
     value: number;
     currency?: string;
   }): void {
@@ -473,13 +492,13 @@ export class MarketingTracker {
     // Meta
     if (this.config.meta_enabled) {
       trackMetaEvent('InitiateCheckout', {
-        content_ids: cart.items.map(i => i.id),
+        content_ids: cart.items.map(i => resolveMetaContentId(i)),
         content_type: 'product',
         value: cart.value,
         currency,
         num_items: cart.items.reduce((sum, i) => sum + i.quantity, 0),
         contents: cart.items.map(i => ({
-          id: i.id,
+          id: resolveMetaContentId(i),
           quantity: i.quantity,
         })),
       }, eventId);
@@ -491,7 +510,7 @@ export class MarketingTracker {
         currency,
         value: cart.value,
         items: cart.items.map(i => ({
-          item_id: i.id,
+          item_id: i.sku || i.id,
           item_name: i.name,
           item_category: i.category,
           price: i.price,
@@ -503,7 +522,7 @@ export class MarketingTracker {
     // TikTok
     if (this.config.tiktok_enabled) {
       trackTikTokEvent('InitiateCheckout', {
-        content_ids: cart.items.map(i => i.id),
+        content_ids: cart.items.map(i => i.sku || i.id),
         content_type: 'product',
         value: cart.value,
         currency,
@@ -517,7 +536,7 @@ export class MarketingTracker {
     order_id: string;
     value: number;
     currency?: string;
-    items: Array<{ id: string; name: string; price: number; quantity: number; category?: string }>;
+    items: Array<{ id: string; sku?: string; metaContentId?: string | null; name: string; price: number; quantity: number; category?: string }>;
   }): void {
     const eventId = generateEventId();
     const currency = order.currency || 'BRL';
@@ -532,13 +551,13 @@ export class MarketingTracker {
     // Meta
     if (this.config.meta_enabled) {
       trackMetaEvent('Purchase', {
-        content_ids: order.items.map(i => i.id),
+        content_ids: order.items.map(i => resolveMetaContentId(i)),
         content_type: 'product',
         value: order.value,
         currency,
         num_items: order.items.reduce((sum, i) => sum + i.quantity, 0),
         contents: order.items.map(i => ({
-          id: i.id,
+          id: resolveMetaContentId(i),
           quantity: i.quantity,
         })),
       }, eventId);
@@ -551,7 +570,7 @@ export class MarketingTracker {
         currency,
         value: order.value,
         items: order.items.map(i => ({
-          item_id: i.id,
+          item_id: i.sku || i.id,
           item_name: i.name,
           item_category: i.category,
           price: i.price,
@@ -563,7 +582,7 @@ export class MarketingTracker {
     // TikTok
     if (this.config.tiktok_enabled) {
       trackTikTokEvent('CompletePayment', {
-        content_ids: order.items.map(i => i.id),
+        content_ids: order.items.map(i => i.sku || i.id),
         content_type: 'product',
         value: order.value,
         currency,
@@ -674,7 +693,7 @@ export class MarketingTracker {
     value: number;
     currency?: string;
     shippingTier: string;
-    items: Array<{ id: string; name: string; price: number; quantity: number; category?: string }>;
+    items: Array<{ id: string; sku?: string; metaContentId?: string | null; name: string; price: number; quantity: number; category?: string }>;
   }): void {
     const eventId = generateEventId();
     const currency = shipping.currency || 'BRL';
@@ -682,13 +701,13 @@ export class MarketingTracker {
     // Meta - custom event
     if (this.config.meta_enabled) {
       trackMetaEvent('AddShippingInfo', {
-        content_ids: shipping.items.map(i => i.id),
+        content_ids: shipping.items.map(i => resolveMetaContentId(i)),
         content_type: 'product',
         value: shipping.value,
         currency,
         shipping_tier: shipping.shippingTier,
         contents: shipping.items.map(i => ({
-          id: i.id,
+          id: resolveMetaContentId(i),
           quantity: i.quantity,
         })),
       }, eventId);
@@ -701,7 +720,7 @@ export class MarketingTracker {
         value: shipping.value,
         shipping_tier: shipping.shippingTier,
         items: shipping.items.map(i => ({
-          item_id: i.id,
+          item_id: i.sku || i.id,
           item_name: i.name,
           item_category: i.category,
           price: i.price,
@@ -713,7 +732,7 @@ export class MarketingTracker {
     // TikTok
     if (this.config.tiktok_enabled) {
       trackTikTokEvent('AddShippingInfo', {
-        content_ids: shipping.items.map(i => i.id),
+        content_ids: shipping.items.map(i => i.sku || i.id),
         content_type: 'product',
         value: shipping.value,
         currency,
@@ -726,7 +745,7 @@ export class MarketingTracker {
     value: number;
     currency?: string;
     paymentMethod: string;
-    items: Array<{ id: string; name: string; price: number; quantity: number; category?: string }>;
+    items: Array<{ id: string; sku?: string; metaContentId?: string | null; name: string; price: number; quantity: number; category?: string }>;
   }): void {
     const eventId = generateEventId();
     const currency = payment.currency || 'BRL';
@@ -734,12 +753,12 @@ export class MarketingTracker {
     // Meta - AddPaymentInfo standard event
     if (this.config.meta_enabled) {
       trackMetaEvent('AddPaymentInfo', {
-        content_ids: payment.items.map(i => i.id),
+        content_ids: payment.items.map(i => resolveMetaContentId(i)),
         content_type: 'product',
         value: payment.value,
         currency,
         contents: payment.items.map(i => ({
-          id: i.id,
+          id: resolveMetaContentId(i),
           quantity: i.quantity,
         })),
       }, eventId);
@@ -752,7 +771,7 @@ export class MarketingTracker {
         value: payment.value,
         payment_type: payment.paymentMethod,
         items: payment.items.map(i => ({
-          item_id: i.id,
+          item_id: i.sku || i.id,
           item_name: i.name,
           item_category: i.category,
           price: i.price,
@@ -764,7 +783,7 @@ export class MarketingTracker {
     // TikTok
     if (this.config.tiktok_enabled) {
       trackTikTokEvent('AddPaymentInfo', {
-        content_ids: payment.items.map(i => i.id),
+        content_ids: payment.items.map(i => i.sku || i.id),
         content_type: 'product',
         value: payment.value,
         currency,
