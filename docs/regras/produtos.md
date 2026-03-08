@@ -152,6 +152,14 @@ interface ProductImage {
 }
 ```
 
+#### Regras de Imagem Principal
+
+- A **imagem principal** do produto (`is_primary = true`) deve ter **fundo branco** (RGB 255,255,255).
+- Essa orientação é exibida na UI do formulário de produto (aba "Imagens") como dica ao usuário.
+- Motivo: compatibilidade com loja virtual, catálogos (Google Shopping, Meta Commerce), e marketplaces (Amazon, Shopee, Mercado Livre).
+- **Fundo transparente** é adequado apenas para imagens secundárias, criativos de IA, banners e composições visuais.
+- Os sistemas internos de IA já removem o fundo automaticamente quando necessário (geração de criativos, banners, etc.), sem necessidade de upload duplo pelo usuário.
+
 ### 3.4 Tabela `product_components` (Kits)
 
 ```typescript
