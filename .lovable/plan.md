@@ -107,11 +107,11 @@
 7. ✅ Columns + Column
 8. ✅ Grid
 
-### Fase 2: Blocos Interativos de Alta Conversão
-9. Newsletter / NewsletterForm
-10. FAQ
-11. Testimonials
-12. Accordion
+### Fase 2: Blocos Interativos de Alta Conversão ✅ CONCLUÍDA
+9. ✅ Newsletter / NewsletterForm (compilador com layouts horizontal/vertical/card)
+10. ✅ FAQ (accordion nativo com `<details>/<summary>`)
+11. ✅ Testimonials (grid responsivo com estrelas e imagens)
+12. ✅ AccordionBlock (variantes default/separated/bordered, defaultOpen)
 
 ### Fase 3: Blocos de Mídia
 13. YouTubeVideo
