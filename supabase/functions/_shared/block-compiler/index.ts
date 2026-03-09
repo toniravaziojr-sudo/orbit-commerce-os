@@ -92,6 +92,13 @@ const COMPILER_REGISTRY: Record<string, BlockCompilerFn> = {
   
   // E-commerce blocks — Product page
   'ProductDetails': productDetailsToStaticHTML,
+  
+  // Interactive blocks
+  'FAQ': faqToStaticHTML,
+  'Testimonials': testimonialsToStaticHTML,
+  'AccordionBlock': accordionToStaticHTML,
+  'Newsletter': newsletterToStaticHTML,
+  'NewsletterForm': newsletterToStaticHTML, // Same visual output
 };
 
 /**
