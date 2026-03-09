@@ -1,6 +1,6 @@
 // ============================================
 // STOREFRONT HTML — Edge-Rendered Storefront
-// v8.4.0: REFACTOR — Centralized theme tokens via _shared/theme-tokens.ts
+// v8.4.1: FIX — Category banners use direct URLs (no wsrv.nl proxy), prerender invalidation
 // Resolves tenant from hostname, serves pre-rendered HTML if available,
 // falls back to live rendering otherwise.
 // ============================================
