@@ -17,7 +17,7 @@ import { institutionalPageToStaticHTML } from '../_shared/block-compiler/blocks/
 import { generateThemeCss, generateButtonCssRules, getGoogleFontsData } from '../_shared/theme-tokens.ts';
 
 // ===== VERSION =====
-const VERSION = "v8.3.0"; // Phase 6: Marketing pixels, Newsletter Popup, Consent Banner injection
+const VERSION = "v8.4.0"; // Phase 7: Centralized theme tokens
 // ====================
 
 // ============================================
