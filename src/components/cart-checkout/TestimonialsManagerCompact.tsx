@@ -126,8 +126,8 @@ export function TestimonialsManagerCompact() {
               onDragOver={(e) => handleDragOver(e, testimonial.id)}
               onDragEnd={handleDragEnd}
               className={`
-                flex items-center gap-2 p-2 rounded-lg border bg-background
-                cursor-move transition-all text-xs
+                flex items-center gap-1.5 p-1.5 rounded-lg border bg-background
+                cursor-move transition-all text-xs overflow-hidden
                 ${draggedId === testimonial.id ? 'opacity-50 border-primary' : 'hover:bg-muted/50'}
               `}
             >
