@@ -2,7 +2,7 @@
 
 > **Status:** FUNCIONAL ✅ — Core + Filtros + Ordenação + Paginação + Badges Dinâmicos  
 > **Última atualização:** 2026-03-09  
-> **Arquitetura:** v8.4.1 — block-compiler com URLs diretas (sem wsrv.nl para banners) + filtros/sort/load-more client-side
+> **Arquitetura:** v8.4.2 — Filtros mobile responsivos + overlay paridade corrigida
 
 ## Visão Geral
 
