@@ -1171,7 +1171,7 @@ export function PageSettingsContent({
                       </div>
                     ) : (
                       /* Standard toggle switch */
-                      <div className="flex items-center justify-between py-1">
+                      <div className="flex items-center justify-between py-1 gap-3">
                         <div className="space-y-0.5">
                           <Label htmlFor={config.key} className="text-sm">
                             {config.label}
@@ -1184,6 +1184,7 @@ export function PageSettingsContent({
                           id={config.key}
                           checked={Boolean(settings[config.key] ?? config.defaultValue)}
                           onCheckedChange={(checked) => handleChange(config.key, checked)}
+                          className="flex-shrink-0"
                         />
                       </div>
                     )}
