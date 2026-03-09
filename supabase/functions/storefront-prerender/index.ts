@@ -337,29 +337,28 @@ serve(async (req) => {
       }
     }
 
-    // === ATOMIC ACTIVATION ===
-    // Only activate the new version if we had at least some success
+    // === ATOMIC ACTIVATION via RPC ===
+    // Uses a single DB transaction to swap stale↔active.
+    // If no pending pages exist, the old active pages are auto-restored.
     const successCount = processedPages - failedPages;
-    const isFullSuccess = failedPages === 0;
     const isPartialSuccess = successCount > 0;
+    const isFullSuccess = failedPages === 0;
 
     if (isPartialSuccess) {
-      // Step 1: Deactivate all previous active pages for this tenant
-      await supabase
-        .from('storefront_prerendered_pages')
-        .update({ status: 'stale' })
-        .eq('tenant_id', tenant_id)
-        .eq('status', 'active');
+      const { data: activationResult, error: activationError } = await supabase
+        .rpc('atomic_activate_prerender_version', {
+          p_tenant_id: tenant_id,
+          p_publish_version: publishVersion,
+        });
 
-      // Step 2: Activate all pending pages from THIS publish version
-      await supabase
-        .from('storefront_prerendered_pages')
-        .update({ status: 'active' })
-        .eq('tenant_id', tenant_id)
-        .eq('publish_version', publishVersion)
-        .eq('status', 'pending');
-
-      console.log(`[storefront-prerender] Activated version ${publishVersion}: ${successCount} pages${isFullSuccess ? '' : ` (${failedPages} failed, will use live fallback)`}`);
+      if (activationError) {
+        console.error(`[storefront-prerender] Atomic activation RPC error:`, activationError);
+        // RPC failed entirely — old active pages are untouched (transaction rolled back by DB)
+      } else if (activationResult && !activationResult.success) {
+        console.error(`[storefront-prerender] Activation rolled back: ${activationResult.error}`);
+      } else {
+        console.log(`[storefront-prerender] Activated version ${publishVersion}: ${activationResult?.activated || successCount} pages (deactivated ${activationResult?.deactivated || 0} old)${isFullSuccess ? '' : ` (${failedPages} failed, will use live fallback)`}`);
+      }
     } else {
       console.error(`[storefront-prerender] All pages failed, keeping previous version active`);
     }
