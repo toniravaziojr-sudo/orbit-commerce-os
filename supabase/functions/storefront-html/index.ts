@@ -545,10 +545,15 @@ function buildFullPage(opts: {
         }).catch(function(){resultsEl.innerHTML='<p style="text-align:center;color:#999;padding:16px;">Erro na busca</p>';});
       }
 
-      // Event delegation
+      // Init cart UI on load
+      updateCartUI();
+
+      // Event delegation — CAPTURE PHASE ensures this fires BEFORE
+      // any inline handlers or <a> default navigation, fixing buttons
+      // inside <a> tags in product grids even without inline onclick
       document.addEventListener("click",function(e){
         var btn=e.target.closest("[data-sf-action]");
-        if(!btn)return;
+        if(!btn||btn.disabled)return;
         var action=btn.dataset.sfAction;
         if(action==="toggle-search"){
           var overlay=document.querySelector("[data-sf-search-overlay]");
