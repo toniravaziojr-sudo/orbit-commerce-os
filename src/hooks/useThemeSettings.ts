@@ -12,7 +12,7 @@ import type { Json } from '@/integrations/supabase/types';
 import type { BlockNode } from '@/lib/builder/types';
 
 // ============================================
-// GLOBAL REFS FOR HEADER/FOOTER DRAFT STATE
+// GLOBAL REFS FOR HEADER/FOOTER/MINICART/POPUP DRAFT STATE
 // Allows VisualBuilder to access draft state without prop drilling
 // ============================================
 
@@ -22,8 +22,23 @@ interface HeaderFooterDraftRef {
   getPendingChanges: () => { header?: ThemeHeaderConfig; footer?: ThemeFooterConfig } | null;
 }
 
+interface MiniCartDraftRef {
+  hasDraftChanges: boolean;
+  clearDraft: () => void;
+  getPendingChanges: () => { miniCart?: ThemeMiniCartConfig } | null;
+}
+
+export interface PopupDraftRef {
+  hasDraftChanges: boolean;
+  clearDraft: () => void;
+  getPendingChanges: () => Record<string, unknown> | null;
+  savePendingChanges: () => Promise<void>;
+}
+
 let globalHeaderDraftRef: HeaderFooterDraftRef | null = null;
 let globalFooterDraftRef: HeaderFooterDraftRef | null = null;
+let globalMiniCartDraftRef: MiniCartDraftRef | null = null;
+let globalPopupDraftRef: PopupDraftRef | null = null;
 
 // Change counter for external observers (triggers re-render in toolbar)
 let headerFooterDraftChangeCounter = 0;
@@ -40,6 +55,14 @@ export function getGlobalHeaderDraftRef() {
 
 export function getGlobalFooterDraftRef() {
   return globalFooterDraftRef;
+}
+
+export function getGlobalMiniCartDraftRef() {
+  return globalMiniCartDraftRef;
+}
+
+export function getGlobalPopupDraftRef() {
+  return globalPopupDraftRef;
 }
 
 // Hook to observe draft changes from outside (for toolbar isDirty)
