@@ -204,15 +204,20 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
       ${countHtml}
       <style>
         .sf-cat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+        @media(max-width:639px) { .sf-cat-grid { gap: 8px !important; } }
         @media(min-width:640px) { .sf-cat-grid { grid-template-columns: repeat(3, 1fr); } }
         @media(min-width:1024px) { .sf-cat-grid { grid-template-columns: repeat(${columns}, 1fr); } }
         .sf-cat-card { transition: opacity .2s; }
-        .sf-cat-card-link:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-        .sf-cat-card-link:hover img { transform: scale(1.05); }
+        @media(hover:hover){
+          .sf-cat-card-link:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+          .sf-cat-card-link:hover img { transform: scale(1.05); }
+        }
         [data-sf-filter-label] { transition: background .15s, border-color .15s; }
         [data-sf-filter-label]:has(input:checked) { border-color: var(--theme-button-primary-bg,#1a1a1a); background: #f0f0f0; }
         @media(max-width:639px) {
           [data-sf-cat-controls] { flex-direction: column; align-items: stretch !important; }
+          .sf-cat-card .sf-btn-primary,.sf-cat-card .sf-btn-outline-primary{min-height:36px !important;font-size:11px !important;}
+          .sf-cat-card [style*="padding:8px 12px"]{padding:6px 8px 8px !important;}
         }
       </style>
       <div class="sf-cat-grid" data-sf-cat-grid>${cardsHtml}</div>

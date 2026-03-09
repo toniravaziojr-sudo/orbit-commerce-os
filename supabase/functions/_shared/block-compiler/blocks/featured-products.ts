@@ -123,14 +123,16 @@ export function featuredProductsToStaticHTML(
         .sf-fp-section{padding:16px 8px !important;}
         .sf-fp-section h2{font-size:18px !important;margin-bottom:16px !important;}
         .sf-fp-grid{grid-template-columns:repeat(${columnsMobile},1fr) !important;gap:8px !important;}
-        .sf-fp-card .sf-btn-primary,.sf-fp-card .sf-btn-outline-primary{font-size:11px !important;padding:5px 6px !important;}
+        .sf-fp-card .sf-btn-primary,.sf-fp-card .sf-btn-outline-primary{font-size:11px !important;padding:8px 6px !important;min-height:36px !important;}
         .sf-fp-card h3{font-size:12px !important;}
         .sf-fp-card [style*="font-size:14px"][style*="font-weight:700"]{font-size:13px !important;}
         .sf-fp-card [style*="font-size:11px"][style*="line-through"]{font-size:10px !important;}
         .sf-fp-card [style*="padding:8px 12px"]{padding:6px 8px 8px !important;}
       }
-      .sf-fp-card:hover{box-shadow:0 4px 12px rgba(0,0,0,0.08);}
-      .sf-fp-card:hover img{transform:scale(1.05);}
+      @media(hover:hover){
+        .sf-fp-card:hover{box-shadow:0 4px 12px rgba(0,0,0,0.08);}
+        .sf-fp-card:hover img{transform:scale(1.05);}
+      }
     </style>
   </section>`;
 }
