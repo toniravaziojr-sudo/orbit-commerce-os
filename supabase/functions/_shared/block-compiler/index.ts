@@ -60,6 +60,10 @@ import { featureListToStaticHTML } from './blocks/feature-list.ts';
 import { stepsTimelineToStaticHTML } from './blocks/steps-timeline.ts';
 import { textBannersToStaticHTML } from './blocks/text-banners.ts';
 
+// Reviews & Video
+import { reviewsToStaticHTML } from './blocks/reviews.ts';
+import { videoUploadToStaticHTML } from './blocks/video-upload.ts';
+
 // Layout blocks
 import { containerToStaticHTML } from './blocks/container.ts';
 import { columnsToStaticHTML } from './blocks/columns.ts';
@@ -143,6 +147,10 @@ const COMPILER_REGISTRY: Record<string, BlockCompilerFn> = {
   'FeatureList': featureListToStaticHTML,
   'StepsTimeline': stepsTimelineToStaticHTML,
   'TextBanners': textBannersToStaticHTML,
+  
+  // Reviews & Video
+  'Reviews': reviewsToStaticHTML,
+  'VideoUpload': videoUploadToStaticHTML,
 };
 
 /**
@@ -157,7 +165,6 @@ const STRUCTURAL_BLOCKS = new Set(['Header', 'Footer']);
  * Listed explicitly for tracking migration progress.
  */
 export const UNSUPPORTED_BLOCKS = new Set([
-  'Reviews', 'VideoUpload',
   'TrackingLookup', 'BlogListing', 'BlogPostDetail', 'PageContent',
   'ContactForm',
   'CategoryFilters',
