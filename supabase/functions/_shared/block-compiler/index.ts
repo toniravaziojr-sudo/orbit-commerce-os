@@ -38,6 +38,12 @@ import { testimonialsToStaticHTML } from './blocks/testimonials.ts';
 import { accordionToStaticHTML } from './blocks/accordion.ts';
 import { newsletterToStaticHTML } from './blocks/newsletter.ts';
 
+// Media blocks
+import { youtubeVideoToStaticHTML } from './blocks/youtube-video.ts';
+import { videoCarouselToStaticHTML } from './blocks/video-carousel.ts';
+import { htmlSectionToStaticHTML } from './blocks/html-section.ts';
+import { imageGalleryToStaticHTML } from './blocks/image-gallery.ts';
+
 // Layout blocks
 import { containerToStaticHTML } from './blocks/container.ts';
 import { columnsToStaticHTML } from './blocks/columns.ts';
