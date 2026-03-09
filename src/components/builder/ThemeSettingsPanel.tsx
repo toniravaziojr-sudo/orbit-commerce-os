@@ -316,7 +316,7 @@ export function ThemeSettingsPanel({
           </Button>
         </div>
 
-        <ScrollArea className="h-[calc(100vh-57px)]">
+        <ScrollArea className="h-[calc(100vh-57px)] [&>div>div]:!pr-3">
           {currentView === 'menu' ? (
             <div className="p-3 space-y-1">
               {menuItems.map((item) => (
