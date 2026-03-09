@@ -264,6 +264,9 @@ function buildFullPage(opts: {
   mobileSearchHtml?: string;
   mobileBgColor?: string;
   mobileTextColor?: string;
+  marketingScripts?: string;
+  newsletterPopupHtml?: string;
+  consentBannerHtml?: string;
 }): string {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
