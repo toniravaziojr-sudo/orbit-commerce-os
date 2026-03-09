@@ -87,9 +87,10 @@
 - **E-commerce Avançado**: ProductGrid, ProductCarousel, CategoryList, CollectionSection, BannerProducts
 - **Shared**: product-card-html.ts (renderProductCard reutilizável)
 
-### 🔴 FALTA Compilador (3 blocos)
+### 🔴 FALTA Compilador (0 blocos — todos compiladores de conteúdo implementados)
 
-**Outros**: NewsletterPopup, Reviews (standalone), VideoUpload
+**Nota**: NewsletterPopup é edge-rendered diretamente no `storefront-html` (fora da árvore de blocos), não precisa de compilador na registry.
+**Blocos sem compilador restantes são apenas blocos de sistema/demo**: TrackingLookup, BlogListing, BlogPostDetail, PageContent, ContactForm, CategoryFilters, CartDemo, CheckoutDemo, etc.
 
 ---
 
