@@ -44,6 +44,13 @@ import { videoCarouselToStaticHTML } from './blocks/video-carousel.ts';
 import { htmlSectionToStaticHTML } from './blocks/html-section.ts';
 import { imageGalleryToStaticHTML } from './blocks/image-gallery.ts';
 
+// E-commerce advanced blocks
+import { productGridToStaticHTML } from './blocks/product-grid.ts';
+import { productCarouselToStaticHTML } from './blocks/product-carousel.ts';
+import { categoryListToStaticHTML } from './blocks/category-list.ts';
+import { collectionSectionToStaticHTML } from './blocks/collection-section.ts';
+import { bannerProductsToStaticHTML } from './blocks/banner-products.ts';
+
 // Marketing blocks
 import { countdownTimerToStaticHTML } from './blocks/countdown-timer.ts';
 import { logosCarouselToStaticHTML } from './blocks/logos-carousel.ts';
@@ -108,6 +115,13 @@ const COMPILER_REGISTRY: Record<string, BlockCompilerFn> = {
   // E-commerce blocks — Product page
   'ProductDetails': productDetailsToStaticHTML,
   
+  // E-commerce blocks — Advanced
+  'ProductGrid': productGridToStaticHTML,
+  'ProductCarousel': productCarouselToStaticHTML,
+  'CategoryList': categoryListToStaticHTML,
+  'CollectionSection': collectionSectionToStaticHTML,
+  'BannerProducts': bannerProductsToStaticHTML,
+  
   // Interactive blocks
   'FAQ': faqToStaticHTML,
   'Testimonials': testimonialsToStaticHTML,
@@ -143,8 +157,6 @@ const STRUCTURAL_BLOCKS = new Set(['Header', 'Footer']);
  * Listed explicitly for tracking migration progress.
  */
 export const UNSUPPORTED_BLOCKS = new Set([
-  'ProductGrid', 'ProductCarousel', 'CategoryList',
-  'CollectionSection', 'BannerProducts',
   'Reviews', 'VideoUpload',
   'TrackingLookup', 'BlogListing', 'BlogPostDetail', 'PageContent',
   'ContactForm',

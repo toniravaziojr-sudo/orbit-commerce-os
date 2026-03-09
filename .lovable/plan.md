@@ -73,7 +73,7 @@
 
 ## 📋 INVENTÁRIO DE BLOCOS
 
-### ✅ Prontos no Edge (38 compiladores + 3 standalone)
+### ✅ Prontos no Edge (43 compiladores + 3 standalone + 1 shared)
 - **Layout**: Page, Section, Container, Columns, Column, Grid
 - **Conteúdo**: Text, RichText, Image, Button, Spacer, Divider
 - **E-commerce**: HeroBanner, Banner, ImageCarousel, InfoHighlights, FeaturedCategories, FeaturedProducts, CategoryBanner, CategoryPageLayout
@@ -84,9 +84,10 @@
 - **Estrutural**: Header, Footer
 - **Standalone**: Blog, Institucional
 
-### 🔴 FALTA Compilador (8 blocos)
+- **E-commerce Avançado**: ProductGrid, ProductCarousel, CategoryList, CollectionSection, BannerProducts
+- **Shared**: product-card-html.ts (renderProductCard reutilizável)
 
-**E-commerce (5)**: ProductGrid, ProductCarousel, CategoryList, CollectionSection, BannerProducts
+### 🔴 FALTA Compilador (3 blocos)
 
 **Outros**: NewsletterPopup, Reviews (standalone), VideoUpload
 
@@ -127,8 +128,13 @@
 22. ✅ StepsTimeline (layout horizontal/vertical com círculos numerados)
 23. ✅ TextBanners (texto + 2 imagens com CTA sf-btn-primary)
 
-### Fase 5: Blocos E-commerce Avançados
-19. ProductGrid, ProductCarousel, CategoryList, CollectionSection, BannerProducts
+### Fase 5: Blocos E-commerce Avançados ✅ CONCLUÍDA
+24. ✅ ProductGrid (grid configurável com renderProductCard compartilhado)
+25. ✅ ProductCarousel (scroll horizontal com snap + setas desktop)
+26. ✅ CategoryList (grid/lista com source custom/auto)
+27. ✅ CollectionSection (título + "Ver todos" + grid/carousel)
+28. ✅ BannerProducts (banner + produtos lado a lado)
+29. ✅ Shared: product-card-html.ts (renderProductCard reutilizável)
 
 ### Fase 6: Verificações Globais
 20. Pixels de marketing no `<head>`
