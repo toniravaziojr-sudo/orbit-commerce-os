@@ -126,13 +126,12 @@ const STRUCTURAL_BLOCKS = new Set(['Header', 'Footer']);
  */
 export const UNSUPPORTED_BLOCKS = new Set([
   'ProductGrid', 'ProductCarousel', 'CategoryList',
-  'CollectionSection', 'BannerProducts', 'YouTubeVideo',
-  'Reviews', 'TextBanners', 'VideoUpload', 'VideoCarousel',
+  'CollectionSection', 'BannerProducts',
+  'Reviews', 'TextBanners', 'VideoUpload',
   'TrackingLookup', 'BlogListing', 'BlogPostDetail', 'PageContent',
   'ContactForm',
   'FeatureList', 'ContentColumns', 'StepsTimeline',
   'CountdownTimer', 'LogosCarousel', 'StatsNumbers',
-  'ImageGallery', 'HTMLSection',
   'CategoryFilters',
   'CartDemo', 'CheckoutDemo', 'CustomBlock',
   'NewsletterPopup', 'Map', 'SocialFeed',
