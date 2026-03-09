@@ -876,6 +876,7 @@ export function StorefrontHeaderContent({
                       placeholder="Pesquisar"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={handleSearchSubmit}
                       className="h-9 pl-8 pr-3 text-sm border sf-header-search-input"
                       style={{ 
                         backgroundColor: headerTextColor ? `${headerTextColor}15` : undefined,
