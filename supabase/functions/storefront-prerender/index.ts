@@ -1,6 +1,6 @@
 // ============================================
 // STOREFRONT PRERENDER — Server-side pre-rendering job
-// v1.1.0: Fresh render bypass + version-safe atomic activation
+// v1.2.0: Atomic activation via DB RPC (transactional stale→active swap)
 // Triggered by publish flow. Calls storefront-html for each route.
 // Stores results in storefront_prerendered_pages for fast serving.
 //
@@ -11,6 +11,8 @@
 //    Only after ALL pages succeed, the batch is atomically activated
 //    (pending→active) and the previous version deactivated.
 // 3. If the job fails partially, the old active pages remain untouched.
+// 4. Activation uses atomic_activate_prerender_version RPC — if new
+//    pages can't be activated, old active pages are auto-restored.
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
