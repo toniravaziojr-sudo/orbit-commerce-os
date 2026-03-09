@@ -44,6 +44,15 @@ import { videoCarouselToStaticHTML } from './blocks/video-carousel.ts';
 import { htmlSectionToStaticHTML } from './blocks/html-section.ts';
 import { imageGalleryToStaticHTML } from './blocks/image-gallery.ts';
 
+// Marketing blocks
+import { countdownTimerToStaticHTML } from './blocks/countdown-timer.ts';
+import { logosCarouselToStaticHTML } from './blocks/logos-carousel.ts';
+import { statsNumbersToStaticHTML } from './blocks/stats-numbers.ts';
+import { contentColumnsToStaticHTML } from './blocks/content-columns.ts';
+import { featureListToStaticHTML } from './blocks/feature-list.ts';
+import { stepsTimelineToStaticHTML } from './blocks/steps-timeline.ts';
+import { textBannersToStaticHTML } from './blocks/text-banners.ts';
+
 // Layout blocks
 import { containerToStaticHTML } from './blocks/container.ts';
 import { columnsToStaticHTML } from './blocks/columns.ts';
