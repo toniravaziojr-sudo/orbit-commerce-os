@@ -1774,7 +1774,7 @@ serve(async (req) => {
     
     const mobileMenuItemsHtml = menuItems
       .filter((item: any) => !item.parent_id)
-      .slice(0, 12)
+      
       .map((item: any) => {
         const children = mobileChildrenMap.get(item.id) || [];
         if (children.length > 0) {
