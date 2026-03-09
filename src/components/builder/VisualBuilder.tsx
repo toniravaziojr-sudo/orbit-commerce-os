@@ -48,7 +48,7 @@ import { CanvasEditorProvider } from './CanvasEditorContext';
 import { CanvasRichTextProvider } from './CanvasRichTextContext';
 import { BuilderDraftThemeProvider, useBuilderDraftTheme, getGlobalDraftThemeRef, DraftThemeRefSync } from '@/hooks/useBuilderDraftTheme';
 import { BuilderDraftPageSettingsProvider, getGlobalDraftPageSettingsRef, PageSettingsKey, useDraftPageSettingsObserver } from '@/hooks/useBuilderDraftPageSettings';
-import { getGlobalHeaderDraftRef, getGlobalFooterDraftRef, useHeaderFooterDraftObserver } from '@/hooks/useThemeSettings';
+import { getGlobalHeaderDraftRef, getGlobalFooterDraftRef, getGlobalMiniCartDraftRef, getGlobalPopupDraftRef, useHeaderFooterDraftObserver } from '@/hooks/useThemeSettings';
 
 // Isolation modes for debugging React #300
 type IsolateMode = 'app' | 'visual' | 'canvas' | 'blocks' | 'blocks-real' | 'full';
@@ -100,6 +100,8 @@ function BuilderToolbarWithDraftCheck(props: Omit<React.ComponentProps<typeof Bu
   const draftPageSettings = getGlobalDraftPageSettingsRef();
   const headerDraft = getGlobalHeaderDraftRef();
   const footerDraft = getGlobalFooterDraftRef();
+  const miniCartDraft = getGlobalMiniCartDraftRef();
+  const popupDraft = getGlobalPopupDraftRef();
   
   // Observe ALL draft changes to trigger re-render when any draft changes
   useHeaderFooterDraftObserver();
@@ -111,7 +113,9 @@ function BuilderToolbarWithDraftCheck(props: Omit<React.ComponentProps<typeof Bu
     (draftTheme?.hasDraftChanges ?? false) || 
     (draftPageSettings?.hasDraftChanges ?? false) ||
     (headerDraft?.hasDraftChanges ?? false) ||
-    (footerDraft?.hasDraftChanges ?? false);
+    (footerDraft?.hasDraftChanges ?? false) ||
+    (miniCartDraft?.hasDraftChanges ?? false) ||
+    (popupDraft?.hasDraftChanges ?? false);
   return <BuilderToolbar {...toolbarProps} isDirty={isDirty} onPageChangeCheck={onPageChangeCheck} />;
 }
 
@@ -610,9 +614,12 @@ export function VisualBuilder({
       const draftPageSettings = getGlobalDraftPageSettingsRef();
       const headerDraft = getGlobalHeaderDraftRef();
       const footerDraft = getGlobalFooterDraftRef();
+      const miniCartDraft = getGlobalMiniCartDraftRef();
+      const popupDraft = getGlobalPopupDraftRef();
       
       const hasThemeOrSettingsDraft = draftTheme?.hasDraftChanges || draftPageSettings?.hasDraftChanges || 
-                                       headerDraft?.hasDraftChanges || footerDraft?.hasDraftChanges;
+                                       headerDraft?.hasDraftChanges || footerDraft?.hasDraftChanges ||
+                                       miniCartDraft?.hasDraftChanges || popupDraft?.hasDraftChanges;
       
       if (templateSetId && hasThemeOrSettingsDraft) {
         const { data: current } = await supabase
@@ -659,7 +666,15 @@ export function VisualBuilder({
           }
         }
         
-        // Merge footer draft changes
+        // Merge miniCart draft changes
+        if (miniCartDraft?.hasDraftChanges) {
+          const pendingMiniCartChanges = miniCartDraft.getPendingChanges();
+          console.log('[VisualBuilder.handleSave] Pending miniCart changes:', pendingMiniCartChanges);
+          if (pendingMiniCartChanges?.miniCart) {
+            updatedThemeSettings.miniCart = pendingMiniCartChanges.miniCart;
+          }
+        }
+        
         if (footerDraft?.hasDraftChanges) {
           const pendingFooterChanges = footerDraft.getPendingChanges();
           console.log('[VisualBuilder.handleSave] Pending footer changes:', pendingFooterChanges);
@@ -762,6 +777,16 @@ export function VisualBuilder({
         if (footerDraft?.hasDraftChanges) {
           footerDraft.clearDraft();
           console.log('[VisualBuilder.handleSave] Cleared footer draft');
+        }
+        if (miniCartDraft?.hasDraftChanges) {
+          miniCartDraft.clearDraft();
+          console.log('[VisualBuilder.handleSave] Cleared miniCart draft');
+        }
+        // Save popup changes to its dedicated table (not themeSettings)
+        if (popupDraft?.hasDraftChanges) {
+          await popupDraft.savePendingChanges();
+          popupDraft.clearDraft();
+          console.log('[VisualBuilder.handleSave] Saved and cleared popup draft');
         }
         
         // CRITICAL: Synchronously update page settings caches via setQueryData
@@ -1089,7 +1114,13 @@ export function VisualBuilder({
   const hasAnyUnsavedChanges = useCallback(() => {
     const draftTheme = getGlobalDraftThemeRef();
     const draftPageSettings = getGlobalDraftPageSettingsRef();
-    return store.isDirty || (draftTheme?.hasDraftChanges ?? false) || (draftPageSettings?.hasDraftChanges ?? false);
+    const miniCartDraft = getGlobalMiniCartDraftRef();
+    const popupDraft = getGlobalPopupDraftRef();
+    return store.isDirty || 
+      (draftTheme?.hasDraftChanges ?? false) || 
+      (draftPageSettings?.hasDraftChanges ?? false) ||
+      (miniCartDraft?.hasDraftChanges ?? false) ||
+      (popupDraft?.hasDraftChanges ?? false);
   }, [store.isDirty]);
 
   // Go back with unsaved changes check
@@ -1117,8 +1148,12 @@ export function VisualBuilder({
     // Clear draft states
     const draftTheme = getGlobalDraftThemeRef();
     const draftPageSettings = getGlobalDraftPageSettingsRef();
+    const miniCartDraft = getGlobalMiniCartDraftRef();
+    const popupDraft = getGlobalPopupDraftRef();
     if (draftTheme) draftTheme.clearDraft();
     if (draftPageSettings) draftPageSettings.clearDraft();
+    if (miniCartDraft) miniCartDraft.clearDraft();
+    if (popupDraft) popupDraft.clearDraft();
     store.markClean();
     
     setShowUnsavedDialog(false);

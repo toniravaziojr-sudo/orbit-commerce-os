@@ -764,10 +764,10 @@ O painel de configurações do tema é organizado em **9 seções** acessíveis 
 | # | Seção | Componente | Salvamento | Descrição |
 |---|-------|-----------|------------|-----------|
 | 1 | Páginas | `PagesSettings.tsx` → `PageSettingsContent.tsx` | Draft (botão Salvar) | Configurações estruturais por página |
-| 2 | Cabeçalho | `HeaderSettings.tsx` | Auto-save (debounce 400ms) | Cores, barra superior, menus, logo |
-| 3 | Rodapé | `FooterSettings.tsx` | Auto-save (debounce 400ms) | Cores, seções, imagens, newsletter |
-| 4 | Carrinho Suspenso | `MiniCartSettings.tsx` | Auto-save (debounce 500ms) | Mini-cart lateral, frete grátis, timer |
-| 5 | Popup Newsletter | `PopupSettings.tsx` | Auto-save (debounce 500ms) | Popup de captura de leads |
+| 2 | Cabeçalho | `HeaderSettings.tsx` | Draft (botão Salvar) | Cores, barra superior, menus, logo |
+| 3 | Rodapé | `FooterSettings.tsx` | Draft (botão Salvar) | Cores, seções, imagens, newsletter |
+| 4 | Carrinho Suspenso | `MiniCartSettings.tsx` | Draft (botão Salvar) | Mini-cart lateral, frete grátis, timer |
+| 5 | Popup Newsletter | `PopupSettings.tsx` | Draft (botão Salvar) | Popup de captura de leads |
 | 6 | Cores | `ColorsSettings.tsx` | Draft (botão Salvar) | Paleta de cores global do tema |
 | 7 | Tipografia | `TypographySettings.tsx` | Draft (botão Salvar) | Fontes e tamanho base |
 | 8 | CSS customizado | `CustomCSSSettings.tsx` | Draft (botão Salvar) | CSS livre com validação |
@@ -1501,15 +1501,15 @@ O sistema de edição inline usa uma arquitetura **uncontrolled** para estabilid
 
 ---
 
-## Sistema de Salvamento — Dois Modelos Coexistentes (v8.4.1)
+## Sistema de Salvamento — Modelo Único Draft (v8.5.0)
 
 > **Atualizado em:** 2026-03-09
 
-O builder possui **dois modelos de salvamento** que coexistem:
+O builder utiliza **um único modelo de salvamento** para TODAS as configurações:
 
-### Modelo 1: Draft + Salvamento Manual (botão "Salvar")
+### Draft + Salvamento Manual (botão "Salvar")
 
-Usado por: **Cores, Tipografia, CSS, Configurações de Página**
+Usado por: **TODAS as configurações do builder** (Cores, Tipografia, CSS, Configurações de Página, Cabeçalho, Rodapé, Carrinho Suspenso, Popup Newsletter)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -1518,38 +1518,26 @@ Usado por: **Cores, Tipografia, CSS, Configurações de Página**
 │  • Alterações ficam em estado LOCAL (draft) até clicar Salvar           │
 │  • Cores/Tipografia/CSS → useBuilderDraftTheme                         │
 │  • Configurações de Página → useBuilderDraftPageSettings               │
+│  • Header/Footer → useThemeHeader/useThemeFooter (draftUpdates local)  │
+│  • MiniCart → useThemeMiniCart (draftUpdates local + globalRef)         │
+│  • Popup → PopupSettings (hasDraftChanges local + globalRef)           │
 │  • Botão "Salvar" fica habilitado quando há drafts pendentes           │
-│  • Ao sair sem salvar, alterações são PERDIDAS                         │
-│  • isDirty = store.isDirty || themeDraft.hasDraftChanges || pageDraft   │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-### Modelo 2: Auto-Save (sem botão "Salvar")
-
-Usado por: **Cabeçalho, Rodapé, Carrinho Suspenso, Popup Newsletter**
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                  AUTO-SAVE (Debounced Direct-to-DB)                      │
-├─────────────────────────────────────────────────────────────────────────┤
-│  • Alterações são salvas AUTOMATICAMENTE com debounce (400-500ms)       │
-│  • Switches/toggles salvam IMEDIATAMENTE                               │
-│  • NÃO ativam o botão "Salvar" (por design)                            │
-│  • Dados persistem em tabelas/campos dedicados (não no draft)           │
-│  • Header/Footer → storefront_template_sets (campos header/footer)     │
-│  • MiniCart → storefront_template_sets (campo miniCart config)          │
-│  • Popup → newsletter_popup_configs (tabela separada)                  │
-│  • Alterações ficam visíveis no preview IMEDIATAMENTE                   │
+│  • Ao sair sem salvar, alterações são PERDIDAS (clearDraft)            │
+│  • isDirty = store.isDirty || themeDraft || pageDraft || headerDraft   │
+│             || footerDraft || miniCartDraft || popupDraft              │
+│  • Popup salva em newsletter_popup_configs (tabela separada)           │
+│  • Demais salvam em storefront_template_sets.draft_content.themeSettings│
 │  • Para refletir no PÚBLICO, o usuário deve clicar "Publicar"           │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### ⚠️ AVISO IMPORTANTE: Confusão do Usuário
+### Regra Universal: NENHUM auto-save no builder
 
-O fato de o botão "Salvar" NÃO ativar quando se altera Header/Footer/MiniCart/Popup é **comportamento esperado** (auto-save). Porém, isso pode causar confusão pois:
-- O usuário espera que o botão "Salvar" reaja a QUALQUER alteração
-- Não há indicação visual de que o auto-save está acontecendo
-- A regra é: **se o botão "Salvar" está cinza, as alterações JÁ foram salvas**
+**PROIBIDO** usar auto-save/debounce direto ao banco em qualquer configuração do builder. Todas as alterações devem:
+1. Atualizar estado local (draft) para preview em tempo real
+2. Ativar o botão "Salvar" via isDirty
+3. Persistir no banco SOMENTE quando o usuário clica "Salvar"
+4. Ser descartadas se o usuário sair sem salvar
 
 ### Arquitetura de Drafts
 

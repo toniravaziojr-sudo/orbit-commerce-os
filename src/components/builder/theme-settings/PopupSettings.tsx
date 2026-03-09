@@ -2,6 +2,8 @@
 // POPUP SETTINGS - Newsletter popup configuration
 // Settings moved from builder blocks to theme settings
 // Uses newsletter_popup_configs table
+// IMPORTANT: Popup updates DRAFT state for real-time preview
+// Changes are NOT saved until user clicks "Salvar" in toolbar
 // =============================================
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -14,10 +16,12 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Loader2, ChevronRight, Mail, Eye, Palette, Settings2, Image as ImageIcon, Bell, Trash2 } from 'lucide-react';
+import { Loader2, ChevronRight, Mail, Eye, Palette, Settings2, Image as ImageIcon, Bell, Trash2, AlertCircle } from 'lucide-react';
 import { ImageUploaderWithLibrary } from '@/components/builder/ImageUploaderWithLibrary';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { setGlobalPopupDraftRef } from '@/hooks/useThemeSettings';
+import type { PopupDraftRef } from '@/hooks/useThemeSettings';
 
 interface PopupSettingsProps {
   tenantId: string;
@@ -101,6 +105,9 @@ const pageOptions = [
   { value: 'blog', label: 'Blog' },
 ];
 
+// Export setter for global ref registration
+export { setGlobalPopupDraftRef };
+
 export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
   const queryClient = useQueryClient();
   const [localConfig, setLocalConfig] = useState<Partial<PopupConfig>>(defaultConfig);
@@ -110,8 +117,9 @@ export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
     trigger: false,
     fields: false,
   });
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const initialLoadDone = useRef(false);
+  // Track if user has made changes (draft state)
+  const [hasDraftChanges, setHasDraftChanges] = useState(false);
 
   // Fetch existing popup config
   const { data: popupConfig, isLoading } = useQuery({
@@ -146,92 +154,86 @@ export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
 
   // Initialize local state
   useEffect(() => {
-    // Sempre sincronizar com o valor do banco quando disponível
     if (popupConfig) {
       setLocalConfig(popupConfig);
       initialLoadDone.current = true;
     } else if (!isLoading && !initialLoadDone.current) {
-      // Só aplicar defaults se não estiver carregando e não há config
       setLocalConfig(defaultConfig);
       initialLoadDone.current = true;
     }
   }, [popupConfig, isLoading]);
 
-  // Upsert mutation
+  // Upsert mutation - only called on "Salvar"
   const upsertMutation = useMutation({
-    mutationFn: async (updates: Partial<PopupConfig>) => {
-      const fullConfig = {
-        ...localConfig,
-        ...updates,
+    mutationFn: async (fullConfig: Partial<PopupConfig>) => {
+      const configToSave = {
+        ...fullConfig,
         tenant_id: tenantId,
       };
 
       if (popupConfig?.id) {
-        // Update existing
         const { error } = await supabase
           .from('newsletter_popup_configs')
           .update({
-            name: fullConfig.name,
-            list_id: fullConfig.list_id,
-            layout: fullConfig.layout,
-            title: fullConfig.title,
-            subtitle: fullConfig.subtitle,
-            success_message: fullConfig.success_message,
-            button_text: fullConfig.button_text,
-            show_name: fullConfig.show_name,
-            show_phone: fullConfig.show_phone,
-            show_birth_date: fullConfig.show_birth_date,
-            name_required: fullConfig.name_required,
-            phone_required: fullConfig.phone_required,
-            birth_date_required: fullConfig.birth_date_required,
-            background_color: fullConfig.background_color,
-            text_color: fullConfig.text_color,
-            button_bg_color: fullConfig.button_bg_color,
-            button_text_color: fullConfig.button_text_color,
-            image_url: fullConfig.image_url,
-            icon_image_url: fullConfig.icon_image_url,
-            trigger_type: fullConfig.trigger_type,
-            trigger_delay_seconds: fullConfig.trigger_delay_seconds,
-            trigger_scroll_percent: fullConfig.trigger_scroll_percent,
-            show_on_pages: fullConfig.show_on_pages,
-            exclude_pages: fullConfig.exclude_pages,
-            is_active: fullConfig.is_active,
-            show_once_per_session: fullConfig.show_once_per_session,
+            name: configToSave.name,
+            list_id: configToSave.list_id,
+            layout: configToSave.layout,
+            title: configToSave.title,
+            subtitle: configToSave.subtitle,
+            success_message: configToSave.success_message,
+            button_text: configToSave.button_text,
+            show_name: configToSave.show_name,
+            show_phone: configToSave.show_phone,
+            show_birth_date: configToSave.show_birth_date,
+            name_required: configToSave.name_required,
+            phone_required: configToSave.phone_required,
+            birth_date_required: configToSave.birth_date_required,
+            background_color: configToSave.background_color,
+            text_color: configToSave.text_color,
+            button_bg_color: configToSave.button_bg_color,
+            button_text_color: configToSave.button_text_color,
+            image_url: configToSave.image_url,
+            icon_image_url: configToSave.icon_image_url,
+            trigger_type: configToSave.trigger_type,
+            trigger_delay_seconds: configToSave.trigger_delay_seconds,
+            trigger_scroll_percent: configToSave.trigger_scroll_percent,
+            show_on_pages: configToSave.show_on_pages,
+            exclude_pages: configToSave.exclude_pages,
+            is_active: configToSave.is_active,
+            show_once_per_session: configToSave.show_once_per_session,
           })
           .eq('id', popupConfig.id);
         if (error) throw error;
       } else {
-        // Create new
         const { error } = await supabase
           .from('newsletter_popup_configs')
           .insert({
             tenant_id: tenantId,
-            name: fullConfig.name || 'Popup Principal',
-            list_id: fullConfig.list_id,
-            layout: fullConfig.layout || 'centered',
-            title: fullConfig.title || 'Inscreva-se',
-            subtitle: fullConfig.subtitle,
-            success_message: fullConfig.success_message,
-            button_text: fullConfig.button_text,
-            show_name: fullConfig.show_name,
-            show_phone: fullConfig.show_phone,
-            show_birth_date: fullConfig.show_birth_date,
-            name_required: fullConfig.name_required,
-            phone_required: fullConfig.phone_required,
-            birth_date_required: fullConfig.birth_date_required,
-            background_color: fullConfig.background_color,
-            text_color: fullConfig.text_color,
-            button_bg_color: fullConfig.button_bg_color,
-            button_text_color: fullConfig.button_text_color,
-            image_url: fullConfig.image_url,
-            icon_image_url: fullConfig.icon_image_url,
-            trigger_type: fullConfig.trigger_type || 'delay',
-            trigger_delay_seconds: fullConfig.trigger_delay_seconds,
-            trigger_scroll_percent: fullConfig.trigger_scroll_percent,
-            show_on_pages: fullConfig.show_on_pages,
-            exclude_pages: fullConfig.exclude_pages,
-            is_active: fullConfig.is_active,
-            show_once_per_session: fullConfig.show_once_per_session,
+            name: configToSave.name || 'Popup Principal',
+            list_id: configToSave.list_id,
+            layout: configToSave.layout || 'centered',
+            title: configToSave.title || 'Inscreva-se',
+            subtitle: configToSave.subtitle,
+            success_message: configToSave.success_message,
+            button_text: configToSave.button_text,
+            show_name: configToSave.show_name,
+            show_phone: configToSave.show_phone,
+            show_birth_date: configToSave.show_birth_date,
+            name_required: configToSave.name_required,
+            phone_required: configToSave.phone_required,
+            birth_date_required: configToSave.birth_date_required,
+            background_color: configToSave.background_color,
+            text_color: configToSave.text_color,
+            button_bg_color: configToSave.button_bg_color,
+            button_text_color: configToSave.button_text_color,
+            image_url: configToSave.image_url,
+            trigger_type: configToSave.trigger_type || 'delay',
+            trigger_delay_seconds: configToSave.trigger_delay_seconds,
+            trigger_scroll_percent: configToSave.trigger_scroll_percent,
+            show_on_pages: configToSave.show_on_pages,
+            exclude_pages: configToSave.exclude_pages,
+            is_active: configToSave.is_active,
+            show_once_per_session: configToSave.show_once_per_session,
           });
         if (error) throw error;
       }
@@ -245,34 +247,46 @@ export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
     },
   });
 
-  // Debounced save
-  const debouncedSave = useCallback((updates: Partial<PopupConfig>) => {
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-    saveTimeoutRef.current = setTimeout(() => {
-      upsertMutation.mutate(updates);
-    }, 500);
-  }, [upsertMutation]);
-
+  // Update prop locally (draft only, no DB save)
   const updateProp = useCallback((key: keyof PopupConfig, value: unknown) => {
-    setLocalConfig(prev => {
-      const updated = { ...prev, [key]: value };
-      debouncedSave({ [key]: value });
-      return updated;
-    });
-  }, [debouncedSave]);
+    setLocalConfig(prev => ({ ...prev, [key]: value }));
+    setHasDraftChanges(true);
+  }, []);
 
+  // Update prop locally (same as updateProp - all changes are draft now)
   const updatePropImmediate = useCallback((key: keyof PopupConfig, value: unknown) => {
-    setLocalConfig(prev => {
-      const updated = { ...prev, [key]: value };
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-      upsertMutation.mutate({ [key]: value });
-      return updated;
-    });
-  }, [upsertMutation]);
+    setLocalConfig(prev => ({ ...prev, [key]: value }));
+    setHasDraftChanges(true);
+  }, []);
+
+  // Register global draft ref for VisualBuilder to detect and save
+  const clearDraft = useCallback(() => {
+    setHasDraftChanges(false);
+  }, []);
+
+  const getPendingChanges = useCallback(() => {
+    if (!hasDraftChanges) return null;
+    return localConfig as Record<string, unknown>;
+  }, [hasDraftChanges, localConfig]);
+
+  const savePendingChanges = useCallback(async () => {
+    if (!hasDraftChanges) return;
+    await upsertMutation.mutateAsync(localConfig);
+  }, [hasDraftChanges, localConfig, upsertMutation]);
+
+  // Register/unregister global ref
+  useEffect(() => {
+    const ref: PopupDraftRef = {
+      hasDraftChanges,
+      clearDraft,
+      getPendingChanges,
+      savePendingChanges,
+    };
+    setGlobalPopupDraftRef(ref);
+    return () => {
+      setGlobalPopupDraftRef(null);
+    };
+  }, [hasDraftChanges, clearDraft, getPendingChanges, savePendingChanges]);
 
   const toggleSection = (key: string) => {
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -296,6 +310,14 @@ export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
 
   return (
     <div className="space-y-4">
+      {/* Notice about pending changes */}
+      {hasDraftChanges && (
+        <div className="flex items-center gap-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded text-xs text-amber-700 dark:text-amber-300">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>Alterações pendentes. Clique em <strong>Salvar</strong> na barra superior para aplicar.</span>
+        </div>
+      )}
+
       {/* Preview Button */}
 
       {/* Active Toggle - Prominent */}
@@ -707,13 +729,9 @@ export function PopupSettings({ tenantId, templateSetId }: PopupSettingsProps) {
         </CollapsibleContent>
       </Collapsible>
 
-      {/* Saving indicator */}
-      {upsertMutation.isPending && (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Loader2 className="h-3 w-3 animate-spin" />
-          Salvando...
-        </div>
-      )}
+      <p className="text-[10px] text-muted-foreground text-center">
+        {hasDraftChanges ? '⚠️ Alterações pendentes - clique em Salvar na barra superior' : '✓ Configurações sincronizadas com o tema'}
+      </p>
     </div>
   );
 }

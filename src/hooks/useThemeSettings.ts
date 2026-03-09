@@ -12,7 +12,7 @@ import type { Json } from '@/integrations/supabase/types';
 import type { BlockNode } from '@/lib/builder/types';
 
 // ============================================
-// GLOBAL REFS FOR HEADER/FOOTER DRAFT STATE
+// GLOBAL REFS FOR HEADER/FOOTER/MINICART/POPUP DRAFT STATE
 // Allows VisualBuilder to access draft state without prop drilling
 // ============================================
 
@@ -22,8 +22,23 @@ interface HeaderFooterDraftRef {
   getPendingChanges: () => { header?: ThemeHeaderConfig; footer?: ThemeFooterConfig } | null;
 }
 
+interface MiniCartDraftRef {
+  hasDraftChanges: boolean;
+  clearDraft: () => void;
+  getPendingChanges: () => { miniCart?: ThemeMiniCartConfig } | null;
+}
+
+export interface PopupDraftRef {
+  hasDraftChanges: boolean;
+  clearDraft: () => void;
+  getPendingChanges: () => Record<string, unknown> | null;
+  savePendingChanges: () => Promise<void>;
+}
+
 let globalHeaderDraftRef: HeaderFooterDraftRef | null = null;
 let globalFooterDraftRef: HeaderFooterDraftRef | null = null;
+let globalMiniCartDraftRef: MiniCartDraftRef | null = null;
+let globalPopupDraftRef: PopupDraftRef | null = null;
 
 // Change counter for external observers (triggers re-render in toolbar)
 let headerFooterDraftChangeCounter = 0;
@@ -40,6 +55,19 @@ export function getGlobalHeaderDraftRef() {
 
 export function getGlobalFooterDraftRef() {
   return globalFooterDraftRef;
+}
+
+export function getGlobalMiniCartDraftRef() {
+  return globalMiniCartDraftRef;
+}
+
+export function getGlobalPopupDraftRef() {
+  return globalPopupDraftRef;
+}
+
+export function setGlobalPopupDraftRef(ref: PopupDraftRef | null) {
+  globalPopupDraftRef = ref;
+  notifyHeaderFooterDraftChange(); // Reuse same observer to trigger toolbar re-render
 }
 
 // Hook to observe draft changes from outside (for toolbar isDirty)
@@ -841,26 +869,72 @@ export function useThemeFooter(tenantId: string | undefined, templateSetId: stri
   };
 }
 
+// ============================================
+// DRAFT-BASED MINI CART HOOK (follows save flow)
+// Changes are stored locally until user clicks "Salvar"
+// ============================================
+
 export function useThemeMiniCart(tenantId: string | undefined, templateSetId: string | undefined) {
-  const { themeSettings, saveThemeSettings, isLoading, isSaving } = 
+  const queryClient = useQueryClient();
+  const { themeSettings, isLoading, isSaving } = 
     useThemeSettings(tenantId, templateSetId);
 
-  const miniCart = {
+  // Track draft changes locally
+  const [draftUpdates, setDraftUpdates] = useState<Partial<ThemeMiniCartConfig>>({});
+
+  const hasDraftChanges = Object.keys(draftUpdates).length > 0;
+
+  const serverMiniCart = {
     ...DEFAULT_THEME_MINI_CART,
     ...themeSettings?.miniCart,
   };
 
-  const updateMiniCart = (newMiniCart: Partial<ThemeMiniCartConfig>) => {
-    saveThemeSettings({ 
-      miniCart: { ...miniCart, ...newMiniCart } 
-    });
+  // Merge server with draft for display
+  const miniCart = {
+    ...serverMiniCart,
+    ...draftUpdates,
   };
+
+  // updateMiniCart: Updates LOCAL draft state only (NO database save)
+  const updateMiniCart = useCallback((newMiniCart: Partial<ThemeMiniCartConfig>) => {
+    setDraftUpdates(prev => ({ ...prev, ...newMiniCart }));
+    notifyHeaderFooterDraftChange();
+  }, []);
+
+  const clearDraft = useCallback(() => {
+    setDraftUpdates({});
+  }, []);
+
+  const getPendingChanges = useCallback(() => {
+    if (!hasDraftChanges) return null;
+    const fullMiniCart = {
+      ...DEFAULT_THEME_MINI_CART,
+      ...themeSettings?.miniCart,
+      ...draftUpdates,
+    };
+    return { miniCart: fullMiniCart };
+  }, [hasDraftChanges, themeSettings?.miniCart, draftUpdates]);
+
+  // Register global ref
+  useEffect(() => {
+    globalMiniCartDraftRef = {
+      hasDraftChanges,
+      clearDraft,
+      getPendingChanges,
+    };
+    return () => {
+      globalMiniCartDraftRef = null;
+    };
+  }, [hasDraftChanges, clearDraft, getPendingChanges]);
 
   return {
     miniCart,
     updateMiniCart,
     isLoading,
     isSaving,
+    hasDraftChanges,
+    clearDraft,
+    getPendingChanges,
   };
 }
 

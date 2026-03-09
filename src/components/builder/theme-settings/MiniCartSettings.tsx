@@ -1,6 +1,8 @@
 // =============================================
 // MINI CART SETTINGS - Mini-cart features configuration
 // Uses centralized useThemeSettings hook (template-wide)
+// IMPORTANT: MiniCart updates DRAFT state for real-time preview
+// Changes are NOT saved until user clicks "Salvar" in toolbar
 // NOTE: Cart action (miniCart vs goToCart vs none) is configured in Product Page Settings
 // =============================================
 
@@ -10,7 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Loader2, Gift, Truck, Percent, Clock, ShoppingCart } from 'lucide-react';
+import { Loader2, Gift, Truck, Percent, Clock, ShoppingCart, AlertCircle } from 'lucide-react';
 import { useThemeMiniCart, DEFAULT_THEME_MINI_CART, ThemeMiniCartConfig, CartActionType } from '@/hooks/useThemeSettings';
 
 interface MiniCartSettingsProps {
@@ -33,24 +35,12 @@ export function MiniCartSettings({
   onTogglePreview,
   onConfigChange 
 }: MiniCartSettingsProps) {
-  const { miniCart: savedMiniCart, updateMiniCart, isLoading, isSaving } = useThemeMiniCart(tenantId, templateSetId);
-  const [localConfig, setLocalConfig] = useState<ThemeMiniCartConfig>(DEFAULT_THEME_MINI_CART);
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const initialLoadDone = useRef(false);
+  const { miniCart, updateMiniCart, isLoading, hasDraftChanges } = useThemeMiniCart(tenantId, templateSetId);
 
   // Navigate to home to show preview context
   useEffect(() => {
     onNavigateToPage?.('home');
   }, [onNavigateToPage]);
-
-  // Initialize local state from hook data
-  useEffect(() => {
-    if (savedMiniCart && !initialLoadDone.current) {
-      setLocalConfig(savedMiniCart);
-      onConfigChange?.(savedMiniCart);
-      initialLoadDone.current = true;
-    }
-  }, [savedMiniCart, onConfigChange]);
 
   // Auto-toggle preview when entering/leaving this settings view
   useEffect(() => {
@@ -58,33 +48,15 @@ export function MiniCartSettings({
     return () => onTogglePreview?.(false);
   }, [onTogglePreview]);
 
-  // Debounced save for number inputs
-  const debouncedSave = useCallback((updates: Partial<ThemeMiniCartConfig>) => {
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-    saveTimeoutRef.current = setTimeout(() => {
-      updateMiniCart(updates);
-    }, 500);
-  }, [updateMiniCart]);
+  // Notify parent of config changes for preview
+  useEffect(() => {
+    onConfigChange?.(miniCart);
+  }, [miniCart, onConfigChange]);
 
-  // Handle change with optimistic update + save
+  // Handle change - updates draft only (no DB save)
   const handleChange = useCallback((key: keyof ThemeMiniCartConfig, value: boolean | number | CartActionType) => {
-    setLocalConfig(prev => {
-      const updated = { ...prev, [key]: value };
-      
-      onConfigChange?.(updated);
-      
-      // Immediate save for booleans/strings, debounced for numbers
-      if (typeof value === 'number') {
-        debouncedSave({ [key]: value });
-      } else {
-        updateMiniCart(updated);
-      }
-      
-      return updated;
-    });
-  }, [updateMiniCart, debouncedSave, onConfigChange]);
+    updateMiniCart({ [key]: value });
+  }, [updateMiniCart]);
 
   if (isLoading) {
     return (
@@ -95,10 +67,18 @@ export function MiniCartSettings({
   }
 
   // Check if mini-cart mode is enabled (cart action configured in product page settings)
-  const isMiniCartMode = localConfig.cartActionType === 'miniCart';
+  const isMiniCartMode = miniCart.cartActionType === 'miniCart';
 
   return (
     <div className="space-y-4">
+      {/* Notice about pending changes */}
+      {hasDraftChanges && (
+        <div className="flex items-center gap-2 p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded text-xs text-amber-700 dark:text-amber-300">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>Alterações pendentes. Clique em <strong>Salvar</strong> na barra superior para aplicar.</span>
+        </div>
+      )}
+
       <p className="text-xs text-muted-foreground">
         Configure o comportamento do carrinho ao adicionar produtos.
       </p>
@@ -114,7 +94,7 @@ export function MiniCartSettings({
             <p className="text-xs text-muted-foreground">O que acontece ao adicionar produto</p>
           </div>
           <Switch
-            checked={localConfig.cartActionType !== 'none'}
+            checked={miniCart.cartActionType !== 'none'}
             onCheckedChange={(checked) => {
               const newType: CartActionType = checked ? 'miniCart' : 'none';
               handleChange('cartActionType', newType);
@@ -123,9 +103,9 @@ export function MiniCartSettings({
         </div>
 
         {/* Radio buttons to choose cart action type */}
-        {localConfig.cartActionType !== 'none' && (
+        {miniCart.cartActionType !== 'none' && (
           <RadioGroup
-            value={localConfig.cartActionType === 'goToCart' ? 'goToCart' : 'miniCart'}
+            value={miniCart.cartActionType === 'goToCart' ? 'goToCart' : 'miniCart'}
             onValueChange={(value: 'miniCart' | 'goToCart') => {
               handleChange('cartActionType', value);
             }}
@@ -146,7 +126,7 @@ export function MiniCartSettings({
           </RadioGroup>
         )}
 
-        {localConfig.cartActionType === 'none' && (
+        {miniCart.cartActionType === 'none' && (
           <p className="text-xs text-muted-foreground italic">
             Desativado: o botão apenas mostrará "Adicionado" ao clicar.
           </p>
@@ -166,12 +146,12 @@ export function MiniCartSettings({
                 <Label className="text-xs">Barra de Frete Grátis</Label>
               </div>
               <Switch
-                checked={localConfig.showFreeShippingProgress}
+                checked={miniCart.showFreeShippingProgress}
                 onCheckedChange={(v) => handleChange('showFreeShippingProgress', v)}
               />
             </div>
 
-            {localConfig.showFreeShippingProgress && (
+            {miniCart.showFreeShippingProgress && (
               <p className="pl-6 text-[10px] text-muted-foreground italic">
                 O valor mínimo é definido em Logística → Conversão de Carrinho
               </p>
@@ -183,7 +163,7 @@ export function MiniCartSettings({
                 <Label className="text-xs">Cross-sell (Produtos Relacionados)</Label>
               </div>
               <Switch
-                checked={localConfig.showCrossSell}
+                checked={miniCart.showCrossSell}
                 onCheckedChange={(v) => handleChange('showCrossSell', v)}
               />
             </div>
@@ -194,7 +174,7 @@ export function MiniCartSettings({
                 <Label className="text-xs">Campo de Cupom</Label>
               </div>
               <Switch
-                checked={localConfig.showCoupon}
+                checked={miniCart.showCoupon}
                 onCheckedChange={(v) => handleChange('showCoupon', v)}
               />
             </div>
@@ -205,7 +185,7 @@ export function MiniCartSettings({
                 <Label className="text-xs">Calculadora de Frete</Label>
               </div>
               <Switch
-                checked={localConfig.showShippingCalculator}
+                checked={miniCart.showShippingCalculator}
                 onCheckedChange={(v) => handleChange('showShippingCalculator', v)}
               />
             </div>
@@ -221,17 +201,17 @@ export function MiniCartSettings({
                 </div>
               </div>
               <Switch
-                checked={localConfig.showStockReservationTimer}
+                checked={miniCart.showStockReservationTimer}
                 onCheckedChange={(v) => handleChange('showStockReservationTimer', v)}
               />
             </div>
 
-            {localConfig.showStockReservationTimer && (
+            {miniCart.showStockReservationTimer && (
               <div className="pl-6 space-y-1">
                 <Label className="text-[10px]">Tempo de reserva (minutos)</Label>
                 <Input
                   type="number"
-                  value={localConfig.stockReservationMinutes}
+                  value={miniCart.stockReservationMinutes}
                   onChange={(e) => handleChange('stockReservationMinutes', Number(e.target.value))}
                   className="h-7 text-xs w-32"
                   min={1}
@@ -243,8 +223,8 @@ export function MiniCartSettings({
         </>
       )}
 
-      <p className="text-xs text-muted-foreground text-center pt-2">
-        {isSaving ? '💾 Salvando...' : '✓ Configurações salvas automaticamente neste template'}
+      <p className="text-[10px] text-muted-foreground text-center">
+        {hasDraftChanges ? '⚠️ Alterações pendentes - clique em Salvar na barra superior' : '✓ Configurações sincronizadas com o tema'}
       </p>
     </div>
   );
