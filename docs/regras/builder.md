@@ -1545,7 +1545,7 @@ Para adicionar novos presets no futuro:
 
 > Lista de todos os block-compilers em `supabase/functions/_shared/block-compiler/blocks/`.
 
-### ✅ Compiladores Prontos (38 total)
+### ✅ Compiladores Prontos (40 total)
 
 | Bloco | Arquivo | Fase |
 |-------|---------|------|
@@ -1573,8 +1573,10 @@ Para adicionar novos presets no futuro:
 | Testimonials | `testimonials.ts` | 2 |
 | AccordionBlock | `accordion.ts` | 2 |
 | Newsletter / NewsletterForm | `newsletter.ts` | 2 |
+| Reviews | `reviews.ts` | 2 |
 | YouTubeVideo | `youtube-video.ts` | 3 |
 | VideoCarousel | `video-carousel.ts` | 3 |
+| VideoUpload | `video-upload.ts` | 3 |
 | HTMLSection | `html-section.ts` | 3 |
 | ImageGallery | `image-gallery.ts` | 3 |
 | CountdownTimer | `countdown-timer.ts` | 4 |
@@ -1594,11 +1596,13 @@ Para adicionar novos presets no futuro:
 - **Testimonials** (`testimonials.ts`): Grid responsivo (1→2→3 cols). Estrelas SVG. Imagens otimizadas via wsrv.nl.
 - **AccordionBlock** (`accordion.ts`): Variantes `default`, `separated`, `bordered`. Suporta `defaultOpen`.
 - **Newsletter** (`newsletter.ts`): 3 layouts (horizontal, vertical, card). Atributos `data-sf-newsletter` para hidratação JS.
+- **Reviews** (`reviews.ts`): Carrossel de avaliações com estrelas SVG. Scroll horizontal com setas de navegação. Links para produtos com imagens opcionais.
 
 ### Detalhes dos Compiladores Fase 3 (Mídia)
 
 - **YouTubeVideo** (`youtube-video.ts`): iframe responsivo com aspect ratio configurável (16:9, 4:3, 1:1).
 - **VideoCarousel** (`video-carousel.ts`): Primeiro vídeo embed + thumbnails dos demais. Hidratação via `data-sf-video-carousel`.
+- **VideoUpload** (`video-upload.ts`): Tag `<video>` nativa com fontes desktop/mobile via media query. Suporta autoplay, loop, muted, controls. Aspect ratio e object-fit configuráveis.
 - **HTMLSection** (`html-section.ts`): HTML sanitizado inline (remove `<script>`, event handlers, `javascript:` URLs). CSS scoped via `<style>`.
 - **ImageGallery** (`image-gallery.ts`): Grid responsivo (2→3→4 cols). Imagens otimizadas. Hover effects CSS.
 
