@@ -91,7 +91,6 @@ const STRUCTURAL_BLOCKS = new Set(['Header', 'Footer']);
  */
 export const UNSUPPORTED_BLOCKS = new Set([
   'Container', 'Grid', 'Column', 'Columns',
-  'Text', 'RichText', 'Image', 'Button', 'Spacer', 'Divider',
   'ProductGrid', 'ProductCarousel', 'CategoryList',
   'CollectionSection', 'BannerProducts', 'YouTubeVideo',
   'Reviews', 'TextBanners', 'VideoUpload', 'VideoCarousel',
