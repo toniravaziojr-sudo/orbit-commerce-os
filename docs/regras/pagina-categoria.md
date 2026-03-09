@@ -2,7 +2,7 @@
 
 > **Status:** FUNCIONAL ✅ — Core + Filtros + Ordenação + Paginação + Badges Dinâmicos  
 > **Última atualização:** 2026-03-09  
-> **Arquitetura:** v8.4.2 — Filtros mobile responsivos + overlay paridade corrigida
+> **Arquitetura:** v8.4.3 — Deploy confirmado: overlay agora respeita bannerOverlayOpacity=0
 
 ## Visão Geral
 
