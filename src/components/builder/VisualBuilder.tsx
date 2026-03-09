@@ -1114,7 +1114,13 @@ export function VisualBuilder({
   const hasAnyUnsavedChanges = useCallback(() => {
     const draftTheme = getGlobalDraftThemeRef();
     const draftPageSettings = getGlobalDraftPageSettingsRef();
-    return store.isDirty || (draftTheme?.hasDraftChanges ?? false) || (draftPageSettings?.hasDraftChanges ?? false);
+    const miniCartDraft = getGlobalMiniCartDraftRef();
+    const popupDraft = getGlobalPopupDraftRef();
+    return store.isDirty || 
+      (draftTheme?.hasDraftChanges ?? false) || 
+      (draftPageSettings?.hasDraftChanges ?? false) ||
+      (miniCartDraft?.hasDraftChanges ?? false) ||
+      (popupDraft?.hasDraftChanges ?? false);
   }, [store.isDirty]);
 
   // Go back with unsaved changes check
