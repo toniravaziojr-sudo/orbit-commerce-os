@@ -17,7 +17,7 @@ function usePublicSearchProducts(tenantId: string | undefined, query: string) {
       const searchTerm = query.trim();
       const { data, error } = await supabase
         .from('products')
-        .select('id, name, slug, price, compare_at_price, product_images(url, position)')
+        .select('id, name, slug, price, compare_at_price, product_images(url)')
         .eq('tenant_id', tenantId)
         .eq('status', 'active')
         .ilike('name', `%${searchTerm}%`)
