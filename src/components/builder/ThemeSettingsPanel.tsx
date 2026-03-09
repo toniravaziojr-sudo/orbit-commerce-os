@@ -9,7 +9,7 @@ import { useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ChevronRight, Palette, Type, FileCode, Layout, X, PanelTop, PanelBottom, ShoppingCart, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 import { PagesSettings } from './theme-settings/PagesSettings';
 import { TypographySettings } from './theme-settings/TypographySettings';
 import { ColorsSettings } from './theme-settings/ColorsSettings';
