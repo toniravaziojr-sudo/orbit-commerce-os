@@ -44,14 +44,19 @@ export const categoryBannerToStaticHTML: BlockCompilerFn = (
   const justify = alignMap[titlePosition] || 'center';
 
   if (bannerUrl) {
-    const desktopSrc = optimizeImageUrl(bannerUrl, 1920, 80);
-    const mobileSrc = bannerMobileUrl ? optimizeImageUrl(bannerMobileUrl, 768, 80) : desktopSrc;
+    // CRITICAL: Use direct URLs for banner images (no wsrv.nl proxy).
+    // wsrv.nl can fail silently in browsers due to rate limits, referer checks,
+    // or CDN issues, causing banners to show as empty gray boxes.
+    // Banner images are already uploaded at the correct resolution by the user.
+    // This ensures parity with the Builder (React) which uses direct URLs.
+    const desktopSrc = bannerUrl;
+    const mobileSrc = bannerMobileUrl || desktopSrc;
 
     return `
-      <div style="position:relative;width:100%;height:${bannerHeight};overflow:hidden;background:#f5f5f5;">
+      <div style="position:relative;width:100%;overflow:hidden;background:#f5f5f5;">
         <picture>
           ${mobileSrc !== desktopSrc ? `<source srcset="${escapeHtml(mobileSrc)}" media="(max-width:768px)">` : ''}
-          <img src="${escapeHtml(desktopSrc)}" alt="${escapeHtml(category.name)}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" loading="eager" fetchpriority="high">
+          <img src="${escapeHtml(desktopSrc)}" alt="${escapeHtml(category.name)}" style="display:block;width:100%;height:auto;object-fit:cover;" loading="eager" fetchpriority="high">
         </picture>
         ${overlayBg !== 'transparent' || showCategoryName ? `
           <div style="position:absolute;inset:0;background:${overlayBg};display:flex;align-items:center;justify-content:${justify};padding:0 24px;">
