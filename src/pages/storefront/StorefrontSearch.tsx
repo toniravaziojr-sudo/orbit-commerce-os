@@ -7,7 +7,7 @@ import { StorefrontHeader } from '@/components/storefront/StorefrontHeader';
 import { StorefrontFooter } from '@/components/storefront/StorefrontFooter';
 import { Loader2, Search, ArrowLeft } from 'lucide-react';
 import { getStoreBaseUrl } from '@/lib/publicUrls';
-import { getLogoImageUrl } from '@/lib/imageUtils';
+import { getLogoImageUrl } from '@/lib/imageTransform';
 
 function usePublicSearchProducts(tenantId: string | undefined, query: string) {
   return useQuery({
