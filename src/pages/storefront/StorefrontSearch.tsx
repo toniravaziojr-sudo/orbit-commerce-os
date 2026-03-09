@@ -88,8 +88,7 @@ export default function StorefrontSearch() {
         {!isLoading && products && products.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {products.map((product) => {
-              const imageUrl = product.product_images
-                ?.sort((a: any, b: any) => (a.position || 0) - (b.position || 0))?.[0]?.url;
+              const imageUrl = product.product_images?.[0]?.url;
               const hasDiscount = product.compare_at_price && product.compare_at_price > product.price;
 
               return (
