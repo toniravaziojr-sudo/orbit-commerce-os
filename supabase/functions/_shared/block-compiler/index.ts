@@ -44,6 +44,13 @@ import { videoCarouselToStaticHTML } from './blocks/video-carousel.ts';
 import { htmlSectionToStaticHTML } from './blocks/html-section.ts';
 import { imageGalleryToStaticHTML } from './blocks/image-gallery.ts';
 
+// E-commerce advanced blocks
+import { productGridToStaticHTML } from './blocks/product-grid.ts';
+import { productCarouselToStaticHTML } from './blocks/product-carousel.ts';
+import { categoryListToStaticHTML } from './blocks/category-list.ts';
+import { collectionSectionToStaticHTML } from './blocks/collection-section.ts';
+import { bannerProductsToStaticHTML } from './blocks/banner-products.ts';
+
 // Marketing blocks
 import { countdownTimerToStaticHTML } from './blocks/countdown-timer.ts';
 import { logosCarouselToStaticHTML } from './blocks/logos-carousel.ts';
