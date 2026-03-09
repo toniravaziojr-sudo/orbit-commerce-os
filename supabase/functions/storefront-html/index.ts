@@ -15,6 +15,7 @@ import { footerToStaticHTML } from '../_shared/block-compiler/blocks/footer.ts';
 import { blogIndexToStaticHTML, blogPostToStaticHTML } from '../_shared/block-compiler/blocks/blog.ts';
 import { institutionalPageToStaticHTML } from '../_shared/block-compiler/blocks/institutional-page.ts';
 import { generateThemeCss, generateButtonCssRules, getGoogleFontsData } from '../_shared/theme-tokens.ts';
+import { optimizeImageUrl, escapeHtml as escapeHtmlShared } from '../_shared/block-compiler/utils.ts';
 
 // ===== VERSION =====
 const VERSION = "v8.4.0"; // Phase 7: Centralized theme tokens
