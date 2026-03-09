@@ -81,15 +81,14 @@ export function TypographySettings({ tenantId, templateSetId }: TypographySettin
 
   // Update draft for REAL-TIME PREVIEW without saving to database
   const handleChange = (key: keyof ThemeTypography, value: string | number) => {
-    setLocalTypography(prev => {
-      const updated = { ...prev, [key]: value };
-      setHasChanges(true);
-      // Update draft state for real-time preview in builder canvas
-      if (draftTheme) {
-        draftTheme.setDraftTypography(updated);
-      }
-      return updated;
-    });
+    const updated = { ...localTypography, [key]: value };
+    setLocalTypography(updated);
+    setHasChanges(true);
+    // Update draft state for real-time preview in builder canvas
+    // CRITICAL: Must be outside state updater to ensure React batching works correctly
+    if (draftTheme) {
+      draftTheme.setDraftTypography(updated);
+    }
   };
 
   if (isLoading) {
