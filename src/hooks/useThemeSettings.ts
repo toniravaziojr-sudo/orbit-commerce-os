@@ -65,6 +65,11 @@ export function getGlobalPopupDraftRef() {
   return globalPopupDraftRef;
 }
 
+export function setGlobalPopupDraftRef(ref: PopupDraftRef | null) {
+  globalPopupDraftRef = ref;
+  notifyHeaderFooterDraftChange(); // Reuse same observer to trigger toolbar re-render
+}
+
 // Hook to observe draft changes from outside (for toolbar isDirty)
 export function useHeaderFooterDraftObserver(): number {
   const [counter, setCounter] = useState(headerFooterDraftChangeCounter);
