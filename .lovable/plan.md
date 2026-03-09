@@ -1,76 +1,142 @@
-
-
-# Resumo Completo do Plano de Implementação
+# Plano: Aderência Total da Loja à Renderização Edge
 
 ---
 
-## Status Atual
+## 🐛 BUGS CRÍTICOS IDENTIFICADOS
 
-| Categoria | Quantidade | Status |
-|-----------|------------|--------|
-| **Compiladores Edge prontos** | 19 blocos + 3 standalone | ✅ Funcional |
-| **Bugs críticos pendentes** | 4 | 🔴 Urgente |
-| **Blocos sem compilador** | 23 | 📋 Backlog |
-| **Páginas SPA-only** | 4 (Carrinho, Checkout, Obrigado, Conta) | ✅ Não precisa edge |
+### BUG 1: Botão "Adicionar ao Carrinho" não funciona (CORRIGIDO ✅)
+**Correção**: Adicionado `onclick="event.stopPropagation()"` em featured-products.ts e category-page-layout.ts.
 
----
+### BUG 2: Banner de categoria não renderiza (CORRIGIDO ✅)
+**Correção**: Auto-injeção no `storefront-html` quando `category.banner_desktop_url` existe e template não contém `CategoryBanner`.
 
-## FASE 0: Bugs Críticos (Urgente)
+### BUG 3: Galeria de imagens do produto (VERIFICADO ✅)
+**Status**: JS de hidratação verificado — swipe/dots (mobile), thumbnail click (desktop) e lightbox+zoom estão implementados corretamente. O código está funcional; requer re-publicação para aplicar.
 
-| # | Bug | Diagnóstico | Correção |
-|---|-----|-------------|----------|
-| 1 | ~~Botão "Adicionar ao Carrinho" não funciona~~ | Propagação de clique | ✅ CORRIGIDO |
-| 2 | **Banner de categoria não renderiza** | Template customizado pode omitir `CategoryBanner` | Injetar automaticamente no `storefront-html` quando `banner_desktop_url` existir |
-| 3 | **Galeria de imagens estática** | JS de hidratação (swipe/dots) não executa | Verificar e corrigir script `sf-gallery-track` |
-| 4 | **Produtos relacionados não herdam configurações** | Cards usam estilos hardcoded | Refatorar para usar `categorySettings` (showRatings, showBadges, quickBuy) |
-| 5 | **Botões CTA da página de produto** | Dependem de hidratação JS | Verificar execução de `data-sf-action` handlers |
+### BUG 4: Produtos relacionados não herdam categorySettings (CORRIGIDO ✅)
+**Correção**: Refatorada seção de relacionados em `product-details.ts` para usar `categorySettings` (showRatings, showBadges, showAddToCartButton, quickBuyEnabled) com mesma estrutura visual do `category-page-layout.ts`.
+
+### BUG 5: Botões de CTA na página de produto (VERIFICADO ✅)
+**Status**: Handlers `data-sf-action` verificados — add-to-cart, buy-now, qty-minus/plus e calc-shipping todos funcionais no script de hidratação.
 
 ---
 
-## FASE 1-5: Compiladores Pendentes (23 blocos)
+## 📊 RESUMO: Sistema de Cores da Loja
 
-| Fase | Blocos | Prioridade |
-|------|--------|------------|
-| **Fase 1** | Container, Columns, Column, Grid | Layout base |
-| **Fase 2** | Newsletter, FAQ, Testimonials, Accordion | Alta conversão |
-| **Fase 3** | YouTubeVideo, VideoCarousel, HTMLSection, ImageGallery | Mídia |
-| **Fase 4** | CountdownTimer, LogosCarousel, StatsNumbers, ContentColumns, FeatureList, StepsTimeline, TextBanners | Marketing |
-| **Fase 5** | ProductGrid, ProductCarousel, CategoryList, CollectionSection, BannerProducts | E-commerce avançado |
-
----
-
-## FASE 6: Verificações Globais
-
-1. **Pixels de Marketing** — Confirmar injeção no `<head>` (Google Analytics, Meta Pixel, etc.)
-2. **Newsletter Popup** — Verificar carregamento lazy no público
-3. **Consent Banner (LGPD)** — Verificar exibição
-
----
-
-## FASE 7: Auditoria e Centralização
-
-| Item | Problema | Solução |
-|------|----------|---------|
-| **Sistema de Cores** | Duplicação em 3 lugares (Builder hook, React injector, Edge inline) | Criar arquivo único de design tokens compartilhado |
-| **Frete Grátis** | Lógica duplicada entre React hooks e Edge Function | Centralizar cálculo em único ponto de verdade |
-| **Divergências Visuais** | Builder vs Público podem ter diferenças | Auditoria visual completa com tenant `respeiteohomem` |
-
----
-
-## Cleanup
-
-- Remover dead code: `_shared/block-compiler/blocks/product-page.ts`
-
----
-
-## Ordem de Execução Recomendada
-
+### Arquitetura Geral
 ```
-1. Fase 0 → Corrigir bugs críticos (banner, galeria, relacionados, CTAs)
-2. Fase 1 → Layout (Container, Columns, Grid)
-3. Fase 2 → Interativos (Newsletter, FAQ)
-4. Fases 3-5 → Demais blocos
-5. Fase 6 → Injeções globais
-6. Fase 7 → Auditoria final
+┌───────────────────────────────────────────────────────────────────┐
+│              FONTE DE VERDADE: storefront_template_sets           │
+│                                                                    │
+│  draft_content.themeSettings.colors    → Builder (preview)        │
+│  published_content.themeSettings.colors → Loja pública            │
+└───────────────────────────────────────────────────────────────────┘
+                              ↓
+┌───────────────────────────────────────────────────────────────────┐
+│              INJEÇÃO DE CSS (2 caminhos paralelos)                │
+├───────────────────────────────────────────────────────────────────┤
+│  BUILDER:        useBuilderThemeInjector.ts                       │
+│  LOJA PÚBLICA:   StorefrontThemeInjector.tsx                      │
+│  EDGE HTML:      CSS inline no <head> via storefront-html         │
+└───────────────────────────────────────────────────────────────────┘
 ```
 
+### Grupos de Cores Disponíveis
+
+| Grupo | Variáveis CSS | Uso |
+|-------|--------------|-----|
+| **Botão Primário** | `--theme-button-primary-bg`, `--theme-button-primary-text`, `--theme-button-primary-hover` | CTAs principais |
+| **Botão Secundário** | `--theme-button-secondary-bg`, `--theme-button-secondary-text`, `--theme-button-secondary-hover` | Botões secundários |
+| **WhatsApp** | `--theme-whatsapp-color`, `--theme-whatsapp-hover` | Botão WhatsApp |
+| **Preço** | `--theme-price-color` | Valor principal do preço |
+| **Promo/Tags** | `--theme-promo-bg`, `--theme-promo-text` | Tags promocionais |
+
+### Pontos de Melhoria
+1. Duplicação em 3 sistemas diferentes
+2. Edge HTML duplica lógica CSS do React
+3. Falta centralização (design tokens)
+
+---
+
+## 📦 RESUMO: Sistema de Frete Grátis
+
+### Hierarquia de Precedência
+1. **Produto**: `products.free_shipping` (boolean)
+2. **Cupom**: `discounts.type = 'free_shipping'`
+3. **Regras de Logística**: `free_shipping_rules`
+
+### Pontos de Melhoria
+1. Lógica duplicada React/Edge
+2. Badge "Frete Grátis" com estilos inconsistentes
+
+---
+
+## 📋 INVENTÁRIO DE BLOCOS
+
+### ✅ Prontos no Edge (23 compiladores + 3 standalone)
+- **Layout**: Page, Section, Container, Columns, Column, Grid
+- **Conteúdo**: Text, RichText, Image, Button, Spacer, Divider
+- **E-commerce**: HeroBanner, Banner, ImageCarousel, InfoHighlights, FeaturedCategories, FeaturedProducts, CategoryBanner, CategoryPageLayout
+- **Produto**: ProductDetails (Reviews, Compre Junto, Relacionados, Variantes, Galeria+Lightbox)
+- **Estrutural**: Header, Footer
+- **Standalone**: Blog, Institucional
+
+### 🔴 FALTA Compilador (19 blocos)
+
+**Interativo (5)**: Newsletter, NewsletterForm, FAQ, Testimonials, NewsletterPopup
+
+**E-commerce (5)**: ProductGrid, ProductCarousel, CategoryList, CollectionSection, BannerProducts
+
+**Marketing (7)**: CountdownTimer, LogosCarousel, StatsNumbers, ContentColumns, FeatureList, StepsTimeline, TextBanners
+
+**Mídia (4)**: YouTubeVideo, VideoCarousel, HTMLSection, ImageGallery, Accordion
+
+---
+
+## 🚀 PLANO DE EXECUÇÃO
+
+### Fase 0: Bugs Críticos ✅ CONCLUÍDA
+1. ✅ Corrigir botões add-to-cart
+2. ✅ Corrigir banner de categoria (auto-injeção)
+3. ✅ Verificar galeria de imagens (funcional)
+4. ✅ Produtos relacionados herdar categorySettings
+5. ✅ Verificar botões CTA (funcionais)
+
+### Fase 1: Blocos de Layout ✅ CONCLUÍDA
+6. ✅ Container
+7. ✅ Columns + Column
+8. ✅ Grid
+
+### Fase 2: Blocos Interativos de Alta Conversão
+9. Newsletter / NewsletterForm
+10. FAQ
+11. Testimonials
+12. Accordion
+
+### Fase 3: Blocos de Mídia
+13. YouTubeVideo
+14. VideoCarousel
+15. HTMLSection
+16. ImageGallery
+
+### Fase 4: Blocos de Marketing
+17. CountdownTimer, LogosCarousel, StatsNumbers
+18. ContentColumns, FeatureList, StepsTimeline, TextBanners
+
+### Fase 5: Blocos E-commerce Avançados
+19. ProductGrid, ProductCarousel, CategoryList, CollectionSection, BannerProducts
+
+### Fase 6: Verificações Globais
+20. Pixels de marketing no `<head>`
+21. Newsletter Popup injection
+22. Consent Banner injection
+
+### Fase 7: Auditoria Visual + Centralização
+23. Comparar builder vs público
+24. Centralizar sistema de cores (design tokens únicos)
+25. Centralizar lógica de frete grátis
+
+---
+
+## Cleanup Realizado
+- ✅ Removido `_shared/block-compiler/blocks/product-page.ts` (dead code)

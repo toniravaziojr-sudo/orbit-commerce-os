@@ -376,42 +376,88 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
   }
 
   // === RELATED PRODUCTS SECTION ===
+  // Inherits visual settings from categorySettings for parity with category page
   let relatedHtml = '';
   const relatedProducts = context.currentRelatedProducts || [];
   if (showRelatedProducts && relatedProducts.length > 0) {
+    const cs = context.categorySettings || {};
+    const rpShowRatings = cs.showRatings ?? true;
+    const rpShowBadges = cs.showBadges ?? true;
+    const rpShowAddToCart = cs.showAddToCartButton ?? true;
+    const rpQuickBuyEnabled = cs.quickBuyEnabled ?? false;
+    const rpBuyNowText = cs.buyNowButtonText || 'Comprar agora';
+
     const relatedCardsHtml = relatedProducts.map(rp => {
       const rpImg = rp.image_url ? optimizeImageUrl(rp.image_url, 400, 80) : '';
       const rpHasDiscount = rp.compare_at_price && rp.compare_at_price > rp.price;
       const rpDiscountPct = rpHasDiscount ? Math.round((1 - rp.price / rp.compare_at_price!) * 100) : 0;
+
+      // Badges (inheriting categorySettings.showBadges)
+      let rpBadgesHtml = '';
+      if (rpShowBadges) {
+        const badges: string[] = [];
+        if (rp.free_shipping) badges.push(`<span style="background:#16a34a;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;white-space:nowrap;">FRETE GRÁTIS</span>`);
+        if (rpHasDiscount && rpDiscountPct >= 10) badges.push(`<span style="background:#dc2626;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;white-space:nowrap;">-${rpDiscountPct}%</span>`);
+        if (badges.length > 0) {
+          rpBadgesHtml = `<div style="position:absolute;top:6px;left:6px;right:6px;display:flex;align-items:center;gap:4px;z-index:2;pointer-events:none;flex-wrap:nowrap;overflow:hidden;">${badges.join('')}</div>`;
+        }
+      }
+
+      // Ratings (inheriting categorySettings.showRatings)
       let rpRatingHtml = '';
-      if (rp.avg_rating && rp.review_count && rp.review_count > 0) {
-        rpRatingHtml = `<div style="display:flex;align-items:center;gap:4px;margin-top:4px;">
-          <div style="display:flex;gap:1px;">${renderStars(rp.avg_rating)}</div>
+      if (rpShowRatings && rp.avg_rating && rp.review_count && rp.review_count > 0) {
+        const fullStars = Math.floor(rp.avg_rating);
+        const halfStar = rp.avg_rating % 1 >= 0.5;
+        const stars = '★'.repeat(fullStars) + (halfStar ? '☆' : '');
+        rpRatingHtml = `<div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;">
+          <span style="color:#f59e0b;font-size:12px;letter-spacing:1px;">${stars}</span>
           <span style="font-size:11px;color:#666;">(${rp.review_count})</span>
         </div>`;
       }
-      return `<a href="/produto/${escapeHtml(rp.slug)}" style="display:block;text-decoration:none;color:inherit;border:1px solid #eee;border-radius:10px;overflow:hidden;background:#fff;transition:box-shadow .2s;">
-        <div style="aspect-ratio:1;background:#f5f5f5;overflow:hidden;position:relative;">
-          ${rpImg ? `<img src="${escapeHtml(rpImg)}" alt="${escapeHtml(rp.name)}" style="width:100%;height:100%;object-fit:cover;" loading="lazy">` : ''}
-          ${rpHasDiscount ? `<span style="position:absolute;top:8px;left:8px;background:#dc2626;color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;">-${rpDiscountPct}%</span>` : ''}
-          ${rp.free_shipping ? `<span style="position:absolute;top:8px;right:8px;background:#dcfce7;color:#16a34a;font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;">Frete grátis</span>` : ''}
-        </div>
-        <div style="padding:12px;">
-          <p style="font-size:13px;font-weight:500;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(rp.name)}</p>
-          ${rpRatingHtml}
-          <div style="margin-top:6px;">
-            ${rpHasDiscount ? `<span style="font-size:12px;color:#999;text-decoration:line-through;">${formatPriceFromDecimal(rp.compare_at_price!)}</span> ` : ''}
-            <span style="font-size:16px;font-weight:700;color:var(--theme-price-color,#1a1a1a);">${formatPriceFromDecimal(rp.price)}</span>
+
+      // Buttons (inheriting categorySettings: addToCart, quickBuy)
+      const rpButtonsHtml: string[] = [];
+      if (rpShowAddToCart) {
+        rpButtonsHtml.push(`<button onclick="event.stopPropagation()" data-sf-action="add-to-cart" data-product-id="${rp.id}" data-product-name="${escapeHtml(rp.name)}" data-product-price="${rp.price}" data-product-image="${escapeHtml(rpImg)}" class="sf-btn-outline-primary" style="width:100%;padding:8px;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;gap:6px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+          Adicionar
+        </button>`);
+      }
+      if (rpQuickBuyEnabled) {
+        rpButtonsHtml.push(`<button onclick="event.stopPropagation()" data-sf-action="buy-now" data-product-id="${rp.id}" data-product-name="${escapeHtml(rp.name)}" data-product-price="${rp.price}" data-product-image="${escapeHtml(rpImg)}" class="sf-btn-primary" style="width:100%;padding:8px;border:none;border-radius:6px;font-size:12px;text-align:center;font-weight:500;cursor:pointer;">${escapeHtml(rpBuyNowText)}</button>`);
+      }
+
+      return `<div class="sf-cat-card" style="min-width:0;">
+        <a href="/produto/${escapeHtml(rp.slug)}" class="sf-cat-card-link" style="display:flex;flex-direction:column;text-decoration:none;color:inherit;border-radius:8px;overflow:hidden;border:1px solid var(--theme-card-border,#f0f0f0);transition:box-shadow .2s;position:relative;height:100%;background:var(--theme-card-bg,#fff);">
+          ${rpBadgesHtml}
+          <div style="aspect-ratio:1;background:#f9f9f9;overflow:hidden;">
+            ${rpImg ? `<img src="${escapeHtml(rpImg)}" alt="${escapeHtml(rp.name)}" style="width:100%;height:100%;object-fit:cover;transition:transform .3s;" loading="lazy">` : ''}
           </div>
-        </div>
-      </a>`;
+          <div style="padding:8px 12px 12px;flex:1;display:flex;flex-direction:column;">
+            ${rpRatingHtml}
+            <p style="font-size:13px;font-weight:500;line-height:1.4;margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(rp.name)}</p>
+            <div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;margin-top:auto;">
+              ${rpHasDiscount ? `<span style="font-size:11px;color:#999;text-decoration:line-through;">${formatPriceFromDecimal(rp.compare_at_price!)}</span>` : ''}
+              <span style="font-size:14px;font-weight:700;color:var(--theme-price-color,#1a1a1a);">${formatPriceFromDecimal(rp.price)}</span>
+              ${rpHasDiscount ? `<span style="font-size:10px;font-weight:600;color:#16a34a;background:#dcfce7;padding:1px 6px;border-radius:3px;">-${rpDiscountPct}%</span>` : ''}
+            </div>
+            ${rpButtonsHtml.length > 0 ? `<div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;" onclick="event.preventDefault();event.stopPropagation();">${rpButtonsHtml.join('')}</div>` : ''}
+          </div>
+        </a>
+      </div>`;
     }).join('');
 
     relatedHtml = `
       <div style="margin-top:48px;border-top:1px solid #eee;padding-top:32px;">
         <h2 style="font-size:20px;font-weight:600;font-family:var(--sf-heading-font);margin-bottom:20px;">${escapeHtml(relatedProductsTitle)}</h2>
-        <style>@media(min-width:640px){.sf-related-grid{grid-template-columns:repeat(2,1fr)!important}}@media(min-width:1024px){.sf-related-grid{grid-template-columns:repeat(4,1fr)!important}}</style>
-        <div class="sf-related-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;">${relatedCardsHtml}</div>
+        <style>
+          .sf-related-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;}
+          @media(min-width:640px){.sf-related-grid{grid-template-columns:repeat(2,1fr)!important}}
+          @media(min-width:1024px){.sf-related-grid{grid-template-columns:repeat(4,1fr)!important}}
+          .sf-cat-card-link:hover{box-shadow:0 4px 12px rgba(0,0,0,0.08);}
+          .sf-cat-card-link:hover img{transform:scale(1.05);}
+        </style>
+        <div class="sf-related-grid">${relatedCardsHtml}</div>
       </div>`;
   }
 
