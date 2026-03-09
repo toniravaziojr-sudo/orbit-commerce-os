@@ -41,29 +41,50 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
   const hasDiscounts = products.some(p => p.compare_at_price && p.compare_at_price > p.price);
 
   // === FILTER BAR + SORT ===
+  // Desktop: horizontal row with all filters visible
+  // Mobile: compact single-row with inline filters, optimized for small screens
   const filterBarHtml = `
-    <div data-sf-cat-controls style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:20px;padding:16px;background:#f9fafb;border-radius:10px;border:1px solid #eee;">
-      <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:200px;flex-wrap:wrap;">
-        <span style="font-size:13px;font-weight:600;color:#1a1a1a;white-space:nowrap;">Filtros:</span>
+    <style>
+      .sf-filter-bar { display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:20px;padding:16px;background:#f9fafb;border-radius:10px;border:1px solid #eee; }
+      .sf-filter-bar-filters { display:flex;align-items:center;gap:8px;flex:1;min-width:200px;flex-wrap:wrap; }
+      .sf-filter-bar-sort { display:flex;align-items:center;gap:8px; }
+      .sf-filter-label { display:flex;align-items:center;gap:4px;font-size:13px;color:#555;cursor:pointer;white-space:nowrap;padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;user-select:none;transition:background .15s,border-color .15s; }
+      .sf-filter-label:has(input:checked) { border-color:var(--theme-button-primary-bg,#1a1a1a);background:#f0f0f0; }
+      .sf-filter-price-group { display:flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#fff; }
+      .sf-filter-price-input { width:70px;padding:4px 6px;border:1px solid #eee;border-radius:4px;font-size:12px;outline:none; }
+      @media(max-width:639px) {
+        .sf-filter-bar { padding:10px 12px;gap:8px;border-radius:8px; }
+        .sf-filter-bar-filters { gap:6px;min-width:0; }
+        .sf-filter-bar-sort { width:100%; }
+        .sf-filter-bar-sort select { flex:1; }
+        .sf-filter-label { font-size:12px;padding:3px 8px; }
+        .sf-filter-price-group { padding:3px 8px; }
+        .sf-filter-price-input { width:56px;padding:3px 4px;font-size:11px; }
+        .sf-filter-bar .sf-filter-title { font-size:12px; }
+      }
+    </style>
+    <div class="sf-filter-bar" data-sf-cat-controls>
+      <div class="sf-filter-bar-filters">
+        <span class="sf-filter-title" style="font-size:13px;font-weight:600;color:#1a1a1a;white-space:nowrap;">Filtros:</span>
         ${hasFreeShipping ? `
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;color:#555;cursor:pointer;white-space:nowrap;padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;user-select:none;" data-sf-filter-label="free-shipping">
+        <label class="sf-filter-label" data-sf-filter-label="free-shipping">
           <input type="checkbox" data-sf-filter="free-shipping" style="accent-color:var(--theme-button-primary-bg,#1a1a1a);cursor:pointer;">
           🚚 Frete grátis
         </label>` : ''}
         ${hasDiscounts ? `
-        <label style="display:flex;align-items:center;gap:4px;font-size:13px;color:#555;cursor:pointer;white-space:nowrap;padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;user-select:none;" data-sf-filter-label="on-sale">
+        <label class="sf-filter-label" data-sf-filter-label="on-sale">
           <input type="checkbox" data-sf-filter="on-sale" style="accent-color:var(--theme-button-primary-bg,#1a1a1a);cursor:pointer;">
           🏷️ Em promoção
         </label>` : ''}
         ${maxPrice - minPrice > 10 ? `
-        <div style="display:flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;">
+        <div class="sf-filter-price-group">
           <span style="font-size:12px;color:#666;white-space:nowrap;">Preço:</span>
-          <input type="number" data-sf-filter="price-min" placeholder="Min" min="${minPrice}" max="${maxPrice}" style="width:70px;padding:4px 6px;border:1px solid #eee;border-radius:4px;font-size:12px;outline:none;">
+          <input type="number" class="sf-filter-price-input" data-sf-filter="price-min" placeholder="Min" min="${minPrice}" max="${maxPrice}">
           <span style="font-size:12px;color:#999;">–</span>
-          <input type="number" data-sf-filter="price-max" placeholder="Max" min="${minPrice}" max="${maxPrice}" style="width:70px;padding:4px 6px;border:1px solid #eee;border-radius:4px;font-size:12px;outline:none;">
+          <input type="number" class="sf-filter-price-input" data-sf-filter="price-max" placeholder="Max" min="${minPrice}" max="${maxPrice}">
         </div>` : ''}
       </div>
-      <div style="display:flex;align-items:center;gap:8px;">
+      <div class="sf-filter-bar-sort">
         <label style="font-size:13px;color:#555;white-space:nowrap;">Ordenar:</label>
         <select data-sf-sort style="padding:6px 28px 6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff;cursor:pointer;outline:none;color:#1a1a1a;appearance:auto;">
           <option value="default">Relevância</option>
@@ -212,10 +233,7 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
           .sf-cat-card-link:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
           .sf-cat-card-link:hover img { transform: scale(1.05); }
         }
-        [data-sf-filter-label] { transition: background .15s, border-color .15s; }
-        [data-sf-filter-label]:has(input:checked) { border-color: var(--theme-button-primary-bg,#1a1a1a); background: #f0f0f0; }
         @media(max-width:639px) {
-          [data-sf-cat-controls] { flex-direction: column; align-items: stretch !important; }
           .sf-cat-card .sf-btn-primary,.sf-cat-card .sf-btn-outline-primary{min-height:36px !important;font-size:11px !important;}
           .sf-cat-card [style*="padding:8px 12px"]{padding:6px 8px 8px !important;}
         }

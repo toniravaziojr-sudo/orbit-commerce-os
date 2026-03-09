@@ -2,7 +2,7 @@
 
 > **Status:** FUNCIONAL ✅ — Core + Filtros + Ordenação + Paginação + Badges Dinâmicos  
 > **Última atualização:** 2026-03-09  
-> **Arquitetura:** v8.4.1 — block-compiler com URLs diretas (sem wsrv.nl para banners) + filtros/sort/load-more client-side
+> **Arquitetura:** v8.4.2 — Filtros mobile responsivos + overlay paridade corrigida
 
 ## Visão Geral
 
@@ -126,16 +126,16 @@ Página de listagem de produtos filtrados por categoria.
 | Mobile | `category.banner_mobile_url` |
 | Fallback | `category.image_url` (apenas no React; compilador não usa fallback) |
 
-### Regras de Renderização (v8.4.1)
+### Regras de Renderização (v8.4.2)
 
 | Regra | Descrição |
 |-------|-----------|
 | **URLs diretas (CRÍTICO)** | O compilador Edge usa URLs diretas do Supabase Storage (SEM proxy wsrv.nl). Motivo: wsrv.nl falha silenciosamente no browser por rate limits, referer checks ou CDN issues, causando banner cinza vazio. Essa regra é **não-negociável** e qualquer alteração que reintroduza wsrv.nl em banners é PROIBIDA. |
 | **Altura automática** | O banner NÃO usa altura fixa. Usa `height:auto` com `width:100%` e `display:block` para respeitar a proporção original da imagem (paridade com o Builder React). |
-| **Overlay** | Controlado por `bannerOverlayOpacity` do theme settings (0-100). Default 0 = sem escurecimento. |
+| **Overlay (CRÍTICO — PARIDADE)** | Controlado EXCLUSIVAMENTE por `context.categorySettings.bannerOverlayOpacity` (0-100). Default 0 = sem escurecimento. O compilador NÃO deve ler `props.overlayOpacity` (legado). React e compilador devem usar a mesma fonte: `categorySettings.bannerOverlayOpacity`. Qualquer leitura de `props.overlayOpacity` no compilador é PROIBIDA — causa divergência entre builder e público. |
 | **Builder** | Auto-seleciona a primeira categoria ativa quando `exampleCategoryId` está vazio (v8.4.2). |
 | **Paridade Desktop-Mobile** | Banner aparece em AMBOS. Desktop usa `banner_desktop_url`, mobile usa `banner_mobile_url` via `<picture><source media>`. |
-| **Cache de Prerender** | Ao corrigir o compilador do banner, é OBRIGATÓRIO invalidar o cache de prerender (set status='stale') e redeploiar a edge function. Sem isso, o HTML antigo com wsrv.nl continua sendo servido. |
+| **Cache de Prerender** | Ao corrigir o compilador do banner, é OBRIGATÓRIO invalidar o cache de prerender (set status='stale') e redeploiar a edge function. Sem isso, o HTML antigo continua sendo servido. |
 | **Deploy da Edge Function** | Após editar `category-banner.ts`, é OBRIGATÓRIO fazer deploy explícito via `deploy_edge_functions(['storefront-html'])` e verificar que `X-Storefront-Version` reflete a nova versão. |
 
 ---
@@ -191,12 +191,21 @@ A ordem dos botões nos cards de produto é fixa e obrigatória:
 - [ ] **Quick Buy**: React suporta compra rápida — compilador não tem
 - [ ] **Mini Cart Drawer**: React integra com `MiniCartDrawer` — compilador usa drawer genérico do shell
 - [ ] **Product Badge System**: React usa `useProductBadgesForProducts` com badges dinâmicos — compilador só tem "FRETE GRÁTIS" e desconto %
-- [ ] **Banner overlay**: React usa `bannerOverlayOpacity` do theme settings; compilador usa `overlayOpacity` da prop
+- [x] ~~**Banner overlay**: React usa `bannerOverlayOpacity` do theme settings; compilador usa `overlayOpacity` da prop~~ → Corrigido v8.4.2: compilador agora lê de `context.categorySettings.bannerOverlayOpacity` (paridade total)
 - [ ] **Banner fallback**: React faz fallback para `image_url`; compilador só usa `banner_desktop_url`
 - [ ] **Hover effects**: React tem estados hover nos botões — compilador não tem
 - [ ] `category-page.ts` é dead code — pode ser removido
 
-## Filtros, Ordenação e Paginação (v8.1.2)
+## Filtros, Ordenação e Paginação (v8.4.2)
+
+### Layout Responsivo dos Filtros (Compilador)
+
+| Viewport | Layout | Descrição |
+|----------|--------|-----------|
+| Desktop | Horizontal row | Filtros e ordenação lado a lado, labels normais (13px), inputs 70px |
+| Mobile (< 640px) | Compact stacked | Filtros + ordenação empilham verticalmente. Labels 12px, inputs 56px, padding reduzido. Ordenação ocupa largura total. Uso de classes CSS `.sf-filter-bar`, `.sf-filter-label`, `.sf-filter-price-group` em vez de inline styles para permitir media queries. |
+
+> **REGRA ANTI-REGRESSÃO:** Filtros no compilador NÃO devem usar inline styles com `flex-direction:column` direto — devem usar classes CSS com `@media(max-width:639px)` para responsividade. Inline styles impedem override por media queries.
 
 ### Filtros Client-Side
 | Filtro | Tipo | Descrição |
