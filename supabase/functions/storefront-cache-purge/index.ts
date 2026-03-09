@@ -175,7 +175,10 @@ serve(async (req) => {
     if (shouldPurgeAll) {
       // Purge by host prefix — purges all cached URLs for these hosts
       // Cloudflare API: purge_cache with prefixes
-      const prefixes = hosts.map(h => `https://${h}/`);
+      // IMPORTANT: Cloudflare prefix purge does NOT accept URI schemes (https://)
+      // Only hostname + path prefix is allowed
+      const prefixes = hosts.map(h => `${h}/`);
+      console.log(`[storefront-cache-purge] Purging by prefix (no scheme): ${prefixes.join(', ')}`);
       
       purgeResult = await fetch(
         `https://api.cloudflare.com/client/v4/zones/${cloudflareZoneId}/purge_cache`,
