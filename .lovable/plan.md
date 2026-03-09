@@ -73,23 +73,23 @@
 
 ## 📋 INVENTÁRIO DE BLOCOS
 
-### ✅ Prontos no Edge (23 compiladores + 3 standalone)
+### ✅ Prontos no Edge (31 compiladores + 3 standalone)
 - **Layout**: Page, Section, Container, Columns, Column, Grid
 - **Conteúdo**: Text, RichText, Image, Button, Spacer, Divider
 - **E-commerce**: HeroBanner, Banner, ImageCarousel, InfoHighlights, FeaturedCategories, FeaturedProducts, CategoryBanner, CategoryPageLayout
 - **Produto**: ProductDetails (Reviews, Compre Junto, Relacionados, Variantes, Galeria+Lightbox)
+- **Interativo**: FAQ, Testimonials, AccordionBlock, Newsletter, NewsletterForm
+- **Mídia**: YouTubeVideo, VideoCarousel, HTMLSection, ImageGallery
 - **Estrutural**: Header, Footer
 - **Standalone**: Blog, Institucional
 
-### 🔴 FALTA Compilador (19 blocos)
-
-**Interativo (5)**: Newsletter, NewsletterForm, FAQ, Testimonials, NewsletterPopup
+### 🔴 FALTA Compilador (15 blocos)
 
 **E-commerce (5)**: ProductGrid, ProductCarousel, CategoryList, CollectionSection, BannerProducts
 
 **Marketing (7)**: CountdownTimer, LogosCarousel, StatsNumbers, ContentColumns, FeatureList, StepsTimeline, TextBanners
 
-**Mídia (4)**: YouTubeVideo, VideoCarousel, HTMLSection, ImageGallery, Accordion
+**Outros**: NewsletterPopup
 
 ---
 
@@ -113,11 +113,11 @@
 11. ✅ Testimonials (grid responsivo com estrelas e imagens)
 12. ✅ AccordionBlock (variantes default/separated/bordered, defaultOpen)
 
-### Fase 3: Blocos de Mídia
-13. YouTubeVideo
-14. VideoCarousel
-15. HTMLSection
-16. ImageGallery
+### Fase 3: Blocos de Mídia ✅ CONCLUÍDA
+13. ✅ YouTubeVideo (iframe responsivo com aspect ratio configurável)
+14. ✅ VideoCarousel (primeiro vídeo embed + thumbnail strip)
+15. ✅ HTMLSection (HTML sanitizado inline com CSS scoped)
+16. ✅ ImageGallery (grid responsivo com hover effects e captions)
 
 ### Fase 4: Blocos de Marketing
 17. CountdownTimer, LogosCarousel, StatsNumbers
