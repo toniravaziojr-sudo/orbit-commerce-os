@@ -666,7 +666,15 @@ export function VisualBuilder({
           }
         }
         
-        // Merge footer draft changes
+        // Merge miniCart draft changes
+        if (miniCartDraft?.hasDraftChanges) {
+          const pendingMiniCartChanges = miniCartDraft.getPendingChanges();
+          console.log('[VisualBuilder.handleSave] Pending miniCart changes:', pendingMiniCartChanges);
+          if (pendingMiniCartChanges?.miniCart) {
+            updatedThemeSettings.miniCart = pendingMiniCartChanges.miniCart;
+          }
+        }
+        
         if (footerDraft?.hasDraftChanges) {
           const pendingFooterChanges = footerDraft.getPendingChanges();
           console.log('[VisualBuilder.handleSave] Pending footer changes:', pendingFooterChanges);
