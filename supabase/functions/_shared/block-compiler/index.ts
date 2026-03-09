@@ -147,6 +147,10 @@ const COMPILER_REGISTRY: Record<string, BlockCompilerFn> = {
   'FeatureList': featureListToStaticHTML,
   'StepsTimeline': stepsTimelineToStaticHTML,
   'TextBanners': textBannersToStaticHTML,
+  
+  // Reviews & Video
+  'Reviews': reviewsToStaticHTML,
+  'VideoUpload': videoUploadToStaticHTML,
 };
 
 /**
