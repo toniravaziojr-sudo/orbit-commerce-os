@@ -89,7 +89,7 @@ export function BuilderDraftThemeProvider({ children }: BuilderDraftThemeProvide
     return Object.keys(changes).length > 0 ? changes : null;
   }, [hasDraftChanges, draftColors, draftTypography, draftCustomCss]);
 
-  const value: BuilderDraftThemeContextValue = {
+  const value: BuilderDraftThemeContextValue = useMemo(() => ({
     draftColors,
     draftTypography,
     draftCustomCss,
@@ -102,7 +102,7 @@ export function BuilderDraftThemeProvider({ children }: BuilderDraftThemeProvide
     getEffectiveTypography,
     getEffectiveCustomCss,
     getPendingChanges,
-  };
+  }), [draftColors, draftTypography, draftCustomCss, hasDraftChanges, setDraftColors, setDraftTypography, setDraftCustomCss, clearDraft, getEffectiveColors, getEffectiveTypography, getEffectiveCustomCss, getPendingChanges]);
 
   return (
     <BuilderDraftThemeContext.Provider value={value}>
