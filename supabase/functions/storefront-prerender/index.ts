@@ -1,6 +1,6 @@
 // ============================================
 // STOREFRONT PRERENDER — Server-side pre-rendering job
-// v1.1.0: Fresh render bypass + version-safe atomic activation
+// v1.2.0: Atomic activation via DB RPC (transactional stale→active swap)
 // Triggered by publish flow. Calls storefront-html for each route.
 // Stores results in storefront_prerendered_pages for fast serving.
 //
@@ -11,12 +11,14 @@
 //    Only after ALL pages succeed, the batch is atomically activated
 //    (pending→active) and the previous version deactivated.
 // 3. If the job fails partially, the old active pages remain untouched.
+// 4. Activation uses atomic_activate_prerender_version RPC — if new
+//    pages can't be activated, old active pages are auto-restored.
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const VERSION = "v1.1.0";
+const VERSION = "v1.2.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -335,29 +337,28 @@ serve(async (req) => {
       }
     }
 
-    // === ATOMIC ACTIVATION ===
-    // Only activate the new version if we had at least some success
+    // === ATOMIC ACTIVATION via RPC ===
+    // Uses a single DB transaction to swap stale↔active.
+    // If no pending pages exist, the old active pages are auto-restored.
     const successCount = processedPages - failedPages;
-    const isFullSuccess = failedPages === 0;
     const isPartialSuccess = successCount > 0;
+    const isFullSuccess = failedPages === 0;
 
     if (isPartialSuccess) {
-      // Step 1: Deactivate all previous active pages for this tenant
-      await supabase
-        .from('storefront_prerendered_pages')
-        .update({ status: 'stale' })
-        .eq('tenant_id', tenant_id)
-        .eq('status', 'active');
+      const { data: activationResult, error: activationError } = await supabase
+        .rpc('atomic_activate_prerender_version', {
+          p_tenant_id: tenant_id,
+          p_publish_version: publishVersion,
+        });
 
-      // Step 2: Activate all pending pages from THIS publish version
-      await supabase
-        .from('storefront_prerendered_pages')
-        .update({ status: 'active' })
-        .eq('tenant_id', tenant_id)
-        .eq('publish_version', publishVersion)
-        .eq('status', 'pending');
-
-      console.log(`[storefront-prerender] Activated version ${publishVersion}: ${successCount} pages${isFullSuccess ? '' : ` (${failedPages} failed, will use live fallback)`}`);
+      if (activationError) {
+        console.error(`[storefront-prerender] Atomic activation RPC error:`, activationError);
+        // RPC failed entirely — old active pages are untouched (transaction rolled back by DB)
+      } else if (activationResult && !activationResult.success) {
+        console.error(`[storefront-prerender] Activation rolled back: ${activationResult.error}`);
+      } else {
+        console.log(`[storefront-prerender] Activated version ${publishVersion}: ${activationResult?.activated || successCount} pages (deactivated ${activationResult?.deactivated || 0} old)${isFullSuccess ? '' : ` (${failedPages} failed, will use live fallback)`}`);
+      }
     } else {
       console.error(`[storefront-prerender] All pages failed, keeping previous version active`);
     }

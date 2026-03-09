@@ -18208,6 +18208,10 @@ export type Database = {
         }
         Returns: number
       }
+      atomic_activate_prerender_version: {
+        Args: { p_publish_version: number; p_tenant_id: string }
+        Returns: Json
+      }
       calculate_youtube_upload_credits: {
         Args: {
           p_file_size_bytes: number
