@@ -764,10 +764,10 @@ O painel de configurações do tema é organizado em **9 seções** acessíveis 
 | # | Seção | Componente | Salvamento | Descrição |
 |---|-------|-----------|------------|-----------|
 | 1 | Páginas | `PagesSettings.tsx` → `PageSettingsContent.tsx` | Draft (botão Salvar) | Configurações estruturais por página |
-| 2 | Cabeçalho | `HeaderSettings.tsx` | Auto-save (debounce 400ms) | Cores, barra superior, menus, logo |
-| 3 | Rodapé | `FooterSettings.tsx` | Auto-save (debounce 400ms) | Cores, seções, imagens, newsletter |
-| 4 | Carrinho Suspenso | `MiniCartSettings.tsx` | Auto-save (debounce 500ms) | Mini-cart lateral, frete grátis, timer |
-| 5 | Popup Newsletter | `PopupSettings.tsx` | Auto-save (debounce 500ms) | Popup de captura de leads |
+| 2 | Cabeçalho | `HeaderSettings.tsx` | Draft (botão Salvar) | Cores, barra superior, menus, logo |
+| 3 | Rodapé | `FooterSettings.tsx` | Draft (botão Salvar) | Cores, seções, imagens, newsletter |
+| 4 | Carrinho Suspenso | `MiniCartSettings.tsx` | Draft (botão Salvar) | Mini-cart lateral, frete grátis, timer |
+| 5 | Popup Newsletter | `PopupSettings.tsx` | Draft (botão Salvar) | Popup de captura de leads |
 | 6 | Cores | `ColorsSettings.tsx` | Draft (botão Salvar) | Paleta de cores global do tema |
 | 7 | Tipografia | `TypographySettings.tsx` | Draft (botão Salvar) | Fontes e tamanho base |
 | 8 | CSS customizado | `CustomCSSSettings.tsx` | Draft (botão Salvar) | CSS livre com validação |
