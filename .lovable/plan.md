@@ -1,113 +1,220 @@
 # Plano: Aderência Total da Loja à Renderização Edge
 
-## Status: MAPEAMENTO CONCLUÍDO ✅
+## Status: MAPEAMENTO COMPLETO ✅
 
 ---
 
-## Diagnóstico: O que JÁ funciona no Edge Rendering
+## TODOS OS BLOCOS DO BUILDER (Inventário Completo)
 
-### Compiladores de Bloco Existentes (19 blocos registrados + 2 estruturais)
-| Bloco | Compilador | Status |
-|-------|-----------|--------|
-| Page | page.ts | ✅ |
-| Section | section.ts | ✅ |
-| HeroBanner | hero-banner.ts | ✅ |
-| Banner | banner.ts | ✅ |
-| FeaturedCategories | featured-categories.ts | ✅ |
-| FeaturedProducts | featured-products.ts | ✅ |
-| ImageCarousel | image-carousel.ts | ✅ |
-| InfoHighlights | info-highlights.ts | ✅ |
-| CategoryBanner | category-banner.ts | ✅ |
-| CategoryPageLayout | category-page-layout.ts | ✅ |
-| ProductDetails | product-details.ts | ✅ (Reviews, Compre Junto, Relacionados, Variantes, Frete, Galeria+Lightbox) |
-| Header | header.ts | ✅ (renderizado separadamente) |
-| Footer | footer.ts | ✅ (renderizado separadamente) |
-| Text | text.ts | ✅ |
-| RichText | rich-text.ts | ✅ |
-| Image | image.ts | ✅ |
-| Button | button.ts | ✅ |
-| Spacer | spacer.ts | ✅ |
-| Divider | divider.ts | ✅ |
+### Blocos de Layout (`src/components/builder/blocks/layout/`)
+| Bloco | Compilador Edge | Status |
+|-------|----------------|--------|
+| Page | page.ts | ✅ Pronto |
+| Section | section.ts | ✅ Pronto |
+| Container | ❌ | 🔴 **FALTA** |
+| Columns | ❌ | 🔴 **FALTA** |
+| Column | ❌ | 🔴 **FALTA** |
+| Grid | ❌ | 🔴 **FALTA** |
 
-### Renderizadores Standalone (fora do registry)
-| Página | Função | Status |
-|--------|--------|--------|
-| Blog Index | blogIndexToStaticHTML() | ✅ |
-| Blog Post | blogPostToStaticHTML() | ✅ |
-| Institucional | institutionalPageToStaticHTML() | ✅ |
+### Blocos de Conteúdo (`src/components/builder/blocks/content/`)
+| Bloco | Compilador Edge | Status |
+|-------|----------------|--------|
+| Text | text.ts | ✅ Pronto |
+| RichText | rich-text.ts | ✅ Pronto |
+| Image | image.ts | ✅ Pronto |
+| Button | button.ts | ✅ Pronto |
+| Spacer | spacer.ts | ✅ Pronto |
+| Divider | divider.ts | ✅ Pronto |
+| Hero | ❌ (usa HeroBanner?) | ⚠️ Verificar |
 
-### Seções da Página de Produto (dentro de product-details.ts)
-| Seção | Status |
-|-------|--------|
-| Reviews (resumo + distribuição + cards) | ✅ |
-| Compre Junto (layout + CTA combo) | ✅ |
-| Produtos Relacionados (grid 2→4 col) | ✅ |
-| Variantes (botões + hydration JS) | ✅ |
-| Galeria + Lightbox (desktop + mobile swipe + zoom) | ✅ |
-| Cálculo de Frete (placeholder + hydration) | ✅ |
-| WhatsApp (botão com link) | ✅ |
-| JSON-LD Schema.org | ✅ |
-| Breadcrumb | ✅ |
-| Badges/Selos dinâmicos | ✅ |
+### Blocos Interativos (`src/components/builder/blocks/interactive/`)
+| Bloco | Compilador Edge | Status |
+|-------|----------------|--------|
+| Newsletter | ❌ | 🔴 **FALTA** |
+| NewsletterForm | ❌ | 🔴 **FALTA** |
+| NewsletterPopup | ❌ | 🔴 **FALTA** (global injection) |
+| FAQ | ❌ | 🔴 **FALTA** |
+| Testimonials | ❌ | 🔴 **FALTA** |
+| ContactForm | ❌ | 🟡 Baixa prioridade |
+| Map | ❌ | 🟡 Baixa prioridade |
+| PricingTable | ❌ | 🟡 Admin/landing only |
+| PopupModal | ❌ | 🟡 Client-side only |
+| QuizEmbed | ❌ | 🟡 Embed externo |
+| EmbedSocialPost | ❌ | 🟡 Embed externo |
+| SocialFeed | ❌ | 🟡 API externa |
+| LivePurchases | ❌ | 🟡 Realtime |
+| PersonalizedProducts | ❌ | 🟡 Sessão do usuário |
+
+### Blocos E-commerce (root `blocks/`)
+| Bloco | Compilador Edge | Status |
+|-------|----------------|--------|
+| HeroBanner | hero-banner.ts | ✅ Pronto |
+| Banner | banner.ts | ✅ Pronto |
+| FeaturedCategories | featured-categories.ts | ✅ Pronto |
+| FeaturedProducts | featured-products.ts | ✅ Pronto |
+| ImageCarousel | image-carousel.ts | ✅ Pronto |
+| InfoHighlights | info-highlights.ts | ✅ Pronto |
+| CategoryBanner | category-banner.ts | ✅ Pronto |
+| CategoryPageLayout | category-page-layout.ts | ✅ Pronto |
+| ProductDetails | product-details.ts | ✅ Pronto (Reviews, Compre Junto, Relacionados, Variantes) |
+| ProductGrid | ❌ | 🔴 **FALTA** |
+| ProductCarousel | ❌ | 🔴 **FALTA** |
+| CategoryList | ❌ | 🔴 **FALTA** |
+| CollectionSection | ❌ | 🔴 **FALTA** |
+| BannerProducts | ❌ | 🔴 **FALTA** |
+| Reviews | ❌ | ⚠️ Dentro de ProductDetails |
+| TextBanners | ❌ | 🔴 **FALTA** |
+| YouTubeVideo | ❌ | 🔴 **FALTA** |
+| VideoUpload | ❌ | 🔴 **FALTA** |
+| VideoCarousel | ❌ | 🔴 **FALTA** |
+| TrackingLookup | ❌ | 🟡 Página system standalone |
+| BlogListing | ❌ | ⚠️ Standalone em blog.ts |
+| BlogPostDetail | ❌ | ⚠️ Standalone em blog.ts |
+| PageContent | ❌ | ⚠️ Standalone em institutional-page.ts |
+| CategoryFilters | ❌ | ⚠️ Embutido em CategoryPageLayout |
+| Accordion | ❌ | 🔴 **FALTA** |
+| HTMLSection | ❌ | 🔴 **FALTA** |
+| CountdownTimer | ❌ | 🔴 **FALTA** |
+| LogosCarousel | ❌ | 🔴 **FALTA** |
+| StatsNumbers | ❌ | 🔴 **FALTA** |
+| ImageGallery | ❌ | 🔴 **FALTA** |
+| ContentColumns | ❌ | 🔴 **FALTA** |
+| FeatureList | ❌ | 🔴 **FALTA** |
+| StepsTimeline | ❌ | 🔴 **FALTA** |
+| CartDemo | ❌ | ✅ SPA-only |
+| CheckoutDemo | ❌ | ✅ SPA-only |
+
+### Blocos de Slots (`src/components/builder/blocks/slots/`)
+| Bloco | Compilador Edge | Onde renderiza | Status |
+|-------|----------------|----------------|--------|
+| CompreJuntoSlot | ❌ | Página Produto | ⚠️ Já em ProductDetails |
+| CrossSellSlot | ❌ | **Carrinho** | 🔴 **FALTA** |
+| UpsellSlot | ❌ | **Página Obrigado** | 🔴 **FALTA** |
 
 ---
 
-## O que FALTA: Blocos sem compilador
+## PÁGINAS QUE PRECISAM DE EDGE RENDERING
 
-### Fase 1: Alta Prioridade (afetam lojas reais)
-| # | Bloco | Complexidade | Descrição |
-|---|-------|-------------|-----------|
-| 1 | **Newsletter** | Baixa | Form email + submit via hydration |
-| 2 | **FAQ** | Baixa | `<details>/<summary>` nativo |
-| 3 | **Testimonials** | Baixa | Grid de cards com foto/nome/texto |
-| 4 | **YouTubeVideo** | Baixa | Iframe responsivo |
-| 5 | **HTMLSection** | Baixa | Pass-through de HTML customizado |
-| 6 | **Container** | Baixa | Div com max-width/padding |
-| 7 | **Columns + Column** | Baixa | CSS Grid multi-coluna |
+### Páginas JÁ 100% Edge-Rendered ✅
+| Página | Rota | Compilador |
+|--------|------|-----------|
+| **Home** | `/` | block-compiler + header.ts + footer.ts |
+| **Categoria** | `/categoria/:slug` | category-banner.ts + category-page-layout.ts |
+| **Produto** | `/produto/:slug` | product-details.ts (inclui Reviews, Compre Junto, Relacionados) |
+| **Blog Index** | `/blog` | blogIndexToStaticHTML() |
+| **Blog Post** | `/blog/:slug` | blogPostToStaticHTML() |
+| **Institucional** | `/p/:slug` | institutionalPageToStaticHTML() |
 
-### Fase 2: Complementares
-| # | Bloco | Complexidade |
-|---|-------|-------------|
-| 8 | CountdownTimer | Média (JS inline) |
-| 9 | VideoCarousel | Média |
-| 10 | LogosCarousel | Baixa (marquee) |
-| 11 | StatsNumbers | Baixa |
-| 12 | Accordion | Baixa |
-| 13 | Map | Baixa (iframe) |
-| 14 | NewsletterPopup | Média (overlay + timing) |
-| 15 | ContentColumns | Baixa |
-| 16 | FeatureList | Baixa |
-| 17 | StepsTimeline | Baixa |
-| 18 | ImageGallery | Baixa |
+### Páginas SPA-ONLY (não precisam edge) ✅
+| Página | Rota | Motivo |
+|--------|------|--------|
+| **Carrinho** | `/carrinho` | Interatividade complexa (qty, cupom, frete) |
+| **Checkout** | `/checkout` | Formulários + pagamento |
+| **Obrigado** | `/obrigado/:id` | Dados do pedido + upsell 1-click |
+| **Minha Conta** | `/minha-conta/*` | Autenticação obrigatória |
 
-### Fase 3: Verificações Globais
-| # | Item | Status |
-|---|------|--------|
-| 19 | Pixels de marketing injetados no `<head>` | Verificar |
-| 20 | Newsletter Popup config global | Verificar |
-| 21 | Consent Banner (LGPD) | Verificar |
+### Ofertas Injetadas por Página
+| Oferta | Página | Fonte | Edge? |
+|--------|--------|-------|-------|
+| **Compre Junto** | Produto | `offer_rules.type='buy_together'` | ✅ Já em ProductDetails |
+| **Cross-sell** | Carrinho | `offer_rules.type='cross_sell'` | ❌ SPA (não precisa edge) |
+| **Order Bump** | Checkout | `offer_rules.type='order_bump'` | ❌ SPA (não precisa edge) |
+| **Upsell** | Obrigado | `offer_rules.type='upsell'` | ❌ SPA (não precisa edge) |
 
-### Fase 4: Auditoria Visual
-| # | Item |
-|---|------|
-| 22 | Comparar loja respeiteohomem builder vs público |
-| 23 | Corrigir divergências |
+---
 
-### NÃO precisa de compilador edge
-| Bloco | Motivo |
-|-------|--------|
-| CartDemo / CheckoutDemo | SPA-only |
-| CustomBlock | Lógica por tenant |
-| PersonalizedProducts | Dados de sessão |
-| LivePurchases | Realtime/WebSocket |
-| PopupModal | Client-side only |
-| QuizEmbed / EmbedSocialPost | Embeds externos |
-| PricingTable | Admin/landing only |
-| TrackingLookup | Já tem página system standalone |
-| BlogListing / BlogPostDetail | Já standalone |
-| PageContent | Já em institutionalPageToStaticHTML |
-| CategoryFilters | Embutido em CategoryPageLayout |
-| SocialFeed | API externa client-side |
+## INJEÇÕES GLOBAIS (verificar se estão no edge HTML)
+
+| Item | Onde | Status |
+|------|------|--------|
+| Pixels de Marketing (Meta, Google, TikTok) | `<head>` | 🔴 **Verificar** |
+| Newsletter Popup | Global | 🔴 **Verificar** |
+| Consent Banner (LGPD) | Global | 🔴 **Verificar** |
+| Favicon/Branding | `<head>` | ✅ Verificado |
+| Fonts Google | `<head>` | ✅ Verificado |
+| Theme CSS Vars | `<style>` | ✅ Verificado |
+
+---
+
+## RESUMO EXECUTIVO
+
+### ✅ 100% Pronto no Edge (19 compiladores)
+1. Page, Section
+2. Text, RichText, Image, Button, Spacer, Divider
+3. HeroBanner, Banner, ImageCarousel, InfoHighlights
+4. FeaturedCategories, FeaturedProducts
+5. CategoryBanner, CategoryPageLayout
+6. ProductDetails (c/ Reviews, Compre Junto, Relacionados, Variantes, Galeria, Frete)
+7. Header, Footer (standalone)
+8. Blog (standalone), Institucional (standalone)
+
+### 🔴 FALTA Compilador Edge (23 blocos)
+**Layout (4):**
+- Container, Columns, Column, Grid
+
+**Interativo (5 de alta prioridade):**
+- Newsletter, NewsletterForm, FAQ, Testimonials, NewsletterPopup
+
+**E-commerce (9):**
+- ProductGrid, ProductCarousel, CategoryList, CollectionSection
+- BannerProducts, TextBanners, YouTubeVideo, VideoUpload, VideoCarousel
+
+**Conteúdo Avançado (5):**
+- Accordion, HTMLSection, CountdownTimer, LogosCarousel, StatsNumbers
+- ImageGallery, ContentColumns, FeatureList, StepsTimeline
+
+### ✅ NÃO precisa Edge (SPA-only é correto)
+- Carrinho, Checkout, Obrigado → interatividade complexa
+- Cross-sell, Order Bump, Upsell → renderizam nas páginas SPA acima
+- CartDemo, CheckoutDemo → blocos de preview
+- LivePurchases, PersonalizedProducts → realtime/sessão
+- QuizEmbed, EmbedSocialPost, SocialFeed → embeds externos
+
+---
+
+## PLANO DE EXECUÇÃO
+
+### Fase 1: Blocos de Layout (essenciais para páginas customizadas)
+1. Container
+2. Columns + Column
+3. Grid
+
+### Fase 2: Blocos Interativos de Alta Conversão
+4. Newsletter
+5. FAQ (details/summary)
+6. Testimonials
+7. Accordion
+
+### Fase 3: Blocos de Mídia
+8. YouTubeVideo
+9. VideoCarousel
+10. HTMLSection
+11. ImageGallery
+
+### Fase 4: Blocos de Marketing
+12. CountdownTimer
+13. LogosCarousel
+14. StatsNumbers
+15. ContentColumns
+16. FeatureList
+17. StepsTimeline
+18. TextBanners
+
+### Fase 5: Blocos E-commerce Avançados
+19. ProductGrid
+20. ProductCarousel
+21. CategoryList
+22. CollectionSection
+23. BannerProducts
+
+### Fase 6: Verificações Globais
+24. Pixels de marketing no `<head>`
+25. Newsletter Popup injection
+26. Consent Banner injection
+
+### Fase 7: Auditoria Visual
+27. Comparar loja respeiteohomem builder vs público
+28. Corrigir divergências visuais
 
 ---
 
