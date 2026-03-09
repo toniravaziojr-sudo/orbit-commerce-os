@@ -323,6 +323,29 @@ graph TD
 | Ações | Ver detalhes, atualizar status, excluir |
 | Paginação | 50 por página |
 
+### 6.1.0 Normalização de Status (CRÍTICO — ANTI-REGRESSÃO)
+
+O banco de dados pode conter valores **legados** nos campos `status`, `payment_status` e `shipping_status` (ex: `'paid'`, `'approved'`, `'pending'`) que **não existem** nos configs atuais (`ORDER_STATUS_CONFIG`, `PAYMENT_STATUS_CONFIG`, `SHIPPING_STATUS_CONFIG`).
+
+**REGRA OBRIGATÓRIA:** Todo lookup de status nos componentes de UI (`OrderList.tsx`, `OrderDetail.tsx`, etc.) **DEVE** usar as funções de normalização antes de acessar os configs:
+
+```typescript
+// ✅ CORRETO — normaliza valor legado para novo tipo
+const normalizedStatus = normalizeOrderStatus(order.status);
+const cfg = ORDER_STATUS_CONFIG[normalizedStatus];
+
+// ❌ PROIBIDO — valor legado causa fallback incorreto
+const cfg = ORDER_STATUS_CONFIG[order.status as OrderStatus] || ORDER_STATUS_CONFIG.pending;
+```
+
+| Função | Arquivo | Mapeia |
+|--------|---------|--------|
+| `normalizeOrderStatus()` | `src/types/orderStatus.ts` | `paid→approved`, `awaiting_payment→pending`, etc. |
+| `normalizePaymentStatus()` | `src/types/orderStatus.ts` | `approved→paid`, `pending→awaiting_payment`, etc. |
+| `normalizeShippingStatus()` | `src/types/orderStatus.ts` | `pending→awaiting_shipment`, `processing→label_generated`, etc. |
+
+Sem normalização, pedidos com status legado exibem badges errados (ex: pedido pago aparece como "Pendente").
+
 ### 6.1.1 Flag "1ª Venda" (v2026-02-16)
 
 - **Lógica:** Um pedido é marcado como "1ª venda" quando o `customer.total_orders <= 1` (cliente novo ou com apenas aquele pedido).
