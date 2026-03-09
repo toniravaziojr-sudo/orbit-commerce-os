@@ -136,10 +136,10 @@
 28. ✅ BannerProducts (banner + produtos lado a lado)
 29. ✅ Shared: product-card-html.ts (renderProductCard reutilizável)
 
-### Fase 6: Verificações Globais
-20. Pixels de marketing no `<head>`
-21. Newsletter Popup injection
-22. Consent Banner injection
+### Fase 6: Verificações Globais ✅ CONCLUÍDA
+20. ✅ Pixels de marketing (Meta/Google/TikTok) — deferred injection via `requestIdleCallback`
+21. ✅ Newsletter Popup — edge-rendered com triggers (delay/scroll/exit_intent/immediate)
+22. ✅ Consent Banner (LGPD) — renderizado quando `consent_mode_enabled = true`
 
 ### Fase 7: Auditoria Visual + Centralização
 23. Comparar builder vs público
