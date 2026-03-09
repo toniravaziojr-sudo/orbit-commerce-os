@@ -452,7 +452,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
         </button>`);
       }
       if (rpQuickBuyEnabled) {
-        rpButtonsHtml.push(`<button onclick="event.stopPropagation()" data-sf-action="buy-now" data-product-id="${rp.id}" data-product-name="${escapeHtml(rp.name)}" data-product-price="${rp.price}" data-product-image="${escapeHtml(rpImg)}" class="sf-btn-primary" style="width:100%;padding:8px;border:none;border-radius:6px;font-size:12px;text-align:center;font-weight:500;cursor:pointer;">${escapeHtml(rpBuyNowText)}</button>`);
+        rpButtonsHtml.push(`<button onclick="event.stopPropagation();event.preventDefault()" data-sf-action="buy-now" data-product-id="${rp.id}" data-product-name="${escapeHtml(rp.name)}" data-product-price="${rp.price}" data-product-image="${escapeHtml(rpImg)}" class="sf-btn-primary" style="width:100%;padding:8px;border:none;border-radius:6px;font-size:12px;text-align:center;font-weight:500;cursor:pointer;">${escapeHtml(rpBuyNowText)}</button>`);
       }
 
       return `<div class="sf-cat-card" style="min-width:0;">

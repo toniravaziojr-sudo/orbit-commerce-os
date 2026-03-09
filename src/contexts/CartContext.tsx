@@ -83,10 +83,16 @@ export function CartProvider({ children, tenantSlug }: CartProviderProps) {
         const parsed = JSON.parse(stored);
         if (parsed && typeof parsed === 'object') {
           if (Array.isArray(parsed.items)) {
-            setItems(parsed.items);
+            setItems(parsed.items.map((item: any) => ({
+              ...item,
+              image_url: item.image_url || item.image || '',
+            })));
           } else if (Array.isArray(parsed)) {
             // Legacy format - just items array
-            setItems(parsed);
+            setItems(parsed.map((item: any) => ({
+              ...item,
+              image_url: item.image_url || item.image || '',
+            })));
           }
           if (parsed.shipping) {
             setShipping(parsed.shipping);
