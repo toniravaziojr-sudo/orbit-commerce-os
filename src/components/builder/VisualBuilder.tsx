@@ -778,6 +778,16 @@ export function VisualBuilder({
           footerDraft.clearDraft();
           console.log('[VisualBuilder.handleSave] Cleared footer draft');
         }
+        if (miniCartDraft?.hasDraftChanges) {
+          miniCartDraft.clearDraft();
+          console.log('[VisualBuilder.handleSave] Cleared miniCart draft');
+        }
+        // Save popup changes to its dedicated table (not themeSettings)
+        if (popupDraft?.hasDraftChanges) {
+          await popupDraft.savePendingChanges();
+          popupDraft.clearDraft();
+          console.log('[VisualBuilder.handleSave] Saved and cleared popup draft');
+        }
         
         // CRITICAL: Synchronously update page settings caches via setQueryData
         // (matches builder-data-synchronization-standard-v3: setQueryData > invalidateQueries)
