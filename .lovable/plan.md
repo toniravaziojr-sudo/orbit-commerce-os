@@ -84,9 +84,10 @@
 - **Estrutural**: Header, Footer
 - **Standalone**: Blog, Institucional
 
-### 🔴 FALTA Compilador (8 blocos)
+- **E-commerce Avançado**: ProductGrid, ProductCarousel, CategoryList, CollectionSection, BannerProducts
+- **Shared**: product-card-html.ts (renderProductCard reutilizável)
 
-**E-commerce (5)**: ProductGrid, ProductCarousel, CategoryList, CollectionSection, BannerProducts
+### 🔴 FALTA Compilador (3 blocos)
 
 **Outros**: NewsletterPopup, Reviews (standalone), VideoUpload
 
