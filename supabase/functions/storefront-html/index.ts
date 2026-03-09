@@ -663,6 +663,12 @@ function buildFullPage(opts: {
         } else if(action==="remove-cart-item"){
           var idx = parseInt(btn.dataset.index);
           cart.splice(idx,1); saveCart();
+        } else if(action==="cart-item-minus"){
+          var ci=parseInt(btn.dataset.index);
+          if(cart[ci]){if(cart[ci].quantity>1){cart[ci].quantity--;}else{cart.splice(ci,1);}saveCart();}
+        } else if(action==="cart-item-plus"){
+          var ci2=parseInt(btn.dataset.index);
+          if(cart[ci2]){cart[ci2].quantity++;saveCart();}
         } else if(action==="qty-minus"){
           var inp=document.querySelector("[data-sf-qty-input]");
           if(inp){var v=parseInt(inp.value)||1;if(v>1)inp.value=v-1;}
@@ -694,12 +700,77 @@ function buildFullPage(opts: {
               return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0;"><div><p style="font-size:14px;font-weight:500;">'+opt.service_name+'</p><p style="font-size:12px;color:#666;">'+daysText+'</p></div><div style="font-size:14px;font-weight:600;">'+priceText+'</div></div>';
             }).join("");
           }).catch(function(){resultsEl2.innerHTML='<p style="font-size:13px;color:#dc2626;">Erro ao calcular frete. Tente novamente.</p>';});
+        } else if(action==="calc-cart-shipping"){
+          e.preventDefault();
+          var cartCepInput=document.querySelector("[data-sf-cart-shipping-cep]");
+          var cartShipResults=document.querySelector("[data-sf-cart-shipping-results]");
+          if(!cartCepInput||!cartShipResults)return;
+          var cartCep=cartCepInput.value.replace(/\D/g,"");
+          if(cartCep.length!==8){cartShipResults.innerHTML='<p style="font-size:12px;color:#dc2626;">CEP inválido</p>';return;}
+          cartShipResults.innerHTML='<p style="font-size:12px;color:#666;">Calculando...</p>';
+          var cartSubtotal=cart.reduce(function(s,i){return s+i.price*i.quantity},0);
+          var cartItems=cart.map(function(i){return{quantity:i.quantity,price:i.price,product_id:i.product_id,weight:0.3}});
+          var sUrl="${Deno.env.get('SUPABASE_URL')}";
+          var sKey="${Deno.env.get('SUPABASE_ANON_KEY') || ''}";
+          fetch(sUrl+"/functions/v1/shipping-quote",{
+            method:"POST",
+            headers:{"Content-Type":"application/json","apikey":sKey,"Authorization":"Bearer "+sKey,"x-store-host":HOSTNAME},
+            body:JSON.stringify({recipient_cep:cartCep,store_host:HOSTNAME,items:cartItems})
+          }).then(function(r){return r.json()}).then(function(data){
+            if(!data.options||data.options.length===0){cartShipResults.innerHTML='<p style="font-size:12px;color:#666;">Sem opções para este CEP.</p>';return;}
+            cartShipResults.innerHTML=data.options.map(function(opt,oi){
+              var pt=opt.is_free||opt.price===0?'Grátis':'R$ '+opt.price.toFixed(2).replace(".",",");
+              var dt=opt.estimated_days===1?'1 dia':'~'+opt.estimated_days+' dias';
+              return '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;font-size:13px;"><input type="radio" name="sf-cart-ship" value="'+oi+'" '+(oi===0?'checked':'')+' style="accent-color:var(--theme-button-primary-bg,#1a1a1a);"><span style="flex:1;">'+opt.service_name+' <span style="color:#666;font-size:11px;">('+dt+')</span></span><span style="font-weight:600;">'+pt+'</span></label>';
+            }).join("");
+            // Auto-select first
+            var firstOpt=data.options[0];
+            cartShipping={name:firstOpt.service_name,price:firstOpt.is_free?0:firstOpt.price,days:firstOpt.estimated_days};
+            updateCartUI();
+            // Radio change handler
+            cartShipResults.querySelectorAll("input[name=sf-cart-ship]").forEach(function(radio,ri){
+              radio.addEventListener("change",function(){
+                var opt2=data.options[ri];
+                cartShipping={name:opt2.service_name,price:opt2.is_free?0:opt2.price,days:opt2.estimated_days};
+                updateCartUI();
+              });
+            });
+          }).catch(function(){cartShipResults.innerHTML='<p style="font-size:12px;color:#dc2626;">Erro ao calcular.</p>';});
+        } else if(action==="apply-coupon"){
+          e.preventDefault();
+          var couponInput=document.querySelector("[data-sf-cart-coupon-input]");
+          var couponResult=document.querySelector("[data-sf-cart-coupon-result]");
+          if(!couponInput||!couponResult)return;
+          var code=couponInput.value.trim();
+          if(!code){couponResult.innerHTML='<span style="color:#dc2626;">Digite um cupom</span>';return;}
+          couponResult.innerHTML='<span style="color:#666;">Validando...</span>';
+          var cSubtotal=cart.reduce(function(s,i){return s+i.price*i.quantity},0);
+          var cUrl="${Deno.env.get('SUPABASE_URL')}";
+          var cKey="${Deno.env.get('SUPABASE_ANON_KEY') || ''}";
+          fetch(cUrl+"/functions/v1/validate-coupon",{
+            method:"POST",
+            headers:{"Content-Type":"application/json","apikey":cKey,"Authorization":"Bearer "+cKey,"x-store-host":HOSTNAME},
+            body:JSON.stringify({code:code,subtotal:cSubtotal,store_host:HOSTNAME})
+          }).then(function(r){return r.json()}).then(function(data){
+            if(data.valid){
+              cartDiscount={code:code,type:data.discount_type||"percentage",value:data.discount_value||0,free_shipping:data.free_shipping||false};
+              couponResult.innerHTML='<span style="color:#16a34a;font-weight:500;">✓ Cupom aplicado!</span>';
+              updateCartUI();
+            }else{
+              couponResult.innerHTML='<span style="color:#dc2626;">'+(data.message||'Cupom inválido')+'</span>';
+            }
+          }).catch(function(){couponResult.innerHTML='<span style="color:#dc2626;">Erro ao validar.</span>';});
+        } else if(action==="close-newsletter-popup"){
+          var popup=document.getElementById("sf-newsletter-popup");
+          if(popup){popup.style.display="none";sessionStorage.setItem("sf_newsletter_dismissed","1");}
         }
       },true); // CAPTURE PHASE — fires before bubble, prevents <a> navigation
 
-      // CEP mask
+      // CEP masks
       var cepEl=document.querySelector("[data-sf-shipping-cep]");
       if(cepEl)cepEl.addEventListener("input",function(){var v=this.value.replace(/\D/g,"");if(v.length>5)v=v.slice(0,5)+"-"+v.slice(5,8);else v=v.slice(0,8);this.value=v;});
+      var cartCepEl=document.querySelector("[data-sf-cart-shipping-cep]");
+      if(cartCepEl)cartCepEl.addEventListener("input",function(){var v=this.value.replace(/\D/g,"");if(v.length>5)v=v.slice(0,5)+"-"+v.slice(5,8);else v=v.slice(0,8);this.value=v;});
 
       // Search overlay close on click outside
       document.querySelector("[data-sf-search-overlay]")?.addEventListener("click",function(e){
