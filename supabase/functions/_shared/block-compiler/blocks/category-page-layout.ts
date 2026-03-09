@@ -233,10 +233,7 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
           .sf-cat-card-link:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
           .sf-cat-card-link:hover img { transform: scale(1.05); }
         }
-        [data-sf-filter-label] { transition: background .15s, border-color .15s; }
-        [data-sf-filter-label]:has(input:checked) { border-color: var(--theme-button-primary-bg,#1a1a1a); background: #f0f0f0; }
         @media(max-width:639px) {
-          [data-sf-cat-controls] { flex-direction: column; align-items: stretch !important; }
           .sf-cat-card .sf-btn-primary,.sf-cat-card .sf-btn-outline-primary{min-height:36px !important;font-size:11px !important;}
           .sf-cat-card [style*="padding:8px 12px"]{padding:6px 8px 8px !important;}
         }

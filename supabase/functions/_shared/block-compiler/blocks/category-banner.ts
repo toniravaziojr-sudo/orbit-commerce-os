@@ -15,16 +15,16 @@ export const categoryBannerToStaticHTML: BlockCompilerFn = (
 
   const showTitle = (props.showTitle as boolean) ?? true;
   const titlePosition = (props.titlePosition as string) || 'center';
+  const height = (props.height as string) || 'md';
+
   // PARITY FIX: Use bannerOverlayOpacity from categorySettings (theme settings),
   // NOT from block props. This matches CategoryBannerBlock.tsx which ignores
   // the block-level overlayOpacity and reads from categorySettings instead.
   // Block props.overlayOpacity is legacy and should NOT be used.
   const cs = context.categorySettings || {};
   const overlayOpacity = (cs.bannerOverlayOpacity as number) ?? 0;
-  const height = (props.height as string) || 'md';
 
   // Check categorySettings for showBanner and showCategoryName
-  const cs = context.categorySettings || {};
   if (cs.showBanner === false) return '';
 
   const showCategoryName = cs.showCategoryName ?? showTitle;
