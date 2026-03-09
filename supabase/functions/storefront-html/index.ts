@@ -1570,8 +1570,22 @@ serve(async (req) => {
       // Use published_content.category block tree if available
       const categoryContent = publishedContent?.category as BlockNode | null;
       if (categoryContent) {
-        bodyHtml = compileBlockTree(categoryContent, compilerContext);
-        console.log(`[storefront-html][${VERSION}] Category compiled via compileBlockTree(published_content.category)`);
+        // Auto-inject CategoryBanner if template doesn't include one but category has banner
+        const hasCategoryBanner = JSON.stringify(categoryContent).includes('"CategoryBanner"');
+        if (!hasCategoryBanner && category.banner_desktop_url) {
+          // Inject banner before the compiled content
+          const bannerNode: BlockNode = {
+            id: 'auto-cb', type: 'CategoryBanner',
+            props: { showTitle: true, titlePosition: 'center', overlayOpacity: 0, height: 'md' },
+          };
+          const { categoryBannerToStaticHTML: bannerCompiler } = await import('../_shared/block-compiler/blocks/category-banner.ts');
+          const bannerHtml = bannerCompiler(bannerNode.props, compilerContext, '');
+          bodyHtml = bannerHtml + compileBlockTree(categoryContent, compilerContext);
+          console.log(`[storefront-html][${VERSION}] Category compiled with auto-injected CategoryBanner`);
+        } else {
+          bodyHtml = compileBlockTree(categoryContent, compilerContext);
+          console.log(`[storefront-html][${VERSION}] Category compiled via compileBlockTree(published_content.category)`);
+        }
       } else {
         // Fallback: default category template structure
         const defaultCategoryTree: BlockNode = {
