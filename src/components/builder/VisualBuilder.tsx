@@ -231,6 +231,12 @@ export function VisualBuilder({
   const [exampleProductId, setExampleProductId] = useState<string>('');
   const [exampleCategoryId, setExampleCategoryId] = useState<string>('');
 
+  // Check page context for Header/Footer governance
+  const isCheckoutPage = pageType === 'checkout';
+  const isHomePage = pageType === 'home';
+  const isCategoryPage = pageType === 'category';
+  const isProductPage = pageType === 'product';
+
   // Auto-select first category when editing category template (ensures banner renders)
   const { data: autoCategories } = useQuery({
     queryKey: ['builder-auto-categories', tenantId],
@@ -253,12 +259,6 @@ export function VisualBuilder({
       setExampleCategoryId(autoCategories[0].id);
     }
   }, [isCategoryPage, exampleCategoryId, autoCategories]);
-
-  // Check page context for Header/Footer governance
-  const isCheckoutPage = pageType === 'checkout';
-  const isHomePage = pageType === 'home';
-  const isCategoryPage = pageType === 'category';
-  const isProductPage = pageType === 'product';
 
   // Category settings for category template - pass templateSetId for real-time updates
   const { settings: categorySettings, setSettings: setCategorySettings } = useCategorySettings(tenantId, templateSetId);
