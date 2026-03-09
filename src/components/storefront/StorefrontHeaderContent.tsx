@@ -1048,6 +1048,7 @@ export function StorefrontHeaderContent({
                   placeholder="Pesquisar"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={handleSearchSubmit}
                   className="h-8 pl-8 text-xs rounded-md"
                   style={{ 
                     backgroundColor: 'rgba(0,0,0,0.05)',
