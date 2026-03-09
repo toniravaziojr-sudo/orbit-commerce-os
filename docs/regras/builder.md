@@ -3146,3 +3146,29 @@ Para adicionar novos presets no futuro:
 | 2 | `HeroBannerBlock.tsx` arquivo legado | ✅ Mantido para compatibilidade — templates antigos com `type: 'HeroBanner'` ainda renderizam. Documentado como legado |
 | 3 | `EmbedSocialPostBlock` sem entry no registry | ✅ Adicionado ao registry como `type: 'EmbedSocialPost'` em `category: 'utilities'` |
 | 4 | `TextBlock.tsx` sem entry no registry | ✅ Mantido para compatibilidade — templates antigos com `type: 'Text'` ainda renderizam. Documentado como legado |
+
+---
+
+## 🖼️ Category Banner — Auto-Seleção e Draft Theme (v8.4.2)
+
+### Regra: Auto-seleção de Categoria no Builder
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Regra Lógica |
+| **Localização** | `src/components/builder/VisualBuilder.tsx` |
+| **Descrição** | Quando o Builder abre a página "Categoria", auto-seleciona a primeira categoria ativa do tenant para que o `CategoryBannerBlock` tenha dados reais (banner_desktop_url, banner_mobile_url) |
+| **Comportamento** | 1. Query busca primeira categoria ativa (`useQuery`). 2. `useEffect` seta `exampleCategoryId` automaticamente. 3. Query `builder-category-full` busca dados completos (incluindo banners). 4. `context.category` é populado → banner renderiza no canvas |
+| **Condições** | Só executa quando `pageType === 'category'` E `exampleCategoryId` está vazio |
+| **Afeta** | `CategoryBannerBlock`, `CategoryPageLayout` |
+
+### Regra: Draft Theme → Botão Salvar
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Regra Lógica |
+| **Localização** | `ColorsSettings.tsx`, `TypographySettings.tsx`, `useBuilderDraftTheme.tsx` |
+| **Descrição** | Alterações em cores/tipografia atualizam o draft state via `setDraftColors`/`setDraftTypography`, o que ativa `hasDraftChanges=true` no contexto, habilitando o botão Salvar |
+| **Comportamento** | 1. Usuário altera cor/fonte. 2. `handleColorChange` chama `setDraftColors(updated)` FORA do state updater (anti-pattern fix). 3. Provider re-renderiza com `hasDraftChanges=true`. 4. `BuilderToolbarWithDraftCheck` detecta via `useBuilderDraftTheme()` → `isDirty=true` → botão Salvar habilitado |
+| **Regra Crítica** | Chamadas a `setDraftColors`/`setDraftTypography` NUNCA devem ser feitas dentro de funções `setState(prev => {...})` — isso causa problemas de batching no React 18 |
+| **Afeta** | `BuilderToolbar` (botão Salvar), preview em tempo real |

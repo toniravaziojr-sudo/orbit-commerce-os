@@ -182,15 +182,14 @@ export function ColorsSettings({ tenantId, templateSetId }: ColorsSettingsProps)
 
   // Update draft for REAL-TIME PREVIEW without saving to database
   const handleColorChange = (id: keyof ThemeColors, value: string) => {
-    setLocalColors(prev => {
-      const updated = { ...prev, [id]: value };
-      setHasChanges(true);
-      // Update draft state for real-time preview in builder canvas
-      if (draftTheme) {
-        draftTheme.setDraftColors(updated);
-      }
-      return updated;
-    });
+    const updated = { ...localColors, [id]: value };
+    setLocalColors(updated);
+    setHasChanges(true);
+    // Update draft state for real-time preview in builder canvas
+    // CRITICAL: Must be outside state updater to ensure React batching works correctly
+    if (draftTheme) {
+      draftTheme.setDraftColors(updated);
+    }
   };
 
   const primaryInputs = colorInputs.filter(c => c.group === 'primary');

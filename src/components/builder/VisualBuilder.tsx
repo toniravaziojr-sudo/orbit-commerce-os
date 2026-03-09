@@ -237,6 +237,29 @@ export function VisualBuilder({
   const isCategoryPage = pageType === 'category';
   const isProductPage = pageType === 'product';
 
+  // Auto-select first category when editing category template (ensures banner renders)
+  const { data: autoCategories } = useQuery({
+    queryKey: ['builder-auto-categories', tenantId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('categories')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .order('name')
+        .limit(1);
+      return data || [];
+    },
+    enabled: !!tenantId && isCategoryPage && !exampleCategoryId,
+  });
+
+  // Set first category as example when available and none selected
+  useEffect(() => {
+    if (isCategoryPage && !exampleCategoryId && autoCategories?.length) {
+      setExampleCategoryId(autoCategories[0].id);
+    }
+  }, [isCategoryPage, exampleCategoryId, autoCategories]);
+
   // Category settings for category template - pass templateSetId for real-time updates
   const { settings: categorySettings, setSettings: setCategorySettings } = useCategorySettings(tenantId, templateSetId);
 

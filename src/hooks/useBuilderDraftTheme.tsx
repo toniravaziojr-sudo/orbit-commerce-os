@@ -4,7 +4,7 @@
 // but only saved to the database when user clicks "Salvar"
 // =============================================
 
-import { createContext, useContext, useState, useCallback, useRef, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo, useRef, ReactNode, useEffect } from 'react';
 import { ThemeSettings, ThemeColors, ThemeTypography, DEFAULT_THEME_COLORS, DEFAULT_THEME_TYPOGRAPHY } from './useThemeSettings';
 
 interface BuilderDraftThemeContextValue {
@@ -89,7 +89,7 @@ export function BuilderDraftThemeProvider({ children }: BuilderDraftThemeProvide
     return Object.keys(changes).length > 0 ? changes : null;
   }, [hasDraftChanges, draftColors, draftTypography, draftCustomCss]);
 
-  const value: BuilderDraftThemeContextValue = {
+  const value: BuilderDraftThemeContextValue = useMemo(() => ({
     draftColors,
     draftTypography,
     draftCustomCss,
@@ -102,7 +102,7 @@ export function BuilderDraftThemeProvider({ children }: BuilderDraftThemeProvide
     getEffectiveTypography,
     getEffectiveCustomCss,
     getPendingChanges,
-  };
+  }), [draftColors, draftTypography, draftCustomCss, hasDraftChanges, setDraftColors, setDraftTypography, setDraftCustomCss, clearDraft, getEffectiveColors, getEffectiveTypography, getEffectiveCustomCss, getPendingChanges]);
 
   return (
     <BuilderDraftThemeContext.Provider value={value}>
