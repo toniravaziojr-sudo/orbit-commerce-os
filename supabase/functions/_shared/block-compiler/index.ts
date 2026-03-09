@@ -157,8 +157,6 @@ const STRUCTURAL_BLOCKS = new Set(['Header', 'Footer']);
  * Listed explicitly for tracking migration progress.
  */
 export const UNSUPPORTED_BLOCKS = new Set([
-  'ProductGrid', 'ProductCarousel', 'CategoryList',
-  'CollectionSection', 'BannerProducts',
   'Reviews', 'VideoUpload',
   'TrackingLookup', 'BlogListing', 'BlogPostDetail', 'PageContent',
   'ContactForm',
