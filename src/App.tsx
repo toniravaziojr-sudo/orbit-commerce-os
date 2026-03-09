@@ -256,6 +256,7 @@ const App = () => {
                   <Route path="conta/pedidos/:orderId" element={<StorefrontOrderDetail />} />
                   <Route path="quiz/:quizSlug" element={<StorefrontQuiz />} />
                   <Route path="avaliar/:token" element={<StorefrontReview />} />
+                  <Route path="busca" element={<StorefrontSearch />} />
                 </Route>
               )}
 
