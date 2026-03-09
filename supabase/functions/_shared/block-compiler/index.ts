@@ -32,6 +32,12 @@ import { categoryBannerToStaticHTML } from './blocks/category-banner.ts';
 import { categoryPageLayoutToStaticHTML } from './blocks/category-page-layout.ts';
 import { productDetailsToStaticHTML } from './blocks/product-details.ts';
 
+// Layout blocks
+import { containerToStaticHTML } from './blocks/container.ts';
+import { columnsToStaticHTML } from './blocks/columns.ts';
+import { columnToStaticHTML } from './blocks/column.ts';
+import { gridToStaticHTML } from './blocks/grid.ts';
+
 // Content blocks
 import { textToStaticHTML } from './blocks/text.ts';
 import { richTextToStaticHTML } from './blocks/rich-text.ts';
