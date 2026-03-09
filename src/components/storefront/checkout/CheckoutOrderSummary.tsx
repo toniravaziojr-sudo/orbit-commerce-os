@@ -133,7 +133,7 @@ export function CheckoutOrderSummary({
 
   // Desktop version - sidebar (uses container query class sf-checkout-summary-desktop)
   const DesktopSummary = () => (
-    <div className="sf-checkout-summary-desktop sticky top-4">
+    <div className="sf-checkout-summary-desktop">
       <div className="p-6 border rounded-lg bg-card">
         <h3 className="font-semibold text-lg mb-4">Resumo do pedido</h3>
         

@@ -849,35 +849,37 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         </div>
 
         {/* Sidebar - Order summary + Coupon */}
-        <div className="lg:col-span-1 space-y-4 lg:sticky lg:top-4 lg:self-start">
-          {/* Coupon input - Conditional based on checkout_config */}
-          {checkoutConfig.couponEnabled && (
-            <div className="bg-card border rounded-lg p-4">
-              <h3 className="font-semibold mb-3 flex items-center gap-2">
-                <Tag className="h-4 w-4" />
-                Cupom de desconto
-              </h3>
-              <CouponInput
-                storeHost={storeHost}
-                subtotal={subtotal}
-                appliedDiscount={appliedDiscount}
-                onApply={(discount) => {
-                  applyDiscount(storeHost, discount.discount_code, subtotal);
-                }}
-                onRemove={removeDiscount}
-              />
-            </div>
-          )}
+        <div className="lg:col-span-1 space-y-4">
+          <div className="lg:sticky lg:top-4 lg:self-start space-y-4">
+            {/* Coupon input - Conditional based on checkout_config */}
+            {checkoutConfig.couponEnabled && (
+              <div className="bg-card border rounded-lg p-4">
+                <h3 className="font-semibold mb-3 flex items-center gap-2">
+                  <Tag className="h-4 w-4" />
+                  Cupom de desconto
+                </h3>
+                <CouponInput
+                  storeHost={storeHost}
+                  subtotal={subtotal}
+                  appliedDiscount={appliedDiscount}
+                  onApply={(discount) => {
+                    applyDiscount(storeHost, discount.discount_code, subtotal);
+                  }}
+                  onRemove={removeDiscount}
+                />
+              </div>
+            )}
 
-          <OrderSummarySidebar 
-            items={items} 
-            totals={totals} 
-            shipping={effectiveShipping} 
-            appliedDiscount={appliedDiscount}
-            freeShipping={hasFreeShipping}
-          />
+            <OrderSummarySidebar 
+              items={items} 
+              totals={totals} 
+              shipping={effectiveShipping} 
+              appliedDiscount={appliedDiscount}
+              freeShipping={hasFreeShipping}
+            />
+          </div>
 
-          {/* Testimonials */}
+          {/* Testimonials - OUTSIDE sticky container so they scroll naturally */}
           {checkoutConfig.testimonialsEnabled && (
             <CheckoutTestimonials tenantId={tenantId} productIds={items.map(item => item.product_id)} />
           )}
