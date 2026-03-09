@@ -119,9 +119,14 @@
 15. ✅ HTMLSection (HTML sanitizado inline com CSS scoped)
 16. ✅ ImageGallery (grid responsivo com hover effects e captions)
 
-### Fase 4: Blocos de Marketing
-17. CountdownTimer, LogosCarousel, StatsNumbers
-18. ContentColumns, FeatureList, StepsTimeline, TextBanners
+### Fase 4: Blocos de Marketing ✅ CONCLUÍDA
+17. ✅ CountdownTimer (server-render + JS hydration via data-sf-countdown)
+18. ✅ LogosCarousel (grid responsivo com grayscale e otimização de imagem)
+19. ✅ StatsNumbers (layout horizontal/grid com animação JS)
+20. ✅ ContentColumns (imagem + texto + features com ícones SVG)
+21. ✅ FeatureList (lista vertical com ícones SVG)
+22. ✅ StepsTimeline (layout horizontal/vertical com círculos numerados)
+23. ✅ TextBanners (texto + 2 imagens com CTA sf-btn-primary)
 
 ### Fase 5: Blocos E-commerce Avançados
 19. ProductGrid, ProductCarousel, CategoryList, CollectionSection, BannerProducts
