@@ -1,8 +1,8 @@
 # Página de Produto — Regras e Especificações
 
-> **Status:** FUNCIONAL ✅ — Core + Seções + Variantes + Galeria Mobile + Lightbox/Zoom implementados  
-> **Última atualização:** 2026-03-07  
-> **Arquitetura:** v8.1.4 — block-compiler com variantes, swipe mobile, thumbnail click, quick buy, lightbox com zoom
+> **Status:** FUNCIONAL ✅ — Core + Seções + Variantes + Galeria Mobile + Lightbox/Zoom + Pix Badge + Paridade CTA  
+> **Última atualização:** 2026-03-09  
+> **Arquitetura:** v8.2.0 — block-compiler com variantes, swipe mobile, thumbnail click, quick buy, lightbox com zoom, Pix badge, paridade de botões
 
 ## Visão Geral
 
@@ -242,8 +242,11 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 - [x] ~~**Quantidade**: React tem seletor de quantidade~~ → Implementado v8.1.0
 - [x] ~~**Frete**: Placeholder HTML sem JS funcional~~ → Implementado v8.1.0
 
-### Divergências de Estilo
+### Divergências de Estilo (Corrigidas v8.2.0)
 
+- [x] ~~**Ordem dos botões**: Compilador tinha Add to Cart → Buy Now; SPA tem Buy Now → Add to Cart~~ → Corrigido v8.2.0
+- [x] ~~**Pix Badge**: SPA tem PaymentBadges com destaque verde Pix; compilador tinha apenas texto de parcelas~~ → Corrigido v8.2.0
+- [x] ~~**Estoque**: SPA mostra "Estoque: X unidades"; compilador mostrava "Em estoque"~~ → Corrigido v8.2.0
 - [ ] **Banner fallback no compilador**: Não usa `image_url` como fallback (React usa)
 
 ### Dead Code
