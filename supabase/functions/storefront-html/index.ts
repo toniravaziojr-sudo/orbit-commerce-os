@@ -1745,6 +1745,15 @@ serve(async (req) => {
     
     const navItemsHtml = `<div style="background:${escapeHtml(mobileHeaderBg)};color:${escapeHtml(mobileHeaderText)};min-height:100%;display:flex;flex-direction:column;">${mobileMenuItemsHtml}${mobileFeaturedHtml}${mobileAccountHtml}${mobileContactHtml}${mobileSocialHtml}</div>`;
 
+    // === MARKETING PIXELS (deferred injection) ===
+    const marketingScripts = generateMarketingPixelScripts(marketingConfig);
+    
+    // === NEWSLETTER POPUP ===
+    const newsletterPopupHtml = generateNewsletterPopupHtml(newsletterPopup, tenantId, route.type);
+    
+    // === CONSENT BANNER (LGPD) ===
+    const consentBannerHtml = marketingConfig?.consent_mode_enabled ? generateConsentBannerHtml() : '';
+
     const html = buildFullPage({
       title: pageTitle,
       description: pageDescription,
@@ -1769,6 +1778,9 @@ serve(async (req) => {
       mobileSearchHtml,
       mobileBgColor: mobileHeaderBg,
       mobileTextColor: mobileHeaderText,
+      marketingScripts,
+      newsletterPopupHtml,
+      consentBannerHtml,
     });
 
     console.log(`[storefront-html] ${route.type}${route.slug ? '/' + route.slug : ''} rendered in ${totalMs}ms (resolve=${resolveMs}ms, queries=${queryMs}ms)`);
