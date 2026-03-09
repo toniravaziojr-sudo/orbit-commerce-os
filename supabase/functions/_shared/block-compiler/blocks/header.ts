@@ -87,7 +87,7 @@ export function headerToStaticHTML(context: CompilerContext): string {
   const hasContactInfo = whatsApp || contactPhone || contactEmail;
   
   // Build nav items from menuItems
-  const rootItems = menuItems.filter((item: any) => !item.parent_id).slice(0, 8);
+  const rootItems = menuItems.filter((item: any) => !item.parent_id);
   const childrenMap = new Map<string, any[]>();
   menuItems.filter((item: any) => item.parent_id).forEach((item: any) => {
     const arr = childrenMap.get(item.parent_id) || [];
