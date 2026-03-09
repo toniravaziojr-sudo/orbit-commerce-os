@@ -1212,7 +1212,7 @@ export function PageSettingsContent({
                     
                     {/* Gerenciador de Depoimentos para página de Checkout */}
                     {pageType === 'checkout' && config.key === 'testimonialsEnabled' && Boolean(settings[config.key]) && (
-                      <div className="pl-4 border-l-2 border-muted pt-2">
+                      <div className="pl-2 border-l-2 border-muted pt-2 overflow-hidden">
                         <div className="flex items-center gap-2 mb-3">
                           <MessageSquare className="h-4 w-4 text-primary" />
                           <span className="text-sm font-medium">Gerenciar Depoimentos</span>
