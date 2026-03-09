@@ -73,7 +73,7 @@
 
 ## 📋 INVENTÁRIO DE BLOCOS
 
-### ✅ Prontos no Edge (38 compiladores + 3 standalone)
+### ✅ Prontos no Edge (43 compiladores + 3 standalone + 1 shared)
 - **Layout**: Page, Section, Container, Columns, Column, Grid
 - **Conteúdo**: Text, RichText, Image, Button, Spacer, Divider
 - **E-commerce**: HeroBanner, Banner, ImageCarousel, InfoHighlights, FeaturedCategories, FeaturedProducts, CategoryBanner, CategoryPageLayout
