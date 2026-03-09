@@ -1022,7 +1022,7 @@ Lista de páginas configuráveis. Ao clicar, navega para a página no canvas e a
 | ↳ `featuredPromosTarget` | Select | `""` | Destino | Seleciona categoria ou página institucional como destino |
 | ↳ `featuredPromosTextColor` | Color picker | `""` | Cor do Texto | |
 | ↳ `featuredPromosBgColor` | Color picker | `""` | Cor do Destaque | |
-| ↳ `featuredPromosThumbnail` | Upload imagem | `""` | Miniatura (Desktop) | Exibida ao passar o mouse no link de promoções. Recomendado: 240×96px |
+| ↳ `featuredPromosThumbnail` | Upload imagem | `""` | Miniatura (Desktop) | Mini-banner de "Categoria em Destaque" — exibido ao passar o mouse no link de promoções no desktop. Já funcional. Recomendado: 240×96px |
 
 ---
 
