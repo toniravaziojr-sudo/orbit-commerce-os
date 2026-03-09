@@ -2209,3 +2209,938 @@ Para adicionar novos presets no futuro:
 2. **Nova cor de tema** → Adicionar em `generateColorCssVars()` dos 2 arquivos
 3. **Novo botão style** → Adicionar em `generateButtonCssRules()` dos 2 arquivos
 4. **Nova fonte** → Adicionar em `FONT_FAMILY_MAP` E `FONT_NAME_MAP` dos 2 arquivos
+
+---
+
+## Inventário Completo de Blocos do Builder
+
+> **Total de blocos no registry:** 67 (+ 2 componentes legados fora do registry)
+> **Fonte de verdade:** `src/lib/builder/registry.ts`
+> **Regra de nomenclatura:** Os blocos são referenciados pelo **label** (nome de navegação), com o `type` (nome técnico) entre parênteses.
+
+### Legenda de Status
+
+| Status | Significado |
+|--------|-------------|
+| 🟢 Ativo | Bloco funcional, no registry e com compilador |
+| 🟡 Sistema | Bloco essencial, não removível, sem propsSchema (config via Tema > Páginas) |
+| 🔵 Demo | Bloco de demonstração/preview |
+| 🔴 Legado | Componente existente mas substituído ou fora do registry |
+
+---
+
+### 1. Blocos de Layout
+
+#### 1.1 Página (`Page`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Layout (container raiz) |
+| **Status** | 🟡 Sistema |
+| **Localização** | `src/lib/builder/registry.ts` (definição) |
+| **Contexto** | Container raiz de todas as páginas do builder |
+| **Descrição** | Wrapper principal que contém todos os outros blocos de uma página |
+| **Comportamento** | Renderiza children dentro de um container com cor de fundo e padding configuráveis |
+| **Props** | `backgroundColor` (color, default: transparent), `padding` (select: none/sm/md/lg) |
+| **Condições** | `canHaveChildren: true`, `isRemovable: false` — nunca pode ser removido |
+| **Afeta** | Todos os blocos filhos herdam o contexto visual |
+
+#### 1.2 Seção (`Section`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Layout |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Wrapper para agrupar blocos com espaçamento e alinhamento |
+| **Descrição** | Seção com padding, margem, gap e cor de fundo configuráveis |
+| **Props** | `backgroundColor` (color), `paddingX` (0-100px), `paddingY` (0-200px), `marginTop` (0-200px), `marginBottom` (0-200px), `gap` (0-100px), `alignItems` (stretch/flex-start/center/flex-end), `fullWidth` (boolean) |
+| **Condições** | `canHaveChildren: true` |
+| **Compilador** | `section.ts` (Base) |
+
+#### 1.3 Container (`Container`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Layout |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Container com largura máxima centralizado |
+| **Descrição** | Limita a largura do conteúdo com opções de sm/md/lg/xl/full |
+| **Props** | `maxWidth` (select: sm=640/md=768/lg=1024/xl=1280/full), `padding` (0-100px), `marginTop` (0-200px), `marginBottom` (0-200px), `gap` (0-100px) |
+| **Condições** | `canHaveChildren: true` |
+| **Compilador** | `container.ts` (Fase 1) |
+
+#### 1.4 Colunas (`Columns`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Layout |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Grid de colunas para organizar conteúdo lado a lado |
+| **Descrição** | Layout em 2/3/4 colunas com opção de empilhar no mobile |
+| **Props** | `columns` (select: 2/3/4), `gap` (0-100px), `stackOnMobile` (boolean, default: true), `alignItems` (stretch/flex-start/center/flex-end) |
+| **Condições** | `canHaveChildren: true`, `slotConstraints.maxChildren: 4` |
+| **Compilador** | `columns.ts` (Fase 1) |
+
+#### 1.5 Divisor (`Divider`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Layout |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Separador visual horizontal entre blocos |
+| **Descrição** | Linha divisória com estilo e cor configuráveis |
+| **Props** | `style` (select: solid/dashed/dotted), `color` (color, default: #e5e7eb) |
+| **Compilador** | `divider.ts` (Base) |
+
+#### 1.6 Espaçador (`Spacer`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Layout |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Espaço em branco vertical entre blocos |
+| **Descrição** | Adiciona espaçamento vertical configurável |
+| **Props** | `height` (select: xs/sm/md/lg/xl) |
+| **Compilador** | `spacer.ts` (Base) |
+
+#### 1.7 Bloco Html (`HTMLSection`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Layout |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts`, renderiza via `IsolatedCustomBlock` (iframe) |
+| **Contexto** | Permite inserir HTML/CSS customizado com isolamento total via iframe |
+| **Descrição** | Bloco para código HTML e CSS manual, renderizado dentro de iframe para evitar vazamento de estilos |
+| **Props** | `htmlContent` (textarea), `cssContent` (textarea), `blockName` (string, default: "Bloco Html"), `baseUrl` (string, para imagens relativas) |
+| **Comportamento** | HTML é sanitizado (remove `<script>`, event handlers, `javascript:` URLs). CSS é scoped via `<style>` |
+| **Compilador** | `html-section.ts` (Fase 3) |
+
+---
+
+### 2. Blocos de Cabeçalho / Rodapé
+
+#### 2.1 Cabeçalho (`Header`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Infraestrutura |
+| **Status** | 🟡 Sistema |
+| **Localização** | `src/lib/builder/registry.ts` (definição), `src/components/storefront/StorefrontHeader*.tsx` (renderização) |
+| **Contexto** | Cabeçalho global da loja — presente em todas as páginas |
+| **Descrição** | Header completo com logo, menu, busca, carrinho, barra de aviso e contato |
+| **Documentação detalhada** | Ver seção "Cabeçalho (HeaderSettings)" neste doc e `docs/regras/header.md` |
+| **Condições** | `isRemovable: false` — nunca pode ser removido |
+| **Props** | ~30 props (headerStyle, cores, notice bar, contato, promoções) — detalhadas na seção HeaderSettings |
+| **Compilador** | Standalone em `storefront-html` |
+
+#### 2.2 Rodapé da Loja (`Footer`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Infraestrutura |
+| **Status** | 🟡 Sistema |
+| **Localização** | `src/lib/builder/registry.ts` (definição), `src/components/storefront/StorefrontFooter*.tsx` (renderização) |
+| **Contexto** | Rodapé global da loja — presente em todas as páginas |
+| **Descrição** | Footer com logo, SAC, redes sociais, informações legais, selos e formas de pagamento |
+| **Documentação detalhada** | Ver seção "Rodapé (FooterSettings)" neste doc e `docs/regras/footer.md` |
+| **Condições** | `isRemovable: false` — nunca pode ser removido |
+| **Props** | ~10 props (seções toggle, cores, arrays de imagens) — detalhadas na seção FooterSettings |
+| **Compilador** | Standalone em `storefront-html` |
+
+---
+
+### 3. Blocos de Conteúdo
+
+#### 3.1 Texto (`RichText`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/components/builder/blocks/content/RichTextBlock.tsx` |
+| **Contexto** | Bloco de texto com edição inline no canvas |
+| **Descrição** | Editor rich text com formatação via painel lateral (negrito, itálico, fonte, tamanho) |
+| **Props** | `content` (richtext, default: "Digite seu conteúdo aqui..."), `fontFamily` (select: 35+ fontes), `fontSize` (select: xs/sm/base/lg/xl/2xl), `fontWeight` (select: normal/500/600/bold) |
+| **Comportamento** | Edição inline via contentEditable. Sincroniza via debounce/blur. Ver seção "Sistema de Edição de Texto Rico" |
+| **Compilador** | `rich-text.ts` (Base) |
+
+#### 3.2 Conteúdo da Página (`PageContent`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟡 Sistema |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Renderiza o conteúdo HTML de páginas institucionais (Sobre, Política, etc.) |
+| **Descrição** | Bloco sem props que renderiza o conteúdo da página institucional associada |
+| **Props** | Nenhuma (propsSchema vazio) |
+| **Comportamento** | Busca e renderiza o HTML da página institucional do banco de dados |
+
+#### 3.3 Botão (`Button`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/components/builder/blocks/content/ButtonBlock.tsx` |
+| **Contexto** | Botão CTA customizável com cores, fonte e bordas |
+| **Descrição** | Botão renderizado como `<a>` com 4 variantes (primary/secondary/outline/ghost) e cores personalizáveis |
+| **Props** | `text` (string), `url` (string), `variant` (select: primary/secondary/outline/ghost), `size` (select: sm/md/lg), `alignment` (select: left/center/right), `fontFamily` (select: 15+ fontes), `fontWeight` (select: normal/500/semibold/bold), `backgroundColor` (color), `textColor` (color), `hoverBgColor` (color), `hoverTextColor` (color), `borderColor` (color), `hoverBorderColor` (color), `borderRadius` (select: none/sm/md/lg/full) |
+| **Comportamento** | Gera `<style>` dinâmico com classe única para hover states. Usa `var(--theme-button-*)` como fallback |
+| **Compilador** | `button.ts` (Base) |
+
+#### 3.4 Perguntas Frequentes (`FAQ`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/components/builder/blocks/interactive/FAQBlock.tsx` |
+| **Contexto** | Seção de FAQ com acordeão expansível |
+| **Descrição** | Accordion de perguntas/respostas usando Radix UI. Exibe itens demo apenas no builder |
+| **Props** | `title` (string, default: "Perguntas Frequentes"), `titleAlign` (select: left/center/right), `items` (array: {question, answer}), `allowMultiple` (boolean) |
+| **Comportamento** | No builder sem itens: exibe 3 itens demo. No público sem itens: não renderiza nada |
+| **Compilador** | `faq.ts` (Fase 2) — usa `<details>/<summary>` nativo, zero JS |
+
+#### 3.5 Depoimentos (`Testimonials`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/components/builder/blocks/interactive/TestimonialsBlock.tsx` |
+| **Contexto** | Grid de depoimentos de clientes com avaliação por estrelas |
+| **Descrição** | Cards com nome, texto, rating (estrelas emoji), role e imagem opcional. Grid 1→2→3 colunas |
+| **Props** | `title` (string, default: "O que dizem nossos clientes"), `items` (array: {name, content/text, rating, role, image}) |
+| **Comportamento** | No builder sem itens: exibe 3 depoimentos demo. No público sem itens: não renderiza |
+| **Compilador** | `testimonials.ts` (Fase 2) — estrelas SVG, imagens otimizadas via wsrv.nl |
+
+#### 3.6 Lista de Features (`FeatureList`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Lista vertical de benefícios/features com ícones |
+| **Descrição** | Lista de itens com ícone + texto, título/subtítulo opcionais, CTA opcional |
+| **Props** | `title` (string), `subtitle` (string), `items` (array: {id, icon, text}), `iconColor` (color), `textColor` (color), `backgroundColor` (color), `showButton` (boolean), `buttonText` (string), `buttonUrl` (string) |
+| **Compilador** | `feature-list.ts` (Fase 4) — ícones SVG, cor herda do tema |
+
+#### 3.7 Conteúdo em Colunas (`ContentColumns`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Imagem + texto lado a lado com features opcionais |
+| **Descrição** | Layout de duas colunas com imagem (desktop/mobile), rich text, lista de features e CTA |
+| **Props** | `title` (string), `subtitle` (string), `content` (richtext), `imageDesktop` (image), `imageMobile` (image), `imagePosition` (select: left/right), `features` (array), `iconColor` (color), `showButton` (boolean), `buttonText` (string), `buttonUrl` (string), `backgroundColor` (color), `textColor` (color) |
+| **Compilador** | `content-columns.ts` (Fase 4) |
+
+#### 3.8 Benefícios da Loja (`InfoHighlights`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Barra de benefícios (frete grátis, parcelamento, compra segura) |
+| **Descrição** | Ícones com título e descrição em layout horizontal ou vertical |
+| **Props** | `items` (array: {id, icon, title, description}), `layout` (select: horizontal/vertical), `iconColor` (color), `textColor` (color) |
+| **Compilador** | `info-highlights.ts` (Base) |
+
+#### 3.9 Texto + Banners (`TextBanners`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Seção de texto com 2 imagens lado a lado |
+| **Descrição** | Texto + 2 banners com layout text-left/text-right e CTA customizável |
+| **Props** | `title` (string), `text` (textarea), `imageDesktop1/2` (image), `imageMobile1/2` (image), `layout` (select: text-left/text-right), `ctaEnabled` (boolean), `ctaText` (string), `ctaUrl` (string), `ctaBgColor` (color), `ctaTextColor` (color) |
+| **Compilador** | `text-banners.ts` (Fase 4) — CTA usa sf-btn-primary |
+
+#### 3.10 Avaliações (`Reviews`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Carrossel de avaliações de clientes |
+| **Descrição** | Avaliações com nome, rating (estrelas), texto e visibilidade configurável |
+| **Props** | `title` (string), `reviews` (array: {name, rating, text}), `visibleCount` (number: 1-10) |
+| **Compilador** | `reviews.ts` (Fase 2) — carrossel com scroll horizontal e setas de navegação |
+
+#### 3.11 Passos / Timeline (`StepsTimeline`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Passos sequenciais (como funciona, processo de compra) |
+| **Descrição** | Timeline com números, títulos e descrições em layout horizontal ou vertical |
+| **Props** | `title` (string), `subtitle` (string), `steps` (array: {number, title, description}), `layout` (select: horizontal/vertical), `accentColor` (color), `showNumbers` (boolean), `backgroundColor` (color) |
+| **Compilador** | `steps-timeline.ts` (Fase 4) — círculos numerados com linha SVG |
+
+#### 3.12 Contador Regressivo (`CountdownTimer`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Timer para promoções por tempo limitado |
+| **Descrição** | Contagem regressiva com dias/horas/minutos/segundos e CTA opcional |
+| **Props** | `title` (string), `subtitle` (string), `endDate` (datetime), `showDays/Hours/Minutes/Seconds` (boolean), `backgroundColor` (color, default: #dc2626), `textColor` (color, default: #ffffff), `expiredMessage` (string), `buttonText` (string), `buttonUrl` (string) |
+| **Compilador** | `countdown-timer.ts` (Fase 4) — server-render + hidratação JS via `data-sf-countdown` |
+
+#### 3.13 Logos / Parceiros (`LogosCarousel`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Grid de logos de parceiros/marcas |
+| **Descrição** | Logos com opção de escala de cinza, autoplay e colunas configuráveis |
+| **Props** | `title` (string), `subtitle` (string), `logos` (array), `autoplay` (boolean), `grayscale` (boolean), `columns` (select: 3/4/5/6), `backgroundColor` (color) |
+| **Compilador** | `logos-carousel.ts` (Fase 4) |
+
+#### 3.14 Estatísticas (`StatsNumbers`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Números de destaque (clientes, aprovação, entrega) |
+| **Descrição** | Estatísticas com animação de números via IntersectionObserver |
+| **Props** | `title` (string), `subtitle` (string), `items` (array: {number, label}), `layout` (select: horizontal/grid), `animateNumbers` (boolean), `backgroundColor` (color), `accentColor` (color) |
+| **Compilador** | `stats-numbers.ts` (Fase 4) |
+
+#### 3.15 Acordeão (`AccordionBlock`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Acordeão genérico (diferente do FAQ, mais estilizável) |
+| **Descrição** | Itens expansíveis com 3 variantes visuais e múltiplas opções de comportamento |
+| **Props** | `title` (string), `subtitle` (string), `items` (array: {title, content}), `allowMultiple` (boolean), `defaultOpen` (number, -1=nenhum), `variant` (select: default/separated/bordered), `backgroundColor` (color), `accentColor` (color) |
+| **Compilador** | `accordion.ts` (Fase 2) |
+
+#### 3.16 Newsletter (`Newsletter`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Seção de inscrição em newsletter |
+| **Descrição** | Formulário de email com 3 layouts, incentivo opcional e cores customizáveis |
+| **Props** | `title` (string), `subtitle` (string), `placeholder` (string), `buttonText` (string), `successMessage` (string), `layout` (select: horizontal/vertical/card), `showIcon` (boolean), `showIncentive` (boolean), `incentiveText` (string), `backgroundColor` (color), `textColor` (color), `buttonBgColor` (color), `buttonTextColor` (color) |
+| **Compilador** | `newsletter.ts` (Fase 2) — atributos `data-sf-newsletter` para hidratação JS |
+
+#### 3.17 Formulário de Contato (`ContactForm`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Formulário de contato com campos configuráveis |
+| **Descrição** | Formulário com nome, email, telefone, assunto e mensagem. 3 layouts. Informações de contato opcionais |
+| **Props** | `title` (string), `subtitle` (string), `layout` (select: simple/with-info/split), `showName/Phone/Subject` (boolean), labels customizáveis, `buttonText` (string), `successMessage` (string), `showContactInfo` (boolean), `contactEmail/Phone/Address/Hours` (string), `backgroundColor/textColor/buttonBgColor/buttonTextColor` (color) |
+
+#### 3.18 Mapa (`Map`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Mapa incorporado com informações de contato |
+| **Descrição** | Google Maps embed com endereço, botão "Como Chegar", info de contato e 3 layouts |
+| **Props** | `title` (string), `subtitle` (string), `address` (string), `embedUrl` (string), `latitude/longitude` (string), `zoom` (number: 1-20), `height` (select: sm/md/lg/xl), `showAddress` (boolean), `showDirectionsButton` (boolean), `directionsButtonText` (string), `layout` (select: full/with-info/side-by-side), `showContactInfo` (boolean), `contactTitle/Address/Phone/Email/Hours` (string), `rounded` (boolean), `shadow` (boolean), `backgroundColor` (color) |
+
+#### 3.19 Bloco Importado (`CustomBlock`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/components/builder/blocks/CustomBlockRenderer.tsx`, `src/components/builder/blocks/IsolatedCustomBlock.tsx` |
+| **Contexto** | Renderiza HTML/CSS importado de blocos salvos na tabela `custom_blocks` |
+| **Descrição** | Busca bloco pelo ID ou recebe HTML/CSS diretamente. Renderiza em iframe isolado (100% CSS isolation) |
+| **Props** | `customBlockId` (string, UUID), `htmlContent` (textarea, fallback), `cssContent` (textarea, fallback), `blockName` (string, default: "Conteúdo Importado") |
+| **Comportamento** | Se `customBlockId` fornecido: busca da tabela `custom_blocks`. Se não: usa htmlContent/cssContent diretos. Cache de 5min via react-query |
+
+#### 3.20 Feed Social (`SocialFeed`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Grid de posts de redes sociais (Instagram/Facebook/Twitter) |
+| **Descrição** | Feed com grid/carrossel/masonry, perfil, botão seguir e stats |
+| **Props** | `title` (string), `subtitle` (string), `platform` (select: instagram/facebook/twitter), `posts` (array), `layout` (select: grid/carousel/masonry), `columns` (select: 2/3/4/6), `showCaption` (boolean), `showStats` (boolean), `maxPosts` (number: 2-12), `showProfile` (boolean), `profileUsername` (string), `profileUrl` (string), `followButtonText` (string), `gap` (select: sm/md/lg), `rounded` (boolean), `hoverEffect` (boolean), `backgroundColor` (color) |
+
+#### 3.21 Produtos Personalizados (`PersonalizedProducts`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Recomendações de produtos baseadas em preferências do usuário |
+| **Descrição** | Grid ou carrossel de produtos recomendados com IA |
+| **Props** | `title` (string), `subtitle` (string), `layout` (select: grid/carousel), `columns` (select: 2/3/4) |
+
+#### 3.22 Comprando Agora (`LivePurchases`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Social proof de compras recentes em tempo real |
+| **Descrição** | Exibe compras recentes em 3 formatos: cards, ticker ou popup |
+| **Props** | `title` (string), `layout` (select: cards/ticker/popup), `showStats` (boolean) |
+
+#### 3.23 Tabela de Preços (`PricingTable`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Comparação de planos/preços |
+| **Descrição** | Tabela de preços com toggle mensal/anual e desconto configurável |
+| **Props** | `title` (string), `subtitle` (string), `layout` (select: cards/table), `showAnnualToggle` (boolean), `annualDiscount` (number: 0-50%) |
+
+#### 3.24 Popup/Modal (`PopupModal`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Popup/modal para promoções, newsletter ou anúncios |
+| **Descrição** | Modal com 3 tipos (newsletter/promotion/announcement) e 3 layouts (centered/side-image/corner) |
+| **Props** | `title` (string), `subtitle` (string), `type` (select: newsletter/promotion/announcement), `layout` (select: centered/side-image/corner), `showEmailInput` (boolean), `buttonText` (string), `discountCode` (string) |
+
+#### 3.25 Listagem do Blog (`BlogListing`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Conteúdo |
+| **Status** | 🟡 Sistema |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Página de listagem de posts do blog |
+| **Descrição** | Grid de posts com configurações via Tema > Páginas > Blog |
+| **Props** | Nenhuma (propsSchema vazio) — config via pageSettings.blog |
+| **Condições** | `isRemovable: false` |
+| **Compilador** | Standalone em `storefront-html` |
+
+---
+
+### 4. Blocos de Mídia
+
+#### 4.1 Banner (`Banner`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Mídia |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Banner principal ou carrossel de banners. **Substitui o antigo HeroBanner** |
+| **Descrição** | 2 modos: single (banner único) e carousel (múltiplos slides). Overlay de texto e CTA opcionais |
+| **Props (Single)** | `imageDesktop` (image), `imageMobile` (image), `linkUrl` (string), `title` (string), `subtitle` (string), `buttonText` (string), `buttonUrl` (string) |
+| **Props (Carousel)** | `slides` (array: {imageDesktop, imageMobile, linkUrl, altText}), `autoplaySeconds` (number: 0-30), `showArrows` (boolean), `showDots` (boolean) |
+| **Props (Style)** | `height` (select: auto/sm/md/lg/full), `bannerWidth` (select: full/contained), `alignment` (select: left/center/right), `backgroundColor` (color), `textColor` (color), `overlayOpacity` (number: 0-100), `buttonColor` (color), `buttonTextColor` (color), `buttonHoverBgColor` (color), `buttonHoverTextColor` (color) |
+| **Compilador** | `banner.ts` (Base) |
+
+#### 4.2 Imagem (`Image`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Mídia |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Imagem responsiva com opções avançadas de enquadramento |
+| **Descrição** | Imagem com versões desktop/mobile, aspect ratio, bordas, sombra e link opcional |
+| **Props** | `imageDesktop` (image), `imageMobile` (image), `alt` (string), `linkUrl` (string), `width` (select: 25/50/75/full %), `height` (select: auto/200-500px/50-75vh), `aspectRatio` (select: auto/1:1/4:3/16:9/21:9), `objectFit` (select: cover/contain/fill/none), `objectPosition` (select: center/top/bottom/left/right), `rounded` (select: none/sm/md/lg/full), `shadow` (select: none/sm/md/lg) |
+| **Compilador** | `image.ts` (Base) |
+
+#### 4.3 Vídeo YouTube (`YouTubeVideo`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Mídia |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Embed de vídeo do YouTube responsivo |
+| **Descrição** | Iframe do YouTube com largura e aspect ratio configuráveis |
+| **Props** | `title` (string, opcional), `youtubeUrl` (string), `widthPreset` (select: sm/md/lg/xl/full), `aspectRatio` (select: 16:9/4:3/1:1) |
+| **Compilador** | `youtube-video.ts` (Fase 3) |
+
+#### 4.4 Carrossel de Vídeos (`VideoCarousel`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Mídia |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Carrossel de múltiplos vídeos (YouTube ou upload) |
+| **Descrição** | Primeiro vídeo embed + thumbnails. Suporta YouTube URLs e vídeos uploadados |
+| **Props** | `title` (string), `videos` (array), `videosJson` (textarea, alternativo), `showControls` (boolean), `aspectRatio` (select: 16:9/4:3/1:1/9:16), `autoplay` (boolean) |
+| **Compilador** | `video-carousel.ts` (Fase 3) — hidratação via `data-sf-video-carousel` |
+| **⚠️ Nota** | Bloco aparece **duplicado** no registry (linhas 2036 e 2678). A segunda definição sobrescreve a primeira |
+
+#### 4.5 Vídeo Upload (`VideoUpload`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Mídia |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Vídeo nativo com fontes desktop/mobile |
+| **Descrição** | Tag `<video>` nativa com controles, autoplay, loop, mudo e aspect ratio customizável |
+| **Props** | `videoDesktop` (video), `videoMobile` (video), `aspectRatio` (select: auto/16:9/9:16/4:3/1:1/4:5/21:9/custom), `aspectRatioCustom` (string), `objectFit` (select: contain/cover/fill), `controls` (boolean), `autoplay` (boolean), `loop` (boolean), `muted` (boolean) |
+| **Compilador** | `video-upload.ts` (Fase 3) — fontes mobile via media query |
+
+#### 4.6 Galeria de Imagens (`ImageGallery`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Mídia |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Grid de imagens com lightbox opcional |
+| **Descrição** | Galeria responsiva (2→3→4 colunas) com hover effects e lightbox |
+| **Props** | `title` (string), `subtitle` (string), `images` (array), `columns` (select: 2/3/4), `gap` (select: sm/md/lg), `enableLightbox` (boolean), `aspectRatio` (select: square/4:3/16:9/auto), `borderRadius` (number: px), `backgroundColor` (color) |
+| **Compilador** | `image-gallery.ts` (Fase 3) |
+
+#### 4.7 Carrossel de Imagens (`ImageCarousel`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de Mídia |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Carrossel de imagens com múltiplas configurações |
+| **Descrição** | Carrossel com autoplay, setas, dots, lightbox, slides por visualização e aspect ratio configuráveis |
+| **Props** | `title` (string), `images` (array), `autoplay` (boolean), `autoplayInterval` (number: 1-30s), `showArrows` (boolean), `showDots` (boolean), `enableLightbox` (boolean), `aspectRatio` (select: 16:9/4:3/1:1/21:9/auto), `slidesPerView` (select: 1/2/3/4), `gap` (select: sm/md/lg) |
+| **Compilador** | `image-carousel.ts` (Base) |
+
+---
+
+### 5. Blocos de E-commerce
+
+#### 5.1 Lista de Categorias (`CategoryList`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de E-commerce |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Grid/lista/carrossel de categorias da loja |
+| **Descrição** | Exibe categorias com 3 modos de fonte (auto/parent/custom) e imagens configuráveis |
+| **Props** | `title` (string), `source` (select: auto/parent/custom), `items` (categoryMultiSelect, max 12, recomendado: 800×800px), `layout` (select: grid/list/carousel), `columnsDesktop` (select: 2-6), `columnsMobile` (select: 1-2), `showImage` (boolean), `showDescription` (boolean) |
+| **Compilador** | `category-list.ts` (Fase 5) |
+
+#### 5.2 Vitrine de Produtos (`ProductGrid`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de E-commerce |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Grid principal de produtos (destaques, mais vendidos, novidades, por categoria) |
+| **Descrição** | Grid responsivo com colunas configuráveis e 4 fontes de dados |
+| **Props** | `title` (string), `source` (select: featured/bestsellers/newest/category), `categoryId` (category), `columnsDesktop` (select: 2-6), `columnsMobile` (select: 1-2), `limit` (number: 1-24), `showPrice` (boolean) |
+| **Compilador** | `product-grid.ts` (Fase 5) — usa `renderProductCard` compartilhado |
+
+#### 5.3 Listagem de Categoria (`CategoryPageLayout`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de E-commerce |
+| **Status** | 🟡 Sistema |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Página de categoria com filtros e paginação |
+| **Descrição** | Layout completo de listagem de produtos por categoria. Config via Tema > Páginas > Categoria |
+| **Props** | Nenhuma (propsSchema vazio) — configurações via CategorySettingsPanel |
+| **Condições** | `isRemovable: false` |
+| **Compilador** | `category-page-layout.ts` (Base) |
+
+#### 5.4 Carrossel de Produtos (`ProductCarousel`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de E-commerce |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Scroll horizontal de produtos com setas |
+| **Descrição** | Carrossel com snap scroll, 4 fontes de dados e CTA por card |
+| **Props** | `title` (string), `source` (select: featured/newest/all/category), `categoryId` (category), `limit` (number: 4-20), `showPrice` (boolean), `showButton` (boolean), `buttonText` (string) |
+| **Compilador** | `product-carousel.ts` (Fase 5) — setas desktop, cards via `renderProductCard` |
+
+#### 5.5 Produtos Selecionados (`FeaturedProducts`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de E-commerce |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Grid de produtos selecionados manualmente |
+| **Descrição** | Seleção manual de produtos via multi-select com colunas e CTA configuráveis |
+| **Props** | `title` (string), `productIds` (productMultiSelect), `limit` (number: 1-12), `columnsDesktop` (select: 2-6), `columnsMobile` (select: 1-2), `showPrice` (boolean), `showButton` (boolean), `buttonText` (string) |
+| **Compilador** | `featured-products.ts` (Base) |
+
+#### 5.6 Card de Produto (`ProductCard`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de E-commerce |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Card individual de um produto específico |
+| **Descrição** | Card de produto único selecionado via product picker |
+| **Props** | `productId` (product), `showPrice` (boolean), `showButton` (boolean) |
+
+#### 5.7 Detalhes do Produto (`ProductDetails`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de E-commerce |
+| **Status** | 🟡 Sistema |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Página de produto (PDP) — galeria, preço, variantes, CTAs |
+| **Descrição** | Bloco principal da PDP. Config via Tema > Páginas > Produto |
+| **Props** | Nenhuma (propsSchema vazio) — configurações via ProductSettingsPanel |
+| **Condições** | `isRemovable: false` |
+| **Compilador** | `product-details.ts` (Base) |
+
+#### 5.8 Resumo do Carrinho (`CartSummary`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de E-commerce |
+| **Status** | 🟡 Sistema |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Resumo do carrinho (totais, frete, cupom) |
+| **Descrição** | Widget de resumo usado dentro do carrinho/checkout |
+| **Props** | Nenhuma (propsSchema vazio) — config via Tema > Páginas > Carrinho |
+| **Condições** | `isRemovable: false` |
+
+#### 5.9 Etapas do Checkout (`CheckoutSteps`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de E-commerce |
+| **Status** | 🟡 Sistema |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Timeline de progresso do checkout (Contato > Entrega > Pagamento) |
+| **Descrição** | Indicador visual de progresso do checkout |
+| **Props** | Nenhuma (propsSchema vazio) — config via Tema > Páginas > Checkout |
+| **Condições** | `isRemovable: false` |
+
+#### 5.10 Categoria/Coleção (`CollectionSection`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de E-commerce |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Seção com título + "Ver todos" + grid/carrossel de produtos de uma categoria |
+| **Descrição** | Similar ao ProductGrid mas com link "Ver todos" para a categoria |
+| **Props** | `title` (string), `categoryId` (category), `displayStyle` (select: grid/carousel), `limit` (number: 4-24), `columns` (select: 3/4/5), `mobileColumns` (select: 1/2), `showViewAll` (boolean), `viewAllText` (string), `showPrice` (boolean), `showButton` (boolean) |
+| **Compilador** | `collection-section.ts` (Fase 5) |
+
+#### 5.11 Banner da Categoria (`CategoryBanner`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de E-commerce |
+| **Status** | 🟡 Sistema |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Banner de imagem no topo da página de categoria |
+| **Descrição** | Banner configurado SOMENTE no menu Categorias (admin), sem painel de edição no builder |
+| **Props** | Nenhuma (propsSchema vazio) |
+| **Compilador** | `category-banner.ts` (Base) |
+
+#### 5.12 Banner + Produtos (`BannerProducts`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de E-commerce |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Seção com banner de promoção + grid de produtos lado a lado |
+| **Descrição** | Banner imagem com grid de produtos, fonte manual (IDs) ou por categoria |
+| **Props** | `title` (string), `description` (string), `imageDesktop` (image, recomendado: 600×400px), `imageMobile` (image, recomendado: 400×500px), `source` (select: manual/category), `productIds` (productMultiSelect), `categoryId` (category), `limit` (number: 2-8), `showCta` (boolean), `ctaText` (string), `ctaUrl` (string) |
+| **Compilador** | `banner-products.ts` (Fase 5) |
+
+#### 5.13 Categorias em Destaque (`FeaturedCategories`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de E-commerce |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Categorias em formato circular (estilo Instagram) |
+| **Descrição** | Círculos de categorias selecionadas com nome opcional e estilo mobile grid/carrossel |
+| **Props** | `title` (string), `items` (categoryMultiSelect, max 12, recomendado: 200×200px circular), `showName` (boolean), `mobileStyle` (select: grid/carousel) |
+| **Compilador** | `featured-categories.ts` (Base) |
+
+#### 5.14 Carrinho (`Cart`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de E-commerce |
+| **Status** | 🟡 Sistema |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Página completa do carrinho de compras |
+| **Descrição** | Bloco essencial do carrinho. Config via Tema > Páginas > Carrinho |
+| **Props** | Nenhuma (propsSchema vazio) |
+| **Condições** | `isRemovable: false` |
+
+#### 5.15 Checkout (`Checkout`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de E-commerce |
+| **Status** | 🟡 Sistema |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Página completa do checkout |
+| **Descrição** | Bloco essencial do checkout. Config via Tema > Páginas > Checkout |
+| **Props** | Nenhuma (propsSchema vazio) |
+| **Condições** | `isRemovable: false` |
+
+#### 5.16 Confirmação de Pedido (`ThankYou`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de E-commerce |
+| **Status** | 🟡 Sistema |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Página de agradecimento pós-compra |
+| **Descrição** | Confirmação do pedido com upsell, WhatsApp e compartilhamento social |
+| **Props** | Nenhuma (propsSchema vazio) — config via Tema > Páginas > Obrigado |
+| **Condições** | `isRemovable: false` |
+
+#### 5.17 Hub da Conta (`AccountHub`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de E-commerce |
+| **Status** | 🟡 Sistema |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Página principal da área do cliente |
+| **Descrição** | Hub com acesso a pedidos, dados pessoais e outras funcionalidades da conta |
+| **Props** | Nenhuma (propsSchema vazio) |
+| **Condições** | `isRemovable: false` |
+
+#### 5.18 Lista de Pedidos (`OrdersList`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de E-commerce |
+| **Status** | 🟡 Sistema |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Listagem de pedidos do cliente |
+| **Descrição** | Lista de pedidos com status, datas e links para detalhes |
+| **Props** | Nenhuma (propsSchema vazio) |
+| **Condições** | `isRemovable: false` |
+
+#### 5.19 Detalhe do Pedido (`OrderDetail`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de E-commerce |
+| **Status** | 🟡 Sistema |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Página de detalhes de um pedido específico |
+| **Descrição** | Detalhes completos do pedido: itens, valores, endereço, rastreio |
+| **Props** | Nenhuma (propsSchema vazio) |
+| **Condições** | `isRemovable: false` |
+
+#### 5.20 Rastrear Pedido (`TrackingLookup`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de E-commerce |
+| **Status** | 🟡 Sistema |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Página de rastreamento de pedido |
+| **Descrição** | Busca e exibe status de rastreamento. Config via Tema > Páginas > Rastreio |
+| **Props** | Nenhuma (propsSchema vazio) |
+| **Condições** | `isRemovable: false` |
+
+#### 5.21 Compre Junto (`CompreJuntoSlot`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de E-commerce (Slot de Oferta) |
+| **Status** | 🟡 Sistema |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Seção "Compre Junto" na página de produto |
+| **Descrição** | Slot que renderiza ofertas de "Compre Junto" configuradas no submódulo "Aumentar Ticket" |
+| **Props** | Nenhuma (propsSchema vazio) — config via Tema > Páginas > Produto |
+
+#### 5.22 Sugestões no Carrinho (`CrossSellSlot`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de E-commerce (Slot de Oferta) |
+| **Status** | 🟡 Sistema |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Sugestões de produtos no carrinho |
+| **Descrição** | Slot que renderiza cross-sell configurado no submódulo "Aumentar Ticket > Cross-sell" |
+| **Props** | Nenhuma (propsSchema vazio) — config via Tema > Páginas > Carrinho |
+
+#### 5.23 Oferta Pós-Compra (`UpsellSlot`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente de E-commerce (Slot de Oferta) |
+| **Status** | 🟡 Sistema |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Oferta pós-compra na página de obrigado |
+| **Descrição** | Slot que renderiza ofertas de upsell pós-compra |
+| **Props** | Nenhuma (propsSchema vazio) — config via Tema > Páginas > Obrigado |
+
+---
+
+### 6. Blocos Utilitários
+
+#### 6.1 Formulário Newsletter (`NewsletterForm`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente Utilitário |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Formulário de inscrição em newsletter integrado com listas de email marketing |
+| **Descrição** | Formulário com campos configuráveis (nome, telefone, data nascimento), integrado com módulo Email Marketing |
+| **Props** | `listId` (emailList, **obrigatório**), `title` (string), `subtitle` (string), `showName` (boolean), `showPhone` (boolean), `showBirthDate` (boolean), `buttonText` (string), `successMessage` (string), `layout` (select: vertical/horizontal), `alignment` (select: left/center/right), `backgroundColor` (color), `textColor` (color), `buttonColor` (color), `buttonTextColor` (color), `borderRadius` (number: 0-32px), `inputStyle` (select: outline/filled/underline) |
+| **Compilador** | `newsletter.ts` (Fase 2) |
+
+#### 6.2 Popup Newsletter (`NewsletterPopup`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente Utilitário |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Popup de newsletter com gatilhos configuráveis |
+| **Descrição** | Popup com 3 triggers (delay/scroll/exit_intent), controle de frequência e páginas de exibição |
+| **Props** | `listId` (string, **obrigatório**), `title` (string), `subtitle` (string), `showName/Phone/BirthDate` (boolean), `buttonText` (string), `successMessage` (string), `triggerType` (select: delay/scroll/exit_intent), `delaySeconds` (number: 1-120), `scrollPercentage` (number: 10-100), `showOnPages` (select: all/specific/current), `showOnMobile` (boolean), `frequency` (select: once/daily/always), `overlayColor` (color), `popupBgColor/TextColor` (color), `buttonColor/TextColor` (color), `borderRadius` (number: 0-48px), `showCloseButton` (boolean) |
+
+#### 6.3 Quiz Interativo (`QuizEmbed`)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente Utilitário |
+| **Status** | 🟢 Ativo |
+| **Localização** | `src/lib/builder/registry.ts` |
+| **Contexto** | Embed de quiz interativo do módulo Marketing |
+| **Descrição** | Renderiza um quiz criado no módulo Marketing > Quiz com 3 estilos visuais |
+| **Props** | `quizId` (string, **obrigatório**), `showTitle` (boolean), `showDescription` (boolean), `style` (select: card/inline/fullwidth) |
+
+---
+
+### 7. Blocos Demo
+
+#### 7.1 CartDemoBlock
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente Demo |
+| **Status** | 🔵 Demo |
+| **Localização** | `src/components/builder/blocks/` (verificar existência) |
+| **Contexto** | Preview do carrinho no builder quando não há itens reais |
+| **Descrição** | Exibe um carrinho de demonstração com produtos fictícios para visualização no editor |
+| **Comportamento** | Renderiza apenas no builder (`isEditing=true`). No público: não renderiza |
+
+#### 7.2 CheckoutDemoBlock
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente Demo |
+| **Status** | 🔵 Demo |
+| **Localização** | `src/components/builder/blocks/` (verificar existência) |
+| **Contexto** | Preview do checkout no builder quando não há sessão de checkout real |
+| **Descrição** | Exibe um checkout de demonstração com dados fictícios para visualização no editor |
+| **Comportamento** | Renderiza apenas no builder (`isEditing=true`). No público: não renderiza |
+
+---
+
+### 8. Componentes Legados / Fora do Registry
+
+#### 8.1 HeroBannerBlock [REMOVIDO — substituído por Banner]
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente Legado |
+| **Status** | 🔴 Legado |
+| **Localização** | `src/components/builder/blocks/HeroBannerBlock.tsx` (arquivo ainda existe) |
+| **Contexto** | Antigo bloco de banner principal — **substituído pelo bloco Banner (4.1)** |
+| **Descrição** | Carrossel de banners com imagens desktop/mobile. Funcionalidade migrada para o bloco unificado "Banner" com modo carousel |
+| **Nota** | O arquivo `.tsx` ainda existe no projeto mas o type `HeroBanner` foi removido do registry (comentário na linha 1762). O compilador `hero-banner.ts` ainda existe para compatibilidade com templates antigos |
+
+#### 8.2 EmbedSocialPostBlock [SEM REGISTRY]
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente Sem Registry |
+| **Status** | 🔴 Legado |
+| **Localização** | `src/components/builder/blocks/interactive/EmbedSocialPostBlock.tsx` |
+| **Contexto** | Embed de posts do Facebook/Instagram/Threads via oEmbed |
+| **Descrição** | Usa edge function `meta-oembed` para buscar HTML de embed. Processa scripts do Instagram/Facebook após injeção |
+| **Nota** | Componente existe mas **NÃO tem entrada no registry**. Não pode ser adicionado pelo usuário via builder. Possível componente descontinuado ou uso interno |
+
+#### 8.3 TextBlock [COMPONENTE AUXILIAR]
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente Auxiliar |
+| **Status** | 🔴 Legado |
+| **Localização** | `src/components/builder/blocks/content/TextBlock.tsx` |
+| **Contexto** | Bloco de texto simples com sanitização — substituído por RichText |
+| **Descrição** | Renderiza HTML sanitizado com alinhamento, fonte e cor. Sem edição inline. O type `Text` no registry original foi substituído por `RichText` |
+
+#### 8.4 ColumnBlock [COMPONENTE AUXILIAR]
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente Auxiliar |
+| **Status** | 🟢 Ativo (auxiliar) |
+| **Localização** | `src/components/builder/blocks/layout/ColumnBlock.tsx` |
+| **Contexto** | Componente filho do bloco Colunas — representa uma coluna individual |
+| **Descrição** | Wrapper com `gridColumn: span N` para posicionar conteúdo dentro do grid de colunas |
+
+---
+
+### ⚠️ Problemas Identificados na Auditoria
+
+| # | Problema | Localização | Ação Recomendada |
+|---|----------|-------------|------------------|
+| 1 | `VideoCarousel` duplicado no registry | `registry.ts` linhas ~2036 e ~2678 | Remover a definição duplicada (manter apenas uma) |
+| 2 | `HeroBannerBlock.tsx` ainda existe como arquivo | `src/components/builder/blocks/HeroBannerBlock.tsx` | Avaliar remoção do arquivo ou manter para compatibilidade |
+| 3 | `EmbedSocialPostBlock` sem entry no registry | `src/components/builder/blocks/interactive/` | Decidir: adicionar ao registry ou marcar como descontinuado |
+| 4 | `TextBlock.tsx` existe como componente auxiliar | `src/components/builder/blocks/content/TextBlock.tsx` | Verificar se ainda é usado em algum lugar ou pode ser removido |
