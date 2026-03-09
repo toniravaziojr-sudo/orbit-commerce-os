@@ -196,7 +196,16 @@ A ordem dos botões nos cards de produto é fixa e obrigatória:
 - [ ] **Hover effects**: React tem estados hover nos botões — compilador não tem
 - [ ] `category-page.ts` é dead code — pode ser removido
 
-## Filtros, Ordenação e Paginação (v8.1.2)
+## Filtros, Ordenação e Paginação (v8.4.2)
+
+### Layout Responsivo dos Filtros (Compilador)
+
+| Viewport | Layout | Descrição |
+|----------|--------|-----------|
+| Desktop | Horizontal row | Filtros e ordenação lado a lado, labels normais (13px), inputs 70px |
+| Mobile (< 640px) | Compact stacked | Filtros + ordenação empilham verticalmente. Labels 12px, inputs 56px, padding reduzido. Ordenação ocupa largura total. Uso de classes CSS `.sf-filter-bar`, `.sf-filter-label`, `.sf-filter-price-group` em vez de inline styles para permitir media queries. |
+
+> **REGRA ANTI-REGRESSÃO:** Filtros no compilador NÃO devem usar inline styles com `flex-direction:column` direto — devem usar classes CSS com `@media(max-width:639px)` para responsividade. Inline styles impedem override por media queries.
 
 ### Filtros Client-Side
 | Filtro | Tipo | Descrição |
