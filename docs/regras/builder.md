@@ -3090,39 +3090,41 @@ Para adicionar novos presets no futuro:
 
 ---
 
-### 8. Componentes Legados / Fora do Registry
+### 8. Componentes Legados / Compatibilidade
 
-#### 8.1 HeroBannerBlock [REMOVIDO — substituído por Banner]
+#### 8.1 HeroBannerBlock [LEGADO — renderização apenas]
 
 | Campo | Valor |
 |-------|-------|
 | **Tipo** | Componente Legado |
-| **Status** | 🔴 Legado |
-| **Localização** | `src/components/builder/blocks/HeroBannerBlock.tsx` (arquivo ainda existe) |
+| **Status** | 🔴 Legado (mantido para compatibilidade) |
+| **Localização** | `src/components/builder/blocks/HeroBannerBlock.tsx` |
 | **Contexto** | Antigo bloco de banner principal — **substituído pelo bloco Banner (4.1)** |
 | **Descrição** | Carrossel de banners com imagens desktop/mobile. Funcionalidade migrada para o bloco unificado "Banner" com modo carousel |
-| **Nota** | O arquivo `.tsx` ainda existe no projeto mas o type `HeroBanner` foi removido do registry (comentário na linha 1762). O compilador `hero-banner.ts` ainda existe para compatibilidade com templates antigos |
+| **Nota** | O arquivo `.tsx` ainda existe e é importado em `BlockRenderer.tsx` como `HeroBanner: HeroBannerBlockWrapper`. Templates antigos que usam `type: 'HeroBanner'` ainda renderizam através deste componente. O compilador `hero-banner.ts` também é mantido. **NÃO está no registry** — não aparece no picker de blocos |
 
-#### 8.2 EmbedSocialPostBlock [SEM REGISTRY]
+#### 8.2 EmbedSocialPostBlock [ATIVO ✅ — adicionado ao registry]
 
 | Campo | Valor |
 |-------|-------|
-| **Tipo** | Componente Sem Registry |
-| **Status** | 🔴 Legado |
+| **Tipo** | Componente Ativo |
+| **Status** | 🟢 Ativo |
 | **Localização** | `src/components/builder/blocks/interactive/EmbedSocialPostBlock.tsx` |
 | **Contexto** | Embed de posts do Facebook/Instagram/Threads via oEmbed |
 | **Descrição** | Usa edge function `meta-oembed` para buscar HTML de embed. Processa scripts do Instagram/Facebook após injeção |
-| **Nota** | Componente existe mas **NÃO tem entrada no registry**. Não pode ser adicionado pelo usuário via builder. Possível componente descontinuado ou uso interno |
+| **Registry** | `type: 'EmbedSocialPost'`, `label: 'Embed de Post Social'`, `category: 'utilities'` |
+| **Props** | `url` (string, required), `maxWidth` (number, 300-800, default 550) |
+| **Nota** | **Corrigido na auditoria** — adicionado entry no registry para que apareça no picker de blocos |
 
-#### 8.3 TextBlock [COMPONENTE AUXILIAR]
+#### 8.3 TextBlock [LEGADO — renderização apenas]
 
 | Campo | Valor |
 |-------|-------|
-| **Tipo** | Componente Auxiliar |
-| **Status** | 🔴 Legado |
+| **Tipo** | Componente Legado |
+| **Status** | 🔴 Legado (mantido para compatibilidade) |
 | **Localização** | `src/components/builder/blocks/content/TextBlock.tsx` |
-| **Contexto** | Bloco de texto simples com sanitização — substituído por RichText |
-| **Descrição** | Renderiza HTML sanitizado com alinhamento, fonte e cor. Sem edição inline. O type `Text` no registry original foi substituído por `RichText` |
+| **Contexto** | Bloco de texto simples com sanitização — **substituído por RichText** |
+| **Descrição** | Renderiza HTML sanitizado com alinhamento, fonte e cor. Sem edição inline. Mapeado como `Text: TextBlock` em `BlockRenderer.tsx`. Templates antigos com `type: 'Text'` renderizam via este componente. O compilador `text.ts` também é mantido. **NÃO está no registry** — não aparece no picker |
 
 #### 8.4 ColumnBlock [COMPONENTE AUXILIAR]
 
@@ -3136,11 +3138,11 @@ Para adicionar novos presets no futuro:
 
 ---
 
-### ⚠️ Problemas Identificados na Auditoria
+### ✅ Problemas da Auditoria — Resolvidos
 
-| # | Problema | Localização | Ação Recomendada |
-|---|----------|-------------|------------------|
-| 1 | `VideoCarousel` duplicado no registry | `registry.ts` linhas ~2036 e ~2678 | Remover a definição duplicada (manter apenas uma) |
-| 2 | `HeroBannerBlock.tsx` ainda existe como arquivo | `src/components/builder/blocks/HeroBannerBlock.tsx` | Avaliar remoção do arquivo ou manter para compatibilidade |
-| 3 | `EmbedSocialPostBlock` sem entry no registry | `src/components/builder/blocks/interactive/` | Decidir: adicionar ao registry ou marcar como descontinuado |
-| 4 | `TextBlock.tsx` existe como componente auxiliar | `src/components/builder/blocks/content/TextBlock.tsx` | Verificar se ainda é usado em algum lugar ou pode ser removido |
+| # | Problema | Resolução |
+|---|----------|-----------|
+| 1 | `VideoCarousel` duplicado no registry | ✅ Removida a segunda definição (linha ~2678). Mantida apenas a primeira (com `videosJson`) |
+| 2 | `HeroBannerBlock.tsx` arquivo legado | ✅ Mantido para compatibilidade — templates antigos com `type: 'HeroBanner'` ainda renderizam. Documentado como legado |
+| 3 | `EmbedSocialPostBlock` sem entry no registry | ✅ Adicionado ao registry como `type: 'EmbedSocialPost'` em `category: 'utilities'` |
+| 4 | `TextBlock.tsx` sem entry no registry | ✅ Mantido para compatibilidade — templates antigos com `type: 'Text'` ainda renderizam. Documentado como legado |
