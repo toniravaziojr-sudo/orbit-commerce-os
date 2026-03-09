@@ -2,27 +2,38 @@
 
 ---
 
-## 🐛 BUG ENCONTRADO: Botão "Adicionar ao Carrinho" não funciona
+## 🐛 BUGS CRÍTICOS IDENTIFICADOS
 
-### Diagnóstico
-Os botões de "Adicionar ao carrinho" nos cards de produto (FeaturedProducts, CategoryPageLayout) estão **dentro de tags `<a>`** que envolvem o card inteiro. Quando o usuário clica no botão, o clique propaga para a tag `<a>` e **navega para a página do produto** antes que o JS de hidratação processe a ação.
+### BUG 1: Botão "Adicionar ao Carrinho" não funciona (CORRIGIDO ✅)
+**Diagnóstico**: Botões dentro de `<a>` propagam clique e navegam ao invés de executar ação.  
+**Correção**: Adicionado `onclick="event.stopPropagation()"` em featured-products.ts e category-page-layout.ts.
 
-### Causa Raiz
-Falta `onclick="event.stopPropagation()"` nos botões para impedir que o clique suba para o link pai.
+### BUG 2: Banner de categoria não renderiza
+**Diagnóstico**: Se o tenant publicou template customizado de categoria SEM incluir o bloco `CategoryBanner`, o banner não aparece. O fallback default inclui, mas o customizado não.  
+**Localização**: Builder não insere `CategoryBanner` automaticamente no template `published_content.category`.  
+**Correção Necessária**:
+- Opção A: Injetar `CategoryBanner` automaticamente ANTES do conteúdo customizado (se `currentCategory` tiver banner)
+- Opção B: Documentar que lojista precisa incluir bloco CategoryBanner manualmente
+- **RECOMENDADO**: Opção A - injetar no storefront-html quando `category.banner_desktop_url` existir
 
-### Arquivos Afetados
-- `supabase/functions/_shared/block-compiler/blocks/featured-products.ts` (linhas 83-91)
-- `supabase/functions/_shared/block-compiler/blocks/category-page-layout.ts` (linhas 122-125)
-- `supabase/functions/_shared/block-compiler/blocks/product-details.ts` (seção Buy Together, linhas 291)
+### BUG 3: Galeria de imagens do produto estática (sem slider/navegação)
+**Diagnóstico**: O HTML da galeria está correto com dots e slides, mas o JS de hidratação para mobile swipe/dots **não está funcionando corretamente no domínio público**.  
+**Verificação Necessária**:
+1. Verificar se o script `sf-gallery-track` com scroll-snap está sendo injetado
+2. Verificar se os event listeners para dots e swipe estão funcionando
+3. Verificar se há conflito de CSS/JS entre builder e edge
 
-### Correção Necessária
-```html
-<!-- ANTES (quebrado) -->
-<button data-sf-action="add-to-cart" ...>Adicionar</button>
+### BUG 4: Produtos relacionados não herdam categorySettings
+**Diagnóstico**: Em `product-details.ts`, linhas 378-416, os cards de produtos relacionados são renderizados com estilos hardcoded, NÃO respeitando:
+- `showRatings` do categorySettings
+- `showBadges` do categorySettings  
+- `showAddToCartButton` do categorySettings
+- `quickBuyEnabled` do categorySettings
+**Correção**: Refatorar seção de produtos relacionados para usar mesma lógica de cards do `category-page-layout.ts`
 
-<!-- DEPOIS (correto) -->
-<button onclick="event.stopPropagation()" data-sf-action="add-to-cart" ...>Adicionar</button>
-```
+### BUG 5: Botões de CTA na página de produto podem não funcionar
+**Diagnóstico**: Botões `data-sf-action="add-to-cart"` e `data-sf-action="buy-now"` dependem do script de hidratação.  
+**Verificação**: Confirmar que o JS está sendo executado e processando esses data attributes.
 
 ---
 
@@ -164,49 +175,52 @@ O sistema **sobrescreve** `--primary` e `--primary-foreground` do Tailwind dentr
 **Marketing (5)**: CountdownTimer, LogosCarousel, StatsNumbers, Accordion, HTMLSection, ContentColumns, FeatureList, StepsTimeline, ImageGallery
 
 ### ✅ SPA-only (não precisa edge)
-Carrinho, Checkout, Obrigado, Minha Conta → interatividade complexa
+Carrinho (+ CrossSell), Checkout (+ Order Bump), Obrigado (+ Upsell), Minha Conta → interatividade complexa
 
 ---
 
 ## 🚀 PLANO DE EXECUÇÃO
 
-### Fase 0: Bug Crítico (URGENTE)
-1. **Corrigir botões add-to-cart** — adicionar `onclick="event.stopPropagation()"`
+### Fase 0: Bugs Críticos (URGENTE) ⚡
+1. ✅ **Corrigir botões add-to-cart** — stopPropagation (FEITO)
+2. 🔴 **Corrigir banner de categoria** — injetar automaticamente se existir banner_desktop_url
+3. 🔴 **Corrigir galeria de imagens** — verificar/consertar JS de hidratação (swipe, dots)
+4. 🔴 **Produtos relacionados herdar categorySettings** — refatorar cards para usar mesma lógica
 
 ### Fase 1: Blocos de Layout
-2. Container
-3. Columns + Column
-4. Grid
+5. Container
+6. Columns + Column
+7. Grid
 
 ### Fase 2: Blocos Interativos de Alta Conversão
-5. Newsletter
-6. FAQ
-7. Testimonials
-8. Accordion
+8. Newsletter
+9. FAQ
+10. Testimonials
+11. Accordion
 
 ### Fase 3: Blocos de Mídia
-9. YouTubeVideo
-10. VideoCarousel
-11. HTMLSection
-12. ImageGallery
+12. YouTubeVideo
+13. VideoCarousel
+14. HTMLSection
+15. ImageGallery
 
 ### Fase 4: Blocos de Marketing
-13. CountdownTimer, LogosCarousel, StatsNumbers
-14. ContentColumns, FeatureList, StepsTimeline, TextBanners
+16. CountdownTimer, LogosCarousel, StatsNumbers
+17. ContentColumns, FeatureList, StepsTimeline, TextBanners
 
 ### Fase 5: Blocos E-commerce Avançados
-15. ProductGrid, ProductCarousel, CategoryList, CollectionSection, BannerProducts
+18. ProductGrid, ProductCarousel, CategoryList, CollectionSection, BannerProducts
 
 ### Fase 6: Verificações Globais
-16. Pixels de marketing no `<head>`
-17. Newsletter Popup injection
-18. Consent Banner injection
+19. Pixels de marketing no `<head>`
+20. Newsletter Popup injection
+21. Consent Banner injection
 
 ### Fase 7: Auditoria Visual + Centralização
-19. Comparar loja respeiteohomem builder vs público
-20. Corrigir divergências visuais
-21. **Centralizar sistema de cores** (design tokens únicos)
-22. **Centralizar lógica de frete grátis** (único ponto de verdade)
+22. Comparar loja respeiteohomem builder vs público
+23. Corrigir divergências visuais
+24. **Centralizar sistema de cores** (design tokens únicos)
+25. **Centralizar lógica de frete grátis** (único ponto de verdade)
 
 ---
 
