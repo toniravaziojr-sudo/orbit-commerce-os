@@ -4,7 +4,7 @@
 // =============================================
 
 import type { BlockCompilerFn, CompilerContext } from '../types.ts';
-import { escapeHtml, optimizeImageUrl } from '../utils.ts';
+import { escapeHtml } from '../utils.ts';
 
 export const categoryBannerToStaticHTML: BlockCompilerFn = (
   props: Record<string, unknown>,
