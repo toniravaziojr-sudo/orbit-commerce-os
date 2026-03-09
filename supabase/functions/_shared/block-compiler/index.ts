@@ -120,6 +120,15 @@ const COMPILER_REGISTRY: Record<string, BlockCompilerFn> = {
   'VideoCarousel': videoCarouselToStaticHTML,
   'HTMLSection': htmlSectionToStaticHTML,
   'ImageGallery': imageGalleryToStaticHTML,
+  
+  // Marketing blocks
+  'CountdownTimer': countdownTimerToStaticHTML,
+  'LogosCarousel': logosCarouselToStaticHTML,
+  'StatsNumbers': statsNumbersToStaticHTML,
+  'ContentColumns': contentColumnsToStaticHTML,
+  'FeatureList': featureListToStaticHTML,
+  'StepsTimeline': stepsTimelineToStaticHTML,
+  'TextBanners': textBannersToStaticHTML,
 };
 
 /**
