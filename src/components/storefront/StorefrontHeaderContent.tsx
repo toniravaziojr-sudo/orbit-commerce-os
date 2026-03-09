@@ -475,6 +475,17 @@ export function StorefrontHeaderContent({
     });
   };
 
+  // Search submit handler — navigates to /busca?q=term
+  const handleSearchSubmit = (e?: React.KeyboardEvent | React.FormEvent) => {
+    if (e && 'key' in e && e.key !== 'Enter') return;
+    const trimmed = searchQuery.trim();
+    if (!trimmed) return;
+    const searchUrl = `${baseUrl}/busca?q=${encodeURIComponent(trimmed)}`;
+    navigate(searchUrl);
+    setSearchQuery('');
+    setMobileMenuOpen(false);
+  };
+
   // Determine layout mode based on viewportOverride (from builder) or CSS will handle it for public
   const forceMobile = viewportOverride === 'mobile' || viewportOverride === 'tablet';
   const forceDesktop = viewportOverride === 'desktop';
@@ -613,6 +624,7 @@ export function StorefrontHeaderContent({
                           placeholder="Buscar produtos..."
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
+                          onKeyDown={handleSearchSubmit}
                           className="pl-10"
                         />
                       </div>
@@ -864,6 +876,7 @@ export function StorefrontHeaderContent({
                       placeholder="Pesquisar"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={handleSearchSubmit}
                       className="h-9 pl-8 pr-3 text-sm border sf-header-search-input"
                       style={{ 
                         backgroundColor: headerTextColor ? `${headerTextColor}15` : undefined,
@@ -1035,6 +1048,7 @@ export function StorefrontHeaderContent({
                   placeholder="Pesquisar"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={handleSearchSubmit}
                   className="h-8 pl-8 text-xs rounded-md"
                   style={{ 
                     backgroundColor: 'rgba(0,0,0,0.05)',
