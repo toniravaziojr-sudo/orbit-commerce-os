@@ -345,7 +345,7 @@ export function ThemeSettingsPanel({
               ))}
             </div>
           ) : (
-          <div className="p-4">
+          <div className="pl-4 pr-5 py-4">
               {renderContent()}
             </div>
           )}
