@@ -38,6 +38,12 @@ import { testimonialsToStaticHTML } from './blocks/testimonials.ts';
 import { accordionToStaticHTML } from './blocks/accordion.ts';
 import { newsletterToStaticHTML } from './blocks/newsletter.ts';
 
+// Media blocks
+import { youtubeVideoToStaticHTML } from './blocks/youtube-video.ts';
+import { videoCarouselToStaticHTML } from './blocks/video-carousel.ts';
+import { htmlSectionToStaticHTML } from './blocks/html-section.ts';
+import { imageGalleryToStaticHTML } from './blocks/image-gallery.ts';
+
 // Layout blocks
 import { containerToStaticHTML } from './blocks/container.ts';
 import { columnsToStaticHTML } from './blocks/columns.ts';
@@ -99,6 +105,12 @@ const COMPILER_REGISTRY: Record<string, BlockCompilerFn> = {
   'AccordionBlock': accordionToStaticHTML,
   'Newsletter': newsletterToStaticHTML,
   'NewsletterForm': newsletterToStaticHTML, // Same visual output
+  
+  // Media blocks
+  'YouTubeVideo': youtubeVideoToStaticHTML,
+  'VideoCarousel': videoCarouselToStaticHTML,
+  'HTMLSection': htmlSectionToStaticHTML,
+  'ImageGallery': imageGalleryToStaticHTML,
 };
 
 /**
@@ -114,13 +126,12 @@ const STRUCTURAL_BLOCKS = new Set(['Header', 'Footer']);
  */
 export const UNSUPPORTED_BLOCKS = new Set([
   'ProductGrid', 'ProductCarousel', 'CategoryList',
-  'CollectionSection', 'BannerProducts', 'YouTubeVideo',
-  'Reviews', 'TextBanners', 'VideoUpload', 'VideoCarousel',
+  'CollectionSection', 'BannerProducts',
+  'Reviews', 'TextBanners', 'VideoUpload',
   'TrackingLookup', 'BlogListing', 'BlogPostDetail', 'PageContent',
   'ContactForm',
   'FeatureList', 'ContentColumns', 'StepsTimeline',
   'CountdownTimer', 'LogosCarousel', 'StatsNumbers',
-  'ImageGallery', 'HTMLSection',
   'CategoryFilters',
   'CartDemo', 'CheckoutDemo', 'CustomBlock',
   'NewsletterPopup', 'Map', 'SocialFeed',
