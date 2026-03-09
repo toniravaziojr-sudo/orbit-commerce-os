@@ -477,16 +477,57 @@ function buildFullPage(opts: {
   <div class="sf-cart-backdrop" data-sf-cart-backdrop></div>
   <div class="sf-cart-drawer" data-sf-cart-drawer>
     <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #eee;">
-      <h3 style="font-size:16px;font-weight:600;">Seu Carrinho</h3>
-      <button data-sf-action="toggle-cart" style="background:none;border:none;font-size:20px;cursor:pointer;">&times;</button>
-    </div>
-    <div data-sf-cart-items style="flex:1;overflow-y:auto;padding:16px 20px;"></div>
-    <div style="padding:16px 20px;border-top:1px solid #eee;">
-      <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
-        <span style="font-weight:600;">Total:</span>
-        <span data-sf-cart-total style="font-weight:700;font-size:18px;">R$ 0,00</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+        <h3 style="font-size:16px;font-weight:600;">Carrinho</h3>
       </div>
-      <a href="/carrinho" style="display:block;width:100%;padding:12px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);text-align:center;border-radius:8px;font-weight:600;text-decoration:none;">Ver Carrinho</a>
+      <button data-sf-action="toggle-cart" style="background:none;border:none;font-size:20px;cursor:pointer;padding:4px;">&times;</button>
+    </div>
+    <div data-sf-cart-items style="flex:1;overflow-y:auto;padding:16px 20px;">
+      <!-- Benefit bar injected by JS -->
+      <div data-sf-cart-benefit style="display:none;margin-bottom:12px;"></div>
+    </div>
+    <div style="padding:16px 20px;border-top:1px solid #eee;">
+      <!-- Shipping Calculator -->
+      <div data-sf-cart-shipping style="margin-bottom:12px;">
+        <p style="font-size:13px;font-weight:600;margin-bottom:6px;">📦 Calcular frete</p>
+        <div style="display:flex;gap:8px;">
+          <input type="text" placeholder="CEP" maxlength="9" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none;" data-sf-cart-shipping-cep>
+          <button data-sf-action="calc-cart-shipping" style="padding:8px 14px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;">OK</button>
+        </div>
+        <div data-sf-cart-shipping-results style="margin-top:6px;"></div>
+      </div>
+      <!-- Coupon -->
+      <div data-sf-cart-coupon style="margin-bottom:12px;">
+        <div style="display:flex;gap:8px;">
+          <input type="text" placeholder="Cupom de desconto" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none;" data-sf-cart-coupon-input>
+          <button data-sf-action="apply-coupon" style="padding:8px 14px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;">Aplicar</button>
+        </div>
+        <div data-sf-cart-coupon-result style="margin-top:4px;font-size:12px;"></div>
+      </div>
+      <!-- Summary -->
+      <div style="space-y:6px;">
+        <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:4px;">
+          <span>Subtotal:</span>
+          <span data-sf-cart-subtotal style="font-weight:500;">R$ 0,00</span>
+        </div>
+        <div data-sf-cart-shipping-line style="display:none;justify-content:space-between;font-size:14px;margin-bottom:4px;">
+          <span>Frete:</span>
+          <span data-sf-cart-shipping-value>Calcule acima</span>
+        </div>
+        <div data-sf-cart-discount-line style="display:none;justify-content:space-between;font-size:14px;margin-bottom:4px;color:#16a34a;">
+          <span>Desconto:</span>
+          <span data-sf-cart-discount-value></span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:1px solid #eee;margin-top:4px;">
+          <span style="font-weight:700;font-size:16px;">Total:</span>
+          <span data-sf-cart-total style="font-weight:700;font-size:18px;">R$ 0,00</span>
+        </div>
+      </div>
+      <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
+        <a href="/checkout" class="sf-btn-primary" style="display:block;width:100%;padding:14px;text-align:center;border-radius:9999px;font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:0.05em;text-decoration:none;">Iniciar Compra</a>
+        <a href="/carrinho" style="display:block;width:100%;padding:12px;text-align:center;border:1px solid #ddd;border-radius:9999px;font-weight:600;font-size:13px;text-decoration:none;color:#1a1a1a;">Ir para o Carrinho</a>
+      </div>
     </div>
   </div>
 
@@ -496,22 +537,64 @@ function buildFullPage(opts: {
       var HOSTNAME="${escapeHtml(opts.hostname)}";
       var CART_KEY="storefront_cart_"+TENANT;
       var cart=JSON.parse(localStorage.getItem(CART_KEY)||"[]");
+      var cartShipping=null; // {name,price,days}
+      var cartDiscount=null; // {code,type,value,free_shipping}
 
       function saveCart(){localStorage.setItem(CART_KEY,JSON.stringify(cart));updateCartUI();}
+      function fmt(v){return"R$ "+v.toFixed(2).replace(".",",");}
 
       function updateCartUI(){
-        var total=cart.reduce(function(s,i){return s+i.price*i.quantity},0);
+        var subtotal=cart.reduce(function(s,i){return s+i.price*i.quantity},0);
         var count=cart.reduce(function(s,i){return s+i.quantity},0);
         document.querySelectorAll("[data-sf-cart-count]").forEach(function(el){
           el.textContent=count;el.style.display=count>0?"flex":"none";
         });
+        // Subtotal
+        var subEl=document.querySelector("[data-sf-cart-subtotal]");
+        if(subEl)subEl.textContent=fmt(subtotal);
+        // Shipping line
+        var shLine=document.querySelector("[data-sf-cart-shipping-line]");
+        var shVal=document.querySelector("[data-sf-cart-shipping-value]");
+        if(shLine&&shVal){
+          if(cartShipping){shLine.style.display="flex";shVal.textContent=cartShipping.price===0?'Grátis':fmt(cartShipping.price);}
+          else{shLine.style.display="none";}
+        }
+        // Discount line
+        var dLine=document.querySelector("[data-sf-cart-discount-line]");
+        var dVal=document.querySelector("[data-sf-cart-discount-value]");
+        var discountAmt=0;
+        if(dLine&&dVal&&cartDiscount){
+          if(cartDiscount.type==="percentage"){discountAmt=subtotal*(cartDiscount.value/100);}
+          else{discountAmt=Math.min(cartDiscount.value,subtotal);}
+          if(discountAmt>0){dLine.style.display="flex";dVal.textContent="-"+fmt(discountAmt);}
+          else{dLine.style.display="none";}
+        } else if(dLine){dLine.style.display="none";}
+        // Total
+        var shippingCost=cartShipping?cartShipping.price:0;
+        var total=Math.max(0,subtotal-discountAmt+shippingCost);
         var totalEl=document.querySelector("[data-sf-cart-total]");
-        if(totalEl)totalEl.textContent="R$ "+total.toFixed(2).replace(".",",");
+        if(totalEl)totalEl.textContent=fmt(total);
+        // Items
         var itemsEl=document.querySelector("[data-sf-cart-items]");
         if(itemsEl){
-          if(cart.length===0){itemsEl.innerHTML='<p style="text-align:center;color:#999;padding:32px 0;">Carrinho vazio</p>';return;}
-          itemsEl.innerHTML=cart.map(function(item,idx){
-            return '<div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid #f5f5f5;"><div style="width:60px;height:60px;border-radius:6px;overflow:hidden;background:#f5f5f5;flex-shrink:0;">'+(item.image?'<img src="'+item.image+'" style="width:100%;height:100%;object-fit:cover;">':'')+'</div><div style="flex:1;min-width:0;"><p style="font-size:13px;font-weight:500;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+item.name+'</p><p style="font-size:14px;font-weight:600;">R$ '+(item.price*item.quantity).toFixed(2).replace(".",",")+'</p><p style="font-size:12px;color:#666;">Qtd: '+item.quantity+'</p></div><button data-sf-action="remove-cart-item" data-index="'+idx+'" style="background:none;border:none;color:#999;cursor:pointer;font-size:18px;padding:4px;">&times;</button></div>';
+          var benefitEl=itemsEl.querySelector("[data-sf-cart-benefit]");
+          var benefitHtml=benefitEl?benefitEl.outerHTML:'';
+          if(cart.length===0){
+            itemsEl.innerHTML=benefitHtml+'<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#999;padding:32px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.4;margin-bottom:16px;"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18"/><path d="M16 10a4 4 0 01-8 0"/></svg><p style="font-size:14px;">Seu carrinho está vazio</p></div>';
+            return;
+          }
+          itemsEl.innerHTML=benefitHtml+cart.map(function(item,idx){
+            return '<div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid #f5f5f5;">'
+              +'<div style="width:64px;height:64px;border-radius:8px;overflow:hidden;background:#f5f5f5;flex-shrink:0;">'+(item.image?'<img src="'+item.image+'" style="width:100%;height:100%;object-fit:cover;">':'')+'</div>'
+              +'<div style="flex:1;min-width:0;">'
+              +'<p style="font-size:13px;font-weight:500;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+item.name+'</p>'
+              +'<p style="font-size:14px;font-weight:700;color:var(--theme-price-color,#1a1a1a);">'+fmt(item.price*item.quantity)+'</p>'
+              +'<div style="display:flex;align-items:center;gap:8px;margin-top:6px;">'
+              +'<button data-sf-action="cart-item-minus" data-index="'+idx+'" style="width:28px;height:28px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;font-size:14px;font-weight:600;">−</button>'
+              +'<span style="font-size:13px;font-weight:500;min-width:20px;text-align:center;">'+item.quantity+'</span>'
+              +'<button data-sf-action="cart-item-plus" data-index="'+idx+'" style="width:28px;height:28px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;font-size:14px;font-weight:600;">+</button>'
+              +'</div></div>'
+              +'<button data-sf-action="remove-cart-item" data-index="'+idx+'" style="background:none;border:none;color:#999;cursor:pointer;font-size:16px;padding:4px;align-self:flex-start;">&times;</button></div>';
           }).join("");
         }
       }
@@ -580,6 +663,12 @@ function buildFullPage(opts: {
         } else if(action==="remove-cart-item"){
           var idx = parseInt(btn.dataset.index);
           cart.splice(idx,1); saveCart();
+        } else if(action==="cart-item-minus"){
+          var ci=parseInt(btn.dataset.index);
+          if(cart[ci]){if(cart[ci].quantity>1){cart[ci].quantity--;}else{cart.splice(ci,1);}saveCart();}
+        } else if(action==="cart-item-plus"){
+          var ci2=parseInt(btn.dataset.index);
+          if(cart[ci2]){cart[ci2].quantity++;saveCart();}
         } else if(action==="qty-minus"){
           var inp=document.querySelector("[data-sf-qty-input]");
           if(inp){var v=parseInt(inp.value)||1;if(v>1)inp.value=v-1;}
@@ -611,12 +700,77 @@ function buildFullPage(opts: {
               return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0;"><div><p style="font-size:14px;font-weight:500;">'+opt.service_name+'</p><p style="font-size:12px;color:#666;">'+daysText+'</p></div><div style="font-size:14px;font-weight:600;">'+priceText+'</div></div>';
             }).join("");
           }).catch(function(){resultsEl2.innerHTML='<p style="font-size:13px;color:#dc2626;">Erro ao calcular frete. Tente novamente.</p>';});
+        } else if(action==="calc-cart-shipping"){
+          e.preventDefault();
+          var cartCepInput=document.querySelector("[data-sf-cart-shipping-cep]");
+          var cartShipResults=document.querySelector("[data-sf-cart-shipping-results]");
+          if(!cartCepInput||!cartShipResults)return;
+          var cartCep=cartCepInput.value.replace(/\D/g,"");
+          if(cartCep.length!==8){cartShipResults.innerHTML='<p style="font-size:12px;color:#dc2626;">CEP inválido</p>';return;}
+          cartShipResults.innerHTML='<p style="font-size:12px;color:#666;">Calculando...</p>';
+          var cartSubtotal=cart.reduce(function(s,i){return s+i.price*i.quantity},0);
+          var cartItems=cart.map(function(i){return{quantity:i.quantity,price:i.price,product_id:i.product_id,weight:0.3}});
+          var sUrl="${Deno.env.get('SUPABASE_URL')}";
+          var sKey="${Deno.env.get('SUPABASE_ANON_KEY') || ''}";
+          fetch(sUrl+"/functions/v1/shipping-quote",{
+            method:"POST",
+            headers:{"Content-Type":"application/json","apikey":sKey,"Authorization":"Bearer "+sKey,"x-store-host":HOSTNAME},
+            body:JSON.stringify({recipient_cep:cartCep,store_host:HOSTNAME,items:cartItems})
+          }).then(function(r){return r.json()}).then(function(data){
+            if(!data.options||data.options.length===0){cartShipResults.innerHTML='<p style="font-size:12px;color:#666;">Sem opções para este CEP.</p>';return;}
+            cartShipResults.innerHTML=data.options.map(function(opt,oi){
+              var pt=opt.is_free||opt.price===0?'Grátis':'R$ '+opt.price.toFixed(2).replace(".",",");
+              var dt=opt.estimated_days===1?'1 dia':'~'+opt.estimated_days+' dias';
+              return '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;font-size:13px;"><input type="radio" name="sf-cart-ship" value="'+oi+'" '+(oi===0?'checked':'')+' style="accent-color:var(--theme-button-primary-bg,#1a1a1a);"><span style="flex:1;">'+opt.service_name+' <span style="color:#666;font-size:11px;">('+dt+')</span></span><span style="font-weight:600;">'+pt+'</span></label>';
+            }).join("");
+            // Auto-select first
+            var firstOpt=data.options[0];
+            cartShipping={name:firstOpt.service_name,price:firstOpt.is_free?0:firstOpt.price,days:firstOpt.estimated_days};
+            updateCartUI();
+            // Radio change handler
+            cartShipResults.querySelectorAll("input[name=sf-cart-ship]").forEach(function(radio,ri){
+              radio.addEventListener("change",function(){
+                var opt2=data.options[ri];
+                cartShipping={name:opt2.service_name,price:opt2.is_free?0:opt2.price,days:opt2.estimated_days};
+                updateCartUI();
+              });
+            });
+          }).catch(function(){cartShipResults.innerHTML='<p style="font-size:12px;color:#dc2626;">Erro ao calcular.</p>';});
+        } else if(action==="apply-coupon"){
+          e.preventDefault();
+          var couponInput=document.querySelector("[data-sf-cart-coupon-input]");
+          var couponResult=document.querySelector("[data-sf-cart-coupon-result]");
+          if(!couponInput||!couponResult)return;
+          var code=couponInput.value.trim();
+          if(!code){couponResult.innerHTML='<span style="color:#dc2626;">Digite um cupom</span>';return;}
+          couponResult.innerHTML='<span style="color:#666;">Validando...</span>';
+          var cSubtotal=cart.reduce(function(s,i){return s+i.price*i.quantity},0);
+          var cUrl="${Deno.env.get('SUPABASE_URL')}";
+          var cKey="${Deno.env.get('SUPABASE_ANON_KEY') || ''}";
+          fetch(cUrl+"/functions/v1/validate-coupon",{
+            method:"POST",
+            headers:{"Content-Type":"application/json","apikey":cKey,"Authorization":"Bearer "+cKey,"x-store-host":HOSTNAME},
+            body:JSON.stringify({code:code,subtotal:cSubtotal,store_host:HOSTNAME})
+          }).then(function(r){return r.json()}).then(function(data){
+            if(data.valid){
+              cartDiscount={code:code,type:data.discount_type||"percentage",value:data.discount_value||0,free_shipping:data.free_shipping||false};
+              couponResult.innerHTML='<span style="color:#16a34a;font-weight:500;">✓ Cupom aplicado!</span>';
+              updateCartUI();
+            }else{
+              couponResult.innerHTML='<span style="color:#dc2626;">'+(data.message||'Cupom inválido')+'</span>';
+            }
+          }).catch(function(){couponResult.innerHTML='<span style="color:#dc2626;">Erro ao validar.</span>';});
+        } else if(action==="close-newsletter-popup"){
+          var popup=document.getElementById("sf-newsletter-popup");
+          if(popup){popup.style.display="none";sessionStorage.setItem("sf_newsletter_dismissed","1");}
         }
       },true); // CAPTURE PHASE — fires before bubble, prevents <a> navigation
 
-      // CEP mask
+      // CEP masks
       var cepEl=document.querySelector("[data-sf-shipping-cep]");
       if(cepEl)cepEl.addEventListener("input",function(){var v=this.value.replace(/\D/g,"");if(v.length>5)v=v.slice(0,5)+"-"+v.slice(5,8);else v=v.slice(0,8);this.value=v;});
+      var cartCepEl=document.querySelector("[data-sf-cart-shipping-cep]");
+      if(cartCepEl)cartCepEl.addEventListener("input",function(){var v=this.value.replace(/\D/g,"");if(v.length>5)v=v.slice(0,5)+"-"+v.slice(5,8);else v=v.slice(0,8);this.value=v;});
 
       // Search overlay close on click outside
       document.querySelector("[data-sf-search-overlay]")?.addEventListener("click",function(e){
@@ -1774,7 +1928,7 @@ serve(async (req) => {
     
     const mobileMenuItemsHtml = menuItems
       .filter((item: any) => !item.parent_id)
-      .slice(0, 12)
+      
       .map((item: any) => {
         const children = mobileChildrenMap.get(item.id) || [];
         if (children.length > 0) {
