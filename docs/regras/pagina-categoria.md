@@ -191,7 +191,7 @@ A ordem dos botões nos cards de produto é fixa e obrigatória:
 - [ ] **Quick Buy**: React suporta compra rápida — compilador não tem
 - [ ] **Mini Cart Drawer**: React integra com `MiniCartDrawer` — compilador usa drawer genérico do shell
 - [ ] **Product Badge System**: React usa `useProductBadgesForProducts` com badges dinâmicos — compilador só tem "FRETE GRÁTIS" e desconto %
-- [ ] **Banner overlay**: React usa `bannerOverlayOpacity` do theme settings; compilador usa `overlayOpacity` da prop
+- [x] ~~**Banner overlay**: React usa `bannerOverlayOpacity` do theme settings; compilador usa `overlayOpacity` da prop~~ → Corrigido v8.4.2: compilador agora lê de `context.categorySettings.bannerOverlayOpacity` (paridade total)
 - [ ] **Banner fallback**: React faz fallback para `image_url`; compilador só usa `banner_desktop_url`
 - [ ] **Hover effects**: React tem estados hover nos botões — compilador não tem
 - [ ] `category-page.ts` é dead code — pode ser removido
