@@ -612,7 +612,7 @@ function buildFullPage(opts: {
             }).join("");
           }).catch(function(){resultsEl2.innerHTML='<p style="font-size:13px;color:#dc2626;">Erro ao calcular frete. Tente novamente.</p>';});
         }
-      });
+      },true); // CAPTURE PHASE — fires before bubble, prevents <a> navigation
 
       // CEP mask
       var cepEl=document.querySelector("[data-sf-shipping-cep]");
