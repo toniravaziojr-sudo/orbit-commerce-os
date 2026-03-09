@@ -316,7 +316,7 @@ export function ThemeSettingsPanel({
           </Button>
         </div>
 
-        <ScrollArea className="h-[calc(100vh-57px)]">
+        <div className="h-[calc(100vh-57px)] overflow-y-auto">
           {currentView === 'menu' ? (
             <div className="p-3 space-y-1">
               {menuItems.map((item) => (
@@ -345,11 +345,11 @@ export function ThemeSettingsPanel({
               ))}
             </div>
           ) : (
-          <div className="pl-4 pr-5 py-4">
+            <div className="p-4">
               {renderContent()}
             </div>
           )}
-        </ScrollArea>
+        </div>
       </div>
     </>
   );
