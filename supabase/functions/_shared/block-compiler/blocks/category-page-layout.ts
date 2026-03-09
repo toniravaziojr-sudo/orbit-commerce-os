@@ -120,7 +120,7 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
     // Buttons (same order as builder: 1. Add to cart, 2. Custom, 3. Buy now / Quick buy)
     const buttonsHtml: string[] = [];
     if (showAddToCartButton) {
-      buttonsHtml.push(`<button data-sf-action="add-to-cart" data-product-id="${p.id}" data-product-name="${escapeHtml(p.name)}" data-product-price="${p.price}" data-product-image="${escapeHtml(imgUrl || '')}" class="sf-btn-outline-primary" style="width:100%;padding:8px;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;gap:6px;">
+      buttonsHtml.push(`<button onclick="event.stopPropagation()" data-sf-action="add-to-cart" data-product-id="${p.id}" data-product-name="${escapeHtml(p.name)}" data-product-price="${p.price}" data-product-image="${escapeHtml(imgUrl || '')}" class="sf-btn-outline-primary" style="width:100%;padding:8px;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;gap:6px;">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
         Adicionar
       </button>`);
@@ -129,10 +129,10 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
       const customStyle = customButtonBgColor
         ? `background:${customButtonBgColor};color:${customButtonTextColor};border:none;`
         : `background:var(--theme-button-secondary-bg,#f5f5f5);color:var(--theme-button-secondary-text,#333);border:none;`;
-      buttonsHtml.push(`<a href="${escapeHtml(customButtonLink || '#')}" style="display:block;width:100%;padding:8px;${customStyle}border-radius:6px;font-size:12px;text-align:center;text-decoration:none;">${escapeHtml(customButtonText)}</a>`);
+      buttonsHtml.push(`<a href="${escapeHtml(customButtonLink || '#')}" onclick="event.stopPropagation()" style="display:block;width:100%;padding:8px;${customStyle}border-radius:6px;font-size:12px;text-align:center;text-decoration:none;">${escapeHtml(customButtonText)}</a>`);
     }
     if (quickBuyEnabled) {
-      buttonsHtml.push(`<button data-sf-action="buy-now" data-product-id="${p.id}" data-product-name="${escapeHtml(p.name)}" data-product-price="${p.price}" data-product-image="${escapeHtml(imgUrl || '')}" class="sf-btn-primary" style="width:100%;padding:8px;border:none;border-radius:6px;font-size:12px;text-align:center;font-weight:500;cursor:pointer;">${escapeHtml(buyNowButtonText)}</button>`);
+      buttonsHtml.push(`<button onclick="event.stopPropagation()" data-sf-action="buy-now" data-product-id="${p.id}" data-product-name="${escapeHtml(p.name)}" data-product-price="${p.price}" data-product-image="${escapeHtml(imgUrl || '')}" class="sf-btn-primary" style="width:100%;padding:8px;border:none;border-radius:6px;font-size:12px;text-align:center;font-weight:500;cursor:pointer;">${escapeHtml(buyNowButtonText)}</button>`);
     }
 
     // Hidden beyond first page initially
