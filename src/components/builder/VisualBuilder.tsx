@@ -1148,8 +1148,12 @@ export function VisualBuilder({
     // Clear draft states
     const draftTheme = getGlobalDraftThemeRef();
     const draftPageSettings = getGlobalDraftPageSettingsRef();
+    const miniCartDraft = getGlobalMiniCartDraftRef();
+    const popupDraft = getGlobalPopupDraftRef();
     if (draftTheme) draftTheme.clearDraft();
     if (draftPageSettings) draftPageSettings.clearDraft();
+    if (miniCartDraft) miniCartDraft.clearDraft();
+    if (popupDraft) popupDraft.clearDraft();
     store.markClean();
     
     setShowUnsavedDialog(false);
