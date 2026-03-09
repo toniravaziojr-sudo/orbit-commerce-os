@@ -1545,7 +1545,7 @@ Para adicionar novos presets no futuro:
 
 > Lista de todos os block-compilers em `supabase/functions/_shared/block-compiler/blocks/`.
 
-### ✅ Compiladores Prontos (38 total)
+### ✅ Compiladores Prontos (40 total)
 
 | Bloco | Arquivo | Fase |
 |-------|---------|------|
@@ -1573,8 +1573,10 @@ Para adicionar novos presets no futuro:
 | Testimonials | `testimonials.ts` | 2 |
 | AccordionBlock | `accordion.ts` | 2 |
 | Newsletter / NewsletterForm | `newsletter.ts` | 2 |
+| Reviews | `reviews.ts` | 2 |
 | YouTubeVideo | `youtube-video.ts` | 3 |
 | VideoCarousel | `video-carousel.ts` | 3 |
+| VideoUpload | `video-upload.ts` | 3 |
 | HTMLSection | `html-section.ts` | 3 |
 | ImageGallery | `image-gallery.ts` | 3 |
 | CountdownTimer | `countdown-timer.ts` | 4 |
