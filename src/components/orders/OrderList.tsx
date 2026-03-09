@@ -191,14 +191,17 @@ export function OrderList({
           </TableHeader>
           <TableBody>
             {orders.map((order) => {
-              const orderStatusCfg = ORDER_STATUS_CONFIG[order.status as OrderStatus] || ORDER_STATUS_CONFIG.pending;
-              const paymentStatusCfg = PAYMENT_STATUS_CONFIG[order.payment_status as PaymentStatus] || PAYMENT_STATUS_CONFIG.awaiting_payment;
-              const StatusIcon = orderStatusIcons[order.status as OrderStatus] || Clock;
+              // CRITICAL: Normalize legacy DB values to new status types
+              // DB may have 'paid', 'approved', 'pending' etc. which don't exist in new configs
+              const normalizedOrderStatus = normalizeOrderStatus(order.status);
+              const normalizedPaymentStatus = normalizePaymentStatus(order.payment_status);
+              const normalizedShippingStatus = normalizeShippingStatus(order.shipping_status);
               
-              // Shipping status with fallback
-              const shippingStatusVal = (order.shipping_status || 'awaiting_shipment') as ShippingStatus;
-              const shippingStatusCfg = SHIPPING_STATUS_CONFIG[shippingStatusVal] || SHIPPING_STATUS_CONFIG.awaiting_shipment;
-              const ShippingIcon = shippingStatusIcons[shippingStatusVal] || Package;
+              const orderStatusCfg = ORDER_STATUS_CONFIG[normalizedOrderStatus];
+              const paymentStatusCfg = PAYMENT_STATUS_CONFIG[normalizedPaymentStatus];
+              const StatusIcon = orderStatusIcons[normalizedOrderStatus] || Clock;
+              const shippingStatusCfg = SHIPPING_STATUS_CONFIG[normalizedShippingStatus];
+              const ShippingIcon = shippingStatusIcons[normalizedShippingStatus] || Package;
 
               return (
                 <TableRow key={order.id} className="cursor-pointer hover:bg-muted/50">
