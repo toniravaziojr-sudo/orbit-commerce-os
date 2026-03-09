@@ -568,7 +568,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
             <span style="font-size:28px;font-weight:700;color:var(--theme-price-color,#1a1a1a);">${formatPriceFromDecimal(product.price)}</span>
             ${hasDiscount ? `<span style="font-size:13px;font-weight:600;color:#16a34a;background:#dcfce7;padding:2px 8px;border-radius:4px;">-${discountPercent}%</span>` : ''}
           </div>
-          <p style="font-size:13px;color:#666;">em até 12x de ${installmentValue} sem juros</p>
+          ${pixBadgeHtml}
           ${product.short_description ? `<p style="font-size:15px;color:var(--theme-text-secondary,#555);line-height:1.6;">${escapeHtml(product.short_description)}</p>` : ''}
           ${stockHtml}
           ${variantSelectorHtml}
