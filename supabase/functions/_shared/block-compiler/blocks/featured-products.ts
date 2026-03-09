@@ -87,7 +87,7 @@ export function featuredProductsToStaticHTML(
     }
     
     if (quickBuyEnabled) {
-      buttons.push(`<button onclick="event.stopPropagation()" data-sf-action="buy-now" data-product-id="${p.id}" data-product-name="${escapeHtml(p.name)}" data-product-price="${p.price}" data-product-image="${escapeHtml(context.productImages.get(p.id) || '')}" class="sf-btn-primary" style="display:block;width:100%;padding:6px 8px;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;text-align:center;">${escapeHtml(buyNowButtonText)}</button>`);
+      buttons.push(`<button onclick="event.stopPropagation();event.preventDefault()" data-sf-action="buy-now" data-product-id="${p.id}" data-product-name="${escapeHtml(p.name)}" data-product-price="${p.price}" data-product-image="${escapeHtml(context.productImages.get(p.id) || '')}" class="sf-btn-primary" style="display:block;width:100%;padding:6px 8px;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;text-align:center;">${escapeHtml(buyNowButtonText)}</button>`);
     }
     
     if (buttons.length > 0) {

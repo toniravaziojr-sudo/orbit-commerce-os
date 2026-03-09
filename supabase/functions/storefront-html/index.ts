@@ -570,7 +570,7 @@ function buildFullPage(opts: {
           e.preventDefault();e.stopPropagation();
           var qtyInput2=document.querySelector("[data-sf-qty-input]");
           var qty2=qtyInput2?parseInt(qtyInput2.value)||1:1;
-          for(var q2=0;q2<qty2;q2++) addToCart(btn.dataset.productId, btn.dataset.productName, parseFloat(btn.dataset.productPrice), btn.dataset.productImage, btn.dataset.variantId);
+          for(var q2=0;q2<qty2;q2++) addToCart(btn.dataset.productId, btn.dataset.productName, parseFloat(btn.dataset.productPrice), btn.dataset.productImage, btn.dataset.variantId, true);
           window.location.href="/checkout";
         } else if(action==="remove-cart-item"){
           var idx = parseInt(btn.dataset.index);

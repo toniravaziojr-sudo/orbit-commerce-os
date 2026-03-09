@@ -132,7 +132,7 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
       buttonsHtml.push(`<a href="${escapeHtml(customButtonLink || '#')}" onclick="event.stopPropagation()" style="display:block;width:100%;padding:8px;${customStyle}border-radius:6px;font-size:12px;text-align:center;text-decoration:none;">${escapeHtml(customButtonText)}</a>`);
     }
     if (quickBuyEnabled) {
-      buttonsHtml.push(`<button onclick="event.stopPropagation()" data-sf-action="buy-now" data-product-id="${p.id}" data-product-name="${escapeHtml(p.name)}" data-product-price="${p.price}" data-product-image="${escapeHtml(imgUrl || '')}" class="sf-btn-primary" style="width:100%;padding:8px;border:none;border-radius:6px;font-size:12px;text-align:center;font-weight:500;cursor:pointer;">${escapeHtml(buyNowButtonText)}</button>`);
+      buttonsHtml.push(`<button onclick="event.stopPropagation();event.preventDefault()" data-sf-action="buy-now" data-product-id="${p.id}" data-product-name="${escapeHtml(p.name)}" data-product-price="${p.price}" data-product-image="${escapeHtml(imgUrl || '')}" class="sf-btn-primary" style="width:100%;padding:8px;border:none;border-radius:6px;font-size:12px;text-align:center;font-weight:500;cursor:pointer;">${escapeHtml(buyNowButtonText)}</button>`);
     }
 
     // Hidden beyond first page initially
