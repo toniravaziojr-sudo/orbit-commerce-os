@@ -32,6 +32,14 @@ import { categoryBannerToStaticHTML } from './blocks/category-banner.ts';
 import { categoryPageLayoutToStaticHTML } from './blocks/category-page-layout.ts';
 import { productDetailsToStaticHTML } from './blocks/product-details.ts';
 
+// Content blocks
+import { textToStaticHTML } from './blocks/text.ts';
+import { richTextToStaticHTML } from './blocks/rich-text.ts';
+import { imageToStaticHTML } from './blocks/image.ts';
+import { buttonToStaticHTML } from './blocks/button.ts';
+import { spacerToStaticHTML } from './blocks/spacer.ts';
+import { dividerToStaticHTML } from './blocks/divider.ts';
+
 /**
  * Registry mapping block type → compiler function.
  * This is the SINGLE place to register block compilers.
