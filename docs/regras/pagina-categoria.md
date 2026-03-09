@@ -137,6 +137,7 @@ Página de listagem de produtos filtrados por categoria.
 | **Paridade Desktop-Mobile** | Banner aparece em AMBOS. Desktop usa `banner_desktop_url`, mobile usa `banner_mobile_url` via `<picture><source media>`. |
 | **Cache de Prerender** | Ao corrigir o compilador do banner, é OBRIGATÓRIO invalidar o cache de prerender (set status='stale') e redeploiar a edge function. Sem isso, o HTML antigo continua sendo servido. |
 | **Deploy da Edge Function** | Após editar `category-banner.ts`, é OBRIGATÓRIO fazer deploy explícito via `deploy_edge_functions(['storefront-html'])` e verificar que `X-Storefront-Version` reflete a nova versão. |
+| **Sequência obrigatória (CRÍTICO)** | 1º) Editar código → 2º) Deploy da edge function → 3º) Invalidar cache (status='stale'). Se inverter a ordem (invalidar antes do deploy), o re-render usa o código ANTIGO e o bug persiste no HTML cacheado. |
 
 ---
 
