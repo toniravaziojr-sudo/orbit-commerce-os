@@ -87,14 +87,42 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
   // Installments
   const installmentValue = formatPriceFromDecimal(product.price / 12);
 
-  // Stock info
+  // Pix badge (mirrors PaymentBadges.tsx)
+  const pixDiscountPercent = 10;
+  const pixPrice = product.price * (1 - pixDiscountPercent / 100);
+  const pixBadgeHtml = `
+    <div style="space-y:8px;">
+      <div style="display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;border:1px solid rgba(34,197,94,0.3);background:rgba(34,197,94,0.1);">
+        <div style="flex-shrink:0;width:32px;height:32px;border-radius:50%;background:var(--theme-accent-color,#22c55e);display:flex;align-items:center;justify-content:center;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><rect width="5" height="5" x="16" y="16" rx="1"/></svg>
+        </div>
+        <div style="flex:1;">
+          <p style="font-size:14px;font-weight:700;color:var(--theme-accent-color,#22c55e);">${formatPriceFromDecimal(pixPrice)} no Pix</p>
+          <p style="font-size:12px;color:var(--theme-accent-color,#22c55e);opacity:0.8;">${pixDiscountPercent}% de desconto</p>
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">
+        <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:#f5f5f5;border-radius:6px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+          <span style="font-size:12px;color:#666;">12x de ${installmentValue}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:#f5f5f5;border-radius:6px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/></svg>
+          <span style="font-size:12px;color:#666;">Boleto</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:#f5f5f5;border-radius:6px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+          <span style="font-size:12px;color:#666;">Débito</span>
+        </div>
+      </div>
+    </div>`;
+
+  // Stock info — mirrors SPA: "Estoque: X unidades"
   let stockHtml = '';
   if (showStock) {
     const qty = product.stock_quantity ?? 0;
-    if (qty > 0 && qty <= 5) {
-      stockHtml = `<p style="font-size:13px;color:#dc2626;font-weight:500;" data-sf-stock-text>Últimas ${qty} unidades!</p>`;
-    } else if (qty > 5) {
-      stockHtml = `<p style="font-size:13px;color:#16a34a;font-weight:500;" data-sf-stock-text>Em estoque</p>`;
+    if (qty > 0) {
+      stockHtml = `<p style="font-size:13px;color:var(--theme-text-secondary,#666);" data-sf-stock-text>Estoque: ${qty} unidades</p>`;
     }
   }
 
