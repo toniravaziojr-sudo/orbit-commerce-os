@@ -1,6 +1,6 @@
 // ============================================
 // STOREFRONT HTML — Edge-Rendered Storefront
-// v8.2.0: REFACTOR — named result extraction instead of numeric allResults[] indices
+// v8.4.0: REFACTOR — Centralized theme tokens via _shared/theme-tokens.ts
 // Resolves tenant from hostname, serves pre-rendered HTML if available,
 // falls back to live rendering otherwise.
 // ============================================
@@ -14,6 +14,7 @@ import { headerToStaticHTML } from '../_shared/block-compiler/blocks/header.ts';
 import { footerToStaticHTML } from '../_shared/block-compiler/blocks/footer.ts';
 import { blogIndexToStaticHTML, blogPostToStaticHTML } from '../_shared/block-compiler/blocks/blog.ts';
 import { institutionalPageToStaticHTML } from '../_shared/block-compiler/blocks/institutional-page.ts';
+import { generateThemeCss, generateButtonCssRules, getGoogleFontsData } from '../_shared/theme-tokens.ts';
 
 // ===== VERSION =====
 const VERSION = "v8.3.0"; // Phase 6: Marketing pixels, Newsletter Popup, Consent Banner injection
