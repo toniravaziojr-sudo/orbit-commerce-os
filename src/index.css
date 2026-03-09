@@ -392,6 +392,7 @@
     display: grid !important;
     grid-template-columns: 1fr 380px !important;
     gap: 2rem !important;
+    align-items: start !important;
   }
   /* Desktop: hide mobile bar, show sticky sidebar */
   .sf-checkout-summary-mobile { display: none !important; }
