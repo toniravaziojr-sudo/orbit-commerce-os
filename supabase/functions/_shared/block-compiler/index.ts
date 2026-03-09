@@ -57,6 +57,10 @@ const COMPILER_REGISTRY: Record<string, BlockCompilerFn> = {
   // Layout blocks
   'Page': pageToStaticHTML,
   'Section': sectionToStaticHTML,
+  'Container': containerToStaticHTML,
+  'Columns': columnsToStaticHTML,
+  'Column': columnToStaticHTML,
+  'Grid': gridToStaticHTML,
   
   // Content blocks — Basic
   'Text': textToStaticHTML,
