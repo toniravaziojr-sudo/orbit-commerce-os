@@ -426,21 +426,8 @@ function buildFullPage(opts: {
     .sf-featured-promo .sf-featured-thumb img{border-radius:8px 8px 0 0;}
     .sf-featured-promo .sf-featured-thumb > div:last-child{border-radius:0 0 8px 8px;}
     .sf-featured-promo:hover .sf-featured-thumb{display:block;}
-    /* Button theme styles — mirrors usePublicThemeSettings.ts */
-    .sf-btn-primary{background:var(--theme-button-primary-bg,#1a1a1a) !important;color:var(--theme-button-primary-text,#fff) !important;transition:all 0.2s ease !important;}
-    .sf-btn-primary:hover:not(:disabled){background:var(--theme-button-primary-hover,var(--theme-button-primary-bg,#333)) !important;transform:translateY(-1px) !important;filter:brightness(1.05) !important;}
-    .sf-btn-outline-primary{background:transparent !important;color:var(--theme-button-primary-bg,#1a1a1a) !important;border:1px solid var(--theme-button-primary-bg,#1a1a1a) !important;transition:all 0.2s ease !important;}
-    .sf-btn-outline-primary:hover:not(:disabled){background:var(--theme-button-primary-bg,#1a1a1a) !important;color:var(--theme-button-primary-text,#fff) !important;border-color:var(--theme-button-primary-bg,#1a1a1a) !important;transform:translateY(-1px) !important;}
-    .sf-btn-secondary{background:var(--theme-button-secondary-bg,#e5e5e5) !important;color:var(--theme-button-secondary-text,#1a1a1a) !important;transition:all 0.2s ease !important;}
-    .sf-btn-secondary:hover:not(:disabled){background:var(--theme-button-secondary-hover,var(--theme-button-secondary-bg,#d5d5d5)) !important;transform:translateY(-1px) !important;filter:brightness(1.05) !important;}
-    /* Accent color classes */
-    .sf-accent-icon,.sf-accent-check,.sf-accent-text{color:var(--theme-accent-color,#22c55e) !important;}
-    .sf-accent-bg{background:var(--theme-accent-color,#22c55e) !important;color:#fff !important;}
-    /* Tag colors */
-    .sf-tag-success{background:var(--theme-success-bg,#22c55e) !important;color:var(--theme-success-text,#fff) !important;}
-    .sf-tag-warning{background:var(--theme-warning-bg,#f97316) !important;color:var(--theme-warning-text,#fff) !important;}
-    .sf-tag-danger{background:var(--theme-danger-bg,#ef4444) !important;color:var(--theme-danger-text,#fff) !important;}
-    .sf-tag-highlight{background:var(--theme-highlight-bg,#3b82f6) !important;color:var(--theme-highlight-text,#fff) !important;}
+    /* Button & tag styles — from centralized theme-tokens.ts */
+    ${generateButtonCssRules()}
     /* Search overlay */
     .sf-search-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;align-items:flex-start;justify-content:center;padding-top:80px;}
     .sf-search-overlay.active{display:flex;}
