@@ -47,6 +47,9 @@ import {
   ORDER_STATUS_CONFIG,
   PAYMENT_STATUS_CONFIG,
   SHIPPING_STATUS_CONFIG,
+  normalizeOrderStatus,
+  normalizePaymentStatus,
+  normalizeShippingStatus,
 } from '@/types/orderStatus';
 import { ShipmentSection } from '@/components/orders/ShipmentSection';
 import { NotificationLogsPanel } from '@/components/notifications/NotificationLogsPanel';
@@ -183,7 +186,7 @@ export default function OrderDetail() {
     );
   }
 
-  const orderStatusCfg = ORDER_STATUS_CONFIG[order.status as OrderStatus] || ORDER_STATUS_CONFIG.pending;
+  const orderStatusCfg = ORDER_STATUS_CONFIG[normalizeOrderStatus(order.status)];
 
   return (
     <div className="space-y-6 animate-fade-in">
