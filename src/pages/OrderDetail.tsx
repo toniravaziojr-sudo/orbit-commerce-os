@@ -186,7 +186,7 @@ export default function OrderDetail() {
     );
   }
 
-  const orderStatusCfg = ORDER_STATUS_CONFIG[order.status as OrderStatus] || ORDER_STATUS_CONFIG.pending;
+  const orderStatusCfg = ORDER_STATUS_CONFIG[normalizeOrderStatus(order.status)];
 
   return (
     <div className="space-y-6 animate-fade-in">
