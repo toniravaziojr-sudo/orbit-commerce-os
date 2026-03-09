@@ -1612,6 +1612,18 @@ Para adicionar novos presets no futuro:
 - **StepsTimeline** (`steps-timeline.ts`): Layout horizontal ou vertical. Círculos numerados. Linha de conexão SVG.
 - **TextBanners** (`text-banners.ts`): Texto + 2 imagens lado a lado. Layout text-left/text-right. CTA com sf-btn-primary.
 
+### Detalhes dos Compiladores Fase 5 (E-commerce Avançados)
+
+- **ProductGrid** (`product-grid.ts`): Grid de produtos com colunas configuráveis (desktop/mobile). Usa `renderProductCard` compartilhado. Fonte: all, featured, category.
+- **ProductCarousel** (`product-carousel.ts`): Scroll horizontal com snap. Setas de navegação desktop. Cards via `renderProductCard`.
+- **CategoryList** (`category-list.ts`): Grid ou lista de categorias. Suporta source custom (items ordenados) ou auto. Imagem + descrição opcionais.
+- **CollectionSection** (`collection-section.ts`): Título + "Ver todos" + grid/carousel de produtos. Link para categoria via slug.
+- **BannerProducts** (`banner-products.ts`): Banner imagem + grid de produtos lado a lado. Source manual (IDs) ou category. CTA opcional.
+
+### Utilitário Compartilhado
+
+- **product-card-html.ts** (`blocks/shared/`): Função `renderProductCard()` reutilizável. Renderiza badges, ratings, preços, botões add-to-cart/buy-now com `data-sf-action`. Mesma estrutura visual do `featured-products.ts`.
+
 ---
 
 ## Regras Globais de Compilação Builder ↔ Storefront (v8.2.3)
