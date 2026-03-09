@@ -483,10 +483,21 @@ O sistema organiza as cores em **5 grupos** para facilitar a configuração:
 .storefront-container .sf-btn-primary {
   background-color: var(--theme-button-primary-bg, #1a1a1a) !important;
   color: var(--theme-button-primary-text, #ffffff) !important;
+  transition: all 0.2s ease !important;
 }
-.storefront-container .sf-btn-primary:hover {
-  background-color: var(--theme-button-primary-hover) !important;
-  transform: translateY(-1px) !important;
+@media(hover:hover) {
+  .storefront-container .sf-btn-primary:hover {
+    background-color: var(--theme-button-primary-hover) !important;
+    transform: translateY(-1px) !important;
+    filter: brightness(1.1) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+  }
+}
+.storefront-container .sf-btn-primary:active {
+  transform: scale(0.93) !important;
+  filter: brightness(0.88) !important;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.2) !important;
+  transition: transform 0.08s !important;
 }
 
 /* Botão Primário Outline - Hover preenche com cor primária */
@@ -494,21 +505,44 @@ O sistema organiza as cores em **5 grupos** para facilitar a configuração:
   background-color: transparent !important;
   color: var(--theme-button-primary-bg, #1a1a1a) !important;
   border: 1px solid var(--theme-button-primary-bg, #1a1a1a) !important;
+  transition: all 0.2s ease !important;
 }
-.storefront-container .sf-btn-outline-primary:hover {
+@media(hover:hover) {
+  .storefront-container .sf-btn-outline-primary:hover {
+    background-color: var(--theme-button-primary-bg, #1a1a1a) !important;
+    color: var(--theme-button-primary-text, #ffffff) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+  }
+}
+.storefront-container .sf-btn-outline-primary:active {
+  transform: scale(0.93) !important;
+  filter: brightness(0.88) !important;
   background-color: var(--theme-button-primary-bg, #1a1a1a) !important;
   color: var(--theme-button-primary-text, #ffffff) !important;
-  transform: translateY(-1px) !important;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.2) !important;
+  transition: transform 0.08s !important;
 }
 
 /* Botão Secundário Sólido */
 .storefront-container .sf-btn-secondary {
   background-color: var(--theme-button-secondary-bg, #f5f5f5) !important;
   color: var(--theme-button-secondary-text, #1a1a1a) !important;
+  transition: all 0.2s ease !important;
 }
-.storefront-container .sf-btn-secondary:hover {
-  background-color: var(--theme-button-secondary-hover) !important;
-  transform: translateY(-1px) !important;
+@media(hover:hover) {
+  .storefront-container .sf-btn-secondary:hover {
+    background-color: var(--theme-button-secondary-hover) !important;
+    transform: translateY(-1px) !important;
+    filter: brightness(1.1) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+  }
+}
+.storefront-container .sf-btn-secondary:active {
+  transform: scale(0.93) !important;
+  filter: brightness(0.88) !important;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.2) !important;
+  transition: transform 0.08s !important;
 }
 
 /* Botão Secundário Outline */
@@ -516,12 +550,30 @@ O sistema organiza as cores em **5 grupos** para facilitar a configuração:
   background-color: transparent !important;
   color: var(--theme-button-secondary-text, #1a1a1a) !important;
   border: 1px solid var(--theme-button-secondary-bg, #e5e5e5) !important;
+  transition: all 0.2s ease !important;
 }
-.storefront-container .sf-btn-outline-secondary:hover {
-  background-color: var(--theme-button-secondary-bg, #e5e5e5) !important;
-  transform: translateY(-1px) !important;
+@media(hover:hover) {
+  .storefront-container .sf-btn-outline-secondary:hover {
+    background-color: var(--theme-button-secondary-bg, #e5e5e5) !important;
+    transform: translateY(-1px) !important;
+  }
+}
+.storefront-container .sf-btn-outline-secondary:active {
+  transform: scale(0.93) !important;
+  filter: brightness(0.88) !important;
+  transition: transform 0.08s !important;
 }
 ```
+
+### Regras de Feedback Visual (v8.5.1)
+
+| Regra | Valor |
+|-------|-------|
+| **Hover (desktop)** | `translateY(-1px)`, `brightness(1.1)`, `box-shadow: 0 2px 8px` — protegido por `@media(hover:hover)` |
+| **Active (touch + click)** | `scale(0.93)`, `brightness(0.88)`, `box-shadow: inset 0 2px 4px` — sempre ativo |
+| **Transição hover** | `all 0.2s ease` |
+| **Transição active** | `transform 0.08s` (rápida para feedback imediato) |
+| **Tap highlight** | `-webkit-tap-highlight-color: transparent` (evita flash azul em mobile) |
 
 ### Fallbacks Neutros (NÃO AZUL)
 

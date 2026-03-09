@@ -848,7 +848,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           </div>
         </div>
 
-        {/* Sidebar - Order summary + Coupon */}
+        {/* Sidebar - Order summary + Coupon + Testimonials */}
         <div className="space-y-4" style={{ alignSelf: 'start' }}>
           <div className="sticky top-4 space-y-4">
             {/* Coupon input - Conditional based on checkout_config */}

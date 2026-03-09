@@ -162,19 +162,9 @@ export function ShippingEstimator() {
                 <div>
                   <p className="font-medium flex items-center gap-2">
                     {option.label}
-                    {option.carrier && (
-                      <span className="text-xs text-muted-foreground">
-                        ({option.carrier})
-                      </span>
-                    )}
                     {option.isFree && (
                       <span className="sf-checkout-flag inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold text-white" style={{ backgroundColor: 'var(--theme-flags-color, var(--theme-accent-color, #22c55e))' }}>
                         FRETE GRÁTIS
-                      </span>
-                    )}
-                    {option.sourceProvider && !option.isFree && (
-                      <span className="px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground rounded">
-                        via {option.sourceProvider}
                       </span>
                     )}
                   </p>
