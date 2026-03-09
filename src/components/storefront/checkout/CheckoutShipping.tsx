@@ -202,16 +202,6 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
                   <div>
                     <p className="font-medium">
                       {option.label}
-                      {option.carrier && (
-                        <span className="text-xs text-muted-foreground ml-1">
-                          ({option.carrier})
-                        </span>
-                      )}
-                      {option.sourceProvider && (
-                        <span className="ml-1 px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground rounded">
-                          via {option.sourceProvider}
-                        </span>
-                      )}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {option.deliveryDays} {option.deliveryDays === 1 ? 'dia útil' : 'dias úteis'}
