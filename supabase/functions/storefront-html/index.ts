@@ -1,6 +1,6 @@
 // ============================================
 // STOREFRONT HTML — Edge-Rendered Storefront
-// v8.2.0: REFACTOR — named result extraction instead of numeric allResults[] indices
+// v8.4.0: REFACTOR — Centralized theme tokens via _shared/theme-tokens.ts
 // Resolves tenant from hostname, serves pre-rendered HTML if available,
 // falls back to live rendering otherwise.
 // ============================================
@@ -14,152 +14,16 @@ import { headerToStaticHTML } from '../_shared/block-compiler/blocks/header.ts';
 import { footerToStaticHTML } from '../_shared/block-compiler/blocks/footer.ts';
 import { blogIndexToStaticHTML, blogPostToStaticHTML } from '../_shared/block-compiler/blocks/blog.ts';
 import { institutionalPageToStaticHTML } from '../_shared/block-compiler/blocks/institutional-page.ts';
+import { generateThemeCss, generateButtonCssRules, getGoogleFontsData } from '../_shared/theme-tokens.ts';
 
 // ===== VERSION =====
-const VERSION = "v8.3.0"; // Phase 6: Marketing pixels, Newsletter Popup, Consent Banner injection
+const VERSION = "v8.4.0"; // Phase 7: Centralized theme tokens
 // ====================
 
-// ============================================
-// FONT MAP
-// ============================================
-const FONT_FAMILY_MAP: Record<string, string> = {
-  'inter': "'Inter', sans-serif",
-  'roboto': "'Roboto', sans-serif",
-  'open-sans': "'Open Sans', sans-serif",
-  'lato': "'Lato', sans-serif",
-  'montserrat': "'Montserrat', sans-serif",
-  'poppins': "'Poppins', sans-serif",
-  'nunito': "'Nunito', sans-serif",
-  'raleway': "'Raleway', sans-serif",
-  'mulish': "'Mulish', sans-serif",
-  'work-sans': "'Work Sans', sans-serif",
-  'quicksand': "'Quicksand', sans-serif",
-  'dm-sans': "'DM Sans', sans-serif",
-  'manrope': "'Manrope', sans-serif",
-  'outfit': "'Outfit', sans-serif",
-  'plus-jakarta-sans': "'Plus Jakarta Sans', sans-serif",
-  'playfair': "'Playfair Display', serif",
-  'merriweather': "'Merriweather', serif",
-  'lora': "'Lora', serif",
-  'oswald': "'Oswald', sans-serif",
-  'bebas-neue': "'Bebas Neue', sans-serif",
-};
+// NOTE: FONT_FAMILY_MAP, getFontFamily, generateThemeCss, getGoogleFontsData
+// are now imported from '../_shared/theme-tokens.ts' (centralized)
 
-function getFontFamily(fontValue: string): string {
-  return FONT_FAMILY_MAP[fontValue] || FONT_FAMILY_MAP['inter'];
-}
-
-// ============================================
-// IMAGE OPTIMIZATION (wsrv.nl proxy)
-// ============================================
-function optimizeImageUrl(url: string | undefined | null, width: number, quality = 80): string {
-  if (!url) return '';
-  if (url.startsWith('https://wsrv.nl') || url.startsWith('data:')) return url;
-  return `https://wsrv.nl/?url=${encodeURIComponent(url)}&w=${width}&q=${quality}&output=webp`;
-}
-
-// ============================================
-// THEME CSS GENERATOR
-// ============================================
-function generateThemeCss(themeSettings: any): string {
-  const typography = themeSettings?.typography;
-  const colors = themeSettings?.colors;
-  
-  const headingFont = getFontFamily(typography?.headingFont || 'inter');
-  const bodyFont = getFontFamily(typography?.bodyFont || 'inter');
-  const baseFontSize = typography?.baseFontSize || 16;
-  
-  // ALL color variables — must match getStorefrontThemeCss() in usePublicThemeSettings.ts
-  const colorVars: string[] = [];
-  if (colors?.buttonPrimaryBg) colorVars.push(`--theme-button-primary-bg: ${colors.buttonPrimaryBg};`);
-  if (colors?.buttonPrimaryText) colorVars.push(`--theme-button-primary-text: ${colors.buttonPrimaryText};`);
-  if (colors?.buttonPrimaryHover) colorVars.push(`--theme-button-primary-hover: ${colors.buttonPrimaryHover};`);
-  if (colors?.buttonSecondaryBg) colorVars.push(`--theme-button-secondary-bg: ${colors.buttonSecondaryBg};`);
-  if (colors?.buttonSecondaryText) colorVars.push(`--theme-button-secondary-text: ${colors.buttonSecondaryText};`);
-  if (colors?.buttonSecondaryHover) colorVars.push(`--theme-button-secondary-hover: ${colors.buttonSecondaryHover};`);
-  if (colors?.textPrimary) colorVars.push(`--theme-text-primary: ${colors.textPrimary};`);
-  if (colors?.textSecondary) colorVars.push(`--theme-text-secondary: ${colors.textSecondary};`);
-  if (colors?.priceColor) colorVars.push(`--theme-price-color: ${colors.priceColor};`);
-  // WhatsApp button colors
-  const whatsappColor = colors?.whatsappColor || '#25D366';
-  const whatsappHover = colors?.whatsappHover || '#128C7E';
-  colorVars.push(`--theme-whatsapp-color: ${whatsappColor};`);
-  colorVars.push(`--theme-whatsapp-hover: ${whatsappHover};`);
-  // Accent color
-  const accentColor = colors?.accentColor || '#22c55e';
-  if (colors?.accentColor) colorVars.push(`--theme-accent-color: ${colors.accentColor};`);
-  // Tag colors — success inherits from accent if not set
-  const successBg = colors?.successBg || accentColor;
-  colorVars.push(`--theme-success-bg: ${successBg};`);
-  if (colors?.successText) colorVars.push(`--theme-success-text: ${colors.successText};`);
-  if (colors?.warningBg) colorVars.push(`--theme-warning-bg: ${colors.warningBg};`);
-  if (colors?.warningText) colorVars.push(`--theme-warning-text: ${colors.warningText};`);
-  if (colors?.dangerBg) colorVars.push(`--theme-danger-bg: ${colors.dangerBg};`);
-  if (colors?.dangerText) colorVars.push(`--theme-danger-text: ${colors.dangerText};`);
-  if (colors?.highlightBg) colorVars.push(`--theme-highlight-bg: ${colors.highlightBg};`);
-  if (colors?.highlightText) colorVars.push(`--theme-highlight-text: ${colors.highlightText};`);
-
-  return `
-    :root {
-      --sf-heading-font: ${headingFont};
-      --sf-body-font: ${bodyFont};
-      --sf-base-font-size: ${baseFontSize}px;
-      ${colorVars.join('\n      ')}
-    }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: var(--sf-body-font);
-      font-size: var(--sf-base-font-size);
-      color: #1a1a1a;
-      background: #fff;
-      -webkit-font-smoothing: antialiased;
-    }
-    h1,h2,h3,h4,h5,h6 { font-family: var(--sf-heading-font); }
-    a { color: inherit; text-decoration: none; }
-    img { max-width: 100%; height: auto; display: block; }
-  `;
-}
-
-// ============================================
-// GOOGLE FONTS LINK GENERATOR + PRELOAD
-// ============================================
-interface FontResult {
-  stylesheetTags: string;
-  preloadTags: string;
-}
-
-function getGoogleFontsData(themeSettings: any): FontResult {
-  const fonts = new Set<string>();
-  const headingFont = themeSettings?.typography?.headingFont || 'inter';
-  const bodyFont = themeSettings?.typography?.bodyFont || 'inter';
-  
-  const fontNameMap: Record<string, string> = {
-    'inter': 'Inter', 'roboto': 'Roboto', 'open-sans': 'Open+Sans', 'lato': 'Lato',
-    'montserrat': 'Montserrat', 'poppins': 'Poppins', 'nunito': 'Nunito', 'raleway': 'Raleway',
-    'mulish': 'Mulish', 'work-sans': 'Work+Sans', 'quicksand': 'Quicksand', 'dm-sans': 'DM+Sans',
-    'manrope': 'Manrope', 'outfit': 'Outfit', 'plus-jakarta-sans': 'Plus+Jakarta+Sans',
-    'playfair': 'Playfair+Display', 'merriweather': 'Merriweather', 'lora': 'Lora',
-    'oswald': 'Oswald', 'bebas-neue': 'Bebas+Neue',
-  };
-  
-  if (fontNameMap[headingFont]) fonts.add(fontNameMap[headingFont]);
-  if (fontNameMap[bodyFont]) fonts.add(fontNameMap[bodyFont]);
-  
-  if (fonts.size === 0) return { stylesheetTags: '', preloadTags: '' };
-  
-  const families = Array.from(fonts).map(f => `family=${f}:wght@400;500;600;700`).join('&');
-  const cssUrl = `https://fonts.googleapis.com/css2?${families}&display=swap`;
-  
-  const preloadTags = `<link rel="preload" href="${cssUrl}" as="style">`;
-  
-  const stylesheetTags = [
-    '<link rel="preconnect" href="https://fonts.googleapis.com">',
-    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>',
-    `<link href="${cssUrl}" rel="stylesheet">`,
-  ].join('\n  ');
-  
-  return { stylesheetTags, preloadTags };
-}
+// NOTE: getGoogleFontsData is now imported from theme-tokens.ts
 
 // ============================================
 // BLOCK TREE WALKER — Extract first Banner/HeroBanner
@@ -562,21 +426,8 @@ function buildFullPage(opts: {
     .sf-featured-promo .sf-featured-thumb img{border-radius:8px 8px 0 0;}
     .sf-featured-promo .sf-featured-thumb > div:last-child{border-radius:0 0 8px 8px;}
     .sf-featured-promo:hover .sf-featured-thumb{display:block;}
-    /* Button theme styles — mirrors usePublicThemeSettings.ts */
-    .sf-btn-primary{background:var(--theme-button-primary-bg,#1a1a1a) !important;color:var(--theme-button-primary-text,#fff) !important;transition:all 0.2s ease !important;}
-    .sf-btn-primary:hover:not(:disabled){background:var(--theme-button-primary-hover,var(--theme-button-primary-bg,#333)) !important;transform:translateY(-1px) !important;filter:brightness(1.05) !important;}
-    .sf-btn-outline-primary{background:transparent !important;color:var(--theme-button-primary-bg,#1a1a1a) !important;border:1px solid var(--theme-button-primary-bg,#1a1a1a) !important;transition:all 0.2s ease !important;}
-    .sf-btn-outline-primary:hover:not(:disabled){background:var(--theme-button-primary-bg,#1a1a1a) !important;color:var(--theme-button-primary-text,#fff) !important;border-color:var(--theme-button-primary-bg,#1a1a1a) !important;transform:translateY(-1px) !important;}
-    .sf-btn-secondary{background:var(--theme-button-secondary-bg,#e5e5e5) !important;color:var(--theme-button-secondary-text,#1a1a1a) !important;transition:all 0.2s ease !important;}
-    .sf-btn-secondary:hover:not(:disabled){background:var(--theme-button-secondary-hover,var(--theme-button-secondary-bg,#d5d5d5)) !important;transform:translateY(-1px) !important;filter:brightness(1.05) !important;}
-    /* Accent color classes */
-    .sf-accent-icon,.sf-accent-check,.sf-accent-text{color:var(--theme-accent-color,#22c55e) !important;}
-    .sf-accent-bg{background:var(--theme-accent-color,#22c55e) !important;color:#fff !important;}
-    /* Tag colors */
-    .sf-tag-success{background:var(--theme-success-bg,#22c55e) !important;color:var(--theme-success-text,#fff) !important;}
-    .sf-tag-warning{background:var(--theme-warning-bg,#f97316) !important;color:var(--theme-warning-text,#fff) !important;}
-    .sf-tag-danger{background:var(--theme-danger-bg,#ef4444) !important;color:var(--theme-danger-text,#fff) !important;}
-    .sf-tag-highlight{background:var(--theme-highlight-bg,#3b82f6) !important;color:var(--theme-highlight-text,#fff) !important;}
+    /* Button & tag styles — from centralized theme-tokens.ts */
+    ${generateButtonCssRules()}
     /* Search overlay */
     .sf-search-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;align-items:flex-start;justify-content:center;padding-top:80px;}
     .sf-search-overlay.active{display:flex;}

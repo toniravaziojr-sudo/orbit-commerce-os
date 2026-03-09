@@ -141,10 +141,15 @@
 21. ✅ Newsletter Popup — edge-rendered com triggers (delay/scroll/exit_intent/immediate)
 22. ✅ Consent Banner (LGPD) — renderizado quando `consent_mode_enabled = true`
 
-### Fase 7: Auditoria Visual + Centralização
-23. Comparar builder vs público
-24. Centralizar sistema de cores (design tokens únicos)
-25. Centralizar lógica de frete grátis
+### Fase 7: Auditoria Visual + Centralização ✅ CONCLUÍDA
+23. ✅ Centralizar sistema de cores (design tokens únicos)
+    - React: `src/lib/storefront-theme-utils.ts` (hexToHslValues, FONT_FAMILY_MAP, generateButtonCssRules, generateAccentAndTagCssRules, generateColorCssVars)
+    - Edge: `supabase/functions/_shared/theme-tokens.ts` (FONT_FAMILY_MAP, generateThemeCss, generateButtonCssRules, getGoogleFontsData)
+    - Refatorado `usePublicThemeSettings.ts` → usa shared utils
+    - Refatorado `useBuilderThemeInjector.ts` → usa shared utils
+    - Refatorado `storefront-html/index.ts` v8.4.0 → importa de theme-tokens.ts
+24. ⏳ Comparar builder vs público (requer auditoria visual manual)
+25. ⏳ Centralizar lógica de frete grátis (baixa prioridade)
 
 ---
 
