@@ -225,6 +225,7 @@ A partir da v5.0.0, o storefront público opera em **dois modos**:
 | `/minha-conta` | Área do cliente | `StorefrontAccount.tsx` |
 | `/minha-conta/pedidos` | Meus pedidos | `StorefrontOrdersList.tsx` |
 | `/minha-conta/pedido/:id` | Detalhes do pedido | `StorefrontOrderDetail.tsx` |
+| `/busca?q=termo` | Busca de produtos | `StorefrontSearch.tsx` |
 
 ### Rotas do Builder (Admin)
 
