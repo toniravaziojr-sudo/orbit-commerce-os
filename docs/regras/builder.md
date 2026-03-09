@@ -1281,9 +1281,9 @@ Lista de páginas configuráveis. Ao clicar, navega para a página no canvas e a
 | 8 | Destaque adicional | Mini-banners clicáveis, direcionam para categoria configurada |
 | 9 | Compre Junto | Configurado no submódulo Aumentar Ticket |
 | 10 | Compra rápida | CTA "Comprar agora" em qualquer lugar da loja direciona ao checkout direto |
-| 11 | Miniatura promoções | Exibida ao passar o mouse no link de promoções (desktop only, 240×96px) |
+| 11 | Miniatura promoções | É o mini-banner de "Categoria em Destaque" no header. Ao passar o mouse no link de promoções (desktop only), a miniatura aparece. Já está funcional. Recomendado: 240×96px |
 | 12 | Lojas Oficiais | Links externos para outros canais de venda (marketplaces, etc.) |
-| 13 | Exit intent | Gatilho do popup newsletter — detecta intenção de saída |
+| 13 | Exit intent | Gatilho do popup newsletter — detecta quando o cliente move o cursor para fora da viewport (indo em direção ao "X" para fechar o navegador/aba). Dispara o popup nesse momento como última tentativa de captura |
 | 14 | Gerar com IA (SEO) | Baseado nas informações do negócio (tipo de loja, produtos, nicho) |
 | 15 | Formas de pagamento checkout | Apenas visual (reorder + labels). Ativação em Integrações > Pagamentos |
 
