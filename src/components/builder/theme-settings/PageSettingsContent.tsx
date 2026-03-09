@@ -1184,6 +1184,7 @@ export function PageSettingsContent({
                           id={config.key}
                           checked={Boolean(settings[config.key] ?? config.defaultValue)}
                           onCheckedChange={(checked) => handleChange(config.key, checked)}
+                          className="flex-shrink-0"
                         />
                       </div>
                     )}
