@@ -624,6 +624,7 @@ export function StorefrontHeaderContent({
                           placeholder="Buscar produtos..."
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
+                          onKeyDown={handleSearchSubmit}
                           className="pl-10"
                         />
                       </div>
