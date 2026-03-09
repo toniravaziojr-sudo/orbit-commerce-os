@@ -73,23 +73,22 @@
 
 ## 📋 INVENTÁRIO DE BLOCOS
 
-### ✅ Prontos no Edge (31 compiladores + 3 standalone)
+### ✅ Prontos no Edge (38 compiladores + 3 standalone)
 - **Layout**: Page, Section, Container, Columns, Column, Grid
 - **Conteúdo**: Text, RichText, Image, Button, Spacer, Divider
 - **E-commerce**: HeroBanner, Banner, ImageCarousel, InfoHighlights, FeaturedCategories, FeaturedProducts, CategoryBanner, CategoryPageLayout
 - **Produto**: ProductDetails (Reviews, Compre Junto, Relacionados, Variantes, Galeria+Lightbox)
 - **Interativo**: FAQ, Testimonials, AccordionBlock, Newsletter, NewsletterForm
 - **Mídia**: YouTubeVideo, VideoCarousel, HTMLSection, ImageGallery
+- **Marketing**: CountdownTimer, LogosCarousel, StatsNumbers, ContentColumns, FeatureList, StepsTimeline, TextBanners
 - **Estrutural**: Header, Footer
 - **Standalone**: Blog, Institucional
 
-### 🔴 FALTA Compilador (15 blocos)
+### 🔴 FALTA Compilador (8 blocos)
 
 **E-commerce (5)**: ProductGrid, ProductCarousel, CategoryList, CollectionSection, BannerProducts
 
-**Marketing (7)**: CountdownTimer, LogosCarousel, StatsNumbers, ContentColumns, FeatureList, StepsTimeline, TextBanners
-
-**Outros**: NewsletterPopup
+**Outros**: NewsletterPopup, Reviews (standalone), VideoUpload
 
 ---
 
