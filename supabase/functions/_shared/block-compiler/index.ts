@@ -44,6 +44,15 @@ import { videoCarouselToStaticHTML } from './blocks/video-carousel.ts';
 import { htmlSectionToStaticHTML } from './blocks/html-section.ts';
 import { imageGalleryToStaticHTML } from './blocks/image-gallery.ts';
 
+// Marketing blocks
+import { countdownTimerToStaticHTML } from './blocks/countdown-timer.ts';
+import { logosCarouselToStaticHTML } from './blocks/logos-carousel.ts';
+import { statsNumbersToStaticHTML } from './blocks/stats-numbers.ts';
+import { contentColumnsToStaticHTML } from './blocks/content-columns.ts';
+import { featureListToStaticHTML } from './blocks/feature-list.ts';
+import { stepsTimelineToStaticHTML } from './blocks/steps-timeline.ts';
+import { textBannersToStaticHTML } from './blocks/text-banners.ts';
+
 // Layout blocks
 import { containerToStaticHTML } from './blocks/container.ts';
 import { columnsToStaticHTML } from './blocks/columns.ts';
@@ -111,6 +120,15 @@ const COMPILER_REGISTRY: Record<string, BlockCompilerFn> = {
   'VideoCarousel': videoCarouselToStaticHTML,
   'HTMLSection': htmlSectionToStaticHTML,
   'ImageGallery': imageGalleryToStaticHTML,
+  
+  // Marketing blocks
+  'CountdownTimer': countdownTimerToStaticHTML,
+  'LogosCarousel': logosCarouselToStaticHTML,
+  'StatsNumbers': statsNumbersToStaticHTML,
+  'ContentColumns': contentColumnsToStaticHTML,
+  'FeatureList': featureListToStaticHTML,
+  'StepsTimeline': stepsTimelineToStaticHTML,
+  'TextBanners': textBannersToStaticHTML,
 };
 
 /**
@@ -127,11 +145,9 @@ const STRUCTURAL_BLOCKS = new Set(['Header', 'Footer']);
 export const UNSUPPORTED_BLOCKS = new Set([
   'ProductGrid', 'ProductCarousel', 'CategoryList',
   'CollectionSection', 'BannerProducts',
-  'Reviews', 'TextBanners', 'VideoUpload',
+  'Reviews', 'VideoUpload',
   'TrackingLookup', 'BlogListing', 'BlogPostDetail', 'PageContent',
   'ContactForm',
-  'FeatureList', 'ContentColumns', 'StepsTimeline',
-  'CountdownTimer', 'LogosCarousel', 'StatsNumbers',
   'CategoryFilters',
   'CartDemo', 'CheckoutDemo', 'CustomBlock',
   'NewsletterPopup', 'Map', 'SocialFeed',
