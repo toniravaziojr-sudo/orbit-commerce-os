@@ -404,11 +404,16 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
               // is_free from API takes precedence, then check isFreeShipping threshold
               const optionIsFree = opt.is_free === true || isFreeShipping;
               
+              // Clean label: remove carrier/provider references like "(Correios)", "via frenet"
+              const rawLabel = opt.service_name || opt.label || 'Frete';
+              const cleanLabel = rawLabel
+                .replace(/\s*\((?:Correios|Jadlog|Loggi|Frenet|Transportadora)\)/gi, '')
+                .replace(/\s*via\s+(?:frenet|correios|loggi|jadlog)/gi, '')
+                .trim() || 'Frete';
+
               return {
                 code: opt.service_code || opt.code,
-                label: opt.service_name || opt.label || 'Frete',
-                carrier: opt.carrier,
-                sourceProvider: opt.source_provider,
+                label: cleanLabel,
                 price: optionIsFree ? 0 : safePrice,
                 originalPrice: safeOriginalPrice,
                 deliveryDays: safeDays,
