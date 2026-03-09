@@ -18,7 +18,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const VERSION = "v1.1.0";
+const VERSION = "v1.2.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
