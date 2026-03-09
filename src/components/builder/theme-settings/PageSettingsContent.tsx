@@ -955,7 +955,7 @@ export function PageSettingsContent({
                   )} />
                 </button>
               </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-3 px-3 pb-3">
+              <CollapsibleContent className="space-y-3 px-2 pb-3">
                 {/* Special: PaymentMethodsConfig for checkout payment group */}
                 {pageType === 'checkout' && group.id === 'payment' && (
                   <PaymentMethodsConfig tenantId={tenantId} />
