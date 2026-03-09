@@ -1366,7 +1366,7 @@ function OrderSummarySidebar({
   freeShipping?: boolean;
 }) {
   return (
-    <div className="bg-card border rounded-lg p-4 sticky top-4">
+    <div className="bg-card border rounded-lg p-4">
       <h3 className="font-semibold mb-4">Resumo do pedido</h3>
 
       {/* Items preview */}
