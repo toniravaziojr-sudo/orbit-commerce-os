@@ -32,6 +32,14 @@ import { categoryBannerToStaticHTML } from './blocks/category-banner.ts';
 import { categoryPageLayoutToStaticHTML } from './blocks/category-page-layout.ts';
 import { productDetailsToStaticHTML } from './blocks/product-details.ts';
 
+// Content blocks
+import { textToStaticHTML } from './blocks/text.ts';
+import { richTextToStaticHTML } from './blocks/rich-text.ts';
+import { imageToStaticHTML } from './blocks/image.ts';
+import { buttonToStaticHTML } from './blocks/button.ts';
+import { spacerToStaticHTML } from './blocks/spacer.ts';
+import { dividerToStaticHTML } from './blocks/divider.ts';
+
 /**
  * Registry mapping block type → compiler function.
  * This is the SINGLE place to register block compilers.
@@ -44,7 +52,15 @@ const COMPILER_REGISTRY: Record<string, BlockCompilerFn> = {
   'Page': pageToStaticHTML,
   'Section': sectionToStaticHTML,
   
-  // Content blocks
+  // Content blocks — Basic
+  'Text': textToStaticHTML,
+  'RichText': richTextToStaticHTML,
+  'Image': imageToStaticHTML,
+  'Button': buttonToStaticHTML,
+  'Spacer': spacerToStaticHTML,
+  'Divider': dividerToStaticHTML,
+  
+  // Content blocks — Complex
   'HeroBanner': heroBannerToStaticHTML,
   'Banner': bannerToStaticHTML,
   'ImageCarousel': imageCarouselToStaticHTML,
@@ -75,7 +91,6 @@ const STRUCTURAL_BLOCKS = new Set(['Header', 'Footer']);
  */
 export const UNSUPPORTED_BLOCKS = new Set([
   'Container', 'Grid', 'Column', 'Columns',
-  'Text', 'RichText', 'Image', 'Button', 'Spacer', 'Divider',
   'ProductGrid', 'ProductCarousel', 'CategoryList',
   'CollectionSection', 'BannerProducts', 'YouTubeVideo',
   'Reviews', 'TextBanners', 'VideoUpload', 'VideoCarousel',
