@@ -238,6 +238,224 @@ function parseRoute(path: string): ParsedRoute {
 }
 
 // ============================================
+// MARKETING PIXELS — Deferred script injection
+// ============================================
+function generateMarketingPixelScripts(config: any): string {
+  if (!config) return '';
+  const scripts: string[] = [];
+  const prefetches: string[] = [];
+
+  // Meta Pixel
+  if (config.meta_enabled && config.meta_pixel_id) {
+    prefetches.push('<link rel="dns-prefetch" href="https://connect.facebook.net">');
+    const pixelId = escapeHtml(config.meta_pixel_id);
+    scripts.push(`
+    <script>
+    (function(){
+      function loadMeta(){
+        !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init','${pixelId}');fbq('track','PageView');
+      }
+      if('requestIdleCallback' in window){requestIdleCallback(loadMeta,{timeout:3000});}
+      else{setTimeout(loadMeta,2000);}
+    })();
+    </script>`);
+  }
+
+  // Google Analytics / Ads
+  if (config.google_enabled && config.google_measurement_id) {
+    prefetches.push('<link rel="dns-prefetch" href="https://www.googletagmanager.com">');
+    const gaId = escapeHtml(config.google_measurement_id);
+    const adsId = config.google_ads_conversion_id ? escapeHtml(config.google_ads_conversion_id) : '';
+    scripts.push(`
+    <script>
+    (function(){
+      function loadGA(){
+        var s=document.createElement('script');s.async=true;
+        s.src='https://www.googletagmanager.com/gtag/js?id=${gaId}';
+        document.head.appendChild(s);
+        window.dataLayer=window.dataLayer||[];
+        function gtag(){dataLayer.push(arguments);}
+        window.gtag=gtag;
+        gtag('js',new Date());
+        gtag('config','${gaId}',{send_page_view:true});
+        ${adsId ? `gtag('config','${adsId}');` : ''}
+      }
+      if('requestIdleCallback' in window){requestIdleCallback(loadGA,{timeout:3000});}
+      else{setTimeout(loadGA,2000);}
+    })();
+    </script>`);
+  }
+
+  // TikTok Pixel
+  if (config.tiktok_enabled && config.tiktok_pixel_id) {
+    prefetches.push('<link rel="dns-prefetch" href="https://analytics.tiktok.com">');
+    const ttId = escapeHtml(config.tiktok_pixel_id);
+    scripts.push(`
+    <script>
+    (function(){
+      function loadTT(){
+        !function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=['page','track','identify','instances','debug','on','off','once','ready','alias','group','enableCookie','disableCookie'];ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e};ttq.load=function(e,n){var i='https://analytics.tiktok.com/i18n/pixel/events.js';ttq._i=ttq._i||{};ttq._i[e]=[];ttq._i[e]._u=i;ttq._t=ttq._t||{};ttq._t[e+'']=+new Date;ttq._o=ttq._o||{};ttq._o[e+'']=n||{};var o=document.createElement('script');o.type='text/javascript';o.async=!0;o.src=i+'?sdkid='+e+'&lib='+t;var a=document.getElementsByTagName('script')[0];a.parentNode.insertBefore(o,a)}}(window,document,'ttq');
+        ttq.load('${ttId}');ttq.page();
+      }
+      if('requestIdleCallback' in window){requestIdleCallback(loadTT,{timeout:3000});}
+      else{setTimeout(loadTT,2000);}
+    })();
+    </script>`);
+  }
+
+  if (scripts.length === 0) return '';
+  const guard = `<script>window._sfPixelsLoaded=true;</script>`;
+  return prefetches.join('\n') + '\n' + guard + scripts.join('\n');
+}
+
+// ============================================
+// NEWSLETTER POPUP — Edge-rendered popup
+// ============================================
+function generateNewsletterPopupHtml(config: any, tenantId: string, routeType: string): string {
+  if (!config || !config.is_active) return '';
+
+  const showOnPages: string[] = config.show_on_pages || ['home', 'category', 'product'];
+  const pageTypeMap: Record<string, string> = { home: 'home', category: 'category', product: 'product', blog: 'blog', blog_post: 'blog', page: 'other' };
+  const currentPageType = pageTypeMap[routeType] || 'other';
+  if (showOnPages.length > 0 && !showOnPages.includes(currentPageType)) return '';
+
+  const bgColor = escapeHtml(config.background_color || '#ffffff');
+  const textColor = escapeHtml(config.text_color || '#1a1a1a');
+  const btnBg = escapeHtml(config.button_bg_color || '#1a1a1a');
+  const btnText = escapeHtml(config.button_text_color || '#ffffff');
+  const title = escapeHtml(config.title || 'Receba nossas novidades');
+  const subtitle = escapeHtml(config.subtitle || '');
+  const buttonText = escapeHtml(config.button_text || 'Cadastrar');
+  const successMsg = escapeHtml(config.success_message || 'Cadastrado com sucesso!');
+  const triggerType = config.trigger_type || 'delay';
+  const triggerDelay = (config.trigger_delay_seconds || 5) * 1000;
+  const triggerScroll = config.trigger_scroll_percent || 50;
+  const showOnce = config.show_once_per_session !== false;
+  const listId = config.list_id || '';
+  const layout = config.layout || 'centered';
+  const imageUrl = config.image_url || '';
+
+  const nameField = config.show_name ? `<input type="text" name="name" placeholder="Seu nome" ${config.name_required ? 'required' : ''} style="width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;outline:none;font-family:inherit;">` : '';
+  const emailField = `<input type="email" name="email" placeholder="Seu e-mail" required style="width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;outline:none;font-family:inherit;">`;
+  const phoneField = config.show_phone ? `<input type="tel" name="phone" placeholder="Seu telefone" ${config.phone_required ? 'required' : ''} style="width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;outline:none;font-family:inherit;">` : '';
+
+  const imageHtml = (layout === 'side-image' && imageUrl) ? `<div style="flex:1;min-width:200px;max-width:300px;"><img src="${escapeHtml(optimizeImageUrl(imageUrl, 400))}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:12px 0 0 12px;"></div>` : '';
+  const isCorner = layout === 'corner';
+  const popupWidth = isCorner ? 'max-width:360px;' : 'max-width:500px;';
+
+  return `
+  <div id="sf-newsletter-popup" data-sf-newsletter-popup style="display:none;${isCorner ? 'position:fixed;bottom:20px;right:20px;z-index:95;' : 'position:fixed;inset:0;z-index:95;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;'}">
+    <div style="${isCorner ? '' : 'position:relative;'}background:${bgColor};color:${textColor};border-radius:12px;padding:32px;${popupWidth}width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.2);display:flex;${layout === 'side-image' ? 'flex-direction:row;padding:0;overflow:hidden;' : 'flex-direction:column;'}gap:0;">
+      ${imageHtml}
+      <div style="${layout === 'side-image' ? 'flex:1;padding:32px;' : ''}">
+        <button data-sf-action="close-newsletter-popup" style="position:absolute;top:12px;right:12px;background:none;border:none;font-size:24px;cursor:pointer;color:${textColor};line-height:1;">&times;</button>
+        <h3 style="font-size:20px;font-weight:700;margin-bottom:8px;">${title}</h3>
+        ${subtitle ? `<p style="font-size:14px;opacity:0.8;margin-bottom:16px;">${subtitle}</p>` : ''}
+        <form data-sf-newsletter-form style="display:flex;flex-direction:column;gap:10px;" data-tenant-id="${escapeHtml(tenantId)}" data-list-id="${escapeHtml(listId)}" data-popup-id="${escapeHtml(config.id)}">
+          ${nameField}
+          ${emailField}
+          ${phoneField}
+          <button type="submit" style="width:100%;padding:12px;background:${btnBg};color:${btnText};border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:opacity 0.2s;">${buttonText}</button>
+        </form>
+        <div data-sf-newsletter-success style="display:none;text-align:center;padding:20px 0;">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="${btnBg}" stroke-width="2" style="margin:0 auto 12px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          <p style="font-size:16px;font-weight:600;">${successMsg}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+  (function(){
+    var popup=document.getElementById("sf-newsletter-popup");
+    if(!popup)return;
+    var STORAGE_KEY="sf_newsletter_dismissed";
+    var showOnce=${showOnce ? 'true' : 'false'};
+    if(showOnce&&sessionStorage.getItem(STORAGE_KEY))return;
+    function showPopup(){popup.style.display="${isCorner ? 'block' : 'flex'}";}
+    function hidePopup(){popup.style.display="none";if(showOnce)sessionStorage.setItem(STORAGE_KEY,"1");}
+    var triggerType="${triggerType}";
+    if(triggerType==="immediate"){showPopup();}
+    else if(triggerType==="delay"){setTimeout(showPopup,${triggerDelay});}
+    else if(triggerType==="scroll"){
+      var fired=false;
+      window.addEventListener("scroll",function(){
+        if(fired)return;
+        var pct=(window.scrollY/(document.body.scrollHeight-window.innerHeight))*100;
+        if(pct>=${triggerScroll}){fired=true;showPopup();}
+      });
+    } else if(triggerType==="exit_intent"){
+      document.addEventListener("mouseout",function(e){if(e.clientY<5)showPopup();});
+    }
+    popup.addEventListener("click",function(e){
+      if(e.target.closest("[data-sf-action='close-newsletter-popup']"))hidePopup();
+      if(e.target===popup&&!${isCorner})hidePopup();
+    });
+    var form=popup.querySelector("[data-sf-newsletter-form]");
+    if(form)form.addEventListener("submit",function(e){
+      e.preventDefault();
+      var fd=new FormData(form);
+      var email=fd.get("email");var name=fd.get("name")||"";var phone=fd.get("phone")||"";
+      var tenantId=form.dataset.tenantId;var listId=form.dataset.listId;var popupId=form.dataset.popupId;
+      var supabaseUrl="${Deno.env.get('SUPABASE_URL')}";
+      var supabaseKey="${Deno.env.get('SUPABASE_ANON_KEY') || ''}";
+      var btn=form.querySelector("button[type=submit]");
+      if(btn){btn.disabled=true;btn.textContent="Enviando...";}
+      fetch(supabaseUrl+"/functions/v1/newsletter-subscribe",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","apikey":supabaseKey,"Authorization":"Bearer "+supabaseKey},
+        body:JSON.stringify({tenant_id:tenantId,email:email,name:name,phone:phone,list_id:listId||null,source:"popup",popup_id:popupId})
+      }).then(function(r){return r.json()}).then(function(){
+        form.style.display="none";
+        popup.querySelector("[data-sf-newsletter-success]").style.display="block";
+        if(showOnce)sessionStorage.setItem(STORAGE_KEY,"1");
+        setTimeout(hidePopup,3000);
+      }).catch(function(){if(btn){btn.disabled=false;btn.textContent="${buttonText}";}});
+    });
+  })();
+  </script>`;
+}
+
+// ============================================
+// CONSENT BANNER (LGPD)
+// ============================================
+function generateConsentBannerHtml(): string {
+  return `
+  <div id="sf-consent-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:100;background:#1a1a1a;color:#fff;padding:16px 24px;box-shadow:0 -4px 20px rgba(0,0,0,0.15);">
+    <div style="max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+      <p style="font-size:13px;flex:1;min-width:200px;line-height:1.5;margin:0;">
+        Utilizamos cookies para melhorar sua experiência. Ao continuar navegando, você concorda com nossa
+        <a href="/page/politica-de-privacidade" style="color:#93c5fd;text-decoration:underline;">Política de Privacidade</a>.
+      </p>
+      <div style="display:flex;gap:8px;">
+        <button data-sf-consent="reject" style="padding:8px 16px;border:1px solid rgba(255,255,255,0.3);background:transparent;color:#fff;border-radius:6px;font-size:13px;cursor:pointer;">Rejeitar</button>
+        <button data-sf-consent="accept" style="padding:8px 16px;border:none;background:#fff;color:#1a1a1a;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">Aceitar</button>
+      </div>
+    </div>
+  </div>
+  <script>
+  (function(){
+    var banner=document.getElementById("sf-consent-banner");
+    if(!banner)return;
+    var CONSENT_KEY="sf_cookie_consent";
+    var consent=localStorage.getItem(CONSENT_KEY);
+    if(consent)return;
+    banner.style.display="block";
+    banner.addEventListener("click",function(e){
+      var btn=e.target.closest("[data-sf-consent]");
+      if(!btn)return;
+      var val=btn.dataset.sfConsent;
+      localStorage.setItem(CONSENT_KEY,val);
+      banner.style.display="none";
+      if(val==="accept"&&window.gtag){
+        gtag("consent","update",{analytics_storage:"granted",ad_storage:"granted"});
+      }
+    });
+  })();
+  </script>`;
+}
+
+// ============================================
 // PAGE SHELL — wraps all pages
 // ============================================
 function buildFullPage(opts: {
