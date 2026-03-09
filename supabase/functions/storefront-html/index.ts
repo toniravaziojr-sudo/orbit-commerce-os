@@ -1,6 +1,6 @@
 // ============================================
 // STOREFRONT HTML — Edge-Rendered Storefront
-// v8.4.0: REFACTOR — Centralized theme tokens via _shared/theme-tokens.ts
+// v8.4.1: FIX — Category banners use direct URLs (no wsrv.nl proxy), prerender invalidation
 // Resolves tenant from hostname, serves pre-rendered HTML if available,
 // falls back to live rendering otherwise.
 // ============================================
@@ -18,7 +18,7 @@ import { generateThemeCss, generateButtonCssRules, getGoogleFontsData } from '..
 import { optimizeImageUrl } from '../_shared/block-compiler/utils.ts';
 
 // ===== VERSION =====
-const VERSION = "v8.4.0"; // Phase 7: Centralized theme tokens
+const VERSION = "v8.4.1"; // Fix: Category banners direct URLs, no wsrv.nl proxy
 // ====================
 
 // NOTE: FONT_FAMILY_MAP, getFontFamily, generateThemeCss, getGoogleFontsData

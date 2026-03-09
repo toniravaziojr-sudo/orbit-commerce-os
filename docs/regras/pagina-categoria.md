@@ -1,8 +1,8 @@
 # Página de Categoria — Regras e Especificações
 
 > **Status:** FUNCIONAL ✅ — Core + Filtros + Ordenação + Paginação + Badges Dinâmicos  
-> **Última atualização:** 2026-03-07  
-> **Arquitetura:** v8.1.4 — block-compiler com filtros/sort/load-more client-side + badges dinâmicos
+> **Última atualização:** 2026-03-09  
+> **Arquitetura:** v8.4.1 — block-compiler com URLs diretas (sem wsrv.nl para banners) + filtros/sort/load-more client-side
 
 ## Visão Geral
 
@@ -126,21 +126,17 @@ Página de listagem de produtos filtrados por categoria.
 | Mobile | `category.banner_mobile_url` |
 | Fallback | `category.image_url` (apenas no React; compilador não usa fallback) |
 
-### Regras de Renderização (v8.4.3)
+### Regras de Renderização (v8.4.1)
 
 | Regra | Descrição |
 |-------|-----------|
-| **URLs diretas** | O compilador Edge usa URLs diretas do Supabase Storage (SEM proxy wsrv.nl). Motivo: wsrv.nl pode falhar silenciosamente no browser, causando banner cinza vazio. |
-| **Altura automática** | O banner NÃO usa altura fixa. Usa `height:auto` com `width:100%` para respeitar a proporção original da imagem (paridade com o Builder React). |
+| **URLs diretas (CRÍTICO)** | O compilador Edge usa URLs diretas do Supabase Storage (SEM proxy wsrv.nl). Motivo: wsrv.nl falha silenciosamente no browser por rate limits, referer checks ou CDN issues, causando banner cinza vazio. Essa regra é **não-negociável** e qualquer alteração que reintroduza wsrv.nl em banners é PROIBIDA. |
+| **Altura automática** | O banner NÃO usa altura fixa. Usa `height:auto` com `width:100%` e `display:block` para respeitar a proporção original da imagem (paridade com o Builder React). |
 | **Overlay** | Controlado por `bannerOverlayOpacity` do theme settings (0-100). Default 0 = sem escurecimento. |
 | **Builder** | Auto-seleciona a primeira categoria ativa quando `exampleCategoryId` está vazio (v8.4.2). |
 | **Paridade Desktop-Mobile** | Banner aparece em AMBOS. Desktop usa `banner_desktop_url`, mobile usa `banner_mobile_url` via `<picture><source media>`. |
-
-### Overlay
-
-| Prop | Origem | Default | Descrição |
-|------|--------|---------|-----------|
-| `bannerOverlayOpacity` | Theme settings | `0` | Opacidade do overlay escuro (0-100). Default 0 = sem escurecimento |
+| **Cache de Prerender** | Ao corrigir o compilador do banner, é OBRIGATÓRIO invalidar o cache de prerender (set status='stale') e redeploiar a edge function. Sem isso, o HTML antigo com wsrv.nl continua sendo servido. |
+| **Deploy da Edge Function** | Após editar `category-banner.ts`, é OBRIGATÓRIO fazer deploy explícito via `deploy_edge_functions(['storefront-html'])` e verificar que `X-Storefront-Version` reflete a nova versão. |
 
 ---
 
