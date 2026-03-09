@@ -126,13 +126,21 @@ Página de listagem de produtos filtrados por categoria.
 | Mobile | `category.banner_mobile_url` |
 | Fallback | `category.image_url` (apenas no React; compilador não usa fallback) |
 
+### Regras de Renderização (v8.4.3)
+
+| Regra | Descrição |
+|-------|-----------|
+| **URLs diretas** | O compilador Edge usa URLs diretas do Supabase Storage (SEM proxy wsrv.nl). Motivo: wsrv.nl pode falhar silenciosamente no browser, causando banner cinza vazio. |
+| **Altura automática** | O banner NÃO usa altura fixa. Usa `height:auto` com `width:100%` para respeitar a proporção original da imagem (paridade com o Builder React). |
+| **Overlay** | Controlado por `bannerOverlayOpacity` do theme settings (0-100). Default 0 = sem escurecimento. |
+| **Builder** | Auto-seleciona a primeira categoria ativa quando `exampleCategoryId` está vazio (v8.4.2). |
+| **Paridade Desktop-Mobile** | Banner aparece em AMBOS. Desktop usa `banner_desktop_url`, mobile usa `banner_mobile_url` via `<picture><source media>`. |
+
 ### Overlay
 
 | Prop | Origem | Default | Descrição |
 |------|--------|---------|-----------|
 | `bannerOverlayOpacity` | Theme settings | `0` | Opacidade do overlay escuro (0-100). Default 0 = sem escurecimento |
-
-> **Nota:** O compilador usa `overlayOpacity` da prop do bloco, enquanto o React usa `bannerOverlayOpacity` do theme settings. Essa é uma **divergência de paridade** conhecida.
 
 ---
 
