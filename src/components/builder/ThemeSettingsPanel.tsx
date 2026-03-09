@@ -9,7 +9,7 @@ import { useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ChevronRight, Palette, Type, FileCode, Layout, X, PanelTop, PanelBottom, ShoppingCart, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 import { PagesSettings } from './theme-settings/PagesSettings';
 import { TypographySettings } from './theme-settings/TypographySettings';
 import { ColorsSettings } from './theme-settings/ColorsSettings';
@@ -316,7 +316,7 @@ export function ThemeSettingsPanel({
           </Button>
         </div>
 
-        <ScrollArea className="h-[calc(100vh-57px)]">
+        <div className="h-[calc(100vh-57px)] overflow-y-auto">
           {currentView === 'menu' ? (
             <div className="p-3 space-y-1">
               {menuItems.map((item) => (
@@ -345,11 +345,11 @@ export function ThemeSettingsPanel({
               ))}
             </div>
           ) : (
-          <div className="pl-4 pr-5 py-4">
+            <div className="p-4">
               {renderContent()}
             </div>
           )}
-        </ScrollArea>
+        </div>
       </div>
     </>
   );
