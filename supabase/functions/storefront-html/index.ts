@@ -23,46 +23,7 @@ const VERSION = "v8.4.0"; // Phase 7: Centralized theme tokens
 // NOTE: FONT_FAMILY_MAP, getFontFamily, generateThemeCss, getGoogleFontsData
 // are now imported from '../_shared/theme-tokens.ts' (centralized)
 
-// ============================================
-// GOOGLE FONTS LINK GENERATOR + PRELOAD
-// ============================================
-interface FontResult {
-  stylesheetTags: string;
-  preloadTags: string;
-}
-
-function getGoogleFontsData(themeSettings: any): FontResult {
-  const fonts = new Set<string>();
-  const headingFont = themeSettings?.typography?.headingFont || 'inter';
-  const bodyFont = themeSettings?.typography?.bodyFont || 'inter';
-  
-  const fontNameMap: Record<string, string> = {
-    'inter': 'Inter', 'roboto': 'Roboto', 'open-sans': 'Open+Sans', 'lato': 'Lato',
-    'montserrat': 'Montserrat', 'poppins': 'Poppins', 'nunito': 'Nunito', 'raleway': 'Raleway',
-    'mulish': 'Mulish', 'work-sans': 'Work+Sans', 'quicksand': 'Quicksand', 'dm-sans': 'DM+Sans',
-    'manrope': 'Manrope', 'outfit': 'Outfit', 'plus-jakarta-sans': 'Plus+Jakarta+Sans',
-    'playfair': 'Playfair+Display', 'merriweather': 'Merriweather', 'lora': 'Lora',
-    'oswald': 'Oswald', 'bebas-neue': 'Bebas+Neue',
-  };
-  
-  if (fontNameMap[headingFont]) fonts.add(fontNameMap[headingFont]);
-  if (fontNameMap[bodyFont]) fonts.add(fontNameMap[bodyFont]);
-  
-  if (fonts.size === 0) return { stylesheetTags: '', preloadTags: '' };
-  
-  const families = Array.from(fonts).map(f => `family=${f}:wght@400;500;600;700`).join('&');
-  const cssUrl = `https://fonts.googleapis.com/css2?${families}&display=swap`;
-  
-  const preloadTags = `<link rel="preload" href="${cssUrl}" as="style">`;
-  
-  const stylesheetTags = [
-    '<link rel="preconnect" href="https://fonts.googleapis.com">',
-    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>',
-    `<link href="${cssUrl}" rel="stylesheet">`,
-  ].join('\n  ');
-  
-  return { stylesheetTags, preloadTags };
-}
+// NOTE: getGoogleFontsData is now imported from theme-tokens.ts
 
 // ============================================
 // BLOCK TREE WALKER — Extract first Banner/HeroBanner
