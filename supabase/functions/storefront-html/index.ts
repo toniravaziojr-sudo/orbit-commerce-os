@@ -16,7 +16,7 @@ import { blogIndexToStaticHTML, blogPostToStaticHTML } from '../_shared/block-co
 import { institutionalPageToStaticHTML } from '../_shared/block-compiler/blocks/institutional-page.ts';
 
 // ===== VERSION =====
-const VERSION = "v8.2.0"; // REFACTOR: named result extraction — no more numeric allResults[] indices
+const VERSION = "v8.3.0"; // Phase 6: Marketing pixels, Newsletter Popup, Consent Banner injection
 // ====================
 
 // ============================================
