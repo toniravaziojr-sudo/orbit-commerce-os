@@ -754,79 +754,538 @@ onSuccess: () => {
 
 ---
 
-## Settings por Página
+## Configurações do Tema — Catálogo Completo de Funções
 
-### Categoria (CategorySettings)
+> **Arquivo principal:** `src/components/builder/ThemeSettingsPanel.tsx`
+> **Acesso:** Builder → Barra lateral → Botão ⚙️ "Configurações do tema"
 
-| Setting | Tipo | Default | Descrição |
-|---------|------|---------|-----------|
-| `showRatings` | boolean | true | Exibe estrelas de avaliação nas thumbs |
-| `showBadges` | boolean | true | Exibe selos do menu "Aumentar Ticket" |
-| `showAddToCartButton` | boolean | true | Exibe botão "Adicionar ao carrinho" |
-| `quickBuyEnabled` | boolean | false | Botão principal vai direto ao checkout |
-| `buyNowButtonText` | string | "Comprar agora" | Texto do botão principal |
-| `customButtonEnabled` | boolean | false | Exibe botão personalizado |
-| `customButtonText` | string | "" | Texto do botão personalizado |
-| `customButtonColor` | string | "" | Cor do botão personalizado |
-| `customButtonLink` | string | "" | URL do botão personalizado |
-| `showBanner` | boolean | true | Exibe banner da categoria |
-| `showCategoryName` | boolean | true | Exibe nome da categoria |
+O painel de configurações do tema é organizado em **9 seções** acessíveis via menu lateral:
 
-### CategoryBanner (Defaults do Builder)
+| # | Seção | Componente | Salvamento | Descrição |
+|---|-------|-----------|------------|-----------|
+| 1 | Páginas | `PagesSettings.tsx` → `PageSettingsContent.tsx` | Draft (botão Salvar) | Configurações estruturais por página |
+| 2 | Cabeçalho | `HeaderSettings.tsx` | Auto-save (debounce 400ms) | Cores, barra superior, menus, logo |
+| 3 | Rodapé | `FooterSettings.tsx` | Auto-save (debounce 400ms) | Cores, seções, imagens, newsletter |
+| 4 | Carrinho Suspenso | `MiniCartSettings.tsx` | Auto-save (debounce 500ms) | Mini-cart lateral, frete grátis, timer |
+| 5 | Popup Newsletter | `PopupSettings.tsx` | Auto-save (debounce 500ms) | Popup de captura de leads |
+| 6 | Cores | `ColorsSettings.tsx` | Draft (botão Salvar) | Paleta de cores global do tema |
+| 7 | Tipografia | `TypographySettings.tsx` | Draft (botão Salvar) | Fontes e tamanho base |
+| 8 | CSS customizado | `CustomCSSSettings.tsx` | Draft (botão Salvar) | CSS livre com validação |
 
-| Prop | Default | Descrição |
-|------|---------|-----------|
-| `showTitle` | true | Exibe título da categoria sobre o banner |
-| `titlePosition` | 'center' | Posição do título: 'left', 'center', 'right' |
-| `overlayOpacity` | 0 | Opacidade do overlay escuro (0-100). Default 0 = sem escurecimento |
-| `height` | 'md' | Altura do banner: 'sm', 'md', 'lg' |
+---
 
-> **Nota (2025-01-25):** `overlayOpacity` default alterado de 40→0 em `defaults.ts` e `pageContracts.ts` para evitar escurecimento automático.
+### 1. Páginas (PagesSettings → PageSettingsContent)
 
-### Produto (ProductSettings)
+Lista de páginas configuráveis. Ao clicar, navega para a página no canvas e abre suas configurações.
 
-| Setting | Tipo | Default | Descrição |
-|---------|------|---------|-----------|
-| `showGallery` | boolean | true | Exibe galeria de imagens secundárias |
-| `showDescription` | boolean | true | Exibe descrição curta |
-| `showVariants` | boolean | true | Exibe seletor de variantes |
-| `showStock` | boolean | true | Exibe quantidade em estoque |
-| `showReviews` | boolean | true | Exibe avaliações e formulário |
-| `showBuyTogether` | boolean | true | Exibe seção "Compre Junto" |
-| `showRelatedProducts` | boolean | true | Exibe grid de produtos relacionados |
-| `showWhatsAppButton` | boolean | true | Exibe botão "Comprar pelo WhatsApp" |
-| `showAddToCartButton` | boolean | true | Exibe botão "Adicionar ao carrinho" |
-| `showBadges` | boolean | true | Exibe selos do produto |
-| `showShippingCalculator` | boolean | true | Exibe calculadora de frete |
-| `showAdditionalHighlight` | boolean | false | Exibe banners de destaque adicional |
-| `showFloatingCart` | boolean | true | Exibe popup de carrinho rápido |
-| `buyNowButtonText` | string | "Comprar agora" | Texto do botão principal |
-| `cartActionType` | CartActionType | "miniCart" | Ação ao clicar em "Adicionar ao carrinho" |
+| Página | ID | Tem Settings? | Descrição |
+|--------|----|--------------|-----------|
+| Página Inicial | `home` | ✅ | SEO e configurações gerais |
+| Categoria | `category` | ✅ | Banner, nome e avaliações |
+| Produto | `product` | ✅ | Galeria, compre junto, avaliações |
+| Carrinho | `cart` | ✅ | Frete, cupom, cross-sell |
+| Checkout | `checkout` | ✅ | Timeline, order bump, depoimentos |
+| Obrigado | `thank_you` | ✅ | Upsell e WhatsApp |
+| Minha Conta | `account` | ❌ | Área do cliente |
+| Pedidos | `account_orders` | ❌ | Lista de pedidos |
+| Pedido | `account_order_detail` | ❌ | Detalhe do pedido |
+| Rastreio | `tracking` | ✅ | Formulário de rastreio |
+| Blog | `blog` | ✅ | Listagem de posts |
 
-### Carrinho (CartSettings)
+---
 
-| Setting | Tipo | Default | Descrição |
-|---------|------|---------|-----------|
-| `showCrossSell` | boolean | true | Exibe produtos sugeridos |
-| `showCouponField` | boolean | true | Exibe campo de cupom |
-| `showTrustBadges` | boolean | true | Exibe selos de confiança |
-| `showShippingCalculator` | boolean | true | Exibe calculadora de frete |
+#### 1.1 Página Inicial (home)
 
-### Checkout (CheckoutSettings)
+| Campo | Tipo | Descrição | Comportamento |
+|-------|------|-----------|---------------|
+| `seo_title` | Input texto | Título SEO da home | Máx 60 caracteres, exibe contador |
+| `seo_description` | Textarea | Descrição SEO da home | Máx 160 caracteres, exibe contador |
+| **Botão "Gerar com IA"** | Ação | Gera título e descrição SEO automaticamente | Usa IA baseada nas informações do negócio (tipo de loja, produtos principais, nicho) para gerar SEO otimizado |
 
-| Setting | Tipo | Default | Descrição |
-|---------|------|---------|-----------|
-| `showOrderSummary` | boolean | true | Exibe resumo do pedido |
-| `showCouponField` | boolean | true | Exibe campo de cupom |
-| `allowGuestCheckout` | boolean | true | Permite checkout sem login |
+---
 
-### Obrigado (ThankYouSettings)
+#### 1.2 Categoria (category) — Grupos: structure, buttons
 
-| Setting | Tipo | Default | Descrição |
-|---------|------|---------|-----------|
-| `showOrderDetails` | boolean | true | Exibe detalhes do pedido |
-| `showRelatedProducts` | boolean | true | Exibe produtos relacionados |
-| `showTrackingInfo` | boolean | true | Exibe info de rastreio |
+**Grupo: Configurações estruturais da página**
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `showCategoryName` | Toggle | `true` | Exibir nome da categoria | Mostra/oculta o título da categoria na página |
+| `showBanner` | Toggle | `true` | Exibir banner da categoria | Mostra/oculta o banner de imagem da categoria |
+| `bannerOverlayOpacity` | Slider (0-100) | `0` | Escurecimento do banner | Controla a opacidade do overlay escuro sobre o banner (0=sem escurecer, 100=preto) |
+| `showRatings` | Toggle | `true` | Mostrar avaliações nos produtos | Exibe estrelas de avaliação nas thumbs de produtos |
+| `showBadges` | Toggle | `true` | Mostrar selos nos produtos | Exibe selos configurados no submódulo "Aumentar Ticket" (dentro de Marketing Básico) |
+
+**Grupo: Botões da Thumb**
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `showAddToCartButton` | Toggle | `true` | Exibir "Adicionar ao carrinho" | Mostra botão secundário "Adicionar ao carrinho" na thumb |
+| `quickBuyEnabled` | Toggle | `false` | Ativar compra rápida | Quando ativada, ao clicar no CTA principal "Comprar agora" em QUALQUER lugar da loja (grids, página produto, categorias), direciona o cliente direto ao checkout. Se desativado, segue para o carrinho conforme regras configuradas |
+| `customButtonEnabled` | Toggle | `false` | Botão personalizado | Adiciona um botão extra na thumb do produto |
+| ↳ `customButtonText` | Input | `""` | Texto do botão | Texto exibido no botão personalizado (aparece quando `customButtonEnabled=true`) |
+| ↳ `customButtonColor` | Color picker | `""` | Cor do botão | Cor de fundo do botão personalizado |
+| ↳ `customButtonLink` | Input URL | `""` | URL do botão | Link de destino ao clicar |
+| `buyNowButtonText` | Input | `"Comprar agora"` | Texto do botão principal | Texto exibido no CTA principal de todos os grids |
+
+---
+
+#### 1.3 Produto (product) — Lista simples (sem grupos)
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `showGallery` | Toggle | `true` | Mostrar Galeria | Exibe galeria de imagens secundárias do produto |
+| `showDescription` | Toggle | `true` | Mostrar Descrição | Exibe a descrição curta do produto |
+| `showVariants` | Toggle | `true` | Mostrar variações | Exibe seletor de variantes (cor, tamanho, etc.) |
+| `showStock` | Toggle | `true` | Mostrar Estoque | Exibe quantidade disponível em estoque (hookado do estoque real do cadastro) |
+| `showShippingCalculator` | Toggle | `true` | Calculadora de frete | Cálculo de frete por CEP na página do produto |
+| `showRelatedProducts` | Toggle | `true` | Mostrar Produtos Relacionados | Exibe grid de produtos relacionados |
+| ↳ `relatedProductsTitle` | Input | `"Produtos Relacionados"` | Título da seção | Texto do título da seção de relacionados |
+| `showBuyTogether` | Toggle | `true` | Mostrar Compre Junto | Exibe seção "Compre Junto" — configuração definida no submódulo "Aumentar Ticket" (dentro de Marketing Básico) |
+| `showReviews` | Toggle | `true` | Mostrar Avaliações | Exibe avaliações e formulário de avaliação |
+| `showBadges` | Toggle | `true` | Mostrar Selos | Exibe selos configurados no submódulo "Aumentar Ticket" (dentro de Marketing Básico) |
+| `showAdditionalHighlight` | Toggle | `false` | Destaque adicional | Exibe até 3 mini-banners clicáveis que direcionam para a categoria configurada |
+| ↳ Mobile images | Upload | `[]` | Mini-banners Mobile (768×200px) | Até 3 imagens responsivas para mobile |
+| ↳ Desktop images | Upload | `[]` | Mini-banners Desktop (400×150px) | Até 3 imagens responsivas para desktop |
+| `showWhatsAppButton` | Toggle | `true` | Mostrar botão WhatsApp | Exibe botão "Comprar pelo WhatsApp" |
+
+**Seção: Ação do Carrinho** (após Separator)
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `cartActionType` | Toggle + Radio | `"miniCart"` | Ativar ação do carrinho | O que acontece ao clicar em "Adicionar ao carrinho" |
+| ↳ `miniCart` | Radio | selecionado | Carrinho Suspenso | Abre o mini-carrinho lateral |
+| ↳ `goToCart` | Radio | — | Ir para Carrinho | Redireciona para a página do carrinho |
+| ↳ `none` (desativado) | — | — | Desativado | Apenas mostra "Adicionado" no botão |
+| `showAddToCartButton` | Toggle | `true` | Mostrar "Adicionar ao carrinho" | Obrigatório quando ação está ativa (forçado `true` quando `cartActionType !== 'none'`) |
+
+---
+
+#### 1.4 Carrinho (cart) — Grupos: features, offers, banner, colors
+
+**Grupo: Funcionalidades**
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `shippingCalculatorEnabled` | Toggle | `true` | Calculadora de frete | Permite calcular frete antes do checkout |
+| `couponEnabled` | Toggle | `true` | Cupom de desconto | Exibe campo para aplicar cupom |
+
+**Grupo: Ofertas**
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `showCrossSell` | Toggle | `true` | Mostrar Cross-sell | Sugestões de produtos configuradas no submódulo "Aumentar Ticket > Cross-sell" (dentro de Marketing Básico) |
+
+**Grupo: Banner Promocional**
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `bannerDesktopEnabled` | Toggle | `false` | Banner Desktop | Banner 1920×250px. Quando ativo, exibe upload (URL ou arquivo, máx 5MB) |
+| `bannerMobileEnabled` | Toggle | `false` | Banner Mobile | Banner 768×200px. Quando ativo, exibe upload |
+| ↳ `bannerLink` | Input URL | `""` | Link do banner (opcional) | URL para onde o banner redireciona ao clicar |
+| ↳ `bannerDisplay` | Radio | `"cart_page"` | Onde exibir o banner | Opções: Somente na página do carrinho / Somente no carrinho lateral / Ambos |
+
+**Grupo: Cores Personalizadas** (color pickers especiais)
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `buttonPrimaryBg` | Color picker | `""` | 🔵 Botão Primário > Fundo | Cor de fundo do botão primário (sobrescreve tema) |
+| `buttonPrimaryText` | Color picker | `""` | 🔵 Botão Primário > Texto | Cor do texto do botão primário |
+| `buttonPrimaryHover` | Color picker | `""` | 🔵 Botão Primário > Hover | Cor de fundo ao passar o mouse |
+| `buttonSecondaryBg` | Color picker | `""` | ⚪ Botão Secundário > Fundo | Cor de fundo do botão secundário |
+| `buttonSecondaryText` | Color picker | `""` | ⚪ Botão Secundário > Texto | Cor do texto do botão secundário |
+| `buttonSecondaryHover` | Color picker | `""` | ⚪ Botão Secundário > Hover | Cor de fundo hover do botão secundário |
+| **Limpar todas** | Botão link | — | Limpar todas e usar cores do tema | Reseta todas as cores personalizadas para herdar do tema |
+
+---
+
+#### 1.5 Checkout (checkout) — Grupos: features, payment, offers, pixels, colors
+
+**Grupo: Funcionalidades**
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `couponEnabled` | Toggle | `true` | Cupom de desconto | Exibe campo para aplicar cupom no checkout |
+| `testimonialsEnabled` | Toggle | `true` | Depoimentos | Exibe depoimentos de clientes (configurados de forma personalizada e individual AQUI MESMO nas configurações — NÃO são os mesmos de "Avaliações") |
+| ↳ **Gerenciar Depoimentos** | `TestimonialsManagerCompact` | — | Gerenciador inline | Quando ativo, exibe gerenciador inline para cadastrar/editar depoimentos específicos do checkout |
+| `showTimeline` | Toggle | `true` | Timeline de etapas | Mostra progresso do checkout (Contato > Entrega > Pagamento) usando cores personalizadas |
+
+**Grupo: Formas de Pagamento** (componente especial `PaymentMethodsConfig`)
+
+| Funcionalidade | Descrição |
+|----------------|-----------|
+| Reordenação drag-and-drop | Permite alterar a ordem de exibição das formas de pagamento no checkout |
+| Labels personalizados | Permite alterar o nome exibido para cada forma de pagamento |
+| **NÃO controla ativação/desativação** | A ativação das formas de pagamento é feita no módulo principal > Integrações > Pagamentos |
+
+**Grupo: Ofertas**
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `showOrderBump` | Toggle | `true` | Mostrar Order Bump | Oferta adicional no checkout — configurado no submódulo "Aumentar Ticket" (dentro de Marketing Básico) |
+
+**Grupo: Pixels de Marketing**
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `purchaseEventAllOrders` | Toggle | `true` | Evento em todos os pedidos | **Ativado:** dispara evento Purchase para QUALQUER pedido gerado (inclusive boletos e pedidos não pagos). **Desativado:** dispara somente após confirmação de pagamento |
+
+**Grupo: Cores Personalizadas** (color pickers especiais)
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `buttonPrimaryBg` | Color picker | `""` | 🔵 Botão Primário > Fundo | Sobrescreve cor do tema apenas no checkout |
+| `buttonPrimaryText` | Color picker | `""` | 🔵 Botão Primário > Texto | Sobrescreve texto do botão primário |
+| `buttonPrimaryHover` | Color picker | `""` | 🔵 Botão Primário > Hover | Sobrescreve hover do botão primário |
+| `flagsColor` | Color picker | `""` | 🏷️ Flags / Tags > Cor | Cor das tags como "Grátis", "Frete Grátis", badges de desconto. Injetada via `--theme-flags-color` |
+| **Limpar todas** | Botão link | — | Limpar todas e usar cores do tema | Reseta cores personalizadas do checkout |
+
+---
+
+#### 1.6 Obrigado (thank_you) — Lista simples
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `showUpsell` | Toggle | `true` | Mostrar Upsell | Ofertas pós-compra |
+| `showWhatsApp` | Toggle | `true` | Mostrar WhatsApp | Link para suporte via WhatsApp |
+| `showSocialShare` | Toggle | `false` | Compartilhamento Social | Botões para compartilhar a compra em redes sociais |
+
+---
+
+#### 1.7 Rastreio (tracking) — Lista simples
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `showTitle` | Toggle | `true` | Mostrar título | Exibe título na página de rastreio |
+| `showDescription` | Toggle | `true` | Mostrar descrição | Exibe descrição na página de rastreio |
+
+---
+
+#### 1.8 Blog (blog) — Lista simples
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `showExcerpt` | Toggle | `true` | Mostrar resumo | Exibe resumo/excerpt dos posts |
+| `showImage` | Toggle | `true` | Mostrar imagem | Exibe imagem de capa dos posts |
+| `showTags` | Toggle | `true` | Mostrar tags | Exibe tags associadas aos posts |
+| `showPagination` | Toggle | `true` | Mostrar paginação | Exibe controles de paginação |
+
+---
+
+### 2. Cabeçalho (HeaderSettings)
+
+> **Salvamento:** Auto-save com debounce 400ms (switches imediato).
+
+#### Seção: Cores
+
+| Setting | Tipo | Default | Label |
+|---------|------|---------|-------|
+| `headerBgColor` | Color picker | `""` (herda tema) | Cor de Fundo |
+| `headerTextColor` | Color picker | `""` | Cor do Texto |
+| `headerIconColor` | Color picker | `""` | Cor dos Ícones |
+
+#### Seção: Barra Superior (Notice Bar)
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `noticeEnabled` | Toggle | `false` | Exibir Barra Superior | Ativa/desativa barra de aviso no topo |
+| `noticeAnimation` | Select | `"fade"` | Efeito de Animação | Opções: Nenhuma (estático), Fade (suave), Slide Vertical, Slide Horizontal, Marquee (rolagem contínua) |
+| `noticeText` | Input | `""` | Texto do Aviso | Texto único (para marquee ou estático) |
+| `noticeTexts` | Array de inputs | `[]` | Frases (alternam automaticamente) | Múltiplas frases para modos Fade/Slide (botão "+ Adicionar Frase") |
+| `noticeBgColor` | Color picker | `""` | Cor de Fundo | Herda do tema se vazio |
+| `noticeTextColor` | Color picker | `""` | Cor do Texto | Herda do tema se vazio |
+| `noticeLinkEnabled` | Toggle | `false` | Exibir Link | Adiciona link clicável na barra |
+| ↳ `noticeLinkLabel` | Input | `"Clique Aqui"` | Texto do Link | |
+| ↳ `noticeLinkUrl` | Input | `""` | URL do Link | |
+| ↳ `noticeLinkColor` | Color picker | `"#60a5fa"` | Cor do Link | |
+
+#### Seção: Visual Menus
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `menuVisualStyle` | Select | `"classic"` | Estilo do Dropdown | Clássico (setas/cabeçalhos), Elegante (animações suaves/fade), Minimalista (limpo, sem bordas) |
+| `menuShowParentTitle` | Toggle | `true` | Exibir Título da Categoria | Mostra o nome da categoria no topo do dropdown |
+
+#### Seção: Configurações Gerais
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `logoSize` | Select | `"medium"` | Tamanho da Logo | Pequeno (32px), Médio (40px), Grande (56px) |
+| `navBarHeight` | Select | `"medium"` | Altura da Extensão (Navegação) | Pequeno (32px), Médio (40px), Grande (52px) |
+| `stickyOnMobile` | Toggle | `true` | Fixar ao rolar (Mobile) | Header fixo no mobile |
+| `sticky` | Toggle | `true` | Fixo no Topo (Desktop) | Header fixo no desktop |
+| `showSearch` | Toggle | `true` | Mostrar Busca | Exibe campo de busca |
+| `showCart` | Toggle | `true` | Mostrar Carrinho | Exibe ícone do carrinho |
+| `customerAreaEnabled` | Toggle | `false` | Exibir "Minha Conta" | Exibe link para área do cliente |
+| `featuredPromosEnabled` | Toggle | `false` | Exibir Promoções em Destaque | Adiciona link de promoções no header |
+| ↳ `featuredPromosLabel` | Input | `""` | Label do Link | Ex: "🔥 Promoções" |
+| ↳ `featuredPromosTarget` | Select | `""` | Destino | Seleciona categoria ou página institucional como destino |
+| ↳ `featuredPromosTextColor` | Color picker | `""` | Cor do Texto | |
+| ↳ `featuredPromosBgColor` | Color picker | `""` | Cor do Destaque | |
+| ↳ `featuredPromosThumbnail` | Upload imagem | `""` | Miniatura (Desktop) | Exibida ao passar o mouse no link de promoções. Recomendado: 240×96px |
+
+---
+
+### 3. Rodapé (FooterSettings)
+
+> **Salvamento:** Auto-save com debounce 400ms (switches imediato).
+
+#### Seção: Cores do Rodapé
+
+| Setting | Tipo | Default | Label |
+|---------|------|---------|-------|
+| `footerBgColor` | Color picker | `""` | Cor de Fundo |
+| `footerTextColor` | Color picker | `""` | Cor do Texto |
+| `footerTitlesColor` | Color picker | `""` | Cor dos Títulos |
+
+#### Seção: Seções do Rodapé
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `showLogo` | Toggle | `true` | Mostrar Logo | Exibe logo no rodapé |
+| `showStoreInfo` | Toggle | `true` | Mostrar Informações da Loja | Exibe nome, CNPJ e descrição |
+| `showSac` | Toggle | `true` | Mostrar Atendimento (SAC) | Exibe seção de contato |
+| `showSocial` | Toggle | `true` | Mostrar Redes Sociais | Exibe links das redes sociais |
+| `showCopyright` | Toggle | `true` | Mostrar Copyright | Exibe texto de direitos autorais |
+
+#### Seção: Visual Menus
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `menuVisualStyle` | Select | `"classic"` | Estilo dos Links | Clássico (sublinhado no hover), Elegante (mudança de cor), Minimalista (apenas opacidade) |
+| `badgeSize` | Select | `"medium"` | Tamanho dos Selos | Pequeno (24/32px), Médio (32/40px), Grande (40/48px). Bandeiras de pagamento são 30% menores |
+
+#### Seção: Formas de Pagamento (`paymentMethods`)
+
+| Funcionalidade | Descrição |
+|----------------|-----------|
+| Título da seção | Input texto para o título exibido |
+| Lista de itens | Cada item tem: Imagem (upload ou SVG preset "payment") + Link opcional |
+| Quick Select | Seleção rápida de ícones de pagamento pré-definidos |
+| Adicionar/Remover | Botões para gerenciar lista de bandeiras |
+
+#### Seção: Selos de Segurança (`securitySeals`)
+
+| Funcionalidade | Descrição |
+|----------------|-----------|
+| Título + Lista de itens | Imagem (upload ou SVG preset "security") + Link opcional |
+
+#### Seção: Formas de Envio (`shippingMethods`)
+
+| Funcionalidade | Descrição |
+|----------------|-----------|
+| Título + Lista de itens | Imagem (upload ou SVG preset "shipping") + Link opcional |
+
+#### Seção: Lojas Oficiais (`officialStores`)
+
+| Funcionalidade | Descrição |
+|----------------|-----------|
+| Título + Lista de itens | Locais onde o usuário pode adicionar links externos para outros canais de venda (marketplaces, etc). Cada item tem Imagem + Link **obrigatório** |
+
+#### Seção: Newsletter do Rodapé
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `showNewsletter` | Toggle | `false` | Exibir Newsletter | Ativa formulário de captura no rodapé |
+| ↳ `newsletterListId` | Select (EmailListSelector) | `""` | Lista de Destino | Lista de email marketing para onde os leads serão enviados |
+| ↳ `newsletterTitle` | Input | `""` | Título | Ex: "Receba nossas promoções" |
+| ↳ `newsletterSubtitle` | Input | `""` | Subtítulo | |
+| ↳ `newsletterPlaceholder` | Input | `""` | Placeholder do campo | Ex: "Seu e-mail" |
+| ↳ `newsletterButtonText` | Input | `""` | Texto do botão | Vazio = mostra apenas ícone de envio |
+| ↳ `newsletterSuccessMessage` | Input | `""` | Mensagem de sucesso | Ex: "Inscrito com sucesso!" |
+
+#### Seção: Personalizar Títulos do Rodapé
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `sacTitle` | Input | `""` | Título Atendimento | Deixe vazio para usar "Atendimento (SAC)" |
+| `footer1Title` | Input | `""` | Título Footer 1 | Primeira coluna de links (padrão: "Categorias") |
+| `footer2Title` | Input | `""` | Título Footer 2 | Segunda coluna de links (padrão: "Institucional") |
+| `copyrightText` | Textarea | `""` | Texto do Copyright | Deixe vazio para auto-geração com ano + nome da loja |
+
+---
+
+### 4. Carrinho Suspenso (MiniCartSettings)
+
+> **Salvamento:** Auto-save com debounce 500ms (switches imediato).
+> **Nota:** A ação principal do carrinho (miniCart/goToCart/none) também aparece em Produto > Ação do Carrinho.
+
+#### Controle Principal
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `cartActionType` | Toggle + Radio | `"miniCart"` | Ação do Carrinho | none/miniCart/goToCart — O que acontece ao adicionar produto |
+
+#### Funcionalidades do Mini-Cart (só aparecem quando `cartActionType === 'miniCart'`)
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `showFreeShippingProgress` | Toggle | `true` | Barra de Frete Grátis | Barra de progresso visual mostrando quanto falta para frete grátis. O valor vem da lógica de frete grátis individual dos produtos (marcado no cadastro) ou de cupons/configurações de frete grátis em Logística |
+| `showCrossSell` | Toggle | `true` | Cross-sell (Produtos Relacionados) | Exibe produtos configurados no submódulo "Aumentar Ticket > Cross-sell" (dentro de Marketing Básico) |
+| `showCoupon` | Toggle | `true` | Campo de Cupom | Exibe campo para aplicar cupom no mini-cart |
+| `showShippingCalculator` | Toggle | `true` | Calculadora de Frete | Cálculo de frete por CEP dentro do mini-cart |
+| `showStockReservationTimer` | Toggle | `false` | Timer de Reserva de Estoque | Exibe timer de urgência para completar a compra. É hookado de forma real do estoque dos produtos cadastrados |
+| ↳ `stockReservationMinutes` | Input number | `15` | Tempo de reserva (minutos) | 1 a 60 minutos |
+
+---
+
+### 5. Popup Newsletter (PopupSettings)
+
+> **Salvamento:** Auto-save com debounce 500ms. Dados em tabela `newsletter_popup_configs`.
+
+#### Controle Principal
+
+| Setting | Tipo | Default | Label |
+|---------|------|---------|-------|
+| `is_active` | Toggle | `false` | Popup Ativo — Exibir popup para visitantes |
+
+#### Seção: Geral
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `list_id` | Select | `null` | Lista de Email | Lista de email marketing para captura de leads |
+| `layout` | Select | `"centered"` | Layout | Centralizado, Com Imagem Lateral, Canto da Tela, Tela Cheia |
+| `title` | Input | `"Inscreva-se na nossa newsletter"` | Título | Título do popup |
+| `subtitle` | Textarea | `"Receba ofertas exclusivas..."` | Subtítulo | |
+| `button_text` | Input | `"Inscrever"` | Texto do Botão | |
+| `success_message` | Input | `"Obrigado por se inscrever!"` | Mensagem de Sucesso | |
+
+#### Seção: Aparência
+
+| Setting | Tipo | Default | Label |
+|---------|------|---------|-------|
+| `background_color` | Color picker | `"#ffffff"` | Fundo |
+| `text_color` | Color picker | `"#000000"` | Texto |
+| `button_bg_color` | Color picker | `""` | Fundo do Botão (vazio = herda tema primário) |
+| `button_text_color` | Color picker | `"#ffffff"` | Texto do Botão |
+| `icon_image_url` | Upload (ImageUploaderWithLibrary) | `""` | Banner (Topo do Popup) — 450×105px. Só aparece quando layout ≠ side-image |
+| `image_url` | Upload (ImageUploaderWithLibrary) | `""` | Imagem Lateral — 400×600px. Só aparece quando layout = side-image |
+
+#### Seção: Quando Exibir
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `trigger_type` | Select | `"delay"` | Gatilho | Após X segundos, Ao rolar X%, Ao sair da página (exit intent), Imediatamente |
+| `trigger_delay_seconds` | Input number | `5` | Segundos de atraso | 1-60, só quando trigger=delay |
+| `trigger_scroll_percent` | Input number | `50` | Porcentagem de rolagem | 1-100, só quando trigger=scroll |
+| `show_on_pages` | Checkboxes | `["home","category","product"]` | Exibir nas Páginas | Página Inicial, Categoria, Produto, Carrinho, Blog |
+| `show_once_per_session` | Toggle | `true` | Exibir apenas 1x por sessão | |
+
+#### Seção: Campos do Formulário
+
+> Email é sempre obrigatório.
+
+| Campo | Exibir Toggle | Obrigatório Toggle | Descrição |
+|-------|--------------|-------------------|-----------|
+| Nome | `show_name` | `name_required` | Solicitar nome do visitante |
+| Telefone | `show_phone` | `phone_required` | Solicitar telefone |
+| Data de Nascimento | `show_birth_date` | `birth_date_required` | Para ofertas de aniversário |
+
+---
+
+### 6. Cores (ColorsSettings)
+
+> **Salvamento:** Draft → botão "Salvar" na toolbar. Preview em tempo real via `useBuilderDraftTheme`.
+
+#### 🔵 Botão Primário
+
+| Setting | Label | Descrição |
+|---------|-------|-----------|
+| `buttonPrimaryBg` | Fundo | Botão "Comprar agora", "Adicionar ao carrinho", "Finalizar pedido" |
+| `buttonPrimaryText` | Texto | Texto dentro dos botões primários |
+| `buttonPrimaryHover` | Hover | Cor de fundo ao passar o mouse |
+
+#### ⚪ Botão Secundário
+
+| Setting | Label | Descrição |
+|---------|-------|-----------|
+| `buttonSecondaryBg` | Fundo | Botões "Cancelar", "Voltar", "Ver detalhes" e ações secundárias |
+| `buttonSecondaryText` | Texto | Texto dentro dos botões secundários |
+| `buttonSecondaryHover` | Hover | Cor de fundo ao passar o mouse |
+
+#### 💬 Botão WhatsApp
+
+| Setting | Label | Descrição |
+|---------|-------|-----------|
+| `whatsappColor` | Cor Principal | Cor da borda e texto do botão "Comprar pelo WhatsApp" |
+| `whatsappHover` | Hover | Cor de fundo ao passar o mouse sobre o botão WhatsApp |
+
+#### 📝 Textos e Destaque
+
+| Setting | Label | Descrição |
+|---------|-------|-----------|
+| `accentColor` | Cor de Destaque | Ícones de check, setas, indicadores de etapas, links, "Grátis" e detalhes da interface |
+| `textPrimary` | Texto Principal | Títulos, nomes de produtos e textos de destaque |
+| `textSecondary` | Texto Secundário | Descrições, legendas, informações de frete e textos auxiliares |
+
+#### 💰 Valor Principal
+
+| Setting | Label | Descrição |
+|---------|-------|-----------|
+| `priceColor` | Cor valor principal | Cor exclusiva do preço com desconto (valor final). Aplicado em grids, categorias, página do produto, etc. |
+
+#### 🏷️ Tags Especiais
+
+| Setting | Label | Descrição |
+|---------|-------|-----------|
+| `successBg` / `successText` | Tags Sucesso | Tags "Grátis", "Frete Grátis", "5% OFF", indicadores positivos |
+| `warningBg` / `warningText` | Tags Destaque | Tags "Mais Vendido", "Novo", "Promoção" |
+| `dangerBg` / `dangerText` | Tags Desconto | Tags "-37%", "Últimas unidades", alertas |
+| `highlightBg` / `highlightText` | Tags Info | Tags informativos, badges de categoria |
+
+> **Preview interativo:** O painel inclui preview de botões com hover, cor de destaque, textos e tags.
+
+---
+
+### 7. Tipografia (TypographySettings)
+
+> **Salvamento:** Draft → botão "Salvar" na toolbar. Preview em tempo real via `useBuilderDraftTheme`.
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `headingFont` | Select (31 fontes) | `"inter"` | Fonte dos títulos | Usada em H1, H2, H3 e títulos de seções |
+| `bodyFont` | Select (31 fontes) | `"inter"` | Fonte do corpo | Usada em parágrafos, botões e textos gerais |
+| `baseFontSize` | Slider (12-20) | `16` | Tamanho base | Tamanho padrão do texto (afeta proporcionalmente outros tamanhos) |
+
+**Fontes disponíveis:** Inter, Roboto, Open Sans, Lato, Montserrat, Poppins, Nunito, Raleway, Source Sans Pro, Ubuntu, Mulish, Work Sans, Quicksand, DM Sans, Manrope, Outfit, Plus Jakarta Sans, Playfair Display, Merriweather, Lora, PT Serif, Crimson Text, Libre Baskerville, Cormorant Garamond, EB Garamond, Bitter, Abril Fatface, Bebas Neue, Oswald, Josefin Sans, Righteous.
+
+> **Preview interativo:** O painel inclui preview com título + parágrafo nas fontes selecionadas.
+
+---
+
+### 8. CSS Customizado (CustomCSSSettings)
+
+> **Salvamento:** Draft → botão "Salvar" na toolbar. Preview em tempo real via `useBuilderDraftTheme`.
+
+| Funcionalidade | Descrição |
+|----------------|-----------|
+| Textarea CSS | Editor de CSS livre com `min-height: 200px`, fonte mono |
+| Validação | Verifica balanceamento de `{` e `}` em tempo real. Exibe ✅ Válido ou ❌ Erro de sintaxe |
+| Prefixo obrigatório | `.storefront-container` para garantir escopo correto |
+| Exemplo copiável | Exemplo com botões de compra e espaçamento de seções |
+| Aviso de segurança | "CSS customizado pode afetar o funcionamento da loja. Teste suas alterações no preview antes de publicar." |
+
+---
+
+### Respostas às Dúvidas Específicas (Referência)
+
+| # | Dúvida | Resposta Documentada |
+|---|--------|---------------------|
+| 1 | Barra Frete Grátis | Barra de progresso visual. Valor vem de frete grátis individual do produto ou cupom/config de logística |
+| 2 | Timer Reserva Estoque | Hookado do estoque real dos produtos |
+| 3 | Cross-sell | Configurado em Aumentar Ticket > Cross-sell (Marketing Básico) |
+| 4 | Purchase Event todos pedidos | Sim, quando ativo dispara para qualquer pedido inclusive boletos não pagos |
+| 5 | Order Bump | Configurado em Aumentar Ticket (Marketing Básico) |
+| 6 | Depoimentos checkout | Separados, configurados inline nas configurações do tema > páginas > checkout |
+| 7 | Selos (Aumentar Ticket) | Submódulo dentro do módulo principal "Marketing Básico" |
+| 8 | Destaque adicional | Mini-banners clicáveis, direcionam para categoria configurada |
+| 9 | Compre Junto | Configurado no submódulo Aumentar Ticket |
+| 10 | Compra rápida | CTA "Comprar agora" em qualquer lugar da loja direciona ao checkout direto |
+| 11 | Miniatura promoções | Exibida ao passar o mouse no link de promoções (desktop only, 240×96px) |
+| 12 | Lojas Oficiais | Links externos para outros canais de venda (marketplaces, etc.) |
+| 13 | Exit intent | Gatilho do popup newsletter — detecta intenção de saída |
+| 14 | Gerar com IA (SEO) | Baseado nas informações do negócio (tipo de loja, produtos, nicho) |
+| 15 | Formas de pagamento checkout | Apenas visual (reorder + labels). Ativação em Integrações > Pagamentos |
 
 ---
 
