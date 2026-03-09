@@ -1624,6 +1624,32 @@ Para adicionar novos presets no futuro:
 
 - **product-card-html.ts** (`blocks/shared/`): Função `renderProductCard()` reutilizável. Renderiza badges, ratings, preços, botões add-to-cart/buy-now com `data-sf-action`. Mesma estrutura visual do `featured-products.ts`.
 
+### Detalhes da Fase 6 (Injeções Globais no storefront-html v8.3.0)
+
+#### Marketing Pixels (`generateMarketingPixelScripts`)
+- **Fonte de dados**: Tabela `marketing_integrations` (query por `tenant_id`)
+- **Pixels suportados**: Meta (Facebook), Google Analytics/Ads, TikTok
+- **Carregamento**: Deferred via `requestIdleCallback` (fallback `setTimeout 2000ms`)
+- **DNS Prefetch**: `connect.facebook.net`, `googletagmanager.com`, `analytics.tiktok.com`
+- **Guard**: `window._sfPixelsLoaded=true` previne duplicação na hidratação SPA
+- **Consent**: Integrado com banner LGPD — pixels só disparam se aceito
+
+#### Newsletter Popup (`generateNewsletterPopupHtml`)
+- **Fonte de dados**: Tabela `newsletter_popup_configs` (query por `tenant_id`, `is_active=true`)
+- **Triggers suportados**: `immediate`, `delay` (configurable seconds), `scroll` (configurable %), `exit_intent`
+- **Layouts**: `centered` (modal central), `side-image` (imagem lateral), `corner` (canto inferior direito)
+- **Campos opcionais**: Nome (`show_name`), telefone (`show_phone`) com `required` configurável
+- **Filtro de páginas**: `show_on_pages` array (home, category, product, blog, other)
+- **Submissão**: POST direto para edge function `newsletter-subscribe` com `source: "popup"`
+- **Sessão**: `sessionStorage` key `sf_newsletter_dismissed` para `show_once_per_session`
+
+#### Consent Banner LGPD (`generateConsentBannerHtml`)
+- **Ativação**: Renderizado quando `marketing_integrations.consent_mode_enabled = true`
+- **Persistência**: `localStorage` key `sf_cookie_consent` (valor: `accept` | `reject`)
+- **Integração gtag**: Na aceitação, atualiza `analytics_storage` e `ad_storage` para `granted`
+- **Link**: Aponta para `/page/politica-de-privacidade`
+- **Z-index**: 100 (acima do popup que é 95)
+
 ---
 
 ## Regras Globais de Compilação Builder ↔ Storefront (v8.2.3)
