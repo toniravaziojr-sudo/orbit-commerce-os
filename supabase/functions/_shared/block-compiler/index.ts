@@ -115,6 +115,13 @@ const COMPILER_REGISTRY: Record<string, BlockCompilerFn> = {
   // E-commerce blocks — Product page
   'ProductDetails': productDetailsToStaticHTML,
   
+  // E-commerce blocks — Advanced
+  'ProductGrid': productGridToStaticHTML,
+  'ProductCarousel': productCarouselToStaticHTML,
+  'CategoryList': categoryListToStaticHTML,
+  'CollectionSection': collectionSectionToStaticHTML,
+  'BannerProducts': bannerProductsToStaticHTML,
+  
   // Interactive blocks
   'FAQ': faqToStaticHTML,
   'Testimonials': testimonialsToStaticHTML,
