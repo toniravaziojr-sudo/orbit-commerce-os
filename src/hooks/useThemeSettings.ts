@@ -864,26 +864,72 @@ export function useThemeFooter(tenantId: string | undefined, templateSetId: stri
   };
 }
 
+// ============================================
+// DRAFT-BASED MINI CART HOOK (follows save flow)
+// Changes are stored locally until user clicks "Salvar"
+// ============================================
+
 export function useThemeMiniCart(tenantId: string | undefined, templateSetId: string | undefined) {
-  const { themeSettings, saveThemeSettings, isLoading, isSaving } = 
+  const queryClient = useQueryClient();
+  const { themeSettings, isLoading, isSaving } = 
     useThemeSettings(tenantId, templateSetId);
 
-  const miniCart = {
+  // Track draft changes locally
+  const [draftUpdates, setDraftUpdates] = useState<Partial<ThemeMiniCartConfig>>({});
+
+  const hasDraftChanges = Object.keys(draftUpdates).length > 0;
+
+  const serverMiniCart = {
     ...DEFAULT_THEME_MINI_CART,
     ...themeSettings?.miniCart,
   };
 
-  const updateMiniCart = (newMiniCart: Partial<ThemeMiniCartConfig>) => {
-    saveThemeSettings({ 
-      miniCart: { ...miniCart, ...newMiniCart } 
-    });
+  // Merge server with draft for display
+  const miniCart = {
+    ...serverMiniCart,
+    ...draftUpdates,
   };
+
+  // updateMiniCart: Updates LOCAL draft state only (NO database save)
+  const updateMiniCart = useCallback((newMiniCart: Partial<ThemeMiniCartConfig>) => {
+    setDraftUpdates(prev => ({ ...prev, ...newMiniCart }));
+    notifyHeaderFooterDraftChange();
+  }, []);
+
+  const clearDraft = useCallback(() => {
+    setDraftUpdates({});
+  }, []);
+
+  const getPendingChanges = useCallback(() => {
+    if (!hasDraftChanges) return null;
+    const fullMiniCart = {
+      ...DEFAULT_THEME_MINI_CART,
+      ...themeSettings?.miniCart,
+      ...draftUpdates,
+    };
+    return { miniCart: fullMiniCart };
+  }, [hasDraftChanges, themeSettings?.miniCart, draftUpdates]);
+
+  // Register global ref
+  useEffect(() => {
+    globalMiniCartDraftRef = {
+      hasDraftChanges,
+      clearDraft,
+      getPendingChanges,
+    };
+    return () => {
+      globalMiniCartDraftRef = null;
+    };
+  }, [hasDraftChanges, clearDraft, getPendingChanges]);
 
   return {
     miniCart,
     updateMiniCart,
     isLoading,
     isSaving,
+    hasDraftChanges,
+    clearDraft,
+    getPendingChanges,
   };
 }
 
