@@ -1150,6 +1150,8 @@ serve(async (req) => {
     const globalLayout = baseResults.globalLayout;
     const footerMenusRaw = baseResults.footerMenus || [];
     const publishedPages = baseResults.publishedPages || [];
+    const marketingConfig = baseResults.marketingConfig;
+    const newsletterPopup = baseResults.newsletterPopup;
 
     // Route-specific result — ALWAYS the last element, safe from base query additions
     const routeData = routeQueryPromise
