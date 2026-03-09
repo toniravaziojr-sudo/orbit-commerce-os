@@ -47,6 +47,9 @@ import {
   ORDER_STATUS_CONFIG,
   PAYMENT_STATUS_CONFIG,
   SHIPPING_STATUS_CONFIG,
+  normalizeOrderStatus,
+  normalizePaymentStatus,
+  normalizeShippingStatus,
 } from '@/types/orderStatus';
 import { ShipmentSection } from '@/components/orders/ShipmentSection';
 import { NotificationLogsPanel } from '@/components/notifications/NotificationLogsPanel';
