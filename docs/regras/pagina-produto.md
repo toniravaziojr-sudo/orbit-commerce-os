@@ -242,8 +242,11 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 - [x] ~~**Quantidade**: React tem seletor de quantidade~~ → Implementado v8.1.0
 - [x] ~~**Frete**: Placeholder HTML sem JS funcional~~ → Implementado v8.1.0
 
-### Divergências de Estilo
+### Divergências de Estilo (Corrigidas v8.2.0)
 
+- [x] ~~**Ordem dos botões**: Compilador tinha Add to Cart → Buy Now; SPA tem Buy Now → Add to Cart~~ → Corrigido v8.2.0
+- [x] ~~**Pix Badge**: SPA tem PaymentBadges com destaque verde Pix; compilador tinha apenas texto de parcelas~~ → Corrigido v8.2.0
+- [x] ~~**Estoque**: SPA mostra "Estoque: X unidades"; compilador mostrava "Em estoque"~~ → Corrigido v8.2.0
 - [ ] **Banner fallback no compilador**: Não usa `image_url` como fallback (React usa)
 
 ### Dead Code
