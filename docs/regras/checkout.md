@@ -454,6 +454,32 @@ Status aplicados: `payment_status='cancelled'`, `status='cancelled'`, com `cance
 
 ---
 
+## Regras de Layout (v8.5.1)
+
+### Sidebar Sticky — Resumo do Pedido
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Regra Visual |
+| **Localização** | `CheckoutStepWizard.tsx`, `index.css` |
+| **Descrição** | O resumo do pedido fica fixo (sticky top-4) na sidebar direita enquanto o usuário rola o formulário |
+| **Comportamento** | O grid usa `align-items: start` para impedir que a coluna da sidebar se estique verticalmente. O container sticky contém o cupom + resumo. Depoimentos ficam FORA do sticky, rolando naturalmente. |
+| **CSS** | `.sf-checkout-layout { align-items: start }` no container query `min-width: 768px` |
+| **Erros/Edge cases** | Sem `align-items: start`, o grid estica a sidebar e o sticky não funciona |
+
+### Ocultação de Nomes de Integração no Frete
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Regra Visual / UX |
+| **Localização** | `ShippingEstimator.tsx`, `CheckoutShipping.tsx`, `MiniCartDrawer.tsx`, `StorefrontConfigContext.tsx` |
+| **Descrição** | Nomes de integrações (Frenet, Correios, Loggi, Jadlog) são removidos das labels de frete na loja pública |
+| **Comportamento** | O mapeamento em `StorefrontConfigContext` limpa o `service_name` com regex para remover "(Correios)", "via frenet" etc. Os componentes de UI não exibem `carrier` nem `sourceProvider`. |
+| **Afeta** | Carrinho (ShippingEstimator), Checkout (CheckoutShipping), Mini-Cart (MiniCartDrawer) |
+| **Condições** | Sempre oculto na loja pública. No painel admin (Pedidos, Logística), os nomes continuam visíveis. |
+
+---
+
 ## Pendências Conhecidas
 
 | Item | Status | Descrição |
