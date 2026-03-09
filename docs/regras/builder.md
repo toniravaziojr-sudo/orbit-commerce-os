@@ -909,6 +909,8 @@ Lista de páginas configuráveis. Ao clicar, navega para a página no canvas e a
 | `testimonialsEnabled` | Toggle | `true` | Depoimentos | Exibe depoimentos de clientes (configurados de forma personalizada e individual AQUI MESMO nas configurações — NÃO são os mesmos de "Avaliações") |
 | ↳ **Gerenciar Depoimentos** | `TestimonialsManagerCompact` | — | Gerenciador inline | Quando ativo, exibe gerenciador inline para cadastrar/editar depoimentos específicos do checkout |
 | `showTimeline` | Toggle | `true` | Timeline de etapas | Mostra progresso do checkout (Contato > Entrega > Pagamento) usando cores personalizadas |
+| `showTrustBadges` | Toggle | `true` | Selos de confiança | Exibe selos de confiança (ex: compra segura, satisfação garantida) no checkout |
+| `showSecuritySeals` | Toggle | `true` | Selos de segurança | Exibe selos de segurança (ex: SSL, pagamento protegido) no checkout |
 
 **Grupo: Formas de Pagamento** (componente especial `PaymentMethodsConfig`)
 
@@ -917,6 +919,16 @@ Lista de páginas configuráveis. Ao clicar, navega para a página no canvas e a
 | Reordenação drag-and-drop | Permite alterar a ordem de exibição das formas de pagamento no checkout |
 | Labels personalizados | Permite alterar o nome exibido para cada forma de pagamento |
 | **NÃO controla ativação/desativação** | A ativação das formas de pagamento é feita no módulo principal > Integrações > Pagamentos |
+
+**Grupo: Visibilidade de Formas de Pagamento**
+
+| Setting | Tipo | Default | Label | Descrição |
+|---------|------|---------|-------|-----------|
+| `showPix` | Toggle | `true` | Exibir PIX | Controla se a opção PIX aparece no seletor de pagamento do checkout |
+| `showBoleto` | Toggle | `true` | Exibir Boleto | Controla se a opção Boleto aparece no seletor de pagamento do checkout |
+| `showCreditCard` | Toggle | `true` | Exibir Cartão de Crédito | Controla se a opção Cartão de Crédito aparece no seletor de pagamento do checkout |
+
+> **Nota:** Estes toggles controlam apenas a **visibilidade** no UI do checkout. A **ativação/desativação** real das formas de pagamento continua sendo feita em Integrações > Pagamentos.
 
 **Grupo: Ofertas**
 
