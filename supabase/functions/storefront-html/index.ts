@@ -477,16 +477,57 @@ function buildFullPage(opts: {
   <div class="sf-cart-backdrop" data-sf-cart-backdrop></div>
   <div class="sf-cart-drawer" data-sf-cart-drawer>
     <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #eee;">
-      <h3 style="font-size:16px;font-weight:600;">Seu Carrinho</h3>
-      <button data-sf-action="toggle-cart" style="background:none;border:none;font-size:20px;cursor:pointer;">&times;</button>
-    </div>
-    <div data-sf-cart-items style="flex:1;overflow-y:auto;padding:16px 20px;"></div>
-    <div style="padding:16px 20px;border-top:1px solid #eee;">
-      <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
-        <span style="font-weight:600;">Total:</span>
-        <span data-sf-cart-total style="font-weight:700;font-size:18px;">R$ 0,00</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+        <h3 style="font-size:16px;font-weight:600;">Carrinho</h3>
       </div>
-      <a href="/carrinho" style="display:block;width:100%;padding:12px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);text-align:center;border-radius:8px;font-weight:600;text-decoration:none;">Ver Carrinho</a>
+      <button data-sf-action="toggle-cart" style="background:none;border:none;font-size:20px;cursor:pointer;padding:4px;">&times;</button>
+    </div>
+    <div data-sf-cart-items style="flex:1;overflow-y:auto;padding:16px 20px;">
+      <!-- Benefit bar injected by JS -->
+      <div data-sf-cart-benefit style="display:none;margin-bottom:12px;"></div>
+    </div>
+    <div style="padding:16px 20px;border-top:1px solid #eee;">
+      <!-- Shipping Calculator -->
+      <div data-sf-cart-shipping style="margin-bottom:12px;">
+        <p style="font-size:13px;font-weight:600;margin-bottom:6px;">📦 Calcular frete</p>
+        <div style="display:flex;gap:8px;">
+          <input type="text" placeholder="CEP" maxlength="9" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none;" data-sf-cart-shipping-cep>
+          <button data-sf-action="calc-cart-shipping" style="padding:8px 14px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;">OK</button>
+        </div>
+        <div data-sf-cart-shipping-results style="margin-top:6px;"></div>
+      </div>
+      <!-- Coupon -->
+      <div data-sf-cart-coupon style="margin-bottom:12px;">
+        <div style="display:flex;gap:8px;">
+          <input type="text" placeholder="Cupom de desconto" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none;" data-sf-cart-coupon-input>
+          <button data-sf-action="apply-coupon" style="padding:8px 14px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;">Aplicar</button>
+        </div>
+        <div data-sf-cart-coupon-result style="margin-top:4px;font-size:12px;"></div>
+      </div>
+      <!-- Summary -->
+      <div style="space-y:6px;">
+        <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:4px;">
+          <span>Subtotal:</span>
+          <span data-sf-cart-subtotal style="font-weight:500;">R$ 0,00</span>
+        </div>
+        <div data-sf-cart-shipping-line style="display:none;justify-content:space-between;font-size:14px;margin-bottom:4px;">
+          <span>Frete:</span>
+          <span data-sf-cart-shipping-value>Calcule acima</span>
+        </div>
+        <div data-sf-cart-discount-line style="display:none;justify-content:space-between;font-size:14px;margin-bottom:4px;color:#16a34a;">
+          <span>Desconto:</span>
+          <span data-sf-cart-discount-value></span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:1px solid #eee;margin-top:4px;">
+          <span style="font-weight:700;font-size:16px;">Total:</span>
+          <span data-sf-cart-total style="font-weight:700;font-size:18px;">R$ 0,00</span>
+        </div>
+      </div>
+      <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
+        <a href="/checkout" class="sf-btn-primary" style="display:block;width:100%;padding:14px;text-align:center;border-radius:9999px;font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:0.05em;text-decoration:none;">Iniciar Compra</a>
+        <a href="/carrinho" style="display:block;width:100%;padding:12px;text-align:center;border:1px solid #ddd;border-radius:9999px;font-weight:600;font-size:13px;text-decoration:none;color:#1a1a1a;">Ir para o Carrinho</a>
+      </div>
     </div>
   </div>
 
