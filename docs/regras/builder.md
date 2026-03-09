@@ -1690,3 +1690,47 @@ Para adicionar novos presets no futuro:
 | Botão fechar | `color: inherit` (herda do container) |
 | Sub-menus | Acordeão colapsável com `opacity: 0.8` para subitens |
 | Seção contato | Consome `social_whatsapp`, `contact_phone`, `contact_email` de `store_settings` |
+
+---
+
+## Centralização de Design Tokens (Fase 7)
+
+### Arquitetura
+
+```
+┌───────────────────────────────────────────────────────────────────┐
+│              TOKENS CENTRALIZADOS (2 arquivos espelhados)         │
+├───────────────────────────────────────────────────────────────────┤
+│  React: src/lib/storefront-theme-utils.ts                        │
+│  Edge:  supabase/functions/_shared/theme-tokens.ts               │
+│                                                                    │
+│  CONTRATO: Devem SEMPRE estar sincronizados                      │
+└───────────────────────────────────────────────────────────────────┘
+         ↓                              ↓
+┌──────────────────┐          ┌──────────────────────┐
+│ CONSUMIDORES React│          │ CONSUMIDORES Edge     │
+│                  │          │                      │
+│ usePublicTheme   │          │ storefront-html      │
+│ useBuilderTheme  │          │ (v8.4.0+)            │
+└──────────────────┘          └──────────────────────┘
+```
+
+### Funções Compartilhadas
+
+| Função | React | Edge | Descrição |
+|--------|-------|------|-----------|
+| `FONT_FAMILY_MAP` | ✅ | ✅ | Mapa font-value → CSS font-family |
+| `getFontFamily()` | ✅ | ✅ | Resolve font value com fallback Inter |
+| `generateColorCssVars()` | ✅ | ✅ | Gera array de variáveis CSS de cor |
+| `generateButtonCssRules()` | ✅ | ✅ | CSS de sf-btn-primary/secondary/outline |
+| `generateAccentAndTagCssRules()` | ✅ | — | CSS de sf-accent-* e sf-tag-* (scoped) |
+| `hexToHslValues()` | ✅ | — | Converte hex → HSL para Tailwind |
+| `generateThemeCss()` | — | ✅ | CSS completo para Edge HTML |
+| `getGoogleFontsData()` | — | ✅ | Google Fonts link + preload tags |
+
+### Regras de Manutenção
+
+1. **Alteração em variáveis CSS** → Atualizar AMBOS os arquivos
+2. **Nova cor de tema** → Adicionar em `generateColorCssVars()` dos 2 arquivos
+3. **Novo botão style** → Adicionar em `generateButtonCssRules()` dos 2 arquivos
+4. **Nova fonte** → Adicionar em `FONT_FAMILY_MAP` E `FONT_NAME_MAP` dos 2 arquivos
