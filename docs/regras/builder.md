@@ -1541,7 +1541,80 @@ Para adicionar novos presets no futuro:
 
 ---
 
-## Regras Globais de Compilação Builder ↔ Storefront (v8.2.2)
+## Compiladores Edge — Inventário
+
+> Lista de todos os block-compilers em `supabase/functions/_shared/block-compiler/blocks/`.
+
+### ✅ Compiladores Prontos (38 total)
+
+| Bloco | Arquivo | Fase |
+|-------|---------|------|
+| Page | `page.ts` | Base |
+| Section | `section.ts` | Base |
+| Container | `container.ts` | 1 |
+| Columns + Column | `columns.ts`, `column.ts` | 1 |
+| Grid | `grid.ts` | 1 |
+| Text | `text.ts` | Base |
+| RichText | `rich-text.ts` | Base |
+| Image | `image.ts` | Base |
+| Button | `button.ts` | Base |
+| Spacer | `spacer.ts` | Base |
+| Divider | `divider.ts` | Base |
+| HeroBanner | `hero-banner.ts` | Base |
+| Banner | `banner.ts` | Base |
+| ImageCarousel | `image-carousel.ts` | Base |
+| InfoHighlights | `info-highlights.ts` | Base |
+| FeaturedCategories | `featured-categories.ts` | Base |
+| FeaturedProducts | `featured-products.ts` | Base |
+| CategoryBanner | `category-banner.ts` | Base |
+| CategoryPageLayout | `category-page-layout.ts` | Base |
+| ProductDetails | `product-details.ts` | Base |
+| FAQ | `faq.ts` | 2 |
+| Testimonials | `testimonials.ts` | 2 |
+| AccordionBlock | `accordion.ts` | 2 |
+| Newsletter / NewsletterForm | `newsletter.ts` | 2 |
+| YouTubeVideo | `youtube-video.ts` | 3 |
+| VideoCarousel | `video-carousel.ts` | 3 |
+| HTMLSection | `html-section.ts` | 3 |
+| ImageGallery | `image-gallery.ts` | 3 |
+| CountdownTimer | `countdown-timer.ts` | 4 |
+| LogosCarousel | `logos-carousel.ts` | 4 |
+| StatsNumbers | `stats-numbers.ts` | 4 |
+| ContentColumns | `content-columns.ts` | 4 |
+| FeatureList | `feature-list.ts` | 4 |
+| StepsTimeline | `steps-timeline.ts` | 4 |
+| TextBanners | `text-banners.ts` | 4 |
+| Header | Standalone (`storefront-html`) | — |
+| Footer | Standalone (`storefront-html`) | — |
+| Blog / Institucional | Standalone (`storefront-html`) | — |
+
+### Detalhes dos Compiladores Fase 2 (Interativos)
+
+- **FAQ** (`faq.ts`): HTML nativo `<details>/<summary>`, zero JS. Respeita ícone e estilo de borda.
+- **Testimonials** (`testimonials.ts`): Grid responsivo (1→2→3 cols). Estrelas SVG. Imagens otimizadas via wsrv.nl.
+- **AccordionBlock** (`accordion.ts`): Variantes `default`, `separated`, `bordered`. Suporta `defaultOpen`.
+- **Newsletter** (`newsletter.ts`): 3 layouts (horizontal, vertical, card). Atributos `data-sf-newsletter` para hidratação JS.
+
+### Detalhes dos Compiladores Fase 3 (Mídia)
+
+- **YouTubeVideo** (`youtube-video.ts`): iframe responsivo com aspect ratio configurável (16:9, 4:3, 1:1).
+- **VideoCarousel** (`video-carousel.ts`): Primeiro vídeo embed + thumbnails dos demais. Hidratação via `data-sf-video-carousel`.
+- **HTMLSection** (`html-section.ts`): HTML sanitizado inline (remove `<script>`, event handlers, `javascript:` URLs). CSS scoped via `<style>`.
+- **ImageGallery** (`image-gallery.ts`): Grid responsivo (2→3→4 cols). Imagens otimizadas. Hover effects CSS.
+
+### Detalhes dos Compiladores Fase 4 (Marketing)
+
+- **CountdownTimer** (`countdown-timer.ts`): Server-render + hidratação JS via `data-sf-countdown`. Mostra dias/horas/min/seg. CTA opcional.
+- **LogosCarousel** (`logos-carousel.ts`): Grid responsivo de logos. Suporta grayscale e links. Imagens otimizadas.
+- **StatsNumbers** (`stats-numbers.ts`): Layout horizontal ou grid. Animação de números via JS IntersectionObserver. Cor de destaque do tema.
+- **ContentColumns** (`content-columns.ts`): Imagem + texto lado a lado. Lista de features com ícones SVG. Posição da imagem configurável.
+- **FeatureList** (`feature-list.ts`): Lista vertical com ícones SVG. Cor do ícone herda do tema. CTA opcional.
+- **StepsTimeline** (`steps-timeline.ts`): Layout horizontal ou vertical. Círculos numerados. Linha de conexão SVG.
+- **TextBanners** (`text-banners.ts`): Texto + 2 imagens lado a lado. Layout text-left/text-right. CTA com sf-btn-primary.
+
+---
+
+## Regras Globais de Compilação Builder ↔ Storefront (v8.2.3)
 
 > **REGRA CRÍTICA:** Estas invariantes devem ser respeitadas em TODOS os block-compilers.
 
