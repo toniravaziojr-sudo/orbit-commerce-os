@@ -614,9 +614,12 @@ export function VisualBuilder({
       const draftPageSettings = getGlobalDraftPageSettingsRef();
       const headerDraft = getGlobalHeaderDraftRef();
       const footerDraft = getGlobalFooterDraftRef();
+      const miniCartDraft = getGlobalMiniCartDraftRef();
+      const popupDraft = getGlobalPopupDraftRef();
       
       const hasThemeOrSettingsDraft = draftTheme?.hasDraftChanges || draftPageSettings?.hasDraftChanges || 
-                                       headerDraft?.hasDraftChanges || footerDraft?.hasDraftChanges;
+                                       headerDraft?.hasDraftChanges || footerDraft?.hasDraftChanges ||
+                                       miniCartDraft?.hasDraftChanges || popupDraft?.hasDraftChanges;
       
       if (templateSetId && hasThemeOrSettingsDraft) {
         const { data: current } = await supabase
