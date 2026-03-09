@@ -147,6 +147,7 @@ const StorefrontBlog = lazy(() => import("@/pages/storefront/StorefrontBlog"));
 const StorefrontTracking = lazy(() => import("@/pages/storefront/StorefrontTracking"));
 const StorefrontQuiz = lazy(() => import("@/pages/storefront/StorefrontQuiz"));
 const StorefrontReview = lazy(() => import("@/pages/storefront/StorefrontReview"));
+const StorefrontSearch = lazy(() => import("@/pages/storefront/StorefrontSearch"));
 
 // Helper to check if we're on a tenant host (custom domain or platform subdomain)
 import { isPlatformSubdomain, isAppDomain, SAAS_CONFIG } from "@/lib/canonicalDomainService";

@@ -475,6 +475,17 @@ export function StorefrontHeaderContent({
     });
   };
 
+  // Search submit handler — navigates to /busca?q=term
+  const handleSearchSubmit = (e?: React.KeyboardEvent | React.FormEvent) => {
+    if (e && 'key' in e && e.key !== 'Enter') return;
+    const trimmed = searchQuery.trim();
+    if (!trimmed) return;
+    const searchUrl = `${baseUrl}/busca?q=${encodeURIComponent(trimmed)}`;
+    navigate(searchUrl);
+    setSearchQuery('');
+    setMobileMenuOpen(false);
+  };
+
   // Determine layout mode based on viewportOverride (from builder) or CSS will handle it for public
   const forceMobile = viewportOverride === 'mobile' || viewportOverride === 'tablet';
   const forceDesktop = viewportOverride === 'desktop';
