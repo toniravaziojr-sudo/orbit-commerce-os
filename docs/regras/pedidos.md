@@ -1,7 +1,7 @@
 # Módulo: Pedidos (Admin)
 
 > **Status**: ✅ Funcional e Protegido  
-> **Última atualização**: 2026-03-08
+> **Última atualização**: 2026-03-10
 
 ---
 
