@@ -52,7 +52,15 @@ const COMPILER_REGISTRY: Record<string, BlockCompilerFn> = {
   'Page': pageToStaticHTML,
   'Section': sectionToStaticHTML,
   
-  // Content blocks
+  // Content blocks — Basic
+  'Text': textToStaticHTML,
+  'RichText': richTextToStaticHTML,
+  'Image': imageToStaticHTML,
+  'Button': buttonToStaticHTML,
+  'Spacer': spacerToStaticHTML,
+  'Divider': dividerToStaticHTML,
+  
+  // Content blocks — Complex
   'HeroBanner': heroBannerToStaticHTML,
   'Banner': bannerToStaticHTML,
   'ImageCarousel': imageCarouselToStaticHTML,
