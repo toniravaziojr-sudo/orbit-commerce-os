@@ -1598,8 +1598,14 @@ function getSettingsConfig(pageType: string): SettingConfig[] {
     checkout: [
       // Funcionalidades
       { key: 'couponEnabled', label: 'Cupom de desconto', description: 'Campo para aplicar cupom', defaultValue: true, group: 'features' },
-      { key: 'testimonialsEnabled', label: 'Depoimentos', description: 'Exibe avaliações de clientes', defaultValue: true, group: 'features' },
+      { key: 'testimonialsEnabled', label: 'Depoimentos', description: 'Prova social durante o checkout', defaultValue: true, group: 'features' },
       { key: 'showTimeline', label: 'Timeline de etapas', description: 'Mostra progresso do checkout', defaultValue: true, group: 'features' },
+      { key: 'showTrustBadges', label: 'Selos de confiança', description: 'Badges de confiança no checkout', defaultValue: true, group: 'features' },
+      { key: 'showSecuritySeals', label: 'Selos de segurança', description: 'Ícones de segurança no checkout', defaultValue: true, group: 'features' },
+      // Formas de pagamento (visibilidade)
+      { key: 'showPix', label: 'Exibir PIX', description: 'Mostrar opção PIX no checkout', defaultValue: true, group: 'payment' },
+      { key: 'showBoleto', label: 'Exibir Boleto', description: 'Mostrar opção Boleto no checkout', defaultValue: true, group: 'payment' },
+      { key: 'showCreditCard', label: 'Exibir Cartão de Crédito', description: 'Mostrar opção Cartão no checkout', defaultValue: true, group: 'payment' },
       // Ofertas
       { key: 'showOrderBump', label: 'Mostrar Order Bump', description: 'Oferta adicional no checkout', defaultValue: true, group: 'offers' },
       // Pixels
