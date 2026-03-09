@@ -2675,36 +2675,7 @@ const blockDefinitions: BlockDefinition[] = [
     isRemovable: true,
   },
   // ========== MEDIA CAROUSEL BLOCKS ==========
-  {
-    type: 'VideoCarousel',
-    label: 'Carrossel de Vídeos',
-    category: 'media',
-    icon: 'Film',
-    defaultProps: {
-      title: '',
-      videos: [],
-      autoplay: false,
-      showControls: true,
-      aspectRatio: '16:9',
-    },
-    propsSchema: {
-      title: { type: 'string', label: 'Título' },
-      videos: { type: 'array', label: 'Vídeos', helpText: 'YouTube URLs ou vídeos via upload' },
-      autoplay: { type: 'boolean', label: 'Autoplay' },
-      showControls: { type: 'boolean', label: 'Mostrar Controles' },
-      aspectRatio: { 
-        type: 'select', 
-        label: 'Proporção', 
-        options: [
-          { label: '16:9', value: '16:9' }, 
-          { label: '4:3', value: '4:3' }, 
-          { label: '1:1', value: '1:1' },
-        ],
-      },
-    },
-    canHaveChildren: false,
-    isRemovable: true,
-  },
+  // VideoCarousel is defined above (line ~2036) — single entry only
   {
     type: 'ImageCarousel',
     label: 'Carrossel de Imagens',
@@ -3422,6 +3393,36 @@ const blockDefinitions: BlockDefinition[] = [
     defaultProps: {},
     propsSchema: {}, // Settings managed in Theme Settings > Páginas > Obrigado
     canHaveChildren: false,
+  },
+
+  // ========== EMBED SOCIAL POST ==========
+  {
+    type: 'EmbedSocialPost',
+    label: 'Embed de Post Social',
+    category: 'utilities',
+    icon: 'Share2',
+    defaultProps: {
+      url: '',
+      maxWidth: 550,
+    },
+    propsSchema: {
+      url: {
+        type: 'string',
+        label: 'URL do Post',
+        placeholder: 'https://www.instagram.com/p/...',
+        helpText: 'Cole a URL de um post público do Facebook, Instagram ou Threads',
+        required: true,
+      },
+      maxWidth: {
+        type: 'number',
+        label: 'Largura Máxima (px)',
+        defaultValue: 550,
+        min: 300,
+        max: 800,
+      },
+    },
+    canHaveChildren: false,
+    isRemovable: true,
   },
 ];
 
