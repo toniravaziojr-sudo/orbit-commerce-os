@@ -64,6 +64,9 @@ import {
   ORDER_STATUS_CONFIG,
   PAYMENT_STATUS_CONFIG,
   SHIPPING_STATUS_CONFIG,
+  normalizeOrderStatus,
+  normalizePaymentStatus,
+  normalizeShippingStatus,
 } from '@/types/orderStatus';
 
 interface OrderListProps {
