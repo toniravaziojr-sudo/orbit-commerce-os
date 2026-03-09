@@ -997,6 +997,9 @@ function buildFullPage(opts: {
       }
     })();
   </script>
+  ${opts.newsletterPopupHtml || ''}
+  ${opts.consentBannerHtml || ''}
+  ${opts.marketingScripts || ''}
 </body>
 </html>`;
 }
