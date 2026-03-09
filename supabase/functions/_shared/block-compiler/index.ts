@@ -105,6 +105,12 @@ const COMPILER_REGISTRY: Record<string, BlockCompilerFn> = {
   'AccordionBlock': accordionToStaticHTML,
   'Newsletter': newsletterToStaticHTML,
   'NewsletterForm': newsletterToStaticHTML, // Same visual output
+  
+  // Media blocks
+  'YouTubeVideo': youtubeVideoToStaticHTML,
+  'VideoCarousel': videoCarouselToStaticHTML,
+  'HTMLSection': htmlSectionToStaticHTML,
+  'ImageGallery': imageGalleryToStaticHTML,
 };
 
 /**
