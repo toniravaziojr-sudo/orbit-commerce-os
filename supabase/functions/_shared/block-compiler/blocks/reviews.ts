@@ -56,7 +56,7 @@ export function reviewsToStaticHTML(props: Record<string, any>, _ctx: CompilerCo
             : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>`}
         </div>
         <div style="min-width:0;">
-          <p style="font-size:12px;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(review.productName)}</p>
+          <p style="font-size:12px;color:var(--theme-text-secondary, #6b7280);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(review.productName)}</p>
           ${review.productUrl ? `<a href="${escapeHtml(review.productUrl)}" style="font-size:12px;color:var(--theme-button-primary-bg,#2563eb);text-decoration:none;">Ver produto ↗</a>` : ''}
         </div>
       </div>
