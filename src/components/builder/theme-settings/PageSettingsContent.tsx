@@ -1065,11 +1065,7 @@ export function PageSettingsContent({
                         handleChange('buttonPrimaryBg', '');
                         handleChange('buttonPrimaryText', '');
                         handleChange('buttonPrimaryHover', '');
-                        if (pageType === 'cart') {
-                          handleChange('buttonSecondaryBg', '');
-                          handleChange('buttonSecondaryText', '');
-                          handleChange('buttonSecondaryHover', '');
-                        }
+                        if (pageType === 'checkout') {
                         if (pageType === 'checkout') {
                           handleChange('flagsColor', '');
                         }
