@@ -29,16 +29,18 @@ export function StorefrontLayout() {
   return (
     <CartProvider tenantSlug={tenantSlug || ''}>
       <DiscountProvider>
-        <StorefrontLayoutContent
-          tenant={tenant}
-          tenantSlug={tenantSlug || ''}
-          storeSettings={storeSettings}
-          customDomain={customDomain}
-          bootstrapTemplate={bootstrapTemplate}
-          isLoading={isLoading}
-          isPublished={isPublished}
-          isPreview={isPreview}
-        />
+        <MiniCartProvider>
+          <StorefrontLayoutContent
+            tenant={tenant}
+            tenantSlug={tenantSlug || ''}
+            storeSettings={storeSettings}
+            customDomain={customDomain}
+            bootstrapTemplate={bootstrapTemplate}
+            isLoading={isLoading}
+            isPublished={isPublished}
+            isPreview={isPreview}
+          />
+        </MiniCartProvider>
       </DiscountProvider>
     </CartProvider>
   );
