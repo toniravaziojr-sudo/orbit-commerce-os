@@ -192,42 +192,26 @@ e migra automaticamente para o novo formato na primeira carga.
 
 ---
 
-## Cores Personalizadas do Carrinho (Page Override)
+## Cores Personalizadas do Carrinho [REMOVIDO]
 
-| Setting | Tipo | Default | Descrição |
-|---------|------|---------|-----------|
-| `buttonPrimaryBg` | string | '' | Cor de fundo do botão primário (herda do tema se vazio) |
-| `buttonPrimaryText` | string | '' | Cor do texto do botão primário (herda do tema se vazio) |
-| `buttonPrimaryHover` | string | '' | Cor de hover do botão primário (herda do tema se vazio) |
-| `buttonSecondaryBg` | string | '' | Cor de fundo do botão secundário (herda do tema se vazio) |
-| `buttonSecondaryText` | string | '' | Cor do texto do botão secundário (herda do tema se vazio) |
-| `buttonSecondaryHover` | string | '' | Cor de hover do botão secundário (herda do tema se vazio) |
+> **[REMOVIDO em 2026-03-10]** — A funcionalidade de cores personalizadas por página foi **removida** do carrinho.
+> O carrinho agora herda **obrigatoriamente** as cores globais do tema (Primário e Secundário).
+> O checkout permanece como a **única** página SPA com suporte a cores personalizadas via `PageColorsInjector`.
+>
+> **Motivo:** Evitar inconsistência visual entre carrinho e o restante da loja.
+> **UI Builder:** A seção "Cores Personalizadas" não aparece mais no painel de configuração do Carrinho.
 
-### Classe de Escopo
+---
 
-O container da página de carrinho recebe automaticamente a classe `sf-page-cart` via `PublicTemplateRenderer` (quando `pageType="cart"`).
+## Ícone do Carrinho no Edge Header
 
-Isso permite que os overrides de cores da página vençam as regras do tema global **por especificidade CSS natural**, sem `!important`.
+| Comportamento | Descrição |
+|---------------|-----------|
+| **Edge Header** | O ícone do carrinho é um `<a href="/cart">` que navega para a página `/cart` (SPA) |
+| **SPA Header** | O ícone do carrinho usa `<Link to="/cart">` via React Router |
+| **Cart Drawer** | O drawer lateral continua disponível quando itens são adicionados via botão "Adicionar ao carrinho" nos grids |
 
-### Hierarquia de Especificidade (Fase 2)
-
-| Nível | Seletor | Especificidade |
-|-------|---------|---------------|
-| Global | `.storefront-container .sf-btn-primary` | 0,2,0+ |
-| Carrinho | `.sf-page-cart` (redefine CSS vars) | 0,1,0 (vars cascateiam) |
-
-### Regra de Herança
-
-1. Se a cor estiver **vazia** (`''`), o botão usa as cores do **tema global**
-2. Se a cor estiver **preenchida**, ela **redefine as CSS vars** (`--theme-button-primary-bg`, etc.) no escopo `.sf-page-cart`
-3. Os componentes filhos consumem as vars normalmente — a cascata CSS aplica o override automaticamente
-4. Configuração em: **Configurações do Tema > Páginas > Carrinho > Cores Personalizadas**
-
-### Arquitetura de Injeção (sem !important)
-
-- **Builder (preview):** `useBuilderThemeInjector.ts` lê o draft de `useBuilderDraftPageSettings` e injeta variáveis CSS
-- **Loja pública:** `PageColorsInjector.tsx` + `usePageColors.ts` leem do `published_content` e injetam CSS
-- **Mecanismo:** As CSS vars são redefinidas dentro do escopo `.sf-page-cart` / `.sf-page-checkout`, cascateando naturalmente para os componentes filhos sem necessidade de `!important`
+> **Alteração em 2026-03-10:** O ícone do carrinho no Edge Header foi alterado de `data-sf-action="open-cart"` (abrir drawer) para `<a href="/cart">` (navegar para página do carrinho).
 
 ---
 
