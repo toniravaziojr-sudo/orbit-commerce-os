@@ -350,6 +350,12 @@ function buildFullPage(opts: {
   marketingScripts?: string;
   newsletterPopupHtml?: string;
   consentBannerHtml?: string;
+  benefitEnabled?: boolean;
+  benefitThreshold?: number;
+  benefitMode?: string;
+  benefitRewardLabel?: string;
+  benefitSuccessLabel?: string;
+  benefitProgressColor?: string;
 }): string {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
