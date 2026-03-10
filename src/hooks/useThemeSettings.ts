@@ -35,10 +35,17 @@ export interface PopupDraftRef {
   savePendingChanges: () => Promise<void>;
 }
 
+interface SupportWidgetDraftRef {
+  hasDraftChanges: boolean;
+  clearDraft: () => void;
+  getPendingChanges: () => { supportWidget?: SupportWidgetConfig } | null;
+}
+
 let globalHeaderDraftRef: HeaderFooterDraftRef | null = null;
 let globalFooterDraftRef: HeaderFooterDraftRef | null = null;
 let globalMiniCartDraftRef: MiniCartDraftRef | null = null;
 let globalPopupDraftRef: PopupDraftRef | null = null;
+let globalSupportWidgetDraftRef: SupportWidgetDraftRef | null = null;
 
 // Change counter for external observers (triggers re-render in toolbar)
 let headerFooterDraftChangeCounter = 0;
@@ -63,6 +70,10 @@ export function getGlobalMiniCartDraftRef() {
 
 export function getGlobalPopupDraftRef() {
   return globalPopupDraftRef;
+}
+
+export function getGlobalSupportWidgetDraftRef() {
+  return globalSupportWidgetDraftRef;
 }
 
 export function setGlobalPopupDraftRef(ref: PopupDraftRef | null) {
@@ -952,6 +963,73 @@ export function useThemeMiniCart(tenantId: string | undefined, templateSetId: st
   return {
     miniCart,
     updateMiniCart,
+    isLoading,
+    isSaving,
+    hasDraftChanges,
+    clearDraft,
+    getPendingChanges,
+  };
+}
+
+// ============================================
+// SUPPORT WIDGET DRAFT HOOK (follows same pattern as MiniCart)
+// ============================================
+
+export function useThemeSupportWidget(tenantId: string | undefined, templateSetId: string | undefined) {
+  const { themeSettings, isLoading, isSaving } = 
+    useThemeSettings(tenantId, templateSetId);
+
+  // Track draft changes locally
+  const [draftUpdates, setDraftUpdates] = useState<Partial<SupportWidgetConfig>>({});
+
+  const hasDraftChanges = Object.keys(draftUpdates).length > 0;
+
+  const serverConfig = {
+    ...DEFAULT_SUPPORT_WIDGET,
+    ...themeSettings?.supportWidget,
+  };
+
+  // Merge server with draft for display
+  const supportWidget = {
+    ...serverConfig,
+    ...draftUpdates,
+  };
+
+  // updateSupportWidget: Updates LOCAL draft state only (NO database save)
+  const updateSupportWidget = useCallback((newConfig: Partial<SupportWidgetConfig>) => {
+    setDraftUpdates(prev => ({ ...prev, ...newConfig }));
+    notifyHeaderFooterDraftChange();
+  }, []);
+
+  const clearDraft = useCallback(() => {
+    setDraftUpdates({});
+  }, []);
+
+  const getPendingChanges = useCallback(() => {
+    if (!hasDraftChanges) return null;
+    const fullConfig = {
+      ...DEFAULT_SUPPORT_WIDGET,
+      ...themeSettings?.supportWidget,
+      ...draftUpdates,
+    };
+    return { supportWidget: fullConfig };
+  }, [hasDraftChanges, themeSettings?.supportWidget, draftUpdates]);
+
+  // Register global ref
+  useEffect(() => {
+    globalSupportWidgetDraftRef = {
+      hasDraftChanges,
+      clearDraft,
+      getPendingChanges,
+    };
+    return () => {
+      globalSupportWidgetDraftRef = null;
+    };
+  }, [hasDraftChanges, clearDraft, getPendingChanges]);
+
+  return {
+    supportWidget,
+    updateSupportWidget,
     isLoading,
     isSaving,
     hasDraftChanges,
