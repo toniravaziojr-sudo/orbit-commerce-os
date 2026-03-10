@@ -12,8 +12,8 @@ Sistema de carrinho de compras com mini-cart, página completa e ofertas de cros
 
 | Tipo | Rota/Componente | Descrição |
 |------|-----------------|-----------|
-| **Mini-Cart** | Drawer lateral | Acesso rápido sem sair da página |
-| **Página** | `/loja/:slug/carrinho` | Página completa do carrinho |
+| **Mini-Cart** | Drawer lateral (Edge) | Acesso rápido sem sair da página. Renderizado pelo Edge HTML. Link aponta para `/cart`. |
+| **Página SPA** | `/cart` ou `/carrinho` (alias) | Página completa do carrinho (React SPA). Ambas as rotas são suportadas. |
 
 ---
 
