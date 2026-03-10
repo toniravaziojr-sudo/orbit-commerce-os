@@ -26,7 +26,7 @@ export function blogIndexToStaticHTML(posts: any[], storeName: string): string {
 
   return `
     <div style="max-width:1280px;margin:0 auto;padding:48px 16px;">
-      <h1 style="font-size:clamp(24px,4vw,36px);font-weight:700;font-family:var(--sf-heading-font);margin-bottom:32px;">Blog</h1>
+      <h1 style="font-size:clamp(24px,4vw,36px);font-weight:700;font-family:var(--sf-heading-font);margin-bottom:32px;text-align:center;">Blog</h1>
       <style>
         .sf-blog-grid { display: grid; grid-template-columns: repeat(1, 1fr); gap: 24px; }
         @media(min-width:640px) { .sf-blog-grid { grid-template-columns: repeat(2, 1fr); } }
