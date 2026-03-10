@@ -1129,11 +1129,13 @@ export function VisualBuilder({
     const draftPageSettings = getGlobalDraftPageSettingsRef();
     const miniCartDraft = getGlobalMiniCartDraftRef();
     const popupDraft = getGlobalPopupDraftRef();
+    const supportWidgetDraft = getGlobalSupportWidgetDraftRef();
     return store.isDirty || 
       (draftTheme?.hasDraftChanges ?? false) || 
       (draftPageSettings?.hasDraftChanges ?? false) ||
       (miniCartDraft?.hasDraftChanges ?? false) ||
-      (popupDraft?.hasDraftChanges ?? false);
+      (popupDraft?.hasDraftChanges ?? false) ||
+      (supportWidgetDraft?.hasDraftChanges ?? false);
   }, [store.isDirty]);
 
   // Go back with unsaved changes check
