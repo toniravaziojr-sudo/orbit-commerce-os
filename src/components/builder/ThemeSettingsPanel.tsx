@@ -245,6 +245,8 @@ export function ThemeSettingsPanel({
         );
       case 'popup':
         return <PopupSettings tenantId={tenantId} templateSetId={templateSetId} />;
+      case 'support':
+        return <SupportSettings tenantId={tenantId} templateSetId={templateSetId} />;
       case 'typography':
         return <TypographySettings tenantId={tenantId} templateSetId={templateSetId} />;
       case 'colors':
