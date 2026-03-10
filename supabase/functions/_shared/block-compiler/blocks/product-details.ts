@@ -229,7 +229,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
   if (showShippingCalculator) {
     shippingHtml = `
       <div style="margin-top:16px;padding:16px;background:#f9f9f9;border-radius:8px;" data-sf-shipping-box data-product-id="${product.id}" data-product-price="${product.price}" data-product-weight="${(product as any).weight || 0.3}">
-        <p style="font-size:14px;font-weight:600;margin-bottom:8px;">📦 Calcular frete e prazo</p>
+        <p style="font-size:14px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg> Calcular frete e prazo</p>
         <div style="display:flex;gap:8px;">
           <input type="text" placeholder="Digite seu CEP" maxlength="9" style="flex:1;padding:10px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;outline:none;font-family:var(--sf-body-font);" data-sf-shipping-cep>
           <button style="padding:10px 20px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:6px;font-size:14px;font-weight:500;cursor:pointer;" data-sf-action="calc-shipping">Calcular</button>
