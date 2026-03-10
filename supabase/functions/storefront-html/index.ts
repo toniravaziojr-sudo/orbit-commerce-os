@@ -199,7 +199,7 @@ function generateSupportWidgetHtml(themeSettings: any, routeType: string): strin
   const btnStyle = `display:flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:50%;border:none;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.15);transition:transform 0.2s;text-decoration:none;`;
   let buttons = '';
   if (showWhatsApp) {
-    buttons += `<a href="${waHref}" target="_blank" rel="noopener noreferrer" style="${btnStyle}background:${escapeHtml(buttonColor)};" title="WhatsApp" onmouseenter="this.style.transform='scale(1.05)'" onmouseleave="this.style.transform='scale(1)'">${phoneSvg}</a>`;
+    buttons += `<a href="${waHref}" target="_blank" rel="noopener noreferrer" style="${btnStyle}background:${escapeHtml(buttonColor)};" title="WhatsApp" onmouseenter="this.style.transform='scale(1.05)'" onmouseleave="this.style.transform='scale(1)'">${whatsappSvg}</a>`;
   }
   if (showChat) {
     const chatColor = showWhatsApp ? 'var(--theme-primary-bg, #1a1a1a)' : buttonColor;
