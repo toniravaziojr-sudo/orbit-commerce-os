@@ -18,7 +18,7 @@ import { generateThemeCss, generateButtonCssRules, getGoogleFontsData } from '..
 import { optimizeImageUrl } from '../_shared/block-compiler/utils.ts';
 
 // ===== VERSION =====
-const VERSION = "v8.5.0"; // Fix: Cart format compatibility Edge↔SPA — prevents hydration crash
+const VERSION = "v8.6.0"; // Fix: Support chat widget now works on Edge-rendered pages (inline chat drawer)
 // ====================
 
 // NOTE: FONT_FAMILY_MAP, getFontFamily, generateThemeCss, getGoogleFontsData
