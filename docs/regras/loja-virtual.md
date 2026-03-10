@@ -244,8 +244,12 @@ A partir da v9.0.0, o storefront público opera em **modelo segregado**:
 
 **Motivo**: `usePublicTemplate` faz queries separadas que falham no domínio público. `usePublicGlobalLayout` utiliza dados de bootstrap do `TenantStorefrontLayout`.
 
-**Páginas corrigidas (v2.0.0)**: `StorefrontAccount.tsx`, `StorefrontOrdersList.tsx`, `StorefrontOrderDetail.tsx`
+**Páginas corrigidas (v2.0.0)**: `StorefrontAccount.tsx`, `StorefrontOrdersList.tsx`, `StorefrontOrderDetail.tsx`, `StorefrontAccountLogin.tsx`, `StorefrontAccountForgotPassword.tsx`, `StorefrontResetPassword.tsx`
 **Já corretas**: `StorefrontCart.tsx`, `StorefrontThankYou.tsx`, `StorefrontCheckout.tsx` (usam `PublicTemplateRenderer`)
+
+### Regra: Classe `storefront-container` em Páginas SPA (v2.1.0)
+
+**OBRIGATÓRIO**: O wrapper principal do `TenantStorefrontLayout` deve incluir a classe `storefront-container` para que as variáveis CSS do tema (`--primary`, `--foreground`, etc.) sejam aplicadas corretamente às páginas SPA. Sem esta classe, os botões e textos usam as cores padrão do sistema (roxo) em vez das cores configuradas pelo lojista.
 
 ### Rotas do Builder (Admin)
 
