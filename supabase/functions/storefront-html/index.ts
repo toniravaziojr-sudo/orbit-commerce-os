@@ -175,7 +175,7 @@ function generateMarketingPixelScripts(config: any): string {
 }
 
 // ============================================
-// SUPPORT WIDGET — Edge-rendered floating button
+// SUPPORT WIDGET — Edge-rendered floating button + inline chat drawer
 // ============================================
 function generateSupportWidgetHtml(themeSettings: any, routeType: string): string {
   if (routeType === 'checkout') return '';
@@ -203,9 +203,185 @@ function generateSupportWidgetHtml(themeSettings: any, routeType: string): strin
   }
   if (showChat) {
     const chatColor = showWhatsApp ? 'var(--theme-primary-bg, #1a1a1a)' : buttonColor;
-    buttons += `<a href="#" data-sf-support-chat style="${btnStyle}background:${escapeHtml(chatColor)};" title="Chat" onmouseenter="this.style.transform='scale(1.05)'" onmouseleave="this.style.transform='scale(1)'">${chatSvg}</a>`;
+    // Use button instead of anchor to prevent # in URL
+    buttons += `<button data-sf-support-chat style="${btnStyle}background:${escapeHtml(chatColor)};" title="Chat" onmouseenter="this.style.transform='scale(1.05)'" onmouseleave="this.style.transform='scale(1)'">${chatSvg}</button>`;
   }
-  return `<div id="sf-support-widget" style="position:fixed;bottom:16px;${posStyle}z-index:50;display:flex;flex-direction:column;gap:12px;">${buttons}</div>`;
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
+  const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+
+  // Chat drawer HTML (hidden by default)
+  const chatDrawerHtml = showChat ? `
+  <div id="sf-chat-drawer" style="display:none;position:fixed;bottom:16px;${posStyle}z-index:55;width:360px;max-width:calc(100vw - 32px);height:500px;max-height:calc(100vh - 100px);background:#fff;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.2);flex-direction:column;overflow:hidden;font-family:inherit;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:${escapeHtml(buttonColor)};color:#fff;border-radius:12px 12px 0 0;">
+      <span style="font-weight:600;font-size:15px;">Atendimento</span>
+      <div style="display:flex;gap:4px;">
+        <button data-sf-chat-minimize style="background:none;border:none;color:#fff;cursor:pointer;padding:4px;font-size:18px;line-height:1;">−</button>
+        <button data-sf-chat-close style="background:none;border:none;color:#fff;cursor:pointer;padding:4px;font-size:18px;line-height:1;">✕</button>
+      </div>
+    </div>
+    <div id="sf-chat-body" style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+      <div id="sf-chat-form" style="flex:1;display:flex;flex-direction:column;gap:12px;padding:20px;justify-content:center;">
+        <p style="font-size:14px;color:#666;margin:0;">Olá! Para iniciar o atendimento, preencha seus dados:</p>
+        <input id="sf-chat-name" type="text" placeholder="Seu nome" style="width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;outline:none;font-family:inherit;box-sizing:border-box;">
+        <input id="sf-chat-email" type="email" placeholder="Seu e-mail" style="width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;outline:none;font-family:inherit;box-sizing:border-box;">
+        <button id="sf-chat-start" style="width:100%;padding:12px;background:${escapeHtml(buttonColor)};color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">Iniciar conversa</button>
+      </div>
+      <div id="sf-chat-messages" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
+        <div id="sf-chat-scroll" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px;">
+          <p style="text-align:center;font-size:13px;color:#999;">Envie uma mensagem para começar</p>
+        </div>
+        <div style="display:flex;gap:8px;padding:12px;border-top:1px solid #eee;">
+          <input id="sf-chat-input" type="text" placeholder="Digite sua mensagem..." style="flex:1;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;outline:none;font-family:inherit;">
+          <button id="sf-chat-send" style="width:40px;height:40px;border-radius:8px;border:none;background:${escapeHtml(buttonColor)};color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+        <button id="sf-chat-end" style="padding:8px;border:none;border-top:1px solid #eee;background:none;font-size:12px;color:#999;cursor:pointer;">Encerrar conversa</button>
+      </div>
+    </div>
+  </div>
+  <script>
+  (function(){
+    var widget=document.getElementById("sf-support-widget");
+    var drawer=document.getElementById("sf-chat-drawer");
+    if(!drawer||!widget)return;
+    var SURL="${escapeHtml(supabaseUrl)}";
+    var SKEY="${escapeHtml(supabaseKey)}";
+    var HOSTNAME=location.hostname;
+    var convId=null;var custName="";var custEmail="";var isMinimized=false;
+    // Resolve tenantId from page meta or hostname
+    var tenantId="";
+    var metaTenant=document.querySelector("meta[name='x-tenant-id']");
+    if(metaTenant)tenantId=metaTenant.getAttribute("content")||"";
+
+    // Load saved conversation
+    if(tenantId){
+      convId=localStorage.getItem("support_conversation_"+tenantId);
+      custName=localStorage.getItem("support_customer_name_"+tenantId)||"";
+      custEmail=localStorage.getItem("support_customer_email_"+tenantId)||"";
+    }
+
+    function openChat(){
+      drawer.style.display="flex";widget.style.display="none";
+      if(convId){showMessages();loadMessages();}
+    }
+    function closeChat(){drawer.style.display="none";widget.style.display="flex";isMinimized=false;}
+    function toggleMinimize(){
+      isMinimized=!isMinimized;
+      var body=document.getElementById("sf-chat-body");
+      if(body)body.style.display=isMinimized?"none":"flex";
+      drawer.style.height=isMinimized?"auto":"500px";
+    }
+
+    // Open chat on button click
+    var chatBtn=widget.querySelector("[data-sf-support-chat]");
+    if(chatBtn)chatBtn.addEventListener("click",function(e){e.preventDefault();openChat();});
+    drawer.querySelector("[data-sf-chat-close]").addEventListener("click",closeChat);
+    drawer.querySelector("[data-sf-chat-minimize]").addEventListener("click",toggleMinimize);
+
+    function showMessages(){
+      document.getElementById("sf-chat-form").style.display="none";
+      var msgPanel=document.getElementById("sf-chat-messages");
+      msgPanel.style.display="flex";
+    }
+
+    function addMessage(content,direction){
+      var scroll=document.getElementById("sf-chat-scroll");
+      // Remove empty state text
+      var empty=scroll.querySelector("p");
+      if(empty&&empty.textContent.includes("Envie"))empty.remove();
+      var div=document.createElement("div");
+      div.style.cssText="max-width:80%;padding:8px 12px;border-radius:12px;font-size:14px;word-wrap:break-word;"+(direction==="inbound"?"align-self:flex-end;background:${escapeHtml(buttonColor)};color:#fff;":"align-self:flex-start;background:#f3f4f6;color:#1a1a1a;");
+      div.textContent=content;
+      scroll.appendChild(div);
+      scroll.scrollTop=scroll.scrollHeight;
+    }
+
+    function loadMessages(){
+      if(!convId||!SURL)return;
+      fetch(SURL+"/rest/v1/messages?conversation_id=eq."+convId+"&order=created_at.asc&select=content,direction,sender_type",{
+        headers:{"apikey":SKEY,"Authorization":"Bearer "+SKEY}
+      }).then(function(r){return r.json()}).then(function(msgs){
+        var scroll=document.getElementById("sf-chat-scroll");
+        scroll.innerHTML="";
+        if(!msgs||msgs.length===0){scroll.innerHTML='<p style="text-align:center;font-size:13px;color:#999;">Envie uma mensagem para começar</p>';return;}
+        msgs.forEach(function(m){addMessage(m.content,m.direction);});
+      }).catch(function(){});
+    }
+
+    // Start conversation
+    document.getElementById("sf-chat-start").addEventListener("click",function(){
+      var nameEl=document.getElementById("sf-chat-name");
+      var emailEl=document.getElementById("sf-chat-email");
+      custName=(nameEl.value||"").trim();custEmail=(emailEl.value||"").trim();
+      if(!custName||!custEmail||!tenantId)return;
+      var btn=this;btn.disabled=true;btn.textContent="Iniciando...";
+      fetch(SURL+"/rest/v1/conversations",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","apikey":SKEY,"Authorization":"Bearer "+SKEY,"Prefer":"return=representation"},
+        body:JSON.stringify({tenant_id:tenantId,channel_type:"chat",status:"open",customer_name:custName,customer_email:custEmail,subject:"Chat do site"})
+      }).then(function(r){return r.json()}).then(function(data){
+        var conv=Array.isArray(data)?data[0]:data;
+        convId=conv.id;
+        localStorage.setItem("support_conversation_"+tenantId,convId);
+        localStorage.setItem("support_customer_name_"+tenantId,custName);
+        localStorage.setItem("support_customer_email_"+tenantId,custEmail);
+        showMessages();
+        // Register lead (fire-and-forget)
+        fetch(SURL+"/functions/v1/marketing-form-submit",{
+          method:"POST",
+          headers:{"Content-Type":"application/json","apikey":SKEY,"Authorization":"Bearer "+SKEY},
+          body:JSON.stringify({tenant_id:tenantId,fields:{email:custEmail.toLowerCase(),name:custName},source:"support_chat"})
+        }).catch(function(){});
+      }).catch(function(){btn.disabled=false;btn.textContent="Iniciar conversa";});
+    });
+
+    // Send message
+    function sendMsg(){
+      var input=document.getElementById("sf-chat-input");
+      var msg=(input.value||"").trim();
+      if(!msg||!convId||!tenantId)return;
+      input.value="";
+      addMessage(msg,"inbound");
+      fetch(SURL+"/rest/v1/messages",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","apikey":SKEY,"Authorization":"Bearer "+SKEY},
+        body:JSON.stringify({conversation_id:convId,tenant_id:tenantId,content:msg,direction:"inbound",sender_type:"customer",sender_name:custName,delivery_status:"delivered"})
+      }).then(function(){
+        // Trigger AI response (fire-and-forget)
+        fetch(SURL+"/functions/v1/ai-support-chat",{
+          method:"POST",
+          headers:{"Content-Type":"application/json","apikey":SKEY,"Authorization":"Bearer "+SKEY},
+          body:JSON.stringify({conversation_id:convId,message:msg})
+        }).then(function(){
+          // Reload messages after AI responds
+          setTimeout(loadMessages,2000);
+          setTimeout(loadMessages,5000);
+        }).catch(function(){});
+      }).catch(function(){});
+    }
+    document.getElementById("sf-chat-send").addEventListener("click",sendMsg);
+    document.getElementById("sf-chat-input").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();sendMsg();}});
+
+    // End conversation
+    document.getElementById("sf-chat-end").addEventListener("click",function(){
+      if(tenantId)localStorage.removeItem("support_conversation_"+tenantId);
+      convId=null;
+      document.getElementById("sf-chat-form").style.display="flex";
+      document.getElementById("sf-chat-messages").style.display="none";
+      document.getElementById("sf-chat-name").value="";
+      document.getElementById("sf-chat-email").value="";
+      closeChat();
+    });
+
+    // Pre-fill name/email if saved
+    if(custName)document.getElementById("sf-chat-name").value=custName;
+    if(custEmail)document.getElementById("sf-chat-email").value=custEmail;
+  })();
+  </script>` : '';
+
+  return `<div id="sf-support-widget" style="position:fixed;bottom:16px;${posStyle}z-index:50;display:flex;flex-direction:column;gap:12px;">${buttons}</div>${chatDrawerHtml}`;
 }
 
 // ============================================
