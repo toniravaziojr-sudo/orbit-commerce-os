@@ -224,12 +224,10 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
         .eq('is_enabled', true)
         .eq('supports_quote', true);
 
-      // Fetch active free shipping rules to derive bar threshold
+      // Fetch active free shipping rules to derive bar threshold (raw query - table not in generated types)
       const { data: freeShippingRules } = await supabase
-        .from('free_shipping_rules')
-        .select('min_order_cents, is_enabled')
-        .eq('tenant_id', tenantId)
-        .eq('is_enabled', true);
+        .rpc('get_lowest_free_shipping_threshold', { p_tenant_id: tenantId })
+        .maybeSingle();
 
       let shippingConfig = parseShippingConfig(storeData?.shipping_config);
 
