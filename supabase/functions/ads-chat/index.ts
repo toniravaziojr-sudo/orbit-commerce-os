@@ -870,6 +870,10 @@ async function executeTool(
         return await getProducts(supabase, tenantId, args.search, args.limit, args.status);
       case "get_product_images":
         return await getProductImages(supabase, tenantId, args.product_id, args.product_name);
+      case "browse_drive":
+        return await browseDrive(supabase, tenantId, args.folder_id, args.file_type);
+      case "search_drive_files":
+        return await searchDriveFiles(supabase, tenantId, args.query, args.file_type, args.limit);
       case "get_creative_assets":
         return await getCreativeAssets(supabase, tenantId, args.status);
       case "get_meta_adsets":
