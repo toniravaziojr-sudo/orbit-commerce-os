@@ -9,7 +9,7 @@
 import { useEffect } from 'react';
 import { useThemeSettings, ThemeColors, DEFAULT_THEME_COLORS } from './useThemeSettings';
 import { getFontFamily } from '@/lib/storefront-theme-utils';
-import { hexToHslValues, generateButtonCssRules, generateAccentAndTagCssRules } from '@/lib/storefront-theme-utils';
+import { hexToHslValues, generateButtonCssRules, generateTextColorCssRules, generateAccentAndTagCssRules } from '@/lib/storefront-theme-utils';
 import { useBuilderDraftTheme } from './useBuilderDraftTheme';
 import { useBuilderDraftPageSettings, PageSettingsKey } from './useBuilderDraftPageSettings';
 import { getPageColorsCss, PageColors } from './usePageColors';
