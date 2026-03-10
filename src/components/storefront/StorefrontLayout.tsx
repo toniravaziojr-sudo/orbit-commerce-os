@@ -101,6 +101,7 @@ function StorefrontLayoutContent({
       <MarketingTrackerProvider tenantId={tenant.id}>
         <StorefrontHead tenantId={tenant.id} storeSettings={storeSettings} />
         <LcpPreloader tenantId={tenant.id} bootstrapTemplate={bootstrapTemplate} />
+        <StorefrontThemeInjector tenantSlug={tenantSlug} bootstrapTemplate={bootstrapTemplate} />
         <Suspense fallback={null}>
           <DomainDisabledGuard tenantSlug={tenantSlug}>
             <div className="min-h-screen flex flex-col bg-white">

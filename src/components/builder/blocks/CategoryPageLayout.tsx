@@ -361,7 +361,7 @@ export function CategoryPageLayout({
 
   const filterProps = {
     priceRange,
-    maxPrice: 500,
+    maxPrice: computedMaxPrice,
     onPriceChange: setPriceRange,
     sortBy,
     onSortChange: setSortBy,
