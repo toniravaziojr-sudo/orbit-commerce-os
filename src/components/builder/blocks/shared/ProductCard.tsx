@@ -454,7 +454,7 @@ export function ProductCard({
                 "w-full py-1 px-1.5 sm:py-1.5 sm:px-3 text-[11px] sm:text-xs rounded-md transition-colors flex items-center justify-center gap-1",
                 isAddedToCart
                   ? "bg-green-500 text-white border-green-500"
-                  : "sf-btn-outline-primary"
+                  : "sf-btn-secondary border"
               )}
               onClick={(e) => {
                 e.preventDefault();
