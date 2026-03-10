@@ -544,6 +544,23 @@ function buildFullPage(opts: {
 
   <script>
     (function(){
+      // === HYDRATION GUARD: prevent double execution (bfcache, duplicate scripts) ===
+      if(window.__SF_HYDRATED){console.warn("[SF] Hydration already ran, skipping duplicate.");return;}
+      window.__SF_HYDRATED=true;
+
+      // === ABORT CONTROLLER: allows cleanup of all document-level listeners ===
+      if(window.__SF_ABORT){window.__SF_ABORT.abort();}
+      window.__SF_ABORT=new AbortController();
+      var sfSignal=window.__SF_ABORT.signal;
+
+      // === BFCACHE HANDLER: force full reload when restored from back/forward cache ===
+      window.addEventListener("pageshow",function(e){
+        if(e.persisted){
+          console.log("[SF] Page restored from bfcache — forcing reload for fresh state");
+          window.__SF_HYDRATED=false;
+          window.location.reload();
+        }
+      });
       var TENANT="${escapeHtml(opts.tenantSlug)}";
       var HOSTNAME="${escapeHtml(opts.hostname)}";
       var CART_KEY="storefront_cart_"+TENANT;
@@ -808,7 +825,7 @@ function buildFullPage(opts: {
           var popup=document.getElementById("sf-newsletter-popup");
           if(popup){popup.style.display="none";sessionStorage.setItem("sf_newsletter_dismissed","1");}
         }
-      },true); // CAPTURE PHASE — fires before bubble, prevents <a> navigation
+      },{capture:true,signal:sfSignal}); // CAPTURE PHASE + AbortController for cleanup
 
       // CEP masks
       var cepEl=document.querySelector("[data-sf-shipping-cep]");
@@ -860,7 +877,7 @@ function buildFullPage(opts: {
           document.querySelector("[data-sf-cart-backdrop]")?.classList.remove("active");
           document.querySelector("[data-sf-mobile-nav]")?.classList.remove("active");
         }
-      });
+      },{signal:sfSignal});
 
       // Init cart UI on load
       updateCartUI();
@@ -1109,7 +1126,7 @@ function buildFullPage(opts: {
             var idx=parseInt(trigger.dataset.sfLightboxTrigger)||0;
             lbShow(idx);
           }
-        });
+        },{signal:sfSignal});
         if(lbClose)lbClose.addEventListener("click",lbHide);
         lightbox.addEventListener("click",function(e){if(e.target===lightbox)lbHide();});
         document.addEventListener("keydown",function(e){
@@ -1119,7 +1136,7 @@ function buildFullPage(opts: {
           if(e.key==="ArrowRight"&&gallerySrcs.length>1)lbShow(lbCurrentIdx+1);
           if(e.key==="+"||e.key==="=")lbSetZoom(lbZoom+0.25);
           if(e.key==="-")lbSetZoom(lbZoom-0.25);
-        });
+        },{signal:sfSignal});
         if(lbZoomIn)lbZoomIn.addEventListener("click",function(){lbSetZoom(lbZoom+0.25);});
         if(lbZoomOut)lbZoomOut.addEventListener("click",function(){lbSetZoom(lbZoom-0.25);});
         if(lbPrev)lbPrev.addEventListener("click",function(){lbShow(lbCurrentIdx-1);});
@@ -1268,7 +1285,7 @@ function buildFullPage(opts: {
             currentPage=1;
             applyFiltersAndSort();
           }
-        });
+        },{signal:sfSignal});
       }
     })();
   </script>
