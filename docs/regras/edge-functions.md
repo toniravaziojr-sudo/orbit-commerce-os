@@ -871,7 +871,7 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v5.16.0
+### Versão Atual: v5.19.0
 
 ### v5.11.0: Pipeline de Criativos + Propagação de Funil + Strategy Run ID
 - **Propagação de `funnel_stage`**: `generateCreativeImage` aceita e normaliza `funnel_stage` (valores válidos: `tof`, `mof`, `bof`, `test`, `leads`). Propaga para `ads-autopilot-creative` junto com `session_id`
