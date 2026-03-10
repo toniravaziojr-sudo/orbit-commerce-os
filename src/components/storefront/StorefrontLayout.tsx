@@ -8,6 +8,7 @@ import { StorefrontConfigProvider } from '@/contexts/StorefrontConfigContext';
 import { MarketingTrackerProvider } from '@/components/storefront/MarketingTrackerProvider';
 import { StorefrontHead } from '@/components/storefront/StorefrontHead';
 import { LcpPreloader } from '@/components/storefront/LcpPreloader';
+import { StorefrontThemeInjector } from '@/components/storefront/StorefrontThemeInjector';
 /**
  * StorefrontLayout - Used for /store/:tenantSlug routes (legacy/app domain)
  * This layout is ONLY used when accessed via the app domain or fallback origin.
