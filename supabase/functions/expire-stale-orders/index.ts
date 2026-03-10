@@ -83,13 +83,13 @@ serve(async (req) => {
     const { data: fixedDeclined, error: declinedError } = await supabase
       .from('orders')
       .update({
-        status: 'cancelled',
+        status: 'payment_expired',
         cancellation_reason: 'Pagamento recusado (sync automático)',
         cancelled_at: now.toISOString(),
         updated_at: now.toISOString(),
       })
       .eq('payment_status', 'declined')
-      .eq('status', 'pending')
+      .in('status', ['pending', 'awaiting_confirmation'])
       .select('id, order_number, tenant_id');
 
     if (declinedError) {
