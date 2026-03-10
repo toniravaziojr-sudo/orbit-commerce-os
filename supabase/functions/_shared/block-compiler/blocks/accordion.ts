@@ -40,13 +40,13 @@ export const accordionToStaticHTML: BlockCompilerFn = (
     const itemStyle = variantItemStyle[variant] || variantItemStyle.default;
     return `<details class="sf-acc-item" style="${itemStyle}"${isOpen}>
   <summary class="sf-acc-q flex items-center justify-between py-4 font-medium cursor-pointer select-none list-none" style="padding:1rem 0;font-weight:500;"><span style="padding-right:1rem;">${escapeHtml(item.title)}</span><svg class="sf-acc-chevron" style="width:16px;height:16px;flex-shrink:0;transition:transform .2s;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></summary>
-  <div style="padding-bottom:1rem;color:#666;font-size:0.875rem;">${item.content}</div>
+  <div style="padding-bottom:1rem;color:var(--theme-text-secondary, #666);font-size:0.875rem;">${item.content}</div>
 </details>`;
   }).join('\n');
 
   const headerHtml = (title || subtitle) ? `<div style="text-align:center;margin-bottom:2rem;">
   ${title ? `<h2 style="font-size:1.5rem;font-weight:700;margin-bottom:0.5rem;">${escapeHtml(title)}</h2>` : ''}
-  ${subtitle ? `<p style="color:#888;">${escapeHtml(subtitle)}</p>` : ''}
+  ${subtitle ? `<p style="color:var(--theme-text-secondary, #888);">${escapeHtml(subtitle)}</p>` : ''}
 </div>` : '';
 
   return `<section style="padding:2.5rem 1rem;background:${backgroundColor};">

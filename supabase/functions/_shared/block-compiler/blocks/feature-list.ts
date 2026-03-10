@@ -69,7 +69,7 @@ export const featureListToStaticHTML: BlockCompilerFn = (
     <section style="background-color:${backgroundColor};padding:2rem 1rem;">
       <div style="max-width:48rem;margin:0 auto;">
         ${title ? `<h2 style="font-size:1.5rem;font-weight:700;margin-bottom:0.5rem;${textStyle}">${escapeHtml(title)}</h2>` : ''}
-        ${subtitle ? `<p style="color:#666;margin-bottom:1.5rem;">${escapeHtml(subtitle)}</p>` : ''}
+        ${subtitle ? `<p style="color:var(--theme-text-secondary, #666);margin-bottom:1.5rem;">${escapeHtml(subtitle)}</p>` : ''}
         <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.75rem;">
           ${itemsHtml}
         </ul>

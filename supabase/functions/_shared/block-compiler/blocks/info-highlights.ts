@@ -60,8 +60,8 @@ export function infoHighlightsToStaticHTML(
   _context: CompilerContext,
 ): string {
   const items = (Array.isArray(props.items) ? props.items : []) as HighlightItem[];
-  const iconColor = (props.iconColor as string) || '#1a1a1a';
-  const textColor = (props.textColor as string) || '#1f2937';
+  const iconColor = (props.iconColor as string) || 'var(--theme-text-primary, #1a1a1a)';
+  const textColor = (props.textColor as string) || 'var(--theme-text-primary, #1f2937)';
   const layout = (props.layout as string) || 'horizontal';
 
   if (items.length === 0) return '';
@@ -76,7 +76,7 @@ export function infoHighlightsToStaticHTML(
       </div>
       <div>
         <p style="font-size:14px;font-weight:500;color:${escapeHtml(textColor)};">${escapeHtml(item.title)}</p>
-        ${item.description ? `<p style="font-size:12px;color:#6b7280;margin-top:2px;">${escapeHtml(item.description)}</p>` : ''}
+        ${item.description ? `<p style="font-size:12px;color:var(--theme-text-secondary, #6b7280);margin-top:2px;">${escapeHtml(item.description)}</p>` : ''}
       </div>
     </div>`;
   }).join('');

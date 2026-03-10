@@ -31,13 +31,13 @@ export const statsNumbersToStaticHTML: BlockCompilerFn = (
   if (items.length === 0) return '';
 
   const effectiveAccent = accentColor || 'var(--theme-button-primary-bg, #1a1a1a)';
-  const effectiveText = textColor || '#666';
+  const effectiveText = textColor || 'var(--theme-text-secondary, #666)';
   const isGrid = layout === 'grid' || items.length > 4;
 
   const headerHtml = (title || subtitle) ? `
     <div style="text-align:center;margin-bottom:2.5rem;">
       ${title ? `<h2 style="font-size:1.5rem;font-weight:700;color:inherit;margin-bottom:0.5rem;">${escapeHtml(title)}</h2>` : ''}
-      ${subtitle ? `<p style="color:#666;">${escapeHtml(subtitle)}</p>` : ''}
+      ${subtitle ? `<p style="color:var(--theme-text-secondary, #666);">${escapeHtml(subtitle)}</p>` : ''}
     </div>` : '';
 
   const itemsHtml = items.map((item, i) => {

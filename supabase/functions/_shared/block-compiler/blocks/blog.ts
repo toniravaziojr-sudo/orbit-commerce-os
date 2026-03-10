@@ -19,7 +19,7 @@ export function blogIndexToStaticHTML(posts: any[], storeName: string): string {
         <div style="padding:16px;">
           <p style="font-size:16px;font-weight:600;line-height:1.4;margin-bottom:8px;font-family:var(--sf-heading-font);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(post.title)}</p>
           ${post.excerpt ? `<p style="font-size:14px;color:var(--theme-text-secondary,#666);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(post.excerpt)}</p>` : ''}
-          ${dateStr ? `<p style="font-size:12px;color:#999;margin-top:8px;">${dateStr}</p>` : ''}
+          ${dateStr ? `<p style="font-size:12px;color:var(--theme-text-secondary, #999);margin-top:8px;">${dateStr}</p>` : ''}
         </div>
       </a>`;
   }).join('');
@@ -33,7 +33,7 @@ export function blogIndexToStaticHTML(posts: any[], storeName: string): string {
         @media(min-width:1024px) { .sf-blog-grid { grid-template-columns: repeat(3, 1fr); } }
       </style>
       <div class="sf-blog-grid">${postsGrid}</div>
-      ${posts.length === 0 ? '<p style="text-align:center;color:#999;padding:48px 0;">Nenhum post publicado ainda.</p>' : ''}
+      ${posts.length === 0 ? '<p style="text-align:center;color:var(--theme-text-secondary, #999);padding:48px 0;">Nenhum post publicado ainda.</p>' : ''}
     </div>`;
 }
 
@@ -60,7 +60,7 @@ export function blogPostToStaticHTML(post: any, hostname: string): string {
     <article style="max-width:800px;margin:0 auto;padding:48px 16px;">
       ${optimizedCover ? `<img src="${escapeHtml(optimizedCover)}" alt="${escapeHtml(post.title)}" style="width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:12px;margin-bottom:32px;" loading="eager" fetchpriority="high">` : ''}
       <h1 style="font-size:clamp(24px,4vw,40px);font-weight:700;font-family:var(--sf-heading-font);line-height:1.3;margin-bottom:16px;">${escapeHtml(post.title)}</h1>
-      ${dateStr ? `<p style="font-size:14px;color:#999;margin-bottom:32px;">${dateStr}</p>` : ''}
+      ${dateStr ? `<p style="font-size:14px;color:var(--theme-text-secondary, #999);margin-bottom:32px;">${dateStr}</p>` : ''}
       <div style="font-size:16px;line-height:1.8;color:var(--theme-text-secondary,#333);">${post.content || post.body_html || ''}</div>
     </article>`;
 }

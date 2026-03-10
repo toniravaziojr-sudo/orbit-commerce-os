@@ -36,9 +36,9 @@ export const testimonialsToStaticHTML: BlockCompilerFn = (
     return `<div style="padding:1.5rem;border:1px solid #e5e7eb;border-radius:0.5rem;text-align:center;">
   ${imgSrc ? `<img src="${imgSrc}" alt="${name}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;margin:0 auto 1rem;" loading="lazy">` : ''}
   <div style="margin-bottom:0.5rem;">${stars(item.rating || 5)}</div>
-  <p style="color:#666;margin-bottom:1rem;font-style:italic;">"${body}"</p>
+  <p style="color:var(--theme-text-secondary, #666);margin-bottom:1rem;font-style:italic;">"${body}"</p>
   <p style="font-weight:600;">${name}</p>
-  ${role ? `<p style="font-size:0.875rem;color:#888;">${role}</p>` : ''}
+  ${role ? `<p style="font-size:0.875rem;color:var(--theme-text-secondary, #888);">${role}</p>` : ''}
 </div>`;
   }).join('\n');
 

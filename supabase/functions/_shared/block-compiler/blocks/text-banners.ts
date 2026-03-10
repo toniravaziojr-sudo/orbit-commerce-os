@@ -37,7 +37,7 @@ export const textBannersToStaticHTML: BlockCompilerFn = (
   const textContent = `
     <div style="display:flex;flex-direction:column;justify-content:center;">
       <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:1rem;">${escapeHtml(title)}</h2>
-      ${text ? `<p style="color:#666;line-height:1.6;margin-bottom:1.5rem;">${escapeHtml(text)}</p>` : ''}
+      ${text ? `<p style="color:var(--theme-text-secondary, #666);line-height:1.6;margin-bottom:1.5rem;">${escapeHtml(text)}</p>` : ''}
       ${ctaHtml}
     </div>`;
 
