@@ -2007,8 +2007,20 @@ serve(async (req) => {
       // Increment view count (fire-and-forget)
       supabase.rpc('increment_blog_view_count', { post_id: post.id }).then(() => {}).catch(() => {});
 
+    } else if (route.type === 'unknown') {
+      // SPA-only route (cart, conta, rastreio, etc.) — should NOT be Edge-rendered
+      // Return 204 so Cloudflare worker falls through to SPA
+      console.log(`[storefront-html][${VERSION}] SPA-only route: ${normalizedPath}, returning 204`);
+      return new Response(null, {
+        status: 204,
+        headers: {
+          'X-Storefront-Version': VERSION,
+          'X-Route': 'spa-only',
+          'Cache-Control': 'no-cache',
+        },
+      });
     } else {
-      bodyHtml = `<div style="min-height:50vh;display:flex;align-items:center;justify-content:center;"><p style="color:#999;">Carregando...</p></div>`;
+      bodyHtml = `<div style="min-height:50vh;display:flex;align-items:center;justify-content:center;"><p style="color:#999;">Página não encontrada</p></div>`;
     }
 
     const totalMs = Date.now() - startTime;

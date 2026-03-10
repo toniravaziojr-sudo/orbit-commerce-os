@@ -466,7 +466,11 @@ export default {
       && !isApiPath(url.pathname);
 
     // Routes that must go to SPA (require full JS interactivity)
-    const SPA_ONLY_ROUTES = ['carrinho', 'checkout', 'obrigado', 'minha-conta'];
+    const SPA_ONLY_ROUTES = [
+      'cart', 'carrinho', 'checkout', 'obrigado', 
+      'conta', 'minha-conta', 'rastreio', 
+      'minhas-compras', 'busca', 'quiz', 'avaliar'
+    ];
     const cleanPath = url.pathname.replace(/^\/+/, '').toLowerCase();
     const isSpaOnlyRoute = SPA_ONLY_ROUTES.some(r => cleanPath === r || cleanPath.startsWith(r + '/'));
 
