@@ -201,25 +201,35 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
     </a>`;
   }
 
-  // === QUANTITY SELECTOR ===
+  // === CTA BUTTONS === (Order matches SPA: [Qty + Buy Now row] → Add to Cart → WhatsApp)
+  // Mirrors ProductCTAs.tsx layout: quantity selector + buy now in same flex row
   const inStock = (product.stock_quantity ?? 0) > 0 || product.allow_backorder;
-  const quantityHtml = inStock ? `
-    <div style="display:flex;align-items:center;gap:12px;margin-top:4px;">
-      <span style="font-size:14px;font-weight:500;color:#555;">Quantidade:</span>
-      <div style="display:flex;align-items:center;border:1px solid #ddd;border-radius:6px;overflow:hidden;">
-        <button data-sf-action="qty-minus" style="width:36px;height:36px;border:none;background:#f5f5f5;cursor:pointer;font-size:18px;font-weight:600;color:#333;">−</button>
-        <input type="number" value="1" min="1" max="${product.stock_quantity || 99}" data-sf-qty-input style="width:48px;height:36px;border:none;border-left:1px solid #ddd;border-right:1px solid #ddd;text-align:center;font-size:14px;font-weight:500;-moz-appearance:textfield;appearance:textfield;outline:none;">
-        <button data-sf-action="qty-plus" style="width:36px;height:36px;border:none;background:#f5f5f5;cursor:pointer;font-size:18px;font-weight:600;color:#333;">+</button>
-      </div>
-    </div>` : '';
-
-  // === CTA BUTTONS === (Order matches SPA: Buy Now → Add to Cart → WhatsApp)
   let ctaHtml = '';
   if (inStock) {
     const mainImageThumb = mainImage ? escapeHtml(optimizeImageUrl(mainImage.url, 120, 75)) : '';
+    
+    // Quantity selector — inline with buy now button (mirrors SPA flex row)
+    const quantityHtml = `<div style="display:flex;align-items:center;border:1px solid #ddd;border-radius:6px;overflow:hidden;flex-shrink:0;">
+      <button data-sf-action="qty-minus" style="width:36px;height:40px;border:none;background:#f5f5f5;cursor:pointer;font-size:18px;font-weight:600;color:#333;">−</button>
+      <input type="number" value="1" min="1" max="${product.stock_quantity || 99}" data-sf-qty-input style="width:48px;height:40px;border:none;border-left:1px solid #ddd;border-right:1px solid #ddd;text-align:center;font-size:14px;font-weight:500;-moz-appearance:textfield;appearance:textfield;outline:none;">
+      <button data-sf-action="qty-plus" style="width:36px;height:40px;border:none;background:#f5f5f5;cursor:pointer;font-size:18px;font-weight:600;color:#333;">+</button>
+    </div>`;
+    
+    // Buy now button (h-10 = 40px, text-sm = 14px — mirrors SPA)
+    const buyNowHtml = showBuyNowButton ? `<button type="button" data-sf-action="buy-now" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${mainImageThumb}" class="sf-btn-primary" style="flex:1;height:40px;padding:0 24px;border:none;border-radius:9999px;font-size:14px;font-weight:600;cursor:pointer;text-transform:uppercase;letter-spacing:0.05em;">${escapeHtml(buyNowButtonText)}</button>` : '';
+    
+    // Row: [Quantity] [Buy Now] — mirrors SPA flex gap-3
+    const topRowHtml = `<div style="display:flex;gap:12px;align-items:center;width:100%;">
+      ${quantityHtml}
+      ${buyNowHtml}
+    </div>`;
+    
+    // Add to cart button (h-12 = 48px, text-sm = 14px, border-2 — mirrors SPA)
+    const addToCartHtml = showAddToCartButton ? `<button type="button" data-sf-action="add-to-cart" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${mainImageThumb}" class="sf-btn-secondary" style="height:48px;padding:0 32px;border-radius:9999px;font-size:14px;font-weight:600;cursor:pointer;width:100%;border:2px solid var(--theme-button-primary-bg,#1a1a1a);text-transform:uppercase;letter-spacing:0.05em;">Adicionar ao carrinho</button>` : '';
+    
     ctaHtml = `<div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:400px;">
-      ${showBuyNowButton ? `<button type="button" data-sf-action="buy-now" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${mainImageThumb}" class="sf-btn-primary" style="padding:14px 32px;border:none;border-radius:9999px;font-size:16px;font-weight:600;cursor:pointer;width:100%;text-transform:uppercase;letter-spacing:0.05em;">${escapeHtml(buyNowButtonText)}</button>` : ''}
-      ${showAddToCartButton ? `<button type="button" data-sf-action="add-to-cart" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${mainImageThumb}" class="sf-btn-secondary" style="padding:14px 32px;border-radius:9999px;font-size:16px;font-weight:600;cursor:pointer;width:100%;border:2px solid var(--theme-button-primary-bg,#1a1a1a);text-transform:uppercase;letter-spacing:0.05em;">Adicionar ao carrinho</button>` : ''}
+      ${topRowHtml}
+      ${addToCartHtml}
       ${whatsappButtonHtml}
     </div>`;
   } else {
@@ -575,7 +585,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
           ${product.short_description ? `<p style="font-size:15px;color:var(--theme-text-secondary,#555);line-height:1.6;">${escapeHtml(product.short_description)}</p>` : ''}
           ${stockHtml}
           ${variantSelectorHtml}
-          ${quantityHtml}
+          
           ${ctaHtml}
           ${shippingHtml}
           ${highlightHtml}

@@ -283,6 +283,9 @@ A ordem dos elementos é idêntica no Builder (SPA) e no Público (Edge):
 - [x] ~~**Ordem dos botões**: Compilador tinha Add to Cart → Buy Now; SPA tem Buy Now → Add to Cart~~ → Corrigido v8.2.0
 - [x] ~~**Pix Badge**: SPA tem PaymentBadges com destaque verde Pix; compilador tinha apenas texto de parcelas~~ → Corrigido v8.2.0
 - [x] ~~**Estoque**: SPA mostra "Estoque: X unidades"; compilador mostrava "Em estoque"~~ → Corrigido v8.2.0
+- [x] ~~**Layout CTAs**: Compilador tinha Buy Now full-width separado da quantidade; SPA tem [Qty + Buy Now] na mesma linha~~ → Corrigido v8.5.0
+- [x] ~~**Font-size CTAs**: Compilador usava 16px; SPA usa 14px (text-sm)~~ → Corrigido v8.5.0
+- [x] ~~**Alturas dos botões**: Compilador usava padding:14px (ambos); SPA usa h-10 (40px Buy Now) e h-12 (48px Add to Cart)~~ → Corrigido v8.5.0
 - [ ] **Banner fallback no compilador**: Não usa `image_url` como fallback (React usa)
 
 ### Dead Code
