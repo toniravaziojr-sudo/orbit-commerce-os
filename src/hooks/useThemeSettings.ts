@@ -971,6 +971,73 @@ export function useThemeMiniCart(tenantId: string | undefined, templateSetId: st
   };
 }
 
+// ============================================
+// SUPPORT WIDGET DRAFT HOOK (follows same pattern as MiniCart)
+// ============================================
+
+export function useThemeSupportWidget(tenantId: string | undefined, templateSetId: string | undefined) {
+  const { themeSettings, isLoading, isSaving } = 
+    useThemeSettings(tenantId, templateSetId);
+
+  // Track draft changes locally
+  const [draftUpdates, setDraftUpdates] = useState<Partial<SupportWidgetConfig>>({});
+
+  const hasDraftChanges = Object.keys(draftUpdates).length > 0;
+
+  const serverConfig = {
+    ...DEFAULT_SUPPORT_WIDGET,
+    ...themeSettings?.supportWidget,
+  };
+
+  // Merge server with draft for display
+  const supportWidget = {
+    ...serverConfig,
+    ...draftUpdates,
+  };
+
+  // updateSupportWidget: Updates LOCAL draft state only (NO database save)
+  const updateSupportWidget = useCallback((newConfig: Partial<SupportWidgetConfig>) => {
+    setDraftUpdates(prev => ({ ...prev, ...newConfig }));
+    notifyHeaderFooterDraftChange();
+  }, []);
+
+  const clearDraft = useCallback(() => {
+    setDraftUpdates({});
+  }, []);
+
+  const getPendingChanges = useCallback(() => {
+    if (!hasDraftChanges) return null;
+    const fullConfig = {
+      ...DEFAULT_SUPPORT_WIDGET,
+      ...themeSettings?.supportWidget,
+      ...draftUpdates,
+    };
+    return { supportWidget: fullConfig };
+  }, [hasDraftChanges, themeSettings?.supportWidget, draftUpdates]);
+
+  // Register global ref
+  useEffect(() => {
+    globalSupportWidgetDraftRef = {
+      hasDraftChanges,
+      clearDraft,
+      getPendingChanges,
+    };
+    return () => {
+      globalSupportWidgetDraftRef = null;
+    };
+  }, [hasDraftChanges, clearDraft, getPendingChanges]);
+
+  return {
+    supportWidget,
+    updateSupportWidget,
+    isLoading,
+    isSaving,
+    hasDraftChanges,
+    clearDraft,
+    getPendingChanges,
+  };
+}
+
 export function useThemePageSettings(
   tenantId: string | undefined, 
   templateSetId: string | undefined,
