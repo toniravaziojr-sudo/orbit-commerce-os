@@ -16,6 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Minus, Plus, X, ShoppingCart, Truck, Check, Gift, Loader2, Tag } from 'lucide-react';
+import { BenefitProgressBar } from '@/components/storefront/cart/BenefitProgressBar';
 import { useCart, CartItem } from '@/contexts/CartContext';
 import { useDiscount } from '@/contexts/DiscountContext';
 import { useBenefit, useShipping, useCartConfig } from '@/contexts/StorefrontConfigContext';
