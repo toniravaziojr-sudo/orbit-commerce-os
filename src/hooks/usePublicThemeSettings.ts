@@ -13,6 +13,7 @@ import {
   hexToHslValues,
   generateColorCssVars,
   generateButtonCssRules,
+  generateTextColorCssRules,
   generateAccentAndTagCssRules,
 } from '@/lib/storefront-theme-utils';
 
