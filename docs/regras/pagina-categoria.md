@@ -268,3 +268,12 @@ Cada card de produto tem atributos `data-*` para filtragem client-side:
 - `data-has-discount` — "1" ou "0"
 - `data-discount-pct` — percentual de desconto
 - `data-index` — posição original
+
+### Espaçamento Mobile (v8.5.3)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Regra Visual |
+| **Localização** | `supabase/functions/_shared/block-compiler/blocks/category-page-layout.ts` |
+| **Descrição** | No mobile (< 640px), o padding-top do container da categoria é reduzido de 24px para 12px para eliminar o espaçamento desproporcional entre o banner e o botão "Filtrar" |
+| **CSS** | `@media(max-width:639px) { [data-sf-cat-container] { padding-top:12px !important; } }` |

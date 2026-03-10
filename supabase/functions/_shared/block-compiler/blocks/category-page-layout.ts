@@ -313,8 +313,10 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
     .sf-filter-section[data-sf-section-open="false"] .sf-filter-chevron { transform:rotate(-90deg); }
 
     /* Mobile trigger — visible only <1024px (matches React: lg:hidden) */
-    .sf-filter-mobile-trigger { display:block;margin-bottom:16px; }
+    .sf-filter-mobile-trigger { display:block;margin-bottom:12px; }
     @media(min-width:1024px) { .sf-filter-mobile-trigger { display:none; } }
+    /* Reduce top padding on mobile for tighter banner→filter spacing */
+    @media(max-width:639px) { [data-sf-cat-container] { padding-top:12px !important; } }
     .sf-filter-mobile-btn {
       display:flex;align-items:center;justify-content:center;gap:8px;
       width:100%;padding:10px 16px;
