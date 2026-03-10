@@ -2487,3 +2487,27 @@ Espaçamento desproporcional entre banner da categoria e botão "Filtrar" no mob
 | **CSS** | `@media(max-width:639px) { [data-sf-cat-container] { padding-top:12px !important; } }` |
 | **Antes** | 24px padding-top + 16px margin-bottom no trigger = 40px gap total |
 | **Depois** | 12px padding-top + 12px margin-bottom = 24px gap total |
+
+---
+
+## storefront-html — SPA Route Bypass (v8.5.1)
+
+### Problema resolvido
+Páginas SPA (carrinho, conta, rastreio, busca, quiz) ficavam presas em "Carregando..." no domínio público porque o Edge Function renderizava HTML estático para rotas que deveriam ser tratadas pelo React SPA.
+
+### Causa raiz
+1. O Cloudflare Worker `SPA_ONLY_ROUTES` não incluía `cart`, `conta`, `rastreio`, `busca`, `quiz`, `avaliar`, `minhas-compras`
+2. O Edge Function retornava um HTML com "Carregando..." para rotas `unknown`, impedindo o boot do SPA
+
+### Solução
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Regra Lógica |
+| **Localização** | `supabase/functions/storefront-html/index.ts` + `docs/cloudflare-worker-template.js` |
+| **Edge Function** | Para `route.type === 'unknown'`, retorna HTTP 204 (sem conteúdo) com header `X-Route: spa-only`. Isso faz o Worker cair no fallback SPA. |
+| **Worker** | `SPA_ONLY_ROUTES` agora inclui: `cart`, `carrinho`, `checkout`, `obrigado`, `conta`, `minha-conta`, `rastreio`, `minhas-compras`, `busca`, `quiz`, `avaliar` |
+| **Afeta** | Todas as rotas interativas que dependem do React SPA no domínio público |
+
+### AÇÃO NECESSÁRIA
+⚠️ O arquivo `docs/cloudflare-worker-template.js` é apenas um template. O Worker real precisa ser atualizado manualmente no Cloudflare Dashboard com a nova lista de `SPA_ONLY_ROUTES`.
