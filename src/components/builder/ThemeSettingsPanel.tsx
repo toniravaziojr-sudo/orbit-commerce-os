@@ -272,6 +272,8 @@ export function ThemeSettingsPanel({
         return 'Carrinho Suspenso';
       case 'popup':
         return 'Popup Newsletter';
+      case 'support':
+        return 'Atendimento';
       case 'typography':
         return 'Tipografia';
       case 'colors':
