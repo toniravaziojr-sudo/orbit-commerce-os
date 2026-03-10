@@ -961,8 +961,8 @@ export function PageSettingsContent({
                   <PaymentMethodsConfig tenantId={tenantId} />
                 )}
                 
-                {/* Special: Color pickers for cart/checkout colors group */}
-                {(pageType === 'cart' || pageType === 'checkout') && group.id === 'colors' && (
+                {/* Special: Color pickers for checkout colors group (cart inherits global theme) */}
+                {pageType === 'checkout' && group.id === 'colors' && (
                   <div className="space-y-4">
                     <p className="text-xs text-muted-foreground">
                       Deixe em branco para usar as cores do tema. Cores personalizadas sobrescrevem o tema.
@@ -1028,67 +1028,6 @@ export function PageSettingsContent({
                       </div>
                     </div>
                     
-                    {/* Secondary Button - Only for cart, checkout uses flags instead */}
-                    {pageType === 'cart' && (
-                      <div className="space-y-3 p-3 rounded-lg bg-muted/30">
-                        <Label className="text-xs font-medium flex items-center gap-2">
-                          ⚪ Botão Secundário
-                        </Label>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Fundo</Label>
-                            <div className="flex gap-2">
-                              <Input
-                                type="color"
-                                value={String(settings.buttonSecondaryBg || '#f5f5f5')}
-                                onChange={(e) => handleChange('buttonSecondaryBg', e.target.value)}
-                                className="h-8 w-10 p-1"
-                              />
-                              <Input
-                                value={String(settings.buttonSecondaryBg || '')}
-                                onChange={(e) => handleChange('buttonSecondaryBg', e.target.value)}
-                                placeholder="Tema"
-                                className="h-8 text-xs flex-1"
-                              />
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Texto</Label>
-                            <div className="flex gap-2">
-                              <Input
-                                type="color"
-                                value={String(settings.buttonSecondaryText || '#1a1a1a')}
-                                onChange={(e) => handleChange('buttonSecondaryText', e.target.value)}
-                                className="h-8 w-10 p-1"
-                              />
-                              <Input
-                                value={String(settings.buttonSecondaryText || '')}
-                                onChange={(e) => handleChange('buttonSecondaryText', e.target.value)}
-                                placeholder="Tema"
-                                className="h-8 text-xs flex-1"
-                              />
-                            </div>
-                          </div>
-                          <div className="space-y-1 col-span-2">
-                            <Label className="text-[10px] text-muted-foreground">Hover</Label>
-                            <div className="flex gap-2">
-                              <Input
-                                type="color"
-                                value={String(settings.buttonSecondaryHover || '#e5e5e5')}
-                                onChange={(e) => handleChange('buttonSecondaryHover', e.target.value)}
-                                className="h-8 w-10 p-1"
-                              />
-                              <Input
-                                value={String(settings.buttonSecondaryHover || '')}
-                                onChange={(e) => handleChange('buttonSecondaryHover', e.target.value)}
-                                placeholder="Tema"
-                                className="h-8 text-xs flex-1"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
                     
                     {/* Flags Color - Only for checkout (badges like "Grátis", "Frete Grátis") */}
                     {pageType === 'checkout' && (
@@ -1126,14 +1065,7 @@ export function PageSettingsContent({
                         handleChange('buttonPrimaryBg', '');
                         handleChange('buttonPrimaryText', '');
                         handleChange('buttonPrimaryHover', '');
-                        if (pageType === 'cart') {
-                          handleChange('buttonSecondaryBg', '');
-                          handleChange('buttonSecondaryText', '');
-                          handleChange('buttonSecondaryHover', '');
-                        }
-                        if (pageType === 'checkout') {
-                          handleChange('flagsColor', '');
-                        }
+                        handleChange('flagsColor', '');
                       }}
                       className="text-xs text-muted-foreground hover:text-foreground underline"
                     >
@@ -1701,8 +1633,8 @@ function getGroupedSettings(configs: SettingConfig[], pageType?: string): Settin
   return Object.values(groupMap).filter(g => {
     // Always include 'payment' group for checkout (it has a special component)
     if (pageType === 'checkout' && g.id === 'payment') return true;
-    // Always include 'colors' group for cart and checkout (special color picker section)
-    if ((pageType === 'cart' || pageType === 'checkout') && g.id === 'colors') return true;
+    // Always include 'colors' group for checkout (cart inherits global theme)
+    if (pageType === 'checkout' && g.id === 'colors') return true;
     return g.settings.length > 0;
   });
 }

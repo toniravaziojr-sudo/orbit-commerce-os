@@ -10,7 +10,7 @@ const STYLE_ID = 'page-colors-styles';
 
 interface PageColorsInjectorProps {
   tenantSlug: string;
-  pageType: 'cart' | 'checkout';
+  pageType: 'checkout';
 }
 
 export function PageColorsInjector({ tenantSlug, pageType }: PageColorsInjectorProps) {

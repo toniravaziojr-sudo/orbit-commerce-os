@@ -21,7 +21,7 @@ export interface PageColors {
  * Fetches custom page colors from published template content
  * Used for cart and checkout pages to override theme colors
  */
-export function usePageColors(tenantSlug: string, pageType: 'cart' | 'checkout') {
+export function usePageColors(tenantSlug: string, pageType: 'checkout') {
   return useQuery({
     queryKey: ['page-colors', tenantSlug, pageType],
     queryFn: async (): Promise<PageColors | null> => {
@@ -106,9 +106,8 @@ export function getPageColorsCss(colors: PageColors | null | undefined): string 
 
   if (!hasAnyColor) return '';
 
-  // Use .sf-page-cart / .sf-page-checkout for specificity-based override
-  // These classes are added to the page container in StorefrontCart / StorefrontCheckout
-  const pageScope = '.storefront-container .sf-page-cart, .storefront-container .sf-page-checkout';
+  // Use .sf-page-checkout for specificity-based override (cart inherits global theme)
+  const pageScope = '.storefront-container .sf-page-checkout';
 
   let css = `/* Page-specific color overrides — specificity-based (no !important) */\n`;
 
@@ -124,23 +123,20 @@ export function getPageColorsCss(colors: PageColors | null | undefined): string 
 
   if (vars.length > 0) {
     css += `
-    .sf-page-cart, .sf-page-checkout {
+    .sf-page-checkout {
       ${vars.join('\n      ')}
     }`;
   }
 
-  // Flags/tags color override at page scope
+  // Flags/tags color override at checkout scope
   if (colors.flagsColor) {
     css += `
     /* Flags/Tags color override */
-    .sf-page-cart .sf-tag-success,
-    .sf-page-cart .sf-checkout-flag,
     .sf-page-checkout .sf-tag-success,
     .sf-page-checkout .sf-checkout-flag {
       background-color: color-mix(in srgb, ${colors.flagsColor} 15%, transparent);
       color: ${colors.flagsColor};
     }
-    .sf-page-cart .sf-flag-text,
     .sf-page-checkout .sf-flag-text {
       color: ${colors.flagsColor};
     }`;

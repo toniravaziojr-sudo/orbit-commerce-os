@@ -9,7 +9,7 @@
 import { useMemo } from 'react';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRenderer';
-import { PageColorsInjector } from '@/components/storefront/PageColorsInjector';
+
 import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { getDefaultTemplate } from '@/lib/builder/defaults';
@@ -89,7 +89,7 @@ export default function StorefrontCart() {
 
   return (
     <>
-      <PageColorsInjector tenantSlug={tenantSlug || ''} pageType="cart" />
+      
       
       <PublicTemplateRenderer
         content={templateContent}
