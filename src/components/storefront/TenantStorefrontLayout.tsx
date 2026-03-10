@@ -108,6 +108,12 @@ export function TenantStorefrontLayout() {
                         Modo de pré-visualização - Esta página não está publicada
                       </div>
                     )}
+                  <div className="min-h-screen flex flex-col bg-white storefront-container">
+                    {isPreview && (
+                      <div className="bg-yellow-100 border-b border-yellow-200 px-4 py-2 text-center text-sm text-yellow-800">
+                        Modo de pré-visualização - Esta página não está publicada
+                      </div>
+                    )}
                     <main className="flex-1">
                       <TenantSlugContext.Provider value={tenantSlug}>
                         <Outlet />
