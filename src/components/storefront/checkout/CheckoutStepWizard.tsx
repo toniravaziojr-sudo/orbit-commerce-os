@@ -887,7 +887,6 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           <CheckoutTestimonials tenantId={tenantId} productIds={items.map(item => item.product_id)} />
         </div>
       )}
-      </div>
     </div>
   );
 }
