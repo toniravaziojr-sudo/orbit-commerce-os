@@ -13,7 +13,13 @@ const corsHeaders = {
 };
 
 // ===== STATUS DEFINITIONS (Canonical) =====
-const ORDER_STATUSES = ['pending', 'approved', 'dispatched', 'shipping', 'completed', 'cancelled', 'returned', 'refunded'] as const;
+const ORDER_STATUSES = [
+  'awaiting_confirmation', 'ready_to_invoice', 'invoice_pending_sefaz', 
+  'invoice_authorized', 'invoice_issued', 'dispatched', 'completed', 
+  'returning', 'payment_expired', 'invoice_rejected', 'invoice_cancelled',
+  // Legacy values still valid in DB enum
+  'pending', 'awaiting_payment', 'paid', 'processing', 'shipped', 'in_transit', 'delivered', 'cancelled', 'returned',
+] as const;
 const PAYMENT_STATUSES = ['awaiting_payment', 'paid', 'declined', 'cancelled', 'refunded'] as const;
 const SHIPPING_STATUSES = ['awaiting_shipment', 'label_generated', 'shipped', 'in_transit', 'arriving', 'delivered', 'problem', 'awaiting_pickup', 'returning', 'returned'] as const;
 
@@ -22,15 +28,29 @@ type PaymentStatus = typeof PAYMENT_STATUSES[number];
 type ShippingStatus = typeof SHIPPING_STATUSES[number];
 
 // ===== STATE MACHINE TRANSITIONS =====
-const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  pending: ['approved', 'cancelled'],
-  approved: ['dispatched', 'cancelled', 'refunded'],
-  dispatched: ['shipping', 'cancelled'],
-  shipping: ['completed', 'returned'],
-  completed: ['returned', 'refunded'],
-  cancelled: [],
-  returned: ['refunded'],
-  refunded: [],
+const ORDER_TRANSITIONS: Record<string, string[]> = {
+  // New flow
+  awaiting_confirmation: ['ready_to_invoice', 'payment_expired'],
+  ready_to_invoice: ['invoice_pending_sefaz', 'invoice_rejected', 'payment_expired'],
+  invoice_pending_sefaz: ['invoice_authorized', 'invoice_rejected'],
+  invoice_authorized: ['invoice_issued', 'invoice_cancelled'],
+  invoice_issued: ['dispatched', 'invoice_cancelled'],
+  dispatched: ['completed', 'returning'],
+  completed: ['returning'],
+  returning: [],
+  payment_expired: [],
+  invoice_rejected: ['ready_to_invoice'],
+  invoice_cancelled: [],
+  // Legacy transitions (backward compat)
+  pending: ['awaiting_confirmation', 'ready_to_invoice', 'paid', 'cancelled', 'payment_expired'],
+  awaiting_payment: ['awaiting_confirmation', 'ready_to_invoice', 'paid', 'cancelled', 'payment_expired'],
+  paid: ['ready_to_invoice', 'processing', 'dispatched', 'cancelled'],
+  processing: ['ready_to_invoice', 'dispatched', 'shipped', 'cancelled'],
+  shipped: ['dispatched', 'in_transit', 'delivered', 'completed', 'cancelled'],
+  in_transit: ['dispatched', 'delivered', 'completed', 'returned'],
+  delivered: ['completed', 'returned', 'returning'],
+  cancelled: ['payment_expired'],
+  returned: ['returning'],
 };
 
 const PAYMENT_TRANSITIONS: Record<PaymentStatus, PaymentStatus[]> = {

@@ -34,9 +34,8 @@ const AMBIENTE_OPTIONS = [
 
 // Order status options for auto-emit
 const EMIT_STATUS_OPTIONS = [
-  { value: 'paid', label: 'Após pagamento confirmado' },
-  { value: 'shipped', label: 'Após envio' },
-  { value: 'processing', label: 'Após processamento' },
+  { value: 'ready_to_invoice', label: 'Quando pronto para emitir NF (automático)' },
+  { value: 'paid', label: 'Após pagamento confirmado (legado)' },
 ];
 
 // Shipping provider options
@@ -84,7 +83,7 @@ export function FiscalSettingsContent() {
     numero_nfe_atual: 1,
     ambiente: 'homologacao',
     emissao_automatica: false,
-    emitir_apos_status: 'paid',
+    emitir_apos_status: 'ready_to_invoice',
     auto_create_shipment: false,
     auto_update_order_status: true,
     default_shipping_provider: null,

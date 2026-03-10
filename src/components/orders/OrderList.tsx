@@ -78,14 +78,17 @@ interface OrderListProps {
 }
 
 const orderStatusIcons: Record<OrderStatus, typeof Clock> = {
-  pending: Clock,
-  approved: CheckCircle,
+  awaiting_confirmation: Clock,
+  ready_to_invoice: CreditCard,
+  invoice_pending_sefaz: Clock,
+  invoice_authorized: CheckCircle,
+  invoice_issued: CheckCircle,
   dispatched: Tag,
-  shipping: Truck,
   completed: PackageCheck,
-  cancelled: XCircle,
-  returned: RotateCcw,
-  refunded: RotateCcw,
+  returning: RotateCcw,
+  payment_expired: XCircle,
+  invoice_rejected: AlertTriangle,
+  invoice_cancelled: PackageX,
 };
 
 const shippingStatusIcons: Record<ShippingStatus, typeof Truck> = {

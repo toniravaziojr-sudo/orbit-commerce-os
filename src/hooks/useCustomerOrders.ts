@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useEffect, useState } from 'react';
 import { normalizeEmail } from '@/lib/normalizeEmail';
+import { normalizeOrderStatus, ORDER_STATUS_CONFIG } from '@/types/orderStatus';
 export interface OrderItem {
   id: string;
   product_name: string;
@@ -19,9 +20,9 @@ export interface OrderItem {
 export interface CustomerOrder {
   id: string;
   order_number: string;
-  status: 'pending' | 'awaiting_payment' | 'paid' | 'processing' | 'shipped' | 'in_transit' | 'delivered' | 'cancelled' | 'returned';
-  payment_status: 'pending' | 'processing' | 'approved' | 'declined';
-  shipping_status: 'pending' | 'processing' | 'shipped' | 'in_transit' | 'delivered';
+  status: string;  // Uses normalizeOrderStatus for display
+  payment_status: string;
+  shipping_status: string;
   total: number;
   subtotal: number;
   shipping_total: number;
@@ -188,17 +189,19 @@ export function useCustomerOrder(orderId?: string) {
 }
 
 // Get status label and color
-export function getOrderStatusInfo(status: CustomerOrder['status']) {
-  const statusMap: Record<CustomerOrder['status'], { label: string; color: string }> = {
-    pending: { label: 'Pendente', color: 'bg-yellow-100 text-yellow-800' },
-    awaiting_payment: { label: 'Aguardando pagamento', color: 'bg-yellow-100 text-yellow-800' },
-    paid: { label: 'Pago', color: 'bg-green-100 text-green-800' },
-    processing: { label: 'Em separação', color: 'bg-blue-100 text-blue-800' },
-    shipped: { label: 'Enviado', color: 'bg-purple-100 text-purple-800' },
-    in_transit: { label: 'Em trânsito', color: 'bg-purple-100 text-purple-800' },
-    delivered: { label: 'Entregue', color: 'bg-green-100 text-green-800' },
-    cancelled: { label: 'Cancelado', color: 'bg-red-100 text-red-800' },
-    returned: { label: 'Devolvido', color: 'bg-gray-100 text-gray-800' },
+export function getOrderStatusInfo(status: string) {
+  const normalized = normalizeOrderStatus(status);
+  const cfg = ORDER_STATUS_CONFIG[normalized];
+  
+  const colorMap: Record<string, string> = {
+    outline: 'bg-yellow-100 text-yellow-800',
+    secondary: 'bg-blue-100 text-blue-800',
+    default: 'bg-green-100 text-green-800',
+    destructive: 'bg-red-100 text-red-800',
   };
-  return statusMap[status] || { label: status, color: 'bg-gray-100 text-gray-800' };
+  
+  return { 
+    label: cfg?.label || status, 
+    color: colorMap[cfg?.variant || 'outline'] || 'bg-gray-100 text-gray-800' 
+  };
 }

@@ -18707,6 +18707,17 @@ export type Database = {
         | "delivered"
         | "cancelled"
         | "returned"
+        | "awaiting_confirmation"
+        | "ready_to_invoice"
+        | "invoice_pending_sefaz"
+        | "invoice_authorized"
+        | "invoice_issued"
+        | "dispatched"
+        | "completed"
+        | "returning"
+        | "payment_expired"
+        | "invoice_rejected"
+        | "invoice_cancelled"
       payment_method:
         | "pix"
         | "credit_card"
@@ -18985,6 +18996,17 @@ export const Constants = {
         "delivered",
         "cancelled",
         "returned",
+        "awaiting_confirmation",
+        "ready_to_invoice",
+        "invoice_pending_sefaz",
+        "invoice_authorized",
+        "invoice_issued",
+        "dispatched",
+        "completed",
+        "returning",
+        "payment_expired",
+        "invoice_rejected",
+        "invoice_cancelled",
       ],
       payment_method: [
         "pix",

@@ -16,6 +16,7 @@ import {
 import { StatCard } from '@/components/ui/stat-card';
 import { OrderList } from '@/components/orders/OrderList';
 import { useOrders, type Order, type OrderStatus } from '@/hooks/useOrders';
+import { normalizeOrderStatus } from '@/types/orderStatus';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { FeatureGate } from '@/components/layout/FeatureGate';
 
@@ -108,9 +109,12 @@ export default function Orders() {
   };
 
   // Calculate stats from current page
-  const pendingCount = orders.filter(o => o.status === 'pending').length;
-  const processingCount = orders.filter(o => o.status === 'approved' || o.status === 'dispatched').length;
-  const shippedCount = orders.filter(o => o.status === 'shipping').length;
+  const pendingCount = orders.filter(o => normalizeOrderStatus(o.status) === 'awaiting_confirmation').length;
+  const processingCount = orders.filter(o => {
+    const s = normalizeOrderStatus(o.status);
+    return s === 'ready_to_invoice' || s === 'invoice_pending_sefaz' || s === 'invoice_authorized' || s === 'invoice_issued';
+  }).length;
+  const shippedCount = orders.filter(o => normalizeOrderStatus(o.status) === 'dispatched').length;
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -141,22 +145,22 @@ export default function Orders() {
           icon={Package}
         />
         <StatCard
-          title="Pendentes"
+          title="Aguardando"
           value={pendingCount.toString()}
           icon={Package}
-          description="Aguardando ação"
+          description="Aguardando confirmação"
         />
         <StatCard
-          title="Em Processamento"
+          title="Fiscal"
           value={processingCount.toString()}
           icon={Package}
-          description="Pagos ou em separação"
+          description="NF em processo"
         />
         <StatCard
-          title="Enviados"
+          title="Despachados"
           value={shippedCount.toString()}
           icon={Package}
-          description="Em trânsito"
+          description="Pacotes despachados"
         />
       </div>
 
@@ -193,14 +197,17 @@ export default function Orders() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos status</SelectItem>
-                  <SelectItem value="pending">Pendente</SelectItem>
-                  <SelectItem value="approved">Aprovado</SelectItem>
+                  <SelectItem value="awaiting_confirmation">Aguardando confirmação</SelectItem>
+                  <SelectItem value="ready_to_invoice">Pronto para emitir NF</SelectItem>
+                  <SelectItem value="invoice_pending_sefaz">Pendente SEFAZ</SelectItem>
+                  <SelectItem value="invoice_authorized">NF Autorizada</SelectItem>
+                  <SelectItem value="invoice_issued">NF Emitida</SelectItem>
                   <SelectItem value="dispatched">Despachado</SelectItem>
-                  <SelectItem value="shipping">A caminho</SelectItem>
                   <SelectItem value="completed">Concluído</SelectItem>
-                  <SelectItem value="cancelled">Cancelado</SelectItem>
-                  <SelectItem value="returned">Devolvido</SelectItem>
-                  <SelectItem value="refunded">Estornado</SelectItem>
+                  <SelectItem value="returning">Em devolução</SelectItem>
+                  <SelectItem value="payment_expired">Pgto expirado</SelectItem>
+                  <SelectItem value="invoice_rejected">NF Rejeitada</SelectItem>
+                  <SelectItem value="invoice_cancelled">NF Cancelada</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={paymentFilter} onValueChange={handlePaymentChange}>

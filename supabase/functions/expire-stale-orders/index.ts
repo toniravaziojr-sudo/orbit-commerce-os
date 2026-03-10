@@ -39,14 +39,14 @@ serve(async (req) => {
       .from('orders')
       .update({ 
         payment_status: 'cancelled', 
-        status: 'cancelled',
+        status: 'payment_expired',
         cancellation_reason: 'PIX expirado (automático)',
         cancelled_at: now.toISOString(),
         updated_at: now.toISOString(),
       })
       .eq('payment_method', 'pix')
       .eq('payment_status', 'pending')
-      .in('status', ['pending', 'awaiting_payment'])
+      .in('status', ['pending', 'awaiting_payment', 'awaiting_confirmation'])
       .lt('created_at', pixCutoff)
       .select('id, order_number, tenant_id');
 
@@ -61,14 +61,14 @@ serve(async (req) => {
       .from('orders')
       .update({ 
         payment_status: 'cancelled', 
-        status: 'cancelled',
+        status: 'payment_expired',
         cancellation_reason: 'Boleto vencido (automático)',
         cancelled_at: now.toISOString(),
         updated_at: now.toISOString(),
       })
       .eq('payment_method', 'boleto')
       .eq('payment_status', 'pending')
-      .in('status', ['pending', 'awaiting_payment'])
+      .in('status', ['pending', 'awaiting_payment', 'awaiting_confirmation'])
       .lt('created_at', boletoCutoff)
       .select('id, order_number, tenant_id');
 
@@ -83,13 +83,13 @@ serve(async (req) => {
     const { data: fixedDeclined, error: declinedError } = await supabase
       .from('orders')
       .update({
-        status: 'cancelled',
+        status: 'payment_expired',
         cancellation_reason: 'Pagamento recusado (sync automático)',
         cancelled_at: now.toISOString(),
         updated_at: now.toISOString(),
       })
       .eq('payment_status', 'declined')
-      .eq('status', 'pending')
+      .in('status', ['pending', 'awaiting_confirmation'])
       .select('id, order_number, tenant_id');
 
     if (declinedError) {
