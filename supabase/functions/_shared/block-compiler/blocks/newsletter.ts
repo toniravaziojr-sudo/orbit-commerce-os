@@ -50,7 +50,7 @@ export const newsletterToStaticHTML: BlockCompilerFn = (
         <button type="submit" style="${btnStyle}width:100%;">${escapeHtml(buttonText)}</button>
       </div>
     </form>
-    <p style="font-size:0.75rem;color:#999;margin-top:1rem;">Ao se inscrever, você concorda com nossa política de privacidade.</p>
+    <p style="font-size:0.75rem;color:var(--theme-text-secondary, #999);margin-top:1rem;">Ao se inscrever, você concorda com nossa política de privacidade.</p>
   </div>
 </section>`;
   }
