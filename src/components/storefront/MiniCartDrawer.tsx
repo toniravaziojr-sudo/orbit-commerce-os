@@ -15,11 +15,11 @@ import {
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Minus, Plus, X, ShoppingCart, Truck, Check, Gift, Loader2, Tag } from 'lucide-react';
+import { Minus, Plus, X, ShoppingCart, Truck, Check, Loader2, Tag } from 'lucide-react';
 import { BenefitProgressBar } from '@/components/storefront/cart/BenefitProgressBar';
 import { useCart, CartItem } from '@/contexts/CartContext';
 import { useDiscount } from '@/contexts/DiscountContext';
-import { useBenefit, useShipping, useCartConfig } from '@/contexts/StorefrontConfigContext';
+import { useShipping, useCartConfig } from '@/contexts/StorefrontConfigContext';
 import { getPublicCheckoutUrl, getPublicCartUrl } from '@/lib/publicUrls';
 import { ResponsiveDrawerLayout } from '@/components/ui/responsive-drawer-layout';
 import { calculateCartTotals, formatCurrency, formatPrice } from '@/lib/cartTotals';
