@@ -17,7 +17,8 @@ import {
 } from '@/components/ui/accordion';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { CreditCard } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { CreditCard, AlertTriangle } from 'lucide-react';
 
 // Re-export from source of truth
 export type { CheckoutSettings } from '@/hooks/usePageSettings';
