@@ -379,7 +379,7 @@ const handleMobileMenuNavigate = (url: string) => {
 
 ## Navegação Context-Aware (Edge ↔ SPA)
 
-> **REGRA CRÍTICA (v9.0.0):** Links no header DEVEM forçar `window.location.href` para rotas de conteúdo (Edge HTML) e usar `<Link>` do React apenas para rotas SPA.
+> **REGRA CRÍTICA (v9.1.0):** Links no header DEVEM usar `<a>` nativo para rotas de conteúdo (Edge HTML) e `<Link>` do React apenas para rotas SPA.
 
 ### Problema Resolvido
 
@@ -389,26 +389,23 @@ Quando o usuário clicava no logo do header dentro do Checkout (SPA), o React Ro
 
 O componente `LinkWrapper` em `StorefrontHeaderContent.tsx` detecta o tipo de rota e escolhe o método de navegação:
 
-```typescript
-const SPA_ROUTE_PREFIXES = ['/cart', '/carrinho', '/checkout', '/obrigado', '/conta', '/minha-conta', '/rastreio', '/busca', '/quiz'];
+- **Rotas de conteúdo (Edge)**: Renderiza `<a href={to}>` **sem onClick** — navegação nativa do browser.
+- **Rotas SPA**: Renderiza `<Link to={to}>` do React Router.
 
-function isSpaRoute(url: string): boolean {
-  const path = url.replace(/^\/store\/[^/]+/, '');
-  return SPA_ROUTE_PREFIXES.some(prefix => path.startsWith(prefix));
-}
-```
+> ⚠️ **PROIBIDO** usar `e.preventDefault()` + `window.location.href` em `<a>` tags — causa race conditions.
 
 | Tipo de Rota | Método de Navegação | Exemplo |
 |--------------|---------------------|---------|
-| **Conteúdo (Edge)** | `window.location.href` (hard refresh) | `/`, `/categoria/x`, `/produto/y` |
+| **Conteúdo (Edge)** | `<a href={to}>` nativo (sem onClick) | `/`, `/categoria/x`, `/produto/y` |
 | **SPA (Transacional)** | `<Link>` do React Router | `/cart`, `/checkout`, `/conta` |
 
 ### Regras
 
-1. **PROIBIDO** usar `<Link>` do React para rotas de conteúdo no header — DEVE usar `window.location.href`
-2. O logo do header SEMPRE navega via hard refresh (é rota de conteúdo)
-3. Itens de menu que apontam para categorias/produtos/páginas → hard refresh
-4. Itens que apontam para `/cart`, `/checkout`, etc. → `<Link>` do React
+1. **PROIBIDO** usar `<Link>` do React para rotas de conteúdo no header
+2. **PROIBIDO** interceptar `onClick` com `e.preventDefault()` em `<a>` de conteúdo
+3. O logo do header SEMPRE navega via `<a>` nativo (é rota de conteúdo)
+4. Itens de menu que apontam para categorias/produtos/páginas → `<a>` nativo
+5. Navegação mobile (`handleMobileMenuNavigate`) usa `window.location.href` para conteúdo (OK pois é programático, não `<a>`)
 
 ---
 
@@ -416,7 +413,8 @@ function isSpaRoute(url: string): boolean {
 
 | Data | Alteração |
 |------|-----------|
-| 2026-03-10 | **NAVEGAÇÃO CONTEXT-AWARE**: `LinkWrapper` agora usa `isSpaRoute()` para decidir entre `window.location.href` (rotas Edge) e `<Link>` (rotas SPA). Corrige bug onde clicar no logo do checkout renderizava versão bugada da Home |
+| 2026-03-10 | **FIX v9.1.0**: Removido `e.preventDefault()` + `window.location.href` do `LinkWrapper`. Usa `<a href>` nativo sem interceptação — elimina race conditions na navegação checkout→home |
+| 2026-03-10 | **NAVEGAÇÃO CONTEXT-AWARE v9.0.0**: `LinkWrapper` usa `isSpaRoute()` para decidir entre `<a>` nativo (rotas Edge) e `<Link>` (rotas SPA) |
 | 2025-01-31 | Sistema de rotação de textos (noticeTexts) com múltiplas frases |
 | 2025-01-31 | Novos efeitos de animação: slide-vertical, slide-horizontal (separados) |
 | 2025-01-31 | Efeito marquee otimizado para evitar duplicação de texto |
