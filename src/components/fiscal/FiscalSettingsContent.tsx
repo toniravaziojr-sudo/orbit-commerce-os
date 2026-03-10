@@ -83,7 +83,7 @@ export function FiscalSettingsContent() {
     numero_nfe_atual: 1,
     ambiente: 'homologacao',
     emissao_automatica: false,
-    emitir_apos_status: 'paid',
+    emitir_apos_status: 'ready_to_invoice',
     auto_create_shipment: false,
     auto_update_order_status: true,
     default_shipping_provider: null,
