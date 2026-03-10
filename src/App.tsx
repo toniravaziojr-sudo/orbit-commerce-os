@@ -123,14 +123,11 @@ const AIPackages = lazy(() => import("@/pages/AIPackages"));
 const QAStorefront = lazy(() => import("@/pages/admin/QAStorefront"));
 
 // Storefront Pages — LAZY LOADED (isolated from admin bundle)
+// NOTE: Content pages (Home, Category, Product, Blog, Page, LP) are Edge-only.
+// Only interactive SPA pages are loaded here.
 const StorefrontLayout = lazy(() => import("@/components/storefront/StorefrontLayout").then(m => ({ default: m.StorefrontLayout })));
 const TenantStorefrontLayout = lazy(() => import("@/components/storefront/TenantStorefrontLayout").then(m => ({ default: m.TenantStorefrontLayout })));
 
-const StorefrontHome = lazy(() => import("@/pages/storefront/StorefrontHome"));
-const StorefrontCategory = lazy(() => import("@/pages/storefront/StorefrontCategory"));
-const StorefrontProduct = lazy(() => import("@/pages/storefront/StorefrontProduct"));
-const StorefrontPage = lazy(() => import("@/pages/storefront/StorefrontPage"));
-const StorefrontLandingPage = lazy(() => import("@/pages/storefront/StorefrontLandingPage"));
 const StorefrontAILandingPage = lazy(() => import("@/pages/storefront/StorefrontAILandingPage"));
 const StorefrontCart = lazy(() => import("@/pages/storefront/StorefrontCart"));
 const StorefrontCheckout = lazy(() => import("@/pages/storefront/StorefrontCheckout"));
@@ -142,8 +139,6 @@ const StorefrontAccountForgotPassword = lazy(() => import("@/pages/storefront/St
 const StorefrontOrdersList = lazy(() => import("@/pages/storefront/StorefrontOrdersList"));
 const StorefrontOrderDetail = lazy(() => import("@/pages/storefront/StorefrontOrderDetail"));
 const StorefrontResetPassword = lazy(() => import("@/pages/storefront/StorefrontResetPassword"));
-const StorefrontBlogPost = lazy(() => import("@/pages/storefront/StorefrontBlogPost"));
-const StorefrontBlog = lazy(() => import("@/pages/storefront/StorefrontBlog"));
 const StorefrontTracking = lazy(() => import("@/pages/storefront/StorefrontTracking"));
 const StorefrontQuiz = lazy(() => import("@/pages/storefront/StorefrontQuiz"));
 const StorefrontReview = lazy(() => import("@/pages/storefront/StorefrontReview"));
@@ -233,19 +228,15 @@ const App = () => {
               )}
 
               {/* Root routes for custom/platform domains */}
+              {/* Root routes for custom/platform domains — SPA interactive pages ONLY */}
+              {/* Content pages (Home, Category, Product, Blog, Page, LP) are Edge-rendered only */}
               {shouldUseTenantRootRoutes && (
                 <Route path="/" element={<TenantStorefrontLayout />}>
-                  <Route index element={<StorefrontHome />} />
-                  <Route path="c/:categorySlug" element={<StorefrontCategory />} />
-                  <Route path="p/:productSlug" element={<StorefrontProduct />} />
-                  <Route path="page/:pageSlug" element={<StorefrontPage />} />
-                  <Route path="lp/:pageSlug" element={<StorefrontLandingPage />} />
-                  <Route path="rastreio" element={<StorefrontTracking />} />
-                  <Route path="blog" element={<StorefrontBlog />} />
-                  <Route path="blog/:postSlug" element={<StorefrontBlogPost />} />
                   <Route path="cart" element={<StorefrontCart />} />
+                  <Route path="carrinho" element={<StorefrontCart />} />
                   <Route path="checkout" element={<StorefrontCheckout />} />
                   <Route path="obrigado" element={<StorefrontThankYou />} />
+                  <Route path="rastreio" element={<StorefrontTracking />} />
                   <Route path="minhas-compras" element={<StorefrontMyOrders />} />
                   <Route path="conta" element={<StorefrontAccount />} />
                   <Route path="conta/login" element={<StorefrontAccountLogin />} />
@@ -264,18 +255,14 @@ const App = () => {
               <Route path="/store/:tenantSlug/ai-lp/:lpSlug" element={<StorefrontAILandingPage />} />
 
               {/* Legacy storefront routes with /store/:tenantSlug prefix (for app domain / fallback) */}
+              {/* Legacy storefront routes — SPA interactive pages ONLY */}
+              {/* Content pages are Edge-rendered; no SPA fallback */}
               <Route path="/store/:tenantSlug" element={<StorefrontLayout />}>
-                <Route index element={<StorefrontHome />} />
-                <Route path="c/:categorySlug" element={<StorefrontCategory />} />
-                <Route path="p/:productSlug" element={<StorefrontProduct />} />
-                <Route path="page/:pageSlug" element={<StorefrontPage />} />
-                <Route path="lp/:pageSlug" element={<StorefrontLandingPage />} />
-                <Route path="rastreio" element={<StorefrontTracking />} />
-                <Route path="blog" element={<StorefrontBlog />} />
-                <Route path="blog/:postSlug" element={<StorefrontBlogPost />} />
                 <Route path="cart" element={<StorefrontCart />} />
+                <Route path="carrinho" element={<StorefrontCart />} />
                 <Route path="checkout" element={<StorefrontCheckout />} />
                 <Route path="obrigado" element={<StorefrontThankYou />} />
+                <Route path="rastreio" element={<StorefrontTracking />} />
                 <Route path="minhas-compras" element={<StorefrontMyOrders />} />
                 <Route path="conta" element={<StorefrontAccount />} />
                 <Route path="conta/login" element={<StorefrontAccountLogin />} />
