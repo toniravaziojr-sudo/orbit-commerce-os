@@ -3243,3 +3243,40 @@ Para adicionar novos presets no futuro:
 | **Comportamento** | 1. Usuário altera cor/fonte. 2. `handleColorChange` chama `setDraftColors(updated)` FORA do state updater (anti-pattern fix). 3. Provider re-renderiza com `hasDraftChanges=true`. 4. `BuilderToolbarWithDraftCheck` detecta via `useBuilderDraftTheme()` → `isDirty=true` → botão Salvar habilitado |
 | **Regra Crítica** | Chamadas a `setDraftColors`/`setDraftTypography` NUNCA devem ser feitas dentro de funções `setState(prev => {...})` — isso causa problemas de batching no React 18 |
 | **Afeta** | `BuilderToolbar` (botão Salvar), preview em tempo real |
+
+---
+
+## 🎨 Preview Theme Settings — Leitura de draft_content (v2.0)
+
+### Regra: Preview lê themeSettings de draft_content
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Regra Lógica / Bug Fix |
+| **Localização** | `src/components/storefront/StorefrontThemeInjector.tsx`, `src/hooks/usePreviewThemeSettings.ts` |
+| **Contexto** | Preview da loja (`?preview=1`) não refletia cores salvas no Builder |
+| **Descrição** | Quando o Preview é aberto (`?preview=1`), o `StorefrontThemeInjector` agora lê `themeSettings` de `draft_content` (via `usePreviewThemeSettings`) em vez de `published_content`. Isso garante que cores/tipografia salvas mas ainda não publicadas sejam refletidas imediatamente no preview |
+| **Comportamento** | 1. `StorefrontThemeInjector` detecta `?preview=1` via URL. 2. Chama `usePreviewThemeSettings` (query com `staleTime: 0` → sempre busca dados frescos). 3. Hook lê `storefront_template_sets.draft_content.themeSettings`. 4. Draft tem prioridade sobre published no preview. 5. Na loja pública (sem `?preview=1`), continua lendo de `published_content` normalmente |
+| **Condições** | `?preview=1` na URL E usuário autenticado |
+| **Afeta** | `StorefrontThemeInjector`, todas as páginas de preview |
+| **Erros/Edge cases** | Se `draft_content` não tiver `themeSettings`, faz fallback para `published_content` |
+
+### Componente: usePreviewThemeSettings
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Hook |
+| **Localização** | `src/hooks/usePreviewThemeSettings.ts` |
+| **Descrição** | Hook que busca `themeSettings` de `draft_content` para preview |
+| **Comportamento** | Query habilitada somente quando `isPreview=true` e `user` autenticado. `staleTime: 0` garante dados sempre frescos |
+| **Afeta** | `StorefrontThemeInjector` |
+
+### Explicação: Cache na loja pública
+
+| Camada | Tempo | Descrição |
+|--------|-------|-----------|
+| react-query `staleTime` | 2 min | Dados em memória considerados "frescos" |
+| Cloudflare CDN | 2-15 min | Cache no edge global |
+| Prerender pipeline | Variável | HTML pré-renderizado atualizado via job assíncrono |
+
+A loja pública pode levar alguns minutos para refletir mudanças após publicação. O Preview (`?preview=1`) NÃO tem cache (`staleTime: 0`).
