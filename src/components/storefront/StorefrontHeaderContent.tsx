@@ -489,14 +489,20 @@ export function StorefrontHeaderContent({
 
   // Mobile menu navigation: navigate first, then close drawer
   // This ensures navigation completes before the Sheet unmounts content
+  // For content routes (Edge-rendered), use native navigation (full reload)
+  // For SPA routes, use React Router navigate
   const handleMobileMenuNavigate = (url: string) => {
     if (!url) return;
-    // Navigate immediately
-    navigate(url);
-    // Close menu after a tick so navigation isn't blocked
-    requestAnimationFrame(() => {
+    if (isSpaRoute(url)) {
+      navigate(url);
+      requestAnimationFrame(() => {
+        setMobileMenuOpen(false);
+      });
+    } else {
+      // Content route: full page reload → Edge HTML
       setMobileMenuOpen(false);
-    });
+      window.location.href = url;
+    }
   };
 
   // Search submit handler — navigates to /busca?q=term
