@@ -233,6 +233,20 @@ A partir da v9.0.0, o storefront público opera em **modelo segregado**:
 | `/minha-conta/pedido/:id` | Detalhes do pedido | `StorefrontOrderDetail.tsx` |
 | `/busca?q=termo` | Busca de produtos | `StorefrontSearch.tsx` |
 
+### Regra: Header/Footer em Páginas SPA (v2.0.0)
+
+**OBRIGATÓRIO**: Páginas SPA que renderizam header/footer devem usar `usePublicGlobalLayout` (bootstrap-powered) em vez de `usePublicTemplate('home')`.
+
+| Padrão CORRETO | Padrão PROIBIDO |
+|----------------|-----------------|
+| `usePublicGlobalLayout(tenantSlug, bootstrapGlobalLayout)` | `usePublicTemplate(tenantSlug, 'home')` + extrair header/footer |
+| `globalLayout.header_config` / `globalLayout.footer_config` | `homeContent.children.find(c => c.type === 'Header')` |
+
+**Motivo**: `usePublicTemplate` faz queries separadas que falham no domínio público. `usePublicGlobalLayout` utiliza dados de bootstrap do `TenantStorefrontLayout`.
+
+**Páginas corrigidas (v2.0.0)**: `StorefrontAccount.tsx`, `StorefrontOrdersList.tsx`, `StorefrontOrderDetail.tsx`
+**Já corretas**: `StorefrontCart.tsx`, `StorefrontThankYou.tsx`, `StorefrontCheckout.tsx` (usam `PublicTemplateRenderer`)
+
 ### Rotas do Builder (Admin)
 
 | Rota | Descrição |
