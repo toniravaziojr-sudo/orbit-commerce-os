@@ -89,7 +89,7 @@ export default function StorefrontCart() {
 
   return (
     <>
-      <PageColorsInjector tenantSlug={tenantSlug || ''} pageType="cart" />
+      
       
       <PublicTemplateRenderer
         content={templateContent}
