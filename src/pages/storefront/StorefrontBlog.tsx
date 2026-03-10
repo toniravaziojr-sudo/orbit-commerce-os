@@ -114,6 +114,9 @@ export default function StorefrontBlog() {
   }, [isPreviewMode, canPreview, template.isLoading, searchParams, navigate]);
 
   // Build context for block rendering
+  // CRITICAL: tenant_id MUST be in settings for BlogListingBlock to query posts
+  const tenantId = storeSettings?.tenant_id;
+  
   const context: BlockRenderContext & { categorySettings?: CategorySettings } = {
     tenantSlug: tenantSlug || '',
     isPreview: isPreviewMode,
@@ -123,12 +126,12 @@ export default function StorefrontBlog() {
     settings: {
       store_name: storeSettings?.store_name || undefined,
       logo_url: storeSettings?.logo_url || undefined,
-      // NOTE: primary_color removed - colors managed via Configuração do tema > Cores
       social_instagram: storeSettings?.social_instagram || undefined,
       social_facebook: storeSettings?.social_facebook || undefined,
       social_whatsapp: storeSettings?.social_whatsapp || undefined,
       store_description: storeSettings?.store_description || undefined,
-    },
+      tenant_id: tenantId,
+    } as any,
     headerMenu: headerMenu?.items?.map(item => ({
       id: item.id,
       label: item.label,
