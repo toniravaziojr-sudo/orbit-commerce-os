@@ -95,6 +95,7 @@ export function DomainSettingsContent() {
   const [deleteConfirm, setDeleteConfirm] = useState<TenantDomain | null>(null);
   const [isProvisioningDefault, setIsProvisioningDefault] = useState(false);
   const [instructionsOpen, setInstructionsOpen] = useState(false);
+  const [isPurgingCache, setIsPurgingCache] = useState(false);
 
   // Find the platform subdomain (auto-provisioned)
   const platformSubdomain = domains.find(d => d.type === 'platform_subdomain');
