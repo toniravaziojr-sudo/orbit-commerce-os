@@ -2,10 +2,12 @@
 // STOREFRONT THEME INJECTOR - Injects theme CSS into document
 // Applies typography and colors from published themeSettings
 // OPTIMIZED: Accepts bootstrapTemplate to skip separate queries
+// FIX v2: In preview mode (?preview=1), reads from draft_content
 // =============================================
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { usePublicThemeSettings, getStorefrontThemeCss } from '@/hooks/usePublicThemeSettings';
+import { usePreviewThemeSettings } from '@/hooks/usePreviewThemeSettings';
 
 interface StorefrontThemeInjectorProps {
   tenantSlug: string;
@@ -18,9 +20,23 @@ const STYLE_ID = 'storefront-theme-styles';
 /**
  * Injects theme CSS variables and rules into the document head
  * This ensures typography and colors are applied globally across the storefront
+ * 
+ * In preview mode (?preview=1), reads themeSettings from draft_content
+ * so that saved (but unpublished) colors are reflected immediately.
  */
 export function StorefrontThemeInjector({ tenantSlug, bootstrapTemplate }: StorefrontThemeInjectorProps) {
-  const { themeSettings } = usePublicThemeSettings(tenantSlug, bootstrapTemplate);
+  const isPreview = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('preview') === '1';
+  }, []);
+
+  // Published theme (normal flow)
+  const { themeSettings: publishedTheme } = usePublicThemeSettings(tenantSlug, bootstrapTemplate);
+  // Draft theme (preview flow) — only queries when isPreview=true
+  const { themeSettings: draftTheme } = usePreviewThemeSettings(tenantSlug, isPreview);
+
+  // In preview mode, draft takes priority over published
+  const themeSettings = isPreview && draftTheme ? draftTheme : publishedTheme;
 
   useEffect(() => {
     // Generate CSS from theme settings
