@@ -17,24 +17,34 @@ export function PageColorsInjector({ tenantSlug, pageType }: PageColorsInjectorP
   const { data: pageColors } = usePageColors(tenantSlug, pageType);
 
   useEffect(() => {
-    // Remove existing style element if present
-    const existingStyle = document.getElementById(STYLE_ID);
-    if (existingStyle) {
-      existingStyle.remove();
+    // Only inject if we have custom colors
+    if (!pageColors) {
+      // No page colors — remove any existing override
+      const existing = document.getElementById(STYLE_ID);
+      if (existing) existing.remove();
+      return;
     }
 
-    // Only inject if we have custom colors
-    if (!pageColors) return;
-
     const css = getPageColorsCss(pageColors);
-    if (!css) return;
+    if (!css) {
+      const existing = document.getElementById(STYLE_ID);
+      if (existing) existing.remove();
+      return;
+    }
 
-    const styleElement = document.createElement('style');
-    styleElement.id = STYLE_ID;
-    styleElement.textContent = css;
-    document.head.appendChild(styleElement);
+    // Update in-place to avoid CSS flash
+    const existingStyle = document.getElementById(STYLE_ID);
+    if (existingStyle) {
+      existingStyle.textContent = css;
+    } else {
+      const styleElement = document.createElement('style');
+      styleElement.id = STYLE_ID;
+      styleElement.textContent = css;
+      document.head.appendChild(styleElement);
+    }
 
-    // Cleanup on unmount
+    // Cleanup on unmount — page-specific overrides MUST be removed
+    // when leaving the page (e.g., leaving checkout restores default theme)
     return () => {
       const styleToRemove = document.getElementById(STYLE_ID);
       if (styleToRemove) {
