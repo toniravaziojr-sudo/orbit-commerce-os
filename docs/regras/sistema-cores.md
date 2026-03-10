@@ -118,6 +118,7 @@ Zonas que **não** possuem override: páginas de produto, categoria, blog, insti
 
 ## Pendências
 
-- [ ] Fase 2: Remover dependência de `!important` em `storefront-theme-utils.ts`
-- [ ] Fase 2: Implementar hierarquia CSS por especificidade controlada
+- [x] ~~Fase 1: Remover tipo legado ThemeContext.tsx~~
+- [x] ~~Fase 2: Remover dependência de `!important` em `storefront-theme-utils.ts`, `usePageColors.ts` e `theme-tokens.ts`~~
+- [x] ~~Fase 2: Implementar hierarquia CSS por especificidade controlada via `.sf-page-*`~~
 - [ ] Fase 3: Reorganizar UI admin em grupos visuais
