@@ -1,11 +1,22 @@
+// =============================================
+// STOREFRONT SUPPORT WIDGET - Floating support widget
+// Reads config from themeSettings.supportWidget
+// Supports: Chat interno, WhatsApp button, or both
+// Excludes checkout pages
+// =============================================
+
 import { useState, useEffect, useRef } from "react";
-import { MessageCircle, X, Send, Loader2, Minimize2 } from "lucide-react";
+import { MessageCircle, X, Send, Loader2, Minimize2, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { useStorefrontConfig } from "@/contexts/StorefrontConfigContext";
+import { usePublicThemeSettings } from "@/hooks/usePublicThemeSettings";
+import { DEFAULT_SUPPORT_WIDGET, SupportWidgetConfig } from "@/hooks/useThemeSettings";
+import { getWhatsAppHref } from "@/lib/contactHelpers";
 import { cn } from "@/lib/utils";
+import { useLocation } from "react-router-dom";
 
 interface Message {
   id: string;
@@ -15,8 +26,21 @@ interface Message {
   created_at: string;
 }
 
-export function SupportChatWidget() {
+interface SupportChatWidgetProps {
+  tenantSlug: string;
+  bootstrapTemplate?: any;
+}
+
+export function SupportChatWidget({ tenantSlug, bootstrapTemplate }: SupportChatWidgetProps) {
   const { tenantId } = useStorefrontConfig();
+  const location = useLocation();
+  const { themeSettings } = usePublicThemeSettings(tenantSlug, bootstrapTemplate);
+  
+  const config: SupportWidgetConfig = {
+    ...DEFAULT_SUPPORT_WIDGET,
+    ...themeSettings?.supportWidget,
+  };
+
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -28,6 +52,9 @@ export function SupportChatWidget() {
   const [customerEmail, setCustomerEmail] = useState("");
   const [showForm, setShowForm] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Hide on checkout pages
+  const isCheckoutPage = location.pathname.includes('/checkout');
 
   // Load existing conversation from localStorage
   useEffect(() => {
@@ -63,7 +90,6 @@ export function SupportChatWidget() {
 
     loadMessages();
 
-    // Subscribe to new messages
     const channel = supabase
       .channel(`widget-messages-${conversationId}`)
       .on(
@@ -98,12 +124,11 @@ export function SupportChatWidget() {
 
     setIsLoading(true);
     try {
-      // Create conversation - use type assertion as 'chat' was just added to enum
       const { data: conversation, error } = await supabase
         .from("conversations")
         .insert({
           tenant_id: tenantId,
-          channel_type: "chat" as "whatsapp", // Type assertion - 'chat' exists in DB
+          channel_type: "chat" as "whatsapp",
           status: "open" as const,
           customer_name: customerName,
           customer_email: customerEmail,
@@ -117,12 +142,10 @@ export function SupportChatWidget() {
       setConversationId(conversation.id);
       setShowForm(false);
 
-      // Save to localStorage
       localStorage.setItem(`support_conversation_${tenantId}`, conversation.id);
       localStorage.setItem(`support_customer_name_${tenantId}`, customerName);
       localStorage.setItem(`support_customer_email_${tenantId}`, customerEmail);
 
-      // Log event
       await supabase.from("conversation_events").insert({
         conversation_id: conversation.id,
         tenant_id: tenantId,
@@ -144,7 +167,6 @@ export function SupportChatWidget() {
     setIsSending(true);
 
     try {
-      // Insert message
       const { error } = await supabase.from("messages").insert({
         conversation_id: conversationId,
         tenant_id: tenantId,
@@ -157,7 +179,6 @@ export function SupportChatWidget() {
 
       if (error) throw error;
 
-      // Update conversation
       await supabase
         .from("conversations")
         .update({
@@ -166,7 +187,6 @@ export function SupportChatWidget() {
         })
         .eq("id", conversationId);
 
-      // Try to get AI response
       try {
         await supabase.functions.invoke("ai-support-chat", {
           body: {
@@ -203,36 +223,72 @@ export function SupportChatWidget() {
     setIsOpen(false);
   };
 
-  if (!tenantId) return null;
+  // Don't render if disabled, no tenantId, or on checkout
+  if (!tenantId || !config.enabled || isCheckoutPage) return null;
+
+  const showChat = config.type === 'chat' || config.type === 'both';
+  const showWhatsApp = (config.type === 'whatsapp' || config.type === 'both') && config.whatsappNumber;
+  const positionClass = config.position === 'left' ? 'left-4' : 'right-4';
+  const buttonStyle = { backgroundColor: config.buttonColor || '#25D366' };
+
+  // WhatsApp href
+  const whatsappHref = showWhatsApp
+    ? getWhatsAppHref(config.whatsappNumber!, config.whatsappMessage)
+    : null;
 
   return (
     <>
-      {/* Floating Button */}
+      {/* Floating Buttons - only when chat is closed */}
       {!isOpen && (
-        <button
-          onClick={() => setIsOpen(true)}
-          className="fixed bottom-4 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105"
-        >
-          <MessageCircle className="h-6 w-6" />
-        </button>
+        <div className={cn("fixed bottom-4 z-50 flex flex-col gap-3", positionClass)}>
+          {/* WhatsApp Button */}
+          {showWhatsApp && whatsappHref && (
+            <a
+              href={whatsappHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105"
+              style={buttonStyle}
+              title="WhatsApp"
+            >
+              <Phone className="h-6 w-6 text-white" />
+            </a>
+          )}
+
+          {/* Chat Button */}
+          {showChat && (
+            <button
+              onClick={() => setIsOpen(true)}
+              className="flex h-14 w-14 items-center justify-center rounded-full shadow-lg transition-transform hover:scale-105"
+              style={showWhatsApp ? { backgroundColor: 'hsl(var(--primary))' } : buttonStyle}
+              title="Chat"
+            >
+              <MessageCircle className="h-6 w-6 text-white" />
+            </button>
+          )}
+        </div>
       )}
 
       {/* Chat Window */}
-      {isOpen && (
+      {isOpen && showChat && (
         <div
           className={cn(
-            "fixed bottom-4 right-4 z-50 flex w-80 flex-col rounded-lg border bg-background shadow-xl transition-all sm:w-96",
+            "fixed bottom-4 z-50 flex w-80 flex-col rounded-lg border bg-background shadow-xl transition-all sm:w-96",
+            positionClass,
             isMinimized ? "h-14" : "h-[500px]"
           )}
         >
           {/* Header */}
-          <div className="flex items-center justify-between rounded-t-lg bg-primary px-4 py-3 text-primary-foreground">
+          <div
+            className="flex items-center justify-between rounded-t-lg px-4 py-3"
+            style={{ backgroundColor: config.buttonColor || 'hsl(var(--primary))', color: '#fff' }}
+          >
             <span className="font-medium">Atendimento</span>
             <div className="flex gap-1">
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-7 w-7 text-primary-foreground hover:bg-primary-foreground/20"
+                className="h-7 w-7 text-white hover:bg-white/20"
                 onClick={() => setIsMinimized(!isMinimized)}
               >
                 <Minimize2 className="h-4 w-4" />
@@ -240,7 +296,7 @@ export function SupportChatWidget() {
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-7 w-7 text-primary-foreground hover:bg-primary-foreground/20"
+                className="h-7 w-7 text-white hover:bg-white/20"
                 onClick={() => setIsOpen(false)}
               >
                 <X className="h-4 w-4" />
@@ -250,7 +306,6 @@ export function SupportChatWidget() {
 
           {!isMinimized && (
             <>
-              {/* Form or Messages */}
               {showForm ? (
                 <div className="flex flex-1 flex-col gap-4 p-4">
                   <p className="text-sm text-muted-foreground">
@@ -272,6 +327,8 @@ export function SupportChatWidget() {
                   <Button
                     onClick={startConversation}
                     disabled={!customerName.trim() || !customerEmail.trim() || isLoading}
+                    style={buttonStyle}
+                    className="text-white"
                   >
                     {isLoading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -282,7 +339,6 @@ export function SupportChatWidget() {
                 </div>
               ) : (
                 <>
-                  {/* Messages */}
                   <ScrollArea className="flex-1 p-4" ref={scrollRef}>
                     {isLoading ? (
                       <div className="flex h-full items-center justify-center">
@@ -300,9 +356,10 @@ export function SupportChatWidget() {
                             className={cn(
                               "max-w-[80%] rounded-lg px-3 py-2 text-sm",
                               msg.direction === "inbound"
-                                ? "self-end bg-primary text-primary-foreground"
+                                ? "self-end text-white"
                                 : "self-start bg-muted"
                             )}
+                            style={msg.direction === "inbound" ? buttonStyle : undefined}
                           >
                             {msg.content}
                           </div>
@@ -311,7 +368,6 @@ export function SupportChatWidget() {
                     )}
                   </ScrollArea>
 
-                  {/* Input */}
                   <div className="flex gap-2 border-t p-3">
                     <Input
                       placeholder="Digite sua mensagem..."
@@ -324,6 +380,8 @@ export function SupportChatWidget() {
                       size="icon"
                       onClick={sendMessage}
                       disabled={!newMessage.trim() || isSending}
+                      style={buttonStyle}
+                      className="text-white"
                     >
                       {isSending ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -333,7 +391,6 @@ export function SupportChatWidget() {
                     </Button>
                   </div>
 
-                  {/* End conversation */}
                   <button
                     onClick={endConversation}
                     className="border-t px-3 py-2 text-xs text-muted-foreground hover:bg-muted"
