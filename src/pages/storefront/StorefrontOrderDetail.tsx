@@ -185,14 +185,6 @@ export default function StorefrontOrderDetail() {
                       <p className="text-sm text-muted-foreground mb-2">Código de rastreio:</p>
                       <div className="flex items-center gap-2">
                         <code className="bg-muted px-2 py-1 rounded text-sm">{order.tracking_code}</code>
-                        {order.tracking_url && (
-                          <a href={order.tracking_url} target="_blank" rel="noopener noreferrer">
-                            <Button variant="outline" size="sm">
-                              <ExternalLink className="h-4 w-4 mr-1" />
-                              Rastrear
-                            </Button>
-                          </a>
-                        )}
                       </div>
                     </div>
                   )}
