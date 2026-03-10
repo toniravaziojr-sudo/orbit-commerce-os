@@ -175,6 +175,40 @@ function generateMarketingPixelScripts(config: any): string {
 }
 
 // ============================================
+// SUPPORT WIDGET — Edge-rendered floating button
+// ============================================
+function generateSupportWidgetHtml(themeSettings: any, routeType: string): string {
+  if (routeType === 'checkout') return '';
+  const config = themeSettings?.supportWidget;
+  const enabled = config?.enabled ?? true;
+  if (!enabled) return '';
+  const type = config?.type || 'chat';
+  const whatsappNumber = config?.whatsappNumber || '';
+  const whatsappMessage = config?.whatsappMessage || 'Olá! Preciso de ajuda.';
+  const buttonColor = config?.buttonColor || '#25D366';
+  const position = config?.position || 'right';
+  const showWhatsApp = (type === 'whatsapp' || type === 'both') && whatsappNumber;
+  const showChat = type === 'chat' || type === 'both';
+  if (!showWhatsApp && !showChat) return '';
+  const posStyle = position === 'left' ? 'left:16px;' : 'right:16px;';
+  const cleanNumber = whatsappNumber.replace(/\D/g, '');
+  const encodedMsg = encodeURIComponent(whatsappMessage);
+  const waHref = `https://wa.me/${cleanNumber}?text=${encodedMsg}`;
+  const phoneSvg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.87.36 1.72.7 2.53a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.81.34 1.66.57 2.53.7A2 2 0 0 1 22 16.92z"/></svg>`;
+  const chatSvg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>`;
+  const btnStyle = `display:flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:50%;border:none;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.15);transition:transform 0.2s;text-decoration:none;`;
+  let buttons = '';
+  if (showWhatsApp) {
+    buttons += `<a href="${waHref}" target="_blank" rel="noopener noreferrer" style="${btnStyle}background:${escapeHtml(buttonColor)};" title="WhatsApp" onmouseenter="this.style.transform='scale(1.05)'" onmouseleave="this.style.transform='scale(1)'">${phoneSvg}</a>`;
+  }
+  if (showChat) {
+    const chatColor = showWhatsApp ? 'var(--theme-primary-bg, #1a1a1a)' : buttonColor;
+    buttons += `<a href="#" data-sf-support-chat style="${btnStyle}background:${escapeHtml(chatColor)};" title="Chat" onmouseenter="this.style.transform='scale(1.05)'" onmouseleave="this.style.transform='scale(1)'">${chatSvg}</a>`;
+  }
+  return `<div id="sf-support-widget" style="position:fixed;bottom:16px;${posStyle}z-index:50;display:flex;flex-direction:column;gap:12px;">${buttons}</div>`;
+}
+
+// ============================================
 // NEWSLETTER POPUP — Edge-rendered popup
 // ============================================
 function generateNewsletterPopupHtml(config: any, tenantId: string, routeType: string): string {
@@ -352,6 +386,7 @@ function buildFullPage(opts: {
   mobileTextColor?: string;
   marketingScripts?: string;
   newsletterPopupHtml?: string;
+  supportWidgetHtml?: string;
   consentBannerHtml?: string;
   benefitEnabled?: boolean;
   benefitThreshold?: number;
@@ -1320,6 +1355,7 @@ function buildFullPage(opts: {
       }
     })();
   </script>
+  ${opts.supportWidgetHtml || ''}
   ${opts.newsletterPopupHtml || ''}
   ${opts.consentBannerHtml || ''}
   ${opts.marketingScripts || ''}
@@ -2109,6 +2145,9 @@ serve(async (req) => {
     // === NEWSLETTER POPUP ===
     const newsletterPopupHtml = generateNewsletterPopupHtml(newsletterPopup, tenantId, route.type);
     
+    // === SUPPORT WIDGET ===
+    const supportWidgetHtml = generateSupportWidgetHtml(themeSettings, route.type);
+    
     // === CONSENT BANNER (LGPD) ===
     const consentBannerHtml = marketingConfig?.consent_mode_enabled ? generateConsentBannerHtml() : '';
 
@@ -2138,6 +2177,7 @@ serve(async (req) => {
       mobileTextColor: mobileHeaderText,
       marketingScripts,
       newsletterPopupHtml,
+      supportWidgetHtml,
       consentBannerHtml,
       benefitEnabled: !!benefitConfig?.enabled,
       benefitThreshold,
