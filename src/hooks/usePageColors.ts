@@ -106,9 +106,8 @@ export function getPageColorsCss(colors: PageColors | null | undefined): string 
 
   if (!hasAnyColor) return '';
 
-  // Use .sf-page-cart / .sf-page-checkout for specificity-based override
-  // These classes are added to the page container in StorefrontCart / StorefrontCheckout
-  const pageScope = '.storefront-container .sf-page-cart, .storefront-container .sf-page-checkout';
+  // Use .sf-page-checkout for specificity-based override (cart inherits global theme)
+  const pageScope = '.storefront-container .sf-page-checkout';
 
   let css = `/* Page-specific color overrides — specificity-based (no !important) */\n`;
 
