@@ -288,9 +288,16 @@ function generateNewsletterPopupHtml(config: any, tenantId: string, routeType: s
         if(pct>=${triggerScroll}){fired=true;showPopup();}
       });
     } else if(triggerType==="exit_intent"){
-      var eiReady=false;
-      setTimeout(function(){eiReady=true;},2000);
-      document.addEventListener("mouseout",function(e){if(!eiReady||dismissed)return;if(e.clientY<5){eiReady=false;showPopup();}});
+      var eiReady=false;var eiFired=false;
+      setTimeout(function(){eiReady=true;},2500);
+      document.addEventListener("mouseleave",function(e){
+        if(!eiReady||eiFired||dismissed)return;
+        if(e.clientY<=0){eiFired=true;showPopup();}
+      });
+      document.addEventListener("mousemove",function(e){
+        if(!eiReady||eiFired||dismissed)return;
+        if(e.clientY<50&&e.movementY<-5){eiFired=true;showPopup();}
+      });
     }
     popup.addEventListener("click",function(e){
       if(e.target.closest("[data-sf-action='close-newsletter-popup']"))hidePopup();

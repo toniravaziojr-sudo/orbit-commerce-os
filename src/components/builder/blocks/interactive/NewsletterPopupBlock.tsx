@@ -143,14 +143,30 @@ export function NewsletterPopupBlock({
       window.addEventListener('scroll', handleScroll);
       cleanup = () => window.removeEventListener('scroll', handleScroll);
     } else if (triggerType === 'exit_intent') {
+      let eiReady = false;
+      let eiFired = false;
+      const readyTimeout = setTimeout(() => { eiReady = true; }, 2500);
       const handleMouseLeave = (e: MouseEvent) => {
+        if (!eiReady || eiFired) return;
         if (e.clientY <= 0) {
+          eiFired = true;
           setIsOpen(true);
-          document.removeEventListener('mouseleave', handleMouseLeave);
+        }
+      };
+      const handleMouseMove = (e: MouseEvent) => {
+        if (!eiReady || eiFired) return;
+        if (e.clientY < 50 && e.movementY < -5) {
+          eiFired = true;
+          setIsOpen(true);
         }
       };
       document.addEventListener('mouseleave', handleMouseLeave);
-      cleanup = () => document.removeEventListener('mouseleave', handleMouseLeave);
+      document.addEventListener('mousemove', handleMouseMove);
+      cleanup = () => {
+        clearTimeout(readyTimeout);
+        document.removeEventListener('mouseleave', handleMouseLeave);
+        document.removeEventListener('mousemove', handleMouseMove);
+      };
     }
 
     return cleanup;
