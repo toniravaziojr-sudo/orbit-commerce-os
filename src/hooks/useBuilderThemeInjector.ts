@@ -80,9 +80,12 @@ export function useBuilderThemeInjector(
     // Convert hex to HSL for Tailwind CSS variable override
     const primaryHsl = hexToHslValues(buttonPrimaryBg);
     const primaryFgHsl = hexToHslValues(buttonPrimaryText);
+    const textPrimaryHsl = hexToHslValues(textPrimary);
+    const textSecondaryHsl = hexToHslValues(textSecondary);
 
-    // Generate button and tag rules from shared source
+    // Generate button, text, and tag rules from shared source
     const buttonRules = generateButtonCssRules('.storefront-container');
+    const textRules = generateTextColorCssRules('.storefront-container');
     const accentTagRules = generateAccentAndTagCssRules('.storefront-container');
 
     const css = `
@@ -115,12 +118,15 @@ export function useBuilderThemeInjector(
         --theme-highlight-text: ${highlightText};
       }
       
-      /* CRITICAL: Override Tailwind's --primary inside storefront to use theme colors */
+      /* CRITICAL: Override Tailwind CSS vars inside storefront to use theme colors */
       .storefront-container {
         --primary: ${primaryHsl};
         --primary-foreground: ${primaryFgHsl};
+        --foreground: ${textPrimaryHsl};
+        --muted-foreground: ${textSecondaryHsl};
         font-family: var(--sf-body-font);
         font-size: var(--sf-base-font-size);
+        color: var(--theme-text-primary, #1a1a1a);
       }
       
       /* Apply heading font to all headings */
@@ -147,6 +153,7 @@ export function useBuilderThemeInjector(
       }
 
       ${buttonRules}
+      ${textRules}
       ${accentTagRules}
 
       /* Custom CSS from theme settings */
