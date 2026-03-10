@@ -48,23 +48,47 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 
 ## Estrutura Visual
 
+### Ordem dos elementos na coluna de informações (OBRIGATÓRIA)
+
+A ordem dos elementos é idêntica no Builder (SPA) e no Público (Edge):
+
+```
+1. Badges (Frete Grátis — sem badge de desconto separado)
+2. Estrelas de avaliação (rating)
+3. Nome do produto (h1)
+4. Marca (se existir)
+5. Preço (com compare_at_price + badge -X% inline)
+6. Badge Pix
+7. Descrição curta
+8. Estoque
+9. Variantes
+10. Quantidade
+11. CTAs (Comprar Agora → Adicionar ao Carrinho → WhatsApp)
+12. Calculadora de frete
+13. Imagens de destaque adicional
+```
+
+### Diagrama
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                              HEADER                                      │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  ┌────────────────────────────┐  ┌────────────────────────────────────┐ │
-│  │                            │  │  BADGES (Frete Grátis, -X% OFF)   │ │
-│  │      GALERIA DE IMAGENS    │  │  NOME DO PRODUTO                   │ │
-│  │                            │  │  Marca                              │ │
-│  │   [Img principal]          │  │  R$ 199,90  ~~R$ 249,90~~ -20%    │ │
-│  │                            │  │  em até 12x de R$ 16,66            │ │
-│  │   [thumb] [thumb] [thumb]  │  │  Descrição curta                   │ │
-│  │                            │  │  Estoque (últimas N / em estoque)  │ │
-│  └────────────────────────────┘  │                                    │ │
-│                                  │  [🛒 ADICIONAR AO CARRINHO]        │ │
-│                                  │  [💬 COMPRAR PELO WHATSAPP]        │ │
+│  │                            │  │  BADGES (Frete Grátis via SVG)     │ │
+│  │      GALERIA DE IMAGENS    │  │  ★★★★★ (avaliações)               │ │
+│  │                            │  │  NOME DO PRODUTO                   │ │
+│  │   [Img principal]          │  │  Marca                              │ │
+│  │                            │  │  R$ 199,90  ~~R$ 249,90~~ -20%    │ │
+│  │   [thumb] [thumb] [thumb]  │  │  em até 12x de R$ 16,66            │ │
+│  │                            │  │  Descrição curta                   │ │
+│  └────────────────────────────┘  │  Estoque: N unidades               │ │
 │                                  │                                    │ │
-│                                  │  📦 Calcular Frete: [CEP] [OK]     │ │
+│                                  │  [COMPRAR AGORA]  (primary, pill)  │ │
+│                                  │  [ADICIONAR AO CARRINHO] (outline) │ │
+│                                  │  [COMPRAR PELO WHATSAPP] (outline) │ │
+│                                  │                                    │ │
+│                                  │  Calcular frete: [CEP] [OK]        │ │
 │                                  │  [Imagens de destaque adicional]   │ │
 │                                  └────────────────────────────────────┘ │
 ├─────────────────────────────────────────────────────────────────────────┤
@@ -73,6 +97,18 @@ Página de detalhes do produto com galeria, variantes, avaliações e ofertas.
 │                              FOOTER                                      │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
+
+### Regras de Paridade Visual (v8.3.0)
+
+| Elemento | Regra | Builder | Edge |
+|----------|-------|---------|------|
+| **Badge Frete Grátis** | SVG icon Truck, texto "Frete Grátis" (caps), fundo verde claro | ✅ Lucide `<Truck>` | ✅ SVG inline |
+| **Badge Desconto** | NÃO exibir como badge separado. Mostrar `-X%` inline no preço com cores `--theme-danger-bg/text` | ✅ | ✅ |
+| **Emojis** | PROIBIDO em elementos de UI. Usar SVG/Lucide icons | ✅ | ✅ (corrigido v8.3.0) |
+| **Botão Comprar Agora** | `.sf-btn-primary`, pill (`rounded-full`), `uppercase`, `letter-spacing` | ✅ | ✅ |
+| **Botão Adicionar** | `.sf-btn-secondary`, pill, outline (border primary), `uppercase`, `letter-spacing` | ✅ | ✅ (corrigido v8.3.0) |
+| **Botão WhatsApp** | Outline verde, pill, `uppercase`, hover → solid verde escuro | ✅ | ✅ (corrigido v8.3.0) |
+| **Desconto inline** | `--theme-danger-bg` (vermelho) + `--theme-danger-text` (branco) | ✅ | ✅ (corrigido v8.3.0) |
 
 ---
 
