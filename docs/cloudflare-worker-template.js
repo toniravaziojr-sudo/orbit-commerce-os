@@ -477,8 +477,34 @@ export default {
     const isSpaOnlyRoute = SPA_ONLY_ROUTES.some(r => cleanPath === r || cleanPath.startsWith(r + '/'));
 
     if (isNavigationRequest && !isSpaOnlyRoute && SUPABASE_URL) {
+      // Check for preview mode — skip cache entirely
+      const isPreview = url.searchParams.has('preview') || url.searchParams.has('draft');
+      
+      // ========== EDGE CACHE LAYER ==========
+      // Cache pre-rendered HTML at Cloudflare edge PoPs (SP/RJ) for instant TTFB
+      const cacheKeyUrl = new Request(`https://html-cache.internal/${publicHost}${url.pathname}`);
+      
+      if (!isPreview) {
+        try {
+          const cachedHtml = await caches.default.match(cacheKeyUrl);
+          if (cachedHtml) {
+            // CACHE HIT — serve directly from edge (~0ms)
+            const cachedHeaders = new Headers(cachedHtml.headers);
+            cachedHeaders.set('X-CC-Cache', 'HIT');
+            cachedHeaders.set('X-CC-Tenant', tenantSlug);
+            return new Response(cachedHtml.body, {
+              status: cachedHtml.status,
+              headers: cachedHeaders,
+            });
+          }
+        } catch (e) {
+          // Cache API error — continue to origin
+          console.error('[Worker] Cache read error:', e);
+        }
+      }
+
       try {
-        // Call storefront-html Edge Function
+        // CACHE MISS — Call storefront-html Edge Function
         const edgeFnUrl = `${SUPABASE_URL}/functions/v1/storefront-html`;
         const fnUrl = new URL(edgeFnUrl);
         fnUrl.searchParams.set('hostname', publicHost);
@@ -518,8 +544,30 @@ export default {
           resHeaders.set('X-CC-Tenant', tenantSlug);
           resHeaders.set('X-CC-Render-Mode', 'edge-html');
           resHeaders.set('X-CC-Domain-Type', domainType);
-          
-          return new Response(htmlRes.body, {
+          resHeaders.set('X-CC-Cache', isPreview ? 'BYPASS' : 'MISS');
+          // Cache-Control for browser (short) + CDN awareness
+          resHeaders.set('Cache-Control', `public, max-age=60, s-maxage=${HTML_CACHE_TTL}, stale-while-revalidate=${HTML_STALE_TTL}`);
+
+          // Clone body for cache storage + response
+          const htmlBody = await htmlRes.text();
+
+          // Store in edge cache (non-blocking, only for 200 OK, skip preview)
+          if (htmlRes.ok && !isPreview) {
+            const cacheHeaders = new Headers(resHeaders);
+            cacheHeaders.set('Cache-Control', `public, max-age=${HTML_CACHE_TTL}`);
+            const cacheResponse = new Response(htmlBody, {
+              status: 200,
+              headers: cacheHeaders,
+            });
+            // waitUntil not available in module syntax — use ctx if available, else fire-and-forget
+            try {
+              await caches.default.put(cacheKeyUrl, cacheResponse);
+            } catch (e) {
+              console.error('[Worker] Cache write error:', e);
+            }
+          }
+
+          return new Response(htmlBody, {
             status: htmlRes.status,
             headers: resHeaders,
           });
