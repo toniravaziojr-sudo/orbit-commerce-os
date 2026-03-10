@@ -274,8 +274,9 @@ function generateNewsletterPopupHtml(config: any, tenantId: string, routeType: s
     var LEGACY_KEY="sf_newsletter_dismissed";
     var showOnce=${showOnce ? 'true' : 'false'};
     if(showOnce&&(sessionStorage.getItem(STORAGE_KEY)||sessionStorage.getItem(LEGACY_KEY)))return;
-    function showPopup(){popup.style.display="${isCorner ? 'block' : 'flex'}";}
-    function hidePopup(){popup.style.display="none";if(showOnce){sessionStorage.setItem(STORAGE_KEY,"1");sessionStorage.setItem(LEGACY_KEY,"1");}}
+    var dismissed=false;
+    function showPopup(){if(dismissed)return;popup.style.display="${isCorner ? 'block' : 'flex'}";}
+    function hidePopup(){popup.style.display="none";dismissed=true;if(showOnce){sessionStorage.setItem(STORAGE_KEY,"1");sessionStorage.setItem(LEGACY_KEY,"1");}}
     var triggerType="${triggerType}";
     if(triggerType==="immediate"){showPopup();}
     else if(triggerType==="delay"){setTimeout(showPopup,${triggerDelay});}
@@ -287,7 +288,9 @@ function generateNewsletterPopupHtml(config: any, tenantId: string, routeType: s
         if(pct>=${triggerScroll}){fired=true;showPopup();}
       });
     } else if(triggerType==="exit_intent"){
-      document.addEventListener("mouseout",function(e){if(e.clientY<5)showPopup();});
+      var eiReady=false;
+      setTimeout(function(){eiReady=true;},2000);
+      document.addEventListener("mouseout",function(e){if(!eiReady||dismissed)return;if(e.clientY<5){eiReady=false;showPopup();}});
     }
     popup.addEventListener("click",function(e){
       if(e.target.closest("[data-sf-action='close-newsletter-popup']"))hidePopup();
