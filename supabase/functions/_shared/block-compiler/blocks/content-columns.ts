@@ -74,7 +74,7 @@ export const contentColumnsToStaticHTML: BlockCompilerFn = (
   const contentCol = `
     <div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;">
       ${title ? `<h2 style="font-size:1.5rem;font-weight:700;margin-bottom:0.75rem;${textStyle}">${escapeHtml(title)}</h2>` : ''}
-      ${subtitle ? `<p style="font-size:1.125rem;color:#666;margin-bottom:1rem;">${escapeHtml(subtitle)}</p>` : ''}
+      ${subtitle ? `<p style="font-size:1.125rem;color:var(--theme-text-secondary, #666);margin-bottom:1rem;">${escapeHtml(subtitle)}</p>` : ''}
       ${content ? `<div style="margin-bottom:1rem;${textStyle}">${content}</div>` : ''}
       ${featuresHtml}
       ${ctaHtml}

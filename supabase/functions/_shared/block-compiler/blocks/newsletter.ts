@@ -64,7 +64,7 @@ export const newsletterToStaticHTML: BlockCompilerFn = (
           ${mailIcon}
           ${title ? `<h2 style="font-size:1.25rem;font-weight:700;">${escapeHtml(title)}</h2>` : ''}
         </div>
-        ${subtitle ? `<p style="color:#666;">${escapeHtml(subtitle)}</p>` : ''}
+        ${subtitle ? `<p style="color:var(--theme-text-secondary, #666);">${escapeHtml(subtitle)}</p>` : ''}
         ${incentiveHtml}
       </div>
       <form data-sf-newsletter class="sf-newsletter-form" style="flex:1;min-width:200px;">

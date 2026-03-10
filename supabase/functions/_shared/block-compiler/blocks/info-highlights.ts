@@ -76,7 +76,7 @@ export function infoHighlightsToStaticHTML(
       </div>
       <div>
         <p style="font-size:14px;font-weight:500;color:${escapeHtml(textColor)};">${escapeHtml(item.title)}</p>
-        ${item.description ? `<p style="font-size:12px;color:#6b7280;margin-top:2px;">${escapeHtml(item.description)}</p>` : ''}
+        ${item.description ? `<p style="font-size:12px;color:var(--theme-text-secondary, #6b7280);margin-top:2px;">${escapeHtml(item.description)}</p>` : ''}
       </div>
     </div>`;
   }).join('');

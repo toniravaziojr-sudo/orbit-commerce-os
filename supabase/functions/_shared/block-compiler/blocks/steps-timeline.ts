@@ -34,7 +34,7 @@ export const stepsTimelineToStaticHTML: BlockCompilerFn = (
   const headerHtml = (title || subtitle) ? `
     <div style="text-align:center;margin-bottom:2.5rem;">
       ${title ? `<h2 style="font-size:1.5rem;font-weight:700;color:inherit;margin-bottom:0.75rem;">${escapeHtml(title)}</h2>` : ''}
-      ${subtitle ? `<p style="color:#666;font-size:1.125rem;max-width:42rem;margin:0 auto;">${escapeHtml(subtitle)}</p>` : ''}
+      ${subtitle ? `<p style="color:var(--theme-text-secondary, #666);font-size:1.125rem;max-width:42rem;margin:0 auto;">${escapeHtml(subtitle)}</p>` : ''}
     </div>` : '';
 
   const checkSvg = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
@@ -50,7 +50,7 @@ export const stepsTimelineToStaticHTML: BlockCompilerFn = (
         </div>
         <div style="${isHorizontal ? 'max-width:16rem;' : 'flex:1;padding-bottom:2rem;'}">
           <h3 style="font-weight:600;font-size:1.125rem;color:inherit;margin-bottom:0.5rem;">${escapeHtml(step.title)}</h3>
-          <p style="color:#666;font-size:0.875rem;line-height:1.6;">${escapeHtml(step.description)}</p>
+          <p style="color:var(--theme-text-secondary, #666);font-size:0.875rem;line-height:1.6;">${escapeHtml(step.description)}</p>
         </div>
       </div>`;
   }).join('');

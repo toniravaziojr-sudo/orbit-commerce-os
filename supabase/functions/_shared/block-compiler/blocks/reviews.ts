@@ -66,7 +66,7 @@ export function reviewsToStaticHTML(props: Record<string, any>, _ctx: CompilerCo
       <div class="${uid}-card" style="flex-shrink:0;background:#fff;border-radius:8px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
         ${renderStars(review.rating)}
         <h3 style="font-weight:600;margin-top:12px;margin-bottom:8px;color:inherit;">${escapeHtml(review.name)}</h3>
-        <p style="font-size:14px;color:#6b7280;margin-bottom:16px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(review.text)}</p>
+        <p style="font-size:14px;color:var(--theme-text-secondary, #6b7280);margin-bottom:16px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(review.text)}</p>
         ${productHtml}
       </div>
     `;

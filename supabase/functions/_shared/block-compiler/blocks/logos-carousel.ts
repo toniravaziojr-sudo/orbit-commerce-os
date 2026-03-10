@@ -52,7 +52,7 @@ export const logosCarouselToStaticHTML: BlockCompilerFn = (
   const headerHtml = (title || subtitle) ? `
     <div style="text-align:center;margin-bottom:2rem;">
       ${title ? `<h2 style="font-size:1.25rem;font-weight:600;color:inherit;margin-bottom:0.5rem;">${escapeHtml(title)}</h2>` : ''}
-      ${subtitle ? `<p style="color:#666;font-size:0.875rem;">${escapeHtml(subtitle)}</p>` : ''}
+      ${subtitle ? `<p style="color:var(--theme-text-secondary, #666);font-size:0.875rem;">${escapeHtml(subtitle)}</p>` : ''}
     </div>` : '';
 
   return `
