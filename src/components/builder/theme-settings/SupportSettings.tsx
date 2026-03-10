@@ -45,8 +45,8 @@ export function SupportSettings({ tenantId, templateSetId }: SupportSettingsProp
     }
   }, [themeSettings?.supportWidget]);
 
-  const handleSave = async () => {
-    const config: SupportWidgetConfig = {
+  const handleSave = () => {
+    const widgetConfig: SupportWidgetConfig = {
       enabled,
       type,
       whatsappNumber,
@@ -55,12 +55,8 @@ export function SupportSettings({ tenantId, templateSetId }: SupportSettingsProp
       position,
     };
     
-    try {
-      await saveThemeSettings({ supportWidget: config });
-      toast.success('Configurações de atendimento salvas!');
-    } catch {
-      toast.error('Erro ao salvar configurações');
-    }
+    saveThemeSettings({ supportWidget: widgetConfig });
+    toast.success('Configurações de atendimento salvas!');
   };
 
   const needsWhatsApp = type === 'whatsapp' || type === 'both';
