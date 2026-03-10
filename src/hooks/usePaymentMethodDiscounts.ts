@@ -46,7 +46,7 @@ const DEFAULT_CONFIGS: Omit<PaymentMethodDiscount, 'id' | 'tenant_id'>[] = [
 ];
 
 export function usePaymentMethodDiscounts() {
-  const { currentTenant } = useTenant();
+  const { currentTenant } = useAuth();
   const tenantId = currentTenant?.id;
   const queryClient = useQueryClient();
 
