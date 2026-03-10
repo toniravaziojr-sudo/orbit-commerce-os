@@ -19,7 +19,7 @@ import { useProductBadgesForProducts } from '@/hooks/useProductBadges';
 import { useCart } from '@/contexts/CartContext';
 import { getPublicCheckoutUrl } from '@/lib/publicUrls';
 import { toast } from 'sonner';
-import { MiniCartDrawer } from '@/components/storefront/MiniCartDrawer';
+import { useMiniCart } from '@/contexts/MiniCartContext';
 import type { CategorySettings } from '@/hooks/usePageSettings';
 
 interface ProductGridBlockProps {

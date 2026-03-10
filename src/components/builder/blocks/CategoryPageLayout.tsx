@@ -23,7 +23,7 @@ import { ShoppingCart, Check } from 'lucide-react';
 import { useProductBadgesForProducts } from '@/hooks/useProductBadges';
 import { ProductCardBadges } from '@/components/storefront/product/ProductCardBadges';
 import { useCart } from '@/contexts/CartContext';
-import { MiniCartDrawer } from '@/components/storefront/MiniCartDrawer';
+import { useMiniCart } from '@/contexts/MiniCartContext';
 import { toast } from 'sonner';
 
 interface Product {
