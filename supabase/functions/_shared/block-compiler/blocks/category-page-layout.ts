@@ -1,8 +1,8 @@
 // =============================================
 // CATEGORY PAGE LAYOUT COMPILER — Block compiler for CategoryPageLayout
 // Mirrors: src/components/builder/blocks/CategoryPageLayout.tsx
-// Renders product grid with filters, sorting, pagination, ratings, badges, cart buttons
-// v8.1.2: Added client-side filters, sorting, and load more
+// Renders product grid with sidebar filters (desktop) and Sheet-style filters (mobile)
+// v8.5.0: Sidebar filters layout matching React CategoryFilters component (parity)
 // =============================================
 
 import type { BlockCompilerFn, CompilerContext } from '../types.ts';
@@ -40,64 +40,21 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
   const hasFreeShipping = products.some(p => p.free_shipping);
   const hasDiscounts = products.some(p => p.compare_at_price && p.compare_at_price > p.price);
 
-  // === FILTER BAR + SORT ===
-  // Desktop: horizontal row with all filters visible
-  // Mobile (<640px): Collapsible button "Filtrar" that toggles filter panel (parity with Builder React CategoryFilters)
-  const filterBarHtml = `
-    <style>
-      .sf-filter-bar { display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:20px;padding:16px;background:#f9fafb;border-radius:10px;border:1px solid #eee; }
-      .sf-filter-bar-filters { display:flex;align-items:center;gap:8px;flex:1;min-width:200px;flex-wrap:wrap; }
-      .sf-filter-bar-sort { display:flex;align-items:center;gap:8px; }
-      .sf-filter-label { display:flex;align-items:center;gap:4px;font-size:13px;color:#555;cursor:pointer;white-space:nowrap;padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;user-select:none;transition:background .15s,border-color .15s; }
-      .sf-filter-label:has(input:checked) { border-color:var(--theme-button-primary-bg,#1a1a1a);background:#f0f0f0; }
-      .sf-filter-price-group { display:flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#fff; }
-      .sf-filter-price-input { width:70px;padding:4px 6px;border:1px solid #eee;border-radius:4px;font-size:12px;outline:none; }
-      /* Mobile: hide inline filters, show toggle button */
-      .sf-filter-toggle-btn { display:none; }
-      .sf-filter-mobile-panel { display:contents; }
-      @media(max-width:639px) {
-        .sf-filter-bar { padding:0;background:transparent;border:none;flex-direction:column;gap:8px; }
-        .sf-filter-toggle-btn { display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:10px 16px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:14px;font-weight:500;color:#333;cursor:pointer; }
-        .sf-filter-mobile-panel { display:none;flex-direction:column;gap:8px;padding:12px;background:#f9fafb;border:1px solid #eee;border-radius:8px; }
-        .sf-filter-mobile-panel.sf-filter-open { display:flex; }
-        .sf-filter-bar-filters { flex-direction:column;align-items:stretch;gap:6px;min-width:0; }
-        .sf-filter-bar-sort { width:100%; }
-        .sf-filter-bar-sort select { flex:1; }
-        .sf-filter-label { font-size:13px;padding:8px 12px; }
-        .sf-filter-price-group { padding:8px 12px; }
-        .sf-filter-price-input { width:auto;flex:1;padding:6px 8px;font-size:13px; }
-        .sf-filter-bar .sf-filter-title { display:none; }
-      }
-    </style>
-    <div class="sf-filter-bar" data-sf-cat-controls>
-      <button type="button" class="sf-filter-toggle-btn" onclick="this.nextElementSibling.classList.toggle('sf-filter-open')">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-        Filtrar
-      </button>
-      <div class="sf-filter-mobile-panel">
-        <div class="sf-filter-bar-filters">
-          <span class="sf-filter-title" style="font-size:13px;font-weight:600;color:#1a1a1a;white-space:nowrap;">Filtros:</span>
-          ${hasFreeShipping ? `
-          <label class="sf-filter-label" data-sf-filter-label="free-shipping">
-            <input type="checkbox" data-sf-filter="free-shipping" style="accent-color:var(--theme-button-primary-bg,#1a1a1a);cursor:pointer;">
-            🚚 Frete grátis
-          </label>` : ''}
-          ${hasDiscounts ? `
-          <label class="sf-filter-label" data-sf-filter-label="on-sale">
-            <input type="checkbox" data-sf-filter="on-sale" style="accent-color:var(--theme-button-primary-bg,#1a1a1a);cursor:pointer;">
-            🏷️ Em promoção
-          </label>` : ''}
-          ${maxPrice - minPrice > 10 ? `
-          <div class="sf-filter-price-group">
-            <span style="font-size:12px;color:#666;white-space:nowrap;">Preço:</span>
-            <input type="number" class="sf-filter-price-input" data-sf-filter="price-min" placeholder="Min" min="${minPrice}" max="${maxPrice}">
-            <span style="font-size:12px;color:#999;">–</span>
-            <input type="number" class="sf-filter-price-input" data-sf-filter="price-max" placeholder="Max" min="${minPrice}" max="${maxPrice}">
-          </div>` : ''}
-        </div>
-        <div class="sf-filter-bar-sort">
-          <label style="font-size:13px;color:#555;white-space:nowrap;">Ordenar:</label>
-          <select data-sf-sort style="padding:6px 28px 6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff;cursor:pointer;outline:none;color:#1a1a1a;appearance:auto;">
+  const fmtPrice = (v: number) => `R$ ${v}`;
+
+  // === SIDEBAR FILTERS (Desktop) — Matches React CategoryFilters sidebar ===
+  const sidebarHtml = `
+    <aside class="sf-filter-sidebar">
+      <div class="sf-filter-sidebar-inner">
+        <h3 class="sf-filter-sidebar-title">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+          Filtros
+        </h3>
+
+        <!-- Ordenar por -->
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:13px;font-weight:500;margin-bottom:8px;color:inherit;">Ordenar por</label>
+          <select data-sf-sort style="width:100%;padding:8px 12px;border:1px solid var(--theme-card-border,#e5e7eb);border-radius:6px;font-size:13px;background:var(--theme-card-bg,#fff);color:inherit;outline:none;cursor:pointer;">
             <option value="default">Relevância</option>
             <option value="price-asc">Menor preço</option>
             <option value="price-desc">Maior preço</option>
@@ -106,39 +63,141 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
             <option value="discount">Maior desconto</option>
           </select>
         </div>
+
+        <!-- Faixa de preço — collapsible -->
+        <div class="sf-filter-section" data-sf-section-open="true">
+          <button type="button" class="sf-filter-section-trigger" onclick="this.parentElement.dataset.sfSectionOpen=this.parentElement.dataset.sfSectionOpen==='true'?'false':'true'">
+            Faixa de preço
+            <svg class="sf-filter-chevron" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="sf-filter-section-content">
+            <div style="padding:8px 0;">
+              <input type="range" data-sf-filter="price-range" min="${minPrice}" max="${maxPrice}" value="${maxPrice}" style="width:100%;accent-color:var(--theme-button-primary-bg,#1a1a1a);cursor:pointer;">
+              <div style="display:flex;justify-content:space-between;font-size:12px;color:#666;margin-top:4px;">
+                <span>${fmtPrice(minPrice)}</span>
+                <span>${fmtPrice(maxPrice)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Disponibilidade — collapsible -->
+        <div class="sf-filter-section" data-sf-section-open="true">
+          <button type="button" class="sf-filter-section-trigger" onclick="this.parentElement.dataset.sfSectionOpen=this.parentElement.dataset.sfSectionOpen==='true'?'false':'true'">
+            Disponibilidade
+            <svg class="sf-filter-chevron" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="sf-filter-section-content">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 0;">
+              <input type="checkbox" data-sf-filter="in-stock" style="accent-color:var(--theme-button-primary-bg,#1a1a1a);width:16px;height:16px;cursor:pointer;">
+              <span style="font-size:13px;color:inherit;">Apenas em estoque</span>
+            </label>
+          </div>
+        </div>
+
+        ${hasFreeShipping ? `
+        <div style="padding:8px 0;border-top:1px solid var(--theme-card-border,#e5e7eb);">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" data-sf-filter="free-shipping" style="accent-color:var(--theme-button-primary-bg,#1a1a1a);width:16px;height:16px;cursor:pointer;">
+            <span style="font-size:13px;color:inherit;">🚚 Frete grátis</span>
+          </label>
+        </div>` : ''}
+
+        ${hasDiscounts ? `
+        <div style="padding:8px 0;border-top:1px solid var(--theme-card-border,#e5e7eb);">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" data-sf-filter="on-sale" style="accent-color:var(--theme-button-primary-bg,#1a1a1a);width:16px;height:16px;cursor:pointer;">
+            <span style="font-size:13px;color:inherit;">🏷️ Em promoção</span>
+          </label>
+        </div>` : ''}
+      </div>
+    </aside>`;
+
+  // === MOBILE FILTER BUTTON — Matches React CategoryFilters Sheet trigger ===
+  const mobileFilterHtml = `
+    <div class="sf-filter-mobile-trigger">
+      <button type="button" class="sf-filter-mobile-btn" onclick="document.getElementById('sf-filter-sheet').classList.add('sf-sheet-open')">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        Filtrar
+      </button>
+    </div>
+    <div id="sf-filter-sheet" class="sf-filter-sheet-overlay" onclick="if(event.target===this)this.classList.remove('sf-sheet-open')">
+      <div class="sf-filter-sheet-panel">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px;border-bottom:1px solid #eee;">
+          <h3 style="font-size:16px;font-weight:600;margin:0;">Filtros</h3>
+          <button type="button" onclick="document.getElementById('sf-filter-sheet').classList.remove('sf-sheet-open')" style="border:none;background:none;cursor:pointer;padding:4px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+        <div style="padding:16px;overflow-y:auto;max-height:calc(80vh - 60px);">
+          <div style="margin-bottom:16px;">
+            <label style="display:block;font-size:13px;font-weight:500;margin-bottom:8px;">Ordenar por</label>
+            <select data-sf-sort-mobile style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:#fff;outline:none;">
+              <option value="default">Relevância</option>
+              <option value="price-asc">Menor preço</option>
+              <option value="price-desc">Maior preço</option>
+              <option value="name-asc">A → Z</option>
+              <option value="name-desc">Z → A</option>
+              <option value="discount">Maior desconto</option>
+            </select>
+          </div>
+          <div style="margin-bottom:16px;">
+            <p style="font-size:13px;font-weight:500;margin-bottom:8px;">Faixa de preço</p>
+            <input type="range" data-sf-filter="price-range-mobile" min="${minPrice}" max="${maxPrice}" value="${maxPrice}" style="width:100%;accent-color:var(--theme-button-primary-bg,#1a1a1a);">
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:#666;margin-top:4px;">
+              <span>${fmtPrice(minPrice)}</span>
+              <span>${fmtPrice(maxPrice)}</span>
+            </div>
+          </div>
+          <div style="margin-bottom:16px;">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" data-sf-filter="in-stock-mobile" style="accent-color:var(--theme-button-primary-bg,#1a1a1a);width:18px;height:18px;">
+              <span style="font-size:14px;">Apenas em estoque</span>
+            </label>
+          </div>
+          ${hasFreeShipping ? `
+          <div style="margin-bottom:12px;">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" data-sf-filter="free-shipping-mobile" style="accent-color:var(--theme-button-primary-bg,#1a1a1a);width:18px;height:18px;">
+              <span style="font-size:14px;">🚚 Frete grátis</span>
+            </label>
+          </div>` : ''}
+          ${hasDiscounts ? `
+          <div style="margin-bottom:12px;">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" data-sf-filter="on-sale-mobile" style="accent-color:var(--theme-button-primary-bg,#1a1a1a);width:18px;height:18px;">
+              <span style="font-size:14px;">🏷️ Em promoção</span>
+            </label>
+          </div>` : ''}
+        </div>
       </div>
     </div>`;
 
-  // Product count (will be updated by JS)
+  // Product count
   const countHtml = `<p data-sf-cat-count style="font-size:14px;color:#666;margin-bottom:16px;">${totalProducts} produto${totalProducts !== 1 ? 's' : ''}</p>`;
 
-  // Product cards — each card gets data attributes for client-side filtering
+  // Product cards
   const cardsHtml = products.map((p, index) => {
     const imgUrl = p.product_images?.[0]?.url;
     const optimized = optimizeImageUrl(imgUrl, 400, 80);
     const hasDiscount = p.compare_at_price && p.compare_at_price > p.price;
     const discountPercent = hasDiscount ? Math.round((1 - p.price / p.compare_at_price!) * 100) : 0;
 
-    // Badges — horizontal row matching ProductCardBadges (React uses flex row)
     let badgesHtml = '';
     if (showBadges) {
       const badges: string[] = [];
-      // Dynamic badges from "Aumentar Ticket" system
       const dynamicBadges = context.productBadges.get(p.id) || [];
       for (const db of dynamicBadges.slice(0, 3)) {
         const shapeRadius = db.shape === 'circular' || db.shape === 'pill' ? '12px' : db.shape === 'square' ? '2px' : '4px';
         badges.push(`<span style="background:${db.background_color};color:${db.text_color};font-size:10px;font-weight:600;padding:3px 8px;border-radius:${shapeRadius};white-space:nowrap;">${escapeHtml(db.name)}</span>`);
       }
-      // Static badges
       if (p.free_shipping) badges.push(`<span style="background:#16a34a;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;white-space:nowrap;">FRETE GRÁTIS</span>`);
       if (hasDiscount && discountPercent >= 10) badges.push(`<span style="background:#dc2626;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;white-space:nowrap;">-${discountPercent}%</span>`);
       if (badges.length > 0) {
-        // Horizontal row at top-left (matches ProductCardBadges component)
         badgesHtml = `<div style="position:absolute;top:6px;left:6px;right:6px;display:flex;align-items:center;gap:4px;z-index:2;pointer-events:none;flex-wrap:nowrap;overflow:hidden;">${badges.slice(0, 3).join('')}</div>`;
       }
     }
 
-    // Ratings
     let ratingsHtml = '';
     if (showRatings && p.avg_rating && p.review_count) {
       const fullStars = Math.floor(p.avg_rating);
@@ -150,7 +209,6 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
       </div>`;
     }
 
-    // Buttons (same order as builder: 1. Add to cart, 2. Custom, 3. Buy now / Quick buy)
     const buttonsHtml: string[] = [];
     if (showAddToCartButton) {
       buttonsHtml.push(`<button type="button" data-sf-action="add-to-cart" data-product-id="${p.id}" data-product-name="${escapeHtml(p.name)}" data-product-price="${p.price}" data-product-image="${escapeHtml(imgUrl || '')}" class="sf-btn-outline-primary" style="width:100%;padding:8px;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;gap:6px;min-height:36px;">
@@ -168,7 +226,6 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
       buttonsHtml.push(`<button type="button" data-sf-action="buy-now" data-product-id="${p.id}" data-product-name="${escapeHtml(p.name)}" data-product-price="${p.price}" data-product-image="${escapeHtml(imgUrl || '')}" class="sf-btn-primary" style="width:100%;padding:8px;border:none;border-radius:6px;font-size:12px;text-align:center;font-weight:500;cursor:pointer;min-height:36px;">${escapeHtml(buyNowButtonText)}</button>`);
     }
 
-    // Hidden beyond first page initially
     const hiddenByPagination = hasMoreThanOnePage && index >= PRODUCTS_PER_PAGE;
 
     return `
@@ -201,7 +258,6 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
       </div>`;
   }).join('');
 
-  // Load more button
   const loadMoreHtml = hasMoreThanOnePage ? `
     <div data-sf-load-more-wrap style="text-align:center;margin-top:32px;">
       <button data-sf-action="load-more" style="padding:12px 40px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">
@@ -212,7 +268,6 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
       </p>
     </div>` : '';
 
-  // No results placeholder (hidden by default, shown by JS)
   const noResultsHtml = `
     <div data-sf-no-results style="display:none;text-align:center;padding:48px 16px;color:#999;">
       <p style="font-size:16px;font-weight:500;margin-bottom:8px;">Nenhum produto encontrado</p>
@@ -220,7 +275,6 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
       <button data-sf-action="clear-filters" style="margin-top:16px;padding:8px 24px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:6px;font-size:13px;cursor:pointer;">Limpar filtros</button>
     </div>`;
 
-  // JSON-LD
   const jsonLd = category ? JSON.stringify({
     "@context": "https://schema.org",
     "@type": "CollectionPage",
@@ -230,28 +284,91 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
     "numberOfItems": totalProducts,
   }) : '';
 
+  // === STYLES — Parity with React CategoryFilters + CategoryPageLayout ===
+  const styles = `<style>
+    /* Sidebar — Desktop only (matches React: hidden lg:block, w-64) */
+    .sf-filter-sidebar { display:none; }
+    @media(min-width:1024px) {
+      .sf-filter-sidebar { display:block;width:256px;flex-shrink:0; }
+      .sf-filter-sidebar-inner {
+        position:sticky;top:96px;
+        background:var(--theme-card-bg,#fff);
+        border-radius:8px;border:1px solid var(--theme-card-border,#e5e7eb);
+        padding:16px;
+      }
+    }
+    .sf-filter-sidebar-title {
+      display:flex;align-items:center;gap:8px;
+      font-size:15px;font-weight:600;margin-bottom:16px;color:inherit;
+    }
+    .sf-filter-section { border-top:1px solid var(--theme-card-border,#e5e7eb);padding-top:8px;margin-top:8px; }
+    .sf-filter-section-trigger {
+      display:flex;align-items:center;justify-content:space-between;width:100%;
+      padding:8px 0;font-size:13px;font-weight:500;color:inherit;
+      background:none;border:none;cursor:pointer;text-align:left;
+    }
+    .sf-filter-section-trigger:hover { color:var(--theme-button-primary-bg,#1a1a1a); }
+    .sf-filter-chevron { transition:transform .2s; }
+    .sf-filter-section[data-sf-section-open="false"] .sf-filter-section-content { display:none; }
+    .sf-filter-section[data-sf-section-open="false"] .sf-filter-chevron { transform:rotate(-90deg); }
+
+    /* Mobile trigger — visible only <1024px (matches React: lg:hidden) */
+    .sf-filter-mobile-trigger { display:block;margin-bottom:16px; }
+    @media(min-width:1024px) { .sf-filter-mobile-trigger { display:none; } }
+    .sf-filter-mobile-btn {
+      display:flex;align-items:center;justify-content:center;gap:8px;
+      width:100%;padding:10px 16px;
+      border:1px solid var(--theme-card-border,#ddd);border-radius:8px;
+      background:var(--theme-card-bg,#fff);font-size:14px;font-weight:500;
+      color:inherit;cursor:pointer;
+    }
+
+    /* Sheet overlay (matches React Sheet component behavior) */
+    .sf-filter-sheet-overlay {
+      display:none;position:fixed;inset:0;z-index:9999;
+      background:rgba(0,0,0,0.5);
+    }
+    .sf-filter-sheet-overlay.sf-sheet-open { display:flex;align-items:flex-end; }
+    .sf-filter-sheet-panel {
+      width:100%;max-height:80vh;
+      background:var(--theme-card-bg,#fff);
+      border-radius:16px 16px 0 0;
+      overflow:hidden;
+    }
+
+    /* Layout: sidebar + grid (flex row) */
+    .sf-cat-layout { display:flex;gap:24px; }
+
+    /* Product grid */
+    .sf-cat-grid { display:grid;grid-template-columns:repeat(2,1fr);gap:16px; }
+    @media(max-width:639px) { .sf-cat-grid { gap:8px !important; } }
+    @media(min-width:640px) { .sf-cat-grid { grid-template-columns:repeat(3,1fr); } }
+    @media(min-width:1024px) { .sf-cat-grid { grid-template-columns:repeat(${columns},1fr); } }
+
+    .sf-cat-card { transition:opacity .2s; }
+    @media(hover:hover){
+      .sf-cat-card-link:hover { box-shadow:0 4px 12px rgba(0,0,0,0.08); }
+      .sf-cat-card-link:hover img { transform:scale(1.05); }
+    }
+    @media(max-width:639px) {
+      .sf-cat-card .sf-btn-primary,.sf-cat-card .sf-btn-outline-primary{min-height:36px !important;font-size:11px !important;}
+      .sf-cat-card [style*="padding:8px 12px"]{padding:6px 8px 8px !important;}
+    }
+  </style>`;
+
   return `
     ${jsonLd ? `<script type="application/ld+json">${jsonLd}</script>` : ''}
+    ${styles}
     <div style="max-width:1280px;margin:0 auto;padding:24px 16px;" data-sf-cat-container data-page-size="${PRODUCTS_PER_PAGE}" data-total="${totalProducts}">
-      ${filterBarHtml}
-      ${countHtml}
-      <style>
-        .sf-cat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
-        @media(max-width:639px) { .sf-cat-grid { gap: 8px !important; } }
-        @media(min-width:640px) { .sf-cat-grid { grid-template-columns: repeat(3, 1fr); } }
-        @media(min-width:1024px) { .sf-cat-grid { grid-template-columns: repeat(${columns}, 1fr); } }
-        .sf-cat-card { transition: opacity .2s; }
-        @media(hover:hover){
-          .sf-cat-card-link:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-          .sf-cat-card-link:hover img { transform: scale(1.05); }
-        }
-        @media(max-width:639px) {
-          .sf-cat-card .sf-btn-primary,.sf-cat-card .sf-btn-outline-primary{min-height:36px !important;font-size:11px !important;}
-          .sf-cat-card [style*="padding:8px 12px"]{padding:6px 8px 8px !important;}
-        }
-      </style>
-      <div class="sf-cat-grid" data-sf-cat-grid>${cardsHtml}</div>
-      ${noResultsHtml}
-      ${loadMoreHtml}
+      ${mobileFilterHtml}
+      <div class="sf-cat-layout">
+        ${sidebarHtml}
+        <div style="flex:1;min-width:0;">
+          ${countHtml}
+          <div class="sf-cat-grid" data-sf-cat-grid>${cardsHtml}</div>
+          ${noResultsHtml}
+          ${loadMoreHtml}
+        </div>
+      </div>
     </div>`;
 };
