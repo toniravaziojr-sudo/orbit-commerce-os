@@ -94,36 +94,52 @@ export function TenantStorefrontLayout() {
   return (
     <CartProvider tenantSlug={tenantSlug}>
       <DiscountProvider>
-        <StorefrontConfigProvider tenantId={tenant.id} customDomain={customDomain}>
-          <MarketingTrackerProvider tenantId={tenant.id}>
-            <StorefrontHead tenantId={tenant.id} storeSettings={storeSettings} />
-            <LcpPreloader tenantId={tenant.id} bootstrapTemplate={bootstrapTemplate} />
-            <StorefrontThemeInjector tenantSlug={tenantSlug} bootstrapTemplate={bootstrapTemplate} />
-            <Suspense fallback={null}>
-              <DomainDisabledGuard tenantSlug={tenantSlug}>
-                <div className="min-h-screen flex flex-col bg-white">
-                  {isPreview && (
-                    <div className="bg-yellow-100 border-b border-yellow-200 px-4 py-2 text-center text-sm text-yellow-800">
-                      Modo de pré-visualização - Esta página não está publicada
-                    </div>
-                  )}
-                  <main className="flex-1">
-                    <TenantSlugContext.Provider value={tenantSlug}>
-                      <Outlet />
-                    </TenantSlugContext.Provider>
-                  </main>
-                  <Suspense fallback={null}>
-                    <SupportChatWidget />
-                  </Suspense>
-                  <Suspense fallback={null}>
-                    <NewsletterPopupLoader tenantId={tenant.id} />
-                  </Suspense>
-                </div>
-              </DomainDisabledGuard>
-            </Suspense>
-          </MarketingTrackerProvider>
-        </StorefrontConfigProvider>
+        <MiniCartProvider>
+          <StorefrontConfigProvider tenantId={tenant.id} customDomain={customDomain}>
+            <MarketingTrackerProvider tenantId={tenant.id}>
+              <StorefrontHead tenantId={tenant.id} storeSettings={storeSettings} />
+              <LcpPreloader tenantId={tenant.id} bootstrapTemplate={bootstrapTemplate} />
+              <StorefrontThemeInjector tenantSlug={tenantSlug} bootstrapTemplate={bootstrapTemplate} />
+              <Suspense fallback={null}>
+                <DomainDisabledGuard tenantSlug={tenantSlug}>
+                  <div className="min-h-screen flex flex-col bg-white">
+                    {isPreview && (
+                      <div className="bg-yellow-100 border-b border-yellow-200 px-4 py-2 text-center text-sm text-yellow-800">
+                        Modo de pré-visualização - Esta página não está publicada
+                      </div>
+                    )}
+                    <main className="flex-1">
+                      <TenantSlugContext.Provider value={tenantSlug}>
+                        <Outlet />
+                      </TenantSlugContext.Provider>
+                    </main>
+                    <TenantLayoutMiniCartDrawer tenantSlug={tenantSlug} isPreview={isPreview} />
+                    <Suspense fallback={null}>
+                      <SupportChatWidget />
+                    </Suspense>
+                    <Suspense fallback={null}>
+                      <NewsletterPopupLoader tenantId={tenant.id} />
+                    </Suspense>
+                  </div>
+                </DomainDisabledGuard>
+              </Suspense>
+            </MarketingTrackerProvider>
+          </StorefrontConfigProvider>
+        </MiniCartProvider>
       </DiscountProvider>
     </CartProvider>
+  );
+}
+
+// Single MiniCartDrawer instance for the tenant storefront
+function TenantLayoutMiniCartDrawer({ tenantSlug, isPreview }: { tenantSlug: string; isPreview: boolean }) {
+  const { isOpen, setOpen } = useMiniCart();
+  return (
+    <MiniCartDrawer
+      open={isOpen}
+      onOpenChange={setOpen}
+      tenantSlug={tenantSlug}
+      isPreview={isPreview}
+    />
   );
 }
