@@ -351,7 +351,7 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
       .sf-cat-card-link:hover img { transform:scale(1.05); }
     }
     @media(max-width:639px) {
-      .sf-cat-card .sf-btn-primary,.sf-cat-card .sf-btn-outline-primary{min-height:36px !important;font-size:11px !important;}
+      .sf-cat-card .sf-btn-primary,.sf-cat-card .sf-btn-secondary{min-height:36px !important;font-size:11px !important;}
       .sf-cat-card [style*="padding:8px 12px"]{padding:6px 8px 8px !important;}
     }
   </style>`;
