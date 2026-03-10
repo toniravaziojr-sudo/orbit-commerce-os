@@ -224,10 +224,22 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
         .eq('is_enabled', true)
         .eq('supports_quote', true);
 
-      // Fetch active free shipping rules to derive bar threshold (raw query - table not in generated types)
-      const { data: freeShippingRules } = await supabase
-        .rpc('get_lowest_free_shipping_threshold', { p_tenant_id: tenantId })
-        .maybeSingle();
+      // Fetch active free shipping rules to derive bar threshold
+      // Table not in generated types, use raw REST call
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      let freeShippingRules: Array<{ min_order_cents: number | null }> = [];
+      try {
+        const res = await fetch(
+          `${supabaseUrl}/rest/v1/free_shipping_rules?tenant_id=eq.${tenantId}&is_enabled=eq.true&select=min_order_cents`,
+          { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } }
+        );
+        if (res.ok) {
+          freeShippingRules = await res.json();
+        }
+      } catch (e) {
+        console.warn('[StorefrontConfigContext] Failed to fetch free shipping rules:', e);
+      }
 
       let shippingConfig = parseShippingConfig(storeData?.shipping_config);
 
