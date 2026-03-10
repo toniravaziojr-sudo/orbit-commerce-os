@@ -1065,10 +1065,7 @@ export function PageSettingsContent({
                         handleChange('buttonPrimaryBg', '');
                         handleChange('buttonPrimaryText', '');
                         handleChange('buttonPrimaryHover', '');
-                        if (pageType === 'checkout') {
-                        if (pageType === 'checkout') {
-                          handleChange('flagsColor', '');
-                        }
+                        handleChange('flagsColor', '');
                       }}
                       className="text-xs text-muted-foreground hover:text-foreground underline"
                     >
