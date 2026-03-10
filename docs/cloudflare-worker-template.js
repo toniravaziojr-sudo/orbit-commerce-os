@@ -412,6 +412,11 @@ export default {
           isCanonical,
           edgeFunctionRoutes: Object.keys(EDGE_FUNCTION_ROUTES),
           strategy: 'edge_rendered_html_first',
+          cache: {
+            htmlCacheTTL: HTML_CACHE_TTL,
+            staleTTL: HTML_STALE_TTL,
+            resolverTTL: RESOLVE_CACHE_TTL,
+          },
           status: resolved?.tenantSlug ? 'OK' : 'TENANT_NOT_FOUND',
         }, null, 2),
         { 
