@@ -203,6 +203,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
 
   // === CTA BUTTONS === (Order matches SPA: [Qty + Buy Now row] → Add to Cart → WhatsApp)
   // Mirrors ProductCTAs.tsx layout: quantity selector + buy now in same flex row
+  const inStock = (product.stock_quantity ?? 0) > 0 || product.allow_backorder;
   let ctaHtml = '';
   if (inStock) {
     const mainImageThumb = mainImage ? escapeHtml(optimizeImageUrl(mainImage.url, 120, 75)) : '';
