@@ -290,8 +290,8 @@ export function PublicTemplateRenderer({
         </div>
       )}
       
-      {/* Page container */}
-      <div className="storefront-container min-h-screen flex flex-col">
+      {/* Page container — sf-page-* class enables specificity-based overrides */}
+      <div className={`storefront-container sf-page-${pageType} min-h-screen flex flex-col`}>
         {/* 1. HEADER - rendered first */}
         {headerNode && (
           <BlockRenderer

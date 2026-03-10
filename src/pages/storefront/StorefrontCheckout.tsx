@@ -188,7 +188,7 @@ export default function StorefrontCheckout() {
         `}} />
       )}
       
-      <div className="storefront-container min-h-screen flex flex-col">
+      <div className="storefront-container sf-page-checkout min-h-screen flex flex-col">
         {/* Checkout header - uses checkout_header_config */}
         <StorefrontHeaderContent
           tenantSlug={tenantSlug || ''}
