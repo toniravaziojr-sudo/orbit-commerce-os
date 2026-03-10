@@ -20,6 +20,8 @@
 const PLATFORM_SUBDOMAIN_RE = /^([a-z0-9-]+)\.shops\.comandocentral\.com\.br$/i;
 const RESOLVE_CACHE_TTL = 300;
 const MAX_INTERNAL_FOLLOWS = 5;
+const HTML_CACHE_TTL = 900; // 15 minutes edge cache for pre-rendered HTML
+const HTML_STALE_TTL = 86400; // 24h stale-while-revalidate
 
 // Paths que sempre vão para a raiz do origin (assets do Vite)
 const STATIC_PATHS = [
