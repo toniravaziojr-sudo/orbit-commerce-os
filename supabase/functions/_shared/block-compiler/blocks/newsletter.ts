@@ -42,7 +42,7 @@ export const newsletterToStaticHTML: BlockCompilerFn = (
   <div style="max-width:28rem;margin:0 auto;text-align:center;${cardExtra}">
     ${mailIcon ? `<div style="display:flex;justify-content:center;margin-bottom:1rem;"><div style="padding:0.75rem;border-radius:50%;background:rgba(0,0,0,0.05);">${mailIcon}</div></div>` : ''}
     ${title ? `<h2 style="font-size:1.5rem;font-weight:700;margin-bottom:0.5rem;">${escapeHtml(title)}</h2>` : ''}
-    ${subtitle ? `<p style="color:#666;margin-bottom:1rem;">${escapeHtml(subtitle)}</p>` : ''}
+    ${subtitle ? `<p style="color:var(--theme-text-secondary, #666);margin-bottom:1rem;">${escapeHtml(subtitle)}</p>` : ''}
     ${incentiveHtml}
     <form data-sf-newsletter class="sf-newsletter-form" style="margin-top:1rem;">
       <div style="display:flex;flex-direction:column;gap:0.75rem;">
