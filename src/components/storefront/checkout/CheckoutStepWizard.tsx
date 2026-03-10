@@ -848,8 +848,8 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           </div>
         </div>
 
-        {/* Sidebar - Order summary + Coupon + Testimonials */}
-        <div className="space-y-4" style={{ alignSelf: 'start' }}>
+        {/* Sidebar - Order summary + Coupon (sticky) */}
+        <div style={{ alignSelf: 'start' }}>
           <div className="sticky top-4 space-y-4">
             {/* Coupon input - Conditional based on checkout_config */}
             {checkoutConfig.couponEnabled && (
@@ -878,12 +878,15 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
               freeShipping={hasFreeShipping}
             />
           </div>
-
-          {/* Testimonials - OUTSIDE sticky container so they scroll naturally */}
-          {checkoutConfig.testimonialsEnabled && (
-            <CheckoutTestimonials tenantId={tenantId} productIds={items.map(item => item.product_id)} />
-          )}
         </div>
+      </div>
+
+      {/* Testimonials - OUTSIDE the grid entirely so sticky sidebar never overlaps */}
+      {checkoutConfig.testimonialsEnabled && (
+        <div className="sf-checkout-testimonials-wrapper mt-6">
+          <CheckoutTestimonials tenantId={tenantId} productIds={items.map(item => item.product_id)} />
+        </div>
+      )}
       </div>
     </div>
   );
