@@ -3280,3 +3280,36 @@ Para adicionar novos presets no futuro:
 | Prerender pipeline | Variável | HTML pré-renderizado atualizado via job assíncrono |
 
 A loja pública pode levar alguns minutos para refletir mudanças após publicação. O Preview (`?preview=1`) NÃO tem cache (`staleTime: 0`).
+
+---
+
+## 💬 Support Widget Settings (Atendimento) — Draft Workflow (v1.0)
+
+### Hook: useThemeSupportWidget
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Hook |
+| **Localização** | `src/hooks/useThemeSettings.ts` |
+| **Descrição** | Gerencia rascunho local das configurações do widget de suporte (chat/WhatsApp). Segue o padrão de draft obrigatório do Builder. |
+| **Comportamento** | 1. Mantém `draftUpdates` em estado local. 2. `updateSupportWidget()` merge parcial no draft. 3. Chama `notifyHeaderFooterDraftChange()` para ativar `isDirty` na toolbar. 4. Draft é incorporado no `handleSave` do `VisualBuilder.tsx`. 5. `clearDraft` limpa estado ao descartar. |
+| **Afeta** | `VisualBuilder.tsx` (save/dirty/clear), `SupportSettings.tsx` (UI) |
+
+### Componente: SupportSettings
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente |
+| **Localização** | `src/components/builder/theme-settings/SupportSettings.tsx` |
+| **Descrição** | Painel de configuração do widget de atendimento no Builder |
+| **Comportamento** | Toggle ativar/desativar, seletor de modo (Chat/WhatsApp/Ambos), número WhatsApp, mensagem padrão, cor do botão, posição (esquerda/direita). Todas as alterações são draft-only até salvar. |
+| **Condições** | Visível no menu lateral do Builder sob "Atendimento" |
+
+### Ref Global: globalSupportWidgetDraftRef
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Config |
+| **Localização** | `src/hooks/useThemeSettings.ts` |
+| **Descrição** | Ref global que permite ao `VisualBuilder` acessar o draft do support widget para merge no save e detecção de `isDirty` |
+| **Afeta** | `VisualBuilder.tsx` → `isDirty`, `handleSave`, `clearDraft` |
