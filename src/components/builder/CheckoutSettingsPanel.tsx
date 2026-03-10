@@ -17,7 +17,8 @@ import {
 } from '@/components/ui/accordion';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { CreditCard } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { CreditCard, AlertTriangle } from 'lucide-react';
 
 // Re-export from source of truth
 export type { CheckoutSettings } from '@/hooks/usePageSettings';
@@ -151,6 +152,15 @@ export function CheckoutSettingsPanel({
               {/* PAYMENT METHODS SECTION */}
               <div className="pt-3 border-t">
                 <p className="text-sm font-medium mb-3">Formas de Pagamento</p>
+
+                <Alert className="mb-3 border-amber-500/30 bg-amber-50 dark:bg-amber-950/20 py-2">
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                  <AlertDescription className="text-xs text-amber-800 dark:text-amber-300">
+                    Estes toggles controlam apenas a <strong>visibilidade</strong> no checkout.
+                    Para ativar/desativar métodos de pagamento ou configurar descontos e parcelas, acesse{' '}
+                    <strong>Sistema → Configurações → Pagamentos</strong>.
+                  </AlertDescription>
+                </Alert>
                 
                 {/* PIX */}
                 <div className="flex items-center justify-between mb-2">

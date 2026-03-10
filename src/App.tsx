@@ -156,6 +156,7 @@ const Affiliates = lazy(() => import("@/pages/Affiliates"));
 const SupportCenter = lazy(() => import("@/pages/SupportCenter"));
 const AIPackages = lazy(() => import("@/pages/AIPackages"));
 const QAStorefront = lazy(() => import("@/pages/admin/QAStorefront"));
+const SystemSettings = lazy(() => import("@/pages/SystemSettings"));
 
 // Storefront Pages — LAZY LOADED (isolated from admin bundle)
 // NOTE: Content pages (Home, Category, Product, Blog, Page, LP) are Edge-only.
@@ -472,6 +473,7 @@ const App = () => {
                    <Route path="/platform/tools" element={<PlatformTools />} />
                   {/* System routes - Owner only */}
                   <Route path="/system/users" element={<GatedRoute moduleKey="sistema_usuarios" moduleName="Usuários e Permissões" moduleDescription="Gerencie usuários e permissões da sua loja"><SystemUsers /></GatedRoute>} />
+                  <Route path="/system/settings" element={<SystemSettings />} />
                   {/* Legacy redirects */}
                   <Route path="/health-monitor" element={<Navigate to="/platform/health-monitor" replace />} />
                   <Route path="/settings/emails" element={<Navigate to="/platform/integrations" replace />} />
