@@ -215,7 +215,7 @@ A ordem dos botões nos cards de produto é fixa e obrigatória:
 
 > **REGRA ANTI-REGRESSÃO:** Após alterar o compilador de filtros, é OBRIGATÓRIO: 1) Deploy da edge function, 2) Invalidar cache (status='stale'). Nessa ordem.
 
-### Filtros Client-Side (React SPA — v8.5.1)
+### Filtros Client-Side (React SPA — v8.5.2)
 
 **Arquivos:** `CategoryPageLayout.tsx` (lógica), `CategoryFilters.tsx` (UI)
 
@@ -232,6 +232,8 @@ A ordem dos botões nos cards de produto é fixa e obrigatória:
 3. **Aplicação imediata**: Todos os filtros aplicam automaticamente ao alterar (sem botão "Aplicar")
 4. **`filteredProducts` memo**: Recalcula quando qualquer filtro muda (`priceRange`, `sortBy`, `inStockOnly`, `selectedTags`)
 5. **Limpar filtros**: Botão "Limpar filtros" aparece quando qualquer filtro está ativo
+6. **Sincronização de priceRange (v8.5.2 FIX)**: `priceRange` state inicia em `[0, 500]` e é sincronizado com `computedMaxPrice` via `useEffect` quando os produtos carregam (flag `priceInitialized` evita re-sync após interação do usuário). `CategoryFilters.tsx` usa `localPriceRange` sincronizado com prop via `useEffect([priceRange])`.
+7. **Espaçamento mobile (v8.5.2 FIX)**: Container usa `pt-2 sm:pt-4 pb-6` (não `py-6`) para reduzir gap entre banner e filtros no mobile.
 
 ### Filtros Client-Side (Edge/Compilador)
 | Filtro | Tipo | Descrição |
