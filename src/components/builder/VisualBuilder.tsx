@@ -795,6 +795,10 @@ export function VisualBuilder({
           miniCartDraft.clearDraft();
           console.log('[VisualBuilder.handleSave] Cleared miniCart draft');
         }
+        if (supportWidgetDraft?.hasDraftChanges) {
+          supportWidgetDraft.clearDraft();
+          console.log('[VisualBuilder.handleSave] Cleared supportWidget draft');
+        }
         // Save popup changes to its dedicated table (not themeSettings)
         if (popupDraft?.hasDraftChanges) {
           await popupDraft.savePendingChanges();
