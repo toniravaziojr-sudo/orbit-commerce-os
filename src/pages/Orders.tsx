@@ -108,9 +108,12 @@ export default function Orders() {
   };
 
   // Calculate stats from current page
-  const pendingCount = orders.filter(o => o.status === 'pending').length;
-  const processingCount = orders.filter(o => o.status === 'approved' || o.status === 'dispatched').length;
-  const shippedCount = orders.filter(o => o.status === 'shipping').length;
+  const pendingCount = orders.filter(o => normalizeOrderStatus(o.status) === 'awaiting_confirmation').length;
+  const processingCount = orders.filter(o => {
+    const s = normalizeOrderStatus(o.status);
+    return s === 'ready_to_invoice' || s === 'invoice_pending_sefaz' || s === 'invoice_authorized' || s === 'invoice_issued';
+  }).length;
+  const shippedCount = orders.filter(o => normalizeOrderStatus(o.status) === 'dispatched').length;
 
   return (
     <div className="space-y-8 animate-fade-in">
