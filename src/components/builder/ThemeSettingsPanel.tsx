@@ -19,6 +19,7 @@ import { HeaderSettings } from './theme-settings/HeaderSettings';
 import { FooterSettings } from './theme-settings/FooterSettings';
 import { MiniCartSettings } from './theme-settings/MiniCartSettings';
 import { PopupSettings } from './theme-settings/PopupSettings';
+import { SupportSettings } from './theme-settings/SupportSettings';
 
 import { MiniCartConfig } from './theme-settings/MiniCartSettings';
 
