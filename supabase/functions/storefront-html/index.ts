@@ -234,11 +234,12 @@ function generateNewsletterPopupHtml(config: any, tenantId: string, routeType: s
   (function(){
     var popup=document.getElementById("sf-newsletter-popup");
     if(!popup)return;
-    var STORAGE_KEY="sf_newsletter_dismissed";
+    var STORAGE_KEY="newsletter_popup_shown";
+    var LEGACY_KEY="sf_newsletter_dismissed";
     var showOnce=${showOnce ? 'true' : 'false'};
-    if(showOnce&&sessionStorage.getItem(STORAGE_KEY))return;
+    if(showOnce&&(sessionStorage.getItem(STORAGE_KEY)||sessionStorage.getItem(LEGACY_KEY)))return;
     function showPopup(){popup.style.display="${isCorner ? 'block' : 'flex'}";}
-    function hidePopup(){popup.style.display="none";if(showOnce)sessionStorage.setItem(STORAGE_KEY,"1");}
+    function hidePopup(){popup.style.display="none";if(showOnce){sessionStorage.setItem(STORAGE_KEY,"1");sessionStorage.setItem(LEGACY_KEY,"1");}}
     var triggerType="${triggerType}";
     if(triggerType==="immediate"){showPopup();}
     else if(triggerType==="delay"){setTimeout(showPopup,${triggerDelay});}
