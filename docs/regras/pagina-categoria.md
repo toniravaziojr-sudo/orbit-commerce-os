@@ -1,8 +1,9 @@
 # Página de Categoria — Regras e Especificações
 
 > **Status:** FUNCIONAL ✅ — Core + Filtros + Ordenação + Paginação + Badges Dinâmicos  
-> **Última atualização:** 2026-03-09  
-> **Arquitetura:** v8.4.4 — Filtros mobile collapsible (paridade Builder/Público)
+> **Última atualização:** 2026-03-10  
+> **Arquitetura:** v8.5.0 — Filtros sidebar (desktop) + Sheet (mobile) — paridade total Builder/Público
+> **Regra de paridade:** Ver `docs/regras/paridade-builder-publico.md`
 
 ## Visão Geral
 
