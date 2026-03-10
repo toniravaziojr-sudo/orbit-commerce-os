@@ -1136,7 +1136,7 @@ function buildFullPage(opts: {
           if(e.key==="ArrowRight"&&gallerySrcs.length>1)lbShow(lbCurrentIdx+1);
           if(e.key==="+"||e.key==="=")lbSetZoom(lbZoom+0.25);
           if(e.key==="-")lbSetZoom(lbZoom-0.25);
-        });
+        },{signal:sfSignal});
         if(lbZoomIn)lbZoomIn.addEventListener("click",function(){lbSetZoom(lbZoom+0.25);});
         if(lbZoomOut)lbZoomOut.addEventListener("click",function(){lbSetZoom(lbZoom-0.25);});
         if(lbPrev)lbPrev.addEventListener("click",function(){lbShow(lbCurrentIdx-1);});
