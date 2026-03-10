@@ -36,14 +36,20 @@ A Loja Virtual é o módulo central de e-commerce que permite criar, personaliza
 
 ## Arquitetura
 
-### Modelo Dual: SPA (Admin/Preview) + Edge-Rendered (Produção)
+### Modelo: Edge-Rendered (Produção) + SPA (Interatividade)
 
-A partir da v5.0.0, o storefront público opera em **dois modos**:
+A partir da v9.0.0, o storefront público opera em **modelo segregado**:
 
-| Modo | Quando | Como |
-|------|--------|------|
-| **Edge-Rendered** (v8.1.4) | Domínio custom ou subdomínio `.shops.` em produção | Edge Function `storefront-html` serve HTML pré-renderizado (fast path) ou live render (fallback) |
-| **SPA Bootstrap** (v4.0.0) | Preview no admin (`/store/{slug}`) e fallback | React SPA com `storefront-bootstrap` JSON |
+| Modo | Páginas | Como |
+|------|---------|------|
+| **Edge-Rendered** (v8.1.4+) | Home, Categoria, Produto, Blog, Pages, Landing Pages | Edge Function `storefront-html` serve HTML. **Sem fallback SPA.** Se falhar → 404 visível. |
+| **SPA React** | Cart, Checkout, Obrigado, Conta/*, Rastreio, Busca, Quiz, Avaliação | React SPA com `TenantStorefrontLayout` ou `StorefrontLayout` |
+
+**REGRA:** Páginas de conteúdo NÃO existem no React Router. A navegação entre Edge e SPA é sempre full page reload. Isso elimina bugs de hidratação e conflito de estado.
+
+**Arquivos removidos (v9.0.0):**
+- `StorefrontPageRenderer.tsx` [REMOVIDO] — não era utilizado
+- Rotas SPA de conteúdo (Home, Category, Product, Blog, Page, LP) [REMOVIDAS] do App.tsx
 
 ### Arquitetura Edge-Rendered (Produção) — Fast Path + Live Fallback
 
