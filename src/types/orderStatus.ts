@@ -3,45 +3,67 @@
  * 
  * These types are the canonical source of truth for all order-related statuses.
  * Modules (Fiscal, Notificações, etc.) should import and use these types via "API interna".
+ * 
+ * === FLUXO DO STATUS DO PEDIDO (coluna "Status") ===
+ * 
+ * 1. awaiting_confirmation  → Pedido criado, aguardando pagamento
+ * 2. ready_to_invoice        → Pagamento aprovado, pronto para emitir NF (automático)
+ * 3. invoice_pending_sefaz   → NF submetida à SEFAZ, aguardando resposta
+ * 4. invoice_authorized      → SEFAZ aprovou, NF enviada ao cliente
+ * 5. invoice_issued          → NF impressa, sendo preparada para envio
+ * 6. dispatched              → Pacote despachado
+ * 7. completed               → Pedido chegou ao destino (concluído)
+ * 8. returning               → NF de devolução emitida
+ * 9. payment_expired         → Pedido não pago que expirou
+ * 10. invoice_rejected       → SEFAZ rejeitou a NF
+ * 11. invoice_cancelled      → NF cancelada após autorização
+ * 
+ * Colunas Envio e Pagamento: independentes, sem mudança.
  */
 
 // ==========================================
-// ORDER STATUS (Status do Pedido)
+// ORDER STATUS (Status do Pedido - Trabalho Interno)
 // ==========================================
 export type OrderStatus = 
-  | 'pending'       // Pendente - Pedido gerado e não pago
-  | 'approved'      // Aprovado - Pedido pago/confirmado
-  | 'dispatched'    // Despachado - Pedido com etiqueta gerada
-  | 'shipping'      // A caminho - Pedido enviado
-  | 'completed'     // Concluído - Pedido entregue
-  | 'cancelled'     // Cancelado - Pedido cancelado por falta de pagamento
-  | 'returned'      // Devolvido - Pedido enviado mas devolvido
-  | 'refunded';     // Estornado - Pagamento estornado
+  | 'awaiting_confirmation'    // Aguardando confirmação - Pedido não pago
+  | 'ready_to_invoice'         // Pronto para emitir NF - Pagamento confirmado
+  | 'invoice_pending_sefaz'    // Pendente SEFAZ - NF submetida
+  | 'invoice_authorized'       // NF Autorizada - SEFAZ aprovou, enviada ao cliente
+  | 'invoice_issued'           // NF Emitida - Impressa, preparando envio
+  | 'dispatched'               // Despachado - Pacote despachado
+  | 'completed'                // Concluído - Chegou ao destino
+  | 'returning'                // Em devolução - NF de devolução emitida
+  | 'payment_expired'          // Pagamento expirado - Não pago, expirou
+  | 'invoice_rejected'         // NF Rejeitada - SEFAZ rejeitou
+  | 'invoice_cancelled';       // NF Cancelada - Cancelada pós-autorização
 
 export const ORDER_STATUS_CONFIG: Record<OrderStatus, { 
   label: string; 
   variant: 'default' | 'secondary' | 'destructive' | 'outline';
   color?: string;
 }> = {
-  pending: { label: 'Pendente', variant: 'secondary' },
-  approved: { label: 'Aprovado', variant: 'default' },
+  awaiting_confirmation: { label: 'Aguardando confirmação', variant: 'outline' },
+  ready_to_invoice: { label: 'Pronto para emitir NF', variant: 'secondary' },
+  invoice_pending_sefaz: { label: 'Pendente SEFAZ', variant: 'outline' },
+  invoice_authorized: { label: 'NF Autorizada', variant: 'default' },
+  invoice_issued: { label: 'NF Emitida', variant: 'default' },
   dispatched: { label: 'Despachado', variant: 'default' },
-  shipping: { label: 'A caminho', variant: 'default' },
   completed: { label: 'Concluído', variant: 'default' },
-  cancelled: { label: 'Cancelado', variant: 'destructive' },
-  returned: { label: 'Devolvido', variant: 'destructive' },
-  refunded: { label: 'Estornado', variant: 'destructive' },
+  returning: { label: 'Em devolução', variant: 'destructive' },
+  payment_expired: { label: 'Pagamento expirado', variant: 'destructive' },
+  invoice_rejected: { label: 'NF Rejeitada', variant: 'destructive' },
+  invoice_cancelled: { label: 'NF Cancelada', variant: 'destructive' },
 };
 
 // ==========================================
-// PAYMENT STATUS (Status de Pagamento)
+// PAYMENT STATUS (Status de Pagamento) — SEM MUDANÇA
 // ==========================================
 export type PaymentStatus = 
-  | 'awaiting_payment'  // Aguardando pagamento - Pedido gerado e não pago
-  | 'paid'              // Pago - Pedido pago/confirmado
-  | 'declined'          // Recusado - Pagamento recusado via cartão
-  | 'cancelled'         // Cancelado - Pagamento expirado ou cancelado
-  | 'refunded';         // Estornado - Pagamento estornado ao cliente
+  | 'awaiting_payment'  // Aguardando pagamento
+  | 'paid'              // Pago
+  | 'declined'          // Recusado
+  | 'cancelled'         // Cancelado
+  | 'refunded';         // Estornado
 
 export const PAYMENT_STATUS_CONFIG: Record<PaymentStatus, { 
   label: string; 
@@ -55,19 +77,19 @@ export const PAYMENT_STATUS_CONFIG: Record<PaymentStatus, {
 };
 
 // ==========================================
-// SHIPPING STATUS (Status de Envio)
+// SHIPPING STATUS (Status de Envio) — SEM MUDANÇA
 // ==========================================
 export type ShippingStatus = 
-  | 'awaiting_shipment'  // Aguardando envio - Pedido pago, aguardando NF
-  | 'label_generated'    // Etiqueta gerada - NF emitida e etiqueta gerada
-  | 'shipped'            // Enviado - Pedido postado
-  | 'in_transit'         // Em trânsito - Primeira atualização do percurso
-  | 'arriving'           // Chegando - Em rota de entrega
-  | 'delivered'          // Entregue - Pedido entregue ao destinatário
-  | 'problem'            // Problema no envio - Extraviado, perdido, etc
-  | 'awaiting_pickup'    // Aguardando retirada - Aguardando retirada na agência
-  | 'returning'          // Em devolução - Pedido em devolução
-  | 'returned';          // Devolvido - Pedido chegou ao remetente
+  | 'awaiting_shipment'  // Aguardando envio
+  | 'label_generated'    // Etiqueta gerada
+  | 'shipped'            // Enviado
+  | 'in_transit'         // Em trânsito
+  | 'arriving'           // Chegando
+  | 'delivered'          // Entregue
+  | 'problem'            // Problema no envio
+  | 'awaiting_pickup'    // Aguardando retirada
+  | 'returning'          // Em devolução
+  | 'returned';          // Devolvido
 
 export const SHIPPING_STATUS_CONFIG: Record<ShippingStatus, { 
   label: string; 
@@ -87,22 +109,37 @@ export const SHIPPING_STATUS_CONFIG: Record<ShippingStatus, {
 
 // ==========================================
 // LEGACY MAPPINGS (for backward compatibility)
+// Maps old DB enum values to new OrderStatus display values
 // ==========================================
 
-// Map old order status values to new ones
 export const LEGACY_ORDER_STATUS_MAP: Record<string, OrderStatus> = {
-  pending: 'pending',
-  awaiting_payment: 'pending',
-  paid: 'approved',
-  processing: 'approved',
-  shipped: 'shipping',
-  in_transit: 'shipping',
+  // New values (identity)
+  awaiting_confirmation: 'awaiting_confirmation',
+  ready_to_invoice: 'ready_to_invoice',
+  invoice_pending_sefaz: 'invoice_pending_sefaz',
+  invoice_authorized: 'invoice_authorized',
+  invoice_issued: 'invoice_issued',
+  dispatched: 'dispatched',
+  completed: 'completed',
+  returning: 'returning',
+  payment_expired: 'payment_expired',
+  invoice_rejected: 'invoice_rejected',
+  invoice_cancelled: 'invoice_cancelled',
+  // Legacy values → new values
+  pending: 'awaiting_confirmation',
+  awaiting_payment: 'awaiting_confirmation',
+  paid: 'ready_to_invoice',
+  processing: 'ready_to_invoice',
+  shipped: 'dispatched',
+  in_transit: 'dispatched',
   delivered: 'completed',
-  cancelled: 'cancelled',
-  returned: 'returned',
+  cancelled: 'payment_expired',
+  returned: 'returning',
+  // Extra old values
+  approved: 'ready_to_invoice',
+  refunded: 'payment_expired',
 };
 
-// Map old payment status values to new ones
 export const LEGACY_PAYMENT_STATUS_MAP: Record<string, PaymentStatus> = {
   pending: 'awaiting_payment',
   processing: 'awaiting_payment',
@@ -110,9 +147,11 @@ export const LEGACY_PAYMENT_STATUS_MAP: Record<string, PaymentStatus> = {
   declined: 'declined',
   refunded: 'refunded',
   cancelled: 'cancelled',
+  // Identity
+  awaiting_payment: 'awaiting_payment',
+  paid: 'paid',
 };
 
-// Map old shipping status values to new ones
 export const LEGACY_SHIPPING_STATUS_MAP: Record<string, ShippingStatus> = {
   pending: 'awaiting_shipment',
   processing: 'label_generated',
@@ -122,12 +161,19 @@ export const LEGACY_SHIPPING_STATUS_MAP: Record<string, ShippingStatus> = {
   delivered: 'delivered',
   returned: 'returned',
   failed: 'problem',
+  // Identity
+  awaiting_shipment: 'awaiting_shipment',
+  label_generated: 'label_generated',
+  arriving: 'arriving',
+  problem: 'problem',
+  awaiting_pickup: 'awaiting_pickup',
+  returning: 'returning',
 };
 
 // Utility functions to normalize status from DB
 export function normalizeOrderStatus(status: string | null): OrderStatus {
-  if (!status) return 'pending';
-  return LEGACY_ORDER_STATUS_MAP[status] || 'pending';
+  if (!status) return 'awaiting_confirmation';
+  return LEGACY_ORDER_STATUS_MAP[status] || 'awaiting_confirmation';
 }
 
 export function normalizePaymentStatus(status: string | null): PaymentStatus {
