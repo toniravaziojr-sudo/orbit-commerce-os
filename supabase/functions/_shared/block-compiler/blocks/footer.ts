@@ -121,13 +121,18 @@ export function footerToStaticHTML(context: CompilerContext): string {
   
   if (showSac && hasContact) {
     const contactItems: string[] = [];
+    // SVG icons matching Lucide icons from StorefrontFooterContent.tsx
+    const whatsAppIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>`;
+    const phoneIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
+    const mailIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`;
+    const mapPinIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px;"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`;
     if (whatsApp) {
       const cleanNum = whatsApp.replace(/\D/g, '');
-      contactItems.push(`<a href="https://wa.me/${cleanNum}" target="_blank" rel="noopener noreferrer" style="font-size:13px;color:${escapeHtml(footerTextColor)};opacity:0.8;display:flex;align-items:center;gap:8px;text-decoration:none;"><span style="color:#25D366;">💬</span> WhatsApp</a>`);
+      contactItems.push(`<a href="https://wa.me/${cleanNum}" target="_blank" rel="noopener noreferrer" style="font-size:13px;color:${escapeHtml(footerTextColor)};opacity:0.8;display:flex;align-items:center;gap:8px;text-decoration:none;">${whatsAppIcon} WhatsApp</a>`);
     }
-    if (phone) contactItems.push(`<a href="tel:${escapeHtml(phone.replace(/\D/g, ''))}" style="font-size:13px;color:${escapeHtml(footerTextColor)};opacity:0.8;display:flex;align-items:center;gap:8px;text-decoration:none;"><span>📞</span> ${escapeHtml(phone)}</a>`);
-    if (email) contactItems.push(`<a href="mailto:${escapeHtml(email)}" style="font-size:13px;color:${escapeHtml(footerTextColor)};opacity:0.8;display:flex;align-items:center;gap:8px;text-decoration:none;"><span>✉️</span> ${escapeHtml(email)}</a>`);
-    if (address) contactItems.push(`<div style="font-size:13px;color:${escapeHtml(footerTextColor)};opacity:0.8;display:flex;align-items:flex-start;gap:8px;"><span>📍</span> ${escapeHtml(address)}</div>`);
+    if (phone) contactItems.push(`<a href="tel:${escapeHtml(phone.replace(/\D/g, ''))}" style="font-size:13px;color:${escapeHtml(footerTextColor)};opacity:0.8;display:flex;align-items:center;gap:8px;text-decoration:none;">${phoneIcon} ${escapeHtml(phone)}</a>`);
+    if (email) contactItems.push(`<a href="mailto:${escapeHtml(email)}" style="font-size:13px;color:${escapeHtml(footerTextColor)};opacity:0.8;display:flex;align-items:center;gap:8px;text-decoration:none;">${mailIcon} ${escapeHtml(email)}</a>`);
+    if (address) contactItems.push(`<div style="font-size:13px;color:${escapeHtml(footerTextColor)};opacity:0.8;display:flex;align-items:flex-start;gap:8px;">${mapPinIcon} ${escapeHtml(address)}</div>`);
     
     col2Html += `<div style="margin-bottom:20px;">
       <h4 style="font-size:14px;font-weight:600;color:${escapeHtml(footerTitlesColor)};margin-bottom:12px;">${escapeHtml(sacTitle)}</h4>
