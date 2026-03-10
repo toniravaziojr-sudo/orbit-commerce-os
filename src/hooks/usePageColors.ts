@@ -84,8 +84,13 @@ export function usePageColors(tenantSlug: string, pageType: 'cart' | 'checkout')
 }
 
 /**
- * Generates CSS string for page-specific color overrides
- * IMPORTANT: Uses high-specificity selectors with !important to override global theme
+ * Generates CSS string for page-specific color overrides.
+ * Uses higher-specificity selectors (.sf-page-cart / .sf-page-checkout)
+ * to naturally override the global theme rules without !important.
+ * 
+ * Hierarchy:
+ *   Global:  .storefront-container [class*="sf-btn-primary"]         → specificity 0,2,0+
+ *   Page:    .storefront-container .sf-page-cart [class*="sf-btn-primary"] → specificity 0,3,0+
  */
 export function getPageColorsCss(colors: PageColors | null | undefined): string {
   if (!colors) return '';
@@ -101,67 +106,13 @@ export function getPageColorsCss(colors: PageColors | null | undefined): string 
 
   if (!hasAnyColor) return '';
 
-  // Build CSS with high-specificity button rules (not just variables)
-  // These rules use !important to override the global theme injector
-  let css = `/* Page-specific color overrides - high specificity */\n`;
+  // Use .sf-page-cart / .sf-page-checkout for specificity-based override
+  // These classes are added to the page container in StorefrontCart / StorefrontCheckout
+  const pageScope = '.storefront-container .sf-page-cart, .storefront-container .sf-page-checkout';
 
-  // Primary button overrides
-  if (colors.buttonPrimaryBg || colors.buttonPrimaryText) {
-    css += `
-    .storefront-container button[class*="sf-btn-primary"]:not([class*="sf-btn-outline"]),
-    .storefront-container a[class*="sf-btn-primary"]:not([class*="sf-btn-outline"]),
-    .storefront-container span[class*="sf-btn-primary"]:not([class*="sf-btn-outline"]) {
-      ${colors.buttonPrimaryBg ? `background-color: ${colors.buttonPrimaryBg} !important;` : ''}
-      ${colors.buttonPrimaryText ? `color: ${colors.buttonPrimaryText} !important;` : ''}
-    }`;
-  }
+  let css = `/* Page-specific color overrides — specificity-based (no !important) */\n`;
 
-  // Primary button hover override
-  if (colors.buttonPrimaryHover) {
-    css += `
-    .storefront-container button[class*="sf-btn-primary"]:not([class*="sf-btn-outline"]):hover:not(:disabled),
-    .storefront-container a[class*="sf-btn-primary"]:not([class*="sf-btn-outline"]):hover,
-    .storefront-container span[class*="sf-btn-primary"]:not([class*="sf-btn-outline"]):hover {
-      background-color: ${colors.buttonPrimaryHover} !important;
-    }`;
-  }
-
-  // Secondary button overrides
-  if (colors.buttonSecondaryBg || colors.buttonSecondaryText) {
-    css += `
-    .storefront-container button[class*="sf-btn-secondary"]:not([class*="sf-btn-outline"]),
-    .storefront-container a[class*="sf-btn-secondary"]:not([class*="sf-btn-outline"]),
-    .storefront-container span[class*="sf-btn-secondary"]:not([class*="sf-btn-outline"]) {
-      ${colors.buttonSecondaryBg ? `background-color: ${colors.buttonSecondaryBg} !important;` : ''}
-      ${colors.buttonSecondaryText ? `color: ${colors.buttonSecondaryText} !important;` : ''}
-    }`;
-  }
-
-  // Secondary button hover override
-  if (colors.buttonSecondaryHover) {
-    css += `
-    .storefront-container button[class*="sf-btn-secondary"]:not([class*="sf-btn-outline"]):hover:not(:disabled),
-    .storefront-container a[class*="sf-btn-secondary"]:not([class*="sf-btn-outline"]):hover,
-    .storefront-container span[class*="sf-btn-secondary"]:not([class*="sf-btn-outline"]):hover {
-      background-color: ${colors.buttonSecondaryHover} !important;
-    }`;
-  }
-
-  // Flags/tags color override (checkout-specific)
-  if (colors.flagsColor) {
-    css += `
-    /* Flags/Tags color override */
-    .storefront-container .sf-tag-success,
-    .storefront-container .sf-checkout-flag {
-      background-color: color-mix(in srgb, ${colors.flagsColor} 15%, transparent) !important;
-      color: ${colors.flagsColor} !important;
-    }
-    .storefront-container .sf-flag-text {
-      color: ${colors.flagsColor} !important;
-    }`;
-  }
-
-  // Also set CSS variables for any other components that might use them
+  // Set CSS vars at page scope level — these automatically cascade to child elements
   const vars: string[] = [];
   if (colors.buttonPrimaryBg) vars.push(`--theme-button-primary-bg: ${colors.buttonPrimaryBg};`);
   if (colors.buttonPrimaryText) vars.push(`--theme-button-primary-text: ${colors.buttonPrimaryText};`);
@@ -173,8 +124,25 @@ export function getPageColorsCss(colors: PageColors | null | undefined): string 
 
   if (vars.length > 0) {
     css += `
-    .storefront-container {
+    .sf-page-cart, .sf-page-checkout {
       ${vars.join('\n      ')}
+    }`;
+  }
+
+  // Flags/tags color override at page scope
+  if (colors.flagsColor) {
+    css += `
+    /* Flags/Tags color override */
+    .sf-page-cart .sf-tag-success,
+    .sf-page-cart .sf-checkout-flag,
+    .sf-page-checkout .sf-tag-success,
+    .sf-page-checkout .sf-checkout-flag {
+      background-color: color-mix(in srgb, ${colors.flagsColor} 15%, transparent);
+      color: ${colors.flagsColor};
+    }
+    .sf-page-cart .sf-flag-text,
+    .sf-page-checkout .sf-flag-text {
+      color: ${colors.flagsColor};
     }`;
   }
 
