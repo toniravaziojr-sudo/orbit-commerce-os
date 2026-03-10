@@ -145,22 +145,22 @@ export default function Orders() {
           icon={Package}
         />
         <StatCard
-          title="Pendentes"
+          title="Aguardando"
           value={pendingCount.toString()}
           icon={Package}
-          description="Aguardando ação"
+          description="Aguardando confirmação"
         />
         <StatCard
-          title="Em Processamento"
+          title="Fiscal"
           value={processingCount.toString()}
           icon={Package}
-          description="Pagos ou em separação"
+          description="NF em processo"
         />
         <StatCard
-          title="Enviados"
+          title="Despachados"
           value={shippedCount.toString()}
           icon={Package}
-          description="Em trânsito"
+          description="Pacotes despachados"
         />
       </div>
 
