@@ -197,16 +197,18 @@ A ordem dos botões nos cards de produto é fixa e obrigatória:
 - [ ] **Hover effects**: React tem estados hover nos botões — compilador não tem
 - [ ] `category-page.ts` é dead code — pode ser removido
 
-## Filtros, Ordenação e Paginação (v8.4.2)
+## Filtros, Ordenação e Paginação (v8.4.4)
 
 ### Layout Responsivo dos Filtros (Compilador)
 
 | Viewport | Layout | Descrição |
 |----------|--------|-----------|
-| Desktop | Horizontal row | Filtros e ordenação lado a lado, labels normais (13px), inputs 70px |
-| Mobile (< 640px) | Compact stacked | Filtros + ordenação empilham verticalmente. Labels 12px, inputs 56px, padding reduzido. Ordenação ocupa largura total. Uso de classes CSS `.sf-filter-bar`, `.sf-filter-label`, `.sf-filter-price-group` em vez de inline styles para permitir media queries. |
+| Desktop (≥640px) | Horizontal row | Filtros e ordenação lado a lado em barra compacta com fundo `#f9fafb`, labels normais (13px), inputs 70px |
+| Mobile (<640px) | **Botão collapsible "Filtrar"** | Botão full-width com ícone de filtro. Ao clicar, expande painel com filtros empilhados verticalmente. Padrão idêntico ao `CategoryFilters` do Builder React (Sheet/Drawer). |
 
-> **REGRA ANTI-REGRESSÃO:** Filtros no compilador NÃO devem usar inline styles com `flex-direction:column` direto — devem usar classes CSS com `@media(max-width:639px)` para responsividade. Inline styles impedem override por media queries.
+> **REGRA DE PARIDADE (CRÍTICA):** O compilador Edge DEVE usar o mesmo padrão visual do Builder React no mobile. Builder usa `CategoryFilters` com botão "Filtrar" que abre Sheet. Compilador usa botão `.sf-filter-toggle-btn` que toggle `.sf-filter-mobile-panel` via `onclick`. Filtros inline sem collapse no mobile são PROIBIDOS — ocupam espaço excessivo e degradam a experiência.
+
+> **REGRA ANTI-REGRESSÃO:** Após alterar o compilador de filtros, é OBRIGATÓRIO: 1) Deploy da edge function, 2) Invalidar cache (status='stale'). Nessa ordem.
 
 ### Filtros Client-Side
 | Filtro | Tipo | Descrição |
