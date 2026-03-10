@@ -102,6 +102,7 @@ function BuilderToolbarWithDraftCheck(props: Omit<React.ComponentProps<typeof Bu
   const footerDraft = getGlobalFooterDraftRef();
   const miniCartDraft = getGlobalMiniCartDraftRef();
   const popupDraft = getGlobalPopupDraftRef();
+  const supportWidgetDraft = getGlobalSupportWidgetDraftRef();
   
   // Observe ALL draft changes to trigger re-render when any draft changes
   useHeaderFooterDraftObserver();
@@ -115,7 +116,8 @@ function BuilderToolbarWithDraftCheck(props: Omit<React.ComponentProps<typeof Bu
     (headerDraft?.hasDraftChanges ?? false) ||
     (footerDraft?.hasDraftChanges ?? false) ||
     (miniCartDraft?.hasDraftChanges ?? false) ||
-    (popupDraft?.hasDraftChanges ?? false);
+    (popupDraft?.hasDraftChanges ?? false) ||
+    (supportWidgetDraft?.hasDraftChanges ?? false);
   return <BuilderToolbar {...toolbarProps} isDirty={isDirty} onPageChangeCheck={onPageChangeCheck} />;
 }
 
