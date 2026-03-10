@@ -539,6 +539,12 @@ function buildFullPage(opts: {
       var cart=JSON.parse(localStorage.getItem(CART_KEY)||"[]");
       var cartShipping=null; // {name,price,days}
       var cartDiscount=null; // {code,type,value,free_shipping}
+      var BENEFIT_ENABLED=${opts.benefitEnabled ? 'true' : 'false'};
+      var BENEFIT_THRESHOLD=${opts.benefitThreshold || 0};
+      var BENEFIT_MODE="${escapeHtml(opts.benefitMode || 'free_shipping')}";
+      var BENEFIT_REWARD_LABEL="${escapeHtml(opts.benefitRewardLabel || 'Frete Grátis')}";
+      var BENEFIT_SUCCESS_LABEL="${escapeHtml(opts.benefitSuccessLabel || 'Você ganhou frete grátis!')}";
+      var BENEFIT_COLOR="${escapeHtml(opts.benefitProgressColor || '#22c55e')}";
 
       function saveCart(){localStorage.setItem(CART_KEY,JSON.stringify(cart));updateCartUI();}
       function fmt(v){return"R$ "+v.toFixed(2).replace(".",",");}
