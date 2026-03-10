@@ -217,7 +217,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
     const mainImageThumb = mainImage ? escapeHtml(optimizeImageUrl(mainImage.url, 120, 75)) : '';
     ctaHtml = `<div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:400px;">
       ${showBuyNowButton ? `<button type="button" data-sf-action="buy-now" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${mainImageThumb}" class="sf-btn-primary" style="padding:14px 32px;border:none;border-radius:9999px;font-size:16px;font-weight:600;cursor:pointer;width:100%;text-transform:uppercase;letter-spacing:0.05em;">${escapeHtml(buyNowButtonText)}</button>` : ''}
-      ${showAddToCartButton ? `<button type="button" data-sf-action="add-to-cart" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${mainImageThumb}" class="sf-btn-secondary" style="padding:14px 32px;border-radius:9999px;font-size:16px;font-weight:600;cursor:pointer;width:100%;border:2px solid var(--theme-button-primary-bg,#1a1a1a);">Adicionar ao carrinho</button>` : ''}
+      ${showAddToCartButton ? `<button type="button" data-sf-action="add-to-cart" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${mainImageThumb}" class="sf-btn-secondary" style="padding:14px 32px;border-radius:9999px;font-size:16px;font-weight:600;cursor:pointer;width:100%;border:2px solid var(--theme-button-primary-bg,#1a1a1a);text-transform:uppercase;letter-spacing:0.05em;">Adicionar ao carrinho</button>` : ''}
       ${whatsappButtonHtml}
     </div>`;
   } else {
