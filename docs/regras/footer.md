@@ -416,10 +416,42 @@ No edge compiler, os itens de menu do footer passam pelo mesmo `resolveMenuItemU
 
 ---
 
+## Navegação Context-Aware (Edge ↔ SPA)
+
+> **REGRA CRÍTICA (v9.0.0):** Links no footer DEVEM forçar `window.location.href` para rotas de conteúdo (Edge HTML) e usar `<Link>` do React apenas para rotas SPA.
+
+### Componente: FooterLink
+
+O `StorefrontFooterContent.tsx` implementa um componente `FooterLink` que detecta o tipo de rota:
+
+```typescript
+const SPA_ROUTE_PREFIXES = ['/cart', '/carrinho', '/checkout', '/obrigado', '/conta', '/minha-conta', '/rastreio', '/busca', '/quiz'];
+
+function isSpaRoute(url: string): boolean {
+  const path = url.replace(/^\/store\/[^/]+/, '');
+  return SPA_ROUTE_PREFIXES.some(prefix => path.startsWith(prefix));
+}
+```
+
+| Tipo de Rota | Método de Navegação | Exemplo |
+|--------------|---------------------|---------|
+| **Conteúdo (Edge)** | `<a href>` nativo / `window.location.href` | `/`, `/categoria/x`, `/page/y` |
+| **SPA (Transacional)** | `<Link>` do React Router | `/cart`, `/checkout` |
+
+### Regras
+
+1. **PROIBIDO** usar `<Link>` do React para rotas de conteúdo no footer
+2. Logo do footer → hard refresh (rota de conteúdo)
+3. Itens de menu footer_1/footer_2 que apontam para páginas/categorias → hard refresh
+4. Links externos → `<a>` nativo com `target="_blank"`
+
+---
+
 ## Histórico de Alterações
 
 | Data | Alteração |
 |------|-----------|
+| 2026-03-10 | **NAVEGAÇÃO CONTEXT-AWARE**: Criado `FooterLink` + `isSpaRoute()` no `StorefrontFooterContent.tsx`. Links de conteúdo usam `window.location.href`, rotas SPA usam `<Link>`. Corrige conflito Edge↔SPA ao retornar do checkout |
 | 2026-03-08 | **PARIDADE v8.2.2**: Selos mobile usam container queries + default inline `1fr`. Newsletter botão usa `sf-btn-primary`. Footer compiler filtra `is_published`. YouTube SVG stroke-based. Removido `margin-top:48px` do footer |
 | 2026-03-06 | **PERFORMANCE v3.0.0**: Footer agora aceita `bootstrapStoreSettings`, `bootstrapCategories`, `bootstrapFooterMenus`, `bootstrapPages` via props. No storefront público: ZERO queries. No builder: fetching próprio como fallback. `footer_2` menu e `store_pages` incluídos no bootstrap server-side |
 | 2026-02-28 | **PERFORMANCE**: Selos, formas de envio e lojas oficiais agora usam `getLogoImageUrl()` com `loading="lazy"` e `decoding="async"` para otimização PageSpeed |

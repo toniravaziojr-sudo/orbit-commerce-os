@@ -377,10 +377,46 @@ const handleMobileMenuNavigate = (url: string) => {
 
 ---
 
+## Navegação Context-Aware (Edge ↔ SPA)
+
+> **REGRA CRÍTICA (v9.0.0):** Links no header DEVEM forçar `window.location.href` para rotas de conteúdo (Edge HTML) e usar `<Link>` do React apenas para rotas SPA.
+
+### Problema Resolvido
+
+Quando o usuário clicava no logo do header dentro do Checkout (SPA), o React Router interceptava a navegação e tentava renderizar a Home como componente SPA — mas a Home é servida exclusivamente pelo Edge Function. Isso causava uma "versão bugada" da loja (conflito de hidratação entre SPA e Edge HTML).
+
+### Solução: LinkWrapper com `isSpaRoute()`
+
+O componente `LinkWrapper` em `StorefrontHeaderContent.tsx` detecta o tipo de rota e escolhe o método de navegação:
+
+```typescript
+const SPA_ROUTE_PREFIXES = ['/cart', '/carrinho', '/checkout', '/obrigado', '/conta', '/minha-conta', '/rastreio', '/busca', '/quiz'];
+
+function isSpaRoute(url: string): boolean {
+  const path = url.replace(/^\/store\/[^/]+/, '');
+  return SPA_ROUTE_PREFIXES.some(prefix => path.startsWith(prefix));
+}
+```
+
+| Tipo de Rota | Método de Navegação | Exemplo |
+|--------------|---------------------|---------|
+| **Conteúdo (Edge)** | `window.location.href` (hard refresh) | `/`, `/categoria/x`, `/produto/y` |
+| **SPA (Transacional)** | `<Link>` do React Router | `/cart`, `/checkout`, `/conta` |
+
+### Regras
+
+1. **PROIBIDO** usar `<Link>` do React para rotas de conteúdo no header — DEVE usar `window.location.href`
+2. O logo do header SEMPRE navega via hard refresh (é rota de conteúdo)
+3. Itens de menu que apontam para categorias/produtos/páginas → hard refresh
+4. Itens que apontam para `/cart`, `/checkout`, etc. → `<Link>` do React
+
+---
+
 ## Histórico de Alterações
 
 | Data | Alteração |
 |------|-----------|
+| 2026-03-10 | **NAVEGAÇÃO CONTEXT-AWARE**: `LinkWrapper` agora usa `isSpaRoute()` para decidir entre `window.location.href` (rotas Edge) e `<Link>` (rotas SPA). Corrige bug onde clicar no logo do checkout renderizava versão bugada da Home |
 | 2025-01-31 | Sistema de rotação de textos (noticeTexts) com múltiplas frases |
 | 2025-01-31 | Novos efeitos de animação: slide-vertical, slide-horizontal (separados) |
 | 2025-01-31 | Efeito marquee otimizado para evitar duplicação de texto |
