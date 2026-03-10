@@ -38,17 +38,14 @@ function FooterLink({ to, children, className, style, isEditing }: {
   if (isEditing) {
     return <span className={className} style={style} onClick={e => e.preventDefault()}>{children}</span>;
   }
-  // Content routes: force full page reload → Edge HTML
+  // Content routes: native <a> for full page reload → Edge HTML
+  // NO onClick interception — let the browser handle navigation naturally.
   if (!isSpaRoute(to)) {
     return (
       <a
         href={to}
         className={className}
         style={style}
-        onClick={(e) => {
-          e.preventDefault();
-          window.location.href = to;
-        }}
       >
         {children}
       </a>
