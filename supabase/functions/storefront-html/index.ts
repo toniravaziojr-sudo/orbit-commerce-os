@@ -544,6 +544,23 @@ function buildFullPage(opts: {
 
   <script>
     (function(){
+      // === HYDRATION GUARD: prevent double execution (bfcache, duplicate scripts) ===
+      if(window.__SF_HYDRATED){console.warn("[SF] Hydration already ran, skipping duplicate.");return;}
+      window.__SF_HYDRATED=true;
+
+      // === ABORT CONTROLLER: allows cleanup of all document-level listeners ===
+      if(window.__SF_ABORT){window.__SF_ABORT.abort();}
+      window.__SF_ABORT=new AbortController();
+      var sfSignal=window.__SF_ABORT.signal;
+
+      // === BFCACHE HANDLER: force full reload when restored from back/forward cache ===
+      window.addEventListener("pageshow",function(e){
+        if(e.persisted){
+          console.log("[SF] Page restored from bfcache — forcing reload for fresh state");
+          window.__SF_HYDRATED=false;
+          window.location.reload();
+        }
+      });
       var TENANT="${escapeHtml(opts.tenantSlug)}";
       var HOSTNAME="${escapeHtml(opts.hostname)}";
       var CART_KEY="storefront_cart_"+TENANT;
