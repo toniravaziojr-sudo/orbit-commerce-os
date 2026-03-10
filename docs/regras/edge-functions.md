@@ -2468,7 +2468,7 @@ No mobile (< 640px), o popup de newsletter com layout `side-image` renderizava a
 | **Tipo** | Regra Visual |
 | **Localização** | `supabase/functions/storefront-html/index.ts` (função `generateNewsletterPopupHtml`) |
 | **Descrição** | Mobile renderiza popup simples (sem imagem), desktop mantém side-image |
-| **CSS Injetado** | `.sf-popup-image{display:none}` no mobile, `.sf-popup-box{flex-direction:column!important;padding:32px!important}` |
+| **CSS Injetado** | `.sf-popup-image{display:none}` no mobile, `.sf-popup-box{flex-direction:column!important;padding:20px 24px!important;max-width:95%!important}` |
 | **Breakpoint** | `640px` (sm) — consistente com padrão do sistema |
 | **Paridade SPA** | `NewsletterPopupBlock.tsx` já usa `hidden sm:block` no React (mesma lógica) |
 
