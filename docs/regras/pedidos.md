@@ -142,40 +142,89 @@ interface Order {
 }
 ```
 
-### 3.2 Tipos de Status
+### 3.2 Tipos de Status (v2026-03-10 — Fluxo Fiscal Integrado)
+
+> **IMPORTANTE:** A coluna "Status" reflete o **trabalho interno** do pedido, integrado ao módulo fiscal.
+> As colunas "Envio" e "Pagamento" continuam independentes.
+
+#### Status do Pedido (coluna "Status")
 
 ```typescript
-// Status do Pedido
 type OrderStatus = 
-  | 'pending'           // Aguardando
+  | 'awaiting_confirmation'    // Aguardando confirmação - Pedido não pago
+  | 'ready_to_invoice'         // Pronto para emitir NF - Pagamento confirmado (automático)
+  | 'invoice_pending_sefaz'    // Pendente SEFAZ - NF submetida à SEFAZ
+  | 'invoice_authorized'       // NF Autorizada - SEFAZ aprovou, NF enviada ao cliente
+  | 'invoice_issued'           // NF Emitida - NF impressa, preparando envio
+  | 'dispatched'               // Despachado - Pacote despachado
+  | 'completed'                // Concluído - Chegou ao destino
+  | 'returning'                // Em devolução - NF de devolução emitida
+  | 'payment_expired'          // Pagamento expirado - Não pago, expirou
+  | 'invoice_rejected'         // NF Rejeitada - SEFAZ rejeitou
+  | 'invoice_cancelled';       // NF Cancelada - Cancelada pós-autorização
+```
+
+#### Fluxo Visual do Status
+
+```
+Pedido criado → Aguardando confirmação
+       │
+       ├─ Pagamento expirado (PIX/Boleto/Cartão expirou ou falhou)
+       │
+       └─ Pagamento aprovado (automático via webhook) → Pronto para emitir NF
+              │
+              ├─ NF Rejeitada (SEFAZ rejeitou) → pode voltar para Pronto para emitir NF
+              │
+              └─ Pendente SEFAZ (NF submetida)
+                     │
+                     ├─ NF Rejeitada
+                     │
+                     └─ NF Autorizada (SEFAZ aprovou, enviada ao cliente)
+                            │
+                            ├─ NF Cancelada (cancelamento pós-autorização)
+                            │
+                            └─ NF Emitida (impressa, preparando envio)
+                                   │
+                                   └─ Despachado (pacote despachado)
+                                          │
+                                          ├─ Concluído (chegou ao destino)
+                                          │
+                                          └─ Em devolução (NF de devolução emitida)
+```
+
+#### Transição Automática
+
+| Evento | De | Para | Mecanismo |
+|--------|----|------|-----------|
+| Webhook pagamento aprovado | `awaiting_confirmation` | `ready_to_invoice` | `pagarme-webhook` / `reconcile-payments` |
+| PIX/Boleto expirado | `awaiting_confirmation` | `payment_expired` | `expire-stale-orders` (cron) |
+| Pagamento recusado | `awaiting_confirmation` | `payment_expired` | `expire-stale-orders` (cron) |
+
+#### Status de Pagamento (coluna "Pagamento") — SEM MUDANÇA
+
+```typescript
+type PaymentStatus = 
   | 'awaiting_payment'  // Aguardando pagamento
   | 'paid'              // Pago
-  | 'processing'        // Em separação
-  | 'shipped'           // Enviado
-  | 'in_transit'        // Em trânsito
-  | 'delivered'         // Entregue
-  | 'cancelled'         // Cancelado
-  | 'returned';         // Devolvido
-
-// Status de Pagamento
-type PaymentStatus = 
-  | 'pending'           // Aguardando
-  | 'processing'        // Processando
-  | 'approved'          // Aprovado
   | 'declined'          // Recusado
-  | 'refunded'          // Reembolsado
-  | 'chargeback';       // Chargeback
+  | 'cancelled'         // Cancelado
+  | 'refunded';         // Estornado
+```
 
-// Status de Envio
+#### Status de Envio (coluna "Envio") — SEM MUDANÇA
+
+```typescript
 type ShippingStatus = 
-  | 'pending'           // Aguardando
-  | 'processing'        // Em separação
-  | 'shipped'           // Enviado
-  | 'in_transit'        // Em trânsito
-  | 'out_for_delivery'  // Saiu para entrega
-  | 'delivered'         // Entregue
-  | 'failed_attempt'    // Tentativa falha
-  | 'returned';         // Devolvido
+  | 'awaiting_shipment'  // Aguardando envio
+  | 'label_generated'    // Etiqueta gerada
+  | 'shipped'            // Enviado
+  | 'in_transit'         // Em trânsito
+  | 'arriving'           // Chegando
+  | 'delivered'          // Entregue
+  | 'problem'            // Problema no envio
+  | 'awaiting_pickup'    // Aguardando retirada
+  | 'returning'          // Em devolução
+  | 'returned';          // Devolvido
 ```
 
 ### 3.3 Tabela `order_items`
@@ -224,50 +273,54 @@ interface OrderHistory {
 
 ## 4. Máquina de Estados
 
-### 4.1 Transições de Status do Pedido
+### 4.1 Transições de Status do Pedido (v2026-03-10)
 
 ```mermaid
 stateDiagram-v2
-    [*] --> pending
-    pending --> awaiting_payment
-    pending --> cancelled
-    awaiting_payment --> paid
-    awaiting_payment --> cancelled
-    paid --> processing
-    paid --> cancelled
-    processing --> shipped
-    processing --> cancelled
-    shipped --> in_transit
-    shipped --> delivered
-    in_transit --> delivered
-    in_transit --> returned
-    delivered --> returned
-    cancelled --> [*]
-    returned --> [*]
+    [*] --> awaiting_confirmation
+    awaiting_confirmation --> ready_to_invoice: Pagamento aprovado (automático)
+    awaiting_confirmation --> payment_expired: Expirado/Falhou
+    ready_to_invoice --> invoice_pending_sefaz: NF submetida
+    ready_to_invoice --> invoice_rejected: SEFAZ rejeitou
+    invoice_pending_sefaz --> invoice_authorized: SEFAZ aprovou
+    invoice_pending_sefaz --> invoice_rejected: SEFAZ rejeitou
+    invoice_authorized --> invoice_issued: NF impressa
+    invoice_authorized --> invoice_cancelled: Cancelamento
+    invoice_issued --> dispatched: Despachado
+    invoice_issued --> invoice_cancelled: Cancelamento
+    dispatched --> completed: Chegou ao destino
+    dispatched --> returning: Devolução
+    completed --> returning: Devolução
+    invoice_rejected --> ready_to_invoice: Reemissão
+    payment_expired --> [*]
+    invoice_cancelled --> [*]
+    returning --> [*]
 ```
 
 ### 4.2 Transições de Status de Pagamento
 
 | De | Para | Válido |
 |----|------|--------|
-| `pending` | `processing`, `approved`, `declined` | ✅ |
-| `processing` | `approved`, `declined` | ✅ |
-| `approved` | `refunded`, `chargeback` | ✅ |
-| `declined` | `pending`, `processing` | ✅ |
+| `awaiting_payment` | `paid`, `declined`, `cancelled` | ✅ |
+| `paid` | `refunded` | ✅ |
+| `declined` | `awaiting_payment`, `cancelled` | ✅ |
+| `cancelled` | - | ❌ (final) |
 | `refunded` | - | ❌ (final) |
-| `chargeback` | - | ❌ (final) |
 
 ### 4.3 Transições de Status de Envio
 
 | De | Para | Válido |
 |----|------|--------|
-| `pending` | `processing` | ✅ |
-| `processing` | `shipped` | ✅ |
-| `shipped` | `in_transit`, `delivered` | ✅ |
-| `in_transit` | `out_for_delivery`, `delivered`, `failed_attempt` | ✅ |
-| `out_for_delivery` | `delivered`, `failed_attempt` | ✅ |
-| `failed_attempt` | `out_for_delivery`, `returned` | ✅ |
-| `delivered` | `returned` | ✅ |
+| `awaiting_shipment` | `label_generated`, `problem` | ✅ |
+| `label_generated` | `shipped`, `problem` | ✅ |
+| `shipped` | `in_transit`, `problem` | ✅ |
+| `in_transit` | `arriving`, `delivered`, `problem`, `awaiting_pickup` | ✅ |
+| `arriving` | `delivered`, `problem` | ✅ |
+| `delivered` | `returning` | ✅ |
+| `problem` | `awaiting_shipment`, `returning`, `returned` | ✅ |
+| `awaiting_pickup` | `delivered`, `returning` | ✅ |
+| `returning` | `returned` | ✅ |
+| `returned` | - | ❌ (final) |
 
 ---
 
