@@ -1,8 +1,8 @@
 # Página de Produto — Regras e Especificações
 
-> **Status:** FUNCIONAL ✅ — Core + Seções + Variantes + Galeria Mobile + Lightbox/Zoom + Pix Badge + Paridade CTA  
-> **Última atualização:** 2026-03-09  
-> **Arquitetura:** v8.2.0 — block-compiler com variantes, swipe mobile, thumbnail click, quick buy, lightbox com zoom, Pix badge, paridade de botões
+> **Status:** FUNCIONAL ✅ — Core + Seções + Variantes + Galeria Mobile + Lightbox/Zoom + Pix Badge + Paridade CTA + Paridade Visual  
+> **Última atualização:** 2026-03-10  
+> **Arquitetura:** v8.3.0 — Paridade visual completa Builder↔Edge (badges, ordem, botões, cores)
 
 ## Visão Geral
 
