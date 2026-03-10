@@ -254,10 +254,11 @@ A timeline de passos do checkout (indicadores "Contato > Entrega > Pagamento") u
 | `sf-checkout-flag` | Badge/tag que usa `--theme-flags-color` (ex: "Grátis" no frete) |
 | `sf-flag-text` | Texto que usa `--theme-flags-color` (ex: "Grátis" inline) |
 
-### Arquitetura de Injeção
+### Arquitetura de Injeção (sem !important)
 
 - **Builder (preview):** `useBuilderThemeInjector.ts` lê o draft de `useBuilderDraftPageSettings` e injeta variáveis CSS
 - **Loja pública:** `PageColorsInjector.tsx` + `usePageColors.ts` leem do `published_content` e injetam CSS
+- **Mecanismo:** As CSS vars são redefinidas dentro do escopo `.sf-page-checkout`, cascateando naturalmente para os componentes filhos. Para flags, regras adicionais em `.sf-page-checkout .sf-checkout-flag` / `.sf-flag-text` aplicam `color-mix()` com a var `--theme-flags-color`
 
 ---
 
