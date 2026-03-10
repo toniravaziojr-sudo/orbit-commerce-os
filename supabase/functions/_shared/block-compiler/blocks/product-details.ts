@@ -449,7 +449,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
       // Buttons (inheriting categorySettings: addToCart, quickBuy)
       const rpButtonsHtml: string[] = [];
       if (rpShowAddToCart) {
-        rpButtonsHtml.push(`<button type="button" data-sf-action="add-to-cart" data-product-id="${rp.id}" data-product-name="${escapeHtml(rp.name)}" data-product-price="${rp.price}" data-product-image="${escapeHtml(rpImg)}" class="sf-btn-outline-primary" style="width:100%;padding:8px;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;gap:6px;min-height:36px;">
+        rpButtonsHtml.push(`<button type="button" data-sf-action="add-to-cart" data-product-id="${rp.id}" data-product-name="${escapeHtml(rp.name)}" data-product-price="${rp.price}" data-product-image="${escapeHtml(rpImg)}" class="sf-btn-secondary" style="width:100%;padding:8px;border-radius:6px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;gap:6px;min-height:36px;border:1px solid #ddd;">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
           Adicionar
         </button>`);

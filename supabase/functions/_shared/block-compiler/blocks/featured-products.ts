@@ -75,7 +75,7 @@ export function featuredProductsToStaticHTML(
       </div>`;
     }
 
-    // Buttons container — matches React ProductCard sf-btn-outline-primary / sf-btn-primary
+    // Buttons container — matches React ProductCard sf-btn-secondary / sf-btn-primary
     let buttonsHtml = '';
     const buttons: string[] = [];
     
