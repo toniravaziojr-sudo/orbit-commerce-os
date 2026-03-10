@@ -1341,13 +1341,8 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing }: any) {
         />
       )}
 
-      {/* Mini Cart Drawer */}
-      <MiniCartDrawer
-        open={miniCartOpen}
-        onOpenChange={setMiniCartOpen}
-        tenantSlug={tenantSlug}
-        isPreview={context?.isPreview}
-      />
+      {/* Mini Cart Drawer - single instance, controlled via MiniCartContext */}
+      {/* Rendered at layout level now - see StorefrontLayout/TenantStorefrontLayout */}
       
       {/* Floating Cart Button (Carrinho rápido) */}
       {showFloatingCart && (
