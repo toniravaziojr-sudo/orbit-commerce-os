@@ -75,6 +75,12 @@ const menuItems: MenuItem[] = [
     description: 'Captura de leads',
   },
   {
+    id: 'support',
+    label: 'Atendimento',
+    icon: <Headphones className="h-4 w-4" />,
+    description: 'Widget de atendimento',
+  },
+  {
     id: 'colors',
     label: 'Cores',
     icon: <Palette className="h-4 w-4" />,
