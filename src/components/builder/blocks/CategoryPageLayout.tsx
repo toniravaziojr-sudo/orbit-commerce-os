@@ -23,7 +23,7 @@ import { ShoppingCart, Check } from 'lucide-react';
 import { useProductBadgesForProducts } from '@/hooks/useProductBadges';
 import { ProductCardBadges } from '@/components/storefront/product/ProductCardBadges';
 import { useCart } from '@/contexts/CartContext';
-import { MiniCartDrawer } from '@/components/storefront/MiniCartDrawer';
+import { useMiniCart } from '@/contexts/MiniCartContext';
 import { toast } from 'sonner';
 
 interface Product {
@@ -114,7 +114,7 @@ export function CategoryPageLayout({
   const { addItem } = useCart();
 
   // State for mini-cart drawer
-  const [miniCartOpen, setMiniCartOpen] = useState(false);
+  const { open: openMiniCart } = useMiniCart();
   
   // State for tracking which products show "Adicionado" feedback
   const [addedProducts, setAddedProducts] = useState<Set<string>>(new Set());
@@ -324,7 +324,7 @@ export function CategoryPageLayout({
     
     // Se cartActionType é 'miniCart', abre o drawer
     if (cartActionType === 'miniCart') {
-      setMiniCartOpen(true);
+      openMiniCart();
     }
     
     // Remove o feedback depois de 2 segundos
@@ -650,15 +650,7 @@ export function CategoryPageLayout({
         </div>
       </div>
       
-      {/* Mini Cart Drawer - só renderiza se miniCartEnabled */}
-      {miniCartEnabled && (
-        <MiniCartDrawer
-          open={miniCartOpen}
-          onOpenChange={setMiniCartOpen}
-          tenantSlug={tenantSlug}
-          isPreview={context?.isPreview}
-        />
-      )}
+      {/* MiniCartDrawer rendered at layout level via MiniCartContext */}
     </div>
   );
 }

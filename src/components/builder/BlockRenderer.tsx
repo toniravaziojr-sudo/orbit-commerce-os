@@ -88,7 +88,7 @@ import { CompreJuntoSlotBlock, CrossSellSlotBlock, UpsellSlotBlock } from './blo
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
 import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeaderContent';
 import { ProductPageSections } from '@/components/storefront/ProductPageSections';
-import { MiniCartDrawer } from '@/components/storefront/MiniCartDrawer';
+import { useMiniCart } from '@/contexts/MiniCartContext';
 import { CartContent } from '@/components/storefront/cart/CartContent';
 import { SocialShareButtons } from '@/components/storefront/SocialShareButtons';
 
@@ -950,7 +950,7 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing }: any) {
   const miniCartEnabled = cartActionType === 'miniCart';
   
   const [selectedImageIndex, setSelectedImageIndex] = React.useState(0);
-  const [miniCartOpen, setMiniCartOpen] = React.useState(false);
+  const { isOpen: miniCartOpen, setOpen: setMiniCartOpen, open: openMiniCartFn } = useMiniCart();
   
   const viewportOverride = context?.viewport;
   const isMobileView = viewportOverride === 'mobile';
@@ -1281,7 +1281,7 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing }: any) {
             isPreview={context?.isPreview}
             isEditing={isEditing}
             openMiniCartOnAdd={openMiniCartOnAdd}
-            onOpenMiniCart={() => setMiniCartOpen(true)}
+            onOpenMiniCart={() => openMiniCartFn()}
             showWhatsAppButton={showWhatsAppButton}
             showAddToCartButton={showAddToCartButton}
             buyNowButtonText={buyNowButtonText}
@@ -1341,13 +1341,8 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing }: any) {
         />
       )}
 
-      {/* Mini Cart Drawer */}
-      <MiniCartDrawer
-        open={miniCartOpen}
-        onOpenChange={setMiniCartOpen}
-        tenantSlug={tenantSlug}
-        isPreview={context?.isPreview}
-      />
+      {/* Mini Cart Drawer - single instance, controlled via MiniCartContext */}
+      {/* Rendered at layout level now - see StorefrontLayout/TenantStorefrontLayout */}
       
       {/* Floating Cart Button (Carrinho rápido) */}
       {showFloatingCart && (

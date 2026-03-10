@@ -5,6 +5,8 @@ import { Loader2 } from 'lucide-react';
 import { CartProvider } from '@/contexts/CartContext';
 import { DiscountProvider } from '@/contexts/DiscountContext';
 import { StorefrontConfigProvider } from '@/contexts/StorefrontConfigContext';
+import { MiniCartProvider, useMiniCart } from '@/contexts/MiniCartContext';
+import { MiniCartDrawer } from '@/components/storefront/MiniCartDrawer';
 import { MarketingTrackerProvider } from '@/components/storefront/MarketingTrackerProvider';
 import { StorefrontHead } from '@/components/storefront/StorefrontHead';
 import { LcpPreloader } from '@/components/storefront/LcpPreloader';
@@ -27,16 +29,18 @@ export function StorefrontLayout() {
   return (
     <CartProvider tenantSlug={tenantSlug || ''}>
       <DiscountProvider>
-        <StorefrontLayoutContent
-          tenant={tenant}
-          tenantSlug={tenantSlug || ''}
-          storeSettings={storeSettings}
-          customDomain={customDomain}
-          bootstrapTemplate={bootstrapTemplate}
-          isLoading={isLoading}
-          isPublished={isPublished}
-          isPreview={isPreview}
-        />
+        <MiniCartProvider>
+          <StorefrontLayoutContent
+            tenant={tenant}
+            tenantSlug={tenantSlug || ''}
+            storeSettings={storeSettings}
+            customDomain={customDomain}
+            bootstrapTemplate={bootstrapTemplate}
+            isLoading={isLoading}
+            isPublished={isPublished}
+            isPreview={isPreview}
+          />
+        </MiniCartProvider>
       </DiscountProvider>
     </CartProvider>
   );
@@ -110,9 +114,10 @@ function StorefrontLayoutContent({
                   Modo de pré-visualização - Esta página não está publicada
                 </div>
               )}
-              <main className="flex-1">
+               <main className="flex-1">
                 <Outlet />
               </main>
+              <LayoutMiniCartDrawer tenantSlug={tenantSlug} isPreview={isPreview} />
               <Suspense fallback={null}>
                 <SupportChatWidget />
               </Suspense>
@@ -124,5 +129,18 @@ function StorefrontLayoutContent({
         </Suspense>
       </MarketingTrackerProvider>
     </StorefrontConfigProvider>
+  );
+}
+
+// Single MiniCartDrawer instance for the entire storefront
+function LayoutMiniCartDrawer({ tenantSlug, isPreview }: { tenantSlug: string; isPreview: boolean }) {
+  const { isOpen, setOpen } = useMiniCart();
+  return (
+    <MiniCartDrawer
+      open={isOpen}
+      onOpenChange={setOpen}
+      tenantSlug={tenantSlug}
+      isPreview={isPreview}
+    />
   );
 }

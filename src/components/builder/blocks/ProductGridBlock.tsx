@@ -19,7 +19,7 @@ import { useProductBadgesForProducts } from '@/hooks/useProductBadges';
 import { useCart } from '@/contexts/CartContext';
 import { getPublicCheckoutUrl } from '@/lib/publicUrls';
 import { toast } from 'sonner';
-import { MiniCartDrawer } from '@/components/storefront/MiniCartDrawer';
+import { useMiniCart } from '@/contexts/MiniCartContext';
 import type { CategorySettings } from '@/hooks/usePageSettings';
 
 interface ProductGridBlockProps {
@@ -174,7 +174,7 @@ export function ProductGridBlock({
   // Cart functionality
   const { addItem: addToCart, items: cartItems } = useCart();
   const [addedProducts, setAddedProducts] = useState<Set<string>>(new Set());
-  const [miniCartOpen, setMiniCartOpen] = useState(false);
+  const { open: openMiniCart } = useMiniCart();
 
   // Check if product was just added (temporary visual feedback only)
   const isProductJustAdded = useCallback((productId: string) => {
@@ -202,9 +202,9 @@ export function ProductGridBlock({
     setAddedProducts(prev => new Set(prev).add(product.id));
     toast.success('Produto adicionado ao carrinho!');
     
-    // If cartActionType is 'miniCart', open the drawer
+    // If cartActionType is 'miniCart', open the global drawer
     if (cartActionType === 'miniCart') {
-      setMiniCartOpen(true);
+      openMiniCart();
     }
     
     // Remove feedback after 2 seconds
@@ -359,15 +359,7 @@ export function ProductGridBlock({
         })}
       </div>
       
-      {/* Mini Cart Drawer - only render if miniCartEnabled */}
-      {miniCartEnabled && (
-        <MiniCartDrawer
-          open={miniCartOpen}
-          onOpenChange={setMiniCartOpen}
-          tenantSlug={tenantSlug}
-          isPreview={context?.isPreview}
-        />
-      )}
+      {/* MiniCartDrawer rendered at layout level via MiniCartContext */}
     </div>
   );
 }

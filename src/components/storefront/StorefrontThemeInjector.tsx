@@ -23,27 +23,24 @@ export function StorefrontThemeInjector({ tenantSlug, bootstrapTemplate }: Store
   const { themeSettings } = usePublicThemeSettings(tenantSlug, bootstrapTemplate);
 
   useEffect(() => {
-    // Remove existing style element if present
+    // Generate CSS from theme settings
+    const css = getStorefrontThemeCss(themeSettings);
+
+    // Update in-place to prevent CSS flash during re-renders
     const existingStyle = document.getElementById(STYLE_ID);
     if (existingStyle) {
-      existingStyle.remove();
+      existingStyle.textContent = css;
+    } else {
+      const styleElement = document.createElement('style');
+      styleElement.id = STYLE_ID;
+      styleElement.textContent = css;
+      document.head.appendChild(styleElement);
     }
 
-    // Generate and inject new CSS
-    const css = getStorefrontThemeCss(themeSettings);
-    
-    const styleElement = document.createElement('style');
-    styleElement.id = STYLE_ID;
-    styleElement.textContent = css;
-    document.head.appendChild(styleElement);
-
-    // Cleanup on unmount
-    return () => {
-      const styleToRemove = document.getElementById(STYLE_ID);
-      if (styleToRemove) {
-        styleToRemove.remove();
-      }
-    };
+    // CRITICAL: Do NOT remove styles on unmount.
+    // The theme must persist across page navigations within the storefront.
+    // Removing it causes the "white screen" bug and branding flicker.
+    // See: memory/infrastructure/css-injection-and-theme-lifecycle-rule
   }, [themeSettings]);
 
   // This component doesn't render anything visible
