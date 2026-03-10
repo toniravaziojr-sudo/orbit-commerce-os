@@ -11856,6 +11856,56 @@ export type Database = {
           },
         ]
       }
+      payment_method_discounts: {
+        Row: {
+          created_at: string
+          description: string | null
+          discount_type: string
+          discount_value: number
+          id: string
+          installments_max: number | null
+          installments_min_value_cents: number | null
+          is_enabled: boolean
+          payment_method: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          discount_type?: string
+          discount_value?: number
+          id?: string
+          installments_max?: number | null
+          installments_min_value_cents?: number | null
+          is_enabled?: boolean
+          payment_method: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          discount_type?: string
+          discount_value?: number
+          id?: string
+          installments_max?: number | null
+          installments_min_value_cents?: number | null
+          is_enabled?: boolean
+          payment_method?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_method_discounts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_methods: {
         Row: {
           created_at: string
