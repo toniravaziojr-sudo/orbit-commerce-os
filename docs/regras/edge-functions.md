@@ -2454,3 +2454,36 @@ O script edge detecta o formato antigo (`sf_cart_{slug}`) e migra:
 - O campo `id` no item do carrinho é um UUID do item (não o product_id)
 - `product_id` é o ID real do produto no banco
 - CartContext já suporta leitura de ambos os formatos (array legado e objeto com `.items`)
+
+---
+
+## storefront-html — Newsletter Popup Mobile Fix (v5.2.0)
+
+### Problema resolvido
+No mobile (< 640px), o popup de newsletter com layout `side-image` renderizava a imagem lateral, cortando o formulário e tornando ilegível.
+
+### Solução
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Regra Visual |
+| **Localização** | `supabase/functions/storefront-html/index.ts` (função `generateNewsletterPopupHtml`) |
+| **Descrição** | Mobile renderiza popup simples (sem imagem), desktop mantém side-image |
+| **CSS Injetado** | `.sf-popup-image{display:none}` no mobile, `.sf-popup-box{flex-direction:column!important;padding:32px!important}` |
+| **Breakpoint** | `640px` (sm) — consistente com padrão do sistema |
+| **Paridade SPA** | `NewsletterPopupBlock.tsx` já usa `hidden sm:block` no React (mesma lógica) |
+
+---
+
+## category-page-layout — Mobile Spacing Fix (v8.5.3)
+
+### Problema resolvido
+Espaçamento desproporcional entre banner da categoria e botão "Filtrar" no mobile.
+
+### Solução
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Regra Visual |
+| **Localização** | `supabase/functions/_shared/block-compiler/blocks/category-page-layout.ts` |
+| **CSS** | `@media(max-width:639px) { [data-sf-cat-container] { padding-top:12px !important; } }` |
+| **Antes** | 24px padding-top + 16px margin-bottom no trigger = 40px gap total |
+| **Depois** | 12px padding-top + 12px margin-bottom = 24px gap total |
