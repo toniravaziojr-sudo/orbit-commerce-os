@@ -19,7 +19,7 @@ export function blogIndexToStaticHTML(posts: any[], storeName: string): string {
         <div style="padding:16px;">
           <p style="font-size:16px;font-weight:600;line-height:1.4;margin-bottom:8px;font-family:var(--sf-heading-font);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(post.title)}</p>
           ${post.excerpt ? `<p style="font-size:14px;color:var(--theme-text-secondary,#666);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">${escapeHtml(post.excerpt)}</p>` : ''}
-          ${dateStr ? `<p style="font-size:12px;color:#999;margin-top:8px;">${dateStr}</p>` : ''}
+          ${dateStr ? `<p style="font-size:12px;color:var(--theme-text-secondary, #999);margin-top:8px;">${dateStr}</p>` : ''}
         </div>
       </a>`;
   }).join('');
