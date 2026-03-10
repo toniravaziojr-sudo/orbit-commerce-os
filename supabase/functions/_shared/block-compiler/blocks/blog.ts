@@ -60,7 +60,7 @@ export function blogPostToStaticHTML(post: any, hostname: string): string {
     <article style="max-width:800px;margin:0 auto;padding:48px 16px;">
       ${optimizedCover ? `<img src="${escapeHtml(optimizedCover)}" alt="${escapeHtml(post.title)}" style="width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:12px;margin-bottom:32px;" loading="eager" fetchpriority="high">` : ''}
       <h1 style="font-size:clamp(24px,4vw,40px);font-weight:700;font-family:var(--sf-heading-font);line-height:1.3;margin-bottom:16px;">${escapeHtml(post.title)}</h1>
-      ${dateStr ? `<p style="font-size:14px;color:#999;margin-bottom:32px;">${dateStr}</p>` : ''}
+      ${dateStr ? `<p style="font-size:14px;color:var(--theme-text-secondary, #999);margin-bottom:32px;">${dateStr}</p>` : ''}
       <div style="font-size:16px;line-height:1.8;color:var(--theme-text-secondary,#333);">${post.content || post.body_html || ''}</div>
     </article>`;
 }
