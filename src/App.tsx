@@ -228,19 +228,15 @@ const App = () => {
               )}
 
               {/* Root routes for custom/platform domains */}
+              {/* Root routes for custom/platform domains — SPA interactive pages ONLY */}
+              {/* Content pages (Home, Category, Product, Blog, Page, LP) are Edge-rendered only */}
               {shouldUseTenantRootRoutes && (
                 <Route path="/" element={<TenantStorefrontLayout />}>
-                  <Route index element={<StorefrontHome />} />
-                  <Route path="c/:categorySlug" element={<StorefrontCategory />} />
-                  <Route path="p/:productSlug" element={<StorefrontProduct />} />
-                  <Route path="page/:pageSlug" element={<StorefrontPage />} />
-                  <Route path="lp/:pageSlug" element={<StorefrontLandingPage />} />
-                  <Route path="rastreio" element={<StorefrontTracking />} />
-                  <Route path="blog" element={<StorefrontBlog />} />
-                  <Route path="blog/:postSlug" element={<StorefrontBlogPost />} />
                   <Route path="cart" element={<StorefrontCart />} />
+                  <Route path="carrinho" element={<StorefrontCart />} />
                   <Route path="checkout" element={<StorefrontCheckout />} />
                   <Route path="obrigado" element={<StorefrontThankYou />} />
+                  <Route path="rastreio" element={<StorefrontTracking />} />
                   <Route path="minhas-compras" element={<StorefrontMyOrders />} />
                   <Route path="conta" element={<StorefrontAccount />} />
                   <Route path="conta/login" element={<StorefrontAccountLogin />} />
