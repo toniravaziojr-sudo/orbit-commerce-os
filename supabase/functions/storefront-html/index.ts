@@ -211,7 +211,7 @@ function generateNewsletterPopupHtml(config: any, tenantId: string, routeType: s
   const popupWidth = isCorner ? 'max-width:360px;' : (layout === 'side-image' && imageUrl ? 'max-width:540px;' : 'max-width:500px;');
 
   return `
-  <style>.sf-popup-image{display:none;}@media(min-width:640px){.sf-popup-image{display:block;}}.sf-popup-box{display:flex;gap:0;}@media(max-width:639px){.sf-popup-box{flex-direction:column!important;padding:32px!important;}}</style>
+  <style>.sf-popup-image{display:none;}@media(min-width:640px){.sf-popup-image{display:block;}}.sf-popup-box{display:flex;gap:0;}@media(max-width:639px){.sf-popup-box{flex-direction:column!important;padding:20px 24px!important;max-width:95%!important;}}</style>
   <div id="sf-newsletter-popup" data-sf-newsletter-popup style="display:none;${isCorner ? 'position:fixed;bottom:20px;right:20px;z-index:95;' : 'position:fixed;inset:0;z-index:95;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;'}">
     <div class="sf-popup-box" style="${isCorner ? '' : 'position:relative;'}background:${bgColor};color:${textColor};border-radius:12px;padding:32px;${popupWidth}width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.2);${layout === 'side-image' ? 'flex-direction:row;padding:0;overflow:hidden;' : 'flex-direction:column;'}">
       ${imageHtml}
