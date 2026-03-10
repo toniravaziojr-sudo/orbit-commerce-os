@@ -2548,6 +2548,6 @@ Páginas SPA (carrinho, conta, rastreio, busca, quiz) ficavam presas em "Carrega
 |-------|-------|
 | **Tipo** | Correção |
 | **Localização** | `supabase/functions/storefront-html/index.ts` → `generateNewsletterPopupHtml()` |
-| **Descrição** | Corrigido loop infinito e trigger imediato do popup com `exit_intent` |
-| **Comportamento** | 1. Flag `eiFired` impede re-trigger. 2. `dismissed` flag impede reexibição após fechar. 3. Delay 2.5s antes de ativar listeners. 4. Dupla detecção: `mouseleave` (clientY <= 0) + `mousemove` (clientY < 50 + movementY < -5). 5. Dispara no máximo UMA vez por sessão. |
+| **Descrição** | Exit intent refinado: Desktop usa apenas `mouseleave` (clientY <= 0), Mobile usa detecção de scroll-up repetido no topo |
+| **Comportamento** | **Desktop**: `mouseleave` com `clientY <= 0` — dispara apenas quando mouse sai pela borda superior (em direção às abas/fechar). Removido `mousemove` agressivo. **Mobile**: Detecta `scrollY <= 20` com tentativas repetidas de scroll-up (2+ vezes). Delay 2.5s antes de ativar. Flag `eiFired` impede re-trigger. Uma vez por sessão. |
 | **Paridade SPA** | Mesma lógica aplicada em `NewsletterPopupBlock.tsx` (React) |
