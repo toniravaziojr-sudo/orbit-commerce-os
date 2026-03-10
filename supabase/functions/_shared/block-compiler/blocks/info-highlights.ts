@@ -60,8 +60,8 @@ export function infoHighlightsToStaticHTML(
   _context: CompilerContext,
 ): string {
   const items = (Array.isArray(props.items) ? props.items : []) as HighlightItem[];
-  const iconColor = (props.iconColor as string) || '#1a1a1a';
-  const textColor = (props.textColor as string) || '#1f2937';
+  const iconColor = (props.iconColor as string) || 'var(--theme-text-primary, #1a1a1a)';
+  const textColor = (props.textColor as string) || 'var(--theme-text-primary, #1f2937)';
   const layout = (props.layout as string) || 'horizontal';
 
   if (items.length === 0) return '';
