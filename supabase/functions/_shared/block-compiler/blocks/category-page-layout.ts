@@ -42,7 +42,7 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
 
   // === FILTER BAR + SORT ===
   // Desktop: horizontal row with all filters visible
-  // Mobile: compact single-row with inline filters, optimized for small screens
+  // Mobile (<640px): Collapsible button "Filtrar" that toggles filter panel (parity with Builder React CategoryFilters)
   const filterBarHtml = `
     <style>
       .sf-filter-bar { display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:20px;padding:16px;background:#f9fafb;border-radius:10px;border:1px solid #eee; }
@@ -52,48 +52,60 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
       .sf-filter-label:has(input:checked) { border-color:var(--theme-button-primary-bg,#1a1a1a);background:#f0f0f0; }
       .sf-filter-price-group { display:flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid #ddd;border-radius:6px;background:#fff; }
       .sf-filter-price-input { width:70px;padding:4px 6px;border:1px solid #eee;border-radius:4px;font-size:12px;outline:none; }
+      /* Mobile: hide inline filters, show toggle button */
+      .sf-filter-toggle-btn { display:none; }
+      .sf-filter-mobile-panel { display:contents; }
       @media(max-width:639px) {
-        .sf-filter-bar { padding:10px 12px;gap:8px;border-radius:8px; }
-        .sf-filter-bar-filters { gap:6px;min-width:0; }
+        .sf-filter-bar { padding:0;background:transparent;border:none;flex-direction:column;gap:8px; }
+        .sf-filter-toggle-btn { display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:10px 16px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:14px;font-weight:500;color:#333;cursor:pointer; }
+        .sf-filter-mobile-panel { display:none;flex-direction:column;gap:8px;padding:12px;background:#f9fafb;border:1px solid #eee;border-radius:8px; }
+        .sf-filter-mobile-panel.sf-filter-open { display:flex; }
+        .sf-filter-bar-filters { flex-direction:column;align-items:stretch;gap:6px;min-width:0; }
         .sf-filter-bar-sort { width:100%; }
         .sf-filter-bar-sort select { flex:1; }
-        .sf-filter-label { font-size:12px;padding:3px 8px; }
-        .sf-filter-price-group { padding:3px 8px; }
-        .sf-filter-price-input { width:56px;padding:3px 4px;font-size:11px; }
-        .sf-filter-bar .sf-filter-title { font-size:12px; }
+        .sf-filter-label { font-size:13px;padding:8px 12px; }
+        .sf-filter-price-group { padding:8px 12px; }
+        .sf-filter-price-input { width:auto;flex:1;padding:6px 8px;font-size:13px; }
+        .sf-filter-bar .sf-filter-title { display:none; }
       }
     </style>
     <div class="sf-filter-bar" data-sf-cat-controls>
-      <div class="sf-filter-bar-filters">
-        <span class="sf-filter-title" style="font-size:13px;font-weight:600;color:#1a1a1a;white-space:nowrap;">Filtros:</span>
-        ${hasFreeShipping ? `
-        <label class="sf-filter-label" data-sf-filter-label="free-shipping">
-          <input type="checkbox" data-sf-filter="free-shipping" style="accent-color:var(--theme-button-primary-bg,#1a1a1a);cursor:pointer;">
-          🚚 Frete grátis
-        </label>` : ''}
-        ${hasDiscounts ? `
-        <label class="sf-filter-label" data-sf-filter-label="on-sale">
-          <input type="checkbox" data-sf-filter="on-sale" style="accent-color:var(--theme-button-primary-bg,#1a1a1a);cursor:pointer;">
-          🏷️ Em promoção
-        </label>` : ''}
-        ${maxPrice - minPrice > 10 ? `
-        <div class="sf-filter-price-group">
-          <span style="font-size:12px;color:#666;white-space:nowrap;">Preço:</span>
-          <input type="number" class="sf-filter-price-input" data-sf-filter="price-min" placeholder="Min" min="${minPrice}" max="${maxPrice}">
-          <span style="font-size:12px;color:#999;">–</span>
-          <input type="number" class="sf-filter-price-input" data-sf-filter="price-max" placeholder="Max" min="${minPrice}" max="${maxPrice}">
-        </div>` : ''}
-      </div>
-      <div class="sf-filter-bar-sort">
-        <label style="font-size:13px;color:#555;white-space:nowrap;">Ordenar:</label>
-        <select data-sf-sort style="padding:6px 28px 6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff;cursor:pointer;outline:none;color:#1a1a1a;appearance:auto;">
-          <option value="default">Relevância</option>
-          <option value="price-asc">Menor preço</option>
-          <option value="price-desc">Maior preço</option>
-          <option value="name-asc">A → Z</option>
-          <option value="name-desc">Z → A</option>
-          <option value="discount">Maior desconto</option>
-        </select>
+      <button type="button" class="sf-filter-toggle-btn" onclick="this.nextElementSibling.classList.toggle('sf-filter-open')">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        Filtrar
+      </button>
+      <div class="sf-filter-mobile-panel">
+        <div class="sf-filter-bar-filters">
+          <span class="sf-filter-title" style="font-size:13px;font-weight:600;color:#1a1a1a;white-space:nowrap;">Filtros:</span>
+          ${hasFreeShipping ? `
+          <label class="sf-filter-label" data-sf-filter-label="free-shipping">
+            <input type="checkbox" data-sf-filter="free-shipping" style="accent-color:var(--theme-button-primary-bg,#1a1a1a);cursor:pointer;">
+            🚚 Frete grátis
+          </label>` : ''}
+          ${hasDiscounts ? `
+          <label class="sf-filter-label" data-sf-filter-label="on-sale">
+            <input type="checkbox" data-sf-filter="on-sale" style="accent-color:var(--theme-button-primary-bg,#1a1a1a);cursor:pointer;">
+            🏷️ Em promoção
+          </label>` : ''}
+          ${maxPrice - minPrice > 10 ? `
+          <div class="sf-filter-price-group">
+            <span style="font-size:12px;color:#666;white-space:nowrap;">Preço:</span>
+            <input type="number" class="sf-filter-price-input" data-sf-filter="price-min" placeholder="Min" min="${minPrice}" max="${maxPrice}">
+            <span style="font-size:12px;color:#999;">–</span>
+            <input type="number" class="sf-filter-price-input" data-sf-filter="price-max" placeholder="Max" min="${minPrice}" max="${maxPrice}">
+          </div>` : ''}
+        </div>
+        <div class="sf-filter-bar-sort">
+          <label style="font-size:13px;color:#555;white-space:nowrap;">Ordenar:</label>
+          <select data-sf-sort style="padding:6px 28px 6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff;cursor:pointer;outline:none;color:#1a1a1a;appearance:auto;">
+            <option value="default">Relevância</option>
+            <option value="price-asc">Menor preço</option>
+            <option value="price-desc">Maior preço</option>
+            <option value="name-asc">A → Z</option>
+            <option value="name-desc">Z → A</option>
+            <option value="discount">Maior desconto</option>
+          </select>
+        </div>
       </div>
     </div>`;
 
