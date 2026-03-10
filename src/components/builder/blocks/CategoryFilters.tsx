@@ -3,7 +3,7 @@
 // Responsivo: sidebar no desktop, accordion no mobile
 // =============================================
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { ChevronDown, Filter, X, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -63,6 +63,11 @@ export function CategoryFilters({
   isEditing = false,
 }: CategoryFiltersProps) {
   const [localPriceRange, setLocalPriceRange] = useState(priceRange);
+
+  // Sync local state when parent price range changes (e.g. computedMaxPrice loaded)
+  useEffect(() => {
+    setLocalPriceRange(priceRange);
+  }, [priceRange[0], priceRange[1]]);
   const [openSections, setOpenSections] = useState({
     price: true,
     stock: true,

@@ -119,8 +119,9 @@ export function CategoryPageLayout({
   // State for tracking which products show "Adicionado" feedback
   const [addedProducts, setAddedProducts] = useState<Set<string>>(new Set());
 
-  // Filter states — price range upper bound will be synced with computed max
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 999999]);
+  // Filter states — price range syncs with computed max on load
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 500]);
+  const [priceInitialized, setPriceInitialized] = useState(false);
   const [sortBy, setSortBy] = useState('relevance');
   const [inStockOnly, setInStockOnly] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -224,6 +225,14 @@ export function CategoryPageLayout({
     // Round up to nearest 50 for a cleaner slider
     return Math.ceil(maxProductPrice / 50) * 50 || 500;
   }, [displayProducts]);
+
+  // Sync price range with computed max when products load
+  useEffect(() => {
+    if (displayProducts.length > 0 && !priceInitialized) {
+      setPriceRange([0, computedMaxPrice]);
+      setPriceInitialized(true);
+    }
+  }, [displayProducts.length, computedMaxPrice, priceInitialized]);
 
   // Filter and sort products
   const filteredProducts = useMemo(() => {
@@ -374,7 +383,7 @@ export function CategoryPageLayout({
   };
 
   return (
-    <div className="px-2 sm:px-4 py-6">
+    <div className="px-2 sm:px-4 pt-2 sm:pt-4 pb-6">
       {/* Mobile filters — In builder: controlled by viewport prop. In public: CSS responsive (lg:hidden) */}
       {showFilters && (isMobileBuilder || !isBuilderContext) && (
         <div className={isBuilderContext ? '' : 'lg:hidden'}>
