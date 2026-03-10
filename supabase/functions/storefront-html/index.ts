@@ -2074,6 +2074,12 @@ serve(async (req) => {
       marketingScripts,
       newsletterPopupHtml,
       consentBannerHtml,
+      benefitEnabled: !!benefitConfig?.enabled,
+      benefitThreshold,
+      benefitMode: benefitConfig?.mode || 'free_shipping',
+      benefitRewardLabel: benefitConfig?.rewardLabel || 'Frete Grátis',
+      benefitSuccessLabel: benefitConfig?.successLabel || 'Você ganhou frete grátis!',
+      benefitProgressColor: benefitConfig?.progressColor || '#22c55e',
     });
 
     console.log(`[storefront-html] ${route.type}${route.slug ? '/' + route.slug : ''} rendered in ${totalMs}ms (resolve=${resolveMs}ms, queries=${queryMs}ms)`);
