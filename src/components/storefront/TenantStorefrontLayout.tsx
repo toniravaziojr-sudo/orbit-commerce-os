@@ -115,7 +115,7 @@ export function TenantStorefrontLayout() {
                     </main>
                     <TenantLayoutMiniCartDrawer tenantSlug={tenantSlug} isPreview={isPreview} />
                     <Suspense fallback={null}>
-                      <SupportChatWidget />
+                      <SupportChatWidget tenantSlug={tenantSlug} bootstrapTemplate={bootstrapTemplate} />
                     </Suspense>
                     <Suspense fallback={null}>
                       <NewsletterPopupLoader tenantId={tenant.id} />

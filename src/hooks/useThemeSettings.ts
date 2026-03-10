@@ -241,6 +241,27 @@ export interface ThemePageSettings {
   home?: Record<string, boolean | string | number | string[]>;
 }
 
+export type SupportWidgetType = 'chat' | 'whatsapp' | 'both';
+export type SupportWidgetPosition = 'left' | 'right';
+
+export interface SupportWidgetConfig {
+  enabled?: boolean;
+  type?: SupportWidgetType;
+  whatsappNumber?: string;
+  whatsappMessage?: string;
+  buttonColor?: string;
+  position?: SupportWidgetPosition;
+}
+
+export const DEFAULT_SUPPORT_WIDGET: SupportWidgetConfig = {
+  enabled: true,
+  type: 'chat',
+  whatsappNumber: '',
+  whatsappMessage: 'Olá! Preciso de ajuda.',
+  buttonColor: '#25D366',
+  position: 'right',
+};
+
 export interface ThemeSettings {
   colors?: ThemeColors;
   typography?: ThemeTypography;
@@ -249,6 +270,7 @@ export interface ThemeSettings {
   footer?: ThemeFooterConfig;
   miniCart?: ThemeMiniCartConfig;
   pageSettings?: ThemePageSettings;
+  supportWidget?: SupportWidgetConfig;
 }
 
 // ============================================
