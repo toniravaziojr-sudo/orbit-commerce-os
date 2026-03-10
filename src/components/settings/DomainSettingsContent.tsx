@@ -8,6 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useTenantDomains, TenantDomain, DEFAULT_TARGET_HOSTNAME, getPlatformSubdomainUrl } from '@/hooks/useTenantDomains';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { cachePurge } from '@/lib/storefrontCachePurge';
 import { AddDomainDialog } from '@/components/settings/AddDomainDialog';
 import { DomainInstructionsDialog } from '@/components/settings/DomainInstructionsDialog';
 import {
