@@ -4,9 +4,10 @@
 // =============================================
 
 import { useState, useEffect } from 'react';
-import { GripVertical, CreditCard, QrCode, FileText } from 'lucide-react';
+import { GripVertical, CreditCard, QrCode, FileText, AlertTriangle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
