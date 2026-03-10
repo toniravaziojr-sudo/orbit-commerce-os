@@ -459,6 +459,9 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
   }, [shippingConfig, quote, tenantId]);
 
   // Benefit progress function
+  // Uses logistics rules threshold when available, falls back to benefit_config.thresholdValue
+  const logisticsThreshold = data?.logisticsThreshold ?? null;
+  
   const getProgress = useMemo(() => {
     return (cartTotal: number, externalFreeShipping?: boolean) => {
       if (!benefitConfig.enabled) {
@@ -468,10 +471,17 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
       // If applyToExternalRules is on and external rules grant free shipping, show achieved
       const achievedByExternal = benefitConfig.applyToExternalRules && externalFreeShipping;
 
-      const threshold = benefitConfig.thresholdValue;
-      const progress = achievedByExternal ? 100 : Math.min((cartTotal / threshold) * 100, 100);
+      // Priority: logistics rules threshold > benefit_config.thresholdValue (legacy fallback)
+      const threshold = logisticsThreshold ?? benefitConfig.thresholdValue;
+      
+      // If no threshold available (no rules, no legacy value), and not achieved by external, hide bar
+      if (threshold <= 0 && !achievedByExternal) {
+        return { enabled: true, progress: 0, remaining: 0, achieved: false, label: benefitConfig.rewardLabel };
+      }
+
+      const progress = achievedByExternal ? 100 : (threshold > 0 ? Math.min((cartTotal / threshold) * 100, 100) : 0);
       const remaining = achievedByExternal ? 0 : Math.max(threshold - cartTotal, 0);
-      const achieved = achievedByExternal || cartTotal >= threshold;
+      const achieved = achievedByExternal || (threshold > 0 && cartTotal >= threshold);
 
       return {
         enabled: true,
@@ -481,7 +491,7 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
         label: achieved ? benefitConfig.successLabel : benefitConfig.rewardLabel,
       };
     };
-  }, [benefitConfig]);
+  }, [benefitConfig, logisticsThreshold]);
 
   const shippingValue: ShippingContextValue = {
     config: shippingConfig,
