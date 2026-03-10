@@ -417,7 +417,7 @@ function buildFullPage(opts: {
     }
     /* Dropdown hover — mirrors SPA hover behavior */
     .sf-dropdown{padding:8px 0;}
-    .sf-dropdown .sf-dropdown-menu{padding-top:8px;}
+    .sf-dropdown .sf-dropdown-menu{padding-top:12px;}
     .sf-dropdown:hover .sf-dropdown-menu{display:block !important;}
     .sf-dropdown-item:hover{background:rgba(0,0,0,0.04);color:var(--theme-button-primary-bg, #1a1a1a);}
     /* 3rd level sub-dropdown hover */
