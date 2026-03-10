@@ -324,7 +324,7 @@ export function CategoryPageLayout({
     
     // Se cartActionType é 'miniCart', abre o drawer
     if (cartActionType === 'miniCart') {
-      setMiniCartOpen(true);
+      openMiniCart();
     }
     
     // Remove o feedback depois de 2 segundos
