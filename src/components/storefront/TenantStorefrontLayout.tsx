@@ -11,6 +11,8 @@ import { Loader2 } from 'lucide-react';
 import { CartProvider } from '@/contexts/CartContext';
 import { DiscountProvider } from '@/contexts/DiscountContext';
 import { StorefrontConfigProvider } from '@/contexts/StorefrontConfigContext';
+import { MiniCartProvider, useMiniCart } from '@/contexts/MiniCartContext';
+import { MiniCartDrawer } from '@/components/storefront/MiniCartDrawer';
 import { MarketingTrackerProvider } from '@/components/storefront/MarketingTrackerProvider';
 import { StorefrontHead } from '@/components/storefront/StorefrontHead';
 import { LcpPreloader } from '@/components/storefront/LcpPreloader';
