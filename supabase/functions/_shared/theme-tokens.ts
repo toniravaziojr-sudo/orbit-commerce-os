@@ -134,7 +134,7 @@ export function generateThemeCss(themeSettings: any): string {
     body {
       font-family: var(--sf-body-font);
       font-size: var(--sf-base-font-size);
-      color: #1a1a1a;
+      color: var(--theme-text-primary, #1a1a1a);
       background: #fff;
       -webkit-font-smoothing: antialiased;
     }
@@ -162,6 +162,8 @@ export function generateButtonCssRules(): string {
     .sf-btn-outline-secondary{background:transparent;color:var(--theme-button-secondary-text,#1a1a1a);border:1px solid var(--theme-button-secondary-bg,#e5e5e5);transition:all 0.2s ease;}
     @media(hover:hover){.sf-btn-outline-secondary:hover:not(:disabled){background:var(--theme-button-secondary-bg,#e5e5e5);color:var(--theme-button-secondary-text,#1a1a1a);border-color:var(--theme-button-secondary-bg,#e5e5e5);transform:translateY(-1px);}}
     .sf-btn-outline-secondary:active:not(:disabled){transform:scale(0.93);filter:brightness(0.88);transition:transform 0.08s;box-shadow:inset 0 2px 4px rgba(0,0,0,0.2);}
+    .sf-price-color{color:var(--theme-price-color,var(--theme-text-primary,currentColor));}
+    .sf-text-secondary{color:var(--theme-text-secondary,#666);}
     .sf-accent-icon,.sf-accent-check,.sf-accent-text{color:var(--theme-accent-color,#22c55e);}
     .sf-accent-bg{background:var(--theme-accent-color,#22c55e);color:#fff;}
     .sf-tag-success{background:var(--theme-success-bg,#22c55e);color:var(--theme-success-text,#fff);}

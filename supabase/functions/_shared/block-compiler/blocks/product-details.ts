@@ -64,7 +64,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
       crumbs.push(`<a href="/categoria/${escapeHtml(category.slug)}" style="color:#666;text-decoration:none;font-size:13px;">${escapeHtml(category.name)}</a>`);
     }
     crumbs.push(`<span style="color:#999;font-size:12px;">›</span>`);
-    crumbs.push(`<span style="color:#1a1a1a;font-size:13px;font-weight:500;">${escapeHtml(product.name)}</span>`);
+    crumbs.push(`<span style="color:var(--theme-text-primary,#1a1a1a);font-size:13px;font-weight:500;">${escapeHtml(product.name)}</span>`);
     breadcrumbHtml = `<nav aria-label="breadcrumb" style="margin-bottom:16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">${crumbs.join('')}</nav>`;
   }
 
@@ -73,7 +73,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
   if (product.avg_rating && product.review_count && product.review_count > 0) {
     ratingHtml = `<div style="display:flex;align-items:center;gap:6px;margin-top:-8px;">
       <div style="display:flex;align-items:center;gap:1px;">${renderStars(product.avg_rating)}</div>
-      <span style="font-size:14px;font-weight:600;color:#1a1a1a;">${product.avg_rating.toFixed(1)}</span>
+      <span style="font-size:14px;font-weight:600;color:var(--theme-text-primary,#1a1a1a);">${product.avg_rating.toFixed(1)}</span>
       <span style="font-size:13px;color:var(--theme-text-secondary,#666);">(${product.review_count} avaliação${product.review_count > 1 ? 'ões' : ''})</span>
     </div>`;
   }
