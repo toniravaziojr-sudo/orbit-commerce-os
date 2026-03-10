@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Loader2, MessageCircle, Phone } from 'lucide-react';
-import { useThemeSettings, SupportWidgetConfig, DEFAULT_SUPPORT_WIDGET, SupportWidgetType, SupportWidgetPosition } from '@/hooks/useThemeSettings';
+import { useThemeSettings, type SupportWidgetConfig, DEFAULT_SUPPORT_WIDGET, type SupportWidgetType, type SupportWidgetPosition } from '@/hooks/useThemeSettings';
 import { toast } from 'sonner';
 
 interface SupportSettingsProps {
