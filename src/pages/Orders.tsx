@@ -16,6 +16,7 @@ import {
 import { StatCard } from '@/components/ui/stat-card';
 import { OrderList } from '@/components/orders/OrderList';
 import { useOrders, type Order, type OrderStatus } from '@/hooks/useOrders';
+import { normalizeOrderStatus } from '@/types/orderStatus';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { FeatureGate } from '@/components/layout/FeatureGate';
 
