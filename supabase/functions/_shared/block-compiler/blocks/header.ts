@@ -178,11 +178,11 @@ export function headerToStaticHTML(context: CompilerContext): string {
       // Dropdown container style per visual mode — mirrors SPA positioning (centered)
       let dropdownStyle = '';
       if (menuVisualStyle === 'classic') {
-        dropdownStyle = 'display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:12px;background:var(--theme-popover, rgba(255,255,255,0.95));backdrop-filter:blur(12px);border:1px solid rgba(0,0,0,0.08);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.12);padding:8px 0;min-width:260px;z-index:60;';
+        dropdownStyle = 'display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);background:var(--theme-popover, rgba(255,255,255,0.95));backdrop-filter:blur(12px);border:1px solid rgba(0,0,0,0.08);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.12);padding:8px 0;min-width:260px;z-index:60;';
       } else if (menuVisualStyle === 'elegant') {
-        dropdownStyle = 'display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:12px;background:var(--theme-popover, rgba(255,255,255,0.98));backdrop-filter:blur(16px);border:1px solid rgba(0,0,0,0.06);border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,0.15);padding:12px 0;min-width:280px;z-index:60;';
+        dropdownStyle = 'display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);background:var(--theme-popover, rgba(255,255,255,0.98));backdrop-filter:blur(16px);border:1px solid rgba(0,0,0,0.06);border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,0.15);padding:12px 0;min-width:280px;z-index:60;';
       } else {
-        dropdownStyle = 'display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:8px;background:var(--theme-popover, #fff);box-shadow:0 4px 16px rgba(0,0,0,0.1);border-radius:8px;padding:8px 0;min-width:220px;z-index:60;';
+        dropdownStyle = 'display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);background:var(--theme-popover, #fff);box-shadow:0 4px 16px rgba(0,0,0,0.1);border-radius:8px;padding:8px 0;min-width:220px;z-index:60;';
       }
       
       // Dropdown arrow triangle — classic and elegant only (mirrors SPA)
