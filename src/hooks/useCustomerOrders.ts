@@ -188,17 +188,20 @@ export function useCustomerOrder(orderId?: string) {
 }
 
 // Get status label and color
-export function getOrderStatusInfo(status: CustomerOrder['status']) {
-  const statusMap: Record<CustomerOrder['status'], { label: string; color: string }> = {
-    pending: { label: 'Pendente', color: 'bg-yellow-100 text-yellow-800' },
-    awaiting_payment: { label: 'Aguardando pagamento', color: 'bg-yellow-100 text-yellow-800' },
-    paid: { label: 'Pago', color: 'bg-green-100 text-green-800' },
-    processing: { label: 'Em separação', color: 'bg-blue-100 text-blue-800' },
-    shipped: { label: 'Enviado', color: 'bg-purple-100 text-purple-800' },
-    in_transit: { label: 'Em trânsito', color: 'bg-purple-100 text-purple-800' },
-    delivered: { label: 'Entregue', color: 'bg-green-100 text-green-800' },
-    cancelled: { label: 'Cancelado', color: 'bg-red-100 text-red-800' },
-    returned: { label: 'Devolvido', color: 'bg-gray-100 text-gray-800' },
+export function getOrderStatusInfo(status: string) {
+  const { normalizeOrderStatus, ORDER_STATUS_CONFIG } = require('@/types/orderStatus');
+  const normalized = normalizeOrderStatus(status);
+  const cfg = ORDER_STATUS_CONFIG[normalized];
+  
+  const colorMap: Record<string, string> = {
+    outline: 'bg-yellow-100 text-yellow-800',
+    secondary: 'bg-blue-100 text-blue-800',
+    default: 'bg-green-100 text-green-800',
+    destructive: 'bg-red-100 text-red-800',
   };
-  return statusMap[status] || { label: status, color: 'bg-gray-100 text-gray-800' };
+  
+  return { 
+    label: cfg?.label || status, 
+    color: colorMap[cfg?.variant || 'outline'] || 'bg-gray-100 text-gray-800' 
+  };
 }
