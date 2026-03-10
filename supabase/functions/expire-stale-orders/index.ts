@@ -39,14 +39,14 @@ serve(async (req) => {
       .from('orders')
       .update({ 
         payment_status: 'cancelled', 
-        status: 'cancelled',
+        status: 'payment_expired',
         cancellation_reason: 'PIX expirado (automático)',
         cancelled_at: now.toISOString(),
         updated_at: now.toISOString(),
       })
       .eq('payment_method', 'pix')
       .eq('payment_status', 'pending')
-      .in('status', ['pending', 'awaiting_payment'])
+      .in('status', ['pending', 'awaiting_payment', 'awaiting_confirmation'])
       .lt('created_at', pixCutoff)
       .select('id, order_number, tenant_id');
 

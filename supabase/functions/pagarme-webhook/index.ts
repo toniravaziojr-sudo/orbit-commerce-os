@@ -125,9 +125,8 @@ serve(async (req) => {
       case 'paid':
         newTransactionStatus = 'paid';
         newPaymentStatus = 'approved';
-        // IMPORTANTE: usar 'paid' que é um valor válido do enum order_status
-        // Valores válidos: pending,awaiting_payment,paid,processing,shipped,in_transit,delivered,cancelled,returned
-        newOrderStatus = 'paid';
+        // Novo fluxo: pagamento aprovado → pronto para emitir NF
+        newOrderStatus = 'ready_to_invoice';
         paidAt = new Date().toISOString();
         paidAmount = charge?.paid_amount || charge?.amount || existingTransaction.amount;
         break;
@@ -139,18 +138,18 @@ serve(async (req) => {
       case 'failed':
         newTransactionStatus = 'failed';
         newPaymentStatus = 'declined';
-        newOrderStatus = 'cancelled';
+        newOrderStatus = 'payment_expired';
         break;
       case 'canceled':
         newTransactionStatus = 'canceled';
         newPaymentStatus = 'declined';
-        newOrderStatus = 'cancelled';
+        newOrderStatus = 'payment_expired';
         break;
       case 'overpaid':
         newTransactionStatus = 'paid';
         newPaymentStatus = 'approved';
-        // IMPORTANTE: usar 'paid' que é um valor válido do enum order_status
-        newOrderStatus = 'paid';
+        // Novo fluxo: pagamento aprovado → pronto para emitir NF
+        newOrderStatus = 'ready_to_invoice';
         paidAt = new Date().toISOString();
         paidAmount = charge?.paid_amount || charge?.amount;
         break;
@@ -165,7 +164,7 @@ serve(async (req) => {
       case 'chargedback':
         newTransactionStatus = 'chargedback';
         newPaymentStatus = 'chargedback';
-        newOrderStatus = 'cancelled';
+        newOrderStatus = 'payment_expired';
         break;
       case 'expired':
         newTransactionStatus = 'expired';
