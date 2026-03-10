@@ -3786,6 +3786,8 @@ NUNCA exponha termos técnicos internos. Use SEMPRE a linguagem da interface.
 | get_google_adgroups | ver grupos de anúncios Google |
 | get_google_keywords | ver palavras-chave Google |
 | get_google_ads | ver anúncios Google |
+| browse_drive | explorar Meu Drive |
+| search_drive_files | buscar no Meu Drive |
 | edge function | sistema interno |
 | tenant_id | loja |
 | kill_switch | botão de emergência |
