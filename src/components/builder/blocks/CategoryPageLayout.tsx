@@ -114,7 +114,7 @@ export function CategoryPageLayout({
   const { addItem } = useCart();
 
   // State for mini-cart drawer
-  const [miniCartOpen, setMiniCartOpen] = useState(false);
+  const { open: openMiniCart } = useMiniCart();
   
   // State for tracking which products show "Adicionado" feedback
   const [addedProducts, setAddedProducts] = useState<Set<string>>(new Set());

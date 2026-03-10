@@ -358,15 +358,7 @@ export function ProductGridBlock({
         })}
       </div>
       
-      {/* Mini Cart Drawer - only render if miniCartEnabled */}
-      {miniCartEnabled && (
-        <MiniCartDrawer
-          open={miniCartOpen}
-          onOpenChange={setMiniCartOpen}
-          tenantSlug={tenantSlug}
-          isPreview={context?.isPreview}
-        />
-      )}
+      {/* MiniCartDrawer rendered at layout level via MiniCartContext */}
     </div>
   );
 }
