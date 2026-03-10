@@ -2160,6 +2160,168 @@ async function getProductImages(supabase: any, tenantId: string, productId: stri
   });
 }
 
+// --- browse_drive: Navigate Drive folders and list contents ---
+async function browseDrive(supabase: any, tenantId: string, folderId?: string, fileType?: string) {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+
+  // Fetch folders in current level
+  let foldersQuery = supabase
+    .from("files")
+    .select("id, filename, original_name, is_system_folder, created_at")
+    .eq("tenant_id", tenantId)
+    .eq("is_folder", true);
+
+  if (folderId) {
+    foldersQuery = foldersQuery.eq("folder_id", folderId);
+  } else {
+    foldersQuery = foldersQuery.is("folder_id", null);
+  }
+
+  const { data: folders, error: foldersErr } = await foldersQuery
+    .order("is_system_folder", { ascending: false })
+    .order("original_name", { ascending: true })
+    .limit(50);
+
+  if (foldersErr) return JSON.stringify({ error: foldersErr.message });
+
+  // Fetch files in current level
+  let filesQuery = supabase
+    .from("files")
+    .select("id, filename, original_name, storage_path, mime_type, size_bytes, metadata, created_at")
+    .eq("tenant_id", tenantId)
+    .eq("is_folder", false);
+
+  if (folderId) {
+    filesQuery = filesQuery.eq("folder_id", folderId);
+  } else {
+    filesQuery = filesQuery.is("folder_id", null);
+  }
+
+  // Apply file type filter
+  if (fileType === "image") {
+    filesQuery = filesQuery.ilike("mime_type", "image/%");
+  } else if (fileType === "video") {
+    filesQuery = filesQuery.ilike("mime_type", "video/%");
+  }
+
+  const { data: files, error: filesErr } = await filesQuery
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (filesErr) return JSON.stringify({ error: filesErr.message });
+
+  // Build URLs for files
+  const fileItems = (files || []).map((f: any) => {
+    const meta = f.metadata as Record<string, any> | null;
+    const bucket = meta?.bucket || (f.storage_path?.includes("tenants/") ? "store-assets" : "tenant-files");
+    const isPublic = bucket !== "tenant-files";
+    let url = meta?.url || null;
+    if (!url && f.storage_path && isPublic) {
+      url = `${supabaseUrl}/storage/v1/object/public/${bucket}/${f.storage_path}`;
+    }
+    return {
+      id: f.id,
+      name: f.original_name || f.filename,
+      mime_type: f.mime_type,
+      size_kb: f.size_bytes ? Math.round(f.size_bytes / 1024) : null,
+      url,
+      bucket,
+      is_public: isPublic,
+      created_at: f.created_at,
+      metadata_tags: meta?.product_id ? { product_id: meta.product_id, is_winner: meta.is_winner } : null,
+    };
+  });
+
+  const folderItems = (folders || []).map((f: any) => ({
+    id: f.id,
+    name: f.original_name || f.filename,
+    is_system: f.is_system_folder,
+  }));
+
+  return JSON.stringify({
+    current_folder_id: folderId || null,
+    folders: folderItems,
+    files: fileItems,
+    total_folders: folderItems.length,
+    total_files: fileItems.length,
+    tip: folderItems.length === 0 && fileItems.length === 0
+      ? "Pasta vazia. Tente navegar para outra pasta ou usar search_drive_files para buscar em todas as pastas."
+      : null,
+  });
+}
+
+// --- search_drive_files: Search files across ALL Drive folders ---
+async function searchDriveFiles(supabase: any, tenantId: string, query: string, fileType?: string, limit?: number) {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const maxResults = Math.min(limit || 30, 50);
+
+  let filesQuery = supabase
+    .from("files")
+    .select("id, filename, original_name, storage_path, mime_type, size_bytes, metadata, folder_id, created_at")
+    .eq("tenant_id", tenantId)
+    .eq("is_folder", false)
+    .or(`original_name.ilike.%${query}%,filename.ilike.%${query}%`);
+
+  if (fileType === "image") {
+    filesQuery = filesQuery.ilike("mime_type", "image/%");
+  } else if (fileType === "video") {
+    filesQuery = filesQuery.ilike("mime_type", "video/%");
+  }
+
+  const { data: files, error } = await filesQuery
+    .order("created_at", { ascending: false })
+    .limit(maxResults);
+
+  if (error) return JSON.stringify({ error: error.message });
+
+  // Get folder names for context
+  const folderIds = [...new Set((files || []).map((f: any) => f.folder_id).filter(Boolean))];
+  let folderMap: Record<string, string> = {};
+  if (folderIds.length > 0) {
+    const { data: folders } = await supabase
+      .from("files")
+      .select("id, original_name, filename")
+      .in("id", folderIds);
+    folderMap = (folders || []).reduce((acc: any, f: any) => {
+      acc[f.id] = f.original_name || f.filename;
+      return acc;
+    }, {});
+  }
+
+  const results = (files || []).map((f: any) => {
+    const meta = f.metadata as Record<string, any> | null;
+    const bucket = meta?.bucket || (f.storage_path?.includes("tenants/") ? "store-assets" : "tenant-files");
+    const isPublic = bucket !== "tenant-files";
+    let url = meta?.url || null;
+    if (!url && f.storage_path && isPublic) {
+      url = `${supabaseUrl}/storage/v1/object/public/${bucket}/${f.storage_path}`;
+    }
+    return {
+      id: f.id,
+      name: f.original_name || f.filename,
+      folder: folderMap[f.folder_id] || "Raiz",
+      mime_type: f.mime_type,
+      size_kb: f.size_bytes ? Math.round(f.size_bytes / 1024) : null,
+      url,
+      bucket,
+      is_public: isPublic,
+      created_at: f.created_at,
+      metadata_tags: meta?.product_id ? { product_id: meta.product_id, is_winner: meta.is_winner, scores: meta.scores } : null,
+    };
+  });
+
+  return JSON.stringify({
+    query,
+    results,
+    total_found: results.length,
+    tip: results.length === 0
+      ? `Nenhum arquivo encontrado com "${query}". Tente termos diferentes ou use browse_drive para navegar pelas pastas manualmente.`
+      : results.length >= maxResults
+        ? `Mostrando os ${maxResults} resultados mais recentes. Pode haver mais — refine a busca.`
+        : null,
+  });
+}
+
 async function getCreativeAssets(supabase: any, tenantId: string, status?: string) {
   // 1) Internal creative assets (generated by AI)
   const query = supabase.from("ads_creative_assets")
