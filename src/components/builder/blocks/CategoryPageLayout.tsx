@@ -119,8 +119,8 @@ export function CategoryPageLayout({
   // State for tracking which products show "Adicionado" feedback
   const [addedProducts, setAddedProducts] = useState<Set<string>>(new Set());
 
-  // Filter states
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 500]);
+  // Filter states — price range upper bound will be synced with computed max
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 999999]);
   const [sortBy, setSortBy] = useState('relevance');
   const [inStockOnly, setInStockOnly] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
