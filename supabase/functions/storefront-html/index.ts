@@ -211,9 +211,9 @@ function generateNewsletterPopupHtml(config: any, tenantId: string, routeType: s
   const popupWidth = isCorner ? 'max-width:360px;' : (layout === 'side-image' && imageUrl ? 'max-width:540px;' : 'max-width:500px;');
 
   return `
-  <style>.sf-popup-image{display:none;}@media(min-width:640px){.sf-popup-image{display:block;}}</style>
+  <style>.sf-popup-image{display:none;}@media(min-width:640px){.sf-popup-image{display:block;}}.sf-popup-box{display:flex;gap:0;}@media(max-width:639px){.sf-popup-box{flex-direction:column!important;padding:32px!important;}}</style>
   <div id="sf-newsletter-popup" data-sf-newsletter-popup style="display:none;${isCorner ? 'position:fixed;bottom:20px;right:20px;z-index:95;' : 'position:fixed;inset:0;z-index:95;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;'}">
-    <div style="${isCorner ? '' : 'position:relative;'}background:${bgColor};color:${textColor};border-radius:12px;padding:32px;${popupWidth}width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.2);display:flex;${layout === 'side-image' ? 'flex-direction:row;padding:0;overflow:hidden;' : 'flex-direction:column;'}gap:0;">
+    <div class="sf-popup-box" style="${isCorner ? '' : 'position:relative;'}background:${bgColor};color:${textColor};border-radius:12px;padding:32px;${popupWidth}width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.2);${layout === 'side-image' ? 'flex-direction:row;padding:0;overflow:hidden;' : 'flex-direction:column;'}">
       ${imageHtml}
       <div style="${layout === 'side-image' ? 'flex:1;padding:32px;' : ''}">
         <button data-sf-action="close-newsletter-popup" style="position:absolute;top:12px;right:12px;background:none;border:none;font-size:24px;cursor:pointer;color:${textColor};line-height:1;">&times;</button>
