@@ -48,7 +48,7 @@ import { CanvasEditorProvider } from './CanvasEditorContext';
 import { CanvasRichTextProvider } from './CanvasRichTextContext';
 import { BuilderDraftThemeProvider, useBuilderDraftTheme, getGlobalDraftThemeRef, DraftThemeRefSync } from '@/hooks/useBuilderDraftTheme';
 import { BuilderDraftPageSettingsProvider, getGlobalDraftPageSettingsRef, PageSettingsKey, useDraftPageSettingsObserver } from '@/hooks/useBuilderDraftPageSettings';
-import { getGlobalHeaderDraftRef, getGlobalFooterDraftRef, getGlobalMiniCartDraftRef, getGlobalPopupDraftRef, useHeaderFooterDraftObserver } from '@/hooks/useThemeSettings';
+import { getGlobalHeaderDraftRef, getGlobalFooterDraftRef, getGlobalMiniCartDraftRef, getGlobalPopupDraftRef, getGlobalSupportWidgetDraftRef, useHeaderFooterDraftObserver } from '@/hooks/useThemeSettings';
 
 // Isolation modes for debugging React #300
 type IsolateMode = 'app' | 'visual' | 'canvas' | 'blocks' | 'blocks-real' | 'full';
