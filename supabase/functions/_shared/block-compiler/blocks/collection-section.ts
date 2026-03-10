@@ -44,7 +44,7 @@ export const collectionSectionToStaticHTML: BlockCompilerFn = (
   const viewAllUrl = categorySlug ? `/categoria/${escapeHtml(categorySlug)}` : '#';
 
   const viewAllHtml = showViewAll && categorySlug
-    ? `<a href="${viewAllUrl}" style="color:#888;text-decoration:none;display:flex;align-items:center;gap:4px;transition:color .2s;" onmouseover="this.style.color='var(--theme-button-primary-bg,#1a1a1a)'" onmouseout="this.style.color='#888'">Ver todos <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></a>`
+    ? `<a href="${viewAllUrl}" style="color:var(--theme-text-secondary, #888);text-decoration:none;display:flex;align-items:center;gap:4px;transition:color .2s;" onmouseover="this.style.color='var(--theme-button-primary-bg,#1a1a1a)'" onmouseout="this.style.color='var(--theme-text-secondary,#888)'">Ver todos <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></a>`
     : '';
 
   if (displayStyle === 'carousel') {
