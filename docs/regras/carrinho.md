@@ -279,39 +279,48 @@ interface CartItem {
 
 ---
 
-## Barra de Conversão (Benefit Progress Bar)
+## Barra de Conversão (Benefit Progress Bar) — v2.0
 
-A barra de progresso incentiva o cliente a atingir um valor mínimo para ganhar benefícios.
+A barra de progresso incentiva o cliente a atingir um valor mínimo para ganhar frete grátis. **A barra não possui regras próprias** — ela reflete o motor central de frete grátis (ver `docs/regras/logistica.md`).
 
 ### Configuração (`BenefitConfig` em `store_settings.benefit_config`)
 
 | Campo | Tipo | Default | Descrição |
 |-------|------|---------|-----------|
-| `enabled` | boolean | false | Ativa/desativa a barra |
+| `enabled` | boolean | false | Ativa/desativa a barra (não afeta regras reais) |
 | `mode` | `'free_shipping' \| 'gift'` | `'free_shipping'` | Tipo de benefício |
-| `thresholdValue` | number | 199 | Valor mínimo para atingir |
 | `rewardLabel` | string | `'Frete Grátis'` | Texto durante progresso |
 | `successLabel` | string | `'🎉 Parabéns!...'` | Texto ao atingir |
 | `progressColor` | string | `'#22c55e'` | Cor da barra |
-| `applyToExternalRules` | boolean? | false | Concede frete grátis também por regras externas |
 
-### `applyToExternalRules`
+> **[REMOVIDO] `thresholdValue`** — O valor-alvo agora vem automaticamente do motor central (menor `min_order_cents` das regras ativas de logística).
+> **[REMOVIDO] `applyToExternalRules`** — A barra sempre reconhece todas as fontes (produto, cupom, logística) por padrão.
 
-Quando ativado, o frete grátis é concedido não apenas pela barra de conversão (valor mínimo), mas também quando qualquer regra externa se aplica:
+### Estados da Barra
 
-- **Cadastro do produto:** Campo `free_shipping` ativo no produto
-- **Cupom de desconto:** Cupom do tipo `free_shipping`
-- **Regras de logística:** Regras condicionais por região/valor/categoria
+| Estado | Condição | Mensagem exemplo |
+|--------|----------|-----------------|
+| `hidden` | Barra desativada | — |
+| `progress` | Subtotal < threshold da regra ativa | "Faltam R$ X para frete grátis" |
+| `achieved` | Subtotal ≥ threshold | "Você ganhou frete grátis!" |
+| `granted_by_coupon` | Cupom free_shipping aplicado | "Seu cupom liberou frete grátis" |
+| `granted_by_product` | Item com `free_shipping=true` | "Carrinho com produto com frete grátis" |
 
-Segue a **Hierarquia de Frete Grátis** documentada em `docs/regras/logistica.md`.
+### Renderização
+
+A barra aparece em **ambos** os locais usando o mesmo componente:
+- **Mini-cart lateral:** `<BenefitProgressBar compact />` dentro de `MiniCartDrawer.tsx`
+- **Carrinho normal:** `<BenefitProgressBar />` dentro de `CartBlock.tsx`
+
+> **[REMOVIDO]** `MiniCartBenefitBar` — Componente legado substituído por `BenefitProgressBar compact`.
 
 ### Arquivos
 
 | Arquivo | Responsabilidade |
 |---------|------------------|
-| `src/components/storefront/cart/BenefitProgressBar.tsx` | Componente visual da barra |
-| `src/components/shipping/CartConversionConfigTab.tsx` | UI de configuração admin |
-| `src/contexts/StorefrontConfigContext.tsx` | Provider com `useBenefit()` |
+| `src/components/storefront/cart/BenefitProgressBar.tsx` | Componente visual unificado (suporta prop `compact`) |
+| `src/components/shipping/CartConversionConfigTab.tsx` | UI admin (apenas controles visuais, sem regras de negócio) |
+| `src/contexts/StorefrontConfigContext.tsx` | Provider com `useBenefit()` + fetch de `free_shipping_rules` + `logisticsThreshold` |
 | `src/lib/storeConfigTypes.ts` | Interface `BenefitConfig` |
 
 ---
