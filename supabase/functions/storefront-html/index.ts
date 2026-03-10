@@ -877,7 +877,7 @@ function buildFullPage(opts: {
           document.querySelector("[data-sf-cart-backdrop]")?.classList.remove("active");
           document.querySelector("[data-sf-mobile-nav]")?.classList.remove("active");
         }
-      });
+      },{signal:sfSignal});
 
       // Init cart UI on load
       updateCartUI();
