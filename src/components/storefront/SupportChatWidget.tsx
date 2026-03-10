@@ -6,7 +6,7 @@
 // =============================================
 
 import { useState, useEffect, useRef } from "react";
-import { MessageCircle, X, Send, Loader2, Minimize2, Phone } from "lucide-react";
+import { MessageCircle, X, Send, Loader2, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
