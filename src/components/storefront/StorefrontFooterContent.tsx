@@ -11,7 +11,53 @@ import { FooterNewsletterForm } from './footer/FooterNewsletterForm';
 import { paymentSvgPresets, securitySvgPresets, svgToDataUri } from '@/lib/builder/svg-presets';
 import { getLogoImageUrl } from '@/lib/imageTransform';
 
-// TikTok icon component (not in lucide)
+// SPA route prefixes — routes handled by React Router (client-side navigation)
+// All other routes are content routes that MUST use native navigation (full page reload → Edge HTML)
+const SPA_ROUTE_PREFIXES = ['/cart', '/carrinho', '/checkout', '/obrigado', '/conta', '/minha-conta', '/rastreio', '/minhas-compras', '/busca', '/quiz/', '/avaliar/'];
+
+function isSpaRoute(url: string): boolean {
+  if (!url) return false;
+  const path = url.startsWith('http') ? new URL(url).pathname : url;
+  const cleanPath = path.replace(/^\/store\/[^/]+/, '');
+  return SPA_ROUTE_PREFIXES.some(prefix => cleanPath === prefix || cleanPath.startsWith(prefix + '/') || cleanPath.startsWith(prefix));
+}
+
+/**
+ * FooterLink — Context-aware link for footer navigation
+ * - Content routes (/, /categoria/*, /page/*): forces window.location.href (full page reload → Edge HTML)
+ * - SPA routes (/cart, /checkout, /conta): uses React Router Link (client-side navigation)
+ * - Editing mode: renders inert span
+ */
+function FooterLink({ to, children, className, style, isEditing }: {
+  to: string;
+  children: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+  isEditing?: boolean;
+}) {
+  if (isEditing) {
+    return <span className={className} style={style} onClick={e => e.preventDefault()}>{children}</span>;
+  }
+  // Content routes: force full page reload → Edge HTML
+  if (!isSpaRoute(to)) {
+    return (
+      <a
+        href={to}
+        className={className}
+        style={style}
+        onClick={(e) => {
+          e.preventDefault();
+          window.location.href = to;
+        }}
+      >
+        {children}
+      </a>
+    );
+  }
+  // SPA routes: React Router client-side navigation
+  return <Link to={to} className={className} style={style}>{children}</Link>;
+}
+
 function TikTokIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -675,7 +721,7 @@ export function StorefrontFooterContent({
               {/* Logo */}
               {showLogo && (
                 <div className="mb-4">
-                  <Link to={baseUrl} onClick={e => isEditing && e.preventDefault()}>
+                  <FooterLink to={baseUrl || '/'} isEditing={isEditing}>
                     {logoUrl ? (
                       <img
                         src={logoUrl}
@@ -698,7 +744,7 @@ export function StorefrontFooterContent({
                         {showDemoStore && <span className="text-xs font-normal ml-1">[Demo]</span>}
                       </span>
                     )}
-                  </Link>
+                  </FooterLink>
                 </div>
               )}
               
@@ -923,14 +969,15 @@ export function StorefrontFooterContent({
                 <nav className="flex flex-col gap-2">
                   {validFooter1Items.length > 0 ? (
                     validFooter1Items.map((item) => (
-                      <Link
+                      <FooterLink
                         key={item.id}
                         to={item.resolvedUrl}
                         className={getLinkClassName()}
                         style={footerTextColor ? { color: footerTextColor } : {}}
+                        isEditing={isEditing}
                       >
                         {item.label}
-                      </Link>
+                      </FooterLink>
                     ))
                   ) : isEditing ? (
                     <>
@@ -970,14 +1017,15 @@ export function StorefrontFooterContent({
                 <nav className="flex flex-col gap-2">
                   {validFooter2Items.length > 0 ? (
                     validFooter2Items.map((item) => (
-                      <Link
+                      <FooterLink
                         key={item.id}
                         to={item.resolvedUrl}
                         className={getLinkClassName()}
                         style={footerTextColor ? { color: footerTextColor } : {}}
+                        isEditing={isEditing}
                       >
                         {item.label}
-                      </Link>
+                      </FooterLink>
                     ))
                   ) : isEditing ? (
                     <>
@@ -1021,7 +1069,7 @@ export function StorefrontFooterContent({
               {/* Logo */}
               {showLogo && (
                 <div className="mb-4">
-                  <Link to={baseUrl} onClick={e => isEditing && e.preventDefault()}>
+                  <FooterLink to={baseUrl || '/'} isEditing={isEditing}>
                     {logoUrl ? (
                       <img
                         src={logoUrl}
@@ -1044,7 +1092,7 @@ export function StorefrontFooterContent({
                         {showDemoStore && <span className="text-xs font-normal ml-1">[Demo]</span>}
                       </span>
                     )}
-                  </Link>
+                  </FooterLink>
                 </div>
               )}
               
@@ -1262,14 +1310,15 @@ export function StorefrontFooterContent({
               <nav className="flex flex-col gap-2">
                 {validFooter1Items.length > 0 ? (
                   validFooter1Items.map((item) => (
-                    <Link
+                    <FooterLink
                       key={item.id}
                       to={item.resolvedUrl}
                       className={getLinkClassName()}
                       style={footerTextColor ? { color: footerTextColor } : {}}
+                      isEditing={isEditing}
                     >
                       {item.label}
-                    </Link>
+                    </FooterLink>
                   ))
                 ) : isEditing ? (
                   <>
@@ -1311,14 +1360,15 @@ export function StorefrontFooterContent({
               <nav className="flex flex-col gap-2">
                 {validFooter2Items.length > 0 ? (
                   validFooter2Items.map((item) => (
-                    <Link
+                    <FooterLink
                       key={item.id}
                       to={item.resolvedUrl}
                       className={getLinkClassName()}
                       style={footerTextColor ? { color: footerTextColor } : {}}
+                      isEditing={isEditing}
                     >
                       {item.label}
-                    </Link>
+                    </FooterLink>
                   ))
                 ) : isEditing ? (
                   <>
