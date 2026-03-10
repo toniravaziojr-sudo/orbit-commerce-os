@@ -255,18 +255,14 @@ const App = () => {
               <Route path="/store/:tenantSlug/ai-lp/:lpSlug" element={<StorefrontAILandingPage />} />
 
               {/* Legacy storefront routes with /store/:tenantSlug prefix (for app domain / fallback) */}
+              {/* Legacy storefront routes — SPA interactive pages ONLY */}
+              {/* Content pages are Edge-rendered; no SPA fallback */}
               <Route path="/store/:tenantSlug" element={<StorefrontLayout />}>
-                <Route index element={<StorefrontHome />} />
-                <Route path="c/:categorySlug" element={<StorefrontCategory />} />
-                <Route path="p/:productSlug" element={<StorefrontProduct />} />
-                <Route path="page/:pageSlug" element={<StorefrontPage />} />
-                <Route path="lp/:pageSlug" element={<StorefrontLandingPage />} />
-                <Route path="rastreio" element={<StorefrontTracking />} />
-                <Route path="blog" element={<StorefrontBlog />} />
-                <Route path="blog/:postSlug" element={<StorefrontBlogPost />} />
                 <Route path="cart" element={<StorefrontCart />} />
+                <Route path="carrinho" element={<StorefrontCart />} />
                 <Route path="checkout" element={<StorefrontCheckout />} />
                 <Route path="obrigado" element={<StorefrontThankYou />} />
+                <Route path="rastreio" element={<StorefrontTracking />} />
                 <Route path="minhas-compras" element={<StorefrontMyOrders />} />
                 <Route path="conta" element={<StorefrontAccount />} />
                 <Route path="conta/login" element={<StorefrontAccountLogin />} />
