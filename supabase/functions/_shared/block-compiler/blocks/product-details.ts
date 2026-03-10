@@ -584,7 +584,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
           ${product.short_description ? `<p style="font-size:15px;color:var(--theme-text-secondary,#555);line-height:1.6;">${escapeHtml(product.short_description)}</p>` : ''}
           ${stockHtml}
           ${variantSelectorHtml}
-          ${quantityHtml}
+          
           ${ctaHtml}
           ${shippingHtml}
           ${highlightHtml}
