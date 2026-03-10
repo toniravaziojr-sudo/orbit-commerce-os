@@ -1633,7 +1633,7 @@ function getGroupedSettings(configs: SettingConfig[], pageType?: string): Settin
   return Object.values(groupMap).filter(g => {
     // Always include 'payment' group for checkout (it has a special component)
     if (pageType === 'checkout' && g.id === 'payment') return true;
-    // Always include 'colors' group for checkout (cart inherits global theme)
+    // Colors group is EXCLUSIVE to checkout (cart inherits global theme — no overrides)
     if (pageType === 'checkout' && g.id === 'colors') return true;
     return g.settings.length > 0;
   });

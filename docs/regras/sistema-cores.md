@@ -246,10 +246,10 @@ Estes blocos possuem props de cor próprias (`backgroundColor`, `textColor`, `ac
 | Header | `headerConfig` (published_content) | Inline no componente |
 | NoticeBar | `noticeBarConfig` | Inline no componente |
 | Footer | `footerConfig` | Inline no componente |
-| Carrinho | `pageSettings.cart` | `PageColorsInjector` |
+| Carrinho | [REMOVIDO] — herda tema global | N/A |
 | Checkout | `pageSettings.checkout` | `PageColorsInjector` |
 
-Zonas que **não** possuem override: páginas de produto, categoria, blog, institucionais — usam tema global.
+Zonas que **não** possuem override: páginas de produto, categoria, blog, institucionais, **carrinho** — usam tema global.
 
 ---
 
