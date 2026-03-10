@@ -1281,7 +1281,7 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing }: any) {
             isPreview={context?.isPreview}
             isEditing={isEditing}
             openMiniCartOnAdd={openMiniCartOnAdd}
-            onOpenMiniCart={() => setMiniCartOpen(true)}
+            onOpenMiniCart={() => openMiniCartFn()}
             showWhatsAppButton={showWhatsAppButton}
             showAddToCartButton={showAddToCartButton}
             buyNowButtonText={buyNowButtonText}
