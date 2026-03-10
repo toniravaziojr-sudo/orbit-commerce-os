@@ -287,6 +287,8 @@ const App = () => {
                 <Route path="quiz/:quizSlug" element={<StorefrontQuiz />} />
                 <Route path="avaliar/:token" element={<StorefrontReview />} />
                 <Route path="busca" element={<StorefrontSearch />} />
+                {/* Catch-all: force reload for Edge-rendered content pages */}
+                <Route path="*" element={<EdgeContentReload />} />
               </Route>
 
               {/* Protected route without tenant requirement */}
