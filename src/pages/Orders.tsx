@@ -197,14 +197,17 @@ export default function Orders() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos status</SelectItem>
-                  <SelectItem value="pending">Pendente</SelectItem>
-                  <SelectItem value="approved">Aprovado</SelectItem>
+                  <SelectItem value="awaiting_confirmation">Aguardando confirmação</SelectItem>
+                  <SelectItem value="ready_to_invoice">Pronto para emitir NF</SelectItem>
+                  <SelectItem value="invoice_pending_sefaz">Pendente SEFAZ</SelectItem>
+                  <SelectItem value="invoice_authorized">NF Autorizada</SelectItem>
+                  <SelectItem value="invoice_issued">NF Emitida</SelectItem>
                   <SelectItem value="dispatched">Despachado</SelectItem>
-                  <SelectItem value="shipping">A caminho</SelectItem>
                   <SelectItem value="completed">Concluído</SelectItem>
-                  <SelectItem value="cancelled">Cancelado</SelectItem>
-                  <SelectItem value="returned">Devolvido</SelectItem>
-                  <SelectItem value="refunded">Estornado</SelectItem>
+                  <SelectItem value="returning">Em devolução</SelectItem>
+                  <SelectItem value="payment_expired">Pgto expirado</SelectItem>
+                  <SelectItem value="invoice_rejected">NF Rejeitada</SelectItem>
+                  <SelectItem value="invoice_cancelled">NF Cancelada</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={paymentFilter} onValueChange={handlePaymentChange}>
