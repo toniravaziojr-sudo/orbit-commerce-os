@@ -478,8 +478,8 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
         return { enabled: false, progress: 0, remaining: 0, achieved: false, label: '' };
       }
 
-      // If applyToExternalRules is on and external rules grant free shipping, show achieved
-      const achievedByExternal = benefitConfig.applyToExternalRules && externalFreeShipping;
+      // External free shipping (product or coupon) always shows as achieved
+      const achievedByExternal = !!externalFreeShipping;
 
       // Priority: logistics rules threshold > benefit_config.thresholdValue (legacy fallback)
       const threshold = logisticsThreshold ?? benefitConfig.thresholdValue;
