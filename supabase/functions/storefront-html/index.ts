@@ -589,13 +589,40 @@ function buildFullPage(opts: {
         // Items
         var itemsEl=document.querySelector("[data-sf-cart-items]");
         if(itemsEl){
+          // Update benefit bar
           var benefitEl=itemsEl.querySelector("[data-sf-cart-benefit]");
-          var benefitHtml=benefitEl?benefitEl.outerHTML:'';
+          if(benefitEl){
+            if(BENEFIT_ENABLED && BENEFIT_THRESHOLD>0 && cart.length>0){
+              var progress=Math.min((subtotal/BENEFIT_THRESHOLD)*100,100);
+              var remaining=Math.max(BENEFIT_THRESHOLD-subtotal,0);
+              var achieved=subtotal>=BENEFIT_THRESHOLD;
+              var accentColor=BENEFIT_COLOR||'#22c55e';
+              var icon=BENEFIT_MODE==='gift'?'🎁':'🚚';
+              if(achieved){
+                benefitEl.style.display="block";
+                benefitEl.innerHTML='<div style="padding:10px 12px;border-radius:8px;border:1px solid '+accentColor+';background:'+accentColor+'10;">'
+                  +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
+                  +'<span style="font-size:14px;">'+icon+'</span>'
+                  +'<span style="font-size:13px;font-weight:600;color:'+accentColor+';">'+BENEFIT_SUCCESS_LABEL+'</span></div>'
+                  +'<div style="height:6px;border-radius:3px;background:#e5e7eb;overflow:hidden;"><div style="height:100%;width:100%;background:'+accentColor+';border-radius:3px;"></div></div></div>';
+              } else {
+                benefitEl.style.display="block";
+                benefitEl.innerHTML='<div style="padding:10px 12px;border-radius:8px;border:1px solid #e5e7eb;background:#f9fafb;">'
+                  +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
+                  +'<span style="font-size:14px;">'+icon+'</span>'
+                  +'<span style="font-size:13px;">Faltam <strong>R$ '+remaining.toFixed(2).replace(".",",")+'</strong> para '+BENEFIT_REWARD_LABEL.toLowerCase()+'</span></div>'
+                  +'<div style="height:6px;border-radius:3px;background:#e5e7eb;overflow:hidden;"><div style="height:100%;width:'+progress.toFixed(1)+'%;background:'+accentColor+';border-radius:3px;transition:width 0.3s;"></div></div></div>';
+              }
+            } else {
+              benefitEl.style.display="none";
+            }
+          }
           if(cart.length===0){
-            itemsEl.innerHTML=benefitHtml+'<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#999;padding:32px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.4;margin-bottom:16px;"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18"/><path d="M16 10a4 4 0 01-8 0"/></svg><p style="font-size:14px;">Seu carrinho está vazio</p></div>';
+            itemsEl.innerHTML=(benefitEl?benefitEl.outerHTML:'')+'<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#999;padding:32px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.4;margin-bottom:16px;"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18"/><path d="M16 10a4 4 0 01-8 0"/></svg><p style="font-size:14px;">Seu carrinho está vazio</p></div>';
             return;
           }
-          itemsEl.innerHTML=benefitHtml+cart.map(function(item,idx){
+          var bHtml=benefitEl?benefitEl.outerHTML:'';
+          itemsEl.innerHTML=bHtml+cart.map(function(item,idx){
             return '<div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid #f5f5f5;">'
               +'<div style="width:64px;height:64px;border-radius:8px;overflow:hidden;background:#f5f5f5;flex-shrink:0;">'+(item.image?'<img src="'+item.image+'" style="width:100%;height:100%;object-fit:cover;">':'')+'</div>'
               +'<div style="flex:1;min-width:0;">'
