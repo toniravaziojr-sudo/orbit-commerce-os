@@ -17,26 +17,24 @@ import { lazy, Suspense, useEffect } from "react";
 // when the Cloudflare Worker fails to intercept and the SPA keeps reloading.
 function EdgeContentReload() {
   useEffect(() => {
-    const key = `__edge_reload_${window.location.pathname}`;
-    const now = Date.now();
-    const last = sessionStorage.getItem(key);
+    const key = '__edge_reload_count';
+    const count = parseInt(sessionStorage.getItem(key) || '0', 10);
     
-    // If we reloaded this exact path in the last 3 seconds, we're in a loop
-    // This means the Worker didn't intercept — stop reloading and use native navigation
-    if (last && (now - parseInt(last, 10)) < 3000) {
-      // Clear the counter and try a hard navigation instead of reload
+    if (count >= 2) {
+      // We've tried reloading twice and the Worker still didn't intercept.
+      // Stop the loop — the user will see the SPA fallback (loading spinner from layout).
+      // Clear counter so next navigation can try again.
       sessionStorage.removeItem(key);
-      // Use href assignment which forces a fresh network request (different from reload)
-      window.location.href = window.location.pathname + window.location.search;
+      console.warn('[EdgeContentReload] Loop detected — Worker not intercepting. Stopping reload.');
       return;
     }
     
-    // Mark this reload attempt
-    sessionStorage.setItem(key, String(now));
-    
-    // Force reload — Worker should intercept and serve Edge HTML
+    // Increment counter and reload
+    sessionStorage.setItem(key, String(count + 1));
     window.location.reload();
   }, []);
+  
+  // Fallback UI when loop protection stops the reload
   return null;
 }
 
