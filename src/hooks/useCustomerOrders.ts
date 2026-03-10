@@ -19,9 +19,9 @@ export interface OrderItem {
 export interface CustomerOrder {
   id: string;
   order_number: string;
-  status: 'pending' | 'awaiting_payment' | 'paid' | 'processing' | 'shipped' | 'in_transit' | 'delivered' | 'cancelled' | 'returned';
-  payment_status: 'pending' | 'processing' | 'approved' | 'declined';
-  shipping_status: 'pending' | 'processing' | 'shipped' | 'in_transit' | 'delivered';
+  status: string;  // Uses normalizeOrderStatus for display
+  payment_status: string;
+  shipping_status: string;
   total: number;
   subtotal: number;
   shipping_total: number;
