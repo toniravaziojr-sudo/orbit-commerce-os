@@ -159,14 +159,14 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
           <div style="margin-bottom:12px;">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
               <input type="checkbox" data-sf-filter="free-shipping-mobile" style="accent-color:var(--theme-button-primary-bg,#1a1a1a);width:18px;height:18px;">
-              <span style="font-size:14px;">🚚 Frete grátis</span>
+              <span style="font-size:14px;display:inline-flex;align-items:center;gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg> Frete grátis</span>
             </label>
           </div>` : ''}
           ${hasDiscounts ? `
           <div style="margin-bottom:12px;">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
               <input type="checkbox" data-sf-filter="on-sale-mobile" style="accent-color:var(--theme-button-primary-bg,#1a1a1a);width:18px;height:18px;">
-              <span style="font-size:14px;">🏷️ Em promoção</span>
+              <span style="font-size:14px;display:inline-flex;align-items:center;gap:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><path d="M7 7h.01"/></svg> Em promoção</span>
             </label>
           </div>` : ''}
         </div>
