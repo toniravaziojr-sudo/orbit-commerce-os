@@ -950,7 +950,7 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing }: any) {
   const miniCartEnabled = cartActionType === 'miniCart';
   
   const [selectedImageIndex, setSelectedImageIndex] = React.useState(0);
-  const [miniCartOpen, setMiniCartOpen] = React.useState(false);
+  const { isOpen: miniCartOpen, setOpen: setMiniCartOpen, open: openMiniCartFn } = useMiniCart();
   
   const viewportOverride = context?.viewport;
   const isMobileView = viewportOverride === 'mobile';
