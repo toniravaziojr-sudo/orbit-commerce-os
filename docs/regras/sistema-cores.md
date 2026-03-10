@@ -102,6 +102,44 @@ Isso permite que overrides de página vençam regras globais **por especificidad
 
 ---
 
+## Mapeamento de Botões por Contexto
+
+### Cor Primária (`sf-btn-primary` → `--theme-button-primary-bg/text/hover`)
+
+| Contexto | Botão | Componente SPA | Compilador Edge |
+|----------|-------|----------------|-----------------|
+| Product Card | "Comprar agora" | `ProductCard.tsx` | `product-card-html.ts` / `featured-products.ts` |
+| Página Produto | "Comprar agora" | `ProductCTAs.tsx` | `product-details.ts` |
+| Carrinho | "Finalizar" / "Iniciar Compra" | `CartSummary.tsx` | `storefront-html/index.ts` |
+| Checkout | "Continuar" / "Finalizar Pedido" | `CheckoutStepWizard.tsx` | — (SPA only) |
+| Checkout | "Copiar código do boleto" | `PaymentResult.tsx` | — (SPA only) |
+| Builder | Bloco de Botão (variante primary) | `ButtonBlock.tsx` | `button.ts` |
+
+### Cor Secundária (`sf-btn-secondary` → `--theme-button-secondary-bg/text/hover`)
+
+| Contexto | Botão | Componente SPA | Compilador Edge |
+|----------|-------|----------------|-----------------|
+| Página Produto | "Adicionar ao carrinho" | `ProductCTAs.tsx` | `product-details.ts` |
+| Carrinho | "Continuar comprando" / "Ir para o Carrinho" | `CartSummary.tsx` | `storefront-html/index.ts` |
+| Builder | Bloco de Botão (variante secondary) | `ButtonBlock.tsx` | `button.ts` |
+
+### Outline Primary (`sf-btn-outline-primary`)
+
+| Contexto | Botão | Componente SPA | Compilador Edge |
+|----------|-------|----------------|-----------------|
+| Product Card | "Adicionar" (ícone carrinho) | `ProductCard.tsx` | `product-card-html.ts` |
+| Produtos Relacionados | "Adicionar" | `ProductCard.tsx` | `product-details.ts` |
+
+### WhatsApp (`--theme-whatsapp-color/hover`)
+
+| Contexto | Botão | Componente SPA | Compilador Edge |
+|----------|-------|----------------|-----------------|
+| Página Produto | "Comprar pelo WhatsApp" | `ProductCTAs.tsx` | `product-details.ts` |
+
+> **Nota:** Product Cards com `customButtonBgColor` definido pelo lojista usam inline styles, bypassando as classes semânticas.
+
+---
+
 ## Overrides Autorizados por Zona
 
 | Zona | Fonte da Config | Escopo |
@@ -122,3 +160,6 @@ Zonas que **não** possuem override: páginas de produto, categoria, blog, insti
 - [x] ~~Fase 2: Remover dependência de `!important` em `storefront-theme-utils.ts`, `usePageColors.ts` e `theme-tokens.ts`~~
 - [x] ~~Fase 2: Implementar hierarquia CSS por especificidade controlada via `.sf-page-*`~~
 - [x] ~~Fase 3: Reorganizar UI admin em grupos visuais (Accordion: Cores Globais / Botões e Estados / Tags e Badges)~~
+- [x] ~~Fase 4: Corrigir paridade Edge — "Adicionar ao carrinho" em product-details de `sf-btn-outline-primary` para `sf-btn-secondary`~~
+- [x] ~~Fase 4: Corrigir mini-cart Edge — "Ir para o Carrinho" de hardcoded para `sf-btn-secondary`~~
+- [x] ~~Fase 4: Adicionar `sf-btn-outline-secondary` ao Edge `theme-tokens.ts`~~
