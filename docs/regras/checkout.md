@@ -519,6 +519,61 @@ O header e footer do checkout usam `StorefrontHeaderContent` e `StorefrontFooter
 
 | Item | Status | Descrição |
 |------|--------|-----------|
-| **Parcelamento (installments)** | 🔴 Pendente | UI de seleção de parcelas não implementada; padrão `installments=1` |
-| **Desconto real PIX** | 🔴 Pendente | Desconto de 5% é apenas visual (badge); recálculo real do total no backend não implementado |
 | **CheckoutContent.tsx** | 🟡 Limpeza | Código legado que pode ser removido após migração completa para `CheckoutStepWizard` |
+
+---
+
+## Descontos por Forma de Pagamento
+
+### Tabela: `payment_method_discounts`
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `id` | UUID | PK |
+| `tenant_id` | UUID | FK → tenants |
+| `payment_method` | TEXT | `pix`, `credit_card`, `boleto` |
+| `discount_type` | TEXT | `percentage` ou `fixed` |
+| `discount_value` | NUMERIC | Valor do desconto (ex: 5.00 = 5%) |
+| `is_enabled` | BOOLEAN | Se o desconto está ativo |
+| `installments_max` | INTEGER | Parcelas máximas (cartão) |
+| `installments_min_value_cents` | INTEGER | Valor mínimo por parcela em centavos |
+| `description` | TEXT | Descrição opcional exibida no checkout |
+
+### Configuração
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Config / Settings |
+| **Localização** | `src/pages/SystemSettings.tsx`, `src/components/system-settings/PaymentSettingsTab.tsx` |
+| **Contexto** | Menu Sistema → Configurações → Pagamentos |
+| **Descrição** | Permite configurar descontos REAIS por forma de pagamento (PIX, Cartão, Boleto) e parcelas |
+| **Comportamento** | Cada método tem toggle de ativação, tipo/valor de desconto, descrição e config de parcelas (cartão) |
+| **Hook** | `usePaymentMethodDiscounts` (`src/hooks/usePaymentMethodDiscounts.ts`) |
+| **Afeta** | Valor final cobrado no checkout |
+
+### Builder vs Configurações Reais
+
+| Local | O que controla |
+|-------|----------------|
+| **Builder > Checkout > Formas de Pagamento** | Visibilidade (toggles PIX/Boleto/Cartão) e labels visuais (badges como "5% OFF") |
+| **Builder > Theme > PaymentMethodsConfig** | Ordem de exibição e badges decorativos |
+| **Sistema > Configurações > Pagamentos** | Descontos REAIS, parcelas, valores que afetam a cobrança |
+
+> ⚠️ Os avisos no Builder alertam o usuário que labels/badges são apenas visuais e que para aplicar descontos reais ele deve acessar Sistema → Configurações → Pagamentos.
+
+### Avisos no Builder
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Regra Visual / UX |
+| **Localização** | `CheckoutSettingsPanel.tsx`, `PaymentMethodsConfig.tsx` |
+| **Descrição** | Alert amarelo informando que toggles/labels são apenas visuais e que configurações reais estão em Sistema > Configurações > Pagamentos |
+
+---
+
+## Navegação
+
+| Origem | Destino | Condição |
+|--------|---------|----------|
+| Menu Sistema → Configurações | `/system/settings?tab=payments` | Sempre disponível |
+| Builder Checkout → Alert | Sistema > Configurações > Pagamentos | Link informativo |
