@@ -290,7 +290,7 @@ export default function Shipping() {
         </TabsContent>
 
         <TabsContent value="frete-gratis">
-          <FreeShippingRulesTab />
+          <FreeShippingSubTabs />
         </TabsContent>
 
         <TabsContent value="frete-personalizado">

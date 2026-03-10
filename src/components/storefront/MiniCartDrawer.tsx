@@ -238,64 +238,7 @@ export function MiniCartDrawer({
   );
 }
 
-// Mini Benefit Progress Bar - Compact version for drawer
-function MiniCartBenefitBar({ subtotal }: { subtotal: number }) {
-  const { config, getProgress, isLoading } = useBenefit();
-
-  if (isLoading) return null;
-
-  const { enabled, progress, remaining, achieved, label } = getProgress(subtotal);
-
-  if (!enabled) return null;
-
-  const Icon = config.mode === 'gift' ? Gift : Truck;
-
-  return (
-    <div 
-      className="p-3 rounded-lg border text-sm mb-2"
-      style={{ 
-        backgroundColor: achieved ? `${config.progressColor}10` : 'hsl(var(--muted))',
-        borderColor: achieved ? config.progressColor : 'hsl(var(--border))'
-      }}
-    >
-      <div className="flex items-center gap-2 mb-2">
-        <div 
-          className="p-1.5 rounded-full"
-          style={{ backgroundColor: achieved ? config.progressColor : 'hsl(var(--muted-foreground) / 0.2)' }}
-        >
-          {achieved ? (
-            <Check className="h-3 w-3 text-white" />
-          ) : (
-            <Icon className="h-3 w-3 text-muted-foreground" />
-          )}
-        </div>
-        <div className="flex-1 text-xs">
-          {achieved ? (
-            <p className="font-semibold" style={{ color: config.progressColor }}>
-              {label}
-            </p>
-          ) : (
-            <p>
-              Faltam{' '}
-              <span className="font-semibold">
-                R$ {formatPrice(remaining)}
-              </span>{' '}
-              para {label.toLowerCase()}
-            </p>
-          )}
-        </div>
-      </div>
-
-      <Progress 
-        value={progress} 
-        className="h-1.5"
-        style={{ 
-          '--progress-background': config.progressColor 
-        } as React.CSSProperties}
-      />
-    </div>
-  );
-}
+// MiniCartBenefitBar removed — replaced by shared <BenefitProgressBar compact />
 
 // Compact Shipping Calculator for MiniCart - uses same CartContext state
 function MiniCartShipping({ 
