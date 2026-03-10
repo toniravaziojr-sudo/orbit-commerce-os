@@ -217,12 +217,27 @@ export function CategoryPageLayout({
     return Array.from(tags);
   }, [displayProducts]);
 
+  // Dynamic max price based on actual product prices
+  const computedMaxPrice = useMemo(() => {
+    if (displayProducts.length === 0) return 500;
+    const maxProductPrice = Math.max(...displayProducts.map(p => p.price));
+    // Round up to nearest 50 for a cleaner slider
+    return Math.ceil(maxProductPrice / 50) * 50 || 500;
+  }, [displayProducts]);
+
   // Filter and sort products
   const filteredProducts = useMemo(() => {
     let result = [...displayProducts];
 
-    // Price filter
-    result = result.filter(p => p.price >= priceRange[0] && p.price <= priceRange[1]);
+    // Price filter — only apply if user changed from defaults
+    if (priceRange[0] > 0 || priceRange[1] < computedMaxPrice) {
+      result = result.filter(p => p.price >= priceRange[0] && p.price <= priceRange[1]);
+    }
+
+    // Stock filter
+    if (inStockOnly) {
+      result = result.filter(p => (p.stock_quantity ?? 1) > 0);
+    }
 
     // Tags filter
     if (selectedTags.length > 0) {
@@ -248,7 +263,7 @@ export function CategoryPageLayout({
     }
 
     return result;
-  }, [displayProducts, priceRange, selectedTags, sortBy]);
+  }, [displayProducts, priceRange, selectedTags, sortBy, inStockOnly, computedMaxPrice]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {
