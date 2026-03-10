@@ -34,9 +34,8 @@ const AMBIENTE_OPTIONS = [
 
 // Order status options for auto-emit
 const EMIT_STATUS_OPTIONS = [
-  { value: 'paid', label: 'Após pagamento confirmado' },
-  { value: 'shipped', label: 'Após envio' },
-  { value: 'processing', label: 'Após processamento' },
+  { value: 'ready_to_invoice', label: 'Quando pronto para emitir NF (automático)' },
+  { value: 'paid', label: 'Após pagamento confirmado (legado)' },
 ];
 
 // Shipping provider options
