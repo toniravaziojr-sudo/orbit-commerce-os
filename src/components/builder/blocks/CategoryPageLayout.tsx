@@ -383,7 +383,7 @@ export function CategoryPageLayout({
   };
 
   return (
-    <div className="px-2 sm:px-4 py-6">
+    <div className="px-2 sm:px-4 pt-2 sm:pt-4 pb-6">
       {/* Mobile filters — In builder: controlled by viewport prop. In public: CSS responsive (lg:hidden) */}
       {showFilters && (isMobileBuilder || !isBuilderContext) && (
         <div className={isBuilderContext ? '' : 'lg:hidden'}>

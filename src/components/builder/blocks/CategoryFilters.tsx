@@ -63,6 +63,11 @@ export function CategoryFilters({
   isEditing = false,
 }: CategoryFiltersProps) {
   const [localPriceRange, setLocalPriceRange] = useState(priceRange);
+
+  // Sync local state when parent price range changes (e.g. computedMaxPrice loaded)
+  useEffect(() => {
+    setLocalPriceRange(priceRange);
+  }, [priceRange[0], priceRange[1]]);
   const [openSections, setOpenSections] = useState({
     price: true,
     stock: true,
