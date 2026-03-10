@@ -1,11 +1,12 @@
 // =============================================
 // CATEGORY FILTERS - Filtros para páginas de categoria
-// Responsivo: sidebar no desktop, accordion no mobile
+// Responsivo: sidebar no desktop, sheet no mobile
+// v8.5.2 FIX: FiltersContent as inline JSX (not component) to prevent unmount/remount
 // =============================================
 
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { ChevronDown, Filter, X, Check } from 'lucide-react';
+import { ChevronDown, Filter, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -45,7 +46,6 @@ const SORT_OPTIONS = [
   { value: 'bestsellers', label: 'Mais vendidos' },
 ];
 
-// Demo tags para exibição quando não há tags reais
 const DEMO_TAGS = ['Promoção', 'Lançamento', 'Vegano', 'Orgânico', 'Sem parabenos'];
 
 export function CategoryFilters({
@@ -63,16 +63,16 @@ export function CategoryFilters({
   isEditing = false,
 }: CategoryFiltersProps) {
   const [localPriceRange, setLocalPriceRange] = useState(priceRange);
-
-  // Sync local state when parent price range changes (e.g. computedMaxPrice loaded)
-  useEffect(() => {
-    setLocalPriceRange(priceRange);
-  }, [priceRange[0], priceRange[1]]);
   const [openSections, setOpenSections] = useState({
     price: true,
     stock: true,
     tags: true,
   });
+
+  // Sync local state when parent price range changes
+  useEffect(() => {
+    setLocalPriceRange(priceRange);
+  }, [priceRange[0], priceRange[1]]);
 
   const toggleSection = (section: keyof typeof openSections) => {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -102,7 +102,18 @@ export function CategoryFilters({
     }).format(value);
   };
 
-  const FiltersContent = () => (
+  const hasActiveFilters = selectedTags.length > 0 || inStockOnly || localPriceRange[0] > 0 || localPriceRange[1] < maxPrice;
+
+  const clearAllFilters = () => {
+    if (isEditing) return;
+    setLocalPriceRange([0, maxPrice]);
+    onPriceChange?.([0, maxPrice]);
+    onStockChange?.(false);
+    onTagsChange?.([]);
+  };
+
+  // Inline JSX — NOT a component, to avoid unmount/remount on re-render
+  const filtersContent = (
     <div className="space-y-4">
       {/* Ordenação */}
       <div className="space-y-2">
@@ -201,18 +212,12 @@ export function CategoryFilters({
       )}
 
       {/* Clear filters */}
-      {(selectedTags.length > 0 || inStockOnly || localPriceRange[0] > 0 || localPriceRange[1] < maxPrice) && (
+      {hasActiveFilters && (
         <Button
           variant="ghost"
           size="sm"
           className="w-full text-muted-foreground hover:text-foreground"
-          onClick={() => {
-            if (isEditing) return;
-            setLocalPriceRange([0, maxPrice]);
-            onPriceChange?.([0, maxPrice]);
-            onStockChange?.(false);
-            onTagsChange?.([]);
-          }}
+          onClick={clearAllFilters}
           disabled={isEditing}
         >
           <X className="h-4 w-4 mr-1" />
@@ -243,7 +248,7 @@ export function CategoryFilters({
               <SheetTitle>Filtros</SheetTitle>
             </SheetHeader>
             <div className="mt-4 overflow-y-auto max-h-[calc(80vh-80px)]">
-              <FiltersContent />
+              {filtersContent}
             </div>
           </SheetContent>
         </Sheet>
@@ -259,7 +264,7 @@ export function CategoryFilters({
           <Filter className="h-4 w-4" />
           Filtros
         </h3>
-        <FiltersContent />
+        {filtersContent}
       </div>
     </aside>
   );
