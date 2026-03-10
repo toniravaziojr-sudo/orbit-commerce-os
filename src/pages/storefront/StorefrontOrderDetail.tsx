@@ -152,23 +152,20 @@ export default function StorefrontOrderDetail() {
                 <CardContent className="space-y-4">
                   {order.items.map((item, idx) => (
                     <div key={idx} className="flex gap-4">
-                      {item.image_url && (
+                      {item.product_image_url && (
                         <img 
-                          src={item.image_url} 
+                          src={item.product_image_url} 
                           alt={item.product_name}
                           className="w-16 h-16 object-cover rounded"
                         />
                       )}
                       <div className="flex-1">
                         <p className="font-medium">{item.product_name}</p>
-                        {item.variant_name && (
-                          <p className="text-sm text-muted-foreground">{item.variant_name}</p>
-                        )}
                         <p className="text-sm text-muted-foreground">
                           Qtd: {item.quantity} × {formatCurrency(item.unit_price)}
                         </p>
                       </div>
-                      <p className="font-medium">{formatCurrency(item.total)}</p>
+                      <p className="font-medium">{formatCurrency(item.total_price)}</p>
                     </div>
                   ))}
                 </CardContent>
