@@ -687,6 +687,15 @@ export function VisualBuilder({
           }
         }
         
+        // Merge supportWidget draft changes
+        if (supportWidgetDraft?.hasDraftChanges) {
+          const pendingSupportChanges = supportWidgetDraft.getPendingChanges();
+          console.log('[VisualBuilder.handleSave] Pending supportWidget changes:', pendingSupportChanges);
+          if (pendingSupportChanges?.supportWidget) {
+            updatedThemeSettings.supportWidget = pendingSupportChanges.supportWidget;
+          }
+        }
+        
         const updatedDraftContent = {
           ...draftContent,
           themeSettings: updatedThemeSettings,
