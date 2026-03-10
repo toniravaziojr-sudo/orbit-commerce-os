@@ -825,7 +825,7 @@ function buildFullPage(opts: {
           var popup=document.getElementById("sf-newsletter-popup");
           if(popup){popup.style.display="none";sessionStorage.setItem("sf_newsletter_dismissed","1");}
         }
-      },true); // CAPTURE PHASE — fires before bubble, prevents <a> navigation
+      },{capture:true,signal:sfSignal}); // CAPTURE PHASE + AbortController for cleanup
 
       // CEP masks
       var cepEl=document.querySelector("[data-sf-shipping-cep]");
