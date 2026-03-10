@@ -152,6 +152,19 @@ export function SupportChatWidget({ tenantSlug, bootstrapTemplate }: SupportChat
         event_type: "conversation_started",
         description: "Cliente iniciou conversa via widget",
       });
+
+      // Register lead in "Leads site" list via marketing-form-submit
+      try {
+        await supabase.functions.invoke('marketing-form-submit', {
+          body: {
+            tenant_id: tenantId,
+            fields: { email: customerEmail.trim().toLowerCase(), name: customerName.trim() },
+            source: 'support_chat',
+          },
+        });
+      } catch {
+        // Lead capture is non-blocking
+      }
     } catch (error) {
       console.error("Error starting conversation:", error);
     } finally {

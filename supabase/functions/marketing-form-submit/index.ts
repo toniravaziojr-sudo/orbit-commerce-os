@@ -51,6 +51,42 @@ serve(async (req: Request): Promise<Response> => {
     let formData = null;
     let tagsToAdd: string[] = [];
 
+    // Auto-create "Leads site" list for support_chat source
+    if (!effectiveListId && source === 'support_chat') {
+      const { data: existingList } = await supabase
+        .from("email_marketing_lists")
+        .select("id")
+        .eq("tenant_id", tenant_id)
+        .eq("slug", "leads-site")
+        .maybeSingle();
+
+      if (existingList) {
+        effectiveListId = existingList.id;
+      } else {
+        // Create a "Leads site" tag first
+        const { data: tag } = await supabase
+          .from("customer_tags")
+          .insert({ tenant_id, name: "Leads site", color: "#6366F1", description: "Leads capturados pelo chat do site" })
+          .select("id")
+          .single();
+
+        // Create the list linked to the tag
+        const { data: newList } = await supabase
+          .from("email_marketing_lists")
+          .insert({
+            tenant_id,
+            name: "Leads site",
+            slug: "leads-site",
+            description: "Lista automática de leads capturados pelo chat do site",
+            tag_id: tag?.id || null,
+          })
+          .select("id")
+          .single();
+
+        if (newList) effectiveListId = newList.id;
+      }
+    }
+
     // If form_slug provided AND it's not a system form (popup/footer), fetch form config
     // System forms (popup-*, footer_newsletter) use list_id directly from the request
     const isSystemForm = form_slug?.startsWith('popup-') || form_slug === 'footer_newsletter';
