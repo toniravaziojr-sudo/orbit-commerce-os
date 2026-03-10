@@ -123,14 +123,11 @@ const AIPackages = lazy(() => import("@/pages/AIPackages"));
 const QAStorefront = lazy(() => import("@/pages/admin/QAStorefront"));
 
 // Storefront Pages — LAZY LOADED (isolated from admin bundle)
+// NOTE: Content pages (Home, Category, Product, Blog, Page, LP) are Edge-only.
+// Only interactive SPA pages are loaded here.
 const StorefrontLayout = lazy(() => import("@/components/storefront/StorefrontLayout").then(m => ({ default: m.StorefrontLayout })));
 const TenantStorefrontLayout = lazy(() => import("@/components/storefront/TenantStorefrontLayout").then(m => ({ default: m.TenantStorefrontLayout })));
 
-const StorefrontHome = lazy(() => import("@/pages/storefront/StorefrontHome"));
-const StorefrontCategory = lazy(() => import("@/pages/storefront/StorefrontCategory"));
-const StorefrontProduct = lazy(() => import("@/pages/storefront/StorefrontProduct"));
-const StorefrontPage = lazy(() => import("@/pages/storefront/StorefrontPage"));
-const StorefrontLandingPage = lazy(() => import("@/pages/storefront/StorefrontLandingPage"));
 const StorefrontAILandingPage = lazy(() => import("@/pages/storefront/StorefrontAILandingPage"));
 const StorefrontCart = lazy(() => import("@/pages/storefront/StorefrontCart"));
 const StorefrontCheckout = lazy(() => import("@/pages/storefront/StorefrontCheckout"));
@@ -142,8 +139,6 @@ const StorefrontAccountForgotPassword = lazy(() => import("@/pages/storefront/St
 const StorefrontOrdersList = lazy(() => import("@/pages/storefront/StorefrontOrdersList"));
 const StorefrontOrderDetail = lazy(() => import("@/pages/storefront/StorefrontOrderDetail"));
 const StorefrontResetPassword = lazy(() => import("@/pages/storefront/StorefrontResetPassword"));
-const StorefrontBlogPost = lazy(() => import("@/pages/storefront/StorefrontBlogPost"));
-const StorefrontBlog = lazy(() => import("@/pages/storefront/StorefrontBlog"));
 const StorefrontTracking = lazy(() => import("@/pages/storefront/StorefrontTracking"));
 const StorefrontQuiz = lazy(() => import("@/pages/storefront/StorefrontQuiz"));
 const StorefrontReview = lazy(() => import("@/pages/storefront/StorefrontReview"));
