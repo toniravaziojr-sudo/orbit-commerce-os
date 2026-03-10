@@ -61,14 +61,14 @@ serve(async (req) => {
       .from('orders')
       .update({ 
         payment_status: 'cancelled', 
-        status: 'cancelled',
+        status: 'payment_expired',
         cancellation_reason: 'Boleto vencido (automático)',
         cancelled_at: now.toISOString(),
         updated_at: now.toISOString(),
       })
       .eq('payment_method', 'boleto')
       .eq('payment_status', 'pending')
-      .in('status', ['pending', 'awaiting_payment'])
+      .in('status', ['pending', 'awaiting_payment', 'awaiting_confirmation'])
       .lt('created_at', boletoCutoff)
       .select('id, order_number, tenant_id');
 
