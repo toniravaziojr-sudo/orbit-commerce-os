@@ -63,14 +63,23 @@
 
 ---
 
-## Hierarquia de Precedência
+## Hierarquia de Precedência (Fase 2 — sem !important)
 
-| Nível | Escopo | Mecanismo |
-|-------|--------|-----------|
-| 1 (base) | Tema Global | CSS vars no container `.storefront-container` |
-| 2 | Zona Estrutural | Inline styles em Header/Footer/NoticeBar |
-| 3 | Página/Contexto | `PageColorsInjector` redefine vars no escopo da página |
-| 4 | Estado | `:hover`, `:active`, `:disabled` nos seletores |
+| Nível | Escopo | Mecanismo | Especificidade |
+|-------|--------|-----------|---------------|
+| 1 (base) | Tema Global | CSS vars + regras em `.storefront-container` | 0,2,0+ |
+| 2 | Zona Estrutural | Inline styles em Header/Footer/NoticeBar | — (inline) |
+| 3 | Página/Contexto | CSS vars redefinidas em `.sf-page-cart` / `.sf-page-checkout` | 0,3,0+ |
+| 4 | Estado | `:hover`, `:active`, `:disabled` nos seletores | +pseudo |
+
+### Classes de Página
+
+O container principal recebe automaticamente a classe `sf-page-{type}`:
+- `.sf-page-cart` — via `PublicTemplateRenderer` (pageType="cart")
+- `.sf-page-checkout` — via `StorefrontCheckout.tsx` (hardcoded)
+- `.sf-page-home`, `.sf-page-category`, `.sf-page-product`, etc.
+
+Isso permite que overrides de página vençam regras globais **por especificidade natural**, sem `!important`.
 
 ---
 
