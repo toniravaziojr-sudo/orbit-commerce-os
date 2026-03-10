@@ -1017,14 +1017,15 @@ export function StorefrontFooterContent({
                 <nav className="flex flex-col gap-2">
                   {validFooter2Items.length > 0 ? (
                     validFooter2Items.map((item) => (
-                      <Link
+                      <FooterLink
                         key={item.id}
                         to={item.resolvedUrl}
                         className={getLinkClassName()}
                         style={footerTextColor ? { color: footerTextColor } : {}}
+                        isEditing={isEditing}
                       >
                         {item.label}
-                      </Link>
+                      </FooterLink>
                     ))
                   ) : isEditing ? (
                     <>
