@@ -79,6 +79,7 @@ export function FeaturedProductsBlock({
 
   // Cart functionality
   const { addItem: addToCart, items: cartItems } = useCart();
+  const [addedProducts, setAddedProducts] = useState<Set<string>>(new Set());
   const { open: openMiniCart } = useMiniCart();
 
   // Check if product was just added (temporary visual feedback only)
