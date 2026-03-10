@@ -82,7 +82,8 @@ export function CategoryPageLayout({
   isEditing = false,
 }: CategoryPageLayoutProps) {
   const { tenantSlug, viewport, category } = context;
-  const isMobile = viewport === 'mobile';
+  const isBuilderContext = !!viewport; // viewport only set in builder
+  const isMobileBuilder = viewport === 'mobile';
   const categoryId = category?.id;
   const categorySlug = category?.slug;
 
