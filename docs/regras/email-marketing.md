@@ -447,7 +447,7 @@ interface FlowConfig {
 - [x] Dispatcher processa fila
 - [x] Unsubscribe funciona
 - [x] NewsletterForm block captura leads
-- [x] NewsletterPopup block com triggers
+- [x] NewsletterPopup block com triggers (mobile: layout simples sem imagem; desktop: side-image)
 - [x] QuizEmbed block integrado
 - [x] sync_subscriber_to_customer_with_tag unificado
 - [x] **Campaign Builder visual com wizard 3 steps**
