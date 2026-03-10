@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Globe, Plus, RefreshCw, Trash2, Star, Copy, CheckCircle, Clock, XCircle, ExternalLink, Info, Shield, ShieldCheck, ShieldAlert, ShieldOff, ChevronDown } from 'lucide-react';
+import { Globe, Plus, RefreshCw, Trash2, Star, Copy, CheckCircle, Clock, XCircle, ExternalLink, Info, Shield, ShieldCheck, ShieldAlert, ShieldOff, ChevronDown, Zap } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
