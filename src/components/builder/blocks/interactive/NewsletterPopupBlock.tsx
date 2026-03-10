@@ -146,27 +146,43 @@ export function NewsletterPopupBlock({
       let eiReady = false;
       let eiFired = false;
       const readyTimeout = setTimeout(() => { eiReady = true; }, 2500);
-      const handleMouseLeave = (e: MouseEvent) => {
-        if (!eiReady || eiFired) return;
-        if (e.clientY <= 0) {
-          eiFired = true;
-          setIsOpen(true);
-        }
-      };
-      const handleMouseMove = (e: MouseEvent) => {
-        if (!eiReady || eiFired) return;
-        if (e.clientY < 50 && e.movementY < -5) {
-          eiFired = true;
-          setIsOpen(true);
-        }
-      };
-      document.addEventListener('mouseleave', handleMouseLeave);
-      document.addEventListener('mousemove', handleMouseMove);
-      cleanup = () => {
-        clearTimeout(readyTimeout);
-        document.removeEventListener('mouseleave', handleMouseLeave);
-        document.removeEventListener('mousemove', handleMouseMove);
-      };
+      const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+      if (isMobile) {
+        // Mobile: detect repeated scroll-up attempts at top of page
+        let lastScrollY = window.scrollY;
+        let scrollUpCount = 0;
+        const handleScroll = () => {
+          if (!eiReady || eiFired) return;
+          const sy = window.scrollY;
+          if (sy <= 0 && lastScrollY <= 20 && lastScrollY > sy) {
+            scrollUpCount++;
+            if (scrollUpCount >= 2) { eiFired = true; setIsOpen(true); }
+          } else if (sy > lastScrollY) {
+            scrollUpCount = 0;
+          }
+          lastScrollY = sy;
+        };
+        window.addEventListener('scroll', handleScroll);
+        cleanup = () => {
+          clearTimeout(readyTimeout);
+          window.removeEventListener('scroll', handleScroll);
+        };
+      } else {
+        // Desktop: only trigger when mouse exits viewport through the top (toward close/tab buttons)
+        const handleMouseLeave = (e: MouseEvent) => {
+          if (!eiReady || eiFired) return;
+          if (e.clientY <= 0) {
+            eiFired = true;
+            setIsOpen(true);
+          }
+        };
+        document.addEventListener('mouseleave', handleMouseLeave);
+        cleanup = () => {
+          clearTimeout(readyTimeout);
+          document.removeEventListener('mouseleave', handleMouseLeave);
+        };
+      }
     }
 
     return cleanup;

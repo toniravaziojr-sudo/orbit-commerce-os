@@ -290,14 +290,24 @@ function generateNewsletterPopupHtml(config: any, tenantId: string, routeType: s
     } else if(triggerType==="exit_intent"){
       var eiReady=false;var eiFired=false;
       setTimeout(function(){eiReady=true;},2500);
-      document.addEventListener("mouseleave",function(e){
-        if(!eiReady||eiFired||dismissed)return;
-        if(e.clientY<=0){eiFired=true;showPopup();}
-      });
-      document.addEventListener("mousemove",function(e){
-        if(!eiReady||eiFired||dismissed)return;
-        if(e.clientY<50&&e.movementY<-5){eiFired=true;showPopup();}
-      });
+      var isMobile=/Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      if(isMobile){
+        // Mobile: detect back-button or rapid scroll-up at top
+        var lastScrollY=window.scrollY;var scrollUpCount=0;
+        window.addEventListener("scroll",function(){
+          if(!eiReady||eiFired||dismissed)return;
+          var sy=window.scrollY;
+          if(sy<=0&&lastScrollY<=20&&lastScrollY>sy){scrollUpCount++;if(scrollUpCount>=2){eiFired=true;showPopup();}}
+          else if(sy>lastScrollY){scrollUpCount=0;}
+          lastScrollY=sy;
+        });
+      } else {
+        // Desktop: only trigger when mouse leaves viewport through the top (toward close/tab buttons)
+        document.addEventListener("mouseleave",function(e){
+          if(!eiReady||eiFired||dismissed)return;
+          if(e.clientY<=0){eiFired=true;showPopup();}
+        });
+      }
     }
     popup.addEventListener("click",function(e){
       if(e.target.closest("[data-sf-action='close-newsletter-popup']"))hidePopup();
