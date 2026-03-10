@@ -26,7 +26,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useShipments, type Shipment } from '@/hooks/useShipments';
 import { ShippingCarrierSettings } from '@/components/shipping/ShippingCarrierSettings';
-import { FreeShippingRulesTab } from '@/components/shipping/FreeShippingRulesTab';
+import { FreeShippingSubTabs } from '@/components/shipping/FreeShippingSubTabs';
 import { CustomShippingRulesTab } from '@/components/shipping/CustomShippingRulesTab';
 
 const PAGE_SIZE = 20;
