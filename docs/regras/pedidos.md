@@ -388,16 +388,16 @@ const normalizedStatus = normalizeOrderStatus(order.status);
 const cfg = ORDER_STATUS_CONFIG[normalizedStatus];
 
 // ❌ PROIBIDO — valor legado causa fallback incorreto
-const cfg = ORDER_STATUS_CONFIG[order.status as OrderStatus] || ORDER_STATUS_CONFIG.pending;
+const cfg = ORDER_STATUS_CONFIG[order.status as OrderStatus] || ORDER_STATUS_CONFIG.awaiting_confirmation;
 ```
 
 | Função | Arquivo | Mapeia |
 |--------|---------|--------|
-| `normalizeOrderStatus()` | `src/types/orderStatus.ts` | `paid→approved`, `awaiting_payment→pending`, etc. |
+| `normalizeOrderStatus()` | `src/types/orderStatus.ts` | `pending→awaiting_confirmation`, `paid→ready_to_invoice`, `cancelled→payment_expired`, `delivered→completed`, etc. |
 | `normalizePaymentStatus()` | `src/types/orderStatus.ts` | `approved→paid`, `pending→awaiting_payment`, etc. |
 | `normalizeShippingStatus()` | `src/types/orderStatus.ts` | `pending→awaiting_shipment`, `processing→label_generated`, etc. |
 
-Sem normalização, pedidos com status legado exibem badges errados (ex: pedido pago aparece como "Pendente").
+Sem normalização, pedidos com status legado exibem badges errados (ex: pedido pago aparece como "Aguardando confirmação").
 
 ### 6.1.1 Flag "1ª Venda" (v2026-02-16)
 
