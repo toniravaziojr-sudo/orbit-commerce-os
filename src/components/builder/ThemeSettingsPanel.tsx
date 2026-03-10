@@ -34,7 +34,7 @@ interface ThemeSettingsPanelProps {
   onMiniCartConfigChange?: (config: MiniCartConfig) => void;
 }
 
-type SettingsView = 'menu' | 'pages' | 'header' | 'footer' | 'mini-cart' | 'popup' | 'typography' | 'colors' | 'css' | 'page-detail';
+type SettingsView = 'menu' | 'pages' | 'header' | 'footer' | 'mini-cart' | 'popup' | 'support' | 'typography' | 'colors' | 'css' | 'page-detail';
 
 interface MenuItem {
   id: SettingsView;
