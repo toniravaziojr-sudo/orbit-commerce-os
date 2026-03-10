@@ -65,7 +65,7 @@ export function imageCarouselToStaticHTML(
     return `<${wrapperTag}${hrefAttr} class="sf-ic-slide" style="flex-shrink:0;min-width:0;overflow:hidden;border-radius:8px;background:#f5f5f5;${arStyle}">
       ${pictureHtml}
     </${wrapperTag}>
-    ${img.caption ? `<p style="font-size:14px;color:#6b7280;margin-top:8px;text-align:center;">${escapeHtml(img.caption)}</p>` : ''}`;
+    ${img.caption ? `<p style="font-size:14px;color:var(--theme-text-secondary, #6b7280);margin-top:8px;text-align:center;">${escapeHtml(img.caption)}</p>` : ''}`;
   }).join('');
 
   // Dots (matches React: w-2.5 h-2.5, active gets w-6 with accent color)

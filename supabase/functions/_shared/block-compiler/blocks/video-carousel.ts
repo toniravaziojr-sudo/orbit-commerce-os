@@ -84,6 +84,6 @@ export const videoCarouselToStaticHTML: BlockCompilerFn = (
     ${mainVideoHtml}
   </div>
   ${thumbsHtml ? `<div style="margin-top:1rem;display:flex;gap:0.5rem;overflow-x:auto;padding-bottom:0.5rem;">${thumbsHtml}</div>` : ''}
-  ${videos.length > 1 ? `<div style="margin-top:0.5rem;text-align:center;font-size:0.875rem;color:#888;">1 / ${videos.length}</div>` : ''}
+  ${videos.length > 1 ? `<div style="margin-top:0.5rem;text-align:center;font-size:0.875rem;color:var(--theme-text-secondary, #888);">1 / ${videos.length}</div>` : ''}
 </div>`;
 };

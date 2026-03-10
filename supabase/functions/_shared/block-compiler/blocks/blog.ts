@@ -33,7 +33,7 @@ export function blogIndexToStaticHTML(posts: any[], storeName: string): string {
         @media(min-width:1024px) { .sf-blog-grid { grid-template-columns: repeat(3, 1fr); } }
       </style>
       <div class="sf-blog-grid">${postsGrid}</div>
-      ${posts.length === 0 ? '<p style="text-align:center;color:#999;padding:48px 0;">Nenhum post publicado ainda.</p>' : ''}
+      ${posts.length === 0 ? '<p style="text-align:center;color:var(--theme-text-secondary, #999);padding:48px 0;">Nenhum post publicado ainda.</p>' : ''}
     </div>`;
 }
 

@@ -55,7 +55,7 @@ export const imageGalleryToStaticHTML: BlockCompilerFn = (
 
   const headerHtml = (title || subtitle) ? `<div style="text-align:center;margin-bottom:2rem;">
   ${title ? `<h2 style="font-size:1.5rem;font-weight:700;margin-bottom:0.5rem;">${escapeHtml(title)}</h2>` : ''}
-  ${subtitle ? `<p style="color:#888;">${escapeHtml(subtitle)}</p>` : ''}
+  ${subtitle ? `<p style="color:var(--theme-text-secondary, #888);">${escapeHtml(subtitle)}</p>` : ''}
 </div>` : '';
 
   return `<section style="padding:2.5rem 1rem;background:${backgroundColor};">
