@@ -1,6 +1,6 @@
 // ============================================
 // STOREFRONT HTML — Edge-Rendered Storefront
-// v8.4.1: FIX — Category banners use direct URLs (no wsrv.nl proxy), prerender invalidation
+// v8.5.0: FIX — Cart format compatibility Edge↔SPA, prevents hydration crash when SPA saves {items,shipping}
 // Resolves tenant from hostname, serves pre-rendered HTML if available,
 // falls back to live rendering otherwise.
 // ============================================
