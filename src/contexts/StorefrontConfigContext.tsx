@@ -224,6 +224,23 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
         .eq('is_enabled', true)
         .eq('supports_quote', true);
 
+      // Fetch active free shipping rules to derive bar threshold
+      // Table not in generated types, use raw REST call
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      let freeShippingRules: Array<{ min_order_cents: number | null }> = [];
+      try {
+        const res = await fetch(
+          `${supabaseUrl}/rest/v1/free_shipping_rules?tenant_id=eq.${tenantId}&is_enabled=eq.true&select=min_order_cents`,
+          { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } }
+        );
+        if (res.ok) {
+          freeShippingRules = await res.json();
+        }
+      } catch (e) {
+        console.warn('[StorefrontConfigContext] Failed to fetch free shipping rules:', e);
+      }
+
       let shippingConfig = parseShippingConfig(storeData?.shipping_config);
 
       // If any provider with quote support is active, use multi-provider edge function
@@ -237,6 +254,17 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
         };
         console.log('[StorefrontConfigContext] Active quote providers:', activeProviders.join(', '));
       }
+
+      // Derive the lowest min_order threshold from active logistics rules (in reais)
+      let logisticsThreshold: number | null = null;
+      if (freeShippingRules && freeShippingRules.length > 0) {
+        const thresholds = freeShippingRules
+          .filter(r => r.min_order_cents != null && r.min_order_cents > 0)
+          .map(r => r.min_order_cents as number);
+        if (thresholds.length > 0) {
+          logisticsThreshold = Math.min(...thresholds) / 100; // cents → reais
+        }
+      }
       
       return {
         shippingConfig,
@@ -244,6 +272,7 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
         offersConfig: parseOffersConfig(storeData?.offers_config),
         cartConfig: parseCartConfig(storeData?.cart_config),
         checkoutConfig: parseCheckoutConfig(storeData?.checkout_config),
+        logisticsThreshold,
       };
     },
     enabled: !!tenantId,
@@ -440,19 +469,29 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
   }, [shippingConfig, quote, tenantId]);
 
   // Benefit progress function
+  // Uses logistics rules threshold when available, falls back to benefit_config.thresholdValue
+  const logisticsThreshold = data?.logisticsThreshold ?? null;
+  
   const getProgress = useMemo(() => {
     return (cartTotal: number, externalFreeShipping?: boolean) => {
       if (!benefitConfig.enabled) {
         return { enabled: false, progress: 0, remaining: 0, achieved: false, label: '' };
       }
 
-      // If applyToExternalRules is on and external rules grant free shipping, show achieved
-      const achievedByExternal = benefitConfig.applyToExternalRules && externalFreeShipping;
+      // External free shipping (product or coupon) always shows as achieved
+      const achievedByExternal = !!externalFreeShipping;
 
-      const threshold = benefitConfig.thresholdValue;
-      const progress = achievedByExternal ? 100 : Math.min((cartTotal / threshold) * 100, 100);
+      // Priority: logistics rules threshold > benefit_config.thresholdValue (legacy fallback)
+      const threshold = logisticsThreshold ?? benefitConfig.thresholdValue;
+      
+      // If no threshold available (no rules, no legacy value), and not achieved by external, hide bar
+      if (threshold <= 0 && !achievedByExternal) {
+        return { enabled: true, progress: 0, remaining: 0, achieved: false, label: benefitConfig.rewardLabel };
+      }
+
+      const progress = achievedByExternal ? 100 : (threshold > 0 ? Math.min((cartTotal / threshold) * 100, 100) : 0);
       const remaining = achievedByExternal ? 0 : Math.max(threshold - cartTotal, 0);
-      const achieved = achievedByExternal || cartTotal >= threshold;
+      const achieved = achievedByExternal || (threshold > 0 && cartTotal >= threshold);
 
       return {
         enabled: true,
@@ -462,7 +501,7 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
         label: achieved ? benefitConfig.successLabel : benefitConfig.rewardLabel,
       };
     };
-  }, [benefitConfig]);
+  }, [benefitConfig, logisticsThreshold]);
 
   const shippingValue: ShippingContextValue = {
     config: shippingConfig,

@@ -156,18 +156,19 @@ export function CartConversionConfigTab() {
             </RadioGroup>
           </div>
 
-          {/* Threshold Value */}
-          <div className="space-y-2">
-            <Label htmlFor="threshold">Valor mínimo para atingir o benefício (R$)</Label>
-            <Input
-              id="threshold"
-              type="number"
-              min={0}
-              step={0.01}
-              value={config.thresholdValue}
-              onChange={(e) => setConfig({ ...config, thresholdValue: parseFloat(e.target.value) || 0 })}
-              className="max-w-xs"
-            />
+          {/* Threshold Info - now derived from logistics rules */}
+          <div className="rounded-lg border p-4 bg-muted/50">
+            <div className="flex items-center gap-2 mb-1">
+              <Truck className="h-4 w-4 text-muted-foreground" />
+              <Label className="text-sm font-medium">Valor mínimo para frete grátis</Label>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              O valor-alvo da barra é determinado automaticamente pelas <strong>Regras de Frete Grátis</strong> configuradas na aba ao lado. 
+              A barra usa o menor valor mínimo entre as regras ativas.
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Se nenhuma regra estiver ativa com valor mínimo, a barra usará o valor legado de R$ {config.thresholdValue.toFixed(2).replace('.', ',')}.
+            </p>
           </div>
 
           {/* Labels */}
@@ -195,18 +196,12 @@ export function CartConversionConfigTab() {
             </div>
           </div>
 
-          {/* Apply to External Rules */}
-          <div className="flex items-center justify-between rounded-lg border p-4">
-            <div className="space-y-0.5">
-              <Label>Ativar frete grátis para outras regras</Label>
-              <p className="text-sm text-muted-foreground">
-                Também concede frete grátis quando ativado por regras externas (cadastro do produto, cupons de desconto ou regras de logística)
-              </p>
-            </div>
-            <Switch
-              checked={config.applyToExternalRules ?? false}
-              onCheckedChange={(applyToExternalRules) => setConfig({ ...config, applyToExternalRules })}
-            />
+          {/* External Rules Info */}
+          <div className="rounded-lg border p-4 bg-muted/50">
+            <p className="text-sm text-muted-foreground">
+              A barra reconhece automaticamente frete grátis concedido por <strong>cadastro do produto</strong> e <strong>cupons de desconto</strong>, 
+              exibindo o benefício como atingido quando aplicável.
+            </p>
           </div>
 
           {/* Progress Color */}
