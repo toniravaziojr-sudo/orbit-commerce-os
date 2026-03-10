@@ -202,7 +202,7 @@ const footerPropsToInherit = [
 
 ---
 
-## Cores Personalizadas (Builder)
+## Cores Personalizadas do Checkout (Page Override)
 
 | Setting | Tipo | Default | Descrição |
 |---------|------|---------|-----------|
@@ -213,11 +213,25 @@ const footerPropsToInherit = [
 
 > **NOTA:** O checkout NÃO possui opção de "Botão Secundário". Essa opção está disponível apenas no Carrinho. Os botões "Alterar" no checkout seguem a cor primária.
 
+### Classe de Escopo
+
+O container do checkout recebe a classe `sf-page-checkout` via `StorefrontCheckout.tsx`.
+
+Isso permite que os overrides de cores da página vençam as regras do tema global **por especificidade CSS natural**, sem `!important`.
+
+### Hierarquia de Especificidade (Fase 2)
+
+| Nível | Seletor | Especificidade |
+|-------|---------|---------------|
+| Global | `.storefront-container .sf-btn-primary` | 0,2,0+ |
+| Checkout | `.sf-page-checkout` (redefine CSS vars) | 0,1,0 (vars cascateiam) |
+
 ### Regra de Herança
 
 1. Se a cor estiver **vazia** (`''`), o elemento usa as cores do **tema global**
-2. Se a cor estiver **preenchida**, ela **sobrescreve** o tema
-3. Configuração em: **Configurações do Tema > Páginas > Checkout > Cores Personalizadas**
+2. Se a cor estiver **preenchida**, ela **redefine as CSS vars** (`--theme-button-primary-bg`, etc.) no escopo `.sf-page-checkout`
+3. Para flags/tags: a var `--theme-flags-color` é redefinida no escopo, afetando `.sf-checkout-flag` e `.sf-flag-text`
+4. Configuração em: **Configurações do Tema > Páginas > Checkout > Cores Personalizadas**
 
 ### Timeline de Passos (ProgressTimeline)
 
@@ -240,10 +254,11 @@ A timeline de passos do checkout (indicadores "Contato > Entrega > Pagamento") u
 | `sf-checkout-flag` | Badge/tag que usa `--theme-flags-color` (ex: "Grátis" no frete) |
 | `sf-flag-text` | Texto que usa `--theme-flags-color` (ex: "Grátis" inline) |
 
-### Arquitetura de Injeção
+### Arquitetura de Injeção (sem !important)
 
 - **Builder (preview):** `useBuilderThemeInjector.ts` lê o draft de `useBuilderDraftPageSettings` e injeta variáveis CSS
 - **Loja pública:** `PageColorsInjector.tsx` + `usePageColors.ts` leem do `published_content` e injetam CSS
+- **Mecanismo:** As CSS vars são redefinidas dentro do escopo `.sf-page-checkout`, cascateando naturalmente para os componentes filhos. Para flags, regras adicionais em `.sf-page-checkout .sf-checkout-flag` / `.sf-flag-text` aplicam `color-mix()` com a var `--theme-flags-color`
 
 ---
 

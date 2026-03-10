@@ -192,7 +192,7 @@ e migra automaticamente para o novo formato na primeira carga.
 
 ---
 
-## Cores Personalizadas (Builder)
+## Cores Personalizadas do Carrinho (Page Override)
 
 | Setting | Tipo | Default | Descrição |
 |---------|------|---------|-----------|
@@ -203,16 +203,31 @@ e migra automaticamente para o novo formato na primeira carga.
 | `buttonSecondaryText` | string | '' | Cor do texto do botão secundário (herda do tema se vazio) |
 | `buttonSecondaryHover` | string | '' | Cor de hover do botão secundário (herda do tema se vazio) |
 
+### Classe de Escopo
+
+O container da página de carrinho recebe automaticamente a classe `sf-page-cart` via `PublicTemplateRenderer` (quando `pageType="cart"`).
+
+Isso permite que os overrides de cores da página vençam as regras do tema global **por especificidade CSS natural**, sem `!important`.
+
+### Hierarquia de Especificidade (Fase 2)
+
+| Nível | Seletor | Especificidade |
+|-------|---------|---------------|
+| Global | `.storefront-container .sf-btn-primary` | 0,2,0+ |
+| Carrinho | `.sf-page-cart` (redefine CSS vars) | 0,1,0 (vars cascateiam) |
+
 ### Regra de Herança
 
 1. Se a cor estiver **vazia** (`''`), o botão usa as cores do **tema global**
-2. Se a cor estiver **preenchida**, ela **sobrescreve** o tema
-3. Configuração em: **Configurações do Tema > Páginas > Carrinho > Cores Personalizadas**
+2. Se a cor estiver **preenchida**, ela **redefine as CSS vars** (`--theme-button-primary-bg`, etc.) no escopo `.sf-page-cart`
+3. Os componentes filhos consumem as vars normalmente — a cascata CSS aplica o override automaticamente
+4. Configuração em: **Configurações do Tema > Páginas > Carrinho > Cores Personalizadas**
 
-### Arquitetura de Injeção
+### Arquitetura de Injeção (sem !important)
 
 - **Builder (preview):** `useBuilderThemeInjector.ts` lê o draft de `useBuilderDraftPageSettings` e injeta variáveis CSS
 - **Loja pública:** `PageColorsInjector.tsx` + `usePageColors.ts` leem do `published_content` e injetam CSS
+- **Mecanismo:** As CSS vars são redefinidas dentro do escopo `.sf-page-cart` / `.sf-page-checkout`, cascateando naturalmente para os componentes filhos sem necessidade de `!important`
 
 ---
 
