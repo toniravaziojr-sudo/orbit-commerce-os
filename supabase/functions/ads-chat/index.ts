@@ -4082,6 +4082,7 @@ Mapear para funnel_splits: cold ≈ Core, tests ≈ Test, remarketing e leads di
 - **Google Ads específico**: ver ad groups, keywords (com quality score), anúncios RSA/RDA, alterar budget em micros
 - **TikTok Ads específico**: criar campanhas (WEB_CONVERSIONS, PRODUCT_SALES), pausar/ativar, ajustar budget
 - **Gerar plano estratégico** completo via Motor Estrategista (diagnóstico + campanhas planejadas + criativos + públicos, com aprovação do lojista)
+- **Navegar e buscar** no Meu Drive do lojista (encontrar criativos prontos, imagens, vídeos em qualquer pasta)
 - **Analisar links** e **imagens** enviadas
 - **Ver e alterar configurações** da IA de tráfego
 - **Sobrepor regras via comando** (com confirmação do lojista)
