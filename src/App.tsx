@@ -243,6 +243,8 @@ const App = () => {
               {/* Content pages (Home, Category, Product, Blog, Page, LP) are Edge-rendered only */}
               {shouldUseTenantRootRoutes && (
                 <Route path="/" element={<TenantStorefrontLayout />}>
+                  {/* Index route: force reload to serve Edge HTML for home page */}
+                  <Route index element={<EdgeContentReload />} />
                   <Route path="cart" element={<StorefrontCart />} />
                   <Route path="carrinho" element={<StorefrontCart />} />
                   <Route path="checkout" element={<StorefrontCheckout />} />
@@ -271,6 +273,8 @@ const App = () => {
               {/* Legacy storefront routes — SPA interactive pages ONLY */}
               {/* Content pages are Edge-rendered; no SPA fallback */}
               <Route path="/store/:tenantSlug" element={<StorefrontLayout />}>
+                {/* Index route: force reload to serve Edge HTML for home page */}
+                <Route index element={<EdgeContentReload />} />
                 <Route path="cart" element={<StorefrontCart />} />
                 <Route path="carrinho" element={<StorefrontCart />} />
                 <Route path="checkout" element={<StorefrontCheckout />} />

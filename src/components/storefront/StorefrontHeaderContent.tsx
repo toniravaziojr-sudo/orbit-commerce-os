@@ -447,7 +447,22 @@ export function StorefrontHeaderContent({
     }
   };
 
-  // Wrapper component for links that works in both editing and public mode
+  // SPA routes that should use React Router <Link> for client-side navigation.
+  // ALL other routes are Edge-rendered content and MUST use native <a> for full page reload.
+  const SPA_ROUTE_PREFIXES = ['/cart', '/carrinho', '/checkout', '/obrigado', '/conta', '/minha-conta', '/rastreio', '/minhas-compras', '/busca', '/quiz/', '/avaliar/'];
+  
+  const isSpaRoute = (url: string): boolean => {
+    if (!url) return false;
+    const path = url.startsWith('http') ? new URL(url).pathname : url;
+    // Remove baseUrl prefix for /store/:slug routes
+    const cleanPath = path.replace(/^\/store\/[^/]+/, '');
+    return SPA_ROUTE_PREFIXES.some(prefix => cleanPath === prefix || cleanPath.startsWith(prefix + '/') || cleanPath.startsWith(prefix));
+  };
+
+  // Wrapper component for links:
+  // - Editing mode: <span> (no navigation)
+  // - SPA routes (/cart, /checkout, /conta, etc.): React Router <Link>
+  // - Content routes (/, /categoria, /produto, etc.): native <a> for full reload → Edge HTML
   const LinkWrapper = ({ to, children, className, style, onClick }: any) => {
     if (isEditing) {
       return (
@@ -456,6 +471,15 @@ export function StorefrontHeaderContent({
         </span>
       );
     }
+    // Content routes: use native <a> to force full page reload → Edge serves HTML
+    if (!isSpaRoute(to)) {
+      return (
+        <a href={to} className={className} style={style} onClick={onClick}>
+          {children}
+        </a>
+      );
+    }
+    // SPA routes: use React Router Link for client-side navigation
     return (
       <Link to={to} className={className} style={style} onClick={onClick}>
         {children}
@@ -465,14 +489,20 @@ export function StorefrontHeaderContent({
 
   // Mobile menu navigation: navigate first, then close drawer
   // This ensures navigation completes before the Sheet unmounts content
+  // For content routes (Edge-rendered), use native navigation (full reload)
+  // For SPA routes, use React Router navigate
   const handleMobileMenuNavigate = (url: string) => {
     if (!url) return;
-    // Navigate immediately
-    navigate(url);
-    // Close menu after a tick so navigation isn't blocked
-    requestAnimationFrame(() => {
+    if (isSpaRoute(url)) {
+      navigate(url);
+      requestAnimationFrame(() => {
+        setMobileMenuOpen(false);
+      });
+    } else {
+      // Content route: full page reload → Edge HTML
       setMobileMenuOpen(false);
-    });
+      window.location.href = url;
+    }
   };
 
   // Search submit handler — navigates to /busca?q=term
