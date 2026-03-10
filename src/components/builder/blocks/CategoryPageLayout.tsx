@@ -9,7 +9,7 @@
 // - Botão personalizado com ordem específica
 // =============================================
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
@@ -32,6 +32,7 @@ interface Product {
   slug: string;
   price: number;
   compare_at_price: number | null;
+  stock_quantity: number | null;
   product_images: { url: string; is_primary: boolean }[];
   tags?: string[];
 }
@@ -118,8 +119,8 @@ export function CategoryPageLayout({
   // State for tracking which products show "Adicionado" feedback
   const [addedProducts, setAddedProducts] = useState<Set<string>>(new Set());
 
-  // Filter states
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 500]);
+  // Filter states — price range upper bound will be synced with computed max
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 999999]);
   const [sortBy, setSortBy] = useState('relevance');
   const [inStockOnly, setInStockOnly] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -161,7 +162,7 @@ export function CategoryPageLayout({
 
           const { data: prods, error } = await supabase
             .from('products')
-            .select('id, name, slug, price, compare_at_price, product_images(url, is_primary)')
+            .select('id, name, slug, price, compare_at_price, stock_quantity, tags, product_images(url, is_primary)')
             .eq('tenant_id', tenantId)
             .eq('status', 'active')
             .in('id', productIds)
@@ -181,7 +182,7 @@ export function CategoryPageLayout({
       // This ensures the builder always shows product placeholders with real data when available
       const { data: prods, error } = await supabase
         .from('products')
-        .select('id, name, slug, price, compare_at_price, product_images(url, is_primary)')
+        .select('id, name, slug, price, compare_at_price, stock_quantity, tags, product_images(url, is_primary)')
         .eq('tenant_id', tenantId)
         .eq('status', 'active')
         .limit(limit);
@@ -216,12 +217,27 @@ export function CategoryPageLayout({
     return Array.from(tags);
   }, [displayProducts]);
 
+  // Dynamic max price based on actual product prices
+  const computedMaxPrice = useMemo(() => {
+    if (displayProducts.length === 0) return 500;
+    const maxProductPrice = Math.max(...displayProducts.map(p => p.price));
+    // Round up to nearest 50 for a cleaner slider
+    return Math.ceil(maxProductPrice / 50) * 50 || 500;
+  }, [displayProducts]);
+
   // Filter and sort products
   const filteredProducts = useMemo(() => {
     let result = [...displayProducts];
 
-    // Price filter
-    result = result.filter(p => p.price >= priceRange[0] && p.price <= priceRange[1]);
+    // Price filter — only apply if user changed from defaults
+    if (priceRange[0] > 0 || priceRange[1] < computedMaxPrice) {
+      result = result.filter(p => p.price >= priceRange[0] && p.price <= priceRange[1]);
+    }
+
+    // Stock filter
+    if (inStockOnly) {
+      result = result.filter(p => (p.stock_quantity ?? 1) > 0);
+    }
 
     // Tags filter
     if (selectedTags.length > 0) {
@@ -247,7 +263,7 @@ export function CategoryPageLayout({
     }
 
     return result;
-  }, [displayProducts, priceRange, selectedTags, sortBy]);
+  }, [displayProducts, priceRange, selectedTags, sortBy, inStockOnly, computedMaxPrice]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -345,7 +361,7 @@ export function CategoryPageLayout({
 
   const filterProps = {
     priceRange,
-    maxPrice: 500,
+    maxPrice: computedMaxPrice,
     onPriceChange: setPriceRange,
     sortBy,
     onSortChange: setSortBy,

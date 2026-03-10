@@ -177,7 +177,7 @@ Configuradas via `platform_secrets`:
    e. Atualiza fiscal_invoices (chave, protocolo, URLs)
 ```
 
-### Mapeamento de Status
+### Mapeamento de Status NF-e (Sefaz → Interno)
 | Status Sefaz | Status Interno |
 |--------------|----------------|
 | `autorizada` | `authorized` |
@@ -185,6 +185,45 @@ Configuradas via `platform_secrets`:
 | `denegada` | `denied` |
 | `cancelada` | `cancelled` |
 | `processando` | `processing` |
+
+### Integração Status Pedido ↔ NF-e (v2026-03-10)
+
+O fluxo fiscal é diretamente integrado ao ciclo de vida do pedido. A coluna `status` do pedido reflete a etapa fiscal-operacional interna.
+
+#### Fluxo Completo (Pedido → Fiscal → Logística)
+```
+awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice_authorized → invoice_issued → dispatched → completed
+                                                   ↓                        ↓
+                                            invoice_rejected         invoice_cancelled
+```
+
+#### Mapeamento Pedido ↔ Fiscal
+| Status do Pedido | Significado | Ação Fiscal |
+|------------------|-------------|-------------|
+| `awaiting_confirmation` | Aguardando pagamento | Nenhuma |
+| `ready_to_invoice` | Pago, pronto para NF | Criar rascunho de NF-e |
+| `invoice_pending_sefaz` | NF enviada à SEFAZ | Aguardar retorno |
+| `invoice_authorized` | NF autorizada pela SEFAZ e enviada ao cliente | NF aprovada com sucesso |
+| `invoice_issued` | NF impressa, preparando despacho | Preparar envio |
+| `dispatched` | Pacote despachado | — |
+| `completed` | Entregue ao destino | — |
+| `invoice_rejected` | SEFAZ rejeitou NF | Corrigir e reemitir |
+| `invoice_cancelled` | NF cancelada pós-autorização | Emitir NF de cancelamento |
+| `returning` | Em devolução | Emitir NF de devolução |
+| `payment_expired` | Pagamento expirado | Nenhuma |
+
+#### Transições Automáticas
+| Gatilho | Transição |
+|---------|-----------|
+| Webhook de pagamento aprovado | `awaiting_confirmation` → `ready_to_invoice` |
+| PIX/Boleto expirado | `awaiting_confirmation` → `payment_expired` |
+| fiscal-auto-create-drafts (auto-emissão ativa) | `ready_to_invoice` → `invoice_pending_sefaz` |
+
+#### Regras
+1. **Separação de colunas**: `status` = etapa operacional interna. `shipping_status` = status de entrega. `payment_status` = status de pagamento.
+2. **Automação**: Transição para `ready_to_invoice` é automática via webhook de pagamento.
+3. **NF Autorizada vs Emitida**: "Autorizada" = SEFAZ aprovou e NF foi enviada ao cliente. "Emitida" = NF impressa e preparada para despacho físico.
+4. **Terminal**: `completed` é o estado final após confirmação de entrega.
 
 ---
 

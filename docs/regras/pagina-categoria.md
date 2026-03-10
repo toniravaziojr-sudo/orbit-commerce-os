@@ -215,7 +215,25 @@ A ordem dos botões nos cards de produto é fixa e obrigatória:
 
 > **REGRA ANTI-REGRESSÃO:** Após alterar o compilador de filtros, é OBRIGATÓRIO: 1) Deploy da edge function, 2) Invalidar cache (status='stale'). Nessa ordem.
 
-### Filtros Client-Side
+### Filtros Client-Side (React SPA — v8.5.1)
+
+**Arquivos:** `CategoryPageLayout.tsx` (lógica), `CategoryFilters.tsx` (UI)
+
+| Filtro | Tipo | Campo usado | Descrição |
+|--------|------|-------------|-----------|
+| Faixa de preço | Slider range | `price` | Filtra produtos por min/max. maxPrice dinâmico baseado nos produtos reais (arredondado para cima em múltiplos de 50) |
+| Apenas em estoque | Checkbox | `stock_quantity` | Filtra produtos com `stock_quantity > 0` |
+| Tags/Características | Checkboxes | `tags` (array) | Filtra por tags do produto. Só aparece se existem tags nos produtos |
+| Ordenação | Select | `price`, `created_at` | Relevância, Menor preço, Maior preço, Mais recentes, Mais vendidos |
+
+**Regras de implementação:**
+1. **Query de produtos**: DEVE incluir `stock_quantity` e `tags` no select, além dos campos base
+2. **maxPrice dinâmico**: Calculado a partir do maior preço dos produtos (`Math.ceil(max/50)*50`)
+3. **Aplicação imediata**: Todos os filtros aplicam automaticamente ao alterar (sem botão "Aplicar")
+4. **`filteredProducts` memo**: Recalcula quando qualquer filtro muda (`priceRange`, `sortBy`, `inStockOnly`, `selectedTags`)
+5. **Limpar filtros**: Botão "Limpar filtros" aparece quando qualquer filtro está ativo
+
+### Filtros Client-Side (Edge/Compilador)
 | Filtro | Tipo | Descrição |
 |--------|------|-----------|
 | Frete grátis | checkbox | Filtra `data-free-shipping="1"` |
@@ -225,12 +243,14 @@ A ordem dos botões nos cards de produto é fixa e obrigatória:
 ### Ordenação
 | Opção | Valor | Lógica |
 |-------|-------|--------|
-| Relevância | `default` | Ordem original do servidor |
-| Menor preço | `price-asc` | `data-price` crescente |
-| Maior preço | `price-desc` | `data-price` decrescente |
-| A → Z | `name-asc` | `data-name` alfabético |
-| Z → A | `name-desc` | `data-name` reverso |
-| Maior desconto | `discount` | `data-discount-pct` decrescente |
+| Relevância | `relevance` / `default` | Ordem original do servidor |
+| Menor preço | `price_asc` / `price-asc` | `price` / `data-price` crescente |
+| Maior preço | `price_desc` / `price-desc` | `price` / `data-price` decrescente |
+| Mais recentes | `newest` | Ordem de criação |
+| Mais vendidos | `bestsellers` | Por vendas |
+| A → Z | `name-asc` | `data-name` alfabético (compilador apenas) |
+| Z → A | `name-desc` | `data-name` reverso (compilador apenas) |
+| Maior desconto | `discount` | `data-discount-pct` decrescente (compilador apenas) |
 
 ### Paginação (Load More)
 - Página inicial: 24 produtos
