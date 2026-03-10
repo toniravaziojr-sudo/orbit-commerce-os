@@ -144,4 +144,3 @@ function LayoutMiniCartDrawer({ tenantSlug, isPreview }: { tenantSlug: string; i
     />
   );
 }
-}
