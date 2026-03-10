@@ -149,7 +149,7 @@ export function generateThemeCss(themeSettings: any): string {
  */
 export function generateButtonCssRules(): string {
   return `
-    .sf-btn-primary,.sf-btn-outline-primary,.sf-btn-secondary{-webkit-tap-highlight-color:transparent;}
+    .sf-btn-primary,.sf-btn-outline-primary,.sf-btn-secondary,.sf-btn-outline-secondary{-webkit-tap-highlight-color:transparent;}
     .sf-btn-primary{background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);transition:all 0.2s ease;}
     @media(hover:hover){.sf-btn-primary:hover:not(:disabled){background:var(--theme-button-primary-hover,var(--theme-button-primary-bg,#333));transform:translateY(-1px);filter:brightness(1.1);box-shadow:0 2px 8px rgba(0,0,0,0.15);}}
     .sf-btn-primary:active:not(:disabled){transform:scale(0.93);filter:brightness(0.88);transition:transform 0.08s;box-shadow:inset 0 2px 4px rgba(0,0,0,0.2);}
@@ -159,6 +159,9 @@ export function generateButtonCssRules(): string {
     .sf-btn-secondary{background:var(--theme-button-secondary-bg,#e5e5e5);color:var(--theme-button-secondary-text,#1a1a1a);transition:all 0.2s ease;}
     @media(hover:hover){.sf-btn-secondary:hover:not(:disabled){background:var(--theme-button-secondary-hover,var(--theme-button-secondary-bg,#d5d5d5));transform:translateY(-1px);filter:brightness(1.1);box-shadow:0 2px 8px rgba(0,0,0,0.15);}}
     .sf-btn-secondary:active:not(:disabled){transform:scale(0.93);filter:brightness(0.88);transition:transform 0.08s;box-shadow:inset 0 2px 4px rgba(0,0,0,0.2);}
+    .sf-btn-outline-secondary{background:transparent;color:var(--theme-button-secondary-text,#1a1a1a);border:1px solid var(--theme-button-secondary-bg,#e5e5e5);transition:all 0.2s ease;}
+    @media(hover:hover){.sf-btn-outline-secondary:hover:not(:disabled){background:var(--theme-button-secondary-bg,#e5e5e5);color:var(--theme-button-secondary-text,#1a1a1a);border-color:var(--theme-button-secondary-bg,#e5e5e5);transform:translateY(-1px);}}
+    .sf-btn-outline-secondary:active:not(:disabled){transform:scale(0.93);filter:brightness(0.88);transition:transform 0.08s;box-shadow:inset 0 2px 4px rgba(0,0,0,0.2);}
     .sf-accent-icon,.sf-accent-check,.sf-accent-text{color:var(--theme-accent-color,#22c55e);}
     .sf-accent-bg{background:var(--theme-accent-color,#22c55e);color:#fff;}
     .sf-tag-success{background:var(--theme-success-bg,#22c55e);color:var(--theme-success-text,#fff);}

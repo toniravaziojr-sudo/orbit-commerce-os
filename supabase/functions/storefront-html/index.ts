@@ -532,7 +532,7 @@ function buildFullPage(opts: {
       </div>
       <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
         <a href="/checkout" class="sf-btn-primary" style="display:block;width:100%;padding:14px;text-align:center;border-radius:9999px;font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:0.05em;text-decoration:none;">Iniciar Compra</a>
-        <a href="/carrinho" style="display:block;width:100%;padding:12px;text-align:center;border:1px solid #ddd;border-radius:9999px;font-weight:600;font-size:13px;text-decoration:none;color:#1a1a1a;">Ir para o Carrinho</a>
+        <a href="/carrinho" class="sf-btn-secondary" style="display:block;width:100%;padding:12px;text-align:center;border-radius:9999px;font-weight:600;font-size:13px;text-decoration:none;">Ir para o Carrinho</a>
       </div>
     </div>
   </div>
