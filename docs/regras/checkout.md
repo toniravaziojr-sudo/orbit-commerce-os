@@ -463,9 +463,9 @@ Status aplicados: `payment_status='cancelled'`, `status='cancelled'`, com `cance
 | **Tipo** | Regra Visual |
 | **Localização** | `CheckoutStepWizard.tsx`, `index.css` |
 | **Descrição** | O resumo do pedido fica fixo (sticky top-4) na sidebar direita enquanto o usuário rola o formulário |
-| **Comportamento** | O grid usa `align-items: start` para impedir que a coluna da sidebar se estique verticalmente. O container sticky contém o cupom + resumo. Depoimentos ficam FORA do sticky, rolando naturalmente. |
-| **CSS** | `.sf-checkout-layout { align-items: start }` no container query `min-width: 768px` |
-| **Erros/Edge cases** | Sem `align-items: start`, o grid estica a sidebar e o sticky não funciona |
+| **Comportamento** | O grid usa `align-items: start` para impedir que a coluna da sidebar se estique verticalmente. O container sticky contém o cupom + resumo. **Depoimentos ficam FORA do grid `sf-checkout-layout`** (não apenas fora do sticky), evitando qualquer sobreposição ao scrollar. No desktop, a wrapper `.sf-checkout-testimonials-wrapper` tem `max-width: 380px; margin-left: auto` para alinhar visualmente à coluna da sidebar. |
+| **CSS** | `.sf-checkout-layout { align-items: start }` no container query `min-width: 768px`. `.sf-checkout-testimonials-wrapper { max-width: 380px; margin-left: auto }` |
+| **Erros/Edge cases** | Se os depoimentos ficarem DENTRO da mesma coluna do grid que tem o sticky, o resumo passa por cima deles ao scrollar. SEMPRE manter fora do grid. |
 
 ### Ocultação de Nomes de Integração no Frete
 
