@@ -35,10 +35,17 @@ export interface PopupDraftRef {
   savePendingChanges: () => Promise<void>;
 }
 
+interface SupportWidgetDraftRef {
+  hasDraftChanges: boolean;
+  clearDraft: () => void;
+  getPendingChanges: () => { supportWidget?: SupportWidgetConfig } | null;
+}
+
 let globalHeaderDraftRef: HeaderFooterDraftRef | null = null;
 let globalFooterDraftRef: HeaderFooterDraftRef | null = null;
 let globalMiniCartDraftRef: MiniCartDraftRef | null = null;
 let globalPopupDraftRef: PopupDraftRef | null = null;
+let globalSupportWidgetDraftRef: SupportWidgetDraftRef | null = null;
 
 // Change counter for external observers (triggers re-render in toolbar)
 let headerFooterDraftChangeCounter = 0;
