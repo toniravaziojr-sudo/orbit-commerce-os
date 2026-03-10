@@ -961,8 +961,8 @@ export function PageSettingsContent({
                   <PaymentMethodsConfig tenantId={tenantId} />
                 )}
                 
-                {/* Special: Color pickers for cart/checkout colors group */}
-                {(pageType === 'cart' || pageType === 'checkout') && group.id === 'colors' && (
+                {/* Special: Color pickers for checkout colors group (cart inherits global theme) */}
+                {pageType === 'checkout' && group.id === 'colors' && (
                   <div className="space-y-4">
                     <p className="text-xs text-muted-foreground">
                       Deixe em branco para usar as cores do tema. Cores personalizadas sobrescrevem o tema.
