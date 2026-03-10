@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useEffect, useState } from 'react';
 import { normalizeEmail } from '@/lib/normalizeEmail';
+import { normalizeOrderStatus, ORDER_STATUS_CONFIG } from '@/types/orderStatus';
 export interface OrderItem {
   id: string;
   product_name: string;
