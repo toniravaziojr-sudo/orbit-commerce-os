@@ -107,9 +107,9 @@ export function ProductCarouselBlock({
     setAddedProducts(prev => new Set(prev).add(product.id));
     toast.success('Produto adicionado ao carrinho!');
     
-    // If cartActionType is 'miniCart', open the drawer
+    // If cartActionType is 'miniCart', open the global drawer
     if (cartActionType === 'miniCart') {
-      setMiniCartOpen(true);
+      openMiniCart();
     }
     
     // Remove feedback after 2 seconds
