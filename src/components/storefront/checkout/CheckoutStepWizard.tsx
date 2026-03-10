@@ -883,7 +883,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
 
       {/* Testimonials - OUTSIDE the grid entirely so sticky sidebar never overlaps */}
       {checkoutConfig.testimonialsEnabled && (
-        <div className="sf-checkout-testimonials-wrapper mt-6">
+        <div className="sf-checkout-testimonials-wrapper mt-4 pt-4 border-t border-border/40">
           <CheckoutTestimonials tenantId={tenantId} productIds={items.map(item => item.product_id)} />
         </div>
       )}
