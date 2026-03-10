@@ -1390,6 +1390,22 @@ serve(async (req) => {
     const publishedPages = baseResults.publishedPages || [];
     const marketingConfig = baseResults.marketingConfig;
     const newsletterPopup = baseResults.newsletterPopup;
+    const freeShippingRulesData = baseResults.freeShippingRules || [];
+
+    // Derive benefit config for edge cart drawer
+    const benefitConfig = storeSettings?.benefit_config || null;
+    let benefitThreshold = 0;
+    if (benefitConfig?.enabled) {
+      // Priority: logistics rules threshold > legacy thresholdValue
+      const thresholds = (freeShippingRulesData as any[])
+        .filter((r: any) => r.min_order_cents != null && r.min_order_cents > 0)
+        .map((r: any) => r.min_order_cents as number);
+      if (thresholds.length > 0) {
+        benefitThreshold = Math.min(...thresholds) / 100; // cents → reais
+      } else {
+        benefitThreshold = Number(benefitConfig.thresholdValue) || 200;
+      }
+    }
 
     // Route-specific result — ALWAYS the last element, safe from base query additions
     const routeData = routeQueryPromise
