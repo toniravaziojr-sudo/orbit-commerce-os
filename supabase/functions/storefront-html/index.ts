@@ -18,7 +18,7 @@ import { generateThemeCss, generateButtonCssRules, getGoogleFontsData } from '..
 import { optimizeImageUrl } from '../_shared/block-compiler/utils.ts';
 
 // ===== VERSION =====
-const VERSION = "v8.4.1"; // Fix: Category banners direct URLs, no wsrv.nl proxy
+const VERSION = "v8.5.0"; // Fix: Cart format compatibility Edge↔SPA — prevents hydration crash
 // ====================
 
 // NOTE: FONT_FAMILY_MAP, getFontFamily, generateThemeCss, getGoogleFontsData
