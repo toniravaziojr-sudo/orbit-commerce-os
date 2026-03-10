@@ -721,7 +721,7 @@ export function StorefrontFooterContent({
               {/* Logo */}
               {showLogo && (
                 <div className="mb-4">
-                  <Link to={baseUrl} onClick={e => isEditing && e.preventDefault()}>
+                  <FooterLink to={baseUrl || '/'} isEditing={isEditing}>
                     {logoUrl ? (
                       <img
                         src={logoUrl}
@@ -744,7 +744,7 @@ export function StorefrontFooterContent({
                         {showDemoStore && <span className="text-xs font-normal ml-1">[Demo]</span>}
                       </span>
                     )}
-                  </Link>
+                  </FooterLink>
                 </div>
               )}
               
