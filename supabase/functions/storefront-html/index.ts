@@ -1339,6 +1339,7 @@ serve(async (req) => {
       publishedPages: supabase.from('store_pages').select('id, slug, type, is_published').eq('tenant_id', tenantId).eq('is_published', true),
       marketingConfig: supabase.from('marketing_integrations').select('meta_pixel_id, meta_enabled, google_measurement_id, google_ads_conversion_id, google_enabled, tiktok_pixel_id, tiktok_enabled, consent_mode_enabled').eq('tenant_id', tenantId).maybeSingle(),
       newsletterPopup: supabase.from('newsletter_popup_configs').select('id, is_active, title, subtitle, button_text, success_message, show_name, show_phone, show_birth_date, name_required, phone_required, birth_date_required, layout, image_url, icon_image_url, trigger_type, trigger_delay_seconds, trigger_scroll_percent, show_on_pages, background_color, text_color, button_bg_color, button_text_color, show_once_per_session, list_id').eq('tenant_id', tenantId).eq('is_active', true).limit(1).maybeSingle(),
+      freeShippingRules: supabase.from('shipping_free_rules').select('min_order_cents').eq('tenant_id', tenantId).eq('is_enabled', true),
     };
 
     // Route-specific query (only one per request)
