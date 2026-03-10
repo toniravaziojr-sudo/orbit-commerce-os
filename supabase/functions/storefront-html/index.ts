@@ -1126,7 +1126,7 @@ function buildFullPage(opts: {
             var idx=parseInt(trigger.dataset.sfLightboxTrigger)||0;
             lbShow(idx);
           }
-        });
+        },{signal:sfSignal});
         if(lbClose)lbClose.addEventListener("click",lbHide);
         lightbox.addEventListener("click",function(e){if(e.target===lightbox)lbHide();});
         document.addEventListener("keydown",function(e){
