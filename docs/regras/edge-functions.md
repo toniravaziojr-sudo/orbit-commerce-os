@@ -2511,3 +2511,18 @@ Páginas SPA (carrinho, conta, rastreio, busca, quiz) ficavam presas em "Carrega
 
 ### AÇÃO NECESSÁRIA
 ⚠️ O arquivo `docs/cloudflare-worker-template.js` é apenas um template. O Worker real precisa ser atualizado manualmente no Cloudflare Dashboard com a nova lista de `SPA_ONLY_ROUTES`.
+
+---
+
+## storefront-html — Support Widget HTML Injection (v1.0)
+
+### Implementação
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Funcionalidade |
+| **Localização** | `supabase/functions/storefront-html/index.ts` → `generateSupportWidgetHtml()` |
+| **Descrição** | Gera HTML do widget flutuante de suporte (botões WhatsApp e/ou Chat) diretamente no HTML Edge-rendered |
+| **Comportamento** | 1. Lê `themeSettings.supportWidget` do template publicado. 2. Se `enabled=true`, gera botões flutuantes posicionados (`left-4` ou `right-4`). 3. WhatsApp abre link `wa.me` em nova aba. 4. Chat abre popup com formulário de identificação + mensagens em tempo real. 5. Injetado antes de `</body>` via `buildFullPage()`. |
+| **Condições** | `supportWidget.enabled === true` e `routeType !== 'checkout'` |
+| **Configurações** | `type` (chat/whatsapp/both), `whatsappNumber`, `whatsappMessage`, `buttonColor`, `position` (left/right) |
+| **Afeta** | Todas as páginas Edge-rendered (Home, Categoria, Produto, Blog, Pages, LPs) |
