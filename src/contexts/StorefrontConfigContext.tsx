@@ -224,6 +224,13 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
         .eq('is_enabled', true)
         .eq('supports_quote', true);
 
+      // Fetch active free shipping rules to derive bar threshold
+      const { data: freeShippingRules } = await supabase
+        .from('free_shipping_rules')
+        .select('min_order_cents, is_enabled')
+        .eq('tenant_id', tenantId)
+        .eq('is_enabled', true);
+
       let shippingConfig = parseShippingConfig(storeData?.shipping_config);
 
       // If any provider with quote support is active, use multi-provider edge function
@@ -237,6 +244,17 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
         };
         console.log('[StorefrontConfigContext] Active quote providers:', activeProviders.join(', '));
       }
+
+      // Derive the lowest min_order threshold from active logistics rules (in reais)
+      let logisticsThreshold: number | null = null;
+      if (freeShippingRules && freeShippingRules.length > 0) {
+        const thresholds = freeShippingRules
+          .filter(r => r.min_order_cents != null && r.min_order_cents > 0)
+          .map(r => r.min_order_cents as number);
+        if (thresholds.length > 0) {
+          logisticsThreshold = Math.min(...thresholds) / 100; // cents → reais
+        }
+      }
       
       return {
         shippingConfig,
@@ -244,6 +262,7 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
         offersConfig: parseOffersConfig(storeData?.offers_config),
         cartConfig: parseCartConfig(storeData?.cart_config),
         checkoutConfig: parseCheckoutConfig(storeData?.checkout_config),
+        logisticsThreshold,
       };
     },
     enabled: !!tenantId,
