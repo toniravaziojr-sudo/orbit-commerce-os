@@ -78,12 +78,15 @@ console.log(`[function-name][${VERSION}] Request received`);
 
 ## Regras Gerais
 
+> ⚠️ **REGRA DE PARIDADE BUILDER ↔ PÚBLICO:** Toda alteração em compiladores de bloco (`_shared/block-compiler/blocks/`) DEVE ser acompanhada da alteração correspondente no React (`src/components/builder/blocks/`). Consultar obrigatoriamente: **`docs/regras/paridade-builder-publico.md`** antes de qualquer mudança.
+
 | Regra | Descrição |
 |-------|-----------|
 | **Erro de negócio** | HTTP 200 + `{ success: false, error: "...", code? }` |
 | **CORS** | Completo em TODAS as respostas (OPTIONS + success + error). **Falta de CORS = bug crítico** |
 | **Email** | Sempre `normalizeEmail()` (trim + lowercase) |
 | **RLS** | Validar SELECT/INSERT/UPDATE/DELETE por tabela antes de dar "done" |
+| **Paridade de Blocos** | Alterar compiler sem alterar React (ou vice-versa) é **PROIBIDO** → ver `paridade-builder-publico.md` |
 
 ---
 

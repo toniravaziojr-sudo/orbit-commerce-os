@@ -86,6 +86,8 @@ const handleMouseDown = (e: React.MouseEvent) => {
 | `ProductCard.tsx` | Card sem `pointer-events-none` para permitir hovers |
 | `ProductCTAs.tsx` | Botões funcionais mesmo em modo edição |
 
+> ⚠️ **REGRA CRÍTICA DE PARIDADE:** Toda alteração em blocos React do Builder DEVE ser replicada no compilador HTML (Edge). Consultar obrigatoriamente: **`docs/regras/paridade-builder-publico.md`** antes de qualquer mudança.
+
 ---
 
 ## Botões de Visualização no Toolbar (Regra Estrutural)
