@@ -231,7 +231,7 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
       let freeShippingRules: Array<{ min_order_cents: number | null }> = [];
       try {
         const res = await fetch(
-          `${supabaseUrl}/rest/v1/free_shipping_rules?tenant_id=eq.${tenantId}&is_enabled=eq.true&select=min_order_cents`,
+          `${supabaseUrl}/rest/v1/shipping_free_rules?tenant_id=eq.${tenantId}&is_enabled=eq.true&select=min_order_cents`,
           { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` } }
         );
         if (res.ok) {

@@ -350,6 +350,12 @@ function buildFullPage(opts: {
   marketingScripts?: string;
   newsletterPopupHtml?: string;
   consentBannerHtml?: string;
+  benefitEnabled?: boolean;
+  benefitThreshold?: number;
+  benefitMode?: string;
+  benefitRewardLabel?: string;
+  benefitSuccessLabel?: string;
+  benefitProgressColor?: string;
 }): string {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -539,6 +545,12 @@ function buildFullPage(opts: {
       var cart=JSON.parse(localStorage.getItem(CART_KEY)||"[]");
       var cartShipping=null; // {name,price,days}
       var cartDiscount=null; // {code,type,value,free_shipping}
+      var BENEFIT_ENABLED=${opts.benefitEnabled ? 'true' : 'false'};
+      var BENEFIT_THRESHOLD=${opts.benefitThreshold || 0};
+      var BENEFIT_MODE="${escapeHtml(opts.benefitMode || 'free_shipping')}";
+      var BENEFIT_REWARD_LABEL="${escapeHtml(opts.benefitRewardLabel || 'Frete Grátis')}";
+      var BENEFIT_SUCCESS_LABEL="${escapeHtml(opts.benefitSuccessLabel || 'Você ganhou frete grátis!')}";
+      var BENEFIT_COLOR="${escapeHtml(opts.benefitProgressColor || '#22c55e')}";
 
       function saveCart(){localStorage.setItem(CART_KEY,JSON.stringify(cart));updateCartUI();}
       function fmt(v){return"R$ "+v.toFixed(2).replace(".",",");}
@@ -577,13 +589,40 @@ function buildFullPage(opts: {
         // Items
         var itemsEl=document.querySelector("[data-sf-cart-items]");
         if(itemsEl){
+          // Update benefit bar
           var benefitEl=itemsEl.querySelector("[data-sf-cart-benefit]");
-          var benefitHtml=benefitEl?benefitEl.outerHTML:'';
+          if(benefitEl){
+            if(BENEFIT_ENABLED && BENEFIT_THRESHOLD>0 && cart.length>0){
+              var progress=Math.min((subtotal/BENEFIT_THRESHOLD)*100,100);
+              var remaining=Math.max(BENEFIT_THRESHOLD-subtotal,0);
+              var achieved=subtotal>=BENEFIT_THRESHOLD;
+              var accentColor=BENEFIT_COLOR||'#22c55e';
+              var icon=BENEFIT_MODE==='gift'?'🎁':'🚚';
+              if(achieved){
+                benefitEl.style.display="block";
+                benefitEl.innerHTML='<div style="padding:10px 12px;border-radius:8px;border:1px solid '+accentColor+';background:'+accentColor+'10;">'
+                  +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
+                  +'<span style="font-size:14px;">'+icon+'</span>'
+                  +'<span style="font-size:13px;font-weight:600;color:'+accentColor+';">'+BENEFIT_SUCCESS_LABEL+'</span></div>'
+                  +'<div style="height:6px;border-radius:3px;background:#e5e7eb;overflow:hidden;"><div style="height:100%;width:100%;background:'+accentColor+';border-radius:3px;"></div></div></div>';
+              } else {
+                benefitEl.style.display="block";
+                benefitEl.innerHTML='<div style="padding:10px 12px;border-radius:8px;border:1px solid #e5e7eb;background:#f9fafb;">'
+                  +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
+                  +'<span style="font-size:14px;">'+icon+'</span>'
+                  +'<span style="font-size:13px;">Faltam <strong>R$ '+remaining.toFixed(2).replace(".",",")+'</strong> para '+BENEFIT_REWARD_LABEL.toLowerCase()+'</span></div>'
+                  +'<div style="height:6px;border-radius:3px;background:#e5e7eb;overflow:hidden;"><div style="height:100%;width:'+progress.toFixed(1)+'%;background:'+accentColor+';border-radius:3px;transition:width 0.3s;"></div></div></div>';
+              }
+            } else {
+              benefitEl.style.display="none";
+            }
+          }
           if(cart.length===0){
-            itemsEl.innerHTML=benefitHtml+'<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#999;padding:32px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.4;margin-bottom:16px;"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18"/><path d="M16 10a4 4 0 01-8 0"/></svg><p style="font-size:14px;">Seu carrinho está vazio</p></div>';
+            itemsEl.innerHTML=(benefitEl?benefitEl.outerHTML:'')+'<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#999;padding:32px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.4;margin-bottom:16px;"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18"/><path d="M16 10a4 4 0 01-8 0"/></svg><p style="font-size:14px;">Seu carrinho está vazio</p></div>';
             return;
           }
-          itemsEl.innerHTML=benefitHtml+cart.map(function(item,idx){
+          var bHtml=benefitEl?benefitEl.outerHTML:'';
+          itemsEl.innerHTML=bHtml+cart.map(function(item,idx){
             return '<div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid #f5f5f5;">'
               +'<div style="width:64px;height:64px;border-radius:8px;overflow:hidden;background:#f5f5f5;flex-shrink:0;">'+(item.image?'<img src="'+item.image+'" style="width:100%;height:100%;object-fit:cover;">':'')+'</div>'
               +'<div style="flex:1;min-width:0;">'
@@ -1330,7 +1369,7 @@ serve(async (req) => {
     // Base queries (all pages need these) — order doesn't matter, extracted by name
     const baseQueryMap = {
       tenant: supabase.from('tenants').select('id, name, slug, logo_url').eq('id', tenantId).maybeSingle(),
-      storeSettings: supabase.from('store_settings').select('store_name, logo_url, store_description, social_instagram, social_facebook, social_whatsapp, social_tiktok, social_youtube, contact_phone, contact_email, contact_address, contact_support_hours, business_legal_name, business_cnpj, is_published, favicon_url, seo_title, seo_description').eq('tenant_id', tenantId).maybeSingle(),
+      storeSettings: supabase.from('store_settings').select('store_name, logo_url, store_description, social_instagram, social_facebook, social_whatsapp, social_tiktok, social_youtube, contact_phone, contact_email, contact_address, contact_support_hours, business_legal_name, business_cnpj, is_published, favicon_url, seo_title, seo_description, benefit_config').eq('tenant_id', tenantId).maybeSingle(),
       headerMenu: supabase.from('menus').select('*, menu_items(*)').eq('tenant_id', tenantId).eq('location', 'header').maybeSingle(),
       categories: supabase.from('categories').select('id, name, slug').eq('tenant_id', tenantId).eq('is_active', true).order('sort_order').limit(10),
       templateSet: supabase.from('storefront_template_sets').select('id, published_content, is_published, base_preset').eq('tenant_id', tenantId).eq('is_published', true).maybeSingle(),
@@ -1339,6 +1378,7 @@ serve(async (req) => {
       publishedPages: supabase.from('store_pages').select('id, slug, type, is_published').eq('tenant_id', tenantId).eq('is_published', true),
       marketingConfig: supabase.from('marketing_integrations').select('meta_pixel_id, meta_enabled, google_measurement_id, google_ads_conversion_id, google_enabled, tiktok_pixel_id, tiktok_enabled, consent_mode_enabled').eq('tenant_id', tenantId).maybeSingle(),
       newsletterPopup: supabase.from('newsletter_popup_configs').select('id, is_active, title, subtitle, button_text, success_message, show_name, show_phone, show_birth_date, name_required, phone_required, birth_date_required, layout, image_url, icon_image_url, trigger_type, trigger_delay_seconds, trigger_scroll_percent, show_on_pages, background_color, text_color, button_bg_color, button_text_color, show_once_per_session, list_id').eq('tenant_id', tenantId).eq('is_active', true).limit(1).maybeSingle(),
+      freeShippingRules: supabase.from('shipping_free_rules').select('min_order_cents').eq('tenant_id', tenantId).eq('is_enabled', true),
     };
 
     // Route-specific query (only one per request)
@@ -1389,6 +1429,22 @@ serve(async (req) => {
     const publishedPages = baseResults.publishedPages || [];
     const marketingConfig = baseResults.marketingConfig;
     const newsletterPopup = baseResults.newsletterPopup;
+    const freeShippingRulesData = baseResults.freeShippingRules || [];
+
+    // Derive benefit config for edge cart drawer
+    const benefitConfig = storeSettings?.benefit_config || null;
+    let benefitThreshold = 0;
+    if (benefitConfig?.enabled) {
+      // Priority: logistics rules threshold > legacy thresholdValue
+      const thresholds = (freeShippingRulesData as any[])
+        .filter((r: any) => r.min_order_cents != null && r.min_order_cents > 0)
+        .map((r: any) => r.min_order_cents as number);
+      if (thresholds.length > 0) {
+        benefitThreshold = Math.min(...thresholds) / 100; // cents → reais
+      } else {
+        benefitThreshold = Number(benefitConfig.thresholdValue) || 200;
+      }
+    }
 
     // Route-specific result — ALWAYS the last element, safe from base query additions
     const routeData = routeQueryPromise
@@ -2018,6 +2074,12 @@ serve(async (req) => {
       marketingScripts,
       newsletterPopupHtml,
       consentBannerHtml,
+      benefitEnabled: !!benefitConfig?.enabled,
+      benefitThreshold,
+      benefitMode: benefitConfig?.mode || 'free_shipping',
+      benefitRewardLabel: benefitConfig?.rewardLabel || 'Frete Grátis',
+      benefitSuccessLabel: benefitConfig?.successLabel || 'Você ganhou frete grátis!',
+      benefitProgressColor: benefitConfig?.progressColor || '#22c55e',
     });
 
     console.log(`[storefront-html] ${route.type}${route.slug ? '/' + route.slug : ''} rendered in ${totalMs}ms (resolve=${resolveMs}ms, queries=${queryMs}ms)`);
