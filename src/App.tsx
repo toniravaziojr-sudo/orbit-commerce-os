@@ -13,28 +13,35 @@ import { lazy, Suspense, useEffect } from "react";
 // EdgeContentReload — CRITICAL FIX for SPA→Edge navigation contamination
 // When React Router captures a URL meant for Edge rendering (/, /categoria/..., /produto/...),
 // this component forces a full page reload, handing control back to the Edge/Worker.
-// LOOP PROTECTION: Uses sessionStorage counter to prevent infinite reload loops
-// when the Cloudflare Worker fails to intercept and the SPA keeps reloading.
+// LOOP PROTECTION: Uses sessionStorage with path+timestamp to prevent infinite reload loops
+// when the Cloudflare Worker fails to intercept.
 function EdgeContentReload() {
   useEffect(() => {
-    const key = '__edge_reload_count';
-    const count = parseInt(sessionStorage.getItem(key) || '0', 10);
+    const path = window.location.pathname;
+    const key = `__edge_reload:${path}`;
+    const stored = sessionStorage.getItem(key);
+    const now = Date.now();
     
-    if (count >= 2) {
-      // We've tried reloading twice and the Worker still didn't intercept.
-      // Stop the loop — the user will see the SPA fallback (loading spinner from layout).
-      // Clear counter so next navigation can try again.
-      sessionStorage.removeItem(key);
-      console.warn('[EdgeContentReload] Loop detected — Worker not intercepting. Stopping reload.');
-      return;
+    if (stored) {
+      const { count, ts } = JSON.parse(stored);
+      // Within 5 seconds and already tried — stop the loop
+      if ((now - ts) < 5000 && count >= 1) {
+        sessionStorage.removeItem(key);
+        console.warn('[EdgeContentReload] Loop detected for', path, '— Worker not intercepting. Stopping.');
+        return;
+      }
+      // Stale entry (>5s ago) — reset and try again
+      if ((now - ts) >= 5000) {
+        sessionStorage.setItem(key, JSON.stringify({ count: 1, ts: now }));
+        window.location.reload();
+        return;
+      }
     }
     
-    // Increment counter and reload
-    sessionStorage.setItem(key, String(count + 1));
+    // First attempt for this path
+    sessionStorage.setItem(key, JSON.stringify({ count: 1, ts: now }));
     window.location.reload();
   }, []);
-  
-  // Fallback UI when loop protection stops the reload
   return null;
 }
 
