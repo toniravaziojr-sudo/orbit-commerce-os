@@ -175,12 +175,13 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
       </div>`;
   }
 
-  // Badges
+  // Badges — mirrors SPA ProductBadges.tsx (NO discount badge here, discount is shown inline with price)
+  // Uses SVG icons instead of emojis for visual parity with Builder
   let badgesHtml = '';
   if (showBadges) {
     const badges: string[] = [];
-    if (product.free_shipping) badges.push(`<span style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#16a34a;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;">🚚 Frete grátis</span>`);
-    if (hasDiscount) badges.push(`<span style="display:inline-flex;align-items:center;gap:4px;background:#fef2f2;color:#dc2626;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;">-${discountPercent}% OFF</span>`);
+    if (product.free_shipping) badges.push(`<span style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#16a34a;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg> Frete Grátis</span>`);
+    // NOTE: Discount badge intentionally NOT shown here — per REGRAS.md, discounts are shown inline with price
     if (badges.length > 0) {
       badgesHtml = `<div style="display:flex;flex-wrap:wrap;gap:8px;">${badges.join('')}</div>`;
     }
@@ -192,8 +193,10 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
   if (showWhatsAppButton && whatsappPhone) {
     const cleanPhone = whatsappPhone.replace(/\D/g, '');
     const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(`Olá! Tenho interesse no produto: ${product.name}`)}`;
-    whatsappButtonHtml = `<a href="${escapeHtml(waUrl)}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 32px;background:#25D366;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;width:100%;text-decoration:none;">
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+    whatsappButtonHtml = `<a href="${escapeHtml(waUrl)}" target="_blank" rel="noopener" class="sf-btn-whatsapp" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 32px;background:transparent;color:var(--theme-whatsapp-color,#25D366);border:2px solid var(--theme-whatsapp-color,#25D366);border-radius:9999px;font-size:14px;font-weight:600;cursor:pointer;width:100%;text-decoration:none;text-transform:uppercase;letter-spacing:0.05em;"
+      onmouseenter="this.style.backgroundColor='var(--theme-whatsapp-hover,#128C7E)';this.style.color='#fff';this.style.borderColor='var(--theme-whatsapp-hover,#128C7E)'"
+      onmouseleave="this.style.backgroundColor='transparent';this.style.color='var(--theme-whatsapp-color,#25D366)';this.style.borderColor='var(--theme-whatsapp-color,#25D366)'">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>
       Comprar pelo WhatsApp
     </a>`;
   }
@@ -216,7 +219,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
     const mainImageThumb = mainImage ? escapeHtml(optimizeImageUrl(mainImage.url, 120, 75)) : '';
     ctaHtml = `<div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:400px;">
       ${showBuyNowButton ? `<button type="button" data-sf-action="buy-now" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${mainImageThumb}" class="sf-btn-primary" style="padding:14px 32px;border:none;border-radius:9999px;font-size:16px;font-weight:600;cursor:pointer;width:100%;text-transform:uppercase;letter-spacing:0.05em;">${escapeHtml(buyNowButtonText)}</button>` : ''}
-      ${showAddToCartButton ? `<button type="button" data-sf-action="add-to-cart" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${mainImageThumb}" class="sf-btn-secondary" style="padding:14px 32px;border-radius:9999px;font-size:16px;font-weight:600;cursor:pointer;width:100%;border:2px solid var(--theme-button-primary-bg,#1a1a1a);">Adicionar ao carrinho</button>` : ''}
+      ${showAddToCartButton ? `<button type="button" data-sf-action="add-to-cart" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${mainImageThumb}" class="sf-btn-secondary" style="padding:14px 32px;border-radius:9999px;font-size:16px;font-weight:600;cursor:pointer;width:100%;border:2px solid var(--theme-button-primary-bg,#1a1a1a);text-transform:uppercase;letter-spacing:0.05em;">Adicionar ao carrinho</button>` : ''}
       ${whatsappButtonHtml}
     </div>`;
   } else {
@@ -228,7 +231,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
   if (showShippingCalculator) {
     shippingHtml = `
       <div style="margin-top:16px;padding:16px;background:#f9f9f9;border-radius:8px;" data-sf-shipping-box data-product-id="${product.id}" data-product-price="${product.price}" data-product-weight="${(product as any).weight || 0.3}">
-        <p style="font-size:14px;font-weight:600;margin-bottom:8px;">📦 Calcular frete e prazo</p>
+        <p style="font-size:14px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg> Calcular frete e prazo</p>
         <div style="display:flex;gap:8px;">
           <input type="text" placeholder="Digite seu CEP" maxlength="9" style="flex:1;padding:10px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;outline:none;font-family:var(--sf-body-font);" data-sf-shipping-cep>
           <button style="padding:10px 20px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:6px;font-size:14px;font-weight:500;cursor:pointer;" data-sf-action="calc-shipping">Calcular</button>
@@ -557,16 +560,16 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
           </div>
         </div>
         ` : ''}
-        <!-- Info -->
+        <!-- Info — Order mirrors Builder SPA: Badges → Stars → Title → Price -->
         <div style="display:flex;flex-direction:column;gap:16px;">
           ${badgesHtml}
-          <h1 style="font-size:clamp(20px,3vw,32px);font-weight:700;font-family:var(--sf-heading-font);line-height:1.3;">${escapeHtml(product.name)}</h1>
           ${ratingHtml}
+          <h1 style="font-size:clamp(20px,3vw,32px);font-weight:700;font-family:var(--sf-heading-font);line-height:1.3;">${escapeHtml(product.name)}</h1>
           ${product.brand ? `<p style="font-size:14px;color:var(--theme-text-secondary,#666);">${escapeHtml(product.brand)}</p>` : ''}
           <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;">
             ${hasDiscount ? `<span style="font-size:14px;color:#999;text-decoration:line-through;">${formatPriceFromDecimal(product.compare_at_price!)}</span>` : ''}
             <span style="font-size:28px;font-weight:700;color:var(--theme-price-color,#1a1a1a);">${formatPriceFromDecimal(product.price)}</span>
-            ${hasDiscount ? `<span style="font-size:13px;font-weight:600;color:#16a34a;background:#dcfce7;padding:2px 8px;border-radius:4px;">-${discountPercent}%</span>` : ''}
+            ${hasDiscount ? `<span style="font-size:12px;font-weight:700;color:var(--theme-danger-text,#ffffff);background:var(--theme-danger-bg,#ef4444);padding:4px 8px;border-radius:4px;">-${discountPercent}%</span>` : ''}
           </div>
           ${pixBadgeHtml}
           ${product.short_description ? `<p style="font-size:15px;color:var(--theme-text-secondary,#555);line-height:1.6;">${escapeHtml(product.short_description)}</p>` : ''}
