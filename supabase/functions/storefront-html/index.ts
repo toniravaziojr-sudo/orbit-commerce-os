@@ -2342,7 +2342,7 @@ serve(async (req) => {
     const newsletterPopupHtml = generateNewsletterPopupHtml(newsletterPopup, tenantId, route.type);
     
     // === SUPPORT WIDGET ===
-    const supportWidgetHtml = generateSupportWidgetHtml(themeSettings, route.type);
+    const supportWidgetHtml = generateSupportWidgetHtml(themeSettings, route.type, tenantId);
     
     // === CONSENT BANNER (LGPD) ===
     const consentBannerHtml = marketingConfig?.consent_mode_enabled ? generateConsentBannerHtml() : '';
