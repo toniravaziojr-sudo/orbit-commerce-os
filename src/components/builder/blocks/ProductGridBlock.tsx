@@ -173,8 +173,7 @@ export function ProductGridBlock({
 
   // Cart functionality
   const { addItem: addToCart, items: cartItems } = useCart();
-  const [addedProducts, setAddedProducts] = useState<Set<string>>(new Set());
-  const [miniCartOpen, setMiniCartOpen] = useState(false);
+  const { open: openMiniCart } = useMiniCart();
 
   // Check if product was just added (temporary visual feedback only)
   const isProductJustAdded = useCallback((productId: string) => {
