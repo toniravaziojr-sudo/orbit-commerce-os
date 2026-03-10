@@ -123,23 +123,20 @@ export function getPageColorsCss(colors: PageColors | null | undefined): string 
 
   if (vars.length > 0) {
     css += `
-    .sf-page-cart, .sf-page-checkout {
+    .sf-page-checkout {
       ${vars.join('\n      ')}
     }`;
   }
 
-  // Flags/tags color override at page scope
+  // Flags/tags color override at checkout scope
   if (colors.flagsColor) {
     css += `
     /* Flags/Tags color override */
-    .sf-page-cart .sf-tag-success,
-    .sf-page-cart .sf-checkout-flag,
     .sf-page-checkout .sf-tag-success,
     .sf-page-checkout .sf-checkout-flag {
       background-color: color-mix(in srgb, ${colors.flagsColor} 15%, transparent);
       color: ${colors.flagsColor};
     }
-    .sf-page-cart .sf-flag-text,
     .sf-page-checkout .sf-flag-text {
       color: ${colors.flagsColor};
     }`;
