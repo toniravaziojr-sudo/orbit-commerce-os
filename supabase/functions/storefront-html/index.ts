@@ -1285,7 +1285,7 @@ function buildFullPage(opts: {
             currentPage=1;
             applyFiltersAndSort();
           }
-        });
+        },{signal:sfSignal});
       }
     })();
   </script>
