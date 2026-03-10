@@ -106,7 +106,7 @@ A ordem dos elementos é idêntica no Builder (SPA) e no Público (Edge):
 | **Badge Desconto** | NÃO exibir como badge separado. Mostrar `-X%` inline no preço com cores `--theme-danger-bg/text` | ✅ | ✅ |
 | **Emojis** | PROIBIDO em elementos de UI. Usar SVG/Lucide icons | ✅ | ✅ (corrigido v8.3.0) |
 | **Botão Comprar Agora** | `.sf-btn-primary`, pill (`rounded-full`), `uppercase`, `letter-spacing` | ✅ | ✅ |
-| **Botão Adicionar** | `.sf-btn-secondary`, pill, outline (border primary), `uppercase`, `letter-spacing` | ✅ | ✅ (corrigido v8.3.0) |
+| **Botão Adicionar** | `.sf-btn-secondary border`, pill, outline, `uppercase`, `letter-spacing`. Cor respeita tema Secundário (Background, Text, Hover) | ✅ (corrigido v8.5.0) | ✅ (corrigido v8.5.0) |
 | **Botão WhatsApp** | Outline verde, pill, `uppercase`, hover → solid verde escuro | ✅ | ✅ (corrigido v8.3.0) |
 | **Desconto inline** | `--theme-danger-bg` (vermelho) + `--theme-danger-text` (branco) | ✅ | ✅ (corrigido v8.3.0) |
 
