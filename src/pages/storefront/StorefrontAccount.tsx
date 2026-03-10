@@ -1,5 +1,6 @@
 // =============================================
 // STOREFRONT ACCOUNT HUB - Customer account main page
+// v2.0.0: Uses usePublicGlobalLayout for header/footer (bootstrap-powered)
 // =============================================
 
 import { useState, useEffect } from 'react';
@@ -7,13 +8,13 @@ import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
 import { usePublicStorefront } from '@/hooks/useStorefront';
-import { usePublicTemplate } from '@/hooks/usePublicTemplate';
+import { usePublicGlobalLayout } from '@/hooks/useGlobalLayoutIntegration';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Package, MessageCircle, User, ShoppingBag, Info, LogOut } from 'lucide-react';
 import { BlockRenderer } from '@/components/builder/BlockRenderer';
-import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
+import { BlockRenderContext } from '@/lib/builder/types';
 import { getWhatsAppHref } from '@/lib/contactHelpers';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -23,8 +24,13 @@ export default function StorefrontAccount() {
   const urls = useStorefrontUrls(tenantSlug);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { storeSettings, headerMenu, footerMenu, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
-  const homeTemplate = usePublicTemplate(tenantSlug || '', 'home');
+  const { 
+    storeSettings, headerMenu, footerMenu, isLoading: storeLoading,
+    globalLayout: bootstrapGlobalLayout,
+  } = usePublicStorefront(tenantSlug || '');
+  
+  // Use global layout for header/footer (bootstrap-powered, no extra queries)
+  const { data: globalLayout, isLoading: layoutLoading } = usePublicGlobalLayout(tenantSlug || '', bootstrapGlobalLayout);
 
   const [user, setUser] = useState<any>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
@@ -56,7 +62,6 @@ export default function StorefrontAccount() {
     settings: {
       store_name: storeSettings?.store_name || undefined,
       logo_url: storeSettings?.logo_url || undefined,
-      // NOTE: primary_color removed - colors managed via Configuração do tema > Cores
       social_instagram: storeSettings?.social_instagram || undefined,
       social_facebook: storeSettings?.social_facebook || undefined,
       social_whatsapp: storeSettings?.social_whatsapp || undefined,
@@ -78,9 +83,9 @@ export default function StorefrontAccount() {
     })),
   };
 
-  const homeContent = homeTemplate.content as BlockNode | null;
-  const headerNode = homeContent?.children?.find(child => child.type === 'Header');
-  const footerNode = homeContent?.children?.find(child => child.type === 'Footer');
+  // Get header/footer from global layout
+  const headerNode = globalLayout?.header_enabled !== false ? globalLayout?.header_config : null;
+  const footerNode = globalLayout?.footer_enabled !== false ? globalLayout?.footer_config : null;
 
   // WhatsApp support link
   const whatsappNumber = storeSettings?.social_whatsapp || '+5511919555920';
@@ -100,7 +105,7 @@ export default function StorefrontAccount() {
     }
   };
 
-  if (storeLoading || homeTemplate.isLoading || isLoadingAuth) {
+  if (storeLoading || layoutLoading || isLoadingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

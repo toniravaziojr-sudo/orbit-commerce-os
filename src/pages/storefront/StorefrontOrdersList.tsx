@@ -1,10 +1,11 @@
 // =============================================
 // STOREFRONT ORDERS LIST - Customer orders list page
+// v2.0.0: Uses usePublicGlobalLayout for header/footer (bootstrap-powered)
 // =============================================
 
 import { Link } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
-import { usePublicTemplate } from '@/hooks/usePublicTemplate';
+import { usePublicGlobalLayout } from '@/hooks/useGlobalLayoutIntegration';
 import { useCustomerOrders, getOrderStatusInfo } from '@/hooks/useCustomerOrders';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Loader2, Package, ShoppingBag, ArrowLeft, ChevronRight } from 'lucide-react';
 import { BlockRenderer } from '@/components/builder/BlockRenderer';
-import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
+import { BlockRenderContext } from '@/lib/builder/types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { formatCurrency } from '@/lib/cartTotals';
@@ -22,8 +23,13 @@ import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
 export default function StorefrontOrdersList() {
   const tenantSlug = useTenantSlug();
   const urls = useStorefrontUrls(tenantSlug);
-  const { storeSettings, headerMenu, footerMenu, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
-  const homeTemplate = usePublicTemplate(tenantSlug || '', 'home');
+  const { 
+    storeSettings, headerMenu, footerMenu, isLoading: storeLoading,
+    globalLayout: bootstrapGlobalLayout,
+  } = usePublicStorefront(tenantSlug || '');
+  
+  // Use global layout for header/footer (bootstrap-powered, no extra queries)
+  const { data: globalLayout, isLoading: layoutLoading } = usePublicGlobalLayout(tenantSlug || '', bootstrapGlobalLayout);
 
   // Customer orders - uses logged-in user's email automatically
   const { orders, isLoading: ordersLoading, customerEmail } = useCustomerOrders();
@@ -35,7 +41,6 @@ export default function StorefrontOrdersList() {
     settings: {
       store_name: storeSettings?.store_name || undefined,
       logo_url: storeSettings?.logo_url || undefined,
-      // NOTE: primary_color removed - colors managed via Configuração do tema > Cores
       social_instagram: storeSettings?.social_instagram || undefined,
       social_facebook: storeSettings?.social_facebook || undefined,
       social_whatsapp: storeSettings?.social_whatsapp || undefined,
@@ -57,15 +62,15 @@ export default function StorefrontOrdersList() {
     })),
   };
 
-  const homeContent = homeTemplate.content as BlockNode | null;
-  const headerNode = homeContent?.children?.find(child => child.type === 'Header');
-  const footerNode = homeContent?.children?.find(child => child.type === 'Footer');
+  // Get header/footer from global layout
+  const headerNode = globalLayout?.header_enabled !== false ? globalLayout?.header_config : null;
+  const footerNode = globalLayout?.footer_enabled !== false ? globalLayout?.footer_config : null;
 
   // Filter orders
   const inProgressOrders = orders.filter(o => !['delivered', 'cancelled', 'returned'].includes(o.status));
   const completedOrders = orders.filter(o => ['delivered', 'cancelled', 'returned'].includes(o.status));
 
-  const isLoading = storeLoading || homeTemplate.isLoading || ordersLoading;
+  const isLoading = storeLoading || layoutLoading || ordersLoading;
 
   if (isLoading) {
     return (
@@ -130,34 +135,30 @@ export default function StorefrontOrdersList() {
             <Tabs defaultValue="all" className="space-y-4">
               <TabsList>
                 <TabsTrigger value="all">Todos ({orders.length})</TabsTrigger>
-                <TabsTrigger value="progress">Em andamento ({inProgressOrders.length})</TabsTrigger>
-                <TabsTrigger value="completed">Finalizados ({completedOrders.length})</TabsTrigger>
+                {inProgressOrders.length > 0 && (
+                  <TabsTrigger value="progress">Em andamento ({inProgressOrders.length})</TabsTrigger>
+                )}
+                {completedOrders.length > 0 && (
+                  <TabsTrigger value="completed">Concluídos ({completedOrders.length})</TabsTrigger>
+                )}
               </TabsList>
 
-              <TabsContent value="all" className="space-y-4">
+              <TabsContent value="all" className="space-y-3">
                 {orders.map(order => (
                   <OrderCard key={order.id} order={order} urls={urls} />
                 ))}
               </TabsContent>
 
-              <TabsContent value="progress" className="space-y-4">
-                {inProgressOrders.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">Nenhum pedido em andamento.</p>
-                ) : (
-                  inProgressOrders.map(order => (
-                    <OrderCard key={order.id} order={order} urls={urls} />
-                  ))
-                )}
+              <TabsContent value="progress" className="space-y-3">
+                {inProgressOrders.map(order => (
+                  <OrderCard key={order.id} order={order} urls={urls} />
+                ))}
               </TabsContent>
 
-              <TabsContent value="completed" className="space-y-4">
-                {completedOrders.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">Nenhum pedido finalizado.</p>
-                ) : (
-                  completedOrders.map(order => (
-                    <OrderCard key={order.id} order={order} urls={urls} />
-                  ))
-                )}
+              <TabsContent value="completed" className="space-y-3">
+                {completedOrders.map(order => (
+                  <OrderCard key={order.id} order={order} urls={urls} />
+                ))}
               </TabsContent>
             </Tabs>
           )}
