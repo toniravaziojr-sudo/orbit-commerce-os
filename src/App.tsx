@@ -13,9 +13,28 @@ import { lazy, Suspense, useEffect } from "react";
 // EdgeContentReload — CRITICAL FIX for SPA→Edge navigation contamination
 // When React Router captures a URL meant for Edge rendering (/, /categoria/..., /produto/...),
 // this component forces a full page reload, handing control back to the Edge/Worker.
-// No loop risk: Edge HTML doesn't load React, so this component never re-executes.
+// LOOP PROTECTION: Uses sessionStorage counter to prevent infinite reload loops
+// when the Cloudflare Worker fails to intercept and the SPA keeps reloading.
 function EdgeContentReload() {
   useEffect(() => {
+    const key = `__edge_reload_${window.location.pathname}`;
+    const now = Date.now();
+    const last = sessionStorage.getItem(key);
+    
+    // If we reloaded this exact path in the last 3 seconds, we're in a loop
+    // This means the Worker didn't intercept — stop reloading and use native navigation
+    if (last && (now - parseInt(last, 10)) < 3000) {
+      // Clear the counter and try a hard navigation instead of reload
+      sessionStorage.removeItem(key);
+      // Use href assignment which forces a fresh network request (different from reload)
+      window.location.href = window.location.pathname + window.location.search;
+      return;
+    }
+    
+    // Mark this reload attempt
+    sessionStorage.setItem(key, String(now));
+    
+    // Force reload — Worker should intercept and serve Edge HTML
     window.location.reload();
   }, []);
   return null;
