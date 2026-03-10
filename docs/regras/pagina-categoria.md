@@ -1,8 +1,9 @@
 # Página de Categoria — Regras e Especificações
 
 > **Status:** FUNCIONAL ✅ — Core + Filtros + Ordenação + Paginação + Badges Dinâmicos  
-> **Última atualização:** 2026-03-09  
-> **Arquitetura:** v8.4.4 — Filtros mobile collapsible (paridade Builder/Público)
+> **Última atualização:** 2026-03-10  
+> **Arquitetura:** v8.5.0 — Filtros sidebar (desktop) + Sheet (mobile) — paridade total Builder/Público
+> **Regra de paridade:** Ver `docs/regras/paridade-builder-publico.md`
 
 ## Visão Geral
 
@@ -197,16 +198,20 @@ A ordem dos botões nos cards de produto é fixa e obrigatória:
 - [ ] **Hover effects**: React tem estados hover nos botões — compilador não tem
 - [ ] `category-page.ts` é dead code — pode ser removido
 
-## Filtros, Ordenação e Paginação (v8.4.4)
+## Filtros, Ordenação e Paginação (v8.5.0)
 
-### Layout Responsivo dos Filtros (Compilador)
+### Layout Responsivo dos Filtros (React + Compilador — PARIDADE TOTAL)
 
-| Viewport | Layout | Descrição |
-|----------|--------|-----------|
-| Desktop (≥640px) | Horizontal row | Filtros e ordenação lado a lado em barra compacta com fundo `#f9fafb`, labels normais (13px), inputs 70px |
-| Mobile (<640px) | **Botão collapsible "Filtrar"** | Botão full-width com ícone de filtro. Ao clicar, expande painel com filtros empilhados verticalmente. Padrão idêntico ao `CategoryFilters` do Builder React (Sheet/Drawer). |
+| Viewport | Layout React | Layout Compilador | Classe/Breakpoint |
+|----------|-------------|-------------------|-------------------|
+| Desktop (≥1024px) | **Sidebar** fixa à esquerda (`CategoryFilters` com `aside.w-64.hidden.lg:block`) | **Sidebar** fixa à esquerda (`.sf-filter-sidebar`, `display:none` → `@media(min-width:1024px) display:block`) | `lg:block` / `min-width:1024px` |
+| Mobile (<1024px) | **Sheet** bottom drawer (`CategoryFilters` com `Sheet` component, trigger `lg:hidden`) | **Sheet** overlay bottom (`.sf-filter-sheet-overlay`, trigger `.sf-filter-mobile-btn`) | `lg:hidden` / `max-width:1023px` |
 
-> **REGRA DE PARIDADE (CRÍTICA):** O compilador Edge DEVE usar o mesmo padrão visual do Builder React no mobile. Builder usa `CategoryFilters` com botão "Filtrar" que abre Sheet. Compilador usa botão `.sf-filter-toggle-btn` que toggle `.sf-filter-mobile-panel` via `onclick`. Filtros inline sem collapse no mobile são PROIBIDOS — ocupam espaço excessivo e degradam a experiência.
+> **CAUSA RAIZ DA DIVERGÊNCIA ANTERIOR (v8.4.4):** O React usava `isMobile = viewport === 'mobile'` para decidir qual filtro renderizar. Mas `viewport` só é setado no Builder — no público era sempre `undefined` → `isMobile = false` → filtro mobile NUNCA renderizava. O sidebar desktop tinha `hidden lg:block` → sumia abaixo de 1024px. Resultado: **nenhum filtro no mobile público**.
+
+> **FIX (v8.5.0):** React agora renderiza AMBOS os filtros: desktop e mobile. No Builder, `viewport` prop controla qual aparece. No público, CSS responsivo (`lg:hidden` / `hidden lg:block`) controla automaticamente. Compilador Edge atualizado para usar o mesmo layout sidebar + Sheet.
+
+> **REGRA DE PARIDADE (CRÍTICA):** Ambos (React e Compiler) DEVEM usar: 1) Sidebar sticky no desktop (≥1024px), 2) Botão "Filtrar" com Sheet/overlay no mobile (<1024px). Filtros inline em barra horizontal são PROIBIDOS. Ver `docs/regras/paridade-builder-publico.md`.
 
 > **REGRA ANTI-REGRESSÃO:** Após alterar o compilador de filtros, é OBRIGATÓRIO: 1) Deploy da edge function, 2) Invalidar cache (status='stale'). Nessa ordem.
 

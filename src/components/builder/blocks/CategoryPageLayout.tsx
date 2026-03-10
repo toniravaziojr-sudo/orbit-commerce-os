@@ -82,7 +82,8 @@ export function CategoryPageLayout({
   isEditing = false,
 }: CategoryPageLayoutProps) {
   const { tenantSlug, viewport, category } = context;
-  const isMobile = viewport === 'mobile';
+  const isBuilderContext = !!viewport; // viewport only set in builder
+  const isMobileBuilder = viewport === 'mobile';
   const categoryId = category?.id;
   const categorySlug = category?.slug;
 
@@ -342,43 +343,33 @@ export function CategoryPageLayout({
     );
   }
 
+  const filterProps = {
+    priceRange,
+    maxPrice: 500,
+    onPriceChange: setPriceRange,
+    sortBy,
+    onSortChange: setSortBy,
+    inStockOnly,
+    onStockChange: setInStockOnly,
+    tags: availableTags,
+    selectedTags,
+    onTagsChange: setSelectedTags,
+    isEditing,
+  };
+
   return (
     <div className="px-2 sm:px-4 py-6">
-      {/* Mobile filters */}
-      {showFilters && isMobile && (
-        <CategoryFilters
-          priceRange={priceRange}
-          maxPrice={500}
-          onPriceChange={setPriceRange}
-          sortBy={sortBy}
-          onSortChange={setSortBy}
-          inStockOnly={inStockOnly}
-          onStockChange={setInStockOnly}
-          tags={availableTags}
-          selectedTags={selectedTags}
-          onTagsChange={setSelectedTags}
-          isMobile={true}
-          isEditing={isEditing}
-        />
+      {/* Mobile filters — In builder: controlled by viewport prop. In public: CSS responsive (lg:hidden) */}
+      {showFilters && (isMobileBuilder || !isBuilderContext) && (
+        <div className={isBuilderContext ? '' : 'lg:hidden'}>
+          <CategoryFilters {...filterProps} isMobile={true} />
+        </div>
       )}
 
       <div className="flex gap-6">
-        {/* Desktop sidebar filters */}
-        {showFilters && !isMobile && (
-          <CategoryFilters
-            priceRange={priceRange}
-            maxPrice={500}
-            onPriceChange={setPriceRange}
-            sortBy={sortBy}
-            onSortChange={setSortBy}
-            inStockOnly={inStockOnly}
-            onStockChange={setInStockOnly}
-            tags={availableTags}
-            selectedTags={selectedTags}
-            onTagsChange={setSelectedTags}
-            isMobile={false}
-            isEditing={isEditing}
-          />
+        {/* Desktop sidebar filters — In builder: hidden when viewport=mobile. In public: CSS responsive (hidden lg:block inside component) */}
+        {showFilters && !isMobileBuilder && (
+          <CategoryFilters {...filterProps} isMobile={false} />
         )}
 
         {/* Products grid */}
