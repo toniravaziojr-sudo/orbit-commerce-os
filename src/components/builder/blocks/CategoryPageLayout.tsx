@@ -650,15 +650,7 @@ export function CategoryPageLayout({
         </div>
       </div>
       
-      {/* Mini Cart Drawer - só renderiza se miniCartEnabled */}
-      {miniCartEnabled && (
-        <MiniCartDrawer
-          open={miniCartOpen}
-          onOpenChange={setMiniCartOpen}
-          tenantSlug={tenantSlug}
-          isPreview={context?.isPreview}
-        />
-      )}
+      {/* MiniCartDrawer rendered at layout level via MiniCartContext */}
     </div>
   );
 }
