@@ -192,9 +192,16 @@ export function getStorefrontThemeCss(themeSettings: ThemeSettings | null): stri
   const primaryHsl = hexToHslValues(primaryBgHex);
   const primaryFgHsl = hexToHslValues(primaryTextHex);
 
-  // Generate button and tag rules from shared source
+  // Generate button, text, and tag rules from shared source
   const buttonRules = generateButtonCssRules('.storefront-container');
+  const textRules = generateTextColorCssRules('.storefront-container');
   const accentTagRules = generateAccentAndTagCssRules('.storefront-container');
+
+  // Convert text colors to HSL for Tailwind overrides
+  const textPrimaryHex = colors?.textPrimary || '#1a1a1a';
+  const textSecondaryHex = colors?.textSecondary || '#666666';
+  const textPrimaryHsl = hexToHslValues(textPrimaryHex);
+  const textSecondaryHsl = hexToHslValues(textSecondaryHex);
 
   return `
     /* Storefront Theme - Typography & Colors */
@@ -205,12 +212,15 @@ export function getStorefrontThemeCss(themeSettings: ThemeSettings | null): stri
       ${colorCss}
     }
     
-    /* CRITICAL: Override Tailwind's --primary inside storefront to use theme colors */
+    /* CRITICAL: Override Tailwind CSS vars inside storefront to use theme colors */
     .storefront-container {
       --primary: ${primaryHsl};
       --primary-foreground: ${primaryFgHsl};
+      --foreground: ${textPrimaryHsl};
+      --muted-foreground: ${textSecondaryHsl};
       font-family: var(--sf-body-font);
       font-size: var(--sf-base-font-size);
+      color: var(--theme-text-primary, #1a1a1a);
     }
     
     /* Apply heading font to all headings within storefront */
@@ -237,6 +247,7 @@ export function getStorefrontThemeCss(themeSettings: ThemeSettings | null): stri
     }
 
     ${buttonRules}
+    ${textRules}
     ${accentTagRules}
   `;
 }
