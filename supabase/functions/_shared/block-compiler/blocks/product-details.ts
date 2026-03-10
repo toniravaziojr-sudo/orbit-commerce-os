@@ -558,11 +558,11 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
           </div>
         </div>
         ` : ''}
-        <!-- Info -->
+        <!-- Info — Order mirrors Builder SPA: Badges → Stars → Title → Price -->
         <div style="display:flex;flex-direction:column;gap:16px;">
           ${badgesHtml}
-          <h1 style="font-size:clamp(20px,3vw,32px);font-weight:700;font-family:var(--sf-heading-font);line-height:1.3;">${escapeHtml(product.name)}</h1>
           ${ratingHtml}
+          <h1 style="font-size:clamp(20px,3vw,32px);font-weight:700;font-family:var(--sf-heading-font);line-height:1.3;">${escapeHtml(product.name)}</h1>
           ${product.brand ? `<p style="font-size:14px;color:var(--theme-text-secondary,#666);">${escapeHtml(product.brand)}</p>` : ''}
           <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;">
             ${hasDiscount ? `<span style="font-size:14px;color:#999;text-decoration:line-through;">${formatPriceFromDecimal(product.compare_at_price!)}</span>` : ''}
