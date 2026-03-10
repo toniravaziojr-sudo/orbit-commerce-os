@@ -1355,6 +1355,7 @@ function buildFullPage(opts: {
       }
     })();
   </script>
+  ${opts.supportWidgetHtml || ''}
   ${opts.newsletterPopupHtml || ''}
   ${opts.consentBannerHtml || ''}
   ${opts.marketingScripts || ''}
