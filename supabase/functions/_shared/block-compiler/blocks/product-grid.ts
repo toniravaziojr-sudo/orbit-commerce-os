@@ -54,7 +54,7 @@ export const productGridToStaticHTML: BlockCompilerFn = (
         .sf-pg-grid{grid-template-columns:repeat(${columnsMobile},1fr) !important;gap:8px !important;}
         .sf-pg-grid .sf-pc-card h3{font-size:12px !important;}
         .sf-pg-grid .sf-pc-card [style*="padding:8px 12px"]{padding:6px 8px 8px !important;}
-        .sf-pg-grid .sf-pc-card .sf-btn-primary,.sf-pg-grid .sf-pc-card .sf-btn-outline-primary{min-height:36px !important;font-size:11px !important;}
+        .sf-pg-grid .sf-pc-card .sf-btn-primary,.sf-pg-grid .sf-pc-card .sf-btn-secondary{min-height:36px !important;font-size:11px !important;}
       }
       @media(hover:hover){
         .sf-pc-card:hover{box-shadow:0 4px 12px rgba(0,0,0,0.08);}
