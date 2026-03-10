@@ -175,12 +175,13 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
       </div>`;
   }
 
-  // Badges
+  // Badges — mirrors SPA ProductBadges.tsx (NO discount badge here, discount is shown inline with price)
+  // Uses SVG icons instead of emojis for visual parity with Builder
   let badgesHtml = '';
   if (showBadges) {
     const badges: string[] = [];
-    if (product.free_shipping) badges.push(`<span style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#16a34a;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;">🚚 Frete grátis</span>`);
-    if (hasDiscount) badges.push(`<span style="display:inline-flex;align-items:center;gap:4px;background:#fef2f2;color:#dc2626;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;">-${discountPercent}% OFF</span>`);
+    if (product.free_shipping) badges.push(`<span style="display:inline-flex;align-items:center;gap:4px;background:#dcfce7;color:#16a34a;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg> Frete Grátis</span>`);
+    // NOTE: Discount badge intentionally NOT shown here — per REGRAS.md, discounts are shown inline with price
     if (badges.length > 0) {
       badgesHtml = `<div style="display:flex;flex-wrap:wrap;gap:8px;">${badges.join('')}</div>`;
     }
