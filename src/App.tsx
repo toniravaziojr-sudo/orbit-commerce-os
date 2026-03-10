@@ -473,6 +473,7 @@ const App = () => {
                    <Route path="/platform/tools" element={<PlatformTools />} />
                   {/* System routes - Owner only */}
                   <Route path="/system/users" element={<GatedRoute moduleKey="sistema_usuarios" moduleName="Usuários e Permissões" moduleDescription="Gerencie usuários e permissões da sua loja"><SystemUsers /></GatedRoute>} />
+                  <Route path="/system/settings" element={<SystemSettings />} />
                   {/* Legacy redirects */}
                   <Route path="/health-monitor" element={<Navigate to="/platform/health-monitor" replace />} />
                   <Route path="/settings/emails" element={<Navigate to="/platform/integrations" replace />} />

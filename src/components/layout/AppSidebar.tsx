@@ -189,6 +189,7 @@ const fullNavigation: NavGroup[] = [
     collapsible: true,
     items: [
       { title: "Integrações", href: "/integrations", icon: Plug },
+      { title: "Configurações", href: "/system/settings", icon: Settings },
       { title: "Importar Dados", href: "/import", icon: Upload, blockedFeature: "sistema_importacao" },
       { title: "Usuários e Permissões", href: "/system/users", icon: UsersRound, ownerOnly: true, blockedFeature: "sistema_usuarios" },
     ],
