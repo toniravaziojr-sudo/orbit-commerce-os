@@ -162,7 +162,7 @@ export function CategoryPageLayout({
 
           const { data: prods, error } = await supabase
             .from('products')
-            .select('id, name, slug, price, compare_at_price, product_images(url, is_primary)')
+            .select('id, name, slug, price, compare_at_price, stock_quantity, tags, product_images(url, is_primary)')
             .eq('tenant_id', tenantId)
             .eq('status', 'active')
             .in('id', productIds)
