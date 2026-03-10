@@ -190,7 +190,6 @@ export function useCustomerOrder(orderId?: string) {
 
 // Get status label and color
 export function getOrderStatusInfo(status: string) {
-  const { normalizeOrderStatus, ORDER_STATUS_CONFIG } = require('@/types/orderStatus');
   const normalized = normalizeOrderStatus(status);
   const cfg = ORDER_STATUS_CONFIG[normalized];
   
