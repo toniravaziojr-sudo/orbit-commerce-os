@@ -163,6 +163,23 @@ export function generateButtonCssRules(scope: string): string {
 }
 
 /**
+ * Generate text and price color CSS rules
+ * Applies --theme-text-primary, --theme-text-secondary, --theme-price-color to semantic classes
+ */
+export function generateTextColorCssRules(scope: string): string {
+  const s = scope ? `${scope} ` : '';
+  return `
+    /* Price color */
+    ${s}.sf-price-color {
+      color: var(--theme-price-color, var(--theme-text-primary, currentColor));
+    }
+    /* Text secondary class (for Edge/manual usage) */
+    ${s}.sf-text-secondary {
+      color: var(--theme-text-secondary, #666666);
+    }`;
+}
+
+/**
  * Generate accent and tag CSS rules
  */
 export function generateAccentAndTagCssRules(scope: string): string {
