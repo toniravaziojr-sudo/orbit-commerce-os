@@ -114,9 +114,10 @@ function StorefrontLayoutContent({
                   Modo de pré-visualização - Esta página não está publicada
                 </div>
               )}
-              <main className="flex-1">
+               <main className="flex-1">
                 <Outlet />
               </main>
+              <LayoutMiniCartDrawer tenantSlug={tenantSlug} isPreview={isPreview} />
               <Suspense fallback={null}>
                 <SupportChatWidget />
               </Suspense>
