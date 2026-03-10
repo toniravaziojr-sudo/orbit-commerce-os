@@ -177,7 +177,7 @@ function generateMarketingPixelScripts(config: any): string {
 // ============================================
 // SUPPORT WIDGET — Edge-rendered floating button + inline chat drawer
 // ============================================
-function generateSupportWidgetHtml(themeSettings: any, routeType: string): string {
+function generateSupportWidgetHtml(themeSettings: any, routeType: string, tenantId?: string): string {
   if (routeType === 'checkout') return '';
   const config = themeSettings?.supportWidget;
   const enabled = config?.enabled ?? true;
