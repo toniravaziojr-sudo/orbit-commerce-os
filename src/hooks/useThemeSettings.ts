@@ -72,6 +72,10 @@ export function getGlobalPopupDraftRef() {
   return globalPopupDraftRef;
 }
 
+export function getGlobalSupportWidgetDraftRef() {
+  return globalSupportWidgetDraftRef;
+}
+
 export function setGlobalPopupDraftRef(ref: PopupDraftRef | null) {
   globalPopupDraftRef = ref;
   notifyHeaderFooterDraftChange(); // Reuse same observer to trigger toolbar re-render
