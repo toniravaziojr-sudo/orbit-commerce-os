@@ -871,7 +871,7 @@ A IA pode criar e gerenciar públicos automaticamente:
 
 ## AI Ads Chat (`ads-chat`)
 
-### Versão Atual: v5.16.0
+### Versão Atual: v5.19.0
 
 ### v5.11.0: Pipeline de Criativos + Propagação de Funil + Strategy Run ID
 - **Propagação de `funnel_stage`**: `generateCreativeImage` aceita e normaliza `funnel_stage` (valores válidos: `tof`, `mof`, `bof`, `test`, `leads`). Propaga para `ads-autopilot-creative` junto com `session_id`
@@ -1163,6 +1163,7 @@ A sync com paginação completa + chunking permite capturar **100% dos dados his
 | v5.11.3 | 2026-02-18 | **User Command Artifacts + Override com Confirmação**: Novas tools `persist_user_command` e `confirm_user_command` para fluxo de override seguro. Comandos do usuário persistidos como `artifact_type='user_command'` em `ads_autopilot_artifacts`. Conflitos com guardrails geram `status='awaiting_confirmation'` com alerta ao usuário. Após confirmação explícita, status evolui para `confirmed` e execução prossegue com `override=true`. Auditoria completa: `conflicts_acknowledged`, `confirmation_timestamp`, `confirmed_by`. |
 | v5.15.0 | 2026-02-22 | **Plano Estratégico via Chat**: Nova tool `trigger_strategic_plan` que invoca o Motor Estrategista (`ads-autopilot-strategist`) diretamente do chat. Gera plano completo com diagnóstico profundo, hierarquia Campanha > Conjunto > Anúncio e status `pending_approval`. Regra de decisão no prompt: plano abrangente → `trigger_strategic_plan`; campanha avulsa/específica → `create_meta_campaign`. Ação logada como `strategic_plan` em `ads_autopilot_actions`. |
 | v5.16.0 | 2026-02-22 | **Leitura Completa do Plano Estratégico**: Nova tool `get_strategic_plan` que retorna o conteúdo COMPLETO do plano estratégico mais recente — diagnóstico, `planned_actions` com hierarquia Campanha > Conjunto > Anúncio, timeline, riscos e resultados esperados. Também busca ações relacionadas da mesma sessão (implementações de campanhas). Regra de decisão atualizada: leitura de plano → `get_strategic_plan`; criação de novo plano → `trigger_strategic_plan`; campanha pontual → `create_meta_campaign`. |
+| v5.19.0 | 2026-03-10 | **Acesso Completo ao Meu Drive**: Duas novas tools `browse_drive` (navegar pastas do Drive) e `search_drive_files` (buscar arquivos por nome em TODAS as pastas). Permite à IA encontrar criativos prontos, imagens, vídeos em qualquer pasta do Drive — não apenas "Imagens de Produtos". System prompt atualizado com seção "MEU DRIVE — ACESSO COMPLETO DE LEITURA" com instrução de verificar criativos existentes antes de gerar novos. Mapeamento de termos atualizado (browse_drive → "explorar Meu Drive", search_drive_files → "buscar no Meu Drive"). |
 
 ### Regras de User Command Override — `ads-chat` v5.11.3
 

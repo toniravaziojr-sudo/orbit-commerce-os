@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.18.1"; // Fix: sanitize content:null for Gemini compatibility in tool_calls and history
+const VERSION = "v5.19.0"; // Add browse_drive + search_drive_files tools for full Drive access
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -143,6 +143,40 @@ const TOOLS = [
           product_name: { type: "string", description: "Nome do produto (para buscar no Drive)" },
         },
         required: ["product_id"],
+        additionalProperties: false,
+      },
+    },
+  },
+  // ===== LEITURA: Meu Drive (acesso completo) =====
+  {
+    type: "function",
+    function: {
+      name: "browse_drive",
+      description: "Navega pelas pastas do Meu Drive do lojista. Sem folder_id, lista pastas e arquivos na raiz. Com folder_id, lista o conteúdo daquela pasta. Use para explorar e encontrar criativos, imagens, vídeos ou qualquer arquivo que o lojista tenha no Drive.",
+      parameters: {
+        type: "object",
+        properties: {
+          folder_id: { type: "string", description: "ID da pasta a explorar (vazio = raiz)" },
+          file_type: { type: "string", enum: ["image", "video", "all"], description: "Filtrar por tipo (default: all)" },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_drive_files",
+      description: "Busca arquivos no Meu Drive por nome, em TODAS as pastas. Ideal para encontrar criativos específicos de um produto ou tipo de arquivo. Retorna até 50 resultados com URLs para uso em campanhas.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Termo de busca no nome do arquivo (ex: 'shampoo', 'banner', 'criativo')" },
+          file_type: { type: "string", enum: ["image", "video", "all"], description: "Filtrar por tipo (default: all)" },
+          limit: { type: "number", description: "Máximo de resultados (default: 30, max: 50)" },
+        },
+        required: ["query"],
         additionalProperties: false,
       },
     },
@@ -836,6 +870,10 @@ async function executeTool(
         return await getProducts(supabase, tenantId, args.search, args.limit, args.status);
       case "get_product_images":
         return await getProductImages(supabase, tenantId, args.product_id, args.product_name);
+      case "browse_drive":
+        return await browseDrive(supabase, tenantId, args.folder_id, args.file_type);
+      case "search_drive_files":
+        return await searchDriveFiles(supabase, tenantId, args.query, args.file_type, args.limit);
       case "get_creative_assets":
         return await getCreativeAssets(supabase, tenantId, args.status);
       case "get_meta_adsets":
@@ -2119,6 +2157,168 @@ async function getProductImages(supabase: any, tenantId: string, productId: stri
     drive_images: driveImageUrls,
     total: (catalogImages?.length || 0) + driveImageUrls.length,
     tip: driveImageUrls.length === 0 ? "Nenhuma imagem encontrada no Meu Drive. Considere criar a pasta 'Imagens de Produtos' no Meu Drive e adicionar as fotos dos produtos lá." : null,
+  });
+}
+
+// --- browse_drive: Navigate Drive folders and list contents ---
+async function browseDrive(supabase: any, tenantId: string, folderId?: string, fileType?: string) {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+
+  // Fetch folders in current level
+  let foldersQuery = supabase
+    .from("files")
+    .select("id, filename, original_name, is_system_folder, created_at")
+    .eq("tenant_id", tenantId)
+    .eq("is_folder", true);
+
+  if (folderId) {
+    foldersQuery = foldersQuery.eq("folder_id", folderId);
+  } else {
+    foldersQuery = foldersQuery.is("folder_id", null);
+  }
+
+  const { data: folders, error: foldersErr } = await foldersQuery
+    .order("is_system_folder", { ascending: false })
+    .order("original_name", { ascending: true })
+    .limit(50);
+
+  if (foldersErr) return JSON.stringify({ error: foldersErr.message });
+
+  // Fetch files in current level
+  let filesQuery = supabase
+    .from("files")
+    .select("id, filename, original_name, storage_path, mime_type, size_bytes, metadata, created_at")
+    .eq("tenant_id", tenantId)
+    .eq("is_folder", false);
+
+  if (folderId) {
+    filesQuery = filesQuery.eq("folder_id", folderId);
+  } else {
+    filesQuery = filesQuery.is("folder_id", null);
+  }
+
+  // Apply file type filter
+  if (fileType === "image") {
+    filesQuery = filesQuery.ilike("mime_type", "image/%");
+  } else if (fileType === "video") {
+    filesQuery = filesQuery.ilike("mime_type", "video/%");
+  }
+
+  const { data: files, error: filesErr } = await filesQuery
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (filesErr) return JSON.stringify({ error: filesErr.message });
+
+  // Build URLs for files
+  const fileItems = (files || []).map((f: any) => {
+    const meta = f.metadata as Record<string, any> | null;
+    const bucket = meta?.bucket || (f.storage_path?.includes("tenants/") ? "store-assets" : "tenant-files");
+    const isPublic = bucket !== "tenant-files";
+    let url = meta?.url || null;
+    if (!url && f.storage_path && isPublic) {
+      url = `${supabaseUrl}/storage/v1/object/public/${bucket}/${f.storage_path}`;
+    }
+    return {
+      id: f.id,
+      name: f.original_name || f.filename,
+      mime_type: f.mime_type,
+      size_kb: f.size_bytes ? Math.round(f.size_bytes / 1024) : null,
+      url,
+      bucket,
+      is_public: isPublic,
+      created_at: f.created_at,
+      metadata_tags: meta?.product_id ? { product_id: meta.product_id, is_winner: meta.is_winner } : null,
+    };
+  });
+
+  const folderItems = (folders || []).map((f: any) => ({
+    id: f.id,
+    name: f.original_name || f.filename,
+    is_system: f.is_system_folder,
+  }));
+
+  return JSON.stringify({
+    current_folder_id: folderId || null,
+    folders: folderItems,
+    files: fileItems,
+    total_folders: folderItems.length,
+    total_files: fileItems.length,
+    tip: folderItems.length === 0 && fileItems.length === 0
+      ? "Pasta vazia. Tente navegar para outra pasta ou usar search_drive_files para buscar em todas as pastas."
+      : null,
+  });
+}
+
+// --- search_drive_files: Search files across ALL Drive folders ---
+async function searchDriveFiles(supabase: any, tenantId: string, query: string, fileType?: string, limit?: number) {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const maxResults = Math.min(limit || 30, 50);
+
+  let filesQuery = supabase
+    .from("files")
+    .select("id, filename, original_name, storage_path, mime_type, size_bytes, metadata, folder_id, created_at")
+    .eq("tenant_id", tenantId)
+    .eq("is_folder", false)
+    .or(`original_name.ilike.%${query}%,filename.ilike.%${query}%`);
+
+  if (fileType === "image") {
+    filesQuery = filesQuery.ilike("mime_type", "image/%");
+  } else if (fileType === "video") {
+    filesQuery = filesQuery.ilike("mime_type", "video/%");
+  }
+
+  const { data: files, error } = await filesQuery
+    .order("created_at", { ascending: false })
+    .limit(maxResults);
+
+  if (error) return JSON.stringify({ error: error.message });
+
+  // Get folder names for context
+  const folderIds = [...new Set((files || []).map((f: any) => f.folder_id).filter(Boolean))];
+  let folderMap: Record<string, string> = {};
+  if (folderIds.length > 0) {
+    const { data: folders } = await supabase
+      .from("files")
+      .select("id, original_name, filename")
+      .in("id", folderIds);
+    folderMap = (folders || []).reduce((acc: any, f: any) => {
+      acc[f.id] = f.original_name || f.filename;
+      return acc;
+    }, {});
+  }
+
+  const results = (files || []).map((f: any) => {
+    const meta = f.metadata as Record<string, any> | null;
+    const bucket = meta?.bucket || (f.storage_path?.includes("tenants/") ? "store-assets" : "tenant-files");
+    const isPublic = bucket !== "tenant-files";
+    let url = meta?.url || null;
+    if (!url && f.storage_path && isPublic) {
+      url = `${supabaseUrl}/storage/v1/object/public/${bucket}/${f.storage_path}`;
+    }
+    return {
+      id: f.id,
+      name: f.original_name || f.filename,
+      folder: folderMap[f.folder_id] || "Raiz",
+      mime_type: f.mime_type,
+      size_kb: f.size_bytes ? Math.round(f.size_bytes / 1024) : null,
+      url,
+      bucket,
+      is_public: isPublic,
+      created_at: f.created_at,
+      metadata_tags: meta?.product_id ? { product_id: meta.product_id, is_winner: meta.is_winner, scores: meta.scores } : null,
+    };
+  });
+
+  return JSON.stringify({
+    query,
+    results,
+    total_found: results.length,
+    tip: results.length === 0
+      ? `Nenhum arquivo encontrado com "${query}". Tente termos diferentes ou use browse_drive para navegar pelas pastas manualmente.`
+      : results.length >= maxResults
+        ? `Mostrando os ${maxResults} resultados mais recentes. Pode haver mais — refine a busca.`
+        : null,
   });
 }
 
@@ -3586,6 +3786,8 @@ NUNCA exponha termos técnicos internos. Use SEMPRE a linguagem da interface.
 | get_google_adgroups | ver grupos de anúncios Google |
 | get_google_keywords | ver palavras-chave Google |
 | get_google_ads | ver anúncios Google |
+| browse_drive | explorar Meu Drive |
+| search_drive_files | buscar no Meu Drive |
 | edge function | sistema interno |
 | tenant_id | loja |
 | kill_switch | botão de emergência |
@@ -3882,6 +4084,7 @@ Mapear para funnel_splits: cold ≈ Core, tests ≈ Test, remarketing e leads di
 - **Google Ads específico**: ver ad groups, keywords (com quality score), anúncios RSA/RDA, alterar budget em micros
 - **TikTok Ads específico**: criar campanhas (WEB_CONVERSIONS, PRODUCT_SALES), pausar/ativar, ajustar budget
 - **Gerar plano estratégico** completo via Motor Estrategista (diagnóstico + campanhas planejadas + criativos + públicos, com aprovação do lojista)
+- **Navegar e buscar** no Meu Drive do lojista (encontrar criativos prontos, imagens, vídeos em qualquer pasta)
 - **Analisar links** e **imagens** enviadas
 - **Ver e alterar configurações** da IA de tráfego
 - **Sobrepor regras via comando** (com confirmação do lojista)
@@ -4035,11 +4238,15 @@ Toda vez que executar ações (criar campanhas, pausar, alterar budget, gerar cr
 
 4. **Nunca ocultar erros**: Se uma ação falhou, diga exatamente o que falhou e qual o próximo passo.
 
-## IMAGENS DE PRODUTOS
-- As imagens dos produtos estão disponíveis via catálogo (product_images) e no **Meu Drive** (pasta "Imagens de Produtos")
-- ANTES de gerar criativos, use get_product_images para buscar as fotos reais do produto
-- Priorize sempre as fotos reais do produto para compor os criativos
-- Se get_product_images retornar imagens, USE-AS — não diga que "não há imagens"
+## MEU DRIVE — ACESSO COMPLETO DE LEITURA
+- Você tem acesso TOTAL ao Meu Drive do lojista via browse_drive e search_drive_files.
+- Use **browse_drive** para navegar pastas e explorar o conteúdo do Drive.
+- Use **search_drive_files** para buscar arquivos por nome em TODAS as pastas (ex: "shampoo", "criativo", "banner").
+- **CRIATIVOS PRONTOS**: O lojista pode ter anúncios prontos (artes, vídeos) no Drive. Quando ele perguntar sobre criativos existentes, use search_drive_files para encontrá-los.
+- **PARA CAMPANHAS**: Se o lojista pedir para usar criativos do Drive em campanhas, busque-os e use as URLs diretamente.
+- As imagens de produto também estão no catálogo (product_images) e na pasta "Imagens de Produtos" — use get_product_images para buscar fotos de produto.
+- ANTES de gerar criativos novos, verifique se já existem criativos prontos no Drive com search_drive_files.
+- Se get_product_images ou search_drive_files retornarem imagens, USE-AS — não diga que "não há imagens".
 
 ## CATÁLOGO REAL (Top 10 produtos)
 ${productsList || "⚠️ Catálogo vazio no contexto — use get_products para buscar produtos."}
