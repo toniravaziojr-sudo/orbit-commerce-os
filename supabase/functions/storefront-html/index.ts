@@ -1,6 +1,6 @@
 // ============================================
 // STOREFRONT HTML — Edge-Rendered Storefront
-// v8.4.1: FIX — Category banners use direct URLs (no wsrv.nl proxy), prerender invalidation
+// v8.5.0: FIX — Cart format compatibility Edge↔SPA, prevents hydration crash when SPA saves {items,shipping}
 // Resolves tenant from hostname, serves pre-rendered HTML if available,
 // falls back to live rendering otherwise.
 // ============================================
@@ -18,7 +18,7 @@ import { generateThemeCss, generateButtonCssRules, getGoogleFontsData } from '..
 import { optimizeImageUrl } from '../_shared/block-compiler/utils.ts';
 
 // ===== VERSION =====
-const VERSION = "v8.4.1"; // Fix: Category banners direct URLs, no wsrv.nl proxy
+const VERSION = "v8.5.0"; // Fix: Cart format compatibility Edge↔SPA — prevents hydration crash
 // ====================
 
 // NOTE: FONT_FAMILY_MAP, getFontFamily, generateThemeCss, getGoogleFontsData
@@ -564,7 +564,21 @@ function buildFullPage(opts: {
       var TENANT="${escapeHtml(opts.tenantSlug)}";
       var HOSTNAME="${escapeHtml(opts.hostname)}";
       var CART_KEY="storefront_cart_"+TENANT;
-      var cart=JSON.parse(localStorage.getItem(CART_KEY)||"[]");
+      // === CART FORMAT COMPATIBILITY (Edge↔SPA) ===
+      // SPA (CartContext.tsx) saves: {items: [...], shipping: {...}}
+      // Edge (legacy) saves: [...]
+      // Must handle BOTH to prevent .reduce() TypeError that kills entire hydration
+      var cart=[];
+      var _cartShippingStored=null;
+      try{
+        var _rawCart=JSON.parse(localStorage.getItem(CART_KEY)||"[]");
+        if(Array.isArray(_rawCart)){
+          cart=_rawCart;
+        }else if(_rawCart&&typeof _rawCart==="object"&&Array.isArray(_rawCart.items)){
+          cart=_rawCart.items;
+          _cartShippingStored=_rawCart.shipping||null;
+        }
+      }catch(e){console.warn("[SF] Cart parse error, resetting:",e);cart=[];}
       var cartShipping=null; // {name,price,days}
       var cartDiscount=null; // {code,type,value,free_shipping}
       var BENEFIT_ENABLED=${opts.benefitEnabled ? 'true' : 'false'};
@@ -574,7 +588,22 @@ function buildFullPage(opts: {
       var BENEFIT_SUCCESS_LABEL="${escapeHtml(opts.benefitSuccessLabel || 'Você ganhou frete grátis!')}";
       var BENEFIT_COLOR="${escapeHtml(opts.benefitProgressColor || '#22c55e')}";
 
-      function saveCart(){localStorage.setItem(CART_KEY,JSON.stringify(cart));updateCartUI();}
+      // Save cart in SPA-compatible format to prevent format mismatch crashes
+      function saveCart(){
+        try{
+          var stored=null;
+          try{stored=JSON.parse(localStorage.getItem(CART_KEY)||"null");}catch(e2){}
+          if(stored&&typeof stored==="object"&&!Array.isArray(stored)){
+            // SPA format — preserve shipping data, update items only
+            stored.items=cart;
+            localStorage.setItem(CART_KEY,JSON.stringify(stored));
+          }else{
+            // Write in SPA format for cross-compatibility
+            localStorage.setItem(CART_KEY,JSON.stringify({items:cart,shipping:_cartShippingStored||{cep:"",options:[],selected:null}}));
+          }
+        }catch(e){console.warn("[SF] Cart save error:",e);}
+        updateCartUI();
+      }
       function fmt(v){return"R$ "+v.toFixed(2).replace(".",",");}
 
       function updateCartUI(){
