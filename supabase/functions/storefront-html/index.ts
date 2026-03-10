@@ -205,9 +205,10 @@ function generateNewsletterPopupHtml(config: any, tenantId: string, routeType: s
   const emailField = `<input type="email" name="email" placeholder="Seu e-mail" required style="width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;outline:none;font-family:inherit;">`;
   const phoneField = config.show_phone ? `<input type="tel" name="phone" placeholder="Seu telefone" ${config.phone_required ? 'required' : ''} style="width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;outline:none;font-family:inherit;">` : '';
 
-  const imageHtml = (layout === 'side-image' && imageUrl) ? `<div style="flex:1;min-width:200px;max-width:300px;"><img src="${escapeHtml(optimizeImageUrl(imageUrl, 400))}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:12px 0 0 12px;"></div>` : '';
+  // Mobile: hide image, render simple centered popup. Desktop: show side-image.
+  const imageHtml = (layout === 'side-image' && imageUrl) ? `<div class="sf-popup-image" style="flex:1;min-width:200px;max-width:300px;"><img src="${escapeHtml(optimizeImageUrl(imageUrl, 400))}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:12px 0 0 12px;"></div>` : '';
   const isCorner = layout === 'corner';
-  const popupWidth = isCorner ? 'max-width:360px;' : 'max-width:500px;';
+  const popupWidth = isCorner ? 'max-width:360px;' : (layout === 'side-image' && imageUrl ? 'max-width:540px;' : 'max-width:500px;');
 
   return `
   <div id="sf-newsletter-popup" data-sf-newsletter-popup style="display:none;${isCorner ? 'position:fixed;bottom:20px;right:20px;z-index:95;' : 'position:fixed;inset:0;z-index:95;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;'}">
