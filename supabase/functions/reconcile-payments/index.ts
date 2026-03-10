@@ -100,7 +100,7 @@ async function processPayment(
       case 'paid':
         newTransactionStatus = 'paid';
         newPaymentStatus = 'approved';
-        newOrderStatus = 'confirmed';
+        newOrderStatus = 'ready_to_invoice';
         paidAt = new Date().toISOString();
         paidAmount = charge?.paid_amount || charge?.amount || payment.amount;
         needsUpdate = true;
@@ -108,13 +108,13 @@ async function processPayment(
       case 'failed':
         newTransactionStatus = 'failed';
         newPaymentStatus = 'declined';
-        newOrderStatus = 'cancelled';
+        newOrderStatus = 'payment_expired';
         needsUpdate = true;
         break;
       case 'canceled':
         newTransactionStatus = 'canceled';
         newPaymentStatus = 'declined';
-        newOrderStatus = 'cancelled';
+        newOrderStatus = 'payment_expired';
         needsUpdate = true;
         break;
       case 'expired':
@@ -130,7 +130,7 @@ async function processPayment(
       case 'chargedback':
         newTransactionStatus = 'chargedback';
         newPaymentStatus = 'chargedback';
-        newOrderStatus = 'cancelled';
+        newOrderStatus = 'payment_expired';
         needsUpdate = true;
         break;
       case 'pending':
