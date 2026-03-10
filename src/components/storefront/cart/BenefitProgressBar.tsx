@@ -2,6 +2,7 @@
 // BENEFIT PROGRESS BAR - Shows progress toward free shipping/gift
 // Uses centralized cartTotals for consistency
 // Supports applyToExternalRules: checks product free_shipping + coupon free_shipping
+// Supports compact mode for mini-cart drawer
 // =============================================
 
 import { useBenefit } from '@/contexts/StorefrontConfigContext';
@@ -11,7 +12,12 @@ import { Gift, Truck, Check } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { calculateCartTotals, formatPrice } from '@/lib/cartTotals';
 
-export function BenefitProgressBar() {
+interface BenefitProgressBarProps {
+  /** Compact mode for mini-cart drawer (smaller padding/icons) */
+  compact?: boolean;
+}
+
+export function BenefitProgressBar({ compact = false }: BenefitProgressBarProps) {
   const { items, shipping } = useCart();
   const { config, getProgress, isLoading } = useBenefit();
   const { appliedDiscount } = useDiscount();
@@ -43,6 +49,54 @@ export function BenefitProgressBar() {
   const progressColor = config.progressColor === '#22c55e' 
     ? 'var(--theme-accent-color, #22c55e)' 
     : config.progressColor;
+
+  if (compact) {
+    return (
+      <div 
+        className="p-3 rounded-lg border text-sm mb-2"
+        style={{ 
+          backgroundColor: achieved ? `color-mix(in srgb, ${progressColor} 10%, transparent)` : 'hsl(var(--muted))',
+          borderColor: achieved ? progressColor : 'hsl(var(--border))'
+        }}
+      >
+        <div className="flex items-center gap-2 mb-2">
+          <div 
+            className="p-1.5 rounded-full"
+            style={{ backgroundColor: achieved ? progressColor : 'hsl(var(--muted-foreground) / 0.2)' }}
+          >
+            {achieved ? (
+              <Check className="h-3 w-3 text-white" />
+            ) : (
+              <Icon className="h-3 w-3 text-muted-foreground" />
+            )}
+          </div>
+          <div className="flex-1 text-xs">
+            {achieved ? (
+              <p className="font-semibold" style={{ color: progressColor }}>
+                {label}
+              </p>
+            ) : (
+              <p>
+                Faltam{' '}
+                <span className="font-semibold">
+                  R$ {formatPrice(remaining)}
+                </span>{' '}
+                para {label.toLowerCase()}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <Progress 
+          value={progress} 
+          className="h-1.5"
+          style={{ 
+            '--progress-background': progressColor 
+          } as React.CSSProperties}
+        />
+      </div>
+    );
+  }
 
   return (
     <div 
