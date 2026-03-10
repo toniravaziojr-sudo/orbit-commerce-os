@@ -1,11 +1,12 @@
 // =============================================
 // STOREFRONT FORGOT PASSWORD - Password recovery page
+// v2.0.0: Uses usePublicGlobalLayout for header/footer (bootstrap-powered)
 // =============================================
 
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
-import { usePublicTemplate } from '@/hooks/usePublicTemplate';
+import { usePublicGlobalLayout } from '@/hooks/useGlobalLayoutIntegration';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Mail, ArrowLeft, Check } from 'lucide-react';
 import { BlockRenderer } from '@/components/builder/BlockRenderer';
-import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
+import { BlockRenderContext } from '@/lib/builder/types';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
@@ -23,8 +24,13 @@ import { getCanonicalOrigin } from '@/lib/canonicalUrls';
 export default function StorefrontAccountForgotPassword() {
   const tenantSlug = useTenantSlug();
   const urls = useStorefrontUrls(tenantSlug);
-  const { storeSettings, headerMenu, footerMenu, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
-  const homeTemplate = usePublicTemplate(tenantSlug || '', 'home');
+  const { 
+    storeSettings, headerMenu, footerMenu, isLoading: storeLoading,
+    globalLayout: bootstrapGlobalLayout,
+  } = usePublicStorefront(tenantSlug || '');
+
+  // Use global layout for header/footer (bootstrap-powered, no extra queries)
+  const { data: globalLayout, isLoading: layoutLoading } = usePublicGlobalLayout(tenantSlug || '', bootstrapGlobalLayout);
   
   // Get canonical domain for auth redirects
   const canonicalDomainContext = useCanonicalDomain();
@@ -43,7 +49,6 @@ export default function StorefrontAccountForgotPassword() {
     settings: {
       store_name: storeSettings?.store_name || undefined,
       logo_url: storeSettings?.logo_url || undefined,
-      // NOTE: primary_color removed - colors managed via Configuração do tema > Cores
     },
     headerMenu: headerMenu?.items?.map(item => ({
       id: item.id,
@@ -61,9 +66,9 @@ export default function StorefrontAccountForgotPassword() {
     })),
   };
 
-  const homeContent = homeTemplate.content as BlockNode | null;
-  const headerNode = homeContent?.children?.find(child => child.type === 'Header');
-  const footerNode = homeContent?.children?.find(child => child.type === 'Footer');
+  // Get header/footer from global layout
+  const headerNode = globalLayout?.header_enabled !== false ? globalLayout?.header_config : null;
+  const footerNode = globalLayout?.footer_enabled !== false ? globalLayout?.footer_config : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,8 +76,6 @@ export default function StorefrontAccountForgotPassword() {
     setIsLoading(true);
 
     try {
-      // IMPORTANTE: Usar a URL atual do storefront (domain-aware)
-      // Garante que o link de reset redireciona para o storefront, não para o admin
       const currentOrigin = window.location.origin;
       const redirectUrl = `${currentOrigin}/conta/redefinir-senha`;
       
@@ -95,7 +98,7 @@ export default function StorefrontAccountForgotPassword() {
     }
   };
 
-  if (storeLoading || homeTemplate.isLoading) {
+  if (storeLoading || layoutLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

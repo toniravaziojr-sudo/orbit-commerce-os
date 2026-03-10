@@ -1,11 +1,12 @@
 // =============================================
 // STOREFRONT ACCOUNT LOGIN - Customer login page
+// v2.0.0: Uses usePublicGlobalLayout for header/footer (bootstrap-powered)
 // =============================================
 
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
-import { usePublicTemplate } from '@/hooks/usePublicTemplate';
+import { usePublicGlobalLayout } from '@/hooks/useGlobalLayoutIntegration';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, User, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { BlockRenderer } from '@/components/builder/BlockRenderer';
-import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
+import { BlockRenderContext } from '@/lib/builder/types';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
@@ -24,8 +25,13 @@ export default function StorefrontAccountLogin() {
   const urls = useStorefrontUrls(tenantSlug);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { storeSettings, headerMenu, footerMenu, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
-  const homeTemplate = usePublicTemplate(tenantSlug || '', 'home');
+  const { 
+    storeSettings, headerMenu, footerMenu, isLoading: storeLoading,
+    globalLayout: bootstrapGlobalLayout,
+  } = usePublicStorefront(tenantSlug || '');
+
+  // Use global layout for header/footer (bootstrap-powered, no extra queries)
+  const { data: globalLayout, isLoading: layoutLoading } = usePublicGlobalLayout(tenantSlug || '', bootstrapGlobalLayout);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -43,7 +49,6 @@ export default function StorefrontAccountLogin() {
     settings: {
       store_name: storeSettings?.store_name || undefined,
       logo_url: storeSettings?.logo_url || undefined,
-      // NOTE: primary_color removed - colors managed via Configuração do tema > Cores
     },
     headerMenu: headerMenu?.items?.map(item => ({
       id: item.id,
@@ -61,9 +66,9 @@ export default function StorefrontAccountLogin() {
     })),
   };
 
-  const homeContent = homeTemplate.content as BlockNode | null;
-  const headerNode = homeContent?.children?.find(child => child.type === 'Header');
-  const footerNode = homeContent?.children?.find(child => child.type === 'Footer');
+  // Get header/footer from global layout
+  const headerNode = globalLayout?.header_enabled !== false ? globalLayout?.header_config : null;
+  const footerNode = globalLayout?.footer_enabled !== false ? globalLayout?.footer_config : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,7 +103,7 @@ export default function StorefrontAccountLogin() {
     }
   };
 
-  if (storeLoading || homeTemplate.isLoading) {
+  if (storeLoading || layoutLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

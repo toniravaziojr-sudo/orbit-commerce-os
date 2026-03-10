@@ -1,12 +1,13 @@
 // =============================================
 // STOREFRONT RESET PASSWORD - Password update page
+// v2.0.0: Uses usePublicGlobalLayout for header/footer (bootstrap-powered)
 // Domain-aware: stays on storefront, never redirects to admin
 // =============================================
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
-import { usePublicTemplate } from '@/hooks/usePublicTemplate';
+import { usePublicGlobalLayout } from '@/hooks/useGlobalLayoutIntegration';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Lock, Check, Eye, EyeOff } from 'lucide-react';
 import { BlockRenderer } from '@/components/builder/BlockRenderer';
-import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
+import { BlockRenderContext } from '@/lib/builder/types';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
@@ -24,8 +25,13 @@ export default function StorefrontResetPassword() {
   const navigate = useNavigate();
   const tenantSlug = useTenantSlug();
   const urls = useStorefrontUrls(tenantSlug);
-  const { storeSettings, headerMenu, footerMenu, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
-  const homeTemplate = usePublicTemplate(tenantSlug || '', 'home');
+  const { 
+    storeSettings, headerMenu, footerMenu, isLoading: storeLoading,
+    globalLayout: bootstrapGlobalLayout,
+  } = usePublicStorefront(tenantSlug || '');
+
+  // Use global layout for header/footer (bootstrap-powered, no extra queries)
+  const { data: globalLayout, isLoading: layoutLoading } = usePublicGlobalLayout(tenantSlug || '', bootstrapGlobalLayout);
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -47,7 +53,6 @@ export default function StorefrontResetPassword() {
     };
     checkSession();
 
-    // Listen for auth state changes (user clicking reset link)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('[StorefrontResetPassword] Auth event:', event);
       if (event === 'PASSWORD_RECOVERY') {
@@ -65,7 +70,6 @@ export default function StorefrontResetPassword() {
     settings: {
       store_name: storeSettings?.store_name || undefined,
       logo_url: storeSettings?.logo_url || undefined,
-      // NOTE: primary_color removed - colors managed via Configuração do tema > Cores
     },
     headerMenu: headerMenu?.items?.map(item => ({
       id: item.id,
@@ -83,15 +87,14 @@ export default function StorefrontResetPassword() {
     })),
   };
 
-  const homeContent = homeTemplate.content as BlockNode | null;
-  const headerNode = homeContent?.children?.find(child => child.type === 'Header');
-  const footerNode = homeContent?.children?.find(child => child.type === 'Footer');
+  // Get header/footer from global layout
+  const headerNode = globalLayout?.header_enabled !== false ? globalLayout?.header_config : null;
+  const footerNode = globalLayout?.footer_enabled !== false ? globalLayout?.footer_config : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    // Validation
     if (!password || password.length < 6) {
       setError('A senha deve ter no mínimo 6 caracteres');
       return;
@@ -123,7 +126,6 @@ export default function StorefrontResetPassword() {
       setSuccess(true);
       toast.success('Senha atualizada com sucesso!');
       
-      // Redirect to account after a short delay
       setTimeout(() => {
         navigate(urls.account());
       }, 2000);
@@ -134,7 +136,7 @@ export default function StorefrontResetPassword() {
     }
   };
 
-  if (storeLoading || homeTemplate.isLoading) {
+  if (storeLoading || layoutLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
