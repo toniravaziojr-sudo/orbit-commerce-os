@@ -226,6 +226,14 @@ export function CategoryPageLayout({
     return Math.ceil(maxProductPrice / 50) * 50 || 500;
   }, [displayProducts]);
 
+  // Sync price range with computed max when products load
+  useEffect(() => {
+    if (displayProducts.length > 0 && !priceInitialized) {
+      setPriceRange([0, computedMaxPrice]);
+      setPriceInitialized(true);
+    }
+  }, [displayProducts.length, computedMaxPrice, priceInitialized]);
+
   // Filter and sort products
   const filteredProducts = useMemo(() => {
     let result = [...displayProducts];
