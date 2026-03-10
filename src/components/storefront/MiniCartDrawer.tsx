@@ -105,8 +105,8 @@ export function MiniCartDrawer({
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Benefit Progress Bar - Same as /cart */}
-          <MiniCartBenefitBar subtotal={totals.subtotal} />
+          {/* Benefit Progress Bar - Uses shared component with compact mode */}
+          <BenefitProgressBar compact />
           
           {/* Cart Items */}
           {items.map((item) => (
