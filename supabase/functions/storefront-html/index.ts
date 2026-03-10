@@ -2145,6 +2145,9 @@ serve(async (req) => {
     // === NEWSLETTER POPUP ===
     const newsletterPopupHtml = generateNewsletterPopupHtml(newsletterPopup, tenantId, route.type);
     
+    // === SUPPORT WIDGET ===
+    const supportWidgetHtml = generateSupportWidgetHtml(themeSettings, route.type);
+    
     // === CONSENT BANNER (LGPD) ===
     const consentBannerHtml = marketingConfig?.consent_mode_enabled ? generateConsentBannerHtml() : '';
 
@@ -2174,6 +2177,7 @@ serve(async (req) => {
       mobileTextColor: mobileHeaderText,
       marketingScripts,
       newsletterPopupHtml,
+      supportWidgetHtml,
       consentBannerHtml,
       benefitEnabled: !!benefitConfig?.enabled,
       benefitThreshold,
