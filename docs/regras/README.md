@@ -99,6 +99,7 @@ Este diretório contém as regras e especificações separadas por módulo para 
 | [usuarios-permissoes.md](./usuarios-permissoes.md) | Usuários e RBAC | ✅ Ready |
 | [planos-billing.md](./planos-billing.md) | Planos e Cobrança | ✅ Ready |
 | [integracoes.md](./integracoes.md) | Hub de Integrações | 🟧 Pending |
+| [configuracoes-sistema.md](./configuracoes-sistema.md) | Configurações do Sistema (Pagamentos, etc.) | ✅ Ready |
 | [platform-emails.md](./platform-emails.md) | Emails da Plataforma (Admin) | ✅ Ready |
 | [platform-admin.md](./platform-admin.md) | Avisos e Tutoriais (Platform Admin) | ✅ Ready |
 | [auxiliar-comando.md](./auxiliar-comando.md) | Auxiliar de Comando (IA) | ✅ Ready |
