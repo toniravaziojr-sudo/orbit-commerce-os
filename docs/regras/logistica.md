@@ -122,6 +122,7 @@ interface FreeShippingRule {
   name: string;
   is_active: boolean;
   min_order_value: number;      // Valor mínimo do pedido
+  min_order_cents: number;      // Valor mínimo em centavos (usado pelo motor central)
   regions: string[];            // Estados/regiões aplicáveis
   categories: string[];         // Categorias de produto
   valid_from: string;           // Início da vigência
@@ -129,6 +130,40 @@ interface FreeShippingRule {
   priority: number;             // Ordem de aplicação
 }
 ```
+
+### Motor Central de Frete Grátis (v2.0)
+
+O sistema utiliza um motor centralizado que é a única fonte de verdade para elegibilidade de frete grátis. A barra de conversão **não possui regras próprias** — ela apenas reflete o estado do motor.
+
+**Fonte do threshold:** O `StorefrontConfigContext` busca regras ativas da tabela `free_shipping_rules` e deriva o `logisticsThreshold` pelo menor `min_order_cents` entre as regras ativas. Este valor substitui qualquer `thresholdValue` legado da `benefit_config`.
+
+**Precedência de fontes:**
+
+| Prioridade | Fonte | Comportamento na barra |
+|------------|-------|----------------------|
+| 1 | Produto (`free_shipping`) | Estado: `granted_by_product` |
+| 2 | Cupom (`free_shipping`) | Estado: `granted_by_coupon` |
+| 3 | Regra de Logística (`min_order_cents`) | Estado: `progress` ou `achieved` |
+
+**Consumidores do motor:**
+- `BenefitProgressBar` (mini-cart e carrinho normal, via prop `compact`)
+- Cotação de frete (`shipping-quote`)
+- Checkout
+- Criação do pedido
+
+**Regra crítica:** A barra pode ser ativada/desativada sem afetar a aplicação real do benefício. Quando desativada, as regras continuam funcionando na cotação e no pedido.
+
+### Navegação — Frete Grátis
+
+As configurações de frete grátis estão centralizadas em **ERP > Logística > Frete Grátis**, organizadas em sub-tabs:
+
+| Sub-tab | Componente | Descrição |
+|---------|-----------|-----------|
+| Método Padrão | `DefaultFreeShippingMethodConfig` | Método fallback global |
+| Regras | `FreeShippingRulesTab` | Regras condicionais por região/valor/categoria |
+| Barra de Conversão | `CartConversionConfigTab` | Controles visuais da barra (sem regras de negócio) |
+
+**Componente container:** `FreeShippingSubTabs` renderizado em `Shipping.tsx`.
 
 ---
 
