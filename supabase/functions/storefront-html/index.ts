@@ -352,6 +352,7 @@ function buildFullPage(opts: {
   mobileTextColor?: string;
   marketingScripts?: string;
   newsletterPopupHtml?: string;
+  supportWidgetHtml?: string;
   consentBannerHtml?: string;
   benefitEnabled?: boolean;
   benefitThreshold?: number;
