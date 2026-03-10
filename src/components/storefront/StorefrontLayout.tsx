@@ -131,3 +131,17 @@ function StorefrontLayoutContent({
     </StorefrontConfigProvider>
   );
 }
+
+// Single MiniCartDrawer instance for the entire storefront
+function LayoutMiniCartDrawer({ tenantSlug, isPreview }: { tenantSlug: string; isPreview: boolean }) {
+  const { isOpen, setOpen } = useMiniCart();
+  return (
+    <MiniCartDrawer
+      open={isOpen}
+      onOpenChange={setOpen}
+      tenantSlug={tenantSlug}
+      isPreview={isPreview}
+    />
+  );
+}
+}
