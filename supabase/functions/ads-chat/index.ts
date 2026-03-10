@@ -147,6 +147,40 @@ const TOOLS = [
       },
     },
   },
+  // ===== LEITURA: Meu Drive (acesso completo) =====
+  {
+    type: "function",
+    function: {
+      name: "browse_drive",
+      description: "Navega pelas pastas do Meu Drive do lojista. Sem folder_id, lista pastas e arquivos na raiz. Com folder_id, lista o conteúdo daquela pasta. Use para explorar e encontrar criativos, imagens, vídeos ou qualquer arquivo que o lojista tenha no Drive.",
+      parameters: {
+        type: "object",
+        properties: {
+          folder_id: { type: "string", description: "ID da pasta a explorar (vazio = raiz)" },
+          file_type: { type: "string", enum: ["image", "video", "all"], description: "Filtrar por tipo (default: all)" },
+        },
+        required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_drive_files",
+      description: "Busca arquivos no Meu Drive por nome, em TODAS as pastas. Ideal para encontrar criativos específicos de um produto ou tipo de arquivo. Retorna até 50 resultados com URLs para uso em campanhas.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Termo de busca no nome do arquivo (ex: 'shampoo', 'banner', 'criativo')" },
+          file_type: { type: "string", enum: ["image", "video", "all"], description: "Filtrar por tipo (default: all)" },
+          limit: { type: "number", description: "Máximo de resultados (default: 30, max: 50)" },
+        },
+        required: ["query"],
+        additionalProperties: false,
+      },
+    },
+  },
   // ===== LEITURA: Criativos, Públicos, Tracking =====
   {
     type: "function",
