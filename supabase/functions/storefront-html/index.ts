@@ -1330,7 +1330,7 @@ serve(async (req) => {
     // Base queries (all pages need these) — order doesn't matter, extracted by name
     const baseQueryMap = {
       tenant: supabase.from('tenants').select('id, name, slug, logo_url').eq('id', tenantId).maybeSingle(),
-      storeSettings: supabase.from('store_settings').select('store_name, logo_url, store_description, social_instagram, social_facebook, social_whatsapp, social_tiktok, social_youtube, contact_phone, contact_email, contact_address, contact_support_hours, business_legal_name, business_cnpj, is_published, favicon_url, seo_title, seo_description').eq('tenant_id', tenantId).maybeSingle(),
+      storeSettings: supabase.from('store_settings').select('store_name, logo_url, store_description, social_instagram, social_facebook, social_whatsapp, social_tiktok, social_youtube, contact_phone, contact_email, contact_address, contact_support_hours, business_legal_name, business_cnpj, is_published, favicon_url, seo_title, seo_description, benefit_config').eq('tenant_id', tenantId).maybeSingle(),
       headerMenu: supabase.from('menus').select('*, menu_items(*)').eq('tenant_id', tenantId).eq('location', 'header').maybeSingle(),
       categories: supabase.from('categories').select('id, name, slug').eq('tenant_id', tenantId).eq('is_active', true).order('sort_order').limit(10),
       templateSet: supabase.from('storefront_template_sets').select('id, published_content, is_published, base_preset').eq('tenant_id', tenantId).eq('is_published', true).maybeSingle(),
