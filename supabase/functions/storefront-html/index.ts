@@ -250,10 +250,7 @@ function generateSupportWidgetHtml(themeSettings: any, routeType: string, tenant
     var SKEY="${escapeHtml(supabaseKey)}";
     var HOSTNAME=location.hostname;
     var convId=null;var custName="";var custEmail="";var isMinimized=false;
-    // Resolve tenantId from page meta or hostname
-    var tenantId="";
-    var metaTenant=document.querySelector("meta[name='x-tenant-id']");
-    if(metaTenant)tenantId=metaTenant.getAttribute("content")||"";
+    var tenantId="${escapeHtml(tenantId || '')}";
 
     // Load saved conversation
     if(tenantId){
