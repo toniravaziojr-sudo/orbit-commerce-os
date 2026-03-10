@@ -471,10 +471,22 @@ export function StorefrontHeaderContent({
         </span>
       );
     }
-    // Content routes: use native <a> to force full page reload → Edge serves HTML
+    // Content routes: force FULL page reload via window.location.href
+    // This prevents React's event delegation from intercepting the navigation
+    // and ensures the browser sends a fresh request to the Edge/Worker
     if (!isSpaRoute(to)) {
       return (
-        <a href={to} className={className} style={style} onClick={onClick}>
+        <a
+          href={to}
+          className={className}
+          style={style}
+          onClick={(e) => {
+            e.preventDefault();
+            onClick?.(e);
+            // Force hard navigation — bypasses any React/SPA interference
+            window.location.href = to;
+          }}
+        >
           {children}
         </a>
       );
