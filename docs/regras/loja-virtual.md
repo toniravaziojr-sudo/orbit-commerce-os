@@ -628,6 +628,58 @@ store_settings.benefit_config → BenefitProgressBar
 
 ---
 
+## Widget de Atendimento (SupportChatWidget)
+
+### Visão Geral
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente flutuante |
+| **Localização** | `src/components/storefront/SupportChatWidget.tsx` |
+| **Contexto** | Renderizado nos layouts `TenantStorefrontLayout.tsx` e `StorefrontLayout.tsx` |
+| **Descrição** | Widget flutuante de atendimento com suporte a chat interno, botão WhatsApp ou ambos |
+| **Comportamento** | Lê configuração de `themeSettings.supportWidget` via `usePublicThemeSettings`. Não aparece no checkout. |
+| **Condições** | `supportWidget.enabled` = true; `tenantId` presente; rota não é checkout |
+| **Visual** | Botão circular flutuante; cor e posição configuráveis; chat abre janela 380px com header colorido |
+| **Afeta** | Módulo de Suporte (conversations), Knowledge Base (AI) |
+
+### Configuração no Builder
+
+Localização: **Configurações do tema > Atendimento** (`SupportSettings.tsx`)
+
+| Configuração | Tipo | Default | Descrição |
+|---|---|---|---|
+| `enabled` | boolean | `true` | Ativar/desativar widget |
+| `type` | `'chat' \| 'whatsapp' \| 'both'` | `'chat'` | Tipo de atendimento |
+| `whatsappNumber` | string | `''` | Número do WhatsApp (com DDI) |
+| `whatsappMessage` | string | `'Olá! Preciso de ajuda.'` | Mensagem pré-preenchida |
+| `buttonColor` | string (hex) | `'#25D366'` | Cor do botão flutuante |
+| `position` | `'left' \| 'right'` | `'right'` | Posição do botão na tela |
+
+### Interface TypeScript
+
+```typescript
+interface SupportWidgetConfig {
+  enabled?: boolean;
+  type?: 'chat' | 'whatsapp' | 'both';
+  whatsappNumber?: string;
+  whatsappMessage?: string;
+  buttonColor?: string;
+  position?: 'left' | 'right';
+}
+```
+
+Armazenado em: `storefront_template_sets.draft_content.themeSettings.supportWidget`
+
+### Regras
+- Widget NÃO aparece em páginas de checkout
+- Chat interno requer `tenantId` para criar conversas
+- WhatsApp usa `getWhatsAppHref()` de `src/lib/contactHelpers.ts`
+- Quando `type = 'both'`, exibe dois botões empilhados (WhatsApp acima, Chat abaixo)
+- A cor do botão de chat usa `--primary` quando há WhatsApp, senão usa `buttonColor`
+
+---
+
 ## Regras Gerais
 
 ### Container Queries
