@@ -32,6 +32,7 @@ interface Product {
   slug: string;
   price: number;
   compare_at_price: number | null;
+  stock_quantity: number | null;
   product_images: { url: string; is_primary: boolean }[];
   tags?: string[];
 }
