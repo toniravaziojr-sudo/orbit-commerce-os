@@ -1,60 +1,158 @@
+# Plano: Aderência Total da Loja à Renderização Edge
 
+---
 
-# Plano: Fix Crítico do SUPER BUG + Correções de Navegação
+## 🐛 BUGS CRÍTICOS IDENTIFICADOS
 
-## Causa Raiz Confirmada
+### BUG 1: Botão "Adicionar ao Carrinho" não funciona (CORRIGIDO ✅)
+**Correção**: Adicionado `onclick="event.stopPropagation()"` em featured-products.ts e category-page-layout.ts.
 
-Quando o SPA (Cart/Checkout) está carregado e o usuário navega para uma rota de conteúdo (/, /categoria/..., /produto/...), o React Router intercepta mas não tem rota filha correspondente. O `<Outlet />` renderiza vazio, "contaminando" toda a sessão.
+### BUG 2: Banner de categoria não renderiza (CORRIGIDO ✅)
+**Correção**: Auto-injeção no `storefront-html` quando `category.banner_desktop_url` existe e template não contém `CategoryBanner`.
 
-## Correções (4 mudanças)
+### BUG 3: Galeria de imagens do produto (VERIFICADO ✅)
+**Status**: JS de hidratação verificado — swipe/dots (mobile), thumbnail click (desktop) e lightbox+zoom estão implementados corretamente. O código está funcional; requer re-publicação para aplicar.
 
-### 1. Catch-all reload no App.tsx (FIX DO SUPER BUG)
+### BUG 4: Produtos relacionados não herdam categorySettings (CORRIGIDO ✅)
+**Correção**: Refatorada seção de relacionados em `product-details.ts` para usar `categorySettings` (showRatings, showBadges, showAddToCartButton, quickBuyEnabled) com mesma estrutura visual do `category-page-layout.ts`.
 
-Adicionar componente `EdgeContentReload` e rota `*` wildcard em ambos os layouts (tenant root e `/store/:tenantSlug`). Quando React Router captura uma URL de conteúdo sem match, o catch-all força `window.location.reload()`, devolvendo o controle ao Edge/Worker.
+### BUG 5: Botões de CTA na página de produto (VERIFICADO ✅)
+**Status**: Handlers `data-sf-action` verificados — add-to-cart, buy-now, qty-minus/plus e calc-shipping todos funcionais no script de hidratação.
 
-```tsx
-function EdgeContentReload() {
-  useEffect(() => { window.location.reload(); }, []);
-  return null;
-}
+---
+
+## 📊 RESUMO: Sistema de Cores da Loja
+
+### Arquitetura Geral
+```
+┌───────────────────────────────────────────────────────────────────┐
+│              FONTE DE VERDADE: storefront_template_sets           │
+│                                                                    │
+│  draft_content.themeSettings.colors    → Builder (preview)        │
+│  published_content.themeSettings.colors → Loja pública            │
+└───────────────────────────────────────────────────────────────────┘
+                              ↓
+┌───────────────────────────────────────────────────────────────────┐
+│              INJEÇÃO DE CSS (2 caminhos paralelos)                │
+├───────────────────────────────────────────────────────────────────┤
+│  BUILDER:        useBuilderThemeInjector.ts                       │
+│  LOJA PÚBLICA:   StorefrontThemeInjector.tsx                      │
+│  EDGE HTML:      CSS inline no <head> via storefront-html         │
+└───────────────────────────────────────────────────────────────────┘
 ```
 
-Adicionado como última rota filha em ambos os layouts:
-```tsx
-<Route path="*" element={<EdgeContentReload />} />
-```
+### Grupos de Cores Disponíveis
 
-Sem risco de loop: o Edge HTML não carrega React, então o reload não re-executa o componente.
+| Grupo | Variáveis CSS | Uso |
+|-------|--------------|-----|
+| **Botão Primário** | `--theme-button-primary-bg`, `--theme-button-primary-text`, `--theme-button-primary-hover` | CTAs principais |
+| **Botão Secundário** | `--theme-button-secondary-bg`, `--theme-button-secondary-text`, `--theme-button-secondary-hover` | Botões secundários |
+| **WhatsApp** | `--theme-whatsapp-color`, `--theme-whatsapp-hover` | Botão WhatsApp |
+| **Preço** | `--theme-price-color` | Valor principal do preço |
+| **Promo/Tags** | `--theme-promo-bg`, `--theme-promo-text` | Tags promocionais |
 
-### 2. Fix dropdown hover gap (header.ts)
+### Pontos de Melhoria
+1. Duplicação em 3 sistemas diferentes
+2. Edge HTML duplica lógica CSS do React
+3. Falta centralização (design tokens)
 
-Nos 3 estilos de dropdown (classic, elegant, minimal), o `margin-top: 12px/8px` no inline style cria um gap físico que quebra o `:hover`. O CSS global já tem `.sf-dropdown .sf-dropdown-menu{padding-top:8px;}` mas o inline margin sobrepõe.
+---
 
-**Fix:** Remover `margin-top` do inline style dos 3 dropdownStyles (linhas 181, 183, 185). O `padding-top` do CSS global (`.sf-dropdown .sf-dropdown-menu`) já cria o espaçamento visual. Aumentar esse padding-top de 8px para 12px para manter o espaçamento visual.
+## 📦 RESUMO: Sistema de Frete Grátis
 
-### 3. Links `/minha-conta` → `/conta` (header.ts + storefront-html/index.ts)
+### Hierarquia de Precedência
+1. **Produto**: `products.free_shipping` (boolean)
+2. **Cupom**: `discounts.type = 'free_shipping'`
+3. **Regras de Logística**: `free_shipping_rules`
 
-- `header.ts` linha 321: `href="/minha-conta"` → `href="/conta"`
-- `storefront-html/index.ts` linha 2037: `href="/minha-conta"` → `href="/conta"`
-- Manter a rota `minha-conta/redefinir-senha` no App.tsx (já existe como alias)
+### Pontos de Melhoria
+1. Lógica duplicada React/Edge
+2. Badge "Frete Grátis" com estilos inconsistentes
 
-### 4. Deploy da Edge Function
+---
 
-Redeplorar `storefront-html` com as correções do dropdown e links.
+## 📋 INVENTÁRIO DE BLOCOS
 
-## Arquivos Afetados
+### ✅ Prontos no Edge (43 compiladores + 3 standalone + 1 shared)
+- **Layout**: Page, Section, Container, Columns, Column, Grid
+- **Conteúdo**: Text, RichText, Image, Button, Spacer, Divider
+- **E-commerce**: HeroBanner, Banner, ImageCarousel, InfoHighlights, FeaturedCategories, FeaturedProducts, CategoryBanner, CategoryPageLayout
+- **Produto**: ProductDetails (Reviews, Compre Junto, Relacionados, Variantes, Galeria+Lightbox)
+- **Interativo**: FAQ, Testimonials, AccordionBlock, Newsletter, NewsletterForm
+- **Mídia**: YouTubeVideo, VideoCarousel, HTMLSection, ImageGallery
+- **Marketing**: CountdownTimer, LogosCarousel, StatsNumbers, ContentColumns, FeatureList, StepsTimeline, TextBanners
+- **Estrutural**: Header, Footer
+- **Standalone**: Blog, Institucional
 
-| Arquivo | Mudança |
-|---|---|
-| `src/App.tsx` | Componente `EdgeContentReload` + rota `*` nos 2 layouts |
-| `supabase/functions/_shared/block-compiler/blocks/header.ts` | Remover `margin-top` dos 3 dropdown styles; link `/conta` |
-| `supabase/functions/storefront-html/index.ts` | Link mobile `/conta`; padding-top do dropdown CSS de 8px→12px |
-| Deploy | `storefront-html` |
+- **E-commerce Avançado**: ProductGrid, ProductCarousel, CategoryList, CollectionSection, BannerProducts
+- **Shared**: product-card-html.ts (renderProductCard reutilizável)
 
-## Validação Necessária
+### 🔴 FALTA Compilador (0 blocos — todos compiladores de conteúdo implementados)
 
-Após implementação, testar no domínio público o fluxo completo:
-Home → Categoria → Produto → Checkout → voltar para Home → Categoria → Produto
+**Nota**: NewsletterPopup é edge-rendered diretamente no `storefront-html` (fora da árvore de blocos), não precisa de compilador na registry.
+**Blocos sem compilador restantes são apenas blocos de sistema/demo**: TrackingLookup, BlogListing, BlogPostDetail, PageContent, ContactForm, CategoryFilters, CartDemo, CheckoutDemo, etc.
 
-Critérios: navegação não contamina, menu não some, PDP funciona, `/conta` abre.
+---
 
+## 🚀 PLANO DE EXECUÇÃO
+
+### Fase 0: Bugs Críticos ✅ CONCLUÍDA
+1. ✅ Corrigir botões add-to-cart
+2. ✅ Corrigir banner de categoria (auto-injeção)
+3. ✅ Verificar galeria de imagens (funcional)
+4. ✅ Produtos relacionados herdar categorySettings
+5. ✅ Verificar botões CTA (funcionais)
+
+### Fase 1: Blocos de Layout ✅ CONCLUÍDA
+6. ✅ Container
+7. ✅ Columns + Column
+8. ✅ Grid
+
+### Fase 2: Blocos Interativos de Alta Conversão ✅ CONCLUÍDA
+9. ✅ Newsletter / NewsletterForm (compilador com layouts horizontal/vertical/card)
+10. ✅ FAQ (accordion nativo com `<details>/<summary>`)
+11. ✅ Testimonials (grid responsivo com estrelas e imagens)
+12. ✅ AccordionBlock (variantes default/separated/bordered, defaultOpen)
+
+### Fase 3: Blocos de Mídia ✅ CONCLUÍDA
+13. ✅ YouTubeVideo (iframe responsivo com aspect ratio configurável)
+14. ✅ VideoCarousel (primeiro vídeo embed + thumbnail strip)
+15. ✅ HTMLSection (HTML sanitizado inline com CSS scoped)
+16. ✅ ImageGallery (grid responsivo com hover effects e captions)
+
+### Fase 4: Blocos de Marketing ✅ CONCLUÍDA
+17. ✅ CountdownTimer (server-render + JS hydration via data-sf-countdown)
+18. ✅ LogosCarousel (grid responsivo com grayscale e otimização de imagem)
+19. ✅ StatsNumbers (layout horizontal/grid com animação JS)
+20. ✅ ContentColumns (imagem + texto + features com ícones SVG)
+21. ✅ FeatureList (lista vertical com ícones SVG)
+22. ✅ StepsTimeline (layout horizontal/vertical com círculos numerados)
+23. ✅ TextBanners (texto + 2 imagens com CTA sf-btn-primary)
+
+### Fase 5: Blocos E-commerce Avançados ✅ CONCLUÍDA
+24. ✅ ProductGrid (grid configurável com renderProductCard compartilhado)
+25. ✅ ProductCarousel (scroll horizontal com snap + setas desktop)
+26. ✅ CategoryList (grid/lista com source custom/auto)
+27. ✅ CollectionSection (título + "Ver todos" + grid/carousel)
+28. ✅ BannerProducts (banner + produtos lado a lado)
+29. ✅ Shared: product-card-html.ts (renderProductCard reutilizável)
+
+### Fase 6: Verificações Globais ✅ CONCLUÍDA
+20. ✅ Pixels de marketing (Meta/Google/TikTok) — deferred injection via `requestIdleCallback`
+21. ✅ Newsletter Popup — edge-rendered com triggers (delay/scroll/exit_intent/immediate)
+22. ✅ Consent Banner (LGPD) — renderizado quando `consent_mode_enabled = true`
+
+### Fase 7: Auditoria Visual + Centralização ✅ CONCLUÍDA
+23. ✅ Centralizar sistema de cores (design tokens únicos)
+    - React: `src/lib/storefront-theme-utils.ts` (hexToHslValues, FONT_FAMILY_MAP, generateButtonCssRules, generateAccentAndTagCssRules, generateColorCssVars)
+    - Edge: `supabase/functions/_shared/theme-tokens.ts` (FONT_FAMILY_MAP, generateThemeCss, generateButtonCssRules, getGoogleFontsData)
+    - Refatorado `usePublicThemeSettings.ts` → usa shared utils
+    - Refatorado `useBuilderThemeInjector.ts` → usa shared utils
+    - Refatorado `storefront-html/index.ts` v8.4.0 → importa de theme-tokens.ts
+24. ⏳ Comparar builder vs público (requer auditoria visual manual)
+25. ⏳ Centralizar lógica de frete grátis (baixa prioridade)
+
+---
+
+## Cleanup Realizado
+- ✅ Removido `_shared/block-compiler/blocks/product-page.ts` (dead code)

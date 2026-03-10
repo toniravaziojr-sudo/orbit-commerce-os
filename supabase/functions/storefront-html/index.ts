@@ -417,7 +417,7 @@ function buildFullPage(opts: {
     }
     /* Dropdown hover — mirrors SPA hover behavior */
     .sf-dropdown{padding:8px 0;}
-    .sf-dropdown .sf-dropdown-menu{padding-top:8px;}
+    .sf-dropdown .sf-dropdown-menu{padding-top:12px;}
     .sf-dropdown:hover .sf-dropdown-menu{display:block !important;}
     .sf-dropdown-item:hover{background:rgba(0,0,0,0.04);color:var(--theme-button-primary-bg, #1a1a1a);}
     /* 3rd level sub-dropdown hover */
@@ -2034,7 +2034,7 @@ serve(async (req) => {
     const mobileFeaturedHtml = mobileFeaturedPromosEnabled ? `<a href="${escapeHtml(mobileFeaturedUrl)}" style="font-weight:600;">${escapeHtml(mobileFeaturedPromosLabel)}</a>` : '';
     
     // Account for mobile
-    const mobileAccountHtml = mobileCustomerAreaEnabled ? `<a href="/minha-conta" style="display:flex;align-items:center;gap:8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Minha Conta</a>` : '';
+    const mobileAccountHtml = mobileCustomerAreaEnabled ? `<a href="/conta" style="display:flex;align-items:center;gap:8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Minha Conta</a>` : '';
     
     // Search bar for mobile
     const mobileShowSearch = hProps.showSearch ?? true;

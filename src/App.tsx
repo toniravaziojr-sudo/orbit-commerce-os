@@ -8,7 +8,18 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { GatedRoute, FeatureGatedRoute } from "@/components/layout/GatedRoute";
 import { CommandAssistantProvider, CommandAssistantPanel } from "@/components/command-assistant";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
+
+// EdgeContentReload — CRITICAL FIX for SPA→Edge navigation contamination
+// When React Router captures a URL meant for Edge rendering (/, /categoria/..., /produto/...),
+// this component forces a full page reload, handing control back to the Edge/Worker.
+// No loop risk: Edge HTML doesn't load React, so this component never re-executes.
+function EdgeContentReload() {
+  useEffect(() => {
+    window.location.reload();
+  }, []);
+  return null;
+}
 
 // =============================================
 // LAZY LOADED PAGES — Code splitting for performance
@@ -248,6 +259,8 @@ const App = () => {
                   <Route path="quiz/:quizSlug" element={<StorefrontQuiz />} />
                   <Route path="avaliar/:token" element={<StorefrontReview />} />
                   <Route path="busca" element={<StorefrontSearch />} />
+                  {/* Catch-all: force reload for Edge-rendered content pages */}
+                  <Route path="*" element={<EdgeContentReload />} />
                 </Route>
               )}
 
@@ -274,6 +287,8 @@ const App = () => {
                 <Route path="quiz/:quizSlug" element={<StorefrontQuiz />} />
                 <Route path="avaliar/:token" element={<StorefrontReview />} />
                 <Route path="busca" element={<StorefrontSearch />} />
+                {/* Catch-all: force reload for Edge-rendered content pages */}
+                <Route path="*" element={<EdgeContentReload />} />
               </Route>
 
               {/* Protected route without tenant requirement */}
