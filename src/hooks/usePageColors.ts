@@ -21,7 +21,7 @@ export interface PageColors {
  * Fetches custom page colors from published template content
  * Used for cart and checkout pages to override theme colors
  */
-export function usePageColors(tenantSlug: string, pageType: 'cart' | 'checkout') {
+export function usePageColors(tenantSlug: string, pageType: 'checkout') {
   return useQuery({
     queryKey: ['page-colors', tenantSlug, pageType],
     queryFn: async (): Promise<PageColors | null> => {
