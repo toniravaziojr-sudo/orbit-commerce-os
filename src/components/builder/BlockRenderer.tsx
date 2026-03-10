@@ -88,7 +88,7 @@ import { CompreJuntoSlotBlock, CrossSellSlotBlock, UpsellSlotBlock } from './blo
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
 import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeaderContent';
 import { ProductPageSections } from '@/components/storefront/ProductPageSections';
-import { MiniCartDrawer } from '@/components/storefront/MiniCartDrawer';
+import { useMiniCart } from '@/contexts/MiniCartContext';
 import { CartContent } from '@/components/storefront/cart/CartContent';
 import { SocialShareButtons } from '@/components/storefront/SocialShareButtons';
 
