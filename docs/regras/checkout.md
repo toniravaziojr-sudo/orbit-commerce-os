@@ -495,6 +495,26 @@ Status aplicados: `payment_status='cancelled'`, `status='cancelled'`, com `cance
 
 ---
 
+## Navegação Checkout → Loja (REGRA CRÍTICA)
+
+> **Problema:** O checkout é renderizado pelo React (SPA), mas a loja é servida pelo Edge Function. Ao clicar no logo do header do checkout para voltar à Home, o React interceptava a navegação e tentava renderizar a Home como SPA — causando uma "versão bugada" da loja.
+
+### Solução
+
+O header e footer do checkout usam `StorefrontHeaderContent` e `StorefrontFooterContent`, que implementam navegação context-aware via `isSpaRoute()`. Links para rotas de conteúdo (Home, categorias, produtos) forçam `window.location.href` (hard refresh), devolvendo o controle ao Edge Function.
+
+| Ação do Usuário | Comportamento Esperado |
+|-----------------|------------------------|
+| Clicar no logo do header do checkout | `window.location.href` → Home via Edge (hard refresh) |
+| Botão "Voltar" do navegador no checkout | Navegação nativa do browser (sem conflito) |
+| Link de categoria no footer do checkout | `window.location.href` → Categoria via Edge |
+
+### Regra
+
+**PROIBIDO** usar `<Link>` do React Router para navegar do checkout para qualquer rota de conteúdo. Toda navegação checkout→loja DEVE ser via `window.location.href`.
+
+---
+
 ## Pendências Conhecidas
 
 | Item | Status | Descrição |
