@@ -229,6 +229,14 @@ export function PaymentMethodsConfig({ tenantId }: PaymentMethodsConfigProps) {
         })}
       </div>
       
+      <Alert className="border-amber-500/30 bg-amber-50 dark:bg-amber-950/20">
+        <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+        <AlertDescription className="text-[10px] text-amber-800 dark:text-amber-300">
+          <strong>Atenção:</strong> Estas configurações são apenas visuais (labels e badges). Para aplicar descontos reais ou configurar parcelas, acesse{' '}
+          <strong>Sistema → Configurações → Pagamentos</strong>.
+        </AlertDescription>
+      </Alert>
+      
       <p className="text-[10px] text-muted-foreground text-center pt-1">
         {isSaving ? '💾 Salvando...' : '✓ Configurações salvas automaticamente'}
       </p>
