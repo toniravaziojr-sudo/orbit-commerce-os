@@ -415,11 +415,15 @@ function buildFullPage(opts: {
       .sf-header-mobile{display:none !important;}
       .sf-header-mobile-secondary{display:none !important;}
     }
-    /* Dropdown hover */
+    /* Dropdown hover — mirrors SPA hover behavior */
     .sf-dropdown{padding:8px 0;}
     .sf-dropdown .sf-dropdown-menu{padding-top:8px;}
     .sf-dropdown:hover .sf-dropdown-menu{display:block !important;}
-    .sf-dropdown-item:hover{background:#f5f5f5;}
+    .sf-dropdown-item:hover{background:rgba(0,0,0,0.04);color:var(--theme-button-primary-bg, #1a1a1a);}
+    /* 3rd level sub-dropdown hover */
+    .sf-sub-dropdown:hover > .sf-sub-dropdown-menu{display:block !important;}
+    /* Chevron rotation on hover — mirrors SPA rotate-180 */
+    .sf-dropdown:hover .sf-dropdown-trigger svg:last-child{transform:rotate(180deg);}
     /* Attendance dropdown — use padding-top bridge to prevent gap */
     .sf-attendance-dropdown .sf-attendance-menu{display:none !important;position:absolute;top:100%;right:0;padding-top:8px;min-width:280px;max-width:320px;z-index:60;}
     .sf-attendance-dropdown .sf-attendance-menu > div{padding:16px;background:#fff;border:1px solid #eee;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.12);}

@@ -86,7 +86,8 @@ export function headerToStaticHTML(context: CompilerContext): string {
   const supportHours = storeSettings?.contact_support_hours || '';
   const hasContactInfo = whatsApp || contactPhone || contactEmail;
   
-  // Build nav items from menuItems
+  // Build nav items from menuItems — hierarchy with up to 3 levels
+  // Mirrors StorefrontHeaderContent.tsx hierarchicalMenuItems logic
   const rootItems = menuItems.filter((item: any) => !item.parent_id);
   const childrenMap = new Map<string, any[]>();
   menuItems.filter((item: any) => item.parent_id).forEach((item: any) => {
@@ -99,43 +100,106 @@ export function headerToStaticHTML(context: CompilerContext): string {
   const menuVisualStyle = String(props.menuVisualStyle || 'classic');
   const menuShowParentTitle = props.menuShowParentTitle ?? true;
   
+  // Chevron SVGs — mirrors SPA: ChevronDown for ALL styles (not just classic)
+  const chevronDownSvg = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transition:transform 0.2s;"><polyline points="6 9 12 15 18 9"/></svg>`;
+  const chevronRightSvg = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>`;
+  
   const navItemsHtml = rootItems.map((item: any) => {
     const url = item.url || '#';
-    const children = childrenMap.get(item.id) || [];
+    const children = (childrenMap.get(item.id) || []).sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
     
     if (children.length > 0) {
-      // Header with parent title (Classic & Elegant styles)
+      // Header with parent title (Classic & Elegant styles) — mirrors SPA menuShowParentTitle
       let headerHtml = '';
       if (menuShowParentTitle && menuVisualStyle !== 'minimal') {
-        headerHtml = `<div style="padding:8px 16px 6px;border-bottom:1px solid #f0f0f0;margin-bottom:4px;">
-          <span style="font-size:12px;font-weight:600;color:#1a1a1a;${menuVisualStyle === 'classic' ? 'text-transform:uppercase;letter-spacing:0.5px;' : ''}">${escapeHtml(item.label)}</span>
+        const headerStyle = menuVisualStyle === 'classic'
+          ? 'font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--theme-muted-foreground, #6b7280);'
+          : 'font-size:11px;font-weight:600;letter-spacing:0.08em;color:var(--theme-muted-foreground, #6b7280);';
+        headerHtml = `<div style="padding:8px 16px 6px;border-bottom:1px solid rgba(0,0,0,${menuVisualStyle === 'elegant' ? '0.06' : '0.08'});margin-bottom:4px;">
+          <span style="${headerStyle}">${escapeHtml(item.label)}</span>
         </div>`;
       }
       
+      // Build child links with optional 3rd level sub-submenus — mirrors SPA
       const childLinks = children
-        .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-        .map((child: any) => `<a href="${escapeHtml(child.url || '#')}" class="sf-dropdown-item" style="display:block;padding:8px 16px;color:#1a1a1a;font-size:13px;white-space:nowrap;border-radius:4px;">${escapeHtml(child.label)}</a>`)
+        .map((child: any, index: number) => {
+          const grandchildren = (childrenMap.get(child.id) || []).sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+          const hasGrandchildren = grandchildren.length > 0;
+          
+          // 3rd level submenu HTML
+          let subSubmenuHtml = '';
+          if (hasGrandchildren) {
+            const subHeader = menuVisualStyle !== 'minimal'
+              ? `<div style="padding:4px 12px 6px;border-bottom:1px solid rgba(0,0,0,0.06);margin-bottom:4px;"><span style="font-size:10px;font-weight:500;color:var(--theme-muted-foreground, #6b7280);">${escapeHtml(child.label)}</span></div>`
+              : '';
+            const gcLinks = grandchildren.map((gc: any) => {
+              const bulletHtml = menuVisualStyle === 'classic' ? '<span style="width:4px;height:4px;border-radius:50%;background:rgba(0,0,0,0.2);flex-shrink:0;"></span>' : '';
+              return `<a href="${escapeHtml(gc.url || '#')}" class="sf-dropdown-item" style="display:flex;align-items:center;gap:8px;padding:${menuVisualStyle === 'elegant' ? '8px 16px' : menuVisualStyle === 'minimal' ? '6px 12px' : '6px 12px'};color:var(--theme-popover-foreground, #1a1a1a);font-size:13px;border-radius:4px;">${bulletHtml}<span>${escapeHtml(gc.label)}</span></a>`;
+            }).join('');
+            subSubmenuHtml = `<div class="sf-sub-dropdown-menu" style="display:none;position:absolute;left:100%;top:0;margin-left:8px;background:var(--theme-popover, #fff);border:1px solid rgba(0,0,0,0.08);border-radius:${menuVisualStyle === 'elegant' ? '12px' : menuVisualStyle === 'minimal' ? '6px' : '10px'};box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:6px 0;min-width:180px;z-index:70;">${subHeader}${gcLinks}</div>`;
+          }
+          
+          // Separator between items (classic/elegant only)
+          const separatorHtml = menuVisualStyle !== 'minimal' && index < children.length - 1
+            ? `<div style="margin:0 12px;border-bottom:1px solid rgba(0,0,0,${menuVisualStyle === 'classic' ? '0.05' : '0.03'});"></div>`
+            : '';
+          
+          // Style per visual mode — mirrors SPA classes
+          let itemStyle = '';
+          let hoverIndicator = '';
+          if (menuVisualStyle === 'classic') {
+            itemStyle = 'display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px;color:var(--theme-popover-foreground, #1a1a1a);font-size:13px;font-weight:500;white-space:nowrap;border-radius:4px;position:relative;';
+          } else if (menuVisualStyle === 'elegant') {
+            itemStyle = 'display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;color:var(--theme-popover-foreground, #1a1a1a);font-size:13px;font-weight:400;white-space:nowrap;position:relative;';
+          } else {
+            itemStyle = 'display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 16px;color:var(--theme-popover-foreground, #1a1a1a);font-size:13px;font-weight:400;white-space:nowrap;';
+          }
+          
+          const chevronHtml = hasGrandchildren ? chevronRightSvg : '';
+          
+          return `<div class="${hasGrandchildren ? 'sf-sub-dropdown' : ''}" style="position:relative;">
+            <a href="${escapeHtml(child.url || '#')}" class="sf-dropdown-item" style="${itemStyle}">
+              <span>${escapeHtml(child.label)}</span>
+              ${chevronHtml}
+            </a>
+            ${subSubmenuHtml}
+          </div>${separatorHtml}`;
+        })
         .join('');
       
-      // Footer "Ver todos" link (Classic style)
+      // Footer "Ver todos" link — mirrors SPA: shows for classic AND elegant (not minimal)
       let footerHtml = '';
-      if (menuVisualStyle === 'classic') {
-        footerHtml = `<div style="border-top:1px solid #f0f0f0;margin-top:4px;padding:6px 16px;">
-          <a href="${escapeHtml(url)}" style="font-size:12px;font-weight:500;color:var(--theme-button-primary-bg,#1a1a1a);display:flex;align-items:center;gap:4px;">Ver todos <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></a>
+      if (menuVisualStyle !== 'minimal') {
+        footerHtml = `<div style="border-top:1px solid rgba(0,0,0,${menuVisualStyle === 'classic' ? '0.08' : '0.06'});margin-top:4px;padding:8px 16px;">
+          <a href="${escapeHtml(url)}" style="font-size:12px;font-weight:500;color:var(--theme-button-primary-bg,#1a1a1a);display:flex;align-items:center;gap:4px;">Ver todos ${chevronRightSvg}</a>
         </div>`;
       }
       
-      // Dropdown arrow: only Classic style shows it
-      const arrowSvg = menuVisualStyle === 'classic'
-        ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="${escapeHtml(headerTextColor)}" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>`
-        : '';
+      // Dropdown container style per visual mode — mirrors SPA positioning (centered)
+      let dropdownStyle = '';
+      if (menuVisualStyle === 'classic') {
+        dropdownStyle = 'display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:12px;background:var(--theme-popover, rgba(255,255,255,0.95));backdrop-filter:blur(12px);border:1px solid rgba(0,0,0,0.08);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.12);padding:8px 0;min-width:260px;z-index:60;';
+      } else if (menuVisualStyle === 'elegant') {
+        dropdownStyle = 'display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:12px;background:var(--theme-popover, rgba(255,255,255,0.98));backdrop-filter:blur(16px);border:1px solid rgba(0,0,0,0.06);border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,0.15);padding:12px 0;min-width:280px;z-index:60;';
+      } else {
+        dropdownStyle = 'display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:8px;background:var(--theme-popover, #fff);box-shadow:0 4px 16px rgba(0,0,0,0.1);border-radius:8px;padding:8px 0;min-width:220px;z-index:60;';
+      }
+      
+      // Dropdown arrow triangle — classic and elegant only (mirrors SPA)
+      let arrowHtml = '';
+      if (menuVisualStyle !== 'minimal') {
+        const arrowBg = menuVisualStyle === 'classic' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.98)';
+        const arrowBorder = menuVisualStyle === 'classic' ? 'rgba(0,0,0,0.08)' : 'rgba(0,0,0,0.06)';
+        arrowHtml = `<div style="position:absolute;top:-6px;left:50%;transform:translateX(-50%) rotate(45deg);width:12px;height:12px;background:${arrowBg};border-left:1px solid ${arrowBorder};border-top:1px solid ${arrowBorder};"></div>`;
+      }
       
       return `<div class="sf-dropdown" style="position:relative;">
-        <a href="${escapeHtml(url)}" style="color:${escapeHtml(headerTextColor)};font-size:14px;font-weight:500;white-space:nowrap;display:flex;align-items:center;gap:4px;">
+        <a href="${escapeHtml(url)}" class="sf-dropdown-trigger" style="color:${escapeHtml(headerTextColor)};font-size:12px;font-weight:500;white-space:nowrap;display:flex;align-items:center;gap:4px;padding:4px 0;">
           ${escapeHtml(item.label)}
-          ${arrowSvg}
+          ${chevronDownSvg}
         </a>
-        <div class="sf-dropdown-menu" style="display:none;position:absolute;top:100%;left:0;background:#fff;border:1px solid #eee;border-radius:${menuVisualStyle === 'elegant' ? '12px' : '8px'};box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:8px 0;min-width:200px;z-index:60;">
+        <div class="sf-dropdown-menu" style="${dropdownStyle}">
+          ${arrowHtml}
           ${headerHtml}
           ${childLinks}
           ${footerHtml}
@@ -143,7 +207,8 @@ export function headerToStaticHTML(context: CompilerContext): string {
       </div>`;
     }
     
-    return `<a href="${escapeHtml(url)}" style="color:${escapeHtml(headerTextColor)};font-size:14px;font-weight:500;white-space:nowrap;">${escapeHtml(item.label)}</a>`;
+    // Simple link (no children) — font-size 12px to match SPA text-xs
+    return `<a href="${escapeHtml(url)}" style="color:${escapeHtml(headerTextColor)};font-size:12px;font-weight:500;white-space:nowrap;padding:4px 0;">${escapeHtml(item.label)}</a>`;
   }).join('');
 
   const logoHtml = optimizedLogo

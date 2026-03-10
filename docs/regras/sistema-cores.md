@@ -276,7 +276,7 @@ Zonas que **não** possuem override: páginas de produto, categoria, blog, insti
 - [x] ~~Fase 2: Remover dependência de `!important` em `storefront-theme-utils.ts`, `usePageColors.ts` e `theme-tokens.ts`~~
 - [x] ~~Fase 2: Implementar hierarquia CSS por especificidade controlada via `.sf-page-*`~~
 - [x] ~~Fase 3: Reorganizar UI admin em grupos visuais (Accordion: Cores Globais / Botões e Estados / Tags e Badges)~~
-- [x] ~~Fase 4: Corrigir paridade Edge — "Adicionar ao carrinho" em product-details de `sf-btn-outline-primary` para `sf-btn-secondary`~~
+- [x] ~~Fase 4: Corrigir paridade Edge — "Adicionar ao carrinho" em product-details, featured-products, category-page-layout, product-grid, product-card-html de `sf-btn-outline-primary` para `sf-btn-secondary border`~~
 - [x] ~~Fase 4: Corrigir mini-cart Edge — "Ir para o Carrinho" de hardcoded para `sf-btn-secondary`~~
 - [x] ~~Fase 4: Adicionar `sf-btn-outline-secondary` ao Edge `theme-tokens.ts`~~
 - [x] ~~Fase 5: Substituir cores de texto hardcoded por `var(--theme-text-secondary)` em TODOS os compiladores Edge~~

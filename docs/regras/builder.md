@@ -595,7 +595,7 @@ O sistema organiza as cores em **5 grupos** para facilitar a configuração:
 | Botão "Visualizar Boleto" | `sf-btn-primary` | `PaymentResult.tsx` |
 | Botões CTA em blocos do builder | `sf-btn-primary` | Blocos individuais |
 | ProductCard "Comprar agora" | `sf-btn-primary` | `ProductCard.tsx` |
-| ProductCard "Adicionar" | `sf-btn-outline-primary` | `ProductCard.tsx` |
+| ProductCard "Adicionar" | `sf-btn-secondary border` | `ProductCard.tsx` |
 | ProductCTAs "Comprar agora" | `sf-btn-primary` | `ProductCTAs.tsx` |
 
 ### Arquivos Relacionados
