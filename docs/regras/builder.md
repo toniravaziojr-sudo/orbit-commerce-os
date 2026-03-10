@@ -3120,6 +3120,7 @@ Para adicionar novos presets no futuro:
 | **Localização** | `src/lib/builder/registry.ts` |
 | **Contexto** | Popup de newsletter com gatilhos configuráveis |
 | **Descrição** | Popup com 3 triggers (delay/scroll/exit_intent), controle de frequência e páginas de exibição |
+| **Exit Intent (v1.1)** | Detecção melhorada: `mouseleave` (cursor saiu pelo topo) + `mousemove` com `clientY < 50` e `movementY < -5` (movimento rápido em direção ao botão fechar). Flag `eiFired` garante disparo único. Delay 2.5s antes de ativar. |
 | **Props** | `listId` (string, **obrigatório**), `title` (string), `subtitle` (string), `showName/Phone/BirthDate` (boolean), `buttonText` (string), `successMessage` (string), `triggerType` (select: delay/scroll/exit_intent), `delaySeconds` (number: 1-120), `scrollPercentage` (number: 10-100), `showOnPages` (select: all/specific/current), `showOnMobile` (boolean), `frequency` (select: once/daily/always), `overlayColor` (color), `popupBgColor/TextColor` (color), `buttonColor/TextColor` (color), `borderRadius` (number: 0-48px), `showCloseButton` (boolean) |
 
 #### 6.3 Quiz Interativo (`QuizEmbed`)

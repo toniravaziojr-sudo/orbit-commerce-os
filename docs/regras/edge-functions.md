@@ -2526,3 +2526,28 @@ Páginas SPA (carrinho, conta, rastreio, busca, quiz) ficavam presas em "Carrega
 | **Condições** | `supportWidget.enabled === true` e `routeType !== 'checkout'` |
 | **Configurações** | `type` (chat/whatsapp/both), `whatsappNumber`, `whatsappMessage`, `buttonColor`, `position` (left/right) |
 | **Afeta** | Todas as páginas Edge-rendered (Home, Categoria, Produto, Blog, Pages, LPs) |
+
+---
+
+## marketing-form-submit — Auto-lista "Leads site" (v1.1)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Funcionalidade |
+| **Localização** | `supabase/functions/marketing-form-submit/index.ts` |
+| **Descrição** | Quando `source === 'support_chat'` e nenhum `list_id` é fornecido, auto-cria lista "Leads site" (slug: `leads-site`) com tag vinculada (`customer_tags`) |
+| **Comportamento** | 1. Busca lista existente por slug `leads-site`. 2. Se não existe, cria tag "Leads site" + lista vinculada. 3. Usa `effectiveListId` resultante no `sync_subscriber_to_customer_with_tag`. |
+| **Condições** | Apenas para `source === 'support_chat'` sem `list_id` explícito |
+| **Afeta** | `email_marketing_lists`, `customer_tags`, `email_marketing_subscribers`, `customers` |
+
+---
+
+## storefront-html — Newsletter Popup Exit Intent (v1.1)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Correção |
+| **Localização** | `supabase/functions/storefront-html/index.ts` → `generateNewsletterPopupHtml()` |
+| **Descrição** | Corrigido loop infinito e trigger imediato do popup com `exit_intent` |
+| **Comportamento** | 1. Flag `eiFired` impede re-trigger. 2. `dismissed` flag impede reexibição após fechar. 3. Delay 2.5s antes de ativar listeners. 4. Dupla detecção: `mouseleave` (clientY <= 0) + `mousemove` (clientY < 50 + movementY < -5). 5. Dispara no máximo UMA vez por sessão. |
+| **Paridade SPA** | Mesma lógica aplicada em `NewsletterPopupBlock.tsx` (React) |
