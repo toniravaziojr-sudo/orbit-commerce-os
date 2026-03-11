@@ -1356,7 +1356,7 @@ Schema estruturado obrigatório:
 
 **Resultado**: Mensagem orienta o lojista a solicitar uma estratégia → proposta estruturada → aprovação.
 
-### Roteamento Frontend (`useAdsChat` v6.1.0)
+### Roteamento Frontend (`useAdsChat` v6.2.0)
 
 ```
 Mensagem do usuário
