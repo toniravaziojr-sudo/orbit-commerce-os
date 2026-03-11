@@ -853,10 +853,10 @@ async function executeTool(
   chatSessionId?: string,
   strategyRunId?: string
 ): Promise<string> {
-  try {
+   try {
     switch (toolName) {
       case "get_campaign_performance":
-        return await getCampaignPerformance(supabase, tenantId, args.ad_account_id, args.status_filter, args.days);
+        return await getCampaignPerformance(supabase, tenantId, args.ad_account_id, args.status_filter, args.days, args.date_preset);
       case "get_campaign_details":
         return await getCampaignDetails(supabase, tenantId, args.campaign_id);
       case "get_performance_trend":
