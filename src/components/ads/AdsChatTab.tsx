@@ -127,6 +127,38 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
     }
   };
 
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const items = Array.from(e.clipboardData?.items || []);
+    const imageItems = items.filter(item => item.type.startsWith("image/"));
+    if (imageItems.length === 0) return; // let default paste happen for text
+
+    e.preventDefault(); // prevent pasting image as text
+    for (const item of imageItems) {
+      const file = item.getAsFile();
+      if (!file) continue;
+      if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+        toast.error(`Imagem colada excede ${MAX_FILE_SIZE_MB}MB`);
+        continue;
+      }
+      // Generate a readable filename
+      const ext = file.type.split("/")[1] || "png";
+      const filename = `screenshot-${Date.now()}.${ext}`;
+      const renamedFile = new File([file], filename, { type: file.type });
+      
+      const result = await upload(renamedFile);
+      if (result?.publicUrl) {
+        setPendingAttachments(prev => [...prev, {
+          url: result.publicUrl,
+          filename,
+          mimeType: file.type,
+        }]);
+        toast.success("Imagem colada anexada!");
+      } else {
+        toast.error("Erro ao processar imagem colada");
+      }
+    }
+  };
+
   const handleNewConversation = async () => {
     setIsCreating(true);
     try {
