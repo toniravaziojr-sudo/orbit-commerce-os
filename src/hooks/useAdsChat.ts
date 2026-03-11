@@ -50,6 +50,7 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
+  const [progressLabel, setProgressLabel] = useState("");
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Fetch conversations for this scope
