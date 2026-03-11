@@ -5050,10 +5050,30 @@ Deno.serve(async (req) => {
       console.error(`[ads-chat][${VERSION}] Memory fetch error:`, e);
     }
 
-    // Build AI messages
+    // Build AI messages — sanitize filler from history (v5.35.0)
+    const fillerCleanPatterns = [
+      /aguarde\s+(enquanto|um\s+momento)/i,
+      /vou\s+(começar|buscar|consultar|coletar|analisar|re-?execut)/i,
+      /estou\s+(preparando|buscando|realizando|consultando|re-?execut|aplicando)/i,
+      /por\s+favor,?\s+aguarde/i,
+      /processo\s+multi-?etapas/i,
+      /múltiplas\s+chamadas\s+à\s+API/i,
+      /assim\s+que\s+(eu\s+)?tiver\s+(os\s+)?dados/i,
+      /esse\s+processo\s+envolve/i,
+      /isso\s+pode\s+levar\s+alguns\s+momentos/i,
+      /seguinte\s+sequência/i,
+      /peço\s+(mais\s+)?um\s+pouco\s+de\s+(sua\s+)?paciência/i,
+    ];
+    const isFillerMessage = (content: string) => fillerCleanPatterns.some(p => p.test(content));
+
     const aiMessages: any[] = [{ role: "system", content: systemPrompt }];
     for (let i = 0; i < history.length; i++) {
       const m = history[i];
+      // Skip filler assistant messages from history to prevent model mimicry (v5.35.0)
+      if (m.role === "assistant" && m.content && isFillerMessage(m.content)) {
+        console.log(`[ads-chat][${VERSION}] Stripped filler message from history (${m.content.substring(0, 50)}...)`);
+        continue;
+      }
       if (i === history.length - 1 && m.role === "user" && m.attachments) {
         aiMessages.push(buildUserMessage(m.content || "", m.attachments));
       } else {
@@ -5071,6 +5091,19 @@ Deno.serve(async (req) => {
     const endpoint = await getAIEndpoint(modelToUse, { supabaseUrl, supabaseServiceKey });
     console.log(`[ads-chat][${VERSION}] Using AI provider: ${endpoint.provider} (${endpoint.model})`);
 
+    // Detect if user message likely needs tools (data request) — v5.35.0
+    const lastUserMsg = (message || "").toLowerCase();
+    const dataRequestPatterns = [
+      /targeting|segmentação|público|audiência|interesse/i,
+      /campanha|performance|resultado|métrica|roas|roi|gasto|spend/i,
+      /anúncio|criativo|conjunto|adset/i,
+      /diagnóstico|análise|estratégi/i,
+      /tente\s+novamente|de\s+novo|repita|refaça/i,
+    ];
+    const isDataRequest = dataRequestPatterns.some(p => p.test(lastUserMsg));
+    const toolChoiceValue = isDataRequest ? "required" : "auto";
+    console.log(`[ads-chat][${VERSION}] tool_choice=${toolChoiceValue} (isDataRequest=${isDataRequest})`);
+
     // Step 1: Non-streaming call WITH tools
     const abortController = new AbortController();
     const timeoutId = setTimeout(() => abortController.abort(), AI_TIMEOUT_MS);
@@ -5080,7 +5113,7 @@ Deno.serve(async (req) => {
       const initialResponse = await fetch(endpoint.url, {
         method: "POST",
         headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: endpoint.model, messages: aiMessages, tools: TOOLS, stream: false }),
+        body: JSON.stringify({ model: endpoint.model, messages: aiMessages, tools: TOOLS, tool_choice: toolChoiceValue, stream: false }),
         signal: abortController.signal,
       });
       clearTimeout(timeoutId);
