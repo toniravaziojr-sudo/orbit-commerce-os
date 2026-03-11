@@ -165,8 +165,8 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
         ticketYesterday: ticketPrev,
         newCustomersToday: newCustomersCurrent || 0,
         newCustomersYesterday: newCustomersPrev || 0,
-        visitorsToday,
-        visitorsYesterday,
+        visitorsToday: uniqueVisitorsCurrent,
+        visitorsYesterday: uniqueVisitorsPrev,
       };
     },
     enabled: !!currentTenant?.id,
