@@ -1115,8 +1115,10 @@ async function confirmUserCommand(supabase: any, tenantId: string, campaignKey: 
 
 // --- Frente 1: getCampaignPerformance — ALWAYS fetches live from Meta API for accurate names ---
 async function getCampaignPerformance(supabase: any, tenantId: string, adAccountId?: string, statusFilter?: string, days?: number, datePreset?: string) {
-  // Determine time range: date_preset takes priority over days
-  const useLifetime = datePreset === "maximum";
+  // Determine time range: DEFAULT is lifetime (maximum) unless days or specific preset is given
+  // If no parameters at all → use lifetime for complete data
+  const effectivePreset = datePreset || (days ? undefined : "maximum");
+  const useLifetime = effectivePreset === "maximum";
   let sinceDate: string | undefined;
   let periodLabel: string;
   
@@ -1124,13 +1126,15 @@ async function getCampaignPerformance(supabase: any, tenantId: string, adAccount
     // Meta API supports date_preset=maximum for lifetime data — no sinceDate needed
     sinceDate = undefined;
     periodLabel = "lifetime (máximo — desde o início da conta)";
+    console.log(`[ads-chat][${VERSION}] getCampaignPerformance using LIFETIME (date_preset=maximum)`);
   } else {
     const presetDays: Record<string, number> = {
       last_7d: 7, last_14d: 14, last_30d: 30, last_90d: 90, last_year: 365,
     };
-    const dayWindow = datePreset ? (presetDays[datePreset] || 30) : (days || 30);
+    const dayWindow = effectivePreset ? (presetDays[effectivePreset] || 30) : (days || 30);
     sinceDate = new Date(Date.now() - dayWindow * 86400000).toISOString().split("T")[0];
     periodLabel = `últimos ${dayWindow} dias`;
+    console.log(`[ads-chat][${VERSION}] getCampaignPerformance using ${dayWindow} days window`);
   }
 
   // Step 1: Try to fetch campaign list DIRECTLY from Meta API (source of truth for names)

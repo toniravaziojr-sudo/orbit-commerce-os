@@ -346,7 +346,8 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   onInput={handleTextareaInput}
-                  placeholder="Pergunte sobre suas campanhas..."
+                  onPaste={handlePaste}
+                  placeholder="Pergunte sobre suas campanhas... (Ctrl+V para colar prints)"
                   className={cn(
                     "flex-1 min-h-[36px] max-h-[200px] resize-none bg-transparent text-[13px] leading-relaxed",
                     "placeholder:text-muted-foreground/50 focus:outline-none py-2 px-1"
