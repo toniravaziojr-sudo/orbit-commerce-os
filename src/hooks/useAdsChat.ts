@@ -137,6 +137,7 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
 
     setIsStreaming(true);
     setStreamingContent("");
+    setProgressLabel("");
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
