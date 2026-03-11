@@ -134,7 +134,7 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
   // WRITE - META (direct execution requests — pause, activate, budget changes)
   if (/paus[ae]r?\s+(campanha|conjunto|anúncio)|ativ[ae]r?\s+(campanha|conjunto|anúncio)|reativ[ae]r?|alter[ae]r?\s+(orçamento|budget|segmentação)|duplic[ae]r?\s+campanha|aument[ae]r?\s+(orçamento|budget)|diminu[iae]r?\s+(orçamento|budget)/i.test(msg) &&
       !/google|tiktok/i.test(msg)) {
-    return { category: "write_meta", mode: "conversational", isFactual: false, entities, confidence: 0.9 };
+    return { category: "write_meta", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.9 };
   }
 
   // "criar campanha" without strategic context = write_meta (single campaign creation)
