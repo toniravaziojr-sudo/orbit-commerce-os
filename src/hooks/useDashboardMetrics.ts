@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { startOfDay, subDays, endOfDay, format } from 'date-fns';
+import { startOfDay, subDays, endOfDay } from 'date-fns';
 
 interface DashboardMetrics {
   salesToday: number;
@@ -73,22 +73,14 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
       const prevStart = startOfDay(prevPeriodStart).toISOString();
       const prevEnd = endOfDay(prevPeriodEnd).toISOString();
 
-      // Date strings for GA4 reports query
-      const periodStartDate = startDate || now;
-      const periodEndDate = endDate || now;
-      const gaStartDate = format(periodStartDate, 'yyyy-MM-dd');
-      const gaEndDate = format(periodEndDate, 'yyyy-MM-dd');
-      const gaPrevStartDate = format(prevPeriodStart, 'yyyy-MM-dd');
-      const gaPrevEndDate = format(prevPeriodEnd, 'yyyy-MM-dd');
-
       // Fetch all data in parallel
       const [
         currentOrdersRes,
         prevOrdersRes,
         newCustomersCurrentRes,
         newCustomersPrevRes,
-        gaCurrentRes,
-        gaPrevRes,
+        visitorsCurrentRes,
+        visitorsPrevRes,
       ] = await Promise.all([
         // Current period orders
         supabase
@@ -120,22 +112,20 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
           .is('deleted_at', null)
           .gte('created_at', prevStart)
           .lte('created_at', prevEnd),
-        // GA4 reports current period
+        // Current period unique visitors (internal tracking)
         supabase
-          .from('google_analytics_reports')
-          .select('metrics')
+          .from('storefront_visits' as any)
+          .select('visitor_id')
           .eq('tenant_id', currentTenant.id)
-          .eq('report_type', 'daily')
-          .gte('date', gaStartDate)
-          .lte('date', gaEndDate),
-        // GA4 reports previous period
+          .gte('created_at', periodStart)
+          .lte('created_at', periodEnd),
+        // Previous period unique visitors (internal tracking)
         supabase
-          .from('google_analytics_reports')
-          .select('metrics')
+          .from('storefront_visits' as any)
+          .select('visitor_id')
           .eq('tenant_id', currentTenant.id)
-          .eq('report_type', 'daily')
-          .gte('date', gaPrevStartDate)
-          .lte('date', gaPrevEndDate),
+          .gte('created_at', prevStart)
+          .lte('created_at', prevEnd),
       ]);
 
       const currentOrders = currentOrdersRes.data;
@@ -143,15 +133,9 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
       const newCustomersCurrent = newCustomersCurrentRes.count;
       const newCustomersPrev = newCustomersPrevRes.count;
 
-      // Calculate visitor metrics from GA4 reports
-      const visitorsToday = (gaCurrentRes.data || []).reduce((sum, r) => {
-        const m = r.metrics as Record<string, number> | null;
-        return sum + (m?.totalUsers || m?.sessions || 0);
-      }, 0);
-      const visitorsYesterday = (gaPrevRes.data || []).reduce((sum, r) => {
-        const m = r.metrics as Record<string, number> | null;
-        return sum + (m?.totalUsers || m?.sessions || 0);
-      }, 0);
+      // Count unique visitors by deduplicating visitor_id
+      const uniqueVisitorsCurrent = new Set((visitorsCurrentRes.data || []).map((v: any) => v.visitor_id)).size;
+      const uniqueVisitorsPrev = new Set((visitorsPrevRes.data || []).map((v: any) => v.visitor_id)).size;
 
       // Calculate metrics - consider approved orders for sales
       const paidCurrentOrders = currentOrders?.filter(o => o.payment_status === 'approved') || [];
@@ -181,8 +165,8 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
         ticketYesterday: ticketPrev,
         newCustomersToday: newCustomersCurrent || 0,
         newCustomersYesterday: newCustomersPrev || 0,
-        visitorsToday,
-        visitorsYesterday,
+        visitorsToday: uniqueVisitorsCurrent,
+        visitorsYesterday: uniqueVisitorsPrev,
       };
     },
     enabled: !!currentTenant?.id,
@@ -235,7 +219,7 @@ export function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
-  }).format(value / 100); // Assuming value is in cents
+  }).format(value); // Values are stored in reais (not cents)
 }
 
 // Helper to format relative time

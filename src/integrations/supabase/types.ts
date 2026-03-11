@@ -15187,6 +15187,47 @@ export type Database = {
           },
         ]
       }
+      storefront_visits: {
+        Row: {
+          created_at: string
+          id: string
+          page_path: string
+          page_type: string | null
+          referrer: string | null
+          tenant_id: string
+          user_agent: string | null
+          visitor_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          page_path?: string
+          page_type?: string | null
+          referrer?: string | null
+          tenant_id: string
+          user_agent?: string | null
+          visitor_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          page_path?: string
+          page_type?: string | null
+          referrer?: string | null
+          tenant_id?: string
+          user_agent?: string | null
+          visitor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "storefront_visits_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       supplier_lead_interactions: {
         Row: {
           created_at: string
