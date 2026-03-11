@@ -248,7 +248,7 @@ await aiChatCompletionJSON(model, body, { preferProvider: 'lovable' }); // Apena
 | Reviews | `generate-reviews` |
 | Mídia & Criativos | `media-generate-copys`, `media-generate-suggestions`, `media-video-generate`, `creative-video-generate` |
 | Ads Autopilot | `ads-autopilot-analyze`, `ads-autopilot-creative-generate`, `ads-autopilot-guardian`, `ads-autopilot-experiments-run`, `ads-autopilot-generate-prompt`, `ads-autopilot-weekly-insights`, `ads-autopilot-strategist` |
-| Chat & Assistentes | `ads-chat`, `command-assistant-chat` |
+| Chat & Assistentes | `ads-chat-v2` (primary), `ads-chat` (v1 fallback), `command-assistant-chat` |
 | Landing Pages | `ai-landing-page-generate` |
 | Análise | `ai-analyze-page`, `ai-memory-manager` |
 | Mercado Livre | `meli-bulk-operations`, `meli-generate-description` |
@@ -1241,6 +1241,166 @@ Comandos explícitos do usuário via chat têm **prioridade máxima** sobre conf
 2. **Reportar resultados reais**: NUNCA dizer "estou executando" sem ter chamado a ferramenta. Reportar resultado ✅/❌ de cada ação
 3. **Respeitar mapeamento produto→funil**: Seguir as instruções estratégicas do lojista sobre qual produto usar em cada estágio
 4. **Distribuir budget por funnel_splits**: Respeitar os percentuais configurados (cold/remarketing/tests/leads)
+
+---
+
+## AI Ads Chat v2 (`ads-chat-v2`) — v6.1.0
+
+### Visão Geral
+Edge Function dual-mode que substitui `ads-chat` como endpoint primário. Implementa orquestração factual determinística + modo estratégico com convergência para o pipeline de aprovação existente.
+
+**Relação com v1**: `ads-chat-v2` é o endpoint primário. `ads-chat` (v1) é mantido como fallback automático para erros 500+ ou falhas de rede.
+
+### Arquitetura Dual-Mode
+
+| Modo | Quando | Como funciona | IA recebe |
+|------|--------|---------------|-----------|
+| **Factual** | performance, targeting, campaigns_list, store_context | Backend orquestra busca de dados (cache + live Meta API), entrega JSON pré-resolvido | Dados reais via system prompt, SEM ferramentas |
+| **Estratégico** | montar estratégia, propor campanhas, planejar testes, escalar vendas | IA coleta contexto via read tools + submete proposta via `submit_strategic_proposal` | 8 read tools + `submit_strategic_proposal` |
+| **Conversacional** | write_meta, write_google, write_tiktok, creative, drive, general | IA recebe subconjunto de tools relevantes e executa diretamente | 5-15 tools por categoria |
+
+### Classificador de Intenção (`classifyIntent`)
+- **12 categorias**: performance, targeting, campaigns_list, store_context, autopilot, write_meta, write_google, write_tiktok, creative, drive, strategic, general
+- **3 modos**: `factual` | `strategic` | `conversational`
+- **Determinístico**: Regex sem dependência de LLM
+- **Prioridade**: Strategic patterns são avaliados ANTES de write patterns para evitar classificação errada de "criar estratégia" como "criar campanha"
+
+### Orquestrador Factual (`orchestrateFactualQuery`)
+- **Performance**: Meta API live → consolidação campanhas+insights → JSON com summary/active/paused
+- **Targeting**: Cache adsets + live targeting via Meta API → formatting detalhado
+- **Campaigns List**: Reusa orchestratePerformance com formatação de listagem
+- **Store Context**: Busca parallel store_settings + products + categories
+- **Autopilot**: Passa para IA com tools (sem orquestração factual)
+
+### Ferramenta `submit_strategic_proposal`
+
+Schema estruturado obrigatório:
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `diagnosis` | string | ✅ | Diagnóstico situacional (mín. 300 palavras) |
+| `planned_actions` | array | ✅ | Lista de ações propostas |
+| `planned_actions[].action_type` | enum | ✅ | create_campaign, adjust_budget, pause_campaign, etc. |
+| `planned_actions[].campaign_name` | string | ✅ | Nome descritivo |
+| `planned_actions[].reasoning` | string | ✅ | Racional estratégico |
+| `planned_actions[].objective` | string | | OUTCOME_SALES, OUTCOME_LEADS, etc. |
+| `planned_actions[].funnel_stage` | enum | | tof, mof, bof, test |
+| `planned_actions[].daily_budget_brl` | number | | Orçamento diário em R$ |
+| `planned_actions[].adsets` | array | | Conjuntos de anúncios planejados |
+| `planned_actions[].adsets[].adset_name` | string | ✅* | Nome do conjunto |
+| `planned_actions[].adsets[].audience_type` | enum | ✅* | broad, interest, lookalike, custom, retargeting, abo_test |
+| `planned_actions[].adsets[].audience_description` | string | ✅* | Descrição do público |
+| `planned_actions[].adsets[].budget_brl` | number | | Orçamento diário do conjunto |
+| `planned_actions[].adsets[].ads_count` | number | | Qtd de anúncios (default: 1) |
+| `planned_actions[].product_name` | string | | Produto alvo |
+| `planned_actions[].creative_direction` | string | | Direção criativa |
+| `strategy_summary` | string | ✅ | Resumo executivo (1-2 parágrafos) |
+| `total_daily_budget_brl` | number | | Orçamento total proposto |
+| `risks` | string[] | | Riscos identificados |
+
+**Convergência**: Insere registro em `ads_autopilot_actions` com:
+- `action_type = "strategic_plan"`
+- `status = "pending_approval"`
+- `action_data.source = "ads_chat_v2_strategic"`
+- Converge para o MESMO pipeline visual (StrategicPlanContent) do Motor Estrategista
+
+### Tool Subsets por Categoria
+
+| Categoria | Qtd Tools | Tools principais |
+|-----------|-----------|-----------------|
+| performance | 5 | campaign_performance, campaign_details, trend, adset_perf, ad_perf |
+| targeting | 3 | meta_adsets, adset_targeting, audiences |
+| campaigns_list | 3 | campaign_performance, meta_adsets, meta_ads |
+| store_context | 3 | store_context, products, tracking_health |
+| autopilot | 6 | config, actions, insights, sessions, strategic_plan, experiments |
+| strategic | 8 | campaign_perf, store_context, products, product_images, insights, tracking, audiences, **submit_strategic_proposal** |
+| write_meta | 12 | campaign_perf, products, images, create_campaign, toggle_status, update_budget, duplicate, targeting, audiences, creative, persist_command, confirm_command |
+| write_google | 7 | google_campaigns, create_google, toggle, budget, adgroups, keywords, ads |
+| write_tiktok | 4 | tiktok_campaigns, create_tiktok, toggle, budget |
+| creative | 6 | products, images, creative_assets, generate_image, trigger_generation, drive |
+| drive | 2 | browse_drive, search_drive_files |
+| general | 4 | campaign_performance, store_context, products, autopilot_config |
+
+### Modo Conversacional — Regras de Execução Direta
+
+**Pode executar direto (sem aprovação):**
+- Pausar/reativar entidades (toggle_entity_status)
+- Alterar orçamento (update_budget) — com guardrail de strategy_mode
+- Duplicar campanha (duplicate_campaign)
+- Criar público personalizado/semelhante (create_custom_audience, create_lookalike_audience)
+- Gerar criativos (generate_creative_image, trigger_creative_generation)
+- Criar campanha unitária (create_meta_campaign) — criada PAUSADA
+- Buscar/navegar Drive
+
+**Deve passar por aprovação (via submit_strategic_proposal):**
+- Planos abrangentes com múltiplas campanhas
+- Reestruturação de funil
+- Estratégias novas completas
+- Testes A/B estruturados
+
+**Nota**: Campanhas unitárias criadas via `create_meta_campaign` são criadas em status `PAUSED`, exigindo ativação posterior (manual ou via pipeline).
+
+### Roteamento Frontend (`useAdsChat` v6.1.0)
+
+```
+Mensagem do usuário
+  ↓
+fetch(ads-chat-v2)
+  ├── 200 OK → stream SSE normalmente
+  ├── 500+ → fallback para ads-chat (v1)
+  └── Network error → fallback para ads-chat (v1)
+  ↓
+Após stream completo:
+  invalidate("ads-pending-actions")  ← reflete propostas estratégicas do chat
+  invalidate("ads-chat-messages")
+  invalidate("ads-chat-conversations")
+  triggerMemoryExtraction()
+```
+
+### Modelo de IA
+
+| Condição | Modelo |
+|----------|--------|
+| Imagem no attachment | `google/gemini-2.5-pro` |
+| Texto apenas | `google/gemini-3-flash-preview` |
+
+### Tool Call Rounds
+
+| Modo | Max Rounds |
+|------|-----------|
+| Estratégico | 8 |
+| Conversacional | 5 |
+
+### Mapeamento Tabela → `ads-chat-v2`
+
+| Tabela | Operação |
+|--------|----------|
+| `ads_chat_conversations` | R/W |
+| `ads_chat_messages` | R/W |
+| `ads_autopilot_actions` | R/W (strategic_plan insert) |
+| `ads_autopilot_sessions` | R/W |
+| `ads_autopilot_configs` | R |
+| `ads_autopilot_account_configs` | R |
+| `ads_autopilot_insights` | R |
+| `ads_autopilot_experiments` | R |
+| `ads_tracking_health` | R |
+| `meta_ad_campaigns` | R |
+| `meta_ad_adsets` | R/W (upsert targeting) |
+| `meta_ad_ads` | R |
+| `meta_ad_audiences` | R |
+| `store_settings` | R |
+| `products` | R |
+| `categories` | R |
+| `marketplace_connections` | R |
+| `tenants` | R |
+| `tenant_domains` | R |
+| `ads_creative_assets` | R |
+
+### Changelog — `ads-chat-v2`
+
+| Versão | Data | Mudança |
+|--------|------|---------|
+| v6.1.0 | 2026-03-11 | **Criação**: Dual-mode (factual/strategic/conversational). Classificador determinístico. Tool subsets. Orquestrador factual com Meta API live. `submit_strategic_proposal` convergindo para pipeline de aprovação. Frontend com fallback v2→v1. |
 
 ### v1.3.0 — `ads-autopilot-creative` — INSERT antes de gerar + `image_job_id` correto
 
