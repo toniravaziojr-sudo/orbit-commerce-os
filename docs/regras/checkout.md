@@ -388,6 +388,8 @@ Carrinho & Checkout → aba Checkout (no Builder)
 | `src/hooks/useCheckoutTestimonials.ts` | Este documento |
 | `supabase/functions/checkout-create-order/*` | Este documento + `edge-functions.md` |
 | `supabase/functions/pagarme-create-charge/*` | Este documento + `edge-functions.md` |
+| `supabase/functions/mercadopago-create-charge/*` | Este documento + `edge-functions.md` |
+| `supabase/functions/mercadopago-storefront-webhook/*` | Este documento + `edge-functions.md` |
 | `supabase/functions/get-order/*` | Este documento + `edge-functions.md` |
 
 ### Arquivos de Sincronização (CRÍTICOS)
