@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { cachePurge } from '@/lib/storefrontCachePurge';
 
 export interface CategoryProduct {
   id: string;
@@ -175,11 +176,16 @@ export function useCategoryProducts(categoryId: string, options: UseCategoryProd
 
       return newProductIds.length;
     },
-    onSuccess: (count) => {
+    onSuccess: async (count) => {
       queryClient.invalidateQueries({ queryKey: ['category-products', categoryId] });
       queryClient.invalidateQueries({ queryKey: ['available-products'] });
       if (count) {
         toast.success(`${count} produto(s) adicionado(s) à categoria`);
+      }
+      // Purge storefront cache for this category
+      if (currentTenant?.id && categoryId) {
+        const { data: cat } = await supabase.from('categories').select('slug').eq('id', categoryId).single();
+        if (cat?.slug) cachePurge.category(currentTenant.id, cat.slug);
       }
     },
     onError: (error: Error) => {
@@ -203,11 +209,15 @@ export function useCategoryProducts(categoryId: string, options: UseCategoryProd
 
       return productIds.length;
     },
-    onSuccess: (count) => {
+    onSuccess: async (count) => {
       queryClient.invalidateQueries({ queryKey: ['category-products', categoryId] });
       queryClient.invalidateQueries({ queryKey: ['available-products'] });
       if (count) {
         toast.success(`${count} produto(s) removido(s) da categoria`);
+      }
+      if (currentTenant?.id && categoryId) {
+        const { data: cat } = await supabase.from('categories').select('slug').eq('id', categoryId).single();
+        if (cat?.slug) cachePurge.category(currentTenant.id, cat.slug);
       }
     },
     onError: (error: Error) => {
@@ -232,8 +242,12 @@ export function useCategoryProducts(categoryId: string, options: UseCategoryProd
 
       await Promise.all(updates);
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['category-products', categoryId] });
+      if (currentTenant?.id && categoryId) {
+        const { data: cat } = await supabase.from('categories').select('slug').eq('id', categoryId).single();
+        if (cat?.slug) cachePurge.category(currentTenant.id, cat.slug);
+      }
     },
     onError: (error: Error) => {
       console.error('Error reordering products:', error);
