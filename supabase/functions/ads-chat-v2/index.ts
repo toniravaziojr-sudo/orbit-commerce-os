@@ -74,9 +74,19 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
   // ---- STRATEGIC / GENERATIVE (check BEFORE write patterns) ----
   // These are requests where the user wants the AI to PLAN, PROPOSE, or DESIGN
   // but NOT execute directly. The output should converge to the approval pipeline.
-  if (/mont[ae]r?\s+(estratégia|plano|funil|estrutura)|propon?h?[ae]r?\s+(campanha|estratégia|plano|estrutura|teste)|suger[ie]r?\s+(campanha|estratégia|público|criativo|estrutura|teste)|plan[oe]?j[ae]r?\s+(campanha|funil|teste)|desenh[ae]r?\s+(campanha|funil|estratégia)|cri[ae]r?\s+(estratégia|plano|funil|estrutura)|defin[ie]r?\s+(estratégia|plano|público|teste)|quero\s+(uma?\s+)?(estratégia|plano|campanha|teste|funil)|preciso\s+(de\s+)?(uma?\s+)?(estratégia|plano|campanha)|nova\s+(estratégia|campanha|estrutura)|novas?\s+campanha[s]?\s+(para|de|com)|escal[ae]r?\s+vend|aumentar\s+(vend|roas|resultado)|melhorar\s+(resultado|performance|desempenho)|otimizar\s+(campanha|resultado|funil)/i.test(msg) &&
-      !/list[ae]r?|mostrar?|quais\s+são|quanto|qual\s+(é|foi|era)/i.test(msg)) {
-    return { category: "strategic", mode: "strategic", isFactual: false, entities, confidence: 0.9 };
+  // v6.7.0: Removed broad negative lookahead for query verbs (listar/mostrar/quais são).
+  // Hybrid messages like "liste as campanhas e monte uma estratégia" now correctly route
+  // to strategic mode — the AI will use its factual tools to gather data first, then propose.
+  const strategicPatterns = /mont[ae]r?\s+(estratégia|plano|funil|estrutura)|propon?h?[ae]r?\s+(campanha|estratégia|plano|estrutura|teste)|suger[ie]r?\s+(campanha|estratégia|público|criativo|estrutura|teste)|plan[oe]?j[ae]r?\s+(campanha|funil|teste)|desenh[ae]r?\s+(campanha|funil|estratégia)|cri[ae]r?\s+(estratégia|plano|funil|estrutura)|defin[ie]r?\s+(estratégia|plano|público|teste)|quero\s+(uma?\s+)?(estratégia|plano|campanha|teste|funil)|preciso\s+(de\s+)?(uma?\s+)?(estratégia|plano|campanha)|nova\s+(estratégia|campanha|estrutura)|novas?\s+campanha[s]?\s+(para|de|com)|escal[ae]r?\s+vend|aumentar\s+(vend|roas|roi\b|resultado|conversões?|faturamento)|melhorar\s+(resultado|performance|desempenho|roas|roi\b|cpa\b|vendas?|conversões?|faturamento)|otimizar\s+(campanha|resultado|funil|roas|cpa\b|vendas?)/i;
+  const queryVerbs = /list[ae]r?|mostr[ae]r?|quais\s+são|quanto|qual\s+(é|foi|era)|analis[ae]r?|ver\b|consult[ae]r?|compar[ae]r?|relat[oó]rio/i;
+
+  if (strategicPatterns.test(msg)) {
+    // Detect hybrid: strategic intent + query verbs coexisting
+    const hasQueryVerbs = queryVerbs.test(msg);
+    if (hasQueryVerbs) {
+      console.log(`[ads-chat-v2] Hybrid detected: strategic patterns + query verbs. Routing strategic with factual pre-fetch.`);
+    }
+    return { category: "strategic", mode: "strategic", isFactual: false, isHybrid: hasQueryVerbs, entities, confidence: 0.9 };
   }
 
   // ---- Pattern matching (ordered by specificity) ----
