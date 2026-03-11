@@ -1,7 +1,7 @@
 # Memory: features/marketing/ads-chat-factual-orchestration-v6
 Updated: 2026-03-11
 
-O Ads Chat (v6.5.0) implementa uma arquitetura dual-mode com orquestração determinística para consultas factuais E modo estratégico/generativo com convergência para o pipeline de aprovação existente.
+O Ads Chat (v6.6.0) implementa uma arquitetura dual-mode com orquestração determinística para consultas factuais E modo estratégico/generativo com convergência para o pipeline de aprovação existente.
 
 ## Arquitetura Dual-Mode
 
@@ -33,11 +33,22 @@ O Ads Chat (v6.5.0) implementa uma arquitetura dual-mode com orquestração dete
 - **SEM fallback para v1**: Removido em v6.4.0 — erros retornam mensagem honesta ao usuário
 - **Invalidação**: Após stream, invalida `ads-pending-actions` para refletir propostas estratégicas criadas via chat
 
-## Classificação de Intenção (classifyIntent) — v6.5.0
+## Classificação de Intenção (classifyIntent) — v6.6.0
 - 12 categorias: performance, targeting, campaigns_list, store_context, autopilot, write_meta, write_google, write_tiktok, creative, drive, **strategic**, general
 - 3 modos: `factual` | `strategic` | `conversational`
 - Determinístico via regex, sem dependência de LLM
-- **Prioridade**: strategic patterns > bulk indicators > write patterns > factual patterns
+- **Prioridade**: strategic patterns > bulk indicators > write patterns > factual patterns > **composite signal** > general
+
+### Composite Signal Detection (v6.6.0 — NOVO)
+- **Problema resolvido**: Classificador dependia de frases literais, exigindo patches reativos a cada novo teste
+- **Solução**: Antes do fallback `general`, combina 4 categorias de sinais independentes:
+  - `sigEntities`: campanha/adset/conjunto de anúncio/conta de anúncio
+  - `sigVerbs`: analisar/listar/mostrar/ver/comparar/relatório/consultar/buscar/checar/conferir/verificar/resumir/exibir/avaliar
+  - `sigFilters`: top/mais/menos/melhor/pior/exceto/sem/maior/menor/ranking/ordenar/primeiro/último/acima/abaixo/N campanhas
+  - `sigMetrics`: vendas/conversões/ROAS/ROI/CPA/CPC/CTR/gasto/spend/resultado/faturamento/receita/impressões/cliques/alcance/custo
+- **Regra**: Quando **2+ categorias** de sinal estão presentes E **sem verbos de escrita** → rota `performance/factual` (confidence 0.82)
+- **Logging**: Loga quais sinais ativaram para debug (`Composite signal hit: entities=true verbs=true...`)
+- **Objetivo**: Capturar frases naturais sem precisar adicionar regex literal para cada variação
 
 ### Expansão de Patterns (v6.5.0)
 - **performance**: Adicionados padrões para análise natural:
@@ -48,14 +59,8 @@ O Ads Chat (v6.5.0) implementa uma arquitetura dual-mode com orquestração dete
   - `analise todas as campanhas` / `analisar campanhas`
   - `relatório` / `relatório de campanha`
   - `como estão/vão/andam minhas campanhas`
-- **campaigns_list** (v6.3.0): Expandido com 7 padrões para frases naturais:
-  - `consegue consultar/ver/acessar minhas campanhas`
-  - `você vê/consegue/tem acesso minhas campanhas`
-  - `ver/consultar/acessar/visualizar/checar/conferir minhas campanhas`
-  - `me mostra minhas campanhas`
-  - `quero ver minhas campanhas`
-  - `minhas campanhas ativas/pausadas/do meta/no facebook`
-- **Motivação**: Frases naturais como "liste as 10 campanhas com mais vendas" ou "analise todas as campanhas" caíam em `general`, onde o modelo alucinava dizendo não ter acesso às ferramentas
+- **campaigns_list** (v6.3.0): Expandido com 7 padrões para frases naturais
+- **Motivação**: Frases naturais caíam em `general`, onde o modelo alucinava
 
 ## Anti-Filler Defensivo (v6.3.0 — Camada Secundária)
 - **Onde**: No path de resposta direta (sem tool calls) do modo conversacional/estratégico
@@ -98,3 +103,5 @@ O Ads Chat (v6.5.0) implementa uma arquitetura dual-mode com orquestração dete
 - [ ] Classificador cobre frases naturais: "consegue consultar", "me mostra", "quero ver", "como estão" (v6.3.0)
 - [ ] Anti-filler v2 retenta com tool_choice=required quando IA alega limitação falsa (v6.3.0)
 - [ ] Anti-filler v2 NÃO ativa para category=general (proteção contra false positives)
+- [ ] Composite Signal Detection captura frases com 2+ sinais (entidade+verbo+filtro+métrica) como factual/performance (v6.6.0)
+- [ ] Composite Signal NÃO ativa quando há verbos de escrita (criar/pausar/ativar/alterar/duplicar)
