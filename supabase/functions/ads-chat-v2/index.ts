@@ -87,13 +87,19 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
   }
 
   // PERFORMANCE (metrics-focused)
-  if (/performance|desempenho|resultado[s]?|métrica[s]?|roas|roi\b|cpa\b|cpc\b|ctr\b|gasto|spend|conversão|conversões|conversao|receita|faturamento|vendas?\s+(d[aoe]s?\s+)?campanhas?|quanto\s+gastei|quanto\s+gast[ao]u|quanto\s+faturei|quanto\s+convert|melhor(es)?\s+campanha|pior(es)?\s+campanha|top\s+\d+|ranking|comparar?\s+campanha/i.test(msg) &&
+  if (/performance|desempenho|resultado[s]?|métrica[s]?|roas|roi\b|cpa\b|cpc\b|ctr\b|gasto|spend|conversão|conversões|conversao|receita|faturamento|vendas?\s+(d[aoe]s?\s+)?campanhas?|quanto\s+gastei|quanto\s+gast[ao]u|quanto\s+faturei|quanto\s+convert|melhor(es)?\s+campanha|pior(es)?\s+campanha|top\s+\d+|ranking|comparar?\s+campanha|como\s+(est[áa]o?|vão|andam?|foram?)\s+(as?\s+)?(minhas?\s+)?campanha/i.test(msg) &&
       !/cri[ae]r?|paus[ae]r?|ativ[ae]r?|alter[ae]r?/i.test(msg)) {
     return { category: "performance", mode: "factual", isFactual: true, entities, confidence: 0.9 };
   }
 
   // CAMPAIGNS LIST (enumerate entities)
-  if (/list[ae]r?\s+(as?\s+)?campanha|quais\s+(são\s+)?(as?\s+)?campanha|mostr[ae]r?\s+(as?\s+)?campanha|campanhas?\s+ativ[ao]s?|campanhas?\s+pausad[ao]s?|quantas?\s+campanha|list[ae]r?\s+(os?\s+)?conjunt|list[ae]r?\s+(os?\s+)?anúncio/i.test(msg) &&
+  if ((/list[ae]r?\s+(as?\s+)?campanha|quais\s+(são\s+)?(as?\s+)?campanha|mostr[ae]r?\s+(as?\s+)?campanha|campanhas?\s+ativ[ao]s?|campanhas?\s+pausad[ao]s?|quantas?\s+campanha|list[ae]r?\s+(os?\s+)?conjunt|list[ae]r?\s+(os?\s+)?anúncio/i.test(msg) ||
+      /consegu[ei]s?\s+(ver|consultar|acessar|listar|mostrar|buscar|puxar)\s+(as?\s+)?(minhas?\s+)?campanha/i.test(msg) ||
+      /voc[eê]\s+(v[eê]|consegu[ei]|tem\s+acesso|pode\s+ver)\s+(as?\s+)?(minhas?\s+)?campanha/i.test(msg) ||
+      /(ver|consultar|acessar|visualizar|checar|conferir)\s+(as?\s+)?(minhas?\s+)?campanha/i.test(msg) ||
+      /me\s+mostr[ae]?\s+(as?\s+)?(minhas?\s+)?campanha/i.test(msg) ||
+      /quero\s+ver\s+(as?\s+)?(minhas?\s+)?campanha/i.test(msg) ||
+      /(minhas?\s+)?campanha[s]?\s+(ativ|pausad|do\s+meta|no\s+meta|na\s+meta|do\s+facebook|no\s+facebook)/i.test(msg)) &&
       !/cri[ae]r?|paus[ae]r?|ativ[ae]r?/i.test(msg)) {
     return { category: "campaigns_list", mode: "factual", isFactual: true, entities, confidence: 0.85 };
   }
