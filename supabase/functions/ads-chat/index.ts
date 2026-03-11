@@ -1114,7 +1114,7 @@ async function confirmUserCommand(supabase: any, tenantId: string, campaignKey: 
 
 // --- Frente 1: getCampaignPerformance com limites corrigidos ---
 async function getCampaignPerformance(supabase: any, tenantId: string, adAccountId?: string, statusFilter?: string, days?: number) {
-  const dayWindow = Math.min(days || 14, 30);
+  const dayWindow = Math.min(days || 14, 365);
   const sinceDate = new Date(Date.now() - dayWindow * 86400000).toISOString().split("T")[0];
 
   // Fetch ALL campaigns (up to 200), ACTIVE first
@@ -1127,13 +1127,23 @@ async function getCampaignPerformance(supabase: any, tenantId: string, adAccount
   if (statusFilter && statusFilter !== "ALL") campQuery.eq("status", statusFilter);
   const { data: campaigns } = await campQuery.limit(200);
 
-  // Fetch insights for the window
+  // Fetch insights for the window — use DB first
   const insightQuery = supabase
     .from("meta_ad_insights")
     .select("meta_campaign_id, spend_cents, impressions, clicks, conversions, conversion_value_cents, roas, ctr, cpc_cents, cpm_cents, date_start")
     .eq("tenant_id", tenantId)
     .gte("date_start", sinceDate);
-  const { data: insights } = await insightQuery.limit(2000);
+  const { data: dbInsights } = await insightQuery.limit(5000);
+
+  // If DB has no insights, try to fetch directly from Meta API
+  let insights = dbInsights || [];
+  if (insights.length === 0) {
+    console.log(`[ads-chat][${VERSION}] No DB insights, fetching from Meta API...`);
+    const liveInsights = await fetchMetaInsightsLive(supabase, tenantId, adAccountId, sinceDate, "campaign");
+    if (liveInsights.length > 0) {
+      insights = liveInsights;
+    }
+  }
 
   const campMap: Record<string, any> = {};
   for (const c of (campaigns || [])) {
@@ -1146,7 +1156,7 @@ async function getCampaignPerformance(supabase: any, tenantId: string, adAccount
     };
   }
 
-  for (const i of (insights || [])) {
+  for (const i of insights) {
     const c = campMap[i.meta_campaign_id];
     if (!c) continue;
     c.spend += (i.spend_cents || 0) / 100;
@@ -1181,6 +1191,68 @@ async function getCampaignPerformance(supabase: any, tenantId: string, adAccount
     paused_campaigns_sample: pausedCamps.slice(0, 10).map(formatCamp),
     paused_total: pausedCamps.length,
   });
+}
+
+// --- Helper: Fetch insights directly from Meta Graph API ---
+async function fetchMetaInsightsLive(supabase: any, tenantId: string, adAccountId?: string, sinceDate?: string, level: string = "campaign") {
+  const { data: conn } = await supabase
+    .from("marketplace_connections")
+    .select("access_token, metadata")
+    .eq("tenant_id", tenantId)
+    .eq("marketplace", "meta")
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!conn?.access_token) return [];
+
+  const accounts = adAccountId ? [adAccountId] : (conn.metadata?.assets?.ad_accounts || []).map((a: any) => a.id || a);
+  if (accounts.length === 0) return [];
+
+  const today = new Date().toISOString().split("T")[0];
+  const since = sinceDate || new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
+  const allInsights: any[] = [];
+  const GRAPH_VERSION = "v21.0";
+
+  for (const accountId of accounts.slice(0, 3)) {
+    const cleanId = String(accountId).replace("act_", "");
+    try {
+      const url = `https://graph.facebook.com/${GRAPH_VERSION}/act_${cleanId}/insights?fields=campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,impressions,clicks,spend,reach,cpc,cpm,ctr,actions,action_values,cost_per_action_type,frequency&level=${level}&time_range={"since":"${since}","until":"${today}"}&limit=500&access_token=${conn.access_token}`;
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        console.error(`[ads-chat][${VERSION}] Meta API error:`, response.status);
+        continue;
+      }
+      const result = await response.json();
+      
+      for (const row of (result.data || [])) {
+        const conversions = (row.actions || []).find((a: any) => a.action_type === "purchase" || a.action_type === "offsite_conversion.fb_pixel_purchase")?.value || 0;
+        const convValue = (row.action_values || []).find((a: any) => a.action_type === "purchase" || a.action_type === "offsite_conversion.fb_pixel_purchase")?.value || 0;
+        
+        allInsights.push({
+          meta_campaign_id: row.campaign_id,
+          campaign_name: row.campaign_name,
+          adset_id: row.adset_id,
+          adset_name: row.adset_name,
+          ad_id: row.ad_id,
+          ad_name: row.ad_name,
+          spend_cents: Math.round(parseFloat(row.spend || "0") * 100),
+          impressions: parseInt(row.impressions || "0"),
+          clicks: parseInt(row.clicks || "0"),
+          conversions: parseInt(conversions),
+          conversion_value_cents: Math.round(parseFloat(convValue) * 100),
+          ctr: parseFloat(row.ctr || "0"),
+          cpc_cents: Math.round(parseFloat(row.cpc || "0") * 100),
+          reach: parseInt(row.reach || "0"),
+          date_start: row.date_start,
+        });
+      }
+    } catch (err) {
+      console.error(`[ads-chat][${VERSION}] fetchMetaInsightsLive error for ${cleanId}:`, err);
+    }
+  }
+  
+  return allInsights;
 }
 
 // --- Frente 3: get_campaign_details ---
