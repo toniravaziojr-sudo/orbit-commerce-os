@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Package, Sparkles, TrendingUp, History, Info, CreditCard, AlertTriangle, ExternalLink } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -6,32 +7,63 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { usePlatformOperator } from "@/hooks/usePlatformOperator";
+import { useAuth } from "@/hooks/useAuth";
 import { useCreditPackages, useCreditWallet, useCreditLedger, CreditPackage, formatPrice } from "@/hooks/useCredits";
 import { CreditBalance } from "@/components/ai-packages/CreditBalance";
 import { CreditPackageCard } from "@/components/ai-packages/CreditPackageCard";
 import { CreditLedgerTable } from "@/components/ai-packages/CreditLedgerTable";
 import { AIPricingTable } from "@/components/ai-packages/AIPricingTable";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export default function AIPackages() {
   const { isPlatformOperator } = usePlatformOperator();
+  const { currentTenant } = useAuth();
   const [activeTab, setActiveTab] = useState("credits");
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
 
   const { data: packages, isLoading: loadingPackages } = useCreditPackages();
   const { data: wallet, isLoading: loadingWallet } = useCreditWallet();
   const { data: ledger, isLoading: loadingLedger } = useCreditLedger(100);
 
+  // Handle return from Mercado Pago checkout
+  useEffect(() => {
+    const status = searchParams.get('status');
+    if (status === 'success') {
+      toast.success("Pagamento aprovado! Seus créditos serão adicionados em instantes.");
+    } else if (status === 'failure') {
+      toast.error("Pagamento não aprovado. Tente novamente.");
+    } else if (status === 'pending') {
+      toast.info("Pagamento pendente. Seus créditos serão liberados após confirmação.");
+    }
+  }, [searchParams]);
+
   const handlePurchase = async (pkg: CreditPackage) => {
     setPurchasingId(pkg.id);
     try {
-      // TODO: Integrate with payment gateway (Mercado Pago)
-      toast.info("Funcionalidade de pagamento em desenvolvimento", {
-        description: `Pacote: ${pkg.name} - ${formatPrice(pkg.price_cents)}`,
+      const { data, error } = await supabase.functions.invoke('credits-purchase-checkout', {
+        body: {
+          tenant_id: currentTenant?.id,
+          package_id: pkg.id,
+        },
       });
+
+      if (error) throw error;
+
+      if (!data?.success) {
+        throw new Error(data?.error || 'Erro ao criar checkout');
+      }
+
+      // Redirect to Mercado Pago checkout
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url;
+      } else {
+        throw new Error('URL de checkout não retornada');
+      }
     } catch (error) {
       console.error('Purchase error:', error);
-      toast.error("Erro ao processar compra");
+      toast.error(error instanceof Error ? error.message : "Erro ao processar compra");
     } finally {
       setPurchasingId(null);
     }

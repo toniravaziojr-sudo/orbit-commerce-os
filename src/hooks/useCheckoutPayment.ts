@@ -1,9 +1,10 @@
 // =============================================
-// USE CHECKOUT PAYMENT - Real payment processing with Pagar.me
+// USE CHECKOUT PAYMENT - Real payment processing
+// Supports Pagar.me and Mercado Pago gateways
 // Uses edge functions for secure server-side operations
 // =============================================
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { CartItem, ShippingOption } from '@/contexts/CartContext';
 import { AttributionData } from '@/hooks/useAttribution';
@@ -92,6 +93,34 @@ function savePendingOrder(tenantId: string, ref: { orderId: string; orderNumber:
 }
 
 export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
+  // Determine which payment gateway to use based on tenant config
+  const [activeGateway, setActiveGateway] = useState<'pagarme' | 'mercadopago'>('pagarme');
+  
+  // Check for active payment provider on mount
+  useEffect(() => {
+    const checkGateway = async () => {
+      try {
+        const { data } = await supabase
+          .from('payment_providers')
+          .select('provider, is_enabled')
+          .eq('tenant_id', tenantId)
+          .eq('is_enabled', true)
+          .order('updated_at', { ascending: false });
+        
+        if (data && data.length > 0) {
+          // Prefer mercado_pago if configured, otherwise pagarme
+          const mp = data.find((p: any) => p.provider === 'mercado_pago');
+          const pg = data.find((p: any) => p.provider === 'pagarme');
+          if (mp) setActiveGateway('mercadopago');
+          else if (pg) setActiveGateway('pagarme');
+        }
+      } catch (e) {
+        console.warn('[Checkout] Could not determine gateway, defaulting to pagarme');
+      }
+    };
+    checkGateway();
+  }, [tenantId]);
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentResult, setPaymentResult] = useState<PaymentResult | null>(null);
   // Track the last created order to avoid duplicates on payment retry
@@ -251,13 +280,12 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
         console.log('[Checkout] Step 1 OK - Order:', orderId, orderNumber);
       }
 
-      // 2. Process payment via Pagar.me edge function
-      console.log('[Checkout] Step 2: Processing payment');
-      const { data: paymentData, error: paymentError } = await supabase.functions.invoke('pagarme-create-charge', {
+      // 2. Process payment via active gateway (Pagar.me or Mercado Pago)
+      const gatewayFunction = activeGateway === 'mercadopago' ? 'mercadopago-create-charge' : 'pagarme-create-charge';
+      console.log(`[Checkout] Step 2: Processing payment via ${gatewayFunction}`);
+      const { data: paymentData, error: paymentError } = await supabase.functions.invoke(gatewayFunction, {
         body: {
           tenant_id: tenantId,
-          // Note: checkout_id removed - it has FK to checkouts table, not orders
-          // We use order_id for linking payment to order
           order_id: orderId,
           method,
           amount: Math.round(total * 100), // Convert to cents

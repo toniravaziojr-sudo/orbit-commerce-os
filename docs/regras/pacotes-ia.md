@@ -21,6 +21,7 @@ Sistema de créditos de IA para lojistas. Os créditos permitem acesso a funcion
 | `src/components/ai-packages/CreditPackageCard.tsx` | Card de pacote |
 | `src/components/ai-packages/CreditLedgerTable.tsx` | Histórico de transações |
 | `src/components/ai-packages/AIPricingTable.tsx` | Tabela de preços |
+| `supabase/functions/credits-purchase-checkout/` | Edge Function: checkout MP para compra de créditos |
 
 ---
 

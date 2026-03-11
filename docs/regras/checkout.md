@@ -172,7 +172,7 @@ const footerPropsToInherit = [
 
 | Hook | Arquivo | Função |
 |------|---------|--------|
-| `useCheckoutPayment` | `hooks/useCheckoutPayment.ts` | Processamento de pagamento |
+| `useCheckoutPayment` | `hooks/useCheckoutPayment.ts` | Processamento de pagamento (multi-gateway) |
 | `useCheckoutTestimonials` | `hooks/useCheckoutTestimonials.ts` | CRUD de testimonials |
 | `useActiveOfferRules` | `hooks/useOfferRules.ts` | Busca regras de Order Bump |
 
@@ -184,6 +184,15 @@ const footerPropsToInherit = [
 |----------|--------|
 | `checkout-create-order` | Criação atômica do pedido (items, customer, address) |
 | `pagarme-create-charge` | Processamento de pagamento via Pagar.me |
+| `mercadopago-create-charge` | Processamento de pagamento via Mercado Pago |
+| `mercadopago-storefront-webhook` | Webhook de status de pagamento do Mercado Pago (storefront) |
+
+### Seleção Dinâmica de Gateway
+
+O `useCheckoutPayment` consulta a tabela `payment_providers` do tenant na montagem e seleciona automaticamente o gateway ativo:
+- Se `mercado_pago` está habilitado → usa `mercadopago-create-charge`
+- Se `pagarme` está habilitado → usa `pagarme-create-charge`
+- Fallback: Pagar.me (comportamento legado)
 
 ---
 
@@ -379,6 +388,8 @@ Carrinho & Checkout → aba Checkout (no Builder)
 | `src/hooks/useCheckoutTestimonials.ts` | Este documento |
 | `supabase/functions/checkout-create-order/*` | Este documento + `edge-functions.md` |
 | `supabase/functions/pagarme-create-charge/*` | Este documento + `edge-functions.md` |
+| `supabase/functions/mercadopago-create-charge/*` | Este documento + `edge-functions.md` |
+| `supabase/functions/mercadopago-storefront-webhook/*` | Este documento + `edge-functions.md` |
 | `supabase/functions/get-order/*` | Este documento + `edge-functions.md` |
 
 ### Arquivos de Sincronização (CRÍTICOS)
