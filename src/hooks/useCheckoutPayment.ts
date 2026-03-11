@@ -280,13 +280,12 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
         console.log('[Checkout] Step 1 OK - Order:', orderId, orderNumber);
       }
 
-      // 2. Process payment via Pagar.me edge function
-      console.log('[Checkout] Step 2: Processing payment');
-      const { data: paymentData, error: paymentError } = await supabase.functions.invoke('pagarme-create-charge', {
+      // 2. Process payment via active gateway (Pagar.me or Mercado Pago)
+      const gatewayFunction = activeGateway === 'mercadopago' ? 'mercadopago-create-charge' : 'pagarme-create-charge';
+      console.log(`[Checkout] Step 2: Processing payment via ${gatewayFunction}`);
+      const { data: paymentData, error: paymentError } = await supabase.functions.invoke(gatewayFunction, {
         body: {
           tenant_id: tenantId,
-          // Note: checkout_id removed - it has FK to checkouts table, not orders
-          // We use order_id for linking payment to order
           order_id: orderId,
           method,
           amount: Math.round(total * 100), // Convert to cents
