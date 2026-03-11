@@ -20,6 +20,7 @@ const METHODS_META = {
 
 export function PaymentSettingsTab() {
   const { discounts, isLoading, saveDiscount, isSaving } = usePaymentMethodDiscounts();
+  const { providers, isLoading: loadingProviders } = usePaymentProviders();
   const [localDiscounts, setLocalDiscounts] = useState<PaymentMethodDiscount[]>([]);
 
   useEffect(() => {
