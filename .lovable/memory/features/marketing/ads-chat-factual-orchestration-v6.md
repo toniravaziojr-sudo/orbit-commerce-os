@@ -28,9 +28,9 @@ O Ads Chat (v6.3.0) implementa uma arquitetura dual-mode com orquestração dete
 - **Prompt conversacional**: Instrui a IA a NÃO executar direto quando detectar >2 campanhas, >3 adsets, ou múltiplos produtos — deve informar que ações em lote exigem proposta estruturada
 - **Objetivo**: Impedir que ações estruturais grandes passem pelo modo conversacional sem aprovação
 
-## Roteamento Frontend (useAdsChat v6.2.0)
-- **Primary**: ads-chat-v2 (todos os modos)
-- **Fallback**: ads-chat (v1) quando v2 retornar erro 500+ ou falha de rede
+## Roteamento Frontend (useAdsChat v6.4.0)
+- **Primary**: ads-chat-v2 (todos os modos) — ÚNICA edge function chamada
+- **SEM fallback para v1**: Removido em v6.4.0 — erros retornam mensagem honesta ao usuário
 - **Invalidação**: Após stream, invalida `ads-pending-actions` para refletir propostas estratégicas criadas via chat
 
 ## Classificação de Intenção (classifyIntent) — v6.3.0
