@@ -94,7 +94,7 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
   // TARGETING (highest priority for targeting queries)
   if (/targeting|segmentação|segmentacao|público[s]?\s+(personalizado|semelhante|custom|lookalike)|audiência|interesse[s]?|demografi|faixa\s+etári|gênero|localização|posicionamento/i.test(msg) &&
       !/cri[ae]r?\s+(público|audiência|lookalike)|atualiz/i.test(msg)) {
-    return { category: "targeting", mode: "factual", isFactual: true, entities, confidence: 0.95 };
+    return { category: "targeting", mode: "factual", isFactual: true, isHybrid: false, entities, confidence: 0.95 };
   }
 
   // PERFORMANCE (metrics-focused)
