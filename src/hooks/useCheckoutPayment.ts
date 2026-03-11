@@ -97,7 +97,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
   const [activeGateway, setActiveGateway] = useState<'pagarme' | 'mercadopago'>('pagarme');
   
   // Check for active payment provider on mount
-  useState(() => {
+  useEffect(() => {
     const checkGateway = async () => {
       try {
         const { data } = await supabase
@@ -119,7 +119,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
       }
     };
     checkGateway();
-  });
+  }, [tenantId]);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentResult, setPaymentResult] = useState<PaymentResult | null>(null);
