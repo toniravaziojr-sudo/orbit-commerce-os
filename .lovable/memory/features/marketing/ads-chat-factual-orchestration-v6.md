@@ -1,7 +1,7 @@
 # Memory: features/marketing/ads-chat-factual-orchestration-v6
 Updated: 2026-03-11
 
-O Ads Chat (v6.8.1) implementa uma arquitetura dual-mode com orquestração determinística para consultas factuais E modo estratégico/generativo com convergência para o pipeline de aprovação existente.
+O Ads Chat (v6.9.0) implementa uma arquitetura dual-mode com orquestração determinística para consultas factuais E modo estratégico/generativo com convergência para o pipeline de aprovação existente.
 
 ## Arquitetura Dual-Mode + Híbrido
 
