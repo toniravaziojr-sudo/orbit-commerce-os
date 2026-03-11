@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v6.2.0"; // Bulk action escalation: conversational bulk ops force strategic mode + pending_approval
+const VERSION = "v6.3.0"; // Expanded classifier + anti-filler defensive retry
 // ====================
 
 const AI_TIMEOUT_MS = 90000;
@@ -87,13 +87,19 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
   }
 
   // PERFORMANCE (metrics-focused)
-  if (/performance|desempenho|resultado[s]?|métrica[s]?|roas|roi\b|cpa\b|cpc\b|ctr\b|gasto|spend|conversão|conversões|conversao|receita|faturamento|vendas?\s+(d[aoe]s?\s+)?campanhas?|quanto\s+gastei|quanto\s+gast[ao]u|quanto\s+faturei|quanto\s+convert|melhor(es)?\s+campanha|pior(es)?\s+campanha|top\s+\d+|ranking|comparar?\s+campanha/i.test(msg) &&
+  if (/performance|desempenho|resultado[s]?|métrica[s]?|roas|roi\b|cpa\b|cpc\b|ctr\b|gasto|spend|conversão|conversões|conversao|receita|faturamento|vendas?\s+(d[aoe]s?\s+)?campanhas?|quanto\s+gastei|quanto\s+gast[ao]u|quanto\s+faturei|quanto\s+convert|melhor(es)?\s+campanha|pior(es)?\s+campanha|top\s+\d+|ranking|comparar?\s+campanha|como\s+(est[áa]o?|vão|andam?|foram?)\s+(as?\s+)?(minhas?\s+)?campanha/i.test(msg) &&
       !/cri[ae]r?|paus[ae]r?|ativ[ae]r?|alter[ae]r?/i.test(msg)) {
     return { category: "performance", mode: "factual", isFactual: true, entities, confidence: 0.9 };
   }
 
   // CAMPAIGNS LIST (enumerate entities)
-  if (/list[ae]r?\s+(as?\s+)?campanha|quais\s+(são\s+)?(as?\s+)?campanha|mostr[ae]r?\s+(as?\s+)?campanha|campanhas?\s+ativ[ao]s?|campanhas?\s+pausad[ao]s?|quantas?\s+campanha|list[ae]r?\s+(os?\s+)?conjunt|list[ae]r?\s+(os?\s+)?anúncio/i.test(msg) &&
+  if ((/list[ae]r?\s+(as?\s+)?campanha|quais\s+(são\s+)?(as?\s+)?campanha|mostr[ae]r?\s+(as?\s+)?campanha|campanhas?\s+ativ[ao]s?|campanhas?\s+pausad[ao]s?|quantas?\s+campanha|list[ae]r?\s+(os?\s+)?conjunt|list[ae]r?\s+(os?\s+)?anúncio/i.test(msg) ||
+      /consegu[ei]s?\s+(ver|consultar|acessar|listar|mostrar|buscar|puxar)\s+(as?\s+)?(minhas?\s+)?campanha/i.test(msg) ||
+      /voc[eê]\s+(v[eê]|consegu[ei]|tem\s+acesso|pode\s+ver)\s+(as?\s+)?(minhas?\s+)?campanha/i.test(msg) ||
+      /(ver|consultar|acessar|visualizar|checar|conferir)\s+(as?\s+)?(minhas?\s+)?campanha/i.test(msg) ||
+      /me\s+mostr[ae]?\s+(as?\s+)?(minhas?\s+)?campanha/i.test(msg) ||
+      /quero\s+ver\s+(as?\s+)?(minhas?\s+)?campanha/i.test(msg) ||
+      /(minhas?\s+)?campanha[s]?\s+(ativ|pausad|do\s+meta|no\s+meta|na\s+meta|do\s+facebook|no\s+facebook)/i.test(msg)) &&
       !/cri[ae]r?|paus[ae]r?|ativ[ae]r?/i.test(msg)) {
     return { category: "campaigns_list", mode: "factual", isFactual: true, entities, confidence: 0.85 };
   }
@@ -1484,7 +1490,101 @@ Deno.serve(async (req) => {
         }
 
         // No tool calls — direct text response
+        // ===== ANTI-FILLER DEFENSIVE RETRY (v6.3.0) =====
+        // If intent expected tools but AI responded with text only, retry once with tool_choice=required
         const directContent = firstChoice.message?.content;
+        const shouldRetry = directContent && intent.category !== "general" && (
+          // AI claims it can't access something the tools cover
+          /não\s+(consigo|posso|tenho)\s+(acesso|acessar|consultar|ver|buscar)/i.test(directContent) ||
+          /não\s+é\s+possível\s+(acessar|consultar|ver)/i.test(directContent) ||
+          /ferramenta[s]?\s+(não\s+)?(disponíve[il]s?|acessíve[il]s?)/i.test(directContent) ||
+          /infelizmente.{0,40}(não|sem)\s+(acesso|ferramenta|possibilidade)/i.test(directContent) ||
+          // Filler promises without action
+          /aguarde\s+(enquanto|enquanto\s+eu)/i.test(directContent) ||
+          /vou\s+(começar|criar|gerar|preparar|buscar|consultar|verificar)/i.test(directContent) ||
+          /estou\s+(preparando|criando|gerando|buscando|consultando)/i.test(directContent)
+        );
+
+        if (shouldRetry) {
+          console.log(`[ads-chat-v2][${VERSION}] Anti-filler: retrying with tool_choice=required (category=${intent.category})`);
+          await sendProgress("Reprocessando consulta");
+          try {
+            const retryResponse = await fetch(endpoint.url, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                model: endpoint.model,
+                messages: [
+                  ...aiMessages,
+                  { role: "assistant", content: directContent },
+                  { role: "user", content: "Você tem as ferramentas necessárias disponíveis. Use-as agora para atender minha solicitação. NÃO diga que não consegue — execute a ferramenta." },
+                ],
+                tools,
+                tool_choice: "required",
+                stream: false,
+              }),
+            });
+            if (retryResponse.ok) {
+              const retryResult = await retryResponse.json();
+              const retryToolCalls = retryResult.choices?.[0]?.message?.tool_calls;
+              if (retryToolCalls?.length > 0) {
+                // Execute tool calls from retry
+                let retryMessages = [
+                  ...aiMessages,
+                  { role: "assistant", content: "", tool_calls: retryToolCalls.map((tc: any) => ({ id: tc.id, type: "function", function: { name: tc.function.name, arguments: tc.function.arguments } })) },
+                ];
+                const retryToolPromises = retryToolCalls.map(async (tc: any) => {
+                  let args = {};
+                  try { args = JSON.parse(tc.function.arguments || "{}"); } catch { /* empty */ }
+                  await sendProgress(TOOL_PROGRESS_LABELS[tc.function.name] || "Processando");
+                  const result = await executeTool(supabase, tenant_id, tc.function.name, args, chatSessionId, chatStrategyRunId, channel);
+                  return { tc_id: tc.id, result };
+                });
+                const retryToolResults = await Promise.allSettled(retryToolPromises);
+                for (const res of retryToolResults) {
+                  if (res.status === "fulfilled") {
+                    retryMessages.push({ role: "tool", tool_call_id: res.value.tc_id, content: res.value.result });
+                  }
+                }
+                await sendProgress("Gerando resposta");
+                const finalRetryResp = await fetch(endpoint.url, {
+                  method: "POST",
+                  headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
+                  body: JSON.stringify({ model: endpoint.model, messages: retryMessages, stream: true }),
+                });
+                if (finalRetryResp.ok) {
+                  const reader = finalRetryResp.body!.getReader();
+                  const decoder = new TextDecoder();
+                  let fullContent = "";
+                  while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    await writer.write(value);
+                    const chunk = decoder.decode(value, { stream: true });
+                    for (const line of chunk.split("\n")) {
+                      if (!line.startsWith("data: ")) continue;
+                      const j = line.slice(6).trim();
+                      if (j === "[DONE]") continue;
+                      try { const p = JSON.parse(j); const d = p.choices?.[0]?.delta?.content; if (d) fullContent += d; } catch {}
+                    }
+                  }
+                  if (fullContent) {
+                    await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: fullContent });
+                    if ((history || []).length <= 1) {
+                      await supabase.from("ads_chat_conversations").update({ title: (message || "").substring(0, 60), updated_at: new Date().toISOString() }).eq("id", convId);
+                    }
+                  }
+                  await writer.close();
+                  return;
+                }
+              }
+            }
+          } catch (retryErr) {
+            console.error(`[ads-chat-v2][${VERSION}] Anti-filler retry failed:`, retryErr);
+          }
+          // Retry failed — fall through to send original content
+        }
+
         if (directContent) {
           await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: directContent });
           if ((history || []).length <= 1) {
