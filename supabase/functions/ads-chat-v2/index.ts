@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v6.3.0"; // Expanded classifier + anti-filler defensive retry
+const VERSION = "v6.5.0"; // Expanded performance classifier for natural analytics queries
 // ====================
 
 const AI_TIMEOUT_MS = 90000;
