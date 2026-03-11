@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.28.1"; // Add diagnostic logging for action_types
+const VERSION = "v5.29.0"; // Live adset targeting fetch from Meta API
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -202,14 +202,32 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_meta_adsets",
-      description: "Lista conjuntos de anúncios Meta (até 100) com status, orçamento, segmentação e pixel.",
+      description: "Lista conjuntos de anúncios Meta (até 100) com status, orçamento, segmentação e pixel. Use live=true para buscar da API Meta em tempo real com targeting completo.",
       parameters: {
         type: "object",
         properties: {
           ad_account_id: { type: "string", description: "ID da conta (opcional)" },
           status: { type: "string", enum: ["ACTIVE", "PAUSED", "DELETED"], description: "Filtrar por status" },
+          campaign_id: { type: "string", description: "Filtrar adsets por campaign_id da Meta (ex: 23456789)" },
+          live: { type: "boolean", description: "Se true, busca direto da API Meta com targeting completo (audiences, interesses, geo, demographics)" },
         },
         required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_adset_targeting",
+      description: "Busca detalhes completos de targeting/segmentação de um ou mais conjuntos de anúncios direto da Meta API. Retorna: públicos personalizados, lookalikes, interesses, idade, gênero, geo, posicionamentos.",
+      parameters: {
+        type: "object",
+        properties: {
+          adset_ids: { type: "array", items: { type: "string" }, description: "Lista de IDs de adsets Meta (ex: ['23456789']). Máximo 10." },
+          ad_account_id: { type: "string", description: "ID da conta de anúncios (opcional, auto-detecta)" },
+        },
+        required: ["adset_ids"],
         additionalProperties: false,
       },
     },
@@ -878,7 +896,9 @@ async function executeTool(
       case "get_creative_assets":
         return await getCreativeAssets(supabase, tenantId, args.status);
       case "get_meta_adsets":
-        return await getMetaAdsets(supabase, tenantId, args.ad_account_id, args.status);
+        return await getMetaAdsets(supabase, tenantId, args.ad_account_id, args.status, args.campaign_id, args.live);
+      case "get_adset_targeting":
+        return await getAdsetTargeting(supabase, tenantId, args.adset_ids, args.ad_account_id);
       case "get_meta_ads":
         return await getMetaAds(supabase, tenantId, args.ad_account_id);
       case "get_audiences":
@@ -2655,12 +2675,18 @@ async function getCreativeAssets(supabase: any, tenantId: string, status?: strin
   });
 }
 
-async function getMetaAdsets(supabase: any, tenantId: string, adAccountId?: string, status?: string) {
+async function getMetaAdsets(supabase: any, tenantId: string, adAccountId?: string, status?: string, campaignId?: string, live?: boolean) {
+  // If live=true, fetch directly from Meta API with full targeting
+  if (live) {
+    return await fetchMetaAdsetsLive(supabase, tenantId, adAccountId, status, campaignId);
+  }
+
   const query = supabase.from("meta_ad_adsets")
-    .select("id, meta_adset_id, name, status, daily_budget_cents, lifetime_budget_cents, targeting, pixel_id, ad_account_id, optimization_goal, bid_strategy, created_at")
+    .select("id, meta_adset_id, name, status, daily_budget_cents, lifetime_budget_cents, targeting, pixel_id, ad_account_id, optimization_goal, bid_strategy, meta_campaign_id, created_at")
     .eq("tenant_id", tenantId).order("status", { ascending: true }).limit(100);
   if (adAccountId) query.eq("ad_account_id", adAccountId);
   if (status) query.eq("status", status);
+  if (campaignId) query.eq("meta_campaign_id", campaignId);
   const { data, error } = await query;
   if (error) return JSON.stringify({ error: error.message });
 
@@ -2671,11 +2697,228 @@ async function getMetaAdsets(supabase: any, tenantId: string, adAccountId?: stri
     total: data?.length || 0, active: active.length, paused: paused.length,
     adsets: (data || []).map((a: any) => ({
       name: a.name, status: a.status, meta_adset_id: a.meta_adset_id,
+      campaign_id: a.meta_campaign_id,
       daily_budget: a.daily_budget_cents ? `R$ ${(a.daily_budget_cents / 100).toFixed(2)}` : null,
       has_pixel: !!a.pixel_id, optimization_goal: a.optimization_goal,
       targeting_summary: a.targeting ? JSON.stringify(a.targeting).substring(0, 200) : null,
     })),
   });
+}
+
+// --- Live fetch adsets from Meta Graph API with FULL targeting ---
+async function fetchMetaAdsetsLive(supabase: any, tenantId: string, adAccountId?: string, statusFilter?: string, campaignId?: string) {
+  const { data: conn } = await supabase
+    .from("marketplace_connections")
+    .select("access_token, metadata")
+    .eq("tenant_id", tenantId)
+    .eq("marketplace", "meta")
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!conn?.access_token) return JSON.stringify({ error: "Meta não conectada" });
+
+  const accounts = adAccountId ? [adAccountId] : (conn.metadata?.assets?.ad_accounts || []).map((a: any) => a.id || a);
+  if (accounts.length === 0) return JSON.stringify({ error: "Nenhuma conta de anúncios" });
+
+  const GRAPH_VERSION = "v21.0";
+  const allAdsets: any[] = [];
+
+  for (const accountId of accounts.slice(0, 3)) {
+    const cleanId = String(accountId).replace("act_", "");
+    try {
+      const fields = "id,name,status,effective_status,daily_budget,lifetime_budget,optimization_goal,bid_strategy,targeting,campaign_id,promoted_object";
+      const filtering = statusFilter && statusFilter !== "ALL"
+        ? `&filtering=[{"field":"effective_status","operator":"IN","value":["${statusFilter}"]}]`
+        : "";
+      const campaignFilter = campaignId
+        ? `&filtering=[{"field":"campaign.id","operator":"EQUAL","value":"${campaignId}"}]`
+        : "";
+      
+      let url = `https://graph.facebook.com/${GRAPH_VERSION}/act_${cleanId}/adsets?fields=${fields}&limit=200${statusFilter ? filtering : campaignFilter}&access_token=${conn.access_token}`;
+      
+      let pageCount = 0;
+      while (url && pageCount < 5) {
+        const response = await fetch(url);
+        if (!response.ok) break;
+        const result = await response.json();
+        if (result.error) {
+          console.error(`[ads-chat][${VERSION}] Meta adsets API error:`, result.error.message);
+          return JSON.stringify({ error: result.error.message });
+        }
+
+        for (const adset of (result.data || [])) {
+          // Filter by campaign_id if specified and not used in filtering param
+          if (campaignId && statusFilter && adset.campaign_id !== campaignId) continue;
+          
+          const targeting = adset.targeting || {};
+          allAdsets.push({
+            meta_adset_id: adset.id,
+            name: adset.name,
+            status: adset.effective_status || adset.status,
+            campaign_id: adset.campaign_id,
+            daily_budget: adset.daily_budget ? `R$ ${(parseFloat(adset.daily_budget) / 100).toFixed(2)}` : null,
+            lifetime_budget: adset.lifetime_budget ? `R$ ${(parseFloat(adset.lifetime_budget) / 100).toFixed(2)}` : null,
+            optimization_goal: adset.optimization_goal,
+            bid_strategy: adset.bid_strategy,
+            targeting: formatTargetingDetails(targeting),
+          });
+        }
+
+        url = result.paging?.next || null;
+        pageCount++;
+      }
+    } catch (e) {
+      console.error(`[ads-chat][${VERSION}] Error fetching adsets for ${accountId}:`, e);
+    }
+  }
+
+  return JSON.stringify({
+    total: allAdsets.length,
+    active: allAdsets.filter(a => a.status === "ACTIVE").length,
+    paused: allAdsets.filter(a => a.status === "PAUSED").length,
+    adsets: allAdsets,
+  });
+}
+
+// --- Fetch detailed targeting for specific adset IDs ---
+async function getAdsetTargeting(supabase: any, tenantId: string, adsetIds: string[], adAccountId?: string) {
+  if (!adsetIds || adsetIds.length === 0) return JSON.stringify({ error: "adset_ids obrigatório" });
+  if (adsetIds.length > 10) return JSON.stringify({ error: "Máximo 10 adsets por vez" });
+
+  const { data: conn } = await supabase
+    .from("marketplace_connections")
+    .select("access_token, metadata")
+    .eq("tenant_id", tenantId)
+    .eq("marketplace", "meta")
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!conn?.access_token) return JSON.stringify({ error: "Meta não conectada" });
+
+  const GRAPH_VERSION = "v21.0";
+  const results: any[] = [];
+
+  for (const adsetId of adsetIds) {
+    try {
+      const fields = "id,name,status,effective_status,targeting,campaign_id,optimization_goal,promoted_object,daily_budget,lifetime_budget";
+      const url = `https://graph.facebook.com/${GRAPH_VERSION}/${adsetId}?fields=${fields}&access_token=${conn.access_token}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        results.push({ adset_id: adsetId, error: `HTTP ${response.status}` });
+        continue;
+      }
+      const adset = await response.json();
+      if (adset.error) {
+        results.push({ adset_id: adsetId, error: adset.error.message });
+        continue;
+      }
+
+      results.push({
+        adset_id: adset.id,
+        name: adset.name,
+        status: adset.effective_status || adset.status,
+        campaign_id: adset.campaign_id,
+        optimization_goal: adset.optimization_goal,
+        promoted_object: adset.promoted_object,
+        targeting: formatTargetingDetails(adset.targeting || {}),
+        targeting_raw: adset.targeting, // raw for full inspection
+      });
+    } catch (e) {
+      results.push({ adset_id: adsetId, error: String(e) });
+    }
+  }
+
+  return JSON.stringify({ adsets: results });
+}
+
+// --- Format targeting into human-readable structure ---
+function formatTargetingDetails(targeting: any) {
+  if (!targeting) return null;
+  
+  const result: any = {};
+
+  // Custom Audiences
+  if (targeting.custom_audiences?.length) {
+    result.custom_audiences = targeting.custom_audiences.map((a: any) => ({
+      id: a.id, name: a.name,
+    }));
+  }
+
+  // Excluded Custom Audiences
+  if (targeting.excluded_custom_audiences?.length) {
+    result.excluded_audiences = targeting.excluded_custom_audiences.map((a: any) => ({
+      id: a.id, name: a.name,
+    }));
+  }
+
+  // Geo targeting
+  if (targeting.geo_locations) {
+    const geo = targeting.geo_locations;
+    result.geo = {};
+    if (geo.countries?.length) result.geo.countries = geo.countries;
+    if (geo.regions?.length) result.geo.regions = geo.regions.map((r: any) => r.name || r.key);
+    if (geo.cities?.length) result.geo.cities = geo.cities.map((c: any) => `${c.name} (${c.radius || 0}km)`);
+    if (geo.zips?.length) result.geo.zips = geo.zips.map((z: any) => z.key);
+    if (geo.location_types?.length) result.geo.location_types = geo.location_types;
+  }
+
+  // Demographics
+  if (targeting.age_min || targeting.age_max) {
+    result.age = `${targeting.age_min || 18}-${targeting.age_max || 65}+`;
+  }
+  if (targeting.genders?.length) {
+    result.gender = targeting.genders.map((g: number) => g === 1 ? "Masculino" : g === 2 ? "Feminino" : "Todos");
+  }
+
+  // Interests / Behaviors / Demographics detailed
+  if (targeting.flexible_spec?.length) {
+    const interests: string[] = [];
+    const behaviors: string[] = [];
+    const demographics: string[] = [];
+    for (const spec of targeting.flexible_spec) {
+      if (spec.interests) interests.push(...spec.interests.map((i: any) => i.name));
+      if (spec.behaviors) behaviors.push(...spec.behaviors.map((b: any) => b.name));
+      if (spec.life_events) demographics.push(...spec.life_events.map((l: any) => l.name));
+      if (spec.education_statuses) demographics.push(...spec.education_statuses.map((e: any) => `Educação: ${e.name || e}`));
+      if (spec.relationship_statuses) demographics.push(...spec.relationship_statuses.map((r: any) => `Relacionamento: ${r.name || r}`));
+      if (spec.work_employers) demographics.push(...spec.work_employers.map((w: any) => `Empregador: ${w.name}`));
+      if (spec.work_positions) demographics.push(...spec.work_positions.map((w: any) => `Cargo: ${w.name}`));
+    }
+    if (interests.length) result.interests = interests;
+    if (behaviors.length) result.behaviors = behaviors;
+    if (demographics.length) result.demographics = demographics;
+  }
+
+  // Exclusions
+  if (targeting.exclusions) {
+    const excl: string[] = [];
+    if (targeting.exclusions.interests) excl.push(...targeting.exclusions.interests.map((i: any) => i.name));
+    if (targeting.exclusions.behaviors) excl.push(...targeting.exclusions.behaviors.map((b: any) => b.name));
+    if (excl.length) result.exclusions = excl;
+  }
+
+  // Placements
+  if (targeting.publisher_platforms?.length) {
+    result.placements = targeting.publisher_platforms;
+  }
+  if (targeting.facebook_positions?.length) {
+    result.facebook_positions = targeting.facebook_positions;
+  }
+  if (targeting.instagram_positions?.length) {
+    result.instagram_positions = targeting.instagram_positions;
+  }
+
+  // Advantage+ / broad targeting
+  if (targeting.targeting_optimization) {
+    result.advantage_plus = targeting.targeting_optimization;
+  }
+
+  // Locales
+  if (targeting.locales?.length) {
+    result.locales = targeting.locales;
+  }
+
+  return Object.keys(result).length > 0 ? result : { note: "Targeting aberto (Advantage+/sem restrições)" };
 }
 
 async function getMetaAds(supabase: any, tenantId: string, adAccountId?: string) {
@@ -4093,7 +4336,8 @@ NUNCA exponha termos técnicos internos. Use SEMPRE a linguagem da interface.
 | get_creative_assets | ver criativos existentes |
 | get_tracking_health | verificar saúde do pixel |
 | get_experiments | ver testes A/B |
-| get_meta_adsets | ver conjuntos de anúncios |
+| get_meta_adsets | ver conjuntos de anúncios (use live=true para targeting completo) |
+| get_adset_targeting | buscar targeting detalhado de adsets específicos (audiences, interesses, geo) |
 | get_meta_ads | ver anúncios |
 | get_audiences | ver públicos |
 | get_products | ver catálogo |
@@ -4793,6 +5037,7 @@ Deno.serve(async (req) => {
           get_experiments: "Verificando testes",
           get_audiences: "Consultando públicos",
           get_meta_adsets: "Listando conjuntos",
+          get_adset_targeting: "Analisando targeting dos conjuntos",
           get_meta_ads: "Listando anúncios",
           create_meta_campaign: "Criando campanha Meta",
           create_google_campaign: "Criando campanha Google",
