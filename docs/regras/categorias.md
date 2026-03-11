@@ -373,18 +373,55 @@ Acessível em **Configurações do Tema > Páginas > Categoria**:
 
 ---
 
-## 14. Arquivos Relacionados
+## 14. Invalidação de Cache do Storefront
+
+> **Adicionado em 2026-03-11 (v1.1)**
+
+### 14.1 Regra
+
+Toda mutação de produtos em categorias (adição, remoção, reordenação) no admin **DEVE** disparar invalidação do cache do storefront via `cachePurge.category()`.
+
+### 14.2 Implementação
+
+O hook `useCategoryProducts.ts` chama `cachePurge.category(tenantId, categorySlug)` nos handlers `onSuccess` de:
+
+| Mutation | Quando dispara | Cache Purge |
+|----------|---------------|-------------|
+| `addProducts` | Após adicionar produtos à categoria | `cachePurge.category(tenantId, slug)` |
+| `removeProducts` | Após remover produtos da categoria | `cachePurge.category(tenantId, slug)` |
+| `reorderProducts` | Após reordenar produtos | `cachePurge.category(tenantId, slug)` |
+
+### 14.3 Fluxo
+
+```
+Admin salva → onSuccess → busca slug da categoria → cachePurge.category()
+  → Edge Function storefront-cache-purge → Cloudflare CDN purge
+  → storefront_prerendered_pages marcadas como 'stale'
+```
+
+### 14.4 Observações
+
+- **Fire-and-forget**: erros no purge não bloqueiam o admin
+- **Sem limite de produtos por categoria**: o `pageSize` default do admin é 50 (paginado), mas não há hard limit
+- A loja pública busca todos os produtos da categoria sem paginação (via `usePublicCategory`)
+- O cache de prerender pode levar até 2-15 min para propagar se o CDN purge falhar
+
+---
+
+## 15. Arquivos Relacionados
 
 - `src/pages/Categories.tsx`
 - `src/components/categories/*`
 - `src/hooks/useProducts.ts` (useCategories)
 - `src/hooks/useCategoryProducts.ts`
 - `src/lib/slugPolicy.ts`
+- `src/lib/storefrontCachePurge.ts`
 - `supabase/functions/import-store-categories/`
+- `supabase/functions/storefront-cache-purge/`
 
 ---
 
-## 15. Diferença: Categorias vs Menus
+## 16. Diferença: Categorias vs Menus
 
 | Aspecto | Categorias | Menus |
 |---------|------------|-------|
@@ -396,7 +433,7 @@ Acessível em **Configurações do Tema > Páginas > Categoria**:
 
 ---
 
-## 16. Pendências
+## 17. Pendências
 
 - [ ] Exportação de categorias (CSV)
 - [ ] Imagem de capa além do banner
