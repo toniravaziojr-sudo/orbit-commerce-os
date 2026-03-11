@@ -1,21 +1,24 @@
 # Memory: features/marketing/ads-chat-ad-performance-v5-20-0
 Updated: 2026-03-11
 
-## Correção: Métricas de Performance por Anúncio (v5.20.0)
+## Correção: Métricas de Performance por Anúncio (v5.20.0 → v5.21.0)
 
-### Problema Identificado
-A função `getAdPerformance` no `ads-chat` retornava apenas metadados dos anúncios (nome, status, criativo) **sem nenhuma métrica de performance** (spend, clicks, conversions, ROAS). A IA informava incorretamente que não havia dados de desempenho, atribuindo o problema ao pixel.
+### Problema v5.20.0
+A função `getAdPerformance` retornava apenas metadados sem métricas de performance. A IA atribuía incorretamente a falta de dados ao pixel.
 
-### Causa Raiz
-1. A tabela `meta_ad_insights` armazenava insights apenas no nível de **campanha**, não de anúncio individual
-2. `getAdPerformance` não consultava a Meta Graph API para métricas ad-level
-3. `getCampaignPerformance` estava limitada a 30 dias máximo (insuficiente para análises de 12 meses)
+### Problema v5.21.0 (Regressão de Visibilidade)
+A resposta de `getCampaignPerformance` retornava campanhas pausadas truncadas (`paused_campaigns_sample: slice(0, 10)`), fazendo a IA ignorar dados históricos de campanhas pausadas. O system prompt instruía "PRIORIZAR CAMPANHAS ATIVAS", reforçando o viés.
 
-### Correções Aplicadas
-1. **`fetchMetaInsightsLive()`**: Nova função helper que consulta a Meta Graph API diretamente (`/insights?level=ad|campaign`) quando o banco local não tem dados, retornando spend, clicks, conversions, revenue, CTR
-2. **`getAdPerformance`**: Agora inclui `performance_30d` com métricas reais (spend, impressions, clicks, conversions, revenue, ROAS, CPA, CTR) para cada anúncio
-3. **`getCampaignPerformance`**: Limite de dias aumentado de 30 para **365**, com fallback para API live quando DB não tem insights
-4. **Tool descriptions**: Atualizadas para refletir capacidades reais
+### Correções v5.21.0
+1. **`getCampaignPerformance` (Meta)**: Retorna `paused_campaigns` (lista completa) em vez de `paused_campaigns_sample` (slice 10)
+2. **`getGoogleCampaigns`**: Mesma correção — `paused_campaigns` sem truncamento
+3. **System Prompt**: Regra alterada de "PRIORIZAR CAMPANHAS ATIVAS" para "ANALISAR TODAS AS CAMPANHAS (ATIVAS E PAUSADAS)" — instrui a IA a incluir dados históricos de pausadas
+4. **Tool description**: Atualizada para explicitar que retorna ativas + pausadas
+
+### Correções v5.20.0 (mantidas)
+1. **`fetchMetaInsightsLive()`**: Consulta Meta Graph API diretamente quando DB não tem dados
+2. **`getAdPerformance`**: Inclui `performance_30d` com métricas reais por anúncio
+3. **`getCampaignPerformance`**: Suporta até 365 dias de histórico
 
 ### Arquivos Modificados
-- `supabase/functions/ads-chat/index.ts` — v5.20.0
+- `supabase/functions/ads-chat/index.ts` — v5.21.0

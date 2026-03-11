@@ -22,7 +22,7 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_campaign_performance",
-      description: "Busca performance real das campanhas Meta (até 200 campanhas, ACTIVE primeiro). OBRIGATÓRIO antes de qualquer diagnóstico. Suporta até 365 dias de histórico.",
+      description: "Busca performance real de TODAS as campanhas Meta (ativas + pausadas, até 200). OBRIGATÓRIO antes de qualquer diagnóstico. Inclui dados históricos de campanhas pausadas. Suporta até 365 dias.",
       parameters: {
         type: "object",
         properties: {
@@ -1188,8 +1188,7 @@ async function getCampaignPerformance(supabase: any, tenantId: string, adAccount
       total_spend: `R$ ${allCamps.reduce((s: number, c: any) => s + (typeof c.spend === 'number' ? c.spend : 0), 0).toFixed(2)}`,
     },
     active_campaigns: activeCamps.map(formatCamp),
-    paused_campaigns_sample: pausedCamps.slice(0, 10).map(formatCamp),
-    paused_total: pausedCamps.length,
+    paused_campaigns: pausedCamps.map(formatCamp),
   });
 }
 
@@ -2763,7 +2762,7 @@ async function getGoogleCampaigns(supabase: any, tenantId: string, adAccountId?:
       total_spend: `R$ ${allCamps.reduce((s: number, c: any) => s + (typeof c.spend === 'number' ? c.spend : 0), 0).toFixed(2)}`,
     },
     active_campaigns: activeCamps.map(formatCamp),
-    paused_campaigns_sample: pausedCamps.slice(0, 10).map(formatCamp),
+    paused_campaigns: pausedCamps.map(formatCamp),
   });
 }
 
@@ -3838,9 +3837,12 @@ Quando o usuário pedir "estratégia", "diagnóstico", "análise", "plano" ou pr
 
 **REGRA ANTI-CONTRADIÇÃO**: Quando você lê as configurações e identifica o modo de estratégia, suas propostas DEVEM respeitar esse modo. Se o lojista pede algo que viola o modo configurado, avise e peça confirmação.
 
-## REGRA: PRIORIZAR CAMPANHAS ATIVAS
-- Sempre liste campanhas ATIVAS primeiro, com destaque
+## REGRA: ANALISAR TODAS AS CAMPANHAS (ATIVAS E PAUSADAS)
+- Sempre analise TODAS as campanhas da conta, incluindo ativas E pausadas
+- Liste campanhas ATIVAS primeiro, com destaque, mas INCLUA as pausadas com seus dados históricos
 - Separe claramente: "**Campanhas Ativas (N)**" vs "**Campanhas Pausadas (N)**"
+- Campanhas pausadas possuem dados históricos valiosos (spend, ROAS, conversões) — NUNCA ignore esses dados
+- Nunca diga que "não há dados" se existem campanhas pausadas com histórico
 - Nunca diga que "todas as campanhas estão pausadas" sem antes verificar com get_campaign_performance
 
 ## REGRA CRÍTICA DE COMUNICAÇÃO — LINGUAGEM AMIGÁVEL AO LOJISTA
