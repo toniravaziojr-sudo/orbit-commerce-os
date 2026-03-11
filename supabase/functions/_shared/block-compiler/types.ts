@@ -78,6 +78,7 @@ export interface CompilerContext {
     name: string;
     slug: string;
     sku?: string;
+    meta_retailer_id?: string | null;
     price: number;
     compare_at_price?: number;
     description?: string;
