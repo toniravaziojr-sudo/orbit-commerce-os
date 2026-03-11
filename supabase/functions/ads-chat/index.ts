@@ -1370,10 +1370,13 @@ async function fetchMetaInsightsLive(supabase: any, tenantId: string, adAccountI
         const result = await response.json();
         
         for (const row of (result.data || [])) {
-          // Look for purchase conversions in ALL known Meta action_type formats
-          const purchaseTypes = [
-            "purchase",
+          // Priority-based deduplication for purchase conversions
+          // Meta reports the SAME purchase under multiple action_types simultaneously.
+          // omni_purchase is Meta's deduplicated total — use it first if available.
+          // NEVER sum across types — that causes double/triple counting.
+          const purchasePriority = [
             "omni_purchase",
+            "purchase",
             "offsite_conversion.fb_pixel_purchase",
             "offsite_conversion.custom.purchase",
             "onsite_conversion.purchase",
@@ -1381,26 +1384,22 @@ async function fetchMetaInsightsLive(supabase: any, tenantId: string, adAccountI
             "onsite_web_app_purchase",
             "web_in_store_purchase",
           ];
-          // Sum ALL matching action types (some accounts report across multiple types)
           let conversions = 0;
           let convValue = 0;
-          for (const a of (row.actions || [])) {
-            if (purchaseTypes.includes(a.action_type)) {
-              conversions += parseInt(a.value || "0");
+          // Use FIRST match in priority order (not sum)
+          for (const pType of purchasePriority) {
+            const actionMatch = (row.actions || []).find((a: any) => a.action_type === pType);
+            if (actionMatch) {
+              conversions = parseInt(actionMatch.value || "0");
+              break;
             }
           }
-          for (const a of (row.action_values || [])) {
-            if (purchaseTypes.includes(a.action_type)) {
-              convValue += parseFloat(a.value || "0");
+          for (const pType of purchasePriority) {
+            const valueMatch = (row.action_values || []).find((a: any) => a.action_type === pType);
+            if (valueMatch) {
+              convValue = parseFloat(valueMatch.value || "0");
+              break;
             }
-          }
-          // Also check for "results" field (campaign objective-based results)
-          if (conversions === 0 && row.actions) {
-            // Fallback: look for the campaign objective action type
-            const objectiveAction = (row.actions || []).find((a: any) => 
-              a.action_type === "offsite_conversion" || a.action_type === "complete_registration" || a.action_type === "lead"
-            );
-            // Don't use fallback for non-purchase objectives
           }
           
           allInsights.push({
