@@ -203,7 +203,9 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
             subtotal,
             shipping_total: effectiveShippingTotal,
             discount_total: discountAmount,
+            payment_method_discount: pmDiscountAmount,
             total,
+            installments: installments || 1,
             discount: discount ? {
               discount_id: discount.discount_id,
               discount_code: discount.discount_code,
