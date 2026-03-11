@@ -1211,11 +1211,29 @@ function buildFullPage(opts: {
         }
       },{capture:true,signal:sfSignal}); // CAPTURE PHASE + AbortController for cleanup
 
-      // CEP masks
-      var cepEl=document.querySelector("[data-sf-shipping-cep]");
-      if(cepEl)cepEl.addEventListener("input",function(){var v=this.value.replace(/\D/g,"");if(v.length>5)v=v.slice(0,5)+"-"+v.slice(5,8);else v=v.slice(0,8);this.value=v;});
-      var cartCepEl=document.querySelector("[data-sf-cart-shipping-cep]");
-      if(cartCepEl)cartCepEl.addEventListener("input",function(){var v=this.value.replace(/\D/g,"");if(v.length>5)v=v.slice(0,5)+"-"+v.slice(5,8);else v=v.slice(0,8);this.value=v;});
+      // CEP masks (Edge product shipping + cart drawer shipping)
+      function sfFormatCepValue(raw){
+        var digits=(raw||"").replace(/\D/g,"").slice(0,8);
+        return digits.length>5?digits.slice(0,5)+"-"+digits.slice(5):digits;
+      }
+
+      function sfHandleCepInput(target){
+        if(!target)return;
+        var formatted=sfFormatCepValue(target.value);
+        if(target.value!==formatted) target.value=formatted;
+      }
+
+      document.addEventListener("input",function(e){
+        var target=e.target;
+        if(!target||!target.matches) return;
+        if(!target.matches("[data-sf-shipping-cep], [data-sf-cart-shipping-cep]")) return;
+        sfHandleCepInput(target);
+      },{capture:true,signal:sfSignal});
+
+      // Ensure existing inputs are normalized on initial paint (supports prerender/cache)
+      document.querySelectorAll("[data-sf-shipping-cep], [data-sf-cart-shipping-cep]").forEach(function(el){
+        sfHandleCepInput(el);
+      });
 
       // Search overlay close on click outside
       document.querySelector("[data-sf-search-overlay]")?.addEventListener("click",function(e){
