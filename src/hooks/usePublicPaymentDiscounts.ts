@@ -16,21 +16,28 @@ export interface PublicPaymentDiscount {
   description: string | null;
 }
 
-export function usePublicPaymentDiscounts(tenantId: string | undefined) {
+export function usePublicPaymentDiscounts(tenantId: string | undefined, provider?: string) {
   return useQuery({
-    queryKey: ['public-payment-discounts', tenantId],
+    queryKey: ['public-payment-discounts', tenantId, provider],
     queryFn: async () => {
       if (!tenantId) return [];
-      const { data, error } = await supabase
+      
+      let query = supabase
         .from('payment_method_discounts')
         .select('payment_method, discount_type, discount_value, is_enabled, installments_max, installments_min_value_cents, description')
         .eq('tenant_id', tenantId)
         .eq('is_enabled', true);
+      
+      if (provider) {
+        query = query.eq('provider', provider) as typeof query;
+      }
+      
+      const { data, error } = await query;
       if (error) throw error;
       return (data || []) as PublicPaymentDiscount[];
     },
     enabled: !!tenantId,
-    staleTime: 5 * 60 * 1000, // 5 min cache
+    staleTime: 5 * 60 * 1000,
   });
 }
 
