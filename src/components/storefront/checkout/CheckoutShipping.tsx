@@ -153,6 +153,8 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
           <div className="flex-1">
             <Input
               type="text"
+              inputMode="numeric"
+              autoComplete="off"
               placeholder="00000-000"
               value={tempCep}
               onChange={(e) => {
