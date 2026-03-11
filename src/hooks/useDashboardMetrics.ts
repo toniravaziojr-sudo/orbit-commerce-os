@@ -235,7 +235,7 @@ export function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
-  }).format(value / 100); // Assuming value is in cents
+  }).format(value); // Values are stored in reais (not cents)
 }
 
 // Helper to format relative time
