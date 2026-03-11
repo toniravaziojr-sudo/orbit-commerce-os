@@ -719,7 +719,7 @@ Interface de chat dedicada para interação direta com a IA de tráfego, **separ
 
 > **Realtime habilitado** em ambas as tabelas para atualização em tempo real.
 
-##### Edge Function: `ads-chat` (v5.28.0)
+##### Edge Function: `ads-chat` (v5.29.0)
 
 | Campo | Valor |
 |---|---|
@@ -750,6 +750,27 @@ A IA atua como "consultor sênior de tráfego pago" com acesso a:
 | **Paginação de Insights** | `fetchMetaInsightsLive` pagina até 15 páginas com delay de 2s entre páginas e retry automático para HTTP 429. |
 | **Nomes Exatos** | A IA é proibida de inventar, abreviar ou modificar nomes de campanhas. Deve usar strings exatas retornadas pela API. |
 | **Análise de Imagens** | O chat suporta Ctrl+V para colar screenshots do Gerenciador de Anúncios. Imagens são enviadas como attachments multimodais para validação cruzada dos dados. |
+| **Targeting Live (v5.29.0)** | `get_meta_adsets` aceita `live=true` para buscar conjuntos direto da Meta API com targeting completo (audiences, interesses, geo, demographics). Nova ferramenta `get_adset_targeting` busca detalhes de targeting por adset ID. |
+
+##### Ferramentas de Targeting (v5.29.0)
+
+| Ferramenta | Descrição | Parâmetros |
+|---|---|---|
+| `get_meta_adsets` (live) | Lista adsets da Meta API em tempo real com targeting completo | `ad_account_id?`, `status?`, `campaign_id?`, `live: true` |
+| `get_adset_targeting` | Busca targeting detalhado de adsets específicos | `adset_ids` (array, max 10), `ad_account_id?` |
+
+**Dados retornados pelo targeting:**
+- `custom_audiences` — públicos personalizados (nome + ID)
+- `excluded_audiences` — públicos excluídos
+- `geo` — países, regiões, cidades com raio
+- `age` — faixa etária (ex: "25-55+")
+- `gender` — Masculino/Feminino/Todos
+- `interests` — interesses (ex: "Cabelo", "Beleza")
+- `behaviors` — comportamentos
+- `demographics` — dados demográficos detalhados
+- `exclusions` — interesses/comportamentos excluídos
+- `placements` — plataformas (facebook, instagram, audience_network)
+- `advantage_plus` — indicação de targeting aberto/Advantage+
 
 ##### Regras de Matching de Produto (v1.14.0 / v5.13.0 — ATUALIZADO)
 
