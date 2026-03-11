@@ -149,9 +149,12 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
       const allItemsFreeShipping = items.length > 0 && items.every(item => (item as any).free_shipping === true);
       const hasFreeShipping = allItemsFreeShipping || discount?.free_shipping;
       const effectiveShippingTotal = hasFreeShipping ? 0 : shippingTotal;
-      const total = Math.max(0, subtotal - discountAmount + effectiveShippingTotal);
       
-      console.log('[Checkout] Totals:', { subtotal, shippingTotal: effectiveShippingTotal, discountAmount, total });
+      // Payment method discount (real, from tenant config)
+      const pmDiscountAmount = paymentMethodDiscount?.amount || 0;
+      const total = Math.max(0, subtotal - discountAmount - pmDiscountAmount + effectiveShippingTotal);
+      
+      console.log('[Checkout] Totals:', { subtotal, shippingTotal: effectiveShippingTotal, discountAmount, pmDiscountAmount, total });
 
       // 1. Create order OR reuse existing pending order (avoids duplicates on retry)
       let orderId: string;
