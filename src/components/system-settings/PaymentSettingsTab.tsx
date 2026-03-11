@@ -48,8 +48,23 @@ export function PaymentSettingsTab() {
     );
   }
 
+  const hasActiveGateway = providers.some(p => p.is_enabled);
+
   return (
     <div className="space-y-6">
+      {!loadingProviders && !hasActiveGateway && (
+        <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Nenhum gateway de pagamento ativo.</strong> Para que descontos e parcelamentos funcionem no checkout, 
+            você precisa configurar e ativar pelo menos um operador de pagamento (Pagar.me, Mercado Pago, etc.) em{' '}
+            <Link to="/integrations" className="underline font-medium hover:text-destructive">
+              Integrações
+            </Link>.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Alert className="border-primary/30 bg-primary/5">
         <Info className="h-4 w-4 text-primary" />
         <AlertDescription>
