@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { startOfDay, subDays, endOfDay } from 'date-fns';
 
-interface DashboardMetrics {
+export interface DashboardMetrics {
   salesToday: number;
   salesYesterday: number;
   ordersToday: number;
@@ -18,6 +18,16 @@ interface DashboardMetrics {
   newCustomersYesterday: number;
   visitorsToday: number;
   visitorsYesterday: number;
+  // Funnel metrics
+  cartsToday: number;
+  cartsYesterday: number;
+  checkoutsStartedToday: number;
+  checkoutsStartedYesterday: number;
+  // Abandoned checkout metrics
+  abandonedCheckoutsToday: number;
+  abandonedCheckoutsYesterday: number;
+  recoveredCheckoutsToday: number;
+  errorCheckoutsToday: number;
 }
 
 interface RecentOrder {
@@ -30,143 +40,122 @@ interface RecentOrder {
   created_at: string;
 }
 
+const EMPTY_METRICS: DashboardMetrics = {
+  salesToday: 0, salesYesterday: 0,
+  ordersToday: 0, ordersYesterday: 0,
+  paidOrdersToday: 0, paidOrdersYesterday: 0,
+  unpaidOrdersToday: 0, unpaidOrdersYesterday: 0,
+  ticketToday: 0, ticketYesterday: 0,
+  newCustomersToday: 0, newCustomersYesterday: 0,
+  visitorsToday: 0, visitorsYesterday: 0,
+  cartsToday: 0, cartsYesterday: 0,
+  checkoutsStartedToday: 0, checkoutsStartedYesterday: 0,
+  abandonedCheckoutsToday: 0, abandonedCheckoutsYesterday: 0,
+  recoveredCheckoutsToday: 0, errorCheckoutsToday: 0,
+};
+
+function computePeriods(startDate?: Date, endDate?: Date) {
+  const now = new Date();
+  const periodStart = startDate ? startOfDay(startDate).toISOString() : startOfDay(now).toISOString();
+  const periodEnd = endDate ? endOfDay(endDate).toISOString() : endOfDay(now).toISOString();
+
+  const periodDuration = endDate && startDate
+    ? endDate.getTime() - startDate.getTime()
+    : 24 * 60 * 60 * 1000;
+
+  const prevPeriodEnd = startDate ? new Date(startDate.getTime() - 1) : subDays(now, 1);
+  const prevPeriodStart = new Date(prevPeriodEnd.getTime() - periodDuration);
+
+  return {
+    periodStart,
+    periodEnd,
+    prevStart: startOfDay(prevPeriodStart).toISOString(),
+    prevEnd: endOfDay(prevPeriodEnd).toISOString(),
+  };
+}
+
 export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
   const { currentTenant } = useAuth();
-  
+
   return useQuery({
     queryKey: ['dashboard-metrics', currentTenant?.id, startDate?.toISOString(), endDate?.toISOString()],
     queryFn: async (): Promise<DashboardMetrics> => {
-      if (!currentTenant?.id) {
-        return {
-          salesToday: 0,
-          salesYesterday: 0,
-          ordersToday: 0,
-          ordersYesterday: 0,
-          paidOrdersToday: 0,
-          paidOrdersYesterday: 0,
-          unpaidOrdersToday: 0,
-          unpaidOrdersYesterday: 0,
-          ticketToday: 0,
-          ticketYesterday: 0,
-          newCustomersToday: 0,
-          newCustomersYesterday: 0,
-          visitorsToday: 0,
-          visitorsYesterday: 0,
-        };
-      }
+      if (!currentTenant?.id) return EMPTY_METRICS;
 
-      const now = new Date();
-      // Use provided dates or default to today
-      const periodStart = startDate ? startOfDay(startDate).toISOString() : startOfDay(now).toISOString();
-      const periodEnd = endDate ? endOfDay(endDate).toISOString() : endOfDay(now).toISOString();
-      
-      // Calculate previous period (same duration before the start date)
-      const periodDuration = endDate && startDate 
-        ? endDate.getTime() - startDate.getTime() 
-        : 24 * 60 * 60 * 1000; // 1 day default
-      
-      const prevPeriodEnd = startDate 
-        ? new Date(startDate.getTime() - 1) 
-        : subDays(now, 1);
-      const prevPeriodStart = new Date(prevPeriodEnd.getTime() - periodDuration);
-      
-      const prevStart = startOfDay(prevPeriodStart).toISOString();
-      const prevEnd = endOfDay(prevPeriodEnd).toISOString();
+      const { periodStart, periodEnd, prevStart, prevEnd } = computePeriods(startDate, endDate);
+      const tid = currentTenant.id;
 
-      // Fetch all data in parallel
       const [
-        currentOrdersRes,
-        prevOrdersRes,
-        newCustomersCurrentRes,
-        newCustomersPrevRes,
-        visitorsCurrentRes,
-        visitorsPrevRes,
+        currentOrdersRes, prevOrdersRes,
+        newCustomersCurrentRes, newCustomersPrevRes,
+        visitorsCurrentRes, visitorsPrevRes,
+        cartsCurrentRes, cartsPrevRes,
+        checkoutsCurrentRes, checkoutsPrevRes,
       ] = await Promise.all([
-        // Current period orders
-        supabase
-          .from('orders')
-          .select('id, total, payment_status')
-          .eq('tenant_id', currentTenant.id)
-          .gte('created_at', periodStart)
-          .lte('created_at', periodEnd),
-        // Previous period orders
-        supabase
-          .from('orders')
-          .select('id, total, payment_status')
-          .eq('tenant_id', currentTenant.id)
-          .gte('created_at', prevStart)
-          .lte('created_at', prevEnd),
-        // Current period new customers
-        supabase
-          .from('customers')
-          .select('id', { count: 'exact', head: true })
-          .eq('tenant_id', currentTenant.id)
-          .is('deleted_at', null)
-          .gte('created_at', periodStart)
-          .lte('created_at', periodEnd),
-        // Previous period new customers
-        supabase
-          .from('customers')
-          .select('id', { count: 'exact', head: true })
-          .eq('tenant_id', currentTenant.id)
-          .is('deleted_at', null)
-          .gte('created_at', prevStart)
-          .lte('created_at', prevEnd),
-        // Current period unique visitors (internal tracking)
-        supabase
-          .from('storefront_visits' as any)
-          .select('visitor_id')
-          .eq('tenant_id', currentTenant.id)
-          .gte('created_at', periodStart)
-          .lte('created_at', periodEnd),
-        // Previous period unique visitors (internal tracking)
-        supabase
-          .from('storefront_visits' as any)
-          .select('visitor_id')
-          .eq('tenant_id', currentTenant.id)
-          .gte('created_at', prevStart)
-          .lte('created_at', prevEnd),
+        supabase.from('orders').select('id, total, payment_status').eq('tenant_id', tid).gte('created_at', periodStart).lte('created_at', periodEnd),
+        supabase.from('orders').select('id, total, payment_status').eq('tenant_id', tid).gte('created_at', prevStart).lte('created_at', prevEnd),
+        supabase.from('customers').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).is('deleted_at', null).gte('created_at', periodStart).lte('created_at', periodEnd),
+        supabase.from('customers').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).is('deleted_at', null).gte('created_at', prevStart).lte('created_at', prevEnd),
+        supabase.from('storefront_visits' as any).select('visitor_id').eq('tenant_id', tid).gte('created_at', periodStart).lte('created_at', periodEnd),
+        supabase.from('storefront_visits' as any).select('visitor_id').eq('tenant_id', tid).gte('created_at', prevStart).lte('created_at', prevEnd),
+        // Carts created in period
+        supabase.from('carts').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).gte('created_at', periodStart).lte('created_at', periodEnd),
+        supabase.from('carts').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).gte('created_at', prevStart).lte('created_at', prevEnd),
+        // Checkout sessions in period
+        supabase.from('checkout_sessions').select('id, status, recovered_at, customer_email, customer_phone').eq('tenant_id', tid).gte('created_at', periodStart).lte('created_at', periodEnd),
+        supabase.from('checkout_sessions').select('id, status').eq('tenant_id', tid).gte('created_at', prevStart).lte('created_at', prevEnd),
       ]);
 
-      const currentOrders = currentOrdersRes.data;
-      const prevOrders = prevOrdersRes.data;
-      const newCustomersCurrent = newCustomersCurrentRes.count;
-      const newCustomersPrev = newCustomersPrevRes.count;
+      const currentOrders = currentOrdersRes.data || [];
+      const prevOrders = prevOrdersRes.data || [];
 
-      // Count unique visitors by deduplicating visitor_id
       const uniqueVisitorsCurrent = new Set((visitorsCurrentRes.data || []).map((v: any) => v.visitor_id)).size;
       const uniqueVisitorsPrev = new Set((visitorsPrevRes.data || []).map((v: any) => v.visitor_id)).size;
 
-      // Calculate metrics - consider approved orders for sales
-      const paidCurrentOrders = currentOrders?.filter(o => o.payment_status === 'approved') || [];
-      const paidPrevOrders = prevOrders?.filter(o => o.payment_status === 'approved') || [];
-      const unpaidCurrentOrders = currentOrders?.filter(o => o.payment_status !== 'approved') || [];
-      const unpaidPrevOrders = prevOrders?.filter(o => o.payment_status !== 'approved') || [];
+      const paidCurrent = currentOrders.filter(o => o.payment_status === 'approved');
+      const paidPrev = prevOrders.filter(o => o.payment_status === 'approved');
+      const unpaidCurrent = currentOrders.filter(o => o.payment_status !== 'approved');
+      const unpaidPrev = prevOrders.filter(o => o.payment_status !== 'approved');
 
-      const salesCurrent = paidCurrentOrders.reduce((sum, o) => sum + (o.total || 0), 0);
-      const salesPrev = paidPrevOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+      const salesCurrent = paidCurrent.reduce((s, o) => s + (o.total || 0), 0);
+      const salesPrev = paidPrev.reduce((s, o) => s + (o.total || 0), 0);
 
-      const ordersCurrent = currentOrders?.length || 0;
-      const ordersPrev = prevOrders?.length || 0;
-
-      const ticketCurrent = paidCurrentOrders.length > 0 ? salesCurrent / paidCurrentOrders.length : 0;
-      const ticketPrev = paidPrevOrders.length > 0 ? salesPrev / paidPrevOrders.length : 0;
+      // Checkout sessions metrics
+      const checkoutsCurrent = checkoutsCurrentRes.data || [];
+      const checkoutsPrev = checkoutsPrevRes.data || [];
+      const abandonedCurrent = checkoutsCurrent.filter(c => c.status === 'abandoned');
+      const abandonedPrev = checkoutsPrev.filter(c => c.status === 'abandoned');
+      const recoveredCurrent = checkoutsCurrent.filter(c => c.recovered_at != null);
+      // Error checkouts: abandoned with contact captured but potentially invalid (no email AND no phone)
+      const errorCurrent = abandonedCurrent.filter(c => {
+        const hasEmail = c.customer_email && c.customer_email.includes('@');
+        const hasPhone = c.customer_phone && c.customer_phone.length >= 8;
+        return !hasEmail && !hasPhone;
+      });
 
       return {
         salesToday: salesCurrent,
         salesYesterday: salesPrev,
-        ordersToday: ordersCurrent,
-        ordersYesterday: ordersPrev,
-        paidOrdersToday: paidCurrentOrders.length,
-        paidOrdersYesterday: paidPrevOrders.length,
-        unpaidOrdersToday: unpaidCurrentOrders.length,
-        unpaidOrdersYesterday: unpaidPrevOrders.length,
-        ticketToday: ticketCurrent,
-        ticketYesterday: ticketPrev,
-        newCustomersToday: newCustomersCurrent || 0,
-        newCustomersYesterday: newCustomersPrev || 0,
+        ordersToday: currentOrders.length,
+        ordersYesterday: prevOrders.length,
+        paidOrdersToday: paidCurrent.length,
+        paidOrdersYesterday: paidPrev.length,
+        unpaidOrdersToday: unpaidCurrent.length,
+        unpaidOrdersYesterday: unpaidPrev.length,
+        ticketToday: paidCurrent.length > 0 ? salesCurrent / paidCurrent.length : 0,
+        ticketYesterday: paidPrev.length > 0 ? salesPrev / paidPrev.length : 0,
+        newCustomersToday: newCustomersCurrentRes.count || 0,
+        newCustomersYesterday: newCustomersPrevRes.count || 0,
         visitorsToday: uniqueVisitorsCurrent,
         visitorsYesterday: uniqueVisitorsPrev,
+        cartsToday: cartsCurrentRes.count || 0,
+        cartsYesterday: cartsPrevRes.count || 0,
+        checkoutsStartedToday: checkoutsCurrent.length,
+        checkoutsStartedYesterday: checkoutsPrev.length,
+        abandonedCheckoutsToday: abandonedCurrent.length,
+        abandonedCheckoutsYesterday: abandonedPrev.length,
+        recoveredCheckoutsToday: recoveredCurrent.length,
+        errorCheckoutsToday: errorCurrent.length,
       };
     },
     enabled: !!currentTenant?.id,
@@ -176,7 +165,7 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
 
 export function useRecentOrders(limit = 5) {
   const { currentTenant } = useAuth();
-  
+
   return useQuery({
     queryKey: ['recent-orders', currentTenant?.id, limit],
     queryFn: async (): Promise<RecentOrder[]> => {
@@ -202,27 +191,19 @@ export function useRecentOrders(limit = 5) {
       }));
     },
     enabled: !!currentTenant?.id,
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 30000,
   });
 }
 
-// Helper to calculate trend percentage
 export function calculateTrend(current: number, previous: number): number {
-  if (previous === 0) {
-    return current > 0 ? 100 : 0;
-  }
+  if (previous === 0) return current > 0 ? 100 : 0;
   return ((current - previous) / previous) * 100;
 }
 
-// Helper to format currency
 export function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(value); // Values are stored in reais (not cents)
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }
 
-// Helper to format relative time
 export function formatRelativeTime(dateString: string): string {
   const date = new Date(dateString);
   const now = new Date();
