@@ -190,7 +190,7 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
     // 2+ signals AND no write/action verbs → factual performance
     if (signalCount >= 2 && !/cri[ae]r?|paus[ae]r?|ativ[ae]r?|alter[ae]r?|duplic/i.test(msg)) {
       console.log(`[ads-chat-v2] Composite signal hit: entities=${sigEntities} verbs=${sigVerbs} filters=${sigFilters} metrics=${sigMetrics} (${signalCount}/4)`);
-      return { category: "performance", mode: "factual", isFactual: true, entities, confidence: 0.82 };
+      return { category: "performance", mode: "factual", isFactual: true, isHybrid: false, entities, confidence: 0.82 };
     }
   }
 
