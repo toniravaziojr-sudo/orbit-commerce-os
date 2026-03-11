@@ -5341,7 +5341,7 @@ Deno.serve(async (req) => {
       if (hasFillerPromise) {
         console.log(`[ads-chat][${VERSION}] FILLER DETECTED in direct text — forcing tool retry`);
         // Retry with tool_choice required to force the AI to actually call tools
-        const retryMessages = [...aiMessages, { role: "assistant", content: directContent }, { role: "user", content: "SISTEMA: Você prometeu executar ações mas NÃO chamou nenhuma ferramenta. Isso é uma violação das regras. EXECUTE AGORA as ferramentas necessárias (get_product_images, generate_creative_image, create_meta_campaign, etc.) em vez de apenas descrever o que vai fazer." }];
+        const retryMessages = [...aiMessages, { role: "assistant", content: directContent }, { role: "user", content: "SISTEMA: Você prometeu executar ações mas NÃO chamou nenhuma ferramenta. Isso é uma violação grave. EXECUTE AGORA as ferramentas. Para targeting/segmentação: chame get_meta_adsets primeiro, depois get_adset_targeting com os IDs. Para outros pedidos: use a ferramenta apropriada (get_campaign_performance, get_product_images, etc.). NÃO descreva o processo — EXECUTE." }];
         
         const retryAbort = new AbortController();
         const retryTimeout = setTimeout(() => retryAbort.abort(), AI_TIMEOUT_MS);
