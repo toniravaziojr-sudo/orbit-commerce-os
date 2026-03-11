@@ -96,7 +96,9 @@ REGRAS:
 - Máximo 5 memórias por conversa
 - "tenant" = fato sobre o negócio; "user" = preferência pessoal
 - Se não houver nada relevante para memorizar, retorne {"memories": []}
-- Priorize informações sobre: nicho, público-alvo, produtos, estratégia, preferências operacionais`,
+- Priorize informações sobre: nicho, público-alvo, produtos, estratégia, preferências operacionais
+- PROIBIDO memorizar diagnósticos técnicos ou afirmações sobre estado do sistema (ex: "pixel quebrado", "dados comprometidos", "tracking com problema", "API fora do ar"). Esses são estados temporários, não fatos do negócio.
+- PROIBIDO memorizar recomendações que a própria IA fez (ex: "a correção do pixel é prioridade"). Memorize apenas fatos declarados PELO USUÁRIO.`,
       },
       {
         role: "user",

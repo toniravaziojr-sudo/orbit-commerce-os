@@ -1,7 +1,7 @@
 # Memory: features/marketing/ads-chat-factual-orchestration-v6
 Updated: 2026-03-11
 
-O Ads Chat (v6.8.1) implementa uma arquitetura dual-mode com orquestração determinística para consultas factuais E modo estratégico/generativo com convergência para o pipeline de aprovação existente.
+O Ads Chat (v6.9.0) implementa uma arquitetura dual-mode com orquestração determinística para consultas factuais E modo estratégico/generativo com convergência para o pipeline de aprovação existente.
 
 ## Arquitetura Dual-Mode + Híbrido
 
@@ -40,12 +40,19 @@ O Ads Chat (v6.8.1) implementa uma arquitetura dual-mode com orquestração dete
   - Usar contexto do turno anterior (IDs/nomes de campanhas) sem pedir ao lojista repetir
   - NUNCA responder com texto genérico sem consultar dados via tools primeiro
 
-### Guardrails de Memória (v6.8.0 — NOVO)
-- **Problema**: `ai_memories` pode conter fatos desatualizados (ex: "pixel quebrado" que já foi corrigido). O modelo tratava memórias como fatos atuais.
-- **Solução**: Todos os prompts (factual, conversational, strategic) agora incluem:
-  - "NUNCA afirme que o pixel está com problema a menos que uma ferramenta retorne isso explicitamente"
-  - "Memórias persistentes são contexto auxiliar, NÃO fatos verificados"
+### Guardrails de Memória (v6.8.0 → v6.9.0)
+- **Problema v6.8.x**: `ai_memories` continha 14+ registros "pixel quebrado" com importance=10, auto-memorizados pela própria IA a partir de suas respostas. Os guardrails de prompt não eram suficientes porque o memory extractor re-criava os registros a cada conversa.
+- **Solução v6.9.0 (3 camadas)**:
+  1. **Purga**: Todos os registros sobre pixel/tracking deletados via migration
+  2. **Prompt guardrails**: Mantidos em todos os prompts (factual, conversational, strategic)
+  3. **Memory extractor guardrail**: `ai-memory-manager` agora proíbe memorizar diagnósticos técnicos, estados de sistema, ou recomendações feitas pela própria IA. Só memoriza fatos declarados pelo USUÁRIO.
 - **Escopo**: Aplica-se a TODAS as ai_memories injetadas via getMemoryContext
+
+### Tool Execution v6.9.0 — get_adset_performance e get_ad_performance
+- **Problema v6.8.x**: Essas tools existiam na definição de ferramentas mas NÃO tinham handler em `executeToolDirect`. O v2 delegava para ads-chat v1 via HTTP, e quando isso falhava, o fallback retornava "ferramenta não disponível no modo direto".
+- **Solução v6.9.0**: Handlers completos portados de ads-chat v1 para `executeToolDirect` em v2:
+  - `get_adset_performance`: Query meta_ad_adsets com joins de campaign names, budget display, targeting summary
+  - `get_ad_performance`: Query meta_ad_ads com joins de meta_ad_creatives (title, body, CTA, image)
 
 ### Modo Conversacional (execução com tools)
 - **Quando**: write_meta, write_google, write_tiktok, creative, drive, general
@@ -88,7 +95,8 @@ O Ads Chat (v6.8.1) implementa uma arquitetura dual-mode com orquestração dete
 - Converge para o mesmo fluxo de aprovação visual (StrategicPlanContent) do Motor Estrategista
 
 ### Arquivos Relacionados
-- `supabase/functions/ads-chat-v2/index.ts` — Edge function dual-mode (v6.8.1)
+- `supabase/functions/ads-chat-v2/index.ts` — Edge function dual-mode (v6.9.0)
+- `supabase/functions/ai-memory-manager/index.ts` — Extrator de memórias com guardrail anti-auto-memorização
 - `supabase/functions/ads-chat/index.ts` — Edge function v1 [DEPRECADA — não mais usada como fallback]
 - `src/hooks/useAdsChat.ts` — Hook frontend chamando exclusivamente v2 (sem fallback v1)
 - `src/hooks/useAdsPendingActions.ts` — Hook de ações pendentes (exibe propostas do chat)
@@ -110,3 +118,6 @@ O Ads Chat (v6.8.1) implementa uma arquitetura dual-mode com orquestração dete
 - [ ] **Prompt drill-down mantém disciplina factual: tools obrigatórias, dados antes de opinião (v6.8.1)**
 - [ ] **Guardrails de memória: ai_memories são contexto auxiliar, não fatos verificados (v6.8.0)**
 - [ ] **Proibição de afirmar "pixel quebrado" sem confirmação de tool (v6.8.0)**
+- [ ] **get_adset_performance e get_ad_performance têm handlers em executeToolDirect v2 (v6.9.0)**
+- [ ] **Memory extractor proíbe auto-memorização de diagnósticos técnicos e recomendações da IA (v6.9.0)**
+- [ ] **Registros de memória sobre pixel/tracking purgados (v6.9.0)**
