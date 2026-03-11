@@ -103,3 +103,5 @@ O Ads Chat (v6.6.0) implementa uma arquitetura dual-mode com orquestração dete
 - [ ] Classificador cobre frases naturais: "consegue consultar", "me mostra", "quero ver", "como estão" (v6.3.0)
 - [ ] Anti-filler v2 retenta com tool_choice=required quando IA alega limitação falsa (v6.3.0)
 - [ ] Anti-filler v2 NÃO ativa para category=general (proteção contra false positives)
+- [ ] Composite Signal Detection captura frases com 2+ sinais (entidade+verbo+filtro+métrica) como factual/performance (v6.6.0)
+- [ ] Composite Signal NÃO ativa quando há verbos de escrita (criar/pausar/ativar/alterar/duplicar)
