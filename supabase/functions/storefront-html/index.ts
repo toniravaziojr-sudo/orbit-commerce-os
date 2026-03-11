@@ -105,13 +105,17 @@ function parseRoute(path: string): ParsedRoute {
 // ============================================
 // MARKETING PIXELS — Deferred script injection
 // ============================================
-function generateMarketingPixelScripts(config: any): string {
+function generateMarketingPixelScripts(config: any, trackingData?: { routeType: string; product?: any; category?: any; categoryProductIds?: string[] }): string {
   if (!config) return '';
   const scripts: string[] = [];
   const prefetches: string[] = [];
 
+  const metaEnabled = config.meta_enabled && config.meta_pixel_id;
+  const googleEnabled = config.google_enabled && config.google_measurement_id;
+  const tiktokEnabled = config.tiktok_enabled && config.tiktok_pixel_id;
+
   // Meta Pixel
-  if (config.meta_enabled && config.meta_pixel_id) {
+  if (metaEnabled) {
     prefetches.push('<link rel="dns-prefetch" href="https://connect.facebook.net">');
     const pixelId = escapeHtml(config.meta_pixel_id);
     scripts.push(`
@@ -120,6 +124,8 @@ function generateMarketingPixelScripts(config: any): string {
       function loadMeta(){
         !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
         fbq('init','${pixelId}');fbq('track','PageView');
+        window._sfMetaReady=true;
+        if(window._sfPendingMetaEvents){window._sfPendingMetaEvents.forEach(function(fn){fn();});delete window._sfPendingMetaEvents;}
       }
       if('requestIdleCallback' in window){requestIdleCallback(loadMeta,{timeout:3000});}
       else{setTimeout(loadMeta,2000);}
@@ -128,7 +134,7 @@ function generateMarketingPixelScripts(config: any): string {
   }
 
   // Google Analytics / Ads
-  if (config.google_enabled && config.google_measurement_id) {
+  if (googleEnabled) {
     prefetches.push('<link rel="dns-prefetch" href="https://www.googletagmanager.com">');
     const gaId = escapeHtml(config.google_measurement_id);
     const adsId = config.google_ads_conversion_id ? escapeHtml(config.google_ads_conversion_id) : '';
@@ -145,6 +151,8 @@ function generateMarketingPixelScripts(config: any): string {
         gtag('js',new Date());
         gtag('config','${gaId}',{send_page_view:true});
         ${adsId ? `gtag('config','${adsId}');` : ''}
+        window._sfGtagReady=true;
+        if(window._sfPendingGtagEvents){window._sfPendingGtagEvents.forEach(function(fn){fn();});delete window._sfPendingGtagEvents;}
       }
       if('requestIdleCallback' in window){requestIdleCallback(loadGA,{timeout:3000});}
       else{setTimeout(loadGA,2000);}
@@ -153,7 +161,7 @@ function generateMarketingPixelScripts(config: any): string {
   }
 
   // TikTok Pixel
-  if (config.tiktok_enabled && config.tiktok_pixel_id) {
+  if (tiktokEnabled) {
     prefetches.push('<link rel="dns-prefetch" href="https://analytics.tiktok.com">');
     const ttId = escapeHtml(config.tiktok_pixel_id);
     scripts.push(`
@@ -162,6 +170,8 @@ function generateMarketingPixelScripts(config: any): string {
       function loadTT(){
         !function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=['page','track','identify','instances','debug','on','off','once','ready','alias','group','enableCookie','disableCookie'];ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e};ttq.load=function(e,n){var i='https://analytics.tiktok.com/i18n/pixel/events.js';ttq._i=ttq._i||{};ttq._i[e]=[];ttq._i[e]._u=i;ttq._t=ttq._t||{};ttq._t[e+'']=+new Date;ttq._o=ttq._o||{};ttq._o[e+'']=n||{};var o=document.createElement('script');o.type='text/javascript';o.async=!0;o.src=i+'?sdkid='+e+'&lib='+t;var a=document.getElementsByTagName('script')[0];a.parentNode.insertBefore(o,a)}}(window,document,'ttq');
         ttq.load('${ttId}');ttq.page();
+        window._sfTTReady=true;
+        if(window._sfPendingTTEvents){window._sfPendingTTEvents.forEach(function(fn){fn();});delete window._sfPendingTTEvents;}
       }
       if('requestIdleCallback' in window){requestIdleCallback(loadTT,{timeout:3000});}
       else{setTimeout(loadTT,2000);}
@@ -169,9 +179,95 @@ function generateMarketingPixelScripts(config: any): string {
     </script>`);
   }
 
+  // === ROUTE-SPECIFIC TRACKING EVENTS ===
+  // These fire ViewContent/ViewCategory after pixels load (deferred-safe)
+  if (trackingData && (metaEnabled || googleEnabled || tiktokEnabled)) {
+    const eventScript = generateRouteTrackingScript(config, trackingData, { metaEnabled: !!metaEnabled, googleEnabled: !!googleEnabled, tiktokEnabled: !!tiktokEnabled });
+    if (eventScript) scripts.push(eventScript);
+  }
+
   if (scripts.length === 0) return '';
   const guard = `<script>window._sfPixelsLoaded=true;</script>`;
   return prefetches.join('\n') + '\n' + guard + scripts.join('\n');
+}
+
+/**
+ * Resolve Meta content_id: meta_retailer_id > sku > id
+ * Must match resolveMetaContentId() in SPA
+ */
+function resolveMetaContentId(product: { id: string; sku?: string; meta_retailer_id?: string | null }): string {
+  return product.meta_retailer_id || product.sku || product.id || '';
+}
+
+/**
+ * Generate route-specific tracking events (ViewContent, ViewCategory)
+ * Uses a deferred pattern: queue events if pixels haven't loaded yet
+ */
+function generateRouteTrackingScript(
+  config: any,
+  data: { routeType: string; product?: any; category?: any; categoryProductIds?: string[] },
+  flags: { metaEnabled: boolean; googleEnabled: boolean; tiktokEnabled: boolean }
+): string {
+  const lines: string[] = [];
+
+  if (data.routeType === 'product' && data.product) {
+    const p = data.product;
+    const contentId = resolveMetaContentId(p);
+    const price = parseFloat(p.price) || 0;
+    const name = (p.name || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+    const category = (p.category_name || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+
+    // Meta ViewContent
+    if (flags.metaEnabled) {
+      lines.push(`
+      function _sfMetaVC(){fbq('track','ViewContent',{content_ids:['${escapeHtml(contentId)}'],content_type:'product',content_name:'${name}',value:${price},currency:'BRL'});}
+      if(window._sfMetaReady){_sfMetaVC();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_sfMetaVC);}
+      `);
+    }
+    // Google view_item
+    if (flags.googleEnabled) {
+      lines.push(`
+      function _sfGtagVC(){gtag('event','view_item',{currency:'BRL',value:${price},items:[{item_id:'${escapeHtml(contentId)}',item_name:'${name}',price:${price}}]});}
+      if(window._sfGtagReady){_sfGtagVC();}else{window._sfPendingGtagEvents=window._sfPendingGtagEvents||[];window._sfPendingGtagEvents.push(_sfGtagVC);}
+      `);
+    }
+    // TikTok ViewContent
+    if (flags.tiktokEnabled) {
+      lines.push(`
+      function _sfTTVC(){ttq.track('ViewContent',{content_id:'${escapeHtml(contentId)}',content_type:'product',content_name:'${name}',value:${price},currency:'BRL'});}
+      if(window._sfTTReady){_sfTTVC();}else{window._sfPendingTTEvents=window._sfPendingTTEvents||[];window._sfPendingTTEvents.push(_sfTTVC);}
+      `);
+    }
+  } else if (data.routeType === 'category' && data.category) {
+    const cat = data.category;
+    const catName = (cat.name || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+    const productIds = (data.categoryProductIds || []).slice(0, 10);
+
+    // Meta ViewCategory (custom event)
+    if (flags.metaEnabled) {
+      lines.push(`
+      function _sfMetaCat(){fbq('trackCustom','ViewCategory',{content_category:'${catName}',content_ids:${JSON.stringify(productIds)},content_type:'product_group'});}
+      if(window._sfMetaReady){_sfMetaCat();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_sfMetaCat);}
+      `);
+    }
+    // Google view_item_list
+    if (flags.googleEnabled) {
+      lines.push(`
+      function _sfGtagCat(){gtag('event','view_item_list',{item_list_id:'${escapeHtml(cat.id)}',item_list_name:'${catName}'});}
+      if(window._sfGtagReady){_sfGtagCat();}else{window._sfPendingGtagEvents=window._sfPendingGtagEvents||[];window._sfPendingGtagEvents.push(_sfGtagCat);}
+      `);
+    }
+    // TikTok ViewContent for category
+    if (flags.tiktokEnabled) {
+      lines.push(`
+      function _sfTTCat(){ttq.track('ViewContent',{content_id:'${escapeHtml(cat.id)}',content_type:'product_group',content_name:'${catName}'});}
+      if(window._sfTTReady){_sfTTCat();}else{window._sfPendingTTEvents=window._sfPendingTTEvents||[];window._sfPendingTTEvents.push(_sfTTCat);}
+      `);
+    }
+  }
+
+  if (lines.length === 0) return '';
+  return `<script>(function(){${lines.join('')}})();</script>`;
 }
 
 // ============================================
@@ -766,7 +862,7 @@ function buildFullPage(opts: {
         </div>
       </div>
       <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
-        <a href="/checkout" class="sf-btn-primary" style="display:block;width:100%;padding:14px;text-align:center;border-radius:9999px;font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:0.05em;text-decoration:none;">Iniciar Compra</a>
+        <a href="/checkout" data-sf-action="initiate-checkout" class="sf-btn-primary" style="display:block;width:100%;padding:14px;text-align:center;border-radius:9999px;font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:0.05em;text-decoration:none;">Iniciar Compra</a>
         <a href="/cart" class="sf-btn-secondary" style="display:block;width:100%;padding:12px;text-align:center;border-radius:9999px;font-weight:600;font-size:13px;text-decoration:none;">Ir para o Carrinho</a>
       </div>
     </div>
@@ -919,16 +1015,28 @@ function buildFullPage(opts: {
         }
       }
 
-      function addToCart(id,name,price,image,variantId,skipDrawer){
+      function addToCart(id,name,price,image,variantId,skipDrawer,sku,metaRetailerId){
         var existing=cart.find(function(i){return i.product_id===id&&(i.variant_id||"")===(variantId||"")});
         if(existing){existing.quantity++;}else{
-          cart.push({id:id+"_"+(variantId||"default")+"_"+Date.now(),product_id:id,variant_id:variantId||null,name:name,sku:"",price:parseFloat(price),quantity:1,image:image||"",image_url:image||""});
+          cart.push({id:id+"_"+(variantId||"default")+"_"+Date.now(),product_id:id,variant_id:variantId||null,name:name,sku:sku||"",meta_retailer_id:metaRetailerId||null,price:parseFloat(price),quantity:1,image:image||"",image_url:image||""});
         }
         saveCart();
         if(!skipDrawer){
           document.querySelector("[data-sf-cart-drawer]")?.classList.add("active");
           document.querySelector("[data-sf-cart-backdrop]")?.classList.add("active");
         }
+        // === MARKETING: AddToCart event ===
+        var contentId=metaRetailerId||sku||id;
+        var prc=parseFloat(price)||0;
+        // Meta
+        function _atcMeta(){fbq('track','AddToCart',{content_ids:[contentId],content_type:'product',content_name:name,value:prc,currency:'BRL'});}
+        if(window.fbq){if(window._sfMetaReady){_atcMeta();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_atcMeta);}}
+        // Google
+        function _atcGtag(){gtag('event','add_to_cart',{currency:'BRL',value:prc,items:[{item_id:contentId,item_name:name,price:prc,quantity:1}]});}
+        if(window.gtag){if(window._sfGtagReady){_atcGtag();}else{window._sfPendingGtagEvents=window._sfPendingGtagEvents||[];window._sfPendingGtagEvents.push(_atcGtag);}}
+        // TikTok
+        function _atcTT(){ttq.track('AddToCart',{content_id:contentId,content_type:'product',content_name:name,value:prc,currency:'BRL',quantity:1});}
+        if(window.ttq){if(window._sfTTReady){_atcTT();}else{window._sfPendingTTEvents=window._sfPendingTTEvents||[];window._sfPendingTTEvents.push(_atcTT);}}
       }
 
       function doSearch(query){
@@ -971,14 +1079,20 @@ function buildFullPage(opts: {
           e.preventDefault();e.stopPropagation();
           var qtyInput=document.querySelector("[data-sf-qty-input]");
           var qty=qtyInput?parseInt(qtyInput.value)||1:1;
-          for(var q=0;q<qty;q++) addToCart(btn.dataset.productId, btn.dataset.productName, parseFloat(btn.dataset.productPrice), btn.dataset.productImage, btn.dataset.variantId);
+          for(var q=0;q<qty;q++) addToCart(btn.dataset.productId, btn.dataset.productName, parseFloat(btn.dataset.productPrice), btn.dataset.productImage, btn.dataset.variantId, false, btn.dataset.productSku||'', btn.dataset.productMetaId||'');
           // Buy Together: if extra product data exists, add that too
-          if(btn.dataset.extraProductId){addToCart(btn.dataset.extraProductId,btn.dataset.extraProductName,parseFloat(btn.dataset.extraProductPrice),btn.dataset.extraProductImage);}
+          if(btn.dataset.extraProductId){addToCart(btn.dataset.extraProductId,btn.dataset.extraProductName,parseFloat(btn.dataset.extraProductPrice),btn.dataset.extraProductImage,'',false,'','');}
         } else if(action==="buy-now"){
           e.preventDefault();e.stopPropagation();
           var qtyInput2=document.querySelector("[data-sf-qty-input]");
           var qty2=qtyInput2?parseInt(qtyInput2.value)||1:1;
-          for(var q2=0;q2<qty2;q2++) addToCart(btn.dataset.productId, btn.dataset.productName, parseFloat(btn.dataset.productPrice), btn.dataset.productImage, btn.dataset.variantId, true);
+          for(var q2=0;q2<qty2;q2++) addToCart(btn.dataset.productId, btn.dataset.productName, parseFloat(btn.dataset.productPrice), btn.dataset.productImage, btn.dataset.variantId, true, btn.dataset.productSku||'', btn.dataset.productMetaId||'');
+          // === MARKETING: InitiateCheckout event ===
+          var _coContentId=btn.dataset.productMetaId||btn.dataset.productSku||btn.dataset.productId;
+          var _coPrice=parseFloat(btn.dataset.productPrice)||0;
+          if(window.fbq){var _icM=function(){fbq('track','InitiateCheckout',{content_ids:[_coContentId],content_type:'product',value:_coPrice,currency:'BRL',num_items:qty2});};if(window._sfMetaReady){_icM();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_icM);}}
+          if(window.gtag){var _icG=function(){gtag('event','begin_checkout',{currency:'BRL',value:_coPrice,items:[{item_id:_coContentId,price:_coPrice,quantity:qty2}]});};if(window._sfGtagReady){_icG();}else{window._sfPendingGtagEvents=window._sfPendingGtagEvents||[];window._sfPendingGtagEvents.push(_icG);}}
+          if(window.ttq){var _icT=function(){ttq.track('InitiateCheckout',{content_id:_coContentId,content_type:'product',value:_coPrice,currency:'BRL',quantity:qty2});};if(window._sfTTReady){_icT();}else{window._sfPendingTTEvents=window._sfPendingTTEvents||[];window._sfPendingTTEvents.push(_icT);}}
           window.location.href="/checkout";
         } else if(action==="remove-cart-item"){
           var idx = parseInt(btn.dataset.index);
@@ -1080,6 +1194,17 @@ function buildFullPage(opts: {
               couponResult.innerHTML='<span style="color:#dc2626;">'+(data.message||'Cupom inválido')+'</span>';
             }
           }).catch(function(){couponResult.innerHTML='<span style="color:#dc2626;">Erro ao validar.</span>';});
+        } else if(action==="initiate-checkout"){
+          // Fire InitiateCheckout tracking events from cart drawer
+          if(cart.length>0){
+            var _icCartTotal=cart.reduce(function(s,i){return s+i.price*i.quantity},0);
+            var _icCartIds=cart.map(function(i){return i.meta_retailer_id||i.sku||i.product_id});
+            var _icCartItems=cart.map(function(i){return{item_id:i.meta_retailer_id||i.sku||i.product_id,item_name:i.name,price:i.price,quantity:i.quantity}});
+            if(window.fbq){var _icMf=function(){fbq('track','InitiateCheckout',{content_ids:_icCartIds,content_type:'product',value:_icCartTotal,currency:'BRL',num_items:cart.reduce(function(s,i){return s+i.quantity},0)});};if(window._sfMetaReady){_icMf();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_icMf);}}
+            if(window.gtag){var _icGf=function(){gtag('event','begin_checkout',{currency:'BRL',value:_icCartTotal,items:_icCartItems});};if(window._sfGtagReady){_icGf();}else{window._sfPendingGtagEvents=window._sfPendingGtagEvents||[];window._sfPendingGtagEvents.push(_icGf);}}
+            if(window.ttq){var _icTf=function(){ttq.track('InitiateCheckout',{content_type:'product',value:_icCartTotal,currency:'BRL',quantity:cart.reduce(function(s,i){return s+i.quantity},0)});};if(window._sfTTReady){_icTf();}else{window._sfPendingTTEvents=window._sfPendingTTEvents||[];window._sfPendingTTEvents.push(_icTf);}}
+          }
+          // Don't prevent default — let the <a> navigate to /checkout
         } else if(action==="close-newsletter-popup"){
           var popup=document.getElementById("sf-newsletter-popup");
           if(popup){popup.style.display="none";sessionStorage.setItem("sf_newsletter_dismissed","1");}
@@ -1667,7 +1792,7 @@ serve(async (req) => {
     let routeQueryPromise: Promise<any> | null = null;
     if (route.type === 'product' && route.slug) {
       routeQueryPromise = supabase.from('products')
-        .select('id, name, slug, sku, price, compare_at_price, description, short_description, brand, stock_quantity, status, free_shipping, seo_title, seo_description, has_variants, tags, avg_rating, review_count, allow_backorder')
+        .select('id, name, slug, sku, meta_retailer_id, price, compare_at_price, description, short_description, brand, stock_quantity, status, free_shipping, seo_title, seo_description, has_variants, tags, avg_rating, review_count, allow_backorder')
         .eq('tenant_id', tenantId).eq('slug', route.slug).is('deleted_at', null).maybeSingle();
     } else if (route.type === 'category' && route.slug) {
       routeQueryPromise = supabase.from('categories')
@@ -2332,8 +2457,19 @@ serve(async (req) => {
     
     const navItemsHtml = `<div style="background:${escapeHtml(mobileHeaderBg)};color:${escapeHtml(mobileHeaderText)};min-height:100%;display:flex;flex-direction:column;">${mobileMenuItemsHtml}${mobileFeaturedHtml}${mobileAccountHtml}${mobileContactHtml}${mobileSocialHtml}</div>`;
 
-    // === MARKETING PIXELS (deferred injection) ===
-    const marketingScripts = generateMarketingPixelScripts(marketingConfig);
+    // === MARKETING PIXELS (deferred injection) with route-specific events ===
+    const trackingData: { routeType: string; product?: any; category?: any; categoryProductIds?: string[] } = { routeType: route.type };
+    if (route.type === 'product' && routeData) {
+      trackingData.product = routeData;
+      // Add category name if available
+      if (compilerContext.currentProductCategory) {
+        trackingData.product = { ...routeData, category_name: compilerContext.currentProductCategory.name };
+      }
+    } else if (route.type === 'category' && routeData) {
+      trackingData.category = routeData;
+      trackingData.categoryProductIds = (compilerContext.categoryProducts || []).slice(0, 10).map((p: any) => p.id);
+    }
+    const marketingScripts = generateMarketingPixelScripts(marketingConfig, trackingData);
     
     // === NEWSLETTER POPUP ===
     const newsletterPopupHtml = generateNewsletterPopupHtml(newsletterPopup, tenantId, route.type);
