@@ -826,6 +826,11 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
                 showPix={checkoutConfig.showPix}
                 showBoleto={checkoutConfig.showBoleto}
                 showCreditCard={checkoutConfig.showCreditCard}
+                maxInstallments={maxInstallments}
+                selectedInstallments={selectedInstallments}
+                onInstallmentsChange={setSelectedInstallments}
+                grandTotal={totals.grandTotal}
+                paymentMethodDiscountAmount={paymentMethodDiscountAmount}
               />
             )}
 
