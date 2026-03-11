@@ -26,6 +26,9 @@ import {
   Clock,
   CheckCircle,
   ArrowRight,
+  Eye,
+  CreditCard,
+  XCircle,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";

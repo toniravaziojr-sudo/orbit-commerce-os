@@ -1,17 +1,23 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { startOfDay, subDays, endOfDay } from 'date-fns';
+import { startOfDay, subDays, endOfDay, format } from 'date-fns';
 
 interface DashboardMetrics {
   salesToday: number;
   salesYesterday: number;
   ordersToday: number;
   ordersYesterday: number;
+  paidOrdersToday: number;
+  paidOrdersYesterday: number;
+  unpaidOrdersToday: number;
+  unpaidOrdersYesterday: number;
   ticketToday: number;
   ticketYesterday: number;
   newCustomersToday: number;
   newCustomersYesterday: number;
+  visitorsToday: number;
+  visitorsYesterday: number;
 }
 
 interface RecentOrder {
@@ -36,10 +42,16 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
           salesYesterday: 0,
           ordersToday: 0,
           ordersYesterday: 0,
+          paidOrdersToday: 0,
+          paidOrdersYesterday: 0,
+          unpaidOrdersToday: 0,
+          unpaidOrdersYesterday: 0,
           ticketToday: 0,
           ticketYesterday: 0,
           newCustomersToday: 0,
           newCustomersYesterday: 0,
+          visitorsToday: 0,
+          visitorsYesterday: 0,
         };
       }
 
@@ -61,43 +73,91 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
       const prevStart = startOfDay(prevPeriodStart).toISOString();
       const prevEnd = endOfDay(prevPeriodEnd).toISOString();
 
-      // Fetch current period orders (only paid orders for sales metrics)
-      const { data: currentOrders } = await supabase
-        .from('orders')
-        .select('id, total, payment_status')
-        .eq('tenant_id', currentTenant.id)
-        .gte('created_at', periodStart)
-        .lte('created_at', periodEnd);
+      // Date strings for GA4 reports query
+      const periodStartDate = startDate || now;
+      const periodEndDate = endDate || now;
+      const gaStartDate = format(periodStartDate, 'yyyy-MM-dd');
+      const gaEndDate = format(periodEndDate, 'yyyy-MM-dd');
+      const gaPrevStartDate = format(prevPeriodStart, 'yyyy-MM-dd');
+      const gaPrevEndDate = format(prevPeriodEnd, 'yyyy-MM-dd');
 
-      // Fetch previous period orders
-      const { data: prevOrders } = await supabase
-        .from('orders')
-        .select('id, total, payment_status')
-        .eq('tenant_id', currentTenant.id)
-        .gte('created_at', prevStart)
-        .lte('created_at', prevEnd);
+      // Fetch all data in parallel
+      const [
+        currentOrdersRes,
+        prevOrdersRes,
+        newCustomersCurrentRes,
+        newCustomersPrevRes,
+        gaCurrentRes,
+        gaPrevRes,
+      ] = await Promise.all([
+        // Current period orders
+        supabase
+          .from('orders')
+          .select('id, total, payment_status')
+          .eq('tenant_id', currentTenant.id)
+          .gte('created_at', periodStart)
+          .lte('created_at', periodEnd),
+        // Previous period orders
+        supabase
+          .from('orders')
+          .select('id, total, payment_status')
+          .eq('tenant_id', currentTenant.id)
+          .gte('created_at', prevStart)
+          .lte('created_at', prevEnd),
+        // Current period new customers
+        supabase
+          .from('customers')
+          .select('id', { count: 'exact', head: true })
+          .eq('tenant_id', currentTenant.id)
+          .is('deleted_at', null)
+          .gte('created_at', periodStart)
+          .lte('created_at', periodEnd),
+        // Previous period new customers
+        supabase
+          .from('customers')
+          .select('id', { count: 'exact', head: true })
+          .eq('tenant_id', currentTenant.id)
+          .is('deleted_at', null)
+          .gte('created_at', prevStart)
+          .lte('created_at', prevEnd),
+        // GA4 reports current period
+        supabase
+          .from('google_analytics_reports')
+          .select('metrics')
+          .eq('tenant_id', currentTenant.id)
+          .eq('report_type', 'daily')
+          .gte('date', gaStartDate)
+          .lte('date', gaEndDate),
+        // GA4 reports previous period
+        supabase
+          .from('google_analytics_reports')
+          .select('metrics')
+          .eq('tenant_id', currentTenant.id)
+          .eq('report_type', 'daily')
+          .gte('date', gaPrevStartDate)
+          .lte('date', gaPrevEndDate),
+      ]);
 
-      // Fetch current period new customers
-      const { count: newCustomersCurrent } = await supabase
-        .from('customers')
-        .select('id', { count: 'exact', head: true })
-        .eq('tenant_id', currentTenant.id)
-        .is('deleted_at', null)
-        .gte('created_at', periodStart)
-        .lte('created_at', periodEnd);
+      const currentOrders = currentOrdersRes.data;
+      const prevOrders = prevOrdersRes.data;
+      const newCustomersCurrent = newCustomersCurrentRes.count;
+      const newCustomersPrev = newCustomersPrevRes.count;
 
-      // Fetch previous period new customers
-      const { count: newCustomersPrev } = await supabase
-        .from('customers')
-        .select('id', { count: 'exact', head: true })
-        .eq('tenant_id', currentTenant.id)
-        .is('deleted_at', null)
-        .gte('created_at', prevStart)
-        .lte('created_at', prevEnd);
+      // Calculate visitor metrics from GA4 reports
+      const visitorsToday = (gaCurrentRes.data || []).reduce((sum, r) => {
+        const m = r.metrics as Record<string, number> | null;
+        return sum + (m?.totalUsers || m?.sessions || 0);
+      }, 0);
+      const visitorsYesterday = (gaPrevRes.data || []).reduce((sum, r) => {
+        const m = r.metrics as Record<string, number> | null;
+        return sum + (m?.totalUsers || m?.sessions || 0);
+      }, 0);
 
       // Calculate metrics - consider approved orders for sales
       const paidCurrentOrders = currentOrders?.filter(o => o.payment_status === 'approved') || [];
       const paidPrevOrders = prevOrders?.filter(o => o.payment_status === 'approved') || [];
+      const unpaidCurrentOrders = currentOrders?.filter(o => o.payment_status !== 'approved') || [];
+      const unpaidPrevOrders = prevOrders?.filter(o => o.payment_status !== 'approved') || [];
 
       const salesCurrent = paidCurrentOrders.reduce((sum, o) => sum + (o.total || 0), 0);
       const salesPrev = paidPrevOrders.reduce((sum, o) => sum + (o.total || 0), 0);
@@ -113,14 +173,20 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
         salesYesterday: salesPrev,
         ordersToday: ordersCurrent,
         ordersYesterday: ordersPrev,
+        paidOrdersToday: paidCurrentOrders.length,
+        paidOrdersYesterday: paidPrevOrders.length,
+        unpaidOrdersToday: unpaidCurrentOrders.length,
+        unpaidOrdersYesterday: unpaidPrevOrders.length,
         ticketToday: ticketCurrent,
         ticketYesterday: ticketPrev,
         newCustomersToday: newCustomersCurrent || 0,
         newCustomersYesterday: newCustomersPrev || 0,
+        visitorsToday,
+        visitorsYesterday,
       };
     },
     enabled: !!currentTenant?.id,
-    refetchInterval: 60000, // Refresh every minute
+    refetchInterval: 60000,
   });
 }
 
