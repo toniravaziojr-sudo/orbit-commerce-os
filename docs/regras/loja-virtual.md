@@ -1572,11 +1572,24 @@ Sistema de tracking de visitantes **próprio da loja**, independente de pixels e
    ├─ /categoria/* → "category"
    ├─ /blog/* → "blog"
    ├─ / → "home"
-   └─ Outros → "page"
-4. Envia POST via navigator.sendBeacon() (non-blocking)
-   └─ Fallback: fetch() com keepalive:true
-5. Destino: REST API → tabela storefront_visits (apikey anon)
+    └─ Outros → "page"
+4. Envia POST via fetch() com keepalive:true (non-blocking)
+   ⚠️ NÃO usar navigator.sendBeacon — ele não suporta headers customizados
+   e o PostgREST exige Authorization: Bearer <anon_key>
+5. Destino: REST API → tabela storefront_visits (apikey anon + Authorization header)
 ```
+
+### Bug: Visitantes Zerados (v8.6.2 → v8.6.3 — 2026-03-11)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Correção de Bug (Regressão Critical) |
+| **Causa Raiz** | O beacon usava `navigator.sendBeacon()` com `Blob`, que NÃO permite enviar headers customizados. O PostgREST requer `Authorization: Bearer <anon_key>` para aceitar requests — o `?apikey=` query param sozinho não autentica. Resultado: 100% dos POSTs falhavam silenciosamente (401), e a tabela `storefront_visits` permanecia vazia. |
+| **Sintoma** | Dashboard exibia "Visitantes: 0" mesmo com Meta Pixel registrando 117+ PageViews |
+| **Correção** | Substituído `sendBeacon` por `fetch()` com `keepalive:true`, que suporta headers (`Authorization`, `apikey`, `Prefer`, `Content-Type`) |
+| **Regra** | **NUNCA usar sendBeacon para inserir dados via PostgREST** — sempre usar `fetch` com `keepalive:true` |
+| **Afeta** | Dashboard → Visitantes Únicos |
+| **Deploy** | Edge Function `storefront-html` redeployada |
 
 ### Tabela `storefront_visits`
 
@@ -1604,9 +1617,10 @@ Sistema de tracking de visitantes **próprio da loja**, independente de pixels e
 |-------|-----------|
 | **Cookie** | `_sf_vid`, 365 dias, SameSite=Lax, path=/ |
 | **Deduplicação** | Por `visitor_id` no frontend (Set) |
-| **Non-blocking** | sendBeacon não afeta performance |
+| **Non-blocking** | fetch+keepalive não afeta performance |
 | **Sem PII** | Não armazena IP, email ou dados pessoais |
 | **RLS** | INSERT público (anon), SELECT por tenant_id |
+| **⚠️ PROIBIDO** | Usar `sendBeacon` para PostgREST (não suporta headers) |
 
 ### Correção de Formatação de Moeda (v8.6.2 — 2026-03-11)
 
