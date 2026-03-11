@@ -380,5 +380,6 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     resetPayment,
     isProcessing,
     paymentResult,
+    activeGateway,
   };
 }
