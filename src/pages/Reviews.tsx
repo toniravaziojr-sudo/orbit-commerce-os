@@ -115,7 +115,30 @@ export default function Reviews() {
     enabled: !!currentTenantId,
   });
 
-  // Fetch reviews
+  // Fetch real stats via count queries (avoids 1000-row default limit)
+  const { data: reviewStats } = useQuery({
+    queryKey: ['product-reviews-stats', currentTenantId],
+    queryFn: async () => {
+      if (!currentTenantId) return { total: 0, pending: 0, approved: 0, rejected: 0 };
+
+      const [totalRes, pendingRes, approvedRes, rejectedRes] = await Promise.all([
+        supabase.from('product_reviews').select('*', { count: 'exact', head: true }).eq('tenant_id', currentTenantId),
+        supabase.from('product_reviews').select('*', { count: 'exact', head: true }).eq('tenant_id', currentTenantId).eq('status', 'pending'),
+        supabase.from('product_reviews').select('*', { count: 'exact', head: true }).eq('tenant_id', currentTenantId).eq('status', 'approved'),
+        supabase.from('product_reviews').select('*', { count: 'exact', head: true }).eq('tenant_id', currentTenantId).eq('status', 'rejected'),
+      ]);
+
+      return {
+        total: totalRes.count ?? 0,
+        pending: pendingRes.count ?? 0,
+        approved: approvedRes.count ?? 0,
+        rejected: rejectedRes.count ?? 0,
+      };
+    },
+    enabled: !!currentTenantId,
+  });
+
+  // Fetch reviews (paginated list for display)
   const { data: reviews = [], isLoading, error: reviewsError, refetch: refetchReviews } = useQuery({
     queryKey: ['product-reviews', currentTenantId, activeTab, productFilter],
     queryFn: async () => {
@@ -128,7 +151,8 @@ export default function Reviews() {
           product:product_id(id, name)
         `)
         .eq('tenant_id', currentTenantId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(500);
 
       if (activeTab !== 'all') {
         query = query.eq('status', activeTab);
