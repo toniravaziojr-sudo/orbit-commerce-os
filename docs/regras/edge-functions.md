@@ -1416,6 +1416,7 @@ Após stream completo:
 
 | Versão | Data | Mudança |
 |--------|------|---------|
+| v6.2.0 | 2026-03-11 | **Escalação de lote**: `bulkIndicators` no classificador força modo estratégico para ações em massa. Prompt conversacional bloqueia >2 campanhas / >3 adsets direto. Segurança contra bypass de aprovação. |
 | v6.1.0 | 2026-03-11 | **Criação**: Dual-mode (factual/strategic/conversational). Classificador determinístico. Tool subsets. Orquestrador factual com Meta API live. `submit_strategic_proposal` convergindo para pipeline de aprovação. Frontend com fallback v2→v1. |
 
 ### v1.3.0 — `ads-autopilot-creative` — INSERT antes de gerar + `image_job_id` correto
