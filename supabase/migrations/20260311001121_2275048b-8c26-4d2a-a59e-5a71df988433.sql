@@ -1,0 +1,1 @@
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS payment_method_discount NUMERIC(10,2) DEFAULT 0;
