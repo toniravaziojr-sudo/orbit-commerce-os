@@ -421,7 +421,7 @@ Admin salva → onSuccess → busca slug da categoria → cachePurge.category()
 
 ---
 
-## 15. Diferença: Categorias vs Menus
+## 16. Diferença: Categorias vs Menus
 
 | Aspecto | Categorias | Menus |
 |---------|------------|-------|
@@ -433,7 +433,7 @@ Admin salva → onSuccess → busca slug da categoria → cachePurge.category()
 
 ---
 
-## 16. Pendências
+## 17. Pendências
 
 - [ ] Exportação de categorias (CSV)
 - [ ] Imagem de capa além do banner
