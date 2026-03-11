@@ -339,3 +339,18 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 - [ ] Importação de NF-e de entrada
 - [ ] Cancelamento de NF-e
 - [ ] Carta de correção (CC-e)
+
+---
+
+## Correções Aplicadas
+
+### fiscal-auto-create-drafts — Regressão status filter (v8.6.1 — 2026-03-11)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Correção de Bug (Regressão) |
+| **Localização** | `supabase/functions/fiscal-auto-create-drafts/index.ts` |
+| **Contexto** | Auto-criação de rascunhos de NF-e para pedidos pagos |
+| **Descrição** | A function filtrava apenas `status = 'paid'`, mas o novo fluxo fiscal-operacional usa `ready_to_invoice` como status pós-pagamento. Pedidos aprovados não apareciam em "Prontas para Emitir". |
+| **Correção** | Alterado para `.eq('payment_status', 'approved').in('status', ['paid', 'ready_to_invoice'])` — garante compatibilidade com fluxo legado e novo. |
+| **Afeta** | Módulo Fiscal → aba "Prontas para Emitir", botão "Gerar Rascunhos" |
