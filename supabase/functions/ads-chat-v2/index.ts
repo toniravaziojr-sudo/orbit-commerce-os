@@ -156,7 +156,7 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
 
   // CREATIVE
   if (/gerar?\s+(arte|imagem|criativo|texto|copy|headline)|criativo[s]?|arte[s]?\s+para\s+anúncio/i.test(msg)) {
-    return { category: "creative", mode: "conversational", isFactual: false, entities, confidence: 0.85 };
+    return { category: "creative", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.85 };
   }
 
   // AUTOPILOT
