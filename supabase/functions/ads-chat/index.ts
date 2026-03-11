@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.24.0"; // Fix: fetch campaign list directly from Meta API for accurate names
+const VERSION = "v5.25.0"; // Fix: lifetime insights with date_preset=maximum, pagination, accurate totals
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -22,13 +22,14 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_campaign_performance",
-      description: "Busca performance real de TODAS as campanhas Meta (ativas + pausadas, até 200). OBRIGATÓRIO antes de qualquer diagnóstico. Inclui dados históricos de campanhas pausadas. Suporta até 365 dias.",
+      description: "Busca performance real de TODAS as campanhas Meta (ativas + pausadas). OBRIGATÓRIO antes de qualquer diagnóstico. Inclui dados históricos de campanhas pausadas. Use date_preset='maximum' para dados LIFETIME (desde o início da conta). Use 'days' para janelas específicas.",
       parameters: {
         type: "object",
         properties: {
           ad_account_id: { type: "string", description: "ID da conta de anúncios (opcional)" },
           status_filter: { type: "string", enum: ["ACTIVE", "PAUSED", "ALL"], description: "Filtrar por status (default: ALL, mas ACTIVE primeiro)" },
-          days: { type: "number", description: "Janela de dias para métricas (default: 14, max: 365). Use 365 para últimos 12 meses." },
+          days: { type: "number", description: "Janela de dias para métricas (default: 30). Ignorado se date_preset for informado." },
+          date_preset: { type: "string", enum: ["maximum", "last_7d", "last_14d", "last_30d", "last_90d", "last_year"], description: "Preset de período. Use 'maximum' para dados desde o início da conta (LIFETIME). SEMPRE use 'maximum' quando o usuário pedir 'máximo', 'total', 'desde o início', 'lifetime' ou 'histórico completo'." },
         },
         required: [],
         additionalProperties: false,
@@ -852,10 +853,10 @@ async function executeTool(
   chatSessionId?: string,
   strategyRunId?: string
 ): Promise<string> {
-  try {
+   try {
     switch (toolName) {
       case "get_campaign_performance":
-        return await getCampaignPerformance(supabase, tenantId, args.ad_account_id, args.status_filter, args.days);
+        return await getCampaignPerformance(supabase, tenantId, args.ad_account_id, args.status_filter, args.days, args.date_preset);
       case "get_campaign_details":
         return await getCampaignDetails(supabase, tenantId, args.campaign_id);
       case "get_performance_trend":
@@ -1113,10 +1114,24 @@ async function confirmUserCommand(supabase: any, tenantId: string, campaignKey: 
 // ============ TOOL IMPLEMENTATIONS ============
 
 // --- Frente 1: getCampaignPerformance — ALWAYS fetches live from Meta API for accurate names ---
-async function getCampaignPerformance(supabase: any, tenantId: string, adAccountId?: string, statusFilter?: string, days?: number) {
-  const dayWindow = Math.min(days || 14, 365);
-  const sinceDate = new Date(Date.now() - dayWindow * 86400000).toISOString().split("T")[0];
-  const today = new Date().toISOString().split("T")[0];
+async function getCampaignPerformance(supabase: any, tenantId: string, adAccountId?: string, statusFilter?: string, days?: number, datePreset?: string) {
+  // Determine time range: date_preset takes priority over days
+  const useLifetime = datePreset === "maximum";
+  let sinceDate: string | undefined;
+  let periodLabel: string;
+  
+  if (useLifetime) {
+    // Meta API supports date_preset=maximum for lifetime data — no sinceDate needed
+    sinceDate = undefined;
+    periodLabel = "lifetime (máximo — desde o início da conta)";
+  } else {
+    const presetDays: Record<string, number> = {
+      last_7d: 7, last_14d: 14, last_30d: 30, last_90d: 90, last_year: 365,
+    };
+    const dayWindow = datePreset ? (presetDays[datePreset] || 30) : (days || 30);
+    sinceDate = new Date(Date.now() - dayWindow * 86400000).toISOString().split("T")[0];
+    periodLabel = `últimos ${dayWindow} dias`;
+  }
 
   // Step 1: Try to fetch campaign list DIRECTLY from Meta API (source of truth for names)
   let liveCampaigns: any[] = [];
@@ -1163,18 +1178,18 @@ async function getCampaignPerformance(supabase: any, tenantId: string, adAccount
     };
   }
 
-  // Step 4: Fetch insights — try live API first, then DB
+  // Step 4: Fetch insights — try live API first (with pagination), then DB
   let insights: any[] = [];
-  const liveInsights = await fetchMetaInsightsLive(supabase, tenantId, adAccountId, sinceDate, "campaign");
+  const liveInsights = await fetchMetaInsightsLive(supabase, tenantId, adAccountId, sinceDate, "campaign", useLifetime);
   if (liveInsights.length > 0) {
     insights = liveInsights;
-    console.log(`[ads-chat][${VERSION}] Live insights fetched: ${insights.length}`);
+    console.log(`[ads-chat][${VERSION}] Live insights fetched: ${insights.length} rows`);
   } else {
     const insightQuery = supabase
       .from("meta_ad_insights")
       .select("meta_campaign_id, spend_cents, impressions, clicks, conversions, conversion_value_cents, roas, ctr, cpc_cents, cpm_cents, date_start")
-      .eq("tenant_id", tenantId)
-      .gte("date_start", sinceDate);
+      .eq("tenant_id", tenantId);
+    if (sinceDate) insightQuery.gte("date_start", sinceDate);
     const { data: dbInsights } = await insightQuery.limit(5000);
     insights = dbInsights || [];
     console.log(`[ads-chat][${VERSION}] DB insights used: ${insights.length}`);
@@ -1227,9 +1242,11 @@ async function getCampaignPerformance(supabase: any, tenantId: string, adAccount
       active: activeCamps.length,
       paused: pausedCamps.length,
       other: otherCamps.length,
-      period: `últimos ${dayWindow} dias`,
+      period: periodLabel,
       data_source: liveCampaigns.length > 0 ? "meta_api_live" : "local_db",
       total_spend: `R$ ${allCamps.reduce((s: number, c: any) => s + (typeof c.spend === 'number' ? c.spend : 0), 0).toFixed(2)}`,
+      total_revenue: `R$ ${allCamps.reduce((s: number, c: any) => s + (typeof c.revenue === 'number' ? c.revenue : 0), 0).toFixed(2)}`,
+      total_conversions: allCamps.reduce((s: number, c: any) => s + (typeof c.conversions === 'number' ? c.conversions : 0), 0),
     },
     active_campaigns: activeCamps.map(formatCamp),
     paused_campaigns: pausedCamps.map(formatCamp),
@@ -1296,8 +1313,8 @@ async function fetchMetaCampaignsLive(supabase: any, tenantId: string, adAccount
   return allCampaigns;
 }
 
-// --- Helper: Fetch insights directly from Meta Graph API ---
-async function fetchMetaInsightsLive(supabase: any, tenantId: string, adAccountId?: string, sinceDate?: string, level: string = "campaign") {
+// --- Helper: Fetch insights directly from Meta Graph API (with pagination + lifetime support) ---
+async function fetchMetaInsightsLive(supabase: any, tenantId: string, adAccountId?: string, sinceDate?: string, level: string = "campaign", useLifetime: boolean = false) {
   const { data: conn } = await supabase
     .from("marketplace_connections")
     .select("access_token, metadata")
@@ -1312,44 +1329,76 @@ async function fetchMetaInsightsLive(supabase: any, tenantId: string, adAccountI
   if (accounts.length === 0) return [];
 
   const today = new Date().toISOString().split("T")[0];
-  const since = sinceDate || new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
   const allInsights: any[] = [];
   const GRAPH_VERSION = "v21.0";
+  const MAX_PAGES = 15; // safety limit for pagination
 
   for (const accountId of accounts.slice(0, 3)) {
     const cleanId = String(accountId).replace("act_", "");
     try {
-      const url = `https://graph.facebook.com/${GRAPH_VERSION}/act_${cleanId}/insights?fields=campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,impressions,clicks,spend,reach,cpc,cpm,ctr,actions,action_values,cost_per_action_type,frequency&level=${level}&time_range={"since":"${since}","until":"${today}"}&limit=500&access_token=${conn.access_token}`;
-      
-      const response = await fetch(url);
-      if (!response.ok) {
-        console.error(`[ads-chat][${VERSION}] Meta API error:`, response.status);
-        continue;
+      // Build time parameter: date_preset=maximum for lifetime, or time_range for specific window
+      let timeParam: string;
+      if (useLifetime) {
+        timeParam = `date_preset=maximum`;
+      } else {
+        const since = sinceDate || new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
+        timeParam = `time_range={"since":"${since}","until":"${today}"}`;
       }
-      const result = await response.json();
+
+      let url: string | null = `https://graph.facebook.com/${GRAPH_VERSION}/act_${cleanId}/insights?fields=campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,impressions,clicks,spend,reach,cpc,cpm,ctr,actions,action_values,cost_per_action_type,frequency&level=${level}&${timeParam}&limit=500&access_token=${conn.access_token}`;
       
-      for (const row of (result.data || [])) {
-        const conversions = (row.actions || []).find((a: any) => a.action_type === "purchase" || a.action_type === "offsite_conversion.fb_pixel_purchase")?.value || 0;
-        const convValue = (row.action_values || []).find((a: any) => a.action_type === "purchase" || a.action_type === "offsite_conversion.fb_pixel_purchase")?.value || 0;
+      let pageCount = 0;
+      while (url && pageCount < MAX_PAGES) {
+        pageCount++;
+        const response = await fetch(url);
+        if (!response.ok) {
+          const errBody = await response.text().catch(() => "");
+          console.error(`[ads-chat][${VERSION}] Meta API error (page ${pageCount}):`, response.status, errBody.slice(0, 200));
+          // Handle rate limiting
+          if (response.status === 429) {
+            const retryAfter = parseInt(response.headers.get("Retry-After") || "5");
+            console.log(`[ads-chat][${VERSION}] Rate limited, waiting ${retryAfter}s...`);
+            await new Promise(r => setTimeout(r, retryAfter * 1000));
+            continue; // retry same URL
+          }
+          break;
+        }
+        const result = await response.json();
         
-        allInsights.push({
-          meta_campaign_id: row.campaign_id,
-          campaign_name: row.campaign_name,
-          adset_id: row.adset_id,
-          adset_name: row.adset_name,
-          ad_id: row.ad_id,
-          ad_name: row.ad_name,
-          spend_cents: Math.round(parseFloat(row.spend || "0") * 100),
-          impressions: parseInt(row.impressions || "0"),
-          clicks: parseInt(row.clicks || "0"),
-          conversions: parseInt(conversions),
-          conversion_value_cents: Math.round(parseFloat(convValue) * 100),
-          ctr: parseFloat(row.ctr || "0"),
-          cpc_cents: Math.round(parseFloat(row.cpc || "0") * 100),
-          reach: parseInt(row.reach || "0"),
-          date_start: row.date_start,
-        });
+        for (const row of (result.data || [])) {
+          // Look for purchase conversions in multiple action_type formats
+          const purchaseTypes = ["purchase", "offsite_conversion.fb_pixel_purchase"];
+          const conversions = (row.actions || []).find((a: any) => purchaseTypes.includes(a.action_type))?.value || 0;
+          const convValue = (row.action_values || []).find((a: any) => purchaseTypes.includes(a.action_type))?.value || 0;
+          
+          allInsights.push({
+            meta_campaign_id: row.campaign_id,
+            campaign_name: row.campaign_name,
+            adset_id: row.adset_id,
+            adset_name: row.adset_name,
+            ad_id: row.ad_id,
+            ad_name: row.ad_name,
+            spend_cents: Math.round(parseFloat(row.spend || "0") * 100),
+            impressions: parseInt(row.impressions || "0"),
+            clicks: parseInt(row.clicks || "0"),
+            conversions: parseInt(conversions),
+            conversion_value_cents: Math.round(parseFloat(convValue) * 100),
+            ctr: parseFloat(row.ctr || "0"),
+            cpc_cents: Math.round(parseFloat(row.cpc || "0") * 100),
+            reach: parseInt(row.reach || "0"),
+            date_start: row.date_start,
+          });
+        }
+
+        // Follow pagination
+        url = result.paging?.next || null;
+        if (url) {
+          // Small delay between pages to avoid rate limits
+          await new Promise(r => setTimeout(r, 2000));
+        }
       }
+      
+      console.log(`[ads-chat][${VERSION}] fetchMetaInsightsLive account ${cleanId}: ${allInsights.length} rows in ${pageCount} pages`);
     } catch (err) {
       console.error(`[ads-chat][${VERSION}] fetchMetaInsightsLive error for ${cleanId}:`, err);
     }
@@ -3956,6 +4005,14 @@ Quando o usuário pedir "estratégia", "diagnóstico", "análise", "plano" ou pr
 - Se o usuário pedir "liste os nomes", copie EXATAMENTE o campo "name" retornado pela ferramenta
 - Se o nome não corresponder ao que o usuário vê no Gerenciador, informe que os dados vêm direto da API da Meta
 - Quando o usuário pedir as "N melhores", retorne EXATAMENTE N — nem mais, nem menos
+
+## ⚠️ REGRA CRÍTICA: DADOS LIFETIME / MÁXIMO / HISTÓRICO COMPLETO
+- Quando o usuário pedir dados "desde o início", "máximo", "total", "lifetime", "histórico completo", ou "desde quando começou":
+  → SEMPRE use date_preset: "maximum" na chamada de get_campaign_performance
+  → NUNCA use days: 365 como substituto — isso perde dados de contas com mais de 1 ano
+- O date_preset=maximum busca TODOS os dados desde a criação da conta, sem limite de tempo
+- NUNCA invente números de conversões/vendas — use EXATAMENTE os valores retornados pela ferramenta
+- Se o campo "conversions" da ferramenta mostrar 1352, reporte 1352 — não arredonde nem modifique
 
 ## REGRA CRÍTICA DE COMUNICAÇÃO — LINGUAGEM AMIGÁVEL AO LOJISTA
 Você conversa com o DONO DA LOJA, NÃO com um desenvolvedor.
