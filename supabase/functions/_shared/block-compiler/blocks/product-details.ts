@@ -225,7 +225,7 @@ export const productDetailsToStaticHTML: BlockCompilerFn = (
     </div>`;
     
     // Add to cart button (h-12 = 48px, text-sm = 14px, border-2 — mirrors SPA)
-    const addToCartHtml = showAddToCartButton ? `<button type="button" data-sf-action="add-to-cart" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${mainImageThumb}" class="sf-btn-secondary" style="height:48px;padding:0 32px;border-radius:9999px;font-size:14px;font-weight:600;cursor:pointer;width:100%;border:2px solid var(--theme-button-primary-bg,#1a1a1a);text-transform:uppercase;letter-spacing:0.05em;">Adicionar ao carrinho</button>` : '';
+    const addToCartHtml = showAddToCartButton ? `<button type="button" data-sf-action="add-to-cart" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price}" data-product-image="${mainImageThumb}" data-product-sku="${escapeHtml(product.sku || '')}" data-product-meta-id="${escapeHtml((product as any).meta_retailer_id || '')}" class="sf-btn-secondary" style="height:48px;padding:0 32px;border-radius:9999px;font-size:14px;font-weight:600;cursor:pointer;width:100%;border:2px solid var(--theme-button-primary-bg,#1a1a1a);text-transform:uppercase;letter-spacing:0.05em;">Adicionar ao carrinho</button>` : '';
     
     ctaHtml = `<div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:400px;">
       ${topRowHtml}
