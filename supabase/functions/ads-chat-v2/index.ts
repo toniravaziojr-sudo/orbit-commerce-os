@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v6.0.0"; // Factual orchestration architecture
+const VERSION = "v6.1.0"; // Dual-mode: factual orchestration + strategic/generative with approval pipeline convergence
 // ====================
 
 const AI_TIMEOUT_MS = 90000;
@@ -30,19 +30,23 @@ type IntentCategory =
   | "write_tiktok"    // TikTok write operations
   | "creative"        // generate images, texts, creatives
   | "drive"           // browse/search Drive files
+  | "strategic"       // strategy planning, campaign proposals, funnel design, audience strategy
   | "general";        // conversation, greetings, explanations
+
+type IntentMode = "factual" | "strategic" | "conversational";
 
 interface ClassifiedIntent {
   category: IntentCategory;
-  isFactual: boolean;       // true = needs data fetching before AI response
-  entities: {               // extracted entities from message
+  mode: IntentMode;           // Replaces simple isFactual boolean
+  isFactual: boolean;         // Backward compat — true when mode === "factual"
+  entities: {
     campaignIds?: string[];
     adsetIds?: string[];
     period?: string;
     channel?: string;
     productName?: string;
   };
-  confidence: number;       // 0-1
+  confidence: number;
 }
 
 function classifyIntent(message: string, history: any[]): ClassifiedIntent {
@@ -66,73 +70,85 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
     entities.period = "last_30d";
   }
 
+  // ---- STRATEGIC / GENERATIVE (check BEFORE write patterns) ----
+  // These are requests where the user wants the AI to PLAN, PROPOSE, or DESIGN
+  // but NOT execute directly. The output should converge to the approval pipeline.
+  if (/mont[ae]r?\s+(estratégia|plano|funil|estrutura)|propon?h?[ae]r?\s+(campanha|estratégia|plano|estrutura|teste)|suger[ie]r?\s+(campanha|estratégia|público|criativo|estrutura|teste)|plan[oe]?j[ae]r?\s+(campanha|funil|teste)|desenh[ae]r?\s+(campanha|funil|estratégia)|cri[ae]r?\s+(estratégia|plano|funil|estrutura)|defin[ie]r?\s+(estratégia|plano|público|teste)|quero\s+(uma?\s+)?(estratégia|plano|campanha|teste|funil)|preciso\s+(de\s+)?(uma?\s+)?(estratégia|plano|campanha)|nova\s+(estratégia|campanha|estrutura)|novas?\s+campanha[s]?\s+(para|de|com)|escal[ae]r?\s+vend|aumentar\s+(vend|roas|resultado)|melhorar\s+(resultado|performance|desempenho)|otimizar\s+(campanha|resultado|funil)/i.test(msg) &&
+      !/list[ae]r?|mostrar?|quais\s+são|quanto|qual\s+(é|foi|era)/i.test(msg)) {
+    return { category: "strategic", mode: "strategic", isFactual: false, entities, confidence: 0.9 };
+  }
+
   // ---- Pattern matching (ordered by specificity) ----
 
   // TARGETING (highest priority for targeting queries)
   if (/targeting|segmentação|segmentacao|público[s]?\s+(personalizado|semelhante|custom|lookalike)|audiência|interesse[s]?|demografi|faixa\s+etári|gênero|localização|posicionamento/i.test(msg) &&
       !/cri[ae]r?\s+(público|audiência|lookalike)|atualiz/i.test(msg)) {
-    return { category: "targeting", isFactual: true, entities, confidence: 0.95 };
+    return { category: "targeting", mode: "factual", isFactual: true, entities, confidence: 0.95 };
   }
 
   // PERFORMANCE (metrics-focused)
   if (/performance|desempenho|resultado[s]?|métrica[s]?|roas|roi\b|cpa\b|cpc\b|ctr\b|gasto|spend|conversão|conversões|conversao|receita|faturamento|vendas?\s+(d[aoe]s?\s+)?campanhas?|quanto\s+gastei|quanto\s+gast[ao]u|quanto\s+faturei|quanto\s+convert|melhor(es)?\s+campanha|pior(es)?\s+campanha|top\s+\d+|ranking|comparar?\s+campanha/i.test(msg) &&
       !/cri[ae]r?|paus[ae]r?|ativ[ae]r?|alter[ae]r?/i.test(msg)) {
-    return { category: "performance", isFactual: true, entities, confidence: 0.9 };
+    return { category: "performance", mode: "factual", isFactual: true, entities, confidence: 0.9 };
   }
 
   // CAMPAIGNS LIST (enumerate entities)
   if (/list[ae]r?\s+(as?\s+)?campanha|quais\s+(são\s+)?(as?\s+)?campanha|mostr[ae]r?\s+(as?\s+)?campanha|campanhas?\s+ativ[ao]s?|campanhas?\s+pausad[ao]s?|quantas?\s+campanha|list[ae]r?\s+(os?\s+)?conjunt|list[ae]r?\s+(os?\s+)?anúncio/i.test(msg) &&
       !/cri[ae]r?|paus[ae]r?|ativ[ae]r?/i.test(msg)) {
-    return { category: "campaigns_list", isFactual: true, entities, confidence: 0.85 };
+    return { category: "campaigns_list", mode: "factual", isFactual: true, entities, confidence: 0.85 };
   }
 
-  // WRITE - META
-  if (/cri[ae]r?\s+(campanha|conjunto|anúncio|público|audiência|lookalike)|paus[ae]r?\s+(campanha|conjunto|anúncio)|ativ[ae]r?\s+(campanha|conjunto|anúncio)|reativ[ae]r?|alter[ae]r?\s+(orçamento|budget|segmentação)|duplic[ae]r?\s+campanha|aument[ae]r?\s+(orçamento|budget)|diminu[iae]r?\s+(orçamento|budget)/i.test(msg) &&
+  // WRITE - META (direct execution requests — pause, activate, budget changes)
+  if (/paus[ae]r?\s+(campanha|conjunto|anúncio)|ativ[ae]r?\s+(campanha|conjunto|anúncio)|reativ[ae]r?|alter[ae]r?\s+(orçamento|budget|segmentação)|duplic[ae]r?\s+campanha|aument[ae]r?\s+(orçamento|budget)|diminu[iae]r?\s+(orçamento|budget)/i.test(msg) &&
       !/google|tiktok/i.test(msg)) {
-    return { category: "write_meta", isFactual: false, entities, confidence: 0.9 };
+    return { category: "write_meta", mode: "conversational", isFactual: false, entities, confidence: 0.9 };
+  }
+
+  // "criar campanha" without strategic context = write_meta (single campaign creation)
+  if (/cri[ae]r?\s+(campanha|conjunto|anúncio|público|audiência|lookalike)/i.test(msg) &&
+      !/estratégia|plano|funil|estrutura|suger|propon|test[ae]r?|escal/i.test(msg) &&
+      !/google|tiktok/i.test(msg)) {
+    return { category: "write_meta", mode: "conversational", isFactual: false, entities, confidence: 0.85 };
   }
 
   // WRITE - GOOGLE
   if (/google/i.test(msg) && /cri[ae]r?|paus[ae]r?|ativ[ae]r?|alter[ae]r?|budget/i.test(msg)) {
-    return { category: "write_google", isFactual: false, entities, confidence: 0.85 };
+    return { category: "write_google", mode: "conversational", isFactual: false, entities, confidence: 0.85 };
   }
 
   // WRITE - TIKTOK
   if (/tiktok/i.test(msg) && /cri[ae]r?|paus[ae]r?|ativ[ae]r?|alter[ae]r?|budget/i.test(msg)) {
-    return { category: "write_tiktok", isFactual: false, entities, confidence: 0.85 };
+    return { category: "write_tiktok", mode: "conversational", isFactual: false, entities, confidence: 0.85 };
   }
 
   // CREATIVE
   if (/gerar?\s+(arte|imagem|criativo|texto|copy|headline)|criativo[s]?|arte[s]?\s+para\s+anúncio/i.test(msg)) {
-    return { category: "creative", isFactual: false, entities, confidence: 0.85 };
+    return { category: "creative", mode: "conversational", isFactual: false, entities, confidence: 0.85 };
   }
 
   // AUTOPILOT
   if (/configuração|config|guardião|estrategista|plano\s+estratégico|ações?\s+da\s+ia|diagnóstico|insight|histórico\s+de\s+execuç|autopilot|teste[s]?\s+a\/?b|experiment/i.test(msg)) {
-    return { category: "autopilot", isFactual: true, entities, confidence: 0.8 };
+    return { category: "autopilot", mode: "factual", isFactual: true, entities, confidence: 0.8 };
   }
 
   // STORE CONTEXT
   if (/produto[s]?|catálogo|categoria[s]?|oferta[s]?|desconto[s]?|loja|negócio|nicho|pixel|rastreamento/i.test(msg) &&
       !/campanha|anúncio|criativo|gerar/i.test(msg)) {
-    return { category: "store_context", isFactual: true, entities, confidence: 0.75 };
+    return { category: "store_context", mode: "factual", isFactual: true, entities, confidence: 0.75 };
   }
 
   // DRIVE
   if (/drive|arquivo[s]?|pasta[s]?|buscar?\s+no\s+drive|explorar?\s+drive|meu\s+drive/i.test(msg)) {
-    return { category: "drive", isFactual: false, entities, confidence: 0.8 };
+    return { category: "drive", mode: "conversational", isFactual: false, entities, confidence: 0.8 };
   }
 
   // GENERAL - conversation
-  return { category: "general", isFactual: false, entities, confidence: 0.5 };
+  return { category: "general", mode: "conversational", isFactual: false, entities, confidence: 0.5 };
 }
 
 // ======================================================================
 // 2. TOOL SUBSETS — Only relevant tools per intent
 // ======================================================================
-
-// Import full tool definitions from ads-chat (we reference by name, execute via the same executeTool)
-// For Phase 1.1, we define minimal tool schemas per category
 
 function getToolSubset(category: IntentCategory): any[] {
   switch (category) {
@@ -171,7 +187,7 @@ function getToolSubset(category: IntentCategory): any[] {
           campaign_id: { type: "string" },
           live: { type: "boolean", description: "Se true, busca TODOS da API Meta com targeting completo" },
         }),
-        toolDef("get_adset_targeting", "Busca targeting completo de adsets direto da Meta API. Retorna: públicos, lookalikes, interesses, idade, gênero, geo, posicionamentos.", {
+        toolDef("get_adset_targeting", "Busca targeting completo de adsets direto da Meta API.", {
           adset_ids: { type: "array", items: { type: "string" }, description: "Lista de IDs (máx 20)" },
           ad_account_id: { type: "string" },
         }, ["adset_ids"]),
@@ -221,6 +237,62 @@ function getToolSubset(category: IntentCategory): any[] {
           status: { type: "string", enum: ["pending_approval", "approved", "rejected", "superseded", "executed"] },
         }),
         toolDef("get_experiments", "Testes A/B.", { status: { type: "string", enum: ["draft", "running", "completed", "cancelled"] } }),
+      ];
+
+    // STRATEGIC: AI gets read tools + context tools to gather info, plus the strategic plan creation tool
+    case "strategic":
+      return [
+        toolDef("get_campaign_performance", "Ver campanhas existentes para base de diagnóstico.", {
+          status_filter: { type: "string", enum: ["ACTIVE", "PAUSED", "ALL"] },
+          date_preset: { type: "string", enum: ["maximum", "last_7d", "last_14d", "last_30d"] },
+        }),
+        toolDef("get_store_context", "Contexto do negócio (nicho, público, produtos).", {}),
+        toolDef("get_products", "Busca produtos para selecionar para campanha.", { search: { type: "string" }, limit: { type: "number" } }),
+        toolDef("get_product_images", "Busca imagens de produto.", { product_id: { type: "string" }, product_name: { type: "string" } }, ["product_id"]),
+        toolDef("get_autopilot_insights", "Diagnósticos e insights recentes.", { status: { type: "string", enum: ["open", "resolved"] } }),
+        toolDef("get_tracking_health", "Saúde do rastreamento.", {}),
+        toolDef("get_audiences", "Públicos existentes para referência.", { channel: { type: "string", enum: ["meta", "google"] } }),
+        toolDef("submit_strategic_proposal", "Submete uma proposta estratégica para aprovação do lojista. A proposta será renderizada como cards visuais de aprovação. SEMPRE use esta ferramenta quando tiver uma proposta pronta.", {
+          diagnosis: { type: "string", description: "Diagnóstico situacional completo (mínimo 300 palavras)" },
+          planned_actions: {
+            type: "array",
+            description: "Lista de ações propostas (campanhas, ajustes, criativos)",
+            items: {
+              type: "object",
+              properties: {
+                action_type: { type: "string", enum: ["create_campaign", "adjust_budget", "pause_campaign", "activate_campaign", "create_audience", "create_creative", "restructure_funnel", "create_test"] },
+                campaign_name: { type: "string", description: "Nome descritivo da campanha/ação" },
+                objective: { type: "string", description: "Objetivo (ex: OUTCOME_SALES, OUTCOME_LEADS)" },
+                funnel_stage: { type: "string", enum: ["tof", "mof", "bof", "test"], description: "Etapa do funil" },
+                daily_budget_brl: { type: "number", description: "Orçamento diário em R$" },
+                reasoning: { type: "string", description: "Racional estratégico desta ação" },
+                expected_impact: { type: "string", description: "Impacto esperado" },
+                confidence: { type: "string", enum: ["high", "medium", "low"] },
+                adsets: {
+                  type: "array",
+                  description: "Conjuntos de anúncios planejados",
+                  items: {
+                    type: "object",
+                    properties: {
+                      adset_name: { type: "string" },
+                      audience_type: { type: "string", enum: ["broad", "interest", "lookalike", "custom", "retargeting", "abo_test"] },
+                      audience_description: { type: "string" },
+                      budget_brl: { type: "number" },
+                      ads_count: { type: "number" },
+                    },
+                    required: ["adset_name", "audience_type", "audience_description"],
+                  },
+                },
+                product_name: { type: "string" },
+                creative_direction: { type: "string", description: "Direção criativa para os anúncios" },
+              },
+              required: ["action_type", "campaign_name", "reasoning"],
+            },
+          },
+          total_daily_budget_brl: { type: "number", description: "Orçamento diário total proposto" },
+          strategy_summary: { type: "string", description: "Resumo executivo da estratégia (1-2 parágrafos)" },
+          risks: { type: "array", items: { type: "string" }, description: "Riscos identificados" },
+        }, ["diagnosis", "planned_actions", "strategy_summary"]),
       ];
 
     case "write_meta":
@@ -356,7 +428,6 @@ function getToolSubset(category: IntentCategory): any[] {
 
     case "general":
     default:
-      // Minimal read-only tools for general conversation
       return [
         toolDef("get_campaign_performance", "Ver campanhas.", { status_filter: { type: "string", enum: ["ACTIVE", "PAUSED", "ALL"] } }),
         toolDef("get_store_context", "Contexto do negócio.", {}),
@@ -383,8 +454,8 @@ function toolDef(name: string, description: string, properties: Record<string, a
 
 interface FactualContext {
   resolvedData: Record<string, any>;
-  dataSource: string; // "live" | "cache" | "hybrid"
-  steps: string[];    // For SSE progress reporting
+  dataSource: string;
+  steps: string[];
 }
 
 async function orchestrateFactualQuery(
@@ -394,7 +465,6 @@ async function orchestrateFactualQuery(
   adAccountId?: string,
   sendProgress?: (label: string) => Promise<void>,
 ): Promise<FactualContext | null> {
-  // Only orchestrate for factual intents
   if (!intent.isFactual) return null;
 
   const ctx: FactualContext = { resolvedData: {}, dataSource: "cache", steps: [] };
@@ -410,14 +480,13 @@ async function orchestrateFactualQuery(
       case "store_context":
         return await orchestrateStoreContext(supabase, tenantId, sendProgress, ctx);
       case "autopilot":
-        // Autopilot data is always from DB, no live fetch needed
         return null; // Let AI handle with tools
       default:
         return null;
     }
   } catch (err) {
     console.error(`[ads-chat-v2][${VERSION}] Orchestration error:`, err);
-    return null; // Fallback: let AI use tools
+    return null;
   }
 }
 
@@ -425,7 +494,6 @@ async function orchestratePerformance(
   supabase: any, tenantId: string, intent: ClassifiedIntent,
   adAccountId: string | undefined, sendProgress: any, ctx: FactualContext,
 ): Promise<FactualContext> {
-  // Step 1: Get Meta connection
   await sendProgress?.("Verificando conexão Meta");
   const { data: conn } = await supabase
     .from("marketplace_connections")
@@ -433,7 +501,6 @@ async function orchestratePerformance(
     .eq("tenant_id", tenantId).eq("marketplace", "meta").eq("is_active", true).maybeSingle();
 
   if (!conn?.access_token) {
-    // Fallback to cache
     await sendProgress?.("Buscando campanhas no cache");
     const { data: campaigns } = await supabase
       .from("meta_ad_campaigns")
@@ -445,7 +512,6 @@ async function orchestratePerformance(
     return ctx;
   }
 
-  // Step 2: Fetch campaigns live
   const accounts = adAccountId ? [adAccountId] : (conn.metadata?.assets?.ad_accounts || []).map((a: any) => a.id || a);
   if (accounts.length === 0) {
     ctx.resolvedData.error = "Nenhuma conta de anúncios encontrada";
@@ -480,7 +546,6 @@ async function orchestratePerformance(
   ctx.steps.push(`campaigns_live:${allCampaigns.length}`);
   await sendProgress?.(`${allCampaigns.length} campanhas encontradas`);
 
-  // Step 3: Fetch insights
   const useLifetime = !intent.entities.period || intent.entities.period === "maximum";
   const presetDays: Record<string, number> = { last_7d: 7, last_14d: 14, last_30d: 30, last_90d: 90 };
   const sinceDate = useLifetime ? undefined : new Date(Date.now() - (presetDays[intent.entities.period || ""] || 30) * 86400000).toISOString().split("T")[0];
@@ -538,7 +603,6 @@ async function orchestratePerformance(
   ctx.steps.push(`insights_live:${allInsights.length}`);
   await sendProgress?.(`${allInsights.length} registros de métricas coletados`);
 
-  // Step 4: Merge campaigns + insights
   await sendProgress?.("Consolidando resultado");
   const campMap: Record<string, any> = {};
   for (const c of allCampaigns) {
@@ -592,7 +656,6 @@ async function orchestrateTargeting(
   supabase: any, tenantId: string, intent: ClassifiedIntent,
   adAccountId: string | undefined, sendProgress: any, ctx: FactualContext,
 ): Promise<FactualContext> {
-  // Step 1: Get adset IDs from cache (fast)
   await sendProgress?.("Buscando conjuntos no cache");
   const query = supabase.from("meta_ad_adsets")
     .select("meta_adset_id, name, status, meta_campaign_id, daily_budget_cents, targeting, optimization_goal")
@@ -609,7 +672,6 @@ async function orchestrateTargeting(
   ctx.steps.push(`adsets_cache:${adsets.length}`);
   await sendProgress?.(`${adsets.length} conjuntos encontrados`);
 
-  // Step 2: Fetch live targeting for active adsets
   const activeAdsets = adsets.filter((a: any) => a.status === "ACTIVE");
   const adsetsToFetch = activeAdsets.length > 0 ? activeAdsets : adsets.slice(0, 20);
   const adsetIds = adsetsToFetch.map((a: any) => a.meta_adset_id).slice(0, 20);
@@ -643,7 +705,6 @@ async function orchestrateTargeting(
         const data = await response.json();
         if (!data.error) {
           targetingResults.push(data);
-          // Sync to cache
           supabase.from("meta_ad_adsets").upsert({
             tenant_id: tenantId, meta_adset_id: data.id,
             meta_campaign_id: data.campaign_id, name: data.name,
@@ -661,7 +722,6 @@ async function orchestrateTargeting(
     ctx.steps.push(`targeting_live:${targetingResults.length}`);
     ctx.dataSource = "hybrid";
 
-    // Format targeting
     ctx.resolvedData = {
       total: adsets.length,
       active: activeAdsets.length,
@@ -675,7 +735,6 @@ async function orchestrateTargeting(
       })),
     };
   } else {
-    // Use cached targeting
     ctx.resolvedData = {
       total: adsets.length,
       active: activeAdsets.length,
@@ -696,7 +755,6 @@ async function orchestrateCampaignsList(
   supabase: any, tenantId: string, intent: ClassifiedIntent,
   adAccountId: string | undefined, sendProgress: any, ctx: FactualContext,
 ): Promise<FactualContext> {
-  // Reuse performance orchestrator but with lighter data
   return await orchestratePerformance(supabase, tenantId, intent, adAccountId, sendProgress, ctx);
 }
 
@@ -722,7 +780,6 @@ async function orchestrateStoreContext(
   return ctx;
 }
 
-// --- Format targeting into human-readable structure (shared with ads-chat) ---
 function formatTargetingDetails(targeting: any) {
   if (!targeting) return null;
   const result: any = {};
@@ -751,7 +808,7 @@ function formatTargetingDetails(targeting: any) {
 }
 
 // ======================================================================
-// 4. SYSTEM PROMPT — Compact factual prompt (data already resolved)
+// 4. SYSTEM PROMPTS — Separate prompts per mode
 // ======================================================================
 
 function buildFactualSystemPrompt(storeName: string, factualData: any, dataSource: string): string {
@@ -778,8 +835,39 @@ ${JSON.stringify(factualData, null, 2).substring(0, 15000)}
 - Sugira próximos passos baseados nos dados`;
 }
 
+function buildStrategicSystemPrompt(storeName: string, context: any): string {
+  return `Você é o Gestor de Tráfego IA da loja "${storeName}".
+Você está no MODO ESTRATÉGICO: o lojista quer que você analise o contexto, monte ou proponha uma estratégia.
+
+## FLUXO OBRIGATÓRIO
+1. Use as ferramentas de leitura (get_campaign_performance, get_store_context, get_products, etc.) para coletar contexto real
+2. Analise o cenário atual com base nos dados coletados
+3. Monte uma proposta estruturada
+4. OBRIGATORIAMENTE chame a ferramenta \`submit_strategic_proposal\` com a proposta completa
+
+## REGRAS ESTRATÉGICAS INVIOLÁVEIS
+- **Campanhas de Teste (ABO):** 1 AdSet = 1 Anúncio. Orçamento no AdSet. Mínimo 2 variações.
+- **Campanhas de Venda (TOF):** Mínimo 2 AdSets com públicos distintos (Broad + LAL/Interesses/Custom).
+- **Remarketing (BOF):** Criativos OBRIGATORIAMENTE diferentes de TOF. AdSets por temperatura.
+- **Multiplicidade:** 2-4 variações de criativos/textos por proposta.
+
+## REGRA: NUNCA EXECUTAR DIRETO
+- Você NÃO pode criar campanhas diretamente neste modo
+- Você DEVE usar \`submit_strategic_proposal\` para gerar um artefato de aprovação
+- O lojista vai revisar, ajustar e aprovar antes de qualquer execução
+- Toda proposta entra como "pending_approval" no sistema
+
+## COMUNICAÇÃO
+- Fale em Português BR
+- Use Markdown
+- Seja proativo e estratégico
+- Explique o racional antes de propor
+- Calcule distribuição de verba por etapa de funil
+
+${context?.storeUrl ? `**URL da loja**: ${context.storeUrl}` : ""}`;
+}
+
 function buildConversationalSystemPrompt(storeName: string, context: any): string {
-  // Lighter version of the full system prompt, for non-factual queries
   return `Você é o Gestor de Tráfego IA da loja "${storeName}".
 
 ## REGRA SUPREMA: HONESTIDADE ABSOLUTA
@@ -807,11 +895,102 @@ ${context?.products ? `\n**Produtos**: ${context.products.map((p: any) => p.name
 }
 
 // ======================================================================
-// 5. TOOL EXECUTOR — Delegates to ads-chat edge function
+// 5. STRATEGIC PROPOSAL HANDLER — Converge to approval pipeline
 // ======================================================================
 
-async function executeTool(supabase: any, tenantId: string, toolName: string, args: any, chatSessionId?: string, strategyRunId?: string): Promise<string> {
-  // Call the original ads-chat function's executeTool via internal HTTP call
+async function handleStrategicProposal(
+  supabase: any,
+  tenantId: string,
+  args: any,
+  chatSessionId: string,
+  strategyRunId: string,
+  channel: string,
+): Promise<string> {
+  try {
+    const { diagnosis, planned_actions, total_daily_budget_brl, strategy_summary, risks } = args;
+
+    if (!planned_actions || !Array.isArray(planned_actions) || planned_actions.length === 0) {
+      return JSON.stringify({ error: "Proposta vazia. Inclua pelo menos uma ação planejada." });
+    }
+
+    // Create a strategic plan action in the approval pipeline (same as Strategist motor)
+    const planAction = {
+      tenant_id: tenantId,
+      session_id: chatSessionId,
+      channel: channel || "meta",
+      action_type: "strategic_plan",
+      status: "pending_approval",
+      reasoning: diagnosis?.substring(0, 5000) || "Proposta gerada via Chat Estratégico",
+      expected_impact: strategy_summary?.substring(0, 2000) || "",
+      confidence: "medium",
+      action_data: {
+        source: "ads_chat_v2_strategic",
+        strategy_run_id: strategyRunId,
+        diagnosis: diagnosis?.substring(0, 10000),
+        planned_actions: planned_actions.map((action: any) => ({
+          action_type: action.action_type,
+          campaign_name: action.campaign_name,
+          objective: action.objective,
+          funnel_stage: action.funnel_stage,
+          daily_budget_brl: action.daily_budget_brl,
+          reasoning: action.reasoning,
+          expected_impact: action.expected_impact,
+          confidence: action.confidence || "medium",
+          product_name: action.product_name,
+          creative_direction: action.creative_direction,
+          adsets: (action.adsets || []).map((adset: any) => ({
+            adset_name: adset.adset_name,
+            audience_type: adset.audience_type,
+            audience_description: adset.audience_description,
+            budget_brl: adset.budget_brl,
+            ads_count: adset.ads_count || 1,
+          })),
+        })),
+        total_daily_budget_brl: total_daily_budget_brl,
+        risks: risks || [],
+      },
+    };
+
+    const { data: inserted, error: insertErr } = await supabase
+      .from("ads_autopilot_actions")
+      .insert(planAction as any)
+      .select("id")
+      .single();
+
+    if (insertErr) {
+      console.error(`[ads-chat-v2][${VERSION}] Failed to insert strategic proposal:`, insertErr);
+      return JSON.stringify({ error: `Erro ao salvar proposta: ${insertErr.message}` });
+    }
+
+    // Update session with planned actions count
+    await supabase.from("ads_autopilot_sessions")
+      .update({ actions_planned: planned_actions.length })
+      .eq("id", chatSessionId);
+
+    return JSON.stringify({
+      success: true,
+      proposal_id: inserted.id,
+      status: "pending_approval",
+      actions_count: planned_actions.length,
+      total_daily_budget_brl,
+      message: `Proposta estratégica criada com ${planned_actions.length} ações. O lojista pode revisá-la e aprová-la na aba de aprovações.`,
+    });
+  } catch (err: any) {
+    console.error(`[ads-chat-v2][${VERSION}] Strategic proposal error:`, err);
+    return JSON.stringify({ error: err.message || "Erro ao processar proposta estratégica" });
+  }
+}
+
+// ======================================================================
+// 6. TOOL EXECUTOR — Delegates to ads-chat edge function or executes directly
+// ======================================================================
+
+async function executeTool(supabase: any, tenantId: string, toolName: string, args: any, chatSessionId: string, strategyRunId: string, channel?: string): Promise<string> {
+  // Handle strategic proposal tool locally
+  if (toolName === "submit_strategic_proposal") {
+    return await handleStrategicProposal(supabase, tenantId, args, chatSessionId, strategyRunId, channel || "meta");
+  }
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -830,18 +1009,15 @@ async function executeTool(supabase: any, tenantId: string, toolName: string, ar
     });
 
     if (!response.ok) {
-      // If ads-chat doesn't support _internal_tool_call yet, execute common tools directly
       return await executeToolDirect(supabase, tenantId, toolName, args);
     }
 
     return await response.text();
   } catch {
-    // Fallback: execute directly for common read tools
     return await executeToolDirect(supabase, tenantId, toolName, args);
   }
 }
 
-// Direct execution for common read tools (no dependency on ads-chat internals)
 async function executeToolDirect(supabase: any, tenantId: string, toolName: string, args: any): Promise<string> {
   try {
     switch (toolName) {
@@ -921,7 +1097,7 @@ async function executeToolDirect(supabase: any, tenantId: string, toolName: stri
 }
 
 // ======================================================================
-// 6. SSE PROGRESS LABELS
+// 7. SSE PROGRESS LABELS
 // ======================================================================
 
 const TOOL_PROGRESS_LABELS: Record<string, string> = {
@@ -957,10 +1133,11 @@ const TOOL_PROGRESS_LABELS: Record<string, string> = {
   create_lookalike_audience: "Criando público semelhante",
   browse_drive: "Explorando Drive",
   search_drive_files: "Buscando no Drive",
+  submit_strategic_proposal: "Gerando proposta para aprovação",
 };
 
 // ======================================================================
-// 7. MAIN HANDLER
+// 8. MAIN HANDLER
 // ======================================================================
 
 Deno.serve(async (req) => {
@@ -1000,7 +1177,6 @@ Deno.serve(async (req) => {
       convId = conv.id;
     }
 
-    // Chat session for action logging
     const chatStrategyRunId = crypto.randomUUID();
     const { data: chatSession } = await supabase.from("ads_autopilot_sessions").insert({
       tenant_id, channel: channel || "meta", trigger_type: "chat",
@@ -1024,7 +1200,7 @@ Deno.serve(async (req) => {
 
     // ===== STEP 1: Classify intent =====
     const intent = classifyIntent(message || "", history);
-    console.log(`[ads-chat-v2][${VERSION}] Intent: ${intent.category} (factual=${intent.isFactual}, confidence=${intent.confidence})`);
+    console.log(`[ads-chat-v2][${VERSION}] Intent: ${intent.category} mode=${intent.mode} (confidence=${intent.confidence})`);
 
     // ===== STEP 2: Setup SSE stream =====
     const { readable, writable } = new TransformStream();
@@ -1039,12 +1215,10 @@ Deno.serve(async (req) => {
     // ===== STEP 3: Process in background =====
     (async () => {
       try {
-        // Get store name for prompts
         const { data: storeSettings } = await supabase.from("store_settings")
           .select("store_name").eq("tenant_id", tenant_id).maybeSingle();
         const storeName = storeSettings?.store_name || "Loja";
 
-        // Images require multimodal model
         const hasImages = attachments?.some((a: any) => a.mimeType?.startsWith("image/"));
         const modelToUse = hasImages ? "google/gemini-2.5-pro" : "google/gemini-3-flash-preview";
 
@@ -1053,39 +1227,29 @@ Deno.serve(async (req) => {
         console.log(`[ads-chat-v2][${VERSION}] AI provider: ${endpoint.provider} (${endpoint.model})`);
 
         // ===== FACTUAL PATH: Backend orchestrates data, AI only interprets =====
-        if (intent.isFactual && intent.confidence >= 0.7) {
+        if (intent.mode === "factual" && intent.confidence >= 0.7) {
           await sendProgress("Identificando escopo da consulta");
           const factualCtx = await orchestrateFactualQuery(supabase, tenant_id, intent, ad_account_id, sendProgress);
 
           if (factualCtx && Object.keys(factualCtx.resolvedData).length > 0) {
-            // Data resolved — send to AI for interpretation only (no tools needed)
             await sendProgress("Gerando resposta");
             const factualPrompt = buildFactualSystemPrompt(storeName, factualCtx.resolvedData, factualCtx.dataSource);
 
-            // Inject memory
             let memoryCtx = "";
-            try {
-              memoryCtx = await getMemoryContext(supabase, tenant_id, user.id, "ads_chat");
-            } catch { /* ok */ }
+            try { memoryCtx = await getMemoryContext(supabase, tenant_id, user.id, "ads_chat"); } catch { /* ok */ }
 
             const factualMessages: any[] = [
               { role: "system", content: factualPrompt + memoryCtx },
-              // Include last few messages for conversational context
-              ...history.slice(-4).map((m: any) => ({
-                role: m.role, content: m.content || "",
-              })),
+              ...history.slice(-4).map((m: any) => ({ role: m.role, content: m.content || "" })),
             ];
 
-            // Stream AI response (no tools needed — data already resolved)
             const aiResponse = await fetch(endpoint.url, {
               method: "POST",
               headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
               body: JSON.stringify({ model: endpoint.model, messages: factualMessages, stream: true }),
             });
 
-            if (!aiResponse.ok) {
-              throw new Error(`AI error: ${aiResponse.status}`);
-            }
+            if (!aiResponse.ok) throw new Error(`AI error: ${aiResponse.status}`);
 
             const reader = aiResponse.body!.getReader();
             const decoder = new TextDecoder();
@@ -1100,15 +1264,10 @@ Deno.serve(async (req) => {
                 if (!line.startsWith("data: ")) continue;
                 const jsonStr = line.slice(6).trim();
                 if (jsonStr === "[DONE]") continue;
-                try {
-                  const parsed = JSON.parse(jsonStr);
-                  const delta = parsed.choices?.[0]?.delta?.content;
-                  if (delta) fullContent += delta;
-                } catch { /* partial */ }
+                try { const parsed = JSON.parse(jsonStr); const delta = parsed.choices?.[0]?.delta?.content; if (delta) fullContent += delta; } catch { /* partial */ }
               }
             }
 
-            // Save response
             if (fullContent) {
               await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: fullContent });
               if ((history || []).length <= 1) {
@@ -1122,25 +1281,30 @@ Deno.serve(async (req) => {
           // If orchestration returned null or empty data, fall through to conversational path with tools
         }
 
+        // ===== STRATEGIC PATH: AI gathers context then submits structured proposal =====
         // ===== CONVERSATIONAL PATH: AI with subset tools =====
-        await sendProgress("Analisando");
+        const isStrategicMode = intent.mode === "strategic";
+        if (isStrategicMode) {
+          await sendProgress("Modo estratégico — analisando contexto");
+        } else {
+          await sendProgress("Analisando");
+        }
 
-        // Build messages
         const tools = getToolSubset(intent.category);
-        console.log(`[ads-chat-v2][${VERSION}] Tool subset: ${intent.category} (${tools.length} tools)`);
+        console.log(`[ads-chat-v2][${VERSION}] Mode: ${intent.mode}, Tool subset: ${intent.category} (${tools.length} tools)`);
 
-        // Inject memory
         let memoryCtx = "";
-        try {
-          memoryCtx = await getMemoryContext(supabase, tenant_id, user.id, "ads_chat");
-        } catch { /* ok */ }
+        try { memoryCtx = await getMemoryContext(supabase, tenant_id, user.id, "ads_chat"); } catch { /* ok */ }
 
-        // Collect minimal context
         const { data: tenantInfo } = await supabase.from("tenants").select("slug").eq("id", tenant_id).single();
         const { data: tenantDomain } = await supabase.from("tenant_domains").select("domain").eq("tenant_id", tenant_id).eq("type", "custom").eq("is_primary", true).maybeSingle();
         const storeUrl = tenantDomain?.domain || (tenantInfo?.slug ? `${tenantInfo.slug}.shops.comandocentral.com.br` : null);
 
-        const systemPrompt = buildConversationalSystemPrompt(storeName, { storeUrl });
+        // Choose system prompt based on mode
+        const systemPrompt = isStrategicMode
+          ? buildStrategicSystemPrompt(storeName, { storeUrl })
+          : buildConversationalSystemPrompt(storeName, { storeUrl });
+
         const aiMessages: any[] = [{ role: "system", content: systemPrompt + memoryCtx }];
 
         for (let i = 0; i < history.length; i++) {
@@ -1184,7 +1348,7 @@ Deno.serve(async (req) => {
 
         if (toolCalls && toolCalls.length > 0) {
           // ===== TOOL CALL LOOP =====
-          const MAX_TOOL_ROUNDS = 5;
+          const MAX_TOOL_ROUNDS = isStrategicMode ? 8 : 5; // Strategic gets more rounds for data gathering + proposal
           let currentToolCalls = toolCalls;
           let loopMessages = [...aiMessages];
 
@@ -1196,7 +1360,6 @@ Deno.serve(async (req) => {
               await sendProgress(TOOL_PROGRESS_LABELS[name] || "Processando");
             }
 
-            // Build assistant message
             loopMessages.push({
               role: "assistant", content: "",
               tool_calls: currentToolCalls.map((tc: any) => ({
@@ -1205,11 +1368,10 @@ Deno.serve(async (req) => {
               })),
             });
 
-            // Execute tools in parallel
             const toolPromises = currentToolCalls.map(async (tc: any) => {
               let args = {};
               try { args = JSON.parse(tc.function.arguments || "{}"); } catch { /* empty */ }
-              const result = await executeTool(supabase, tenant_id, tc.function.name, args, chatSessionId, chatStrategyRunId);
+              const result = await executeTool(supabase, tenant_id, tc.function.name, args, chatSessionId, chatStrategyRunId, channel);
               return { tc_id: tc.id, result };
             });
             const toolResults = await Promise.allSettled(toolPromises);
@@ -1223,9 +1385,8 @@ Deno.serve(async (req) => {
               }
             }
 
-            await sendProgress("Pensando");
+            await sendProgress(isStrategicMode ? "Elaborando estratégia" : "Pensando");
 
-            // Next AI call
             const nextAbort = new AbortController();
             const nextTimeout = setTimeout(() => nextAbort.abort(), AI_TIMEOUT_MS);
             try {
@@ -1246,7 +1407,6 @@ Deno.serve(async (req) => {
                 continue;
               }
 
-              // Final text
               const finalContent = nextChoice?.message?.content;
               if (finalContent) {
                 await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: finalContent });

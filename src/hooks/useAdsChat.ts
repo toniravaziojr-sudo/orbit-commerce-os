@@ -1,6 +1,7 @@
 // =============================================
 // USE ADS CHAT
 // Hook for the dedicated Ads Traffic AI chat
+// v6.1.0: Dual-mode routing (v2 primary, v1 fallback)
 // =============================================
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -112,7 +113,7 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
     return () => { supabase.removeChannel(ch); };
   }, [currentConversationId, isStreaming, queryClient]);
 
-  // Send message with streaming (supports attachments)
+  // Send message with streaming — v2 primary, v1 fallback
   const sendMessage = useCallback(async (message: string, attachments?: AdsChatAttachment[]) => {
     if (!tenantId || (!message.trim() && (!attachments || attachments.length === 0))) return;
 
@@ -143,40 +144,74 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
     abortControllerRef.current = controller;
 
     try {
-      // v6.0: Try ads-chat-v2 first (factual orchestration), fallback to ads-chat
       const CHAT_V2_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ads-chat-v2`;
       const CHAT_V1_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ads-chat`;
-      const CHAT_URL = CHAT_V2_URL;
       const { data: { session } } = await supabase.auth.getSession();
 
-      const resp = await fetch(CHAT_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({
-          conversation_id: currentConversationId,
-          message,
-          tenant_id: tenantId,
-          scope,
-          ad_account_id: adAccountId,
-          channel,
-          attachments: attachments && attachments.length > 0 ? attachments : undefined,
-        }),
-        signal: controller.signal,
+      const requestBody = JSON.stringify({
+        conversation_id: currentConversationId,
+        message,
+        tenant_id: tenantId,
+        scope,
+        ad_account_id: adAccountId,
+        channel,
+        attachments: attachments && attachments.length > 0 ? attachments : undefined,
       });
+
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+      };
+
+      // Try v2 first
+      let resp: Response;
+      let usedV1Fallback = false;
+
+      try {
+        resp = await fetch(CHAT_V2_URL, {
+          method: "POST",
+          headers,
+          body: requestBody,
+          signal: controller.signal,
+        });
+
+        // If v2 returns a non-recoverable error (not auth/validation), fallback to v1
+        if (!resp.ok && resp.status >= 500) {
+          console.warn("[useAdsChat] v2 returned error, falling back to v1");
+          resp = await fetch(CHAT_V1_URL, {
+            method: "POST",
+            headers,
+            body: requestBody,
+            signal: controller.signal,
+          });
+          usedV1Fallback = true;
+        }
+      } catch (fetchErr: any) {
+        if (fetchErr.name === "AbortError") throw fetchErr;
+        // Network error on v2 — try v1
+        console.warn("[useAdsChat] v2 network error, falling back to v1:", fetchErr.message);
+        resp = await fetch(CHAT_V1_URL, {
+          method: "POST",
+          headers,
+          body: requestBody,
+          signal: controller.signal,
+        });
+        usedV1Fallback = true;
+      }
 
       if (!resp.ok) {
         const errData = await resp.json().catch(() => ({}));
         throw new Error(errData.error || `Error: ${resp.status}`);
       }
 
+      if (usedV1Fallback) {
+        console.info("[useAdsChat] Successfully fell back to v1");
+      }
+
       // Get conversation ID from header
       const newConvId = resp.headers.get("X-Conversation-Id");
       if (newConvId && !currentConversationId) {
         setCurrentConversationId(newConvId);
-        // Move optimistic message to the new conversation cache
         queryClient.setQueryData<AdsChatMessage[]>(
           ["ads-chat-messages", newConvId],
           [{ ...optimisticMsg, conversation_id: newConvId }]
@@ -206,7 +241,7 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
           if (jsonStr === "[DONE]") continue;
           try {
             const parsed = JSON.parse(jsonStr);
-            // Handle progress events (v5.23.0)
+            // Handle progress events
             if (parsed.type === "progress" && parsed.label) {
               setProgressLabel(parsed.label);
               continue;
@@ -225,6 +260,8 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
       const finalConvId = newConvId || currentConversationId;
       queryClient.invalidateQueries({ queryKey: ["ads-chat-messages", finalConvId] });
       queryClient.invalidateQueries({ queryKey: ["ads-chat-conversations"] });
+      // Also refresh pending actions in case a strategic proposal was created
+      queryClient.invalidateQueries({ queryKey: ["ads-pending-actions"] });
 
       // Trigger async memory extraction
       if (tenantId && user && finalConvId) {
@@ -240,14 +277,12 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
     } catch (err: any) {
       if (err.name === "AbortError") return;
       console.error("[useAdsChat] Error:", err);
-      // Remove optimistic message on error
       if (convIdForCache) {
         queryClient.setQueryData<AdsChatMessage[]>(
           ["ads-chat-messages", convIdForCache],
           (old) => (old || []).filter(m => m.id !== optimisticMsg.id)
         );
       }
-      // Notify user about the error
       const { toast } = await import("sonner");
       toast.error("Erro ao enviar mensagem. Tente novamente.");
       throw err;
