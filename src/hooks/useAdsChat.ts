@@ -293,6 +293,7 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
     messagesLoading: messagesQuery.isLoading,
     isStreaming,
     streamingContent,
+    progressLabel,
     sendMessage,
     cancelStreaming,
     createConversation,
