@@ -5036,6 +5036,7 @@ Deno.serve(async (req) => {
           get_experiments: "Verificando testes",
           get_audiences: "Consultando públicos",
           get_meta_adsets: "Listando conjuntos",
+          get_adset_targeting: "Analisando targeting dos conjuntos",
           get_meta_ads: "Listando anúncios",
           create_meta_campaign: "Criando campanha Meta",
           create_google_campaign: "Criando campanha Google",
