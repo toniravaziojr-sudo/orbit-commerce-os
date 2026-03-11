@@ -251,6 +251,7 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
     } finally {
       setIsStreaming(false);
       setStreamingContent("");
+      setProgressLabel("");
       abortControllerRef.current = null;
     }
   }, [tenantId, currentConversationId, scope, adAccountId, channel, queryClient]);
