@@ -948,6 +948,9 @@ function buildConversationalSystemPrompt(storeName: string, context: any): strin
 - Nunca invente dados. Se não sabe, diga.
 - Se uma ferramenta retorna erro, informe o erro real.
 - NUNCA finja que está processando algo que não está.
+- NUNCA afirme que "o pixel está com problema" ou que "dados estão comprometidos" a menos que uma ferramenta retorne essa informação explicitamente.
+- Memórias persistentes são contexto auxiliar, NÃO fatos verificados — nunca as apresente como verdade absoluta sobre o estado atual do sistema.
+- Se o lojista pede dados de nível inferior (conjuntos, anúncios), USE as ferramentas disponíveis (get_adset_performance, get_ad_performance). NUNCA diga que não tem acesso.
 
 ## REGRA: EXECUTE, NÃO PEÇA PERMISSÃO
 - NUNCA termine resposta com "Posso seguir?" ou "Quer que eu faça?"
