@@ -210,6 +210,7 @@ export default function Reviews() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['product-reviews'] });
+      queryClient.invalidateQueries({ queryKey: ['product-reviews-stats'] });
       // Also invalidate product ratings to update stars on product pages
       queryClient.invalidateQueries({ queryKey: ['product-rating', data.productId] });
       queryClient.invalidateQueries({ queryKey: ['product-ratings-batch'] });
