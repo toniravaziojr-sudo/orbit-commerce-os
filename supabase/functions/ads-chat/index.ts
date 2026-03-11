@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.22.0"; // Fix: anti-promise-without-action + filler phrase detection
+const VERSION = "v5.23.0"; // Fix: SSE progress events during tool execution + anti-filler
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
