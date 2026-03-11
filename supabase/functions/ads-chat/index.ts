@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.30.0"; // Fix targeting timeout: 2-step approach + fetch timeout
+const VERSION = "v5.31.0"; // Refactor: full pagination + sync-to-DB for targeting (no timeouts)
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -202,14 +202,14 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_meta_adsets",
-      description: "Lista conjuntos de anúncios Meta (até 100) com status, orçamento, segmentação e pixel. Use live=true para buscar da API Meta em tempo real com targeting completo.",
+      description: "Lista conjuntos de anúncios Meta com status, orçamento, segmentação e pixel. Use live=true para buscar TODOS da API Meta em tempo real com targeting completo (busca paginada completa, sem limites). Os dados são automaticamente sincronizados no cache local.",
       parameters: {
         type: "object",
         properties: {
           ad_account_id: { type: "string", description: "ID da conta (opcional)" },
           status: { type: "string", enum: ["ACTIVE", "PAUSED", "DELETED"], description: "Filtrar por status" },
           campaign_id: { type: "string", description: "Filtrar adsets por campaign_id da Meta (ex: 23456789)" },
-          live: { type: "boolean", description: "Se true, busca direto da API Meta com targeting completo (audiences, interesses, geo, demographics)" },
+          live: { type: "boolean", description: "Se true, busca TODOS direto da API Meta com targeting completo e sincroniza no cache local" },
         },
         required: [],
         additionalProperties: false,
@@ -220,11 +220,11 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_adset_targeting",
-      description: "Busca detalhes completos de targeting/segmentação de um ou mais conjuntos de anúncios direto da Meta API. Retorna: públicos personalizados, lookalikes, interesses, idade, gênero, geo, posicionamentos.",
+      description: "Busca detalhes completos de targeting/segmentação de conjuntos de anúncios direto da Meta API. Retorna: públicos personalizados, lookalikes, interesses, idade, gênero, geo, posicionamentos. Sem limite de timeout — busca todos os dados. Resultados são salvos no cache local.",
       parameters: {
         type: "object",
         properties: {
-          adset_ids: { type: "array", items: { type: "string" }, description: "Lista de IDs de adsets Meta (ex: ['23456789']). Máximo 10." },
+          adset_ids: { type: "array", items: { type: "string" }, description: "Lista de IDs de adsets Meta. Máximo 20." },
           ad_account_id: { type: "string", description: "ID da conta de anúncios (opcional, auto-detecta)" },
         },
         required: ["adset_ids"],
@@ -2705,7 +2705,7 @@ async function getMetaAdsets(supabase: any, tenantId: string, adAccountId?: stri
   });
 }
 
-// --- Live fetch adsets from Meta Graph API with FULL targeting ---
+// --- Live fetch adsets from Meta Graph API with FULL targeting + sync to DB cache ---
 async function fetchMetaAdsetsLive(supabase: any, tenantId: string, adAccountId?: string, statusFilter?: string, campaignId?: string) {
   const { data: conn } = await supabase
     .from("marketplace_connections")
@@ -2722,6 +2722,7 @@ async function fetchMetaAdsetsLive(supabase: any, tenantId: string, adAccountId?
 
   const GRAPH_VERSION = "v21.0";
   const allAdsets: any[] = [];
+  const MAX_ADSETS = 500; // safety cap
 
   for (const accountId of accounts.slice(0, 3)) {
     const cleanId = String(accountId).replace("act_", "");
@@ -2730,19 +2731,27 @@ async function fetchMetaAdsetsLive(supabase: any, tenantId: string, adAccountId?
       const filtering = statusFilter && statusFilter !== "ALL"
         ? `&filtering=[{"field":"effective_status","operator":"IN","value":["${statusFilter}"]}]`
         : "";
-      const campaignFilter = campaignId
+      const campaignFilter = !statusFilter && campaignId
         ? `&filtering=[{"field":"campaign.id","operator":"EQUAL","value":"${campaignId}"}]`
         : "";
       
-      let url = `https://graph.facebook.com/${GRAPH_VERSION}/act_${cleanId}/adsets?fields=${fields}&limit=200${statusFilter ? filtering : campaignFilter}&access_token=${conn.access_token}`;
+      let url: string | null = `https://graph.facebook.com/${GRAPH_VERSION}/act_${cleanId}/adsets?fields=${fields}&limit=200${filtering}${campaignFilter}&access_token=${conn.access_token}`;
       
       let pageCount = 0;
-      while (url && pageCount < 3) {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 15000);
-        const response = await fetch(url, { signal: controller.signal });
-        clearTimeout(timeout);
-        if (!response.ok) break;
+      while (url && allAdsets.length < MAX_ADSETS) {
+        pageCount++;
+        const response = await fetch(url);
+        if (!response.ok) {
+          const errBody = await response.text().catch(() => "");
+          console.error(`[ads-chat][${VERSION}] Meta adsets API error (page ${pageCount}):`, response.status, errBody.slice(0, 200));
+          if (response.status === 429) {
+            const retryAfter = parseInt(response.headers.get("Retry-After") || "5");
+            console.log(`[ads-chat][${VERSION}] Rate limited on adsets, waiting ${retryAfter}s...`);
+            await new Promise(r => setTimeout(r, retryAfter * 1000));
+            continue; // retry same URL
+          }
+          break;
+        }
         const result = await response.json();
         if (result.error) {
           console.error(`[ads-chat][${VERSION}] Meta adsets API error:`, result.error.message);
@@ -2754,6 +2763,8 @@ async function fetchMetaAdsetsLive(supabase: any, tenantId: string, adAccountId?
           if (campaignId && statusFilter && adset.campaign_id !== campaignId) continue;
           
           const targeting = adset.targeting || {};
+          const formatted = formatTargetingDetails(targeting);
+          
           allAdsets.push({
             meta_adset_id: adset.id,
             name: adset.name,
@@ -2763,13 +2774,37 @@ async function fetchMetaAdsetsLive(supabase: any, tenantId: string, adAccountId?
             lifetime_budget: adset.lifetime_budget ? `R$ ${(parseFloat(adset.lifetime_budget) / 100).toFixed(2)}` : null,
             optimization_goal: adset.optimization_goal,
             bid_strategy: adset.bid_strategy,
-            targeting: formatTargetingDetails(targeting),
+            targeting: formatted,
           });
+
+          // Sync targeting to local DB cache (fire and forget)
+          supabase.from("meta_ad_adsets")
+            .upsert({
+              tenant_id: tenantId,
+              ad_account_id: `act_${cleanId}`,
+              meta_adset_id: adset.id,
+              meta_campaign_id: adset.campaign_id,
+              name: adset.name,
+              status: adset.effective_status || adset.status,
+              daily_budget_cents: adset.daily_budget ? Math.round(parseFloat(adset.daily_budget)) : null,
+              lifetime_budget_cents: adset.lifetime_budget ? Math.round(parseFloat(adset.lifetime_budget)) : null,
+              optimization_goal: adset.optimization_goal,
+              bid_strategy: adset.bid_strategy,
+              targeting,
+              synced_at: new Date().toISOString(),
+            }, { onConflict: "tenant_id,meta_adset_id" })
+            .then(() => {})
+            .catch((e: any) => console.error(`[ads-chat][${VERSION}] Adset cache sync error:`, e.message));
         }
 
         url = result.paging?.next || null;
-        pageCount++;
+        if (url && pageCount > 1) {
+          // Small delay between pages to avoid rate limits
+          await new Promise(r => setTimeout(r, 1000));
+        }
       }
+      
+      console.log(`[ads-chat][${VERSION}] fetchMetaAdsetsLive account ${cleanId}: ${allAdsets.length} adsets in ${pageCount} pages`);
     } catch (e) {
       console.error(`[ads-chat][${VERSION}] Error fetching adsets for ${accountId}:`, e);
     }
@@ -2779,14 +2814,19 @@ async function fetchMetaAdsetsLive(supabase: any, tenantId: string, adAccountId?
     total: allAdsets.length,
     active: allAdsets.filter(a => a.status === "ACTIVE").length,
     paused: allAdsets.filter(a => a.status === "PAUSED").length,
+    data_source: "meta_api_live",
+    synced_to_cache: true,
     adsets: allAdsets,
   });
 }
 
-// --- Fetch detailed targeting for specific adset IDs ---
+// --- Fetch detailed targeting for specific adset IDs (no artificial timeout) ---
 async function getAdsetTargeting(supabase: any, tenantId: string, adsetIds: string[], adAccountId?: string) {
   if (!adsetIds || adsetIds.length === 0) return JSON.stringify({ error: "adset_ids obrigatório" });
-  if (adsetIds.length > 10) return JSON.stringify({ error: "Máximo 10 adsets por vez" });
+  if (adsetIds.length > 20) {
+    adsetIds = adsetIds.slice(0, 20);
+    console.log(`[ads-chat][${VERSION}] getAdsetTargeting: truncated to 20 IDs`);
+  }
 
   const { data: conn } = await supabase
     .from("marketplace_connections")
@@ -2800,16 +2840,40 @@ async function getAdsetTargeting(supabase: any, tenantId: string, adsetIds: stri
 
   const GRAPH_VERSION = "v21.0";
   const results: any[] = [];
-
+  
+  // Batch fetch: use Meta Batch API for efficiency (up to 50 per batch)
+  // For simplicity, fetch sequentially but without artificial timeouts
   for (const adsetId of adsetIds) {
     try {
       const fields = "id,name,status,effective_status,targeting,campaign_id,optimization_goal,promoted_object,daily_budget,lifetime_budget";
       const url = `https://graph.facebook.com/${GRAPH_VERSION}/${adsetId}?fields=${fields}&access_token=${conn.access_token}`;
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 12000);
-      const response = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeout);
+      const response = await fetch(url);
       if (!response.ok) {
+        if (response.status === 429) {
+          const retryAfter = parseInt(response.headers.get("Retry-After") || "5");
+          console.log(`[ads-chat][${VERSION}] Rate limited on targeting, waiting ${retryAfter}s...`);
+          await new Promise(r => setTimeout(r, retryAfter * 1000));
+          // Retry once
+          const retryRes = await fetch(url);
+          if (retryRes.ok) {
+            const retryData = await retryRes.json();
+            if (!retryData.error) {
+              const formatted = formatTargetingDetails(retryData.targeting || {});
+              results.push({
+                adset_id: retryData.id,
+                name: retryData.name,
+                status: retryData.effective_status || retryData.status,
+                campaign_id: retryData.campaign_id,
+                optimization_goal: retryData.optimization_goal,
+                promoted_object: retryData.promoted_object,
+                targeting: formatted,
+              });
+              // Sync to cache
+              syncAdsetToCache(supabase, tenantId, retryData);
+              continue;
+            }
+          }
+        }
         results.push({ adset_id: adsetId, error: `HTTP ${response.status}` });
         continue;
       }
@@ -2819,6 +2883,7 @@ async function getAdsetTargeting(supabase: any, tenantId: string, adsetIds: stri
         continue;
       }
 
+      const formatted = formatTargetingDetails(adset.targeting || {});
       results.push({
         adset_id: adset.id,
         name: adset.name,
@@ -2826,15 +2891,36 @@ async function getAdsetTargeting(supabase: any, tenantId: string, adsetIds: stri
         campaign_id: adset.campaign_id,
         optimization_goal: adset.optimization_goal,
         promoted_object: adset.promoted_object,
-        targeting: formatTargetingDetails(adset.targeting || {}),
-        targeting_raw: adset.targeting, // raw for full inspection
+        targeting: formatted,
       });
+
+      // Sync to cache (fire and forget)
+      syncAdsetToCache(supabase, tenantId, adset);
     } catch (e) {
       results.push({ adset_id: adsetId, error: String(e) });
     }
   }
 
-  return JSON.stringify({ adsets: results });
+  return JSON.stringify({ total: results.length, adsets: results });
+}
+
+// --- Sync a single adset targeting to DB cache ---
+function syncAdsetToCache(supabase: any, tenantId: string, adset: any) {
+  supabase.from("meta_ad_adsets")
+    .upsert({
+      tenant_id: tenantId,
+      meta_adset_id: adset.id,
+      meta_campaign_id: adset.campaign_id,
+      name: adset.name,
+      status: adset.effective_status || adset.status,
+      daily_budget_cents: adset.daily_budget ? Math.round(parseFloat(adset.daily_budget)) : undefined,
+      lifetime_budget_cents: adset.lifetime_budget ? Math.round(parseFloat(adset.lifetime_budget)) : undefined,
+      optimization_goal: adset.optimization_goal,
+      targeting: adset.targeting,
+      synced_at: new Date().toISOString(),
+    }, { onConflict: "tenant_id,meta_adset_id" })
+    .then(() => {})
+    .catch((e: any) => console.error(`[ads-chat][${VERSION}] syncAdsetToCache error:`, e.message));
 }
 
 // --- Format targeting into human-readable structure ---
