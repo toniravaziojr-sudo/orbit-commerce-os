@@ -1429,16 +1429,45 @@ async function getAdPerformance(supabase: any, tenantId: string, adAccountId?: s
     for (const c of (cData || [])) creativeMap[c.meta_ad_id] = c;
   }
 
+  // Fetch ad-level performance from Meta API (last 30 days)
+  const sinceDate = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
+  const adInsights = await fetchMetaInsightsLive(supabase, tenantId, adAccountId, sinceDate, "ad");
+  
+  // Build ad performance map
+  const adPerfMap: Record<string, { spend: number; impressions: number; clicks: number; conversions: number; revenue: number }> = {};
+  for (const i of adInsights) {
+    const key = i.ad_id;
+    if (!key) continue;
+    if (!adPerfMap[key]) adPerfMap[key] = { spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0 };
+    adPerfMap[key].spend += (i.spend_cents || 0) / 100;
+    adPerfMap[key].impressions += i.impressions || 0;
+    adPerfMap[key].clicks += i.clicks || 0;
+    adPerfMap[key].conversions += i.conversions || 0;
+    adPerfMap[key].revenue += (i.conversion_value_cents || 0) / 100;
+  }
+
   const activeAds = (ads || []).filter((a: any) => a.status === "ACTIVE");
 
   return JSON.stringify({
     total: ads?.length || 0,
     active: activeAds.length,
+    has_performance_data: Object.keys(adPerfMap).length > 0,
     ads: (ads || []).slice(0, 50).map((a: any) => {
       const cr = creativeMap[a.meta_ad_id];
+      const perf = adPerfMap[a.meta_ad_id];
       return {
         meta_ad_id: a.meta_ad_id, name: a.name, status: a.status, effective_status: a.effective_status,
         adset_id: a.meta_adset_id, campaign_id: a.meta_campaign_id,
+        performance_30d: perf ? {
+          spend: `R$ ${perf.spend.toFixed(2)}`,
+          impressions: perf.impressions,
+          clicks: perf.clicks,
+          conversions: perf.conversions,
+          revenue: `R$ ${perf.revenue.toFixed(2)}`,
+          roas: perf.spend > 0 ? (perf.revenue / perf.spend).toFixed(2) : "N/A",
+          cpa: perf.conversions > 0 ? `R$ ${(perf.spend / perf.conversions).toFixed(2)}` : "N/A",
+          ctr: perf.impressions > 0 ? ((perf.clicks / perf.impressions) * 100).toFixed(2) + "%" : "N/A",
+        } : null,
         creative: cr ? { title: cr.title, body: cr.body?.substring(0, 100), cta: cr.call_to_action_type, has_image: !!cr.image_url } : null,
       };
     }),
