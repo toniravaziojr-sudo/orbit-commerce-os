@@ -8,31 +8,23 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   useDashboardMetrics,
   useRecentOrders,
-  calculateTrend,
   formatCurrency,
   formatRelativeTime,
 } from "@/hooks/useDashboardMetrics";
 import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { startOfDay, endOfDay } from "date-fns";
-
-// Dashboard content (from Dashboard.tsx)
 import {
   ShoppingCart,
-  DollarSign,
-  Users,
-  TrendingUp,
   Package,
   AlertCircle,
   Clock,
   CheckCircle,
   ArrowRight,
-  Eye,
-  CreditCard,
-  XCircle,
+  Users,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { DashboardMetricsGrid } from "@/components/dashboard/DashboardMetricsGrid";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StorefrontHealthCard } from "@/components/health/StorefrontHealthCard";
@@ -105,15 +97,6 @@ function DashboardContent() {
     returned: "Devolvido",
   };
 
-  // Calculate trends
-  const salesTrend = metrics ? calculateTrend(metrics.salesToday, metrics.salesYesterday) : 0;
-  const ordersTrend = metrics ? calculateTrend(metrics.ordersToday, metrics.ordersYesterday) : 0;
-  const paidOrdersTrend = metrics ? calculateTrend(metrics.paidOrdersToday, metrics.paidOrdersYesterday) : 0;
-  const unpaidOrdersTrend = metrics ? calculateTrend(metrics.unpaidOrdersToday, metrics.unpaidOrdersYesterday) : 0;
-  const ticketTrend = metrics ? calculateTrend(metrics.ticketToday, metrics.ticketYesterday) : 0;
-  const customersTrend = metrics ? calculateTrend(metrics.newCustomersToday, metrics.newCustomersYesterday) : 0;
-  const visitorsTrend = metrics ? calculateTrend(metrics.visitorsToday, metrics.visitorsYesterday) : 0;
-
   // Dynamic trend label based on date range
   const getTrendLabel = () => {
     if (!startDate || !endDate) return "vs. período anterior";
@@ -142,83 +125,12 @@ function DashboardContent() {
       {/* Order Limit Warning */}
       <OrderLimitWarning />
 
-      {/* Stats Grid - Row 1: Vendas, Visitantes, Ticket Médio, Novos Clientes */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {metricsLoading ? (
-          <>
-            <Skeleton className="h-32" />
-            <Skeleton className="h-32" />
-            <Skeleton className="h-32" />
-            <Skeleton className="h-32" />
-          </>
-        ) : (
-          <>
-            <StatCard
-              title="Vendas"
-              value={formatCurrency(metrics?.salesToday || 0)}
-              icon={DollarSign}
-              variant="success"
-              trend={{ value: parseFloat(salesTrend.toFixed(1)), label: trendLabel }}
-            />
-            <StatCard
-              title="Visitantes"
-              value={String(metrics?.visitorsToday || 0)}
-              icon={Eye}
-              variant="info"
-              trend={{ value: parseFloat(visitorsTrend.toFixed(1)), label: trendLabel }}
-            />
-            <StatCard
-              title="Ticket Médio"
-              value={formatCurrency(metrics?.ticketToday || 0)}
-              icon={TrendingUp}
-              variant="default"
-              trend={{ value: parseFloat(ticketTrend.toFixed(1)), label: trendLabel }}
-            />
-            <StatCard
-              title="Novos Clientes"
-              value={String(metrics?.newCustomersToday || 0)}
-              icon={Users}
-              variant="warning"
-              trend={{ value: parseFloat(customersTrend.toFixed(1)), label: trendLabel }}
-            />
-          </>
-        )}
-      </div>
-
-      {/* Stats Grid - Row 2: Pedidos Total, Pedidos Pagos, Pedidos Não Pagos */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        {metricsLoading ? (
-          <>
-            <Skeleton className="h-32" />
-            <Skeleton className="h-32" />
-            <Skeleton className="h-32" />
-          </>
-        ) : (
-          <>
-            <StatCard
-              title="Pedidos (Total)"
-              value={String(metrics?.ordersToday || 0)}
-              icon={ShoppingCart}
-              variant="primary"
-              trend={{ value: parseFloat(ordersTrend.toFixed(1)), label: trendLabel }}
-            />
-            <StatCard
-              title="Pedidos Pagos"
-              value={String(metrics?.paidOrdersToday || 0)}
-              icon={CreditCard}
-              variant="success"
-              trend={{ value: parseFloat(paidOrdersTrend.toFixed(1)), label: trendLabel }}
-            />
-            <StatCard
-              title="Pedidos Não Pagos"
-              value={String(metrics?.unpaidOrdersToday || 0)}
-              icon={XCircle}
-              variant="destructive"
-              trend={{ value: parseFloat(unpaidOrdersTrend.toFixed(1)), label: trendLabel }}
-            />
-          </>
-        )}
-      </div>
+      {/* 3-Column Metrics Grid: Funnel | Financial | Abandoned Checkouts */}
+      <DashboardMetricsGrid
+        metrics={metrics}
+        isLoading={metricsLoading}
+        trendLabel={trendLabel}
+      />
 
       {/* Communications Widget */}
       <CommunicationsWidget />
