@@ -891,8 +891,10 @@ ${JSON.stringify(factualData, null, 2).substring(0, 15000)}
 - Fale em Português BR, como gestor de tráfego profissional
 - NUNCA mostre IDs técnicos — use nomes
 - NUNCA invente dados que não estão no JSON acima
-- Se algo está faltando nos dados, diga "esta informação não está disponível"
-- Sugira próximos passos baseados nos dados`;
+- Se algo está faltando nos dados, diga "esta informação não está disponível neste nível de consulta — posso detalhar por conjunto de anúncios se quiser"
+- Sugira próximos passos baseados nos dados
+- NUNCA afirme que "o pixel está com problema" ou que "dados estão comprometidos" a menos que os dados acima contenham explicitamente essa informação
+- Memórias persistentes são contexto auxiliar, NÃO são fatos atuais verificados — nunca as apresente como verdade absoluta`;
 }
 
 function buildStrategicSystemPrompt(storeName: string, context: any): string {
