@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v6.7.0"; // Hybrid mode: strategic + factual data pre-fetch for mixed-intent messages
+const VERSION = "v6.8.0"; // Fix: drill-down follow-ups route to tool path, not factual pre-resolution
 // ====================
 
 const AI_TIMEOUT_MS = 90000;
@@ -90,6 +90,14 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
   }
 
   // ---- Pattern matching (ordered by specificity) ----
+
+  // DRILL-DOWN: adset/ad level analysis — MUST route to tool-calling path, NOT factual pre-resolution
+  // The factual orchestrator only resolves campaign-level data. Adset/ad analysis needs live tool calls.
+  if (/conjunto[s]?\s+de\s+anúncio|adset[s]?|anúncio[s]?\s+individual|por\s+conjunto|por\s+anúncio|nível\s+de\s+conjunto|nível\s+de\s+anúncio|drill[- ]?down|detalh[ae]r?\s+(campanha|conjunto|anúncio)|aprofund[ae]r?\s+(anális|campanha|conjunto)/i.test(msg) &&
+      !/cri[ae]r?|paus[ae]r?|ativ[ae]r?|alter[ae]r?/i.test(msg)) {
+    console.log(`[ads-chat-v2] Drill-down detected: routing to performance with tool-calling (NOT factual pre-resolution)`);
+    return { category: "performance", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.9 };
+  }
 
   // TARGETING (highest priority for targeting queries)
   if (/targeting|segmentação|segmentacao|público[s]?\s+(personalizado|semelhante|custom|lookalike)|audiência|interesse[s]?|demografi|faixa\s+etári|gênero|localização|posicionamento/i.test(msg) &&
@@ -883,8 +891,10 @@ ${JSON.stringify(factualData, null, 2).substring(0, 15000)}
 - Fale em Português BR, como gestor de tráfego profissional
 - NUNCA mostre IDs técnicos — use nomes
 - NUNCA invente dados que não estão no JSON acima
-- Se algo está faltando nos dados, diga "esta informação não está disponível"
-- Sugira próximos passos baseados nos dados`;
+- Se algo está faltando nos dados, diga "esta informação não está disponível neste nível de consulta — posso detalhar por conjunto de anúncios se quiser"
+- Sugira próximos passos baseados nos dados
+- NUNCA afirme que "o pixel está com problema" ou que "dados estão comprometidos" a menos que os dados acima contenham explicitamente essa informação
+- Memórias persistentes são contexto auxiliar, NÃO são fatos atuais verificados — nunca as apresente como verdade absoluta`;
 }
 
 function buildStrategicSystemPrompt(storeName: string, context: any): string {
@@ -938,6 +948,9 @@ function buildConversationalSystemPrompt(storeName: string, context: any): strin
 - Nunca invente dados. Se não sabe, diga.
 - Se uma ferramenta retorna erro, informe o erro real.
 - NUNCA finja que está processando algo que não está.
+- NUNCA afirme que "o pixel está com problema" ou que "dados estão comprometidos" a menos que uma ferramenta retorne essa informação explicitamente.
+- Memórias persistentes são contexto auxiliar, NÃO fatos verificados — nunca as apresente como verdade absoluta sobre o estado atual do sistema.
+- Se o lojista pede dados de nível inferior (conjuntos, anúncios), USE as ferramentas disponíveis (get_adset_performance, get_ad_performance). NUNCA diga que não tem acesso.
 
 ## REGRA: EXECUTE, NÃO PEÇA PERMISSÃO
 - NUNCA termine resposta com "Posso seguir?" ou "Quer que eu faça?"
