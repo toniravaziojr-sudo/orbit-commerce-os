@@ -234,6 +234,7 @@ export default function Reviews() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-reviews'] });
+      queryClient.invalidateQueries({ queryKey: ['product-reviews-stats'] });
       toast.success('Avaliação excluída');
     },
     onError: () => {
