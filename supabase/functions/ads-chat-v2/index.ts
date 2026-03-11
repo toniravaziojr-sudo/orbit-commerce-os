@@ -172,7 +172,7 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
 
   // DRIVE
   if (/drive|arquivo[s]?|pasta[s]?|buscar?\s+no\s+drive|explorar?\s+drive|meu\s+drive/i.test(msg)) {
-    return { category: "drive", mode: "conversational", isFactual: false, entities, confidence: 0.8 };
+    return { category: "drive", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.8 };
   }
 
   // ---- COMPOSITE SIGNAL DETECTION (v6.6.0) ----
