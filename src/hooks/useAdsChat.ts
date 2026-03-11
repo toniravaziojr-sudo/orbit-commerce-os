@@ -260,6 +260,7 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
     abortControllerRef.current?.abort();
     setIsStreaming(false);
     setStreamingContent("");
+    setProgressLabel("");
   }, []);
 
   const createConversation = useCallback(async () => {
