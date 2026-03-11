@@ -90,6 +90,33 @@ Sistema de planos, assinaturas, créditos de IA e cobrança para tenants da plat
 
 ---
 
+## Tenants Especiais (Parceiros Estratégicos)
+
+Tenants marcados com `is_special: true` e plano `unlimited` no banco possuem:
+- **Bypass total** de restrições de plano e módulos
+- **Isenção de faturamento** — nunca pedem cartão ou assinatura
+- **Acesso vitalício** a todas as funcionalidades
+
+### Lista de Tenants Especiais
+
+| Tenant | Slug | ID | Observação |
+|--------|------|----|------------|
+| Respeite o Homem | `respeite-o-homem` | `d1a4d0ed-8842-495e-b741-540a9a345b25` | Customer base de referência |
+| Amazgan | `amazgan` | `8023b8ed-e7d0-4dd0-8f96-014a748c267e` | Parceiro estratégico |
+
+### Arquivos de referência
+- `src/config/tenant-anchors.ts` — IDs fixos e helpers (`isSpecialPartnerTenant`, `isRespeiteOHomemTenant`, `isAmazganTenant`)
+- `src/hooks/useTenantAccess.ts` — `isUnlimited` e `isSpecial` usados para bypass
+- `src/hooks/useModuleAccess.ts` — `shouldBypass` baseado em `isUnlimited || isPlatformTenant`
+- `src/hooks/useSubscriptionStatus.ts` — bypass de cartão para `is_special` ou `unlimited`
+
+### Regras de bypass no código
+1. **`useTenantAccess`**: `isUnlimited = plan === 'unlimited' || isSpecial` → `canAccess()` retorna `true`
+2. **`useModuleAccess`**: `shouldBypass = isUnlimited || isPlatformTenant` → retorna `FULL_ACCESS_RESULT`
+3. **`useSubscriptionStatus`**: `isSpecialTenant || isUnlimitedPlan` → `needsPaymentMethod: false`, `canPublishStore: true`
+
+---
+
 ## Sistema de Créditos de IA
 
 ### Constantes
