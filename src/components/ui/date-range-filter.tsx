@@ -248,9 +248,17 @@ export function DateRangeFilter({
   const nextMonth = new Date(calendarMonth);
   nextMonth.setMonth(nextMonth.getMonth() + 1);
   
-  const displayText = hasFilter
-    ? `${label}: ${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}`
-    : `${label}: Todo o período`;
+  // Show preset name for named presets, date range for custom
+  const detectedPreset = detectPreset(startDate, endDate);
+  const presetLabel = detectedPreset && detectedPreset !== 'custom' && detectedPreset !== 'select_month'
+    ? presets.find(p => p.value === detectedPreset)?.label
+    : null;
+  
+  const displayText = presetLabel
+    ? `Período: ${presetLabel}`
+    : hasFilter
+      ? `Período: ${format(startDate!, 'dd/MM/yyyy')} até ${format(endDate!, 'dd/MM/yyyy')}`
+      : `Período: Todo o período`;
   
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
