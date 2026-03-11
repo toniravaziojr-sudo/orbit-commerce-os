@@ -1,4 +1,4 @@
-# Memory: features/marketing/ads-chat-anti-filler-promise-v5-22-0
+# Memory: features/marketing/ads-chat-anti-filler-promise-v5-22-0-and-progress-v5-23-0
 Updated: 2026-03-11
 
 ## Fix: IA prometia ação sem executar ferramentas (v5.22.0)
