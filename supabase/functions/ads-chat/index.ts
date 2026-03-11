@@ -896,7 +896,9 @@ async function executeTool(
       case "get_creative_assets":
         return await getCreativeAssets(supabase, tenantId, args.status);
       case "get_meta_adsets":
-        return await getMetaAdsets(supabase, tenantId, args.ad_account_id, args.status);
+        return await getMetaAdsets(supabase, tenantId, args.ad_account_id, args.status, args.campaign_id, args.live);
+      case "get_adset_targeting":
+        return await getAdsetTargeting(supabase, tenantId, args.adset_ids, args.ad_account_id);
       case "get_meta_ads":
         return await getMetaAds(supabase, tenantId, args.ad_account_id);
       case "get_audiences":
