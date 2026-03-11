@@ -918,6 +918,8 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
               shipping={effectiveShipping} 
               appliedDiscount={appliedDiscount}
               freeShipping={hasFreeShipping}
+              paymentMethodDiscountAmount={paymentMethodDiscountAmount}
+              paymentMethod={paymentMethod}
             />
           </div>
         </div>
