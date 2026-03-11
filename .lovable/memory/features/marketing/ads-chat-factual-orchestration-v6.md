@@ -33,22 +33,29 @@ O Ads Chat (v6.5.0) implementa uma arquitetura dual-mode com orquestração dete
 - **SEM fallback para v1**: Removido em v6.4.0 — erros retornam mensagem honesta ao usuário
 - **Invalidação**: Após stream, invalida `ads-pending-actions` para refletir propostas estratégicas criadas via chat
 
-## Classificação de Intenção (classifyIntent) — v6.3.0
+## Classificação de Intenção (classifyIntent) — v6.5.0
 - 12 categorias: performance, targeting, campaigns_list, store_context, autopilot, write_meta, write_google, write_tiktok, creative, drive, **strategic**, general
 - 3 modos: `factual` | `strategic` | `conversational`
 - Determinístico via regex, sem dependência de LLM
 - **Prioridade**: strategic patterns > bulk indicators > write patterns > factual patterns
 
-### Expansão de Patterns (v6.3.0)
-- **performance**: Adicionado `como estão/vão/andam minhas campanhas` para cobrir frases naturais de consulta
-- **campaigns_list**: Expandido significativamente com 7 novos padrões:
+### Expansão de Patterns (v6.5.0)
+- **performance**: Adicionados padrões para análise natural:
+  - `campanhas com mais vendas/conversões/resultado/faturamento`
+  - `campanhas com menor/melhor/pior`
+  - `N campanhas com mais` (ex: "10 campanhas com mais vendas")
+  - `liste as N campanhas` (ex: "liste aqui as 10 campanhas")
+  - `analise todas as campanhas` / `analisar campanhas`
+  - `relatório` / `relatório de campanha`
+  - `como estão/vão/andam minhas campanhas`
+- **campaigns_list** (v6.3.0): Expandido com 7 padrões para frases naturais:
   - `consegue consultar/ver/acessar minhas campanhas`
   - `você vê/consegue/tem acesso minhas campanhas`
   - `ver/consultar/acessar/visualizar/checar/conferir minhas campanhas`
   - `me mostra minhas campanhas`
   - `quero ver minhas campanhas`
   - `minhas campanhas ativas/pausadas/do meta/no facebook`
-- **Motivação**: Frases naturais como "Consegue consultar minhas campanhas?" caíam em `general` e causavam alucinação do modelo
+- **Motivação**: Frases naturais como "liste as 10 campanhas com mais vendas" ou "analise todas as campanhas" caíam em `general`, onde o modelo alucinava dizendo não ter acesso às ferramentas
 
 ## Anti-Filler Defensivo (v6.3.0 — Camada Secundária)
 - **Onde**: No path de resposta direta (sem tool calls) do modo conversacional/estratégico
