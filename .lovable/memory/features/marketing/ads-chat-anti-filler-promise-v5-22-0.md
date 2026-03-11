@@ -1,4 +1,4 @@
-# Memory: features/marketing/ads-chat-anti-filler-promise-v5-22-0
+# Memory: features/marketing/ads-chat-anti-filler-promise-v5-22-0-and-progress-v5-23-0
 Updated: 2026-03-11
 
 ## Fix: IA prometia ação sem executar ferramentas (v5.22.0)
@@ -31,3 +31,18 @@ A IA do Chat de Tráfego respondia com "Aguarde enquanto preparo a criação das
 - [ ] Filler detection ativo no path de texto direto
 - [ ] Retry com tool_choice=required quando filler detectado
 - [ ] Fallback para texto original se retry falhar
+
+## SSE Progress Events (v5.23.0)
+
+### Problema
+Durante tool execution (30-90s+), o usuário via apenas "Analisando..." sem saber o que a IA estava fazendo.
+
+### Correção
+1. **Backend**: Tool loop refatorado para usar `TransformStream`. Envia SSE `progress` events (`{ type: "progress", label: "Consultando campanhas" }`) antes de cada round de ferramentas.
+2. **Frontend**: `useAdsChat` parseia eventos `progress` e expõe `progressLabel`. `AdsChatTab` passa o label dinâmico ao `ChatTypingIndicator`.
+3. **Labels**: 35+ mapeamentos tool→label em português (ex: `get_campaign_performance` → "Consultando campanhas", `create_meta_campaign` → "Criando campanha Meta").
+
+### Arquivos Modificados
+- `supabase/functions/ads-chat/index.ts` — TransformStream + progress events
+- `src/hooks/useAdsChat.ts` — progressLabel state + SSE parser
+- `src/components/ads/AdsChatTab.tsx` — progressLabel prop

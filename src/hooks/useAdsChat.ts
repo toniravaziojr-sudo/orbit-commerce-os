@@ -50,6 +50,7 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
+  const [progressLabel, setProgressLabel] = useState("");
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Fetch conversations for this scope
@@ -136,6 +137,7 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
 
     setIsStreaming(true);
     setStreamingContent("");
+    setProgressLabel("");
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -201,10 +203,16 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
           if (jsonStr === "[DONE]") continue;
           try {
             const parsed = JSON.parse(jsonStr);
+            // Handle progress events (v5.23.0)
+            if (parsed.type === "progress" && parsed.label) {
+              setProgressLabel(parsed.label);
+              continue;
+            }
             const delta = parsed.choices?.[0]?.delta?.content;
             if (delta) {
               fullContent += delta;
               setStreamingContent(fullContent);
+              setProgressLabel(""); // Clear progress when content starts
             }
           } catch { /* partial */ }
         }
@@ -243,6 +251,7 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
     } finally {
       setIsStreaming(false);
       setStreamingContent("");
+      setProgressLabel("");
       abortControllerRef.current = null;
     }
   }, [tenantId, currentConversationId, scope, adAccountId, channel, queryClient]);
@@ -251,6 +260,7 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
     abortControllerRef.current?.abort();
     setIsStreaming(false);
     setStreamingContent("");
+    setProgressLabel("");
   }, []);
 
   const createConversation = useCallback(async () => {
@@ -283,6 +293,7 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
     messagesLoading: messagesQuery.isLoading,
     isStreaming,
     streamingContent,
+    progressLabel,
     sendMessage,
     cancelStreaming,
     createConversation,

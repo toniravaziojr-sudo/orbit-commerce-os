@@ -42,6 +42,7 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
     messagesLoading,
     isStreaming,
     streamingContent,
+    progressLabel,
     sendMessage,
     cancelStreaming,
     createConversation,
@@ -238,11 +239,11 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
 
                 {isStreaming && !streamingContent && (
                   <div className="flex gap-3">
-                    <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-blue-500/10 ring-1 ring-blue-500/20">
-                      <Bot className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                    <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/20">
+                      <Bot className="h-3.5 w-3.5 text-primary" />
                     </div>
                     <div className="pt-1.5">
-                      <ChatTypingIndicator label="Analisando" />
+                      <ChatTypingIndicator label={progressLabel || "Analisando"} />
                     </div>
                   </div>
                 )}
