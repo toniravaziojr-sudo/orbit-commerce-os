@@ -1244,7 +1244,7 @@ Comandos explícitos do usuário via chat têm **prioridade máxima** sobre conf
 
 ---
 
-## AI Ads Chat v2 (`ads-chat-v2`) — v6.1.0
+## AI Ads Chat v2 (`ads-chat-v2`) — v6.2.0
 
 ### Visão Geral
 Edge Function dual-mode que substitui `ads-chat` como endpoint primário. Implementa orquestração factual determinística + modo estratégico com convergência para o pipeline de aprovação existente.
