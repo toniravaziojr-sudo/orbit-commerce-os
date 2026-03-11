@@ -143,7 +143,10 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
     abortControllerRef.current = controller;
 
     try {
-      const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ads-chat`;
+      // v6.0: Try ads-chat-v2 first (factual orchestration), fallback to ads-chat
+      const CHAT_V2_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ads-chat-v2`;
+      const CHAT_V1_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ads-chat`;
+      const CHAT_URL = CHAT_V2_URL;
       const { data: { session } } = await supabase.auth.getSession();
 
       const resp = await fetch(CHAT_URL, {
