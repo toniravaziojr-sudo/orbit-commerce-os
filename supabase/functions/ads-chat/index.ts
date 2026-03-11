@@ -5105,6 +5105,8 @@ Deno.serve(async (req) => {
     console.log(`[ads-chat][${VERSION}] tool_choice=${toolChoiceValue} (isDataRequest=${isDataRequest})`);
 
     // Step 1: Non-streaming call WITH tools
+    // v5.36.0: If tool_choice="required" fails with 400 (schema too complex for Gemini), fallback to "auto"
+    let effectiveToolChoice = toolChoiceValue;
     const abortController = new AbortController();
     const timeoutId = setTimeout(() => abortController.abort(), AI_TIMEOUT_MS);
 
@@ -5113,7 +5115,7 @@ Deno.serve(async (req) => {
       const initialResponse = await fetch(endpoint.url, {
         method: "POST",
         headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: endpoint.model, messages: aiMessages, tools: TOOLS, tool_choice: toolChoiceValue, stream: false }),
+        body: JSON.stringify({ model: endpoint.model, messages: aiMessages, tools: TOOLS, tool_choice: effectiveToolChoice, stream: false }),
         signal: abortController.signal,
       });
       clearTimeout(timeoutId);
@@ -5121,14 +5123,40 @@ Deno.serve(async (req) => {
       if (!initialResponse.ok) {
         const errText = await initialResponse.text();
         console.error(`[ads-chat][${VERSION}] AI error: ${initialResponse.status} ${errText}`);
-        if (initialResponse.status === 429 || initialResponse.status === 402) {
+        
+        // v5.36.0: Gemini rejects tool_choice="required" with large schemas → fallback to "auto"
+        if (initialResponse.status === 400 && effectiveToolChoice === "required") {
+          console.log(`[ads-chat][${VERSION}] Schema too complex for tool_choice=required — retrying with auto + forced system instruction`);
+          effectiveToolChoice = "auto";
+          // Add a strong system nudge to compensate for losing "required"
+          const nudgedMessages = [...aiMessages];
+          nudgedMessages.push({ role: "user", content: "SISTEMA: EXECUTE as ferramentas necessárias IMEDIATAMENTE. NÃO responda com texto descritivo. Para dados de campanhas → get_campaign_performance. Para targeting → get_meta_adsets. EXECUTE AGORA." });
+          
+          const retryAbort = new AbortController();
+          const retryTimeout = setTimeout(() => retryAbort.abort(), AI_TIMEOUT_MS);
+          const retryResponse = await fetch(endpoint.url, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: endpoint.model, messages: nudgedMessages, tools: TOOLS, tool_choice: "auto", stream: false }),
+            signal: retryAbort.signal,
+          });
+          clearTimeout(retryTimeout);
+          if (!retryResponse.ok) {
+            const retryErr = await retryResponse.text();
+            console.error(`[ads-chat][${VERSION}] Fallback also failed: ${retryResponse.status} ${retryErr}`);
+            throw new Error(`AI error: ${retryResponse.status}`);
+          }
+          initialResult = await retryResponse.json();
+        } else if (initialResponse.status === 429 || initialResponse.status === 402) {
           const errorMsg = initialResponse.status === 429 ? "Rate limit exceeded" : "Credits required";
           await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: `⚠️ Erro temporário: ${errorMsg}. Tente novamente.` });
           return new Response(JSON.stringify({ error: errorMsg }), { status: initialResponse.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        } else {
+          throw new Error(`AI error: ${initialResponse.status}`);
         }
-        throw new Error(`AI error: ${initialResponse.status}`);
+      } else {
+        initialResult = await initialResponse.json();
       }
-      initialResult = await initialResponse.json();
     } catch (err: any) {
       clearTimeout(timeoutId);
       if (err.name === "AbortError") {
