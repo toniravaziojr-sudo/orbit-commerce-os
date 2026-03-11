@@ -891,9 +891,9 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           </div>
         </div>
 
-        {/* Sidebar - Order summary + Coupon (sticky) */}
-        <div style={{ alignSelf: 'start' }}>
-          <div className="sticky top-4 space-y-4">
+        {/* Sidebar - Order summary + Coupon (sticky) + Testimonials */}
+        <div>
+          <div className="sticky top-4 space-y-4" style={{ alignSelf: 'start' }}>
             {/* Coupon input - Conditional based on checkout_config */}
             {checkoutConfig.couponEnabled && (
               <div className="bg-card border rounded-lg p-4">
@@ -922,16 +922,16 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
               paymentMethodDiscountAmount={paymentMethodDiscountAmount}
               paymentMethod={paymentMethod}
             />
+
+            {/* Testimonials - inside sidebar column to avoid gap from grid row height */}
+            {checkoutConfig.testimonialsEnabled && (
+              <div className="mt-2 pt-4 border-t border-border/40">
+                <CheckoutTestimonials tenantId={tenantId} productIds={items.map(item => item.product_id)} />
+              </div>
+            )}
           </div>
         </div>
       </div>
-
-      {/* Testimonials - OUTSIDE the grid entirely so sticky sidebar never overlaps */}
-      {checkoutConfig.testimonialsEnabled && (
-        <div className="sf-checkout-testimonials-wrapper mt-4 pt-4 border-t border-border/40">
-          <CheckoutTestimonials tenantId={tenantId} productIds={items.map(item => item.product_id)} />
-        </div>
-      )}
     </div>
   );
 }

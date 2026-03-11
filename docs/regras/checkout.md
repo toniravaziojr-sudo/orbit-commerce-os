@@ -487,16 +487,16 @@ Status aplicados: `payment_status='cancelled'`, `status='cancelled'`, com `cance
 
 ## Regras de Layout (v8.5.1)
 
-### Sidebar Sticky — Resumo do Pedido
+### Sidebar Sticky — Resumo do Pedido + Depoimentos
 
 | Campo | Valor |
 |-------|-------|
 | **Tipo** | Regra Visual |
 | **Localização** | `CheckoutStepWizard.tsx`, `index.css` |
 | **Descrição** | O resumo do pedido fica fixo (sticky top-4) na sidebar direita enquanto o usuário rola o formulário |
-| **Comportamento** | O grid usa `align-items: start` para impedir que a coluna da sidebar se estique verticalmente. O container sticky contém o cupom + resumo. **Depoimentos ficam FORA do grid `sf-checkout-layout`** (não apenas fora do sticky), evitando qualquer sobreposição ao scrollar. No desktop, a wrapper `.sf-checkout-testimonials-wrapper` tem `max-width: 380px; margin-left: auto` para alinhar visualmente à coluna da sidebar. |
-| **CSS** | `.sf-checkout-layout { align-items: start }` no container query `min-width: 768px`. `.sf-checkout-testimonials-wrapper { max-width: 380px; margin-left: auto }` |
-| **Erros/Edge cases** | Se os depoimentos ficarem DENTRO da mesma coluna do grid que tem o sticky, o resumo passa por cima deles ao scrollar. SEMPRE manter fora do grid. |
+| **Comportamento** | O grid usa `align-items: start` para impedir que a coluna da sidebar se estique verticalmente. O container sticky contém cupom + resumo + depoimentos. **Depoimentos ficam DENTRO da coluna sidebar**, após o `OrderSummarySidebar`, dentro do container `sticky`. Isso evita o gap vertical que existia quando estavam fora do grid (o grid row height era ditada pela coluna mais alta, empurrando os depoimentos para baixo). No mobile (container query < 768px), o layout empilha naturalmente via flexbox. |
+| **CSS** | `.sf-checkout-layout { align-items: start }` no container query `min-width: 768px`. |
+| **Erros/Edge cases** | ~~Se os depoimentos ficarem DENTRO da mesma coluna do grid que tem o sticky, o resumo passa por cima deles ao scrollar~~ [CORRIGIDO v8.6.1] — depoimentos agora estão dentro do sticky container, após o resumo, sem sobreposição. O gap entre form e depoimentos no desktop era causado por posicioná-los fora do grid. |
 
 ### Ocultação de Nomes de Integração no Frete
 

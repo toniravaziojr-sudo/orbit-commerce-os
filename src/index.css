@@ -397,11 +397,6 @@
   /* Desktop: hide mobile bar, show sticky sidebar */
   .sf-checkout-summary-mobile { display: none !important; }
   .sf-checkout-summary-desktop { display: block !important; }
-  /* Testimonials: align to sidebar column width on desktop */
-  .sf-checkout-testimonials-wrapper {
-    max-width: 380px;
-    margin-left: auto;
-  }
 }
 
 /* Product page - stack on mobile */
