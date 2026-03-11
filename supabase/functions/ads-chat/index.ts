@@ -22,7 +22,7 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_campaign_performance",
-      description: "Busca performance real das campanhas Meta (até 200 campanhas, ACTIVE primeiro). OBRIGATÓRIO antes de qualquer diagnóstico. Suporta até 365 dias de histórico.",
+      description: "Busca performance real de TODAS as campanhas Meta (ativas + pausadas, até 200). OBRIGATÓRIO antes de qualquer diagnóstico. Inclui dados históricos de campanhas pausadas. Suporta até 365 dias.",
       parameters: {
         type: "object",
         properties: {
