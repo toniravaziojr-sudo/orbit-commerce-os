@@ -17,6 +17,7 @@ import { toast } from "sonner";
 
 export default function AIPackages() {
   const { isPlatformOperator } = usePlatformOperator();
+  const { currentTenant } = useAuth();
   const [activeTab, setActiveTab] = useState("credits");
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
