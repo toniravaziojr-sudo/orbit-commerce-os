@@ -59,6 +59,8 @@ interface CreateOrderRequest {
   subtotal: number;
   shipping_total: number;
   discount_total?: number;
+  payment_method_discount?: number;
+  installments?: number;
   total: number;
   discount?: DiscountData;
   attribution?: {
