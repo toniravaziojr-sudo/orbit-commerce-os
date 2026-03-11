@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { usePlatformOperator } from "@/hooks/usePlatformOperator";
+import { useAuth } from "@/hooks/useAuth";
 import { useCreditPackages, useCreditWallet, useCreditLedger, CreditPackage, formatPrice } from "@/hooks/useCredits";
 import { CreditBalance } from "@/components/ai-packages/CreditBalance";
 import { CreditPackageCard } from "@/components/ai-packages/CreditPackageCard";
