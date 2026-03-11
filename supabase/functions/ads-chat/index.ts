@@ -28,7 +28,7 @@ const TOOLS = [
         properties: {
           ad_account_id: { type: "string", description: "ID da conta de anúncios (opcional)" },
           status_filter: { type: "string", enum: ["ACTIVE", "PAUSED", "ALL"], description: "Filtrar por status (default: ALL, mas ACTIVE primeiro)" },
-          days: { type: "number", description: "Janela de dias para métricas (default: 14, max: 30)" },
+          days: { type: "number", description: "Janela de dias para métricas (default: 14, max: 365). Use 365 para últimos 12 meses." },
         },
         required: [],
         additionalProperties: false,
