@@ -18,7 +18,7 @@ import { generateThemeCss, generateButtonCssRules, getGoogleFontsData } from '..
 import { optimizeImageUrl } from '../_shared/block-compiler/utils.ts';
 
 // ===== VERSION =====
-const VERSION = "v8.6.0"; // Fix: Support chat widget now works on Edge-rendered pages (inline chat drawer)
+const VERSION = "v8.6.1"; // Fix: CEP mask hardened for Edge shipping inputs (product page + cart drawer)
 // ====================
 
 // NOTE: FONT_FAMILY_MAP, getFontFamily, generateThemeCss, getGoogleFontsData
@@ -829,7 +829,7 @@ function buildFullPage(opts: {
       <div data-sf-cart-shipping style="margin-bottom:12px;">
         <p style="font-size:13px;font-weight:600;margin-bottom:6px;">📦 Calcular frete</p>
         <div style="display:flex;gap:8px;">
-          <input type="text" placeholder="CEP" maxlength="9" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none;" data-sf-cart-shipping-cep>
+          <input type="text" placeholder="CEP" maxlength="9" inputmode="numeric" autocomplete="off" autocorrect="off" spellcheck="false" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none;" data-sf-cart-shipping-cep>
           <button data-sf-action="calc-cart-shipping" style="padding:8px 14px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;">OK</button>
         </div>
         <div data-sf-cart-shipping-results style="margin-top:6px;"></div>
@@ -1211,11 +1211,29 @@ function buildFullPage(opts: {
         }
       },{capture:true,signal:sfSignal}); // CAPTURE PHASE + AbortController for cleanup
 
-      // CEP masks
-      var cepEl=document.querySelector("[data-sf-shipping-cep]");
-      if(cepEl)cepEl.addEventListener("input",function(){var v=this.value.replace(/\D/g,"");if(v.length>5)v=v.slice(0,5)+"-"+v.slice(5,8);else v=v.slice(0,8);this.value=v;});
-      var cartCepEl=document.querySelector("[data-sf-cart-shipping-cep]");
-      if(cartCepEl)cartCepEl.addEventListener("input",function(){var v=this.value.replace(/\D/g,"");if(v.length>5)v=v.slice(0,5)+"-"+v.slice(5,8);else v=v.slice(0,8);this.value=v;});
+      // CEP masks (Edge product shipping + cart drawer shipping)
+      function sfFormatCepValue(raw){
+        var digits=(raw||"").replace(/\D/g,"").slice(0,8);
+        return digits.length>5?digits.slice(0,5)+"-"+digits.slice(5):digits;
+      }
+
+      function sfHandleCepInput(target){
+        if(!target)return;
+        var formatted=sfFormatCepValue(target.value);
+        if(target.value!==formatted) target.value=formatted;
+      }
+
+      document.addEventListener("input",function(e){
+        var target=e.target;
+        if(!target||!target.matches) return;
+        if(!target.matches("[data-sf-shipping-cep], [data-sf-cart-shipping-cep]")) return;
+        sfHandleCepInput(target);
+      },{capture:true,signal:sfSignal});
+
+      // Ensure existing inputs are normalized on initial paint (supports prerender/cache)
+      document.querySelectorAll("[data-sf-shipping-cep], [data-sf-cart-shipping-cep]").forEach(function(el){
+        sfHandleCepInput(el);
+      });
 
       // Search overlay close on click outside
       document.querySelector("[data-sf-search-overlay]")?.addEventListener("click",function(e){
