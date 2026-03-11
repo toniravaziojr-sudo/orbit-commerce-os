@@ -42,6 +42,7 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
     messagesLoading,
     isStreaming,
     streamingContent,
+    progressLabel,
     sendMessage,
     cancelStreaming,
     createConversation,
