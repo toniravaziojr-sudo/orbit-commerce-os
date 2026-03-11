@@ -263,8 +263,7 @@ serve(async (req) => {
       );
     }
 
-    // Get next number
-    const nextNumero = fiscalSettings.numero_nfe_atual || 1;
+    const serieNfe = fiscalSettings.serie_nfe || 1;
 
     // Buscar código IBGE do município de destino
     console.log('[fiscal-create-draft] Looking up IBGE code for:', order.shipping_city, order.shipping_state);
@@ -276,13 +275,12 @@ serve(async (req) => {
       console.log('[fiscal-create-draft] IBGE code found:', destMunicipioCodigo);
     }
 
-    // Build draft
+    // Build draft base
     const customer = order.customer;
-    const draftData = {
+    const draftDataBase = {
       tenant_id: tenantId,
       order_id: order_id,
-      numero: nextNumero,
-      serie: fiscalSettings.serie_nfe || 1,
+      serie: serieNfe,
       status: 'draft',
       natureza_operacao: natureza_operacao || 'VENDA DE MERCADORIA',
       cfop: cfop,
@@ -308,7 +306,7 @@ serve(async (req) => {
     // Check if draft already exists
     const { data: existingDraft } = await supabase
       .from('fiscal_invoices')
-      .select('id')
+      .select('id, numero')
       .eq('order_id', order_id)
       .eq('tenant_id', tenantId)
       .eq('status', 'draft')
@@ -316,10 +314,10 @@ serve(async (req) => {
 
     let invoice;
     if (existingDraft) {
-      // Update existing draft
+      // Update existing draft (preserve existing number)
       const { data, error } = await supabase
         .from('fiscal_invoices')
-        .update(draftData)
+        .update({ ...draftDataBase, numero: existingDraft.numero })
         .eq('id', existingDraft.id)
         .select()
         .single();
@@ -333,15 +331,35 @@ serve(async (req) => {
         .delete()
         .eq('invoice_id', existingDraft.id);
     } else {
-      // Create new draft
-      const { data, error } = await supabase
-        .from('fiscal_invoices')
-        .insert(draftData)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      invoice = data;
+      const nextNumero = await getNextFiscalNumber({
+        supabase,
+        tenantId,
+        serie: serieNfe,
+        fallbackNumeroAtual: fiscalSettings.numero_nfe_atual,
+      });
+
+      // Create new draft with duplicate-safe retry
+      const result = await insertFiscalInvoiceWithRetry({
+        supabase,
+        tenantId,
+        serie: serieNfe,
+        initialNumber: nextNumero,
+        logPrefix: 'fiscal-create-draft',
+        buildDraftData: (numeroFiscal) => ({
+          ...draftDataBase,
+          numero: numeroFiscal,
+        }),
+      });
+
+      invoice = result.invoice;
+
+      await syncFiscalNumberCursor({
+        supabase,
+        tenantId,
+        serie: serieNfe,
+        currentCursor: result.numero + 1,
+        logPrefix: 'fiscal-create-draft',
+      });
     }
 
     // Insert items
