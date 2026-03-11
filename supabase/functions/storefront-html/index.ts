@@ -2446,8 +2446,19 @@ serve(async (req) => {
     
     const navItemsHtml = `<div style="background:${escapeHtml(mobileHeaderBg)};color:${escapeHtml(mobileHeaderText)};min-height:100%;display:flex;flex-direction:column;">${mobileMenuItemsHtml}${mobileFeaturedHtml}${mobileAccountHtml}${mobileContactHtml}${mobileSocialHtml}</div>`;
 
-    // === MARKETING PIXELS (deferred injection) ===
-    const marketingScripts = generateMarketingPixelScripts(marketingConfig);
+    // === MARKETING PIXELS (deferred injection) with route-specific events ===
+    const trackingData: { routeType: string; product?: any; category?: any; categoryProductIds?: string[] } = { routeType: route.type };
+    if (route.type === 'product' && routeData) {
+      trackingData.product = routeData;
+      // Add category name if available
+      if (compilerContext.currentProductCategory) {
+        trackingData.product = { ...routeData, category_name: compilerContext.currentProductCategory.name };
+      }
+    } else if (route.type === 'category' && routeData) {
+      trackingData.category = routeData;
+      trackingData.categoryProductIds = (compilerContext.categoryProducts || []).slice(0, 10).map((p: any) => p.id);
+    }
+    const marketingScripts = generateMarketingPixelScripts(marketingConfig, trackingData);
     
     // === NEWSLETTER POPUP ===
     const newsletterPopupHtml = generateNewsletterPopupHtml(newsletterPopup, tenantId, route.type);
