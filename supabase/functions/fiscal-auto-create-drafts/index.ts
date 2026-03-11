@@ -209,6 +209,21 @@ serve(async (req) => {
 
     for (const order of ordersToCreate) {
       try {
+        // Re-check current invoice existence to avoid race conditions
+        const { data: currentInvoice } = await supabase
+          .from('fiscal_invoices')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .eq('order_id', order.id)
+          .neq('status', 'canceled')
+          .limit(1)
+          .maybeSingle();
+
+        if (currentInvoice?.id) {
+          console.log(`[fiscal-auto-create-drafts] Order ${order.order_number} already has invoice, skipping`);
+          continue;
+        }
+
         // Get order items
         const { data: orderItems } = await supabase
           .from('order_items')
@@ -284,19 +299,15 @@ serve(async (req) => {
           };
         });
 
-        // Get next number
-        const nextNumero = fiscalSettings.numero_nfe_atual || 1;
-
         // Lookup IBGE code
         const destMunicipioCodigo = await getIbgeCodigo(supabase, order.shipping_city, order.shipping_state);
 
-        // Build draft data - customer is an array from the join, get first element
+        // Build draft data base - customer is an array from the join, get first element
         const customerData = Array.isArray(order.customer) ? order.customer[0] : order.customer;
-        const draftData = {
+        const draftDataBase = {
           tenant_id: tenantId,
           order_id: order.id,
-          numero: nextNumero + created, // Increment for each draft
-          serie: fiscalSettings.serie_nfe || 1,
+          serie: serieNfe,
           status: 'draft',
           natureza_operacao: 'VENDA DE MERCADORIA',
           cfop: cfop,
@@ -320,18 +331,19 @@ serve(async (req) => {
           emitido_por: user.id,
         };
 
-        // Create draft
-        const { data: invoice, error: insertError } = await supabase
-          .from('fiscal_invoices')
-          .insert(draftData)
-          .select()
-          .single();
+        const { invoice, numero } = await insertFiscalInvoiceWithRetry({
+          supabase,
+          tenantId,
+          serie: serieNfe,
+          initialNumber: nextNumeroCursor,
+          logPrefix: 'fiscal-auto-create-drafts',
+          buildDraftData: (numeroFiscal) => ({
+            ...draftDataBase,
+            numero: numeroFiscal,
+          }),
+        });
 
-        if (insertError) {
-          console.error(`[fiscal-auto-create-drafts] Error creating draft for order ${order.order_number}:`, insertError);
-          errors.push(`Pedido ${order.order_number}: ${insertError.message}`);
-          continue;
-        }
+        nextNumeroCursor = Math.max(nextNumeroCursor, numero + 1);
 
         // Insert items
         const itemsToInsert = invoiceItems.map(item => ({
@@ -358,18 +370,26 @@ serve(async (req) => {
             invoice_id: invoice.id,
             tenant_id: tenantId,
             event_type: 'draft_auto_created',
-            event_data: { order_id: order.id, order_number: order.order_number },
+            event_data: { order_id: order.id, order_number: order.order_number, numero },
             user_id: user.id,
           });
 
         created++;
-        console.log(`[fiscal-auto-create-drafts] Created draft for order ${order.order_number}`);
+        console.log(`[fiscal-auto-create-drafts] Created draft for order ${order.order_number} with numero ${numero}`);
 
       } catch (error) {
         console.error(`[fiscal-auto-create-drafts] Error processing order ${order.order_number}:`, error);
         errors.push(`Pedido ${order.order_number}: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
       }
     }
+
+    await syncFiscalNumberCursor({
+      supabase,
+      tenantId,
+      serie: serieNfe,
+      currentCursor: nextNumeroCursor,
+      logPrefix: 'fiscal-auto-create-drafts',
+    });
 
     console.log(`[fiscal-auto-create-drafts] Completed. Created ${created} drafts.`);
 
