@@ -177,6 +177,30 @@ serve(async (req) => {
       }),
     });
 
+    // Insert invoice items
+    const invoiceItems = itens.map((item: any) => ({
+      invoice_id: invoice.id,
+      numero_item: item.numero_item,
+      codigo_produto: item.codigo || `ITEM${item.numero_item}`,
+      descricao: item.descricao,
+      ncm: (item.ncm || '').replace(/\D/g, '').padStart(8, '0'),
+      cfop: (item.cfop || '5102').replace(/\D/g, ''),
+      unidade: item.unidade || 'UN',
+      quantidade: item.quantidade,
+      valor_unitario: item.valor_unitario,
+      valor_total: item.quantidade * item.valor_unitario,
+      origem: parseInt(item.origem || '0', 10),
+      csosn: item.csosn || '102',
+    }));
+
+    const { error: itemsError } = await supabase
+      .from('fiscal_invoice_items')
+      .insert(invoiceItems);
+
+    if (itemsError) {
+      console.error('[fiscal-create-manual] Error inserting items:', itemsError);
+    }
+
     await syncFiscalNumberCursor({
       supabase,
       tenantId,
