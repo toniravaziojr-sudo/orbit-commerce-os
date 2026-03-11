@@ -1456,13 +1456,19 @@ function OrderSummarySidebar({
   shipping,
   appliedDiscount,
   freeShipping,
+  paymentMethodDiscountAmount = 0,
+  paymentMethod,
 }: { 
   items: any[];
-  totals: ReturnType<typeof calculateCartTotals>;
+  totals: { subtotal: number; shippingTotal: number; discountTotal: number; grandTotal: number; itemCount: number; totalItems: number; paymentMethodDiscount?: number };
   shipping: any;
   appliedDiscount?: AppliedDiscount | null;
   freeShipping?: boolean;
+  paymentMethodDiscountAmount?: number;
+  paymentMethod?: string;
 }) {
+  const methodLabel = paymentMethod === 'pix' ? 'PIX' : paymentMethod === 'boleto' ? 'Boleto' : paymentMethod === 'credit_card' ? 'Cartão' : '';
+
   return (
     <div className="bg-card border rounded-lg p-4">
       <h3 className="font-semibold mb-4">Resumo do pedido</h3>
@@ -1510,7 +1516,7 @@ function OrderSummarySidebar({
           </div>
         )}
 
-        {/* Discount line */}
+        {/* Coupon discount line */}
         {(totals.discountTotal > 0 || appliedDiscount) && (
           <div className="flex justify-between" style={{ color: 'var(--theme-accent-color, #22c55e)' }}>
             <span className="flex items-center gap-1">
@@ -1521,6 +1527,17 @@ function OrderSummarySidebar({
               )}
             </span>
             <span>- {formatCurrency(totals.discountTotal)}</span>
+          </div>
+        )}
+
+        {/* Payment method discount line */}
+        {paymentMethodDiscountAmount > 0 && (
+          <div className="flex justify-between" style={{ color: 'var(--theme-accent-color, #22c55e)' }}>
+            <span className="flex items-center gap-1">
+              <CreditCard className="h-3.5 w-3.5" />
+              Desconto {methodLabel}
+            </span>
+            <span>- {formatCurrency(paymentMethodDiscountAmount)}</span>
           </div>
         )}
 
