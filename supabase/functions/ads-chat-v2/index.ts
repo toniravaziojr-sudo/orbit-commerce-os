@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v6.1.0"; // Dual-mode: factual orchestration + strategic/generative with approval pipeline convergence
+const VERSION = "v6.2.0"; // Bulk action escalation: conversational bulk ops force strategic mode + pending_approval
 // ====================
 
 const AI_TIMEOUT_MS = 90000;
@@ -96,6 +96,22 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
   if (/list[ae]r?\s+(as?\s+)?campanha|quais\s+(são\s+)?(as?\s+)?campanha|mostr[ae]r?\s+(as?\s+)?campanha|campanhas?\s+ativ[ao]s?|campanhas?\s+pausad[ao]s?|quantas?\s+campanha|list[ae]r?\s+(os?\s+)?conjunt|list[ae]r?\s+(os?\s+)?anúncio/i.test(msg) &&
       !/cri[ae]r?|paus[ae]r?|ativ[ae]r?/i.test(msg)) {
     return { category: "campaigns_list", mode: "factual", isFactual: true, entities, confidence: 0.85 };
+  }
+
+  // ---- BULK ACTION ESCALATION (check BEFORE individual write patterns) ----
+  // When the user requests multiple campaigns, adsets, or structural changes across products,
+  // escalate to strategic mode to require approval — even if the language is "conversational".
+  const bulkIndicators = [
+    /cri[ae]r?\s+(\d+|várias?|múltiplas?|diversas?|todas?)\s+(campanha|conjunto|anúncio)/i,
+    /campanha[s]?\s+(para\s+)?(cada|todos?|todas?|vários?|múltiplos?|diversos?)\s+(produto|categori|item)/i,
+    /(para\s+)?(cada|todos?|todas?)\s+(produto|categori)\s+(cri|mont|faz|lanç)/i,
+    /cri[ae]r?\s+campanha[s]?\s+.{0,30}\s+e\s+.{0,30}\s+e\s+/i, // "criar campanha X e Y e Z"
+    /(\d{2,})\s*(campanha|conjunto|anúncio)/i, // 10+ campaigns/adsets
+    /restrutur[ae]r?\s+(todo|toda|tudo|funil|estrutura)|reformul[ae]r?\s+(toda|todo|funil)/i,
+    /escal[ae]r?\s+(todo|toda|tudo|todas?\s+campanha)/i,
+  ];
+  if (bulkIndicators.some(rx => rx.test(msg))) {
+    return { category: "strategic", mode: "strategic", isFactual: false, entities, confidence: 0.92 };
   }
 
   // WRITE - META (direct execution requests — pause, activate, budget changes)
@@ -883,6 +899,11 @@ function buildConversationalSystemPrompt(storeName: string, context: any): strin
 ## REGRA: SEQUÊNCIA PARA CAMPANHAS
 - NUNCA chame generate_creative_image e create_meta_campaign na mesma rodada.
 - Máximo 2 campanhas por rodada.
+
+## REGRA: LIMITE DE AÇÕES DIRETAS
+- Se o lojista pedir mais de 2 campanhas, mais de 3 adsets, ou ações para múltiplos produtos ao mesmo tempo, NÃO execute direto.
+- Nesse caso, informe que ações em lote exigem uma proposta estruturada e peça para ele solicitar uma estratégia.
+- Ações unitárias (1 campanha, 1 pausa, 1 ajuste de budget) podem executar normalmente.
 
 ## COMUNICAÇÃO
 - Fale em Português BR

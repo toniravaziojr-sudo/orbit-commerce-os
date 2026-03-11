@@ -1,7 +1,7 @@
 # Memory: features/marketing/ads-chat-factual-orchestration-v6
 Updated: 2026-03-11
 
-O Ads Chat (v6.1.0) implementa uma arquitetura dual-mode com orquestração determinística para consultas factuais E modo estratégico/generativo com convergência para o pipeline de aprovação existente.
+O Ads Chat (v6.2.0) implementa uma arquitetura dual-mode com orquestração determinística para consultas factuais E modo estratégico/generativo com convergência para o pipeline de aprovação existente.
 
 ## Arquitetura Dual-Mode
 
@@ -22,7 +22,19 @@ O Ads Chat (v6.1.0) implementa uma arquitetura dual-mode com orquestração dete
 - **Como**: IA recebe subconjunto de ferramentas relevantes, executa diretamente
 - **Tools**: 5-15 tools por categoria (vs 35+ na v1)
 
-## Roteamento Frontend (useAdsChat v6.1.0)
+### Escalação de Ações em Lote (v6.2.0 — REGRA DE SEGURANÇA)
+- **Classificador**: Regex `bulkIndicators` detecta pedidos de múltiplas campanhas, múltiplos adsets, ações para vários produtos, reestruturação de funil/estrutura, ou escala geral
+- **Resultado**: Força `mode: "strategic"` + `category: "strategic"` independente de vocabulário usado
+- **Prompt conversacional**: Instrui a IA a NÃO executar direto quando detectar >2 campanhas, >3 adsets, ou múltiplos produtos — deve informar que ações em lote exigem proposta estruturada
+- **Objetivo**: Impedir que ações estruturais grandes passem pelo modo conversacional sem aprovação
+
+Exemplos que ativam escalação:
+- "criar 5 campanhas para produtos diferentes"
+- "campanha para cada produto do catálogo"
+- "reestruturar todo o funil"
+- "escalar todas as campanhas"
+
+## Roteamento Frontend (useAdsChat v6.2.0)
 - **Primary**: ads-chat-v2 (todos os modos)
 - **Fallback**: ads-chat (v1) quando v2 retornar erro 500+ ou falha de rede
 - **Invalidação**: Após stream, invalida `ads-pending-actions` para refletir propostas estratégicas criadas via chat
@@ -31,6 +43,7 @@ O Ads Chat (v6.1.0) implementa uma arquitetura dual-mode com orquestração dete
 - 12 categorias: performance, targeting, campaigns_list, store_context, autopilot, write_meta, write_google, write_tiktok, creative, drive, **strategic**, general
 - 3 modos: `factual` | `strategic` | `conversational`
 - Determinístico via regex, sem dependência de LLM
+- **Prioridade**: strategic patterns > bulk indicators > write patterns > factual patterns
 
 ## Ferramenta submit_strategic_proposal
 - Schema estruturado: diagnosis (min 300 palavras), planned_actions (array com action_type, campaign_name, objective, funnel_stage, daily_budget_brl, reasoning, adsets[]), total_daily_budget_brl, strategy_summary, risks
@@ -43,7 +56,7 @@ O Ads Chat (v6.1.0) implementa uma arquitetura dual-mode com orquestração dete
 - Propostas do chat convergem para o pipeline único: proposta → aprovação → execução
 
 ### Arquivos Relacionados
-- `supabase/functions/ads-chat-v2/index.ts` — Edge function dual-mode (v6.1.0)
+- `supabase/functions/ads-chat-v2/index.ts` — Edge function dual-mode (v6.2.0)
 - `supabase/functions/ads-chat/index.ts` — Edge function v1 (fallback, v5.36.0)
 - `src/hooks/useAdsChat.ts` — Hook frontend com roteamento v2→v1
 - `src/hooks/useAdsPendingActions.ts` — Hook de ações pendentes (exibe propostas do chat)
@@ -56,3 +69,5 @@ O Ads Chat (v6.1.0) implementa uma arquitetura dual-mode com orquestração dete
 - [ ] `ads-pending-actions` é invalidado após stream para refletir novas propostas
 - [ ] Modo estratégico tem 8 rounds de tool calls (vs 5 no conversacional)
 - [ ] Anti-filler e regexes existem apenas como camada defensiva na v1
+- [ ] Ações em lote (múltiplas campanhas/adsets/produtos) são escaladas para modo estratégico
+- [ ] Prompt conversacional bloqueia execução direta de >2 campanhas ou >3 adsets

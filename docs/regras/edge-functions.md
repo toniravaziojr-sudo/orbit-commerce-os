@@ -1244,7 +1244,7 @@ Comandos explícitos do usuário via chat têm **prioridade máxima** sobre conf
 
 ---
 
-## AI Ads Chat v2 (`ads-chat-v2`) — v6.1.0
+## AI Ads Chat v2 (`ads-chat-v2`) — v6.2.0
 
 ### Visão Geral
 Edge Function dual-mode que substitui `ads-chat` como endpoint primário. Implementa orquestração factual determinística + modo estratégico com convergência para o pipeline de aprovação existente.
@@ -1263,7 +1263,7 @@ Edge Function dual-mode que substitui `ads-chat` como endpoint primário. Implem
 - **12 categorias**: performance, targeting, campaigns_list, store_context, autopilot, write_meta, write_google, write_tiktok, creative, drive, strategic, general
 - **3 modos**: `factual` | `strategic` | `conversational`
 - **Determinístico**: Regex sem dependência de LLM
-- **Prioridade**: Strategic patterns são avaliados ANTES de write patterns para evitar classificação errada de "criar estratégia" como "criar campanha"
+- **Prioridade**: Strategic patterns > **Bulk indicators (v6.2.0)** > Write patterns > Factual patterns
 
 ### Orquestrador Factual (`orchestrateFactualQuery`)
 - **Performance**: Meta API live → consolidação campanhas+insights → JSON com summary/active/paused
@@ -1340,7 +1340,23 @@ Schema estruturado obrigatório:
 
 **Nota**: Campanhas unitárias criadas via `create_meta_campaign` são criadas em status `PAUSED`, exigindo ativação posterior (manual ou via pipeline).
 
-### Roteamento Frontend (`useAdsChat` v6.1.0)
+### Escalação de Ações em Lote (v6.2.0 — REGRA DE SEGURANÇA)
+
+**Classificador (`bulkIndicators`)** — Força modo estratégico quando detecta:
+- Múltiplas campanhas: "criar 5 campanhas", "várias campanhas"
+- Múltiplos produtos: "campanha para cada produto", "todos os produtos"
+- Reestruturação: "reestruturar todo o funil", "reformular toda a estrutura"
+- Escala geral: "escalar todas as campanhas"
+- Números altos: "10 campanhas", "20 anúncios"
+
+**Prompt conversacional** — Instrui a IA a bloquear execução direta de:
+- Mais de 2 campanhas por solicitação
+- Mais de 3 adsets por solicitação
+- Ações para múltiplos produtos simultaneamente
+
+**Resultado**: Mensagem orienta o lojista a solicitar uma estratégia → proposta estruturada → aprovação.
+
+### Roteamento Frontend (`useAdsChat` v6.2.0)
 
 ```
 Mensagem do usuário
@@ -1400,6 +1416,7 @@ Após stream completo:
 
 | Versão | Data | Mudança |
 |--------|------|---------|
+| v6.2.0 | 2026-03-11 | **Escalação de lote**: `bulkIndicators` no classificador força modo estratégico para ações em massa. Prompt conversacional bloqueia >2 campanhas / >3 adsets direto. Segurança contra bypass de aprovação. |
 | v6.1.0 | 2026-03-11 | **Criação**: Dual-mode (factual/strategic/conversational). Classificador determinístico. Tool subsets. Orquestrador factual com Meta API live. `submit_strategic_proposal` convergindo para pipeline de aprovação. Frontend com fallback v2→v1. |
 
 ### v1.3.0 — `ads-autopilot-creative` — INSERT antes de gerar + `image_job_id` correto
