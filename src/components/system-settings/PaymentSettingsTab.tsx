@@ -5,10 +5,12 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { QrCode, CreditCard, FileText, Info, Save } from 'lucide-react';
+import { QrCode, CreditCard, FileText, Info, Save, AlertTriangle } from 'lucide-react';
 import { usePaymentMethodDiscounts, PaymentMethodDiscount } from '@/hooks/usePaymentMethodDiscounts';
+import { usePaymentProviders } from '@/hooks/usePaymentProviders';
 import { useState, useEffect } from 'react';
 import { Separator } from '@/components/ui/separator';
+import { Link } from 'react-router-dom';
 
 const METHODS_META = {
   pix: { label: 'PIX', icon: QrCode, color: 'text-emerald-600', showInstallments: false },
@@ -18,6 +20,7 @@ const METHODS_META = {
 
 export function PaymentSettingsTab() {
   const { discounts, isLoading, saveDiscount, isSaving } = usePaymentMethodDiscounts();
+  const { providers, isLoading: loadingProviders } = usePaymentProviders();
   const [localDiscounts, setLocalDiscounts] = useState<PaymentMethodDiscount[]>([]);
 
   useEffect(() => {
@@ -45,8 +48,23 @@ export function PaymentSettingsTab() {
     );
   }
 
+  const hasActiveGateway = providers.some(p => p.is_enabled);
+
   return (
     <div className="space-y-6">
+      {!loadingProviders && !hasActiveGateway && (
+        <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Nenhum gateway de pagamento ativo.</strong> Para que descontos e parcelamentos funcionem no checkout, 
+            você precisa configurar e ativar pelo menos um operador de pagamento (Pagar.me, Mercado Pago, etc.) em{' '}
+            <Link to="/integrations" className="underline font-medium hover:text-destructive">
+              Integrações
+            </Link>.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Alert className="border-primary/30 bg-primary/5">
         <Info className="h-4 w-4 text-primary" />
         <AlertDescription>

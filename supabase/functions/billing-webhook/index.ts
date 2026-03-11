@@ -254,6 +254,69 @@ serve(async (req) => {
               processed_at: new Date().toISOString(),
             });
           }
+        } else if (payment.external_reference?.startsWith('credits|')) {
+          // ====== AI CREDITS PURCHASE FLOW ======
+          const parts = payment.external_reference.split('|');
+          const creditTenantId = parts[1];
+          const creditPackageId = parts[2];
+          const creditIdempotencyKey = parts[3];
+
+          console.log('[Credits] Processing credit purchase:', { creditTenantId, creditPackageId, status: payment.status });
+
+          if (payment.status === 'approved' && creditTenantId && creditPackageId) {
+            // Check idempotency - don't double-add credits
+            const { data: existingLedger } = await supabase
+              .from('credit_ledger')
+              .select('id, credits_delta')
+              .eq('idempotency_key', creditIdempotencyKey)
+              .gt('credits_delta', 0)
+              .maybeSingle();
+
+            if (existingLedger) {
+              console.log('[Credits] Already processed, skipping:', creditIdempotencyKey);
+            } else {
+              // Fetch package details
+              const { data: pkg } = await supabase
+                .from('credit_packages')
+                .select('credits, bonus_credits, name')
+                .eq('id', creditPackageId)
+                .single();
+
+              if (pkg) {
+                const totalCredits = pkg.credits + (pkg.bonus_credits || 0);
+
+                // Add credits to wallet
+                await supabase.rpc('add_credits', {
+                  p_tenant_id: creditTenantId,
+                  p_credits: totalCredits,
+                });
+
+                // Record in ledger
+                await supabase
+                  .from('credit_ledger')
+                  .insert({
+                    tenant_id: creditTenantId,
+                    user_id: payment.metadata?.user_id || null,
+                    transaction_type: 'purchase',
+                    credits_delta: totalCredits,
+                    idempotency_key: creditIdempotencyKey,
+                    description: `Compra confirmada: ${pkg.name} (${totalCredits} créditos)`,
+                  });
+
+                console.log('[Credits] Added', totalCredits, 'credits to tenant:', creditTenantId);
+              }
+            }
+          }
+
+          await supabase.from('billing_events').insert({
+            tenant_id: creditTenantId,
+            provider: 'mercadopago',
+            event_type: `credits.payment.${payment.status}`,
+            event_id: eventId,
+            payload: payment,
+            processed_at: new Date().toISOString(),
+          });
+
         } else {
           // Legacy flow: tenant already exists
           if (payment.external_reference) {
