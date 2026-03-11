@@ -112,7 +112,7 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
       /quero\s+ver\s+(as?\s+)?(minhas?\s+)?campanha/i.test(msg) ||
       /(minhas?\s+)?campanha[s]?\s+(ativ|pausad|do\s+meta|no\s+meta|na\s+meta|do\s+facebook|no\s+facebook)/i.test(msg)) &&
       !/cri[ae]r?|paus[ae]r?|ativ[ae]r?/i.test(msg)) {
-    return { category: "campaigns_list", mode: "factual", isFactual: true, entities, confidence: 0.85 };
+    return { category: "campaigns_list", mode: "factual", isFactual: true, isHybrid: false, entities, confidence: 0.85 };
   }
 
   // ---- BULK ACTION ESCALATION (check BEFORE individual write patterns) ----
