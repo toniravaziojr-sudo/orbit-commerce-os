@@ -5,10 +5,12 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { QrCode, CreditCard, FileText, Info, Save } from 'lucide-react';
+import { QrCode, CreditCard, FileText, Info, Save, AlertTriangle } from 'lucide-react';
 import { usePaymentMethodDiscounts, PaymentMethodDiscount } from '@/hooks/usePaymentMethodDiscounts';
+import { usePaymentProviders } from '@/hooks/usePaymentProviders';
 import { useState, useEffect } from 'react';
 import { Separator } from '@/components/ui/separator';
+import { Link } from 'react-router-dom';
 
 const METHODS_META = {
   pix: { label: 'PIX', icon: QrCode, color: 'text-emerald-600', showInstallments: false },
