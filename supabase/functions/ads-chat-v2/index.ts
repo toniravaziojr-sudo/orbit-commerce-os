@@ -1179,6 +1179,87 @@ async function executeToolDirect(supabase: any, tenantId: string, toolName: stri
         const { data } = await q;
         return JSON.stringify({ total: data?.length || 0, ads: data || [] });
       }
+      case "get_adset_performance": {
+        const query = supabase
+          .from("meta_ad_adsets")
+          .select("meta_adset_id, meta_campaign_id, name, status, daily_budget_cents, lifetime_budget_cents, targeting, pixel_id, optimization_goal, bid_strategy, ad_account_id, created_at")
+          .eq("tenant_id", tenantId)
+          .order("status", { ascending: true });
+        if (args.ad_account_id) query.eq("ad_account_id", args.ad_account_id);
+        if (args.campaign_id) query.eq("meta_campaign_id", args.campaign_id);
+        if (args.status && args.status !== "ALL") query.eq("status", args.status);
+        const { data: adsets, error: adsErr } = await query.limit(100);
+        if (adsErr) return JSON.stringify({ error: adsErr.message });
+
+        // Get campaign names for context
+        const campIds = [...new Set((adsets || []).map((a: any) => a.meta_campaign_id).filter(Boolean))];
+        let campNames: Record<string, string> = {};
+        if (campIds.length > 0) {
+          const { data: camps } = await supabase
+            .from("meta_ad_campaigns")
+            .select("meta_campaign_id, name")
+            .eq("tenant_id", tenantId)
+            .in("meta_campaign_id", campIds);
+          for (const c of (camps || [])) campNames[c.meta_campaign_id] = c.name;
+        }
+
+        const activeAdsets = (adsets || []).filter((a: any) => a.status === "ACTIVE");
+        const pausedAdsets = (adsets || []).filter((a: any) => a.status === "PAUSED");
+
+        return JSON.stringify({
+          total: adsets?.length || 0,
+          active: activeAdsets.length,
+          paused: pausedAdsets.length,
+          adsets: (adsets || []).slice(0, 50).map((a: any) => ({
+            meta_adset_id: a.meta_adset_id, name: a.name, status: a.status,
+            campaign_name: campNames[a.meta_campaign_id] || a.meta_campaign_id,
+            daily_budget: a.daily_budget_cents ? `R$ ${(a.daily_budget_cents / 100).toFixed(2)}` : null,
+            lifetime_budget: a.lifetime_budget_cents ? `R$ ${(a.lifetime_budget_cents / 100).toFixed(2)}` : null,
+            has_pixel: !!a.pixel_id, optimization_goal: a.optimization_goal,
+            bid_strategy: a.bid_strategy,
+            targeting_summary: a.targeting ? JSON.stringify(a.targeting).substring(0, 200) : null,
+          })),
+        });
+      }
+      case "get_ad_performance": {
+        const adQuery = supabase
+          .from("meta_ad_ads")
+          .select("meta_ad_id, name, status, effective_status, meta_adset_id, meta_campaign_id, ad_account_id, created_at")
+          .eq("tenant_id", tenantId)
+          .order("created_at", { ascending: false });
+        if (args.ad_account_id) adQuery.eq("ad_account_id", args.ad_account_id);
+        if (args.campaign_id) adQuery.eq("meta_campaign_id", args.campaign_id);
+        if (args.adset_id) adQuery.eq("meta_adset_id", args.adset_id);
+        const { data: ads, error: adErr } = await adQuery.limit(100);
+        if (adErr) return JSON.stringify({ error: adErr.message });
+
+        // Creatives
+        const adIds = (ads || []).map((a: any) => a.meta_ad_id).filter(Boolean);
+        let creativeMap: Record<string, any> = {};
+        if (adIds.length > 0) {
+          const { data: cData } = await supabase
+            .from("meta_ad_creatives")
+            .select("meta_ad_id, name, title, body, image_url, thumbnail_url, call_to_action_type")
+            .eq("tenant_id", tenantId)
+            .in("meta_ad_id", adIds);
+          for (const c of (cData || [])) creativeMap[c.meta_ad_id] = c;
+        }
+
+        const activeAds = (ads || []).filter((a: any) => a.status === "ACTIVE");
+
+        return JSON.stringify({
+          total: ads?.length || 0,
+          active: activeAds.length,
+          ads: (ads || []).slice(0, 50).map((a: any) => {
+            const cr = creativeMap[a.meta_ad_id];
+            return {
+              meta_ad_id: a.meta_ad_id, name: a.name, status: a.status, effective_status: a.effective_status,
+              adset_id: a.meta_adset_id, campaign_id: a.meta_campaign_id,
+              creative: cr ? { title: cr.title, body: cr.body?.substring(0, 100), cta: cr.call_to_action_type, has_image: !!cr.image_url } : null,
+            };
+          }),
+        });
+      }
       default:
         return JSON.stringify({ error: `Ferramenta '${toolName}' não disponível no modo direto. Use o chat padrão.` });
     }
