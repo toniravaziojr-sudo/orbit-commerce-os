@@ -1313,8 +1313,8 @@ async function fetchMetaCampaignsLive(supabase: any, tenantId: string, adAccount
   return allCampaigns;
 }
 
-// --- Helper: Fetch insights directly from Meta Graph API ---
-async function fetchMetaInsightsLive(supabase: any, tenantId: string, adAccountId?: string, sinceDate?: string, level: string = "campaign") {
+// --- Helper: Fetch insights directly from Meta Graph API (with pagination + lifetime support) ---
+async function fetchMetaInsightsLive(supabase: any, tenantId: string, adAccountId?: string, sinceDate?: string, level: string = "campaign", useLifetime: boolean = false) {
   const { data: conn } = await supabase
     .from("marketplace_connections")
     .select("access_token, metadata")
@@ -1329,44 +1329,76 @@ async function fetchMetaInsightsLive(supabase: any, tenantId: string, adAccountI
   if (accounts.length === 0) return [];
 
   const today = new Date().toISOString().split("T")[0];
-  const since = sinceDate || new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
   const allInsights: any[] = [];
   const GRAPH_VERSION = "v21.0";
+  const MAX_PAGES = 15; // safety limit for pagination
 
   for (const accountId of accounts.slice(0, 3)) {
     const cleanId = String(accountId).replace("act_", "");
     try {
-      const url = `https://graph.facebook.com/${GRAPH_VERSION}/act_${cleanId}/insights?fields=campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,impressions,clicks,spend,reach,cpc,cpm,ctr,actions,action_values,cost_per_action_type,frequency&level=${level}&time_range={"since":"${since}","until":"${today}"}&limit=500&access_token=${conn.access_token}`;
-      
-      const response = await fetch(url);
-      if (!response.ok) {
-        console.error(`[ads-chat][${VERSION}] Meta API error:`, response.status);
-        continue;
+      // Build time parameter: date_preset=maximum for lifetime, or time_range for specific window
+      let timeParam: string;
+      if (useLifetime) {
+        timeParam = `date_preset=maximum`;
+      } else {
+        const since = sinceDate || new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
+        timeParam = `time_range={"since":"${since}","until":"${today}"}`;
       }
-      const result = await response.json();
+
+      let url: string | null = `https://graph.facebook.com/${GRAPH_VERSION}/act_${cleanId}/insights?fields=campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,impressions,clicks,spend,reach,cpc,cpm,ctr,actions,action_values,cost_per_action_type,frequency&level=${level}&${timeParam}&limit=500&access_token=${conn.access_token}`;
       
-      for (const row of (result.data || [])) {
-        const conversions = (row.actions || []).find((a: any) => a.action_type === "purchase" || a.action_type === "offsite_conversion.fb_pixel_purchase")?.value || 0;
-        const convValue = (row.action_values || []).find((a: any) => a.action_type === "purchase" || a.action_type === "offsite_conversion.fb_pixel_purchase")?.value || 0;
+      let pageCount = 0;
+      while (url && pageCount < MAX_PAGES) {
+        pageCount++;
+        const response = await fetch(url);
+        if (!response.ok) {
+          const errBody = await response.text().catch(() => "");
+          console.error(`[ads-chat][${VERSION}] Meta API error (page ${pageCount}):`, response.status, errBody.slice(0, 200));
+          // Handle rate limiting
+          if (response.status === 429) {
+            const retryAfter = parseInt(response.headers.get("Retry-After") || "5");
+            console.log(`[ads-chat][${VERSION}] Rate limited, waiting ${retryAfter}s...`);
+            await new Promise(r => setTimeout(r, retryAfter * 1000));
+            continue; // retry same URL
+          }
+          break;
+        }
+        const result = await response.json();
         
-        allInsights.push({
-          meta_campaign_id: row.campaign_id,
-          campaign_name: row.campaign_name,
-          adset_id: row.adset_id,
-          adset_name: row.adset_name,
-          ad_id: row.ad_id,
-          ad_name: row.ad_name,
-          spend_cents: Math.round(parseFloat(row.spend || "0") * 100),
-          impressions: parseInt(row.impressions || "0"),
-          clicks: parseInt(row.clicks || "0"),
-          conversions: parseInt(conversions),
-          conversion_value_cents: Math.round(parseFloat(convValue) * 100),
-          ctr: parseFloat(row.ctr || "0"),
-          cpc_cents: Math.round(parseFloat(row.cpc || "0") * 100),
-          reach: parseInt(row.reach || "0"),
-          date_start: row.date_start,
-        });
+        for (const row of (result.data || [])) {
+          // Look for purchase conversions in multiple action_type formats
+          const purchaseTypes = ["purchase", "offsite_conversion.fb_pixel_purchase"];
+          const conversions = (row.actions || []).find((a: any) => purchaseTypes.includes(a.action_type))?.value || 0;
+          const convValue = (row.action_values || []).find((a: any) => purchaseTypes.includes(a.action_type))?.value || 0;
+          
+          allInsights.push({
+            meta_campaign_id: row.campaign_id,
+            campaign_name: row.campaign_name,
+            adset_id: row.adset_id,
+            adset_name: row.adset_name,
+            ad_id: row.ad_id,
+            ad_name: row.ad_name,
+            spend_cents: Math.round(parseFloat(row.spend || "0") * 100),
+            impressions: parseInt(row.impressions || "0"),
+            clicks: parseInt(row.clicks || "0"),
+            conversions: parseInt(conversions),
+            conversion_value_cents: Math.round(parseFloat(convValue) * 100),
+            ctr: parseFloat(row.ctr || "0"),
+            cpc_cents: Math.round(parseFloat(row.cpc || "0") * 100),
+            reach: parseInt(row.reach || "0"),
+            date_start: row.date_start,
+          });
+        }
+
+        // Follow pagination
+        url = result.paging?.next || null;
+        if (url) {
+          // Small delay between pages to avoid rate limits
+          await new Promise(r => setTimeout(r, 2000));
+        }
       }
+      
+      console.log(`[ads-chat][${VERSION}] fetchMetaInsightsLive account ${cleanId}: ${allInsights.length} rows in ${pageCount} pages`);
     } catch (err) {
       console.error(`[ads-chat][${VERSION}] fetchMetaInsightsLive error for ${cleanId}:`, err);
     }
