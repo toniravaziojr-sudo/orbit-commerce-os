@@ -128,7 +128,7 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
     /escal[ae]r?\s+(todo|toda|tudo|todas?\s+campanha)/i,
   ];
   if (bulkIndicators.some(rx => rx.test(msg))) {
-    return { category: "strategic", mode: "strategic", isFactual: false, entities, confidence: 0.92 };
+    return { category: "strategic", mode: "strategic", isFactual: false, isHybrid: false, entities, confidence: 0.92 };
   }
 
   // WRITE - META (direct execution requests — pause, activate, budget changes)
