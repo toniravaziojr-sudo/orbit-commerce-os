@@ -39,6 +39,7 @@ interface ClassifiedIntent {
   category: IntentCategory;
   mode: IntentMode;           // Replaces simple isFactual boolean
   isFactual: boolean;         // Backward compat — true when mode === "factual"
+  isHybrid: boolean;          // True when message mixes factual query + strategic intent
   entities: {
     campaignIds?: string[];
     adsetIds?: string[];
