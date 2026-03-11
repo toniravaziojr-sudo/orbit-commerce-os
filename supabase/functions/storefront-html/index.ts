@@ -446,7 +446,7 @@ function generateSupportWidgetHtml(themeSettings: any, routeType: string, tenant
         fetch(SURL+"/functions/v1/ai-support-chat",{
           method:"POST",
           headers:{"Content-Type":"application/json","apikey":SKEY,"Authorization":"Bearer "+SKEY},
-          body:JSON.stringify({conversation_id:convId,message:msg})
+          body:JSON.stringify({conversation_id:convId,tenant_id:tenantId})
         }).then(function(){
           // Reload messages after AI responds
           setTimeout(loadMessages,2000);
