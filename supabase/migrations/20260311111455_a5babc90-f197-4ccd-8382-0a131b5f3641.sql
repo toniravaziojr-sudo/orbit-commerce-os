@@ -1,0 +1,1 @@
+DELETE FROM public.ai_memories WHERE (content ILIKE '%pixel de rastreamento%' OR content ILIKE '%pixel%não está enviando%' OR content ILIKE '%pixel%com problemas%' OR content ILIKE '%pixel%comprometid%' OR content ILIKE '%correção do pixel%' OR content ILIKE '%dados de vendas%comprometid%' OR content ILIKE '%dados%incompletos%pixel%');
