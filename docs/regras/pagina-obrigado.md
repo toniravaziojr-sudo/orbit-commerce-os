@@ -169,6 +169,21 @@ Página de confirmação pós-compra com detalhes do pedido e ofertas de upsell.
 
 ---
 
+## Marketing Events (Pixel Tracking)
+
+| Evento | Disparado em | Condição |
+|--------|-------------|----------|
+| `Purchase` | `CheckoutStepWizard.tsx` (primário) | Dispara ao criar pedido, antes do redirect |
+| `Purchase` | `ThankYouContent.tsx` (backup) | Dispara se pedido existe e não foi rastreado |
+
+### Regras
+- Purchase dispara para **todos** os métodos de pagamento (PIX, Boleto, Cartão)
+- Dedup via `trackOnce` key `purchase_{orderId}` — nunca duplica
+- Não depende de `payment_status` — pedidos PIX/Boleto em `pending` são rastreados
+- `content_ids` usam `resolveMetaContentId()` (meta_retailer_id || sku || id)
+
+---
+
 ## Pendências
 
 - [ ] Upsell 1-click funcional
