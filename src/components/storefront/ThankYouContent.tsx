@@ -93,11 +93,14 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
     // Dedupe: only track once per order (even if component re-renders)
     if (purchaseTrackedRef.current === order.order_number) return;
     
-    // Track Purchase for ALL orders — the checkout already fires this but ThankYou is a backup
-    // Dedup via purchaseTrackedRef ensures no double-firing
-    // For PIX/Boleto, the checkout fires Purchase at order creation (the reliable touchpoint)
-    
-    purchaseTrackedRef.current = order.order_number;
+    // CRITICAL: Check if tracker is available BEFORE marking as tracked
+    // The tracker is deferred (requestIdleCallback/setTimeout) so it may not exist
+    // when order data loads first. We must NOT set the ref until tracker is ready,
+    // otherwise the dedup blocks the retry when tracker finally initializes.
+    if (!tracker) {
+      console.log('[ThankYou] Tracker not ready yet, will retry when available');
+      return;
+    }
     
     // Track Purchase event with all order data
     trackPurchase({
@@ -113,6 +116,8 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
       })),
     });
     
+    // Only mark as tracked AFTER successful dispatch
+    purchaseTrackedRef.current = order.order_number;
     console.log('[ThankYou] Purchase event tracked for order:', order.order_number);
   }, [order, isLoading, isPreview, trackPurchase, checkoutConfig.purchaseEventTiming]);
 
