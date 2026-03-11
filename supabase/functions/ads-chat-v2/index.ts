@@ -98,6 +98,22 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
     return { category: "campaigns_list", mode: "factual", isFactual: true, entities, confidence: 0.85 };
   }
 
+  // ---- BULK ACTION ESCALATION (check BEFORE individual write patterns) ----
+  // When the user requests multiple campaigns, adsets, or structural changes across products,
+  // escalate to strategic mode to require approval — even if the language is "conversational".
+  const bulkIndicators = [
+    /cri[ae]r?\s+(\d+|várias?|múltiplas?|diversas?|todas?)\s+(campanha|conjunto|anúncio)/i,
+    /campanha[s]?\s+(para\s+)?(cada|todos?|todas?|vários?|múltiplos?|diversos?)\s+(produto|categori|item)/i,
+    /(para\s+)?(cada|todos?|todas?)\s+(produto|categori)\s+(cri|mont|faz|lanç)/i,
+    /cri[ae]r?\s+campanha[s]?\s+.{0,30}\s+e\s+.{0,30}\s+e\s+/i, // "criar campanha X e Y e Z"
+    /(\d{2,})\s*(campanha|conjunto|anúncio)/i, // 10+ campaigns/adsets
+    /restrutur[ae]r?\s+(todo|toda|tudo|funil|estrutura)|reformul[ae]r?\s+(toda|todo|funil)/i,
+    /escal[ae]r?\s+(todo|toda|tudo|todas?\s+campanha)/i,
+  ];
+  if (bulkIndicators.some(rx => rx.test(msg))) {
+    return { category: "strategic", mode: "strategic", isFactual: false, entities, confidence: 0.92 };
+  }
+
   // WRITE - META (direct execution requests — pause, activate, budget changes)
   if (/paus[ae]r?\s+(campanha|conjunto|anúncio)|ativ[ae]r?\s+(campanha|conjunto|anúncio)|reativ[ae]r?|alter[ae]r?\s+(orçamento|budget|segmentação)|duplic[ae]r?\s+campanha|aument[ae]r?\s+(orçamento|budget)|diminu[iae]r?\s+(orçamento|budget)/i.test(msg) &&
       !/google|tiktok/i.test(msg)) {
