@@ -174,13 +174,23 @@ Página de confirmação pós-compra com detalhes do pedido e ofertas de upsell.
 | Evento | Disparado em | Condição |
 |--------|-------------|----------|
 | `Purchase` | `CheckoutStepWizard.tsx` (primário) | Dispara ao criar pedido, antes do redirect |
-| `Purchase` | `ThankYouContent.tsx` (backup) | Dispara se pedido existe e não foi rastreado |
+| `Purchase` | `ThankYouContent.tsx` (backup) | Dispara quando pedido carrega E tracker está pronto |
 
 ### Regras
 - Purchase dispara para **todos** os métodos de pagamento (PIX, Boleto, Cartão)
-- Dedup via `trackOnce` key `purchase_{orderId}` — nunca duplica
+- Dedup via `purchaseTrackedRef` (ref local) + `trackOnce` key `purchase_{orderId}` — nunca duplica
 - Não depende de `payment_status` — pedidos PIX/Boleto em `pending` são rastreados
 - `content_ids` usam `resolveMetaContentId()` (meta_retailer_id || sku || id)
+
+### Anti-Regressão: Race Condition do Tracker (v6.2.2)
+
+**Problema corrigido:** O `MarketingTrackerProvider` inicializa o tracker de forma **deferida** (`requestIdleCallback` / `setTimeout 2s`). Se o pedido carrega antes do tracker, o `purchaseTrackedRef` era marcado antes do disparo efetivo, bloqueando o retry quando o tracker ficava pronto.
+
+**Solução:** 
+1. `ThankYouContent.tsx` verifica `if (!tracker) return` **ANTES** de marcar o ref
+2. `purchaseTrackedRef` só é preenchido **APÓS** o `trackPurchase()` ser chamado com tracker disponível
+3. `tracker` é adicionado como dependência do `useEffect`, garantindo re-execução quando ficar pronto
+4. Import direto de `useMarketingTracker` para acessar o estado do tracker
 
 ---
 
