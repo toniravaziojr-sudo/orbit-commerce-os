@@ -753,12 +753,12 @@ A IA atua como "consultor sênior de tráfego pago" com acesso a:
 | **Fluxo de Targeting 2 Passos (v5.30.0)** | Para consultar targeting/segmentação: **Passo 1** — `get_meta_adsets` (DB, rápido) para obter IDs dos adsets. **Passo 2** — `get_adset_targeting` com IDs específicos (max 10) para buscar targeting completo da Meta API. **NUNCA usar `get_meta_adsets(live=true)`** pois causa timeout em contas grandes. |
 | **Fetch Timeout (v5.30.0)** | Chamadas à Meta API em `fetchMetaAdsetsLive` e `getAdsetTargeting` possuem timeout de 15s e 12s respectivamente via `AbortController`. Paginação limitada a 3 páginas. |
 
-##### Ferramentas de Targeting (v5.29.0)
+##### Ferramentas de Targeting (v5.30.0)
 
 | Ferramenta | Descrição | Parâmetros |
 |---|---|---|
-| `get_meta_adsets` (live) | Lista adsets da Meta API em tempo real com targeting completo | `ad_account_id?`, `status?`, `campaign_id?`, `live: true` |
-| `get_adset_targeting` | Busca targeting detalhado de adsets específicos | `adset_ids` (array, max 10), `ad_account_id?` |
+| `get_meta_adsets` | Lista adsets do banco local (rápido, para obter IDs) | `ad_account_id?`, `status?`, `campaign_id?`, `live?` (NÃO usar live=true) |
+| `get_adset_targeting` | Busca targeting detalhado de adsets específicos direto da Meta API (com timeout 12s) | `adset_ids` (array, max 10), `ad_account_id?` |
 
 **Dados retornados pelo targeting:**
 - `custom_audiences` — públicos personalizados (nome + ID)
