@@ -5145,56 +5145,56 @@ Deno.serve(async (req) => {
 
     const toolCalls = firstChoice.message?.tool_calls;
 
+    // Tool name → user-friendly label for progress events (shared scope for both branches)
+    const MAX_TOOL_ROUNDS = 5;
+    const toolProgressLabel = (name: string): string => {
+      const labels: Record<string, string> = {
+        get_campaign_performance: "Consultando campanhas",
+        get_campaign_details: "Analisando campanha",
+        get_performance_trend: "Buscando tendências",
+        get_adset_performance: "Analisando conjuntos",
+        get_ad_performance: "Analisando anúncios",
+        get_tracking_health: "Verificando pixel",
+        get_autopilot_config: "Lendo configurações",
+        get_products: "Consultando catálogo",
+        get_product_images: "Buscando imagens",
+        get_store_context: "Carregando contexto",
+        get_autopilot_actions: "Verificando ações",
+        get_autopilot_insights: "Lendo diagnósticos",
+        get_autopilot_sessions: "Verificando histórico",
+        get_strategic_plan: "Lendo plano estratégico",
+        get_creative_assets: "Buscando criativos",
+        get_experiments: "Verificando testes",
+        get_audiences: "Consultando públicos",
+        get_meta_adsets: "Listando conjuntos",
+        get_adset_targeting: "Analisando targeting dos conjuntos",
+        get_meta_ads: "Listando anúncios",
+        create_meta_campaign: "Criando campanha Meta",
+        create_google_campaign: "Criando campanha Google",
+        create_tiktok_campaign: "Criando campanha TikTok",
+        generate_creative_image: "Gerando arte",
+        trigger_creative_generation: "Gerando textos",
+        update_budget: "Ajustando orçamento",
+        toggle_entity_status: "Alterando status",
+        duplicate_campaign: "Duplicando campanha",
+        create_custom_audience: "Criando público",
+        create_lookalike_audience: "Criando público semelhante",
+        update_adset_targeting: "Ajustando segmentação",
+        trigger_strategic_plan: "Gerando plano estratégico",
+        trigger_autopilot_analysis: "Rodando análise",
+        update_autopilot_config: "Atualizando configurações",
+        browse_drive: "Explorando Drive",
+        search_drive_files: "Buscando no Drive",
+        get_google_campaigns: "Consultando campanhas Google",
+        get_tiktok_campaigns: "Consultando campanhas TikTok",
+      };
+      return labels[name] || "Processando";
+    };
+
     if (toolCalls && toolCalls.length > 0) {
       // ===== MULTI-ROUND TOOL CALL LOOP with SSE PROGRESS (v5.23.0) =====
-      const MAX_TOOL_ROUNDS = 5;
       let currentToolCalls = toolCalls;
       let loopMessages = [...aiMessages];
-
-      // Tool name → user-friendly label for progress events
-      const toolProgressLabel = (name: string): string => {
-        const labels: Record<string, string> = {
-          get_campaign_performance: "Consultando campanhas",
-          get_campaign_details: "Analisando campanha",
-          get_performance_trend: "Buscando tendências",
-          get_adset_performance: "Analisando conjuntos",
-          get_ad_performance: "Analisando anúncios",
-          get_tracking_health: "Verificando pixel",
-          get_autopilot_config: "Lendo configurações",
-          get_products: "Consultando catálogo",
-          get_product_images: "Buscando imagens",
-          get_store_context: "Carregando contexto",
-          get_autopilot_actions: "Verificando ações",
-          get_autopilot_insights: "Lendo diagnósticos",
-          get_autopilot_sessions: "Verificando histórico",
-          get_strategic_plan: "Lendo plano estratégico",
-          get_creative_assets: "Buscando criativos",
-          get_experiments: "Verificando testes",
-          get_audiences: "Consultando públicos",
-          get_meta_adsets: "Listando conjuntos",
-          get_adset_targeting: "Analisando targeting dos conjuntos",
-          get_meta_ads: "Listando anúncios",
-          create_meta_campaign: "Criando campanha Meta",
-          create_google_campaign: "Criando campanha Google",
-          create_tiktok_campaign: "Criando campanha TikTok",
-          generate_creative_image: "Gerando arte",
-          trigger_creative_generation: "Gerando textos",
-          update_budget: "Ajustando orçamento",
-          toggle_entity_status: "Alterando status",
-          duplicate_campaign: "Duplicando campanha",
-          create_custom_audience: "Criando público",
-          create_lookalike_audience: "Criando público semelhante",
-          update_adset_targeting: "Ajustando segmentação",
-          trigger_strategic_plan: "Gerando plano estratégico",
-          trigger_autopilot_analysis: "Rodando análise",
-          update_autopilot_config: "Atualizando configurações",
-          browse_drive: "Explorando Drive",
-          search_drive_files: "Buscando no Drive",
-          get_google_campaigns: "Consultando campanhas Google",
-          get_tiktok_campaigns: "Consultando campanhas TikTok",
-        };
-        return labels[name] || "Processando";
-      };
 
       // Use a TransformStream to send SSE progress events
       const { readable, writable } = new TransformStream();
