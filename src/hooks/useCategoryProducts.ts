@@ -176,11 +176,16 @@ export function useCategoryProducts(categoryId: string, options: UseCategoryProd
 
       return newProductIds.length;
     },
-    onSuccess: (count) => {
+    onSuccess: async (count) => {
       queryClient.invalidateQueries({ queryKey: ['category-products', categoryId] });
       queryClient.invalidateQueries({ queryKey: ['available-products'] });
       if (count) {
         toast.success(`${count} produto(s) adicionado(s) à categoria`);
+      }
+      // Purge storefront cache for this category
+      if (currentTenant?.id && categoryId) {
+        const { data: cat } = await supabase.from('categories').select('slug').eq('id', categoryId).single();
+        if (cat?.slug) cachePurge.category(currentTenant.id, cat.slug);
       }
     },
     onError: (error: Error) => {
