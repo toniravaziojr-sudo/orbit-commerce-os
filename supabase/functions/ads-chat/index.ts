@@ -1369,6 +1369,18 @@ async function fetchMetaInsightsLive(supabase: any, tenantId: string, adAccountI
         }
         const result = await response.json();
         
+        // DIAGNOSTIC: Log first 3 rows' raw actions to understand structure
+        if (pageCount === 1) {
+          const topRows = (result.data || [])
+            .sort((a: any, b: any) => parseFloat(b.spend || "0") - parseFloat(a.spend || "0"))
+            .slice(0, 3);
+          for (const r of topRows) {
+            const actionTypes = (r.actions || []).map((a: any) => `${a.action_type}=${a.value}`);
+            const valueTypes = (r.action_values || []).map((a: any) => `${a.action_type}=${a.value}`);
+            console.log(`[ads-chat][${VERSION}] DIAG campaign=${r.campaign_name} spend=${r.spend} actions=[${actionTypes.join(",")}] action_values=[${valueTypes.join(",")}]`);
+          }
+        }
+        
         for (const row of (result.data || [])) {
           // MAX-value deduplication for purchase conversions
           // Meta reports the SAME purchase under multiple action_types simultaneously.
