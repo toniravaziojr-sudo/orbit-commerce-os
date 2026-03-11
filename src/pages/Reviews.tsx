@@ -315,6 +315,7 @@ export default function Reviews() {
     },
     onSuccess: (count) => {
       queryClient.invalidateQueries({ queryKey: ['product-reviews'] });
+      queryClient.invalidateQueries({ queryKey: ['product-reviews-stats'] });
       setSelectedIds(new Set());
       toast.success(`${count} avaliações excluídas`);
     },
