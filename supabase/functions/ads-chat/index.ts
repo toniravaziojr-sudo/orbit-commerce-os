@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.20.0"; // Fix: ad-level performance metrics + extend days cap to 365
+const VERSION = "v5.22.0"; // Fix: anti-promise-without-action + filler phrase detection
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -4249,6 +4249,23 @@ Releia sua resposta. Se ela termina com "?", "Posso", "Quer que", "Devo", ou qua
 - Após cada chamada de ferramenta, reporte o RESULTADO REAL (sucesso/falha/detalhes).
 - Se uma ferramenta falhou, NÃO diga que funcionou — reporte o erro exato.
 
+### ⚠️ REGRA ANTI-PROMESSA VAZIA (VIOLAÇÃO GRAVÍSSIMA)
+**NUNCA termine uma resposta com frases que PROMETEM ação futura sem EXECUTAR no mesmo turno.**
+Frases PROIBIDAS em resposta final (sem tool call correspondente):
+- ❌ "Aguarde enquanto preparo/crio/gero..."
+- ❌ "Vou começar a criar as campanhas..."  
+- ❌ "Estou preparando as campanhas agora..."
+- ❌ "Vou focar em criar..." / "Vou disparar..."
+- ❌ "Aguarde enquanto eu..." / "Dê-me um momento..."
+- ❌ Qualquer frase no futuro que implique ação sem ter chamado a ferramenta
+
+**Se você quer criar campanhas, CHAME as ferramentas (get_product_images, generate_creative_image, create_meta_campaign) AGORA, nesta mesma resposta.** Não descreva o que vai fazer — FAÇA.
+
+**Se você NÃO VAI chamar ferramentas neste turno, NÃO PROMETA que vai.** Em vez disso:
+- Apresente o plano/diagnóstico
+- Diga "Para executar, basta confirmar" (SOMENTE se envolve Override) ou
+- EXECUTE imediatamente chamando as ferramentas
+
 **Formato obrigatório para reportar ações executadas:**
 Para cada ação de escrita que você executar, inclua na resposta:
 - ✅ ou ❌ — Status real
@@ -4633,6 +4650,103 @@ Deno.serve(async (req) => {
     // No tool calls — direct text
     const directContent = firstChoice.message?.content;
     if (directContent) {
+      // FILLER PHRASE DETECTION (v5.22.0): If the AI promises action without calling tools, force retry
+      const fillerPatterns = [
+        /aguarde\s+(enquanto|enquanto\s+eu)/i,
+        /vou\s+(começar|criar|gerar|preparar|disparar|montar|buscar)/i,
+        /estou\s+(preparando|criando|gerando|montando|buscando)/i,
+        /dê-me\s+um\s+momento/i,
+        /vou\s+focar\s+em\s+criar/i,
+        /continuando\s+automaticamente/i,
+      ];
+      const hasFillerPromise = fillerPatterns.some(p => p.test(directContent));
+      
+      if (hasFillerPromise) {
+        console.log(`[ads-chat][${VERSION}] FILLER DETECTED in direct text — forcing tool retry`);
+        // Retry with tool_choice required to force the AI to actually call tools
+        const retryMessages = [...aiMessages, { role: "assistant", content: directContent }, { role: "user", content: "SISTEMA: Você prometeu executar ações mas NÃO chamou nenhuma ferramenta. Isso é uma violação das regras. EXECUTE AGORA as ferramentas necessárias (get_product_images, generate_creative_image, create_meta_campaign, etc.) em vez de apenas descrever o que vai fazer." }];
+        
+        const retryAbort = new AbortController();
+        const retryTimeout = setTimeout(() => retryAbort.abort(), AI_TIMEOUT_MS);
+        try {
+          const retryResponse = await fetch(endpoint.url, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: endpoint.model, messages: retryMessages, tools: TOOLS, tool_choice: "required", stream: false }),
+            signal: retryAbort.signal,
+          });
+          clearTimeout(retryTimeout);
+          if (retryResponse.ok) {
+            const retryResult = await retryResponse.json();
+            const retryToolCalls = retryResult.choices?.[0]?.message?.tool_calls;
+            if (retryToolCalls && retryToolCalls.length > 0) {
+              // Execute the tool calls and continue the loop
+              console.log(`[ads-chat][${VERSION}] Filler retry SUCCESS — ${retryToolCalls.length} tool calls recovered`);
+              let loopMessages = [...retryMessages];
+              let currentToolCalls = retryToolCalls;
+              
+              for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+                console.log(`[ads-chat][${VERSION}] Filler-retry round ${round + 1}: ${currentToolCalls.map((t: any) => t.function.name).join(", ")}`);
+                const assistantMsg: any = { role: "assistant", content: "", tool_calls: currentToolCalls.map((tc: any) => ({ id: tc.id, type: "function", function: { name: tc.function.name, arguments: tc.function.arguments } })) };
+                loopMessages.push(assistantMsg);
+                
+                const toolPromises = currentToolCalls.map(async (tc: any) => {
+                  let args = {};
+                  try { args = JSON.parse(tc.function.arguments || "{}"); } catch { /* empty */ }
+                  const result = await executeTool(supabase, tenant_id, tc.function.name, args, chatSessionId, chatStrategyRunId);
+                  supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: null, tool_calls: [{ id: tc.id, function: { name: tc.function.name, arguments: tc.function.arguments } }] }).then(() => {}).catch((e: any) => console.error(`[ads-chat][${VERSION}] DB save error:`, e));
+                  return { tc_id: tc.id, result };
+                });
+                const toolResults = await Promise.allSettled(toolPromises);
+                for (const res of toolResults) {
+                  if (res.status === "fulfilled") {
+                    loopMessages.push({ role: "tool", tool_call_id: res.value.tc_id, content: res.value.result });
+                  } else {
+                    const idx = toolResults.indexOf(res);
+                    const tcId = currentToolCalls[idx]?.id || "unknown";
+                    loopMessages.push({ role: "tool", tool_call_id: tcId, content: JSON.stringify({ error: res.reason?.message || "Tool execution failed" }) });
+                  }
+                }
+                
+                const nextAbort2 = new AbortController();
+                const nextTimeout2 = setTimeout(() => nextAbort2.abort(), AI_TIMEOUT_MS);
+                try {
+                  const nextResp = await fetch(endpoint.url, {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({ model: endpoint.model, messages: loopMessages, tools: TOOLS, stream: false }),
+                    signal: nextAbort2.signal,
+                  });
+                  clearTimeout(nextTimeout2);
+                  if (!nextResp.ok) break;
+                  const nextRes = await nextResp.json();
+                  const nextTC = nextRes.choices?.[0]?.message?.tool_calls;
+                  if (nextTC && nextTC.length > 0) { currentToolCalls = nextTC; continue; }
+                  const finalText = nextRes.choices?.[0]?.message?.content;
+                  if (finalText) {
+                    await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: finalText });
+                    const sseData = `data: ${JSON.stringify({ choices: [{ delta: { content: finalText } }] })}\n\ndata: [DONE]\n\n`;
+                    return new Response(sseData, { headers: { ...corsHeaders, "Content-Type": "text/event-stream", "X-Conversation-Id": convId } });
+                  }
+                  break;
+                } catch { clearTimeout(nextTimeout2); break; }
+              }
+              // If loop exhausted, stream final
+              const finalStream2 = await fetch(endpoint.url, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
+                body: JSON.stringify({ model: endpoint.model, messages: loopMessages, stream: true }),
+              });
+              if (finalStream2.ok) return streamAndSave(finalStream2, supabase, convId, tenant_id, message || "Anexo", history);
+            }
+          }
+        } catch (e) {
+          clearTimeout(retryTimeout);
+          console.error(`[ads-chat][${VERSION}] Filler retry failed:`, e);
+        }
+        // If retry failed or didn't produce tools, fall through to original content
+      }
+      
       await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: directContent });
       const sseData = `data: ${JSON.stringify({ choices: [{ delta: { content: directContent } }] })}\n\ndata: [DONE]\n\n`;
       return new Response(sseData, { headers: { ...corsHeaders, "Content-Type": "text/event-stream", "X-Conversation-Id": convId } });
