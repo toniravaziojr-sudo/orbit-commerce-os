@@ -5,6 +5,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { QrCode, CreditCard, FileText, Info, Save, AlertTriangle } from 'lucide-react';
 import { usePaymentMethodDiscounts, PaymentMethodDiscount } from '@/hooks/usePaymentMethodDiscounts';
 import { usePaymentProviders } from '@/hooks/usePaymentProviders';
@@ -18,9 +19,14 @@ const METHODS_META = {
   boleto: { label: 'Boleto Bancário', icon: FileText, color: 'text-muted-foreground', showInstallments: false },
 } as const;
 
-export function PaymentSettingsTab() {
-  const { discounts, isLoading, saveDiscount, isSaving } = usePaymentMethodDiscounts();
-  const { providers, isLoading: loadingProviders } = usePaymentProviders();
+const PROVIDER_LABELS: Record<string, string> = {
+  pagarme: 'Pagar.me',
+  mercadopago: 'Mercado Pago',
+  pagbank: 'PagBank',
+};
+
+function ProviderPaymentConfig({ provider }: { provider: string }) {
+  const { discounts, isLoading, saveDiscount, isSaving } = usePaymentMethodDiscounts(provider);
   const [localDiscounts, setLocalDiscounts] = useState<PaymentMethodDiscount[]>([]);
 
   useEffect(() => {
@@ -37,7 +43,7 @@ export function PaymentSettingsTab() {
 
   const handleSave = (method: string) => {
     const discount = localDiscounts.find(d => d.payment_method === method);
-    if (discount) saveDiscount(discount);
+    if (discount) saveDiscount({ ...discount, provider });
   };
 
   if (isLoading) {
@@ -48,31 +54,8 @@ export function PaymentSettingsTab() {
     );
   }
 
-  const hasActiveGateway = providers.some(p => p.is_enabled);
-
   return (
-    <div className="space-y-6">
-      {!loadingProviders && !hasActiveGateway && (
-        <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            <strong>Nenhum gateway de pagamento ativo.</strong> Para que descontos e parcelamentos funcionem no checkout, 
-            você precisa configurar e ativar pelo menos um operador de pagamento (Pagar.me, Mercado Pago, etc.) em{' '}
-            <Link to="/integrations" className="underline font-medium hover:text-destructive">
-              Integrações
-            </Link>.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <Alert className="border-primary/30 bg-primary/5">
-        <Info className="h-4 w-4 text-primary" />
-        <AlertDescription>
-          Configure aqui os <strong>descontos reais</strong> aplicados por forma de pagamento e o número máximo de parcelas.
-          Essas configurações afetam o valor final cobrado do cliente. As configurações visuais (labels, badges) do Builder são apenas informativas.
-        </AlertDescription>
-      </Alert>
-
+    <div className="space-y-4">
       {(['pix', 'credit_card', 'boleto'] as const).map(method => {
         const meta = METHODS_META[method];
         const Icon = meta.icon;
@@ -101,7 +84,6 @@ export function PaymentSettingsTab() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Discount section */}
               <div className="grid gap-4 sm:grid-cols-3">
                 <div>
                   <Label className="text-sm">Tipo de desconto</Label>
@@ -144,7 +126,6 @@ export function PaymentSettingsTab() {
                 </div>
               </div>
 
-              {/* Installments for credit card */}
               {meta.showInstallments && (
                 <>
                   <Separator />
@@ -199,6 +180,72 @@ export function PaymentSettingsTab() {
           </Card>
         );
       })}
+    </div>
+  );
+}
+
+export function PaymentSettingsTab() {
+  const { providers, isLoading: loadingProviders } = usePaymentProviders();
+  const activeProviders = providers.filter(p => p.is_enabled);
+  const [activeTab, setActiveTab] = useState('');
+
+  // Set default tab to first active provider
+  useEffect(() => {
+    if (activeProviders.length > 0 && !activeTab) {
+      setActiveTab(activeProviders[0].provider);
+    }
+  }, [activeProviders, activeTab]);
+
+  if (loadingProviders) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  const hasActiveGateway = activeProviders.length > 0;
+
+  return (
+    <div className="space-y-6">
+      {!hasActiveGateway && (
+        <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Nenhum gateway de pagamento ativo.</strong> Para configurar descontos e parcelamentos, 
+            você precisa ativar pelo menos um operador de pagamento em{' '}
+            <Link to="/integrations" className="underline font-medium hover:text-destructive">
+              Integrações
+            </Link>.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <Alert className="border-primary/30 bg-primary/5">
+        <Info className="h-4 w-4 text-primary" />
+        <AlertDescription>
+          Configure os <strong>descontos reais</strong> e parcelamentos por forma de pagamento para cada gateway ativo.
+          Cada operadora pode ter regras diferentes. As configurações visuais (labels, badges) do Builder são apenas informativas.
+        </AlertDescription>
+      </Alert>
+
+      {hasActiveGateway && (
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            {activeProviders.map(p => (
+              <TabsTrigger key={p.provider} value={p.provider}>
+                {PROVIDER_LABELS[p.provider] || p.provider}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          {activeProviders.map(p => (
+            <TabsContent key={p.provider} value={p.provider} className="mt-4">
+              <ProviderPaymentConfig provider={p.provider} />
+            </TabsContent>
+          ))}
+        </Tabs>
+      )}
     </div>
   );
 }
