@@ -85,6 +85,14 @@ function detectPreset(start?: Date, end?: Date): PresetType | null {
     return 'today';
   }
   
+  // Check yesterday
+  const yesterdayDate = new Date(now);
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  if (format(start, 'yyyy-MM-dd') === format(yesterdayDate, 'yyyy-MM-dd') && 
+      format(end, 'yyyy-MM-dd') === format(yesterdayDate, 'yyyy-MM-dd')) {
+    return 'yesterday';
+  }
+  
   // Check this week
   const thisWeekStart = startOfWeek(now, { locale: ptBR });
   const thisWeekEnd = endOfWeek(now, { locale: ptBR });
