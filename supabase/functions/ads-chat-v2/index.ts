@@ -1373,7 +1373,7 @@ Deno.serve(async (req) => {
 
         // Choose system prompt based on mode
         const systemPrompt = isStrategicMode
-          ? buildStrategicSystemPrompt(storeName, { storeUrl })
+          ? buildStrategicSystemPrompt(storeName, { storeUrl, isHybrid: intent.isHybrid })
           : buildConversationalSystemPrompt(storeName, { storeUrl });
 
         const aiMessages: any[] = [{ role: "system", content: systemPrompt + memoryCtx }];
