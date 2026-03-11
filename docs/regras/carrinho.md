@@ -411,3 +411,19 @@ Os botões do carrinho usam classes semânticas:
 - [ ] Estoque em tempo real
 - [ ] Reserva de estoque temporária
 - [ ] Desconto progressivo por quantidade
+
+---
+
+## Correções Aplicadas
+
+### CEP Input — Correção de máscara mobile/desktop (v8.6.1 — 2026-03-11)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Correção de Bug |
+| **Localização** | `supabase/functions/storefront-html/index.ts`, `supabase/functions/_shared/block-compiler/blocks/product-details.ts`, `src/components/storefront/cart/ShippingEstimator.tsx`, `src/components/storefront/checkout/CheckoutShipping.tsx`, `src/components/storefront/product/ShippingCalculator.tsx` |
+| **Contexto** | Calculadora de frete no carrinho lateral (Edge), página de produto (Edge) e carrinho SPA |
+| **Descrição** | Campo de CEP inseria hífens extras ("--") no mobile e desktop, impedindo digitação completa |
+| **Comportamento** | A função `sfFormatCepValue` centralizada remove todos os não-dígitos via `.replace(/\D/g, "")` antes de reaplicar a máscara `XXXXX-XXX`. Evento delegado via `document.addEventListener('input')` em todos os inputs `[data-cep-input]`. |
+| **Atributos do input** | `inputmode="numeric"`, `autocomplete="off"`, `autocorrect="off"`, `spellcheck="false"` |
+| **Afeta** | Mini-cart drawer (Edge), página de produto (Edge), página do carrinho (SPA), checkout (SPA) |
