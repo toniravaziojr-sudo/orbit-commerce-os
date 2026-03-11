@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Package, Sparkles, TrendingUp, History, Info, CreditCard, AlertTriangle, ExternalLink } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,6 +12,7 @@ import { CreditBalance } from "@/components/ai-packages/CreditBalance";
 import { CreditPackageCard } from "@/components/ai-packages/CreditPackageCard";
 import { CreditLedgerTable } from "@/components/ai-packages/CreditLedgerTable";
 import { AIPricingTable } from "@/components/ai-packages/AIPricingTable";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export default function AIPackages() {
