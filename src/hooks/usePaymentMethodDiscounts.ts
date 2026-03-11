@@ -40,16 +40,18 @@ export function usePaymentMethodDiscounts(provider?: string) {
     queryKey: ['payment-method-discounts', tenantId, provider],
     queryFn: async () => {
       if (!tenantId) return [];
-      let q = supabase
+      
+      let query = supabase
         .from('payment_method_discounts')
         .select('*')
         .eq('tenant_id', tenantId);
       
       if (provider) {
-        q = q.eq('provider' as any, provider);
+        // provider column exists but types may not be regenerated yet
+        query = query.eq('provider', provider) as typeof query;
       }
 
-      const { data, error } = await q;
+      const { data, error } = await query;
       if (error) throw error;
 
       const existing = (data || []) as PaymentMethodDiscount[];
