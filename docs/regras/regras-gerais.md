@@ -553,8 +553,9 @@ import { DateRangeFilter } from "@/components/ui/date-range-filter";
 |---------|-----------|
 | **Calendário duplo** | Dois meses lado a lado para seleção visual |
 | **Inputs de data** | Campos editáveis DD/MM/AAAA para início e fim |
-| **Presets** | Hoje, Últimos 7 dias, Últimos 14 dias, Últimos 30 dias, Últimos 90 dias, Este mês, Mês passado |
+| **Presets** | Todo o período, Hoje, Ontem, Esta semana, Semana passada, Este mês, Mês passado, Selecionar mês, Período customizado |
 | **Ícone** | `CalendarIcon` do lucide-react |
+| **Label inteligente** | Presets nomeados (Hoje, Ontem, Esta semana, etc.) exibem o **nome** no botão (ex: "Período: Hoje"). Períodos customizados ou seleção de mês exibem datas (ex: "Período: 01/03/2026 até 31/03/2026"). |
 
 ### Proibições
 
