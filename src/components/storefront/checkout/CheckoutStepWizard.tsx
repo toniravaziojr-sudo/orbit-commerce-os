@@ -652,15 +652,14 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           toast.success('Pedido realizado com sucesso!');
           navigate(`${urls.thankYou()}?pedido=${encodeURIComponent(cleanOrderNumber)}`);
         } else {
-          // PIX/Boleto - track Purchase only if purchaseEventTiming allows
-          // 'all_orders' = track now, 'paid_only' = defer to payment confirmation
-          if (checkoutConfig.purchaseEventTiming === 'all_orders') {
-            trackPurchase({
-              order_id: cleanOrderNumber,
-              value: totals.grandTotal,
-              items: items.map(i => ({ id: i.product_id, name: i.name, price: i.price, quantity: i.quantity })),
-            });
-          }
+          // PIX/Boleto - ALWAYS track Purchase at order creation
+          // This is the last reliable touchpoint — user may close browser before paying
+          // The ThankYou page has dedup via purchaseTrackedRef so no double-firing
+          trackPurchase({
+            order_id: cleanOrderNumber,
+            value: totals.grandTotal,
+            items: items.map(i => ({ id: i.product_id, name: i.name, price: i.price, quantity: i.quantity })),
+          });
           
           if (result.pixQrCode || result.pixQrCodeUrl || result.boletoUrl) {
             localStorage.setItem(`pending_payment_${cleanOrderNumber}`, JSON.stringify({

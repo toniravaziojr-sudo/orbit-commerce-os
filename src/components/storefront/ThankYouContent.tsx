@@ -93,15 +93,9 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
     // Dedupe: only track once per order (even if component re-renders)
     if (purchaseTrackedRef.current === order.order_number) return;
     
-    // Check purchaseEventTiming configuration
-    // 'paid_only': only track if payment_status is 'paid' or 'approved'
-    // 'all_orders': always track (this page is also called from checkout so we track here as backup)
-    const isPaid = order.payment_status === 'paid' || order.payment_status === 'approved';
-    
-    if (checkoutConfig.purchaseEventTiming === 'paid_only' && !isPaid) {
-      console.log('[ThankYou] Skipping Purchase event - payment not confirmed yet (purchaseEventTiming: paid_only)');
-      return;
-    }
+    // Track Purchase for ALL orders — the checkout already fires this but ThankYou is a backup
+    // Dedup via purchaseTrackedRef ensures no double-firing
+    // For PIX/Boleto, the checkout fires Purchase at order creation (the reliable touchpoint)
     
     purchaseTrackedRef.current = order.order_number;
     
