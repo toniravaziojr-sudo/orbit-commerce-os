@@ -719,7 +719,7 @@ Interface de chat dedicada para interação direta com a IA de tráfego, **separ
 
 > **Realtime habilitado** em ambas as tabelas para atualização em tempo real.
 
-##### Edge Function: `ads-chat` (v5.34.0)
+##### Edge Function: `ads-chat` (v5.35.0)
 
 | Campo | Valor |
 |---|---|
@@ -740,7 +740,7 @@ A IA atua como "consultor sênior de tráfego pago" com acesso a:
 
 **Regras do prompt**: Markdown obrigatório, respeitar limites de budget por plataforma, nunca sugerir deletar (apenas pausar), diferenciar público frio/quente, responder em PT-BR.
 
-##### Regras de Dados em Tempo Real (v5.24.0–v5.34.0)
+##### Regras de Dados em Tempo Real (v5.24.0–v5.35.0)
 
 | Regra | Descrição |
 |---|---|
@@ -751,7 +751,9 @@ A IA atua como "consultor sênior de tráfego pago" com acesso a:
 | **Nomes Exatos** | A IA é proibida de inventar, abreviar ou modificar nomes de campanhas. Deve usar strings exatas retornadas pela API. |
 | **Análise de Imagens** | O chat suporta Ctrl+V para colar screenshots do Gerenciador de Anúncios. Imagens são enviadas como attachments multimodais para validação cruzada dos dados. |
 | **Fluxo de Targeting Sync & Cache (v5.31.0–v5.32.0)** | Para consultar targeting/segmentação: **Passo 1** — `get_meta_adsets` (DB, sem live=true) para obter IDs dos adsets. **Passo 2** — `get_adset_targeting` com IDs específicos (até 20 por vez) para buscar targeting completo da Meta API. Resultados são automaticamente cacheados no `meta_ad_adsets` via upsert JSONB. **NUNCA usar `get_meta_adsets(live=true)`** em contas grandes. |
-| **Anti-Filler DUAL v5.34.0** | **24+ padrões** de detecção de filler phrases em **DOIS pontos**: (1) na resposta inicial (sem tool calls) e (2) **dentro do tool loop** (após executar ferramentas, a IA responde com filler em vez de chamar mais ferramentas). Padrões expandidos cobrem: "estou realizando", "esse processo envolve", "múltiplas chamadas à API", "assim que tiver os dados", "compilar informações", "isso pode levar alguns momentos", "processo multi-etapas", "peço paciência", "seguinte sequência", "lamento a persistência dos problemas", "minhas desculpas por quaisquer falhas", "consulta detalhada da segmentação", "identificação dos IDs". Detecção força retry com `tool_choice=required`. **Bug fix v5.34.0:** a v5.33.0 nunca foi deployada — rodava v5.32.0 em produção. A v5.34.0 corrigiu o deploy e expandiu padrões de 15 para 24+. |
+| **tool_choice Inteligente (v5.35.0)** | A chamada inicial agora usa `tool_choice` baseado na mensagem do usuário: `"required"` para mensagens que pedem dados (targeting, performance, campanhas, "tente novamente") e `"auto"` para perguntas gerais. Isso força o modelo a chamar ferramentas em vez de gerar texto descritivo. |
+| **Sanitização de Histórico (v5.35.0)** | Mensagens de filler salvas no histórico da conversa são **removidas automaticamente** antes de enviar ao modelo. Isso previne o "efeito espelho" onde o modelo replica padrões de filler de mensagens anteriores. 12 padrões de detecção são usados para filtrar. |
+| **Anti-Filler DUAL v5.35.0** | **24+ padrões** de detecção de filler com **fallback multi-provedor**: (1) Detecta filler na resposta inicial e dentro do tool loop. (2) Ao detectar, faz retry com mensagens limpas (apenas system prompt + última mensagem do usuário + instrução direta). (3) Se o provedor primário (Gemini) falhar no retry, tenta automaticamente com OpenAI (`gpt-5-mini`) como fallback. (4) Se ambos falharem, retorna mensagem de erro honesta pedindo nova conversa — **NUNCA envia o texto filler ao usuário**. (5) O retry agora usa TransformStream para enviar progress events (SSE) ao frontend, mantendo o indicador de carregamento ativo. |
 
 ##### Ferramentas de Targeting (v5.32.0)
 
