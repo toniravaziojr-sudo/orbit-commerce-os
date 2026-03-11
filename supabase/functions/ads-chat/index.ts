@@ -1112,53 +1112,94 @@ async function confirmUserCommand(supabase: any, tenantId: string, campaignKey: 
 
 // ============ TOOL IMPLEMENTATIONS ============
 
-// --- Frente 1: getCampaignPerformance com limites corrigidos ---
+// --- Frente 1: getCampaignPerformance — ALWAYS fetches live from Meta API for accurate names ---
 async function getCampaignPerformance(supabase: any, tenantId: string, adAccountId?: string, statusFilter?: string, days?: number) {
   const dayWindow = Math.min(days || 14, 365);
   const sinceDate = new Date(Date.now() - dayWindow * 86400000).toISOString().split("T")[0];
+  const today = new Date().toISOString().split("T")[0];
 
-  // Fetch ALL campaigns (up to 200), ACTIVE first
-  const campQuery = supabase
-    .from("meta_ad_campaigns")
-    .select("meta_campaign_id, name, status, objective, daily_budget_cents, ad_account_id")
-    .eq("tenant_id", tenantId)
-    .order("status", { ascending: true }); // ACTIVE before PAUSED alphabetically
-  if (adAccountId) campQuery.eq("ad_account_id", adAccountId);
-  if (statusFilter && statusFilter !== "ALL") campQuery.eq("status", statusFilter);
-  const { data: campaigns } = await campQuery.limit(200);
-
-  // Fetch insights for the window — use DB first
-  const insightQuery = supabase
-    .from("meta_ad_insights")
-    .select("meta_campaign_id, spend_cents, impressions, clicks, conversions, conversion_value_cents, roas, ctr, cpc_cents, cpm_cents, date_start")
-    .eq("tenant_id", tenantId)
-    .gte("date_start", sinceDate);
-  const { data: dbInsights } = await insightQuery.limit(5000);
-
-  // If DB has no insights, try to fetch directly from Meta API
-  let insights = dbInsights || [];
-  if (insights.length === 0) {
-    console.log(`[ads-chat][${VERSION}] No DB insights, fetching from Meta API...`);
-    const liveInsights = await fetchMetaInsightsLive(supabase, tenantId, adAccountId, sinceDate, "campaign");
-    if (liveInsights.length > 0) {
-      insights = liveInsights;
-    }
+  // Step 1: Try to fetch campaign list DIRECTLY from Meta API (source of truth for names)
+  let liveCampaigns: any[] = [];
+  try {
+    liveCampaigns = await fetchMetaCampaignsLive(supabase, tenantId, adAccountId, statusFilter);
+    console.log(`[ads-chat][${VERSION}] Live Meta campaigns fetched: ${liveCampaigns.length}`);
+  } catch (err) {
+    console.error(`[ads-chat][${VERSION}] fetchMetaCampaignsLive failed, falling back to DB:`, err);
   }
 
+  // Step 2: Fallback to local DB if live fetch failed
+  if (liveCampaigns.length === 0) {
+    console.log(`[ads-chat][${VERSION}] Using DB campaigns as fallback`);
+    const campQuery = supabase
+      .from("meta_ad_campaigns")
+      .select("meta_campaign_id, name, status, objective, daily_budget_cents, ad_account_id")
+      .eq("tenant_id", tenantId)
+      .order("status", { ascending: true });
+    if (adAccountId) campQuery.eq("ad_account_id", adAccountId);
+    if (statusFilter && statusFilter !== "ALL") campQuery.eq("status", statusFilter);
+    const { data: dbCampaigns } = await campQuery.limit(500);
+    liveCampaigns = (dbCampaigns || []).map((c: any) => ({
+      id: c.meta_campaign_id,
+      name: c.name,
+      status: c.status,
+      objective: c.objective,
+      daily_budget_cents: c.daily_budget_cents || 0,
+      ad_account_id: c.ad_account_id,
+    }));
+  }
+
+  // Step 3: Build campaign map from live data
   const campMap: Record<string, any> = {};
-  for (const c of (campaigns || [])) {
-    campMap[c.meta_campaign_id] = {
-      meta_campaign_id: c.meta_campaign_id,
-      name: c.name, status: c.status, objective: c.objective,
+  for (const c of liveCampaigns) {
+    const campId = c.id || c.meta_campaign_id;
+    campMap[campId] = {
+      meta_campaign_id: campId,
+      name: c.name,
+      status: c.status,
+      objective: c.objective,
       daily_budget: `R$ ${((c.daily_budget_cents || 0) / 100).toFixed(2)}`,
       ad_account_id: c.ad_account_id,
       spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0, days_with_data: 0,
     };
   }
 
+  // Step 4: Fetch insights — try live API first, then DB
+  let insights: any[] = [];
+  const liveInsights = await fetchMetaInsightsLive(supabase, tenantId, adAccountId, sinceDate, "campaign");
+  if (liveInsights.length > 0) {
+    insights = liveInsights;
+    console.log(`[ads-chat][${VERSION}] Live insights fetched: ${insights.length}`);
+  } else {
+    const insightQuery = supabase
+      .from("meta_ad_insights")
+      .select("meta_campaign_id, spend_cents, impressions, clicks, conversions, conversion_value_cents, roas, ctr, cpc_cents, cpm_cents, date_start")
+      .eq("tenant_id", tenantId)
+      .gte("date_start", sinceDate);
+    const { data: dbInsights } = await insightQuery.limit(5000);
+    insights = dbInsights || [];
+    console.log(`[ads-chat][${VERSION}] DB insights used: ${insights.length}`);
+  }
+
+  // Step 5: Merge insights — also create entries for campaigns discovered via insights but missing from campaign list
   for (const i of insights) {
-    const c = campMap[i.meta_campaign_id];
-    if (!c) continue;
+    const campId = i.meta_campaign_id;
+    if (!campMap[campId]) {
+      // Campaign exists in insights but not in campaign list — add it using insight data
+      campMap[campId] = {
+        meta_campaign_id: campId,
+        name: i.campaign_name || `Campaign ${campId}`,
+        status: "UNKNOWN",
+        objective: null,
+        daily_budget: "N/A",
+        ad_account_id: null,
+        spend: 0, impressions: 0, clicks: 0, conversions: 0, revenue: 0, days_with_data: 0,
+      };
+    }
+    const c = campMap[campId];
+    // If live insight has campaign_name and current name is a fallback, prefer live name
+    if (i.campaign_name && (c.name === `Campaign ${campId}` || !c.name)) {
+      c.name = i.campaign_name;
+    }
     c.spend += (i.spend_cents || 0) / 100;
     c.impressions += i.impressions || 0;
     c.clicks += i.clicks || 0;
@@ -1170,6 +1211,7 @@ async function getCampaignPerformance(supabase: any, tenantId: string, adAccount
   const allCamps = Object.values(campMap);
   const activeCamps = allCamps.filter((c: any) => c.status === "ACTIVE");
   const pausedCamps = allCamps.filter((c: any) => c.status === "PAUSED");
+  const otherCamps = allCamps.filter((c: any) => c.status !== "ACTIVE" && c.status !== "PAUSED");
 
   const formatCamp = (c: any) => ({
     ...c,
@@ -1181,15 +1223,77 @@ async function getCampaignPerformance(supabase: any, tenantId: string, adAccount
 
   return JSON.stringify({
     summary: {
-      total_campaigns: campaigns?.length || 0,
+      total_campaigns: allCamps.length,
       active: activeCamps.length,
       paused: pausedCamps.length,
+      other: otherCamps.length,
       period: `últimos ${dayWindow} dias`,
+      data_source: liveCampaigns.length > 0 ? "meta_api_live" : "local_db",
       total_spend: `R$ ${allCamps.reduce((s: number, c: any) => s + (typeof c.spend === 'number' ? c.spend : 0), 0).toFixed(2)}`,
     },
     active_campaigns: activeCamps.map(formatCamp),
     paused_campaigns: pausedCamps.map(formatCamp),
+    other_campaigns: otherCamps.length > 0 ? otherCamps.map(formatCamp) : undefined,
   });
+}
+
+// --- Helper: Fetch campaign LIST directly from Meta Graph API (source of truth for names) ---
+async function fetchMetaCampaignsLive(supabase: any, tenantId: string, adAccountId?: string, statusFilter?: string): Promise<any[]> {
+  const { data: conn } = await supabase
+    .from("marketplace_connections")
+    .select("access_token, metadata")
+    .eq("tenant_id", tenantId)
+    .eq("marketplace", "meta")
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!conn?.access_token) return [];
+
+  const accounts = adAccountId ? [adAccountId] : (conn.metadata?.assets?.ad_accounts || []).map((a: any) => a.id || a);
+  if (accounts.length === 0) return [];
+
+  const GRAPH_VERSION = "v21.0";
+  const allCampaigns: any[] = [];
+  const statusParam = statusFilter && statusFilter !== "ALL"
+    ? `&filtering=[{"field":"effective_status","operator":"IN","value":["${statusFilter}"]}]`
+    : "";
+
+  for (const accountId of accounts.slice(0, 3)) {
+    const cleanId = String(accountId).replace("act_", "");
+    try {
+      let url = `https://graph.facebook.com/${GRAPH_VERSION}/act_${cleanId}/campaigns?fields=id,name,status,effective_status,objective,daily_budget,lifetime_budget,budget_remaining&limit=500${statusParam}&access_token=${conn.access_token}`;
+      
+      // Paginate to get ALL campaigns
+      while (url) {
+        const response = await fetch(url);
+        if (!response.ok) {
+          console.error(`[ads-chat][${VERSION}] Meta campaigns API error: ${response.status}`);
+          break;
+        }
+        const result = await response.json();
+        
+        for (const camp of (result.data || [])) {
+          allCampaigns.push({
+            id: camp.id,
+            name: camp.name,
+            status: camp.effective_status || camp.status,
+            objective: camp.objective,
+            daily_budget_cents: camp.daily_budget ? Math.round(parseFloat(camp.daily_budget)) : 0,
+            lifetime_budget_cents: camp.lifetime_budget ? Math.round(parseFloat(camp.lifetime_budget)) : 0,
+            ad_account_id: `act_${cleanId}`,
+          });
+        }
+        
+        // Follow pagination
+        url = result.paging?.next || null;
+      }
+    } catch (err) {
+      console.error(`[ads-chat][${VERSION}] fetchMetaCampaignsLive error for ${cleanId}:`, err);
+    }
+  }
+
+  console.log(`[ads-chat][${VERSION}] fetchMetaCampaignsLive total: ${allCampaigns.length} campaigns`);
+  return allCampaigns;
 }
 
 // --- Helper: Fetch insights directly from Meta Graph API ---
