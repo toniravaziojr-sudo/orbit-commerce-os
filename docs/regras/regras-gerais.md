@@ -709,11 +709,49 @@ try {
 
 ## Dashboard — Métricas e Formatação
 
+### Layout de Métricas (v8.7.0 — 3 Colunas)
+
+O grid de métricas da Central de Execuções é organizado em **3 colunas** (Cards agrupados):
+
+| Coluna | Título | Métricas | Fonte de Dados |
+|--------|--------|----------|----------------|
+| **1 — Funil de Conversão** | "Funil de Conversão" | Visitas → Adicionou ao carrinho → Iniciou checkout → Pedidos (vendas efetivadas) | `storefront_visits`, `carts`, `checkout_sessions`, `orders` |
+| **2 — Pedidos & Financeiro** | "Pedidos & Financeiro" | Pedidos Pagos, Pedidos Não Pagos, Ticket Médio, Novos Clientes (1ª compra) | `orders` (payment_status), `customers` |
+| **3 — Checkouts Abandonados** | "Checkouts Abandonados" | Total abandonados, Recuperados, Com erros de contato | `checkout_sessions` (status/recovered_at/customer_email/phone) |
+
+#### Componentes
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente |
+| **Localização** | `src/components/dashboard/DashboardMetricsGrid.tsx` |
+| **Contexto** | Renderizado em `DashboardContent()` dentro de `CommandCenter.tsx` |
+| **Descrição** | Grid de 3 colunas com funil visual, métricas financeiras e resumo de checkouts abandonados |
+| **Props** | `metrics: DashboardMetrics`, `isLoading: boolean`, `trendLabel: string` |
+| **Visual** | Coluna 1 usa `FunnelStep` com linhas pontilhadas conectando etapas; Colunas 2-3 usam `MetricRow` com ícone + valor + trend |
+| **Afeta** | Depende de `useDashboardMetrics` hook |
+
+#### Interface DashboardMetrics (campos adicionados v8.7.0)
+
+| Campo | Tipo | Fonte |
+|-------|------|-------|
+| `cartsToday` / `cartsYesterday` | number | `carts` (count por período) |
+| `checkoutsStartedToday` / `checkoutsStartedYesterday` | number | `checkout_sessions` (count por período) |
+| `abandonedCheckoutsToday` / `abandonedCheckoutsYesterday` | number | `checkout_sessions` onde `status = 'abandoned'` |
+| `recoveredCheckoutsToday` | number | `checkout_sessions` onde `recovered_at IS NOT NULL` |
+| `errorCheckoutsToday` | number | Abandonados sem email válido (sem `@`) E sem telefone válido (< 8 chars) |
+
+#### Regra de "Com erros de contato"
+
+Checkout abandonado é classificado como "com erro" quando:
+- `customer_email` não contém `@` **E** `customer_phone` tem menos de 8 caracteres (ou é nulo)
+- Indica que o cliente informou dados inválidos, impossibilitando recuperação
+
 ### Visitantes (Tracking Interno)
 
 | Regra | Descrição |
 |-------|-----------|
-| **Fonte de dados** | Tabela `storefront_visits` (tracking próprio via beacon JS no Edge HTML) |
+| **Fonte de dados** | Tabela `storefront_visits` (tracking próprio via fetch+keepalive no Edge HTML) |
 | **Deduplicação** | Por `visitor_id` (cookie `_sf_vid`, 365 dias) no frontend |
 | **Independência** | NÃO depende de GA4, Meta Pixel ou qualquer pixel externo |
 | **UI** | Não exibir rótulo de origem ("GA4", "Meta") — apenas o número |
