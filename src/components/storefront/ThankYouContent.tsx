@@ -18,6 +18,7 @@ import { CreateAccountSection } from '@/components/storefront/CreateAccountSecti
 import { UpsellSection } from '@/components/storefront/sections/UpsellSection';
 import { SocialShareButtons } from '@/components/storefront/SocialShareButtons';
 import { useMarketingEvents } from '@/hooks/useMarketingEvents';
+import { useMarketingTracker } from '@/components/storefront/MarketingTrackerProvider';
 import { useCheckoutConfig } from '@/contexts/StorefrontConfigContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -48,6 +49,7 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
   const [copied, setCopied] = useState(false);
   const [user, setUser] = useState<any>(null);
   const { trackPurchase } = useMarketingEvents();
+  const { tracker } = useMarketingTracker();
   const { config: checkoutConfig } = useCheckoutConfig();
   const purchaseTrackedRef = useRef<string | null>(null);
   
@@ -93,11 +95,14 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
     // Dedupe: only track once per order (even if component re-renders)
     if (purchaseTrackedRef.current === order.order_number) return;
     
-    // Track Purchase for ALL orders — the checkout already fires this but ThankYou is a backup
-    // Dedup via purchaseTrackedRef ensures no double-firing
-    // For PIX/Boleto, the checkout fires Purchase at order creation (the reliable touchpoint)
-    
-    purchaseTrackedRef.current = order.order_number;
+    // CRITICAL: Check if tracker is available BEFORE marking as tracked
+    // The tracker is deferred (requestIdleCallback/setTimeout) so it may not exist
+    // when order data loads first. We must NOT set the ref until tracker is ready,
+    // otherwise the dedup blocks the retry when tracker finally initializes.
+    if (!tracker) {
+      console.log('[ThankYou] Tracker not ready yet, will retry when available');
+      return;
+    }
     
     // Track Purchase event with all order data
     trackPurchase({
@@ -113,8 +118,10 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
       })),
     });
     
+    // Only mark as tracked AFTER successful dispatch
+    purchaseTrackedRef.current = order.order_number;
     console.log('[ThankYou] Purchase event tracked for order:', order.order_number);
-  }, [order, isLoading, isPreview, trackPurchase, checkoutConfig.purchaseEventTiming]);
+  }, [order, isLoading, isPreview, tracker, trackPurchase, checkoutConfig.purchaseEventTiming]);
 
   // Check auth state
   useEffect(() => {
