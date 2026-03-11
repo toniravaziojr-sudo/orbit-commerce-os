@@ -553,8 +553,9 @@ import { DateRangeFilter } from "@/components/ui/date-range-filter";
 |---------|-----------|
 | **Calendário duplo** | Dois meses lado a lado para seleção visual |
 | **Inputs de data** | Campos editáveis DD/MM/AAAA para início e fim |
-| **Presets** | Hoje, Últimos 7 dias, Últimos 14 dias, Últimos 30 dias, Últimos 90 dias, Este mês, Mês passado |
+| **Presets** | Todo o período, Hoje, Ontem, Esta semana, Semana passada, Este mês, Mês passado, Selecionar mês, Período customizado |
 | **Ícone** | `CalendarIcon` do lucide-react |
+| **Label inteligente** | Presets nomeados (Hoje, Ontem, Esta semana, etc.) exibem o **nome** no botão (ex: "Período: Hoje"). Períodos customizados ou seleção de mês exibem datas (ex: "Período: 01/03/2026 até 31/03/2026"). |
 
 ### Proibições
 
@@ -726,9 +727,9 @@ O grid de métricas da Central de Execuções é organizado em **3 colunas** (Ca
 | **Tipo** | Componente |
 | **Localização** | `src/components/dashboard/DashboardMetricsGrid.tsx` |
 | **Contexto** | Renderizado em `DashboardContent()` dentro de `CommandCenter.tsx` |
-| **Descrição** | Grid de 3 colunas com funil visual, métricas financeiras e resumo de checkouts abandonados |
+| **Descrição** | Grid de 3 colunas com métricas horizontais (grid 2x2 interno por card) |
 | **Props** | `metrics: DashboardMetrics`, `isLoading: boolean`, `trendLabel: string` |
-| **Visual** | Coluna 1 usa `FunnelStep` com linhas pontilhadas conectando etapas; Colunas 2-3 usam `MetricRow` com ícone + valor + trend |
+| **Visual** | Cada card usa `grid-cols-2` interno com `MetricCard` (ícone + label + valor + trend inline). Layout horizontal, NÃO vertical. Refatorado de FunnelStep/MetricRow vertical para MetricCard horizontal em v8.7.1. |
 | **Afeta** | Depende de `useDashboardMetrics` hook |
 
 #### Interface DashboardMetrics (campos adicionados v8.7.0)

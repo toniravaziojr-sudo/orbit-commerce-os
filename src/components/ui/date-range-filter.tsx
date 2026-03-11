@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, subMonths, startOfDay, endOfDay, parse, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-type PresetType = 'all_time' | 'today' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'select_month' | 'custom';
+type PresetType = 'all_time' | 'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'select_month' | 'custom';
 
 interface DateFieldOption {
   value: string;
@@ -31,6 +31,7 @@ export interface DateRangeFilterProps {
 const presets: { value: PresetType; label: string }[] = [
   { value: 'all_time', label: 'Todo o período' },
   { value: 'today', label: 'Hoje' },
+  { value: 'yesterday', label: 'Ontem' },
   { value: 'this_week', label: 'Esta semana' },
   { value: 'last_week', label: 'Semana passada' },
   { value: 'this_month', label: 'Este mês' },
@@ -47,6 +48,10 @@ function getPresetDates(preset: PresetType, selectedMonth?: Date): { start?: Dat
       return { start: undefined, end: undefined };
     case 'today':
       return { start: startOfDay(now), end: endOfDay(now) };
+    case 'yesterday':
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return { start: startOfDay(yesterday), end: endOfDay(yesterday) };
     case 'this_week':
       return { start: startOfWeek(now, { locale: ptBR }), end: endOfWeek(now, { locale: ptBR }) };
     case 'last_week':
@@ -78,6 +83,14 @@ function detectPreset(start?: Date, end?: Date): PresetType | null {
   if (format(start, 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd') && 
       format(end, 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd')) {
     return 'today';
+  }
+  
+  // Check yesterday
+  const yesterdayDate = new Date(now);
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  if (format(start, 'yyyy-MM-dd') === format(yesterdayDate, 'yyyy-MM-dd') && 
+      format(end, 'yyyy-MM-dd') === format(yesterdayDate, 'yyyy-MM-dd')) {
+    return 'yesterday';
   }
   
   // Check this week
@@ -235,9 +248,17 @@ export function DateRangeFilter({
   const nextMonth = new Date(calendarMonth);
   nextMonth.setMonth(nextMonth.getMonth() + 1);
   
-  const displayText = hasFilter
-    ? `${label}: ${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}`
-    : `${label}: Todo o período`;
+  // Show preset name for named presets, date range for custom
+  const detectedPreset = detectPreset(startDate, endDate);
+  const presetLabel = detectedPreset && detectedPreset !== 'custom' && detectedPreset !== 'select_month'
+    ? presets.find(p => p.value === detectedPreset)?.label
+    : null;
+  
+  const displayText = presetLabel
+    ? `Período: ${presetLabel}`
+    : hasFilter
+      ? `Período: ${format(startDate!, 'dd/MM/yyyy')} até ${format(endDate!, 'dd/MM/yyyy')}`
+      : `Período: Todo o período`;
   
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
