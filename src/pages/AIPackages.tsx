@@ -44,7 +44,7 @@ export default function AIPackages() {
     try {
       const { data, error } = await supabase.functions.invoke('credits-purchase-checkout', {
         body: {
-          tenant_id: wallet?.tenant_id,
+          tenant_id: currentTenant?.id,
           package_id: pkg.id,
         },
       });
