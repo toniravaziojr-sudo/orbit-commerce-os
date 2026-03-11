@@ -740,13 +740,13 @@ A IA atua como "consultor sênior de tráfego pago" com acesso a:
 
 **Regras do prompt**: Markdown obrigatório, respeitar limites de budget por plataforma, nunca sugerir deletar (apenas pausar), diferenciar público frio/quente, responder em PT-BR.
 
-##### Regras de Dados em Tempo Real (v5.24.0–v5.27.0)
+##### Regras de Dados em Tempo Real (v5.24.0–v5.28.0)
 
 | Regra | Descrição |
 |---|---|
 | **Fonte de Dados Live-First** | `fetchMetaCampaignsLive()` consulta diretamente a Meta Graph API (`/act_{id}/campaigns`) com paginação total. O banco local (`meta_ad_campaigns`) é usado apenas como fallback. |
 | **Default LIFETIME** | `getCampaignPerformance` usa `date_preset=maximum` por padrão quando nenhum parâmetro de tempo é informado. Busca dados desde a criação da conta. |
-| **Deduplicação por Prioridade (v5.27.0)** | O parser de conversions usa hierarquia: `omni_purchase` > `purchase` > `offsite_conversion.fb_pixel_purchase` > `offsite_conversion.custom.purchase` > `onsite_conversion.purchase` > `onsite_web_purchase` > `onsite_web_app_purchase` > `web_in_store_purchase`. Usa o PRIMEIRO match na ordem de prioridade (`.find()` + `break`). **NUNCA soma** action_types diferentes — a Meta reporta a mesma compra sob múltiplos tipos simultaneamente. |
+| **MAX Value Deduplication (v5.28.0)** | O parser de conversions itera todos os 8 action_types de purchase (`omni_purchase`, `purchase`, `offsite_conversion.fb_pixel_purchase`, etc.) e usa o que tiver o **MAIOR valor** (`if (val > conversions) conversions = val`). **NUNCA soma** tipos diferentes (causa inflação 2x-6x). **NUNCA usa prioridade fixa** (causa subestimação quando `omni_purchase` é menor que `purchase`). |
 | **Paginação de Insights** | `fetchMetaInsightsLive` pagina até 15 páginas com delay de 2s entre páginas e retry automático para HTTP 429. |
 | **Nomes Exatos** | A IA é proibida de inventar, abreviar ou modificar nomes de campanhas. Deve usar strings exatas retornadas pela API. |
 | **Análise de Imagens** | O chat suporta Ctrl+V para colar screenshots do Gerenciador de Anúncios. Imagens são enviadas como attachments multimodais para validação cruzada dos dados. |
