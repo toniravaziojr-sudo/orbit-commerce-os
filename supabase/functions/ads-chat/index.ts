@@ -5323,12 +5323,18 @@ Deno.serve(async (req) => {
     if (directContent) {
       // FILLER PHRASE DETECTION (v5.22.0): If the AI promises action without calling tools, force retry
       const fillerPatterns = [
-        /aguarde\s+(enquanto|enquanto\s+eu)/i,
-        /vou\s+(começar|criar|gerar|preparar|disparar|montar|buscar)/i,
-        /estou\s+(preparando|criando|gerando|montando|buscando)/i,
+        /aguarde\s+(enquanto|enquanto\s+eu|um\s+momento|um\s+pouco)/i,
+        /vou\s+(começar|criar|gerar|preparar|disparar|montar|buscar|consultar|acessar|recuperar|coletar|analisar)/i,
+        /estou\s+(preparando|criando|gerando|montando|buscando|realizando|consultando|acessando|recuperando|coletando|trabalhando|chamando)/i,
         /dê-me\s+um\s+momento/i,
         /vou\s+focar\s+em\s+criar/i,
         /continuando\s+automaticamente/i,
+        /por\s+favor,?\s+aguarde/i,
+        /aguarde\s+um\s+(pouco|momento|instante)/i,
+        /é\s+um\s+processo\s+que\s+envolve/i,
+        /primeiro.*depois.*por\s+fim/is,
+        /em\s+etapas.*para\s+garantir/i,
+        /nova\s+tentativa.*mais\s+robusto/i,
       ];
       const hasFillerPromise = fillerPatterns.some(p => p.test(directContent));
       
