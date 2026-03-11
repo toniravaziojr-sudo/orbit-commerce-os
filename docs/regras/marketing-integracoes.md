@@ -719,7 +719,7 @@ Interface de chat dedicada para interação direta com a IA de tráfego, **separ
 
 > **Realtime habilitado** em ambas as tabelas para atualização em tempo real.
 
-##### Edge Function: `ads-chat` (v5.27.0)
+##### Edge Function: `ads-chat` (v5.28.0)
 
 | Campo | Valor |
 |---|---|
