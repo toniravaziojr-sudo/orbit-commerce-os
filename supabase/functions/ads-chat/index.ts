@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.28.0"; // Fix: use MAX value across purchase action_types (not priority, not sum)
+const VERSION = "v5.28.1"; // Add diagnostic logging for action_types
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -1368,6 +1368,18 @@ async function fetchMetaInsightsLive(supabase: any, tenantId: string, adAccountI
           break;
         }
         const result = await response.json();
+        
+        // DIAGNOSTIC: Log first 3 rows' raw actions to understand structure
+        if (pageCount === 1) {
+          const topRows = (result.data || [])
+            .sort((a: any, b: any) => parseFloat(b.spend || "0") - parseFloat(a.spend || "0"))
+            .slice(0, 3);
+          for (const r of topRows) {
+            const actionTypes = (r.actions || []).map((a: any) => `${a.action_type}=${a.value}`);
+            const valueTypes = (r.action_values || []).map((a: any) => `${a.action_type}=${a.value}`);
+            console.log(`[ads-chat][${VERSION}] DIAG campaign=${r.campaign_name} spend=${r.spend} actions=[${actionTypes.join(",")}] action_values=[${valueTypes.join(",")}]`);
+          }
+        }
         
         for (const row of (result.data || [])) {
           // MAX-value deduplication for purchase conversions
