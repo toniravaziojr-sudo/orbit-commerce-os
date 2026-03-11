@@ -116,8 +116,7 @@ serve(async (req) => {
       throw new Error('Certificado digital não configurado');
     }
 
-    // Get next invoice number
-    const numeroNfe = settings.numero_nfe_atual || 1;
+    const serieNfe = settings.serie_nfe || 1;
 
     // Calculate totals
     const valorProdutos = itens.reduce((sum: number, item: any) => 
@@ -131,12 +130,18 @@ serve(async (req) => {
       destinatario.endereco.uf
     );
 
+    const nextNumero = await getNextFiscalNumber({
+      supabase,
+      tenantId,
+      serie: serieNfe,
+      fallbackNumeroAtual: settings.numero_nfe_atual,
+    });
+
     // Create invoice draft
-    const invoiceData = {
+    const invoiceBaseData = {
       tenant_id: tenantId,
       order_id: order_id || null,
-      numero: numeroNfe,
-      serie: settings.serie_nfe || 1,
+      serie: serieNfe,
       status: 'draft',
       natureza_operacao: natureza_operacao || 'VENDA DE MERCADORIA',
       cfop: itens[0]?.cfop || settings.cfop_intrastadual || '5102',
@@ -160,43 +165,25 @@ serve(async (req) => {
       ambiente: settings.ambiente,
     };
 
-    const { data: invoice, error: invoiceError } = await supabase
-      .from('fiscal_invoices')
-      .insert(invoiceData)
-      .select()
-      .single();
+    const { invoice, numero } = await insertFiscalInvoiceWithRetry({
+      supabase,
+      tenantId,
+      serie: serieNfe,
+      initialNumber: nextNumero,
+      logPrefix: 'fiscal-create-manual',
+      buildDraftData: (numeroFiscal) => ({
+        ...invoiceBaseData,
+        numero: numeroFiscal,
+      }),
+    });
 
-    if (invoiceError) throw invoiceError;
-
-    // Insert invoice items
-    const invoiceItems = itens.map((item: any) => ({
-      invoice_id: invoice.id,
-      numero_item: item.numero_item,
-      codigo_produto: item.codigo || `ITEM${item.numero_item}`,
-      descricao: item.descricao,
-      ncm: (item.ncm || '').replace(/\D/g, '').padStart(8, '0'),
-      cfop: (item.cfop || '5102').replace(/\D/g, ''),
-      unidade: item.unidade || 'UN',
-      quantidade: item.quantidade,
-      valor_unitario: item.valor_unitario,
-      valor_total: item.quantidade * item.valor_unitario,
-      origem: parseInt(item.origem || '0', 10),
-      csosn: item.csosn || '102',
-    }));
-
-    const { error: itemsError } = await supabase
-      .from('fiscal_invoice_items')
-      .insert(invoiceItems);
-
-    if (itemsError) {
-      console.error('[fiscal-create-manual] Error inserting items:', itemsError);
-    }
-
-    // Update next invoice number
-    await supabase
-      .from('fiscal_settings')
-      .update({ numero_nfe_atual: numeroNfe + 1 })
-      .eq('id', settings.id);
+    await syncFiscalNumberCursor({
+      supabase,
+      tenantId,
+      serie: serieNfe,
+      currentCursor: numero + 1,
+      logPrefix: 'fiscal-create-manual',
+    });
 
     // Log event
     await supabase
