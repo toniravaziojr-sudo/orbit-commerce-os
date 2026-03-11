@@ -131,6 +131,61 @@ function DashboardContent() {
         isLoading={metricsLoading}
         trendLabel={trendLabel}
       />
+
+      {/* Communications Widget */}
+      <CommunicationsWidget />
+
+      {/* Ads Alerts Widget */}
+      <AdsAlertsWidget />
+
+      {/* Fiscal Alerts Widget */}
+      <FiscalAlertsWidget />
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Recent Orders */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-lg font-semibold">
+              Pedidos Recentes
+            </CardTitle>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="gap-1.5 text-primary"
+              onClick={() => navigate('/orders')}
+            >
+              Ver todos
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {ordersLoading ? (
+              <div className="space-y-4">
+                <Skeleton className="h-20" />
+                <Skeleton className="h-20" />
+                <Skeleton className="h-20" />
+              </div>
+            ) : recentOrders && recentOrders.length > 0 ? (
+              <div className="space-y-4">
+                {recentOrders.map((order) => (
+                  <div
+                    key={order.id}
+                    className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-4 transition-colors hover:bg-muted/50 cursor-pointer"
+                    onClick={() => navigate(`/orders?orderId=${order.id}`)}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                        <ShoppingCart className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">
+                          {order.order_number} - {order.customer_name}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {formatRelativeTime(order.created_at)}
+                        </p>
+                      </div>
+                    </div>
                     <div className="flex items-center gap-4">
                       <StatusBadge
                         variant={statusVariantMap[order.status as keyof typeof statusVariantMap] || "default"}
