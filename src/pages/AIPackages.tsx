@@ -19,21 +19,49 @@ export default function AIPackages() {
   const { isPlatformOperator } = usePlatformOperator();
   const [activeTab, setActiveTab] = useState("credits");
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
 
   const { data: packages, isLoading: loadingPackages } = useCreditPackages();
   const { data: wallet, isLoading: loadingWallet } = useCreditWallet();
   const { data: ledger, isLoading: loadingLedger } = useCreditLedger(100);
 
+  // Handle return from Mercado Pago checkout
+  useEffect(() => {
+    const status = searchParams.get('status');
+    if (status === 'success') {
+      toast.success("Pagamento aprovado! Seus créditos serão adicionados em instantes.");
+    } else if (status === 'failure') {
+      toast.error("Pagamento não aprovado. Tente novamente.");
+    } else if (status === 'pending') {
+      toast.info("Pagamento pendente. Seus créditos serão liberados após confirmação.");
+    }
+  }, [searchParams]);
+
   const handlePurchase = async (pkg: CreditPackage) => {
     setPurchasingId(pkg.id);
     try {
-      // TODO: Integrate with payment gateway (Mercado Pago)
-      toast.info("Funcionalidade de pagamento em desenvolvimento", {
-        description: `Pacote: ${pkg.name} - ${formatPrice(pkg.price_cents)}`,
+      const { data, error } = await supabase.functions.invoke('credits-purchase-checkout', {
+        body: {
+          tenant_id: wallet?.tenant_id,
+          package_id: pkg.id,
+        },
       });
+
+      if (error) throw error;
+
+      if (!data?.success) {
+        throw new Error(data?.error || 'Erro ao criar checkout');
+      }
+
+      // Redirect to Mercado Pago checkout
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url;
+      } else {
+        throw new Error('URL de checkout não retornada');
+      }
     } catch (error) {
       console.error('Purchase error:', error);
-      toast.error("Erro ao processar compra");
+      toast.error(error instanceof Error ? error.message : "Erro ao processar compra");
     } finally {
       setPurchasingId(null);
     }
