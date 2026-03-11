@@ -167,7 +167,7 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
   // STORE CONTEXT
   if (/produto[s]?|catálogo|categoria[s]?|oferta[s]?|desconto[s]?|loja|negócio|nicho|pixel|rastreamento/i.test(msg) &&
       !/campanha|anúncio|criativo|gerar/i.test(msg)) {
-    return { category: "store_context", mode: "factual", isFactual: true, entities, confidence: 0.75 };
+    return { category: "store_context", mode: "factual", isFactual: true, isHybrid: false, entities, confidence: 0.75 };
   }
 
   // DRIVE
