@@ -829,7 +829,7 @@ function buildFullPage(opts: {
       <div data-sf-cart-shipping style="margin-bottom:12px;">
         <p style="font-size:13px;font-weight:600;margin-bottom:6px;">📦 Calcular frete</p>
         <div style="display:flex;gap:8px;">
-          <input type="text" placeholder="CEP" maxlength="9" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none;" data-sf-cart-shipping-cep>
+          <input type="text" placeholder="CEP" maxlength="9" inputmode="numeric" autocomplete="off" autocorrect="off" spellcheck="false" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none;" data-sf-cart-shipping-cep>
           <button data-sf-action="calc-cart-shipping" style="padding:8px 14px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;">OK</button>
         </div>
         <div data-sf-cart-shipping-results style="margin-top:6px;"></div>
