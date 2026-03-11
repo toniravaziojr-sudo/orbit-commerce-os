@@ -115,8 +115,9 @@ Página de configurações operacionais do sistema, acessível via **Menu Sistem
 2. `calculatePaymentMethodDiscount()` calcula o valor do desconto baseado no método selecionado
 3. O desconto é subtraído do `grandTotal` e exibido como linha separada no resumo do pedido
 4. `processPayment()` recebe `paymentMethodDiscount` e `installments` e os envia para as Edge Functions
-5. O `checkout-create-order` recebe `payment_method_discount` e `installments` no body
+5. O `checkout-create-order` recebe `payment_method_discount` e `installments` no body e **salva na tabela `orders`** (campos `payment_method_discount`, `installments`, `installment_value`)
 6. O `pagarme-create-charge` recebe `installments` para configurar parcelamento no gateway
+7. O `total` enviado ao gateway **já inclui** a subtração do desconto por forma de pagamento (calculado no frontend)
 
 ### Seletor de Parcelas
 
