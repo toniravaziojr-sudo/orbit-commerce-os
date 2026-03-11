@@ -8,31 +8,23 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   useDashboardMetrics,
   useRecentOrders,
-  calculateTrend,
   formatCurrency,
   formatRelativeTime,
 } from "@/hooks/useDashboardMetrics";
 import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { startOfDay, endOfDay } from "date-fns";
-
-// Dashboard content (from Dashboard.tsx)
 import {
   ShoppingCart,
-  DollarSign,
-  Users,
-  TrendingUp,
   Package,
   AlertCircle,
   Clock,
   CheckCircle,
   ArrowRight,
-  Eye,
-  CreditCard,
-  XCircle,
+  Users,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { DashboardMetricsGrid } from "@/components/dashboard/DashboardMetricsGrid";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StorefrontHealthCard } from "@/components/health/StorefrontHealthCard";
