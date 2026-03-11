@@ -1015,16 +1015,28 @@ function buildFullPage(opts: {
         }
       }
 
-      function addToCart(id,name,price,image,variantId,skipDrawer){
+      function addToCart(id,name,price,image,variantId,skipDrawer,sku,metaRetailerId){
         var existing=cart.find(function(i){return i.product_id===id&&(i.variant_id||"")===(variantId||"")});
         if(existing){existing.quantity++;}else{
-          cart.push({id:id+"_"+(variantId||"default")+"_"+Date.now(),product_id:id,variant_id:variantId||null,name:name,sku:"",price:parseFloat(price),quantity:1,image:image||"",image_url:image||""});
+          cart.push({id:id+"_"+(variantId||"default")+"_"+Date.now(),product_id:id,variant_id:variantId||null,name:name,sku:sku||"",meta_retailer_id:metaRetailerId||null,price:parseFloat(price),quantity:1,image:image||"",image_url:image||""});
         }
         saveCart();
         if(!skipDrawer){
           document.querySelector("[data-sf-cart-drawer]")?.classList.add("active");
           document.querySelector("[data-sf-cart-backdrop]")?.classList.add("active");
         }
+        // === MARKETING: AddToCart event ===
+        var contentId=metaRetailerId||sku||id;
+        var prc=parseFloat(price)||0;
+        // Meta
+        function _atcMeta(){fbq('track','AddToCart',{content_ids:[contentId],content_type:'product',content_name:name,value:prc,currency:'BRL'});}
+        if(window.fbq){if(window._sfMetaReady){_atcMeta();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_atcMeta);}}
+        // Google
+        function _atcGtag(){gtag('event','add_to_cart',{currency:'BRL',value:prc,items:[{item_id:contentId,item_name:name,price:prc,quantity:1}]});}
+        if(window.gtag){if(window._sfGtagReady){_atcGtag();}else{window._sfPendingGtagEvents=window._sfPendingGtagEvents||[];window._sfPendingGtagEvents.push(_atcGtag);}}
+        // TikTok
+        function _atcTT(){ttq.track('AddToCart',{content_id:contentId,content_type:'product',content_name:name,value:prc,currency:'BRL',quantity:1});}
+        if(window.ttq){if(window._sfTTReady){_atcTT();}else{window._sfPendingTTEvents=window._sfPendingTTEvents||[];window._sfPendingTTEvents.push(_atcTT);}}
       }
 
       function doSearch(query){
