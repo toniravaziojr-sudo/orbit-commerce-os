@@ -126,7 +126,7 @@ serve(async (req) => {
 
     const tenantId = profile.current_tenant_id;
 
-    console.log('[fiscal-auto-create-drafts] Starting for tenant:', tenantId);
+    console.log(`[fiscal-auto-create-drafts][${VERSION}] Starting for tenant:`, tenantId);
 
     // Get fiscal settings
     const { data: fiscalSettings, error: settingsError } = await supabase
@@ -142,6 +142,14 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const serieNfe = fiscalSettings.serie_nfe || 1;
+    let nextNumeroCursor = await getNextFiscalNumber({
+      supabase,
+      tenantId,
+      serie: serieNfe,
+      fallbackNumeroAtual: fiscalSettings.numero_nfe_atual,
+    });
 
     // Get paid orders without invoices
     // Check both 'paid' (legacy) and 'ready_to_invoice' (fiscal-operational workflow)
