@@ -18,6 +18,7 @@ import { CreateAccountSection } from '@/components/storefront/CreateAccountSecti
 import { UpsellSection } from '@/components/storefront/sections/UpsellSection';
 import { SocialShareButtons } from '@/components/storefront/SocialShareButtons';
 import { useMarketingEvents } from '@/hooks/useMarketingEvents';
+import { useMarketingTracker } from '@/components/storefront/MarketingTrackerProvider';
 import { useCheckoutConfig } from '@/contexts/StorefrontConfigContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
