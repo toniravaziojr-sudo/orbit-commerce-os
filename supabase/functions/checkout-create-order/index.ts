@@ -59,6 +59,8 @@ interface CreateOrderRequest {
   subtotal: number;
   shipping_total: number;
   discount_total?: number;
+  payment_method_discount?: number;
+  installments?: number;
   total: number;
   discount?: DiscountData;
   attribution?: {
@@ -226,6 +228,11 @@ serve(async (req) => {
 
     // 3. Create order
     console.log('[checkout-create-order] Creating order');
+    
+    // Calculate installment value if applicable
+    const installmentsCount = payload.installments || 1;
+    const installmentValue = installmentsCount > 1 ? Math.round((payload.total / installmentsCount) * 100) / 100 : null;
+    
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
@@ -241,6 +248,9 @@ serve(async (req) => {
         subtotal: payload.subtotal,
         shipping_total: payload.shipping_total,
         discount_total: payload.discount_total || 0,
+        payment_method_discount: payload.payment_method_discount || 0,
+        installments: installmentsCount,
+        installment_value: installmentValue,
         total: payload.total,
         shipping_street: payload.shipping.street,
         shipping_number: payload.shipping.number,

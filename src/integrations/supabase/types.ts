@@ -11568,6 +11568,7 @@ export type Database = {
           payment_link_expires_at: string | null
           payment_link_url: string | null
           payment_method: Database["public"]["Enums"]["payment_method"] | null
+          payment_method_discount: number | null
           payment_status: Database["public"]["Enums"]["payment_status"]
           shipped_at: string | null
           shipping_carrier: string | null
@@ -11640,6 +11641,7 @@ export type Database = {
           payment_link_expires_at?: string | null
           payment_link_url?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          payment_method_discount?: number | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           shipped_at?: string | null
           shipping_carrier?: string | null
@@ -11712,6 +11714,7 @@ export type Database = {
           payment_link_expires_at?: string | null
           payment_link_url?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          payment_method_discount?: number | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           shipped_at?: string | null
           shipping_carrier?: string | null

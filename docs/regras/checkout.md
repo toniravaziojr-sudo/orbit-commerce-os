@@ -308,9 +308,11 @@ is_active = true + published_at IS NOT NULL → aparece no storefront público
    → Cria/atualiza customer
    → Cria address
    → Cria order com items_snapshot
+   → Salva `payment_method_discount`, `installments`, `installment_value` na tabela `orders`
    → Cria order_items
 3. Chamada à Edge Function `pagarme-create-charge`
-   → Processa pagamento no gateway
+   → Processa pagamento no gateway (amount já inclui desconto por forma de pagamento)
+   → Passa `installments` para parcelamento no cartão
    → Atualiza order.payment_status
 4. Redirecionamento para página de Obrigado
 ```
