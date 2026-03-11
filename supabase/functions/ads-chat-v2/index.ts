@@ -141,7 +141,7 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
   if (/cri[ae]r?\s+(campanha|conjunto|anúncio|público|audiência|lookalike)/i.test(msg) &&
       !/estratégia|plano|funil|estrutura|suger|propon|test[ae]r?|escal/i.test(msg) &&
       !/google|tiktok/i.test(msg)) {
-    return { category: "write_meta", mode: "conversational", isFactual: false, entities, confidence: 0.85 };
+    return { category: "write_meta", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.85 };
   }
 
   // WRITE - GOOGLE
