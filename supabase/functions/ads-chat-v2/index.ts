@@ -151,7 +151,7 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
 
   // WRITE - TIKTOK
   if (/tiktok/i.test(msg) && /cri[ae]r?|paus[ae]r?|ativ[ae]r?|alter[ae]r?|budget/i.test(msg)) {
-    return { category: "write_tiktok", mode: "conversational", isFactual: false, entities, confidence: 0.85 };
+    return { category: "write_tiktok", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.85 };
   }
 
   // CREATIVE
