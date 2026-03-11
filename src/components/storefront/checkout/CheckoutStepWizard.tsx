@@ -607,6 +607,14 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           discount_amount: discountAmount,
           free_shipping: appliedDiscount.free_shipping,
         } : undefined,
+        // Payment method discount (real, from tenant config)
+        paymentMethodDiscount: paymentMethodDiscountAmount > 0 ? {
+          amount: paymentMethodDiscountAmount,
+          type: paymentDiscounts.find(d => d.payment_method === paymentMethod)?.discount_type || 'percentage',
+          value: paymentDiscounts.find(d => d.payment_method === paymentMethod)?.discount_value || 0,
+          method: paymentMethod,
+        } : undefined,
+        installments: paymentMethod === 'credit_card' ? selectedInstallments : 1,
         // Attribution & affiliate for conversion tracking
         attribution: attribution || undefined,
         affiliate: affiliate || undefined,
