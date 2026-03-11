@@ -1114,10 +1114,24 @@ async function confirmUserCommand(supabase: any, tenantId: string, campaignKey: 
 // ============ TOOL IMPLEMENTATIONS ============
 
 // --- Frente 1: getCampaignPerformance — ALWAYS fetches live from Meta API for accurate names ---
-async function getCampaignPerformance(supabase: any, tenantId: string, adAccountId?: string, statusFilter?: string, days?: number) {
-  const dayWindow = Math.min(days || 14, 365);
-  const sinceDate = new Date(Date.now() - dayWindow * 86400000).toISOString().split("T")[0];
-  const today = new Date().toISOString().split("T")[0];
+async function getCampaignPerformance(supabase: any, tenantId: string, adAccountId?: string, statusFilter?: string, days?: number, datePreset?: string) {
+  // Determine time range: date_preset takes priority over days
+  const useLifetime = datePreset === "maximum";
+  let sinceDate: string | undefined;
+  let periodLabel: string;
+  
+  if (useLifetime) {
+    // Meta API supports date_preset=maximum for lifetime data — no sinceDate needed
+    sinceDate = undefined;
+    periodLabel = "lifetime (máximo — desde o início da conta)";
+  } else {
+    const presetDays: Record<string, number> = {
+      last_7d: 7, last_14d: 14, last_30d: 30, last_90d: 90, last_year: 365,
+    };
+    const dayWindow = datePreset ? (presetDays[datePreset] || 30) : (days || 30);
+    sinceDate = new Date(Date.now() - dayWindow * 86400000).toISOString().split("T")[0];
+    periodLabel = `últimos ${dayWindow} dias`;
+  }
 
   // Step 1: Try to fetch campaign list DIRECTLY from Meta API (source of truth for names)
   let liveCampaigns: any[] = [];
@@ -1164,18 +1178,18 @@ async function getCampaignPerformance(supabase: any, tenantId: string, adAccount
     };
   }
 
-  // Step 4: Fetch insights — try live API first, then DB
+  // Step 4: Fetch insights — try live API first (with pagination), then DB
   let insights: any[] = [];
-  const liveInsights = await fetchMetaInsightsLive(supabase, tenantId, adAccountId, sinceDate, "campaign");
+  const liveInsights = await fetchMetaInsightsLive(supabase, tenantId, adAccountId, sinceDate, "campaign", useLifetime);
   if (liveInsights.length > 0) {
     insights = liveInsights;
-    console.log(`[ads-chat][${VERSION}] Live insights fetched: ${insights.length}`);
+    console.log(`[ads-chat][${VERSION}] Live insights fetched: ${insights.length} rows`);
   } else {
     const insightQuery = supabase
       .from("meta_ad_insights")
       .select("meta_campaign_id, spend_cents, impressions, clicks, conversions, conversion_value_cents, roas, ctr, cpc_cents, cpm_cents, date_start")
-      .eq("tenant_id", tenantId)
-      .gte("date_start", sinceDate);
+      .eq("tenant_id", tenantId);
+    if (sinceDate) insightQuery.gte("date_start", sinceDate);
     const { data: dbInsights } = await insightQuery.limit(5000);
     insights = dbInsights || [];
     console.log(`[ads-chat][${VERSION}] DB insights used: ${insights.length}`);
@@ -1228,9 +1242,11 @@ async function getCampaignPerformance(supabase: any, tenantId: string, adAccount
       active: activeCamps.length,
       paused: pausedCamps.length,
       other: otherCamps.length,
-      period: `últimos ${dayWindow} dias`,
+      period: periodLabel,
       data_source: liveCampaigns.length > 0 ? "meta_api_live" : "local_db",
       total_spend: `R$ ${allCamps.reduce((s: number, c: any) => s + (typeof c.spend === 'number' ? c.spend : 0), 0).toFixed(2)}`,
+      total_revenue: `R$ ${allCamps.reduce((s: number, c: any) => s + (typeof c.revenue === 'number' ? c.revenue : 0), 0).toFixed(2)}`,
+      total_conversions: allCamps.reduce((s: number, c: any) => s + (typeof c.conversions === 'number' ? c.conversions : 0), 0),
     },
     active_campaigns: activeCamps.map(formatCamp),
     paused_campaigns: pausedCamps.map(formatCamp),
