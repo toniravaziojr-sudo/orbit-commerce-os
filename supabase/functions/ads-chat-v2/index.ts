@@ -888,9 +888,21 @@ ${JSON.stringify(factualData, null, 2).substring(0, 15000)}
 }
 
 function buildStrategicSystemPrompt(storeName: string, context: any): string {
+  const hybridInstructions = context?.isHybrid ? `
+## MODO HÍBRIDO ATIVO
+O lojista pediu tanto consulta de dados quanto planejamento/proposta na mesma mensagem.
+FLUXO OBRIGATÓRIO:
+1. PRIMEIRO: Use as ferramentas de leitura para coletar os dados solicitados (ex: listar campanhas, performance, etc.)
+2. SEGUNDO: Apresente os dados de forma clara e organizada para o lojista
+3. TERCEIRO: Use esses dados como base para montar a proposta estratégica
+4. QUARTO: Chame \`submit_strategic_proposal\` com a proposta completa
+
+NÃO pule a etapa de apresentação dos dados. O lojista quer VER os dados E receber uma proposta.
+` : '';
+
   return `Você é o Gestor de Tráfego IA da loja "${storeName}".
 Você está no MODO ESTRATÉGICO: o lojista quer que você analise o contexto, monte ou proponha uma estratégia.
-
+${hybridInstructions}
 ## FLUXO OBRIGATÓRIO
 1. Use as ferramentas de leitura (get_campaign_performance, get_store_context, get_products, etc.) para coletar contexto real
 2. Analise o cenário atual com base nos dados coletados
