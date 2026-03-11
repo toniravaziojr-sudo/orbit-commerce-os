@@ -291,3 +291,18 @@ A ordem dos elementos é idêntica no Builder (SPA) e no Público (Edge):
 ### Dead Code
 
 - [ ] `_shared/block-compiler/blocks/product-page.ts` — remover
+
+---
+
+## Correções Aplicadas
+
+### CEP Input — Correção de máscara mobile/desktop (v8.6.1 — 2026-03-11)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Correção de Bug |
+| **Localização** | `supabase/functions/_shared/block-compiler/blocks/product-details.ts` |
+| **Contexto** | Calculadora de frete na página de produto (Edge-rendered) |
+| **Descrição** | Campo de CEP inseria hífens extras ("--") no mobile, impedindo digitação completa do CEP |
+| **Comportamento** | Input CEP usa atributo `data-cep-input` e é formatado pela função centralizada `sfFormatCepValue` injetada pelo `storefront-html`. Remove todos não-dígitos antes de reaplicar máscara `XXXXX-XXX`. |
+| **Atributos** | `inputmode="numeric"`, `autocomplete="off"`, `autocorrect="off"`, `spellcheck="false"` |
