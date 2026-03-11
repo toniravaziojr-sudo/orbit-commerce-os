@@ -4547,104 +4547,208 @@ Deno.serve(async (req) => {
     const toolCalls = firstChoice.message?.tool_calls;
 
     if (toolCalls && toolCalls.length > 0) {
-      // ===== MULTI-ROUND TOOL CALL LOOP (v5.3.7) =====
-      // The AI can call tools multiple times (read first, then write) across up to 5 rounds.
-      // Each round: execute tool calls → feed results back to model WITH tools → repeat until text response.
+      // ===== MULTI-ROUND TOOL CALL LOOP with SSE PROGRESS (v5.23.0) =====
       const MAX_TOOL_ROUNDS = 5;
       let currentToolCalls = toolCalls;
       let loopMessages = [...aiMessages];
+
+      // Tool name → user-friendly label for progress events
+      const toolProgressLabel = (name: string): string => {
+        const labels: Record<string, string> = {
+          get_campaign_performance: "Consultando campanhas",
+          get_campaign_details: "Analisando campanha",
+          get_performance_trend: "Buscando tendências",
+          get_adset_performance: "Analisando conjuntos",
+          get_ad_performance: "Analisando anúncios",
+          get_tracking_health: "Verificando pixel",
+          get_autopilot_config: "Lendo configurações",
+          get_products: "Consultando catálogo",
+          get_product_images: "Buscando imagens",
+          get_store_context: "Carregando contexto",
+          get_autopilot_actions: "Verificando ações",
+          get_autopilot_insights: "Lendo diagnósticos",
+          get_autopilot_sessions: "Verificando histórico",
+          get_strategic_plan: "Lendo plano estratégico",
+          get_creative_assets: "Buscando criativos",
+          get_experiments: "Verificando testes",
+          get_audiences: "Consultando públicos",
+          get_meta_adsets: "Listando conjuntos",
+          get_meta_ads: "Listando anúncios",
+          create_meta_campaign: "Criando campanha Meta",
+          create_google_campaign: "Criando campanha Google",
+          create_tiktok_campaign: "Criando campanha TikTok",
+          generate_creative_image: "Gerando arte",
+          trigger_creative_generation: "Gerando textos",
+          update_budget: "Ajustando orçamento",
+          toggle_entity_status: "Alterando status",
+          duplicate_campaign: "Duplicando campanha",
+          create_custom_audience: "Criando público",
+          create_lookalike_audience: "Criando público semelhante",
+          update_adset_targeting: "Ajustando segmentação",
+          trigger_strategic_plan: "Gerando plano estratégico",
+          trigger_autopilot_analysis: "Rodando análise",
+          update_autopilot_config: "Atualizando configurações",
+          browse_drive: "Explorando Drive",
+          search_drive_files: "Buscando no Drive",
+          get_google_campaigns: "Consultando campanhas Google",
+          get_tiktok_campaigns: "Consultando campanhas TikTok",
+        };
+        return labels[name] || "Processando";
+      };
+
+      // Use a TransformStream to send SSE progress events
+      const { readable, writable } = new TransformStream();
+      const writer = writable.getWriter();
+      const encoder = new TextEncoder();
       
-      for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-        console.log(`[ads-chat][${VERSION}] Tool round ${round + 1}: ${currentToolCalls.map((t: any) => t.function.name).join(", ")}`);
-        
-        // Build assistant message with tool_calls
-        const assistantMsg: any = { role: "assistant", content: "", tool_calls: currentToolCalls.map((tc: any) => ({ id: tc.id, type: "function", function: { name: tc.function.name, arguments: tc.function.arguments } })) };
-        loopMessages.push(assistantMsg);
-        
-        // Execute tool calls IN PARALLEL for performance (v5.9.0)
-        const toolPromises = currentToolCalls.map(async (tc: any) => {
-          let args = {};
-          try { args = JSON.parse(tc.function.arguments || "{}"); } catch { /* empty */ }
-          const result = await executeTool(supabase, tenant_id, tc.function.name, args, chatSessionId, chatStrategyRunId);
-          // Save tool call to DB (fire-and-forget to not block)
-          supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: null, tool_calls: [{ id: tc.id, function: { name: tc.function.name, arguments: tc.function.arguments } }] }).then(() => {}).catch((e: any) => console.error(`[ads-chat][${VERSION}] DB save error:`, e));
-          return { tc_id: tc.id, result };
-        });
-        const toolResults = await Promise.allSettled(toolPromises);
-        for (const res of toolResults) {
-          if (res.status === "fulfilled") {
-            loopMessages.push({ role: "tool", tool_call_id: res.value.tc_id, content: res.value.result });
-          } else {
-            // Find the tc_id from the original list by index
-            const idx = toolResults.indexOf(res);
-            const tcId = currentToolCalls[idx]?.id || "unknown";
-            loopMessages.push({ role: "tool", tool_call_id: tcId, content: JSON.stringify({ error: res.reason?.message || "Tool execution failed" }) });
-          }
-        }
-        
-        // Call AI again WITH tools so it can decide to call more tools or respond
-        const nextAbort = new AbortController();
-        const nextTimeout = setTimeout(() => nextAbort.abort(), AI_TIMEOUT_MS);
-        
-        let nextResult: any;
+      const sendProgress = async (label: string) => {
+        const event = `data: ${JSON.stringify({ type: "progress", label })}\n\n`;
+        await writer.write(encoder.encode(event));
+      };
+
+      // Process tool loop in background
+      (async () => {
         try {
-          const nextResponse = await fetch(endpoint.url, {
+          for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+            const toolNames = currentToolCalls.map((t: any) => t.function.name);
+            console.log(`[ads-chat][${VERSION}] Tool round ${round + 1}: ${toolNames.join(", ")}`);
+            
+            // Send progress event for each tool
+            const uniqueLabels = [...new Set(toolNames.map(toolProgressLabel))];
+            for (const label of uniqueLabels) {
+              await sendProgress(label);
+            }
+            
+            // Build assistant message with tool_calls
+            const assistantMsg: any = { role: "assistant", content: "", tool_calls: currentToolCalls.map((tc: any) => ({ id: tc.id, type: "function", function: { name: tc.function.name, arguments: tc.function.arguments } })) };
+            loopMessages.push(assistantMsg);
+            
+            // Execute tool calls IN PARALLEL
+            const toolPromises = currentToolCalls.map(async (tc: any) => {
+              let args = {};
+              try { args = JSON.parse(tc.function.arguments || "{}"); } catch { /* empty */ }
+              const result = await executeTool(supabase, tenant_id, tc.function.name, args, chatSessionId, chatStrategyRunId);
+              supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: null, tool_calls: [{ id: tc.id, function: { name: tc.function.name, arguments: tc.function.arguments } }] }).then(() => {}).catch((e: any) => console.error(`[ads-chat][${VERSION}] DB save error:`, e));
+              return { tc_id: tc.id, result };
+            });
+            const toolResults = await Promise.allSettled(toolPromises);
+            for (const res of toolResults) {
+              if (res.status === "fulfilled") {
+                loopMessages.push({ role: "tool", tool_call_id: res.value.tc_id, content: res.value.result });
+              } else {
+                const idx = toolResults.indexOf(res);
+                const tcId = currentToolCalls[idx]?.id || "unknown";
+                loopMessages.push({ role: "tool", tool_call_id: tcId, content: JSON.stringify({ error: res.reason?.message || "Tool execution failed" }) });
+              }
+            }
+            
+            // Send thinking progress
+            await sendProgress("Pensando");
+            
+            // Call AI again
+            const nextAbort = new AbortController();
+            const nextTimeout = setTimeout(() => nextAbort.abort(), AI_TIMEOUT_MS);
+            
+            let nextResult: any;
+            try {
+              const nextResponse = await fetch(endpoint.url, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
+                body: JSON.stringify({ model: endpoint.model, messages: loopMessages, tools: TOOLS, stream: false }),
+                signal: nextAbort.signal,
+              });
+              clearTimeout(nextTimeout);
+              if (!nextResponse.ok) {
+                const errText = await nextResponse.text();
+                console.error(`[ads-chat][${VERSION}] AI round ${round + 1} error: ${nextResponse.status} ${errText}`);
+                throw new Error(`AI error round ${round + 1}: ${nextResponse.status}`);
+              }
+              nextResult = await nextResponse.json();
+            } catch (err: any) {
+              clearTimeout(nextTimeout);
+              if (err.name === "AbortError") {
+                const timeoutMsg = "⚠️ O processamento demorou mais que o esperado. Tente novamente.";
+                await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: timeoutMsg });
+                await writer.write(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: timeoutMsg } }] })}\n\ndata: [DONE]\n\n`));
+                await writer.close();
+                return;
+              }
+              throw err;
+            }
+            
+            const nextChoice = nextResult.choices?.[0];
+            const nextToolCalls = nextChoice?.message?.tool_calls;
+            
+            if (nextToolCalls && nextToolCalls.length > 0) {
+              currentToolCalls = nextToolCalls;
+              continue;
+            }
+            
+            // No more tool calls — send final text
+            const finalContent = nextChoice?.message?.content;
+            if (finalContent) {
+              await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: finalContent });
+              if ((history || []).length <= 1) {
+                await supabase.from("ads_chat_conversations").update({ title: (message || "").substring(0, 60), updated_at: new Date().toISOString() }).eq("id", convId);
+              }
+              await writer.write(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: finalContent } }] })}\n\ndata: [DONE]\n\n`));
+              await writer.close();
+              return;
+            }
+            
+            break;
+          }
+          
+          // Fallback: loop exhausted
+          console.log(`[ads-chat][${VERSION}] Tool loop exhausted after ${MAX_TOOL_ROUNDS} rounds, streaming final response`);
+          await sendProgress("Finalizando resposta");
+          const finalStream = await fetch(endpoint.url, {
             method: "POST",
             headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: endpoint.model, messages: loopMessages, tools: TOOLS, stream: false }),
-            signal: nextAbort.signal,
+            body: JSON.stringify({ model: endpoint.model, messages: loopMessages, stream: true }),
           });
-          clearTimeout(nextTimeout);
-          if (!nextResponse.ok) {
-            const errText = await nextResponse.text();
-            console.error(`[ads-chat][${VERSION}] AI round ${round + 1} error: ${nextResponse.status} ${errText}`);
-            throw new Error(`AI error round ${round + 1}: ${nextResponse.status}`);
+          if (!finalStream.ok) throw new Error(`Final stream error: ${finalStream.status}`);
+          
+          // Pipe the streaming response and save
+          const reader = finalStream.body!.getReader();
+          const decoder = new TextDecoder();
+          let fullContent = "";
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            await writer.write(value);
+            const chunk = decoder.decode(value, { stream: true });
+            // Extract content from SSE
+            for (const line of chunk.split("\n")) {
+              if (!line.startsWith("data: ")) continue;
+              const jsonStr = line.slice(6).trim();
+              if (jsonStr === "[DONE]") continue;
+              try {
+                const parsed = JSON.parse(jsonStr);
+                const delta = parsed.choices?.[0]?.delta?.content;
+                if (delta) fullContent += delta;
+              } catch { /* partial */ }
+            }
           }
-          nextResult = await nextResponse.json();
-        } catch (err: any) {
-          clearTimeout(nextTimeout);
-          if (err.name === "AbortError") {
-            const timeoutMsg = "⚠️ O processamento demorou mais que o esperado. Tente novamente.";
-            await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: timeoutMsg });
-            const sseData = `data: ${JSON.stringify({ choices: [{ delta: { content: timeoutMsg } }] })}\n\ndata: [DONE]\n\n`;
-            return new Response(sseData, { headers: { ...corsHeaders, "Content-Type": "text/event-stream", "X-Conversation-Id": convId } });
+          if (fullContent) {
+            await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: fullContent });
+            if ((history || []).length <= 1) {
+              await supabase.from("ads_chat_conversations").update({ title: (message || "").substring(0, 60), updated_at: new Date().toISOString() }).eq("id", convId);
+            }
           }
-          throw err;
+          await writer.close();
+        } catch (e: any) {
+          console.error(`[ads-chat][${VERSION}] Tool loop error:`, e);
+          const errMsg = `⚠️ Erro: ${e.message || "Erro interno"}. Tente novamente.`;
+          try {
+            await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: errMsg });
+            await writer.write(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: errMsg } }] })}\n\ndata: [DONE]\n\n`));
+          } catch { /* ignore */ }
+          try { await writer.close(); } catch { /* already closed */ }
         }
-        
-        const nextChoice = nextResult.choices?.[0];
-        const nextToolCalls = nextChoice?.message?.tool_calls;
-        
-        if (nextToolCalls && nextToolCalls.length > 0) {
-          // More tools to call — continue loop
-          currentToolCalls = nextToolCalls;
-          continue;
-        }
-        
-        // No more tool calls — stream final text response
-        const finalContent = nextChoice?.message?.content;
-        if (finalContent) {
-          await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: finalContent });
-          if ((history || []).length <= 1) {
-            await supabase.from("ads_chat_conversations").update({ title: (message || "").substring(0, 60), updated_at: new Date().toISOString() }).eq("id", convId);
-          }
-          const sseData = `data: ${JSON.stringify({ choices: [{ delta: { content: finalContent } }] })}\n\ndata: [DONE]\n\n`;
-          return new Response(sseData, { headers: { ...corsHeaders, "Content-Type": "text/event-stream", "X-Conversation-Id": convId } });
-        }
-        
-        // If neither tools nor content, break
-        break;
-      }
-      
-      // Fallback: if loop exhausted without final text, do a streaming call
-      console.log(`[ads-chat][${VERSION}] Tool loop exhausted after ${MAX_TOOL_ROUNDS} rounds, streaming final response`);
-      const finalStream = await fetch(endpoint.url, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: endpoint.model, messages: loopMessages, stream: true }),
-      });
-      if (!finalStream.ok) throw new Error(`Final stream error: ${finalStream.status}`);
-      return streamAndSave(finalStream, supabase, convId, tenant_id, message || "Anexo", history);
+      })();
+
+      return new Response(readable, { headers: { ...corsHeaders, "Content-Type": "text/event-stream", "X-Conversation-Id": convId } });
     }
 
     // No tool calls — direct text
