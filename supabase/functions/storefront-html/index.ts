@@ -105,13 +105,17 @@ function parseRoute(path: string): ParsedRoute {
 // ============================================
 // MARKETING PIXELS — Deferred script injection
 // ============================================
-function generateMarketingPixelScripts(config: any): string {
+function generateMarketingPixelScripts(config: any, trackingData?: { routeType: string; product?: any; category?: any; categoryProductIds?: string[] }): string {
   if (!config) return '';
   const scripts: string[] = [];
   const prefetches: string[] = [];
 
+  const metaEnabled = config.meta_enabled && config.meta_pixel_id;
+  const googleEnabled = config.google_enabled && config.google_measurement_id;
+  const tiktokEnabled = config.tiktok_enabled && config.tiktok_pixel_id;
+
   // Meta Pixel
-  if (config.meta_enabled && config.meta_pixel_id) {
+  if (metaEnabled) {
     prefetches.push('<link rel="dns-prefetch" href="https://connect.facebook.net">');
     const pixelId = escapeHtml(config.meta_pixel_id);
     scripts.push(`
@@ -120,6 +124,8 @@ function generateMarketingPixelScripts(config: any): string {
       function loadMeta(){
         !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
         fbq('init','${pixelId}');fbq('track','PageView');
+        window._sfMetaReady=true;
+        if(window._sfPendingMetaEvents){window._sfPendingMetaEvents.forEach(function(fn){fn();});delete window._sfPendingMetaEvents;}
       }
       if('requestIdleCallback' in window){requestIdleCallback(loadMeta,{timeout:3000});}
       else{setTimeout(loadMeta,2000);}
@@ -128,7 +134,7 @@ function generateMarketingPixelScripts(config: any): string {
   }
 
   // Google Analytics / Ads
-  if (config.google_enabled && config.google_measurement_id) {
+  if (googleEnabled) {
     prefetches.push('<link rel="dns-prefetch" href="https://www.googletagmanager.com">');
     const gaId = escapeHtml(config.google_measurement_id);
     const adsId = config.google_ads_conversion_id ? escapeHtml(config.google_ads_conversion_id) : '';
@@ -145,6 +151,8 @@ function generateMarketingPixelScripts(config: any): string {
         gtag('js',new Date());
         gtag('config','${gaId}',{send_page_view:true});
         ${adsId ? `gtag('config','${adsId}');` : ''}
+        window._sfGtagReady=true;
+        if(window._sfPendingGtagEvents){window._sfPendingGtagEvents.forEach(function(fn){fn();});delete window._sfPendingGtagEvents;}
       }
       if('requestIdleCallback' in window){requestIdleCallback(loadGA,{timeout:3000});}
       else{setTimeout(loadGA,2000);}
@@ -153,7 +161,7 @@ function generateMarketingPixelScripts(config: any): string {
   }
 
   // TikTok Pixel
-  if (config.tiktok_enabled && config.tiktok_pixel_id) {
+  if (tiktokEnabled) {
     prefetches.push('<link rel="dns-prefetch" href="https://analytics.tiktok.com">');
     const ttId = escapeHtml(config.tiktok_pixel_id);
     scripts.push(`
@@ -162,6 +170,8 @@ function generateMarketingPixelScripts(config: any): string {
       function loadTT(){
         !function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=['page','track','identify','instances','debug','on','off','once','ready','alias','group','enableCookie','disableCookie'];ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e};ttq.load=function(e,n){var i='https://analytics.tiktok.com/i18n/pixel/events.js';ttq._i=ttq._i||{};ttq._i[e]=[];ttq._i[e]._u=i;ttq._t=ttq._t||{};ttq._t[e+'']=+new Date;ttq._o=ttq._o||{};ttq._o[e+'']=n||{};var o=document.createElement('script');o.type='text/javascript';o.async=!0;o.src=i+'?sdkid='+e+'&lib='+t;var a=document.getElementsByTagName('script')[0];a.parentNode.insertBefore(o,a)}}(window,document,'ttq');
         ttq.load('${ttId}');ttq.page();
+        window._sfTTReady=true;
+        if(window._sfPendingTTEvents){window._sfPendingTTEvents.forEach(function(fn){fn();});delete window._sfPendingTTEvents;}
       }
       if('requestIdleCallback' in window){requestIdleCallback(loadTT,{timeout:3000});}
       else{setTimeout(loadTT,2000);}
@@ -169,9 +179,95 @@ function generateMarketingPixelScripts(config: any): string {
     </script>`);
   }
 
+  // === ROUTE-SPECIFIC TRACKING EVENTS ===
+  // These fire ViewContent/ViewCategory after pixels load (deferred-safe)
+  if (trackingData && (metaEnabled || googleEnabled || tiktokEnabled)) {
+    const eventScript = generateRouteTrackingScript(config, trackingData, { metaEnabled: !!metaEnabled, googleEnabled: !!googleEnabled, tiktokEnabled: !!tiktokEnabled });
+    if (eventScript) scripts.push(eventScript);
+  }
+
   if (scripts.length === 0) return '';
   const guard = `<script>window._sfPixelsLoaded=true;</script>`;
   return prefetches.join('\n') + '\n' + guard + scripts.join('\n');
+}
+
+/**
+ * Resolve Meta content_id: meta_retailer_id > sku > id
+ * Must match resolveMetaContentId() in SPA
+ */
+function resolveMetaContentId(product: { id: string; sku?: string; meta_retailer_id?: string | null }): string {
+  return product.meta_retailer_id || product.sku || product.id || '';
+}
+
+/**
+ * Generate route-specific tracking events (ViewContent, ViewCategory)
+ * Uses a deferred pattern: queue events if pixels haven't loaded yet
+ */
+function generateRouteTrackingScript(
+  config: any,
+  data: { routeType: string; product?: any; category?: any; categoryProductIds?: string[] },
+  flags: { metaEnabled: boolean; googleEnabled: boolean; tiktokEnabled: boolean }
+): string {
+  const lines: string[] = [];
+
+  if (data.routeType === 'product' && data.product) {
+    const p = data.product;
+    const contentId = resolveMetaContentId(p);
+    const price = parseFloat(p.price) || 0;
+    const name = (p.name || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+    const category = (p.category_name || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+
+    // Meta ViewContent
+    if (flags.metaEnabled) {
+      lines.push(`
+      function _sfMetaVC(){fbq('track','ViewContent',{content_ids:['${escapeHtml(contentId)}'],content_type:'product',content_name:'${name}',value:${price},currency:'BRL'});}
+      if(window._sfMetaReady){_sfMetaVC();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_sfMetaVC);}
+      `);
+    }
+    // Google view_item
+    if (flags.googleEnabled) {
+      lines.push(`
+      function _sfGtagVC(){gtag('event','view_item',{currency:'BRL',value:${price},items:[{item_id:'${escapeHtml(contentId)}',item_name:'${name}',price:${price}}]});}
+      if(window._sfGtagReady){_sfGtagVC();}else{window._sfPendingGtagEvents=window._sfPendingGtagEvents||[];window._sfPendingGtagEvents.push(_sfGtagVC);}
+      `);
+    }
+    // TikTok ViewContent
+    if (flags.tiktokEnabled) {
+      lines.push(`
+      function _sfTTVC(){ttq.track('ViewContent',{content_id:'${escapeHtml(contentId)}',content_type:'product',content_name:'${name}',value:${price},currency:'BRL'});}
+      if(window._sfTTReady){_sfTTVC();}else{window._sfPendingTTEvents=window._sfPendingTTEvents||[];window._sfPendingTTEvents.push(_sfTTVC);}
+      `);
+    }
+  } else if (data.routeType === 'category' && data.category) {
+    const cat = data.category;
+    const catName = (cat.name || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+    const productIds = (data.categoryProductIds || []).slice(0, 10);
+
+    // Meta ViewCategory (custom event)
+    if (flags.metaEnabled) {
+      lines.push(`
+      function _sfMetaCat(){fbq('trackCustom','ViewCategory',{content_category:'${catName}',content_ids:${JSON.stringify(productIds)},content_type:'product_group'});}
+      if(window._sfMetaReady){_sfMetaCat();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_sfMetaCat);}
+      `);
+    }
+    // Google view_item_list
+    if (flags.googleEnabled) {
+      lines.push(`
+      function _sfGtagCat(){gtag('event','view_item_list',{item_list_id:'${escapeHtml(cat.id)}',item_list_name:'${catName}'});}
+      if(window._sfGtagReady){_sfGtagCat();}else{window._sfPendingGtagEvents=window._sfPendingGtagEvents||[];window._sfPendingGtagEvents.push(_sfGtagCat);}
+      `);
+    }
+    // TikTok ViewContent for category
+    if (flags.tiktokEnabled) {
+      lines.push(`
+      function _sfTTCat(){ttq.track('ViewContent',{content_id:'${escapeHtml(cat.id)}',content_type:'product_group',content_name:'${catName}'});}
+      if(window._sfTTReady){_sfTTCat();}else{window._sfPendingTTEvents=window._sfPendingTTEvents||[];window._sfPendingTTEvents.push(_sfTTCat);}
+      `);
+    }
+  }
+
+  if (lines.length === 0) return '';
+  return `<script>(function(){${lines.join('')}})();</script>`;
 }
 
 // ============================================
