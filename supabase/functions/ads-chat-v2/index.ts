@@ -1257,7 +1257,7 @@ Deno.serve(async (req) => {
 
     // ===== STEP 1: Classify intent =====
     const intent = classifyIntent(message || "", history);
-    console.log(`[ads-chat-v2][${VERSION}] Intent: ${intent.category} mode=${intent.mode} (confidence=${intent.confidence})`);
+    console.log(`[ads-chat-v2][${VERSION}] Intent: ${intent.category} mode=${intent.mode} hybrid=${intent.isHybrid} (confidence=${intent.confidence})`);
 
     // ===== STEP 2: Setup SSE stream =====
     const { readable, writable } = new TransformStream();
