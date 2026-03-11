@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v6.5.0"; // Expanded performance classifier for natural analytics queries
+const VERSION = "v6.7.0"; // Hybrid mode: strategic + factual data pre-fetch for mixed-intent messages
 // ====================
 
 const AI_TIMEOUT_MS = 90000;
@@ -39,6 +39,7 @@ interface ClassifiedIntent {
   category: IntentCategory;
   mode: IntentMode;           // Replaces simple isFactual boolean
   isFactual: boolean;         // Backward compat — true when mode === "factual"
+  isHybrid: boolean;          // True when message mixes factual query + strategic intent
   entities: {
     campaignIds?: string[];
     adsetIds?: string[];
@@ -73,9 +74,19 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
   // ---- STRATEGIC / GENERATIVE (check BEFORE write patterns) ----
   // These are requests where the user wants the AI to PLAN, PROPOSE, or DESIGN
   // but NOT execute directly. The output should converge to the approval pipeline.
-  if (/mont[ae]r?\s+(estratégia|plano|funil|estrutura)|propon?h?[ae]r?\s+(campanha|estratégia|plano|estrutura|teste)|suger[ie]r?\s+(campanha|estratégia|público|criativo|estrutura|teste)|plan[oe]?j[ae]r?\s+(campanha|funil|teste)|desenh[ae]r?\s+(campanha|funil|estratégia)|cri[ae]r?\s+(estratégia|plano|funil|estrutura)|defin[ie]r?\s+(estratégia|plano|público|teste)|quero\s+(uma?\s+)?(estratégia|plano|campanha|teste|funil)|preciso\s+(de\s+)?(uma?\s+)?(estratégia|plano|campanha)|nova\s+(estratégia|campanha|estrutura)|novas?\s+campanha[s]?\s+(para|de|com)|escal[ae]r?\s+vend|aumentar\s+(vend|roas|resultado)|melhorar\s+(resultado|performance|desempenho)|otimizar\s+(campanha|resultado|funil)/i.test(msg) &&
-      !/list[ae]r?|mostrar?|quais\s+são|quanto|qual\s+(é|foi|era)/i.test(msg)) {
-    return { category: "strategic", mode: "strategic", isFactual: false, entities, confidence: 0.9 };
+  // v6.7.0: Removed broad negative lookahead for query verbs (listar/mostrar/quais são).
+  // Hybrid messages like "liste as campanhas e monte uma estratégia" now correctly route
+  // to strategic mode — the AI will use its factual tools to gather data first, then propose.
+  const strategicPatterns = /mont[ae]r?\s+(estratégia|plano|funil|estrutura)|propon?h?[ae]r?\s+(campanha|estratégia|plano|estrutura|teste)|suger[ie]r?\s+(campanha|estratégia|público|criativo|estrutura|teste)|plan[oe]?j[ae]r?\s+(campanha|funil|teste)|desenh[ae]r?\s+(campanha|funil|estratégia)|cri[ae]r?\s+(estratégia|plano|funil|estrutura)|defin[ie]r?\s+(estratégia|plano|público|teste)|quero\s+(uma?\s+)?(estratégia|plano|campanha|teste|funil)|preciso\s+(de\s+)?(uma?\s+)?(estratégia|plano|campanha)|nova\s+(estratégia|campanha|estrutura)|novas?\s+campanha[s]?\s+(para|de|com)|escal[ae]r?\s+vend|aumentar\s+(vend|roas|roi\b|resultado|conversões?|faturamento)|melhorar\s+(resultado|performance|desempenho|roas|roi\b|cpa\b|vendas?|conversões?|faturamento)|otimizar\s+(campanha|resultado|funil|roas|cpa\b|vendas?)/i;
+  const queryVerbs = /list[ae]r?|mostr[ae]r?|quais\s+são|quanto|qual\s+(é|foi|era)|analis[ae]r?|ver\b|consult[ae]r?|compar[ae]r?|relat[oó]rio/i;
+
+  if (strategicPatterns.test(msg)) {
+    // Detect hybrid: strategic intent + query verbs coexisting
+    const hasQueryVerbs = queryVerbs.test(msg);
+    if (hasQueryVerbs) {
+      console.log(`[ads-chat-v2] Hybrid detected: strategic patterns + query verbs. Routing strategic with factual pre-fetch.`);
+    }
+    return { category: "strategic", mode: "strategic", isFactual: false, isHybrid: hasQueryVerbs, entities, confidence: 0.9 };
   }
 
   // ---- Pattern matching (ordered by specificity) ----
@@ -83,13 +94,13 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
   // TARGETING (highest priority for targeting queries)
   if (/targeting|segmentação|segmentacao|público[s]?\s+(personalizado|semelhante|custom|lookalike)|audiência|interesse[s]?|demografi|faixa\s+etári|gênero|localização|posicionamento/i.test(msg) &&
       !/cri[ae]r?\s+(público|audiência|lookalike)|atualiz/i.test(msg)) {
-    return { category: "targeting", mode: "factual", isFactual: true, entities, confidence: 0.95 };
+    return { category: "targeting", mode: "factual", isFactual: true, isHybrid: false, entities, confidence: 0.95 };
   }
 
   // PERFORMANCE (metrics-focused)
   if (/performance|desempenho|resultado[s]?|métrica[s]?|roas|roi\b|cpa\b|cpc\b|ctr\b|gasto|spend|conversão|conversões|conversao|receita|faturamento|vendas?\s+(d[aoe]s?\s+)?campanhas?|quanto\s+gastei|quanto\s+gast[ao]u|quanto\s+faturei|quanto\s+convert|melhor(es)?\s+campanha|pior(es)?\s+campanha|top\s+\d+|ranking|comparar?\s+campanha|como\s+(est[áa]o?|vão|andam?|foram?)\s+(as?\s+)?(minhas?\s+)?campanha|campanhas?\s+com\s+mais\s+(vend|convers|resultado|faturamento|gasto|roi|roas)|campanhas?\s+com\s+menor|campanhas?\s+com\s+melhor|campanhas?\s+com\s+pior|\d+\s+campanha[s]?\s+com\s+mais|liste?\s+(aqui\s+)?(as?\s+)?\d+\s+campanha|analise?\s+(todas?\s+)?(as?\s+)?campanha|analis[ae]r?\s+(todas?\s+)?(as?\s+)?campanha|relat[oó]rio|relatório\s+de\s+campanha/i.test(msg) &&
       !/cri[ae]r?|paus[ae]r?|ativ[ae]r?|alter[ae]r?/i.test(msg)) {
-    return { category: "performance", mode: "factual", isFactual: true, entities, confidence: 0.9 };
+    return { category: "performance", mode: "factual", isFactual: true, isHybrid: false, entities, confidence: 0.9 };
   }
 
   // CAMPAIGNS LIST (enumerate entities)
@@ -101,7 +112,7 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
       /quero\s+ver\s+(as?\s+)?(minhas?\s+)?campanha/i.test(msg) ||
       /(minhas?\s+)?campanha[s]?\s+(ativ|pausad|do\s+meta|no\s+meta|na\s+meta|do\s+facebook|no\s+facebook)/i.test(msg)) &&
       !/cri[ae]r?|paus[ae]r?|ativ[ae]r?/i.test(msg)) {
-    return { category: "campaigns_list", mode: "factual", isFactual: true, entities, confidence: 0.85 };
+    return { category: "campaigns_list", mode: "factual", isFactual: true, isHybrid: false, entities, confidence: 0.85 };
   }
 
   // ---- BULK ACTION ESCALATION (check BEFORE individual write patterns) ----
@@ -117,51 +128,51 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
     /escal[ae]r?\s+(todo|toda|tudo|todas?\s+campanha)/i,
   ];
   if (bulkIndicators.some(rx => rx.test(msg))) {
-    return { category: "strategic", mode: "strategic", isFactual: false, entities, confidence: 0.92 };
+    return { category: "strategic", mode: "strategic", isFactual: false, isHybrid: false, entities, confidence: 0.92 };
   }
 
   // WRITE - META (direct execution requests — pause, activate, budget changes)
   if (/paus[ae]r?\s+(campanha|conjunto|anúncio)|ativ[ae]r?\s+(campanha|conjunto|anúncio)|reativ[ae]r?|alter[ae]r?\s+(orçamento|budget|segmentação)|duplic[ae]r?\s+campanha|aument[ae]r?\s+(orçamento|budget)|diminu[iae]r?\s+(orçamento|budget)/i.test(msg) &&
       !/google|tiktok/i.test(msg)) {
-    return { category: "write_meta", mode: "conversational", isFactual: false, entities, confidence: 0.9 };
+    return { category: "write_meta", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.9 };
   }
 
   // "criar campanha" without strategic context = write_meta (single campaign creation)
   if (/cri[ae]r?\s+(campanha|conjunto|anúncio|público|audiência|lookalike)/i.test(msg) &&
       !/estratégia|plano|funil|estrutura|suger|propon|test[ae]r?|escal/i.test(msg) &&
       !/google|tiktok/i.test(msg)) {
-    return { category: "write_meta", mode: "conversational", isFactual: false, entities, confidence: 0.85 };
+    return { category: "write_meta", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.85 };
   }
 
   // WRITE - GOOGLE
   if (/google/i.test(msg) && /cri[ae]r?|paus[ae]r?|ativ[ae]r?|alter[ae]r?|budget/i.test(msg)) {
-    return { category: "write_google", mode: "conversational", isFactual: false, entities, confidence: 0.85 };
+    return { category: "write_google", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.85 };
   }
 
   // WRITE - TIKTOK
   if (/tiktok/i.test(msg) && /cri[ae]r?|paus[ae]r?|ativ[ae]r?|alter[ae]r?|budget/i.test(msg)) {
-    return { category: "write_tiktok", mode: "conversational", isFactual: false, entities, confidence: 0.85 };
+    return { category: "write_tiktok", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.85 };
   }
 
   // CREATIVE
   if (/gerar?\s+(arte|imagem|criativo|texto|copy|headline)|criativo[s]?|arte[s]?\s+para\s+anúncio/i.test(msg)) {
-    return { category: "creative", mode: "conversational", isFactual: false, entities, confidence: 0.85 };
+    return { category: "creative", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.85 };
   }
 
   // AUTOPILOT
   if (/configuração|config|guardião|estrategista|plano\s+estratégico|ações?\s+da\s+ia|diagnóstico|insight|histórico\s+de\s+execuç|autopilot|teste[s]?\s+a\/?b|experiment/i.test(msg)) {
-    return { category: "autopilot", mode: "factual", isFactual: true, entities, confidence: 0.8 };
+    return { category: "autopilot", mode: "factual", isFactual: true, isHybrid: false, entities, confidence: 0.8 };
   }
 
   // STORE CONTEXT
   if (/produto[s]?|catálogo|categoria[s]?|oferta[s]?|desconto[s]?|loja|negócio|nicho|pixel|rastreamento/i.test(msg) &&
       !/campanha|anúncio|criativo|gerar/i.test(msg)) {
-    return { category: "store_context", mode: "factual", isFactual: true, entities, confidence: 0.75 };
+    return { category: "store_context", mode: "factual", isFactual: true, isHybrid: false, entities, confidence: 0.75 };
   }
 
   // DRIVE
   if (/drive|arquivo[s]?|pasta[s]?|buscar?\s+no\s+drive|explorar?\s+drive|meu\s+drive/i.test(msg)) {
-    return { category: "drive", mode: "conversational", isFactual: false, entities, confidence: 0.8 };
+    return { category: "drive", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.8 };
   }
 
   // ---- COMPOSITE SIGNAL DETECTION (v6.6.0) ----
@@ -179,12 +190,12 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
     // 2+ signals AND no write/action verbs → factual performance
     if (signalCount >= 2 && !/cri[ae]r?|paus[ae]r?|ativ[ae]r?|alter[ae]r?|duplic/i.test(msg)) {
       console.log(`[ads-chat-v2] Composite signal hit: entities=${sigEntities} verbs=${sigVerbs} filters=${sigFilters} metrics=${sigMetrics} (${signalCount}/4)`);
-      return { category: "performance", mode: "factual", isFactual: true, entities, confidence: 0.82 };
+      return { category: "performance", mode: "factual", isFactual: true, isHybrid: false, entities, confidence: 0.82 };
     }
   }
 
   // GENERAL - conversation
-  return { category: "general", mode: "conversational", isFactual: false, entities, confidence: 0.5 };
+  return { category: "general", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.5 };
 }
 
 // ======================================================================
@@ -877,9 +888,21 @@ ${JSON.stringify(factualData, null, 2).substring(0, 15000)}
 }
 
 function buildStrategicSystemPrompt(storeName: string, context: any): string {
+  const hybridInstructions = context?.isHybrid ? `
+## MODO HÍBRIDO ATIVO
+O lojista pediu tanto consulta de dados quanto planejamento/proposta na mesma mensagem.
+FLUXO OBRIGATÓRIO:
+1. PRIMEIRO: Use as ferramentas de leitura para coletar os dados solicitados (ex: listar campanhas, performance, etc.)
+2. SEGUNDO: Apresente os dados de forma clara e organizada para o lojista
+3. TERCEIRO: Use esses dados como base para montar a proposta estratégica
+4. QUARTO: Chame \`submit_strategic_proposal\` com a proposta completa
+
+NÃO pule a etapa de apresentação dos dados. O lojista quer VER os dados E receber uma proposta.
+` : '';
+
   return `Você é o Gestor de Tráfego IA da loja "${storeName}".
 Você está no MODO ESTRATÉGICO: o lojista quer que você analise o contexto, monte ou proponha uma estratégia.
-
+${hybridInstructions}
 ## FLUXO OBRIGATÓRIO
 1. Use as ferramentas de leitura (get_campaign_performance, get_store_context, get_products, etc.) para coletar contexto real
 2. Analise o cenário atual com base nos dados coletados
@@ -1246,7 +1269,7 @@ Deno.serve(async (req) => {
 
     // ===== STEP 1: Classify intent =====
     const intent = classifyIntent(message || "", history);
-    console.log(`[ads-chat-v2][${VERSION}] Intent: ${intent.category} mode=${intent.mode} (confidence=${intent.confidence})`);
+    console.log(`[ads-chat-v2][${VERSION}] Intent: ${intent.category} mode=${intent.mode} hybrid=${intent.isHybrid} (confidence=${intent.confidence})`);
 
     // ===== STEP 2: Setup SSE stream =====
     const { readable, writable } = new TransformStream();
@@ -1330,7 +1353,9 @@ Deno.serve(async (req) => {
         // ===== STRATEGIC PATH: AI gathers context then submits structured proposal =====
         // ===== CONVERSATIONAL PATH: AI with subset tools =====
         const isStrategicMode = intent.mode === "strategic";
-        if (isStrategicMode) {
+        if (isStrategicMode && intent.isHybrid) {
+          await sendProgress("Modo híbrido — coletando dados antes de propor estratégia");
+        } else if (isStrategicMode) {
           await sendProgress("Modo estratégico — analisando contexto");
         } else {
           await sendProgress("Analisando");
@@ -1348,7 +1373,7 @@ Deno.serve(async (req) => {
 
         // Choose system prompt based on mode
         const systemPrompt = isStrategicMode
-          ? buildStrategicSystemPrompt(storeName, { storeUrl })
+          ? buildStrategicSystemPrompt(storeName, { storeUrl, isHybrid: intent.isHybrid })
           : buildConversationalSystemPrompt(storeName, { storeUrl });
 
         const aiMessages: any[] = [{ role: "system", content: systemPrompt + memoryCtx }];
