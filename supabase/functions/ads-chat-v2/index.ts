@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v6.1.0"; // Dual-mode: factual orchestration + strategic/generative with approval pipeline convergence
+const VERSION = "v6.2.0"; // Bulk action escalation: conversational bulk ops force strategic mode + pending_approval
 // ====================
 
 const AI_TIMEOUT_MS = 90000;
