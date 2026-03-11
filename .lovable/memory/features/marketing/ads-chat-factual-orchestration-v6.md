@@ -82,10 +82,10 @@ O Ads Chat (v6.3.0) implementa uma arquitetura dual-mode com orquestração dete
 - [ ] Intenções factuais usam orquestração backend (sem tool calling para dados)
 - [ ] Intenções estratégicas usam `submit_strategic_proposal` (nunca executam direto)
 - [ ] Propostas estratégicas do chat criam `ads_autopilot_actions` com `pending_approval`
-- [ ] Frontend faz fallback para v1 quando v2 falha (500+ ou network error)
+- [ ] Frontend NÃO faz fallback para v1 — erros são exibidos de forma honesta (v6.4.0)
 - [ ] `ads-pending-actions` é invalidado após stream para refletir novas propostas
 - [ ] Modo estratégico tem 8 rounds de tool calls (vs 5 no conversacional)
-- [ ] Anti-filler e regexes existem apenas como camada defensiva na v1
+- [ ] Anti-filler existe apenas como camada defensiva DENTRO do v2 (sem dependência de v1)
 - [ ] Ações em lote (múltiplas campanhas/adsets/produtos) são escaladas para modo estratégico
 - [ ] Prompt conversacional bloqueia execução direta de >2 campanhas ou >3 adsets
 - [ ] Classificador cobre frases naturais: "consegue consultar", "me mostra", "quero ver", "como estão" (v6.3.0)
