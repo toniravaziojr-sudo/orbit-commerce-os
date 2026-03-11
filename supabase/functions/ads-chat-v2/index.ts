@@ -164,6 +164,25 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
     return { category: "drive", mode: "conversational", isFactual: false, entities, confidence: 0.8 };
   }
 
+  // ---- COMPOSITE SIGNAL DETECTION (v6.6.0) ----
+  // Instead of matching exact phrases, combine independent signals:
+  //   entities + verbs + filters/ranking + metrics
+  // When 2+ signal categories fire together, route to factual/performance.
+  {
+    const sigEntities = /campanha[s]?|conjunto[s]?\s+de\s+anúncio|adset[s]?|anúncio[s]?|conta\s+de\s+anúncio/i.test(msg);
+    const sigVerbs = /analis[ae]r?|list[ae]r?|mostr[ae]r?|ver\b|compar[ae]r?|relat[oó]rio|consult[ae]r?|busc[ae]r?|chec[ae]r?|confer[ie]r?|verific[ae]r?|resum[ie]r?|exib[ie]r?|avaliar?|inspecion/i.test(msg);
+    const sigFilters = /\btop\b|\bmais\b|\bmenos\b|melhor|pior|exceto|sem\b|maior|menor|ranking|ordena|classific|primeiro|último|acima|abaixo|\d+\s+(campanha|conjunto|anúncio)/i.test(msg);
+    const sigMetrics = /vend[ae]s?|convers[ãõ][oe]?[es]?|roas\b|roi\b|cpa\b|cpc\b|ctr\b|gasto|spend|resultado[s]?|faturamento|receita|impres[sõ]|clique[s]?|alcance|custo/i.test(msg);
+    
+    const signalCount = [sigEntities, sigVerbs, sigFilters, sigMetrics].filter(Boolean).length;
+    
+    // 2+ signals AND no write/action verbs → factual performance
+    if (signalCount >= 2 && !/cri[ae]r?|paus[ae]r?|ativ[ae]r?|alter[ae]r?|duplic/i.test(msg)) {
+      console.log(`[ads-chat-v2] Composite signal hit: entities=${sigEntities} verbs=${sigVerbs} filters=${sigFilters} metrics=${sigMetrics} (${signalCount}/4)`);
+      return { category: "performance", mode: "factual", isFactual: true, entities, confidence: 0.82 };
+    }
+  }
+
   // GENERAL - conversation
   return { category: "general", mode: "conversational", isFactual: false, entities, confidence: 0.5 };
 }
