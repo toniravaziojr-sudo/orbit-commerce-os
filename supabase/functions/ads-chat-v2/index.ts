@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v6.8.0"; // Fix: drill-down follow-ups route to tool path, not factual pre-resolution
+const VERSION = "v6.8.1"; // Enforce factual discipline in drill-down conversational prompt
 // ====================
 
 const AI_TIMEOUT_MS = 90000;
