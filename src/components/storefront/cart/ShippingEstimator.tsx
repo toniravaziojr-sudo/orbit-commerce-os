@@ -116,6 +116,8 @@ export function ShippingEstimator() {
         <div className="flex-1">
           <Input
             type="text"
+            inputMode="numeric"
+            autoComplete="off"
             placeholder="00000-000"
             value={shipping.cep}
             onChange={handleCepChange}
