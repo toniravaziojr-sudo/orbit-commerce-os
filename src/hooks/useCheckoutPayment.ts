@@ -1,5 +1,6 @@
 // =============================================
-// USE CHECKOUT PAYMENT - Real payment processing with Pagar.me
+// USE CHECKOUT PAYMENT - Real payment processing
+// Supports Pagar.me and Mercado Pago gateways
 // Uses edge functions for secure server-side operations
 // =============================================
 
