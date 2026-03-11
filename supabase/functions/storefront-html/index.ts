@@ -1079,14 +1079,20 @@ function buildFullPage(opts: {
           e.preventDefault();e.stopPropagation();
           var qtyInput=document.querySelector("[data-sf-qty-input]");
           var qty=qtyInput?parseInt(qtyInput.value)||1:1;
-          for(var q=0;q<qty;q++) addToCart(btn.dataset.productId, btn.dataset.productName, parseFloat(btn.dataset.productPrice), btn.dataset.productImage, btn.dataset.variantId);
+          for(var q=0;q<qty;q++) addToCart(btn.dataset.productId, btn.dataset.productName, parseFloat(btn.dataset.productPrice), btn.dataset.productImage, btn.dataset.variantId, false, btn.dataset.productSku||'', btn.dataset.productMetaId||'');
           // Buy Together: if extra product data exists, add that too
-          if(btn.dataset.extraProductId){addToCart(btn.dataset.extraProductId,btn.dataset.extraProductName,parseFloat(btn.dataset.extraProductPrice),btn.dataset.extraProductImage);}
+          if(btn.dataset.extraProductId){addToCart(btn.dataset.extraProductId,btn.dataset.extraProductName,parseFloat(btn.dataset.extraProductPrice),btn.dataset.extraProductImage,'',false,'','');}
         } else if(action==="buy-now"){
           e.preventDefault();e.stopPropagation();
           var qtyInput2=document.querySelector("[data-sf-qty-input]");
           var qty2=qtyInput2?parseInt(qtyInput2.value)||1:1;
-          for(var q2=0;q2<qty2;q2++) addToCart(btn.dataset.productId, btn.dataset.productName, parseFloat(btn.dataset.productPrice), btn.dataset.productImage, btn.dataset.variantId, true);
+          for(var q2=0;q2<qty2;q2++) addToCart(btn.dataset.productId, btn.dataset.productName, parseFloat(btn.dataset.productPrice), btn.dataset.productImage, btn.dataset.variantId, true, btn.dataset.productSku||'', btn.dataset.productMetaId||'');
+          // === MARKETING: InitiateCheckout event ===
+          var _coContentId=btn.dataset.productMetaId||btn.dataset.productSku||btn.dataset.productId;
+          var _coPrice=parseFloat(btn.dataset.productPrice)||0;
+          if(window.fbq){var _icM=function(){fbq('track','InitiateCheckout',{content_ids:[_coContentId],content_type:'product',value:_coPrice,currency:'BRL',num_items:qty2});};if(window._sfMetaReady){_icM();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_icM);}}
+          if(window.gtag){var _icG=function(){gtag('event','begin_checkout',{currency:'BRL',value:_coPrice,items:[{item_id:_coContentId,price:_coPrice,quantity:qty2}]});};if(window._sfGtagReady){_icG();}else{window._sfPendingGtagEvents=window._sfPendingGtagEvents||[];window._sfPendingGtagEvents.push(_icG);}}
+          if(window.ttq){var _icT=function(){ttq.track('InitiateCheckout',{content_id:_coContentId,content_type:'product',value:_coPrice,currency:'BRL',quantity:qty2});};if(window._sfTTReady){_icT();}else{window._sfPendingTTEvents=window._sfPendingTTEvents||[];window._sfPendingTTEvents.push(_icT);}}
           window.location.href="/checkout";
         } else if(action==="remove-cart-item"){
           var idx = parseInt(btn.dataset.index);
