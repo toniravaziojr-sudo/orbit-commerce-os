@@ -118,3 +118,6 @@ O Ads Chat (v6.9.0) implementa uma arquitetura dual-mode com orquestração dete
 - [ ] **Prompt drill-down mantém disciplina factual: tools obrigatórias, dados antes de opinião (v6.8.1)**
 - [ ] **Guardrails de memória: ai_memories são contexto auxiliar, não fatos verificados (v6.8.0)**
 - [ ] **Proibição de afirmar "pixel quebrado" sem confirmação de tool (v6.8.0)**
+- [ ] **get_adset_performance e get_ad_performance têm handlers em executeToolDirect v2 (v6.9.0)**
+- [ ] **Memory extractor proíbe auto-memorização de diagnósticos técnicos e recomendações da IA (v6.9.0)**
+- [ ] **Registros de memória sobre pixel/tracking purgados (v6.9.0)**
