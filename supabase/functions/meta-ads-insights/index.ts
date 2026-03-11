@@ -181,20 +181,18 @@ Deno.serve(async (req) => {
         for (let start = 0; start < insights.length; start += UPSERT_BATCH) {
           const batch = insights.slice(start, start + UPSERT_BATCH);
           const rows = batch.map(i => {
-            const purchaseAction = (i.actions || []).find((a: any) => 
-              a.action_type === "purchase" || 
-              a.action_type === "offsite_conversion.fb_pixel_purchase" ||
-              a.action_type === "omni_purchase"
-            );
-            const conversions = purchaseAction ? parseInt(purchaseAction.value || "0") : 0;
-
-            const purchaseValue = (i.action_values || []).find((a: any) => 
-              a.action_type === "purchase" || 
-              a.action_type === "offsite_conversion.fb_pixel_purchase" ||
-              a.action_type === "omni_purchase"
-            );
-            const conversionValueCents = purchaseValue 
-              ? Math.round(parseFloat(purchaseValue.value || "0") * 100) : 0;
+            // Priority-based deduplication: omni_purchase > purchase > others
+            const purchasePriority = ["omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase", "offsite_conversion.custom.purchase", "onsite_conversion.purchase", "onsite_web_purchase"];
+            let conversions = 0;
+            let conversionValueCents = 0;
+            for (const pType of purchasePriority) {
+              const match = (i.actions || []).find((a: any) => a.action_type === pType);
+              if (match) { conversions = parseInt(match.value || "0"); break; }
+            }
+            for (const pType of purchasePriority) {
+              const match = (i.action_values || []).find((a: any) => a.action_type === pType);
+              if (match) { conversionValueCents = Math.round(parseFloat(match.value || "0") * 100); break; }
+            }
 
             const spendCents = Math.round(parseFloat(i.spend || "0") * 100);
 
