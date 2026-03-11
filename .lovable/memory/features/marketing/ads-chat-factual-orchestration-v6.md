@@ -1,9 +1,9 @@
 # Memory: features/marketing/ads-chat-factual-orchestration-v6
 Updated: 2026-03-11
 
-O Ads Chat (v6.6.0) implementa uma arquitetura dual-mode com orquestração determinística para consultas factuais E modo estratégico/generativo com convergência para o pipeline de aprovação existente.
+O Ads Chat (v6.7.0) implementa uma arquitetura dual-mode com orquestração determinística para consultas factuais E modo estratégico/generativo com convergência para o pipeline de aprovação existente.
 
-## Arquitetura Dual-Mode
+## Arquitetura Dual-Mode + Híbrido
 
 ### Modo Factual (orquestração determinística)
 - **Quando**: performance, targeting, campaigns_list, store_context, autopilot
@@ -16,6 +16,19 @@ O Ads Chat (v6.6.0) implementa uma arquitetura dual-mode com orquestração dete
 - **Convergência**: A ferramenta `submit_strategic_proposal` cria um registro `ads_autopilot_actions` com `action_type=strategic_plan` e `status=pending_approval`, convergindo para o MESMO pipeline de aprovação do Motor Estrategista
 - **IA**: Tem até 8 rounds de tool calls (vs 5 no conversacional) para coletar dados e montar proposta
 - **Regras**: Nunca executa direto — toda proposta vira artefato visual de aprovação
+
+### Modo Híbrido (v6.7.0 — NOVO)
+- **Quando**: Mensagem combina consulta factual + intenção estratégica/proposta/planejamento
+- **Exemplo**: "liste as campanhas e monte uma estratégia", "analise o desempenho e proponha melhorias"
+- **Detecção**: Classificador detecta `strategicPatterns` + `queryVerbs` na mesma mensagem
+- **Roteamento**: Vai para modo **strategic** (não factual), com flag `isHybrid: true`
+- **System Prompt**: Recebe instrução adicional "MODO HÍBRIDO ATIVO" que obriga a IA a:
+  1. Primeiro coletar os dados factuais solicitados via tools
+  2. Apresentar os dados de forma clara ao lojista
+  3. Usar esses dados como base para a proposta estratégica
+  4. Chamar `submit_strategic_proposal` com a proposta completa
+- **Prioridade**: Verbo estratégico VENCE verbo de consulta — o estratégico não é mais bloqueado por "listar/mostrar"
+- **Filosofia**: Não existe mais "winner-takes-all" em mensagens mistas. O híbrido garante que ambas as intenções são atendidas.
 
 ### Modo Conversacional (execução com tools)
 - **Quando**: write_meta, write_google, write_tiktok, creative, drive, general
@@ -33,13 +46,24 @@ O Ads Chat (v6.6.0) implementa uma arquitetura dual-mode com orquestração dete
 - **SEM fallback para v1**: Removido em v6.4.0 — erros retornam mensagem honesta ao usuário
 - **Invalidação**: Após stream, invalida `ads-pending-actions` para refletir propostas estratégicas criadas via chat
 
-## Classificação de Intenção (classifyIntent) — v6.6.0
+## Classificação de Intenção (classifyIntent) — v6.7.0
 - 12 categorias: performance, targeting, campaigns_list, store_context, autopilot, write_meta, write_google, write_tiktok, creative, drive, **strategic**, general
 - 3 modos: `factual` | `strategic` | `conversational`
 - Determinístico via regex, sem dependência de LLM
-- **Prioridade**: strategic patterns > bulk indicators > write patterns > factual patterns > **composite signal** > general
+- **Prioridade**: strategic patterns (SEM negative lookahead para query verbs) > bulk indicators > write patterns > factual patterns > **composite signal** > general
 
-### Composite Signal Detection (v6.6.0 — NOVO)
+### Mudança v6.7.0 — Remoção do Negative Lookahead
+- **Antes (v6.5.0)**: Strategic patterns tinham `!/list[ae]r?|mostrar?|quais\s+são|quanto|qual/i` como condição negativa
+- **Problema**: Frases como "liste as campanhas e monte uma estratégia" eram bloqueadas do strategic por causa de "liste"
+- **Depois (v6.7.0)**: Negative lookahead removido. Se strategic patterns matcham, vai para strategic independente de verbos de consulta
+- **Detecção de híbrido**: Quando ambos existem (strategic + query verbs), seta `isHybrid: true`
+
+### Expansão de Strategic Patterns (v6.7.0)
+- `aumentar\s+(vendas|roas|roi|resultado|conversões|faturamento)` — antes só cobria `vend|roas|resultado`
+- `melhorar\s+(roas|roi|cpa|vendas|conversões|faturamento)` — antes só cobria `resultado|performance|desempenho`
+- `otimizar\s+(roas|cpa|vendas)` — antes só cobria `campanha|resultado|funil`
+
+### Composite Signal Detection (v6.6.0)
 - **Problema resolvido**: Classificador dependia de frases literais, exigindo patches reativos a cada novo teste
 - **Solução**: Antes do fallback `general`, combina 4 categorias de sinais independentes:
   - `sigEntities`: campanha/adset/conjunto de anúncio/conta de anúncio
@@ -85,7 +109,7 @@ O Ads Chat (v6.6.0) implementa uma arquitetura dual-mode com orquestração dete
 - Propostas do chat convergem para o pipeline único: proposta → aprovação → execução
 
 ### Arquivos Relacionados
-- `supabase/functions/ads-chat-v2/index.ts` — Edge function dual-mode (v6.3.0)
+- `supabase/functions/ads-chat-v2/index.ts` — Edge function dual-mode (v6.7.0)
 - `supabase/functions/ads-chat/index.ts` — Edge function v1 [DEPRECADA — não mais usada como fallback]
 - `src/hooks/useAdsChat.ts` — Hook frontend chamando exclusivamente v2 (sem fallback v1)
 - `src/hooks/useAdsPendingActions.ts` — Hook de ações pendentes (exibe propostas do chat)
@@ -105,3 +129,7 @@ O Ads Chat (v6.6.0) implementa uma arquitetura dual-mode com orquestração dete
 - [ ] Anti-filler v2 NÃO ativa para category=general (proteção contra false positives)
 - [ ] Composite Signal Detection captura frases com 2+ sinais (entidade+verbo+filtro+métrica) como factual/performance (v6.6.0)
 - [ ] Composite Signal NÃO ativa quando há verbos de escrita (criar/pausar/ativar/alterar/duplicar)
+- [ ] **Mensagens híbridas (factual + strategic) são roteadas para strategic com isHybrid=true (v6.7.0)**
+- [ ] **Strategic patterns NÃO são bloqueados por verbos de consulta (listar/mostrar/quais são) (v6.7.0)**
+- [ ] **System prompt estratégico recebe instrução adicional "MODO HÍBRIDO" quando isHybrid=true (v6.7.0)**
+- [ ] **Strategic patterns expandidos cobrem melhorar/aumentar/otimizar + métricas específicas (v6.7.0)**
