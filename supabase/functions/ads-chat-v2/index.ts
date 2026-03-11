@@ -91,6 +91,14 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
 
   // ---- Pattern matching (ordered by specificity) ----
 
+  // DRILL-DOWN: adset/ad level analysis — MUST route to tool-calling path, NOT factual pre-resolution
+  // The factual orchestrator only resolves campaign-level data. Adset/ad analysis needs live tool calls.
+  if (/conjunto[s]?\s+de\s+anúncio|adset[s]?|anúncio[s]?\s+individual|por\s+conjunto|por\s+anúncio|nível\s+de\s+conjunto|nível\s+de\s+anúncio|drill[- ]?down|detalh[ae]r?\s+(campanha|conjunto|anúncio)|aprofund[ae]r?\s+(anális|campanha|conjunto)/i.test(msg) &&
+      !/cri[ae]r?|paus[ae]r?|ativ[ae]r?|alter[ae]r?/i.test(msg)) {
+    console.log(`[ads-chat-v2] Drill-down detected: routing to performance with tool-calling (NOT factual pre-resolution)`);
+    return { category: "performance", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.9 };
+  }
+
   // TARGETING (highest priority for targeting queries)
   if (/targeting|segmentação|segmentacao|público[s]?\s+(personalizado|semelhante|custom|lookalike)|audiência|interesse[s]?|demografi|faixa\s+etári|gênero|localização|posicionamento/i.test(msg) &&
       !/cri[ae]r?\s+(público|audiência|lookalike)|atualiz/i.test(msg)) {
