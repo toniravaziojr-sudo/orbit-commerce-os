@@ -5444,88 +5444,173 @@ Deno.serve(async (req) => {
       
       if (hasFillerPromise) {
         console.log(`[ads-chat][${VERSION}] FILLER DETECTED in direct text — forcing tool retry`);
-        // Retry with tool_choice required to force the AI to actually call tools
-        const retryMessages = [...aiMessages, { role: "assistant", content: directContent }, { role: "user", content: "SISTEMA: Você prometeu executar ações mas NÃO chamou nenhuma ferramenta. Isso é uma violação grave. EXECUTE AGORA as ferramentas. Para targeting/segmentação: chame get_meta_adsets primeiro, depois get_adset_targeting com os IDs. Para outros pedidos: use a ferramenta apropriada (get_campaign_performance, get_product_images, etc.). NÃO descreva o processo — EXECUTE." }];
+        // v5.35.0: Simplified retry - strip filler from messages, use minimal instruction, try with tool_choice required
+        const retrySystemMsg = aiMessages[0]; // keep system prompt
+        const lastUserMessage = aiMessages[aiMessages.length - 1]; // keep last user message only
+        const retryMessages = [
+          retrySystemMsg,
+          lastUserMessage,
+          { role: "user", content: "SISTEMA: NÃO RESPONDA COM TEXTO. CHAME UMA FERRAMENTA AGORA. Para targeting/segmentação: get_meta_adsets. Para performance: get_campaign_performance. EXECUTE." }
+        ];
         
-        const retryAbort = new AbortController();
-        const retryTimeout = setTimeout(() => retryAbort.abort(), AI_TIMEOUT_MS);
+        // Try up to 2 providers
+        const providersToTry = [endpoint];
+        // Try getting an alternative provider (OpenAI) as fallback
         try {
-          const retryResponse = await fetch(endpoint.url, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: endpoint.model, messages: retryMessages, tools: TOOLS, tool_choice: "required", stream: false }),
-            signal: retryAbort.signal,
-          });
-          clearTimeout(retryTimeout);
-          if (retryResponse.ok) {
+          const altEndpoint = await getAIEndpoint("openai/gpt-5-mini", { supabaseUrl, supabaseServiceKey });
+          if (altEndpoint.provider !== endpoint.provider) {
+            providersToTry.push(altEndpoint);
+          }
+        } catch { /* no alternative available */ }
+
+        let retrySucceeded = false;
+        for (const retryEndpoint of providersToTry) {
+          const retryAbort = new AbortController();
+          const retryTimeout = setTimeout(() => retryAbort.abort(), AI_TIMEOUT_MS);
+          try {
+            console.log(`[ads-chat][${VERSION}] Filler retry with provider: ${retryEndpoint.provider} (${retryEndpoint.model})`);
+            const retryResponse = await fetch(retryEndpoint.url, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${retryEndpoint.apiKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ model: retryEndpoint.model, messages: retryMessages, tools: TOOLS, tool_choice: "required", stream: false }),
+              signal: retryAbort.signal,
+            });
+            clearTimeout(retryTimeout);
+            if (!retryResponse.ok) {
+              const errText = await retryResponse.text();
+              console.error(`[ads-chat][${VERSION}] Filler retry ${retryEndpoint.provider} failed: ${retryResponse.status} ${errText}`);
+              continue;
+            }
             const retryResult = await retryResponse.json();
             const retryToolCalls = retryResult.choices?.[0]?.message?.tool_calls;
             if (retryToolCalls && retryToolCalls.length > 0) {
-              // Execute the tool calls and continue the loop
-              console.log(`[ads-chat][${VERSION}] Filler retry SUCCESS — ${retryToolCalls.length} tool calls recovered`);
-              let loopMessages = [...retryMessages];
+              // SUCCESS — Execute the tool calls in the standard loop
+              console.log(`[ads-chat][${VERSION}] Filler retry SUCCESS via ${retryEndpoint.provider} — ${retryToolCalls.length} tool calls recovered`);
+              retrySucceeded = true;
+              
+              // Use ORIGINAL endpoint for subsequent rounds (not the fallback)
+              let loopMessages = [...aiMessages]; // Use clean messages without filler
               let currentToolCalls = retryToolCalls;
               
-              for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-                console.log(`[ads-chat][${VERSION}] Filler-retry round ${round + 1}: ${currentToolCalls.map((t: any) => t.function.name).join(", ")}`);
-                const assistantMsg: any = { role: "assistant", content: "", tool_calls: currentToolCalls.map((tc: any) => ({ id: tc.id, type: "function", function: { name: tc.function.name, arguments: tc.function.arguments } })) };
-                loopMessages.push(assistantMsg);
-                
-                const toolPromises = currentToolCalls.map(async (tc: any) => {
-                  let args = {};
-                  try { args = JSON.parse(tc.function.arguments || "{}"); } catch { /* empty */ }
-                  const result = await executeTool(supabase, tenant_id, tc.function.name, args, chatSessionId, chatStrategyRunId);
-                  supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: null, tool_calls: [{ id: tc.id, function: { name: tc.function.name, arguments: tc.function.arguments } }] }).then(() => {}).catch((e: any) => console.error(`[ads-chat][${VERSION}] DB save error:`, e));
-                  return { tc_id: tc.id, result };
-                });
-                const toolResults = await Promise.allSettled(toolPromises);
-                for (const res of toolResults) {
-                  if (res.status === "fulfilled") {
-                    loopMessages.push({ role: "tool", tool_call_id: res.value.tc_id, content: res.value.result });
-                  } else {
-                    const idx = toolResults.indexOf(res);
-                    const tcId = currentToolCalls[idx]?.id || "unknown";
-                    loopMessages.push({ role: "tool", tool_call_id: tcId, content: JSON.stringify({ error: res.reason?.message || "Tool execution failed" }) });
-                  }
-                }
-                
-                const nextAbort2 = new AbortController();
-                const nextTimeout2 = setTimeout(() => nextAbort2.abort(), AI_TIMEOUT_MS);
+              // Use TransformStream for progress during filler-retry tool loop
+              const { readable: retryReadable, writable: retryWritable } = new TransformStream();
+              const retryWriter = retryWritable.getWriter();
+              const retryEncoder = new TextEncoder();
+              
+              const sendRetryProgress = async (label: string) => {
+                const event = `data: ${JSON.stringify({ type: "progress", label })}\n\n`;
+                await retryWriter.write(retryEncoder.encode(event));
+              };
+
+              (async () => {
                 try {
-                  const nextResp = await fetch(endpoint.url, {
+                  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+                    const toolNames = currentToolCalls.map((t: any) => t.function.name);
+                    console.log(`[ads-chat][${VERSION}] Filler-retry round ${round + 1}: ${toolNames.join(", ")}`);
+                    
+                    // Send progress
+                    const uniqueLabels = [...new Set(toolNames.map(toolProgressLabel))];
+                    for (const label of uniqueLabels) await sendRetryProgress(label);
+                    
+                    const assistantMsg: any = { role: "assistant", content: "", tool_calls: currentToolCalls.map((tc: any) => ({ id: tc.id, type: "function", function: { name: tc.function.name, arguments: tc.function.arguments } })) };
+                    loopMessages.push(assistantMsg);
+                    
+                    const toolPromises = currentToolCalls.map(async (tc: any) => {
+                      let args = {};
+                      try { args = JSON.parse(tc.function.arguments || "{}"); } catch { /* empty */ }
+                      const result = await executeTool(supabase, tenant_id, tc.function.name, args, chatSessionId, chatStrategyRunId);
+                      supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: null, tool_calls: [{ id: tc.id, function: { name: tc.function.name, arguments: tc.function.arguments } }] }).then(() => {}).catch((e: any) => console.error(`[ads-chat][${VERSION}] DB save error:`, e));
+                      return { tc_id: tc.id, result };
+                    });
+                    const toolResults = await Promise.allSettled(toolPromises);
+                    for (const res of toolResults) {
+                      if (res.status === "fulfilled") {
+                        loopMessages.push({ role: "tool", tool_call_id: res.value.tc_id, content: res.value.result });
+                      } else {
+                        const idx = toolResults.indexOf(res);
+                        const tcId = currentToolCalls[idx]?.id || "unknown";
+                        loopMessages.push({ role: "tool", tool_call_id: tcId, content: JSON.stringify({ error: res.reason?.message || "Tool execution failed" }) });
+                      }
+                    }
+                    
+                    await sendRetryProgress("Analisando dados");
+                    const nextAbort2 = new AbortController();
+                    const nextTimeout2 = setTimeout(() => nextAbort2.abort(), AI_TIMEOUT_MS);
+                    try {
+                      const nextResp = await fetch(endpoint.url, {
+                        method: "POST",
+                        headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
+                        body: JSON.stringify({ model: endpoint.model, messages: loopMessages, tools: TOOLS, stream: false }),
+                        signal: nextAbort2.signal,
+                      });
+                      clearTimeout(nextTimeout2);
+                      if (!nextResp.ok) break;
+                      const nextRes = await nextResp.json();
+                      const nextTC = nextRes.choices?.[0]?.message?.tool_calls;
+                      if (nextTC && nextTC.length > 0) { currentToolCalls = nextTC; continue; }
+                      const finalText = nextRes.choices?.[0]?.message?.content;
+                      if (finalText) {
+                        await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: finalText });
+                        if ((history || []).length <= 1) {
+                          await supabase.from("ads_chat_conversations").update({ title: (message || "").substring(0, 60), updated_at: new Date().toISOString() }).eq("id", convId);
+                        }
+                        await retryWriter.write(retryEncoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: finalText } }] })}\n\ndata: [DONE]\n\n`));
+                        await retryWriter.close();
+                        return;
+                      }
+                      break;
+                    } catch { clearTimeout(nextTimeout2); break; }
+                  }
+                  // Loop exhausted — stream final
+                  const finalStream2 = await fetch(endpoint.url, {
                     method: "POST",
                     headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
-                    body: JSON.stringify({ model: endpoint.model, messages: loopMessages, tools: TOOLS, stream: false }),
-                    signal: nextAbort2.signal,
+                    body: JSON.stringify({ model: endpoint.model, messages: loopMessages, stream: true }),
                   });
-                  clearTimeout(nextTimeout2);
-                  if (!nextResp.ok) break;
-                  const nextRes = await nextResp.json();
-                  const nextTC = nextRes.choices?.[0]?.message?.tool_calls;
-                  if (nextTC && nextTC.length > 0) { currentToolCalls = nextTC; continue; }
-                  const finalText = nextRes.choices?.[0]?.message?.content;
-                  if (finalText) {
-                    await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: finalText });
-                    const sseData = `data: ${JSON.stringify({ choices: [{ delta: { content: finalText } }] })}\n\ndata: [DONE]\n\n`;
-                    return new Response(sseData, { headers: { ...corsHeaders, "Content-Type": "text/event-stream", "X-Conversation-Id": convId } });
+                  if (finalStream2.ok) {
+                    const reader = finalStream2.body!.getReader();
+                    let fullContent = "";
+                    const decoder = new TextDecoder();
+                    while (true) {
+                      const { done, value } = await reader.read();
+                      if (done) break;
+                      await retryWriter.write(value);
+                      const chunk = decoder.decode(value, { stream: true });
+                      for (const line of chunk.split("\n")) {
+                        if (!line.startsWith("data: ")) continue;
+                        const jsonStr = line.slice(6).trim();
+                        if (jsonStr === "[DONE]") continue;
+                        try { const p = JSON.parse(jsonStr); const d = p.choices?.[0]?.delta?.content; if (d) fullContent += d; } catch {}
+                      }
+                    }
+                    if (fullContent) {
+                      await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: fullContent });
+                    }
                   }
-                  break;
-                } catch { clearTimeout(nextTimeout2); break; }
-              }
-              // If loop exhausted, stream final
-              const finalStream2 = await fetch(endpoint.url, {
-                method: "POST",
-                headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
-                body: JSON.stringify({ model: endpoint.model, messages: loopMessages, stream: true }),
-              });
-              if (finalStream2.ok) return streamAndSave(finalStream2, supabase, convId, tenant_id, message || "Anexo", history);
+                  await retryWriter.close();
+                } catch (e) {
+                  console.error(`[ads-chat][${VERSION}] Filler-retry loop error:`, e);
+                  try { await retryWriter.close(); } catch {}
+                }
+              })();
+
+              return new Response(retryReadable, { headers: { ...corsHeaders, "Content-Type": "text/event-stream", "X-Conversation-Id": convId } });
+            } else {
+              console.log(`[ads-chat][${VERSION}] Filler retry ${retryEndpoint.provider} returned no tool calls`);
             }
+          } catch (e: any) {
+            clearTimeout(retryTimeout);
+            console.error(`[ads-chat][${VERSION}] Filler retry ${retryEndpoint.provider} error:`, e.message);
           }
-        } catch (e) {
-          clearTimeout(retryTimeout);
-          console.error(`[ads-chat][${VERSION}] Filler retry failed:`, e);
         }
-        // If retry failed or didn't produce tools, fall through to original content
+        
+        if (!retrySucceeded) {
+          console.error(`[ads-chat][${VERSION}] ALL filler retries failed — sending error message instead of filler`);
+          const errorMsg = "⚠️ Não consegui executar a consulta. Por favor, **crie uma nova conversa** e pergunte novamente de forma direta (ex: \"Mostre o targeting dos meus adsets ativos\").";
+          await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: errorMsg });
+          const sseData = `data: ${JSON.stringify({ choices: [{ delta: { content: errorMsg } }] })}\n\ndata: [DONE]\n\n`;
+          return new Response(sseData, { headers: { ...corsHeaders, "Content-Type": "text/event-stream", "X-Conversation-Id": convId } });
+        }
       }
       
       await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: directContent });
