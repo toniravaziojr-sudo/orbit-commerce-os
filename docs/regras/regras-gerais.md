@@ -730,6 +730,7 @@ try {
 
 1. **formatCurrency dividia por 100** → Vendas e ticket médio apareciam 100x menores. Corrigido removendo `/100`.
 2. **Visitantes dependiam de GA4** → Label "Sincronize o GA4" bloqueava visualização. Corrigido com tracking interno próprio.
+3. **sendBeacon silenciosamente falhava** → `navigator.sendBeacon` não suporta headers customizados; PostgREST requer `Authorization: Bearer`. Resultado: 0 visitantes registrados. Corrigido trocando para `fetch()` com `keepalive:true`. **REGRA: NUNCA usar sendBeacon para PostgREST.**
 
 ---
 
