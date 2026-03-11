@@ -346,13 +346,8 @@ export default function Reviews() {
     );
   };
 
-  // Stats
-  const stats = {
-    total: reviews.length,
-    pending: reviews.filter((r) => r.status === 'pending').length,
-    approved: reviews.filter((r) => r.status === 'approved').length,
-    rejected: reviews.filter((r) => r.status === 'rejected').length,
-  };
+  // Use real count stats (not limited by query row cap)
+  const stats = reviewStats ?? { total: 0, pending: 0, approved: 0, rejected: 0 };
 
   if (reviewsError) {
     return (
