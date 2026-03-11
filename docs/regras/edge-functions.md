@@ -1340,6 +1340,22 @@ Schema estruturado obrigatório:
 
 **Nota**: Campanhas unitárias criadas via `create_meta_campaign` são criadas em status `PAUSED`, exigindo ativação posterior (manual ou via pipeline).
 
+### Escalação de Ações em Lote (v6.2.0 — REGRA DE SEGURANÇA)
+
+**Classificador (`bulkIndicators`)** — Força modo estratégico quando detecta:
+- Múltiplas campanhas: "criar 5 campanhas", "várias campanhas"
+- Múltiplos produtos: "campanha para cada produto", "todos os produtos"
+- Reestruturação: "reestruturar todo o funil", "reformular toda a estrutura"
+- Escala geral: "escalar todas as campanhas"
+- Números altos: "10 campanhas", "20 anúncios"
+
+**Prompt conversacional** — Instrui a IA a bloquear execução direta de:
+- Mais de 2 campanhas por solicitação
+- Mais de 3 adsets por solicitação
+- Ações para múltiplos produtos simultaneamente
+
+**Resultado**: Mensagem orienta o lojista a solicitar uma estratégia → proposta estruturada → aprovação.
+
 ### Roteamento Frontend (`useAdsChat` v6.1.0)
 
 ```
