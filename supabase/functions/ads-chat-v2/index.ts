@@ -195,7 +195,7 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
   }
 
   // GENERAL - conversation
-  return { category: "general", mode: "conversational", isFactual: false, entities, confidence: 0.5 };
+  return { category: "general", mode: "conversational", isFactual: false, isHybrid: false, entities, confidence: 0.5 };
 }
 
 // ======================================================================
