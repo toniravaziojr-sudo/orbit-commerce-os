@@ -719,7 +719,7 @@ Interface de chat dedicada para interação direta com a IA de tráfego, **separ
 
 > **Realtime habilitado** em ambas as tabelas para atualização em tempo real.
 
-##### Edge Function: `ads-chat`
+##### Edge Function: `ads-chat` (v5.26.0)
 
 | Campo | Valor |
 |---|---|
@@ -739,6 +739,17 @@ A IA atua como "consultor sênior de tráfego pago" com acesso a:
 - Insights abertos
 
 **Regras do prompt**: Markdown obrigatório, respeitar limites de budget por plataforma, nunca sugerir deletar (apenas pausar), diferenciar público frio/quente, responder em PT-BR.
+
+##### Regras de Dados em Tempo Real (v5.24.0–v5.26.0)
+
+| Regra | Descrição |
+|---|---|
+| **Fonte de Dados Live-First** | `fetchMetaCampaignsLive()` consulta diretamente a Meta Graph API (`/act_{id}/campaigns`) com paginação total. O banco local (`meta_ad_campaigns`) é usado apenas como fallback. |
+| **Default LIFETIME** | `getCampaignPerformance` usa `date_preset=maximum` por padrão quando nenhum parâmetro de tempo é informado. Busca dados desde a criação da conta. |
+| **8 Action Types de Conversão** | O parser de conversions suporta: `purchase`, `omni_purchase`, `offsite_conversion.fb_pixel_purchase`, `offsite_conversion.custom.purchase`, `onsite_conversion.purchase`, `onsite_web_purchase`, `onsite_web_app_purchase`, `web_in_store_purchase`. SOMA todos os matches (não usa `.find()`). |
+| **Paginação de Insights** | `fetchMetaInsightsLive` pagina até 15 páginas com delay de 2s entre páginas e retry automático para HTTP 429. |
+| **Nomes Exatos** | A IA é proibida de inventar, abreviar ou modificar nomes de campanhas. Deve usar strings exatas retornadas pela API. |
+| **Análise de Imagens** | O chat suporta Ctrl+V para colar screenshots do Gerenciador de Anúncios. Imagens são enviadas como attachments multimodais para validação cruzada dos dados. |
 
 ##### Regras de Matching de Produto (v1.14.0 / v5.13.0 — ATUALIZADO)
 
