@@ -151,6 +151,37 @@ SELECT add_credits(tenant_id, credits, bonus, idempotency_key, description);
 
 ---
 
+## Fluxo de Compra de Créditos (Mercado Pago)
+
+### Edge Functions
+
+| Function | Descrição |
+|----------|-----------|
+| `credits-purchase-checkout` | Cria preferência MP para compra de pacote de créditos (usa `MP_ACCESS_TOKEN` da plataforma) |
+| `billing-webhook` | Processa webhook do MP. Detecta `external_reference` com prefixo `credits\|` e adiciona créditos. |
+
+### Fluxo Completo
+
+```
+1. Usuário clica "Comprar" em um pacote na página Pacotes IA
+2. Frontend chama `credits-purchase-checkout` com tenant_id e package_id
+3. Edge Function cria preferência MP com external_reference: "credits|{tenant_id}|{package_id}|{idempotency_key}"
+4. Usuário é redirecionado ao checkout do Mercado Pago
+5. Após pagamento, MP envia webhook para `billing-webhook`
+6. billing-webhook detecta prefixo "credits|" no external_reference
+7. Verifica idempotência no credit_ledger (credits_delta > 0)
+8. Busca pacote em credit_packages
+9. Chama add_credits() para provisionar créditos na wallet
+10. Registra transação confirmada no credit_ledger
+11. Registra evento em billing_events (event_type: "credits.payment.approved")
+```
+
+### Retorno ao Frontend
+
+A página `AIPackages.tsx` detecta query params `?status=success|failure|pending` no retorno do MP e exibe toast correspondente.
+
+---
+
 ## Fluxo de Consumo
 
 ```

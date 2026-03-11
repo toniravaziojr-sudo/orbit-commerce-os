@@ -41,15 +41,17 @@ Página de configurações operacionais do sistema, acessível via **Menu Sistem
 |-------|-------|
 | **Tipo** | Componente / Tab |
 | **Localização** | `src/components/system-settings/PaymentSettingsTab.tsx` |
-| **Descrição** | Configuração de descontos reais por forma de pagamento e parcelamento |
-| **Hook** | `usePaymentMethodDiscounts` (`src/hooks/usePaymentMethodDiscounts.ts`) |
+| **Descrição** | Configuração de descontos reais e parcelamento por forma de pagamento, **separados por gateway** |
+| **Hook** | `usePaymentMethodDiscounts(provider?)` (`src/hooks/usePaymentMethodDiscounts.ts`) |
+| **Hook de providers** | `usePaymentProviders` (`src/hooks/usePaymentProviders.ts`) — lista gateways ativos |
 
 ### Tabela: `payment_method_discounts`
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
 | `id` | UUID | PK |
-| `tenant_id` | UUID | FK → tenants, UNIQUE com payment_method |
+| `tenant_id` | UUID | FK → tenants |
+| `provider` | TEXT | Gateway: `pagarme`, `mercadopago`, etc. Default: `pagarme` |
 | `payment_method` | TEXT | `pix`, `credit_card`, `boleto` |
 | `discount_type` | TEXT | `percentage` ou `fixed` |
 | `discount_value` | NUMERIC(10,2) | Valor do desconto |
@@ -57,6 +59,8 @@ Página de configurações operacionais do sistema, acessível via **Menu Sistem
 | `installments_max` | INTEGER | Parcelas máximas (default 12) |
 | `installments_min_value_cents` | INTEGER | Valor mínimo por parcela em centavos |
 | `description` | TEXT | Descrição opcional |
+
+**Unique constraint:** `(tenant_id, provider, payment_method)`
 
 ### RLS Policies
 
@@ -76,10 +80,11 @@ Página de configurações operacionais do sistema, acessível via **Menu Sistem
 
 ### Comportamento
 
-1. Ao abrir a aba, carrega configurações do banco (ou defaults se não existirem)
-2. Cada método de pagamento tem um card independente com toggle de ativação
-3. Usuário configura tipo de desconto, valor, e parcelas (cartão)
-4. Botão "Salvar" por método faz upsert na tabela `payment_method_discounts`
+1. Ao abrir a aba, verifica gateways ativos via `usePaymentProviders`
+2. Se **nenhum gateway ativo**: exibe alerta vermelho com link para Integrações
+3. Se há gateways ativos: exibe **abas por gateway** (ex: Pagar.me | Mercado Pago)
+4. Dentro de cada aba: cards de PIX/Cartão/Boleto com toggle, desconto e parcelas
+5. Botão "Salvar" por método faz upsert na tabela `payment_method_discounts` com `provider`
 
 ### Relação com Builder
 
@@ -87,7 +92,7 @@ Página de configurações operacionais do sistema, acessível via **Menu Sistem
 |-------|----------------|
 | **Builder > Checkout Settings** | Visibilidade de métodos (toggles show/hide) |
 | **Builder > Theme > PaymentMethodsConfig** | Ordem e badges visuais (ex: "5% OFF") |
-| **Sistema > Configurações > Pagamentos** | Descontos REAIS, parcelas, valores efetivos |
+| **Sistema > Configurações > Pagamentos** | Descontos REAIS, parcelas, valores efetivos — **por gateway** |
 
 > ⚠️ Avisos amarelos no Builder (CheckoutSettingsPanel e PaymentMethodsConfig) informam que as configurações visuais não aplicam descontos reais.
 
@@ -107,17 +112,19 @@ Página de configurações operacionais do sistema, acessível via **Menu Sistem
 |-------|-------|
 | **Tipo** | Regra Lógica |
 | **Localização** | `CheckoutStepWizard.tsx`, `useCheckoutPayment.ts`, `usePublicPaymentDiscounts.ts` |
-| **Descrição** | Descontos por forma de pagamento e parcelas são aplicados em tempo real no checkout |
+| **Descrição** | Descontos por forma de pagamento e parcelas são aplicados em tempo real no checkout, filtrados pelo gateway ativo |
 
 ### Fluxo
 
-1. `usePublicPaymentDiscounts(tenantId)` busca configurações ativas (RLS anon)
-2. `calculatePaymentMethodDiscount()` calcula o valor do desconto baseado no método selecionado
-3. O desconto é subtraído do `grandTotal` e exibido como linha separada no resumo do pedido
-4. `processPayment()` recebe `paymentMethodDiscount` e `installments` e os envia para as Edge Functions
-5. O `checkout-create-order` recebe `payment_method_discount` e `installments` no body e **salva na tabela `orders`** (campos `payment_method_discount`, `installments`, `installment_value`)
-6. O `pagarme-create-charge` recebe `installments` para configurar parcelamento no gateway
-7. O `total` enviado ao gateway **já inclui** a subtração do desconto por forma de pagamento (calculado no frontend)
+1. `useCheckoutPayment` identifica o `activeGateway` do tenant (`'pagarme'` ou `'mercadopago'`)
+2. `CheckoutStepWizard` mapeia para `providerKey` e passa a `usePublicPaymentDiscounts(tenantId, providerKey)`
+3. `usePublicPaymentDiscounts` busca configurações ativas **do gateway específico** (RLS anon)
+4. `calculatePaymentMethodDiscount()` calcula o valor do desconto baseado no método selecionado
+5. O desconto é subtraído do `grandTotal` e exibido como linha separada no resumo do pedido
+6. `processPayment()` recebe `paymentMethodDiscount` e `installments` e os envia para as Edge Functions
+7. O `checkout-create-order` recebe `payment_method_discount` e `installments` no body e **salva na tabela `orders`**
+8. O gateway function recebe `installments` para configurar parcelamento
+9. O `total` enviado ao gateway **já inclui** a subtração do desconto (calculado no frontend)
 
 ### Seletor de Parcelas
 
@@ -133,7 +140,7 @@ Página de configurações operacionais do sistema, acessível via **Menu Sistem
 
 | Hook | Arquivo | Descrição |
 |------|---------|-----------|
-| `usePublicPaymentDiscounts` | `src/hooks/usePublicPaymentDiscounts.ts` | Busca descontos habilitados (storefront, anon) |
+| `usePublicPaymentDiscounts(tenantId, provider?)` | `src/hooks/usePublicPaymentDiscounts.ts` | Busca descontos habilitados, filtrados por gateway (storefront, anon) |
 | `calculatePaymentMethodDiscount` | `src/hooks/usePublicPaymentDiscounts.ts` | Calcula valor do desconto |
 | `getMaxInstallments` | `src/hooks/usePublicPaymentDiscounts.ts` | Calcula parcelas máximas |
-| `usePaymentMethodDiscounts` | `src/hooks/usePaymentMethodDiscounts.ts` | CRUD admin para configuração |
+| `usePaymentMethodDiscounts(provider?)` | `src/hooks/usePaymentMethodDiscounts.ts` | CRUD admin para configuração por gateway |

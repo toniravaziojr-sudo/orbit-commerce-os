@@ -172,9 +172,10 @@ const footerPropsToInherit = [
 
 | Hook | Arquivo | Função |
 |------|---------|--------|
-| `useCheckoutPayment` | `hooks/useCheckoutPayment.ts` | Processamento de pagamento (multi-gateway) |
+| `useCheckoutPayment` | `hooks/useCheckoutPayment.ts` | Processamento de pagamento (multi-gateway). Expõe `activeGateway` para identificar o provedor ativo (`'pagarme'` ou `'mercadopago'`). |
 | `useCheckoutTestimonials` | `hooks/useCheckoutTestimonials.ts` | CRUD de testimonials |
 | `useActiveOfferRules` | `hooks/useOfferRules.ts` | Busca regras de Order Bump |
+| `usePublicPaymentDiscounts` | `hooks/usePublicPaymentDiscounts.ts` | Busca descontos/parcelas por forma de pagamento. Aceita `provider` opcional para filtrar por gateway. |
 
 ---
 
@@ -193,6 +194,8 @@ O `useCheckoutPayment` consulta a tabela `payment_providers` do tenant na montag
 - Se `mercado_pago` está habilitado → usa `mercadopago-create-charge`
 - Se `pagarme` está habilitado → usa `pagarme-create-charge`
 - Fallback: Pagar.me (comportamento legado)
+
+O gateway ativo é exposto como `activeGateway` no retorno do hook, e é utilizado pelo `CheckoutStepWizard` para passar o `providerKey` correto ao `usePublicPaymentDiscounts`, garantindo que descontos e parcelas sejam carregados do gateway específico.
 
 ---
 
@@ -536,7 +539,7 @@ O header e footer do checkout usam `StorefrontHeaderContent` e `StorefrontFooter
 
 ---
 
-## Descontos por Forma de Pagamento
+## Descontos por Forma de Pagamento (por Gateway)
 
 ### Tabela: `payment_method_discounts`
 
@@ -544,6 +547,7 @@ O header e footer do checkout usam `StorefrontHeaderContent` e `StorefrontFooter
 |-------|------|-----------|
 | `id` | UUID | PK |
 | `tenant_id` | UUID | FK → tenants |
+| `provider` | TEXT | Gateway de pagamento (`pagarme`, `mercadopago`, etc.). Default: `pagarme` |
 | `payment_method` | TEXT | `pix`, `credit_card`, `boleto` |
 | `discount_type` | TEXT | `percentage` ou `fixed` |
 | `discount_value` | NUMERIC | Valor do desconto (ex: 5.00 = 5%) |
@@ -552,17 +556,28 @@ O header e footer do checkout usam `StorefrontHeaderContent` e `StorefrontFooter
 | `installments_min_value_cents` | INTEGER | Valor mínimo por parcela em centavos |
 | `description` | TEXT | Descrição opcional exibida no checkout |
 
-### Configuração
+**Unique constraint:** `(tenant_id, provider, payment_method)` — cada combinação gateway + método é única.
+
+### Configuração (por Gateway)
 
 | Campo | Valor |
 |-------|-------|
 | **Tipo** | Config / Settings |
 | **Localização** | `src/pages/SystemSettings.tsx`, `src/components/system-settings/PaymentSettingsTab.tsx` |
 | **Contexto** | Menu Sistema → Configurações → Pagamentos |
-| **Descrição** | Permite configurar descontos REAIS por forma de pagamento (PIX, Cartão, Boleto) e parcelas |
-| **Comportamento** | Cada método tem toggle de ativação, tipo/valor de desconto, descrição e config de parcelas (cartão) |
-| **Hook** | `usePaymentMethodDiscounts` (`src/hooks/usePaymentMethodDiscounts.ts`) |
+| **Descrição** | Permite configurar descontos REAIS por forma de pagamento para cada gateway ativo |
+| **Comportamento** | Abas por gateway ativo (Pagar.me, Mercado Pago). Dentro de cada aba, PIX/Cartão/Boleto com toggle, desconto e parcelas. Se nenhum gateway ativo, exibe alerta com link para Integrações. |
+| **Hook** | `usePaymentMethodDiscounts(provider?)` (`src/hooks/usePaymentMethodDiscounts.ts`) |
 | **Afeta** | Valor final cobrado no checkout |
+
+### Alerta de Gateway
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Regra Visual / UX |
+| **Localização** | `PaymentSettingsTab.tsx` |
+| **Descrição** | Se nenhum gateway está ativo em `payment_providers`, exibe `Alert variant="destructive"` informando que é necessário configurar um operador de pagamento em Integrações. |
+| **Condição** | `providers.filter(p => p.is_enabled).length === 0` |
 
 ### Builder vs Configurações Reais
 
@@ -570,7 +585,7 @@ O header e footer do checkout usam `StorefrontHeaderContent` e `StorefrontFooter
 |-------|----------------|
 | **Builder > Checkout > Formas de Pagamento** | Visibilidade (toggles PIX/Boleto/Cartão) e labels visuais (badges como "5% OFF") |
 | **Builder > Theme > PaymentMethodsConfig** | Ordem de exibição e badges decorativos |
-| **Sistema > Configurações > Pagamentos** | Descontos REAIS, parcelas, valores que afetam a cobrança |
+| **Sistema > Configurações > Pagamentos** | Descontos REAIS, parcelas, valores que afetam a cobrança — **separados por gateway** |
 
 > ⚠️ Os avisos no Builder alertam o usuário que labels/badges são apenas visuais e que para aplicar descontos reais ele deve acessar Sistema → Configurações → Pagamentos.
 
@@ -581,6 +596,13 @@ O header e footer do checkout usam `StorefrontHeaderContent` e `StorefrontFooter
 | **Tipo** | Regra Visual / UX |
 | **Localização** | `CheckoutSettingsPanel.tsx`, `PaymentMethodsConfig.tsx` |
 | **Descrição** | Alert amarelo informando que toggles/labels são apenas visuais e que configurações reais estão em Sistema > Configurações > Pagamentos |
+
+### Fluxo no Checkout (Storefront)
+
+1. `useCheckoutPayment` identifica o `activeGateway` do tenant
+2. `CheckoutStepWizard` mapeia `activeGateway` para `providerKey` (`'pagarme'` ou `'mercadopago'`)
+3. `usePublicPaymentDiscounts(tenantId, providerKey)` carrega descontos **específicos do gateway ativo**
+4. `calculatePaymentMethodDiscount()` e `getMaxInstallments()` aplicam as regras ao total
 
 ---
 
