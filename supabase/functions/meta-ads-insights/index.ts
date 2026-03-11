@@ -181,17 +181,21 @@ Deno.serve(async (req) => {
         for (let start = 0; start < insights.length; start += UPSERT_BATCH) {
           const batch = insights.slice(start, start + UPSERT_BATCH);
           const rows = batch.map(i => {
-            // Priority-based deduplication: omni_purchase > purchase > others
-            const purchasePriority = ["omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase", "offsite_conversion.custom.purchase", "onsite_conversion.purchase", "onsite_web_purchase"];
+            // MAX-value deduplication: use the highest value across purchase action_types
+            const purchaseTypes = ["omni_purchase", "purchase", "offsite_conversion.fb_pixel_purchase", "offsite_conversion.custom.purchase", "onsite_conversion.purchase", "onsite_web_purchase"];
             let conversions = 0;
             let conversionValueCents = 0;
-            for (const pType of purchasePriority) {
-              const match = (i.actions || []).find((a: any) => a.action_type === pType);
-              if (match) { conversions = parseInt(match.value || "0"); break; }
+            for (const a of (i.actions || [])) {
+              if (purchaseTypes.includes(a.action_type)) {
+                const val = parseInt(a.value || "0");
+                if (val > conversions) conversions = val;
+              }
             }
-            for (const pType of purchasePriority) {
-              const match = (i.action_values || []).find((a: any) => a.action_type === pType);
-              if (match) { conversionValueCents = Math.round(parseFloat(match.value || "0") * 100); break; }
+            for (const a of (i.action_values || [])) {
+              if (purchaseTypes.includes(a.action_type)) {
+                const val = Math.round(parseFloat(a.value || "0") * 100);
+                if (val > conversionValueCents) conversionValueCents = val;
+              }
             }
 
             const spendCents = Math.round(parseFloat(i.spend || "0") * 100);

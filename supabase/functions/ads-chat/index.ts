@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.27.0"; // Fix: priority-based deduplication for conversions (no more double-counting)
+const VERSION = "v5.28.0"; // Fix: use MAX value across purchase action_types (not priority, not sum)
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -1370,11 +1370,12 @@ async function fetchMetaInsightsLive(supabase: any, tenantId: string, adAccountI
         const result = await response.json();
         
         for (const row of (result.data || [])) {
-          // Priority-based deduplication for purchase conversions
+          // MAX-value deduplication for purchase conversions
           // Meta reports the SAME purchase under multiple action_types simultaneously.
-          // omni_purchase is Meta's deduplicated total — use it first if available.
-          // NEVER sum across types — that causes double/triple counting.
-          const purchasePriority = [
+          // Different accounts use different primary action_types.
+          // Strategy: find the action_type with the HIGHEST value — that's the real count.
+          // NEVER sum across types (causes double counting).
+          const purchaseTypes = [
             "omni_purchase",
             "purchase",
             "offsite_conversion.fb_pixel_purchase",
@@ -1386,19 +1387,18 @@ async function fetchMetaInsightsLive(supabase: any, tenantId: string, adAccountI
           ];
           let conversions = 0;
           let convValue = 0;
-          // Use FIRST match in priority order (not sum)
-          for (const pType of purchasePriority) {
-            const actionMatch = (row.actions || []).find((a: any) => a.action_type === pType);
-            if (actionMatch) {
-              conversions = parseInt(actionMatch.value || "0");
-              break;
+          // Find the MAX conversion count across all purchase action_types
+          for (const a of (row.actions || [])) {
+            if (purchaseTypes.includes(a.action_type)) {
+              const val = parseInt(a.value || "0");
+              if (val > conversions) conversions = val;
             }
           }
-          for (const pType of purchasePriority) {
-            const valueMatch = (row.action_values || []).find((a: any) => a.action_type === pType);
-            if (valueMatch) {
-              convValue = parseFloat(valueMatch.value || "0");
-              break;
+          // Find the MAX conversion value across all purchase action_types
+          for (const a of (row.action_values || [])) {
+            if (purchaseTypes.includes(a.action_type)) {
+              const val = parseFloat(a.value || "0");
+              if (val > convValue) convValue = val;
             }
           }
           
