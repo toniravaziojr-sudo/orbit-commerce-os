@@ -220,11 +220,11 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_adset_targeting",
-      description: "Busca detalhes completos de targeting/segmentação de um ou mais conjuntos de anúncios direto da Meta API. Retorna: públicos personalizados, lookalikes, interesses, idade, gênero, geo, posicionamentos.",
+      description: "Busca detalhes completos de targeting/segmentação de conjuntos de anúncios direto da Meta API. Retorna: públicos personalizados, lookalikes, interesses, idade, gênero, geo, posicionamentos. Sem limite de timeout — busca todos os dados. Resultados são salvos no cache local.",
       parameters: {
         type: "object",
         properties: {
-          adset_ids: { type: "array", items: { type: "string" }, description: "Lista de IDs de adsets Meta (ex: ['23456789']). Máximo 10." },
+          adset_ids: { type: "array", items: { type: "string" }, description: "Lista de IDs de adsets Meta. Máximo 20." },
           ad_account_id: { type: "string", description: "ID da conta de anúncios (opcional, auto-detecta)" },
         },
         required: ["adset_ids"],
