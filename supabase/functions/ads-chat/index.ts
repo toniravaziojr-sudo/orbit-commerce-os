@@ -87,7 +87,7 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_ad_performance",
-      description: "Performance por anúncio individual com criativos vinculados. Essencial para saber qual criativo performa melhor.",
+      description: "Performance por anúncio individual com criativos vinculados E métricas reais (spend, clicks, conversions, ROAS, CPA) dos últimos 30 dias via Meta API. Essencial para saber qual criativo performa melhor.",
       parameters: {
         type: "object",
         properties: {
