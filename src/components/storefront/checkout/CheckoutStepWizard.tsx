@@ -43,6 +43,7 @@ import {
   captureCheckoutContact,
   endCheckoutSession,
 } from '@/lib/checkoutSession';
+import { usePublicPaymentDiscounts, calculatePaymentMethodDiscount, getMaxInstallments } from '@/hooks/usePublicPaymentDiscounts';
 
 type PaymentStatus = 'idle' | 'processing' | 'approved' | 'pending_payment' | 'failed';
 type CheckoutStep = 1 | 2 | 3 | 4;
