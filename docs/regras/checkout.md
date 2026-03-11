@@ -172,9 +172,10 @@ const footerPropsToInherit = [
 
 | Hook | Arquivo | Função |
 |------|---------|--------|
-| `useCheckoutPayment` | `hooks/useCheckoutPayment.ts` | Processamento de pagamento (multi-gateway) |
+| `useCheckoutPayment` | `hooks/useCheckoutPayment.ts` | Processamento de pagamento (multi-gateway). Expõe `activeGateway` para identificar o provedor ativo (`'pagarme'` ou `'mercadopago'`). |
 | `useCheckoutTestimonials` | `hooks/useCheckoutTestimonials.ts` | CRUD de testimonials |
 | `useActiveOfferRules` | `hooks/useOfferRules.ts` | Busca regras de Order Bump |
+| `usePublicPaymentDiscounts` | `hooks/usePublicPaymentDiscounts.ts` | Busca descontos/parcelas por forma de pagamento. Aceita `provider` opcional para filtrar por gateway. |
 
 ---
 
@@ -193,6 +194,8 @@ O `useCheckoutPayment` consulta a tabela `payment_providers` do tenant na montag
 - Se `mercado_pago` está habilitado → usa `mercadopago-create-charge`
 - Se `pagarme` está habilitado → usa `pagarme-create-charge`
 - Fallback: Pagar.me (comportamento legado)
+
+O gateway ativo é exposto como `activeGateway` no retorno do hook, e é utilizado pelo `CheckoutStepWizard` para passar o `providerKey` correto ao `usePublicPaymentDiscounts`, garantindo que descontos e parcelas sejam carregados do gateway específico.
 
 ---
 
