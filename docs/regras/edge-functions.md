@@ -248,7 +248,7 @@ await aiChatCompletionJSON(model, body, { preferProvider: 'lovable' }); // Apena
 | Reviews | `generate-reviews` |
 | Mídia & Criativos | `media-generate-copys`, `media-generate-suggestions`, `media-video-generate`, `creative-video-generate` |
 | Ads Autopilot | `ads-autopilot-analyze`, `ads-autopilot-creative-generate`, `ads-autopilot-guardian`, `ads-autopilot-experiments-run`, `ads-autopilot-generate-prompt`, `ads-autopilot-weekly-insights`, `ads-autopilot-strategist` |
-| Chat & Assistentes | `ads-chat`, `command-assistant-chat` |
+| Chat & Assistentes | `ads-chat-v2` (primary), `ads-chat` (v1 fallback), `command-assistant-chat` |
 | Landing Pages | `ai-landing-page-generate` |
 | Análise | `ai-analyze-page`, `ai-memory-manager` |
 | Mercado Livre | `meli-bulk-operations`, `meli-generate-description` |
