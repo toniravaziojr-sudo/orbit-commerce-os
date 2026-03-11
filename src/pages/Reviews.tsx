@@ -115,7 +115,30 @@ export default function Reviews() {
     enabled: !!currentTenantId,
   });
 
-  // Fetch reviews
+  // Fetch real stats via count queries (avoids 1000-row default limit)
+  const { data: reviewStats } = useQuery({
+    queryKey: ['product-reviews-stats', currentTenantId],
+    queryFn: async () => {
+      if (!currentTenantId) return { total: 0, pending: 0, approved: 0, rejected: 0 };
+
+      const [totalRes, pendingRes, approvedRes, rejectedRes] = await Promise.all([
+        supabase.from('product_reviews').select('*', { count: 'exact', head: true }).eq('tenant_id', currentTenantId),
+        supabase.from('product_reviews').select('*', { count: 'exact', head: true }).eq('tenant_id', currentTenantId).eq('status', 'pending'),
+        supabase.from('product_reviews').select('*', { count: 'exact', head: true }).eq('tenant_id', currentTenantId).eq('status', 'approved'),
+        supabase.from('product_reviews').select('*', { count: 'exact', head: true }).eq('tenant_id', currentTenantId).eq('status', 'rejected'),
+      ]);
+
+      return {
+        total: totalRes.count ?? 0,
+        pending: pendingRes.count ?? 0,
+        approved: approvedRes.count ?? 0,
+        rejected: rejectedRes.count ?? 0,
+      };
+    },
+    enabled: !!currentTenantId,
+  });
+
+  // Fetch reviews (paginated list for display)
   const { data: reviews = [], isLoading, error: reviewsError, refetch: refetchReviews } = useQuery({
     queryKey: ['product-reviews', currentTenantId, activeTab, productFilter],
     queryFn: async () => {
@@ -128,7 +151,8 @@ export default function Reviews() {
           product:product_id(id, name)
         `)
         .eq('tenant_id', currentTenantId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(500);
 
       if (activeTab !== 'all') {
         query = query.eq('status', activeTab);
@@ -186,6 +210,7 @@ export default function Reviews() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['product-reviews'] });
+      queryClient.invalidateQueries({ queryKey: ['product-reviews-stats'] });
       // Also invalidate product ratings to update stars on product pages
       queryClient.invalidateQueries({ queryKey: ['product-rating', data.productId] });
       queryClient.invalidateQueries({ queryKey: ['product-ratings-batch'] });
@@ -209,6 +234,7 @@ export default function Reviews() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-reviews'] });
+      queryClient.invalidateQueries({ queryKey: ['product-reviews-stats'] });
       toast.success('Avaliação excluída');
     },
     onError: () => {
@@ -265,6 +291,7 @@ export default function Reviews() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['product-reviews'] });
+      queryClient.invalidateQueries({ queryKey: ['product-reviews-stats'] });
       queryClient.invalidateQueries({ queryKey: ['product-ratings-batch'] });
       queryClient.invalidateQueries({ queryKey: ['files'] });
       const count = variables.ids.length;
@@ -288,6 +315,7 @@ export default function Reviews() {
     },
     onSuccess: (count) => {
       queryClient.invalidateQueries({ queryKey: ['product-reviews'] });
+      queryClient.invalidateQueries({ queryKey: ['product-reviews-stats'] });
       setSelectedIds(new Set());
       toast.success(`${count} avaliações excluídas`);
     },
@@ -322,13 +350,8 @@ export default function Reviews() {
     );
   };
 
-  // Stats
-  const stats = {
-    total: reviews.length,
-    pending: reviews.filter((r) => r.status === 'pending').length,
-    approved: reviews.filter((r) => r.status === 'approved').length,
-    rejected: reviews.filter((r) => r.status === 'rejected').length,
-  };
+  // Use real count stats (not limited by query row cap)
+  const stats = reviewStats ?? { total: 0, pending: 0, approved: 0, rejected: 0 };
 
   if (reviewsError) {
     return (
