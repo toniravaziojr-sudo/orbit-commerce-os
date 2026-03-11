@@ -5354,7 +5354,7 @@ Deno.serve(async (req) => {
                   const forceResp = await fetch(endpoint.url, {
                     method: "POST",
                     headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
-                    body: JSON.stringify({ model: endpoint.model, messages: loopMessages, tools: TOOLS, tool_choice: "required", stream: false }),
+                    body: JSON.stringify({ model: endpoint.model, messages: loopMessages, tools: TOOLS, stream: false }),
                     signal: forceAbort.signal,
                   });
                   clearTimeout(forceTimeout);
