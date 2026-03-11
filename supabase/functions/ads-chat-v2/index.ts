@@ -161,7 +161,7 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
 
   // AUTOPILOT
   if (/configuração|config|guardião|estrategista|plano\s+estratégico|ações?\s+da\s+ia|diagnóstico|insight|histórico\s+de\s+execuç|autopilot|teste[s]?\s+a\/?b|experiment/i.test(msg)) {
-    return { category: "autopilot", mode: "factual", isFactual: true, entities, confidence: 0.8 };
+    return { category: "autopilot", mode: "factual", isFactual: true, isHybrid: false, entities, confidence: 0.8 };
   }
 
   // STORE CONTEXT
