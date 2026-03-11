@@ -1695,6 +1695,44 @@ function buildFullPage(opts: {
   ${opts.newsletterPopupHtml || ''}
   ${opts.consentBannerHtml || ''}
   ${opts.marketingScripts || ''}
+  <!-- Internal Visit Tracking Beacon -->
+  <script>
+  (function(){
+    try{
+      var tid="${escapeHtml(opts.tenantId || '')}";
+      if(!tid)return;
+      var SU="${Deno.env.get('SUPABASE_URL')}";
+      var SK="${Deno.env.get('SUPABASE_ANON_KEY') || ''}";
+      // Get or create visitor ID cookie (365 days)
+      function gv(){
+        var m=document.cookie.match(/(?:^|;\\s*)_sf_vid=([^;]*)/);
+        if(m)return decodeURIComponent(m[1]);
+        var id='v_'+Math.random().toString(36).slice(2)+Date.now().toString(36);
+        var d=new Date();d.setFullYear(d.getFullYear()+1);
+        document.cookie="_sf_vid="+id+";path=/;expires="+d.toUTCString()+";SameSite=Lax";
+        return id;
+      }
+      var vid=gv();
+      // Determine page type from URL
+      var pp=location.pathname;
+      var pt="home";
+      if(pp.match(/\\/produto\\//))pt="product";
+      else if(pp.match(/\\/categoria\\//)||pp.match(/\\/colecao\\//))pt="category";
+      else if(pp.match(/\\/blog/))pt="blog";
+      else if(pp.match(/\\/cart|\\/carrinho/))pt="cart";
+      else if(pp.match(/\\/checkout/))pt="checkout";
+      else if(pp!=="/")pt="page";
+      // Fire beacon (non-blocking)
+      var body=JSON.stringify({tenant_id:tid,visitor_id:vid,page_path:pp,page_type:pt,referrer:document.referrer||null,user_agent:navigator.userAgent||null});
+      if(navigator.sendBeacon){
+        var blob=new Blob([body],{type:"application/json"});
+        navigator.sendBeacon(SU+"/rest/v1/storefront_visits?apikey="+SK,blob);
+      }else{
+        fetch(SU+"/rest/v1/storefront_visits",{method:"POST",headers:{"Content-Type":"application/json","apikey":SK,"Authorization":"Bearer "+SK,"Prefer":"return=minimal"},body:body,keepalive:true}).catch(function(){});
+      }
+    }catch(e){}
+  })();
+  </script>
 </body>
 </html>`;
 }
