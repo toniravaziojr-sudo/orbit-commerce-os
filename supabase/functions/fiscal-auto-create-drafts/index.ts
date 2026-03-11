@@ -141,6 +141,7 @@ serve(async (req) => {
     }
 
     // Get paid orders without invoices
+    // Check both 'paid' (legacy) and 'ready_to_invoice' (fiscal-operational workflow)
     const { data: paidOrders, error: ordersError } = await supabase
       .from('orders')
       .select(`
@@ -161,7 +162,8 @@ serve(async (req) => {
         customer:customers(id, full_name, cpf, email, phone)
       `)
       .eq('tenant_id', tenantId)
-      .eq('status', 'paid')
+      .eq('payment_status', 'approved')
+      .in('status', ['paid', 'ready_to_invoice'])
       .order('created_at', { ascending: false })
       .limit(50);
 
