@@ -1263,7 +1263,7 @@ Edge Function dual-mode que substitui `ads-chat` como endpoint primário. Implem
 - **12 categorias**: performance, targeting, campaigns_list, store_context, autopilot, write_meta, write_google, write_tiktok, creative, drive, strategic, general
 - **3 modos**: `factual` | `strategic` | `conversational`
 - **Determinístico**: Regex sem dependência de LLM
-- **Prioridade**: Strategic patterns são avaliados ANTES de write patterns para evitar classificação errada de "criar estratégia" como "criar campanha"
+- **Prioridade**: Strategic patterns > **Bulk indicators (v6.2.0)** > Write patterns > Factual patterns
 
 ### Orquestrador Factual (`orchestrateFactualQuery`)
 - **Performance**: Meta API live → consolidação campanhas+insights → JSON com summary/active/paused
