@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.32.0"; // Fix: targeting filler detection, prompt contradictions, expanded filler patterns
+const VERSION = "v5.33.0"; // Fix: filler detection inside tool loop (mid-loop filler was bypassing detection)
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -5251,9 +5251,61 @@ Deno.serve(async (req) => {
               continue;
             }
             
-            // No more tool calls — send final text
+            // No more tool calls — check for filler before sending final text
             const finalContent = nextChoice?.message?.content;
             if (finalContent) {
+              // FILLER DETECTION IN TOOL LOOP (v5.33.0): AI called tools once but then responded with filler instead of continuing
+              const loopFillerPatterns = [
+                /aguarde\s+(enquanto|enquanto\s+eu|um\s+momento|um\s+pouco)/i,
+                /vou\s+(começar|criar|gerar|preparar|disparar|montar|buscar|consultar|acessar|recuperar|coletar|analisar)/i,
+                /estou\s+(preparando|criando|gerando|montando|buscando|realizando|consultando|acessando|recuperando|coletando|trabalhando|chamando)/i,
+                /dê-me\s+um\s+momento/i,
+                /por\s+favor,?\s+aguarde/i,
+                /aguarde\s+um\s+(pouco|momento|instante)/i,
+                /é\s+um\s+processo\s+que\s+envolve/i,
+                /primeiro.*depois.*por\s+fim/is,
+                /em\s+etapas.*para\s+garantir/i,
+                /nova\s+tentativa.*mais\s+robusto/i,
+                /esse\s+processo\s+envolve/i,
+                /isso\s+pode\s+levar\s+alguns\s+momentos/i,
+                /assim\s+que\s+tiver\s+os\s+dados/i,
+                /compilar\s+(todas\s+as\s+)?informações/i,
+                /múltiplas\s+chamadas\s+à\s+API/i,
+              ];
+              const hasLoopFiller = loopFillerPatterns.some(p => p.test(finalContent));
+              
+              if (hasLoopFiller && round < MAX_TOOL_ROUNDS - 1) {
+                console.log(`[ads-chat][${VERSION}] FILLER DETECTED in tool loop round ${round + 1} — forcing tool retry`);
+                // Push the filler as context and force tool execution
+                loopMessages.push({ role: "assistant", content: finalContent });
+                loopMessages.push({ role: "user", content: "SISTEMA: Você retornou texto descritivo em vez de executar as ferramentas. Isso é PROIBIDO. EXECUTE AGORA: Para targeting/segmentação → get_meta_adsets + get_adset_targeting. Para dados de campanhas → get_campaign_performance. NÃO descreva — EXECUTE." });
+                
+                const forceAbort = new AbortController();
+                const forceTimeout = setTimeout(() => forceAbort.abort(), AI_TIMEOUT_MS);
+                try {
+                  const forceResp = await fetch(endpoint.url, {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({ model: endpoint.model, messages: loopMessages, tools: TOOLS, tool_choice: "required", stream: false }),
+                    signal: forceAbort.signal,
+                  });
+                  clearTimeout(forceTimeout);
+                  if (forceResp.ok) {
+                    const forceResult = await forceResp.json();
+                    const forcedToolCalls = forceResult.choices?.[0]?.message?.tool_calls;
+                    if (forcedToolCalls && forcedToolCalls.length > 0) {
+                      console.log(`[ads-chat][${VERSION}] Loop filler retry SUCCESS — ${forcedToolCalls.length} tool calls recovered`);
+                      currentToolCalls = forcedToolCalls;
+                      continue;
+                    }
+                  }
+                } catch (forceErr: any) {
+                  clearTimeout(forceTimeout);
+                  console.error(`[ads-chat][${VERSION}] Loop filler retry failed:`, forceErr.message);
+                }
+              }
+              
+              // No filler or retry failed — send as final
               await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: finalContent });
               if ((history || []).length <= 1) {
                 await supabase.from("ads_chat_conversations").update({ title: (message || "").substring(0, 60), updated_at: new Date().toISOString() }).eq("id", convId);
