@@ -145,7 +145,6 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
 
     try {
       const CHAT_V2_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ads-chat-v2`;
-      const CHAT_V1_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ads-chat`;
       const { data: { session } } = await supabase.auth.getSession();
 
       const requestBody = JSON.stringify({
@@ -163,49 +162,16 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
         Authorization: `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       };
 
-      // Try v2 first
-      let resp: Response;
-      let usedV1Fallback = false;
-
-      try {
-        resp = await fetch(CHAT_V2_URL, {
-          method: "POST",
-          headers,
-          body: requestBody,
-          signal: controller.signal,
-        });
-
-        // If v2 returns a non-recoverable error (not auth/validation), fallback to v1
-        if (!resp.ok && resp.status >= 500) {
-          console.warn("[useAdsChat] v2 returned error, falling back to v1");
-          resp = await fetch(CHAT_V1_URL, {
-            method: "POST",
-            headers,
-            body: requestBody,
-            signal: controller.signal,
-          });
-          usedV1Fallback = true;
-        }
-      } catch (fetchErr: any) {
-        if (fetchErr.name === "AbortError") throw fetchErr;
-        // Network error on v2 — try v1
-        console.warn("[useAdsChat] v2 network error, falling back to v1:", fetchErr.message);
-        resp = await fetch(CHAT_V1_URL, {
-          method: "POST",
-          headers,
-          body: requestBody,
-          signal: controller.signal,
-        });
-        usedV1Fallback = true;
-      }
+      const resp = await fetch(CHAT_V2_URL, {
+        method: "POST",
+        headers,
+        body: requestBody,
+        signal: controller.signal,
+      });
 
       if (!resp.ok) {
         const errData = await resp.json().catch(() => ({}));
-        throw new Error(errData.error || `Error: ${resp.status}`);
-      }
-
-      if (usedV1Fallback) {
-        console.info("[useAdsChat] Successfully fell back to v1");
+        throw new Error(errData.error || `Erro ao processar mensagem (${resp.status})`);
       }
 
       // Get conversation ID from header

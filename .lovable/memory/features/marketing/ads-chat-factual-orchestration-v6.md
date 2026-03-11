@@ -28,9 +28,9 @@ O Ads Chat (v6.3.0) implementa uma arquitetura dual-mode com orquestração dete
 - **Prompt conversacional**: Instrui a IA a NÃO executar direto quando detectar >2 campanhas, >3 adsets, ou múltiplos produtos — deve informar que ações em lote exigem proposta estruturada
 - **Objetivo**: Impedir que ações estruturais grandes passem pelo modo conversacional sem aprovação
 
-## Roteamento Frontend (useAdsChat v6.2.0)
-- **Primary**: ads-chat-v2 (todos os modos)
-- **Fallback**: ads-chat (v1) quando v2 retornar erro 500+ ou falha de rede
+## Roteamento Frontend (useAdsChat v6.4.0)
+- **Primary**: ads-chat-v2 (todos os modos) — ÚNICA edge function chamada
+- **SEM fallback para v1**: Removido em v6.4.0 — erros retornam mensagem honesta ao usuário
 - **Invalidação**: Após stream, invalida `ads-pending-actions` para refletir propostas estratégicas criadas via chat
 
 ## Classificação de Intenção (classifyIntent) — v6.3.0
@@ -74,18 +74,18 @@ O Ads Chat (v6.3.0) implementa uma arquitetura dual-mode com orquestração dete
 
 ### Arquivos Relacionados
 - `supabase/functions/ads-chat-v2/index.ts` — Edge function dual-mode (v6.3.0)
-- `supabase/functions/ads-chat/index.ts` — Edge function v1 (fallback, v5.36.0)
-- `src/hooks/useAdsChat.ts` — Hook frontend com roteamento v2→v1
+- `supabase/functions/ads-chat/index.ts` — Edge function v1 [DEPRECADA — não mais usada como fallback]
+- `src/hooks/useAdsChat.ts` — Hook frontend chamando exclusivamente v2 (sem fallback v1)
 - `src/hooks/useAdsPendingActions.ts` — Hook de ações pendentes (exibe propostas do chat)
 
 ### Checklist Anti-Regressão
 - [ ] Intenções factuais usam orquestração backend (sem tool calling para dados)
 - [ ] Intenções estratégicas usam `submit_strategic_proposal` (nunca executam direto)
 - [ ] Propostas estratégicas do chat criam `ads_autopilot_actions` com `pending_approval`
-- [ ] Frontend faz fallback para v1 quando v2 falha (500+ ou network error)
+- [ ] Frontend NÃO faz fallback para v1 — erros são exibidos de forma honesta (v6.4.0)
 - [ ] `ads-pending-actions` é invalidado após stream para refletir novas propostas
 - [ ] Modo estratégico tem 8 rounds de tool calls (vs 5 no conversacional)
-- [ ] Anti-filler e regexes existem apenas como camada defensiva na v1
+- [ ] Anti-filler existe apenas como camada defensiva DENTRO do v2 (sem dependência de v1)
 - [ ] Ações em lote (múltiplas campanhas/adsets/produtos) são escaladas para modo estratégico
 - [ ] Prompt conversacional bloqueia execução direta de >2 campanhas ou >3 adsets
 - [ ] Classificador cobre frases naturais: "consegue consultar", "me mostra", "quero ver", "como estão" (v6.3.0)
