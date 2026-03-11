@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.34.0"; // Fix: v5.33 was not deployed + expanded filler patterns to 24+ regexes covering all observed AI evasion phrases
+const VERSION = "v5.35.0"; // Fix: add tool_choice auto/required, sanitize filler from history, fix silent fallthrough
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
