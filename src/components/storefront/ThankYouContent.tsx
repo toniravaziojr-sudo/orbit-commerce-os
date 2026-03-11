@@ -48,6 +48,7 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
   const [copied, setCopied] = useState(false);
   const [user, setUser] = useState<any>(null);
   const { trackPurchase } = useMarketingEvents();
+  const { tracker } = useMarketingTracker();
   const { config: checkoutConfig } = useCheckoutConfig();
   const purchaseTrackedRef = useRef<string | null>(null);
   
