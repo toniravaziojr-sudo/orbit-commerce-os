@@ -2737,8 +2737,11 @@ async function fetchMetaAdsetsLive(supabase: any, tenantId: string, adAccountId?
       let url = `https://graph.facebook.com/${GRAPH_VERSION}/act_${cleanId}/adsets?fields=${fields}&limit=200${statusFilter ? filtering : campaignFilter}&access_token=${conn.access_token}`;
       
       let pageCount = 0;
-      while (url && pageCount < 5) {
-        const response = await fetch(url);
+      while (url && pageCount < 3) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeout);
         if (!response.ok) break;
         const result = await response.json();
         if (result.error) {
