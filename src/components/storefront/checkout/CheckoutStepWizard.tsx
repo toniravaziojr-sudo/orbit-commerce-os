@@ -43,6 +43,7 @@ import {
   captureCheckoutContact,
   endCheckoutSession,
 } from '@/lib/checkoutSession';
+import { usePublicPaymentDiscounts, calculatePaymentMethodDiscount, getMaxInstallments } from '@/hooks/usePublicPaymentDiscounts';
 
 type PaymentStatus = 'idle' | 'processing' | 'approved' | 'pending_payment' | 'failed';
 type CheckoutStep = 1 | 2 | 3 | 4;
@@ -77,6 +78,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   const { customDomain } = useCanonicalDomain();
   const { config: checkoutConfig } = useCheckoutConfig();
   const { trackInitiateCheckout, trackLead, trackAddShippingInfo, trackAddPaymentInfo, trackPurchase } = useMarketingEvents();
+  const { data: paymentDiscounts = [] } = usePublicPaymentDiscounts(tenantId);
   
   // Get canonical origin for auth redirects (custom domain or platform subdomain)
   const canonicalOrigin = getCanonicalOrigin(customDomain, tenantSlug || '');
@@ -96,6 +98,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
   const [isExistingCustomer, setIsExistingCustomer] = useState(false);
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+  const [selectedInstallments, setSelectedInstallments] = useState(1);
 
   // Checkout session tracking refs
   const sessionStartedRef = useRef(false);
@@ -112,12 +115,38 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     ? (shipping.selected ? { ...shipping.selected, isFree: true, price: 0 } : shipping.selected)
     : shipping.selected;
 
-  // Use centralized totals
-  const totals = calculateCartTotals({
+  // Use centralized totals (before payment method discount)
+  const baseTotals = calculateCartTotals({
     items,
     selectedShipping: effectiveShipping,
     discountAmount,
   });
+
+  // Payment method discount (real, from tenant config)
+  const paymentMethodDiscountAmount = calculatePaymentMethodDiscount(
+    paymentDiscounts,
+    paymentMethod,
+    baseTotals.grandTotal,
+  );
+  
+  // Final totals with payment method discount applied
+  const totals = {
+    ...baseTotals,
+    paymentMethodDiscount: paymentMethodDiscountAmount,
+    grandTotal: Math.max(0, baseTotals.grandTotal - paymentMethodDiscountAmount),
+  };
+
+  // Max installments from config
+  const maxInstallments = getMaxInstallments(paymentDiscounts, totals.grandTotal);
+  
+  // Reset installments when payment method changes or max changes
+  useEffect(() => {
+    if (paymentMethod !== 'credit_card') {
+      setSelectedInstallments(1);
+    } else if (selectedInstallments > maxInstallments) {
+      setSelectedInstallments(maxInstallments);
+    }
+  }, [paymentMethod, maxInstallments]);
 
   // ===== MARKETING: Track InitiateCheckout on mount =====
   const initiateCheckoutTrackedRef = useRef(false);
@@ -578,6 +607,14 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           discount_amount: discountAmount,
           free_shipping: appliedDiscount.free_shipping,
         } : undefined,
+        // Payment method discount (real, from tenant config)
+        paymentMethodDiscount: paymentMethodDiscountAmount > 0 ? {
+          amount: paymentMethodDiscountAmount,
+          type: paymentDiscounts.find(d => d.payment_method === paymentMethod)?.discount_type || 'percentage',
+          value: paymentDiscounts.find(d => d.payment_method === paymentMethod)?.discount_value || 0,
+          method: paymentMethod,
+        } : undefined,
+        installments: paymentMethod === 'credit_card' ? selectedInstallments : 1,
         // Attribution & affiliate for conversion tracking
         attribution: attribution || undefined,
         affiliate: affiliate || undefined,
@@ -789,6 +826,11 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
                 showPix={checkoutConfig.showPix}
                 showBoleto={checkoutConfig.showBoleto}
                 showCreditCard={checkoutConfig.showCreditCard}
+                maxInstallments={maxInstallments}
+                selectedInstallments={selectedInstallments}
+                onInstallmentsChange={setSelectedInstallments}
+                grandTotal={totals.grandTotal}
+                paymentMethodDiscountAmount={paymentMethodDiscountAmount}
               />
             )}
 
@@ -876,6 +918,8 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
               shipping={effectiveShipping} 
               appliedDiscount={appliedDiscount}
               freeShipping={hasFreeShipping}
+              paymentMethodDiscountAmount={paymentMethodDiscountAmount}
+              paymentMethod={paymentMethod}
             />
           </div>
         </div>
@@ -1320,6 +1364,11 @@ function Step4Payment({
   showPix,
   showBoleto,
   showCreditCard,
+  maxInstallments,
+  selectedInstallments,
+  onInstallmentsChange,
+  grandTotal,
+  paymentMethodDiscountAmount,
 }: { 
   disabled: boolean;
   paymentMethod: PaymentMethod;
@@ -1331,6 +1380,11 @@ function Step4Payment({
   showPix?: boolean;
   showBoleto?: boolean;
   showCreditCard?: boolean;
+  maxInstallments: number;
+  selectedInstallments: number;
+  onInstallmentsChange: (n: number) => void;
+  grandTotal: number;
+  paymentMethodDiscountAmount: number;
 }) {
   return (
     <div className="space-y-6">
@@ -1351,6 +1405,46 @@ function Step4Payment({
         showBoleto={showBoleto}
         showCreditCard={showCreditCard}
       />
+
+      {/* Payment method discount info */}
+      {paymentMethodDiscountAmount > 0 && (
+        <div className="flex items-center gap-2 p-3 rounded-lg border" style={{ borderColor: 'var(--theme-accent-color, hsl(var(--primary)))', backgroundColor: 'hsl(var(--primary) / 0.05)' }}>
+          <Tag className="h-4 w-4" style={{ color: 'var(--theme-accent-color, hsl(var(--primary)))' }} />
+          <span className="text-sm font-medium" style={{ color: 'var(--theme-accent-color, hsl(var(--primary)))' }}>
+            Desconto de {formatCurrency(paymentMethodDiscountAmount)} aplicado!
+          </span>
+        </div>
+      )}
+
+      {/* Installments selector for credit card */}
+      {paymentMethod === 'credit_card' && maxInstallments > 1 && (
+        <div className="border rounded-lg p-4">
+          <Label className="text-sm font-semibold mb-2 block">Parcelas</Label>
+          <RadioGroup
+            value={String(selectedInstallments)}
+            onValueChange={(v) => onInstallmentsChange(parseInt(v))}
+            className="space-y-2"
+            disabled={disabled}
+          >
+            {Array.from({ length: maxInstallments }, (_, i) => i + 1).map(n => {
+              const installmentValue = grandTotal / n;
+              return (
+                <Label
+                  key={n}
+                  htmlFor={`installment-${n}`}
+                  className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-muted/50 has-[:checked]:border-primary has-[:checked]:bg-primary/5"
+                >
+                  <RadioGroupItem value={String(n)} id={`installment-${n}`} disabled={disabled} />
+                  <span className="flex-1 text-sm">
+                    {n}x de {formatCurrency(installmentValue)} {n === 1 ? '(à vista)' : 'sem juros'}
+                  </span>
+                  {n === 1 && <span className="text-xs font-medium text-muted-foreground">{formatCurrency(grandTotal)}</span>}
+                </Label>
+              );
+            })}
+          </RadioGroup>
+        </div>
+      )}
     </div>
   );
 }
@@ -1362,13 +1456,19 @@ function OrderSummarySidebar({
   shipping,
   appliedDiscount,
   freeShipping,
+  paymentMethodDiscountAmount = 0,
+  paymentMethod,
 }: { 
   items: any[];
-  totals: ReturnType<typeof calculateCartTotals>;
+  totals: { subtotal: number; shippingTotal: number; discountTotal: number; grandTotal: number; itemCount: number; totalItems: number; paymentMethodDiscount?: number };
   shipping: any;
   appliedDiscount?: AppliedDiscount | null;
   freeShipping?: boolean;
+  paymentMethodDiscountAmount?: number;
+  paymentMethod?: string;
 }) {
+  const methodLabel = paymentMethod === 'pix' ? 'PIX' : paymentMethod === 'boleto' ? 'Boleto' : paymentMethod === 'credit_card' ? 'Cartão' : '';
+
   return (
     <div className="bg-card border rounded-lg p-4">
       <h3 className="font-semibold mb-4">Resumo do pedido</h3>
@@ -1416,7 +1516,7 @@ function OrderSummarySidebar({
           </div>
         )}
 
-        {/* Discount line */}
+        {/* Coupon discount line */}
         {(totals.discountTotal > 0 || appliedDiscount) && (
           <div className="flex justify-between" style={{ color: 'var(--theme-accent-color, #22c55e)' }}>
             <span className="flex items-center gap-1">
@@ -1427,6 +1527,17 @@ function OrderSummarySidebar({
               )}
             </span>
             <span>- {formatCurrency(totals.discountTotal)}</span>
+          </div>
+        )}
+
+        {/* Payment method discount line */}
+        {paymentMethodDiscountAmount > 0 && (
+          <div className="flex justify-between" style={{ color: 'var(--theme-accent-color, #22c55e)' }}>
+            <span className="flex items-center gap-1">
+              <CreditCard className="h-3.5 w-3.5" />
+              Desconto {methodLabel}
+            </span>
+            <span>- {formatCurrency(paymentMethodDiscountAmount)}</span>
           </div>
         )}
 

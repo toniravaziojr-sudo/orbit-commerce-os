@@ -116,6 +116,8 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     discount,
     attribution,
     affiliate,
+    paymentMethodDiscount,
+    installments,
   }: {
     method: PaymentMethod;
     items: CartItem[];
@@ -127,6 +129,8 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     discount?: DiscountData;
     attribution?: AttributionData;
     affiliate?: AffiliateData;
+    paymentMethodDiscount?: { amount: number; type: string; value: number; method: string };
+    installments?: number;
   }): Promise<PaymentResult> => {
     setIsProcessing(true);
     setPaymentResult(null);
@@ -145,9 +149,12 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
       const allItemsFreeShipping = items.length > 0 && items.every(item => (item as any).free_shipping === true);
       const hasFreeShipping = allItemsFreeShipping || discount?.free_shipping;
       const effectiveShippingTotal = hasFreeShipping ? 0 : shippingTotal;
-      const total = Math.max(0, subtotal - discountAmount + effectiveShippingTotal);
       
-      console.log('[Checkout] Totals:', { subtotal, shippingTotal: effectiveShippingTotal, discountAmount, total });
+      // Payment method discount (real, from tenant config)
+      const pmDiscountAmount = paymentMethodDiscount?.amount || 0;
+      const total = Math.max(0, subtotal - discountAmount - pmDiscountAmount + effectiveShippingTotal);
+      
+      console.log('[Checkout] Totals:', { subtotal, shippingTotal: effectiveShippingTotal, discountAmount, pmDiscountAmount, total });
 
       // 1. Create order OR reuse existing pending order (avoids duplicates on retry)
       let orderId: string;
@@ -196,7 +203,9 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
             subtotal,
             shipping_total: effectiveShippingTotal,
             discount_total: discountAmount,
+            payment_method_discount: pmDiscountAmount,
             total,
+            installments: installments || 1,
             discount: discount ? {
               discount_id: discount.discount_id,
               discount_code: discount.discount_code,
@@ -275,6 +284,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
             exp_year: parseInt(card.expYear, 10),
             cvv: card.cvv,
           } : undefined,
+          installments: method === 'credit_card' ? (installments || 1) : 1,
         },
       });
 
