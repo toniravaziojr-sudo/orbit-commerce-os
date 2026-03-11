@@ -4438,8 +4438,8 @@ NUNCA exponha termos técnicos internos. Use SEMPRE a linguagem da interface.
 | get_creative_assets | ver criativos existentes |
 | get_tracking_health | verificar saúde do pixel |
 | get_experiments | ver testes A/B |
-| get_meta_adsets | ver conjuntos de anúncios (use live=true para targeting completo) |
-| get_adset_targeting | buscar targeting detalhado de adsets específicos (audiences, interesses, geo) |
+| get_meta_adsets | ver conjuntos de anúncios (SEM live=true para targeting — use get_adset_targeting) |
+| get_adset_targeting | buscar targeting detalhado de adsets específicos (audiences, interesses, geo) — até 20 IDs por vez, com cache automático |
 | get_meta_ads | ver anúncios |
 | get_audiences | ver públicos |
 | get_products | ver catálogo |
