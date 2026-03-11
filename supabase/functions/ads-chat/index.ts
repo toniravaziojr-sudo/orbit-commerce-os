@@ -2805,7 +2805,10 @@ async function getAdsetTargeting(supabase: any, tenantId: string, adsetIds: stri
     try {
       const fields = "id,name,status,effective_status,targeting,campaign_id,optimization_goal,promoted_object,daily_budget,lifetime_budget";
       const url = `https://graph.facebook.com/${GRAPH_VERSION}/${adsetId}?fields=${fields}&access_token=${conn.access_token}`;
-      const response = await fetch(url);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeout);
       if (!response.ok) {
         results.push({ adset_id: adsetId, error: `HTTP ${response.status}` });
         continue;
