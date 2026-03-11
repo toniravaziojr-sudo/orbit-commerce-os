@@ -74,8 +74,8 @@ O Ads Chat (v6.3.0) implementa uma arquitetura dual-mode com orquestração dete
 
 ### Arquivos Relacionados
 - `supabase/functions/ads-chat-v2/index.ts` — Edge function dual-mode (v6.3.0)
-- `supabase/functions/ads-chat/index.ts` — Edge function v1 (fallback, v5.36.0)
-- `src/hooks/useAdsChat.ts` — Hook frontend com roteamento v2→v1
+- `supabase/functions/ads-chat/index.ts` — Edge function v1 [DEPRECADA — não mais usada como fallback]
+- `src/hooks/useAdsChat.ts` — Hook frontend chamando exclusivamente v2 (sem fallback v1)
 - `src/hooks/useAdsPendingActions.ts` — Hook de ações pendentes (exibe propostas do chat)
 
 ### Checklist Anti-Regressão
