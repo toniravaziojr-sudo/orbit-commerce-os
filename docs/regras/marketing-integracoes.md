@@ -753,12 +753,12 @@ A IA atua como "consultor sênior de tráfego pago" com acesso a:
 | **Fluxo de Targeting Sync & Cache (v5.31.0–v5.32.0)** | Para consultar targeting/segmentação: **Passo 1** — `get_meta_adsets` (DB, sem live=true) para obter IDs dos adsets. **Passo 2** — `get_adset_targeting` com IDs específicos (até 20 por vez) para buscar targeting completo da Meta API. Resultados são automaticamente cacheados no `meta_ad_adsets` via upsert JSONB. **NUNCA usar `get_meta_adsets(live=true)`** em contas grandes. |
 | **Anti-Filler v5.32.0** | 13 padrões de detecção de filler phrases (incluindo "estou realizando", "nova tentativa", "em etapas para garantir", "por favor aguarde", "primeiro...depois...por fim"). Detecção força retry com `tool_choice=required`. Mensagem de retry inclui instruções específicas para targeting. |
 
-##### Ferramentas de Targeting (v5.30.0)
+##### Ferramentas de Targeting (v5.32.0)
 
 | Ferramenta | Descrição | Parâmetros |
 |---|---|---|
-| `get_meta_adsets` | Lista adsets do banco local (rápido, para obter IDs) | `ad_account_id?`, `status?`, `campaign_id?`, `live?` (NÃO usar live=true) |
-| `get_adset_targeting` | Busca targeting detalhado de adsets específicos direto da Meta API (com timeout 12s) | `adset_ids` (array, max 10), `ad_account_id?` |
+| `get_meta_adsets` | Lista adsets do banco local (rápido, para obter IDs). NÃO usar live=true para targeting. | `ad_account_id?`, `status?`, `campaign_id?`, `live?` |
+| `get_adset_targeting` | Busca targeting detalhado de adsets específicos direto da Meta API. Cache automático no DB. Retry automático em 429. | `adset_ids` (array, max 20), `ad_account_id?` |
 
 **Dados retornados pelo targeting:**
 - `custom_audiences` — públicos personalizados (nome + ID)
