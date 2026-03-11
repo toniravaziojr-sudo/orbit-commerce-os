@@ -4,7 +4,7 @@
 // Uses edge functions for secure server-side operations
 // =============================================
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { CartItem, ShippingOption } from '@/contexts/CartContext';
 import { AttributionData } from '@/hooks/useAttribution';
