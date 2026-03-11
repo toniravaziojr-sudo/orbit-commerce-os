@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.35.0"; // Fix: add tool_choice auto/required, sanitize filler from history, fix silent fallthrough
+const VERSION = "v5.36.0"; // Fix: Gemini 400 schema too complex — fallback to auto when required fails
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
