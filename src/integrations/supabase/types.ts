@@ -11870,6 +11870,7 @@ export type Database = {
           installments_min_value_cents: number | null
           is_enabled: boolean
           payment_method: string
+          provider: string
           tenant_id: string
           updated_at: string
         }
@@ -11883,6 +11884,7 @@ export type Database = {
           installments_min_value_cents?: number | null
           is_enabled?: boolean
           payment_method: string
+          provider?: string
           tenant_id: string
           updated_at?: string
         }
@@ -11896,6 +11898,7 @@ export type Database = {
           installments_min_value_cents?: number | null
           is_enabled?: boolean
           payment_method?: string
+          provider?: string
           tenant_id?: string
           updated_at?: string
         }
