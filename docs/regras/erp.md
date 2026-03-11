@@ -39,6 +39,11 @@ Módulo de gestão empresarial: fiscal (NF-e via Nuvem Fiscal), financeiro, e co
 | `fiscal-auto-create-drafts` | Criação automática de rascunhos |
 | `fiscal-validate-order` | Validação pré-emissão |
 
+### Shared Module: fiscal-numbering.ts
+| Função | Descrição |
+|--------|-----------|
+| `_shared/fiscal-numbering.ts` | Módulo centralizado de numeração fiscal |
+
 ### Funcionalidades
 | Feature | Status | Descrição |
 |---------|--------|-----------|
@@ -342,7 +347,69 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 
 ---
 
+## Numeração Fiscal — Arquitetura Anti-Colisão (v8.6.2 — 2026-03-11)
+
+### Problema Original (Causa Raiz)
+
+O campo `numero_nfe_atual` em `fiscal_settings` ficava defasado em relação aos números realmente existentes em `fiscal_invoices`. Quando múltiplos pedidos eram processados, o cursor apontava para um número já utilizado, causando erro `23505` (unique constraint violation) na constraint `fiscal_invoices_numero_unique (tenant_id, serie, numero)`.
+
+**Sintoma:** Pedidos pagos não geravam rascunho de NF-e. A edge function falhava silenciosamente.
+
+### Solução: Shared Module `_shared/fiscal-numbering.ts`
+
+Módulo centralizado usado por **todas** as 3 funções de criação fiscal.
+
+#### Funções
+
+| Função | Descrição |
+|--------|-----------|
+| `getNextFiscalNumber()` | Consulta `MAX(numero)` diretamente na tabela `fiscal_invoices` para o tenant+série. Retorna `MAX + 1` ou o fallback de `numero_nfe_atual`, o que for maior. **Nunca confia apenas no cursor de settings.** |
+| `insertFiscalInvoiceWithRetry()` | Tenta inserir o invoice com o número calculado. Se receber erro `23505` (duplicata), incrementa o número e retenta até `maxAttempts` (default: 20). Se o erro NÃO for duplicata, propaga o erro imediatamente. |
+| `syncFiscalNumberCursor()` | Após inserção bem-sucedida, recalcula o próximo número via `getNextFiscalNumber()` e atualiza `fiscal_settings.numero_nfe_atual` para manter o cursor sincronizado. |
+
+#### Fluxo de Numeração
+
+```
+1. getNextFiscalNumber() → consulta MAX(numero) em fiscal_invoices
+   → retorna MAX(maxNumero + 1, fallbackNumeroAtual)
+
+2. insertFiscalInvoiceWithRetry() → tenta INSERT com o número calculado
+   ├─ ✅ Sucesso → retorna invoice + numero
+   └─ ❌ 23505 (duplicata) → incrementa numero, retenta (até 20x)
+       └─ ❌ Outro erro → throw imediato
+
+3. syncFiscalNumberCursor() → recalcula e atualiza fiscal_settings.numero_nfe_atual
+```
+
+#### Edge Functions que Usam o Módulo
+
+| Edge Function | Versão | Comportamento |
+|--------------|--------|---------------|
+| `fiscal-auto-create-drafts` | v8.6.2 | Loop por pedidos pagos sem NF. Usa cursor compartilhado `nextNumeroCursor` que avança a cada invoice criado. Sync final ao terminar. |
+| `fiscal-create-draft` | v8.6.2 | Criação individual. Se draft já existe para o pedido, atualiza sem mudar número. Se novo, usa retry. |
+| `fiscal-create-manual` | v8.6.2 | NF-e sem pedido vinculado. Mesmo fluxo de retry + sync. |
+
+#### Garantias
+
+1. **Sem dependência exclusiva do cursor**: Sempre consulta `MAX(numero)` no banco antes de inserir.
+2. **Race condition safe**: Retry com incremento automático em caso de colisão.
+3. **Cursor auto-reparável**: `syncFiscalNumberCursor` recalcula baseado no estado real do banco.
+4. **Idempotente**: `fiscal-auto-create-drafts` verifica existência de invoice antes de criar (double-check).
+
+---
+
 ## Correções Aplicadas
+
+### fiscal-numbering — Erro 23505 em numeração fiscal (v8.6.2 — 2026-03-11)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Correção de Bug Crítico (Regressão) |
+| **Localização** | `supabase/functions/_shared/fiscal-numbering.ts`, `fiscal-auto-create-drafts`, `fiscal-create-draft`, `fiscal-create-manual` |
+| **Contexto** | Numeração automática de NF-e ao criar rascunhos |
+| **Causa Raiz** | `numero_nfe_atual` em `fiscal_settings` ficava defasado. Tentava inserir número já existente → erro 23505. |
+| **Correção** | Criado módulo shared `fiscal-numbering.ts` com: (1) `getNextFiscalNumber` que consulta `MAX(numero)` real, (2) `insertFiscalInvoiceWithRetry` com retry em colisões, (3) `syncFiscalNumberCursor` para manter cursor atualizado. Todas as 3 functions de criação fiscal agora usam esse módulo. |
+| **Afeta** | Todo fluxo de criação de NF-e (automático, manual, por pedido) |
 
 ### fiscal-auto-create-drafts — Regressão status filter (v8.6.1 — 2026-03-11)
 

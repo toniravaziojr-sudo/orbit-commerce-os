@@ -707,6 +707,32 @@ try {
 
 ---
 
+## Dashboard — Métricas e Formatação
+
+### Visitantes (Tracking Interno)
+
+| Regra | Descrição |
+|-------|-----------|
+| **Fonte de dados** | Tabela `storefront_visits` (tracking próprio via beacon JS no Edge HTML) |
+| **Deduplicação** | Por `visitor_id` (cookie `_sf_vid`, 365 dias) no frontend |
+| **Independência** | NÃO depende de GA4, Meta Pixel ou qualquer pixel externo |
+| **UI** | Não exibir rótulo de origem ("GA4", "Meta") — apenas o número |
+
+### Formatação de Moeda
+
+| Regra | Descrição |
+|-------|-----------|
+| **Função canônica** | `formatCurrency()` em `src/hooks/useDashboardMetrics.ts` |
+| **Valores** | `orders.total` armazena em **Reais** (NÃO centavos). **NÃO dividir por 100.** |
+| **Formato** | `Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })` |
+
+### Regressões Documentadas (2026-03-11)
+
+1. **formatCurrency dividia por 100** → Vendas e ticket médio apareciam 100x menores. Corrigido removendo `/100`.
+2. **Visitantes dependiam de GA4** → Label "Sincronize o GA4" bloqueava visualização. Corrigido com tracking interno próprio.
+
+---
+
 ## Regra de Imutabilidade
 
 | Regra | Descrição |
