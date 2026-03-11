@@ -1164,6 +1164,26 @@ A sync com paginação completa + chunking permite capturar **100% dos dados his
 | v5.15.0 | 2026-02-22 | **Plano Estratégico via Chat**: Nova tool `trigger_strategic_plan` que invoca o Motor Estrategista (`ads-autopilot-strategist`) diretamente do chat. Gera plano completo com diagnóstico profundo, hierarquia Campanha > Conjunto > Anúncio e status `pending_approval`. Regra de decisão no prompt: plano abrangente → `trigger_strategic_plan`; campanha avulsa/específica → `create_meta_campaign`. Ação logada como `strategic_plan` em `ads_autopilot_actions`. |
 | v5.16.0 | 2026-02-22 | **Leitura Completa do Plano Estratégico**: Nova tool `get_strategic_plan` que retorna o conteúdo COMPLETO do plano estratégico mais recente — diagnóstico, `planned_actions` com hierarquia Campanha > Conjunto > Anúncio, timeline, riscos e resultados esperados. Também busca ações relacionadas da mesma sessão (implementações de campanhas). Regra de decisão atualizada: leitura de plano → `get_strategic_plan`; criação de novo plano → `trigger_strategic_plan`; campanha pontual → `create_meta_campaign`. |
 | v5.19.0 | 2026-03-10 | **Acesso Completo ao Meu Drive**: Duas novas tools `browse_drive` (navegar pastas do Drive) e `search_drive_files` (buscar arquivos por nome em TODAS as pastas). Permite à IA encontrar criativos prontos, imagens, vídeos em qualquer pasta do Drive — não apenas "Imagens de Produtos". System prompt atualizado com seção "MEU DRIVE — ACESSO COMPLETO DE LEITURA" com instrução de verificar criativos existentes antes de gerar novos. Mapeamento de termos atualizado (browse_drive → "explorar Meu Drive", search_drive_files → "buscar no Meu Drive"). |
+| v6.8.0 | 2026-03-11 | **Drill-Down Detection + Memory Guardrails**: Classificador agora detecta queries de drill-down (adset/ad/detalhar campanha) e roteia para modo conversational com tools disponíveis em vez de factual fechado. Guardrails de memória: proibido afirmar "pixel quebrado" ou "dados comprometidos" sem confirmação por tool. `ai_memories` tratadas como contexto auxiliar, não fatos absolutos. |
+| v6.8.1 | 2026-03-11 | **Disciplina Factual em Drill-Down**: Regra "DRILL-DOWN = ANÁLISE FACTUAL COM TOOLS" no prompt conversacional. Quando usuário pede adsets/ads, IA deve obrigatoriamente chamar tools (`get_adset_performance`, `get_ad_performance`, `get_meta_adsets`), apresentar dados estruturados antes de análise, e usar IDs/nomes do turno anterior como contexto. |
+| v6.9.0 | 2026-03-11 | **Fix Tool Handlers + Memory Purge**: Descoberto que `get_adset_performance` e `get_ad_performance` estavam definidos como tools mas sem handlers em `executeToolDirect` do v2 — portados do v1. Purgadas 14+ memórias envenenadas sobre "pixel quebrado" da tabela `ai_memories` (auto-alucinadas pela IA). Atualizado `ai-memory-manager` com guardrail: proibido memorizar diagnósticos técnicos, estados de sistema ou recomendações geradas pela IA — só fatos explicitamente declarados pelo usuário. |
+
+### Regras de Drill-Down Multi-Turn — `ads-chat` v6.9.0
+
+Quando o usuário faz perguntas que descem na hierarquia (campanha → adset → anúncio):
+
+1. **Detecção**: Palavras-chave `conjuntos de anúncios`, `adsets`, `anúncios individuais`, `detalhar campanha`, `ads dessa campanha`
+2. **Roteamento**: Classificado como `conversational` (não `factual`) para ter acesso às tools
+3. **Disciplina**: Mesmo em modo conversational, comportamento deve ser factual — chamar tools, apresentar dados, depois analisar
+4. **Contexto**: Usar IDs e nomes do turno anterior (ex: campaign_ids listados) como parâmetros para as tools
+5. **Proibido**: Responder "não tenho acesso" ou "ferramenta não disponível" sem ter tentado chamar a tool
+
+### Guardrails de Memória — `ads-chat` v6.9.0
+
+1. **Proibido memorizar**: Diagnósticos técnicos, estados de sistema, recomendações da IA
+2. **Permitido memorizar**: Fatos explicitamente declarados pelo usuário (ex: "meu público alvo é homens 25-45")
+3. **ai_memories = contexto auxiliar**: Nunca tratar como fato absoluto. Não afirmar estado atual baseado em memória sem confirmar por tool
+4. **Afirmações proibidas sem tool**: "pixel está quebrado", "dados estão comprometidos", "rastreamento não funciona"
 
 ### Regras de User Command Override — `ads-chat` v5.11.3
 
