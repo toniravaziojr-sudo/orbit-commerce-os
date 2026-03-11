@@ -22,14 +22,14 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_campaign_performance",
-      description: "Busca performance real de TODAS as campanhas Meta (ativas + pausadas). OBRIGATÓRIO antes de qualquer diagnóstico. Inclui dados históricos de campanhas pausadas. Use date_preset='maximum' para dados LIFETIME (desde o início da conta). Use 'days' para janelas específicas.",
+      description: "Busca performance real de TODAS as campanhas Meta (ativas + pausadas). OBRIGATÓRIO antes de qualquer diagnóstico. Inclui dados históricos de campanhas pausadas. DEFAULT: date_preset='maximum' (dados LIFETIME desde o início da conta). Use 'days' APENAS para janelas curtas específicas (ex: últimos 7 dias).",
       parameters: {
         type: "object",
         properties: {
           ad_account_id: { type: "string", description: "ID da conta de anúncios (opcional)" },
           status_filter: { type: "string", enum: ["ACTIVE", "PAUSED", "ALL"], description: "Filtrar por status (default: ALL, mas ACTIVE primeiro)" },
-          days: { type: "number", description: "Janela de dias para métricas (default: 30). Ignorado se date_preset for informado." },
-          date_preset: { type: "string", enum: ["maximum", "last_7d", "last_14d", "last_30d", "last_90d", "last_year"], description: "Preset de período. Use 'maximum' para dados desde o início da conta (LIFETIME). SEMPRE use 'maximum' quando o usuário pedir 'máximo', 'total', 'desde o início', 'lifetime' ou 'histórico completo'." },
+          days: { type: "number", description: "Janela de dias para métricas. Ignorado se date_preset for informado. Use APENAS quando o usuário pedir janela curta específica." },
+          date_preset: { type: "string", enum: ["maximum", "last_7d", "last_14d", "last_30d", "last_90d", "last_year"], description: "Preset de período. DEFAULT: 'maximum' (dados LIFETIME desde o início). Use 'maximum' SEMPRE que possível — retorna dados completos desde a criação da conta." },
         },
         required: [],
         additionalProperties: false,
