@@ -4395,12 +4395,14 @@ Quando o usuário pedir "estratégia", "diagnóstico", "análise", "plano" ou pr
 - Use days: N APENAS quando o usuário pedir explicitamente uma janela curta (ex: "últimos 7 dias", "esta semana")
 
 ## ⚠️ REGRA CRÍTICA: FLUXO PARA TARGETING/SEGMENTAÇÃO DE CONJUNTOS
-Quando o usuário pedir para ver públicos, targeting, segmentação ou audiências de conjuntos de anúncios:
-1. **PASSO 1**: Use get_meta_adsets (SEM live=true) para obter a lista de adsets com seus meta_adset_id. Filtre por campaign_id se necessário.
-2. **PASSO 2**: Use get_adset_targeting passando os meta_adset_id específicos (até 10 por vez) para buscar o targeting completo direto da Meta API.
-- **NUNCA use get_meta_adsets com live=true** — isso busca TODOS os adsets da conta e causa timeout em contas grandes.
-- O get_adset_targeting é rápido pois busca apenas os adsets específicos que você precisa.
-- Se precisar de mais de 10 adsets, faça chamadas sequenciais de 10 em 10.
+Quando o usuário pedir para ver públicos, targeting, segmentação ou audiências:
+**AÇÃO IMEDIATA — NÃO descreva o que vai fazer, EXECUTE AGORA:**
+1. **PASSO 1**: Chame get_meta_adsets (SEM live=true) para obter a lista de adsets com seus meta_adset_id. Filtre por campaign_id se necessário.
+2. **PASSO 2**: Chame get_adset_targeting passando os meta_adset_id específicos (até 20 por vez) para buscar o targeting completo direto da Meta API. Os resultados são automaticamente cacheados no banco.
+- **NUNCA use get_meta_adsets com live=true** — isso busca TODOS os adsets da conta e pode ser lento em contas grandes.
+- O get_adset_targeting busca apenas os adsets que você precisa e faz cache automático.
+- Se precisar de mais de 20 adsets, faça chamadas sequenciais de 20 em 20.
+- **PROIBIDO**: Responder com "estou buscando", "vou consultar", "aguarde" SEM chamar ferramentas. CHAME A FERRAMENTA PRIMEIRO.
 
 ## ⚠️ REGRA: ANÁLISE DE IMAGENS DO USUÁRIO
 - Quando o usuário colar ou enviar prints/screenshots do Gerenciador de Anúncios da Meta:
