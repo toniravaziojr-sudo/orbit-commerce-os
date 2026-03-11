@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.29.0"; // Live adset targeting fetch from Meta API
+const VERSION = "v5.30.0"; // Fix targeting timeout: 2-step approach + fetch timeout
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -2737,8 +2737,11 @@ async function fetchMetaAdsetsLive(supabase: any, tenantId: string, adAccountId?
       let url = `https://graph.facebook.com/${GRAPH_VERSION}/act_${cleanId}/adsets?fields=${fields}&limit=200${statusFilter ? filtering : campaignFilter}&access_token=${conn.access_token}`;
       
       let pageCount = 0;
-      while (url && pageCount < 5) {
-        const response = await fetch(url);
+      while (url && pageCount < 3) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeout);
         if (!response.ok) break;
         const result = await response.json();
         if (result.error) {
@@ -2802,7 +2805,10 @@ async function getAdsetTargeting(supabase: any, tenantId: string, adsetIds: stri
     try {
       const fields = "id,name,status,effective_status,targeting,campaign_id,optimization_goal,promoted_object,daily_budget,lifetime_budget";
       const url = `https://graph.facebook.com/${GRAPH_VERSION}/${adsetId}?fields=${fields}&access_token=${conn.access_token}`;
-      const response = await fetch(url);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeout);
       if (!response.ok) {
         results.push({ adset_id: adsetId, error: `HTTP ${response.status}` });
         continue;
@@ -4301,6 +4307,14 @@ Quando o usuário pedir "estratégia", "diagnóstico", "análise", "plano" ou pr
 - NUNCA invente números de conversões/vendas — use EXATAMENTE os valores retornados pela ferramenta
 - Se o campo "conversions" da ferramenta mostrar 1352, reporte 1352 — não arredonde nem modifique
 - Use days: N APENAS quando o usuário pedir explicitamente uma janela curta (ex: "últimos 7 dias", "esta semana")
+
+## ⚠️ REGRA CRÍTICA: FLUXO PARA TARGETING/SEGMENTAÇÃO DE CONJUNTOS
+Quando o usuário pedir para ver públicos, targeting, segmentação ou audiências de conjuntos de anúncios:
+1. **PASSO 1**: Use get_meta_adsets (SEM live=true) para obter a lista de adsets com seus meta_adset_id. Filtre por campaign_id se necessário.
+2. **PASSO 2**: Use get_adset_targeting passando os meta_adset_id específicos (até 10 por vez) para buscar o targeting completo direto da Meta API.
+- **NUNCA use get_meta_adsets com live=true** — isso busca TODOS os adsets da conta e causa timeout em contas grandes.
+- O get_adset_targeting é rápido pois busca apenas os adsets específicos que você precisa.
+- Se precisar de mais de 10 adsets, faça chamadas sequenciais de 10 em 10.
 
 ## ⚠️ REGRA: ANÁLISE DE IMAGENS DO USUÁRIO
 - Quando o usuário colar ou enviar prints/screenshots do Gerenciador de Anúncios da Meta:
