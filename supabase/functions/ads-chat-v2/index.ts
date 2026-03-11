@@ -87,7 +87,7 @@ function classifyIntent(message: string, history: any[]): ClassifiedIntent {
   }
 
   // PERFORMANCE (metrics-focused)
-  if (/performance|desempenho|resultado[s]?|métrica[s]?|roas|roi\b|cpa\b|cpc\b|ctr\b|gasto|spend|conversão|conversões|conversao|receita|faturamento|vendas?\s+(d[aoe]s?\s+)?campanhas?|quanto\s+gastei|quanto\s+gast[ao]u|quanto\s+faturei|quanto\s+convert|melhor(es)?\s+campanha|pior(es)?\s+campanha|top\s+\d+|ranking|comparar?\s+campanha|como\s+(est[áa]o?|vão|andam?|foram?)\s+(as?\s+)?(minhas?\s+)?campanha/i.test(msg) &&
+  if (/performance|desempenho|resultado[s]?|métrica[s]?|roas|roi\b|cpa\b|cpc\b|ctr\b|gasto|spend|conversão|conversões|conversao|receita|faturamento|vendas?\s+(d[aoe]s?\s+)?campanhas?|quanto\s+gastei|quanto\s+gast[ao]u|quanto\s+faturei|quanto\s+convert|melhor(es)?\s+campanha|pior(es)?\s+campanha|top\s+\d+|ranking|comparar?\s+campanha|como\s+(est[áa]o?|vão|andam?|foram?)\s+(as?\s+)?(minhas?\s+)?campanha|campanhas?\s+com\s+mais\s+(vend|convers|resultado|faturamento|gasto|roi|roas)|campanhas?\s+com\s+menor|campanhas?\s+com\s+melhor|campanhas?\s+com\s+pior|\d+\s+campanha[s]?\s+com\s+mais|liste?\s+(aqui\s+)?(as?\s+)?\d+\s+campanha|analise?\s+(todas?\s+)?(as?\s+)?campanha|analis[ae]r?\s+(todas?\s+)?(as?\s+)?campanha|relat[oó]rio|relatório\s+de\s+campanha/i.test(msg) &&
       !/cri[ae]r?|paus[ae]r?|ativ[ae]r?|alter[ae]r?/i.test(msg)) {
     return { category: "performance", mode: "factual", isFactual: true, entities, confidence: 0.9 };
   }
