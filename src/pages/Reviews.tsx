@@ -291,6 +291,7 @@ export default function Reviews() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['product-reviews'] });
+      queryClient.invalidateQueries({ queryKey: ['product-reviews-stats'] });
       queryClient.invalidateQueries({ queryKey: ['product-ratings-batch'] });
       queryClient.invalidateQueries({ queryKey: ['files'] });
       const count = variables.ids.length;
