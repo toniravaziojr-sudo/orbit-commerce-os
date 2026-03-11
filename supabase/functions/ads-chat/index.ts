@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.30.0"; // Fix targeting timeout: 2-step approach + fetch timeout
+const VERSION = "v5.31.0"; // Refactor: full pagination + sync-to-DB for targeting (no timeouts)
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
