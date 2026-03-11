@@ -165,8 +165,7 @@ function DashboardContent() {
               value={String(metrics?.visitorsToday || 0)}
               icon={Eye}
               variant="info"
-              trend={metrics?.visitorsYesterday || metrics?.visitorsToday ? { value: parseFloat(visitorsTrend.toFixed(1)), label: trendLabel } : undefined}
-              description={!metrics?.visitorsToday && !metrics?.visitorsYesterday ? "Sincronize o GA4" : undefined}
+              trend={{ value: parseFloat(visitorsTrend.toFixed(1)), label: trendLabel }}
             />
             <StatCard
               title="Ticket Médio"
