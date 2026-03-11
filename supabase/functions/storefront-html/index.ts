@@ -1722,14 +1722,9 @@ function buildFullPage(opts: {
       else if(pp.match(/\\/cart|\\/carrinho/))pt="cart";
       else if(pp.match(/\\/checkout/))pt="checkout";
       else if(pp!=="/")pt="page";
-      // Fire beacon (non-blocking)
+      // Fire beacon via fetch+keepalive (sendBeacon cannot set Authorization header)
       var body=JSON.stringify({tenant_id:tid,visitor_id:vid,page_path:pp,page_type:pt,referrer:document.referrer||null,user_agent:navigator.userAgent||null});
-      if(navigator.sendBeacon){
-        var blob=new Blob([body],{type:"application/json"});
-        navigator.sendBeacon(SU+"/rest/v1/storefront_visits?apikey="+SK,blob);
-      }else{
-        fetch(SU+"/rest/v1/storefront_visits",{method:"POST",headers:{"Content-Type":"application/json","apikey":SK,"Authorization":"Bearer "+SK,"Prefer":"return=minimal"},body:body,keepalive:true}).catch(function(){});
-      }
+      fetch(SU+"/rest/v1/storefront_visits",{method:"POST",headers:{"Content-Type":"application/json","apikey":SK,"Authorization":"Bearer "+SK,"Prefer":"return=minimal"},body:body,keepalive:true}).catch(function(){});
     }catch(e){}
   })();
   </script>
