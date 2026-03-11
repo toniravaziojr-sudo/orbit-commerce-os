@@ -48,6 +48,10 @@ function getPresetDates(preset: PresetType, selectedMonth?: Date): { start?: Dat
       return { start: undefined, end: undefined };
     case 'today':
       return { start: startOfDay(now), end: endOfDay(now) };
+    case 'yesterday':
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return { start: startOfDay(yesterday), end: endOfDay(yesterday) };
     case 'this_week':
       return { start: startOfWeek(now, { locale: ptBR }), end: endOfWeek(now, { locale: ptBR }) };
     case 'last_week':
