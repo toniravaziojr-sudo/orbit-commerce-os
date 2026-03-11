@@ -31,6 +31,7 @@ export interface DateRangeFilterProps {
 const presets: { value: PresetType; label: string }[] = [
   { value: 'all_time', label: 'Todo o período' },
   { value: 'today', label: 'Hoje' },
+  { value: 'yesterday', label: 'Ontem' },
   { value: 'this_week', label: 'Esta semana' },
   { value: 'last_week', label: 'Semana passada' },
   { value: 'this_month', label: 'Este mês' },
