@@ -284,6 +284,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
             exp_year: parseInt(card.expYear, 10),
             cvv: card.cvv,
           } : undefined,
+          installments: method === 'credit_card' ? (installments || 1) : 1,
         },
       });
 
