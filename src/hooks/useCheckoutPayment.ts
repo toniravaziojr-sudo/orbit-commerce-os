@@ -93,6 +93,34 @@ function savePendingOrder(tenantId: string, ref: { orderId: string; orderNumber:
 }
 
 export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
+  // Determine which payment gateway to use based on tenant config
+  const [activeGateway, setActiveGateway] = useState<'pagarme' | 'mercadopago'>('pagarme');
+  
+  // Check for active payment provider on mount
+  useState(() => {
+    const checkGateway = async () => {
+      try {
+        const { data } = await supabase
+          .from('payment_providers')
+          .select('provider, is_enabled')
+          .eq('tenant_id', tenantId)
+          .eq('is_enabled', true)
+          .order('updated_at', { ascending: false });
+        
+        if (data && data.length > 0) {
+          // Prefer mercado_pago if configured, otherwise pagarme
+          const mp = data.find((p: any) => p.provider === 'mercado_pago');
+          const pg = data.find((p: any) => p.provider === 'pagarme');
+          if (mp) setActiveGateway('mercadopago');
+          else if (pg) setActiveGateway('pagarme');
+        }
+      } catch (e) {
+        console.warn('[Checkout] Could not determine gateway, defaulting to pagarme');
+      }
+    };
+    checkGateway();
+  });
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentResult, setPaymentResult] = useState<PaymentResult | null>(null);
   // Track the last created order to avoid duplicates on payment retry
