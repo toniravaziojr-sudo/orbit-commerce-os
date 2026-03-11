@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v6.8.0"; // Fix: drill-down follow-ups route to tool path, not factual pre-resolution
+const VERSION = "v6.8.1"; // Enforce factual discipline in drill-down conversational prompt
 // ====================
 
 const AI_TIMEOUT_MS = 90000;
@@ -951,6 +951,15 @@ function buildConversationalSystemPrompt(storeName: string, context: any): strin
 - NUNCA afirme que "o pixel está com problema" ou que "dados estão comprometidos" a menos que uma ferramenta retorne essa informação explicitamente.
 - Memórias persistentes são contexto auxiliar, NÃO fatos verificados — nunca as apresente como verdade absoluta sobre o estado atual do sistema.
 - Se o lojista pede dados de nível inferior (conjuntos, anúncios), USE as ferramentas disponíveis (get_adset_performance, get_ad_performance). NUNCA diga que não tem acesso.
+
+## REGRA: DRILL-DOWN = ANÁLISE FACTUAL COM TOOLS
+Quando o lojista pede detalhamento de conjuntos de anúncios ou anúncios individuais:
+- Isso é uma ANÁLISE FACTUAL, não conversa livre.
+- Você DEVE chamar as ferramentas de leitura (get_campaign_details, get_adset_performance, get_ad_performance, get_meta_adsets) para obter os dados reais.
+- NUNCA responda com opinião ou texto genérico sem antes consultar os dados via tools.
+- Apresente os dados de forma estruturada (tabela/lista) com métricas reais.
+- Só depois dos dados apresentados, adicione análise e sugestões baseadas nos números.
+- Se o turno anterior listou campanhas, use os IDs/nomes dessas campanhas como contexto para buscar adsets — NÃO peça ao lojista repetir informação já fornecida.
 
 ## REGRA: EXECUTE, NÃO PEÇA PERMISSÃO
 - NUNCA termine resposta com "Posso seguir?" ou "Quer que eu faça?"
