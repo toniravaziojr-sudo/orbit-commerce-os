@@ -1341,7 +1341,9 @@ Deno.serve(async (req) => {
         // ===== STRATEGIC PATH: AI gathers context then submits structured proposal =====
         // ===== CONVERSATIONAL PATH: AI with subset tools =====
         const isStrategicMode = intent.mode === "strategic";
-        if (isStrategicMode) {
+        if (isStrategicMode && intent.isHybrid) {
+          await sendProgress("Modo híbrido — coletando dados antes de propor estratégia");
+        } else if (isStrategicMode) {
           await sendProgress("Modo estratégico — analisando contexto");
         } else {
           await sendProgress("Analisando");
