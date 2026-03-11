@@ -203,10 +203,16 @@ export function useAdsChat({ scope, adAccountId, channel }: UseAdsChatOptions) {
           if (jsonStr === "[DONE]") continue;
           try {
             const parsed = JSON.parse(jsonStr);
+            // Handle progress events (v5.23.0)
+            if (parsed.type === "progress" && parsed.label) {
+              setProgressLabel(parsed.label);
+              continue;
+            }
             const delta = parsed.choices?.[0]?.delta?.content;
             if (delta) {
               fullContent += delta;
               setStreamingContent(fullContent);
+              setProgressLabel(""); // Clear progress when content starts
             }
           } catch { /* partial */ }
         }
