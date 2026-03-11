@@ -202,14 +202,32 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_meta_adsets",
-      description: "Lista conjuntos de anúncios Meta (até 100) com status, orçamento, segmentação e pixel.",
+      description: "Lista conjuntos de anúncios Meta (até 100) com status, orçamento, segmentação e pixel. Use live=true para buscar da API Meta em tempo real com targeting completo.",
       parameters: {
         type: "object",
         properties: {
           ad_account_id: { type: "string", description: "ID da conta (opcional)" },
           status: { type: "string", enum: ["ACTIVE", "PAUSED", "DELETED"], description: "Filtrar por status" },
+          campaign_id: { type: "string", description: "Filtrar adsets por campaign_id da Meta (ex: 23456789)" },
+          live: { type: "boolean", description: "Se true, busca direto da API Meta com targeting completo (audiences, interesses, geo, demographics)" },
         },
         required: [],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_adset_targeting",
+      description: "Busca detalhes completos de targeting/segmentação de um ou mais conjuntos de anúncios direto da Meta API. Retorna: públicos personalizados, lookalikes, interesses, idade, gênero, geo, posicionamentos.",
+      parameters: {
+        type: "object",
+        properties: {
+          adset_ids: { type: "array", items: { type: "string" }, description: "Lista de IDs de adsets Meta (ex: ['23456789']). Máximo 10." },
+          ad_account_id: { type: "string", description: "ID da conta de anúncios (opcional, auto-detecta)" },
+        },
+        required: ["adset_ids"],
         additionalProperties: false,
       },
     },
