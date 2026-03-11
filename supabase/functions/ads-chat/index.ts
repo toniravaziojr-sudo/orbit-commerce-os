@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.25.0"; // Fix: lifetime insights with date_preset=maximum, pagination, accurate totals
+const VERSION = "v5.26.0"; // Fix: expanded purchase action types, default lifetime, paste images support
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -22,14 +22,14 @@ const TOOLS = [
     type: "function",
     function: {
       name: "get_campaign_performance",
-      description: "Busca performance real de TODAS as campanhas Meta (ativas + pausadas). OBRIGATÓRIO antes de qualquer diagnóstico. Inclui dados históricos de campanhas pausadas. Use date_preset='maximum' para dados LIFETIME (desde o início da conta). Use 'days' para janelas específicas.",
+      description: "Busca performance real de TODAS as campanhas Meta (ativas + pausadas). OBRIGATÓRIO antes de qualquer diagnóstico. Inclui dados históricos de campanhas pausadas. DEFAULT: date_preset='maximum' (dados LIFETIME desde o início da conta). Use 'days' APENAS para janelas curtas específicas (ex: últimos 7 dias).",
       parameters: {
         type: "object",
         properties: {
           ad_account_id: { type: "string", description: "ID da conta de anúncios (opcional)" },
           status_filter: { type: "string", enum: ["ACTIVE", "PAUSED", "ALL"], description: "Filtrar por status (default: ALL, mas ACTIVE primeiro)" },
-          days: { type: "number", description: "Janela de dias para métricas (default: 30). Ignorado se date_preset for informado." },
-          date_preset: { type: "string", enum: ["maximum", "last_7d", "last_14d", "last_30d", "last_90d", "last_year"], description: "Preset de período. Use 'maximum' para dados desde o início da conta (LIFETIME). SEMPRE use 'maximum' quando o usuário pedir 'máximo', 'total', 'desde o início', 'lifetime' ou 'histórico completo'." },
+          days: { type: "number", description: "Janela de dias para métricas. Ignorado se date_preset for informado. Use APENAS quando o usuário pedir janela curta específica." },
+          date_preset: { type: "string", enum: ["maximum", "last_7d", "last_14d", "last_30d", "last_90d", "last_year"], description: "Preset de período. DEFAULT: 'maximum' (dados LIFETIME desde o início). Use 'maximum' SEMPRE que possível — retorna dados completos desde a criação da conta." },
         },
         required: [],
         additionalProperties: false,
@@ -1115,8 +1115,10 @@ async function confirmUserCommand(supabase: any, tenantId: string, campaignKey: 
 
 // --- Frente 1: getCampaignPerformance — ALWAYS fetches live from Meta API for accurate names ---
 async function getCampaignPerformance(supabase: any, tenantId: string, adAccountId?: string, statusFilter?: string, days?: number, datePreset?: string) {
-  // Determine time range: date_preset takes priority over days
-  const useLifetime = datePreset === "maximum";
+  // Determine time range: DEFAULT is lifetime (maximum) unless days or specific preset is given
+  // If no parameters at all → use lifetime for complete data
+  const effectivePreset = datePreset || (days ? undefined : "maximum");
+  const useLifetime = effectivePreset === "maximum";
   let sinceDate: string | undefined;
   let periodLabel: string;
   
@@ -1124,13 +1126,15 @@ async function getCampaignPerformance(supabase: any, tenantId: string, adAccount
     // Meta API supports date_preset=maximum for lifetime data — no sinceDate needed
     sinceDate = undefined;
     periodLabel = "lifetime (máximo — desde o início da conta)";
+    console.log(`[ads-chat][${VERSION}] getCampaignPerformance using LIFETIME (date_preset=maximum)`);
   } else {
     const presetDays: Record<string, number> = {
       last_7d: 7, last_14d: 14, last_30d: 30, last_90d: 90, last_year: 365,
     };
-    const dayWindow = datePreset ? (presetDays[datePreset] || 30) : (days || 30);
+    const dayWindow = effectivePreset ? (presetDays[effectivePreset] || 30) : (days || 30);
     sinceDate = new Date(Date.now() - dayWindow * 86400000).toISOString().split("T")[0];
     periodLabel = `últimos ${dayWindow} dias`;
+    console.log(`[ads-chat][${VERSION}] getCampaignPerformance using ${dayWindow} days window`);
   }
 
   // Step 1: Try to fetch campaign list DIRECTLY from Meta API (source of truth for names)
@@ -1366,10 +1370,38 @@ async function fetchMetaInsightsLive(supabase: any, tenantId: string, adAccountI
         const result = await response.json();
         
         for (const row of (result.data || [])) {
-          // Look for purchase conversions in multiple action_type formats
-          const purchaseTypes = ["purchase", "offsite_conversion.fb_pixel_purchase"];
-          const conversions = (row.actions || []).find((a: any) => purchaseTypes.includes(a.action_type))?.value || 0;
-          const convValue = (row.action_values || []).find((a: any) => purchaseTypes.includes(a.action_type))?.value || 0;
+          // Look for purchase conversions in ALL known Meta action_type formats
+          const purchaseTypes = [
+            "purchase",
+            "omni_purchase",
+            "offsite_conversion.fb_pixel_purchase",
+            "offsite_conversion.custom.purchase",
+            "onsite_conversion.purchase",
+            "onsite_web_purchase",
+            "onsite_web_app_purchase",
+            "web_in_store_purchase",
+          ];
+          // Sum ALL matching action types (some accounts report across multiple types)
+          let conversions = 0;
+          let convValue = 0;
+          for (const a of (row.actions || [])) {
+            if (purchaseTypes.includes(a.action_type)) {
+              conversions += parseInt(a.value || "0");
+            }
+          }
+          for (const a of (row.action_values || [])) {
+            if (purchaseTypes.includes(a.action_type)) {
+              convValue += parseFloat(a.value || "0");
+            }
+          }
+          // Also check for "results" field (campaign objective-based results)
+          if (conversions === 0 && row.actions) {
+            // Fallback: look for the campaign objective action type
+            const objectiveAction = (row.actions || []).find((a: any) => 
+              a.action_type === "offsite_conversion" || a.action_type === "complete_registration" || a.action_type === "lead"
+            );
+            // Don't use fallback for non-purchase objectives
+          }
           
           allInsights.push({
             meta_campaign_id: row.campaign_id,
@@ -1381,8 +1413,8 @@ async function fetchMetaInsightsLive(supabase: any, tenantId: string, adAccountI
             spend_cents: Math.round(parseFloat(row.spend || "0") * 100),
             impressions: parseInt(row.impressions || "0"),
             clicks: parseInt(row.clicks || "0"),
-            conversions: parseInt(conversions),
-            conversion_value_cents: Math.round(parseFloat(convValue) * 100),
+            conversions: conversions,
+            conversion_value_cents: Math.round(convValue * 100),
             ctr: parseFloat(row.ctr || "0"),
             cpc_cents: Math.round(parseFloat(row.cpc || "0") * 100),
             reach: parseInt(row.reach || "0"),
@@ -4007,12 +4039,20 @@ Quando o usuário pedir "estratégia", "diagnóstico", "análise", "plano" ou pr
 - Quando o usuário pedir as "N melhores", retorne EXATAMENTE N — nem mais, nem menos
 
 ## ⚠️ REGRA CRÍTICA: DADOS LIFETIME / MÁXIMO / HISTÓRICO COMPLETO
-- Quando o usuário pedir dados "desde o início", "máximo", "total", "lifetime", "histórico completo", ou "desde quando começou":
-  → SEMPRE use date_preset: "maximum" na chamada de get_campaign_performance
+- A ferramenta get_campaign_performance usa date_preset="maximum" POR PADRÃO — você NÃO precisa informar nenhum parâmetro de tempo para obter dados completos
+- Quando o usuário pedir dados "desde o início", "máximo", "total", "lifetime", "histórico completo", "desde quando começou", ou simplesmente pedir performance geral:
+  → NÃO passe nenhum parâmetro de tempo, ou passe date_preset: "maximum" explicitamente
   → NUNCA use days: 365 como substituto — isso perde dados de contas com mais de 1 ano
 - O date_preset=maximum busca TODOS os dados desde a criação da conta, sem limite de tempo
 - NUNCA invente números de conversões/vendas — use EXATAMENTE os valores retornados pela ferramenta
 - Se o campo "conversions" da ferramenta mostrar 1352, reporte 1352 — não arredonde nem modifique
+- Use days: N APENAS quando o usuário pedir explicitamente uma janela curta (ex: "últimos 7 dias", "esta semana")
+
+## ⚠️ REGRA: ANÁLISE DE IMAGENS DO USUÁRIO
+- Quando o usuário colar ou enviar prints/screenshots do Gerenciador de Anúncios da Meta:
+  → Analise a imagem para extrair nomes de campanhas, valores de resultados, gastos, etc.
+  → Compare os dados da imagem com os dados retornados pelas ferramentas
+  → Se houver divergência, informe ao usuário e explique possíveis razões (período diferente, atribuição, etc.)
 
 ## REGRA CRÍTICA DE COMUNICAÇÃO — LINGUAGEM AMIGÁVEL AO LOJISTA
 Você conversa com o DONO DA LOJA, NÃO com um desenvolvedor.
