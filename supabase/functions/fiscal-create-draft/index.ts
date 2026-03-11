@@ -135,7 +135,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('[fiscal-create-draft] Creating draft for order:', order_id);
+    console.log(`[fiscal-create-draft][${VERSION}] Creating draft for order:`, order_id);
 
     // Get fiscal settings
     const { data: fiscalSettings, error: settingsError } = await supabase
