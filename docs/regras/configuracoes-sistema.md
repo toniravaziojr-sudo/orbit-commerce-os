@@ -41,15 +41,17 @@ Página de configurações operacionais do sistema, acessível via **Menu Sistem
 |-------|-------|
 | **Tipo** | Componente / Tab |
 | **Localização** | `src/components/system-settings/PaymentSettingsTab.tsx` |
-| **Descrição** | Configuração de descontos reais por forma de pagamento e parcelamento |
-| **Hook** | `usePaymentMethodDiscounts` (`src/hooks/usePaymentMethodDiscounts.ts`) |
+| **Descrição** | Configuração de descontos reais e parcelamento por forma de pagamento, **separados por gateway** |
+| **Hook** | `usePaymentMethodDiscounts(provider?)` (`src/hooks/usePaymentMethodDiscounts.ts`) |
+| **Hook de providers** | `usePaymentProviders` (`src/hooks/usePaymentProviders.ts`) — lista gateways ativos |
 
 ### Tabela: `payment_method_discounts`
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
 | `id` | UUID | PK |
-| `tenant_id` | UUID | FK → tenants, UNIQUE com payment_method |
+| `tenant_id` | UUID | FK → tenants |
+| `provider` | TEXT | Gateway: `pagarme`, `mercadopago`, etc. Default: `pagarme` |
 | `payment_method` | TEXT | `pix`, `credit_card`, `boleto` |
 | `discount_type` | TEXT | `percentage` ou `fixed` |
 | `discount_value` | NUMERIC(10,2) | Valor do desconto |
@@ -57,6 +59,8 @@ Página de configurações operacionais do sistema, acessível via **Menu Sistem
 | `installments_max` | INTEGER | Parcelas máximas (default 12) |
 | `installments_min_value_cents` | INTEGER | Valor mínimo por parcela em centavos |
 | `description` | TEXT | Descrição opcional |
+
+**Unique constraint:** `(tenant_id, provider, payment_method)`
 
 ### RLS Policies
 
@@ -76,10 +80,11 @@ Página de configurações operacionais do sistema, acessível via **Menu Sistem
 
 ### Comportamento
 
-1. Ao abrir a aba, carrega configurações do banco (ou defaults se não existirem)
-2. Cada método de pagamento tem um card independente com toggle de ativação
-3. Usuário configura tipo de desconto, valor, e parcelas (cartão)
-4. Botão "Salvar" por método faz upsert na tabela `payment_method_discounts`
+1. Ao abrir a aba, verifica gateways ativos via `usePaymentProviders`
+2. Se **nenhum gateway ativo**: exibe alerta vermelho com link para Integrações
+3. Se há gateways ativos: exibe **abas por gateway** (ex: Pagar.me | Mercado Pago)
+4. Dentro de cada aba: cards de PIX/Cartão/Boleto com toggle, desconto e parcelas
+5. Botão "Salvar" por método faz upsert na tabela `payment_method_discounts` com `provider`
 
 ### Relação com Builder
 
@@ -87,7 +92,7 @@ Página de configurações operacionais do sistema, acessível via **Menu Sistem
 |-------|----------------|
 | **Builder > Checkout Settings** | Visibilidade de métodos (toggles show/hide) |
 | **Builder > Theme > PaymentMethodsConfig** | Ordem e badges visuais (ex: "5% OFF") |
-| **Sistema > Configurações > Pagamentos** | Descontos REAIS, parcelas, valores efetivos |
+| **Sistema > Configurações > Pagamentos** | Descontos REAIS, parcelas, valores efetivos — **por gateway** |
 
 > ⚠️ Avisos amarelos no Builder (CheckoutSettingsPanel e PaymentMethodsConfig) informam que as configurações visuais não aplicam descontos reais.
 
