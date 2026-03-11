@@ -99,7 +99,7 @@ serve(async (req) => {
       itens,
     } = body;
 
-    console.log('[fiscal-create-manual] Creating manual invoice for tenant:', tenantId);
+    console.log(`[fiscal-create-manual][${VERSION}] Creating manual invoice for tenant:`, tenantId);
 
     // Get fiscal settings
     const { data: settings, error: settingsError } = await supabase
