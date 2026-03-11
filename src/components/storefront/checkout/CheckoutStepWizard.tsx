@@ -78,6 +78,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   const { customDomain } = useCanonicalDomain();
   const { config: checkoutConfig } = useCheckoutConfig();
   const { trackInitiateCheckout, trackLead, trackAddShippingInfo, trackAddPaymentInfo, trackPurchase } = useMarketingEvents();
+  const { data: paymentDiscounts = [] } = usePublicPaymentDiscounts(tenantId);
   
   // Get canonical origin for auth redirects (custom domain or platform subdomain)
   const canonicalOrigin = getCanonicalOrigin(customDomain, tenantSlug || '');
@@ -97,6 +98,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
   const [isExistingCustomer, setIsExistingCustomer] = useState(false);
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+  const [selectedInstallments, setSelectedInstallments] = useState(1);
 
   // Checkout session tracking refs
   const sessionStartedRef = useRef(false);
@@ -113,12 +115,38 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     ? (shipping.selected ? { ...shipping.selected, isFree: true, price: 0 } : shipping.selected)
     : shipping.selected;
 
-  // Use centralized totals
-  const totals = calculateCartTotals({
+  // Use centralized totals (before payment method discount)
+  const baseTotals = calculateCartTotals({
     items,
     selectedShipping: effectiveShipping,
     discountAmount,
   });
+
+  // Payment method discount (real, from tenant config)
+  const paymentMethodDiscountAmount = calculatePaymentMethodDiscount(
+    paymentDiscounts,
+    paymentMethod,
+    baseTotals.grandTotal,
+  );
+  
+  // Final totals with payment method discount applied
+  const totals = {
+    ...baseTotals,
+    paymentMethodDiscount: paymentMethodDiscountAmount,
+    grandTotal: Math.max(0, baseTotals.grandTotal - paymentMethodDiscountAmount),
+  };
+
+  // Max installments from config
+  const maxInstallments = getMaxInstallments(paymentDiscounts, totals.grandTotal);
+  
+  // Reset installments when payment method changes or max changes
+  useEffect(() => {
+    if (paymentMethod !== 'credit_card') {
+      setSelectedInstallments(1);
+    } else if (selectedInstallments > maxInstallments) {
+      setSelectedInstallments(maxInstallments);
+    }
+  }, [paymentMethod, maxInstallments]);
 
   // ===== MARKETING: Track InitiateCheckout on mount =====
   const initiateCheckoutTrackedRef = useRef(false);
