@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, subMonths, startOfDay, endOfDay, parse, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-type PresetType = 'all_time' | 'today' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'select_month' | 'custom';
+type PresetType = 'all_time' | 'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'select_month' | 'custom';
 
 interface DateFieldOption {
   value: string;
