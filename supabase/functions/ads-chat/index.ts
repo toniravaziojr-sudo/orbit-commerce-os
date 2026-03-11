@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.31.0"; // Refactor: full pagination + sync-to-DB for targeting (no timeouts)
+const VERSION = "v5.32.0"; // Fix: targeting filler detection, prompt contradictions, expanded filler patterns
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -4395,12 +4395,14 @@ Quando o usuário pedir "estratégia", "diagnóstico", "análise", "plano" ou pr
 - Use days: N APENAS quando o usuário pedir explicitamente uma janela curta (ex: "últimos 7 dias", "esta semana")
 
 ## ⚠️ REGRA CRÍTICA: FLUXO PARA TARGETING/SEGMENTAÇÃO DE CONJUNTOS
-Quando o usuário pedir para ver públicos, targeting, segmentação ou audiências de conjuntos de anúncios:
-1. **PASSO 1**: Use get_meta_adsets (SEM live=true) para obter a lista de adsets com seus meta_adset_id. Filtre por campaign_id se necessário.
-2. **PASSO 2**: Use get_adset_targeting passando os meta_adset_id específicos (até 10 por vez) para buscar o targeting completo direto da Meta API.
-- **NUNCA use get_meta_adsets com live=true** — isso busca TODOS os adsets da conta e causa timeout em contas grandes.
-- O get_adset_targeting é rápido pois busca apenas os adsets específicos que você precisa.
-- Se precisar de mais de 10 adsets, faça chamadas sequenciais de 10 em 10.
+Quando o usuário pedir para ver públicos, targeting, segmentação ou audiências:
+**AÇÃO IMEDIATA — NÃO descreva o que vai fazer, EXECUTE AGORA:**
+1. **PASSO 1**: Chame get_meta_adsets (SEM live=true) para obter a lista de adsets com seus meta_adset_id. Filtre por campaign_id se necessário.
+2. **PASSO 2**: Chame get_adset_targeting passando os meta_adset_id específicos (até 20 por vez) para buscar o targeting completo direto da Meta API. Os resultados são automaticamente cacheados no banco.
+- **NUNCA use get_meta_adsets com live=true** — isso busca TODOS os adsets da conta e pode ser lento em contas grandes.
+- O get_adset_targeting busca apenas os adsets que você precisa e faz cache automático.
+- Se precisar de mais de 20 adsets, faça chamadas sequenciais de 20 em 20.
+- **PROIBIDO**: Responder com "estou buscando", "vou consultar", "aguarde" SEM chamar ferramentas. CHAME A FERRAMENTA PRIMEIRO.
 
 ## ⚠️ REGRA: ANÁLISE DE IMAGENS DO USUÁRIO
 - Quando o usuário colar ou enviar prints/screenshots do Gerenciador de Anúncios da Meta:
@@ -4436,8 +4438,8 @@ NUNCA exponha termos técnicos internos. Use SEMPRE a linguagem da interface.
 | get_creative_assets | ver criativos existentes |
 | get_tracking_health | verificar saúde do pixel |
 | get_experiments | ver testes A/B |
-| get_meta_adsets | ver conjuntos de anúncios (use live=true para targeting completo) |
-| get_adset_targeting | buscar targeting detalhado de adsets específicos (audiences, interesses, geo) |
+| get_meta_adsets | ver conjuntos de anúncios (SEM live=true para targeting — use get_adset_targeting) |
+| get_adset_targeting | buscar targeting detalhado de adsets específicos (audiences, interesses, geo) — até 20 IDs por vez, com cache automático |
 | get_meta_ads | ver anúncios |
 | get_audiences | ver públicos |
 | get_products | ver catálogo |
@@ -5321,19 +5323,25 @@ Deno.serve(async (req) => {
     if (directContent) {
       // FILLER PHRASE DETECTION (v5.22.0): If the AI promises action without calling tools, force retry
       const fillerPatterns = [
-        /aguarde\s+(enquanto|enquanto\s+eu)/i,
-        /vou\s+(começar|criar|gerar|preparar|disparar|montar|buscar)/i,
-        /estou\s+(preparando|criando|gerando|montando|buscando)/i,
+        /aguarde\s+(enquanto|enquanto\s+eu|um\s+momento|um\s+pouco)/i,
+        /vou\s+(começar|criar|gerar|preparar|disparar|montar|buscar|consultar|acessar|recuperar|coletar|analisar)/i,
+        /estou\s+(preparando|criando|gerando|montando|buscando|realizando|consultando|acessando|recuperando|coletando|trabalhando|chamando)/i,
         /dê-me\s+um\s+momento/i,
         /vou\s+focar\s+em\s+criar/i,
         /continuando\s+automaticamente/i,
+        /por\s+favor,?\s+aguarde/i,
+        /aguarde\s+um\s+(pouco|momento|instante)/i,
+        /é\s+um\s+processo\s+que\s+envolve/i,
+        /primeiro.*depois.*por\s+fim/is,
+        /em\s+etapas.*para\s+garantir/i,
+        /nova\s+tentativa.*mais\s+robusto/i,
       ];
       const hasFillerPromise = fillerPatterns.some(p => p.test(directContent));
       
       if (hasFillerPromise) {
         console.log(`[ads-chat][${VERSION}] FILLER DETECTED in direct text — forcing tool retry`);
         // Retry with tool_choice required to force the AI to actually call tools
-        const retryMessages = [...aiMessages, { role: "assistant", content: directContent }, { role: "user", content: "SISTEMA: Você prometeu executar ações mas NÃO chamou nenhuma ferramenta. Isso é uma violação das regras. EXECUTE AGORA as ferramentas necessárias (get_product_images, generate_creative_image, create_meta_campaign, etc.) em vez de apenas descrever o que vai fazer." }];
+        const retryMessages = [...aiMessages, { role: "assistant", content: directContent }, { role: "user", content: "SISTEMA: Você prometeu executar ações mas NÃO chamou nenhuma ferramenta. Isso é uma violação grave. EXECUTE AGORA as ferramentas. Para targeting/segmentação: chame get_meta_adsets primeiro, depois get_adset_targeting com os IDs. Para outros pedidos: use a ferramenta apropriada (get_campaign_performance, get_product_images, etc.). NÃO descreva o processo — EXECUTE." }];
         
         const retryAbort = new AbortController();
         const retryTimeout = setTimeout(() => retryAbort.abort(), AI_TIMEOUT_MS);
