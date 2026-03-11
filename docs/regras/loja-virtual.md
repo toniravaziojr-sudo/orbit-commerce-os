@@ -1543,3 +1543,77 @@ WHERE tenant_id = '{id}' AND status = 'active';
 | 2025-01-19 | Documentação inicial completa do módulo |
 | 2025-01-19 | Adicionadas interconexões entre módulos |
 | 2025-01-19 | Catalogados todos os blocos disponíveis |
+
+---
+
+## Tracking Interno de Visitantes (v8.6.2 — 2026-03-11)
+
+### Visão Geral
+
+Sistema de tracking de visitantes **próprio da loja**, independente de pixels externos (Google Analytics, Meta Pixel). Garante que métricas de visitantes únicos estejam sempre disponíveis, mesmo que o tenant não use nenhum pixel.
+
+### Arquitetura
+
+| Componente | Localização | Descrição |
+|------------|-------------|-----------|
+| **Beacon JS** | `storefront-html/index.ts` (inline ~1KB) | Script vanilla injetado no HTML de cada página Edge-rendered |
+| **Tabela** | `storefront_visits` | Armazena cada visita com `visitor_id` único |
+| **Dashboard** | `src/hooks/useDashboardMetrics.ts` | Deduplica `visitor_id` para contar visitantes únicos |
+
+### Funcionamento do Beacon
+
+```
+1. Página carrega → script inline executa
+2. Lê cookie `_sf_vid` (365 dias)
+   ├─ Existe → usa visitor_id existente
+   └─ Não existe → gera novo `v_{random}{timestamp}`, seta cookie
+3. Detecta page_type automaticamente:
+   ├─ /produto/* → "product"
+   ├─ /categoria/* → "category"
+   ├─ /blog/* → "blog"
+   ├─ / → "home"
+   └─ Outros → "page"
+4. Envia POST via navigator.sendBeacon() (non-blocking)
+   └─ Fallback: fetch() com keepalive:true
+5. Destino: REST API → tabela storefront_visits (apikey anon)
+```
+
+### Tabela `storefront_visits`
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | uuid | PK |
+| `tenant_id` | uuid | FK → tenants |
+| `visitor_id` | text | ID do cookie `_sf_vid` |
+| `page_path` | text | Path da página visitada |
+| `page_type` | text | Tipo: home, product, category, blog, page |
+| `referrer` | text | document.referrer |
+| `user_agent` | text | navigator.userAgent |
+| `created_at` | timestamptz | Timestamp da visita |
+
+### Métricas no Dashboard (CommandCenter)
+
+- **Visitantes Únicos**: Deduplica `visitor_id` no período selecionado via `new Set()`
+- **Não depende** de GA4, Meta Pixel ou qualquer pixel externo
+- **Combina com pixels**: Quando disponíveis, pixels enriquecem dados (conversões, atribuição)
+- **Label**: Não exibe "de onde puxa" na UI — apenas mostra o número
+
+### Regras
+
+| Regra | Descrição |
+|-------|-----------|
+| **Cookie** | `_sf_vid`, 365 dias, SameSite=Lax, path=/ |
+| **Deduplicação** | Por `visitor_id` no frontend (Set) |
+| **Non-blocking** | sendBeacon não afeta performance |
+| **Sem PII** | Não armazena IP, email ou dados pessoais |
+| **RLS** | INSERT público (anon), SELECT por tenant_id |
+
+### Correção de Formatação de Moeda (v8.6.2 — 2026-03-11)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Correção de Bug (Regressão) |
+| **Localização** | `src/hooks/useDashboardMetrics.ts` → `formatCurrency()` |
+| **Descrição** | A função `formatCurrency` dividia valores por 100 (`value / 100`), assumindo que estavam em centavos. Mas `orders.total` armazena valores em Reais. Resultado: vendas de R$ 220,29 apareciam como R$ 2,20. |
+| **Correção** | Removida a divisão por 100. `formatCurrency(value)` agora usa o valor direto. |
+| **Afeta** | Dashboard → Vendas, Ticket Médio |
