@@ -1188,8 +1188,7 @@ async function getCampaignPerformance(supabase: any, tenantId: string, adAccount
       total_spend: `R$ ${allCamps.reduce((s: number, c: any) => s + (typeof c.spend === 'number' ? c.spend : 0), 0).toFixed(2)}`,
     },
     active_campaigns: activeCamps.map(formatCamp),
-    paused_campaigns_sample: pausedCamps.slice(0, 10).map(formatCamp),
-    paused_total: pausedCamps.length,
+    paused_campaigns: pausedCamps.map(formatCamp),
   });
 }
 
