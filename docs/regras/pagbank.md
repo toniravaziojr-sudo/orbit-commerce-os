@@ -199,22 +199,24 @@ https://ojssezfjhdvvncsqyhyq.supabase.co/functions/v1/pagbank-webhook
 
 ### Eventos Processados
 
-| Status PagBank | Status Interno |
-|----------------|----------------|
-| `AUTHORIZED` | `pending` |
-| `PAID` | `paid` |
-| `IN_ANALYSIS` | `pending` |
-| `DECLINED` | `failed` |
-| `CANCELED` | `cancelled` |
-| `WAITING` | `pending` |
+| Status PagBank | payment_status | order.status |
+|----------------|----------------|--------------|
+| `AUTHORIZED` | `pending` | — |
+| `PAID` | `approved` | `ready_to_invoice` |
+| `IN_ANALYSIS` | `pending` | — |
+| `DECLINED` | `failed` | — |
+| `CANCELED` | `refunded` | — |
+| `WAITING` | `pending` | — |
 
 ### PIX Status (QR Codes)
 
-| Status PagBank | Status Interno |
-|----------------|----------------|
-| `ACTIVE` | `pending` |
-| `PAID` | `paid` |
-| `EXPIRED` | `expired` |
+| Status PagBank | payment_status | order.status |
+|----------------|----------------|--------------|
+| `ACTIVE` | `pending` | — |
+| `PAID` | `approved` | `ready_to_invoice` |
+| `EXPIRED` | `pending` | — |
+
+> **IMPORTANTE (v8.7.1):** O webhook seta `payment_status: 'approved'` (não `'paid'`) e `status: 'ready_to_invoice'` + `paid_at` ao confirmar pagamento, alinhado com Pagar.me e Mercado Pago.
 
 ---
 

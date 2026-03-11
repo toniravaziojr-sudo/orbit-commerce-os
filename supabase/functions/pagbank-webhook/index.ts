@@ -171,17 +171,28 @@ serve(async (req) => {
 
     // Update order payment status if we have an order_id
     if (internalOrderId) {
-      const orderPaymentStatus = newStatus === 'paid' ? 'paid' 
+      const orderPaymentStatus = newStatus === 'paid' ? 'approved' 
         : newStatus === 'failed' ? 'failed'
         : newStatus === 'cancelled' ? 'refunded'
         : 'pending';
 
+      // Determine new order status (fiscal-operational workflow)
+      const newOrderStatus = newStatus === 'paid' ? 'ready_to_invoice' : undefined;
+
+      const orderUpdate: any = { 
+        payment_status: orderPaymentStatus,
+        updated_at: new Date().toISOString(),
+      };
+      if (newOrderStatus) {
+        orderUpdate.status = newOrderStatus;
+      }
+      if (newStatus === 'paid') {
+        orderUpdate.paid_at = new Date().toISOString();
+      }
+
       await supabase
         .from('orders')
-        .update({ 
-          payment_status: orderPaymentStatus,
-          updated_at: new Date().toISOString(),
-        })
+        .update(orderUpdate)
         .eq('id', internalOrderId);
 
       // Emit canonical event for notifications
