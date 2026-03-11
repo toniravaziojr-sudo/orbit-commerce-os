@@ -1667,7 +1667,7 @@ serve(async (req) => {
     let routeQueryPromise: Promise<any> | null = null;
     if (route.type === 'product' && route.slug) {
       routeQueryPromise = supabase.from('products')
-        .select('id, name, slug, sku, price, compare_at_price, description, short_description, brand, stock_quantity, status, free_shipping, seo_title, seo_description, has_variants, tags, avg_rating, review_count, allow_backorder')
+        .select('id, name, slug, sku, meta_retailer_id, price, compare_at_price, description, short_description, brand, stock_quantity, status, free_shipping, seo_title, seo_description, has_variants, tags, avg_rating, review_count, allow_backorder')
         .eq('tenant_id', tenantId).eq('slug', route.slug).is('deleted_at', null).maybeSingle();
     } else if (route.type === 'category' && route.slug) {
       routeQueryPromise = supabase.from('categories')
