@@ -95,7 +95,8 @@ O Ads Chat (v6.9.0) implementa uma arquitetura dual-mode com orquestração dete
 - Converge para o mesmo fluxo de aprovação visual (StrategicPlanContent) do Motor Estrategista
 
 ### Arquivos Relacionados
-- `supabase/functions/ads-chat-v2/index.ts` — Edge function dual-mode (v6.8.1)
+- `supabase/functions/ads-chat-v2/index.ts` — Edge function dual-mode (v6.9.0)
+- `supabase/functions/ai-memory-manager/index.ts` — Extrator de memórias com guardrail anti-auto-memorização
 - `supabase/functions/ads-chat/index.ts` — Edge function v1 [DEPRECADA — não mais usada como fallback]
 - `src/hooks/useAdsChat.ts` — Hook frontend chamando exclusivamente v2 (sem fallback v1)
 - `src/hooks/useAdsPendingActions.ts` — Hook de ações pendentes (exibe propostas do chat)
