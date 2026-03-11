@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.33.0"; // Fix: filler detection inside tool loop (mid-loop filler was bypassing detection)
+const VERSION = "v5.34.0"; // Fix: v5.33 was not deployed + expanded filler patterns to 24+ regexes covering all observed AI evasion phrases
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -5257,8 +5257,8 @@ Deno.serve(async (req) => {
               // FILLER DETECTION IN TOOL LOOP (v5.33.0): AI called tools once but then responded with filler instead of continuing
               const loopFillerPatterns = [
                 /aguarde\s+(enquanto|enquanto\s+eu|um\s+momento|um\s+pouco)/i,
-                /vou\s+(começar|criar|gerar|preparar|disparar|montar|buscar|consultar|acessar|recuperar|coletar|analisar)/i,
-                /estou\s+(preparando|criando|gerando|montando|buscando|realizando|consultando|acessando|recuperando|coletando|trabalhando|chamando)/i,
+                /vou\s+(começar|criar|gerar|preparar|disparar|montar|buscar|consultar|acessar|recuperar|coletar|analisar|re-?execut)/i,
+                /estou\s+(preparando|criando|gerando|montando|buscando|realizando|consultando|acessando|recuperando|coletando|trabalhando|chamando|re-?execut|aplicando)/i,
                 /dê-me\s+um\s+momento/i,
                 /por\s+favor,?\s+aguarde/i,
                 /aguarde\s+um\s+(pouco|momento|instante)/i,
@@ -5268,9 +5268,16 @@ Deno.serve(async (req) => {
                 /nova\s+tentativa.*mais\s+robusto/i,
                 /esse\s+processo\s+envolve/i,
                 /isso\s+pode\s+levar\s+alguns\s+momentos/i,
-                /assim\s+que\s+tiver\s+os\s+dados/i,
+                /assim\s+que\s+(eu\s+)?tiver\s+(os\s+)?dados/i,
                 /compilar\s+(todas\s+as\s+)?informações/i,
                 /múltiplas\s+chamadas\s+à\s+API/i,
+                /processo\s+multi-?etapas/i,
+                /peço\s+(mais\s+)?um\s+pouco\s+de\s+(sua\s+)?paciência/i,
+                /seguinte\s+sequência/i,
+                /lamento\s+a\s+persistência\s+dos\s+problemas/i,
+                /minhas\s+desculpas\s+por\s+quaisquer\s+falhas/i,
+                /consulta\s+detalhada\s+da\s+segmentação/i,
+                /identificação\s+dos\s+IDs/i,
               ];
               const hasLoopFiller = loopFillerPatterns.some(p => p.test(finalContent));
               
@@ -5376,8 +5383,8 @@ Deno.serve(async (req) => {
       // FILLER PHRASE DETECTION (v5.22.0): If the AI promises action without calling tools, force retry
       const fillerPatterns = [
         /aguarde\s+(enquanto|enquanto\s+eu|um\s+momento|um\s+pouco)/i,
-        /vou\s+(começar|criar|gerar|preparar|disparar|montar|buscar|consultar|acessar|recuperar|coletar|analisar)/i,
-        /estou\s+(preparando|criando|gerando|montando|buscando|realizando|consultando|acessando|recuperando|coletando|trabalhando|chamando)/i,
+        /vou\s+(começar|criar|gerar|preparar|disparar|montar|buscar|consultar|acessar|recuperar|coletar|analisar|re-?execut)/i,
+        /estou\s+(preparando|criando|gerando|montando|buscando|realizando|consultando|acessando|recuperando|coletando|trabalhando|chamando|re-?execut|aplicando)/i,
         /dê-me\s+um\s+momento/i,
         /vou\s+focar\s+em\s+criar/i,
         /continuando\s+automaticamente/i,
@@ -5387,6 +5394,18 @@ Deno.serve(async (req) => {
         /primeiro.*depois.*por\s+fim/is,
         /em\s+etapas.*para\s+garantir/i,
         /nova\s+tentativa.*mais\s+robusto/i,
+        /esse\s+processo\s+envolve/i,
+        /isso\s+pode\s+levar\s+alguns\s+momentos/i,
+        /assim\s+que\s+(eu\s+)?tiver\s+(os\s+)?dados/i,
+        /compilar\s+(todas\s+as\s+)?informações/i,
+        /múltiplas\s+chamadas\s+à\s+API/i,
+        /processo\s+multi-?etapas/i,
+        /peço\s+(mais\s+)?um\s+pouco\s+de\s+(sua\s+)?paciência/i,
+        /seguinte\s+sequência/i,
+        /lamento\s+a\s+persistência\s+dos\s+problemas/i,
+        /minhas\s+desculpas\s+por\s+quaisquer\s+falhas/i,
+        /consulta\s+detalhada\s+da\s+segmentação/i,
+        /identificação\s+dos\s+IDs/i,
       ];
       const hasFillerPromise = fillerPatterns.some(p => p.test(directContent));
       
