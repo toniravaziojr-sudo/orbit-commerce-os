@@ -1364,6 +1364,11 @@ function Step4Payment({
   showPix,
   showBoleto,
   showCreditCard,
+  maxInstallments,
+  selectedInstallments,
+  onInstallmentsChange,
+  grandTotal,
+  paymentMethodDiscountAmount,
 }: { 
   disabled: boolean;
   paymentMethod: PaymentMethod;
@@ -1375,6 +1380,11 @@ function Step4Payment({
   showPix?: boolean;
   showBoleto?: boolean;
   showCreditCard?: boolean;
+  maxInstallments: number;
+  selectedInstallments: number;
+  onInstallmentsChange: (n: number) => void;
+  grandTotal: number;
+  paymentMethodDiscountAmount: number;
 }) {
   return (
     <div className="space-y-6">
@@ -1395,6 +1405,46 @@ function Step4Payment({
         showBoleto={showBoleto}
         showCreditCard={showCreditCard}
       />
+
+      {/* Payment method discount info */}
+      {paymentMethodDiscountAmount > 0 && (
+        <div className="flex items-center gap-2 p-3 rounded-lg border" style={{ borderColor: 'var(--theme-accent-color, hsl(var(--primary)))', backgroundColor: 'hsl(var(--primary) / 0.05)' }}>
+          <Tag className="h-4 w-4" style={{ color: 'var(--theme-accent-color, hsl(var(--primary)))' }} />
+          <span className="text-sm font-medium" style={{ color: 'var(--theme-accent-color, hsl(var(--primary)))' }}>
+            Desconto de {formatCurrency(paymentMethodDiscountAmount)} aplicado!
+          </span>
+        </div>
+      )}
+
+      {/* Installments selector for credit card */}
+      {paymentMethod === 'credit_card' && maxInstallments > 1 && (
+        <div className="border rounded-lg p-4">
+          <Label className="text-sm font-semibold mb-2 block">Parcelas</Label>
+          <RadioGroup
+            value={String(selectedInstallments)}
+            onValueChange={(v) => onInstallmentsChange(parseInt(v))}
+            className="space-y-2"
+            disabled={disabled}
+          >
+            {Array.from({ length: maxInstallments }, (_, i) => i + 1).map(n => {
+              const installmentValue = grandTotal / n;
+              return (
+                <Label
+                  key={n}
+                  htmlFor={`installment-${n}`}
+                  className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-muted/50 has-[:checked]:border-primary has-[:checked]:bg-primary/5"
+                >
+                  <RadioGroupItem value={String(n)} id={`installment-${n}`} disabled={disabled} />
+                  <span className="flex-1 text-sm">
+                    {n}x de {formatCurrency(installmentValue)} {n === 1 ? '(à vista)' : 'sem juros'}
+                  </span>
+                  {n === 1 && <span className="text-xs font-medium text-muted-foreground">{formatCurrency(grandTotal)}</span>}
+                </Label>
+              );
+            })}
+          </RadioGroup>
+        </div>
+      )}
     </div>
   );
 }
