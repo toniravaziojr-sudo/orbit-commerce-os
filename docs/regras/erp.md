@@ -39,6 +39,11 @@ Módulo de gestão empresarial: fiscal (NF-e via Nuvem Fiscal), financeiro, e co
 | `fiscal-auto-create-drafts` | Criação automática de rascunhos |
 | `fiscal-validate-order` | Validação pré-emissão |
 
+### Shared Module: fiscal-numbering.ts
+| Função | Descrição |
+|--------|-----------|
+| `_shared/fiscal-numbering.ts` | Módulo centralizado de numeração fiscal |
+
 ### Funcionalidades
 | Feature | Status | Descrição |
 |---------|--------|-----------|
