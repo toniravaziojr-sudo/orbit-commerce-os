@@ -1490,7 +1490,101 @@ Deno.serve(async (req) => {
         }
 
         // No tool calls — direct text response
+        // ===== ANTI-FILLER DEFENSIVE RETRY (v6.3.0) =====
+        // If intent expected tools but AI responded with text only, retry once with tool_choice=required
         const directContent = firstChoice.message?.content;
+        const shouldRetry = directContent && intent.category !== "general" && (
+          // AI claims it can't access something the tools cover
+          /não\s+(consigo|posso|tenho)\s+(acesso|acessar|consultar|ver|buscar)/i.test(directContent) ||
+          /não\s+é\s+possível\s+(acessar|consultar|ver)/i.test(directContent) ||
+          /ferramenta[s]?\s+(não\s+)?(disponíve[il]s?|acessíve[il]s?)/i.test(directContent) ||
+          /infelizmente.{0,40}(não|sem)\s+(acesso|ferramenta|possibilidade)/i.test(directContent) ||
+          // Filler promises without action
+          /aguarde\s+(enquanto|enquanto\s+eu)/i.test(directContent) ||
+          /vou\s+(começar|criar|gerar|preparar|buscar|consultar|verificar)/i.test(directContent) ||
+          /estou\s+(preparando|criando|gerando|buscando|consultando)/i.test(directContent)
+        );
+
+        if (shouldRetry) {
+          console.log(`[ads-chat-v2][${VERSION}] Anti-filler: retrying with tool_choice=required (category=${intent.category})`);
+          await sendProgress("Reprocessando consulta");
+          try {
+            const retryResponse = await fetch(endpoint.url, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                model: endpoint.model,
+                messages: [
+                  ...aiMessages,
+                  { role: "assistant", content: directContent },
+                  { role: "user", content: "Você tem as ferramentas necessárias disponíveis. Use-as agora para atender minha solicitação. NÃO diga que não consegue — execute a ferramenta." },
+                ],
+                tools,
+                tool_choice: "required",
+                stream: false,
+              }),
+            });
+            if (retryResponse.ok) {
+              const retryResult = await retryResponse.json();
+              const retryToolCalls = retryResult.choices?.[0]?.message?.tool_calls;
+              if (retryToolCalls?.length > 0) {
+                // Execute tool calls from retry
+                let retryMessages = [
+                  ...aiMessages,
+                  { role: "assistant", content: "", tool_calls: retryToolCalls.map((tc: any) => ({ id: tc.id, type: "function", function: { name: tc.function.name, arguments: tc.function.arguments } })) },
+                ];
+                const retryToolPromises = retryToolCalls.map(async (tc: any) => {
+                  let args = {};
+                  try { args = JSON.parse(tc.function.arguments || "{}"); } catch { /* empty */ }
+                  await sendProgress(TOOL_PROGRESS_LABELS[tc.function.name] || "Processando");
+                  const result = await executeTool(supabase, tenant_id, tc.function.name, args, chatSessionId, chatStrategyRunId, channel);
+                  return { tc_id: tc.id, result };
+                });
+                const retryToolResults = await Promise.allSettled(retryToolPromises);
+                for (const res of retryToolResults) {
+                  if (res.status === "fulfilled") {
+                    retryMessages.push({ role: "tool", tool_call_id: res.value.tc_id, content: res.value.result });
+                  }
+                }
+                await sendProgress("Gerando resposta");
+                const finalRetryResp = await fetch(endpoint.url, {
+                  method: "POST",
+                  headers: { Authorization: `Bearer ${endpoint.apiKey}`, "Content-Type": "application/json" },
+                  body: JSON.stringify({ model: endpoint.model, messages: retryMessages, stream: true }),
+                });
+                if (finalRetryResp.ok) {
+                  const reader = finalRetryResp.body!.getReader();
+                  const decoder = new TextDecoder();
+                  let fullContent = "";
+                  while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    await writer.write(value);
+                    const chunk = decoder.decode(value, { stream: true });
+                    for (const line of chunk.split("\n")) {
+                      if (!line.startsWith("data: ")) continue;
+                      const j = line.slice(6).trim();
+                      if (j === "[DONE]") continue;
+                      try { const p = JSON.parse(j); const d = p.choices?.[0]?.delta?.content; if (d) fullContent += d; } catch {}
+                    }
+                  }
+                  if (fullContent) {
+                    await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: fullContent });
+                    if ((history || []).length <= 1) {
+                      await supabase.from("ads_chat_conversations").update({ title: (message || "").substring(0, 60), updated_at: new Date().toISOString() }).eq("id", convId);
+                    }
+                  }
+                  await writer.close();
+                  return;
+                }
+              }
+            }
+          } catch (retryErr) {
+            console.error(`[ads-chat-v2][${VERSION}] Anti-filler retry failed:`, retryErr);
+          }
+          // Retry failed — fall through to send original content
+        }
+
         if (directContent) {
           await supabase.from("ads_chat_messages").insert({ conversation_id: convId, tenant_id, role: "assistant", content: directContent });
           if ((history || []).length <= 1) {
