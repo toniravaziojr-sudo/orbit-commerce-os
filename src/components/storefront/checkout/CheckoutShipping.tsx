@@ -23,19 +23,11 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
   const { items, subtotal, shipping, setShippingCep, setShippingOptions, selectShipping } = useCart();
   const { config, quote, quoteAsync, isLoading: configLoading } = useShipping();
   const [isEditing, setIsEditing] = useState(false);
-  const [tempCep, setTempCep] = useState(shipping.cep);
+  const [tempCep, setTempCep] = useState(sanitizeCep(shipping.cep));
   const [isCalculating, setIsCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const hasShipping = shipping.cep && shipping.selected;
-
-  const formatCepDisplay = (raw: string): string => {
-    const digits = raw.replace(/\D/g, '');
-    if (digits.length > 5) {
-      return `${digits.slice(0, 5)}-${digits.slice(5)}`;
-    }
-    return digits;
-  };
 
   const handleCalculate = async () => {
     const cepDigits = tempCep.replace(/\D/g, '');
