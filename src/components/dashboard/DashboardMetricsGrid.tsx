@@ -42,14 +42,14 @@ function MetricCard({ label, value, icon: Icon, trend, variant = "default" }: Me
   };
 
   return (
-    <div className="flex items-center gap-3 min-w-0">
-      <div className={cn("rounded-lg p-2 shrink-0", variantColors[variant])}>
-        <Icon className="h-4 w-4" />
+    <div className="flex items-center gap-4 min-w-0">
+      <div className={cn("rounded-xl p-3 shrink-0", variantColors[variant])}>
+        <Icon className="h-5 w-5" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium text-muted-foreground truncate">{label}</p>
+        <p className="text-sm font-medium text-muted-foreground truncate">{label}</p>
         <div className="flex items-baseline gap-2">
-          <p className="text-lg font-bold text-card-foreground">{value}</p>
+          <p className="text-2xl font-bold text-card-foreground">{value}</p>
           {trend !== undefined && (
             <span className={cn("text-xs font-medium shrink-0", trend >= 0 ? "text-success" : "text-destructive")}>
               {trend >= 0 ? "+" : ""}{trend.toFixed(1)}%
