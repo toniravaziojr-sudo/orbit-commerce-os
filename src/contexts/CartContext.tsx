@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
+import { sanitizeCep } from '@/lib/cepUtils';
 
 export interface CartItem {
   id: string;
