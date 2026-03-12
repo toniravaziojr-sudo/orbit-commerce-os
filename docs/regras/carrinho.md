@@ -420,10 +420,11 @@ Os botões do carrinho usam classes semânticas:
 
 | Campo | Valor |
 |-------|-------|
-| **Tipo** | Correção de Bug |
-| **Localização** | `supabase/functions/storefront-html/index.ts`, `supabase/functions/_shared/block-compiler/blocks/product-details.ts`, `src/components/storefront/cart/ShippingEstimator.tsx`, `src/components/storefront/checkout/CheckoutShipping.tsx`, `src/components/storefront/product/ShippingCalculator.tsx` |
-| **Contexto** | Calculadora de frete no carrinho lateral (Edge), página de produto (Edge) e carrinho SPA |
-| **Descrição** | Campo de CEP inseria hífens extras ("--") no mobile e desktop, impedindo digitação completa |
-| **Comportamento** | A função `sfFormatCepValue` centralizada remove todos os não-dígitos via `.replace(/\D/g, "")` antes de reaplicar a máscara `XXXXX-XXX`. Evento delegado via `document.addEventListener('input')` em todos os inputs `[data-cep-input]`. |
-| **Atributos do input** | `inputmode="numeric"`, `autocomplete="off"`, `autocorrect="off"`, `spellcheck="false"` |
-| **Afeta** | Mini-cart drawer (Edge), página de produto (Edge), página do carrinho (SPA), checkout (SPA) |
+| **Tipo** | Correção de Bug (encerrada) ✅ |
+| **Localização** | `supabase/functions/storefront-html/index.ts`, `supabase/functions/_shared/block-compiler/blocks/product-details.ts`, `src/components/storefront/MiniCartDrawer.tsx`, `src/components/storefront/product/ShippingCalculator.tsx` |
+| **Contexto** | Calculadora de frete no mini-cart (SPA) e página de produto (Edge + SPA) |
+| **Problema** | Campo de CEP inseria hífens extras ("--") no mobile e desktop. Causa raiz: máscara visual conflitava com caret do navegador, e runtime real da storefront pública era Edge HTML (não React). |
+| **Solução** | Máscara visual removida. Campo aceita apenas 8 dígitos puros. Input nativo: `type="text"`, `inputmode="numeric"`, `maxlength="8"`. Script global de hardening em `storefront-html` sanitiza via `beforeinput`/`paste`. |
+| **Cache** | Requer re-prerender + purge CDN após alterações no Edge HTML para que URL pública reflita mudanças. |
+| **Validação** | Confirmado por print do cliente em 2026-03-12: campos de CEP no mini-cart e página de produto exibem apenas dígitos (`45990408`). |
+| **Afeta** | Mini-cart drawer (SPA), página de produto (Edge), carrinho (SPA), checkout (SPA) |

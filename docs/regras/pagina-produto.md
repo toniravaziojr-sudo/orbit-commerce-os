@@ -296,13 +296,16 @@ A ordem dos elementos é idêntica no Builder (SPA) e no Público (Edge):
 
 ## Correções Aplicadas
 
-### CEP Input — Correção de máscara mobile/desktop (v8.6.1 — 2026-03-11)
+### CEP Input — Remoção total de máscara (v8.6.2 — 2026-03-12) ✅ RESOLVIDO
 
 | Campo | Valor |
 |-------|-------|
-| **Tipo** | Correção de Bug |
-| **Localização** | `supabase/functions/_shared/block-compiler/blocks/product-details.ts` |
-| **Contexto** | Calculadora de frete na página de produto (Edge-rendered) |
-| **Descrição** | Campo de CEP inseria hífens extras ("--") no mobile, impedindo digitação completa do CEP |
-| **Comportamento** | Input CEP usa atributo `data-cep-input` e é formatado pela função centralizada `sfFormatCepValue` injetada pelo `storefront-html`. Remove todos não-dígitos antes de reaplicar máscara `XXXXX-XXX`. |
-| **Atributos** | `inputmode="numeric"`, `autocomplete="off"`, `autocorrect="off"`, `spellcheck="false"` |
+| **Tipo** | Correção de Bug (encerrada) |
+| **Localização** | `supabase/functions/_shared/block-compiler/blocks/product-details.ts`, `supabase/functions/storefront-html/index.ts`, `src/components/storefront/product/ShippingCalculator.tsx` |
+| **Contexto** | Calculadora de frete na página de produto (Edge-rendered + SPA) |
+| **Problema original** | Campo de CEP inseria hífens extras ("--") no mobile e desktop, impedindo digitação completa do CEP. A causa raiz era: (1) a máscara visual `XXXXX-XXX` conflitava com o caret do navegador, e (2) as correções no React não chegavam ao runtime real porque a storefront pública usa HTML gerado por Edge Functions, não React. |
+| **Solução final** | Máscara visual removida completamente. O campo aceita e exibe apenas 8 dígitos puros (sem hífen). Input nativo com `type="text"`, `inputMode="numeric"`, `maxLength="8"`. Script global de hardening (`beforeinput` + `paste`) injeta sanitização digits-only em todos os inputs `[data-sf-shipping-cep]`. |
+| **Atributos do input** | `type="text"`, `inputmode="numeric"`, `maxlength="8"`, `autocomplete="new-password"`, `autocorrect="off"`, `spellcheck="false"` |
+| **Camada de cache** | Após correção no código Edge, foi necessário: (1) re-prerender forçado de todas as páginas stale via `storefront-prerender`, (2) purge total do CDN Cloudflare via `cache-purge-internal`. Sem essas ações, a URL pública limpa continuava servindo o snapshot antigo com `maxlength="9"`. |
+| **Validação** | URL pública `respeiteohomem.com.br/produto/*` retorna `maxlength="8"` sem bypass. Confirmado por print do cliente em 2026-03-12. |
+| **Afeta** | Página de produto (Edge), mini-cart (SPA), carrinho (SPA), checkout (SPA) |
