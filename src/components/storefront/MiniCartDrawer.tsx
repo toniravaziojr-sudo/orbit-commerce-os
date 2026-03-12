@@ -262,19 +262,20 @@ function MiniCartShipping({
   const [isCalculating, setIsCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const formatCepDisplay = (raw: string): string => {
-    const digits = raw.replace(/\D/g, '');
-    if (digits.length > 5) {
-      return `${digits.slice(0, 5)}-${digits.slice(5, 8)}`;
-    }
-    return digits;
-  };
-
-  const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+  // Single handler for ALL input sources: typing, paste, autofill, browser suggestion
+  const handleCepChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = sanitizeCep(e.target.value);
     setShippingCep(digits);
     setError(null);
-  };
+  }, [setShippingCep]);
+
+  // Safety net: onBlur re-sanitizes in case autofill bypassed onChange
+  const handleCepBlur = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
+    const digits = sanitizeCep(e.target.value);
+    if (digits !== sanitizeCep(shipping.cep)) {
+      setShippingCep(digits);
+    }
+  }, [shipping.cep, setShippingCep]);
 
   const handleCalculate = async () => {
     const cepDigits = shipping.cep.replace(/\D/g, '');
