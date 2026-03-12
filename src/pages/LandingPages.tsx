@@ -262,6 +262,101 @@ export default function LandingPages() {
     }
   };
 
+  // AI Architect: generate page structure with AI
+  const handleCreateWithAIArchitect = async () => {
+    if (!aiPageName.trim() || !aiPagePrompt.trim() || !tenant?.id || !user?.id) return;
+
+    const slug = aiPageSlug || generateSlug(aiPageName);
+    const slugValidation = validateSlug(slug);
+    if (!slugValidation.isValid) {
+      toast.error(slugValidation.error || 'Slug inválido');
+      return;
+    }
+
+    setIsGeneratingAI(true);
+    try {
+      // 1. Call AI to generate block structure
+      const { data: aiResult, error: fnError } = await supabase.functions.invoke('ai-page-architect', {
+        body: { prompt: aiPagePrompt, pageName: aiPageName.trim() },
+      });
+
+      if (fnError) throw new Error(fnError.message || 'Erro na geração com IA');
+      if (!aiResult?.blocks?.length) throw new Error('IA não retornou blocos válidos');
+
+      // 2. Build BlockNode[] from AI response using registry
+      const { blockRegistry } = await import('@/lib/builder');
+      const { generateBlockId } = await import('@/lib/builder/utils');
+
+      const contentBlocks = aiResult.blocks
+        .map((b: { type: string }) => blockRegistry.createDefaultNode(b.type))
+        .filter(Boolean);
+
+      // 3. Wrap in Page > Header + Section(blocks) + Footer
+      const pageContent = {
+        id: 'root',
+        type: 'Page',
+        props: {},
+        children: [
+          {
+            id: generateBlockId('Header'),
+            type: 'Header',
+            props: { menuId: '', showSearch: true, showCart: true, sticky: true, noticeEnabled: false },
+          },
+          {
+            id: generateBlockId('Section'),
+            type: 'Section',
+            props: { paddingY: 0, paddingX: 0, backgroundColor: 'transparent' },
+            children: contentBlocks,
+          },
+          {
+            id: generateBlockId('Footer'),
+            type: 'Footer',
+            props: { menuId: '', showSocial: true },
+          },
+        ],
+      };
+
+      // 4. Create template + store_page
+      const templateName = `Modelo - ${aiPageName.trim()}`;
+      const uniqueSuffix = Date.now().toString(36);
+      const newTemplate = await createTemplate.mutateAsync({
+        name: templateName,
+        slug: `modelo-lp-${slug}-${uniqueSuffix}`,
+        is_default: false,
+      });
+
+      const { data: newPage, error: insertError } = await supabase
+        .from('store_pages')
+        .insert({
+          tenant_id: tenant.id,
+          title: aiPageName.trim(),
+          slug,
+          content: pageContent as any,
+          status: 'draft',
+          is_published: false,
+          type: 'landing_page',
+          template_id: newTemplate.id,
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      setIsAIArchitectOpen(false);
+      setAiPageName('');
+      setAiPageSlug('');
+      setAiPagePrompt('');
+      queryClient.invalidateQueries({ queryKey: ['builder-landing-pages'] });
+      toast.success('Página gerada com IA! Abrindo o editor...');
+      navigate(`/pages/${newPage.id}/builder`);
+    } catch (error: any) {
+      console.error('Error creating AI architect page:', error);
+      toast.error(error?.message || 'Erro ao gerar página com IA');
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
   const copySlug = (slug: string) => {
     const url = tenantBaseUrl ? `${tenantBaseUrl}/ai-lp/${slug}` : `/ai-lp/${slug}`;
     navigator.clipboard.writeText(url);
