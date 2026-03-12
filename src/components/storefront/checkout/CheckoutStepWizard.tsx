@@ -300,7 +300,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         shippingNeighborhood: draft.customer.shippingNeighborhood || '',
         shippingCity: draft.customer.shippingCity || '',
         shippingState: draft.customer.shippingState || '',
-        shippingPostalCode: draft.customer.shippingPostalCode || shipping.cep || '',
+        shippingPostalCode: sanitizeCep(draft.customer.shippingPostalCode || shipping.cep || ''),
       }));
     }
   }, [isHydrated]);
