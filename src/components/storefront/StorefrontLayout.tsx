@@ -70,6 +70,9 @@ function StorefrontLayoutContent({
 }) {
   // Client-side visit tracking (must be before early returns — hook uses useLocation)
   useVisitorTracking(tenant?.id);
+  // Cart tracking for dashboard funnel metrics
+  const { totalItems } = useCart();
+  useCartTracking(tenant?.id || '', totalItems);
 
   if (isLoading) {
     return (
