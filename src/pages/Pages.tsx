@@ -728,7 +728,7 @@ export default function Pages() {
 
       {/* Essential Pages Confirmation Dialog */}
       <Dialog open={isEssentialConfirmOpen} onOpenChange={(open) => { setIsEssentialConfirmOpen(open); if (!open) setEssentialBusinessContext(''); }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <PackagePlus className="h-5 w-5 text-primary" />
@@ -736,42 +736,59 @@ export default function Pages() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2 text-sm text-muted-foreground">
-              <p>
-                As páginas serão geradas automaticamente com IA, baseadas nos dados do seu negócio.
+            <div className="rounded-lg border bg-muted/50 p-3 space-y-2">
+              <p className="text-sm font-medium text-foreground">
+                ⚡ O sistema vai gerar automaticamente 8 páginas institucionais para sua loja:
               </p>
-              <p className="font-medium text-foreground">
-                Certifique-se de ter preenchido os dados da loja (nome, CNPJ, contato, etc.) para a IA gerar conteúdo personalizado.
+              <div className="grid grid-cols-2 gap-1 text-xs text-muted-foreground">
+                <span>• Quem Somos</span>
+                <span>• Fale Conosco</span>
+                <span>• Perguntas Frequentes</span>
+                <span>• Como Comprar</span>
+                <span>• Frete e Entrega</span>
+                <span>• Trocas e Devoluções</span>
+                <span>• Política de Privacidade</span>
+                <span>• Termos de Uso</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Páginas já existentes <strong>não serão sobrescritas</strong>.
               </p>
-              <p className="text-xs">
-                Serão criadas até 8 páginas: Quem Somos, Fale Conosco, FAQ, Como Comprar, Frete e Entrega, Trocas e Devoluções, Política de Privacidade e Termos de Uso. Páginas já existentes não serão sobrescritas.
+            </div>
+
+            <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 p-3">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-1">
+                ⚠️ Antes de gerar, verifique:
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                Certifique-se de que os <strong>dados da loja</strong> estão preenchidos (nome, CNPJ, razão social, e-mail, WhatsApp, endereço, etc.). A IA usará esses dados para gerar páginas legais precisas. Dados ausentes aparecerão como "[informar ...]".
               </p>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="essential-context" className="text-sm font-medium">
-                Contexto do negócio <span className="text-muted-foreground font-normal">(recomendado)</span>
+                Contexto do negócio <span className="text-xs text-primary font-normal">(altamente recomendado)</span>
               </Label>
               <p className="text-xs text-muted-foreground">
-                Descreva sua empresa para que as páginas "Quem Somos" e "FAQ" fiquem mais personalizadas. Informe:
+                Este campo personaliza as páginas <strong>"Quem Somos"</strong> e <strong>"FAQ"</strong>. Quanto mais detalhado, melhor o resultado. Informe:
               </p>
-              <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5 ml-1">
-                <li>O que é a sua empresa e o que ela vende</li>
-                <li>Quais dores ou necessidades ela resolve</li>
-                <li>Quais são seus diferenciais</li>
-                <li>Perguntas mais frequentes dos clientes</li>
-                <li>Outros pontos que quer destacar</li>
+              <ul className="text-xs text-muted-foreground space-y-0.5 ml-3">
+                <li>📌 O que sua empresa vende e para quem</li>
+                <li>📌 Quais problemas, dores ou desejos ela resolve</li>
+                <li>📌 Diferenciais reais (tecnologia, atendimento, resultados)</li>
+                <li>📌 Prova social (tempo de mercado, clientes atendidos, números)</li>
+                <li>📌 Perguntas que os clientes fazem com frequência</li>
+                <li>📌 Como a marca quer se posicionar / tom de voz</li>
               </ul>
               <Textarea
                 id="essential-context"
-                placeholder="Ex: Somos uma loja de cosméticos masculinos focada em tratamento capilar. Nossos clientes perguntam muito sobre prazo de resultado, se funciona para calvície avançada, e como usar os produtos. Nosso diferencial é ter produtos com tecnologia exclusiva..."
+                placeholder={"Exemplo: Somos uma marca de cosméticos masculinos focada no tratamento da calvície, pioneira no Brasil desde 2023. Já atendemos mais de 10 mil clientes. Nosso diferencial é o acompanhamento personalizado por especialistas e tratamentos adaptados ao grau de calvície.\n\nDúvidas mais comuns dos clientes:\n- O tratamento realmente funciona?\n- Não é golpe? Posso confiar?\n- Como faço para comprar?\n- Como vou receber meu pedido?\n- Quais são as formas de pagamento?\n- Em quanto tempo vejo resultado?"}
                 value={essentialBusinessContext}
                 onChange={(e) => setEssentialBusinessContext(e.target.value)}
-                rows={5}
-                className="resize-y"
+                rows={7}
+                className="resize-y text-sm"
               />
               <p className="text-xs text-muted-foreground italic">
-                Se deixar em branco, as páginas personalizadas serão geradas com base apenas nos dados cadastrados da loja.
+                💡 Se deixar em branco, "Quem Somos" e "FAQ" ficarão genéricos. As demais páginas (legais) usam apenas os dados cadastrados.
               </p>
             </div>
           </div>
