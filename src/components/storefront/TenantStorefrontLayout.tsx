@@ -20,6 +20,7 @@ import { StorefrontThemeInjector } from '@/components/storefront/StorefrontTheme
 import { isAppDomain } from '@/lib/canonicalDomainService';
 import { useStorefrontBootstrapByHostname } from '@/hooks/useStorefrontBootstrap';
 import { parseSocialCustom } from '@/hooks/useStorefront';
+import { useVisitorTracking } from '@/hooks/useVisitorTracking';
 
 // Context to provide tenantSlug to child components when not in URL
 export const TenantSlugContext = createContext<string>('');
@@ -48,6 +49,9 @@ export function TenantStorefrontLayout() {
   const customDomain = bootstrap?.custom_domain || null;
   const isPublished = bootstrap?.is_published ?? false;
   const bootstrapTemplate = bootstrap?.template || null;
+
+  // Client-side visit tracking (must be before early returns — hook uses useLocation)
+  useVisitorTracking(tenant?.id);
 
   // Check for preview mode
   const searchParams = new URLSearchParams(window.location.search);
