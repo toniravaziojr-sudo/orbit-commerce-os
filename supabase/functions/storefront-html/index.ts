@@ -1229,13 +1229,22 @@ function buildFullPage(opts: {
             body:JSON.stringify({code:code,subtotal:cSubtotal,store_host:HOSTNAME})
           }).then(function(r){return r.json()}).then(function(data){
             if(data.valid){
-              cartDiscount={code:code,type:data.discount_type||"percentage",value:data.discount_value||0,free_shipping:data.free_shipping||false};
-              couponResult.innerHTML='<span style="color:#16a34a;font-weight:500;">✓ Cupom aplicado!</span>';
+              cartDiscount={code:code,type:data.discount_type||"order_percent",value:data.discount_value||0,free_shipping:data.free_shipping||false,discount_id:data.discount_id||"",discount_name:data.discount_name||"",discount_amount:data.discount_amount||0};
+              persistDiscount();
+              updateCouponUI();
               updateCartUI();
             }else{
               couponResult.innerHTML='<span style="color:#dc2626;">'+(data.error||'Cupom inválido')+'</span>';
             }
-          }).catch(function(){couponResult.innerHTML='<span style="color:#dc2626;">Erro ao validar.</span>';});
+          }).catch(function(err){console.error("[SF] Coupon error:",err);couponResult.innerHTML='<span style="color:#dc2626;">Erro ao validar cupom. Tente novamente.</span>';});
+        } else if(action==="remove-coupon"){
+          e.preventDefault();
+          cartDiscount=null;
+          persistDiscount();
+          updateCouponUI();
+          updateCartUI();
+          var couponInput2=document.querySelector("[data-sf-cart-coupon-input]");
+          if(couponInput2)couponInput2.value="";
         } else if(action==="initiate-checkout"){
           // Fire InitiateCheckout tracking events from cart drawer
           if(cart.length>0){
