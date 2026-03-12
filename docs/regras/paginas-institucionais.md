@@ -8,13 +8,14 @@ Módulo unificado de **Páginas** (`/pages`) que combina Páginas Institucionais
 
 ### Modos de Criação
 
-O botão "Criar Página" oferece 3 opções:
+O botão "Criar Página" oferece 4 opções:
 
 | Opção | Descrição |
 |-------|-----------|
 | **Criar manualmente** | Insere nome e slug, redireciona para o Visual Builder (blocos nativos) |
 | **Página de vendas** | Insere nome, slug e prompt curto. A IA monta a estrutura de blocos nativos automaticamente e abre no Builder para edição. Usa edge function `ai-page-architect` + `blockRegistry.createDefaultNode()`. Salva em `store_pages` (type=landing_page). |
 | **Importar Página** | Importa página a partir de URL alvo — cria `ai_landing_pages` |
+| **Páginas Essenciais IA** | Gera pacote de 8 páginas institucionais essenciais para e-commerce via IA (Quem Somos, Fale Conosco, FAQ, Como Comprar, Frete e Entrega, Trocas e Devoluções, Política de Privacidade, Termos de Uso). Usa edge function `ai-essential-pages` + dados de `tenants` e `store_settings`. Não sobrescreve páginas existentes. Salva em `store_pages` (type=institutional). |
 
 ### Fontes de Dados Unificadas
 
