@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             action: "sync",
             tenant_id: tenantId,
-            date_preset: "today",
+            date_preset: "last_7d",
           }),
         });
 
