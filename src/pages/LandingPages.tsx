@@ -89,7 +89,12 @@ export default function LandingPages() {
   const [builderPageName, setBuilderPageName] = useState('');
   const [builderPageSlug, setBuilderPageSlug] = useState('');
   const [isCreatingBuilderPage, setIsCreatingBuilderPage] = useState(false);
-
+  // AI Architect dialog state
+  const [isAIArchitectOpen, setIsAIArchitectOpen] = useState(false);
+  const [aiPageName, setAiPageName] = useState('');
+  const [aiPageSlug, setAiPageSlug] = useState('');
+  const [aiPagePrompt, setAiPagePrompt] = useState('');
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
   // Get tenant's public URL
   const { baseUrl: tenantBaseUrl } = useAILandingPageUrl({
