@@ -606,9 +606,18 @@ export class MarketingTracker {
         quantity: cart.items.reduce((sum, i) => sum + i.quantity, 0),
       }, eventId);
     }
-  }
 
-  // Track purchase - client side (server-side also sends this for reliability)
+    // Server-side CAPI
+    const capiContentIds = cart.items.map(i => resolveMetaContentId(i));
+    this.sendCapi('InitiateCheckout', eventId, {
+      content_ids: capiContentIds,
+      content_type: 'product',
+      value: cart.value,
+      currency,
+      num_items: cart.items.reduce((sum, i) => sum + i.quantity, 0),
+      contents: cart.items.map(i => ({ id: resolveMetaContentId(i), quantity: i.quantity, item_price: i.price })),
+    });
+  }
   trackPurchase(order: {
     order_id: string;
     value: number;
