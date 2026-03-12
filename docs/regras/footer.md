@@ -457,6 +457,7 @@ O `StorefrontFooterContent.tsx` implementa um componente `FooterLink` que detect
 | 2026-02-02 | **UNIFICAÇÃO**: Tamanhos de selos padronizados para todos os tipos (Pagamento, Segurança, Frete, Lojas) |
 | 2026-02-02 | Referência de dimensões (px) adicionada no UI do builder para orientar uploads |
 | 2026-02-01 | **FIX v5**: Movido gerenciamento de `pendingUpdatesRef` para o hook `useThemeFooter` — hook agora retorna `footer` já mesclado com atualizações pendentes |
+| 2026-03-12 | **MENU AUTO-UPDATE (v2.0.0)**: Salvar menu no admin agora atualiza a loja pública automaticamente. `menuAutoUpdate()` com debounce 5s: stale → CDN purge → prerender (`trigger_type: 'menu_update'`). Usa `published_content`, nunca `draft_content`. Fallback: live-render (~5s). Toast de republicação manual removido. |
 | 2026-02-01 | `FooterSettings.tsx` simplificado — não precisa mais de estado local para seções de imagem (paymentMethods, etc.) |
 | 2026-03-04 | **FIX AI LP**: Wrapper do footer em `StorefrontAILandingPage.tsx` agora inclui `containerName: 'storefront'` no `style` — sem isso, as CSS Container Queries (`@container storefront`) não matchavam e o layout ficava quebrado (empilhado em vez de colunas). Regra: qualquer wrapper que renderize Header/Footer DEVE ter `containerType: 'inline-size'` E `containerName: 'storefront'` |
 | 2026-02-01 | Correção usa `saveThemeSettingsAsync` para aguardar persistência antes de limpar flags |
