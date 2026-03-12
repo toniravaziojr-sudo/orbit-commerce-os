@@ -169,7 +169,7 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
           </div>
           <Button
             onClick={handleCalculate}
-            disabled={disabled || isCalculating || tempCep.replace(/\D/g, '').length < 8}
+            disabled={disabled || isCalculating || sanitizeCep(tempCep).length < 8}
             variant="outline"
           >
             {isCalculating ? (
