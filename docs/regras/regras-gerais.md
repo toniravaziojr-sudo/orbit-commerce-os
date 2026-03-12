@@ -710,12 +710,13 @@ try {
 
 ## Dashboard — Métricas e Formatação
 
-### Layout de Métricas (v8.7.0 — 3 Colunas)
+### Layout de Métricas (v8.8.0 — 4 Categorias Horizontais)
 
-O grid de métricas da Central de Execuções é organizado em **3 colunas** (Cards agrupados):
+O grid de métricas da Central de Execuções é organizado em **4 categorias empilhadas verticalmente**, cada uma contendo cards horizontais (`flex gap-3`):
 
-| Coluna | Título | Métricas | Fonte de Dados |
-|--------|--------|----------|----------------|
+| Ordem | Título | Métricas | Fonte de Dados |
+|-------|--------|----------|----------------|
+| **0 — Faturamento** | "Faturamento" | Faturamento Total (pagos+não pagos), Faturamento Real (só pagos), Retorno Real (pagos - ad spend total), Taxa de Conversão (visitantes × pedidos pagos) | `orders`, `meta_ad_insights`, `google_ad_insights`, `tiktok_ad_insights`, `storefront_visits` |
 | **1 — Funil de Conversão** | "Funil de Conversão" | Visitas → Adicionou ao carrinho → Iniciou checkout → Pedidos (vendas efetivadas) | `storefront_visits`, `carts`, `checkout_sessions`, `orders` |
 | **2 — Pedidos & Financeiro** | "Pedidos & Financeiro" | Pedidos Pagos, Pedidos Não Pagos, Ticket Médio, Novos Clientes (1ª compra) | `orders` (payment_status), `customers` |
 | **3 — Checkouts Abandonados** | "Checkouts Abandonados" | Total abandonados, Recuperados, Com erros de contato | `checkout_sessions` (status/recovered_at/customer_email/phone) |
@@ -727,20 +728,47 @@ O grid de métricas da Central de Execuções é organizado em **3 colunas** (Ca
 | **Tipo** | Componente |
 | **Localização** | `src/components/dashboard/DashboardMetricsGrid.tsx` |
 | **Contexto** | Renderizado em `DashboardContent()` dentro de `CommandCenter.tsx` |
-| **Descrição** | Grid de 3 colunas com métricas horizontais (grid 2x2 interno por card) |
+| **Descrição** | 4 categorias empilhadas (`space-y-4`), cada uma com `Card` contendo cards horizontais internos (`flex gap-3`) |
 | **Props** | `metrics: DashboardMetrics`, `isLoading: boolean`, `trendLabel: string` |
-| **Visual** | Cada card usa `grid-cols-2` interno com `MetricCard` (ícone + label + valor + trend inline). Layout horizontal, NÃO vertical. Refatorado de FunnelStep/MetricRow vertical para MetricCard horizontal em v8.7.1. |
+| **Visual** | Cada métrica é um `MetricCard` com: label (text-sm), valor (text-2xl bold), ícone colorido (top-right), trend com % (bottom). Layout horizontal com `flex-1 min-w-0`. Refatorado de grid-cols-2 para flex horizontal em v8.7.2, adicionada categoria Faturamento em v8.8.0. |
 | **Afeta** | Depende de `useDashboardMetrics` hook |
 
-#### Interface DashboardMetrics (campos adicionados v8.7.0)
+#### Interface DashboardMetrics (campos v8.8.0)
 
 | Campo | Tipo | Fonte |
 |-------|------|-------|
+| `salesToday` / `salesYesterday` | number | `orders` where `payment_status = 'approved'` (soma de total) |
+| `ordersToday` / `ordersYesterday` | number | `orders` count |
+| `paidOrdersToday` / `paidOrdersYesterday` | number | `orders` where `payment_status = 'approved'` count |
+| `unpaidOrdersToday` / `unpaidOrdersYesterday` | number | `orders` where `payment_status != 'approved'` count |
+| `ticketToday` / `ticketYesterday` | number | salesCurrent / paidCurrent.length |
+| `newCustomersToday` / `newCustomersYesterday` | number | `customers` count |
+| `visitorsToday` / `visitorsYesterday` | number | `storefront_visits` (unique visitor_id) |
 | `cartsToday` / `cartsYesterday` | number | `carts` (count por período) |
 | `checkoutsStartedToday` / `checkoutsStartedYesterday` | number | `checkout_sessions` (count por período) |
 | `abandonedCheckoutsToday` / `abandonedCheckoutsYesterday` | number | `checkout_sessions` onde `status = 'abandoned'` |
 | `recoveredCheckoutsToday` | number | `checkout_sessions` onde `recovered_at IS NOT NULL` |
 | `errorCheckoutsToday` | number | Abandonados sem email válido (sem `@`) E sem telefone válido (< 8 chars) |
+| `totalRevenueToday` / `totalRevenueYesterday` | number | `orders` soma de total (todos, pagos e não pagos) |
+| `adSpendToday` / `adSpendYesterday` | number | Soma de: `meta_ad_insights.spend_cents/100` + `google_ad_insights.cost_micros/1_000_000` + `tiktok_ad_insights.spend_cents/100` |
+| `conversionRateToday` / `conversionRateYesterday` | number | `(paidOrders / visitors) * 100` — atualiza com recuperados pois usa payment_status approved |
+
+#### Métricas de Faturamento (v8.8.0)
+
+| Métrica | Cálculo | Ícone | Variant |
+|---------|---------|-------|---------|
+| **Faturamento Total** | Soma de `orders.total` (todos os pedidos, pagos e não pagos) | `DollarSign` | `primary` |
+| **Faturamento Real** | Soma de `orders.total` onde `payment_status = 'approved'` | `BarChart3` | `success` |
+| **Retorno Real** | Faturamento Real − Ad Spend Total (Meta + Google + TikTok) | `TrendingDown` | `info` (positivo) / `destructive` (negativo) |
+| **Taxa de Conversão** | `(pedidos pagos / visitantes) × 100` — formato `X.XX%` | `Percent` | `warning` |
+
+#### Ad Spend — Fontes de Dados
+
+| Plataforma | Tabela | Campo | Conversão |
+|------------|--------|-------|-----------|
+| Meta Ads | `meta_ad_insights` | `spend_cents` | ÷ 100 |
+| Google Ads | `google_ad_insights` | `cost_micros` | ÷ 1.000.000 |
+| TikTok Ads | `tiktok_ad_insights` | `spend_cents` | ÷ 100 |
 
 #### Regra de "Com erros de contato"
 
