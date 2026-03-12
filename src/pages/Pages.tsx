@@ -82,6 +82,7 @@ export default function Pages() {
   // Essential pages state
   const [isEssentialConfirmOpen, setIsEssentialConfirmOpen] = useState(false);
   const [isGeneratingEssential, setIsGeneratingEssential] = useState(false);
+  const [essentialBusinessContext, setEssentialBusinessContext] = useState('');
   const [formData, setFormData] = useState({
     title: '', slug: '', seo_title: '', seo_description: '',
   });
@@ -334,7 +335,7 @@ export default function Pages() {
     setIsEssentialConfirmOpen(false);
     try {
       const { data, error } = await supabase.functions.invoke('ai-essential-pages', {
-        body: { tenantId: currentTenant.id },
+        body: { tenantId: currentTenant.id, businessContext: essentialBusinessContext || undefined },
       });
       if (error) throw new Error(error.message || 'Erro na geração');
       if (!data?.success) throw new Error(data?.error || 'Erro desconhecido');
@@ -726,33 +727,65 @@ export default function Pages() {
       )}
 
       {/* Essential Pages Confirmation Dialog */}
-      <AlertDialog open={isEssentialConfirmOpen} onOpenChange={setIsEssentialConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
+      <Dialog open={isEssentialConfirmOpen} onOpenChange={(open) => { setIsEssentialConfirmOpen(open); if (!open) setEssentialBusinessContext(''); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
               <PackagePlus className="h-5 w-5 text-primary" />
               Páginas Essenciais IA
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-left space-y-3">
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2 text-sm text-muted-foreground">
               <p>
                 As páginas serão geradas automaticamente com IA, baseadas nos dados do seu negócio.
               </p>
               <p className="font-medium text-foreground">
-                Certifique-se de ter a loja criada e de ter preenchido todos os dados do seu negócio para a IA ter base de criação, como logo, CNPJ, etc.
+                Certifique-se de ter preenchido os dados da loja (nome, CNPJ, contato, etc.) para a IA gerar conteúdo personalizado.
               </p>
               <p className="text-xs">
                 Serão criadas até 8 páginas: Quem Somos, Fale Conosco, FAQ, Como Comprar, Frete e Entrega, Trocas e Devoluções, Política de Privacidade e Termos de Uso. Páginas já existentes não serão sobrescritas.
               </p>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleGenerateEssentialPages}>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="essential-context" className="text-sm font-medium">
+                Contexto do negócio <span className="text-muted-foreground font-normal">(recomendado)</span>
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Descreva sua empresa para que as páginas "Quem Somos" e "FAQ" fiquem mais personalizadas. Informe:
+              </p>
+              <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5 ml-1">
+                <li>O que é a sua empresa e o que ela vende</li>
+                <li>Quais dores ou necessidades ela resolve</li>
+                <li>Quais são seus diferenciais</li>
+                <li>Perguntas mais frequentes dos clientes</li>
+                <li>Outros pontos que quer destacar</li>
+              </ul>
+              <Textarea
+                id="essential-context"
+                placeholder="Ex: Somos uma loja de cosméticos masculinos focada em tratamento capilar. Nossos clientes perguntam muito sobre prazo de resultado, se funciona para calvície avançada, e como usar os produtos. Nosso diferencial é ter produtos com tecnologia exclusiva..."
+                value={essentialBusinessContext}
+                onChange={(e) => setEssentialBusinessContext(e.target.value)}
+                rows={5}
+                className="resize-y"
+              />
+              <p className="text-xs text-muted-foreground italic">
+                Se deixar em branco, as páginas personalizadas serão geradas com base apenas nos dados cadastrados da loja.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setIsEssentialConfirmOpen(false); setEssentialBusinessContext(''); }}>
+              Cancelar
+            </Button>
+            <Button onClick={handleGenerateEssentialPages}>
+              <Sparkles className="mr-2 h-4 w-4" />
               Confirmar e Gerar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Essential Pages Loading Toast */}
       {isGeneratingEssential && (
