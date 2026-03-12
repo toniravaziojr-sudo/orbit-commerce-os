@@ -451,6 +451,134 @@ REGRAS:
 
 ---
 
+## Páginas Essenciais IA — V2.0
+
+### Visão Geral
+
+Sistema automatizado que gera um bundle de 8 páginas institucionais essenciais para e-commerce via IA, personalizado com dados reais do tenant e contexto do negócio fornecido pelo lojista.
+
+### Edge Function: `ai-essential-pages`
+
+| Campo | Valor |
+|-------|-------|
+| **Arquivo** | `supabase/functions/ai-essential-pages/index.ts` |
+| **Modelo IA** | `google/gemini-2.5-flash` via Lovable Gateway |
+| **Entrada** | `{ tenantId: string, businessContext?: string }` |
+| **Saída** | `{ success, created, skipped, pages[] }` |
+| **Dados consumidos** | `tenants`, `store_settings` |
+| **Tabela de saída** | `store_pages` (type=`institutional`, status=`draft`) |
+
+### Páginas Geradas (8 slugs fixos)
+
+| Slug | Título | Modo | Bloco Nativo |
+|------|--------|------|-------------|
+| `quem-somos` | Quem Somos | `institutional` | RichText |
+| `fale-conosco` | Fale Conosco | `institutional` | RichText |
+| `faq` | Perguntas Frequentes | `faq` | FAQ (acordeão) |
+| `como-comprar` | Como Comprar | `institutional` | RichText |
+| `frete-e-entrega` | Política de Frete e Entrega | `legal` | RichText |
+| `trocas-e-devolucoes` | Política de Troca e Devolução | `legal` | RichText |
+| `politica-de-privacidade` | Política de Privacidade | `legal` | RichText |
+| `termos-de-uso` | Termos de Uso | `legal` | RichText |
+
+### Modos de Geração (3 pipelines distintos)
+
+#### A. Legal (JSON Estruturado + Tool Calling)
+
+| Item | Detalhe |
+|------|---------|
+| **Páginas** | `shipping`, `returns`, `privacy`, `terms` |
+| **Técnica** | Tool calling com schema JSON tipado (`create_legal_pages`) |
+| **Temperatura** | 0.5 (determinístico) |
+| **Renderização** | `renderLegalPageToHtml()` converte JSON → HTML formatado com inline styles |
+| **Dados injetados por código** | Nome fantasia, razão social, CNPJ, endereço, e-mail, telefone, WhatsApp |
+| **Fallback de dados** | `[informar ...]` quando dado ausente (nunca inventa) |
+| **Base jurídica** | CDC (Lei 8.078/90), LGPD (Lei 13.709/18), Marco Civil, Decreto 7.962/2013 |
+| **Estrutura HTML** | Bloco "Identificação da Empresa" no topo + seções com h2 + bloco "Dúvidas?" no rodapé + data de atualização |
+
+#### B. Institucional (HTML via IA)
+
+| Item | Detalhe |
+|------|---------|
+| **Páginas** | `about` (Quem Somos), `contact` (Fale Conosco), `how_to_buy` (Como Comprar) |
+| **Técnica** | Geração direta de HTML via chat completion (JSON array response) |
+| **Temperatura** | 0.7 (mais criativo) |
+| **`businessContext`** | Texto livre do lojista injetado como "CONTEXTO DO NEGÓCIO" no prompt — usado FORTEMENTE para personalizar |
+| **Pós-processamento** | "Fale Conosco" recebe bloco de contato injetado por código no final (`buildContactBlock()`) |
+| **Formatação** | Inline styles obrigatórios (h1 centralizado, h2 com bordas, p com line-height 1.7) |
+
+#### C. FAQ (Tool Calling + Plain Text)
+
+| Item | Detalhe |
+|------|---------|
+| **Página** | `faq` |
+| **Técnica** | Tool calling com schema tipado (`create_faq`) |
+| **Temperatura** | 0.7 |
+| **Formato** | Texto puro (SEM HTML) — regra explícita no prompt |
+| **Sanitização** | `toPlainText()` aplicado em todas as respostas (remove tags HTML vazadas, entidades, espaços extras) |
+| **Bloco nativo** | `FAQ` (acordeão via `<Accordion>`) — NÃO usa RichText |
+| **businessContext** | Usado como base principal para as perguntas (dores dos clientes → perguntas + respostas personalizadas) |
+| **Fallback** | 5 perguntas genéricas de e-commerce se a IA falhar |
+
+### Estrutura do BlockNode Gerado
+
+Todas as páginas seguem a mesma estrutura de blocos:
+
+```
+Page
+├── Header (menuId, showSearch, showCart, sticky)
+├── Section (paddingY: 48, paddingX: 16)
+│   └── Container (maxWidth: "md", centered: true)
+│       └── RichText { content: htmlContent }   ← Legal/Institucional
+│       └── FAQ { title, items[] }              ← FAQ
+└── Footer (menuId, showSocial)
+```
+
+### Contexto da Loja (`StoreContext`)
+
+| Campo | Fonte | Fallback |
+|-------|-------|----------|
+| `storeName` | `store_settings.store_name` → `tenants.name` | `[Nome da Loja]` |
+| `storeDescription` | `store_settings.seo_description` → `store_description` | `""` |
+| `contactEmail` | `store_settings.contact_email` | `""` |
+| `contactPhone` | `store_settings.contact_phone` | `""` |
+| `whatsapp` | `store_settings.social_whatsapp` | `""` |
+| `supportHours` | `store_settings.contact_support_hours` | `""` |
+| `address` | `store_settings.contact_address` | `""` |
+| `cnpj` | `store_settings.business_cnpj` | `""` |
+| `legalName` | `store_settings.business_legal_name` | `""` |
+| `domain` | `tenants.custom_domain` → `tenants.slug` | `""` |
+
+### Regras de Proteção
+
+| Regra | Descrição |
+|-------|-----------|
+| **Não sobrescreve** | Verifica slugs existentes antes de inserir — pula páginas que já existem |
+| **Anti-alucinação** | Dados faltantes usam `[informar ...]`, nunca inventa CNPJ/endereço/etc |
+| **Sanitização FAQ** | `toPlainText()` remove qualquer HTML que a IA vaze nas respostas do FAQ |
+| **Status inicial** | Todas criadas como `draft` + `is_published: false` — requer publicação manual |
+| **Rate limit** | Erro 429 tratado com mensagem amigável |
+| **Créditos** | Erro 402 tratado (créditos insuficientes no workspace) |
+
+### Fluxo de Recriação (Admin)
+
+Para recriar as páginas essenciais de um tenant:
+
+1. **Deletar** as 8 páginas existentes pelos slugs fixos
+2. **Chamar** a edge function `ai-essential-pages` com `tenantId` e `businessContext`
+3. **Publicar** via SQL: `UPDATE store_pages SET status='published', is_published=true WHERE tenant_id=X AND slug IN (...)`
+
+### Compilador Estático (Storefront SSR)
+
+| Bloco | Compilador | Arquivo |
+|-------|-----------|---------|
+| FAQ | `faqToStaticHTML` | `supabase/functions/_shared/block-compiler/blocks/faq.ts` |
+| RichText | `richTextToStaticHTML` | `supabase/functions/_shared/block-compiler/blocks/rich-text.ts` |
+
+O compilador FAQ usa `<details>/<summary>` nativo (zero JS) com chevron animado via CSS.
+
+---
+
 ## Changelog de Correções
 
 ### v3.8.2 — Sanitização de Scroll e Visibilidade
