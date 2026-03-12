@@ -3,6 +3,7 @@
 // =============================================
 
 import { useState, useEffect, useRef } from 'react';
+import { sanitizeCep } from '@/lib/cepUtils';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
