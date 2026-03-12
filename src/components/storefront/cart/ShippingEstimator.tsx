@@ -12,23 +12,21 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Loader2, Truck, AlertCircle } from 'lucide-react';
 
-function formatCep(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 8);
-  if (digits.length > 5) {
-    return `${digits.slice(0, 5)}-${digits.slice(5)}`;
-  }
-  return digits;
-}
-
 export function ShippingEstimator() {
   const { items, subtotal, shipping, setShippingCep, setShippingOptions, selectShipping } = useCart();
   const { config, quote, quoteAsync, isLoading: configLoading } = useShipping();
   const [isCalculating, setIsCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Store raw digits to avoid hyphen re-insertion bug
+  const cepDigits = shipping.cep.replace(/\D/g, '');
+  const formattedCep = cepDigits.length > 5
+    ? `${cepDigits.slice(0, 5)}-${cepDigits.slice(5)}`
+    : cepDigits;
+
   const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatCep(e.target.value);
-    setShippingCep(formatted);
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+    setShippingCep(digits);
     setError(null);
   };
 
