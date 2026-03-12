@@ -326,7 +326,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         shippingNeighborhood: formData.shippingNeighborhood,
         shippingCity: formData.shippingCity,
         shippingState: formData.shippingState,
-        shippingPostalCode: formData.shippingPostalCode,
+        shippingPostalCode: sanitizeCep(formData.shippingPostalCode),
       });
     }
   }, [formData, isHydrated]);
