@@ -190,6 +190,7 @@ export default function MenuPanel({
 }: MenuPanelProps) {
   const { items: dbItems, isLoading } = useMenuItems(menuId);
   const { toast } = useToast();
+  const { currentTenant } = useAuth();
   
   const isFooterMenu = location === 'footer_1' || location === 'footer_2';
   
