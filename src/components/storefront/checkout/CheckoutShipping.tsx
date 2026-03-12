@@ -30,7 +30,7 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
   const hasShipping = shipping.cep && shipping.selected;
 
   const handleCalculate = async () => {
-    const cepDigits = tempCep.replace(/\D/g, '');
+    const cepDigits = sanitizeCep(tempCep);
     if (cepDigits.length !== 8) {
       setError('CEP inválido');
       return;
