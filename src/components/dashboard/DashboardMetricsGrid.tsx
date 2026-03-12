@@ -126,7 +126,7 @@ export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: Dashboa
         <CardContent className="px-4 pb-4 pt-3 flex gap-3">
           <MetricCard label="Faturamento Total" value={formatCurrency(metrics?.totalRevenueToday ?? 0)} icon={DollarSign} trend={totalRevenueTrend} trendLabel={trendLabel} variant="primary" />
           <MetricCard label="Faturamento Real" value={formatCurrency(metrics?.salesToday ?? 0)} icon={BarChart3} trend={metrics ? calculateTrend(metrics.salesToday, metrics.salesYesterday) : 0} trendLabel={trendLabel} variant="success" />
-          <MetricCard label="Retorno Real (ROAS)" value={formatRoas(roasToday)} icon={TrendingUp} trend={roasTrend} trendLabel={trendLabel} variant={roasToday >= 1 ? "info" : "destructive"} />
+          <MetricCard label="Retorno Real (ROI)" value={adSpend > 0 ? `${formatCurrency(adSpend)} → ${formatCurrency(metrics?.salesToday ?? 0)} (${formatRoas(roasToday)})` : "Sem investimento"} icon={TrendingUp} trend={roasTrend} trendLabel={trendLabel} variant={roasToday >= 1 ? "info" : "destructive"} />
           <MetricCard label="Taxa de Conversão" value={`${(metrics?.conversionRateToday ?? 0).toFixed(2)}%`} icon={Percent} trend={convRateTrend} trendLabel={trendLabel} variant="warning" />
         </CardContent>
       </Card>

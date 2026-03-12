@@ -832,6 +832,41 @@ Checkout abandonado é classificado como "com erro" quando:
 2. **Visitantes dependiam de GA4** → Label "Sincronize o GA4" bloqueava visualização. Corrigido com tracking interno próprio.
 3. **sendBeacon silenciosamente falhava** → `navigator.sendBeacon` não suporta headers customizados; PostgREST requer `Authorization: Bearer`. Resultado: 0 visitantes registrados. Corrigido trocando para `fetch()` com `keepalive:true`. **REGRA: NUNCA usar sendBeacon para PostgREST.**
 
+### Dashboard Data Architecture (v8.9.0)
+
+#### Fonte de Verdade e Deduplicação
+
+| Métrica | Fonte de Verdade | Deduplicação |
+|---------|-----------------|--------------|
+| **Visitantes** | `storefront_visits` (tracking interno via cookie `_sf_vid`) | `visitor_id` único — NÃO usa pixels externos |
+| **Pedidos/Faturamento** | Tabela `orders` | `order.id` único — NÃO duplica entre plataformas |
+| **Ad Spend** | `meta_ad_insights.spend_cents` + `google_ad_insights.cost_micros` + `tiktok_ad_insights.spend_cents` | Deduplicado por `tenant_id + campaign_id + date` via upsert |
+
+#### Sincronização Automática de Dados de Anúncios
+
+| Campo | Valor |
+|-------|-------|
+| **Edge Function** | `sync-ads-dashboard` |
+| **Frequência** | A cada 15 minutos via `pg_cron` (`sync-ads-dashboard-every-15min`) |
+| **Fluxo** | Busca tenants com conexões ativas → Chama sync de cada plataforma → Dados salvos nas tabelas de insights |
+| **Frontend refresh** | `useDashboardMetrics` com `refetchInterval: 60000` (1 min) |
+
+#### Métricas do Grupo "Faturamento"
+
+| Card | Cálculo | Formato |
+|------|---------|---------|
+| **Faturamento Total** | `SUM(orders.total)` — todos os pedidos | `R$ X.XXX,XX` |
+| **Faturamento Real** | `SUM(orders.total WHERE payment_status = 'approved')` | `R$ X.XXX,XX` |
+| **Retorno Real (ROI)** | `"R$ {adSpend} → R$ {faturamentoReal} ({ROAS}x)"` — quanto investiu vs quanto retornou | Ex: `R$ 500,00 → R$ 2.500,00 (5.00x)` |
+| **Taxa de Conversão** | `(pedidos pagos / visitantes únicos) × 100` | `X.XX%` |
+
+#### Regras do Retorno Real
+
+- ROI = Faturamento Real ÷ Ad Spend Total (Meta + Google + TikTok)
+- Formato exibe: investimento → retorno (multiplicador)
+- Se não houver investimento: exibe "Sem investimento"
+- Cor: **azul (info)** se ROAS ≥ 1, **vermelho (destructive)** se < 1
+
 ---
 
 ## Regra de Imutabilidade
