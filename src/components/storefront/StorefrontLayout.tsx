@@ -2,7 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import { Outlet, useParams } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { Loader2 } from 'lucide-react';
-import { CartProvider } from '@/contexts/CartContext';
+import { CartProvider, useCart } from '@/contexts/CartContext';
 import { DiscountProvider } from '@/contexts/DiscountContext';
 import { StorefrontConfigProvider } from '@/contexts/StorefrontConfigContext';
 import { MiniCartProvider, useMiniCart } from '@/contexts/MiniCartContext';
@@ -12,6 +12,7 @@ import { StorefrontHead } from '@/components/storefront/StorefrontHead';
 import { LcpPreloader } from '@/components/storefront/LcpPreloader';
 import { StorefrontThemeInjector } from '@/components/storefront/StorefrontThemeInjector';
 import { useVisitorTracking } from '@/hooks/useVisitorTracking';
+import { useCartTracking } from '@/hooks/useCartTracking';
 /**
  * StorefrontLayout - Used for /store/:tenantSlug routes (legacy/app domain)
  * This layout is ONLY used when accessed via the app domain or fallback origin.
@@ -69,6 +70,9 @@ function StorefrontLayoutContent({
 }) {
   // Client-side visit tracking (must be before early returns — hook uses useLocation)
   useVisitorTracking(tenant?.id);
+  // Cart tracking for dashboard funnel metrics
+  const { totalItems } = useCart();
+  useCartTracking(tenant?.id || '', totalItems);
 
   if (isLoading) {
     return (
