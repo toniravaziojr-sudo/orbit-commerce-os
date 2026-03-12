@@ -1096,6 +1096,14 @@ function buildFullPage(opts: {
           document.querySelector("[data-sf-cart-drawer]")?.classList.add("active");
           document.querySelector("[data-sf-cart-backdrop]")?.classList.add("active");
         }
+        // === FUNNEL: Insert cart record for dashboard metrics (once per session) ===
+        var _ctKey="cart_session_${escapeHtml(opts.tenantId || '')}";
+        if(!sessionStorage.getItem(_ctKey)){
+          var _ctSid=crypto.randomUUID();
+          var _ctUrl="${Deno.env.get('SUPABASE_URL')}";
+          var _ctKey2="${Deno.env.get('SUPABASE_ANON_KEY') || ''}";
+          fetch(_ctUrl+"/rest/v1/carts",{method:"POST",headers:{"Content-Type":"application/json","apikey":_ctKey2,"Authorization":"Bearer "+_ctKey2,"Prefer":"return=minimal"},body:JSON.stringify({tenant_id:"${escapeHtml(opts.tenantId || '')}",session_id:_ctSid,status:"active"})}).then(function(r){if(r.ok){sessionStorage.setItem(_ctKey,_ctSid);}else{console.warn("[SF] Cart tracking insert failed:",r.status);}}).catch(function(){});
+        }
         // === MARKETING: AddToCart event ===
         var contentId=metaRetailerId||sku||id;
         var prc=parseFloat(price)||0;
