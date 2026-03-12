@@ -577,6 +577,11 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
 
     // MARKETING: Track AddPaymentInfo when user proceeds to pay
     trackAddPaymentInfo(paymentMethod);
+    // Persist funnel step in checkout_sessions
+    heartbeatCheckoutSession({
+      tenantSlug: tenantSlug || undefined,
+      step: 'payment_selected',
+    });
 
     try {
       // Save email for returning customer recognition
