@@ -2,8 +2,7 @@
 // CHECKOUT FORM - Customer data with validation and masks
 // =============================================
 
-import { useState } from 'react';
-import { sanitizeCep, formatCepDisplay } from '@/lib/cepUtils';
+import { sanitizeCep, formatCepDisplay, isValidCep } from '@/lib/cepUtils';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -49,19 +48,15 @@ function maskPhone(value: string): string {
   return digits.replace(/(\d{2})(\d{4})(\d{0,4})/, '($1) $2-$3');
 }
 
-function maskCep(value: string): string {
-  return formatCepDisplay(value);
-}
-
 export function CheckoutForm({ data, onChange, errors, disabled = false }: CheckoutFormProps) {
   const handleChange = (field: keyof CheckoutFormData, value: string) => {
-    let maskedValue = value;
-    
-    if (field === 'customerCpf') maskedValue = maskCpf(value);
-    if (field === 'customerPhone') maskedValue = maskPhone(value);
-    if (field === 'shippingPostalCode') maskedValue = maskCep(value);
-    
-    onChange({ ...data, [field]: maskedValue });
+    let nextValue = value;
+
+    if (field === 'customerCpf') nextValue = maskCpf(value);
+    if (field === 'customerPhone') nextValue = maskPhone(value);
+    if (field === 'shippingPostalCode') nextValue = sanitizeCep(value);
+
+    onChange({ ...data, [field]: nextValue });
   };
 
   return (
