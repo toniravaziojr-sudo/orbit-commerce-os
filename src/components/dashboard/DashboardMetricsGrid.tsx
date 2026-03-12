@@ -15,6 +15,7 @@ import {
   DollarSign,
   BarChart3,
   Percent,
+  Megaphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, calculateTrend } from "@/hooks/useDashboardMetrics";
@@ -126,7 +127,21 @@ export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: Dashboa
         <CardContent className="px-4 pb-4 pt-3 flex gap-3">
           <MetricCard label="Faturamento Total" value={formatCurrency(metrics?.totalRevenueToday ?? 0)} icon={DollarSign} trend={totalRevenueTrend} trendLabel={trendLabel} variant="primary" />
           <MetricCard label="Faturamento Real" value={formatCurrency(metrics?.salesToday ?? 0)} icon={BarChart3} trend={metrics ? calculateTrend(metrics.salesToday, metrics.salesYesterday) : 0} trendLabel={trendLabel} variant="success" />
-          <MetricCard label="Retorno Real (ROI)" value={adSpend > 0 ? `${formatCurrency(adSpend)} → ${formatCurrency(metrics?.salesToday ?? 0)} (${formatRoas(roasToday)})` : "Sem investimento"} icon={TrendingUp} trend={roasTrend} trendLabel={trendLabel} variant={roasToday >= 1 ? "info" : "destructive"} />
+        </CardContent>
+      </Card>
+
+      {/* Row 0.5: Desempenho de Marketing */}
+      <Card>
+        <CardHeader className="pb-1 pt-4 px-4">
+          <CardTitle className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+            <Megaphone className="h-4 w-4" />
+            Desempenho de Marketing
+          </CardTitle>
+          <p className="text-[11px] text-muted-foreground">{trendLabel}</p>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 pt-3 flex gap-3">
+          <MetricCard label="Investido em Anúncios" value={adSpend > 0 ? formatCurrency(adSpend) : "R$ 0,00"} icon={Megaphone} trend={adSpendTrend} trendLabel={trendLabel} variant="primary" />
+          <MetricCard label="Retorno Real (ROI)" value={adSpend > 0 ? `${formatRoas(roasToday)}` : "Sem investimento"} icon={TrendingUp} trend={roasTrend} trendLabel={trendLabel} variant={roasToday >= 1 ? "info" : "destructive"} />
           <MetricCard label="Taxa de Conversão" value={`${(metrics?.conversionRateToday ?? 0).toFixed(2)}%`} icon={Percent} trend={convRateTrend} trendLabel={trendLabel} variant="warning" />
         </CardContent>
       </Card>
