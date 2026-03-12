@@ -358,6 +358,7 @@ export default function Pages() {
     }
   };
 
+  const deleteMutation = useMutation({
     mutationFn: async ({ id, source }: { id: string; source: UnifiedPageItem['source'] }) => {
       if (source === 'institutional') {
         await deletePage.mutateAsync(id);
