@@ -106,18 +106,9 @@ export function ShippingEstimator() {
 
       <div className="flex gap-2">
         <div className="flex-1">
-          <Input
-            type="text"
-            inputMode="numeric"
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            placeholder="00000-000"
-            value={formatCepDisplay(shipping.cep)}
-            onChange={handleCepChange}
-            onBlur={handleCepBlur}
-            maxLength={9}
+          <CepInput
+            value={shipping.cep}
+            onValueChange={handleCepValueChange}
             className="font-mono"
           />
         </div>

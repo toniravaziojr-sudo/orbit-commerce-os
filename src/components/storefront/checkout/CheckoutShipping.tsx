@@ -144,25 +144,12 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
       <div className="space-y-4">
         <div className="flex gap-2">
           <div className="flex-1">
-            <Input
-              type="text"
-              inputMode="numeric"
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              placeholder="00000-000"
-              value={formatCepDisplay(tempCep)}
-              onChange={(e) => {
-                const digits = sanitizeCep(e.target.value);
+            <CepInput
+              value={tempCep}
+              onValueChange={(digits) => {
                 setTempCep(digits);
                 setError(null);
               }}
-              onBlur={(e) => {
-                const digits = sanitizeCep(e.target.value);
-                if (digits !== tempCep) setTempCep(digits);
-              }}
-              maxLength={9}
               className="font-mono"
               disabled={disabled || isCalculating}
             />
