@@ -140,7 +140,7 @@ export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: Dashboa
           </CardTitle>
           <p className="text-[11px] text-muted-foreground">{trendLabel}</p>
         </CardHeader>
-        <CardContent className="px-4 pb-4 pt-3 grid grid-cols-2 gap-3">
+        <CardContent className="px-4 pb-4 pt-3 flex gap-3">
           <MetricCard label="Total abandonados" value={metrics?.abandonedCheckoutsToday ?? 0} icon={ShoppingCart} trend={abandonedTrend} trendLabel={trendLabel} variant="warning" />
           <MetricCard label="Recuperados" value={metrics?.recoveredCheckoutsToday ?? 0} icon={RotateCcw} variant="success" />
           <MetricCard label="Com erros de contato" value={metrics?.errorCheckoutsToday ?? 0} icon={AlertTriangle} variant="destructive" />
