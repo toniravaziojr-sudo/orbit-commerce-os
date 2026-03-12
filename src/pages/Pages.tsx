@@ -73,8 +73,13 @@ export default function Pages() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; source: UnifiedPageItem['source'] } | null>(null);
   const [editingPage, setEditingPage] = useState<any>(null);
   const [isAIImportOpen, setIsAIImportOpen] = useState(false);
-  const [createLPDialogOpen, setCreateLPDialogOpen] = useState(false);
   const [previewLPId, setPreviewLPId] = useState<string | null>(null);
+  // AI Architect dialog state
+  const [isAIArchitectOpen, setIsAIArchitectOpen] = useState(false);
+  const [aiPageName, setAiPageName] = useState('');
+  const [aiPageSlug, setAiPageSlug] = useState('');
+  const [aiPagePrompt, setAiPagePrompt] = useState('');
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [formData, setFormData] = useState({
     title: '', slug: '', seo_title: '', seo_description: '',
   });
