@@ -27,7 +27,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
   Plus, Pencil, Trash2, FileText, Eye, LayoutTemplate, AlertCircle, Sparkles,
-  ChevronDown, Copy, Globe, ExternalLink
+  ChevronDown, Copy, Globe, ExternalLink, PackagePlus
 } from 'lucide-react';
 import { GenerateSeoButton } from '@/components/seo/GenerateSeoButton';
 import { ImportPageWithAIDialog } from '@/components/import/ImportPageWithAIDialog';
