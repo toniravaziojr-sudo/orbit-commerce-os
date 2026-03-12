@@ -516,7 +516,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   };
 
   const calculateShippingOptions = async () => {
-    const cep = formData.shippingPostalCode.replace(/\D/g, '');
+    const cep = sanitizeCep(formData.shippingPostalCode);
     if (cep.length !== 8) return;
 
     setIsCalculatingShipping(true);
