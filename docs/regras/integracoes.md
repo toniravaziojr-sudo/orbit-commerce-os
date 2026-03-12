@@ -930,56 +930,75 @@ O callback OAuth descobre automaticamente:
 
 **Compatibilidade com Storefront:** O MetaUnifiedSettings ao salvar Pixel/CAPI atualiza tanto `marketplace_connections` quanto `marketing_integrations` para manter o `MarketingTrackerProvider` funcionando.
 
-### Meta CAPI (Conversions API) — Implementação Server-Side
+### Meta CAPI (Conversions API) — Implementação Client→Server
 
 > **Adicionado em:** 2026-03-12
+> **Atualizado em:** 2026-03-12 — Migração para arquitetura client→edge function
 
 #### Arquitetura
 
-O sistema envia eventos **dual** (browser + servidor) para a Meta:
+O sistema envia **TODOS** os eventos **dual** (browser + servidor) para a Meta:
 - **Browser**: Via `fbq()` no `MarketingTracker` (client-side pixel)
-- **Servidor**: Via `sendMetaCapiEvents()` no `_shared/meta-capi-sender.ts`
+- **Servidor**: Via edge function `marketing-capi-track` chamada pelo `MarketingTracker` (fire-and-forget)
 
-A deduplicação é garantida pelo `event_id` compartilhado entre browser e servidor.
+A deduplicação é automática pela Meta: o mesmo `event_id` é enviado tanto no `fbq()` quanto na CAPI. A Meta reconhece e conta apenas uma vez (janela de 48h).
 
-#### Pontos de Disparo Server-Side
+#### Eventos Cobertos (Browser + Server)
 
-| Evento | Edge Function | Quando Dispara |
-|--------|--------------|----------------|
-| **Purchase** | `checkout-create-order` | Na criação do pedido (todos os métodos) |
-| **Purchase** | `mercadopago-storefront-webhook` | Quando pagamento aprovado (PIX/Boleto) |
-| **Purchase** | `pagarme-webhook` | Quando pagamento aprovado (PIX/Boleto) |
-| **Purchase** | `pagbank-webhook` | Quando pagamento aprovado (PIX/Boleto) |
+| Evento | Quando Dispara |
+|--------|----------------|
+| **PageView** | Cada mudança de rota (SPA navigation) |
+| **ViewContent** | Página de produto |
+| **ViewCategory** | Página de categoria |
+| **AddToCart** | Adição ao carrinho |
+| **InitiateCheckout** | Início do checkout |
+| **Lead** | Preenchimento de dados pessoais |
+| **AddShippingInfo** | Seleção de frete |
+| **AddPaymentInfo** | Seleção de forma de pagamento |
+| **Purchase** | Página de obrigado (ThankYou) — respeita `purchaseEventTiming` |
+| **Search** | Busca de produtos |
+
+#### Purchase — Regras Especiais
+
+1. **Só dispara na página de obrigado** (`ThankYouContent.tsx`) — nunca no `checkout-create-order` ou webhooks
+2. **Respeita `purchaseEventTiming`** configurado no builder:
+   - `all_orders`: dispara para qualquer pedido criado
+   - `paid_only`: só dispara quando `payment_status === 'approved'` (importante para PIX/Boleto)
+3. **Deduplicação local**: `purchaseTrackedRef` previne disparo duplo no React StrictMode
+
+#### Fluxo de Deduplicação Browser ↔ Servidor
+
+1. O `MarketingTracker` gera um `event_id` via `generateEventId()` para cada evento
+2. O mesmo `event_id` é passado ao `fbq('track', eventName, params)` e à edge function `marketing-capi-track`
+3. Cookies `_fbp` e `_fbc` são capturados no browser e enviados ao servidor automaticamente
+4. O servidor adiciona `client_ip_address` e `client_user_agent` dos headers do request
+5. A Meta usa `event_id` + `fbp` para deduplicar automaticamente
 
 #### Dados Enviados ao CAPI
 
-Cada Purchase server-side inclui os seguintes parâmetros (máximo matching):
-- **user_data**: email (hashed), phone (hashed, normalizado +55), first_name, last_name, city, state, zip, country (br), external_id (customer_id), fbp, fbc, client_ip_address, client_user_agent
-- **custom_data**: value, currency (BRL), content_ids (resolveMetaContentId), content_type (product), contents (com item_price e quantity), num_items, order_id
-
-#### Deduplicação Browser ↔ Servidor
-
-1. O `useCheckoutPayment` gera um `purchase_event_id` via `generateEventId()` e o envia junto ao payload do `checkout-create-order`
-2. O mesmo `event_id` é usado pelo pixel client-side no `trackPurchase()`
-3. Cookies `_fbp` e `_fbc` são capturados no browser e enviados ao servidor
-4. A Meta usa `event_id` + `fbp` para deduplicar automaticamente
+- **user_data**: email (hashed), phone (hashed, normalizado +55), first_name, last_name, city, state, zip, country (br), external_id, fbp, fbc, client_ip_address, client_user_agent, gender, date_of_birth
+- **custom_data**: value, currency (BRL), content_ids (resolveMetaContentId), content_type, contents (com item_price e quantity), num_items, order_id, search_string, shipping_tier, payment_method, content_name, content_category
 
 #### Arquivos
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `supabase/functions/_shared/meta-capi-sender.ts` | Helper compartilhado com `sendCapiPurchase()`, `sendCapiLead()`, `sendCapiInitiateCheckout()` |
-| `supabase/functions/marketing-send-meta/index.ts` | Edge function standalone para envio CAPI (usada em testes manuais) |
-| `src/lib/marketingTracker.ts` | Client-side: `getFbp()`, `getFbc()`, `generateEventId()` |
-| `src/hooks/useCheckoutPayment.ts` | Passa `meta_capi` (fbp, fbc, event_source_url, purchase_event_id) ao server |
+| `supabase/functions/marketing-capi-track/index.ts` | Edge function genérica que recebe qualquer evento e encaminha para Meta CAPI |
+| `supabase/functions/_shared/meta-capi-sender.ts` | Helper compartilhado com hashing, payload builder e envio para Meta Graph API v21.0 |
+| `supabase/functions/marketing-send-meta/index.ts` | Edge function standalone legada (testes manuais) |
+| `src/lib/marketingTracker.ts` | Client-side: `MarketingTracker` class com `sendCapi()` em cada evento + `sendServerEvent()` |
+| `src/components/storefront/MarketingTrackerProvider.tsx` | Provider que injeta `tenantId` no tracker |
+| `src/components/storefront/ThankYouContent.tsx` | Dispara Purchase com verificação de `purchaseEventTiming` |
 
 #### Regras
 
-1. **Eventos CAPI são non-blocking**: falhas no envio CAPI nunca devem impedir a criação do pedido ou processamento do webhook
+1. **Eventos CAPI são non-blocking**: falhas no envio CAPI nunca devem impedir a navegação ou operação do storefront
 2. **Resolução de content_id**: sempre usa `resolveMetaContentId()` (meta_retailer_id > sku > product_id)
 3. **Graph API v21.0**: todos os endpoints usam a versão 21.0
 4. **Hashing**: email e phone são hasheados com SHA-256 conforme especificação Meta
 5. **País padrão**: 'br' quando não especificado
+6. **keepalive: true**: requisições usam `keepalive` para garantir envio mesmo em page unload
+7. **Webhooks NÃO enviam CAPI**: Purchase e outros eventos server-side foram removidos dos webhooks de pagamento — tudo é centralizado no client via `marketing-capi-track`
 
 ### Mapeamento: Pack → Módulo do Sistema
 
