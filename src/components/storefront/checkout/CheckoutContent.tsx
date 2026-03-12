@@ -258,7 +258,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
       shipping: {
         street: formData.shippingStreet, number: formData.shippingNumber,
         complement: formData.shippingComplement, neighborhood: formData.shippingNeighborhood,
-        city: formData.shippingCity, state: formData.shippingState, postalCode: formData.shippingPostalCode,
+        city: formData.shippingCity, state: formData.shippingState, postalCode: sanitizeCep(formData.shippingPostalCode),
       },
       shippingOption: shipping.selected,
       customer: {
