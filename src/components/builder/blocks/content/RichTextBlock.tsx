@@ -510,7 +510,7 @@ export function RichTextBlock({
   // Render readonly version (preview/storefront)
   return (
     <div 
-      className="prose prose-lg max-w-none [&_a[data-editor-link]]:pointer-events-none [&_a[data-editor-link]]:cursor-text [&_a[data-editor-link]]:no-underline"
+      className={cn(RICH_TEXT_TYPOGRAPHY, "[&_a[data-editor-link]]:pointer-events-none [&_a[data-editor-link]]:cursor-text [&_a[data-editor-link]]:no-underline")}
       style={{ 
         textAlign: (align as any) || 'left',
         fontFamily: fontFamily || 'inherit',
