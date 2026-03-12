@@ -29,20 +29,18 @@ export function ShippingCalculator({
   isEditing = false,
   className = '',
 }: ShippingCalculatorProps) {
-  const [cep, setCep] = useState('');
+  const [cepDigits, setCepDigits] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [shippingOptions, setShippingOptions] = useState<ShippingOption[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const formatCep = (value: string) => {
-    const numbers = value.replace(/\D/g, '');
-    if (numbers.length <= 5) return numbers;
-    return `${numbers.slice(0, 5)}-${numbers.slice(5, 8)}`;
-  };
+  const formattedCep = cepDigits.length > 5
+    ? `${cepDigits.slice(0, 5)}-${cepDigits.slice(5)}`
+    : cepDigits;
 
   const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatCep(e.target.value);
-    setCep(formatted);
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+    setCepDigits(digits);
     setError(null);
     setShippingOptions(null);
   };
