@@ -137,6 +137,13 @@ export function TenantStorefrontLayout() {
   );
 }
 
+// Tracks cart creation events for dashboard funnel metrics
+function CartTracker({ tenantId }: { tenantId: string }) {
+  const { totalItems } = useCart();
+  useCartTracking(tenantId, totalItems);
+  return null;
+}
+
 // Single MiniCartDrawer instance for the tenant storefront
 function TenantLayoutMiniCartDrawer({ tenantSlug, isPreview }: { tenantSlug: string; isPreview: boolean }) {
   const { isOpen, setOpen } = useMiniCart();
