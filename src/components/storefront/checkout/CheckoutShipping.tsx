@@ -156,9 +156,10 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
               inputMode="numeric"
               autoComplete="off"
               placeholder="00000-000"
-              value={tempCep}
+              value={formatCepDisplay(tempCep)}
               onChange={(e) => {
-                setTempCep(formatCep(e.target.value));
+                const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+                setTempCep(digits);
                 setError(null);
               }}
               maxLength={9}
