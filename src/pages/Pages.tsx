@@ -31,8 +31,9 @@ import {
 } from 'lucide-react';
 import { GenerateSeoButton } from '@/components/seo/GenerateSeoButton';
 import { ImportPageWithAIDialog } from '@/components/import/ImportPageWithAIDialog';
-import { CreateLandingPageDialog } from '@/components/landing-pages/CreateLandingPageDialog';
 import { LandingPagePreviewDialog } from '@/components/landing-pages/LandingPagePreviewDialog';
+import { Wand2, Loader2 } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 
 // =============================================
 // UNIFIED PAGE ITEM TYPE
