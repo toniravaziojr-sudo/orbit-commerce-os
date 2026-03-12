@@ -146,7 +146,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
         customerEmail: formData.customerEmail || undefined,
         customerPhone: formData.customerPhone || undefined,
         customerName: formData.customerName || undefined,
-        region: formData.shippingPostalCode || shipping.cep || undefined,
+        region: sanitizeCep(formData.shippingPostalCode) || sanitizeCep(shipping.cep) || undefined,
         step: 'checkout',
       });
     };
@@ -198,7 +198,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
         shippingNeighborhood: draft.customer.shippingNeighborhood || '',
         shippingCity: draft.customer.shippingCity || '',
         shippingState: draft.customer.shippingState || '',
-        shippingPostalCode: draft.customer.shippingPostalCode || shipping.cep || '',
+        shippingPostalCode: sanitizeCep(draft.customer.shippingPostalCode || shipping.cep || ''),
         notes: '',
       });
     }
@@ -220,7 +220,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
         shippingStreet: formData.shippingStreet, shippingNumber: formData.shippingNumber,
         shippingComplement: formData.shippingComplement, shippingNeighborhood: formData.shippingNeighborhood,
         shippingCity: formData.shippingCity, shippingState: formData.shippingState,
-        shippingPostalCode: formData.shippingPostalCode,
+        shippingPostalCode: sanitizeCep(formData.shippingPostalCode),
       });
     }
   }, [formData, isHydrated]);
@@ -258,7 +258,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
       shipping: {
         street: formData.shippingStreet, number: formData.shippingNumber,
         complement: formData.shippingComplement, neighborhood: formData.shippingNeighborhood,
-        city: formData.shippingCity, state: formData.shippingState, postalCode: formData.shippingPostalCode,
+        city: formData.shippingCity, state: formData.shippingState, postalCode: sanitizeCep(formData.shippingPostalCode),
       },
       shippingOption: shipping.selected,
       customer: {

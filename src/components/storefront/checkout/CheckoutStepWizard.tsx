@@ -5,7 +5,7 @@
 // =============================================
 
 import React, { useState, useEffect, useRef, Fragment } from 'react';
-import { sanitizeCep, formatCepDisplay } from '@/lib/cepUtils';
+import { sanitizeCep, formatCepDisplay, isValidCep } from '@/lib/cepUtils';
 import { useNavigate, Link } from 'react-router-dom';
 import { useCart } from '@/contexts/CartContext';
 import { useDiscount, AppliedDiscount } from '@/contexts/DiscountContext';
@@ -300,7 +300,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         shippingNeighborhood: draft.customer.shippingNeighborhood || '',
         shippingCity: draft.customer.shippingCity || '',
         shippingState: draft.customer.shippingState || '',
-        shippingPostalCode: draft.customer.shippingPostalCode || shipping.cep || '',
+        shippingPostalCode: sanitizeCep(draft.customer.shippingPostalCode || shipping.cep || ''),
       }));
     }
   }, [isHydrated]);
@@ -326,7 +326,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         shippingNeighborhood: formData.shippingNeighborhood,
         shippingCity: formData.shippingCity,
         shippingState: formData.shippingState,
-        shippingPostalCode: formData.shippingPostalCode,
+        shippingPostalCode: sanitizeCep(formData.shippingPostalCode),
       });
     }
   }, [formData, isHydrated]);
@@ -368,7 +368,8 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   };
 
   const handleFieldChange = (field: keyof ExtendedFormData, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    const nextValue = field === 'shippingPostalCode' ? sanitizeCep(value) : value;
+    setFormData(prev => ({ ...prev, [field]: nextValue }));
     if (formErrors[field]) {
       setFormErrors(prev => ({ ...prev, [field]: undefined }));
     }
@@ -394,7 +395,9 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     }
 
     if (step === 2) {
-      if (!formData.shippingPostalCode.trim()) errors.shippingPostalCode = 'CEP é obrigatório';
+      const cepDigits = sanitizeCep(formData.shippingPostalCode);
+      if (!cepDigits) errors.shippingPostalCode = 'CEP é obrigatório';
+      else if (!isValidCep(cepDigits)) errors.shippingPostalCode = 'CEP inválido';
       if (!formData.shippingStreet.trim()) errors.shippingStreet = 'Rua é obrigatória';
       if (!formData.shippingNumber.trim()) errors.shippingNumber = 'Número é obrigatório';
       if (!formData.shippingNeighborhood.trim()) errors.shippingNeighborhood = 'Bairro é obrigatório';
@@ -590,7 +593,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           neighborhood: formData.shippingNeighborhood,
           city: formData.shippingCity,
           state: formData.shippingState,
-          postalCode: formData.shippingPostalCode,
+          postalCode: sanitizeCep(formData.shippingPostalCode),
         },
         shippingOption: effectiveShipping,
         customer: {

@@ -2,8 +2,7 @@
 // CHECKOUT FORM - Customer data with validation and masks
 // =============================================
 
-import { useState } from 'react';
-import { sanitizeCep, formatCepDisplay } from '@/lib/cepUtils';
+import { sanitizeCep, formatCepDisplay, isValidCep } from '@/lib/cepUtils';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -49,19 +48,15 @@ function maskPhone(value: string): string {
   return digits.replace(/(\d{2})(\d{4})(\d{0,4})/, '($1) $2-$3');
 }
 
-function maskCep(value: string): string {
-  return formatCepDisplay(value);
-}
-
 export function CheckoutForm({ data, onChange, errors, disabled = false }: CheckoutFormProps) {
   const handleChange = (field: keyof CheckoutFormData, value: string) => {
-    let maskedValue = value;
-    
-    if (field === 'customerCpf') maskedValue = maskCpf(value);
-    if (field === 'customerPhone') maskedValue = maskPhone(value);
-    if (field === 'shippingPostalCode') maskedValue = maskCep(value);
-    
-    onChange({ ...data, [field]: maskedValue });
+    let nextValue = value;
+
+    if (field === 'customerCpf') nextValue = maskCpf(value);
+    if (field === 'customerPhone') nextValue = maskPhone(value);
+    if (field === 'shippingPostalCode') nextValue = sanitizeCep(value);
+
+    onChange({ ...data, [field]: nextValue });
   };
 
   return (
@@ -139,9 +134,22 @@ export function CheckoutForm({ data, onChange, errors, disabled = false }: Check
             <Label htmlFor="shippingPostalCode">CEP *</Label>
             <Input
               id="shippingPostalCode"
-              value={data.shippingPostalCode}
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              value={formatCepDisplay(data.shippingPostalCode)}
               onChange={(e) => handleChange('shippingPostalCode', e.target.value)}
+              onBlur={(e) => {
+                const digits = sanitizeCep(e.target.value);
+                if (digits !== sanitizeCep(data.shippingPostalCode)) {
+                  handleChange('shippingPostalCode', digits);
+                }
+              }}
               placeholder="00000-000"
+              maxLength={9}
               className={cn(errors.shippingPostalCode && 'border-destructive')}
               disabled={disabled}
             />
@@ -291,10 +299,10 @@ export function validateCheckoutForm(data: CheckoutFormData): Partial<Record<key
     errors.customerCpf = 'CPF inválido';
   }
 
-  const cepDigits = data.shippingPostalCode.replace(/\D/g, '');
+  const cepDigits = sanitizeCep(data.shippingPostalCode);
   if (!cepDigits) {
     errors.shippingPostalCode = 'CEP é obrigatório';
-  } else if (cepDigits.length !== 8) {
+  } else if (!isValidCep(cepDigits)) {
     errors.shippingPostalCode = 'CEP inválido';
   }
 

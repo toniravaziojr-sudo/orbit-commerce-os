@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
+import { sanitizeCep } from '@/lib/cepUtils';
 import { CartItem, ShippingOption } from '@/contexts/CartContext';
 import { CartTotals, calculateCartTotals } from '@/lib/cartTotals';
 
@@ -93,10 +94,14 @@ export function useOrderDraft() {
         setDraft({
           items: Array.isArray(parsed.items) ? parsed.items : [],
           shipping: {
-            cep: parsed.shipping?.cep || '',
+            cep: sanitizeCep(parsed.shipping?.cep || ''),
             selected: parsed.shipping?.selected || null,
           },
-          customer: { ...emptyCustomer, ...parsed.customer },
+          customer: {
+            ...emptyCustomer,
+            ...parsed.customer,
+            shippingPostalCode: sanitizeCep(parsed.customer?.shippingPostalCode || ''),
+          },
           totals: { ...emptyTotals, ...parsed.totals },
           paymentMethod: parsed.paymentMethod || null,
           updatedAt: parsed.updatedAt || Date.now(),
@@ -133,8 +138,10 @@ export function useOrderDraft() {
       return {
         ...prev,
         items,
-        shipping,
-        totals,
+        shipping: {
+          ...shipping,
+          cep: sanitizeCep(shipping.cep),
+        },
         updatedAt: Date.now(),
       };
     });
@@ -142,11 +149,21 @@ export function useOrderDraft() {
 
   // Update customer data
   const updateCustomer = useCallback((data: Partial<OrderDraftCustomer>) => {
-    setDraft(prev => ({
-      ...prev,
-      customer: { ...prev.customer, ...data },
-      updatedAt: Date.now(),
-    }));
+    setDraft(prev => {
+      const nextCustomer: OrderDraftCustomer = {
+        ...prev.customer,
+        ...data,
+        ...(data.shippingPostalCode !== undefined
+          ? { shippingPostalCode: sanitizeCep(data.shippingPostalCode) }
+          : {}),
+      };
+
+      return {
+        ...prev,
+        customer: nextCustomer,
+        updatedAt: Date.now(),
+      };
+    });
   }, []);
 
   // Update payment method

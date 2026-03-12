@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { sanitizeCep, isValidCep } from '@/lib/cepUtils';
 
 interface CepResult {
   cep: string;
@@ -24,10 +25,9 @@ export function useCepLookup() {
   const [error, setError] = useState<string | null>(null);
 
   const lookupCep = useCallback(async (cep: string): Promise<AddressFromCep | null> => {
-    // Limpar CEP (remover caracteres não numéricos)
-    const cleanCep = cep.replace(/\D/g, '');
+    const cleanCep = sanitizeCep(cep);
     
-    if (cleanCep.length !== 8) {
+    if (!isValidCep(cleanCep)) {
       setError('CEP deve ter 8 dígitos');
       return null;
     }

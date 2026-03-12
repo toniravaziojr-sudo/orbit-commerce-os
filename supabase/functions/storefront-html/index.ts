@@ -1211,16 +1211,15 @@ function buildFullPage(opts: {
         }
       },{capture:true,signal:sfSignal}); // CAPTURE PHASE + AbortController for cleanup
 
-      // CEP masks (Edge product shipping + cart drawer shipping)
-      function sfFormatCepValue(raw){
-        var digits=(raw||"").replace(/\D/g,"").slice(0,8);
-        return digits.length>5?digits.slice(0,5)+"-"+digits.slice(5):digits;
+      // CEP normalization only (no display mask in Edge to avoid hydration conflicts)
+      function sfSanitizeCep(raw){
+        return (raw||"").replace(/\D/g,"").slice(0,8);
       }
 
       function sfHandleCepInput(target){
         if(!target)return;
-        var formatted=sfFormatCepValue(target.value);
-        if(target.value!==formatted) target.value=formatted;
+        var digits=sfSanitizeCep(target.value);
+        if(target.value!==digits) target.value=digits;
       }
 
       document.addEventListener("input",function(e){
