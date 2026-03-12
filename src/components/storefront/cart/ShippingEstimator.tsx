@@ -118,9 +118,13 @@ export function ShippingEstimator() {
             type="text"
             inputMode="numeric"
             autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             placeholder="00000-000"
-            value={formattedCep}
+            value={formatCepDisplay(shipping.cep)}
             onChange={handleCepChange}
+            onBlur={handleCepBlur}
             maxLength={9}
             className="font-mono"
           />
