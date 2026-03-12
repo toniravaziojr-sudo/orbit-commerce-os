@@ -368,7 +368,8 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   };
 
   const handleFieldChange = (field: keyof ExtendedFormData, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    const nextValue = field === 'shippingPostalCode' ? sanitizeCep(value) : value;
+    setFormData(prev => ({ ...prev, [field]: nextValue }));
     if (formErrors[field]) {
       setFormErrors(prev => ({ ...prev, [field]: undefined }));
     }
