@@ -131,7 +131,7 @@ export function ShippingEstimator() {
         </div>
         <Button
           onClick={handleCalculate}
-          disabled={isCalculating || shipping.cep.replace(/\D/g, '').length < 8}
+          disabled={isCalculating || sanitizeCep(shipping.cep).length < 8}
           variant="outline"
         >
           {isCalculating ? (
