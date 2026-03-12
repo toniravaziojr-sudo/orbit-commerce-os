@@ -396,13 +396,13 @@ export default function Pages() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => setIsDialogOpen(true)}>
-                  <LayoutTemplate className="mr-2 h-4 w-4" />No Builder
+                  <LayoutTemplate className="mr-2 h-4 w-4" />Criar manualmente
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setIsAIArchitectOpen(true)}>
-                  <Wand2 className="mr-2 h-4 w-4" />Com IA
+                  <Wand2 className="mr-2 h-4 w-4" />Página de vendas
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setIsAIImportOpen(true)}>
-                  <Sparkles className="mr-2 h-4 w-4" />Importar com IA
+                  <Sparkles className="mr-2 h-4 w-4" />Importar Página
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
