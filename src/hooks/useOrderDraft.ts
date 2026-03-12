@@ -138,8 +138,10 @@ export function useOrderDraft() {
       return {
         ...prev,
         items,
-        shipping,
-        totals,
+        shipping: {
+          ...shipping,
+          cep: sanitizeCep(shipping.cep),
+        },
         updatedAt: Date.now(),
       };
     });
