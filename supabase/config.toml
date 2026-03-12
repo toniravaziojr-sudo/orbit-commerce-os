@@ -266,7 +266,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.fiscal-auto-create-drafts]
-verify_jwt = true
+verify_jwt = false
 
 [functions.fiscal-sync-focus-nfe]
 verify_jwt = true
