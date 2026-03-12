@@ -838,7 +838,7 @@ Checkout abandonado é classificado como "com erro" quando:
 
 | Métrica | Fonte de Verdade | Deduplicação |
 |---------|-----------------|--------------|
-| **Visitantes** | `storefront_visits` (tracking interno via cookie `_sf_vid`) | `visitor_id` único — NÃO usa pixels externos |
+| **Visitantes** | `storefront_visits` (tracking interno via cookie `_sf_vid`) | `COUNT(DISTINCT visitor_id)` via RPC `count_unique_visitors` no banco — sem limite de 1000 rows |
 | **Pedidos/Faturamento** | Tabela `orders` | `order.id` único — NÃO duplica entre plataformas |
 | **Ad Spend** | `meta_ad_insights.spend_cents` + `google_ad_insights.cost_micros` + `tiktok_ad_insights.spend_cents` | Deduplicado por `tenant_id + campaign_id + date` via upsert |
 
@@ -866,6 +866,25 @@ Checkout abandonado é classificado como "com erro" quando:
 - Formato exibe: investimento → retorno (multiplicador)
 - Se não houver investimento: exibe "Sem investimento"
 - Cor: **azul (info)** se ROAS ≥ 1, **vermelho (destructive)** se < 1
+
+#### RPC `count_unique_visitors` (v8.10.0)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Database Function (RPC) |
+| **Assinatura** | `count_unique_visitors(p_tenant_id uuid, p_start timestamptz, p_end timestamptz) → integer` |
+| **Descrição** | Conta visitantes únicos via `COUNT(DISTINCT visitor_id)` direto no banco. Substitui a abordagem anterior de buscar todos os `visitor_id` e deduplicar no JavaScript (que tinha limite de 1000 rows). |
+| **Segurança** | `SECURITY DEFINER`, `search_path = public` |
+| **Chamada** | `supabase.rpc('count_unique_visitors', { p_tenant_id, p_start, p_end })` |
+
+#### Client-Side Visit Tracking (v8.10.0)
+
+| Campo | Valor |
+|-------|-------|
+| **Hook** | `src/hooks/useVisitorTracking.ts` |
+| **Descrição** | Tracking client-side para rotas SPA (checkout, carrinho) que não passam pelo Edge Function. Complementa o beacon server-side. Usa mesmo cookie `_sf_vid` e tabela `storefront_visits`. |
+| **Integrado em** | `StorefrontLayout`, `TenantStorefrontLayout` (antes dos early returns) |
+| **Deduplicação** | Por pathname na sessão (não re-rastreia mesma rota no mesmo carregamento) |
 
 ---
 
