@@ -231,11 +231,11 @@ export default function MenuItemDialog({
               <Select
                 value={form.ref_id}
                 onValueChange={(v) => {
-                  const cat = categories.find(c => c.id === v);
+                  const category = availableCategories.find(c => c.id === v);
                   setForm({
                     ...form,
                     ref_id: v,
-                    label: form.label || cat?.name || '',
+                    label: form.label || category?.name || '',
                   });
                 }}
               >
@@ -243,17 +243,22 @@ export default function MenuItemDialog({
                   <SelectValue placeholder="Selecione uma categoria" />
                 </SelectTrigger>
                 <SelectContent>
-                  {categories.length === 0 ? (
+                  {availableCategories.length === 0 ? (
                     <div className="p-2 text-sm text-muted-foreground text-center">
                       Nenhuma categoria disponível
                     </div>
                   ) : (
-                    categories.map(c => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    availableCategories.map(category => (
+                      <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
                     ))
                   )}
                 </SelectContent>
               </Select>
+              {hasInvalidSelectedCategory && (
+                <p className="text-xs text-destructive">
+                  A categoria vinculada foi removida. Selecione outra para salvar.
+                </p>
+              )}
             </div>
           )}
 
