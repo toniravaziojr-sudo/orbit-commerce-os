@@ -42,14 +42,14 @@ function MetricCard({ label, value, icon: Icon, trend, variant = "default" }: Me
   };
 
   return (
-    <div className="flex items-center gap-3 min-w-0">
-      <div className={cn("rounded-lg p-2 shrink-0", variantColors[variant])}>
-        <Icon className="h-4 w-4" />
+    <div className="flex items-center gap-4 min-w-0">
+      <div className={cn("rounded-xl p-3 shrink-0", variantColors[variant])}>
+        <Icon className="h-5 w-5" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium text-muted-foreground truncate">{label}</p>
+        <p className="text-sm font-medium text-muted-foreground truncate">{label}</p>
         <div className="flex items-baseline gap-2">
-          <p className="text-lg font-bold text-card-foreground">{value}</p>
+          <p className="text-2xl font-bold text-card-foreground">{value}</p>
           {trend !== undefined && (
             <span className={cn("text-xs font-medium shrink-0", trend >= 0 ? "text-success" : "text-destructive")}>
               {trend >= 0 ? "+" : ""}{trend.toFixed(1)}%
@@ -93,7 +93,7 @@ export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: Dashboa
           </CardTitle>
           <p className="text-[11px] text-muted-foreground">{trendLabel}</p>
         </CardHeader>
-        <CardContent className="px-4 pb-4 pt-2 grid grid-cols-2 gap-x-4 gap-y-3">
+        <CardContent className="px-5 pb-5 pt-3 grid grid-cols-2 gap-x-6 gap-y-5">
           <MetricCard
             label="Visitas"
             value={metrics?.visitorsToday ?? 0}
@@ -134,7 +134,7 @@ export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: Dashboa
           </CardTitle>
           <p className="text-[11px] text-muted-foreground">{trendLabel}</p>
         </CardHeader>
-        <CardContent className="px-4 pb-4 pt-2 grid grid-cols-2 gap-x-4 gap-y-3">
+        <CardContent className="px-5 pb-5 pt-3 grid grid-cols-2 gap-x-6 gap-y-5">
           <MetricCard
             label="Pedidos Pagos"
             value={metrics?.paidOrdersToday ?? 0}
@@ -175,7 +175,7 @@ export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: Dashboa
           </CardTitle>
           <p className="text-[11px] text-muted-foreground">{trendLabel}</p>
         </CardHeader>
-        <CardContent className="px-4 pb-4 pt-2 grid grid-cols-2 gap-x-4 gap-y-3">
+        <CardContent className="px-5 pb-5 pt-3 grid grid-cols-2 gap-x-6 gap-y-5">
           <MetricCard
             label="Total abandonados"
             value={metrics?.abandonedCheckoutsToday ?? 0}
