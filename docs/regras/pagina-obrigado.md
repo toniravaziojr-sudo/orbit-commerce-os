@@ -170,18 +170,26 @@ Página de confirmação pós-compra com detalhes do pedido e ofertas de upsell.
 
 ---
 
-## Marketing Events (Pixel Tracking)
+## Marketing Events (Pixel Tracking — Arquitetura Dual v7.0)
 
-| Evento | Disparado em | Condição |
-|--------|-------------|----------|
-| `Purchase` | `CheckoutStepWizard.tsx` (primário) | Dispara ao criar pedido, antes do redirect |
-| `Purchase` | `ThankYouContent.tsx` (backup) | Dispara quando pedido carrega E tracker está pronto |
+### Rastreamento Dual (Browser + CAPI)
+
+O evento `Purchase` é disparado **exclusivamente** na página de obrigado (`ThankYouContent.tsx`), tanto via browser (pixel `fbq()`) quanto via servidor (edge function `marketing-capi-track`), usando o mesmo `event_id` para desduplicação automática pela Meta.
+
+| Canal | Método | Deduplicação |
+|-------|--------|-------------|
+| Browser | `fbq('track', 'Purchase', params)` via `MarketingTracker.trackPurchase()` | `event_id` compartilhado |
+| Servidor | Edge function `marketing-capi-track` via `MarketingTracker.sendServerEvent()` | Mesmo `event_id` |
 
 ### Regras
-- Purchase dispara para **todos** os métodos de pagamento (PIX, Boleto, Cartão)
-- Dedup via `purchaseTrackedRef` (ref local) + `trackOnce` key `purchase_{orderId}` — nunca duplica
-- Não depende de `payment_status` — pedidos PIX/Boleto em `pending` são rastreados
-- `content_ids` usam `resolveMetaContentId()` (meta_retailer_id || sku || id)
+
+1. **Único ponto de disparo**: Purchase só dispara em `ThankYouContent.tsx` — **nunca** em `checkout-create-order`, webhooks de pagamento ou `CheckoutStepWizard`
+2. **Respeita `purchaseEventTiming`** configurado no builder:
+   - `all_orders`: dispara para qualquer pedido criado (incluindo PIX/Boleto pendentes)
+   - `paid_only`: só dispara quando `payment_status === 'approved'`
+3. **Dedup client-side**: `purchaseTrackedRef` (ref local) + `trackOnce` key `purchase_{orderId}` — nunca duplica no mesmo carregamento
+4. **`content_ids`**: usam `resolveMetaContentId()` (meta_retailer_id || sku || id) para paridade com catálogo Meta
+5. **Dados do usuário**: email, telefone e nome do cliente são enviados ao CAPI para melhor matching (hashing SHA-256 server-side)
 
 ### Anti-Regressão: Race Condition do Tracker (v6.2.2)
 
@@ -192,6 +200,16 @@ Página de confirmação pós-compra com detalhes do pedido e ofertas de upsell.
 2. `purchaseTrackedRef` só é preenchido **APÓS** o `trackPurchase()` ser chamado com tracker disponível
 3. `tracker` é adicionado como dependência do `useEffect`, garantindo re-execução quando ficar pronto
 4. Import direto de `useMarketingTracker` para acessar o estado do tracker
+
+### Arquivos Envolvidos
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/components/storefront/ThankYouContent.tsx` | Dispara Purchase com verificação de `purchaseEventTiming` |
+| `src/lib/marketingTracker.ts` | `trackPurchase()` + `sendServerEvent()` (dual tracking) |
+| `src/components/storefront/MarketingTrackerProvider.tsx` | Provider que injeta `tenantId` no tracker |
+| `supabase/functions/marketing-capi-track/index.ts` | Edge function genérica para CAPI |
+| `supabase/functions/_shared/meta-capi-sender.ts` | Helper com hashing SHA-256 e envio Meta Graph API v21.0 |
 
 ---
 
