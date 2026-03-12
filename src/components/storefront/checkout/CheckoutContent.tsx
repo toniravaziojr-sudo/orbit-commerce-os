@@ -75,7 +75,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
       // If cart is still loading, retry after a delay
       if (cartLoading && retryCountRef.current < 5) {
         retryCountRef.current++;
-        console.log('[checkout] Cart loading, retry #', retryCountRef.current);
+        
         setTimeout(startSession, 1000);
         return;
       }
