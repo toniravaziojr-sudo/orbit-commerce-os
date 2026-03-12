@@ -21,7 +21,6 @@ import { isAppDomain } from '@/lib/canonicalDomainService';
 import { useStorefrontBootstrapByHostname } from '@/hooks/useStorefrontBootstrap';
 import { parseSocialCustom } from '@/hooks/useStorefront';
 import { useVisitorTracking } from '@/hooks/useVisitorTracking';
-import { useVisitorTracking } from '@/hooks/useVisitorTracking';
 
 // Context to provide tenantSlug to child components when not in URL
 export const TenantSlugContext = createContext<string>('');
