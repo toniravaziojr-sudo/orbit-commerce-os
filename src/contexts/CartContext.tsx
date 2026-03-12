@@ -169,7 +169,8 @@ export function CartProvider({ children, tenantSlug }: CartProviderProps) {
 
   // Shipping functions
   const setShippingCep = useCallback((cep: string) => {
-    setShipping(prev => ({ ...prev, cep }));
+    const digits = cep.replace(/\D/g, '').slice(0, 8);
+    setShipping(prev => ({ ...prev, cep: digits }));
   }, []);
 
   const setShippingOptions = useCallback((options: ShippingOption[]) => {
