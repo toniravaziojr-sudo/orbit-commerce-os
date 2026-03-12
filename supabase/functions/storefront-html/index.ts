@@ -1211,21 +1211,42 @@ function buildFullPage(opts: {
         }
       },{capture:true,signal:sfSignal}); // CAPTURE PHASE + AbortController for cleanup
 
-      // CEP normalization only (no display mask in Edge to avoid hydration conflicts)
+      // CEP normalization hardening (digits-only, no mask)
       function sfSanitizeCep(raw){
         return (raw||"").replace(/\D/g,"").slice(0,8);
       }
 
-      function sfHandleCepInput(target){
+      function sfIsCepTarget(target){
+        return !!(target && target.matches && target.matches("[data-sf-shipping-cep], [data-sf-cart-shipping-cep]"));
+      }
+
+      function sfHandleCepInput(target, rawOverride){
         if(!target)return;
-        var digits=sfSanitizeCep(target.value);
+        var rawValue = typeof rawOverride === "string" ? rawOverride : target.value;
+        var digits=sfSanitizeCep(rawValue);
         if(target.value!==digits) target.value=digits;
       }
 
+      document.addEventListener("beforeinput",function(e){
+        var target=e.target;
+        if(!sfIsCepTarget(target)) return;
+        if(!e.data) return;
+        if(e.inputType && e.inputType.indexOf("insert")===0 && /\D/.test(e.data)) {
+          e.preventDefault();
+        }
+      },{capture:true,signal:sfSignal});
+
+      document.addEventListener("paste",function(e){
+        var target=e.target;
+        if(!sfIsCepTarget(target)) return;
+        e.preventDefault();
+        var text=(e.clipboardData&&e.clipboardData.getData("text"))||"";
+        sfHandleCepInput(target,text);
+      },{capture:true,signal:sfSignal});
+
       document.addEventListener("input",function(e){
         var target=e.target;
-        if(!target||!target.matches) return;
-        if(!target.matches("[data-sf-shipping-cep], [data-sf-cart-shipping-cep]")) return;
+        if(!sfIsCepTarget(target)) return;
         sfHandleCepInput(target);
       },{capture:true,signal:sfSignal});
 
