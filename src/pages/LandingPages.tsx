@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useAILandingPageUrl } from "@/hooks/useAILandingPageUrl";
 import { usePageTemplates } from "@/hooks/usePageTemplates";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,7 +28,6 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { 
-   
   Sparkles, 
   ExternalLink, 
   Settings, 
@@ -37,7 +37,9 @@ import {
   Globe,
   Clock,
   FileText,
-  LayoutTemplate
+  LayoutTemplate,
+  Loader2,
+  Wand2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -87,7 +89,12 @@ export default function LandingPages() {
   const [builderPageName, setBuilderPageName] = useState('');
   const [builderPageSlug, setBuilderPageSlug] = useState('');
   const [isCreatingBuilderPage, setIsCreatingBuilderPage] = useState(false);
-
+  // AI Architect dialog state
+  const [isAIArchitectOpen, setIsAIArchitectOpen] = useState(false);
+  const [aiPageName, setAiPageName] = useState('');
+  const [aiPageSlug, setAiPageSlug] = useState('');
+  const [aiPagePrompt, setAiPagePrompt] = useState('');
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
   // Get tenant's public URL
   const { baseUrl: tenantBaseUrl } = useAILandingPageUrl({
@@ -255,6 +262,101 @@ export default function LandingPages() {
     }
   };
 
+  // AI Architect: generate page structure with AI
+  const handleCreateWithAIArchitect = async () => {
+    if (!aiPageName.trim() || !aiPagePrompt.trim() || !tenant?.id || !user?.id) return;
+
+    const slug = aiPageSlug || generateSlug(aiPageName);
+    const slugValidation = validateSlug(slug);
+    if (!slugValidation.isValid) {
+      toast.error(slugValidation.error || 'Slug inválido');
+      return;
+    }
+
+    setIsGeneratingAI(true);
+    try {
+      // 1. Call AI to generate block structure
+      const { data: aiResult, error: fnError } = await supabase.functions.invoke('ai-page-architect', {
+        body: { prompt: aiPagePrompt, pageName: aiPageName.trim() },
+      });
+
+      if (fnError) throw new Error(fnError.message || 'Erro na geração com IA');
+      if (!aiResult?.blocks?.length) throw new Error('IA não retornou blocos válidos');
+
+      // 2. Build BlockNode[] from AI response using registry
+      const { blockRegistry } = await import('@/lib/builder');
+      const { generateBlockId } = await import('@/lib/builder/utils');
+
+      const contentBlocks = aiResult.blocks
+        .map((b: { type: string }) => blockRegistry.createDefaultNode(b.type))
+        .filter(Boolean);
+
+      // 3. Wrap in Page > Header + Section(blocks) + Footer
+      const pageContent = {
+        id: 'root',
+        type: 'Page',
+        props: {},
+        children: [
+          {
+            id: generateBlockId('Header'),
+            type: 'Header',
+            props: { menuId: '', showSearch: true, showCart: true, sticky: true, noticeEnabled: false },
+          },
+          {
+            id: generateBlockId('Section'),
+            type: 'Section',
+            props: { paddingY: 0, paddingX: 0, backgroundColor: 'transparent' },
+            children: contentBlocks,
+          },
+          {
+            id: generateBlockId('Footer'),
+            type: 'Footer',
+            props: { menuId: '', showSocial: true },
+          },
+        ],
+      };
+
+      // 4. Create template + store_page
+      const templateName = `Modelo - ${aiPageName.trim()}`;
+      const uniqueSuffix = Date.now().toString(36);
+      const newTemplate = await createTemplate.mutateAsync({
+        name: templateName,
+        slug: `modelo-lp-${slug}-${uniqueSuffix}`,
+        is_default: false,
+      });
+
+      const { data: newPage, error: insertError } = await supabase
+        .from('store_pages')
+        .insert({
+          tenant_id: tenant.id,
+          title: aiPageName.trim(),
+          slug,
+          content: pageContent as any,
+          status: 'draft',
+          is_published: false,
+          type: 'landing_page',
+          template_id: newTemplate.id,
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      setIsAIArchitectOpen(false);
+      setAiPageName('');
+      setAiPageSlug('');
+      setAiPagePrompt('');
+      queryClient.invalidateQueries({ queryKey: ['builder-landing-pages'] });
+      toast.success('Página gerada com IA! Abrindo o editor...');
+      navigate(`/pages/${newPage.id}/builder`);
+    } catch (error: any) {
+      console.error('Error creating AI architect page:', error);
+      toast.error(error?.message || 'Erro ao gerar página com IA');
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
   const copySlug = (slug: string) => {
     const url = tenantBaseUrl ? `${tenantBaseUrl}/ai-lp/${slug}` : `/ai-lp/${slug}`;
     navigator.clipboard.writeText(url);
@@ -321,9 +423,13 @@ export default function LandingPages() {
             <Sparkles className="h-4 w-4 mr-2" />
             Importar com IA
           </Button>
-          <Button onClick={() => setCreateDialogOpen(true)}>
-            <Sparkles className="h-4 w-4 mr-2" />
+          <Button onClick={() => setIsAIArchitectOpen(true)}>
+            <Wand2 className="h-4 w-4 mr-2" />
             Criar com IA
+          </Button>
+          <Button variant="outline" onClick={() => setCreateDialogOpen(true)}>
+            <Sparkles className="h-4 w-4 mr-2" />
+            Gerador IA (HTML)
           </Button>
         </div>
       </div>
@@ -569,6 +675,89 @@ export default function LandingPages() {
               disabled={!builderPageName.trim() || isCreatingBuilderPage}
             >
               {isCreatingBuilderPage ? 'Criando...' : 'Criar Página'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Architect Dialog */}
+      <Dialog open={isAIArchitectOpen} onOpenChange={(open) => {
+        setIsAIArchitectOpen(open);
+        if (!open) { setAiPageName(''); setAiPageSlug(''); setAiPagePrompt(''); }
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wand2 className="h-5 w-5 text-primary" />
+              Criar Página com IA
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Nome da Página *</Label>
+              <Input
+                placeholder="Ex: Black Friday 2026"
+                value={aiPageName}
+                onChange={(e) => {
+                  setAiPageName(e.target.value);
+                  if (!aiPageSlug || aiPageSlug === generateSlug(aiPageName)) {
+                    setAiPageSlug(generateSlug(e.target.value));
+                  }
+                }}
+                autoFocus
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Slug (URL)</Label>
+              <Input
+                value={aiPageSlug}
+                onChange={(e) => setAiPageSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
+                placeholder={aiPageName ? generateSlug(aiPageName) : 'slug-da-pagina'}
+                className={!validateSlug(aiPageSlug).isValid && aiPageSlug ? 'border-destructive' : ''}
+              />
+              {!validateSlug(aiPageSlug).isValid && aiPageSlug ? (
+                <p className="text-xs text-destructive">{validateSlug(aiPageSlug).error}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  URL: /lp/{aiPageSlug || generateSlug(aiPageName) || 'slug'}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Descreva sua página *</Label>
+              <Textarea
+                placeholder="Ex: Página promocional com contagem regressiva, produtos em destaque, depoimentos de clientes e formulário de newsletter"
+                value={aiPagePrompt}
+                onChange={(e) => setAiPagePrompt(e.target.value)}
+                rows={3}
+                className="resize-none"
+              />
+              <p className="text-xs text-muted-foreground">
+                A IA vai montar a estrutura de blocos com base na sua descrição. Você poderá editar tudo depois no Builder.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAIArchitectOpen(false)} disabled={isGeneratingAI}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleCreateWithAIArchitect}
+              disabled={!aiPageName.trim() || !aiPagePrompt.trim() || isGeneratingAI}
+            >
+              {isGeneratingAI ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Gerando estrutura...
+                </>
+              ) : (
+                <>
+                  <Wand2 className="h-4 w-4 mr-2" />
+                  Gerar Página
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
