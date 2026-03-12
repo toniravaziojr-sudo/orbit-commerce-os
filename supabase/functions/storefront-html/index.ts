@@ -830,7 +830,7 @@ function buildFullPage(opts: {
         <p style="font-size:13px;font-weight:600;margin-bottom:6px;">📦 Calcular frete</p>
         <div style="display:flex;gap:8px;">
           <input type="text" placeholder="CEP" maxlength="8" inputmode="numeric" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none;" data-sf-cart-shipping-cep>
-          <button data-sf-action="calc-cart-shipping" style="padding:8px 14px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;">OK</button>
+          <button data-sf-action="calc-cart-shipping" style="padding:8px 14px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;">Calcular</button>
         </div>
         <div data-sf-cart-shipping-results style="margin-top:6px;"></div>
       </div>
@@ -1181,7 +1181,7 @@ function buildFullPage(opts: {
           var cSubtotal=cart.reduce(function(s,i){return s+i.price*i.quantity},0);
           var cUrl="${Deno.env.get('SUPABASE_URL')}";
           var cKey="${Deno.env.get('SUPABASE_ANON_KEY') || ''}";
-          fetch(cUrl+"/functions/v1/validate-coupon",{
+          fetch(cUrl+"/functions/v1/discount-validate",{
             method:"POST",
             headers:{"Content-Type":"application/json","apikey":cKey,"Authorization":"Bearer "+cKey,"x-store-host":HOSTNAME},
             body:JSON.stringify({code:code,subtotal:cSubtotal,store_host:HOSTNAME})
@@ -1191,7 +1191,7 @@ function buildFullPage(opts: {
               couponResult.innerHTML='<span style="color:#16a34a;font-weight:500;">✓ Cupom aplicado!</span>';
               updateCartUI();
             }else{
-              couponResult.innerHTML='<span style="color:#dc2626;">'+(data.message||'Cupom inválido')+'</span>';
+              couponResult.innerHTML='<span style="color:#dc2626;">'+(data.error||'Cupom inválido')+'</span>';
             }
           }).catch(function(){couponResult.innerHTML='<span style="color:#dc2626;">Erro ao validar.</span>';});
         } else if(action==="initiate-checkout"){
