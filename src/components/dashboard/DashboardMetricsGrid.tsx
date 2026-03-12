@@ -123,7 +123,7 @@ export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: Dashboa
           </CardTitle>
           <p className="text-[11px] text-muted-foreground">{trendLabel}</p>
         </CardHeader>
-        <CardContent className="px-4 pb-4 pt-3 grid grid-cols-2 gap-3">
+        <CardContent className="px-4 pb-4 pt-3 flex gap-3">
           <MetricCard label="Pedidos Pagos" value={metrics?.paidOrdersToday ?? 0} icon={CreditCard} trend={paidOrdersTrend} trendLabel={trendLabel} variant="success" />
           <MetricCard label="Pedidos Não Pagos" value={metrics?.unpaidOrdersToday ?? 0} icon={XCircle} trend={unpaidOrdersTrend} trendLabel={trendLabel} variant="destructive" />
           <MetricCard label="Ticket Médio" value={formatCurrency(metrics?.ticketToday ?? 0)} icon={TrendingUp} trend={ticketTrend} trendLabel={trendLabel} variant="primary" />
