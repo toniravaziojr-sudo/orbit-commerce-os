@@ -134,9 +134,11 @@ export function CheckoutForm({ data, onChange, errors, disabled = false }: Check
           <div>
             <Label htmlFor="shippingPostalCode">CEP *</Label>
             <CepInput
+              id="sf-checkout-form-cep"
+              source="CheckoutForm"
               value={data.shippingPostalCode}
               onValueChange={(digits) => handleChange('shippingPostalCode', digits)}
-              placeholder="00000-000"
+              placeholder="00000000"
               className={cn(errors.shippingPostalCode && 'border-destructive')}
               disabled={disabled}
             />

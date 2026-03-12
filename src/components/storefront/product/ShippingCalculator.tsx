@@ -3,7 +3,6 @@
 // =============================================
 
 import { useState } from 'react';
-import { sanitizeCep } from '@/lib/cepUtils';
 import { CepInput } from '@/components/storefront/shared/CepInput';
 import { Button } from '@/components/ui/button';
 import { Truck, Loader2, Package, Clock } from 'lucide-react';
@@ -72,6 +71,8 @@ export function ShippingCalculator({
 
       <div className="flex gap-2">
         <CepInput
+          id="sf-product-cep"
+          source="ShippingCalculator"
           value={cepDigits}
           onValueChange={handleCepValueChange}
           className="flex-1"

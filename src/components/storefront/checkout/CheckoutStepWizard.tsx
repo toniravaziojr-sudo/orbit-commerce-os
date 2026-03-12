@@ -1172,9 +1172,11 @@ function Step2Address({
         <div className="max-w-[200px]">
           <Label htmlFor="shippingPostalCode">CEP *</Label>
           <CepInput
+            id="sf-checkout-step2-cep"
+            source="CheckoutStepWizard-Step2"
             value={formData.shippingPostalCode}
             onValueChange={(digits) => onChange('shippingPostalCode', digits)}
-            placeholder="00000-000"
+            placeholder="00000000"
             disabled={disabled}
             className={errors.shippingPostalCode ? 'border-destructive' : ''}
           />
