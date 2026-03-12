@@ -67,6 +67,9 @@ function StorefrontLayoutContent({
   isPublished: boolean;
   isPreview: boolean;
 }) {
+  // Client-side visit tracking (must be before early returns — hook uses useLocation)
+  useVisitorTracking(tenant?.id);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
@@ -100,9 +103,6 @@ function StorefrontLayoutContent({
   const DomainDisabledGuard = lazy(() => import('./DomainDisabledGuard'));
   const SupportChatWidget = lazy(() => import('./SupportChatWidget').then(m => ({ default: m.SupportChatWidget })));
   const NewsletterPopupLoader = lazy(() => import('./NewsletterPopupLoader').then(m => ({ default: m.NewsletterPopupLoader })));
-
-  // Client-side visit tracking for SPA routes
-  useVisitorTracking(tenant?.id);
 
   return (
     <StorefrontConfigProvider tenantId={tenant.id} customDomain={customDomain}>
