@@ -18363,6 +18363,10 @@ export type Database = {
           success: boolean
         }[]
       }
+      count_unique_visitors: {
+        Args: { p_end: string; p_start: string; p_tenant_id: string }
+        Returns: number
+      }
       create_tenant_for_user: {
         Args: { p_name: string; p_slug: string }
         Returns: {
