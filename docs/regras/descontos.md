@@ -103,11 +103,14 @@ Sistema completo de gestão de cupons de desconto e promoções automáticas (pr
 | Aspecto | Detalhes |
 |---------|----------|
 | **Chave Edge** | `storefront_discount_{tenantSlug}` — formato interno do Edge runtime |
-| **Chave SPA** | `coupon_{hostname_sem_www}` — formato do DiscountContext.tsx |
+| **Chave SPA** | `coupon_{window.location.hostname}` — formato do DiscountContext.tsx |
+| **Geração da chave SPA no Edge** | Usa `window.location.hostname` em runtime (JS client-side), **não** variável server-side, garantindo paridade exata com o SPA |
 | **Sincronização** | Edge salva em AMBAS as chaves ao aplicar/remover, garantindo que o checkout SPA leia o cupom aplicado no carrinho Edge |
 | **Restauração** | Edge tenta ler SPA key primeiro, depois Edge key (fallback) |
 | **Remoção** | Botão × no carrinho suspenso remove de ambas as chaves |
 | **Substituição** | Cliente pode remover cupom atual e aplicar outro |
+
+> **Bug corrigido (v8.7.1):** A chave SPA era gerada no servidor usando `HOSTNAME` injetado no template, que podia divergir de `window.location.hostname` (ex: com/sem `www`). Corrigido para usar `window.location.hostname` diretamente no JS client-side, garantindo paridade exata.
 
 ---
 
