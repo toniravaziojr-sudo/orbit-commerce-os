@@ -848,9 +848,17 @@ export class MarketingTracker {
         currency,
       }, eventId);
     }
-  }
 
-  // Track payment info added
+    // Server-side CAPI
+    this.sendCapi('AddShippingInfo', eventId, {
+      content_ids: shipping.items.map(i => resolveMetaContentId(i)),
+      content_type: 'product',
+      value: shipping.value,
+      currency,
+      shipping_tier: shipping.shippingTier,
+      contents: shipping.items.map(i => ({ id: resolveMetaContentId(i), quantity: i.quantity, item_price: i.price })),
+    });
+  }
   trackAddPaymentInfo(payment: {
     value: number;
     currency?: string;
