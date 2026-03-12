@@ -86,6 +86,13 @@ interface CreateOrderRequest {
     affiliate_code: string;
     captured_at: string;
   };
+  // Meta CAPI data from client (for server-side deduplication)
+  meta_capi?: {
+    fbp?: string;
+    fbc?: string;
+    event_source_url?: string;
+    purchase_event_id?: string;
+  };
 }
 
 function normalizeEmail(email: string): string {
