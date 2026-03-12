@@ -593,7 +593,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           neighborhood: formData.shippingNeighborhood,
           city: formData.shippingCity,
           state: formData.shippingState,
-          postalCode: formData.shippingPostalCode,
+          postalCode: sanitizeCep(formData.shippingPostalCode),
         },
         shippingOption: effectiveShipping,
         customer: {
