@@ -28,8 +28,8 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
 
   const hasShipping = shipping.cep && shipping.selected;
 
-  const formatCep = (value: string): string => {
-    const digits = value.replace(/\D/g, '').slice(0, 8);
+  const formatCepDisplay = (raw: string): string => {
+    const digits = raw.replace(/\D/g, '');
     if (digits.length > 5) {
       return `${digits.slice(0, 5)}-${digits.slice(5)}`;
     }
