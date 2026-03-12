@@ -175,7 +175,7 @@ export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: Dashboa
           </CardTitle>
           <p className="text-[11px] text-muted-foreground">{trendLabel}</p>
         </CardHeader>
-        <CardContent className="px-4 pb-4 pt-2 grid grid-cols-2 gap-x-4 gap-y-3">
+        <CardContent className="px-5 pb-5 pt-3 grid grid-cols-2 gap-x-6 gap-y-5">
           <MetricCard
             label="Total abandonados"
             value={metrics?.abandonedCheckoutsToday ?? 0}
