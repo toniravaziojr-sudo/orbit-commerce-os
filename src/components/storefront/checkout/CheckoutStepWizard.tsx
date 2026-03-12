@@ -1169,6 +1169,27 @@ function Step2Address({
   onChange: (field: keyof CheckoutFormData, value: string) => void;
   disabled: boolean;
 }) {
+  const { lookupCep, isLoading: isLookingUp } = useCepLookup();
+
+  const handleCepLookup = async () => {
+    const cep = sanitizeCep(formData.shippingPostalCode);
+    if (!isValidCep(cep)) return;
+    const result = await lookupCep(cep);
+    if (result) {
+      if (result.street) onChange('shippingStreet', result.street);
+      if (result.neighborhood) onChange('shippingNeighborhood', result.neighborhood);
+      if (result.city) onChange('shippingCity', result.city);
+      if (result.state) onChange('shippingState', result.state);
+    }
+  };
+
+  const handleCepKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleCepLookup();
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -1177,17 +1198,30 @@ function Step2Address({
       </div>
 
       <div className="grid gap-4">
-        <div className="max-w-[200px]">
+        <div className="max-w-[250px]">
           <Label htmlFor="shippingPostalCode">CEP *</Label>
-          <CepInput
-            id="sf-checkout-step2-cep"
-            source="CheckoutStepWizard-Step2"
-            value={formData.shippingPostalCode}
-            onValueChange={(digits) => onChange('shippingPostalCode', digits)}
-            placeholder="00000000"
-            disabled={disabled}
-            className={errors.shippingPostalCode ? 'border-destructive' : ''}
-          />
+          <div className="flex gap-2">
+            <CepInput
+              id="sf-checkout-step2-cep"
+              source="CheckoutStepWizard-Step2"
+              value={formData.shippingPostalCode}
+              onValueChange={(digits) => onChange('shippingPostalCode', digits)}
+              onKeyDown={handleCepKeyDown}
+              placeholder="00000000"
+              disabled={disabled}
+              className={errors.shippingPostalCode ? 'border-destructive' : ''}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={handleCepLookup}
+              disabled={disabled || isLookingUp || !isValidCep(sanitizeCep(formData.shippingPostalCode))}
+              title="Buscar endereço pelo CEP"
+            >
+              {isLookingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            </Button>
+          </div>
           {errors.shippingPostalCode && <p className="text-sm text-destructive mt-1">{errors.shippingPostalCode}</p>}
         </div>
 
