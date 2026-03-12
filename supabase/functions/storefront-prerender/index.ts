@@ -192,7 +192,7 @@ serve(async (req) => {
       if (pagesError) console.error('[storefront-prerender] Pages error:', pagesError);
       if (storePages) {
         for (const sp of storePages) {
-          pagesToRender.push({ path: `/p/${sp.slug}`, page_type: 'institutional', entity_id: sp.id });
+          pagesToRender.push({ path: `/page/${sp.slug}`, page_type: 'institutional', entity_id: sp.id });
         }
       }
       console.log(`[storefront-prerender] Store pages found: ${storePages?.length || 0}`);

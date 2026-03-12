@@ -85,8 +85,8 @@ function parseRoute(path: string): ParsedRoute {
 
   if (clean === 'blog') return { type: 'blog_index' };
   
-  // Institutional page: /page/slug or /p/slug
-  const pageMatch = clean.match(/^(?:page|p)\/(.+)$/);
+  // Institutional page: /page/slug
+  const pageMatch = clean.match(/^page\/(.+)$/);
   if (pageMatch) return { type: 'page', slug: pageMatch[1] };
   
   // Landing page: /lp/slug
