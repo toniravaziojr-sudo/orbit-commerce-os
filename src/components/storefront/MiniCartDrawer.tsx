@@ -263,19 +263,10 @@ function MiniCartShipping({
   const [error, setError] = useState<string | null>(null);
 
   // Single handler for ALL input sources: typing, paste, autofill, browser suggestion
-  const handleCepChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const digits = sanitizeCep(e.target.value);
+  const handleCepValueChange = useCallback((digits: string) => {
     setShippingCep(digits);
     setError(null);
   }, [setShippingCep]);
-
-  // Safety net: onBlur re-sanitizes in case autofill bypassed onChange
-  const handleCepBlur = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
-    const digits = sanitizeCep(e.target.value);
-    if (digits !== sanitizeCep(shipping.cep)) {
-      setShippingCep(digits);
-    }
-  }, [shipping.cep, setShippingCep]);
 
   const handleCalculate = async () => {
     const cepDigits = sanitizeCep(shipping.cep);
