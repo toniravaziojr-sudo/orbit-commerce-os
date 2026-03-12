@@ -14,7 +14,6 @@ import {
   AlertTriangle,
   DollarSign,
   BarChart3,
-  TrendingDown,
   Percent,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
