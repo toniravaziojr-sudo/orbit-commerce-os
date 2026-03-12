@@ -109,8 +109,9 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
         supabase.from('orders').select('id, total, payment_status').eq('tenant_id', tid).gte('created_at', prevStart).lte('created_at', prevEnd),
         supabase.from('customers').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).is('deleted_at', null).gte('created_at', periodStart).lte('created_at', periodEnd),
         supabase.from('customers').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).is('deleted_at', null).gte('created_at', prevStart).lte('created_at', prevEnd),
-        supabase.from('storefront_visits' as any).select('visitor_id').eq('tenant_id', tid).gte('created_at', periodStart).lte('created_at', periodEnd),
-        supabase.from('storefront_visits' as any).select('visitor_id').eq('tenant_id', tid).gte('created_at', prevStart).lte('created_at', prevEnd),
+        // Unique visitors via DB-level COUNT(DISTINCT) — no 1000-row limit
+        supabase.rpc('count_unique_visitors', { p_tenant_id: tid, p_start: periodStart, p_end: periodEnd }),
+        supabase.rpc('count_unique_visitors', { p_tenant_id: tid, p_start: prevStart, p_end: prevEnd }),
         supabase.from('carts').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).gte('created_at', periodStart).lte('created_at', periodEnd),
         supabase.from('carts').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).gte('created_at', prevStart).lte('created_at', prevEnd),
         supabase.from('checkout_sessions').select('id, status, recovered_at, customer_email, customer_phone').eq('tenant_id', tid).gte('created_at', periodStart).lte('created_at', periodEnd),
@@ -129,8 +130,9 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
       const currentOrders = currentOrdersRes.data || [];
       const prevOrders = prevOrdersRes.data || [];
 
-      const uniqueVisitorsCurrent = new Set((visitorsCurrentRes.data || []).map((v: any) => v.visitor_id)).size;
-      const uniqueVisitorsPrev = new Set((visitorsPrevRes.data || []).map((v: any) => v.visitor_id)).size;
+      // RPC returns integer directly (COUNT DISTINCT at DB level)
+      const uniqueVisitorsCurrent = (visitorsCurrentRes.data as unknown as number) || 0;
+      const uniqueVisitorsPrev = (visitorsPrevRes.data as unknown as number) || 0;
 
       const paidCurrent = currentOrders.filter(o => o.payment_status === 'approved');
       const paidPrev = prevOrders.filter(o => o.payment_status === 'approved');
