@@ -10,7 +10,7 @@ import { CartItem, ShippingOption } from '@/contexts/CartContext';
 import { AttributionData } from '@/hooks/useAttribution';
 import { sanitizeCep } from '@/lib/cepUtils';
 import { AffiliateData } from '@/lib/affiliateTracking';
-import { getFbp, getFbc, generateEventId } from '@/lib/marketingTracker';
+// Meta CAPI identifiers no longer needed here - handled by MarketingTracker client-side
 
 export type PaymentMethod = 'pix' | 'boleto' | 'credit_card';
 
