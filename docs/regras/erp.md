@@ -36,8 +36,22 @@ Módulo de gestão empresarial: fiscal (NF-e via Nuvem Fiscal), financeiro, e co
 | `fiscal-emit` | Emissão da NF-e via Nuvem Fiscal |
 | `fiscal-create-draft` | Cria rascunho de NF-e a partir de pedido |
 | `fiscal-create-manual` | Cria NF-e manualmente (sem pedido) |
-| `fiscal-auto-create-drafts` | Criação automática de rascunhos |
+| `fiscal-auto-create-drafts` | Criação automática de rascunhos (cron 5min + manual) |
 | `fiscal-validate-order` | Validação pré-emissão |
+
+### Cron: fiscal-auto-create-drafts
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Cron Job (pg_cron) |
+| **Frequência** | A cada 5 minutos (`*/5 * * * *`) |
+| **Descrição** | Cria rascunhos de NF-e automaticamente para pedidos pagos sem NF-e existente |
+| **Modos** | **Cron** (sem auth → processa TODOS os tenants configurados) / **User** (com auth → processa tenant do usuário) |
+| **Condições** | Tenant deve ter `fiscal_settings.is_configured = true` |
+| **Filtro de pedidos** | `payment_status = 'approved'` AND `status IN ('paid', 'ready_to_invoice')` |
+| **Anti-duplicação** | Verifica `fiscal_invoices` existentes antes de criar; retry com incremento de número |
+| **verify_jwt** | `false` (necessário para cron via pg_cron) |
+| **Segurança** | Cron usa anon key → detectado como cron mode → usa service_role internamente |
 
 ### Shared Module: fiscal-numbering.ts
 | Função | Descrição |
