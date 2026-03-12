@@ -458,6 +458,8 @@ O `StorefrontFooterContent.tsx` implementa um componente `FooterLink` que detect
 | 2026-02-02 | Referência de dimensões (px) adicionada no UI do builder para orientar uploads |
 | 2026-02-01 | **FIX v5**: Movido gerenciamento de `pendingUpdatesRef` para o hook `useThemeFooter` — hook agora retorna `footer` já mesclado com atualizações pendentes |
 | 2026-03-12 | **MENU AUTO-UPDATE (v2.0.0)**: Salvar menu no admin agora atualiza a loja pública automaticamente. `menuAutoUpdate()` com debounce 5s: stale → CDN purge → prerender (`trigger_type: 'menu_update'`). Usa `published_content`, nunca `draft_content`. Fallback: live-render (~5s). Toast de republicação manual removido. |
+| 2026-03-12 | **FIX MOBILE CENTERING**: Seção SAC (BLOCO 2) no layout mobile agora usa `items-center text-center` para consistência com demais blocos. Antes estava left-aligned. |
+| 2026-03-12 | **FIX STALE REFS**: Corrigidos 4 `ref_id` stale no menu Footer 2 (Feedback Clientes, FAQ, Garantia, Privacidade) que apontavam para páginas deletadas. Re-vinculados aos IDs corretos das páginas atuais. |
 | 2026-02-01 | `FooterSettings.tsx` simplificado — não precisa mais de estado local para seções de imagem (paymentMethods, etc.) |
 | 2026-03-04 | **FIX AI LP**: Wrapper do footer em `StorefrontAILandingPage.tsx` agora inclui `containerName: 'storefront'` no `style` — sem isso, as CSS Container Queries (`@container storefront`) não matchavam e o layout ficava quebrado (empilhado em vez de colunas). Regra: qualquer wrapper que renderize Header/Footer DEVE ter `containerType: 'inline-size'` E `containerName: 'storefront'` |
 | 2026-02-01 | Correção usa `saveThemeSettingsAsync` para aguardar persistência antes de limpar flags |
