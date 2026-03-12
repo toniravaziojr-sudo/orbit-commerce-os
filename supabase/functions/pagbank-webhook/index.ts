@@ -5,7 +5,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { sendCapiPurchase } from "../_shared/meta-capi-sender.ts";
+// Meta CAPI is now handled client-side via marketing-capi-track edge function
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -230,55 +230,8 @@ serve(async (req) => {
 
       console.log(`[${requestId}] Emitted payment_status_changed event for order ${internalOrderId}`);
 
-      // ==== META CAPI: Send Purchase event on payment approval ====
-      if (newStatus === 'paid') {
-        try {
-          const { data: orderItems } = await supabase
-            .from('order_items')
-            .select('product_id, product_name, sku, quantity, unit_price')
-            .eq('order_id', internalOrderId);
-
-          let capiItems = (orderItems || []).map(i => ({
-            product_id: i.product_id,
-            sku: i.sku,
-            meta_retailer_id: null as string | null,
-            name: i.product_name,
-            price: i.unit_price,
-            quantity: i.quantity,
-          }));
-
-          if (capiItems.length > 0) {
-            const { data: productsMeta } = await supabase
-              .from('products')
-              .select('id, sku, meta_retailer_id')
-              .in('id', capiItems.map(i => i.product_id));
-
-            if (productsMeta) {
-              const metaMap = new Map(productsMeta.map(p => [p.id, p.meta_retailer_id]));
-              capiItems = capiItems.map(i => ({
-                ...i,
-                meta_retailer_id: metaMap.get(i.product_id) || null,
-              }));
-            }
-          }
-
-          await sendCapiPurchase(supabase, tenantId, {
-            order_id: internalOrderId,
-            order_number: orderData?.order_number,
-            value: orderData?.total || 0,
-            currency: 'BRL',
-            items: capiItems,
-            customer: {
-              email: orderData?.customer_email,
-              phone: orderData?.customer_phone,
-              name: orderData?.customer_name,
-            },
-          });
-          console.log(`[${requestId}] Meta CAPI Purchase sent for order ${internalOrderId}`);
-        } catch (capiErr) {
-          console.warn(`[${requestId}] Meta CAPI error (non-blocking):`, capiErr);
-        }
-      }
+      // NOTE: Meta CAPI Purchase is now sent client-side via marketing-capi-track
+      // edge function from the Thank You page, using the same event_id for deduplication
     }
 
     // Record the event for idempotency

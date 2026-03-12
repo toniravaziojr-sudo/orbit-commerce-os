@@ -301,6 +301,50 @@ export interface MarketingConfig {
   google_enabled?: boolean;
   tiktok_pixel_id?: string | null;
   tiktok_enabled?: boolean;
+  // Tenant ID for server-side CAPI forwarding
+  tenantId?: string;
+}
+
+// Fire-and-forget server-side CAPI event via edge function
+function sendServerEvent(tenantId: string, payload: {
+  event_name: string;
+  event_id: string;
+  event_source_url?: string;
+  user_data?: Record<string, any>;
+  custom_data?: Record<string, any>;
+}): void {
+  // Non-blocking: use fetch without await
+  const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+  if (!projectId) return;
+
+  const url = `https://${projectId}.supabase.co/functions/v1/marketing-capi-track`;
+
+  // Gather browser identifiers
+  const metaIds = getMetaIdentifiers();
+  const userData = {
+    ...(payload.user_data || {}),
+    fbp: metaIds.fbp || undefined,
+    fbc: metaIds.fbc || undefined,
+  };
+
+  fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+    },
+    body: JSON.stringify({
+      tenant_id: tenantId,
+      event_name: payload.event_name,
+      event_id: payload.event_id,
+      event_source_url: payload.event_source_url || window.location.href,
+      user_data: userData,
+      custom_data: payload.custom_data,
+    }),
+    keepalive: true, // Ensure request completes even on page unload
+  }).catch(err => {
+    console.warn('[MarketingTracker] Server-side CAPI error (non-blocking):', err);
+  });
 }
 
 export class MarketingTracker {
@@ -309,6 +353,17 @@ export class MarketingTracker {
 
   constructor(config: MarketingConfig) {
     this.config = config;
+  }
+
+  // Helper to send server-side CAPI event (fire-and-forget)
+  private sendCapi(eventName: string, eventId: string, customData?: Record<string, any>, userData?: Record<string, any>): void {
+    if (!this.config.meta_enabled || !this.config.tenantId) return;
+    sendServerEvent(this.config.tenantId, {
+      event_name: eventName,
+      event_id: eventId,
+      custom_data: customData,
+      user_data: userData,
+    });
   }
 
   initialize(): void {
@@ -363,6 +418,9 @@ export class MarketingTracker {
     if (this.config.tiktok_enabled && window.ttq) {
       window.ttq.page();
     }
+
+    // Server-side CAPI
+    this.sendCapi('PageView', eventId);
   }
 
   // Track product view
@@ -417,6 +475,16 @@ export class MarketingTracker {
         currency,
       }, eventId);
     }
+
+    // Server-side CAPI
+    this.sendCapi('ViewContent', eventId, {
+      content_ids: [metaId],
+      content_name: product.name,
+      content_type: 'product',
+      content_category: product.category,
+      value: product.price,
+      currency,
+    });
   }
 
   // Track add to cart
@@ -478,9 +546,18 @@ export class MarketingTracker {
         currency,
       }, eventId);
     }
-  }
 
-  // Track initiate checkout
+    // Server-side CAPI
+    this.sendCapi('AddToCart', eventId, {
+      content_ids: [metaId],
+      content_name: item.name,
+      content_type: 'product',
+      content_category: item.category,
+      value,
+      currency,
+      contents: [{ id: metaId, quantity: item.quantity, item_price: item.price }],
+    });
+  }
   trackInitiateCheckout(cart: {
     items: Array<{ id: string; sku?: string; metaContentId?: string | null; name: string; price: number; quantity: number; category?: string }>;
     value: number;
@@ -529,9 +606,18 @@ export class MarketingTracker {
         quantity: cart.items.reduce((sum, i) => sum + i.quantity, 0),
       }, eventId);
     }
-  }
 
-  // Track purchase - client side (server-side also sends this for reliability)
+    // Server-side CAPI
+    const capiContentIds = cart.items.map(i => resolveMetaContentId(i));
+    this.sendCapi('InitiateCheckout', eventId, {
+      content_ids: capiContentIds,
+      content_type: 'product',
+      value: cart.value,
+      currency,
+      num_items: cart.items.reduce((sum, i) => sum + i.quantity, 0),
+      contents: cart.items.map(i => ({ id: resolveMetaContentId(i), quantity: i.quantity, item_price: i.price })),
+    });
+  }
   trackPurchase(order: {
     order_id: string;
     value: number;
@@ -589,9 +675,19 @@ export class MarketingTracker {
         quantity: order.items.reduce((sum, i) => sum + i.quantity, 0),
       }, eventId);
     }
-  }
 
-  // Track search
+    // Server-side CAPI
+    const purchaseContentIds = order.items.map(i => resolveMetaContentId(i));
+    this.sendCapi('Purchase', eventId, {
+      content_ids: purchaseContentIds,
+      content_type: 'product',
+      value: order.value,
+      currency,
+      num_items: order.items.reduce((sum, i) => sum + i.quantity, 0),
+      contents: order.items.map(i => ({ id: resolveMetaContentId(i), quantity: i.quantity, item_price: i.price })),
+      order_id: order.order_id,
+    });
+  }
   trackSearch(query: string): void {
     const eventId = generateEventId();
 
@@ -615,9 +711,10 @@ export class MarketingTracker {
         query,
       }, eventId);
     }
-  }
 
-  // Track category view
+    // Server-side CAPI
+    this.sendCapi('Search', eventId, { search_string: query });
+  }
   trackViewCategory(category: {
     id: string;
     name: string;
@@ -650,9 +747,14 @@ export class MarketingTracker {
         content_type: 'product_group',
       }, eventId);
     }
-  }
 
-  // Track lead - when customer fills personal info
+    // Server-side CAPI
+    this.sendCapi('ViewCategory', eventId, {
+      content_category: category.name,
+      content_ids: category.productIds || [],
+      content_type: 'product_group',
+    });
+  }
   trackLead(customer: {
     email?: string;
     phone?: string;
@@ -686,9 +788,17 @@ export class MarketingTracker {
         currency,
       }, eventId);
     }
-  }
 
-  // Track shipping info added
+    // Server-side CAPI
+    this.sendCapi('Lead', eventId, {
+      value: customer.value || 0,
+      currency,
+    }, {
+      email: customer.email,
+      phone: customer.phone,
+      name: customer.name,
+    });
+  }
   trackAddShippingInfo(shipping: {
     value: number;
     currency?: string;
@@ -738,9 +848,17 @@ export class MarketingTracker {
         currency,
       }, eventId);
     }
-  }
 
-  // Track payment info added
+    // Server-side CAPI
+    this.sendCapi('AddShippingInfo', eventId, {
+      content_ids: shipping.items.map(i => resolveMetaContentId(i)),
+      content_type: 'product',
+      value: shipping.value,
+      currency,
+      shipping_tier: shipping.shippingTier,
+      contents: shipping.items.map(i => ({ id: resolveMetaContentId(i), quantity: i.quantity, item_price: i.price })),
+    });
+  }
   trackAddPaymentInfo(payment: {
     value: number;
     currency?: string;
@@ -789,5 +907,15 @@ export class MarketingTracker {
         currency,
       }, eventId);
     }
+
+    // Server-side CAPI
+    this.sendCapi('AddPaymentInfo', eventId, {
+      content_ids: payment.items.map(i => resolveMetaContentId(i)),
+      content_type: 'product',
+      value: payment.value,
+      currency,
+      payment_method: payment.paymentMethod,
+      contents: payment.items.map(i => ({ id: resolveMetaContentId(i), quantity: i.quantity, item_price: i.price })),
+    });
   }
 }

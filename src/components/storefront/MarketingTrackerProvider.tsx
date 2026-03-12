@@ -63,6 +63,7 @@ export function MarketingTrackerProvider({ tenantId, children }: Props) {
         google_enabled: config.google_enabled,
         tiktok_pixel_id: config.tiktok_pixel_id,
         tiktok_enabled: config.tiktok_enabled,
+        tenantId: tenantId,
       });
       
       tracker.initialize();
