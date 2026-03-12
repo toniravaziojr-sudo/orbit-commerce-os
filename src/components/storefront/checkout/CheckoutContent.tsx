@@ -146,7 +146,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
         customerEmail: formData.customerEmail || undefined,
         customerPhone: formData.customerPhone || undefined,
         customerName: formData.customerName || undefined,
-        region: formData.shippingPostalCode || shipping.cep || undefined,
+        region: sanitizeCep(formData.shippingPostalCode) || sanitizeCep(shipping.cep) || undefined,
         step: 'checkout',
       });
     };
