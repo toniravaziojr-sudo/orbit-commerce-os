@@ -1,0 +1,1 @@
+DELETE FROM store_pages WHERE tenant_id = 'd1a4d0ed-8842-495e-b741-540a9a345b25' AND slug IN ('quem-somos', 'fale-conosco', 'faq', 'como-comprar', 'frete-e-entrega', 'trocas-e-devolucoes', 'politica-de-privacidade', 'termos-de-uso');
