@@ -984,7 +984,11 @@ function buildFullPage(opts: {
         var shLine=document.querySelector("[data-sf-cart-shipping-line]");
         var shVal=document.querySelector("[data-sf-cart-shipping-value]");
         if(shLine&&shVal){
-          if(cartShipping){shLine.style.display="flex";shVal.textContent=cartShipping.price===0?'Grátis':fmt(cartShipping.price);}
+          if(cartShipping){
+            var displayShipPrice=cartShipping.price;
+            if(cartDiscount&&cartDiscount.free_shipping){displayShipPrice=0;}
+            shLine.style.display="flex";shVal.textContent=displayShipPrice===0?'Grátis':fmt(displayShipPrice);
+          }
           else{shLine.style.display="none";}
         }
         // Discount line
@@ -993,14 +997,15 @@ function buildFullPage(opts: {
         var discountAmt=0;
         if(dLine&&dVal&&cartDiscount){
           if(cartDiscount.free_shipping){discountAmt=0;}
-          else if(cartDiscount.type==="order_percent"||cartDiscount.type==="percentage"){discountAmt=subtotal*(cartDiscount.value/100);}
+          else if(cartDiscount.type==="order_percent"||cartDiscount.type==="percentage"){discountAmt=Math.round(subtotal*(cartDiscount.value/100)*100)/100;}
           else{discountAmt=Math.min(cartDiscount.discount_amount||cartDiscount.value||0,subtotal);}
-          else{discountAmt=Math.min(cartDiscount.value,subtotal);}
           if(discountAmt>0){dLine.style.display="flex";dVal.textContent="-"+fmt(discountAmt);}
+          else if(cartDiscount.free_shipping){dLine.style.display="none";}
           else{dLine.style.display="none";}
         } else if(dLine){dLine.style.display="none";}
         // Total
         var shippingCost=cartShipping?cartShipping.price:0;
+        if(cartDiscount&&cartDiscount.free_shipping){shippingCost=0;}
         var total=Math.max(0,subtotal-discountAmt+shippingCost);
         var totalEl=document.querySelector("[data-sf-cart-total]");
         if(totalEl)totalEl.textContent=fmt(total);
