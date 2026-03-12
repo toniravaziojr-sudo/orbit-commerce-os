@@ -307,8 +307,8 @@ export default function Pages() {
                 <DropdownMenuItem onClick={() => setIsDialogOpen(true)}>
                   <LayoutTemplate className="mr-2 h-4 w-4" />No Builder
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setCreateLPDialogOpen(true)}>
-                  <Sparkles className="mr-2 h-4 w-4" />Com IA
+                <DropdownMenuItem onClick={() => setIsAIArchitectOpen(true)}>
+                  <Wand2 className="mr-2 h-4 w-4" />Com IA
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setIsAIImportOpen(true)}>
                   <Sparkles className="mr-2 h-4 w-4" />Importar com IA
