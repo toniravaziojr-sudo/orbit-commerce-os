@@ -716,7 +716,7 @@ O grid de métricas da Central de Execuções é organizado em **4 categorias em
 
 | Ordem | Título | Métricas | Fonte de Dados |
 |-------|--------|----------|----------------|
-| **0 — Faturamento** | "Faturamento" | Faturamento Total (pagos+não pagos), Faturamento Real (só pagos), Retorno Real (pagos - ad spend total), Taxa de Conversão (visitantes × pedidos pagos) | `orders`, `meta_ad_insights`, `google_ad_insights`, `tiktok_ad_insights`, `storefront_visits` |
+| **0 — Faturamento** | "Faturamento" | Faturamento Total (pagos+não pagos), Faturamento Real (só pagos), Retorno Real / ROAS (vendas pagas ÷ ad spend), Taxa de Conversão (visitantes × pedidos pagos) | `orders`, `meta_ad_insights`, `google_ad_insights`, `tiktok_ad_insights`, `storefront_visits` |
 | **1 — Funil de Conversão** | "Funil de Conversão" | Visitas → Adicionou ao carrinho → Iniciou checkout → Pedidos (vendas efetivadas) | `storefront_visits`, `carts`, `checkout_sessions`, `orders` |
 | **2 — Pedidos & Financeiro** | "Pedidos & Financeiro" | Pedidos Pagos, Pedidos Não Pagos, Ticket Médio, Novos Clientes (1ª compra) | `orders` (payment_status), `customers` |
 | **3 — Checkouts Abandonados** | "Checkouts Abandonados" | Total abandonados, Recuperados, Com erros de contato | `checkout_sessions` (status/recovered_at/customer_email/phone) |
@@ -755,12 +755,12 @@ O grid de métricas da Central de Execuções é organizado em **4 categorias em
 
 #### Métricas de Faturamento (v8.8.0)
 
-| Métrica | Cálculo | Ícone | Variant |
-|---------|---------|-------|---------|
-| **Faturamento Total** | Soma de `orders.total` (todos os pedidos, pagos e não pagos) | `DollarSign` | `primary` |
-| **Faturamento Real** | Soma de `orders.total` onde `payment_status = 'approved'` | `BarChart3` | `success` |
-| **Retorno Real** | Faturamento Real − Ad Spend Total (Meta + Google + TikTok) | `TrendingDown` | `info` (positivo) / `destructive` (negativo) |
-| **Taxa de Conversão** | `(pedidos pagos / visitantes) × 100` — formato `X.XX%` | `Percent` | `warning` |
+| Métrica | Cálculo | Ícone | Variant | Formato |
+|---------|---------|-------|---------|---------|
+| **Faturamento Total** | Soma de `orders.total` (todos os pedidos, pagos e não pagos) | `DollarSign` | `primary` | `R$ X.XXX,XX` |
+| **Faturamento Real** | Soma de `orders.total` onde `payment_status = 'approved'` | `BarChart3` | `success` | `R$ X.XXX,XX` |
+| **Retorno Real (ROAS)** | Faturamento Real ÷ Ad Spend Total. Indica quanto retorna para cada R$ 1 investido em anúncios. | `TrendingUp` | `info` (≥1x) / `destructive` (<1x) | `X.XXx` (ex: `4.50x`) |
+| **Taxa de Conversão** | `(pedidos pagos / visitantes) × 100` | `Percent` | `warning` | `X.XX%` |
 
 #### Ad Spend — Fontes de Dados
 
@@ -769,6 +769,39 @@ O grid de métricas da Central de Execuções é organizado em **4 categorias em
 | Meta Ads | `meta_ad_insights` | `spend_cents` | ÷ 100 |
 | Google Ads | `google_ad_insights` | `cost_micros` | ÷ 1.000.000 |
 | TikTok Ads | `tiktok_ad_insights` | `spend_cents` | ÷ 100 |
+
+### Arquitetura de Dados do Dashboard (v8.8.0)
+
+#### Filosofia: Sistema Interno como Fonte de Verdade
+
+O dashboard segue uma arquitetura **híbrida com reconciliação**, onde:
+
+| Dado | Fonte de Verdade | Fontes Secundárias | Regra |
+|------|------------------|--------------------|-------|
+| **Visitantes** | `storefront_visits` (tracking interno via cookie `_sf_vid`) | Pixels Meta/Google/TikTok (não usados para contagem) | Deduplicado por `visitor_id`, NÃO soma pixels externos |
+| **Pedidos/Vendas** | Tabela `orders` (sistema interno) | Eventos de pixel (Purchase) | Pixels confirmam mas NÃO criam pedidos |
+| **Ad Spend** | `meta_ad_insights` + `google_ad_insights` + `tiktok_ad_insights` | — | Sincronizado via `sync-ads-dashboard` a cada 15 min |
+| **Conversão** | Calculado: `paidOrders / visitors × 100` | — | Atualiza quando pedidos são recuperados/pagos |
+
+#### Deduplicação
+
+| Tipo | Mecanismo |
+|------|-----------|
+| **Visitantes** | Cookie `_sf_vid` (365 dias). Mesmo visitante de múltiplas fontes (orgânico, Meta, Google) = 1 visita |
+| **Pedidos** | UUID único por pedido. Reuso via `PENDING_ORDER_KEY` no sessionStorage previne duplicidade |
+| **Clientes** | Deduplicação por `email` (normalizado lowercase) na tabela `customers` |
+| **Ad Insights** | Upsert por `(meta_campaign_id, date_start)` / `(google_campaign_id, date)` / `(tiktok_campaign_id, date_start)` |
+
+#### Sincronização de Ad Insights (v8.8.0)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Edge Function + Cron Job |
+| **Localização** | `supabase/functions/sync-ads-dashboard/index.ts` |
+| **Descrição** | Orquestrador que busca todos os tenants com conexões ativas (Meta, Google, TikTok) e dispara sincronização de insights para cada um |
+| **Frequência** | A cada 15 minutos via `pg_cron` (`sync-ads-dashboard-every-15min`) |
+| **Fluxo** | 1. Busca tenants com `marketplace_connections` (Meta), `google_connections`, `tiktok_ads_connections` ativas → 2. Chama `meta-ads-insights`, `google-ads-insights`, `tiktok-ads-insights` com `action: "sync"` e `date_preset: "today"` para cada tenant → 3. Executa em paralelo por plataforma via `Promise.allSettled` |
+| **Impacto** | Garante que os dados de ad spend no dashboard estejam atualizados com no máximo 15 min de atraso |
 
 #### Regra de "Com erros de contato"
 

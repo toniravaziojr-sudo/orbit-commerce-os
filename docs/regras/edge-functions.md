@@ -1159,6 +1159,18 @@ O lojista pode sobrepor QUALQUER configuração do sistema via chat com confirma
 
 A sync com paginação completa + chunking permite capturar **100% dos dados históricos** mesmo em contas com alto volume (ex: R$ 665k+ em 30 meses, 6000+ rows).
 
+### Orquestrador de Dashboard (`sync-ads-dashboard`) — v1.0.0
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Edge Function (orquestrador) |
+| **Localização** | `supabase/functions/sync-ads-dashboard/index.ts` |
+| **Frequência** | Cron `*/15 * * * *` (a cada 15 minutos) via `pg_cron` (`sync-ads-dashboard-every-15min`) |
+| **Descrição** | Busca todos os tenants com conexões ativas de Meta, Google e TikTok, e invoca as funções de sync de insights (`meta-ads-insights`, `google-ads-insights`, `tiktok-ads-insights`) com `action: "sync"` e `date_preset: "today"` para cada um |
+| **Fluxo** | 1. Query `marketplace_connections` (Meta), `google_connections`, `tiktok_ads_connections` ativas → 2. Deduplica tenant_ids → 3. Chama sync functions em paralelo por plataforma via `Promise.allSettled` |
+| **Impacto** | Garante dados de ad spend atualizados no dashboard (máximo 15 min de atraso) |
+| **Retorno** | `{ success, stats: { meta: {tenants, success, errors}, google: {...}, tiktok: {...}, duration_ms } }` |
+
 ### Changelog — `ads-chat`
 
 | Versão | Data | Mudança |
