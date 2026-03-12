@@ -914,7 +914,38 @@ function buildFullPage(opts: {
         }
       }catch(e){console.warn("[SF] Cart parse error, resetting:",e);cart=[];}
       var cartShipping=null; // {name,price,days}
-      var cartDiscount=null; // {code,type,value,free_shipping}
+      var cartDiscount=null; // {code,type,value,free_shipping,discount_id,discount_name,discount_amount}
+      var DISCOUNT_KEY="storefront_discount_"+TENANT;
+      // Restore persisted discount
+      try{var _savedDiscount=JSON.parse(localStorage.getItem(DISCOUNT_KEY)||"null");if(_savedDiscount&&_savedDiscount.code){cartDiscount=_savedDiscount;}}catch(e){}
+
+      function persistDiscount(){
+        try{if(cartDiscount){localStorage.setItem(DISCOUNT_KEY,JSON.stringify(cartDiscount));}else{localStorage.removeItem(DISCOUNT_KEY);}}catch(e){}
+      }
+
+      function updateCouponUI(){
+        var inputRow=document.querySelector("[data-sf-coupon-input-row]");
+        var appliedRow=document.querySelector("[data-sf-coupon-applied-row]");
+        var appliedCode=document.querySelector("[data-sf-coupon-applied-code]");
+        var appliedDesc=document.querySelector("[data-sf-coupon-applied-desc]");
+        var couponResult=document.querySelector("[data-sf-cart-coupon-result]");
+        if(!inputRow||!appliedRow)return;
+        if(cartDiscount){
+          inputRow.style.display="none";
+          appliedRow.style.display="flex";
+          if(appliedCode)appliedCode.textContent=cartDiscount.code;
+          if(appliedDesc){
+            if(cartDiscount.free_shipping){appliedDesc.textContent="Frete grátis";}
+            else if(cartDiscount.type==="order_percent"||cartDiscount.type==="percentage"){appliedDesc.textContent=cartDiscount.value+"% de desconto";}
+            else{appliedDesc.textContent="-R$ "+(cartDiscount.discount_amount||cartDiscount.value||0).toFixed(2).replace(".",",");}
+          }
+          if(couponResult)couponResult.innerHTML="";
+        }else{
+          inputRow.style.display="flex";
+          appliedRow.style.display="none";
+          if(couponResult)couponResult.innerHTML="";
+        }
+      }
       var BENEFIT_ENABLED=${opts.benefitEnabled ? 'true' : 'false'};
       var BENEFIT_THRESHOLD=${opts.benefitThreshold || 0};
       var BENEFIT_MODE="${escapeHtml(opts.benefitMode || 'free_shipping')}";
