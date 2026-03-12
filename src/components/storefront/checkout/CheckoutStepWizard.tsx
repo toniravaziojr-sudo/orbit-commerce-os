@@ -489,6 +489,11 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
       // When leaving step 3 (shipping selected), track AddShippingInfo
       if (currentStep === 3 && shipping.selected) {
         trackAddShippingInfo(shipping.selected.label);
+        // Persist funnel step in checkout_sessions
+        heartbeatCheckoutSession({
+          tenantSlug: tenantSlug || undefined,
+          step: 'shipping_selected',
+        });
       }
 
       // Small delay to ensure state updates are processed

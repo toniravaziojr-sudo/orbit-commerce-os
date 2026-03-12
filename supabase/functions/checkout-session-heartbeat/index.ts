@@ -182,7 +182,17 @@ serve(async (req) => {
     if (region) updateData.region = region;
     if (total_estimated !== undefined) updateData.total_estimated = total_estimated;
     if (items_snapshot) updateData.items_snapshot = items_snapshot;
-    if (step && !wasAbandoned) updateData.metadata = { step };
+    
+    // Track funnel step timestamps
+    if (step && !wasAbandoned) {
+      updateData.metadata = { step };
+      if (step === 'shipping' || step === 'shipping_selected') {
+        updateData.shipping_selected_at = new Date().toISOString();
+      }
+      if (step === 'payment' || step === 'payment_selected') {
+        updateData.payment_selected_at = new Date().toISOString();
+      }
+    }
 
     // Só atualiza se status é 'active' OU se estava 'abandoned' (para reativar)
     const { data, error } = await supabase
