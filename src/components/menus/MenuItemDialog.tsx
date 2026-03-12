@@ -70,13 +70,10 @@ export default function MenuItemDialog({
 
     if (editingItem) {
       const nextItemType = editingItem.item_type as MenuItemType;
-      const hasValidPageRef = nextItemType === 'page' ? pageIds.has(editingItem.ref_id || '') : true;
-      const hasValidCategoryRef = nextItemType === 'category' ? categoryIds.has(editingItem.ref_id || '') : true;
-
       setForm({
         label: editingItem.label,
         item_type: nextItemType,
-        ref_id: hasValidPageRef && hasValidCategoryRef ? editingItem.ref_id || '' : '',
+        ref_id: editingItem.ref_id || '',
         url: editingItem.url || '',
         parent_id: editingItem.parent_id || null,
       });
