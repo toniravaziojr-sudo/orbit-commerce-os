@@ -675,9 +675,19 @@ export class MarketingTracker {
         quantity: order.items.reduce((sum, i) => sum + i.quantity, 0),
       }, eventId);
     }
-  }
 
-  // Track search
+    // Server-side CAPI
+    const purchaseContentIds = order.items.map(i => resolveMetaContentId(i));
+    this.sendCapi('Purchase', eventId, {
+      content_ids: purchaseContentIds,
+      content_type: 'product',
+      value: order.value,
+      currency,
+      num_items: order.items.reduce((sum, i) => sum + i.quantity, 0),
+      contents: order.items.map(i => ({ id: resolveMetaContentId(i), quantity: i.quantity, item_price: i.price })),
+      order_id: order.order_id,
+    });
+  }
   trackSearch(query: string): void {
     const eventId = generateEventId();
 
