@@ -4,11 +4,11 @@
 // =============================================
 
 import { useState, useCallback } from 'react';
-import { sanitizeCep, formatCepDisplay } from '@/lib/cepUtils';
+import { sanitizeCep } from '@/lib/cepUtils';
 import { useCart } from '@/contexts/CartContext';
 import { useShipping } from '@/contexts/StorefrontConfigContext';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { CepInput } from '@/components/storefront/shared/CepInput';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Loader2, Truck, AlertCircle } from 'lucide-react';
@@ -19,18 +19,10 @@ export function ShippingEstimator() {
   const [isCalculating, setIsCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleCepChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const digits = sanitizeCep(e.target.value);
+  const handleCepValueChange = useCallback((digits: string) => {
     setShippingCep(digits);
     setError(null);
   }, [setShippingCep]);
-
-  const handleCepBlur = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
-    const digits = sanitizeCep(e.target.value);
-    if (digits !== sanitizeCep(shipping.cep)) {
-      setShippingCep(digits);
-    }
-  }, [shipping.cep, setShippingCep]);
 
   const handleCalculate = async () => {
     const cepDigits = sanitizeCep(shipping.cep);
@@ -114,18 +106,9 @@ export function ShippingEstimator() {
 
       <div className="flex gap-2">
         <div className="flex-1">
-          <Input
-            type="text"
-            inputMode="numeric"
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            placeholder="00000-000"
-            value={formatCepDisplay(shipping.cep)}
-            onChange={handleCepChange}
-            onBlur={handleCepBlur}
-            maxLength={9}
+          <CepInput
+            value={shipping.cep}
+            onValueChange={handleCepValueChange}
             className="font-mono"
           />
         </div>

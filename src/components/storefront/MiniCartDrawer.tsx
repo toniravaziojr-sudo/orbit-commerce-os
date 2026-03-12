@@ -14,7 +14,6 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Minus, Plus, X, ShoppingCart, Truck, Check, Loader2, Tag } from 'lucide-react';
 import { BenefitProgressBar } from '@/components/storefront/cart/BenefitProgressBar';
 import { useCart, CartItem } from '@/contexts/CartContext';
@@ -26,8 +25,9 @@ import { calculateCartTotals, formatCurrency, formatPrice } from '@/lib/cartTota
 import { Progress } from '@/components/ui/progress';
 import { CouponInput } from '@/components/storefront/CouponInput';
 import { CartPromoBanner } from '@/components/storefront/cart/CartPromoBanner';
+import { CepInput } from '@/components/storefront/shared/CepInput';
 import { getStoreHost } from '@/lib/storeHost';
-import { sanitizeCep, formatCepDisplay } from '@/lib/cepUtils';
+import { sanitizeCep } from '@/lib/cepUtils';
 
 interface MiniCartDrawerProps {
   open: boolean;
@@ -263,19 +263,10 @@ function MiniCartShipping({
   const [error, setError] = useState<string | null>(null);
 
   // Single handler for ALL input sources: typing, paste, autofill, browser suggestion
-  const handleCepChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const digits = sanitizeCep(e.target.value);
+  const handleCepValueChange = useCallback((digits: string) => {
     setShippingCep(digits);
     setError(null);
   }, [setShippingCep]);
-
-  // Safety net: onBlur re-sanitizes in case autofill bypassed onChange
-  const handleCepBlur = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
-    const digits = sanitizeCep(e.target.value);
-    if (digits !== sanitizeCep(shipping.cep)) {
-      setShippingCep(digits);
-    }
-  }, [shipping.cep, setShippingCep]);
 
   const handleCalculate = async () => {
     const cepDigits = sanitizeCep(shipping.cep);
@@ -333,18 +324,9 @@ function MiniCartShipping({
       </div>
 
       <div className="flex gap-2">
-        <Input
-          type="text"
-          inputMode="numeric"
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck={false}
-          placeholder="00000-000"
-          value={formatCepDisplay(shipping.cep)}
-          onChange={handleCepChange}
-          onBlur={handleCepBlur}
-          maxLength={9}
+        <CepInput
+          value={shipping.cep}
+          onValueChange={handleCepValueChange}
           className="font-mono text-sm h-9"
         />
         <Button

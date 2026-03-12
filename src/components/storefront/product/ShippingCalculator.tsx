@@ -2,9 +2,9 @@
 // SHIPPING CALCULATOR - Calculadora de frete
 // =============================================
 
-import React, { useState, useCallback } from 'react';
-import { sanitizeCep, formatCepDisplay } from '@/lib/cepUtils';
-import { Input } from '@/components/ui/input';
+import { useState } from 'react';
+import { sanitizeCep } from '@/lib/cepUtils';
+import { CepInput } from '@/components/storefront/shared/CepInput';
 import { Button } from '@/components/ui/button';
 import { Truck, Loader2, Package, Clock } from 'lucide-react';
 
@@ -35,17 +35,11 @@ export function ShippingCalculator({
   const [shippingOptions, setShippingOptions] = useState<ShippingOption[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleCepChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const digits = sanitizeCep(e.target.value);
+  const handleCepValueChange = (digits: string) => {
     setCepDigits(digits);
     setError(null);
     setShippingOptions(null);
-  }, []);
-
-  const handleCepBlur = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
-    const digits = sanitizeCep(e.target.value);
-    if (digits !== cepDigits) setCepDigits(digits);
-  }, [cepDigits]);
+  };
 
   const handleCalculate = async () => {
     if (cepDigits.length !== 8) {
@@ -77,18 +71,9 @@ export function ShippingCalculator({
       </div>
 
       <div className="flex gap-2">
-        <Input
-          type="text"
-          inputMode="numeric"
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck={false}
-          placeholder="00000-000"
-          value={formatCepDisplay(cepDigits)}
-          onChange={handleCepChange}
-          onBlur={handleCepBlur}
-          maxLength={9}
+        <CepInput
+          value={cepDigits}
+          onValueChange={handleCepValueChange}
           className="flex-1"
           disabled={isEditing}
         />

@@ -2,8 +2,9 @@
 // CHECKOUT FORM - Customer data with validation and masks
 // =============================================
 
-import { sanitizeCep, formatCepDisplay, isValidCep } from '@/lib/cepUtils';
+import { sanitizeCep, isValidCep } from '@/lib/cepUtils';
 import { Input } from '@/components/ui/input';
+import { CepInput } from '@/components/storefront/shared/CepInput';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -132,24 +133,10 @@ export function CheckoutForm({ data, onChange, errors, disabled = false }: Check
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="shippingPostalCode">CEP *</Label>
-            <Input
-              id="shippingPostalCode"
-              type="text"
-              inputMode="numeric"
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              value={formatCepDisplay(data.shippingPostalCode)}
-              onChange={(e) => handleChange('shippingPostalCode', e.target.value)}
-              onBlur={(e) => {
-                const digits = sanitizeCep(e.target.value);
-                if (digits !== sanitizeCep(data.shippingPostalCode)) {
-                  handleChange('shippingPostalCode', digits);
-                }
-              }}
+            <CepInput
+              value={data.shippingPostalCode}
+              onValueChange={(digits) => handleChange('shippingPostalCode', digits)}
               placeholder="00000-000"
-              maxLength={9}
               className={cn(errors.shippingPostalCode && 'border-destructive')}
               disabled={disabled}
             />

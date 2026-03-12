@@ -5,7 +5,7 @@
 // =============================================
 
 import React, { useState, useEffect, useRef, Fragment } from 'react';
-import { sanitizeCep, formatCepDisplay, isValidCep } from '@/lib/cepUtils';
+import { sanitizeCep, isValidCep } from '@/lib/cepUtils';
 import { useNavigate, Link } from 'react-router-dom';
 import { useCart } from '@/contexts/CartContext';
 import { useDiscount, AppliedDiscount } from '@/contexts/DiscountContext';
@@ -20,6 +20,7 @@ import { CouponInput } from '@/components/storefront/CouponInput';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { CepInput } from '@/components/storefront/shared/CepInput';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -1170,24 +1171,10 @@ function Step2Address({
       <div className="grid gap-4">
         <div className="max-w-[200px]">
           <Label htmlFor="shippingPostalCode">CEP *</Label>
-          <Input
-            id="shippingPostalCode"
-            type="text"
-            inputMode="numeric"
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            value={formatCepDisplay(formData.shippingPostalCode)}
-            onChange={(e) => onChange('shippingPostalCode', sanitizeCep(e.target.value))}
-            onBlur={(e) => {
-              const digits = sanitizeCep(e.target.value);
-              if (digits !== sanitizeCep(formData.shippingPostalCode)) {
-                onChange('shippingPostalCode', digits);
-              }
-            }}
+          <CepInput
+            value={formData.shippingPostalCode}
+            onValueChange={(digits) => onChange('shippingPostalCode', digits)}
             placeholder="00000-000"
-            maxLength={9}
             disabled={disabled}
             className={errors.shippingPostalCode ? 'border-destructive' : ''}
           />

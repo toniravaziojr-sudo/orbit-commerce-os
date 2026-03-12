@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { CartItem, ShippingOption } from '@/contexts/CartContext';
 import { AttributionData } from '@/hooks/useAttribution';
+import { sanitizeCep } from '@/lib/cepUtils';
 import { AffiliateData } from '@/lib/affiliateTracking';
 
 export type PaymentMethod = 'pix' | 'boleto' | 'credit_card';
@@ -302,7 +303,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
             neighborhood: shipping.neighborhood,
             city: shipping.city,
             state: shipping.state,
-            postal_code: shipping.postalCode.replace(/\D/g, ''),
+            postal_code: sanitizeCep(shipping.postalCode),
             country: 'BR',
           },
           card: card ? {

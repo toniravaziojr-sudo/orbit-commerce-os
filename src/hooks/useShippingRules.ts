@@ -6,6 +6,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { sanitizeCep, formatCepDisplay } from '@/lib/cepUtils';
 import { toast } from 'sonner';
 
 // =============================================
@@ -58,15 +59,14 @@ export type ShippingCustomRuleInput = Omit<ShippingCustomRule, 'id' | 'tenant_id
  * Normalize CEP to only digits (8 characters)
  */
 export function normalizeCep(cep: string): string {
-  return cep.replace(/\D/g, '').padStart(8, '0').slice(0, 8);
+  return sanitizeCep(cep).padStart(8, '0').slice(0, 8);
 }
 
 /**
  * Format CEP for display (XXXXX-XXX)
  */
 export function formatCep(cep: string): string {
-  const normalized = normalizeCep(cep);
-  return `${normalized.slice(0, 5)}-${normalized.slice(5)}`;
+  return formatCepDisplay(normalizeCep(cep));
 }
 
 /**
