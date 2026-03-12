@@ -19,17 +19,18 @@ export function ShippingEstimator() {
   const [isCalculating, setIsCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Store raw digits to avoid hyphen re-insertion bug
-  const cepDigits = shipping.cep.replace(/\D/g, '');
-  const formattedCep = cepDigits.length > 5
-    ? `${cepDigits.slice(0, 5)}-${cepDigits.slice(5)}`
-    : cepDigits;
-
-  const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+  const handleCepChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = sanitizeCep(e.target.value);
     setShippingCep(digits);
     setError(null);
-  };
+  }, [setShippingCep]);
+
+  const handleCepBlur = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
+    const digits = sanitizeCep(e.target.value);
+    if (digits !== sanitizeCep(shipping.cep)) {
+      setShippingCep(digits);
+    }
+  }, [shipping.cep, setShippingCep]);
 
   const handleCalculate = async () => {
     const cepDigits = shipping.cep.replace(/\D/g, '');
