@@ -747,9 +747,14 @@ export class MarketingTracker {
         content_type: 'product_group',
       }, eventId);
     }
-  }
 
-  // Track lead - when customer fills personal info
+    // Server-side CAPI
+    this.sendCapi('ViewCategory', eventId, {
+      content_category: category.name,
+      content_ids: category.productIds || [],
+      content_type: 'product_group',
+    });
+  }
   trackLead(customer: {
     email?: string;
     phone?: string;
