@@ -145,6 +145,8 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
         <div className="flex gap-2">
           <div className="flex-1">
             <CepInput
+              id="sf-checkout-shipping-cep"
+              source="CheckoutShipping"
               value={tempCep}
               onValueChange={(digits) => {
                 setTempCep(digits);

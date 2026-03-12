@@ -107,6 +107,8 @@ export function ShippingEstimator() {
       <div className="flex gap-2">
         <div className="flex-1">
           <CepInput
+            id="sf-cart-cep"
+            source="ShippingEstimator"
             value={shipping.cep}
             onValueChange={handleCepValueChange}
             className="font-mono"

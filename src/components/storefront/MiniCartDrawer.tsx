@@ -325,6 +325,8 @@ function MiniCartShipping({
 
       <div className="flex gap-2">
         <CepInput
+          id="sf-mini-cart-cep"
+          source="MiniCartShipping"
           value={shipping.cep}
           onValueChange={handleCepValueChange}
           className="font-mono text-sm h-9"

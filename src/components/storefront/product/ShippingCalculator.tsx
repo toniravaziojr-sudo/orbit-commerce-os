@@ -71,6 +71,8 @@ export function ShippingCalculator({
 
       <div className="flex gap-2">
         <CepInput
+          id="sf-product-cep"
+          source="ShippingCalculator"
           value={cepDigits}
           onValueChange={handleCepValueChange}
           className="flex-1"
