@@ -788,9 +788,17 @@ export class MarketingTracker {
         currency,
       }, eventId);
     }
-  }
 
-  // Track shipping info added
+    // Server-side CAPI
+    this.sendCapi('Lead', eventId, {
+      value: customer.value || 0,
+      currency,
+    }, {
+      email: customer.email,
+      phone: customer.phone,
+      name: customer.name,
+    });
+  }
   trackAddShippingInfo(shipping: {
     value: number;
     currency?: string;
