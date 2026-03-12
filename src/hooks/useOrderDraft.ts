@@ -94,10 +94,14 @@ export function useOrderDraft() {
         setDraft({
           items: Array.isArray(parsed.items) ? parsed.items : [],
           shipping: {
-            cep: parsed.shipping?.cep || '',
+            cep: sanitizeCep(parsed.shipping?.cep || ''),
             selected: parsed.shipping?.selected || null,
           },
-          customer: { ...emptyCustomer, ...parsed.customer },
+          customer: {
+            ...emptyCustomer,
+            ...parsed.customer,
+            shippingPostalCode: sanitizeCep(parsed.customer?.shippingPostalCode || ''),
+          },
           totals: { ...emptyTotals, ...parsed.totals },
           paymentMethod: parsed.paymentMethod || null,
           updatedAt: parsed.updatedAt || Date.now(),
