@@ -67,24 +67,15 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
 
   // Start checkout session IMMEDIATELY on mount
   useEffect(() => {
-    console.log('[checkout] === COMPONENT MOUNTED ===');
-    console.log('[checkout] tenantId:', tenantId);
-    console.log('[checkout] tenantSlug:', tenantSlug);
-    console.log('[checkout] items.length:', items.length);
-    console.log('[checkout] cartLoading:', cartLoading);
-    console.log('[checkout] window.location.host:', window.location.host);
-    console.log('[checkout] VITE_SUPABASE_URL:', import.meta.env.VITE_SUPABASE_URL);
-    
     const startSession = async () => {
       if (sessionStarted.current) {
-        console.log('[checkout] Session already started, skipping');
         return;
       }
       
       // If cart is still loading, retry after a delay
       if (cartLoading && retryCountRef.current < 5) {
         retryCountRef.current++;
-        console.log('[checkout] Cart loading, retry #', retryCountRef.current);
+        
         setTimeout(startSession, 1000);
         return;
       }
@@ -95,7 +86,6 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
       const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
       const shippingTotal = shipping.selected?.price || 0;
       
-      console.log('[checkout] === CALLING startCheckoutSession ===');
       
       try {
         const result = await startCheckoutSession({
@@ -115,9 +105,9 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
           region: sanitizeCep(shipping.cep) || undefined,
         });
         
-        console.log('[checkout] Session start result:', result);
+        
       } catch (err) {
-        console.error('[checkout] Session start EXCEPTION:', err);
+        console.error('[checkout] Session start error:', err);
       }
     };
     
@@ -168,7 +158,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
       // Only send if we have a session and items
       const sessionId = getCheckoutSessionId();
       if (sessionId && items.length > 0) {
-        console.log('[checkout] Page exit detected, ending session');
+        
         endCheckoutSession();
       }
     };
@@ -233,11 +223,6 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
     }
   }, [formData, isHydrated]);
 
-  useEffect(() => {
-    if (shipping.cep && !formData.shippingPostalCode) {
-      setFormData(prev => ({ ...prev, shippingPostalCode: sanitizeCep(shipping.cep) }));
-    }
-  }, [shipping.cep]);
 
   const handleSubmit = async () => {
     const errors = validateCheckoutForm(formData);
