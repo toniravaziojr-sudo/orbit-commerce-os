@@ -269,7 +269,7 @@ export default function MenuItemDialog({
               <Select
                 value={form.ref_id}
                 onValueChange={(v) => {
-                  const page = pages.find(p => p.id === v);
+                  const page = availablePages.find(p => p.id === v);
                   setForm({
                     ...form,
                     ref_id: v,
@@ -281,17 +281,17 @@ export default function MenuItemDialog({
                   <SelectValue placeholder="Selecione uma página" />
                 </SelectTrigger>
                 <SelectContent>
-                  {pages.filter(p => p.is_published !== false).length === 0 ? (
+                  {availablePages.length === 0 ? (
                     <div className="p-2 text-sm text-muted-foreground text-center">
                       Nenhuma página publicada
                     </div>
                   ) : (
-                    pages.filter(p => p.is_published !== false).map(p => (
-                      <SelectItem key={p.id} value={p.id}>
+                    availablePages.map(page => (
+                      <SelectItem key={page.id} value={page.id}>
                         <div className="flex items-center gap-2">
-                          <span>{p.menu_label || p.title}</span>
-                          {p.show_in_menu && (
-                            <span className="text-xs text-green-600">✓</span>
+                          <span>{page.menu_label || page.title}</span>
+                          {page.show_in_menu && (
+                            <span className="text-xs text-muted-foreground">✓</span>
                           )}
                         </div>
                       </SelectItem>
@@ -299,6 +299,11 @@ export default function MenuItemDialog({
                   )}
                 </SelectContent>
               </Select>
+              {hasInvalidSelectedPage && (
+                <p className="text-xs text-destructive">
+                  A página vinculada foi removida ou não está publicada. Selecione outra para salvar.
+                </p>
+              )}
             </div>
           )}
 
