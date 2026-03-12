@@ -54,6 +54,8 @@ function maskPhone(value: string): string {
 }
 
 export function CheckoutForm({ data, onChange, errors, disabled = false }: CheckoutFormProps) {
+  const { lookupCep, isLoading: isLookingUp } = useCepLookup();
+
   const handleChange = (field: keyof CheckoutFormData, value: string) => {
     let nextValue = value;
 
@@ -62,6 +64,27 @@ export function CheckoutForm({ data, onChange, errors, disabled = false }: Check
     if (field === 'shippingPostalCode') nextValue = sanitizeCep(value);
 
     onChange({ ...data, [field]: nextValue });
+  };
+
+  const handleCepLookup = async () => {
+    const cep = sanitizeCep(data.shippingPostalCode);
+    if (!isValidCep(cep)) return;
+    const result = await lookupCep(cep);
+    if (result) {
+      const updates: Partial<CheckoutFormData> = {};
+      if (result.street) updates.shippingStreet = result.street;
+      if (result.neighborhood) updates.shippingNeighborhood = result.neighborhood;
+      if (result.city) updates.shippingCity = result.city;
+      if (result.state) updates.shippingState = result.state;
+      onChange({ ...data, ...updates });
+    }
+  };
+
+  const handleCepKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleCepLookup();
+    }
   };
 
   return (
