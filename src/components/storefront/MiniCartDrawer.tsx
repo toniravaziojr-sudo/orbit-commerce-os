@@ -268,10 +268,6 @@ function MiniCartShipping({
     }
     return digits;
   };
-      return `${digits.slice(0, 5)}-${digits.slice(5)}`;
-    }
-    return digits;
-  };
 
   const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
