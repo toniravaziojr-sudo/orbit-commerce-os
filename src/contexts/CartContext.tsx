@@ -173,7 +173,7 @@ export function CartProvider({ children, tenantSlug }: CartProviderProps) {
 
   // Shipping functions
   const setShippingCep = useCallback((cep: string) => {
-    const digits = cep.replace(/\D/g, '').slice(0, 8);
+    const digits = sanitizeCep(cep);
     setShipping(prev => ({ ...prev, cep: digits }));
   }, []);
 
