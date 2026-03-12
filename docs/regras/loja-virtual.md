@@ -585,6 +585,39 @@ Menus Admin → menu_items → Header/Footer
            item_type: category | page | external | landing_page
 ```
 
+#### Atualização Automática de Menus na Loja Pública (v2.0.0)
+
+Salvar menu no admin agora atualiza a loja pública automaticamente, sem necessidade de republicar o tema no Builder.
+
+**Fluxo:**
+1. Lojista salva menu → grava no banco
+2. **Debounce de 5s** → coalesce múltiplos saves em uma única execução
+3. Pipeline automático:
+   - Marca TODAS as páginas pré-renderizadas como `stale`
+   - Purga cache CDN (Cloudflare)
+   - Dispara `storefront-prerender` com `trigger_type: 'menu_update'`
+4. Re-prerender em background gera HTML atualizado para todas as páginas
+
+**Segurança:**
+- **Drafts de tema NÃO entram nesse fluxo** — `storefront-prerender` chama `storefront-html` que usa `published_content` da tabela `storefront_template_sets`, nunca `draft_content`
+- **Fallback seguro** — se o re-prerender falhar, as páginas `stale` causam live-render (~5s) na próxima visita; a loja nunca quebra
+- **Não é atualização instantânea garantida** — é atualização automática com prerender em background e fallback seguro
+
+**Implementação:**
+| Arquivo | Função | Responsabilidade |
+|---------|--------|------------------|
+| `src/lib/storefrontCachePurge.ts` | `menuAutoUpdate()` | Debounce + stale + purge + prerender trigger |
+| `src/components/menus/MenuPanel.tsx` | `handleSave()` | Chama `menuAutoUpdate()` após salvar no banco |
+| `supabase/functions/storefront-prerender` | `trigger_type: 'menu_update'` | Re-renderiza todas as páginas em background |
+
+**Feedback UI:**
+- "🔄 Atualizando loja automaticamente..." (imediato)
+- "✅ Menu salvo e loja atualizada" (sucesso total)
+- "⚠️ Menu salvo, loja parcialmente atualizada" (cache limpo, prerender falhou — live-render cobre)
+- "⚠️ Menu salvo, mas atualização automática falhou" (fallback manual via Builder)
+
+> ⚠️ **IMPORTANTE:** Não é mais necessário republicar manualmente o tema por causa de alterações em menus.
+
 ### Frete e Benefícios
 
 ```
