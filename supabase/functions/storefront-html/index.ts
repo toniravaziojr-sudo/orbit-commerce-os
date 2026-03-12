@@ -916,11 +916,34 @@ function buildFullPage(opts: {
       var cartShipping=null; // {name,price,days}
       var cartDiscount=null; // {code,type,value,free_shipping,discount_id,discount_name,discount_amount}
       var DISCOUNT_KEY="storefront_discount_"+TENANT;
-      // Restore persisted discount
-      try{var _savedDiscount=JSON.parse(localStorage.getItem(DISCOUNT_KEY)||"null");if(_savedDiscount&&_savedDiscount.code){cartDiscount=_savedDiscount;}}catch(e){}
+      // SPA DiscountContext uses key: coupon_<hostname_without_www>
+      var SPA_DISCOUNT_KEY="coupon_"+HOSTNAME.replace(/^www\./i,"").toLowerCase();
+      // Restore persisted discount (try SPA key first, then Edge key)
+      try{
+        var _savedDiscount=JSON.parse(localStorage.getItem(SPA_DISCOUNT_KEY)||localStorage.getItem(DISCOUNT_KEY)||"null");
+        if(_savedDiscount&&(_savedDiscount.code||_savedDiscount.discount_code)){
+          // Normalize to Edge format
+          if(_savedDiscount.discount_code&&!_savedDiscount.code){
+            _savedDiscount.code=_savedDiscount.discount_code;
+            _savedDiscount.type=_savedDiscount.discount_type;
+            _savedDiscount.value=_savedDiscount.discount_value;
+          }
+          cartDiscount=_savedDiscount;
+        }
+      }catch(e){}
 
       function persistDiscount(){
-        try{if(cartDiscount){localStorage.setItem(DISCOUNT_KEY,JSON.stringify(cartDiscount));}else{localStorage.removeItem(DISCOUNT_KEY);}}catch(e){}
+        try{
+          if(cartDiscount){
+            localStorage.setItem(DISCOUNT_KEY,JSON.stringify(cartDiscount));
+            // Also save in SPA DiscountContext format for checkout pickup
+            var spaFormat={discount_id:cartDiscount.discount_id||"",discount_name:cartDiscount.discount_name||"",discount_code:cartDiscount.code,discount_type:cartDiscount.type,discount_value:cartDiscount.value,discount_amount:cartDiscount.discount_amount||0,free_shipping:cartDiscount.free_shipping||false};
+            localStorage.setItem(SPA_DISCOUNT_KEY,JSON.stringify(spaFormat));
+          }else{
+            localStorage.removeItem(DISCOUNT_KEY);
+            localStorage.removeItem(SPA_DISCOUNT_KEY);
+          }
+        }catch(e){}
       }
 
       function updateCouponUI(){
