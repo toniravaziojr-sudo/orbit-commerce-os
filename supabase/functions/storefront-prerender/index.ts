@@ -27,7 +27,7 @@ const corsHeaders = {
 
 interface PrerenderRequest {
   tenant_id: string;
-  trigger_type?: 'publish' | 'product_update' | 'category_update' | 'manual';
+  trigger_type?: 'publish' | 'product_update' | 'category_update' | 'menu_update' | 'manual';
   paths?: string[];
   entity_ids?: string[];
 }
