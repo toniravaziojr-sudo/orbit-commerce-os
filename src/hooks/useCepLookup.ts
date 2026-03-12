@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { sanitizeCep, isValidCep } from '@/lib/cepUtils';
 
 interface CepResult {
   cep: string;
