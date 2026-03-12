@@ -838,7 +838,7 @@ Checkout abandonado é classificado como "com erro" quando:
 
 | Métrica | Fonte de Verdade | Deduplicação |
 |---------|-----------------|--------------|
-| **Visitantes** | `storefront_visits` (tracking interno via cookie `_sf_vid`) | `visitor_id` único — NÃO usa pixels externos |
+| **Visitantes** | `storefront_visits` (tracking interno via cookie `_sf_vid`) | `COUNT(DISTINCT visitor_id)` via RPC `count_unique_visitors` no banco — sem limite de 1000 rows |
 | **Pedidos/Faturamento** | Tabela `orders` | `order.id` único — NÃO duplica entre plataformas |
 | **Ad Spend** | `meta_ad_insights.spend_cents` + `google_ad_insights.cost_micros` + `tiktok_ad_insights.spend_cents` | Deduplicado por `tenant_id + campaign_id + date` via upsert |
 
