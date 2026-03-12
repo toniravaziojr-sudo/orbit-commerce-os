@@ -52,7 +52,7 @@ function MetricCard({ label, value, icon: Icon, trend, trendLabel, variant = "de
   };
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+    <div className="rounded-lg border border-border bg-card p-4 shadow-sm flex-1 min-w-0">
       <div className="flex items-start justify-between">
         <div className="space-y-1">
           <p className="text-sm font-medium text-muted-foreground">{label}</p>
