@@ -1358,6 +1358,7 @@ function buildFullPage(opts: {
       },{signal:sfSignal});
 
       // Init cart UI on load
+      updateCouponUI();
       updateCartUI();
 
       // === NOTICE BAR TEXT ROTATION (fade/slide modes) ===
