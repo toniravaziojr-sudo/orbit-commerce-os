@@ -21,8 +21,24 @@ const ESSENTIAL_PAGES = [
 // HELPERS
 // =============================================
 
-function stripHtmlTags(str: string): string {
-  return str.replace(/<[^>]*>/g, '').trim();
+function toPlainText(value: unknown): string {
+  const raw = typeof value === 'string' ? value : `${value ?? ''}`;
+
+  return raw
+    .replace(/<\s*br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<li[^>]*>/gi, '• ')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<\/(ul|ol)>/gi, '\n')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/\s+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
 }
 
 interface StoreContext {
