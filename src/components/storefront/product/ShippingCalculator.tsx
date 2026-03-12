@@ -2,7 +2,8 @@
 // SHIPPING CALCULATOR - Calculadora de frete
 // =============================================
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
+import { sanitizeCep, formatCepDisplay } from '@/lib/cepUtils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Truck, Loader2, Package, Clock } from 'lucide-react';
