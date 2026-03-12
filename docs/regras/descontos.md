@@ -82,18 +82,58 @@ Sistema completo de gestão de cupons de desconto e promoções automáticas (pr
 ## Fluxo de Validação
 
 ```
-1. Cliente insere código no checkout
-2. Frontend chama discount-validate
+1. Cliente insere código no checkout ou carrinho suspenso (Edge)
+2. Frontend chama discount-validate via Edge Function
 3. Edge Function verifica:
+   - Resolve tenant via hostname (com/sem www, slug, domínio customizado)
    - Cupom existe e está ativo
    - Está dentro do período de validade
    - Subtotal atende mínimo
    - Limite de uso não atingido
    - Escopo de produtos/categorias
 4. Retorna desconto calculado ou erro
-5. DiscountContext armazena cupom aplicado
+5. DiscountContext (SPA) ou localStorage (Edge) armazena cupom aplicado
 6. Ao finalizar pedido, discount_redemptions registra uso
 ```
+
+---
+
+## Persistência do Cupom (Edge ↔ SPA)
+
+| Aspecto | Detalhes |
+|---------|----------|
+| **Chave Edge** | `storefront_discount_{tenantSlug}` — formato interno do Edge runtime |
+| **Chave SPA** | `coupon_{hostname_sem_www}` — formato do DiscountContext.tsx |
+| **Sincronização** | Edge salva em AMBAS as chaves ao aplicar/remover, garantindo que o checkout SPA leia o cupom aplicado no carrinho Edge |
+| **Restauração** | Edge tenta ler SPA key primeiro, depois Edge key (fallback) |
+| **Remoção** | Botão × no carrinho suspenso remove de ambas as chaves |
+| **Substituição** | Cliente pode remover cupom atual e aplicar outro |
+
+---
+
+## Resolução de Tenant no discount-validate
+
+| Tentativa | Descrição |
+|-----------|-----------|
+| **1. Domínio exato** | Busca em `tenant_domains` com domain exato |
+| **2. Sem www** | Remove `www.` do host e busca |
+| **3. Com www** | Adiciona `www.` ao host e busca |
+| **4. Slug da plataforma** | Extrai slug de `{slug}.shops.comandocentral.com.br` |
+
+> **Bug corrigido (v8.6.3):** A busca usava `.eq("domain", store_host)` sem considerar variantes www/sem-www, causando "Loja não encontrada" quando `tenant_domains` tinha `www.` mas o browser enviava sem `www.`. Corrigido para usar `.in("domain", [host, hostWithoutWww, hostWithWww])`.
+
+---
+
+## UI do Cupom no Carrinho Suspenso (Edge)
+
+| Elemento | Descrição |
+|----------|-----------|
+| **Campo de entrada** | `data-sf-cart-coupon-input` — input text com placeholder "Cupom de desconto" |
+| **Botão Aplicar** | `data-sf-action="apply-coupon"` — valida e aplica |
+| **Linha aplicada** | `data-sf-coupon-applied-row` — mostra código + descrição do desconto com ✓ |
+| **Botão Remover** | `data-sf-action="remove-coupon"` — × vermelho remove o cupom |
+| **Resultado** | `data-sf-cart-coupon-result` — mostra erros ou mensagens temporárias |
+| **Comportamento** | Ao aplicar: oculta input, mostra linha aplicada. Ao remover: oculta linha, mostra input. |
 
 ---
 

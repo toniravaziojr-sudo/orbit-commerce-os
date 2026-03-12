@@ -55,10 +55,15 @@ serve(async (req) => {
 
     // Normalize store_host: lowercase, trim, remove port if present
     const store_host = (rawStoreHost || '').toLowerCase().trim().split(':')[0];
+    // Generate www variants for fallback lookup
+    const hostWithoutWww = store_host.replace(/^www\./, '');
+    const hostWithWww = hostWithoutWww.startsWith('www.') ? hostWithoutWww : `www.${hostWithoutWww}`;
 
     console.log("[discount-validate] Request:", { 
       raw_store_host: rawStoreHost, 
       normalized_store_host: store_host, 
+      hostWithoutWww,
+      hostWithWww,
       code, 
       subtotal, 
       shipping_price, 
@@ -72,11 +77,11 @@ serve(async (req) => {
       );
     }
 
-    // Resolver tenant pelo host (usar status = 'verified' em vez de is_active)
+    // Resolver tenant pelo host — try exact, without www, and with www
     const { data: domain } = await supabase
       .from("tenant_domains")
       .select("tenant_id")
-      .eq("domain", store_host.toLowerCase())
+      .in("domain", [store_host, hostWithoutWww, hostWithWww])
       .eq("status", "verified")
       .maybeSingle();
 

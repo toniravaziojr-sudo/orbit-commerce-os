@@ -836,9 +836,17 @@ function buildFullPage(opts: {
       </div>
       <!-- Coupon -->
       <div data-sf-cart-coupon style="margin-bottom:12px;">
-        <div style="display:flex;gap:8px;">
+        <div data-sf-coupon-input-row style="display:flex;gap:8px;">
           <input type="text" placeholder="Cupom de desconto" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none;" data-sf-cart-coupon-input>
           <button data-sf-action="apply-coupon" style="padding:8px 14px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;">Aplicar</button>
+        </div>
+        <div data-sf-coupon-applied-row style="display:none;align-items:center;justify-content:space-between;padding:8px 10px;border:1px solid #bbf7d0;border-radius:6px;background:#f0fdf4;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="color:#16a34a;font-size:14px;">✓</span>
+            <span data-sf-coupon-applied-code style="font-weight:600;font-size:13px;color:#16a34a;"></span>
+            <span data-sf-coupon-applied-desc style="font-size:12px;color:#15803d;"></span>
+          </div>
+          <button data-sf-action="remove-coupon" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:16px;padding:2px 6px;" title="Remover cupom">&times;</button>
         </div>
         <div data-sf-cart-coupon-result style="margin-top:4px;font-size:12px;"></div>
       </div>
@@ -906,7 +914,61 @@ function buildFullPage(opts: {
         }
       }catch(e){console.warn("[SF] Cart parse error, resetting:",e);cart=[];}
       var cartShipping=null; // {name,price,days}
-      var cartDiscount=null; // {code,type,value,free_shipping}
+      var cartDiscount=null; // {code,type,value,free_shipping,discount_id,discount_name,discount_amount}
+      var DISCOUNT_KEY="storefront_discount_"+TENANT;
+      // SPA DiscountContext uses key: coupon_<hostname_without_www>
+      var SPA_DISCOUNT_KEY="coupon_"+HOSTNAME.replace(/^www\./i,"").toLowerCase();
+      // Restore persisted discount (try SPA key first, then Edge key)
+      try{
+        var _savedDiscount=JSON.parse(localStorage.getItem(SPA_DISCOUNT_KEY)||localStorage.getItem(DISCOUNT_KEY)||"null");
+        if(_savedDiscount&&(_savedDiscount.code||_savedDiscount.discount_code)){
+          // Normalize to Edge format
+          if(_savedDiscount.discount_code&&!_savedDiscount.code){
+            _savedDiscount.code=_savedDiscount.discount_code;
+            _savedDiscount.type=_savedDiscount.discount_type;
+            _savedDiscount.value=_savedDiscount.discount_value;
+          }
+          cartDiscount=_savedDiscount;
+        }
+      }catch(e){}
+
+      function persistDiscount(){
+        try{
+          if(cartDiscount){
+            localStorage.setItem(DISCOUNT_KEY,JSON.stringify(cartDiscount));
+            // Also save in SPA DiscountContext format for checkout pickup
+            var spaFormat={discount_id:cartDiscount.discount_id||"",discount_name:cartDiscount.discount_name||"",discount_code:cartDiscount.code,discount_type:cartDiscount.type,discount_value:cartDiscount.value,discount_amount:cartDiscount.discount_amount||0,free_shipping:cartDiscount.free_shipping||false};
+            localStorage.setItem(SPA_DISCOUNT_KEY,JSON.stringify(spaFormat));
+          }else{
+            localStorage.removeItem(DISCOUNT_KEY);
+            localStorage.removeItem(SPA_DISCOUNT_KEY);
+          }
+        }catch(e){}
+      }
+
+      function updateCouponUI(){
+        var inputRow=document.querySelector("[data-sf-coupon-input-row]");
+        var appliedRow=document.querySelector("[data-sf-coupon-applied-row]");
+        var appliedCode=document.querySelector("[data-sf-coupon-applied-code]");
+        var appliedDesc=document.querySelector("[data-sf-coupon-applied-desc]");
+        var couponResult=document.querySelector("[data-sf-cart-coupon-result]");
+        if(!inputRow||!appliedRow)return;
+        if(cartDiscount){
+          inputRow.style.display="none";
+          appliedRow.style.display="flex";
+          if(appliedCode)appliedCode.textContent=cartDiscount.code;
+          if(appliedDesc){
+            if(cartDiscount.free_shipping){appliedDesc.textContent="Frete grátis";}
+            else if(cartDiscount.type==="order_percent"||cartDiscount.type==="percentage"){appliedDesc.textContent=cartDiscount.value+"% de desconto";}
+            else{appliedDesc.textContent="-R$ "+(cartDiscount.discount_amount||cartDiscount.value||0).toFixed(2).replace(".",",");}
+          }
+          if(couponResult)couponResult.innerHTML="";
+        }else{
+          inputRow.style.display="flex";
+          appliedRow.style.display="none";
+          if(couponResult)couponResult.innerHTML="";
+        }
+      }
       var BENEFIT_ENABLED=${opts.benefitEnabled ? 'true' : 'false'};
       var BENEFIT_THRESHOLD=${opts.benefitThreshold || 0};
       var BENEFIT_MODE="${escapeHtml(opts.benefitMode || 'free_shipping')}";
@@ -945,7 +1007,11 @@ function buildFullPage(opts: {
         var shLine=document.querySelector("[data-sf-cart-shipping-line]");
         var shVal=document.querySelector("[data-sf-cart-shipping-value]");
         if(shLine&&shVal){
-          if(cartShipping){shLine.style.display="flex";shVal.textContent=cartShipping.price===0?'Grátis':fmt(cartShipping.price);}
+          if(cartShipping){
+            var displayShipPrice=cartShipping.price;
+            if(cartDiscount&&cartDiscount.free_shipping){displayShipPrice=0;}
+            shLine.style.display="flex";shVal.textContent=displayShipPrice===0?'Grátis':fmt(displayShipPrice);
+          }
           else{shLine.style.display="none";}
         }
         // Discount line
@@ -953,13 +1019,16 @@ function buildFullPage(opts: {
         var dVal=document.querySelector("[data-sf-cart-discount-value]");
         var discountAmt=0;
         if(dLine&&dVal&&cartDiscount){
-          if(cartDiscount.type==="percentage"){discountAmt=subtotal*(cartDiscount.value/100);}
-          else{discountAmt=Math.min(cartDiscount.value,subtotal);}
+          if(cartDiscount.free_shipping){discountAmt=0;}
+          else if(cartDiscount.type==="order_percent"||cartDiscount.type==="percentage"){discountAmt=Math.round(subtotal*(cartDiscount.value/100)*100)/100;}
+          else{discountAmt=Math.min(cartDiscount.discount_amount||cartDiscount.value||0,subtotal);}
           if(discountAmt>0){dLine.style.display="flex";dVal.textContent="-"+fmt(discountAmt);}
+          else if(cartDiscount.free_shipping){dLine.style.display="none";}
           else{dLine.style.display="none";}
         } else if(dLine){dLine.style.display="none";}
         // Total
         var shippingCost=cartShipping?cartShipping.price:0;
+        if(cartDiscount&&cartDiscount.free_shipping){shippingCost=0;}
         var total=Math.max(0,subtotal-discountAmt+shippingCost);
         var totalEl=document.querySelector("[data-sf-cart-total]");
         if(totalEl)totalEl.textContent=fmt(total);
@@ -1057,6 +1126,7 @@ function buildFullPage(opts: {
       }
 
       // Init cart UI on load
+      updateCouponUI();
       updateCartUI();
 
       // Event delegation — CAPTURE PHASE ensures this fires BEFORE
@@ -1187,13 +1257,22 @@ function buildFullPage(opts: {
             body:JSON.stringify({code:code,subtotal:cSubtotal,store_host:HOSTNAME})
           }).then(function(r){return r.json()}).then(function(data){
             if(data.valid){
-              cartDiscount={code:code,type:data.discount_type||"percentage",value:data.discount_value||0,free_shipping:data.free_shipping||false};
-              couponResult.innerHTML='<span style="color:#16a34a;font-weight:500;">✓ Cupom aplicado!</span>';
+              cartDiscount={code:code,type:data.discount_type||"order_percent",value:data.discount_value||0,free_shipping:data.free_shipping||false,discount_id:data.discount_id||"",discount_name:data.discount_name||"",discount_amount:data.discount_amount||0};
+              persistDiscount();
+              updateCouponUI();
               updateCartUI();
             }else{
               couponResult.innerHTML='<span style="color:#dc2626;">'+(data.error||'Cupom inválido')+'</span>';
             }
-          }).catch(function(){couponResult.innerHTML='<span style="color:#dc2626;">Erro ao validar.</span>';});
+          }).catch(function(err){console.error("[SF] Coupon error:",err);couponResult.innerHTML='<span style="color:#dc2626;">Erro ao validar cupom. Tente novamente.</span>';});
+        } else if(action==="remove-coupon"){
+          e.preventDefault();
+          cartDiscount=null;
+          persistDiscount();
+          updateCouponUI();
+          updateCartUI();
+          var couponInput2=document.querySelector("[data-sf-cart-coupon-input]");
+          if(couponInput2)couponInput2.value="";
         } else if(action==="initiate-checkout"){
           // Fire InitiateCheckout tracking events from cart drawer
           if(cart.length>0){
@@ -1302,6 +1381,7 @@ function buildFullPage(opts: {
       },{signal:sfSignal});
 
       // Init cart UI on load
+      updateCouponUI();
       updateCartUI();
 
       // === NOTICE BAR TEXT ROTATION (fade/slide modes) ===
