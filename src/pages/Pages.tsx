@@ -438,6 +438,9 @@ export default function Pages() {
                 <DropdownMenuItem onClick={() => setIsAIImportOpen(true)}>
                   <Sparkles className="mr-2 h-4 w-4" />Importar Página
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setIsEssentialConfirmOpen(true)} disabled={isGeneratingEssential}>
+                  <PackagePlus className="mr-2 h-4 w-4" />Páginas Essenciais IA
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
