@@ -160,15 +160,28 @@ export function CheckoutForm({ data, onChange, errors, disabled = false }: Check
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="shippingPostalCode">CEP *</Label>
-            <CepInput
-              id="sf-checkout-form-cep"
-              source="CheckoutForm"
-              value={data.shippingPostalCode}
-              onValueChange={(digits) => handleChange('shippingPostalCode', digits)}
-              placeholder="00000000"
-              className={cn(errors.shippingPostalCode && 'border-destructive')}
-              disabled={disabled}
-            />
+            <div className="flex gap-2">
+              <CepInput
+                id="sf-checkout-form-cep"
+                source="CheckoutForm"
+                value={data.shippingPostalCode}
+                onValueChange={(digits) => handleChange('shippingPostalCode', digits)}
+                onKeyDown={handleCepKeyDown}
+                placeholder="00000000"
+                className={cn(errors.shippingPostalCode && 'border-destructive')}
+                disabled={disabled}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={handleCepLookup}
+                disabled={disabled || isLookingUp || !isValidCep(sanitizeCep(data.shippingPostalCode))}
+                title="Buscar endereço pelo CEP"
+              >
+                {isLookingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              </Button>
+            </div>
             {errors.shippingPostalCode && (
               <p className="text-sm text-destructive mt-1">{errors.shippingPostalCode}</p>
             )}
