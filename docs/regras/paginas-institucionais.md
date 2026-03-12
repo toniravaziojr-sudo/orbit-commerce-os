@@ -8,12 +8,13 @@ Módulo unificado de **Páginas** (`/pages`) que combina Páginas Institucionais
 
 ### Modos de Criação
 
-O botão "Criar Página" oferece 3 opções via dropdown:
+O botão "Criar Página" oferece 4 opções:
 
 | Opção | Descrição |
 |-------|-----------|
 | **No Builder** | Insere nome e slug, redireciona para o Visual Builder (blocos nativos) |
-| **Com IA** | Geração completa com IA (chat para ajustar, etc.) — cria `ai_landing_pages` |
+| **Criar com IA** | Insere nome, slug e prompt curto. A IA monta a estrutura de blocos nativos automaticamente e abre no Builder para edição. Usa edge function `ai-page-architect` + `blockRegistry.createDefaultNode()`. Salva em `store_pages` (type=landing_page). |
+| **Gerador IA (HTML)** | Geração completa com IA (chat para ajustar, etc.) — cria `ai_landing_pages` |
 | **Importar com IA** | Importa página a partir de URL alvo — cria `ai_landing_pages` |
 
 ### Fontes de Dados Unificadas
