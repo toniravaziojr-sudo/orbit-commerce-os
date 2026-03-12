@@ -2,12 +2,16 @@
 // CHECKOUT FORM - Customer data with validation and masks
 // =============================================
 
+import { useState } from 'react';
 import { sanitizeCep, isValidCep } from '@/lib/cepUtils';
+import { useCepLookup } from '@/hooks/useCepLookup';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { CepInput } from '@/components/storefront/shared/CepInput';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import { Search, Loader2 } from 'lucide-react';
 
 export interface CheckoutFormData {
   customerName: string;
@@ -50,6 +54,8 @@ function maskPhone(value: string): string {
 }
 
 export function CheckoutForm({ data, onChange, errors, disabled = false }: CheckoutFormProps) {
+  const { lookupCep, isLoading: isLookingUp } = useCepLookup();
+
   const handleChange = (field: keyof CheckoutFormData, value: string) => {
     let nextValue = value;
 
@@ -58,6 +64,27 @@ export function CheckoutForm({ data, onChange, errors, disabled = false }: Check
     if (field === 'shippingPostalCode') nextValue = sanitizeCep(value);
 
     onChange({ ...data, [field]: nextValue });
+  };
+
+  const handleCepLookup = async () => {
+    const cep = sanitizeCep(data.shippingPostalCode);
+    if (!isValidCep(cep)) return;
+    const result = await lookupCep(cep);
+    if (result) {
+      const updates: Partial<CheckoutFormData> = {};
+      if (result.street) updates.shippingStreet = result.street;
+      if (result.neighborhood) updates.shippingNeighborhood = result.neighborhood;
+      if (result.city) updates.shippingCity = result.city;
+      if (result.state) updates.shippingState = result.state;
+      onChange({ ...data, ...updates });
+    }
+  };
+
+  const handleCepKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleCepLookup();
+    }
   };
 
   return (
@@ -133,15 +160,28 @@ export function CheckoutForm({ data, onChange, errors, disabled = false }: Check
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="shippingPostalCode">CEP *</Label>
-            <CepInput
-              id="sf-checkout-form-cep"
-              source="CheckoutForm"
-              value={data.shippingPostalCode}
-              onValueChange={(digits) => handleChange('shippingPostalCode', digits)}
-              placeholder="00000000"
-              className={cn(errors.shippingPostalCode && 'border-destructive')}
-              disabled={disabled}
-            />
+            <div className="flex gap-2">
+              <CepInput
+                id="sf-checkout-form-cep"
+                source="CheckoutForm"
+                value={data.shippingPostalCode}
+                onValueChange={(digits) => handleChange('shippingPostalCode', digits)}
+                onKeyDown={handleCepKeyDown}
+                placeholder="00000000"
+                className={cn(errors.shippingPostalCode && 'border-destructive')}
+                disabled={disabled}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={handleCepLookup}
+                disabled={disabled || isLookingUp || !isValidCep(sanitizeCep(data.shippingPostalCode))}
+                title="Buscar endereço pelo CEP"
+              >
+                {isLookingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              </Button>
+            </div>
             {errors.shippingPostalCode && (
               <p className="text-sm text-destructive mt-1">{errors.shippingPostalCode}</p>
             )}

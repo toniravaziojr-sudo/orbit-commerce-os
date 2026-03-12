@@ -201,6 +201,14 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
         shippingPostalCode: sanitizeCep(draft.customer.shippingPostalCode || shipping.cep || ''),
         notes: '',
       });
+    } else if (isHydrated && shipping.cep) {
+      // No draft but cart has CEP from shipping calculator — pre-fill address CEP
+      setFormData(prev => {
+        if (!prev.shippingPostalCode) {
+          return { ...prev, shippingPostalCode: sanitizeCep(shipping.cep) };
+        }
+        return prev;
+      });
     }
   }, [isHydrated]);
 
