@@ -2576,8 +2576,10 @@ export type Database = {
           last_seen_at: string
           metadata: Json | null
           order_id: string | null
+          payment_selected_at: string | null
           recovered_at: string | null
           region: string | null
+          shipping_selected_at: string | null
           started_at: string
           status: string
           tenant_id: string
@@ -2602,8 +2604,10 @@ export type Database = {
           last_seen_at?: string
           metadata?: Json | null
           order_id?: string | null
+          payment_selected_at?: string | null
           recovered_at?: string | null
           region?: string | null
+          shipping_selected_at?: string | null
           started_at?: string
           status?: string
           tenant_id: string
@@ -2628,8 +2632,10 @@ export type Database = {
           last_seen_at?: string
           metadata?: Json | null
           order_id?: string | null
+          payment_selected_at?: string | null
           recovered_at?: string | null
           region?: string | null
+          shipping_selected_at?: string | null
           started_at?: string
           status?: string
           tenant_id?: string
