@@ -67,17 +67,8 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
 
   // Start checkout session IMMEDIATELY on mount
   useEffect(() => {
-    console.log('[checkout] === COMPONENT MOUNTED ===');
-    console.log('[checkout] tenantId:', tenantId);
-    console.log('[checkout] tenantSlug:', tenantSlug);
-    console.log('[checkout] items.length:', items.length);
-    console.log('[checkout] cartLoading:', cartLoading);
-    console.log('[checkout] window.location.host:', window.location.host);
-    console.log('[checkout] VITE_SUPABASE_URL:', import.meta.env.VITE_SUPABASE_URL);
-    
     const startSession = async () => {
       if (sessionStarted.current) {
-        console.log('[checkout] Session already started, skipping');
         return;
       }
       
