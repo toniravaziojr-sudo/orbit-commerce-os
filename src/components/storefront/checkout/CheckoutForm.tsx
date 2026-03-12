@@ -2,12 +2,16 @@
 // CHECKOUT FORM - Customer data with validation and masks
 // =============================================
 
+import { useState } from 'react';
 import { sanitizeCep, isValidCep } from '@/lib/cepUtils';
+import { useCepLookup } from '@/hooks/useCepLookup';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { CepInput } from '@/components/storefront/shared/CepInput';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import { Search, Loader2 } from 'lucide-react';
 
 export interface CheckoutFormData {
   customerName: string;
