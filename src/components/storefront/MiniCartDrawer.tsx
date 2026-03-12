@@ -337,8 +337,11 @@ function MiniCartShipping({
       <div className="flex gap-2">
         <Input
           type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          autoCorrect="off"
           placeholder="00000-000"
-          value={shipping.cep}
+          value={formatCepDisplay(shipping.cep)}
           onChange={handleCepChange}
           maxLength={9}
           className="font-mono text-sm h-9"

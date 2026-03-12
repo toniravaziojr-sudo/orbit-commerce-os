@@ -113,7 +113,7 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
             <div>
               <p className="font-medium">{shipping.selected?.label}</p>
               <p className="text-sm text-muted-foreground">
-                CEP: {shipping.cep} • {shipping.selected?.deliveryDays} dias úteis
+                CEP: {formatCepDisplay(shipping.cep)} • {shipping.selected?.deliveryDays} dias úteis
               </p>
             </div>
             <div className="text-right">
