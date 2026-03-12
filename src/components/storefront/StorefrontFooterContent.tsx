@@ -790,7 +790,7 @@ export function StorefrontFooterContent({
             {/* MOBILE BLOCO 2: Atendimento (SAC) - Full width, left aligned for readability */}
             {showSac && (hasContact || showDemoContact) && (
               <div className={cn(
-                "flex flex-col w-full bg-muted/20 rounded-lg p-4",
+                "flex flex-col items-center text-center w-full bg-muted/20 rounded-lg p-4",
                 showDemoContact && "border border-dashed border-muted-foreground/20"
               )}>
                 <h4 
@@ -801,7 +801,7 @@ export function StorefrontFooterContent({
                   {showDemoContact && <span className="text-xs font-normal text-muted-foreground/50 ml-2">[Demo]</span>}
                 </h4>
                 <div className={cn(
-                  "flex flex-col gap-3 w-full",
+                  "flex flex-col items-center gap-3 w-full",
                   showDemoContact && "opacity-50"
                 )}>
                   {displayWhatsAppHref && (
