@@ -158,7 +158,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
       // Only send if we have a session and items
       const sessionId = getCheckoutSessionId();
       if (sessionId && items.length > 0) {
-        console.log('[checkout] Page exit detected, ending session');
+        
         endCheckoutSession();
       }
     };
