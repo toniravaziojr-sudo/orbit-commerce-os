@@ -23,6 +23,12 @@ export interface DashboardMetrics {
   cartsYesterday: number;
   checkoutsStartedToday: number;
   checkoutsStartedYesterday: number;
+  leadsToday: number;
+  leadsYesterday: number;
+  shippingSelectedToday: number;
+  shippingSelectedYesterday: number;
+  paymentSelectedToday: number;
+  paymentSelectedYesterday: number;
   // Abandoned checkout metrics
   abandonedCheckoutsToday: number;
   abandonedCheckoutsYesterday: number;
@@ -57,6 +63,9 @@ const EMPTY_METRICS: DashboardMetrics = {
   visitorsToday: 0, visitorsYesterday: 0,
   cartsToday: 0, cartsYesterday: 0,
   checkoutsStartedToday: 0, checkoutsStartedYesterday: 0,
+  leadsToday: 0, leadsYesterday: 0,
+  shippingSelectedToday: 0, shippingSelectedYesterday: 0,
+  paymentSelectedToday: 0, paymentSelectedYesterday: 0,
   abandonedCheckoutsToday: 0, abandonedCheckoutsYesterday: 0,
   recoveredCheckoutsToday: 0, errorCheckoutsToday: 0,
   totalRevenueToday: 0, totalRevenueYesterday: 0,
@@ -95,6 +104,11 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
       const { periodStart, periodEnd, prevStart, prevEnd } = computePeriods(startDate, endDate);
       const tid = currentTenant.id;
 
+      // Use REST API for checkout_sessions funnel fields (not in generated types yet)
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+
       const [
         currentOrdersRes, prevOrdersRes,
         newCustomersCurrentRes, newCustomersPrevRes,
@@ -126,6 +140,42 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
         supabase.from('tiktok_ad_insights').select('spend_cents').eq('tenant_id', tid).gte('date_start', periodStart.slice(0, 10)).lte('date_start', periodEnd.slice(0, 10)),
         supabase.from('tiktok_ad_insights').select('spend_cents').eq('tenant_id', tid).gte('date_start', prevStart.slice(0, 10)).lte('date_start', prevEnd.slice(0, 10)),
       ]);
+
+      // Fetch funnel step counts via REST API (new columns not in types yet)
+      let leadsCurrentCount = 0;
+      let leadsPrevCount = 0;
+      let shippingCurrentCount = 0;
+      let shippingPrevCount = 0;
+      let paymentCurrentCount = 0;
+      let paymentPrevCount = 0;
+
+      if (accessToken) {
+        const headers = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          'Prefer': 'count=exact',
+        };
+
+        const [leadsCur, leadsPrev, shipCur, shipPrev, payCur, payPrev] = await Promise.all([
+          // Leads current period
+          fetch(`${supabaseUrl}/rest/v1/checkout_sessions?tenant_id=eq.${tid}&contact_captured_at=gte.${periodStart}&contact_captured_at=lte.${periodEnd}&select=id`, { headers, method: 'HEAD' }),
+          fetch(`${supabaseUrl}/rest/v1/checkout_sessions?tenant_id=eq.${tid}&contact_captured_at=gte.${prevStart}&contact_captured_at=lte.${prevEnd}&select=id`, { headers, method: 'HEAD' }),
+          // Shipping selected current
+          fetch(`${supabaseUrl}/rest/v1/checkout_sessions?tenant_id=eq.${tid}&shipping_selected_at=gte.${periodStart}&shipping_selected_at=lte.${periodEnd}&select=id`, { headers, method: 'HEAD' }),
+          fetch(`${supabaseUrl}/rest/v1/checkout_sessions?tenant_id=eq.${tid}&shipping_selected_at=gte.${prevStart}&shipping_selected_at=lte.${prevEnd}&select=id`, { headers, method: 'HEAD' }),
+          // Payment selected current
+          fetch(`${supabaseUrl}/rest/v1/checkout_sessions?tenant_id=eq.${tid}&payment_selected_at=gte.${periodStart}&payment_selected_at=lte.${periodEnd}&select=id`, { headers, method: 'HEAD' }),
+          fetch(`${supabaseUrl}/rest/v1/checkout_sessions?tenant_id=eq.${tid}&payment_selected_at=gte.${prevStart}&payment_selected_at=lte.${prevEnd}&select=id`, { headers, method: 'HEAD' }),
+        ]);
+
+        leadsCurrentCount = parseInt(leadsCur.headers.get('content-range')?.split('/')[1] || '0', 10) || 0;
+        leadsPrevCount = parseInt(leadsPrev.headers.get('content-range')?.split('/')[1] || '0', 10) || 0;
+        shippingCurrentCount = parseInt(shipCur.headers.get('content-range')?.split('/')[1] || '0', 10) || 0;
+        shippingPrevCount = parseInt(shipPrev.headers.get('content-range')?.split('/')[1] || '0', 10) || 0;
+        paymentCurrentCount = parseInt(payCur.headers.get('content-range')?.split('/')[1] || '0', 10) || 0;
+        paymentPrevCount = parseInt(payPrev.headers.get('content-range')?.split('/')[1] || '0', 10) || 0;
+      }
 
       const currentOrders = currentOrdersRes.data || [];
       const prevOrders = prevOrdersRes.data || [];
@@ -192,6 +242,12 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
         cartsYesterday: cartsPrevRes.count || 0,
         checkoutsStartedToday: checkoutsCurrent.length,
         checkoutsStartedYesterday: checkoutsPrev.length,
+        leadsToday: leadsCurrentCount,
+        leadsYesterday: leadsPrevCount,
+        shippingSelectedToday: shippingCurrentCount,
+        shippingSelectedYesterday: shippingPrevCount,
+        paymentSelectedToday: paymentCurrentCount,
+        paymentSelectedYesterday: paymentPrevCount,
         abandonedCheckoutsToday: abandonedCurrent.length,
         abandonedCheckoutsYesterday: abandonedPrev.length,
         recoveredCheckoutsToday: recoveredCurrent.length,

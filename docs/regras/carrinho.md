@@ -444,5 +444,22 @@ Os botões do carrinho usam classes semânticas:
 | **Deduplicação** | `sessionStorage` garante 1 insert por sessão de browser. Chave: `cart_session_{tenantId}`. |
 | **RLS** | Policy `Anyone can create carts` (INSERT, roles=public, WITH CHECK=true). |
 | **Tabela** | `public.carts` — campos usados: `tenant_id`, `session_id`, `status` ('active'). |
-| **Afeta** | Bloco "Funil de Conversão" no Dashboard → card "Adicionou ao carrinho". |
+| **Afeta** | Bloco "Funil de Conversão" no Dashboard → card "Carrinho". |
 | **Erros/Edge cases** | Se o insert falhar (rede, RLS), o `sessionStorage` não é salvo, permitindo retry na próxima adição. |
+
+---
+
+### Funil de Conversão Completo — Dashboard (v8.12.0 — 2026-03-12)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Regra Lógica / UI / Migration |
+| **Localização** | `src/components/dashboard/DashboardMetricsGrid.tsx`, `src/hooks/useDashboardMetrics.ts`, `supabase/functions/checkout-session-heartbeat/index.ts`, `src/components/storefront/checkout/CheckoutStepWizard.tsx` |
+| **Contexto** | Central de Execuções (Dashboard) — Bloco "Funil de Conversão" |
+| **Descrição** | Funil completo com 7 etapas horizontais: Visitas Únicas > Carrinho > Checkout > Lead > Add Frete > Add Pagamento > Compras |
+| **Fontes de dados** | Visitas: RPC `count_unique_visitors` (unique por visitor_id). Carrinho: tabela `carts` (count). Checkout: tabela `checkout_sessions` (count total). Lead: `checkout_sessions.contact_captured_at IS NOT NULL` (count). Add Frete: `checkout_sessions.shipping_selected_at IS NOT NULL` (count). Add Pagamento: `checkout_sessions.payment_selected_at IS NOT NULL` (count). Compras: tabela `orders` (count total). |
+| **Regra de unicidade** | Apenas "Visitas Únicas" aplica dedup por visitor_id. Todos os demais eventos contam cada ocorrência. |
+| **Persistência de etapas** | Quando o evento de marketing é disparado no CheckoutStepWizard, um heartbeat simultâneo é enviado ao Edge Function `checkout-session-heartbeat` com `step: 'shipping_selected'` ou `step: 'payment_selected'`, que seta os timestamps correspondentes na tabela `checkout_sessions`. |
+| **Migration** | Adicionadas colunas `shipping_selected_at` e `payment_selected_at` (timestamptz, nullable) em `checkout_sessions`. |
+| **UI Ajustes** | 1) Bloco "Faturamento" renomeado para "Desempenho Geral" e mesclado com "Desempenho de Marketing". 2) Bloco "Pedidos & Financeiro" movido para 2º lugar com card "Total de Pedidos" adicionado no início. 3) Funil expandido para 7 cards compactos. |
+| **Afeta** | Dashboard, checkout-session-heartbeat edge function, CheckoutStepWizard |
