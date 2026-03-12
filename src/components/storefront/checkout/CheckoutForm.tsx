@@ -134,9 +134,22 @@ export function CheckoutForm({ data, onChange, errors, disabled = false }: Check
             <Label htmlFor="shippingPostalCode">CEP *</Label>
             <Input
               id="shippingPostalCode"
-              value={data.shippingPostalCode}
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              value={formatCepDisplay(data.shippingPostalCode)}
               onChange={(e) => handleChange('shippingPostalCode', e.target.value)}
+              onBlur={(e) => {
+                const digits = sanitizeCep(e.target.value);
+                if (digits !== sanitizeCep(data.shippingPostalCode)) {
+                  handleChange('shippingPostalCode', digits);
+                }
+              }}
               placeholder="00000-000"
+              maxLength={9}
               className={cn(errors.shippingPostalCode && 'border-destructive')}
               disabled={disabled}
             />
