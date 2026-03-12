@@ -79,6 +79,9 @@ export default function Pages() {
   const [aiPageSlug, setAiPageSlug] = useState('');
   const [aiPagePrompt, setAiPagePrompt] = useState('');
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  // Essential pages state
+  const [isEssentialConfirmOpen, setIsEssentialConfirmOpen] = useState(false);
+  const [isGeneratingEssential, setIsGeneratingEssential] = useState(false);
   const [formData, setFormData] = useState({
     title: '', slug: '', seo_title: '', seo_description: '',
   });
