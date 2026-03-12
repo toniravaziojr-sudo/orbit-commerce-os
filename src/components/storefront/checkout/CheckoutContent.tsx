@@ -198,7 +198,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
         shippingNeighborhood: draft.customer.shippingNeighborhood || '',
         shippingCity: draft.customer.shippingCity || '',
         shippingState: draft.customer.shippingState || '',
-        shippingPostalCode: draft.customer.shippingPostalCode || shipping.cep || '',
+        shippingPostalCode: sanitizeCep(draft.customer.shippingPostalCode || shipping.cep || ''),
         notes: '',
       });
     }
