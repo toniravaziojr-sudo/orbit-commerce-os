@@ -101,6 +101,9 @@ function StorefrontLayoutContent({
   const SupportChatWidget = lazy(() => import('./SupportChatWidget').then(m => ({ default: m.SupportChatWidget })));
   const NewsletterPopupLoader = lazy(() => import('./NewsletterPopupLoader').then(m => ({ default: m.NewsletterPopupLoader })));
 
+  // Client-side visit tracking for SPA routes
+  useVisitorTracking(tenant?.id);
+
   return (
     <StorefrontConfigProvider tenantId={tenant.id} customDomain={customDomain}>
       <MarketingTrackerProvider tenantId={tenant.id}>
