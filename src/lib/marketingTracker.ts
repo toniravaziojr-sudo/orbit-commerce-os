@@ -546,9 +546,18 @@ export class MarketingTracker {
         currency,
       }, eventId);
     }
-  }
 
-  // Track initiate checkout
+    // Server-side CAPI
+    this.sendCapi('AddToCart', eventId, {
+      content_ids: [metaId],
+      content_name: item.name,
+      content_type: 'product',
+      content_category: item.category,
+      value,
+      currency,
+      contents: [{ id: metaId, quantity: item.quantity, item_price: item.price }],
+    });
+  }
   trackInitiateCheckout(cart: {
     items: Array<{ id: string; sku?: string; metaContentId?: string | null; name: string; price: number; quantity: number; category?: string }>;
     value: number;
