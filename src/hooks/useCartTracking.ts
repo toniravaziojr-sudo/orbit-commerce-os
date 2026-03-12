@@ -21,20 +21,19 @@ export function useCartTracking(tenantId: string, itemCount: number) {
   useEffect(() => {
     if (!tenantId || itemCount === 0 || hasTracked.current) return;
 
-    hasTracked.current = true;
-
-    // Get or create a session ID for this browser session
+    // Check sessionStorage BEFORE marking as tracked
     const sessionKey = `cart_session_${tenantId}`;
-    let sessionId = sessionStorage.getItem(sessionKey);
+    const existingSessionId = sessionStorage.getItem(sessionKey);
     
-    if (sessionId) {
-      // Already tracked this session
+    if (existingSessionId) {
+      // Already tracked this browser session — skip
+      hasTracked.current = true;
       return;
     }
 
-    sessionId = crypto.randomUUID();
-    sessionStorage.setItem(sessionKey, sessionId);
+    const sessionId = crypto.randomUUID();
 
+    // Insert first, only persist sessionKey on success
     supabase
       .from('carts')
       .insert({
@@ -45,9 +44,11 @@ export function useCartTracking(tenantId: string, itemCount: number) {
       .then(({ error }) => {
         if (error) {
           console.error('[CartTracking] Failed to insert cart record:', error.message);
-          // Remove session so it retries
-          sessionStorage.removeItem(sessionKey);
-          hasTracked.current = false;
+          // Don't mark as tracked so it retries on next render
+        } else {
+          console.log('[CartTracking] Cart record inserted for session:', sessionId);
+          sessionStorage.setItem(sessionKey, sessionId);
+          hasTracked.current = true;
         }
       });
   }, [tenantId, itemCount]);
