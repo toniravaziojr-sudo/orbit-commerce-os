@@ -143,12 +143,15 @@ A partir da v9.0.0, o storefront público opera em **modelo segregado**:
 │  • Migração automática do formato antigo (sf_cart_{slug})              │
 │  • Transição edge→SPA preserva carrinho (mesmo localStorage key)      │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  Cache Invalidation (Phase 5 - v1.0.0):                                │
+│  Cache Invalidation (Phase 5 - v2.0.0):                                │
 │  • Edge Function: storefront-cache-purge                               │
 │  • Client utility: src/lib/storefrontCachePurge.ts                     │
 │  • Hooks integrados: useTemplateSetSave, useProducts, useCategories,   │
 │    useMenus, useMenuItems, useStoreSettings                            │
 │  • Fire-and-forget: não bloqueia fluxo do admin                        │
+│  • Menu Auto-Update: menuAutoUpdate() com debounce 5s →                │
+│    stale + CDN purge + re-prerender em background                      │
+│  • Fallback: se prerender falhar, live-render (~5s) garante acesso     │
 ├─────────────────────────────────────────────────────────────────────────┤
 │  Cloudflare Worker routing (Phase 4):                                   │
 │  • Worker verifica Accept: text/html em GET requests                   │
