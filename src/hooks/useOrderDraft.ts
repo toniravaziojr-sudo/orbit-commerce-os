@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
+import { sanitizeCep } from '@/lib/cepUtils';
 import { CartItem, ShippingOption } from '@/contexts/CartContext';
 import { CartTotals, calculateCartTotals } from '@/lib/cartTotals';
 
