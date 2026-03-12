@@ -394,7 +394,9 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     }
 
     if (step === 2) {
-      if (!formData.shippingPostalCode.trim()) errors.shippingPostalCode = 'CEP é obrigatório';
+      const cepDigits = sanitizeCep(formData.shippingPostalCode);
+      if (!cepDigits) errors.shippingPostalCode = 'CEP é obrigatório';
+      else if (!isValidCep(cepDigits)) errors.shippingPostalCode = 'CEP inválido';
       if (!formData.shippingStreet.trim()) errors.shippingStreet = 'Rua é obrigatória';
       if (!formData.shippingNumber.trim()) errors.shippingNumber = 'Número é obrigatório';
       if (!formData.shippingNeighborhood.trim()) errors.shippingNeighborhood = 'Bairro é obrigatório';
