@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,28 +44,50 @@ export default function MenuItemDialog({
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const availableCategories = useMemo(
+    () => categories.filter((category) => Boolean(category.id)),
+    [categories]
+  );
+
+  const availablePages = useMemo(
+    () => pages.filter((page) => page.is_published !== false && Boolean(page.id)),
+    [pages]
+  );
+
+  const categoryIds = useMemo(
+    () => new Set(availableCategories.map((category) => category.id)),
+    [availableCategories]
+  );
+
+  const pageIds = useMemo(
+    () => new Set(availablePages.map((page) => page.id)),
+    [availablePages]
+  );
+
   // Reset form when dialog opens/closes or editing item changes
   useEffect(() => {
-    if (open) {
-      if (editingItem) {
-        setForm({
-          label: editingItem.label,
-          item_type: editingItem.item_type as MenuItemType,
-          ref_id: editingItem.ref_id || '',
-          url: editingItem.url || '',
-          parent_id: editingItem.parent_id || null,
-        });
-      } else {
-        setForm({
-          label: '',
-          item_type: 'category',
-          ref_id: '',
-          url: '',
-          parent_id: null,
-        });
-      }
+    if (!open) return;
+
+    if (editingItem) {
+      const nextItemType = editingItem.item_type as MenuItemType;
+      setForm({
+        label: editingItem.label,
+        item_type: nextItemType,
+        ref_id: editingItem.ref_id || '',
+        url: editingItem.url || '',
+        parent_id: editingItem.parent_id || null,
+      });
+      return;
     }
-  }, [open, editingItem]);
+
+    setForm({
+      label: '',
+      item_type: 'category',
+      ref_id: '',
+      url: '',
+      parent_id: null,
+    });
+  }, [open, editingItem, categoryIds, pageIds]);
 
   // Parent options: root items (no parent) that are not self
   // Also exclude any descendants of the current item to prevent circular references
@@ -88,19 +110,31 @@ export default function MenuItemDialog({
     !descendantIds.includes(i.id) // Not a descendant
   );
 
+  const hasInvalidSelectedCategory = form.item_type === 'category' && !!form.ref_id && !categoryIds.has(form.ref_id);
+  const hasInvalidSelectedPage = form.item_type === 'page' && !!form.ref_id && !pageIds.has(form.ref_id);
+
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
+      const normalizedLabel = form.label.trim();
+      const normalizedUrl = form.url.trim();
+
       // Para blog e tracking, não precisa de ref_id nem url externa
       const needsRefId = form.item_type === 'category' || form.item_type === 'page';
       const needsUrl = form.item_type === 'external';
-      
+
+      const selectedRefId = needsRefId
+        ? form.item_type === 'category'
+          ? (categoryIds.has(form.ref_id) ? form.ref_id : '')
+          : (pageIds.has(form.ref_id) ? form.ref_id : '')
+        : '';
+
       await onSubmit({
         menu_id: menuId,
-        label: form.label,
+        label: normalizedLabel,
         item_type: form.item_type,
-        ref_id: needsRefId ? form.ref_id || null : null,
-        url: needsUrl ? form.url : null,
+        ref_id: needsRefId ? selectedRefId || null : null,
+        url: needsUrl ? normalizedUrl : null,
         sort_order: editingItem?.sort_order ?? existingItems.length,
         parent_id: form.parent_id || null,
       });
@@ -111,10 +145,10 @@ export default function MenuItemDialog({
   };
 
   // Validação: blog e tracking só precisam do label
-  const isValid = form.label && (
-    (form.item_type === 'category' && form.ref_id) ||
-    (form.item_type === 'page' && form.ref_id) ||
-    (form.item_type === 'external' && form.url) ||
+  const isValid = Boolean(form.label.trim()) && (
+    (form.item_type === 'category' && !!form.ref_id && categoryIds.has(form.ref_id)) ||
+    (form.item_type === 'page' && !!form.ref_id && pageIds.has(form.ref_id)) ||
+    (form.item_type === 'external' && !!form.url.trim()) ||
     form.item_type === 'blog' ||
     form.item_type === 'tracking'
   );
@@ -194,11 +228,11 @@ export default function MenuItemDialog({
               <Select
                 value={form.ref_id}
                 onValueChange={(v) => {
-                  const cat = categories.find(c => c.id === v);
+                  const category = availableCategories.find(c => c.id === v);
                   setForm({
                     ...form,
                     ref_id: v,
-                    label: form.label || cat?.name || '',
+                    label: form.label || category?.name || '',
                   });
                 }}
               >
@@ -206,17 +240,22 @@ export default function MenuItemDialog({
                   <SelectValue placeholder="Selecione uma categoria" />
                 </SelectTrigger>
                 <SelectContent>
-                  {categories.length === 0 ? (
+                  {availableCategories.length === 0 ? (
                     <div className="p-2 text-sm text-muted-foreground text-center">
                       Nenhuma categoria disponível
                     </div>
                   ) : (
-                    categories.map(c => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    availableCategories.map(category => (
+                      <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
                     ))
                   )}
                 </SelectContent>
               </Select>
+              {hasInvalidSelectedCategory && (
+                <p className="text-xs text-destructive">
+                  A categoria vinculada foi removida. Selecione outra para salvar.
+                </p>
+              )}
             </div>
           )}
 
@@ -227,7 +266,7 @@ export default function MenuItemDialog({
               <Select
                 value={form.ref_id}
                 onValueChange={(v) => {
-                  const page = pages.find(p => p.id === v);
+                  const page = availablePages.find(p => p.id === v);
                   setForm({
                     ...form,
                     ref_id: v,
@@ -239,17 +278,17 @@ export default function MenuItemDialog({
                   <SelectValue placeholder="Selecione uma página" />
                 </SelectTrigger>
                 <SelectContent>
-                  {pages.filter(p => p.is_published !== false).length === 0 ? (
+                  {availablePages.length === 0 ? (
                     <div className="p-2 text-sm text-muted-foreground text-center">
                       Nenhuma página publicada
                     </div>
                   ) : (
-                    pages.filter(p => p.is_published !== false).map(p => (
-                      <SelectItem key={p.id} value={p.id}>
+                    availablePages.map(page => (
+                      <SelectItem key={page.id} value={page.id}>
                         <div className="flex items-center gap-2">
-                          <span>{p.menu_label || p.title}</span>
-                          {p.show_in_menu && (
-                            <span className="text-xs text-green-600">✓</span>
+                          <span>{page.menu_label || page.title}</span>
+                          {page.show_in_menu && (
+                            <span className="text-xs text-muted-foreground">✓</span>
                           )}
                         </div>
                       </SelectItem>
@@ -257,6 +296,11 @@ export default function MenuItemDialog({
                   )}
                 </SelectContent>
               </Select>
+              {hasInvalidSelectedPage && (
+                <p className="text-xs text-destructive">
+                  A página vinculada foi removida ou não está publicada. Selecione outra para salvar.
+                </p>
+              )}
             </div>
           )}
 
