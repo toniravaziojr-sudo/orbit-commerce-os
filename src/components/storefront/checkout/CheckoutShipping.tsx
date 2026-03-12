@@ -148,12 +148,19 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
               type="text"
               inputMode="numeric"
               autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               placeholder="00000-000"
               value={formatCepDisplay(tempCep)}
               onChange={(e) => {
-                const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+                const digits = sanitizeCep(e.target.value);
                 setTempCep(digits);
                 setError(null);
+              }}
+              onBlur={(e) => {
+                const digits = sanitizeCep(e.target.value);
+                if (digits !== tempCep) setTempCep(digits);
               }}
               maxLength={9}
               className="font-mono"
