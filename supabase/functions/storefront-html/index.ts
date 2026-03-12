@@ -1181,7 +1181,7 @@ function buildFullPage(opts: {
           var cSubtotal=cart.reduce(function(s,i){return s+i.price*i.quantity},0);
           var cUrl="${Deno.env.get('SUPABASE_URL')}";
           var cKey="${Deno.env.get('SUPABASE_ANON_KEY') || ''}";
-          fetch(cUrl+"/functions/v1/validate-coupon",{
+          fetch(cUrl+"/functions/v1/discount-validate",{
             method:"POST",
             headers:{"Content-Type":"application/json","apikey":cKey,"Authorization":"Bearer "+cKey,"x-store-host":HOSTNAME},
             body:JSON.stringify({code:code,subtotal:cSubtotal,store_host:HOSTNAME})
