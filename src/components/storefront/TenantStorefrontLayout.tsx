@@ -6,6 +6,8 @@
 // =============================================
 
 import { createContext, useContext, Suspense, lazy, useMemo } from 'react';
+import { useCartTracking } from '@/hooks/useCartTracking';
+import { useCart } from '@/contexts/CartContext';
 import { Outlet } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { CartProvider } from '@/contexts/CartContext';
