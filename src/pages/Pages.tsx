@@ -335,7 +335,7 @@ export default function Pages() {
     setIsEssentialConfirmOpen(false);
     try {
       const { data, error } = await supabase.functions.invoke('ai-essential-pages', {
-        body: { tenantId: currentTenant.id },
+        body: { tenantId: currentTenant.id, businessContext: essentialBusinessContext || undefined },
       });
       if (error) throw new Error(error.message || 'Erro na geração');
       if (!data?.success) throw new Error(data?.error || 'Erro desconhecido');
