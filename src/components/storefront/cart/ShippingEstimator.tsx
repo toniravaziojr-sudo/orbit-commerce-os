@@ -117,7 +117,7 @@ export function ShippingEstimator() {
             inputMode="numeric"
             autoComplete="off"
             placeholder="00000-000"
-            value={shipping.cep}
+            value={formattedCep}
             onChange={handleCepChange}
             maxLength={9}
             className="font-mono"

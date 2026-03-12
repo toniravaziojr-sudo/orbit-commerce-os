@@ -88,7 +88,7 @@ export function ShippingCalculator({
         />
         <Button 
           onClick={handleCalculate}
-          disabled={isLoading || cep.replace(/\D/g, '').length !== 8 || isEditing}
+          disabled={isLoading || cepDigits.length !== 8 || isEditing}
           size="sm"
         >
           {isLoading ? (
