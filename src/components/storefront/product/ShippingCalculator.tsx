@@ -29,28 +29,24 @@ export function ShippingCalculator({
   isEditing = false,
   className = '',
 }: ShippingCalculatorProps) {
-  const [cep, setCep] = useState('');
+  const [cepDigits, setCepDigits] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [shippingOptions, setShippingOptions] = useState<ShippingOption[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const formatCep = (value: string) => {
-    const numbers = value.replace(/\D/g, '');
-    if (numbers.length <= 5) return numbers;
-    return `${numbers.slice(0, 5)}-${numbers.slice(5, 8)}`;
-  };
+  const formattedCep = cepDigits.length > 5
+    ? `${cepDigits.slice(0, 5)}-${cepDigits.slice(5)}`
+    : cepDigits;
 
   const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatCep(e.target.value);
-    setCep(formatted);
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+    setCepDigits(digits);
     setError(null);
     setShippingOptions(null);
   };
 
   const handleCalculate = async () => {
-    const cleanCep = cep.replace(/\D/g, '');
-    
-    if (cleanCep.length !== 8) {
+    if (cepDigits.length !== 8) {
       setError('CEP inválido');
       return;
     }
@@ -84,7 +80,7 @@ export function ShippingCalculator({
           inputMode="numeric"
           autoComplete="off"
           placeholder="00000-000"
-          value={cep}
+          value={formattedCep}
           onChange={handleCepChange}
           maxLength={9}
           className="flex-1"
@@ -92,7 +88,7 @@ export function ShippingCalculator({
         />
         <Button 
           onClick={handleCalculate}
-          disabled={isLoading || cep.replace(/\D/g, '').length !== 8 || isEditing}
+          disabled={isLoading || cepDigits.length !== 8 || isEditing}
           size="sm"
         >
           {isLoading ? (
