@@ -907,5 +907,15 @@ export class MarketingTracker {
         currency,
       }, eventId);
     }
+
+    // Server-side CAPI
+    this.sendCapi('AddPaymentInfo', eventId, {
+      content_ids: payment.items.map(i => resolveMetaContentId(i)),
+      content_type: 'product',
+      value: payment.value,
+      currency,
+      payment_method: payment.paymentMethod,
+      contents: payment.items.map(i => ({ id: resolveMetaContentId(i), quantity: i.quantity, item_price: i.price })),
+    });
   }
 }
