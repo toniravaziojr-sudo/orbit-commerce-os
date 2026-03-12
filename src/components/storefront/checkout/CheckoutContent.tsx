@@ -112,7 +112,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
           customerEmail: formData.customerEmail || undefined,
           customerPhone: formData.customerPhone || undefined,
           customerName: formData.customerName || undefined,
-          region: shipping.cep || undefined,
+          region: sanitizeCep(shipping.cep) || undefined,
         });
         
         console.log('[checkout] Session start result:', result);

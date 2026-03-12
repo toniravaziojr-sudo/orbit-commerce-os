@@ -71,18 +71,9 @@ export function ShippingCalculator({
       </div>
 
       <div className="flex gap-2">
-        <Input
-          type="text"
-          inputMode="numeric"
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck={false}
-          placeholder="00000-000"
-          value={formatCepDisplay(cepDigits)}
-          onChange={handleCepChange}
-          onBlur={handleCepBlur}
-          maxLength={9}
+        <CepInput
+          value={cepDigits}
+          onValueChange={handleCepValueChange}
           className="flex-1"
           disabled={isEditing}
         />

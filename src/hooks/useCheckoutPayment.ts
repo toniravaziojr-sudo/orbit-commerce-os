@@ -303,7 +303,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
             neighborhood: shipping.neighborhood,
             city: shipping.city,
             state: shipping.state,
-            postal_code: shipping.postalCode.replace(/\D/g, ''),
+            postal_code: sanitizeCep(shipping.postalCode),
             country: 'BR',
           },
           card: card ? {
