@@ -1098,6 +1098,7 @@ function buildFullPage(opts: {
       }
 
       // Init cart UI on load
+      updateCouponUI();
       updateCartUI();
 
       // Event delegation — CAPTURE PHASE ensures this fires BEFORE
