@@ -18,7 +18,7 @@ import { generateThemeCss, generateButtonCssRules, getGoogleFontsData } from '..
 import { optimizeImageUrl } from '../_shared/block-compiler/utils.ts';
 
 // ===== VERSION =====
-const VERSION = "v8.6.1"; // Fix: CEP mask hardened for Edge shipping inputs (product page + cart drawer)
+const VERSION = "v8.6.2"; // CEP raw-digits hardening for product + mini-cart inputs in Edge runtime
 // ====================
 
 // NOTE: FONT_FAMILY_MAP, getFontFamily, generateThemeCss, getGoogleFontsData
