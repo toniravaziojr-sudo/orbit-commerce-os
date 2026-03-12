@@ -18,7 +18,7 @@ import { generateThemeCss, generateButtonCssRules, getGoogleFontsData } from '..
 import { optimizeImageUrl } from '../_shared/block-compiler/utils.ts';
 
 // ===== VERSION =====
-const VERSION = "v8.6.1"; // Fix: CEP mask hardened for Edge shipping inputs (product page + cart drawer)
+const VERSION = "v8.6.2"; // CEP raw-digits hardening for product + mini-cart inputs in Edge runtime
 // ====================
 
 // NOTE: FONT_FAMILY_MAP, getFontFamily, generateThemeCss, getGoogleFontsData
@@ -829,7 +829,7 @@ function buildFullPage(opts: {
       <div data-sf-cart-shipping style="margin-bottom:12px;">
         <p style="font-size:13px;font-weight:600;margin-bottom:6px;">📦 Calcular frete</p>
         <div style="display:flex;gap:8px;">
-          <input type="text" placeholder="CEP" maxlength="9" inputmode="numeric" autocomplete="off" autocorrect="off" spellcheck="false" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none;" data-sf-cart-shipping-cep>
+          <input type="text" placeholder="CEP" maxlength="8" inputmode="numeric" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none;" data-sf-cart-shipping-cep>
           <button data-sf-action="calc-cart-shipping" style="padding:8px 14px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;">OK</button>
         </div>
         <div data-sf-cart-shipping-results style="margin-top:6px;"></div>
@@ -1211,21 +1211,42 @@ function buildFullPage(opts: {
         }
       },{capture:true,signal:sfSignal}); // CAPTURE PHASE + AbortController for cleanup
 
-      // CEP normalization only (no display mask in Edge to avoid hydration conflicts)
+      // CEP normalization hardening (digits-only, no mask)
       function sfSanitizeCep(raw){
         return (raw||"").replace(/\D/g,"").slice(0,8);
       }
 
-      function sfHandleCepInput(target){
+      function sfIsCepTarget(target){
+        return !!(target && target.matches && target.matches("[data-sf-shipping-cep], [data-sf-cart-shipping-cep]"));
+      }
+
+      function sfHandleCepInput(target, rawOverride){
         if(!target)return;
-        var digits=sfSanitizeCep(target.value);
+        var rawValue = typeof rawOverride === "string" ? rawOverride : target.value;
+        var digits=sfSanitizeCep(rawValue);
         if(target.value!==digits) target.value=digits;
       }
 
+      document.addEventListener("beforeinput",function(e){
+        var target=e.target;
+        if(!sfIsCepTarget(target)) return;
+        if(!e.data) return;
+        if(e.inputType && e.inputType.indexOf("insert")===0 && /\D/.test(e.data)) {
+          e.preventDefault();
+        }
+      },{capture:true,signal:sfSignal});
+
+      document.addEventListener("paste",function(e){
+        var target=e.target;
+        if(!sfIsCepTarget(target)) return;
+        e.preventDefault();
+        var text=(e.clipboardData&&e.clipboardData.getData("text"))||"";
+        sfHandleCepInput(target,text);
+      },{capture:true,signal:sfSignal});
+
       document.addEventListener("input",function(e){
         var target=e.target;
-        if(!target||!target.matches) return;
-        if(!target.matches("[data-sf-shipping-cep], [data-sf-cart-shipping-cep]")) return;
+        if(!sfIsCepTarget(target)) return;
         sfHandleCepInput(target);
       },{capture:true,signal:sfSignal});
 

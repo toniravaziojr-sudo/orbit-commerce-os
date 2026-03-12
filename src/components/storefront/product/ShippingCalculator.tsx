@@ -2,8 +2,8 @@
 // SHIPPING CALCULATOR - Calculadora de frete
 // =============================================
 
-import { useState } from 'react';
-import { CepInput } from '@/components/storefront/shared/CepInput';
+import { useState, type ChangeEvent, type ClipboardEvent } from 'react';
+import { sanitizeCep } from '@/lib/cepUtils';
 import { Button } from '@/components/ui/button';
 import { Truck, Loader2, Package, Clock } from 'lucide-react';
 
@@ -34,14 +34,23 @@ export function ShippingCalculator({
   const [shippingOptions, setShippingOptions] = useState<ShippingOption[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleCepValueChange = (digits: string) => {
-    setCepDigits(digits);
+  const handleCepInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setCepDigits(sanitizeCep(e.target.value));
+    setError(null);
+    setShippingOptions(null);
+  };
+
+  const handleCepPaste = (e: ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    setCepDigits(sanitizeCep(e.clipboardData.getData('text')));
     setError(null);
     setShippingOptions(null);
   };
 
   const handleCalculate = async () => {
-    if (cepDigits.length !== 8) {
+    const cep = sanitizeCep(cepDigits);
+
+    if (cep.length !== 8) {
       setError('CEP inválido');
       return;
     }
@@ -70,17 +79,24 @@ export function ShippingCalculator({
       </div>
 
       <div className="flex gap-2">
-        <CepInput
+        <input
           id="sf-product-cep"
-          source="ShippingCalculator"
-          value={cepDigits}
-          onValueChange={handleCepValueChange}
-          className="flex-1"
+          type="text"
+          inputMode="numeric"
+          autoComplete="new-password"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          maxLength={8}
+          value={sanitizeCep(cepDigits)}
+          onChange={handleCepInputChange}
+          onPaste={handleCepPaste}
+          className="flex h-10 w-full flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           disabled={isEditing}
         />
         <Button 
           onClick={handleCalculate}
-          disabled={isLoading || cepDigits.length !== 8 || isEditing}
+          disabled={isLoading || sanitizeCep(cepDigits).length !== 8 || isEditing}
           size="sm"
         >
           {isLoading ? (
