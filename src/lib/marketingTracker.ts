@@ -711,9 +711,10 @@ export class MarketingTracker {
         query,
       }, eventId);
     }
-  }
 
-  // Track category view
+    // Server-side CAPI
+    this.sendCapi('Search', eventId, { search_string: query });
+  }
   trackViewCategory(category: {
     id: string;
     name: string;
