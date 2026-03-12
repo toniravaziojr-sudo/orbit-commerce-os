@@ -1953,7 +1953,7 @@ serve(async (req) => {
         .eq('tenant_id', tenantId).eq('slug', route.slug).eq('is_active', true).maybeSingle();
     } else if (route.type === 'page' && route.slug) {
       routeQueryPromise = supabase.from('store_pages')
-        .select('id, title, slug, body_html, description, seo_title, seo_description, content, is_published')
+        .select('id, title, slug, individual_content, seo_title, seo_description, content, is_published')
         .eq('tenant_id', tenantId).eq('slug', route.slug).eq('is_published', true).maybeSingle();
     } else if (route.type === 'blog_post' && route.slug) {
       routeQueryPromise = supabase.from('blog_posts')
@@ -2476,10 +2476,27 @@ serve(async (req) => {
         );
       }
 
-      bodyHtml = institutionalPageToStaticHTML(page);
+      // Priority: 1) Block-based content (JSON tree) → compile via compileBlockTree
+      //           2) individual_content (raw HTML) → wrap in container
+      //           3) Fallback: title-only page
+      if (page.content && typeof page.content === 'object' && (page.content as any).type) {
+        // Block-based content — compile like home/category pages
+        bodyHtml = compileBlockTree(page.content as BlockNode, compilerContext);
+        console.log(`[storefront-html][${VERSION}] Institutional page "${page.slug}" compiled via compileBlockTree`);
+      } else if (page.individual_content) {
+        // Raw HTML content — wrap in styled container
+        bodyHtml = `<div style="max-width:800px;margin:0 auto;padding:48px 16px;">
+          <h1 style="font-size:clamp(24px,4vw,36px);font-weight:700;font-family:var(--sf-heading-font);margin-bottom:24px;line-height:1.3;">${escapeHtml(page.title)}</h1>
+          <div style="font-size:15px;line-height:1.8;color:var(--theme-text-secondary,#444);">${page.individual_content}</div>
+        </div>`;
+        console.log(`[storefront-html][${VERSION}] Institutional page "${page.slug}" rendered via individual_content`);
+      } else {
+        bodyHtml = institutionalPageToStaticHTML(page);
+        console.log(`[storefront-html][${VERSION}] Institutional page "${page.slug}" rendered via fallback`);
+      }
       pageTitle = page.seo_title || `${page.title} | ${storeName}`;
-      pageDescription = page.seo_description || page.description || '';
-      canonicalPath = `/p/${page.slug}`;
+      pageDescription = page.seo_description || '';
+      canonicalPath = `/page/${page.slug}`;
 
     } else if (route.type === 'blog_index') {
       // BLOG INDEX — using block-compiler
