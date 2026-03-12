@@ -634,19 +634,37 @@ export default function MenuPanel({
 
       toast({ title: 'Menu salvo com sucesso!' });
       
-      // Purge menu cache so CDN serves fresh data
+      // Auto-update: debounced stale + CDN purge + re-prerender
+      // Safe: if prerender fails, live-render fallback handles (~5s)
       if (currentTenant?.id) {
-        cachePurge.menu(currentTenant.id);
-      }
-      
-      // Inform user about republishing
-      setTimeout(() => {
         toast({ 
-          title: '📢 Atenção: Publique a loja', 
-          description: 'Para que os ajustes no menu apareçam na loja pública, você precisa republicar o tema no Builder.',
-          duration: 8000,
+          title: '🔄 Atualizando loja automaticamente...', 
+          description: 'As alterações do menu estão sendo aplicadas na loja pública.',
+          duration: 4000,
         });
-      }, 500);
+        
+        menuAutoUpdate(currentTenant.id).then((result) => {
+          if (result.success && result.prerenderTriggered) {
+            toast({ 
+              title: '✅ Menu salvo e loja atualizada', 
+              description: 'As alterações já estão sendo aplicadas na loja pública.',
+              duration: 5000,
+            });
+          } else if (result.success) {
+            toast({ 
+              title: '⚠️ Menu salvo, loja parcialmente atualizada', 
+              description: 'O cache foi limpo. A loja atualizará automaticamente na próxima visita.',
+              duration: 6000,
+            });
+          } else {
+            toast({ 
+              title: '⚠️ Menu salvo, mas a atualização automática falhou', 
+              description: 'Você pode republicar manualmente no Builder para aplicar as mudanças.',
+              duration: 8000,
+            });
+          }
+        });
+      }
       
       // Refresh from DB
       const { data: refreshedItems } = await supabase
