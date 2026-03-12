@@ -244,6 +244,9 @@ export function footerToStaticHTML(context: CompilerContext): string {
       <style>
         @media(max-width:768px){
           footer .sf-footer-grid{grid-template-columns:1fr !important;text-align:center !important;}
+          footer .sf-footer-grid>div{display:flex !important;flex-direction:column !important;align-items:center !important;}
+          footer .sf-footer-grid>div>div{display:flex !important;flex-direction:column !important;align-items:center !important;}
+          footer .sf-footer-grid div[style*="flex-wrap:wrap"]{justify-content:center !important;}
           footer .sf-footer-images-grid{grid-template-columns:1fr !important;}
           footer .sf-footer-newsletter-row{flex-direction:column !important;text-align:center !important;}
           footer .sf-footer-newsletter-row form{min-width:100% !important;max-width:100% !important;}
