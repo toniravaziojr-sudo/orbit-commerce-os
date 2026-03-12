@@ -475,6 +475,16 @@ export class MarketingTracker {
         currency,
       }, eventId);
     }
+
+    // Server-side CAPI
+    this.sendCapi('ViewContent', eventId, {
+      content_ids: [metaId],
+      content_name: product.name,
+      content_type: 'product',
+      content_category: product.category,
+      value: product.price,
+      currency,
+    });
   }
 
   // Track add to cart
