@@ -285,67 +285,8 @@ serve(async (req) => {
       }
     }
 
-    // ==== META CAPI: Send Purchase event on payment approval ====
-    if (existingTransaction.order_id && newPaymentStatus === 'approved') {
-      try {
-        const { data: orderForCapi } = await supabase
-          .from('orders')
-          .select('order_number, customer_name, customer_email, customer_phone, total, shipping_city, shipping_state, shipping_postal_code, customer_id')
-          .eq('id', existingTransaction.order_id)
-          .single();
-
-        if (orderForCapi) {
-          const { data: orderItems } = await supabase
-            .from('order_items')
-            .select('product_id, product_name, sku, quantity, unit_price')
-            .eq('order_id', existingTransaction.order_id);
-
-          let capiItems = (orderItems || []).map(i => ({
-            product_id: i.product_id,
-            sku: i.sku,
-            meta_retailer_id: null as string | null,
-            name: i.product_name,
-            price: i.unit_price,
-            quantity: i.quantity,
-          }));
-
-          if (capiItems.length > 0) {
-            const { data: productsMeta } = await supabase
-              .from('products')
-              .select('id, sku, meta_retailer_id')
-              .in('id', capiItems.map(i => i.product_id));
-
-            if (productsMeta) {
-              const metaMap = new Map(productsMeta.map(p => [p.id, p.meta_retailer_id]));
-              capiItems = capiItems.map(i => ({
-                ...i,
-                meta_retailer_id: metaMap.get(i.product_id) || null,
-              }));
-            }
-          }
-
-          await sendCapiPurchase(supabase, existingTransaction.tenant_id, {
-            order_id: existingTransaction.order_id,
-            order_number: orderForCapi.order_number,
-            value: orderForCapi.total,
-            currency: 'BRL',
-            items: capiItems,
-            customer: {
-              email: orderForCapi.customer_email,
-              phone: orderForCapi.customer_phone,
-              name: orderForCapi.customer_name,
-              city: orderForCapi.shipping_city,
-              state: orderForCapi.shipping_state,
-              zip: orderForCapi.shipping_postal_code,
-              external_id: orderForCapi.customer_id || undefined,
-            },
-          });
-          console.log(`[${requestId}] Meta CAPI Purchase sent for order ${existingTransaction.order_id}`);
-        }
-      } catch (capiErr) {
-        console.warn(`[${requestId}] Meta CAPI error (non-blocking):`, capiErr);
-      }
-    }
+    // NOTE: Meta CAPI Purchase is now sent client-side via marketing-capi-track
+    // edge function from the Thank You page, using the same event_id for deduplication
 
     // ==== MARK EVENT AS PROCESSED ====
     await supabase
