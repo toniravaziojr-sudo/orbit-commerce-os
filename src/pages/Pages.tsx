@@ -27,7 +27,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
   Plus, Pencil, Trash2, FileText, Eye, LayoutTemplate, AlertCircle, Sparkles,
-  ChevronDown, Copy, Globe, ExternalLink
+  ChevronDown, Copy, Globe, ExternalLink, PackagePlus
 } from 'lucide-react';
 import { GenerateSeoButton } from '@/components/seo/GenerateSeoButton';
 import { ImportPageWithAIDialog } from '@/components/import/ImportPageWithAIDialog';
@@ -79,6 +79,9 @@ export default function Pages() {
   const [aiPageSlug, setAiPageSlug] = useState('');
   const [aiPagePrompt, setAiPagePrompt] = useState('');
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  // Essential pages state
+  const [isEssentialConfirmOpen, setIsEssentialConfirmOpen] = useState(false);
+  const [isGeneratingEssential, setIsGeneratingEssential] = useState(false);
   const [formData, setFormData] = useState({
     title: '', slug: '', seo_title: '', seo_description: '',
   });
@@ -324,6 +327,37 @@ export default function Pages() {
     }
   };
 
+  // Essential Pages: generate all essential institutional pages
+  const handleGenerateEssentialPages = async () => {
+    if (!currentTenant?.id) return;
+    setIsGeneratingEssential(true);
+    setIsEssentialConfirmOpen(false);
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-essential-pages', {
+        body: { tenantId: currentTenant.id },
+      });
+      if (error) throw new Error(error.message || 'Erro na geração');
+      if (!data?.success) throw new Error(data?.error || 'Erro desconhecido');
+      
+      const created = data.created || 0;
+      const skipped = data.skipped || 0;
+      
+      if (created > 0) {
+        toast.success(`${created} página(s) essencial(is) criada(s) com sucesso!${skipped > 0 ? ` (${skipped} já existiam)` : ''}`);
+      } else {
+        toast.info('Todas as páginas essenciais já existem na sua loja.');
+      }
+      
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ['store-pages'] });
+    } catch (error: any) {
+      console.error('Error generating essential pages:', error);
+      toast.error(error?.message || 'Erro ao gerar páginas essenciais');
+    } finally {
+      setIsGeneratingEssential(false);
+    }
+  };
+
   const deleteMutation = useMutation({
     mutationFn: async ({ id, source }: { id: string; source: UnifiedPageItem['source'] }) => {
       if (source === 'institutional') {
@@ -403,6 +437,9 @@ export default function Pages() {
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setIsAIImportOpen(true)}>
                   <Sparkles className="mr-2 h-4 w-4" />Importar Página
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setIsEssentialConfirmOpen(true)} disabled={isGeneratingEssential}>
+                  <PackagePlus className="mr-2 h-4 w-4" />Páginas Essenciais IA
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -686,6 +723,46 @@ export default function Pages() {
             }
           }}
         />
+      )}
+
+      {/* Essential Pages Confirmation Dialog */}
+      <AlertDialog open={isEssentialConfirmOpen} onOpenChange={setIsEssentialConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <PackagePlus className="h-5 w-5 text-primary" />
+              Páginas Essenciais IA
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-left space-y-3">
+              <p>
+                As páginas serão geradas automaticamente com IA, baseadas nos dados do seu negócio.
+              </p>
+              <p className="font-medium text-foreground">
+                Certifique-se de ter a loja criada e de ter preenchido todos os dados do seu negócio para a IA ter base de criação, como logo, CNPJ, etc.
+              </p>
+              <p className="text-xs">
+                Serão criadas até 8 páginas: Quem Somos, Fale Conosco, FAQ, Como Comprar, Frete e Entrega, Trocas e Devoluções, Política de Privacidade e Termos de Uso. Páginas já existentes não serão sobrescritas.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleGenerateEssentialPages}>
+              Confirmar e Gerar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Essential Pages Loading Toast */}
+      {isGeneratingEssential && (
+        <div className="fixed bottom-4 right-4 z-50 bg-card border rounded-lg shadow-lg p-4 flex items-center gap-3">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <div>
+            <p className="text-sm font-medium">Gerando páginas essenciais...</p>
+            <p className="text-xs text-muted-foreground">Isso pode levar até 60 segundos</p>
+          </div>
+        </div>
       )}
     </div>
   );
