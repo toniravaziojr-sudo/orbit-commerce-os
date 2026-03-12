@@ -3,7 +3,8 @@
 // Uses shipping-quote Edge Function for multi-provider (Frenet/Correios/Loggi)
 // =============================================
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+import { sanitizeCep, formatCepDisplay } from '@/lib/cepUtils';
 import { useCart } from '@/contexts/CartContext';
 import { useShipping } from '@/contexts/StorefrontConfigContext';
 import { Button } from '@/components/ui/button';
