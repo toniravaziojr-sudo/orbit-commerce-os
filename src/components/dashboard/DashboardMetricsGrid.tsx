@@ -16,6 +16,10 @@ import {
   BarChart3,
   Percent,
   Megaphone,
+  UserCheck,
+  Truck,
+  Wallet,
+  Package,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, calculateTrend } from "@/hooks/useDashboardMetrics";
@@ -34,9 +38,10 @@ interface MetricCardProps {
   trend?: number;
   trendLabel?: string;
   variant?: "default" | "primary" | "success" | "warning" | "destructive" | "info";
+  compact?: boolean;
 }
 
-function MetricCard({ label, value, icon: Icon, trend, trendLabel, variant = "default" }: MetricCardProps) {
+function MetricCard({ label, value, icon: Icon, trend, trendLabel, variant = "default", compact = false }: MetricCardProps) {
   const iconBgColors = {
     default: "bg-muted",
     primary: "bg-primary/10",
@@ -56,18 +61,18 @@ function MetricCard({ label, value, icon: Icon, trend, trendLabel, variant = "de
   };
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4 shadow-sm flex-1 min-w-0">
+    <div className={cn("rounded-lg border border-border bg-card shadow-sm flex-1 min-w-0", compact ? "p-3" : "p-4")}>
       <div className="flex items-start justify-between">
         <div className="space-y-1">
-          <p className="text-sm font-medium text-muted-foreground">{label}</p>
-          <p className="text-2xl font-bold text-card-foreground">{value}</p>
+          <p className={cn("font-medium text-muted-foreground", compact ? "text-xs" : "text-sm")}>{label}</p>
+          <p className={cn("font-bold text-card-foreground", compact ? "text-lg" : "text-2xl")}>{value}</p>
         </div>
-        <div className={cn("rounded-lg p-2.5", iconBgColors[variant])}>
-          <Icon className={cn("h-5 w-5", iconColors[variant])} />
+        <div className={cn("rounded-lg", compact ? "p-1.5" : "p-2.5", iconBgColors[variant])}>
+          <Icon className={cn(compact ? "h-4 w-4" : "h-5 w-5", iconColors[variant])} />
         </div>
       </div>
       {trend !== undefined && (
-        <div className="mt-3 flex items-center gap-2 text-sm">
+        <div className={cn("flex items-center gap-2", compact ? "mt-2 text-xs" : "mt-3 text-sm")}>
           <span className={cn("font-medium", trend >= 0 ? "text-success" : "text-destructive")}>
             {trend >= 0 ? "+" : ""}{trend.toFixed(1)}%
           </span>
@@ -98,6 +103,9 @@ export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: Dashboa
   const visitorsTrend = metrics ? calculateTrend(metrics.visitorsToday, metrics.visitorsYesterday) : 0;
   const cartsTrend = metrics ? calculateTrend(metrics.cartsToday ?? 0, metrics.cartsYesterday ?? 0) : 0;
   const checkoutStartedTrend = metrics ? calculateTrend(metrics.checkoutsStartedToday ?? 0, metrics.checkoutsStartedYesterday ?? 0) : 0;
+  const leadsTrend = metrics ? calculateTrend(metrics.leadsToday ?? 0, metrics.leadsYesterday ?? 0) : 0;
+  const shippingTrend = metrics ? calculateTrend(metrics.shippingSelectedToday ?? 0, metrics.shippingSelectedYesterday ?? 0) : 0;
+  const paymentTrend = metrics ? calculateTrend(metrics.paymentSelectedToday ?? 0, metrics.paymentSelectedYesterday ?? 0) : 0;
   const abandonedTrend = metrics ? calculateTrend(metrics.abandonedCheckoutsToday ?? 0, metrics.abandonedCheckoutsYesterday ?? 0) : 0;
   const totalRevenueTrend = metrics ? calculateTrend(metrics.totalRevenueToday, metrics.totalRevenueYesterday) : 0;
   const adSpendTrend = metrics ? calculateTrend(metrics.adSpendToday, metrics.adSpendYesterday) : 0;
@@ -115,55 +123,25 @@ export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: Dashboa
 
   return (
     <div className="space-y-4">
-      {/* Row 0: Faturamento */}
+      {/* Bloco 1: Desempenho Geral (Faturamento + Marketing mesclados) */}
       <Card>
         <CardHeader className="pb-1 pt-4 px-4">
           <CardTitle className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
             <DollarSign className="h-4 w-4" />
-            Faturamento
+            Desempenho Geral
           </CardTitle>
           <p className="text-[11px] text-muted-foreground">{trendLabel}</p>
         </CardHeader>
-        <CardContent className="px-4 pb-4 pt-3 flex gap-3">
+        <CardContent className="px-4 pb-4 pt-3 flex gap-3 flex-wrap">
           <MetricCard label="Faturamento Total" value={formatCurrency(metrics?.totalRevenueToday ?? 0)} icon={DollarSign} trend={totalRevenueTrend} trendLabel={trendLabel} variant="primary" />
           <MetricCard label="Faturamento Real" value={formatCurrency(metrics?.salesToday ?? 0)} icon={BarChart3} trend={metrics ? calculateTrend(metrics.salesToday, metrics.salesYesterday) : 0} trendLabel={trendLabel} variant="success" />
-        </CardContent>
-      </Card>
-
-      {/* Row 0.5: Desempenho de Marketing */}
-      <Card>
-        <CardHeader className="pb-1 pt-4 px-4">
-          <CardTitle className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
-            <Megaphone className="h-4 w-4" />
-            Desempenho de Marketing
-          </CardTitle>
-          <p className="text-[11px] text-muted-foreground">{trendLabel}</p>
-        </CardHeader>
-        <CardContent className="px-4 pb-4 pt-3 flex gap-3">
           <MetricCard label="Investido em Anúncios" value={adSpend > 0 ? formatCurrency(adSpend) : "R$ 0,00"} icon={Megaphone} trend={adSpendTrend} trendLabel={trendLabel} variant="primary" />
           <MetricCard label="Retorno Real (ROI)" value={adSpend > 0 ? `${formatRoas(roasToday)}` : "Sem investimento"} icon={TrendingUp} trend={roasTrend} trendLabel={trendLabel} variant={roasToday >= 1 ? "info" : "destructive"} />
           <MetricCard label="Taxa de Conversão" value={`${(metrics?.conversionRateToday ?? 0).toFixed(2)}%`} icon={Percent} trend={convRateTrend} trendLabel={trendLabel} variant="warning" />
         </CardContent>
       </Card>
 
-      {/* Row 1: Mini Funnel */}
-      <Card>
-        <CardHeader className="pb-1 pt-4 px-4">
-          <CardTitle className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
-            <ArrowDownRight className="h-4 w-4" />
-            Funil de Conversão
-          </CardTitle>
-          <p className="text-[11px] text-muted-foreground">{trendLabel}</p>
-        </CardHeader>
-        <CardContent className="px-4 pb-4 pt-3 flex gap-3">
-          <MetricCard label="Visitas" value={metrics?.visitorsToday ?? 0} icon={Eye} trend={visitorsTrend} trendLabel={trendLabel} variant="info" />
-          <MetricCard label="Adicionou ao carrinho" value={metrics?.cartsToday ?? 0} icon={ShoppingBag} trend={cartsTrend} trendLabel={trendLabel} variant="warning" />
-          <MetricCard label="Iniciou checkout" value={metrics?.checkoutsStartedToday ?? 0} icon={LogIn} trend={checkoutStartedTrend} trendLabel={trendLabel} variant="primary" />
-          <MetricCard label="Pedidos (vendas efetivadas)" value={metrics?.ordersToday ?? 0} icon={ShoppingCart} trend={ordersTrend} trendLabel={trendLabel} variant="success" />
-        </CardContent>
-      </Card>
-
-      {/* Row 2: Financial / Orders */}
+      {/* Bloco 2: Pedidos & Financeiro (com Total de Pedidos no início) */}
       <Card>
         <CardHeader className="pb-1 pt-4 px-4">
           <CardTitle className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
@@ -172,7 +150,8 @@ export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: Dashboa
           </CardTitle>
           <p className="text-[11px] text-muted-foreground">{trendLabel}</p>
         </CardHeader>
-        <CardContent className="px-4 pb-4 pt-3 flex gap-3">
+        <CardContent className="px-4 pb-4 pt-3 flex gap-3 flex-wrap">
+          <MetricCard label="Total de Pedidos" value={metrics?.ordersToday ?? 0} icon={Package} trend={ordersTrend} trendLabel={trendLabel} variant="info" />
           <MetricCard label="Pedidos Pagos" value={metrics?.paidOrdersToday ?? 0} icon={CreditCard} trend={paidOrdersTrend} trendLabel={trendLabel} variant="success" />
           <MetricCard label="Pedidos Não Pagos" value={metrics?.unpaidOrdersToday ?? 0} icon={XCircle} trend={unpaidOrdersTrend} trendLabel={trendLabel} variant="destructive" />
           <MetricCard label="Ticket Médio" value={formatCurrency(metrics?.ticketToday ?? 0)} icon={TrendingUp} trend={ticketTrend} trendLabel={trendLabel} variant="primary" />
@@ -180,7 +159,27 @@ export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: Dashboa
         </CardContent>
       </Card>
 
-      {/* Row 3: Abandoned Checkouts */}
+      {/* Bloco 3: Funil de Conversão Completo */}
+      <Card>
+        <CardHeader className="pb-1 pt-4 px-4">
+          <CardTitle className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+            <ArrowDownRight className="h-4 w-4" />
+            Funil de Conversão
+          </CardTitle>
+          <p className="text-[11px] text-muted-foreground">{trendLabel}</p>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 pt-3 flex gap-2 flex-wrap">
+          <MetricCard compact label="Visitas Únicas" value={metrics?.visitorsToday ?? 0} icon={Eye} trend={visitorsTrend} trendLabel={trendLabel} variant="info" />
+          <MetricCard compact label="Carrinho" value={metrics?.cartsToday ?? 0} icon={ShoppingBag} trend={cartsTrend} trendLabel={trendLabel} variant="warning" />
+          <MetricCard compact label="Checkout" value={metrics?.checkoutsStartedToday ?? 0} icon={LogIn} trend={checkoutStartedTrend} trendLabel={trendLabel} variant="primary" />
+          <MetricCard compact label="Lead" value={metrics?.leadsToday ?? 0} icon={UserCheck} trend={leadsTrend} trendLabel={trendLabel} variant="info" />
+          <MetricCard compact label="Add Frete" value={metrics?.shippingSelectedToday ?? 0} icon={Truck} trend={shippingTrend} trendLabel={trendLabel} variant="warning" />
+          <MetricCard compact label="Add Pagamento" value={metrics?.paymentSelectedToday ?? 0} icon={Wallet} trend={paymentTrend} trendLabel={trendLabel} variant="primary" />
+          <MetricCard compact label="Compras" value={metrics?.ordersToday ?? 0} icon={ShoppingCart} trend={ordersTrend} trendLabel={trendLabel} variant="success" />
+        </CardContent>
+      </Card>
+
+      {/* Bloco 4: Checkouts Abandonados */}
       <Card>
         <CardHeader className="pb-1 pt-4 px-4">
           <CardTitle className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
