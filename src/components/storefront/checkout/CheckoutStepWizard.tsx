@@ -5,7 +5,7 @@
 // =============================================
 
 import React, { useState, useEffect, useRef, Fragment } from 'react';
-import { sanitizeCep, formatCepDisplay, isValidCep } from '@/lib/cepUtils';
+import { sanitizeCep, isValidCep } from '@/lib/cepUtils';
 import { useNavigate, Link } from 'react-router-dom';
 import { useCart } from '@/contexts/CartContext';
 import { useDiscount, AppliedDiscount } from '@/contexts/DiscountContext';
@@ -20,6 +20,7 @@ import { CouponInput } from '@/components/storefront/CouponInput';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { CepInput } from '@/components/storefront/shared/CepInput';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';

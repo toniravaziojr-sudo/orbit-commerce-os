@@ -14,7 +14,6 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Minus, Plus, X, ShoppingCart, Truck, Check, Loader2, Tag } from 'lucide-react';
 import { BenefitProgressBar } from '@/components/storefront/cart/BenefitProgressBar';
 import { useCart, CartItem } from '@/contexts/CartContext';
@@ -26,8 +25,9 @@ import { calculateCartTotals, formatCurrency, formatPrice } from '@/lib/cartTota
 import { Progress } from '@/components/ui/progress';
 import { CouponInput } from '@/components/storefront/CouponInput';
 import { CartPromoBanner } from '@/components/storefront/cart/CartPromoBanner';
+import { CepInput } from '@/components/storefront/shared/CepInput';
 import { getStoreHost } from '@/lib/storeHost';
-import { sanitizeCep, formatCepDisplay } from '@/lib/cepUtils';
+import { sanitizeCep } from '@/lib/cepUtils';
 
 interface MiniCartDrawerProps {
   open: boolean;

@@ -2,8 +2,9 @@
 // CHECKOUT FORM - Customer data with validation and masks
 // =============================================
 
-import { sanitizeCep, formatCepDisplay, isValidCep } from '@/lib/cepUtils';
+import { sanitizeCep, isValidCep } from '@/lib/cepUtils';
 import { Input } from '@/components/ui/input';
+import { CepInput } from '@/components/storefront/shared/CepInput';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';

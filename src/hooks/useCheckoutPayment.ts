@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { CartItem, ShippingOption } from '@/contexts/CartContext';
 import { AttributionData } from '@/hooks/useAttribution';
+import { sanitizeCep } from '@/lib/cepUtils';
 import { AffiliateData } from '@/lib/affiliateTracking';
 
 export type PaymentMethod = 'pix' | 'boleto' | 'credit_card';
