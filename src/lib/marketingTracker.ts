@@ -418,6 +418,9 @@ export class MarketingTracker {
     if (this.config.tiktok_enabled && window.ttq) {
       window.ttq.page();
     }
+
+    // Server-side CAPI
+    this.sendCapi('PageView', eventId);
   }
 
   // Track product view
