@@ -74,6 +74,18 @@ console.log(`[function-name][${VERSION}] Request received`);
 | `fiscal_invoices` | `fiscal-auto-create-drafts`, `fiscal-create-draft`, `fiscal-create-manual`, `fiscal-emit` |
 | `fiscal_settings` | `fiscal-auto-create-drafts`, `fiscal-create-draft`, `fiscal-create-manual`, `fiscal-sync-nuvem-fiscal` |
 | `storefront_visits` | `storefront-html` (beacon JS inline) |
+| `storefront_prerendered_pages` | `storefront-prerender`, `storefront-html`, `menuAutoUpdate()` (client) |
+| `menu_items` | `import-menus`, `MenuPanel.tsx` (admin) |
+
+#### `storefront-prerender` — Trigger Types
+
+| `trigger_type` | Origem | Comportamento |
+|----------------|--------|---------------|
+| `publish` | Builder (publicar tema) | Re-renderiza TODAS as páginas, ativação atômica |
+| `product_update` | Admin (salvar produto) | Re-renderiza páginas afetadas |
+| `category_update` | Admin (salvar categoria) | Re-renderiza páginas afetadas |
+| `menu_update` | `menuAutoUpdate()` após salvar menu | Re-renderiza TODAS as páginas (menus são globais). Usa `published_content`, nunca `draft_content`. Debounce de 5s no client. |
+| `manual` | Curl/admin | Re-renderiza conforme `paths` fornecidos |
 
 ### Shared Modules
 | Módulo | Funções que Usam | Descrição |
