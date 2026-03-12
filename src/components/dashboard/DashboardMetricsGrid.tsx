@@ -103,10 +103,15 @@ export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: Dashboa
   const adSpendTrend = metrics ? calculateTrend(metrics.adSpendToday, metrics.adSpendYesterday) : 0;
   const convRateTrend = metrics ? calculateTrend(metrics.conversionRateToday, metrics.conversionRateYesterday) : 0;
 
-  // Retorno real = faturamento real (paid) - ad spend total
-  const realReturnToday = (metrics?.salesToday ?? 0) - (metrics?.adSpendToday ?? 0);
-  const realReturnYesterday = (metrics?.salesYesterday ?? 0) - (metrics?.adSpendYesterday ?? 0);
-  const realReturnTrend = metrics ? calculateTrend(realReturnToday, realReturnYesterday) : 0;
+  // ROAS = faturamento real (paid) / ad spend total
+  const adSpend = metrics?.adSpendToday ?? 0;
+  const roasToday = adSpend > 0 ? (metrics?.salesToday ?? 0) / adSpend : 0;
+  const adSpendYesterday = metrics?.adSpendYesterday ?? 0;
+  const roasYesterday = adSpendYesterday > 0 ? (metrics?.salesYesterday ?? 0) / adSpendYesterday : 0;
+  const roasTrend = metrics ? calculateTrend(roasToday, roasYesterday) : 0;
+
+  // Format ROAS as "Xx" (e.g., "4.5x")
+  const formatRoas = (value: number) => value > 0 ? `${value.toFixed(2)}x` : "0x";
 
   return (
     <div className="space-y-4">
@@ -122,7 +127,7 @@ export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: Dashboa
         <CardContent className="px-4 pb-4 pt-3 flex gap-3">
           <MetricCard label="Faturamento Total" value={formatCurrency(metrics?.totalRevenueToday ?? 0)} icon={DollarSign} trend={totalRevenueTrend} trendLabel={trendLabel} variant="primary" />
           <MetricCard label="Faturamento Real" value={formatCurrency(metrics?.salesToday ?? 0)} icon={BarChart3} trend={metrics ? calculateTrend(metrics.salesToday, metrics.salesYesterday) : 0} trendLabel={trendLabel} variant="success" />
-          <MetricCard label="Retorno Real" value={formatCurrency(realReturnToday)} icon={TrendingDown} trend={realReturnTrend} trendLabel={trendLabel} variant={realReturnToday >= 0 ? "info" : "destructive"} />
+          <MetricCard label="Retorno Real (ROAS)" value={formatRoas(roasToday)} icon={TrendingUp} trend={roasTrend} trendLabel={trendLabel} variant={roasToday >= 1 ? "info" : "destructive"} />
           <MetricCard label="Taxa de Conversão" value={`${(metrics?.conversionRateToday ?? 0).toFixed(2)}%`} icon={Percent} trend={convRateTrend} trendLabel={trendLabel} variant="warning" />
         </CardContent>
       </Card>
