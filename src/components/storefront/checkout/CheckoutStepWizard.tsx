@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useRef, Fragment } from 'react';
 import { sanitizeCep, isValidCep } from '@/lib/cepUtils';
+import { useCepLookup } from '@/hooks/useCepLookup';
 import { useNavigate, Link } from 'react-router-dom';
 import { useCart } from '@/contexts/CartContext';
 import { useDiscount, AppliedDiscount } from '@/contexts/DiscountContext';
