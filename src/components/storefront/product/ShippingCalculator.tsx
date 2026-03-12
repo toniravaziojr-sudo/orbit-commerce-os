@@ -35,17 +35,11 @@ export function ShippingCalculator({
   const [shippingOptions, setShippingOptions] = useState<ShippingOption[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleCepChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const digits = sanitizeCep(e.target.value);
+  const handleCepValueChange = (digits: string) => {
     setCepDigits(digits);
     setError(null);
     setShippingOptions(null);
-  }, []);
-
-  const handleCepBlur = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
-    const digits = sanitizeCep(e.target.value);
-    if (digits !== cepDigits) setCepDigits(digits);
-  }, [cepDigits]);
+  };
 
   const handleCalculate = async () => {
     if (cepDigits.length !== 8) {
