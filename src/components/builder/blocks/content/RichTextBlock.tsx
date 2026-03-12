@@ -488,7 +488,8 @@ export function RichTextBlock({
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         className={cn(
-          "prose prose-lg max-w-none focus:outline-none min-h-[1em] cursor-text",
+          RICH_TEXT_TYPOGRAPHY,
+          "focus:outline-none min-h-[1em] cursor-text",
           "[&_a[data-editor-link]]:pointer-events-none [&_a[data-editor-link]]:cursor-text",
           isSelected && "ring-2 ring-primary/20 rounded-sm"
         )}
