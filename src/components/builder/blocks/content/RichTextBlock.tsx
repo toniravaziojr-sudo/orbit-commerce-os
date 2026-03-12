@@ -57,10 +57,64 @@ function replacePlaceholders(text: string, context?: BlockRenderContext): string
   return result;
 }
 
-// CRITICAL: Sanitize HTML to prevent CSS leakage
+// CRITICAL: Sanitize HTML to prevent CSS leakage while preserving safe typography styles
+const SAFE_INLINE_STYLE_PROPS = new Set([
+  'text-align',
+  'font-size',
+  'font-weight',
+  'font-style',
+  'line-height',
+  'letter-spacing',
+  'margin',
+  'margin-top',
+  'margin-right',
+  'margin-bottom',
+  'margin-left',
+  'padding',
+  'padding-top',
+  'padding-right',
+  'padding-bottom',
+  'padding-left',
+  'border',
+  'border-top',
+  'border-right',
+  'border-bottom',
+  'border-left',
+  'border-radius',
+  'background',
+  'background-color',
+  'list-style',
+  'list-style-type',
+  'display',
+]);
+
+function sanitizeInlineStyle(styleValue: string): string {
+  if (!styleValue) return '';
+
+  return styleValue
+    .split(';')
+    .map(rule => rule.trim())
+    .filter(Boolean)
+    .map(rule => {
+      const [rawProp, ...rawValueParts] = rule.split(':');
+      const prop = rawProp?.trim().toLowerCase();
+      const value = rawValueParts.join(':').trim();
+
+      if (!prop || !value) return '';
+      if (!SAFE_INLINE_STYLE_PROPS.has(prop)) return '';
+
+      const unsafePattern = /url\s*\(|expression\s*\(|javascript:|@import/gi;
+      if (unsafePattern.test(value)) return '';
+
+      return `${prop}: ${value}`;
+    })
+    .filter(Boolean)
+    .join('; ');
+}
+
 function sanitizeImportedHtml(html: string): string {
   if (!html) return '';
-  
+
   return html
     .replace(/<style[\s\S]*?<\/style>/gi, '')
     .replace(/<link[^>]*>/gi, '')
@@ -68,10 +122,15 @@ function sanitizeImportedHtml(html: string): string {
     .replace(/<noscript[\s\S]*?<\/noscript>/gi, '')
     .replace(/<meta[^>]*>/gi, '')
     .replace(/<base[^>]*>/gi, '')
-    .replace(/\s*style=["'][^"']*["']/gi, '')
+    .replace(/\s*style=["']([^"']*)["']/gi, (_match, styleValue) => {
+      const safeStyle = sanitizeInlineStyle(styleValue || '');
+      return safeStyle ? ` style="${safeStyle}"` : '';
+    })
     .replace(/\s*on\w+=["'][^"']*["']/gi, '')
     .replace(/\s*data-(?!editor)[^=]*=["'][^"']*["']/gi, '');
 }
+
+const RICH_TEXT_TYPOGRAPHY = "max-w-none text-foreground leading-7 [&_h1]:mt-0 [&_h1]:mb-6 [&_h1]:text-3xl [&_h1]:font-bold [&_h1]:tracking-tight [&_h1]:text-center [&_h2]:mt-10 [&_h2]:mb-4 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:tracking-tight [&_h3]:mt-8 [&_h3]:mb-3 [&_h3]:text-xl [&_h3]:font-semibold [&_p]:my-0 [&_p+p]:mt-4 [&_p]:leading-7 [&_ul]:my-4 [&_ul]:pl-6 [&_ul]:space-y-2 [&_ol]:my-4 [&_ol]:pl-6 [&_ol]:space-y-2 [&_li]:leading-7 [&_strong]:font-semibold [&_a]:text-primary [&_a]:underline [&_blockquote]:my-6 [&_blockquote]:rounded-lg [&_blockquote]:border-l-4 [&_blockquote]:border-primary [&_blockquote]:bg-muted/40 [&_blockquote]:px-4 [&_blockquote]:py-3 [&_hr]:my-8 [&_hr]:border-border";
 
 // Convert markdown to HTML
 function processContent(text: string, context?: BlockRenderContext): string {
@@ -429,7 +488,8 @@ export function RichTextBlock({
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         className={cn(
-          "prose prose-lg max-w-none focus:outline-none min-h-[1em] cursor-text",
+          RICH_TEXT_TYPOGRAPHY,
+          "focus:outline-none min-h-[1em] cursor-text",
           "[&_a[data-editor-link]]:pointer-events-none [&_a[data-editor-link]]:cursor-text",
           isSelected && "ring-2 ring-primary/20 rounded-sm"
         )}
@@ -450,7 +510,7 @@ export function RichTextBlock({
   // Render readonly version (preview/storefront)
   return (
     <div 
-      className="prose prose-lg max-w-none [&_a[data-editor-link]]:pointer-events-none [&_a[data-editor-link]]:cursor-text [&_a[data-editor-link]]:no-underline"
+      className={cn(RICH_TEXT_TYPOGRAPHY, "[&_a[data-editor-link]]:pointer-events-none [&_a[data-editor-link]]:cursor-text [&_a[data-editor-link]]:no-underline")}
       style={{ 
         textAlign: (align as any) || 'left',
         fontFamily: fontFamily || 'inherit',

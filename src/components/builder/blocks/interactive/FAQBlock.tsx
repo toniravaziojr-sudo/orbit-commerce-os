@@ -23,10 +23,27 @@ const defaultItems: FAQItem[] = [
 ];
 
 export function FAQBlock({ title = 'Perguntas Frequentes', items, isEditing }: FAQBlockProps) {
+  const sanitizeFaqText = (value?: string): string => {
+    if (!value) return '';
+    return value
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
   // IMPORTANT: Demo items should ONLY appear in builder/editor mode
   // In public storefront, show nothing if no real FAQ items exist
   // Guard: AI may generate items as object instead of array
-  const safeItems = Array.isArray(items) ? items : [];
+  const safeItems = Array.isArray(items)
+    ? items
+        .map((item) => ({
+          question: sanitizeFaqText(item?.question),
+          answer: sanitizeFaqText(item?.answer),
+        }))
+        .filter((item) => item.question || item.answer)
+    : [];
+
   const hasRealItems = safeItems.length > 0;
   const faqItems = hasRealItems ? safeItems : (isEditing ? defaultItems : []);
   
