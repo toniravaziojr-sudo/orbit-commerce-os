@@ -90,6 +90,7 @@ Página de confirmação pós-compra com detalhes do pedido e ofertas de upsell.
 | `showTrackingInfo` | boolean | true | Exibe info de rastreio |
 | `showUpsell` | boolean | true | Exibe ofertas upsell |
 | `showNextSteps` | boolean | true | Exibe timeline de próximos passos |
+| `purchaseEventTiming` | `'all_orders'` \| `'paid_only'` | `'all_orders'` | Controla quando o evento Purchase dispara: `all_orders` = qualquer pedido criado; `paid_only` = somente quando `payment_status === 'approved'` |
 
 ---
 
