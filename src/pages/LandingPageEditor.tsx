@@ -524,7 +524,7 @@ export default function LandingPageEditor() {
       <div className="border-b bg-card">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={() => navigate('/landing-pages')}>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/pages')}>
               <ArrowLeft className="h-4 w-4 mr-1" />
               Voltar
             </Button>
