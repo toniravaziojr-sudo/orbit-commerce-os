@@ -28,6 +28,13 @@ export interface DashboardMetrics {
   abandonedCheckoutsYesterday: number;
   recoveredCheckoutsToday: number;
   errorCheckoutsToday: number;
+  // Faturamento metrics
+  totalRevenueToday: number;
+  totalRevenueYesterday: number;
+  adSpendToday: number;
+  adSpendYesterday: number;
+  conversionRateToday: number;
+  conversionRateYesterday: number;
 }
 
 interface RecentOrder {
@@ -52,6 +59,9 @@ const EMPTY_METRICS: DashboardMetrics = {
   checkoutsStartedToday: 0, checkoutsStartedYesterday: 0,
   abandonedCheckoutsToday: 0, abandonedCheckoutsYesterday: 0,
   recoveredCheckoutsToday: 0, errorCheckoutsToday: 0,
+  totalRevenueToday: 0, totalRevenueYesterday: 0,
+  adSpendToday: 0, adSpendYesterday: 0,
+  conversionRateToday: 0, conversionRateYesterday: 0,
 };
 
 function computePeriods(startDate?: Date, endDate?: Date) {
@@ -91,6 +101,9 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
         visitorsCurrentRes, visitorsPrevRes,
         cartsCurrentRes, cartsPrevRes,
         checkoutsCurrentRes, checkoutsPrevRes,
+        metaSpendCurrentRes, metaSpendPrevRes,
+        googleSpendCurrentRes, googleSpendPrevRes,
+        tiktokSpendCurrentRes, tiktokSpendPrevRes,
       ] = await Promise.all([
         supabase.from('orders').select('id, total, payment_status').eq('tenant_id', tid).gte('created_at', periodStart).lte('created_at', periodEnd),
         supabase.from('orders').select('id, total, payment_status').eq('tenant_id', tid).gte('created_at', prevStart).lte('created_at', prevEnd),
@@ -98,12 +111,19 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
         supabase.from('customers').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).is('deleted_at', null).gte('created_at', prevStart).lte('created_at', prevEnd),
         supabase.from('storefront_visits' as any).select('visitor_id').eq('tenant_id', tid).gte('created_at', periodStart).lte('created_at', periodEnd),
         supabase.from('storefront_visits' as any).select('visitor_id').eq('tenant_id', tid).gte('created_at', prevStart).lte('created_at', prevEnd),
-        // Carts created in period
         supabase.from('carts').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).gte('created_at', periodStart).lte('created_at', periodEnd),
         supabase.from('carts').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).gte('created_at', prevStart).lte('created_at', prevEnd),
-        // Checkout sessions in period
         supabase.from('checkout_sessions').select('id, status, recovered_at, customer_email, customer_phone').eq('tenant_id', tid).gte('created_at', periodStart).lte('created_at', periodEnd),
         supabase.from('checkout_sessions').select('id, status').eq('tenant_id', tid).gte('created_at', prevStart).lte('created_at', prevEnd),
+        // Ad spend - Meta
+        supabase.from('meta_ad_insights').select('spend_cents').eq('tenant_id', tid).gte('date_start', periodStart.slice(0, 10)).lte('date_start', periodEnd.slice(0, 10)),
+        supabase.from('meta_ad_insights').select('spend_cents').eq('tenant_id', tid).gte('date_start', prevStart.slice(0, 10)).lte('date_start', prevEnd.slice(0, 10)),
+        // Ad spend - Google (cost_micros = micros, /1_000_000 to get currency)
+        supabase.from('google_ad_insights').select('cost_micros').eq('tenant_id', tid).gte('date', periodStart.slice(0, 10)).lte('date', periodEnd.slice(0, 10)),
+        supabase.from('google_ad_insights').select('cost_micros').eq('tenant_id', tid).gte('date', prevStart.slice(0, 10)).lte('date', prevEnd.slice(0, 10)),
+        // Ad spend - TikTok
+        supabase.from('tiktok_ad_insights').select('spend_cents').eq('tenant_id', tid).gte('date_start', periodStart.slice(0, 10)).lte('date_start', periodEnd.slice(0, 10)),
+        supabase.from('tiktok_ad_insights').select('spend_cents').eq('tenant_id', tid).gte('date_start', prevStart.slice(0, 10)).lte('date_start', prevEnd.slice(0, 10)),
       ]);
 
       const currentOrders = currentOrdersRes.data || [];
@@ -120,13 +140,31 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
       const salesCurrent = paidCurrent.reduce((s, o) => s + (o.total || 0), 0);
       const salesPrev = paidPrev.reduce((s, o) => s + (o.total || 0), 0);
 
+      // Total revenue (paid + unpaid)
+      const totalRevenueCurrent = currentOrders.reduce((s, o) => s + (o.total || 0), 0);
+      const totalRevenuePrev = prevOrders.reduce((s, o) => s + (o.total || 0), 0);
+
+      // Ad spend aggregation (Meta cents + Google micros + TikTok cents)
+      const metaSpendCurrent = (metaSpendCurrentRes.data || []).reduce((s, r) => s + (r.spend_cents || 0), 0) / 100;
+      const metaSpendPrev = (metaSpendPrevRes.data || []).reduce((s, r) => s + (r.spend_cents || 0), 0) / 100;
+      const googleSpendCurrent = (googleSpendCurrentRes.data || []).reduce((s, r) => s + (r.cost_micros || 0), 0) / 1_000_000;
+      const googleSpendPrev = (googleSpendPrevRes.data || []).reduce((s, r) => s + (r.cost_micros || 0), 0) / 1_000_000;
+      const tiktokSpendCurrent = (tiktokSpendCurrentRes.data || []).reduce((s, r) => s + (r.spend_cents || 0), 0) / 100;
+      const tiktokSpendPrev = (tiktokSpendPrevRes.data || []).reduce((s, r) => s + (r.spend_cents || 0), 0) / 100;
+
+      const adSpendCurrent = metaSpendCurrent + googleSpendCurrent + tiktokSpendCurrent;
+      const adSpendPrev = metaSpendPrev + googleSpendPrev + tiktokSpendPrev;
+
+      // Conversion rate: paid orders / visitors * 100
+      const convRateCurrent = uniqueVisitorsCurrent > 0 ? (paidCurrent.length / uniqueVisitorsCurrent) * 100 : 0;
+      const convRatePrev = uniqueVisitorsPrev > 0 ? (paidPrev.length / uniqueVisitorsPrev) * 100 : 0;
+
       // Checkout sessions metrics
       const checkoutsCurrent = checkoutsCurrentRes.data || [];
       const checkoutsPrev = checkoutsPrevRes.data || [];
       const abandonedCurrent = checkoutsCurrent.filter(c => c.status === 'abandoned');
       const abandonedPrev = checkoutsPrev.filter(c => c.status === 'abandoned');
       const recoveredCurrent = checkoutsCurrent.filter(c => c.recovered_at != null);
-      // Error checkouts: abandoned with contact captured but potentially invalid (no email AND no phone)
       const errorCurrent = abandonedCurrent.filter(c => {
         const hasEmail = c.customer_email && c.customer_email.includes('@');
         const hasPhone = c.customer_phone && c.customer_phone.length >= 8;
@@ -156,6 +194,12 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
         abandonedCheckoutsYesterday: abandonedPrev.length,
         recoveredCheckoutsToday: recoveredCurrent.length,
         errorCheckoutsToday: errorCurrent.length,
+        totalRevenueToday: totalRevenueCurrent,
+        totalRevenueYesterday: totalRevenuePrev,
+        adSpendToday: adSpendCurrent,
+        adSpendYesterday: adSpendPrev,
+        conversionRateToday: convRateCurrent,
+        conversionRateYesterday: convRatePrev,
       };
     },
     enabled: !!currentTenant?.id,

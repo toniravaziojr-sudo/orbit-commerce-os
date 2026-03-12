@@ -12,6 +12,10 @@ import {
   ArrowDownRight,
   RotateCcw,
   AlertTriangle,
+  DollarSign,
+  BarChart3,
+  TrendingDown,
+  Percent,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency, calculateTrend } from "@/hooks/useDashboardMetrics";
@@ -77,10 +81,11 @@ function MetricCard({ label, value, icon: Icon, trend, trendLabel, variant = "de
 export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: DashboardMetricsGridProps) {
   if (isLoading) {
     return (
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
-        <Skeleton className="h-64" />
-        <Skeleton className="h-64" />
-        <Skeleton className="h-64" />
+      <div className="space-y-4">
+        <Skeleton className="h-40" />
+        <Skeleton className="h-40" />
+        <Skeleton className="h-40" />
+        <Skeleton className="h-40" />
       </div>
     );
   }
@@ -94,10 +99,35 @@ export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: Dashboa
   const cartsTrend = metrics ? calculateTrend(metrics.cartsToday ?? 0, metrics.cartsYesterday ?? 0) : 0;
   const checkoutStartedTrend = metrics ? calculateTrend(metrics.checkoutsStartedToday ?? 0, metrics.checkoutsStartedYesterday ?? 0) : 0;
   const abandonedTrend = metrics ? calculateTrend(metrics.abandonedCheckoutsToday ?? 0, metrics.abandonedCheckoutsYesterday ?? 0) : 0;
+  const totalRevenueTrend = metrics ? calculateTrend(metrics.totalRevenueToday, metrics.totalRevenueYesterday) : 0;
+  const adSpendTrend = metrics ? calculateTrend(metrics.adSpendToday, metrics.adSpendYesterday) : 0;
+  const convRateTrend = metrics ? calculateTrend(metrics.conversionRateToday, metrics.conversionRateYesterday) : 0;
+
+  // Retorno real = faturamento real (paid) - ad spend total
+  const realReturnToday = (metrics?.salesToday ?? 0) - (metrics?.adSpendToday ?? 0);
+  const realReturnYesterday = (metrics?.salesYesterday ?? 0) - (metrics?.adSpendYesterday ?? 0);
+  const realReturnTrend = metrics ? calculateTrend(realReturnToday, realReturnYesterday) : 0;
 
   return (
     <div className="space-y-4">
-      {/* Column 1: Mini Funnel */}
+      {/* Row 0: Faturamento */}
+      <Card>
+        <CardHeader className="pb-1 pt-4 px-4">
+          <CardTitle className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+            <DollarSign className="h-4 w-4" />
+            Faturamento
+          </CardTitle>
+          <p className="text-[11px] text-muted-foreground">{trendLabel}</p>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 pt-3 flex gap-3">
+          <MetricCard label="Faturamento Total" value={formatCurrency(metrics?.totalRevenueToday ?? 0)} icon={DollarSign} trend={totalRevenueTrend} trendLabel={trendLabel} variant="primary" />
+          <MetricCard label="Faturamento Real" value={formatCurrency(metrics?.salesToday ?? 0)} icon={BarChart3} trend={metrics ? calculateTrend(metrics.salesToday, metrics.salesYesterday) : 0} trendLabel={trendLabel} variant="success" />
+          <MetricCard label="Retorno Real" value={formatCurrency(realReturnToday)} icon={TrendingDown} trend={realReturnTrend} trendLabel={trendLabel} variant={realReturnToday >= 0 ? "info" : "destructive"} />
+          <MetricCard label="Taxa de Conversão" value={`${(metrics?.conversionRateToday ?? 0).toFixed(2)}%`} icon={Percent} trend={convRateTrend} trendLabel={trendLabel} variant="warning" />
+        </CardContent>
+      </Card>
+
+      {/* Row 1: Mini Funnel */}
       <Card>
         <CardHeader className="pb-1 pt-4 px-4">
           <CardTitle className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
@@ -114,7 +144,7 @@ export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: Dashboa
         </CardContent>
       </Card>
 
-      {/* Column 2: Financial / Orders */}
+      {/* Row 2: Financial / Orders */}
       <Card>
         <CardHeader className="pb-1 pt-4 px-4">
           <CardTitle className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
@@ -131,7 +161,7 @@ export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: Dashboa
         </CardContent>
       </Card>
 
-      {/* Column 3: Abandoned Checkouts */}
+      {/* Row 3: Abandoned Checkouts */}
       <Card>
         <CardHeader className="pb-1 pt-4 px-4">
           <CardTitle className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
