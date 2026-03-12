@@ -491,8 +491,86 @@ export default function Pages() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Create LP with AI */}
-      <CreateLandingPageDialog open={createLPDialogOpen} onOpenChange={setCreateLPDialogOpen} />
+      {/* AI Architect Dialog */}
+      <Dialog open={isAIArchitectOpen} onOpenChange={(open) => {
+        setIsAIArchitectOpen(open);
+        if (!open) { setAiPageName(''); setAiPageSlug(''); setAiPagePrompt(''); }
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wand2 className="h-5 w-5 text-primary" />
+              Criar Página com IA
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Nome da Página *</Label>
+              <Input
+                placeholder="Ex: Black Friday 2026"
+                value={aiPageName}
+                onChange={(e) => {
+                  setAiPageName(e.target.value);
+                  if (!aiPageSlug || aiPageSlug === generateSlug(aiPageName)) {
+                    setAiPageSlug(generateSlug(e.target.value));
+                  }
+                }}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Slug (URL)</Label>
+              <Input
+                value={aiPageSlug}
+                onChange={(e) => setAiPageSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
+                placeholder={aiPageName ? generateSlug(aiPageName) : 'slug-da-pagina'}
+                className={!validateSlug(aiPageSlug).isValid && aiPageSlug ? 'border-destructive' : ''}
+              />
+              {!validateSlug(aiPageSlug).isValid && aiPageSlug ? (
+                <p className="text-xs text-destructive">{validateSlug(aiPageSlug).error}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  URL: /lp/{aiPageSlug || generateSlug(aiPageName) || 'slug'}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Descreva sua página *</Label>
+              <Textarea
+                placeholder="Ex: Página promocional com contagem regressiva, produtos em destaque, depoimentos de clientes e formulário de newsletter"
+                value={aiPagePrompt}
+                onChange={(e) => setAiPagePrompt(e.target.value)}
+                rows={3}
+                className="resize-none"
+              />
+              <p className="text-xs text-muted-foreground">
+                A IA vai montar a estrutura de blocos com base na sua descrição. Você poderá editar tudo depois no Builder.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAIArchitectOpen(false)} disabled={isGeneratingAI}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleCreateWithAIArchitect}
+              disabled={!aiPageName.trim() || !aiPagePrompt.trim() || isGeneratingAI}
+            >
+              {isGeneratingAI ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Gerando estrutura...
+                </>
+              ) : (
+                <>
+                  <Wand2 className="h-4 w-4 mr-2" />
+                  Gerar Página
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Preview LP */}
       {previewLPId && (
