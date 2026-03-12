@@ -19,18 +19,10 @@ export function ShippingEstimator() {
   const [isCalculating, setIsCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleCepChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const digits = sanitizeCep(e.target.value);
+  const handleCepValueChange = useCallback((digits: string) => {
     setShippingCep(digits);
     setError(null);
   }, [setShippingCep]);
-
-  const handleCepBlur = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
-    const digits = sanitizeCep(e.target.value);
-    if (digits !== sanitizeCep(shipping.cep)) {
-      setShippingCep(digits);
-    }
-  }, [shipping.cep, setShippingCep]);
 
   const handleCalculate = async () => {
     const cepDigits = sanitizeCep(shipping.cep);
