@@ -24,7 +24,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { cachePurge } from '@/lib/storefrontCachePurge';
+import { menuAutoUpdate } from '@/lib/storefrontCachePurge';
 import { useAuth } from '@/hooks/useAuth';
 
 
