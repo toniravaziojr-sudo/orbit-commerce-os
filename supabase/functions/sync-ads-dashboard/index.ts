@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.0.0"; // Initial: orchestrate ad insights sync for all connected tenants
+const VERSION = "v1.1.0"; // Fix: use last_7d instead of today to catch attribution delays
 // ===========================================================
 
 const corsHeaders = {
@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             action: "sync",
             tenant_id: tenantId,
-            date_preset: "today",
+            date_preset: "last_7d",
           }),
         });
 
