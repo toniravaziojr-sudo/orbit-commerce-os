@@ -1953,7 +1953,7 @@ serve(async (req) => {
         .eq('tenant_id', tenantId).eq('slug', route.slug).eq('is_active', true).maybeSingle();
     } else if (route.type === 'page' && route.slug) {
       routeQueryPromise = supabase.from('store_pages')
-        .select('id, title, slug, body_html, description, seo_title, seo_description, content, is_published')
+        .select('id, title, slug, individual_content, seo_title, seo_description, content, is_published')
         .eq('tenant_id', tenantId).eq('slug', route.slug).eq('is_published', true).maybeSingle();
     } else if (route.type === 'blog_post' && route.slug) {
       routeQueryPromise = supabase.from('blog_posts')
