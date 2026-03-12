@@ -274,8 +274,8 @@ function MiniCartShipping({
   };
 
   const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatCep(e.target.value);
-    setShippingCep(formatted);
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+    setShippingCep(digits);
     setError(null);
   };
 
