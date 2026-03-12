@@ -28,7 +28,6 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { 
-   
   Sparkles, 
   ExternalLink, 
   Settings, 
@@ -38,7 +37,9 @@ import {
   Globe,
   Clock,
   FileText,
-  LayoutTemplate
+  LayoutTemplate,
+  Loader2,
+  Wand2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
