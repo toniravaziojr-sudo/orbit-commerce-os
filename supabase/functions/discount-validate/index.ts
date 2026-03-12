@@ -55,45 +55,9 @@ serve(async (req) => {
 
     // Normalize store_host: lowercase, trim, remove port if present
     const store_host = (rawStoreHost || '').toLowerCase().trim().split(':')[0];
-
-    console.log("[discount-validate] Request:", { 
-      raw_store_host: rawStoreHost, 
-      normalized_store_host: store_host, 
-      code, 
-      subtotal, 
-      shipping_price, 
-      customer_email 
-    });
-
-    if (!store_host || !code) {
-      return new Response(
-        JSON.stringify({ valid: false, error: "store_host e code são obrigatórios", discount_amount: 0, free_shipping: false } as DiscountBreakdown),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Resolver tenant pelo host (usar status = 'verified' em vez de is_active)
-    const { data: domain } = await supabase
-      .from("tenant_domains")
-      .select("tenant_id")
-      .eq("domain", store_host.toLowerCase())
-      .eq("status", "verified")
-      .maybeSingle();
-
-    let tenantId = domain?.tenant_id;
-
-    // Se não encontrou por domínio, tentar por slug (host pode ser slug.shops.comandocentral.com.br)
-    if (!tenantId) {
-      const slugMatch = store_host.match(/^([^.]+)\.shops\./i);
-      if (slugMatch) {
-        const { data: tenant } = await supabase
-          .from("tenants")
-          .select("id")
-          .eq("slug", slugMatch[1].toLowerCase())
-          .maybeSingle();
-        tenantId = tenant?.id;
-      }
-    }
+    // Generate www variants for fallback lookup
+    const hostWithoutWww = store_host.replace(/^www\./, '');
+    const hostWithWww = hostWithoutWww.startsWith('www.') ? hostWithoutWww : `www.${hostWithoutWww}`;
 
     if (!tenantId) {
       console.log("[discount-validate] Tenant not found for host:", store_host);
