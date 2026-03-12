@@ -28,6 +28,13 @@ export interface DashboardMetrics {
   abandonedCheckoutsYesterday: number;
   recoveredCheckoutsToday: number;
   errorCheckoutsToday: number;
+  // Faturamento metrics
+  totalRevenueToday: number;
+  totalRevenueYesterday: number;
+  adSpendToday: number;
+  adSpendYesterday: number;
+  conversionRateToday: number;
+  conversionRateYesterday: number;
 }
 
 interface RecentOrder {
