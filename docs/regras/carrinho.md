@@ -428,3 +428,21 @@ Os botões do carrinho usam classes semânticas:
 | **Cache** | Requer re-prerender + purge CDN após alterações no Edge HTML para que URL pública reflita mudanças. |
 | **Validação** | Confirmado por print do cliente em 2026-03-12: campos de CEP no mini-cart e página de produto exibem apenas dígitos (`45990408`). |
 | **Afeta** | Mini-cart drawer (SPA), página de produto (Edge), carrinho (SPA), checkout (SPA) |
+
+---
+
+### Cart Tracking — Persistência de eventos para funil do Dashboard (v8.11.0 — 2026-03-12)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Função / Hook / Edge Script |
+| **Localização** | `supabase/functions/storefront-html/index.ts` (Edge), `src/hooks/useCartTracking.ts` (SPA) |
+| **Contexto** | Funil de conversão no Dashboard (Central de Comando) |
+| **Descrição** | Insere um registro na tabela `public.carts` na primeira vez que um visitante adiciona um item ao carrinho (1 registro por sessão do browser). |
+| **Comportamento Edge (primário)** | Dentro de `addToCart()`, verifica `sessionStorage` pela chave `cart_session_{tenantId}`. Se não existir, gera `session_id` via `crypto.randomUUID()`, faz POST direto ao REST API do Supabase (`/rest/v1/carts`), e salva no `sessionStorage` em caso de sucesso. |
+| **Comportamento SPA (fallback)** | Hook `useCartTracking(tenantId, itemCount)` executa a mesma lógica para cobrir cenários onde o SPA carrega com carrinho já populado (hidratação do localStorage). |
+| **Deduplicação** | `sessionStorage` garante 1 insert por sessão de browser. Chave: `cart_session_{tenantId}`. |
+| **RLS** | Policy `Anyone can create carts` (INSERT, roles=public, WITH CHECK=true). |
+| **Tabela** | `public.carts` — campos usados: `tenant_id`, `session_id`, `status` ('active'). |
+| **Afeta** | Bloco "Funil de Conversão" no Dashboard → card "Adicionou ao carrinho". |
+| **Erros/Edge cases** | Se o insert falhar (rede, RLS), o `sessionStorage` não é salvo, permitindo retry na próxima adição. |
