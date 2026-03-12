@@ -5,7 +5,7 @@
 // Respects cart_config settings
 // =============================================
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Sheet,
