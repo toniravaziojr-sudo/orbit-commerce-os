@@ -82,6 +82,7 @@ export default function Pages() {
   // Essential pages state
   const [isEssentialConfirmOpen, setIsEssentialConfirmOpen] = useState(false);
   const [isGeneratingEssential, setIsGeneratingEssential] = useState(false);
+  const [essentialBusinessContext, setEssentialBusinessContext] = useState('');
   const [formData, setFormData] = useState({
     title: '', slug: '', seo_title: '', seo_description: '',
   });
