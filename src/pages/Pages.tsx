@@ -724,6 +724,46 @@ export default function Pages() {
           }}
         />
       )}
+
+      {/* Essential Pages Confirmation Dialog */}
+      <AlertDialog open={isEssentialConfirmOpen} onOpenChange={setIsEssentialConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <PackagePlus className="h-5 w-5 text-primary" />
+              Páginas Essenciais IA
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-left space-y-3">
+              <p>
+                As páginas serão geradas automaticamente com IA, baseadas nos dados do seu negócio.
+              </p>
+              <p className="font-medium text-foreground">
+                Certifique-se de ter a loja criada e de ter preenchido todos os dados do seu negócio para a IA ter base de criação, como logo, CNPJ, etc.
+              </p>
+              <p className="text-xs">
+                Serão criadas até 8 páginas: Quem Somos, Fale Conosco, FAQ, Como Comprar, Frete e Entrega, Trocas e Devoluções, Política de Privacidade e Termos de Uso. Páginas já existentes não serão sobrescritas.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleGenerateEssentialPages}>
+              Confirmar e Gerar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Essential Pages Loading Toast */}
+      {isGeneratingEssential && (
+        <div className="fixed bottom-4 right-4 z-50 bg-card border rounded-lg shadow-lg p-4 flex items-center gap-3">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <div>
+            <p className="text-sm font-medium">Gerando páginas essenciais...</p>
+            <p className="text-xs text-muted-foreground">Isso pode levar até 60 segundos</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
