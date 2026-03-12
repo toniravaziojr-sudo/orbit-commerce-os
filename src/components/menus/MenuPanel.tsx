@@ -243,10 +243,11 @@ export default function MenuPanel({
   useEffect(() => {
     const hasNewItems = localItems.some(i => i.isNew);
     const hasDeletedItems = localItems.some(i => i.isDeleted);
-    const hasOrderChanges = JSON.stringify(localItems.filter(i => !i.isNew && !i.isDeleted).map(i => ({ id: i.id, parent_id: i.parent_id, sort_order: i.sort_order }))) 
-      !== JSON.stringify(originalItems.map(i => ({ id: i.id, parent_id: i.parent_id, sort_order: i.sort_order })));
+    const activeItems = localItems.filter(i => !i.isNew && !i.isDeleted);
+    const hasFieldChanges = JSON.stringify(activeItems.map(i => ({ id: i.id, parent_id: i.parent_id, sort_order: i.sort_order, label: i.label, item_type: i.item_type, ref_id: i.ref_id, url: i.url }))) 
+      !== JSON.stringify(originalItems.map(i => ({ id: i.id, parent_id: i.parent_id, sort_order: i.sort_order, label: i.label, item_type: i.item_type, ref_id: i.ref_id, url: i.url })));
     
-    setHasChanges(hasNewItems || hasDeletedItems || hasOrderChanges);
+    setHasChanges(hasNewItems || hasDeletedItems || hasFieldChanges);
   }, [localItems, originalItems]);
 
   // Build hierarchical structure
