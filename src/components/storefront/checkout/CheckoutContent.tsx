@@ -107,7 +107,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
         
         
       } catch (err) {
-        console.error('[checkout] Session start EXCEPTION:', err);
+        console.error('[checkout] Session start error:', err);
       }
     };
     
