@@ -695,7 +695,7 @@ export default function MenuPanel({
           id: item.id,
           menu_id: item.menu_id,
           label: item.label,
-          item_type: item.item_type as 'category' | 'page' | 'external',
+          item_type: item.item_type as MenuItemType,
           ref_id: item.ref_id,
           url: item.url,
           sort_order: item.sort_order,
