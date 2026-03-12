@@ -299,10 +299,10 @@ export function validateCheckoutForm(data: CheckoutFormData): Partial<Record<key
     errors.customerCpf = 'CPF inválido';
   }
 
-  const cepDigits = data.shippingPostalCode.replace(/\D/g, '');
+  const cepDigits = sanitizeCep(data.shippingPostalCode);
   if (!cepDigits) {
     errors.shippingPostalCode = 'CEP é obrigatório';
-  } else if (cepDigits.length !== 8) {
+  } else if (!isValidCep(cepDigits)) {
     errors.shippingPostalCode = 'CEP inválido';
   }
 
