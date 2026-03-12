@@ -351,6 +351,21 @@ export class MarketingTracker {
   private config: MarketingConfig;
   private initialized = false;
 
+  constructor(config: MarketingConfig) {
+    this.config = config;
+  }
+
+  // Helper to send server-side CAPI event (fire-and-forget)
+  private sendCapi(eventName: string, eventId: string, customData?: Record<string, any>, userData?: Record<string, any>): void {
+    if (!this.config.meta_enabled || !this.config.tenantId) return;
+    sendServerEvent(this.config.tenantId, {
+      event_name: eventName,
+      event_id: eventId,
+      custom_data: customData,
+      user_data: userData,
+    });
+  }
+
   initialize(): void {
     if (this.initialized || typeof window === 'undefined') return;
 
