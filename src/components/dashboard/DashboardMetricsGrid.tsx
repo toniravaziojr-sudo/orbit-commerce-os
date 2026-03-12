@@ -96,7 +96,7 @@ export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: Dashboa
   const abandonedTrend = metrics ? calculateTrend(metrics.abandonedCheckoutsToday ?? 0, metrics.abandonedCheckoutsYesterday ?? 0) : 0;
 
   return (
-    <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+    <div className="space-y-4">
       {/* Column 1: Mini Funnel */}
       <Card>
         <CardHeader className="pb-1 pt-4 px-4">
