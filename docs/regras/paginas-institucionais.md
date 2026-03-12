@@ -12,9 +12,9 @@ O botão "Criar Página" oferece 3 opções:
 
 | Opção | Descrição |
 |-------|-----------|
-| **No Builder** | Insere nome e slug, redireciona para o Visual Builder (blocos nativos) |
-| **Com IA** | Insere nome, slug e prompt curto. A IA monta a estrutura de blocos nativos automaticamente e abre no Builder para edição. Usa edge function `ai-page-architect` + `blockRegistry.createDefaultNode()`. Salva em `store_pages` (type=landing_page). |
-| **Importar com IA** | Importa página a partir de URL alvo — cria `ai_landing_pages` |
+| **Criar manualmente** | Insere nome e slug, redireciona para o Visual Builder (blocos nativos) |
+| **Página de vendas** | Insere nome, slug e prompt curto. A IA monta a estrutura de blocos nativos automaticamente e abre no Builder para edição. Usa edge function `ai-page-architect` + `blockRegistry.createDefaultNode()`. Salva em `store_pages` (type=landing_page). |
+| **Importar Página** | Importa página a partir de URL alvo — cria `ai_landing_pages` |
 
 ### Fontes de Dados Unificadas
 
