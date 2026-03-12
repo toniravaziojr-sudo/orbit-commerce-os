@@ -338,9 +338,12 @@ function MiniCartShipping({
           inputMode="numeric"
           autoComplete="off"
           autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
           placeholder="00000-000"
           value={formatCepDisplay(shipping.cep)}
           onChange={handleCepChange}
+          onBlur={handleCepBlur}
           maxLength={9}
           className="font-mono text-sm h-9"
         />
