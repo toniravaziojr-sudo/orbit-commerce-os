@@ -3,6 +3,7 @@
 // =============================================
 
 import { useState, useEffect, useRef } from 'react';
+import { sanitizeCep } from '@/lib/cepUtils';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
@@ -226,7 +227,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
 
   useEffect(() => {
     if (shipping.cep && !formData.shippingPostalCode) {
-      setFormData(prev => ({ ...prev, shippingPostalCode: shipping.cep }));
+      setFormData(prev => ({ ...prev, shippingPostalCode: sanitizeCep(shipping.cep) }));
     }
   }, [shipping.cep]);
 

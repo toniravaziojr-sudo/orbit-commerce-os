@@ -4,6 +4,7 @@
 // =============================================
 
 import { useState } from 'react';
+import { sanitizeCep, formatCepDisplay } from '@/lib/cepUtils';
 import { useCart } from '@/contexts/CartContext';
 import { useShipping } from '@/contexts/StorefrontConfigContext';
 import { Button } from '@/components/ui/button';
@@ -22,22 +23,14 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
   const { items, subtotal, shipping, setShippingCep, setShippingOptions, selectShipping } = useCart();
   const { config, quote, quoteAsync, isLoading: configLoading } = useShipping();
   const [isEditing, setIsEditing] = useState(false);
-  const [tempCep, setTempCep] = useState(shipping.cep);
+  const [tempCep, setTempCep] = useState(sanitizeCep(shipping.cep));
   const [isCalculating, setIsCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const hasShipping = shipping.cep && shipping.selected;
 
-  const formatCepDisplay = (raw: string): string => {
-    const digits = raw.replace(/\D/g, '');
-    if (digits.length > 5) {
-      return `${digits.slice(0, 5)}-${digits.slice(5)}`;
-    }
-    return digits;
-  };
-
   const handleCalculate = async () => {
-    const cepDigits = tempCep.replace(/\D/g, '');
+    const cepDigits = sanitizeCep(tempCep);
     if (cepDigits.length !== 8) {
       setError('CEP inválido');
       return;
@@ -155,12 +148,19 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
               type="text"
               inputMode="numeric"
               autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               placeholder="00000-000"
               value={formatCepDisplay(tempCep)}
               onChange={(e) => {
-                const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+                const digits = sanitizeCep(e.target.value);
                 setTempCep(digits);
                 setError(null);
+              }}
+              onBlur={(e) => {
+                const digits = sanitizeCep(e.target.value);
+                if (digits !== tempCep) setTempCep(digits);
               }}
               maxLength={9}
               className="font-mono"
@@ -169,7 +169,7 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
           </div>
           <Button
             onClick={handleCalculate}
-            disabled={disabled || isCalculating || tempCep.replace(/\D/g, '').length < 8}
+            disabled={disabled || isCalculating || sanitizeCep(tempCep).length < 8}
             variant="outline"
           >
             {isCalculating ? (

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
+import { sanitizeCep } from '@/lib/cepUtils';
 
 export interface CartItem {
   id: string;
@@ -97,7 +98,7 @@ export function CartProvider({ children, tenantSlug }: CartProviderProps) {
           if (parsed.shipping) {
             setShipping({
               ...parsed.shipping,
-              cep: (parsed.shipping.cep || '').replace(/\D/g, '').slice(0, 8),
+              cep: sanitizeCep(parsed.shipping.cep),
             });
           }
         }
@@ -172,7 +173,7 @@ export function CartProvider({ children, tenantSlug }: CartProviderProps) {
 
   // Shipping functions
   const setShippingCep = useCallback((cep: string) => {
-    const digits = cep.replace(/\D/g, '').slice(0, 8);
+    const digits = sanitizeCep(cep);
     setShipping(prev => ({ ...prev, cep: digits }));
   }, []);
 

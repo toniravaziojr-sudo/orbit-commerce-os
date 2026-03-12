@@ -3,6 +3,7 @@
 // =============================================
 
 import { useState } from 'react';
+import { sanitizeCep, formatCepDisplay } from '@/lib/cepUtils';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -49,10 +50,7 @@ function maskPhone(value: string): string {
 }
 
 function maskCep(value: string): string {
-  return value
-    .replace(/\D/g, '')
-    .slice(0, 8)
-    .replace(/(\d{5})(\d)/, '$1-$2');
+  return formatCepDisplay(value);
 }
 
 export function CheckoutForm({ data, onChange, errors, disabled = false }: CheckoutFormProps) {

@@ -2,7 +2,8 @@
 // SHIPPING CALCULATOR - Calculadora de frete
 // =============================================
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
+import { sanitizeCep, formatCepDisplay } from '@/lib/cepUtils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Truck, Loader2, Package, Clock } from 'lucide-react';
@@ -34,16 +35,17 @@ export function ShippingCalculator({
   const [shippingOptions, setShippingOptions] = useState<ShippingOption[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const formattedCep = cepDigits.length > 5
-    ? `${cepDigits.slice(0, 5)}-${cepDigits.slice(5)}`
-    : cepDigits;
-
-  const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+  const handleCepChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = sanitizeCep(e.target.value);
     setCepDigits(digits);
     setError(null);
     setShippingOptions(null);
-  };
+  }, []);
+
+  const handleCepBlur = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
+    const digits = sanitizeCep(e.target.value);
+    if (digits !== cepDigits) setCepDigits(digits);
+  }, [cepDigits]);
 
   const handleCalculate = async () => {
     if (cepDigits.length !== 8) {
@@ -79,9 +81,13 @@ export function ShippingCalculator({
           type="text"
           inputMode="numeric"
           autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
           placeholder="00000-000"
-          value={formattedCep}
+          value={formatCepDisplay(cepDigits)}
           onChange={handleCepChange}
+          onBlur={handleCepBlur}
           maxLength={9}
           className="flex-1"
           disabled={isEditing}

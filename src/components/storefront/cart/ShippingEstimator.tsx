@@ -3,7 +3,8 @@
 // Uses shipping-quote Edge Function for multi-provider (Frenet/Correios/Loggi)
 // =============================================
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+import { sanitizeCep, formatCepDisplay } from '@/lib/cepUtils';
 import { useCart } from '@/contexts/CartContext';
 import { useShipping } from '@/contexts/StorefrontConfigContext';
 import { Button } from '@/components/ui/button';
@@ -18,20 +19,21 @@ export function ShippingEstimator() {
   const [isCalculating, setIsCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Store raw digits to avoid hyphen re-insertion bug
-  const cepDigits = shipping.cep.replace(/\D/g, '');
-  const formattedCep = cepDigits.length > 5
-    ? `${cepDigits.slice(0, 5)}-${cepDigits.slice(5)}`
-    : cepDigits;
-
-  const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const digits = e.target.value.replace(/\D/g, '').slice(0, 8);
+  const handleCepChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = sanitizeCep(e.target.value);
     setShippingCep(digits);
     setError(null);
-  };
+  }, [setShippingCep]);
+
+  const handleCepBlur = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
+    const digits = sanitizeCep(e.target.value);
+    if (digits !== sanitizeCep(shipping.cep)) {
+      setShippingCep(digits);
+    }
+  }, [shipping.cep, setShippingCep]);
 
   const handleCalculate = async () => {
-    const cepDigits = shipping.cep.replace(/\D/g, '');
+    const cepDigits = sanitizeCep(shipping.cep);
     if (cepDigits.length !== 8) {
       setError('CEP inválido. Digite 8 dígitos.');
       return;
@@ -116,16 +118,20 @@ export function ShippingEstimator() {
             type="text"
             inputMode="numeric"
             autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             placeholder="00000-000"
-            value={formattedCep}
+            value={formatCepDisplay(shipping.cep)}
             onChange={handleCepChange}
+            onBlur={handleCepBlur}
             maxLength={9}
             className="font-mono"
           />
         </div>
         <Button
           onClick={handleCalculate}
-          disabled={isCalculating || shipping.cep.replace(/\D/g, '').length < 8}
+          disabled={isCalculating || sanitizeCep(shipping.cep).length < 8}
           variant="outline"
         >
           {isCalculating ? (

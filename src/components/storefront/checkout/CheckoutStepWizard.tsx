@@ -5,6 +5,7 @@
 // =============================================
 
 import React, { useState, useEffect, useRef, Fragment } from 'react';
+import { sanitizeCep, formatCepDisplay } from '@/lib/cepUtils';
 import { useNavigate, Link } from 'react-router-dom';
 import { useCart } from '@/contexts/CartContext';
 import { useDiscount, AppliedDiscount } from '@/contexts/DiscountContext';
@@ -515,7 +516,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   };
 
   const calculateShippingOptions = async () => {
-    const cep = formData.shippingPostalCode.replace(/\D/g, '');
+    const cep = sanitizeCep(formData.shippingPostalCode);
     if (cep.length !== 8) return;
 
     setIsCalculatingShipping(true);
@@ -1168,9 +1169,22 @@ function Step2Address({
           <Label htmlFor="shippingPostalCode">CEP *</Label>
           <Input
             id="shippingPostalCode"
-            value={formData.shippingPostalCode}
-            onChange={(e) => onChange('shippingPostalCode', e.target.value)}
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            value={formatCepDisplay(formData.shippingPostalCode)}
+            onChange={(e) => onChange('shippingPostalCode', sanitizeCep(e.target.value))}
+            onBlur={(e) => {
+              const digits = sanitizeCep(e.target.value);
+              if (digits !== sanitizeCep(formData.shippingPostalCode)) {
+                onChange('shippingPostalCode', digits);
+              }
+            }}
             placeholder="00000-000"
+            maxLength={9}
             disabled={disabled}
             className={errors.shippingPostalCode ? 'border-destructive' : ''}
           />
