@@ -105,7 +105,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
           region: sanitizeCep(shipping.cep) || undefined,
         });
         
-        console.log('[checkout] Session start result:', result);
+        
       } catch (err) {
         console.error('[checkout] Session start EXCEPTION:', err);
       }
