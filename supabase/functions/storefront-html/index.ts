@@ -917,7 +917,9 @@ function buildFullPage(opts: {
       var cartDiscount=null; // {code,type,value,free_shipping,discount_id,discount_name,discount_amount}
       var DISCOUNT_KEY="storefront_discount_"+TENANT;
       // SPA DiscountContext uses key: coupon_<hostname_without_www>
-      var SPA_DISCOUNT_KEY="coupon_"+HOSTNAME.replace(/^www\./i,"").toLowerCase();
+      // MUST use window.location.hostname (runtime) instead of server-injected HOSTNAME
+      // to ensure the key matches what the SPA reads on /checkout
+      var SPA_DISCOUNT_KEY="coupon_"+window.location.hostname.replace(/^www\./i,"").toLowerCase();
       // Restore persisted discount (try SPA key first, then Edge key)
       try{
         var _savedDiscount=JSON.parse(localStorage.getItem(SPA_DISCOUNT_KEY)||localStorage.getItem(DISCOUNT_KEY)||"null");
