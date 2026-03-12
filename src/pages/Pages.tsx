@@ -327,7 +327,37 @@ export default function Pages() {
     }
   };
 
-  const deleteMutation = useMutation({
+  // Essential Pages: generate all essential institutional pages
+  const handleGenerateEssentialPages = async () => {
+    if (!currentTenant?.id) return;
+    setIsGeneratingEssential(true);
+    setIsEssentialConfirmOpen(false);
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-essential-pages', {
+        body: { tenantId: currentTenant.id },
+      });
+      if (error) throw new Error(error.message || 'Erro na geração');
+      if (!data?.success) throw new Error(data?.error || 'Erro desconhecido');
+      
+      const created = data.created || 0;
+      const skipped = data.skipped || 0;
+      
+      if (created > 0) {
+        toast.success(`${created} página(s) essencial(is) criada(s) com sucesso!${skipped > 0 ? ` (${skipped} já existiam)` : ''}`);
+      } else {
+        toast.info('Todas as páginas essenciais já existem na sua loja.');
+      }
+      
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ['store-pages'] });
+    } catch (error: any) {
+      console.error('Error generating essential pages:', error);
+      toast.error(error?.message || 'Erro ao gerar páginas essenciais');
+    } finally {
+      setIsGeneratingEssential(false);
+    }
+  };
+
     mutationFn: async ({ id, source }: { id: string; source: UnifiedPageItem['source'] }) => {
       if (source === 'institutional') {
         await deletePage.mutateAsync(id);
