@@ -519,11 +519,13 @@ Gere entre 8 e 12 perguntas. Respostas em TEXTO PURO sem HTML.`;
         if (toolCall?.function?.arguments) {
           try {
             const parsed = JSON.parse(toolCall.function.arguments);
-            // SAFETY: Strip any HTML that leaked through
-            faqItems = (parsed.items || []).map((item: any) => ({
-              question: stripHtmlTags(item.question || ""),
-              answer: stripHtmlTags(item.answer || ""),
-            }));
+            // SAFETY: Convert any leaked HTML/markdown to plain text
+            faqItems = (parsed.items || [])
+              .map((item: any) => ({
+                question: toPlainText(item?.question),
+                answer: toPlainText(item?.answer),
+              }))
+              .filter((item: { question: string; answer: string }) => item.question.length > 0 && item.answer.length > 0);
           } catch {
             console.error("Failed to parse FAQ tool call");
           }
