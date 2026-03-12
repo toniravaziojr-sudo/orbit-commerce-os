@@ -19,3 +19,6 @@ export * from './standardPreset';
 
 // Page Contracts (structural requirements)
 export * from './pageContracts';
+
+// AI Block Catalog (for AI page generation)
+export * from './aiBlockCatalog';
