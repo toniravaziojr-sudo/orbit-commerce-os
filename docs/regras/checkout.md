@@ -363,6 +363,26 @@ is_active = true + published_at IS NOT NULL → aparece no storefront público
 
 ---
 
+## Busca Automática de Endereço por CEP (v8.13.1)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Função / UX |
+| **Localização** | `CheckoutStepWizard.tsx` (Step2Address), `CheckoutForm.tsx` |
+| **Contexto** | Campo de CEP na etapa de endereço de entrega |
+| **Descrição** | Ao informar o CEP no checkout, o cliente pode acionar busca automática de endereço via ViaCEP |
+| **Comportamento** | 1. Cliente digita CEP de 8 dígitos. 2. Clica no ícone de lupa (🔍) ou pressiona Enter. 3. Sistema consulta ViaCEP (`https://viacep.com.br/ws/{cep}/json/`). 4. Preenche automaticamente: logradouro, bairro, cidade e estado. 5. Cliente só precisa completar número e complemento. |
+| **Condições** | CEP deve ter 8 dígitos válidos. Se CEP não encontrado, exibe erro. |
+| **Visual** | Ícone de lupa ao lado do campo CEP. Spinner (Loader2) durante a busca. |
+| **Afeta** | Campos: `shippingStreet`, `shippingNeighborhood`, `shippingCity`, `shippingState` |
+| **Erros/Edge cases** | CEP inválido → mensagem "CEP deve ter 8 dígitos". CEP não encontrado → "CEP não encontrado". Erro de rede → "Erro ao buscar CEP". |
+| **Hook** | `useCepLookup` (`src/hooks/useCepLookup.ts`) |
+
+### Importante: NÃO há persistência de CEP do carrinho → checkout
+O CEP digitado no estimador de frete (carrinho/mini-cart) **não** é automaticamente transferido para o campo de endereço do checkout. São contextos independentes. O draft do checkout persiste apenas dados já preenchidos no próprio checkout.
+
+---
+
 ## Regra Crítica de Ofertas (REGRA FIXA)
 
 | Tipo de Oferta | Local Correto |
