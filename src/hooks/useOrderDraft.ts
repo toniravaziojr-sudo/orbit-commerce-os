@@ -149,11 +149,21 @@ export function useOrderDraft() {
 
   // Update customer data
   const updateCustomer = useCallback((data: Partial<OrderDraftCustomer>) => {
-    setDraft(prev => ({
-      ...prev,
-      customer: { ...prev.customer, ...data },
-      updatedAt: Date.now(),
-    }));
+    setDraft(prev => {
+      const nextCustomer: OrderDraftCustomer = {
+        ...prev.customer,
+        ...data,
+        ...(data.shippingPostalCode !== undefined
+          ? { shippingPostalCode: sanitizeCep(data.shippingPostalCode) }
+          : {}),
+      };
+
+      return {
+        ...prev,
+        customer: nextCustomer,
+        updatedAt: Date.now(),
+      };
+    });
   }, []);
 
   // Update payment method
