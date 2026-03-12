@@ -992,7 +992,9 @@ function buildFullPage(opts: {
         var dVal=document.querySelector("[data-sf-cart-discount-value]");
         var discountAmt=0;
         if(dLine&&dVal&&cartDiscount){
-          if(cartDiscount.type==="percentage"){discountAmt=subtotal*(cartDiscount.value/100);}
+          if(cartDiscount.free_shipping){discountAmt=0;}
+          else if(cartDiscount.type==="order_percent"||cartDiscount.type==="percentage"){discountAmt=subtotal*(cartDiscount.value/100);}
+          else{discountAmt=Math.min(cartDiscount.discount_amount||cartDiscount.value||0,subtotal);}
           else{discountAmt=Math.min(cartDiscount.value,subtotal);}
           if(discountAmt>0){dLine.style.display="flex";dVal.textContent="-"+fmt(discountAmt);}
           else{dLine.style.display="none";}
