@@ -836,9 +836,17 @@ function buildFullPage(opts: {
       </div>
       <!-- Coupon -->
       <div data-sf-cart-coupon style="margin-bottom:12px;">
-        <div style="display:flex;gap:8px;">
+        <div data-sf-coupon-input-row style="display:flex;gap:8px;">
           <input type="text" placeholder="Cupom de desconto" style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;outline:none;" data-sf-cart-coupon-input>
           <button data-sf-action="apply-coupon" style="padding:8px 14px;background:var(--theme-button-primary-bg,#1a1a1a);color:var(--theme-button-primary-text,#fff);border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;">Aplicar</button>
+        </div>
+        <div data-sf-coupon-applied-row style="display:none;align-items:center;justify-content:space-between;padding:8px 10px;border:1px solid #bbf7d0;border-radius:6px;background:#f0fdf4;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="color:#16a34a;font-size:14px;">✓</span>
+            <span data-sf-coupon-applied-code style="font-weight:600;font-size:13px;color:#16a34a;"></span>
+            <span data-sf-coupon-applied-desc style="font-size:12px;color:#15803d;"></span>
+          </div>
+          <button data-sf-action="remove-coupon" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:16px;padding:2px 6px;" title="Remover cupom">&times;</button>
         </div>
         <div data-sf-cart-coupon-result style="margin-top:4px;font-size:12px;"></div>
       </div>
