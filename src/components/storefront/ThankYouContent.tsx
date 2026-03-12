@@ -88,7 +88,7 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
   }, [order?.payment_instructions]);
 
   // MARKETING: Track Purchase event when order loads (with deduplication)
-  // Respects purchaseEventTiming setting
+  // Respects purchaseEventTiming setting: 'all_orders' or 'paid_only'
   useEffect(() => {
     if (!order || !order.order_number || isLoading || isPreview) return;
     
@@ -96,12 +96,20 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
     if (purchaseTrackedRef.current === order.order_number) return;
     
     // CRITICAL: Check if tracker is available BEFORE marking as tracked
-    // The tracker is deferred (requestIdleCallback/setTimeout) so it may not exist
-    // when order data loads first. We must NOT set the ref until tracker is ready,
-    // otherwise the dedup blocks the retry when tracker finally initializes.
     if (!tracker) {
       console.log('[ThankYou] Tracker not ready yet, will retry when available');
       return;
+    }
+
+    // CHECK purchaseEventTiming setting:
+    // 'paid_only' → only fire when payment_status is 'approved' (paid)
+    // 'all_orders' → fire for any order regardless of payment status
+    if (checkoutConfig.purchaseEventTiming === 'paid_only') {
+      const isPaid = order.payment_status === 'approved' || order.payment_status === 'paid';
+      if (!isPaid) {
+        console.log('[ThankYou] Purchase event skipped - purchaseEventTiming is "paid_only" and payment_status is:', order.payment_status);
+        return;
+      }
     }
     
     // Track Purchase event with all order data

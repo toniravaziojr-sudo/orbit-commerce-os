@@ -301,15 +301,55 @@ export interface MarketingConfig {
   google_enabled?: boolean;
   tiktok_pixel_id?: string | null;
   tiktok_enabled?: boolean;
+  // Tenant ID for server-side CAPI forwarding
+  tenantId?: string;
+}
+
+// Fire-and-forget server-side CAPI event via edge function
+function sendServerEvent(tenantId: string, payload: {
+  event_name: string;
+  event_id: string;
+  event_source_url?: string;
+  user_data?: Record<string, any>;
+  custom_data?: Record<string, any>;
+}): void {
+  // Non-blocking: use fetch without await
+  const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+  if (!projectId) return;
+
+  const url = `https://${projectId}.supabase.co/functions/v1/marketing-capi-track`;
+
+  // Gather browser identifiers
+  const metaIds = getMetaIdentifiers();
+  const userData = {
+    ...(payload.user_data || {}),
+    fbp: metaIds.fbp || undefined,
+    fbc: metaIds.fbc || undefined,
+  };
+
+  fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+    },
+    body: JSON.stringify({
+      tenant_id: tenantId,
+      event_name: payload.event_name,
+      event_id: payload.event_id,
+      event_source_url: payload.event_source_url || window.location.href,
+      user_data: userData,
+      custom_data: payload.custom_data,
+    }),
+    keepalive: true, // Ensure request completes even on page unload
+  }).catch(err => {
+    console.warn('[MarketingTracker] Server-side CAPI error (non-blocking):', err);
+  });
 }
 
 export class MarketingTracker {
   private config: MarketingConfig;
   private initialized = false;
-
-  constructor(config: MarketingConfig) {
-    this.config = config;
-  }
 
   initialize(): void {
     if (this.initialized || typeof window === 'undefined') return;
