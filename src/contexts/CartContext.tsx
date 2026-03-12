@@ -98,7 +98,7 @@ export function CartProvider({ children, tenantSlug }: CartProviderProps) {
           if (parsed.shipping) {
             setShipping({
               ...parsed.shipping,
-              cep: (parsed.shipping.cep || '').replace(/\D/g, '').slice(0, 8),
+              cep: sanitizeCep(parsed.shipping.cep),
             });
           }
         }
