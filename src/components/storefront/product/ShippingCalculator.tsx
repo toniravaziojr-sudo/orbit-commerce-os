@@ -80,7 +80,7 @@ export function ShippingCalculator({
           inputMode="numeric"
           autoComplete="off"
           placeholder="00000-000"
-          value={cep}
+          value={formattedCep}
           onChange={handleCepChange}
           maxLength={9}
           className="flex-1"
