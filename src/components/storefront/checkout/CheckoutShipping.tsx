@@ -4,6 +4,7 @@
 // =============================================
 
 import { useState } from 'react';
+import { sanitizeCep, formatCepDisplay } from '@/lib/cepUtils';
 import { useCart } from '@/contexts/CartContext';
 import { useShipping } from '@/contexts/StorefrontConfigContext';
 import { Button } from '@/components/ui/button';
