@@ -27,6 +27,7 @@ import { Progress } from '@/components/ui/progress';
 import { CouponInput } from '@/components/storefront/CouponInput';
 import { CartPromoBanner } from '@/components/storefront/cart/CartPromoBanner';
 import { getStoreHost } from '@/lib/storeHost';
+import { sanitizeCep, formatCepDisplay } from '@/lib/cepUtils';
 
 interface MiniCartDrawerProps {
   open: boolean;
