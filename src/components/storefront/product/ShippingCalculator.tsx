@@ -81,9 +81,13 @@ export function ShippingCalculator({
           type="text"
           inputMode="numeric"
           autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
           placeholder="00000-000"
-          value={formattedCep}
+          value={formatCepDisplay(cepDigits)}
           onChange={handleCepChange}
+          onBlur={handleCepBlur}
           maxLength={9}
           className="flex-1"
           disabled={isEditing}
