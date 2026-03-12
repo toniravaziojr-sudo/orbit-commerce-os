@@ -227,7 +227,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
 
   useEffect(() => {
     if (shipping.cep && !formData.shippingPostalCode) {
-      setFormData(prev => ({ ...prev, shippingPostalCode: shipping.cep }));
+      setFormData(prev => ({ ...prev, shippingPostalCode: sanitizeCep(shipping.cep) }));
     }
   }, [shipping.cep]);
 
