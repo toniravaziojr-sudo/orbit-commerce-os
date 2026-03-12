@@ -612,24 +612,41 @@ export default function MenuPanel({
         if (error) throw error;
       }
 
-      // 3. Update existing items (order/parent changes)
+      // 3. Update existing items (order/parent/label/type/link changes)
       const existingItems = localItems.filter(i => !i.isNew && !i.isDeleted);
-      for (const item of existingItems) {
+      const itemsToUpdate = existingItems.filter(item => {
         const original = originalItems.find(o => o.id === item.id);
-        if (original && (original.parent_id !== item.parent_id || original.sort_order !== item.sort_order || original.label !== item.label)) {
-          const { error } = await supabase
-            .from('menu_items')
-            .update({
-              parent_id: item.parent_id,
-              sort_order: item.sort_order,
-              label: item.label,
-              item_type: item.item_type,
-              ref_id: item.ref_id,
-              url: item.url,
-            })
-            .eq('id', item.id);
-          if (error) throw error;
-        }
+        if (!original) return false;
+
+        return (
+          original.parent_id !== item.parent_id ||
+          original.sort_order !== item.sort_order ||
+          original.label !== item.label ||
+          original.item_type !== item.item_type ||
+          original.ref_id !== item.ref_id ||
+          original.url !== item.url
+        );
+      });
+
+      if (itemsToUpdate.length > 0) {
+        const updateResults = await Promise.all(
+          itemsToUpdate.map(item =>
+            supabase
+              .from('menu_items')
+              .update({
+                parent_id: item.parent_id,
+                sort_order: item.sort_order,
+                label: item.label,
+                item_type: item.item_type,
+                ref_id: item.ref_id,
+                url: item.url,
+              })
+              .eq('id', item.id)
+          )
+        );
+
+        const firstError = updateResults.find(result => result.error)?.error;
+        if (firstError) throw firstError;
       }
 
       toast({ title: 'Menu salvo com sucesso!' });
