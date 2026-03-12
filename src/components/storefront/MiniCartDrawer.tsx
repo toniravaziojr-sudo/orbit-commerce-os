@@ -261,9 +261,13 @@ function MiniCartShipping({
   const [isCalculating, setIsCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const formatCep = (value: string): string => {
-    const digits = value.replace(/\D/g, '').slice(0, 8);
+  const formatCepDisplay = (raw: string): string => {
+    const digits = raw.replace(/\D/g, '');
     if (digits.length > 5) {
+      return `${digits.slice(0, 5)}-${digits.slice(5, 8)}`;
+    }
+    return digits;
+  };
       return `${digits.slice(0, 5)}-${digits.slice(5)}`;
     }
     return digits;
