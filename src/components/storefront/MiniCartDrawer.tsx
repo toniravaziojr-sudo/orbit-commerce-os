@@ -5,7 +5,7 @@
 // Respects cart_config settings
 // =============================================
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, type ChangeEvent, type ClipboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Sheet,
@@ -25,7 +25,6 @@ import { calculateCartTotals, formatCurrency, formatPrice } from '@/lib/cartTota
 import { Progress } from '@/components/ui/progress';
 import { CouponInput } from '@/components/storefront/CouponInput';
 import { CartPromoBanner } from '@/components/storefront/cart/CartPromoBanner';
-import { CepInput } from '@/components/storefront/shared/CepInput';
 import { getStoreHost } from '@/lib/storeHost';
 import { sanitizeCep } from '@/lib/cepUtils';
 
@@ -262,9 +261,14 @@ function MiniCartShipping({
   const [isCalculating, setIsCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Single handler for ALL input sources: typing, paste, autofill, browser suggestion
-  const handleCepValueChange = useCallback((digits: string) => {
-    setShippingCep(digits);
+  const handleCepInputChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    setShippingCep(sanitizeCep(e.target.value));
+    setError(null);
+  }, [setShippingCep]);
+
+  const handleCepPaste = useCallback((e: ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    setShippingCep(sanitizeCep(e.clipboardData.getData('text')));
     setError(null);
   }, [setShippingCep]);
 
@@ -324,12 +328,19 @@ function MiniCartShipping({
       </div>
 
       <div className="flex gap-2">
-        <CepInput
+        <input
           id="sf-mini-cart-cep"
-          source="MiniCartShipping"
-          value={shipping.cep}
-          onValueChange={handleCepValueChange}
-          className="font-mono text-sm h-9"
+          type="text"
+          inputMode="numeric"
+          autoComplete="new-password"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          maxLength={8}
+          value={sanitizeCep(shipping.cep)}
+          onChange={handleCepInputChange}
+          onPaste={handleCepPaste}
+          className="flex h-9 w-full flex-1 rounded-md border border-input bg-background px-3 py-2 font-mono text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         />
         <Button
           onClick={handleCalculate}
