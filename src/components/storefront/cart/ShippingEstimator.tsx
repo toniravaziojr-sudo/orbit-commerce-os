@@ -33,7 +33,7 @@ export function ShippingEstimator() {
   }, [shipping.cep, setShippingCep]);
 
   const handleCalculate = async () => {
-    const cepDigits = shipping.cep.replace(/\D/g, '');
+    const cepDigits = sanitizeCep(shipping.cep);
     if (cepDigits.length !== 8) {
       setError('CEP inválido. Digite 8 dígitos.');
       return;
