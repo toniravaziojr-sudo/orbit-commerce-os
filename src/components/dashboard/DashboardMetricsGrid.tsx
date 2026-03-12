@@ -52,7 +52,7 @@ function MetricCard({ label, value, icon: Icon, trend, trendLabel, variant = "de
   };
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+    <div className="rounded-lg border border-border bg-card p-4 shadow-sm flex-1 min-w-0">
       <div className="flex items-start justify-between">
         <div className="space-y-1">
           <p className="text-sm font-medium text-muted-foreground">{label}</p>
@@ -96,7 +96,7 @@ export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: Dashboa
   const abandonedTrend = metrics ? calculateTrend(metrics.abandonedCheckoutsToday ?? 0, metrics.abandonedCheckoutsYesterday ?? 0) : 0;
 
   return (
-    <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+    <div className="space-y-4">
       {/* Column 1: Mini Funnel */}
       <Card>
         <CardHeader className="pb-1 pt-4 px-4">
@@ -106,7 +106,7 @@ export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: Dashboa
           </CardTitle>
           <p className="text-[11px] text-muted-foreground">{trendLabel}</p>
         </CardHeader>
-        <CardContent className="px-4 pb-4 pt-3 grid grid-cols-2 gap-3">
+        <CardContent className="px-4 pb-4 pt-3 flex gap-3">
           <MetricCard label="Visitas" value={metrics?.visitorsToday ?? 0} icon={Eye} trend={visitorsTrend} trendLabel={trendLabel} variant="info" />
           <MetricCard label="Adicionou ao carrinho" value={metrics?.cartsToday ?? 0} icon={ShoppingBag} trend={cartsTrend} trendLabel={trendLabel} variant="warning" />
           <MetricCard label="Iniciou checkout" value={metrics?.checkoutsStartedToday ?? 0} icon={LogIn} trend={checkoutStartedTrend} trendLabel={trendLabel} variant="primary" />
@@ -123,7 +123,7 @@ export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: Dashboa
           </CardTitle>
           <p className="text-[11px] text-muted-foreground">{trendLabel}</p>
         </CardHeader>
-        <CardContent className="px-4 pb-4 pt-3 grid grid-cols-2 gap-3">
+        <CardContent className="px-4 pb-4 pt-3 flex gap-3">
           <MetricCard label="Pedidos Pagos" value={metrics?.paidOrdersToday ?? 0} icon={CreditCard} trend={paidOrdersTrend} trendLabel={trendLabel} variant="success" />
           <MetricCard label="Pedidos Não Pagos" value={metrics?.unpaidOrdersToday ?? 0} icon={XCircle} trend={unpaidOrdersTrend} trendLabel={trendLabel} variant="destructive" />
           <MetricCard label="Ticket Médio" value={formatCurrency(metrics?.ticketToday ?? 0)} icon={TrendingUp} trend={ticketTrend} trendLabel={trendLabel} variant="primary" />
@@ -140,7 +140,7 @@ export function DashboardMetricsGrid({ metrics, isLoading, trendLabel }: Dashboa
           </CardTitle>
           <p className="text-[11px] text-muted-foreground">{trendLabel}</p>
         </CardHeader>
-        <CardContent className="px-4 pb-4 pt-3 grid grid-cols-2 gap-3">
+        <CardContent className="px-4 pb-4 pt-3 flex gap-3">
           <MetricCard label="Total abandonados" value={metrics?.abandonedCheckoutsToday ?? 0} icon={ShoppingCart} trend={abandonedTrend} trendLabel={trendLabel} variant="warning" />
           <MetricCard label="Recuperados" value={metrics?.recoveredCheckoutsToday ?? 0} icon={RotateCcw} variant="success" />
           <MetricCard label="Com erros de contato" value={metrics?.errorCheckoutsToday ?? 0} icon={AlertTriangle} variant="destructive" />
