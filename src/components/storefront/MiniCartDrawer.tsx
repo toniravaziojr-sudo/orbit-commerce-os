@@ -349,7 +349,7 @@ function MiniCartShipping({
         />
         <Button
           onClick={handleCalculate}
-          disabled={isCalculating || shipping.cep.replace(/\D/g, '').length < 8}
+          disabled={isCalculating || sanitizeCep(shipping.cep).length < 8}
           variant="outline"
           size="sm"
           className="h-9 px-3"
