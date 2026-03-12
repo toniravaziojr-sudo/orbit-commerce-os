@@ -10,6 +10,7 @@ import { CartItem, ShippingOption } from '@/contexts/CartContext';
 import { AttributionData } from '@/hooks/useAttribution';
 import { sanitizeCep } from '@/lib/cepUtils';
 import { AffiliateData } from '@/lib/affiliateTracking';
+import { getFbp, getFbc, generateEventId } from '@/lib/marketingTracker';
 
 export type PaymentMethod = 'pix' | 'boleto' | 'credit_card';
 
@@ -266,6 +267,13 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
               affiliate_code: affiliate.affiliate_code,
               captured_at: affiliate.captured_at,
             } : undefined,
+            // Meta CAPI: pass browser identifiers for server-side deduplication
+            meta_capi: {
+              fbp: getFbp() || undefined,
+              fbc: getFbc() || undefined,
+              event_source_url: window.location.href,
+              purchase_event_id: generateEventId(), // Same ID will be used client-side
+            },
           },
         });
 

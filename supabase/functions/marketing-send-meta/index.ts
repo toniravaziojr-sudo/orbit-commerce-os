@@ -273,7 +273,7 @@ serve(async (req) => {
     }
 
     // Send to Meta Conversions API
-    const metaUrl = `https://graph.facebook.com/v18.0/${config.meta_pixel_id}/events?access_token=${config.meta_access_token}`;
+    const metaUrl = `https://graph.facebook.com/v21.0/${config.meta_pixel_id}/events?access_token=${config.meta_access_token}`;
     
     console.log(`[marketing-send-meta] Sending ${event_name} to Meta CAPI for tenant ${tenant_id}`);
     console.log(`[marketing-send-meta] user_data keys:`, Object.keys(hashedUserData));

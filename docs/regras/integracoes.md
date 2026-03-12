@@ -930,6 +930,57 @@ O callback OAuth descobre automaticamente:
 
 **Compatibilidade com Storefront:** O MetaUnifiedSettings ao salvar Pixel/CAPI atualiza tanto `marketplace_connections` quanto `marketing_integrations` para manter o `MarketingTrackerProvider` funcionando.
 
+### Meta CAPI (Conversions API) — Implementação Server-Side
+
+> **Adicionado em:** 2026-03-12
+
+#### Arquitetura
+
+O sistema envia eventos **dual** (browser + servidor) para a Meta:
+- **Browser**: Via `fbq()` no `MarketingTracker` (client-side pixel)
+- **Servidor**: Via `sendMetaCapiEvents()` no `_shared/meta-capi-sender.ts`
+
+A deduplicação é garantida pelo `event_id` compartilhado entre browser e servidor.
+
+#### Pontos de Disparo Server-Side
+
+| Evento | Edge Function | Quando Dispara |
+|--------|--------------|----------------|
+| **Purchase** | `checkout-create-order` | Na criação do pedido (todos os métodos) |
+| **Purchase** | `mercadopago-storefront-webhook` | Quando pagamento aprovado (PIX/Boleto) |
+| **Purchase** | `pagarme-webhook` | Quando pagamento aprovado (PIX/Boleto) |
+| **Purchase** | `pagbank-webhook` | Quando pagamento aprovado (PIX/Boleto) |
+
+#### Dados Enviados ao CAPI
+
+Cada Purchase server-side inclui os seguintes parâmetros (máximo matching):
+- **user_data**: email (hashed), phone (hashed, normalizado +55), first_name, last_name, city, state, zip, country (br), external_id (customer_id), fbp, fbc, client_ip_address, client_user_agent
+- **custom_data**: value, currency (BRL), content_ids (resolveMetaContentId), content_type (product), contents (com item_price e quantity), num_items, order_id
+
+#### Deduplicação Browser ↔ Servidor
+
+1. O `useCheckoutPayment` gera um `purchase_event_id` via `generateEventId()` e o envia junto ao payload do `checkout-create-order`
+2. O mesmo `event_id` é usado pelo pixel client-side no `trackPurchase()`
+3. Cookies `_fbp` e `_fbc` são capturados no browser e enviados ao servidor
+4. A Meta usa `event_id` + `fbp` para deduplicar automaticamente
+
+#### Arquivos
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `supabase/functions/_shared/meta-capi-sender.ts` | Helper compartilhado com `sendCapiPurchase()`, `sendCapiLead()`, `sendCapiInitiateCheckout()` |
+| `supabase/functions/marketing-send-meta/index.ts` | Edge function standalone para envio CAPI (usada em testes manuais) |
+| `src/lib/marketingTracker.ts` | Client-side: `getFbp()`, `getFbc()`, `generateEventId()` |
+| `src/hooks/useCheckoutPayment.ts` | Passa `meta_capi` (fbp, fbc, event_source_url, purchase_event_id) ao server |
+
+#### Regras
+
+1. **Eventos CAPI são non-blocking**: falhas no envio CAPI nunca devem impedir a criação do pedido ou processamento do webhook
+2. **Resolução de content_id**: sempre usa `resolveMetaContentId()` (meta_retailer_id > sku > product_id)
+3. **Graph API v21.0**: todos os endpoints usam a versão 21.0
+4. **Hashing**: email e phone são hasheados com SHA-256 conforme especificação Meta
+5. **País padrão**: 'br' quando não especificado
+
 ### Mapeamento: Pack → Módulo do Sistema
 
 | Pack | Módulo | Rota |

@@ -6,6 +6,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { sendCapiPurchase, sendCapiInitiateCheckout, sendCapiLead } from "../_shared/meta-capi-sender.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -84,6 +85,13 @@ interface CreateOrderRequest {
   affiliate?: {
     affiliate_code: string;
     captured_at: string;
+  };
+  // Meta CAPI data from client (for server-side deduplication)
+  meta_capi?: {
+    fbp?: string;
+    fbc?: string;
+    event_source_url?: string;
+    purchase_event_id?: string;
   };
 }
 
@@ -445,6 +453,58 @@ serve(async (req) => {
       } else {
         console.warn('[checkout-create-order] Affiliate not found for code:', payload.affiliate.affiliate_code);
       }
+    }
+
+    // 9. Send Meta CAPI Purchase event (server-side, non-blocking)
+    // This fires alongside the client-side pixel event using the same event_id for deduplication
+    try {
+      // Fetch product meta_retailer_ids for proper catalog matching
+      const { data: productMeta } = await supabase
+        .from('products')
+        .select('id, sku, meta_retailer_id')
+        .in('id', payload.items.map(i => i.product_id));
+
+      const productMetaMap = new Map(
+        (productMeta || []).map(p => [p.id, { sku: p.sku, meta_retailer_id: p.meta_retailer_id }])
+      );
+
+      const capiItems = payload.items.map(item => {
+        const meta = productMetaMap.get(item.product_id);
+        return {
+          product_id: item.product_id,
+          sku: meta?.sku || item.sku,
+          meta_retailer_id: meta?.meta_retailer_id || null,
+          name: item.product_name,
+          price: item.unit_price,
+          quantity: item.quantity,
+        };
+      });
+
+      await sendCapiPurchase(supabase, payload.tenant_id, {
+        order_id: orderId,
+        order_number: orderNumber,
+        value: payload.total,
+        currency: 'BRL',
+        items: capiItems,
+        customer: {
+          email: normalizedEmail,
+          phone: payload.customer.phone,
+          name: payload.customer.name,
+          city: payload.shipping.city,
+          state: payload.shipping.state,
+          zip: payload.shipping.postal_code,
+          external_id: customerId || undefined,
+        },
+        event_id: payload.meta_capi?.purchase_event_id,
+        event_source_url: payload.meta_capi?.event_source_url,
+        fbp: payload.meta_capi?.fbp,
+        fbc: payload.meta_capi?.fbc,
+      });
+
+      console.log('[checkout-create-order] Meta CAPI Purchase event sent');
+    } catch (capiError) {
+      // Non-blocking - don't fail the order if CAPI fails
+      console.warn('[checkout-create-order] Meta CAPI error (non-blocking):', capiError);
     }
 
     return new Response(JSON.stringify({
