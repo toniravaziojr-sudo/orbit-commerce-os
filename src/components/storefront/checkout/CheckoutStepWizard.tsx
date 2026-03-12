@@ -1169,9 +1169,22 @@ function Step2Address({
           <Label htmlFor="shippingPostalCode">CEP *</Label>
           <Input
             id="shippingPostalCode"
-            value={formData.shippingPostalCode}
-            onChange={(e) => onChange('shippingPostalCode', e.target.value)}
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            value={formatCepDisplay(formData.shippingPostalCode)}
+            onChange={(e) => onChange('shippingPostalCode', sanitizeCep(e.target.value))}
+            onBlur={(e) => {
+              const digits = sanitizeCep(e.target.value);
+              if (digits !== sanitizeCep(formData.shippingPostalCode)) {
+                onChange('shippingPostalCode', digits);
+              }
+            }}
             placeholder="00000-000"
+            maxLength={9}
             disabled={disabled}
             className={errors.shippingPostalCode ? 'border-destructive' : ''}
           />
