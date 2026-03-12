@@ -46,9 +46,7 @@ export function ShippingCalculator({
   };
 
   const handleCalculate = async () => {
-    const cleanCep = cep.replace(/\D/g, '');
-    
-    if (cleanCep.length !== 8) {
+    if (cepDigits.length !== 8) {
       setError('CEP inválido');
       return;
     }
