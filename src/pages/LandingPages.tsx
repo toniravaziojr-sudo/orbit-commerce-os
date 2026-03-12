@@ -328,9 +328,13 @@ export default function LandingPages() {
             <Sparkles className="h-4 w-4 mr-2" />
             Importar com IA
           </Button>
-          <Button onClick={() => setCreateDialogOpen(true)}>
-            <Sparkles className="h-4 w-4 mr-2" />
+          <Button onClick={() => setIsAIArchitectOpen(true)}>
+            <Wand2 className="h-4 w-4 mr-2" />
             Criar com IA
+          </Button>
+          <Button variant="outline" onClick={() => setCreateDialogOpen(true)}>
+            <Sparkles className="h-4 w-4 mr-2" />
+            Gerador IA (HTML)
           </Button>
         </div>
       </div>
