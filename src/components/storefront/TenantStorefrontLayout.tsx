@@ -99,6 +99,7 @@ export function TenantStorefrontLayout() {
 
   return (
     <CartProvider tenantSlug={tenantSlug}>
+      <CartTracker tenantId={tenant.id} />
       <DiscountProvider>
         <MiniCartProvider>
           <StorefrontConfigProvider tenantId={tenant.id} customDomain={customDomain}>
