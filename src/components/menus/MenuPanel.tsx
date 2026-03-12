@@ -24,6 +24,8 @@ import { CSS } from '@dnd-kit/utilities';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { cachePurge } from '@/lib/storefrontCachePurge';
+import { useAuth } from '@/hooks/useAuth';
 
 
 // Local item for pending changes (may not have all DB fields yet)
@@ -188,6 +190,7 @@ export default function MenuPanel({
 }: MenuPanelProps) {
   const { items: dbItems, isLoading } = useMenuItems(menuId);
   const { toast } = useToast();
+  const { currentTenant } = useAuth();
   
   const isFooterMenu = location === 'footer_1' || location === 'footer_2';
   
@@ -241,10 +244,11 @@ export default function MenuPanel({
   useEffect(() => {
     const hasNewItems = localItems.some(i => i.isNew);
     const hasDeletedItems = localItems.some(i => i.isDeleted);
-    const hasOrderChanges = JSON.stringify(localItems.filter(i => !i.isNew && !i.isDeleted).map(i => ({ id: i.id, parent_id: i.parent_id, sort_order: i.sort_order }))) 
-      !== JSON.stringify(originalItems.map(i => ({ id: i.id, parent_id: i.parent_id, sort_order: i.sort_order })));
+    const activeItems = localItems.filter(i => !i.isNew && !i.isDeleted);
+    const hasFieldChanges = JSON.stringify(activeItems.map(i => ({ id: i.id, parent_id: i.parent_id, sort_order: i.sort_order, label: i.label, item_type: i.item_type, ref_id: i.ref_id, url: i.url }))) 
+      !== JSON.stringify(originalItems.map(i => ({ id: i.id, parent_id: i.parent_id, sort_order: i.sort_order, label: i.label, item_type: i.item_type, ref_id: i.ref_id, url: i.url })));
     
-    setHasChanges(hasNewItems || hasDeletedItems || hasOrderChanges);
+    setHasChanges(hasNewItems || hasDeletedItems || hasFieldChanges);
   }, [localItems, originalItems]);
 
   // Build hierarchical structure
@@ -629,6 +633,20 @@ export default function MenuPanel({
       }
 
       toast({ title: 'Menu salvo com sucesso!' });
+      
+      // Purge menu cache so CDN serves fresh data
+      if (currentTenant?.id) {
+        cachePurge.menu(currentTenant.id);
+      }
+      
+      // Inform user about republishing
+      setTimeout(() => {
+        toast({ 
+          title: '📢 Atenção: Publique a loja', 
+          description: 'Para que os ajustes no menu apareçam na loja pública, você precisa republicar o tema no Builder.',
+          duration: 8000,
+        });
+      }, 500);
       
       // Refresh from DB
       const { data: refreshedItems } = await supabase
