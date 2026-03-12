@@ -86,7 +86,6 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
       const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
       const shippingTotal = shipping.selected?.price || 0;
       
-      console.log('[checkout] === CALLING startCheckoutSession ===');
       
       try {
         const result = await startCheckoutSession({
