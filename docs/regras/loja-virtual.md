@@ -1631,3 +1631,17 @@ Sistema de tracking de visitantes **próprio da loja**, independente de pixels e
 | **Descrição** | A função `formatCurrency` dividia valores por 100 (`value / 100`), assumindo que estavam em centavos. Mas `orders.total` armazena valores em Reais. Resultado: vendas de R$ 220,29 apareciam como R$ 2,20. |
 | **Correção** | Removida a divisão por 100. `formatCurrency(value)` agora usa o valor direto. |
 | **Afeta** | Dashboard → Vendas, Ticket Médio |
+
+### Client-Side Visit Tracking (v8.10.0 — 2026-03-12)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Hook |
+| **Localização** | `src/hooks/useVisitorTracking.ts` |
+| **Contexto** | Integrado em `StorefrontLayout` e `TenantStorefrontLayout` |
+| **Descrição** | Tracking client-side de visitas para rotas SPA (checkout, carrinho, etc.) que não passam pelo Edge Function `storefront-html`. Complementa o beacon server-side. |
+| **Comportamento** | 1. Obtém/cria cookie `_sf_vid` (365 dias). 2. Detecta `page_type` pela URL. 3. Insere em `storefront_visits` via Supabase client (anon key). 4. Deduplica por pathname na sessão (não re-rastreia mesma rota). |
+| **Condições** | Só executa se `tenantId` estiver definido. Hook é chamado antes dos early returns nos layouts. |
+| **Visual** | N/A (invisível ao usuário) |
+| **Afeta** | Dashboard → Funil → Visitas |
+| **Erros/Edge cases** | Falha silenciosa (console.warn). Não bloqueia navegação. |
