@@ -50,6 +50,9 @@ export function TenantStorefrontLayout() {
   const isPublished = bootstrap?.is_published ?? false;
   const bootstrapTemplate = bootstrap?.template || null;
 
+  // Client-side visit tracking (must be before early returns — hook uses useLocation)
+  useVisitorTracking(tenant?.id);
+
   // Check for preview mode
   const searchParams = new URLSearchParams(window.location.search);
   const isPreview = searchParams.get('preview') === '1';
