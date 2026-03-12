@@ -233,11 +233,6 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
     }
   }, [formData, isHydrated]);
 
-  useEffect(() => {
-    if (shipping.cep && !formData.shippingPostalCode) {
-      setFormData(prev => ({ ...prev, shippingPostalCode: sanitizeCep(shipping.cep) }));
-    }
-  }, [shipping.cep]);
 
   const handleSubmit = async () => {
     const errors = validateCheckoutForm(formData);
