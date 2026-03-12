@@ -1191,7 +1191,7 @@ function buildFullPage(opts: {
               couponResult.innerHTML='<span style="color:#16a34a;font-weight:500;">✓ Cupom aplicado!</span>';
               updateCartUI();
             }else{
-              couponResult.innerHTML='<span style="color:#dc2626;">'+(data.message||'Cupom inválido')+'</span>';
+              couponResult.innerHTML='<span style="color:#dc2626;">'+(data.error||'Cupom inválido')+'</span>';
             }
           }).catch(function(){couponResult.innerHTML='<span style="color:#dc2626;">Erro ao validar.</span>';});
         } else if(action==="initiate-checkout"){
