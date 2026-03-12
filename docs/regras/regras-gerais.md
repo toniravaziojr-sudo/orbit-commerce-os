@@ -867,6 +867,25 @@ Checkout abandonado é classificado como "com erro" quando:
 - Se não houver investimento: exibe "Sem investimento"
 - Cor: **azul (info)** se ROAS ≥ 1, **vermelho (destructive)** se < 1
 
+#### RPC `count_unique_visitors` (v8.10.0)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Database Function (RPC) |
+| **Assinatura** | `count_unique_visitors(p_tenant_id uuid, p_start timestamptz, p_end timestamptz) → integer` |
+| **Descrição** | Conta visitantes únicos via `COUNT(DISTINCT visitor_id)` direto no banco. Substitui a abordagem anterior de buscar todos os `visitor_id` e deduplicar no JavaScript (que tinha limite de 1000 rows). |
+| **Segurança** | `SECURITY DEFINER`, `search_path = public` |
+| **Chamada** | `supabase.rpc('count_unique_visitors', { p_tenant_id, p_start, p_end })` |
+
+#### Client-Side Visit Tracking (v8.10.0)
+
+| Campo | Valor |
+|-------|-------|
+| **Hook** | `src/hooks/useVisitorTracking.ts` |
+| **Descrição** | Tracking client-side para rotas SPA (checkout, carrinho) que não passam pelo Edge Function. Complementa o beacon server-side. Usa mesmo cookie `_sf_vid` e tabela `storefront_visits`. |
+| **Integrado em** | `StorefrontLayout`, `TenantStorefrontLayout` (antes dos early returns) |
+| **Deduplicação** | Por pathname na sessão (não re-rastreia mesma rota no mesmo carregamento) |
+
 ---
 
 ## Regra de Imutabilidade

@@ -1556,9 +1556,10 @@ Sistema de tracking de visitantes **próprio da loja**, independente de pixels e
 
 | Componente | Localização | Descrição |
 |------------|-------------|-----------|
-| **Beacon JS** | `storefront-html/index.ts` (inline ~1KB) | Script vanilla injetado no HTML de cada página Edge-rendered |
+| **Beacon JS (Edge)** | `storefront-html/index.ts` (inline ~1KB) | Script vanilla injetado no HTML de cada página Edge-rendered |
+| **Hook SPA** | `src/hooks/useVisitorTracking.ts` | Tracking client-side para rotas SPA (checkout, carrinho, conta) |
 | **Tabela** | `storefront_visits` | Armazena cada visita com `visitor_id` único |
-| **Dashboard** | `src/hooks/useDashboardMetrics.ts` | Deduplica `visitor_id` para contar visitantes únicos |
+| **Dashboard** | `src/hooks/useDashboardMetrics.ts` | Conta visitantes únicos via RPC `count_unique_visitors` (COUNT DISTINCT no banco) |
 
 ### Funcionamento do Beacon
 
