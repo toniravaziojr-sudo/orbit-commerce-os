@@ -59,6 +59,9 @@ const EMPTY_METRICS: DashboardMetrics = {
   checkoutsStartedToday: 0, checkoutsStartedYesterday: 0,
   abandonedCheckoutsToday: 0, abandonedCheckoutsYesterday: 0,
   recoveredCheckoutsToday: 0, errorCheckoutsToday: 0,
+  totalRevenueToday: 0, totalRevenueYesterday: 0,
+  adSpendToday: 0, adSpendYesterday: 0,
+  conversionRateToday: 0, conversionRateYesterday: 0,
 };
 
 function computePeriods(startDate?: Date, endDate?: Date) {
