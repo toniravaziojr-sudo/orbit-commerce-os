@@ -634,6 +634,20 @@ export default function MenuPanel({
 
       toast({ title: 'Menu salvo com sucesso!' });
       
+      // Purge menu cache so CDN serves fresh data
+      if (currentTenant?.id) {
+        cachePurge.menu(currentTenant.id);
+      }
+      
+      // Inform user about republishing
+      setTimeout(() => {
+        toast({ 
+          title: '📢 Atenção: Publique a loja', 
+          description: 'Para que os ajustes no menu apareçam na loja pública, você precisa republicar o tema no Builder.',
+          duration: 8000,
+        });
+      }, 500);
+      
       // Refresh from DB
       const { data: refreshedItems } = await supabase
         .from('menu_items')
