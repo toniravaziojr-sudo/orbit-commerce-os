@@ -2679,7 +2679,7 @@ serve(async (req) => {
       trackingData.category = routeData;
       trackingData.categoryProductIds = (compilerContext.categoryProducts || []).slice(0, 10).map((p: any) => p.id);
     }
-    const marketingScripts = generateMarketingPixelScripts(marketingConfig, trackingData);
+    const marketingScripts = generateMarketingPixelScripts(marketingConfig, trackingData, { tenantId, supabaseUrl: Deno.env.get('SUPABASE_URL') || '', anonKey: Deno.env.get('SUPABASE_ANON_KEY') || '' });
     
     // === NEWSLETTER POPUP ===
     const newsletterPopupHtml = generateNewsletterPopupHtml(newsletterPopup, tenantId, route.type);
