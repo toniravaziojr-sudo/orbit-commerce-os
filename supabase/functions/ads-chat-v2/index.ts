@@ -1319,7 +1319,27 @@ async function executeToolDirect(supabase: any, tenantId: string, toolName: stri
         const normalizedQuery = normalizeForSearch(rawQuery);
         const queryTokens = normalizedQuery.split(/\s+/).filter((t) => t.length >= 2);
 
-        // 1) Carrega arquivos (paginado) para garantir contagem real no tenant
+        // 1) Carrega TODAS as pastas do tenant para mapa folder_id → nome
+        const { data: allFolders } = await supabase
+          .from("files")
+          .select("id, original_name, filename")
+          .eq("tenant_id", tenantId)
+          .eq("is_folder", true)
+          .limit(1000);
+
+        const allFolderMap: Record<string, string> = {};
+        const matchingFolderIds = new Set<string>();
+        for (const folder of (allFolders || [])) {
+          const folderName = folder.original_name || folder.filename || "";
+          allFolderMap[folder.id] = folderName;
+          const normalizedFolderName = normalizeForSearch(folderName);
+          if (normalizedFolderName.includes(normalizedQuery) ||
+              (queryTokens.length >= 2 && queryTokens.every((token: string) => normalizedFolderName.includes(token)))) {
+            matchingFolderIds.add(folder.id);
+          }
+        }
+
+        // 2) Carrega arquivos (paginado) para garantir contagem real no tenant
         const pageSize = 1000;
         let from = 0;
         const allFiles: any[] = [];
@@ -1345,7 +1365,7 @@ async function executeToolDirect(supabase: any, tenantId: string, toolName: stri
           from += pageSize;
         }
 
-        // 2) Resolve produtos que batem com o termo (acento-insensível)
+        // 3) Resolve produtos que batem com o termo (acento-insensível)
         const { data: products } = await supabase
           .from("products")
           .select("id, name")
@@ -1358,32 +1378,23 @@ async function executeToolDirect(supabase: any, tenantId: string, toolName: stri
         });
         const matchedProductIds = new Set(matchedProducts.map((p: any) => p.id));
 
-        // 3) Filtra por nome de arquivo OU vínculo metadata.product_id
+        // 4) Filtra por: nome do arquivo OU pasta cujo nome bate OU metadata.product_id
         const matchedFiles = allFiles.filter((f: any) => {
           const fileName = `${f.original_name || ""} ${f.filename || ""}`.trim();
           const normalizedFileName = normalizeForSearch(fileName);
           const byName = normalizedFileName.includes(normalizedQuery) ||
-            (queryTokens.length >= 2 && queryTokens.every((token) => normalizedFileName.includes(token)));
+            (queryTokens.length >= 2 && queryTokens.every((token: string) => normalizedFileName.includes(token)));
+
+          const byFolder = !!(f.folder_id && matchingFolderIds.has(f.folder_id));
 
           const meta = f.metadata as Record<string, any> | null;
           const productId = typeof meta?.product_id === "string" ? meta.product_id : null;
           const byProductLink = !!(productId && matchedProductIds.has(productId));
 
-          return byName || byProductLink;
+          return byName || byFolder || byProductLink;
         });
 
         const pageResults = matchedFiles.slice(0, maxResults);
-
-        // 4) Mapa de pastas (somente para os resultados retornados)
-        const folderIds = [...new Set(pageResults.map((f: any) => f.folder_id).filter(Boolean))];
-        let folderMap: Record<string, string> = {};
-        if (folderIds.length > 0) {
-          const { data: flds } = await supabase.from("files").select("id, original_name, filename").in("id", folderIds);
-          folderMap = (flds || []).reduce((acc: any, f: any) => {
-            acc[f.id] = f.original_name || f.filename;
-            return acc;
-          }, {});
-        }
 
         const results = pageResults.map((f: any) => {
           const meta = f.metadata as Record<string, any> | null;
@@ -1394,7 +1405,7 @@ async function executeToolDirect(supabase: any, tenantId: string, toolName: stri
           return {
             id: f.id,
             name: f.original_name || f.filename,
-            folder: folderMap[f.folder_id] || "Raiz",
+            folder: allFolderMap[f.folder_id] || "Raiz",
             mime_type: f.mime_type,
             size_kb: f.size_bytes ? Math.round(f.size_bytes / 1024) : null,
             url,
@@ -1410,8 +1421,10 @@ async function executeToolDirect(supabase: any, tenantId: string, toolName: stri
         return JSON.stringify({
           query: rawQuery,
           total_found: matchedFiles.length,
+          total_tenant_files: allFiles.length,
           returned_results: results.length,
           matched_products: matchedProducts.map((p: any) => ({ id: p.id, name: p.name })),
+          matched_folders: [...matchingFolderIds].map(id => ({ id, name: allFolderMap[id] })),
           results,
           tip: matchedFiles.length === 0
             ? `Nenhum arquivo encontrado com "${rawQuery}". Tente termos diferentes ou use browse_drive para navegar pelas pastas manualmente.`
