@@ -157,17 +157,26 @@ export function injectMetaPixel(pixelId: string): void {
 export function trackMetaEvent(eventName: string, params?: Record<string, any>, eventId?: string): void {
   if (!window.fbq) return;
 
-  const trackParams = eventId 
-    ? { ...params, eventID: eventId }
-    : params;
+  // IMPORTANT: Meta Pixel expects eventID in the 4th parameter (options object),
+  // NOT inside the content data (3rd parameter). This enables proper deduplication
+  // between browser Pixel events and server-side CAPI events.
+  const options = eventId ? { eventID: eventId } : undefined;
 
   if (eventName === 'PageView') {
-    window.fbq('track', 'PageView');
+    if (options) {
+      window.fbq('track', 'PageView', {}, options);
+    } else {
+      window.fbq('track', 'PageView');
+    }
   } else {
-    window.fbq('track', eventName, trackParams);
+    if (options) {
+      window.fbq('track', eventName, params || {}, options);
+    } else {
+      window.fbq('track', eventName, params);
+    }
   }
   
-  console.log('[MarketingTracker] Meta event:', eventName, trackParams);
+  console.log('[MarketingTracker] Meta event:', eventName, params, eventId ? `(eventID: ${eventId})` : '');
 }
 
 // =============================================

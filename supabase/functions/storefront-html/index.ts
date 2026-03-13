@@ -105,7 +105,7 @@ function parseRoute(path: string): ParsedRoute {
 // ============================================
 // MARKETING PIXELS — Deferred script injection
 // ============================================
-function generateMarketingPixelScripts(config: any, trackingData?: { routeType: string; product?: any; category?: any; categoryProductIds?: string[] }): string {
+function generateMarketingPixelScripts(config: any, trackingData?: { routeType: string; product?: any; category?: any; categoryProductIds?: string[] }, capiContext?: { tenantId: string; supabaseUrl: string; anonKey: string }): string {
   if (!config) return '';
   const scripts: string[] = [];
   const prefetches: string[] = [];
@@ -113,6 +113,27 @@ function generateMarketingPixelScripts(config: any, trackingData?: { routeType: 
   const metaEnabled = config.meta_enabled && config.meta_pixel_id;
   const googleEnabled = config.google_enabled && config.google_measurement_id;
   const tiktokEnabled = config.tiktok_enabled && config.tiktok_pixel_id;
+
+  // Inject CAPI helper + event ID generator (before pixels, available globally)
+  const hasCapi = !!(metaEnabled && capiContext?.tenantId);
+  if (hasCapi) {
+    const ctxTenantId = escapeHtml(capiContext!.tenantId);
+    const ctxUrl = escapeHtml(capiContext!.supabaseUrl);
+    const ctxKey = escapeHtml(capiContext!.anonKey);
+    scripts.push(`
+    <script>
+    window._sfEvtId=function(){return Date.now()+'-'+Math.random().toString(36).substr(2,7);};
+    (function(){var p=new URLSearchParams(location.search);var fc=p.get('fbclid');if(fc){try{localStorage.setItem('_fbc','fb.1.'+Date.now()+'.'+fc);}catch(e){}}})();
+    window._sfCapi=function(n,eid,cd,ud){
+      fetch('${ctxUrl}/functions/v1/marketing-capi-track',{
+        method:'POST',headers:{'Content-Type':'application/json','apikey':'${ctxKey}'},
+        body:JSON.stringify({tenant_id:'${ctxTenantId}',event_name:n,event_id:eid,event_source_url:location.href,
+          custom_data:cd||{},user_data:Object.assign({fbp:(document.cookie.match(/(?:^|;\\s*)_fbp=([^;]+)/)||[])[1]||undefined,fbc:(function(){try{return localStorage.getItem('_fbc')||undefined}catch(e){return undefined}})()},ud||{})}),
+        keepalive:true
+      }).catch(function(){});
+    };
+    </script>`);
+  }
 
   // Meta Pixel
   if (metaEnabled) {
@@ -123,7 +144,7 @@ function generateMarketingPixelScripts(config: any, trackingData?: { routeType: 
     (function(){
       function loadMeta(){
         !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
-        fbq('init','${pixelId}');fbq('track','PageView');
+        fbq('init','${pixelId}');var _pvEid=window._sfEvtId?_sfEvtId():'';fbq('track','PageView',{},{eventID:_pvEid});if(window._sfCapi)_sfCapi('PageView',_pvEid);
         window._sfMetaReady=true;
         if(window._sfPendingMetaEvents){window._sfPendingMetaEvents.forEach(function(fn){fn();});delete window._sfPendingMetaEvents;}
       }
@@ -182,7 +203,7 @@ function generateMarketingPixelScripts(config: any, trackingData?: { routeType: 
   // === ROUTE-SPECIFIC TRACKING EVENTS ===
   // These fire ViewContent/ViewCategory after pixels load (deferred-safe)
   if (trackingData && (metaEnabled || googleEnabled || tiktokEnabled)) {
-    const eventScript = generateRouteTrackingScript(config, trackingData, { metaEnabled: !!metaEnabled, googleEnabled: !!googleEnabled, tiktokEnabled: !!tiktokEnabled });
+    const eventScript = generateRouteTrackingScript(config, trackingData, { metaEnabled: !!metaEnabled, googleEnabled: !!googleEnabled, tiktokEnabled: !!tiktokEnabled, hasCapi });
     if (eventScript) scripts.push(eventScript);
   }
 
@@ -206,7 +227,7 @@ function resolveMetaContentId(product: { id: string; sku?: string; meta_retailer
 function generateRouteTrackingScript(
   config: any,
   data: { routeType: string; product?: any; category?: any; categoryProductIds?: string[] },
-  flags: { metaEnabled: boolean; googleEnabled: boolean; tiktokEnabled: boolean }
+  flags: { metaEnabled: boolean; googleEnabled: boolean; tiktokEnabled: boolean; hasCapi: boolean }
 ): string {
   const lines: string[] = [];
 
@@ -220,8 +241,10 @@ function generateRouteTrackingScript(
     // Meta ViewContent
     if (flags.metaEnabled) {
       lines.push(`
-      function _sfMetaVC(){fbq('track','ViewContent',{content_ids:['${escapeHtml(contentId)}'],content_type:'product',content_name:'${name}',value:${price},currency:'BRL'});}
+      var _vcEid=window._sfEvtId?_sfEvtId():'';
+      function _sfMetaVC(){fbq('track','ViewContent',{content_ids:['${escapeHtml(contentId)}'],content_type:'product',content_name:'${name}',value:${price},currency:'BRL'},{eventID:_vcEid});}
       if(window._sfMetaReady){_sfMetaVC();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_sfMetaVC);}
+      ${flags.hasCapi ? `if(window._sfCapi)_sfCapi('ViewContent',_vcEid,{content_ids:['${escapeHtml(contentId)}'],content_type:'product',content_name:'${name}',value:${price},currency:'BRL'});` : ''}
       `);
     }
     // Google view_item
@@ -246,8 +269,10 @@ function generateRouteTrackingScript(
     // Meta ViewCategory (custom event)
     if (flags.metaEnabled) {
       lines.push(`
-      function _sfMetaCat(){fbq('trackCustom','ViewCategory',{content_category:'${catName}',content_ids:${JSON.stringify(productIds)},content_type:'product_group'});}
+      var _catEid=window._sfEvtId?_sfEvtId():'';
+      function _sfMetaCat(){fbq('trackCustom','ViewCategory',{content_category:'${catName}',content_ids:${JSON.stringify(productIds)},content_type:'product_group'},{eventID:_catEid});}
       if(window._sfMetaReady){_sfMetaCat();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_sfMetaCat);}
+      ${flags.hasCapi ? `if(window._sfCapi)_sfCapi('ViewCategory',_catEid,{content_category:'${catName}',content_ids:${JSON.stringify(productIds)},content_type:'product_group'});` : ''}
       `);
     }
     // Google view_item_list
@@ -1107,9 +1132,11 @@ function buildFullPage(opts: {
         // === MARKETING: AddToCart event ===
         var contentId=metaRetailerId||sku||id;
         var prc=parseFloat(price)||0;
+        var _atcEid=window._sfEvtId?_sfEvtId():'';
         // Meta
-        function _atcMeta(){fbq('track','AddToCart',{content_ids:[contentId],content_type:'product',content_name:name,value:prc,currency:'BRL'});}
+        function _atcMeta(){fbq('track','AddToCart',{content_ids:[contentId],content_type:'product',content_name:name,value:prc,currency:'BRL'},{eventID:_atcEid});}
         if(window.fbq){if(window._sfMetaReady){_atcMeta();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_atcMeta);}}
+        if(window._sfCapi)_sfCapi('AddToCart',_atcEid,{content_ids:[contentId],content_type:'product',content_name:name,value:prc,currency:'BRL',contents:[{id:contentId,quantity:1,item_price:prc}]});
         // Google
         function _atcGtag(){gtag('event','add_to_cart',{currency:'BRL',value:prc,items:[{item_id:contentId,item_name:name,price:prc,quantity:1}]});}
         if(window.gtag){if(window._sfGtagReady){_atcGtag();}else{window._sfPendingGtagEvents=window._sfPendingGtagEvents||[];window._sfPendingGtagEvents.push(_atcGtag);}}
@@ -1170,7 +1197,9 @@ function buildFullPage(opts: {
           // === MARKETING: InitiateCheckout event ===
           var _coContentId=btn.dataset.productMetaId||btn.dataset.productSku||btn.dataset.productId;
           var _coPrice=parseFloat(btn.dataset.productPrice)||0;
-          if(window.fbq){var _icM=function(){fbq('track','InitiateCheckout',{content_ids:[_coContentId],content_type:'product',value:_coPrice,currency:'BRL',num_items:qty2});};if(window._sfMetaReady){_icM();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_icM);}}
+          var _icEid=window._sfEvtId?_sfEvtId():'';
+          if(window.fbq){var _icM=function(){fbq('track','InitiateCheckout',{content_ids:[_coContentId],content_type:'product',value:_coPrice,currency:'BRL',num_items:qty2},{eventID:_icEid});};if(window._sfMetaReady){_icM();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_icM);}}
+          if(window._sfCapi)_sfCapi('InitiateCheckout',_icEid,{content_ids:[_coContentId],content_type:'product',value:_coPrice,currency:'BRL',num_items:qty2});
           if(window.gtag){var _icG=function(){gtag('event','begin_checkout',{currency:'BRL',value:_coPrice,items:[{item_id:_coContentId,price:_coPrice,quantity:qty2}]});};if(window._sfGtagReady){_icG();}else{window._sfPendingGtagEvents=window._sfPendingGtagEvents||[];window._sfPendingGtagEvents.push(_icG);}}
           if(window.ttq){var _icT=function(){ttq.track('InitiateCheckout',{content_id:_coContentId,content_type:'product',value:_coPrice,currency:'BRL',quantity:qty2});};if(window._sfTTReady){_icT();}else{window._sfPendingTTEvents=window._sfPendingTTEvents||[];window._sfPendingTTEvents.push(_icT);}}
           window.location.href="/checkout";
@@ -1289,9 +1318,12 @@ function buildFullPage(opts: {
             var _icCartTotal=cart.reduce(function(s,i){return s+i.price*i.quantity},0);
             var _icCartIds=cart.map(function(i){return i.meta_retailer_id||i.sku||i.product_id});
             var _icCartItems=cart.map(function(i){return{item_id:i.meta_retailer_id||i.sku||i.product_id,item_name:i.name,price:i.price,quantity:i.quantity}});
-            if(window.fbq){var _icMf=function(){fbq('track','InitiateCheckout',{content_ids:_icCartIds,content_type:'product',value:_icCartTotal,currency:'BRL',num_items:cart.reduce(function(s,i){return s+i.quantity},0)});};if(window._sfMetaReady){_icMf();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_icMf);}}
+            var _icCartEid=window._sfEvtId?_sfEvtId():'';
+            var _icCartNumItems=cart.reduce(function(s,i){return s+i.quantity},0);
+            if(window.fbq){var _icMf=function(){fbq('track','InitiateCheckout',{content_ids:_icCartIds,content_type:'product',value:_icCartTotal,currency:'BRL',num_items:_icCartNumItems},{eventID:_icCartEid});};if(window._sfMetaReady){_icMf();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_icMf);}}
+            if(window._sfCapi)_sfCapi('InitiateCheckout',_icCartEid,{content_ids:_icCartIds,content_type:'product',value:_icCartTotal,currency:'BRL',num_items:_icCartNumItems});
             if(window.gtag){var _icGf=function(){gtag('event','begin_checkout',{currency:'BRL',value:_icCartTotal,items:_icCartItems});};if(window._sfGtagReady){_icGf();}else{window._sfPendingGtagEvents=window._sfPendingGtagEvents||[];window._sfPendingGtagEvents.push(_icGf);}}
-            if(window.ttq){var _icTf=function(){ttq.track('InitiateCheckout',{content_type:'product',value:_icCartTotal,currency:'BRL',quantity:cart.reduce(function(s,i){return s+i.quantity},0)});};if(window._sfTTReady){_icTf();}else{window._sfPendingTTEvents=window._sfPendingTTEvents||[];window._sfPendingTTEvents.push(_icTf);}}
+            if(window.ttq){var _icTf=function(){ttq.track('InitiateCheckout',{content_type:'product',value:_icCartTotal,currency:'BRL',quantity:_icCartNumItems});};if(window._sfTTReady){_icTf();}else{window._sfPendingTTEvents=window._sfPendingTTEvents||[];window._sfPendingTTEvents.push(_icTf);}}
           }
           // Don't prevent default — let the <a> navigate to /checkout
         } else if(action==="close-newsletter-popup"){
@@ -2647,7 +2679,7 @@ serve(async (req) => {
       trackingData.category = routeData;
       trackingData.categoryProductIds = (compilerContext.categoryProducts || []).slice(0, 10).map((p: any) => p.id);
     }
-    const marketingScripts = generateMarketingPixelScripts(marketingConfig, trackingData);
+    const marketingScripts = generateMarketingPixelScripts(marketingConfig, trackingData, { tenantId, supabaseUrl: Deno.env.get('SUPABASE_URL') || '', anonKey: Deno.env.get('SUPABASE_ANON_KEY') || '' });
     
     // === NEWSLETTER POPUP ===
     const newsletterPopupHtml = generateNewsletterPopupHtml(newsletterPopup, tenantId, route.type);
