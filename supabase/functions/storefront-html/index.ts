@@ -346,7 +346,7 @@ function generateSupportWidgetHtml(themeSettings: any, routeType: string, tenant
         <p style="font-size:14px;color:#666;margin:0;">Olá! Para iniciar o atendimento, preencha seus dados:</p>
         <input id="sf-chat-name" type="text" placeholder="Seu nome" style="width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;outline:none;font-family:inherit;box-sizing:border-box;">
         <input id="sf-chat-email" type="email" placeholder="Seu e-mail" style="width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;outline:none;font-family:inherit;box-sizing:border-box;">
-        <button id="sf-chat-start" style="width:100%;padding:12px;background:${escapeHtml(buttonColor)};color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">Iniciar conversa</button>
+        <button id="sf-chat-start" style="width:100%;padding:12px;background:${escapeHtml(chatColor)};color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">Iniciar conversa</button>
       </div>
       <div id="sf-chat-messages" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
         <div id="sf-chat-scroll" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px;">
