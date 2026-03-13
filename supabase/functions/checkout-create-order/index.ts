@@ -386,7 +386,7 @@ serve(async (req) => {
     
     // Calculate installment value if applicable
     const installmentsCount = payload.installments || 1;
-    const installmentValue = installmentsCount > 1 ? Math.round((payload.total / installmentsCount) * 100) / 100 : null;
+    const installmentValue = installmentsCount > 1 ? Math.round((canonicalTotal / installmentsCount) * 100) / 100 : null;
     
     const { data: order, error: orderError } = await supabase
       .from('orders')
@@ -400,13 +400,14 @@ serve(async (req) => {
         status: 'pending',
         payment_status: 'pending',
         payment_method: payload.payment_method,
-        subtotal: payload.subtotal,
-        shipping_total: payload.shipping_total,
-        discount_total: payload.discount_total || 0,
+        subtotal: canonicalSubtotal,
+        shipping_total: canonicalShipping,
+        discount_total: canonicalDiscount,
         payment_method_discount: payload.payment_method_discount || 0,
         installments: installmentsCount,
         installment_value: installmentValue,
-        total: payload.total,
+        total: canonicalTotal,
+        canonical_total: canonicalTotal,
         shipping_street: payload.shipping.street,
         shipping_number: payload.shipping.number,
         shipping_complement: payload.shipping.complement || null,
@@ -437,6 +438,32 @@ serve(async (req) => {
 
     const orderId = order.id;
     console.log('[checkout-create-order] Order created:', orderId);
+
+    // === PRICE AUDIT RECORD (Security Plan v3.1 Phase 2B) ===
+    try {
+      await supabase
+        .from('order_price_audit')
+        .insert({
+          order_id: orderId,
+          tenant_id: payload.tenant_id,
+          submitted_subtotal: payload.subtotal,
+          submitted_shipping: payload.shipping_total,
+          submitted_discount: payload.discount_total || 0,
+          submitted_payment_discount: payload.payment_method_discount || 0,
+          submitted_total: submittedTotal,
+          canonical_subtotal: canonicalSubtotal,
+          canonical_shipping: canonicalShipping,
+          canonical_discount: canonicalDiscount,
+          canonical_total: canonicalTotal,
+          shipping_quote_id: validatedQuoteId || null,
+          discount_id: payload.discount?.discount_id || null,
+          validation_notes: totalDrift > 0.01
+            ? `Drift detected: submitted=${submittedTotal}, canonical=${canonicalTotal}`
+            : 'Prices match',
+        });
+    } catch (auditErr) {
+      console.warn('[checkout-create-order][PRICE_AUDIT] Non-blocking audit insert error:', auditErr);
+    }
 
     // 4. Create order items
     console.log('[checkout-create-order] Creating order items');
