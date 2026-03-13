@@ -3,11 +3,19 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v6.11.0"; // Fix: clarify Drive = internal system drive (not Google Drive) in prompts and tool descriptions
+const VERSION = "v6.12.0"; // Fix: contagem de criativos no Drive agora considera metadata.product_id + busca sem acento
 // ====================
 
 const AI_TIMEOUT_MS = 90000;
 const GRAPH_VERSION = "v21.0";
+
+function normalizeForSearch(value: string): string {
+  return (value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
