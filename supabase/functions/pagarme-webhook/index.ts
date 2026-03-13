@@ -96,6 +96,20 @@ serve(async (req) => {
       });
     }
 
+    // === TENANT-AWARE HMAC VERIFICATION (log mode) ===
+    // Fetch tenant's webhook_secret from payment_providers.credentials
+    const { data: providerConfig } = await supabase
+      .from('payment_providers')
+      .select('credentials')
+      .eq('tenant_id', existingTransaction.tenant_id)
+      .eq('provider', 'pagarme')
+      .maybeSingle();
+
+    const tenantWebhookSecret = (providerConfig?.credentials as any)?.webhook_secret;
+    const hmacResult = await verifyPagarmeHmac(req, rawBody, tenantWebhookSecret, existingTransaction.tenant_id);
+    const hmacBlock = handleHmacResult(hmacResult, requestId);
+    if (hmacBlock) return hmacBlock; // Future enforcement
+
     // ==== RECORD EVENT for idempotency ====
     const { error: insertEventError } = await supabase
       .from('payment_events')
