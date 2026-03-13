@@ -2964,3 +2964,50 @@ Páginas SPA (carrinho, conta, rastreio, busca, quiz) ficavam presas em "Carrega
 | `Anyone can view order by number for confirmation` | `orders` | SELECT |
 | `Anyone can view order items for checkout` | `order_items` | SELECT |
 | **Log estruturado** | Inclui `tenant=XXXXXXXX` (8 primeiros chars do UUID) em todos os logs HMAC para correlação |
+
+---
+
+## 🔧 Correção — Pipeline de Observabilidade (v2026-03-14b)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Correção de instrumentação |
+| **Problema** | `order_price_audit` e `shipping_quotes` estavam vazias em produção apesar de pedidos reais. Todos os pedidos tinham `canonical_total=NULL`. |
+| **Causa raiz** | As versões publicadas de `checkout-create-order` e `shipping-quote` eram anteriores ao código de instrumentação. O pipeline existia no código mas nunca foi publicado para o ambiente Live. |
+| **Correções aplicadas** | |
+
+### 1. `checkout-create-order/index.ts`
+
+| Antes | Depois |
+|-------|--------|
+| Insert em `order_price_audit` não incluía `subtotal_drift`, `total_drift`, `has_drift` | Agora inclui os 3 campos com valores calculados explícitos |
+| Erros de insert eram `console.warn` dentro de catch genérico | Agora usa `console.error` com `.message` e `.details` do erro real |
+| Sucesso do audit não era logado | Agora loga `[PRICE_AUDIT] Audit recorded — has_drift=X, total_drift=Y` |
+
+### 2. `StorefrontConfigContext.tsx` (quoteAsync)
+
+| Antes | Depois |
+|-------|--------|
+| Items enviados para `shipping-quote` sem `product_id`/`variant_id` | Agora inclui `product_id` e `variant_id` de cada item |
+| Assinatura de `quoteAsync` não aceitava `product_id`/`variant_id` | Tipo expandido para incluir ambos opcionalmente |
+| Resultado: fingerprint do frete era diferente do fingerprint no checkout | Resultado: fingerprints consistentes entre cotação e validação |
+
+### 3. `ShippingEstimator.tsx`
+
+| Antes | Depois |
+|-------|--------|
+| Usava `item.id` (ID interno do carrinho) como `product_id` | Agora usa `item.product_id` (código real do produto) |
+| Não enviava `variant_id` | Agora inclui `variant_id` |
+
+### Validação pós-publish
+
+| O que validar | Como |
+|---------------|------|
+| `order_price_audit` sendo preenchida | Consultar `SELECT count(*) FROM order_price_audit` após novos pedidos |
+| `shipping_quotes` sendo preenchida | Consultar `SELECT count(*) FROM shipping_quotes` após cotações de frete |
+| `canonical_total` preenchido | Consultar `SELECT canonical_total FROM orders ORDER BY created_at DESC LIMIT 5` |
+| Drift detection | Consultar `SELECT * FROM order_price_audit WHERE has_drift = true` |
+
+### Regra estrutural
+
+> **O pipeline de observabilidade depende de PUBLISH.** Sem publicar as Edge Functions, `order_price_audit`, `shipping_quotes` e `canonical_total` permanecem vazios em produção. Sempre verificar deploy após alterações nessas funções.

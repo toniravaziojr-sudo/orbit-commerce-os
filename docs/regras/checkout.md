@@ -648,10 +648,12 @@ O header e footer do checkout usam `StorefrontHeaderContent` e `StorefrontFooter
 | **order_items.unit_price** | Vem do frontend (preço unitário exibido ao cliente). |
 | **Cobrança** | Funções de cobrança (Pagar.me e Mercado Pago) usam `payload.amount` (valor enviado pelo frontend). Apenas **logam** comparação com `canonical_total` para auditoria. Nenhum valor é substituído. |
 | **Variantes** | Quando o item tem `variant_id`, o cálculo canônico busca o preço na tabela `product_variants`. Sem `variant_id`, usa `products.price`. |
-| **Auditoria** | Tabela `order_price_audit` registra: `submitted_subtotal`, `submitted_shipping`, `submitted_discount`, `submitted_total` vs `canonical_subtotal`, `canonical_shipping`, `canonical_discount`, `canonical_total`. Colunas geradas: `subtotal_drift`, `total_drift`, `has_drift`. |
+| **Auditoria** | Tabela `order_price_audit` registra: `submitted_subtotal`, `submitted_shipping`, `submitted_discount`, `submitted_total` vs `canonical_subtotal`, `canonical_shipping`, `canonical_discount`, `canonical_total`. Colunas calculadas pelo insert: `subtotal_drift`, `total_drift`, `has_drift`. |
 | **Drift Detection** | Log estruturado `[PRICE_AUDIT] ⚠️ DRIFT DETECTED` quando diferença > R$0.01 entre submitted e canonical. |
 | **Modo atual** | **SIMULAÇÃO PURA** — divergências são registradas mas NÃO alteram valor cobrado e NÃO bloqueiam o pedido. Enforcement futuro será ativado por flag separada. |
 | **Performance** | 1-2 queries adicionais (produtos + variantes quando aplicável), 1 query condicional (revalidar desconto). Sem impacto perceptível — ambas usam índices existentes por tenant_id. |
+| **Dependência de deploy** | A gravação de auditoria e o preenchimento de `canonical_total` na tabela `orders` dependem da versão publicada de `checkout-create-order`. Sem publish, o pipeline de observabilidade fica inativo em produção. |
+| **Correção v2026-03-14b** | (1) Insert em `order_price_audit` agora inclui `subtotal_drift`, `total_drift` e `has_drift` explicitamente. (2) Erros de insert são logados como `console.error` (antes eram silenciados). (3) Fingerprint do carrinho corrigido: `StorefrontConfigContext` agora envia `product_id` e `variant_id` nos itens do frete. `ShippingEstimator` corrigido para usar `item.product_id` em vez de `item.id`. |
 
 ---
 
