@@ -13852,6 +13852,24 @@ export type Database = {
           },
         ]
       }
+      rate_limit_entries: {
+        Row: {
+          key: string
+          request_count: number
+          window_start: string
+        }
+        Insert: {
+          key: string
+          request_count?: number
+          window_start?: string
+        }
+        Update: {
+          key?: string
+          request_count?: number
+          window_start?: string
+        }
+        Relationships: []
+      }
       related_products: {
         Row: {
           created_at: string
@@ -18335,6 +18353,14 @@ export type Database = {
         Args: { p_module_key: string; p_tenant_id: string }
         Returns: Json
       }
+      check_rate_limit: {
+        Args: {
+          p_key: string
+          p_max_requests?: number
+          p_window_seconds?: number
+        }
+        Returns: boolean
+      }
       check_tenant_order_limit: {
         Args: { p_tenant_id: string }
         Returns: {
@@ -18483,6 +18509,7 @@ export type Database = {
           summary: string
         }[]
       }
+      get_security_flag: { Args: { p_flag_key: string }; Returns: boolean }
       get_tenant_module_access: { Args: { p_tenant_id: string }; Returns: Json }
       get_whatsapp_config_for_tenant: {
         Args: { p_tenant_id: string }

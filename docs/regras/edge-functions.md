@@ -2788,3 +2788,59 @@ Páginas SPA (carrinho, conta, rastreio, busca, quiz) ficavam presas em "Carrega
 | **Descrição** | Exit intent refinado: Desktop usa apenas `mouseleave` (clientY <= 0), Mobile usa detecção de scroll-up repetido no topo |
 | **Comportamento** | **Desktop**: `mouseleave` com `clientY <= 0` — dispara apenas quando mouse sai pela borda superior (em direção às abas/fechar). Removido `mousemove` agressivo. **Mobile**: Detecta `scrollY <= 20` com tentativas repetidas de scroll-up (2+ vezes). Delay 2.5s antes de ativar. Flag `eiFired` impede re-trigger. Uma vez por sessão. |
 | **Paridade SPA** | Mesma lógica aplicada em `NewsletterPopupBlock.tsx` (React) |
+
+---
+
+## 🔒 Segurança — Infraestrutura de Rate Limit Compartilhado (v2026-03-14)
+
+### Tabela `rate_limit_entries`
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Tabela de infraestrutura |
+| **Localização** | `public.rate_limit_entries` |
+| **Descrição** | Armazena contadores de rate limit com estado compartilhado entre instâncias serverless |
+| **Colunas** | `key TEXT` (ex: `get-order:1.2.3.4`), `window_start TIMESTAMPTZ`, `request_count INT` |
+| **RLS** | Habilitado, sem policies (acesso exclusivo via SECURITY DEFINER) |
+| **Cleanup** | Automático na própria função `check_rate_limit()` — entradas > 2x janela são removidas |
+
+### Função `check_rate_limit(p_key, p_window_seconds, p_max_requests)`
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Função SQL |
+| **Localização** | `public.check_rate_limit()` |
+| **Descrição** | Verifica e incrementa rate limit atomicamente. Retorna `true` se permitido, `false` se bloqueado |
+| **Segurança** | `SECURITY DEFINER`, `search_path = 'public'`, EXECUTE revogado de `PUBLIC/anon/authenticated` |
+| **Uso** | Chamada via service role em edge functions: `supabase.rpc('check_rate_limit', { p_key, p_window_seconds, p_max_requests })` |
+
+### Função `get_security_flag(p_flag_key)`
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Função SQL |
+| **Localização** | `public.get_security_flag()` |
+| **Descrição** | Consulta `billing_feature_flags` para verificar se uma flag de segurança está ativa. Retorna `boolean` |
+| **Segurança** | `SECURITY DEFINER`, `search_path = 'public'`, EXECUTE revogado de `PUBLIC/anon/authenticated` |
+| **Uso** | Apenas internamente por outras funções SQL ou via service role |
+
+---
+
+## 🔒 Segurança — get-order v2 com Rate Limit (v2026-03-14)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Alteração |
+| **Localização** | `supabase/functions/get-order/index.ts` |
+| **Descrição** | Substituído rate limit em memória por `check_rate_limit()` no banco (estado compartilhado) |
+| **Comportamento** | 1. Extrai IP do header `x-forwarded-for` ou `x-real-ip`. 2. Chama `check_rate_limit` com chave `get-order:{IP}`, janela 60s, max 15 requests. 3. Se bloqueado → responde 429 com `Retry-After`. 4. Se falhar o check → permite (fail-open). |
+| **Afeta** | Página de obrigado (thank-you), rastreamento de pedido |
+
+---
+
+## 🔒 Segurança — Correção search_path em Funções SQL (v2026-03-14)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Correção de segurança |
+| **Descrição** | Adicionado `SET search_path TO 'public'` em todas as funções que estavam sem essa configuração |
+| **Funções corrigidas (SECURITY DEFINER)** | `sync_product_rating()`, `migrate_existing_templates_to_sets()` |
+| **Funções corrigidas (triggers)** | `update_product_components_updated_at()`, `update_storefront_template_sets_updated_at()`, `update_youtube_updated_at()`, `update_video_jobs_updated_at()`, `update_newsletter_popup_configs_updated_at()` |
+| **Motivo** | Funções SECURITY DEFINER sem search_path fixo podem ser exploradas via manipulação de schema search path (CVE-level) |
