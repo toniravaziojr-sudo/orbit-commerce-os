@@ -894,7 +894,8 @@ ${JSON.stringify(factualData, null, 2).substring(0, 15000)}
 - Se algo está faltando nos dados, diga "esta informação não está disponível neste nível de consulta — posso detalhar por conjunto de anúncios se quiser"
 - Sugira próximos passos baseados nos dados
 - NUNCA afirme que "o pixel está com problema" ou que "dados estão comprometidos" a menos que os dados acima contenham explicitamente essa informação
-- Memórias persistentes são contexto auxiliar, NÃO são fatos atuais verificados — nunca as apresente como verdade absoluta`;
+- Memórias persistentes são contexto auxiliar, NÃO são fatos atuais verificados — nunca as apresente como verdade absoluta
+- Quando o lojista mencionar "meu drive", "drive" ou "arquivos", ele se refere ao Drive INTERNO do sistema (Meu Drive), NÃO ao Google Drive. NUNCA mencione Google Drive.`;
 }
 
 function buildStrategicSystemPrompt(storeName: string, context: any): string {
