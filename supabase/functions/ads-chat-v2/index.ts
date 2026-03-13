@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v6.9.0"; // Port adset/ad performance tools to v2 executeToolDirect + purge pixel memories
+const VERSION = "v6.10.0"; // Add browse_drive + search_drive_files to executeToolDirect fallback
 // ====================
 
 const AI_TIMEOUT_MS = 90000;
@@ -1259,6 +1259,70 @@ async function executeToolDirect(supabase: any, tenantId: string, toolName: stri
             };
           }),
         });
+      }
+      case "browse_drive": {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        let foldersQuery = supabase.from("files")
+          .select("id, filename, original_name, is_system_folder, created_at")
+          .eq("tenant_id", tenantId).eq("is_folder", true);
+        if (args.folder_id) foldersQuery = foldersQuery.eq("folder_id", args.folder_id);
+        else foldersQuery = foldersQuery.is("folder_id", null);
+        const { data: folders } = await foldersQuery.order("is_system_folder", { ascending: false }).order("original_name", { ascending: true }).limit(50);
+
+        let filesQuery = supabase.from("files")
+          .select("id, filename, original_name, storage_path, mime_type, size_bytes, metadata, created_at")
+          .eq("tenant_id", tenantId).eq("is_folder", false);
+        if (args.folder_id) filesQuery = filesQuery.eq("folder_id", args.folder_id);
+        else filesQuery = filesQuery.is("folder_id", null);
+        if (args.file_type === "image") filesQuery = filesQuery.ilike("mime_type", "image/%");
+        else if (args.file_type === "video") filesQuery = filesQuery.ilike("mime_type", "video/%");
+        const { data: files } = await filesQuery.order("created_at", { ascending: false }).limit(100);
+
+        const fileItems = (files || []).map((f: any) => {
+          const meta = f.metadata as Record<string, any> | null;
+          const bucket = meta?.bucket || (f.storage_path?.includes("tenants/") ? "store-assets" : "tenant-files");
+          const isPublic = bucket !== "tenant-files";
+          let url = meta?.url || null;
+          if (!url && f.storage_path && isPublic) url = `${supabaseUrl}/storage/v1/object/public/${bucket}/${f.storage_path}`;
+          return { id: f.id, name: f.original_name || f.filename, mime_type: f.mime_type, size_kb: f.size_bytes ? Math.round(f.size_bytes / 1024) : null, url, bucket, is_public: isPublic, created_at: f.created_at, metadata_tags: meta?.product_id ? { product_id: meta.product_id, is_winner: meta.is_winner } : null };
+        });
+        const folderItems = (folders || []).map((f: any) => ({ id: f.id, name: f.original_name || f.filename, is_system: f.is_system_folder }));
+        return JSON.stringify({ current_folder_id: args.folder_id || null, folders: folderItems, files: fileItems, total_folders: folderItems.length, total_files: fileItems.length, tip: folderItems.length === 0 && fileItems.length === 0 ? "Pasta vazia. Tente navegar para outra pasta ou usar search_drive_files para buscar em todas as pastas." : null });
+      }
+      case "search_drive_files": {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const maxResults = Math.min(args.limit || 30, 50);
+        let sfQuery = supabase.from("files")
+          .select("id, filename, original_name, storage_path, mime_type, size_bytes, metadata, folder_id, created_at")
+          .eq("tenant_id", tenantId).eq("is_folder", false)
+          .or(`original_name.ilike.%${args.query}%,filename.ilike.%${args.query}%`);
+        if (args.file_type === "image") sfQuery = sfQuery.ilike("mime_type", "image/%");
+        else if (args.file_type === "video") sfQuery = sfQuery.ilike("mime_type", "video/%");
+        const { data: sFiles, error: sfErr } = await sfQuery.order("created_at", { ascending: false }).limit(maxResults);
+        if (sfErr) return JSON.stringify({ error: sfErr.message });
+
+        const folderIds = [...new Set((sFiles || []).map((f: any) => f.folder_id).filter(Boolean))];
+        let folderMap: Record<string, string> = {};
+        if (folderIds.length > 0) {
+          const { data: flds } = await supabase.from("files").select("id, original_name, filename").in("id", folderIds);
+          folderMap = (flds || []).reduce((acc: any, f: any) => { acc[f.id] = f.original_name || f.filename; return acc; }, {});
+        }
+        const results = (sFiles || []).map((f: any) => {
+          const meta = f.metadata as Record<string, any> | null;
+          const bucket = meta?.bucket || (f.storage_path?.includes("tenants/") ? "store-assets" : "tenant-files");
+          const isPublic = bucket !== "tenant-files";
+          let url = meta?.url || null;
+          if (!url && f.storage_path && isPublic) url = `${supabaseUrl}/storage/v1/object/public/${bucket}/${f.storage_path}`;
+          return { id: f.id, name: f.original_name || f.filename, folder: folderMap[f.folder_id] || "Raiz", mime_type: f.mime_type, size_kb: f.size_bytes ? Math.round(f.size_bytes / 1024) : null, url, bucket, is_public: isPublic, created_at: f.created_at, metadata_tags: meta?.product_id ? { product_id: meta.product_id, is_winner: meta.is_winner, scores: meta.scores } : null };
+        });
+        return JSON.stringify({ query: args.query, results, total_found: results.length, tip: results.length === 0 ? `Nenhum arquivo encontrado com "${args.query}". Tente termos diferentes ou use browse_drive para navegar pelas pastas manualmente.` : results.length >= maxResults ? `Mostrando os ${maxResults} resultados mais recentes. Pode haver mais — refine a busca.` : null });
+      }
+      case "get_product_images": {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const q = supabase.from("product_images").select("id, image_url, position, alt_text").eq("tenant_id", tenantId);
+        if (args.product_id) q.eq("product_id", args.product_id);
+        const { data: images } = await q.order("position", { ascending: true }).limit(20);
+        return JSON.stringify({ total: images?.length || 0, images: images || [] });
       }
       default:
         return JSON.stringify({ error: `Ferramenta '${toolName}' não disponível no modo direto. Use o chat padrão.` });
