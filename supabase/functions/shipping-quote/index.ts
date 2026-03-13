@@ -1219,9 +1219,51 @@ serve(async (req) => {
 
     console.log(`[ShippingQuote] Total options: ${finalOptions.length} in ${Date.now() - startTime}ms`);
 
+    // ========== PERSIST QUOTE SNAPSHOT (Security Plan v3.1 Phase 2A) ==========
+    let quoteId: string | null = null;
+    try {
+      const cartFingerprint = await generateCartFingerprint(
+        items.map(item => ({
+          product_id: item.product_id || '',
+          variant_id: item.variant_id || '',
+          quantity: item.quantity,
+        }))
+      );
+
+      const cartSubtotalCents = Math.round(
+        items.reduce((acc, item) => acc + item.price * item.quantity * 100, 0)
+      );
+
+      const { data: quoteRow, error: quoteError } = await supabase
+        .from('shipping_quotes')
+        .insert({
+          tenant_id: resolvedTenantId,
+          cep: recipientCepDigits,
+          cart_fingerprint: cartFingerprint,
+          all_options: finalOptions,
+          cart_subtotal_cents: cartSubtotalCents,
+          // selected_option will be empty until client selects
+          selected_option: {},
+          shipping_price_cents: 0,
+          is_free: false,
+        })
+        .select('id')
+        .single();
+
+      if (quoteError) {
+        console.warn('[ShippingQuote] Failed to persist quote (non-blocking):', quoteError.message);
+      } else {
+        quoteId = quoteRow.id;
+        console.log('[ShippingQuote] Quote persisted:', quoteId);
+      }
+    } catch (persistErr) {
+      console.warn('[ShippingQuote] Quote persistence error (non-blocking):', persistErr);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
+        quote_id: quoteId,
         options: finalOptions,
         origin_cep: originCep,
         recipient_cep,

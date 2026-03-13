@@ -222,7 +222,7 @@ const emptyCart: CartContextType = {
   clearCart: () => {},
   subtotal: 0,
   totalItems: 0,
-  shipping: { cep: '', options: [], selected: null },
+  shipping: { cep: '', options: [], selected: null, quoteId: null },
   setShippingCep: () => {},
   setShippingOptions: () => {},
   selectShipping: () => {},
