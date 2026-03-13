@@ -448,6 +448,12 @@ export default function OrderDetail() {
                   <span className="capitalize">{order.payment_gateway}</span>
                 </div>
               )}
+              {order.payment_gateway_id && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Código da operadora</span>
+                  <span className="text-sm font-mono">{order.payment_gateway_id}</span>
+                </div>
+              )}
               {order.paid_at && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Pago em</span>

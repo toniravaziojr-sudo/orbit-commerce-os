@@ -89,7 +89,8 @@ export function useCustomerOrders(customerEmailOverride?: string) {
           customer_name, customer_email
         `)
         .eq('customer_email', customerEmail)
-        .or('payment_gateway_id.not.is.null,status.neq.pending')
+        // Ghost Order Rule: only show orders confirmed by gateway
+        .not('payment_gateway_id', 'is', null)
         .order('created_at', { ascending: false });
 
       if (error) {
