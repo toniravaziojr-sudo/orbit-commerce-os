@@ -1,8 +1,10 @@
 /**
- * LGPD/Redaction - Mascaramento de PII para Brasil
+ * LGPD/PCI Redaction - Mascaramento de PII e dados sensíveis de pagamento
  * 
- * Este módulo remove/mascara dados pessoais sensíveis de textos
+ * Este módulo remove/mascara dados pessoais sensíveis e dados PCI
  * antes de logs, métricas ou armazenamento.
+ * 
+ * v2.0 - Adicionado: redação PCI (cartão, CVV, tokens), redactPayloadForLog()
  */
 
 interface PIIPattern {
@@ -28,7 +30,6 @@ const PII_PATTERNS: PIIPattern[] = [
   },
   
   // Telefones BR (diversos formatos)
-  // +55 (11) 99999-9999, (11) 9 9999-9999, 11999999999, etc.
   { 
     pattern: /\+?55?\s?\(?0?\d{2}\)?\s?9?\s?\d{4,5}[- ]?\d{4}/g, 
     replacement: "[TELEFONE]",
@@ -104,10 +105,43 @@ const PII_PATTERNS: PIIPattern[] = [
   },
 ];
 
+// ============================================
+// PCI-SPECIFIC: Chaves de objeto que NUNCA devem ser logadas
+// ============================================
+
+/**
+ * Chaves de objeto que contêm dados PCI/sensíveis de pagamento.
+ * Qualquer campo com esses nomes será completamente mascarado em logs.
+ */
+const PCI_FORBIDDEN_KEYS = new Set([
+  // Dados de cartão (PAN, CVV, etc.)
+  'card_number', 'number', 'cvv', 'security_code', 'cvc',
+  'exp_month', 'exp_year', 'expiration_month', 'expiration_year',
+  'holder_name', 'cardholder', 'holder',
+  'encrypted', 'card_hash', 'card_token',
+  // Tokens de acesso
+  'access_token', 'api_key', 'secret_key', 'token',
+  // Senhas
+  'password', 'senha',
+]);
+
+/**
+ * Chaves de objeto que podem conter dados parcialmente sensíveis.
+ * O valor é truncado em vez de completamente removido.
+ */
+const PCI_PARTIAL_KEYS = new Set([
+  'first_six_digits', 'last_four_digits',
+]);
+
+/**
+ * Chaves que indicam objetos "card" inteiros — todo o sub-objeto é mascarado.
+ */
+const PCI_CARD_OBJECT_KEYS = new Set([
+  'card', 'credit_card', 'debit_card',
+]);
+
 /**
  * Redacta PII de um texto
- * @param text Texto a ser processado
- * @returns Texto com PII mascarado
  */
 export function redactPII(text: string | null | undefined): string {
   if (!text) return "";
@@ -120,9 +154,7 @@ export function redactPII(text: string | null | undefined): string {
 }
 
 /**
- * Redacta PII de campos sensíveis em um objeto
- * @param obj Objeto com campos potencialmente sensíveis
- * @returns Objeto com campos sensíveis redactados
+ * Redacta PII de campos sensíveis em um objeto (versão original LGPD)
  */
 export function redactForLog(obj: Record<string, unknown>): Record<string, unknown> {
   const sensitiveKeys = [
@@ -138,16 +170,13 @@ export function redactForLog(obj: Record<string, unknown>): Record<string, unkno
     if (value === null || value === undefined) {
       result[key] = value;
     } else if (typeof value === 'string') {
-      // Redactar se for campo sensível ou contiver padrões de PII
       const shouldRedact = sensitiveKeys.some(sk => 
         key.toLowerCase().includes(sk.toLowerCase())
       );
       result[key] = shouldRedact ? redactPII(value) : value;
     } else if (typeof value === 'object' && !Array.isArray(value)) {
-      // Recursivo para objetos aninhados
       result[key] = redactForLog(value as Record<string, unknown>);
     } else if (Array.isArray(value)) {
-      // Processar arrays
       result[key] = value.map(item => {
         if (typeof item === 'string') return redactPII(item);
         if (typeof item === 'object' && item !== null) {
@@ -163,16 +192,76 @@ export function redactForLog(obj: Record<string, unknown>): Record<string, unkno
   return result;
 }
 
+// ============================================
+// PCI-SAFE LOG FUNCTIONS (v2.0)
+// ============================================
+
+/**
+ * Redacta dados PCI de um objeto de pagamento para log seguro.
+ * Remove completamente: número do cartão, CVV, tokens de acesso.
+ * Preserva: status, IDs de transação, valores, timestamps.
+ * 
+ * @param obj Payload de pagamento (request ou response de gateway)
+ * @returns Objeto seguro para logging (sem dados PCI)
+ */
+export function redactPayloadForLog(obj: unknown): unknown {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'string') return redactPII(obj);
+  if (typeof obj === 'number' || typeof obj === 'boolean') return obj;
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => redactPayloadForLog(item));
+  }
+  
+  if (typeof obj === 'object') {
+    const result: Record<string, unknown> = {};
+    
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      const keyLower = key.toLowerCase();
+      
+      // Objetos de cartão inteiros → mascarar completamente
+      if (PCI_CARD_OBJECT_KEYS.has(keyLower) && typeof value === 'object' && value !== null) {
+        result[key] = '[REDACTED_CARD_OBJECT]';
+        continue;
+      }
+      
+      // Chaves proibidas → mascarar valor
+      if (PCI_FORBIDDEN_KEYS.has(keyLower)) {
+        result[key] = '[REDACTED]';
+        continue;
+      }
+      
+      // Chaves parciais → manter mas indicar
+      if (PCI_PARTIAL_KEYS.has(keyLower)) {
+        result[key] = value; // first_six_digits e last_four_digits são seguros
+        continue;
+      }
+      
+      // Recursão para sub-objetos
+      result[key] = redactPayloadForLog(value);
+    }
+    
+    return result;
+  }
+  
+  return obj;
+}
+
+/**
+ * Wrapper seguro para console.log de payloads de pagamento.
+ * Uso: safeLogPayload('[prefix]', 'Descrição:', payload);
+ */
+export function safeLogPayload(prefix: string, description: string, payload: unknown): void {
+  console.log(`${prefix} ${description}`, JSON.stringify(redactPayloadForLog(payload), null, 2));
+}
+
 /**
  * Verifica se um texto contém PII
- * @param text Texto a verificar
- * @returns true se contém PII
  */
 export function containsPII(text: string | null | undefined): boolean {
   if (!text) return false;
   
   return PII_PATTERNS.some(({ pattern }) => {
-    // Reset lastIndex para patterns globais
     pattern.lastIndex = 0;
     return pattern.test(text);
   });
@@ -180,8 +269,6 @@ export function containsPII(text: string | null | undefined): boolean {
 
 /**
  * Extrai lista de tipos de PII encontrados em um texto
- * @param text Texto a analisar
- * @returns Lista de tipos de PII encontrados
  */
 export function detectPIITypes(text: string | null | undefined): string[] {
   if (!text) return [];
@@ -195,5 +282,5 @@ export function detectPIITypes(text: string | null | undefined): string[] {
     }
   }
   
-  return [...new Set(foundTypes)]; // Remove duplicatas
+  return [...new Set(foundTypes)];
 }
