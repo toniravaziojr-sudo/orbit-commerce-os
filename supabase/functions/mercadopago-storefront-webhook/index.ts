@@ -1,19 +1,21 @@
 // ============================================
 // MERCADO PAGO STOREFRONT WEBHOOK - Payment status sync
 // For tenant storefront payments (not billing)
-// Mirrors pagarme-webhook architecture
+// v2.0 - PCI log redaction + HMAC verification (log mode)
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-// Meta CAPI is now handled client-side via marketing-capi-track edge function
+import { redactPayloadForLog } from "../_shared/redact-pii.ts";
+import { verifyMercadoPagoHmac, handleHmacResult } from "../_shared/webhook-hmac.ts";
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+const MP_WEBHOOK_SECRET = Deno.env.get('MP_WEBHOOK_SECRET');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-signature, x-request-id',
 };
 
 serve(async (req) => {
@@ -31,6 +33,12 @@ serve(async (req) => {
     const queryId = url.searchParams.get('data.id') || url.searchParams.get('id');
 
     const body = await req.json().catch(() => ({}));
+
+    // === HMAC VERIFICATION (log mode) ===
+    const hmacResult = await verifyMercadoPagoHmac(req, body, MP_WEBHOOK_SECRET);
+    const hmacBlock = handleHmacResult(hmacResult, requestId);
+    if (hmacBlock) return hmacBlock; // Future enforcement
+
     const eventType = body.type || body.action || queryType || 'unknown';
     const eventId = body.id || `${Date.now()}-${requestId}`;
     const paymentId = body.data?.id || queryId;
@@ -89,7 +97,6 @@ serve(async (req) => {
     }
 
     // Fetch payment details from MP API to get current status
-    // We need the tenant's access_token
     const { data: provider } = await supabase
       .from('payment_providers')
       .select('credentials')
@@ -114,6 +121,7 @@ serve(async (req) => {
     }
 
     const payment = await mpResponse.json();
+    // PCI-safe: log only status fields, not full payment object
     console.log(`[${requestId}] MP Payment status: ${payment.status}, detail: ${payment.status_detail}`);
 
     // ==== RECORD EVENT ====
@@ -205,10 +213,6 @@ serve(async (req) => {
       if (newOrderStatus) orderUpdate.status = newOrderStatus;
       if (paidAt) orderUpdate.paid_at = paidAt;
 
-      // CRITICAL: Always ensure payment_gateway and payment_gateway_id are set.
-      // The create-charge function should set these, but the webhook acts as redundancy
-      // to guarantee every real order has a gateway reference.
-      // Without this, the ghost order filter hides the order from all lists.
       orderUpdate.payment_gateway = 'mercadopago';
       orderUpdate.payment_gateway_id = String(paymentId);
 
@@ -257,9 +261,6 @@ serve(async (req) => {
       .update({ processed_at: new Date().toISOString(), processing_result: 'success' })
       .eq('provider', 'mercadopago')
       .eq('event_id', String(eventId));
-
-    // NOTE: Meta CAPI Purchase is now sent client-side via marketing-capi-track
-    // edge function from the Thank You page, using the same event_id for deduplication
 
     // ==== EMIT CANONICAL EVENT ====
     if (existingTransaction.order_id && newPaymentStatus) {
