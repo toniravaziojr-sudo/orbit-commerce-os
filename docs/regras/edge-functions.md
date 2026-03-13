@@ -2870,4 +2870,42 @@ Páginas SPA (carrinho, conta, rastreio, busca, quiz) ficavam presas em "Carrega
 | **Sem secrets globais** | NÃO depende de `MP_WEBHOOK_SECRET` ou `PAGARME_WEBHOOK_SECRET` como env var. O secret é por tenant. |
 | **Fallback tenant sem secret** | Em modo log: registra warning estruturado `⚠️ Tenant missing webhook_secret — skipping verification`. Não bloqueia. |
 | **Modo futuro** | Quando enforcement for ativado por tenant/provider, `handleHmacResult()` retornará Response 401 para assinaturas inválidas. Decisão de enforcement será por tenant, não global. |
+
+---
+
+## 🔒 Segurança — order-lookup e get-review-data (Phase 3B, v2026-03-14)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Novas Edge Functions (segurança) |
+| **Descrição** | Criadas para substituir leituras anônimas diretas em `orders` e `order_items`, permitindo a remoção das últimas policies públicas de SELECT. |
+
+### `order-lookup`
+
+| Campo | Valor |
+|-------|-------|
+| **Localização** | `supabase/functions/order-lookup/index.ts` |
+| **Autenticação** | JWT obrigatório — valida o token e extrai o email do usuário autenticado |
+| **Ações** | `list` (lista pedidos do email autenticado, exclui ghost orders) e `get` (busca pedido por UUID ou order_number, filtrando por email) |
+| **Tabelas lidas** | `orders`, `order_items` (via service_role) |
+| **Segurança** | Nenhum usuário pode ver pedidos de outro email. Filtragem por `customer_email = userEmail` é aplicada no servidor. |
+| **Substitui** | Leituras diretas em `src/hooks/useCustomerOrders.ts` (lista e busca de pedidos do cliente logado) |
+
+### `get-review-data`
+
+| Campo | Valor |
+|-------|-------|
+| **Localização** | `supabase/functions/get-review-data/index.ts` |
+| **Autenticação** | Token de avaliação (validado via `validate_review_token` RPC). Não requer JWT. |
+| **Retorno** | `token_data` (dados do token), `items` (itens do pedido), `existing_review_product_ids` (produtos já avaliados), `store_name` |
+| **Tabelas lidas** | `order_items`, `product_reviews`, `tenants` (via service_role) |
+| **Segurança** | Retorna apenas itens do pedido vinculado ao token validado. Token expira e é de uso único. |
+| **Substitui** | 3 queries diretas em `src/pages/storefront/StorefrontReview.tsx` (order_items, product_reviews, tenants) |
+
+### Policies removidas após migração
+
+| Policy | Tabela | Operação |
+|--------|--------|----------|
+| `Anyone can view order by number for confirmation` | `orders` | SELECT |
+| `Anyone can view order items for checkout` | `order_items` | SELECT |
 | **Log estruturado** | Inclui `tenant=XXXXXXXX` (8 primeiros chars do UUID) em todos os logs HMAC para correlação |
