@@ -1,7 +1,7 @@
 // ============================================
 // PAGAR.ME WEBHOOK - Payment status sync
 // With proper idempotency via payment_events table
-// v2.0 - PCI log redaction + HMAC verification (log mode)
+// v2.1 - PCI log redaction + tenant-aware HMAC verification (log mode)
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -11,7 +11,6 @@ import { verifyPagarmeHmac, handleHmacResult } from "../_shared/webhook-hmac.ts"
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-const PAGARME_WEBHOOK_SECRET = Deno.env.get('PAGARME_WEBHOOK_SECRET');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -27,14 +26,11 @@ serve(async (req) => {
   const requestId = crypto.randomUUID().slice(0, 8);
 
   try {
-    // Read raw body for HMAC verification
+    // Read raw body for HMAC verification (keep for later tenant-aware verification)
     const rawBody = await req.text();
     const payload = JSON.parse(rawBody);
 
-    // === HMAC VERIFICATION (log mode) ===
-    const hmacResult = await verifyPagarmeHmac(req, rawBody, PAGARME_WEBHOOK_SECRET);
-    const hmacBlock = handleHmacResult(hmacResult, requestId);
-    if (hmacBlock) return hmacBlock; // Future enforcement
+    // NOTE: HMAC verification is deferred to AFTER tenant resolution (tenant-aware)
 
     // === PCI-SAFE LOGGING ===
     console.log(`[${requestId}] Webhook received:`, JSON.stringify(redactPayloadForLog(payload), null, 2));

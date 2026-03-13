@@ -92,7 +92,7 @@ serve(async (req) => {
       });
     }
 
-    // Fetch payment details from MP API to get current status
+    // Fetch tenant credentials (access_token + webhook_secret)
     const { data: provider } = await supabase
       .from('payment_providers')
       .select('credentials')
@@ -106,6 +106,13 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // === TENANT-AWARE HMAC VERIFICATION (log mode) ===
+    // Uses the tenant's own webhook_secret from payment_providers.credentials
+    const tenantWebhookSecret = (provider.credentials as any)?.webhook_secret;
+    const hmacResult = await verifyMercadoPagoHmac(req, body, tenantWebhookSecret, existingTransaction.tenant_id);
+    const hmacBlock = handleHmacResult(hmacResult, requestId);
+    if (hmacBlock) return hmacBlock; // Future enforcement
 
     const mpResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
       headers: { 'Authorization': `Bearer ${provider.credentials.access_token}` },
