@@ -1318,9 +1318,12 @@ function buildFullPage(opts: {
             var _icCartTotal=cart.reduce(function(s,i){return s+i.price*i.quantity},0);
             var _icCartIds=cart.map(function(i){return i.meta_retailer_id||i.sku||i.product_id});
             var _icCartItems=cart.map(function(i){return{item_id:i.meta_retailer_id||i.sku||i.product_id,item_name:i.name,price:i.price,quantity:i.quantity}});
-            if(window.fbq){var _icMf=function(){fbq('track','InitiateCheckout',{content_ids:_icCartIds,content_type:'product',value:_icCartTotal,currency:'BRL',num_items:cart.reduce(function(s,i){return s+i.quantity},0)});};if(window._sfMetaReady){_icMf();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_icMf);}}
+            var _icCartEid=window._sfEvtId?_sfEvtId():'';
+            var _icCartNumItems=cart.reduce(function(s,i){return s+i.quantity},0);
+            if(window.fbq){var _icMf=function(){fbq('track','InitiateCheckout',{content_ids:_icCartIds,content_type:'product',value:_icCartTotal,currency:'BRL',num_items:_icCartNumItems},{eventID:_icCartEid});};if(window._sfMetaReady){_icMf();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_icMf);}}
+            if(window._sfCapi)_sfCapi('InitiateCheckout',_icCartEid,{content_ids:_icCartIds,content_type:'product',value:_icCartTotal,currency:'BRL',num_items:_icCartNumItems});
             if(window.gtag){var _icGf=function(){gtag('event','begin_checkout',{currency:'BRL',value:_icCartTotal,items:_icCartItems});};if(window._sfGtagReady){_icGf();}else{window._sfPendingGtagEvents=window._sfPendingGtagEvents||[];window._sfPendingGtagEvents.push(_icGf);}}
-            if(window.ttq){var _icTf=function(){ttq.track('InitiateCheckout',{content_type:'product',value:_icCartTotal,currency:'BRL',quantity:cart.reduce(function(s,i){return s+i.quantity},0)});};if(window._sfTTReady){_icTf();}else{window._sfPendingTTEvents=window._sfPendingTTEvents||[];window._sfPendingTTEvents.push(_icTf);}}
+            if(window.ttq){var _icTf=function(){ttq.track('InitiateCheckout',{content_type:'product',value:_icCartTotal,currency:'BRL',quantity:_icCartNumItems});};if(window._sfTTReady){_icTf();}else{window._sfPendingTTEvents=window._sfPendingTTEvents||[];window._sfPendingTTEvents.push(_icTf);}}
           }
           // Don't prevent default — let the <a> navigate to /checkout
         } else if(action==="close-newsletter-popup"){
