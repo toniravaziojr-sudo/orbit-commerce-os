@@ -29,6 +29,7 @@ export interface CartShipping {
   cep: string;
   options: ShippingOption[];
   selected: ShippingOption | null;
+  quoteId: string | null;
 }
 
 interface CartContextType {
@@ -43,7 +44,7 @@ interface CartContextType {
   // Shipping
   shipping: CartShipping;
   setShippingCep: (cep: string) => void;
-  setShippingOptions: (options: ShippingOption[]) => void;
+  setShippingOptions: (options: ShippingOption[], quoteId?: string | null) => void;
   selectShipping: (option: ShippingOption | null) => void;
   total: number;
 }
@@ -64,6 +65,7 @@ export function CartProvider({ children, tenantSlug }: CartProviderProps) {
     cep: '',
     options: [],
     selected: null,
+    quoteId: null,
   });
   const [isLoading, setIsLoading] = useState(true);
   const hasHydrated = useRef(false);
@@ -168,7 +170,7 @@ export function CartProvider({ children, tenantSlug }: CartProviderProps) {
 
   const clearCart = useCallback(() => {
     setItems([]);
-    setShipping({ cep: '', options: [], selected: null });
+    setShipping({ cep: '', options: [], selected: null, quoteId: null });
   }, []);
 
   // Shipping functions
@@ -177,8 +179,8 @@ export function CartProvider({ children, tenantSlug }: CartProviderProps) {
     setShipping(prev => ({ ...prev, cep: digits }));
   }, []);
 
-  const setShippingOptions = useCallback((options: ShippingOption[]) => {
-    setShipping(prev => ({ ...prev, options, selected: options[0] || null }));
+  const setShippingOptions = useCallback((options: ShippingOption[], quoteId?: string | null) => {
+    setShipping(prev => ({ ...prev, options, selected: options[0] || null, quoteId: quoteId ?? null }));
   }, []);
 
   const selectShipping = useCallback((option: ShippingOption | null) => {
@@ -220,7 +222,7 @@ const emptyCart: CartContextType = {
   clearCart: () => {},
   subtotal: 0,
   totalItems: 0,
-  shipping: { cep: '', options: [], selected: null },
+  shipping: { cep: '', options: [], selected: null, quoteId: null },
   setShippingCep: () => {},
   setShippingOptions: () => {},
   selectShipping: () => {},

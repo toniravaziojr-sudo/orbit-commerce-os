@@ -636,6 +636,8 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         // Attribution & affiliate for conversion tracking
         attribution: attribution || undefined,
         affiliate: affiliate || undefined,
+        // Shipping quote ID for server-side validation (Security Plan v3.1)
+        shippingQuoteId: shipping.quoteId || undefined,
       });
 
       if (result.success) {

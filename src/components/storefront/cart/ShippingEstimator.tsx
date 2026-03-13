@@ -53,7 +53,10 @@ export function ShippingEstimator() {
           free_shipping: item.free_shipping || false,
           free_shipping_method: (item as any).free_shipping_method || null,
         }));
-        options = await quoteAsync(cepDigits, subtotal, cartItems);
+        const result = await quoteAsync(cepDigits, subtotal, cartItems);
+        options = result;
+        // Extract quote_id if available (from shipping-quote edge function)
+        const quoteId = (result as any)?.quote_id || null;
       } else {
         // Sync quote for mock/manual providers
         options = quote(cepDigits, subtotal);
@@ -68,14 +71,16 @@ export function ShippingEstimator() {
 
       if (options.length === 0) {
         setError('Não encontramos opções de frete para este CEP.');
-        setShippingOptions([]);
+        setShippingOptions([], null);
       } else {
-        setShippingOptions(options);
+        // Pass quote_id from async quote or null for sync
+        const resolvedQuoteId = (options as any)?.quote_id || null;
+        setShippingOptions(options, resolvedQuoteId);
       }
     } catch (err) {
       console.error('Shipping quote error:', err);
       setError('Erro ao calcular frete. Tente novamente.');
-      setShippingOptions([]);
+      setShippingOptions([], null);
     } finally {
       setIsCalculating(false);
     }

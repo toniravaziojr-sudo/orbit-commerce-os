@@ -149,6 +149,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     affiliate,
     paymentMethodDiscount,
     installments,
+    shippingQuoteId,
   }: {
     method: PaymentMethod;
     items: CartItem[];
@@ -162,6 +163,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     affiliate?: AffiliateData;
     paymentMethodDiscount?: { amount: number; type: string; value: number; method: string };
     installments?: number;
+    shippingQuoteId?: string | null;
   }): Promise<PaymentResult> => {
     setIsProcessing(true);
     setPaymentResult(null);
@@ -267,6 +269,8 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
               affiliate_code: affiliate.affiliate_code,
               captured_at: affiliate.captured_at,
             } : undefined,
+            // Shipping quote ID for server-side validation (Security Plan v3.1)
+            shipping_quote_id: shippingQuoteId || undefined,
             // Meta CAPI is now handled client-side via marketing-capi-track edge function
             // No need to pass browser identifiers in order creation
           },

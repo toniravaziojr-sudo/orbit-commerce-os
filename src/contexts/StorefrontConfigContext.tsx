@@ -405,7 +405,7 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
           console.log('[StorefrontConfigContext] Shipping quote response:', data);
 
           if (data?.options && data.options.length > 0) {
-            return data.options.map((opt: { 
+            const mappedOptions = data.options.map((opt: { 
               source_provider?: string;
               service_code?: string; 
               code?: string;
@@ -447,8 +447,17 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
                 originalPrice: safeOriginalPrice,
                 deliveryDays: safeDays,
                 isFree: optionIsFree,
+                carrier: opt.carrier,
+                sourceProvider: opt.source_provider,
               };
             });
+
+            // Attach quote_id to the result array for downstream consumers
+            const result = mappedOptions as ShippingQuote[] & { quote_id?: string };
+            if (data.quote_id) {
+              result.quote_id = data.quote_id;
+            }
+            return result;
           }
         } catch (err) {
           console.error('[StorefrontConfigContext] Shipping quote exception:', err);

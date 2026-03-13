@@ -11587,6 +11587,7 @@ export type Database = {
           shipping_neighborhood: string | null
           shipping_number: string | null
           shipping_postal_code: string | null
+          shipping_quote_id: string | null
           shipping_service_code: string | null
           shipping_service_name: string | null
           shipping_state: string | null
@@ -11660,6 +11661,7 @@ export type Database = {
           shipping_neighborhood?: string | null
           shipping_number?: string | null
           shipping_postal_code?: string | null
+          shipping_quote_id?: string | null
           shipping_service_code?: string | null
           shipping_service_name?: string | null
           shipping_state?: string | null
@@ -11733,6 +11735,7 @@ export type Database = {
           shipping_neighborhood?: string | null
           shipping_number?: string | null
           shipping_postal_code?: string | null
+          shipping_quote_id?: string | null
           shipping_service_code?: string | null
           shipping_service_name?: string | null
           shipping_state?: string | null
@@ -11757,6 +11760,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_shipping_quote_id_fkey"
+            columns: ["shipping_quote_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_quotes"
             referencedColumns: ["id"]
           },
           {
@@ -14308,6 +14318,62 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "shipping_providers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shipping_quotes: {
+        Row: {
+          all_options: Json
+          cart_fingerprint: string
+          cart_subtotal_cents: number
+          cep: string
+          created_at: string
+          expires_at: string
+          id: string
+          is_free: boolean
+          selected_option: Json
+          shipping_price_cents: number
+          tenant_id: string
+          used_at: string | null
+          used_by_order_id: string | null
+        }
+        Insert: {
+          all_options?: Json
+          cart_fingerprint: string
+          cart_subtotal_cents?: number
+          cep: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          is_free?: boolean
+          selected_option?: Json
+          shipping_price_cents?: number
+          tenant_id: string
+          used_at?: string | null
+          used_by_order_id?: string | null
+        }
+        Update: {
+          all_options?: Json
+          cart_fingerprint?: string
+          cart_subtotal_cents?: number
+          cep?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          is_free?: boolean
+          selected_option?: Json
+          shipping_price_cents?: number
+          tenant_id?: string
+          used_at?: string | null
+          used_by_order_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipping_quotes_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
