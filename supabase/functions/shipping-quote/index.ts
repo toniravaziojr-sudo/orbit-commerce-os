@@ -25,6 +25,7 @@ interface ShippingQuoteRequest {
     length?: number;
     price: number;
     product_id?: string;
+    variant_id?: string;
     free_shipping?: boolean;
     free_shipping_method?: string | null;
   }>;
