@@ -668,6 +668,26 @@ O header e footer do checkout usam `StorefrontHeaderContent` e `StorefrontFooter
 | | 5. `Anyone can create payment transactions for checkout` (payment_transactions INSERT) |
 | | 6. `Anon can insert attribution` (order_attribution INSERT) |
 | **Justificativa** | Nenhum código do frontend faz INSERT/UPDATE diretamente nessas tabelas. Tudo passa por `checkout-create-order`, `pagarme-create-charge` e `mercadopago-create-charge` (service_role). |
-| **Policies mantidas (fase futura)** | `Anyone can view order by number for confirmation` (orders SELECT) e `Anyone can view order items for checkout` (order_items SELECT) — ainda usadas pela página de confirmação e avaliação de produtos. Remoção requer migração para funções no servidor (`order-lookup`, `get-review-data`). |
+| **Policies mantidas (fase futura)** | [REMOVIDO] — Todas as policies de leitura anônima foram removidas na Phase 3B. |
 | **Rollback** | Recriar as 6 policies via migração SQL com `CREATE POLICY ... FOR INSERT/UPDATE ... WITH CHECK (true)` nas tabelas afetadas. |
 | **Impacto** | Nenhum impacto no checkout — operações já usam funções no servidor. Impede escrita anônima direta nessas tabelas sensíveis. |
+
+---
+
+## 🔒 Segurança — Remoção de Policies Públicas de Leitura (Phase 3B, v2026-03-14)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Hardening de RLS |
+| **Descrição** | Removidas as 2 últimas policies que permitiam SELECT anônimo em `orders` e `order_items`. Leituras migradas para funções no servidor (`order-lookup` e `get-review-data`). |
+| **Policies removidas** | 1. `Anyone can view order by number for confirmation` (orders SELECT) |
+| | 2. `Anyone can view order items for checkout` (order_items SELECT) |
+| **Funções criadas** | `order-lookup` — lista e busca pedidos para clientes logados (autenticação via JWT). Substitui leituras diretas de `useCustomerOrders`. |
+| | `get-review-data` — busca itens do pedido para página de avaliação via token seguro. Substitui leitura direta de `StorefrontReview`. |
+| **Arquivos migrados** | `src/hooks/useCustomerOrders.ts` (v2) — agora usa `order-lookup` via `supabase.functions.invoke()` |
+| | `src/pages/storefront/StorefrontReview.tsx` (v2) — agora usa `get-review-data` via `supabase.functions.invoke()` |
+| **Segurança order-lookup** | Requer JWT válido. Valida o email do usuário autenticado e filtra pedidos apenas por esse email. Nenhum usuário pode ver pedidos de outro email. |
+| **Segurança get-review-data** | Usa token de avaliação (validado via `validate_review_token` RPC). Retorna apenas itens do pedido vinculado ao token. Token expira e é de uso único. |
+| **Nota sobre product_reviews** | A inserção de avaliações (`product_reviews INSERT`) continua via cliente direto com policy própria separada. Não afetada por esta mudança. |
+| **Rollback** | Recriar as 2 policies: `CREATE POLICY "Anyone can view order by number for confirmation" ON public.orders FOR SELECT USING (true)` e `CREATE POLICY "Anyone can view order items for checkout" ON public.order_items FOR SELECT USING (true)`. Reverter `useCustomerOrders.ts` e `StorefrontReview.tsx` para versão anterior (leitura direta). |
+| **Resultado** | Zero policies anônimas restantes em `orders` e `order_items`. Todas as leituras e escritas passam por funções autenticadas no servidor. |

@@ -1,6 +1,6 @@
 // =============================================
 // STOREFRONT REVIEW - Página dedicada para avaliação via token
-// Cliente recebe link único para avaliar produtos do pedido
+// v2 - Uses get-review-data edge function (no direct DB reads on order_items)
 // =============================================
 
 import { useState } from 'react';
@@ -83,95 +83,42 @@ export default function StorefrontReview() {
   const [customerName, setCustomerName] = useState('');
   const [submittedProducts, setSubmittedProducts] = useState<Set<string>>(new Set());
 
-  // Validate token and get order info (skip in preview mode)
-  const { data: tokenData, isLoading: isLoadingToken, error: tokenError } = useQuery({
-    queryKey: ['review-token', token],
+  // Fetch all review data via edge function (token + items + existing reviews + store name)
+  const { data: reviewData, isLoading: isLoadingData, error: dataError } = useQuery({
+    queryKey: ['review-data', token],
     queryFn: async () => {
       if (!token) throw new Error('Token não fornecido');
       
-      const { data, error } = await supabase
-        .rpc('validate_review_token', { p_token: token });
+      const { data, error } = await supabase.functions.invoke('get-review-data', {
+        body: { token },
+      });
       
       if (error) throw error;
-      if (!data || data.length === 0) throw new Error('Token inválido');
+      if (!data?.success) {
+        throw new Error(data?.error || 'Token inválido');
+      }
       
-      const tokenInfo = data[0] as TokenData;
-      if (!tokenInfo.is_valid) throw new Error('Link expirado ou já utilizado');
-      
-      return tokenInfo;
+      return data as {
+        token_data: TokenData;
+        items: OrderItem[];
+        existing_review_product_ids: string[];
+        store_name: string | null;
+      };
     },
     enabled: !!token && !isPreviewMode,
     retry: false,
   });
 
   // Use demo or real data
-  const activeTokenData = isPreviewMode ? DEMO_TOKEN_DATA : tokenData;
+  const activeTokenData = isPreviewMode ? DEMO_TOKEN_DATA : reviewData?.token_data;
+  const activeOrderItems = isPreviewMode ? DEMO_ORDER_ITEMS : reviewData?.items;
+  const existingReviews = isPreviewMode ? [] : reviewData?.existing_review_product_ids;
+  const storeName = isPreviewMode ? 'Minha Loja Demo' : reviewData?.store_name;
 
-  // Get order items (skip in preview mode)
-  const { data: orderItems, isLoading: isLoadingItems } = useQuery({
-    queryKey: ['order-items-for-review', activeTokenData?.order_id],
-    queryFn: async () => {
-      if (!activeTokenData?.order_id) return [];
-      
-      const { data, error } = await supabase
-        .from('order_items')
-        .select('id, product_id, product_name, product_image_url, product_slug, quantity')
-        .eq('order_id', activeTokenData.order_id);
-      
-      if (error) throw error;
-      return data as OrderItem[];
-    },
-    enabled: !!activeTokenData?.order_id && !isPreviewMode,
-  });
-
-  // Use demo or real items
-  const activeOrderItems = isPreviewMode ? DEMO_ORDER_ITEMS : orderItems;
-
-  // Get existing reviews for this order's products (skip in preview mode)
-  const { data: existingReviews } = useQuery({
-    queryKey: ['existing-reviews', activeTokenData?.tenant_id, activeTokenData?.customer_email, activeOrderItems?.map(i => i.product_id)],
-    queryFn: async () => {
-      if (!activeTokenData?.tenant_id || !activeTokenData?.customer_email || !activeOrderItems) return [];
-      
-      const productIds = activeOrderItems.map(i => i.product_id).filter(Boolean);
-      if (productIds.length === 0) return [];
-      
-      const { data, error } = await supabase
-        .from('product_reviews')
-        .select('product_id')
-        .eq('tenant_id', activeTokenData.tenant_id)
-        .ilike('customer_email', activeTokenData.customer_email)
-        .in('product_id', productIds);
-      
-      if (error) return [];
-      return data.map(r => r.product_id);
-    },
-    enabled: !!activeTokenData && !!activeOrderItems && activeOrderItems.length > 0 && !isPreviewMode,
-  });
-
-  // Get store name (skip in preview mode)
-  const { data: tenant } = useQuery({
-    queryKey: ['tenant-for-review', activeTokenData?.tenant_id],
-    queryFn: async () => {
-      if (!activeTokenData?.tenant_id) return null;
-      
-      const { data, error } = await supabase
-        .from('tenants')
-        .select('name')
-        .eq('id', activeTokenData.tenant_id)
-        .single();
-      
-      if (error) return null;
-      return data;
-    },
-    enabled: !!activeTokenData?.tenant_id && !isPreviewMode,
-  });
-
-  // Submit review mutation
+  // Submit review mutation (still writes directly — product_reviews INSERT policy is separate)
   const submitReviewMutation = useMutation({
     mutationFn: async ({ productId, review }: { productId: string; review: ReviewData }) => {
       if (isPreviewMode) {
-        // Simulate submission in preview mode
         await new Promise(resolve => setTimeout(resolve, 1000));
         return productId;
       }
@@ -251,8 +198,8 @@ export default function StorefrontReview() {
     submitReviewMutation.mutate({ productId, review });
   };
 
-  // Loading state (not in preview mode)
-  if (!isPreviewMode && (isLoadingToken || isLoadingItems)) {
+  // Loading state
+  if (!isPreviewMode && isLoadingData) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
@@ -263,8 +210,8 @@ export default function StorefrontReview() {
     );
   }
 
-  // Error state (not in preview mode)
-  if (!isPreviewMode && (tokenError || !activeTokenData)) {
+  // Error state
+  if (!isPreviewMode && (dataError || !activeTokenData)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="max-w-md w-full">
@@ -272,7 +219,7 @@ export default function StorefrontReview() {
             <AlertCircle className="h-12 w-12 mx-auto mb-4 text-destructive" />
             <CardTitle>Link Inválido</CardTitle>
             <CardDescription>
-              {tokenError instanceof Error ? tokenError.message : 'Este link de avaliação não é válido ou já expirou.'}
+              {dataError instanceof Error ? dataError.message : 'Este link de avaliação não é válido ou já expirou.'}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -298,8 +245,6 @@ export default function StorefrontReview() {
       </div>
     );
   }
-
-  const storeName = isPreviewMode ? 'Minha Loja Demo' : tenant?.name;
 
   return (
     <div className="min-h-screen bg-background py-8 px-4">
@@ -328,7 +273,7 @@ export default function StorefrontReview() {
           )}
         </div>
 
-        {/* Customer Name (shared for all reviews) */}
+        {/* Customer Name */}
         <Card className="mb-6">
           <CardContent className="pt-6">
             <Label htmlFor="customer-name" className="text-sm font-medium">

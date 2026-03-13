@@ -1,6 +1,6 @@
 // =============================================
 // USE CUSTOMER ORDERS - Real database orders for logged-in customers
-// No more mock data - uses Supabase auth email (normalized)
+// v2 - Uses order-lookup edge function (no direct DB reads)
 // =============================================
 
 import { useQuery } from '@tanstack/react-query';
@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useEffect, useState } from 'react';
 import { normalizeEmail } from '@/lib/normalizeEmail';
 import { normalizeOrderStatus, ORDER_STATUS_CONFIG } from '@/types/orderStatus';
+
 export interface OrderItem {
   id: string;
   product_name: string;
@@ -20,7 +21,7 @@ export interface OrderItem {
 export interface CustomerOrder {
   id: string;
   order_number: string;
-  status: string;  // Uses normalizeOrderStatus for display
+  status: string;
   payment_status: string;
   shipping_status: string;
   total: number;
@@ -62,12 +63,10 @@ function useCurrentUserEmail(): { email: string | null; isLoading: boolean } {
   return { email, isLoading };
 }
 
-// List orders for a customer by email (normalized)
+// List orders for a customer via edge function (secure, no direct DB reads)
 export function useCustomerOrders(customerEmailOverride?: string) {
   const { email: authEmail, isLoading: authLoading } = useCurrentUserEmail();
   
-  // Use override if provided (for admin viewing), otherwise use logged-in user's email
-  // Always normalize email to ensure consistent matching
   const rawEmail = customerEmailOverride || authEmail;
   const customerEmail = normalizeEmail(rawEmail);
 
@@ -76,46 +75,24 @@ export function useCustomerOrders(customerEmailOverride?: string) {
     queryFn: async (): Promise<CustomerOrder[]> => {
       if (!customerEmail) return [];
 
-      console.log('[useCustomerOrders] Fetching orders for (normalized):', customerEmail);
+      console.log('[useCustomerOrders] Fetching orders via edge function for:', customerEmail);
 
-      // Real query - fetch orders by customer email (normalized)
-      // Exclude ghost orders: no gateway confirmation = not a real order
-      const { data: orders, error } = await supabase
-        .from('orders')
-        .select(`
-          id, order_number, status, payment_status, shipping_status,
-          total, subtotal, shipping_total, discount_total,
-          created_at, shipped_at, delivered_at, tracking_code, shipping_carrier,
-          customer_name, customer_email
-        `)
-        .eq('customer_email', customerEmail)
-        // Ghost Order Rule: only show orders confirmed by gateway
-        .not('payment_gateway_id', 'is', null)
-        .order('created_at', { ascending: false });
+      const { data, error } = await supabase.functions.invoke('order-lookup', {
+        body: { action: 'list', customer_email: customerEmail },
+      });
 
       if (error) {
-        console.error('[useCustomerOrders] Error fetching orders:', error);
+        console.error('[useCustomerOrders] Edge function error:', error);
         throw error;
       }
 
-      console.log('[useCustomerOrders] Found orders:', orders?.length || 0);
+      if (!data?.success) {
+        console.error('[useCustomerOrders] Request failed:', data?.error);
+        throw new Error(data?.error || 'Erro ao buscar pedidos');
+      }
 
-      // Fetch items for each order
-      const ordersWithItems: CustomerOrder[] = await Promise.all(
-        (orders || []).map(async (order) => {
-          const { data: items } = await supabase
-            .from('order_items')
-            .select('id, product_name, product_image_url, quantity, unit_price, total_price')
-            .eq('order_id', order.id);
-
-          return {
-            ...order,
-            items: items || [],
-          } as CustomerOrder;
-        })
-      );
-
-      return ordersWithItems;
+      console.log('[useCustomerOrders] Found orders:', data.orders?.length || 0);
+      return (data.orders || []) as CustomerOrder[];
     },
     enabled: !authLoading && !!customerEmail,
   });
@@ -125,60 +102,33 @@ export function useCustomerOrders(customerEmailOverride?: string) {
     isLoading: ordersQuery.isLoading || authLoading,
     error: ordersQuery.error,
     customerEmail,
-    isMockMode: false, // No more mock mode
+    isMockMode: false,
   };
 }
 
-// Get single order by ID
+// Get single order by ID via edge function
 export function useCustomerOrder(orderId?: string) {
   const orderQuery = useQuery({
     queryKey: ['customer-order', orderId],
     queryFn: async (): Promise<CustomerOrder | null> => {
       if (!orderId) return null;
 
-      console.log('[useCustomerOrder] Fetching order:', orderId);
+      console.log('[useCustomerOrder] Fetching order via edge function:', orderId);
 
-      // Try by ID first, then by order_number
-      let order;
-      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(orderId);
+      const { data, error } = await supabase.functions.invoke('order-lookup', {
+        body: { action: 'get', order_id: orderId },
+      });
 
-      if (isUUID) {
-        const result = await supabase
-          .from('orders')
-          .select(`
-            id, order_number, status, payment_status, shipping_status,
-            total, subtotal, shipping_total, discount_total,
-            created_at, shipped_at, delivered_at, tracking_code, shipping_carrier,
-            customer_name, customer_email
-          `)
-          .eq('id', orderId)
-          .maybeSingle();
-        order = result.data;
-      }
-      
-      if (!order) {
-        const result = await supabase
-          .from('orders')
-          .select(`
-            id, order_number, status, payment_status, shipping_status,
-            total, subtotal, shipping_total, discount_total,
-            created_at, shipped_at, delivered_at, tracking_code, shipping_carrier,
-            customer_name, customer_email
-          `)
-          .eq('order_number', orderId)
-          .maybeSingle();
-        order = result.data;
+      if (error) {
+        console.error('[useCustomerOrder] Edge function error:', error);
+        throw error;
       }
 
-      if (!order) return null;
+      if (!data?.success) {
+        throw new Error(data?.error || 'Erro ao buscar pedido');
+      }
 
-      // Fetch items
-      const { data: items } = await supabase
-        .from('order_items')
-        .select('id, product_name, product_image_url, quantity, unit_price, total_price')
-        .eq('order_id', order.id);
-
-      return { ...order, items: items || [] } as CustomerOrder;
+      return (data.order as CustomerOrder) || null;
     },
     enabled: !!orderId,
   });

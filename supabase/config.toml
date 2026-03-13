@@ -710,3 +710,9 @@ verify_jwt = false
 
 [functions.ai-page-architect]
 verify_jwt = false
+
+[functions.order-lookup]
+verify_jwt = false
+
+[functions.get-review-data]
+verify_jwt = false
