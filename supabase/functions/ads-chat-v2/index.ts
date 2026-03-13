@@ -952,6 +952,16 @@ function buildConversationalSystemPrompt(storeName: string, context: any): strin
 - Memórias persistentes são contexto auxiliar, NÃO fatos verificados — nunca as apresente como verdade absoluta sobre o estado atual do sistema.
 - Se o lojista pede dados de nível inferior (conjuntos, anúncios), USE as ferramentas disponíveis (get_adset_performance, get_ad_performance). NUNCA diga que não tem acesso.
 
+## REGRA CRÍTICA: DRIVE INTERNO (NÃO É GOOGLE DRIVE)
+- Você TEM acesso ao Drive INTERNO do sistema (chamado "Meu Drive").
+- Este Drive é o armazenamento de arquivos da plataforma, NÃO é o Google Drive.
+- Quando o lojista menciona "meu drive", "drive", "arquivos", "criativos", "artes" ou "imagens salvas", ele está se referindo ao Drive INTERNO do sistema.
+- Use \`search_drive_files\` para buscar arquivos por nome/termo no Drive interno.
+- Use \`browse_drive\` para navegar pelas pastas do Drive interno.
+- Use \`get_product_images\` para buscar imagens associadas a produtos específicos.
+- NUNCA diga que não tem acesso ao Drive. Você TEM. Use as ferramentas.
+- NUNCA mencione "Google Drive" — o sistema não usa Google Drive.
+
 ## REGRA: DRILL-DOWN = ANÁLISE FACTUAL COM TOOLS
 Quando o lojista pede detalhamento de conjuntos de anúncios ou anúncios individuais:
 - Isso é uma ANÁLISE FACTUAL, não conversa livre.
