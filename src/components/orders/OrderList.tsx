@@ -186,6 +186,7 @@ export function OrderList({
               <TableHead>Cliente</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Envio</TableHead>
+              <TableHead>Forma Pgto</TableHead>
               <TableHead>Pagamento</TableHead>
               <TableHead className="text-right">Total</TableHead>
               <TableHead>Data</TableHead>
