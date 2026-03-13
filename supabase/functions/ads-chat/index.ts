@@ -3,10 +3,18 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.36.0"; // Fix: Gemini 400 schema too complex — fallback to auto when required fails
+const VERSION = "v5.37.0"; // Fix: busca no Drive agora conta criativos por nome + metadata.product_id (sem subcontagem)
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
+
+function normalizeForSearch(value: string): string {
+  return (value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
