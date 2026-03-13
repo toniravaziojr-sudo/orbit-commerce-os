@@ -306,3 +306,4 @@ A tabela `products` possui colunas `avg_rating` e `review_count` que são mantid
 | `src/pages/storefront/StorefrontReview.tsx` | Este documento |
 | `src/components/notifications/MessageEditor.tsx` | Este documento (variáveis) |
 | `supabase/functions/process-events/index.ts` | Este documento (geração de links) |
+| `supabase/functions/get-review-data/index.ts` | Este documento (busca de itens para avaliação) |
