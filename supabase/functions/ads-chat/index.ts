@@ -2585,9 +2585,29 @@ async function searchDriveFiles(supabase: any, tenantId: string, query: string, 
   }
 
   const normalizedQuery = normalizeForSearch(rawQuery);
-  const queryTokens = normalizedQuery.split(/\s+/).filter((t) => t.length >= 2);
+  const queryTokens = normalizedQuery.split(/\s+/).filter((t: string) => t.length >= 2);
 
-  // 1) Carrega todos os arquivos do tenant (paginado) para contagem real
+  // 1) Carrega TODAS as pastas do tenant para mapa folder_id → nome
+  const { data: allFolders } = await supabase
+    .from("files")
+    .select("id, original_name, filename")
+    .eq("tenant_id", tenantId)
+    .eq("is_folder", true)
+    .limit(1000);
+
+  const allFolderMap: Record<string, string> = {};
+  const matchingFolderIds = new Set<string>();
+  for (const folder of (allFolders || [])) {
+    const folderName = folder.original_name || folder.filename || "";
+    allFolderMap[folder.id] = folderName;
+    const normalizedFolderName = normalizeForSearch(folderName);
+    if (normalizedFolderName.includes(normalizedQuery) ||
+        (queryTokens.length >= 2 && queryTokens.every((token: string) => normalizedFolderName.includes(token)))) {
+      matchingFolderIds.add(folder.id);
+    }
+  }
+
+  // 2) Carrega todos os arquivos do tenant (paginado) para contagem real
   const pageSize = 1000;
   let from = 0;
   const allFiles: any[] = [];
@@ -2613,7 +2633,7 @@ async function searchDriveFiles(supabase: any, tenantId: string, query: string, 
     from += pageSize;
   }
 
-  // 2) Resolve produtos relacionados ao termo (acento-insensível)
+  // 3) Resolve produtos relacionados ao termo (acento-insensível)
   const { data: products } = await supabase
     .from("products")
     .select("id, name")
@@ -2626,35 +2646,23 @@ async function searchDriveFiles(supabase: any, tenantId: string, query: string, 
   });
   const matchedProductIds = new Set(matchedProducts.map((p: any) => p.id));
 
-  // 3) Match por nome de arquivo OU metadata.product_id
+  // 4) Match por: nome do arquivo OU pasta cujo nome bate OU metadata.product_id
   const matchedFiles = allFiles.filter((f: any) => {
     const fileName = `${f.original_name || ""} ${f.filename || ""}`.trim();
     const normalizedFileName = normalizeForSearch(fileName);
     const byName = normalizedFileName.includes(normalizedQuery) ||
-      (queryTokens.length >= 2 && queryTokens.every((token) => normalizedFileName.includes(token)));
+      (queryTokens.length >= 2 && queryTokens.every((token: string) => normalizedFileName.includes(token)));
+
+    const byFolder = !!(f.folder_id && matchingFolderIds.has(f.folder_id));
 
     const meta = f.metadata as Record<string, any> | null;
     const productId = typeof meta?.product_id === "string" ? meta.product_id : null;
     const byProductLink = !!(productId && matchedProductIds.has(productId));
 
-    return byName || byProductLink;
+    return byName || byFolder || byProductLink;
   });
 
   const pagedFiles = matchedFiles.slice(0, maxResults);
-
-  // 4) Nomes das pastas para contexto
-  const folderIds = [...new Set(pagedFiles.map((f: any) => f.folder_id).filter(Boolean))];
-  let folderMap: Record<string, string> = {};
-  if (folderIds.length > 0) {
-    const { data: folders } = await supabase
-      .from("files")
-      .select("id, original_name, filename")
-      .in("id", folderIds);
-    folderMap = (folders || []).reduce((acc: any, f: any) => {
-      acc[f.id] = f.original_name || f.filename;
-      return acc;
-    }, {});
-  }
 
   const results = pagedFiles.map((f: any) => {
     const meta = f.metadata as Record<string, any> | null;
@@ -2667,7 +2675,7 @@ async function searchDriveFiles(supabase: any, tenantId: string, query: string, 
     return {
       id: f.id,
       name: f.original_name || f.filename,
-      folder: folderMap[f.folder_id] || "Raiz",
+      folder: allFolderMap[f.folder_id] || "Raiz",
       mime_type: f.mime_type,
       size_kb: f.size_bytes ? Math.round(f.size_bytes / 1024) : null,
       url,
@@ -2682,8 +2690,10 @@ async function searchDriveFiles(supabase: any, tenantId: string, query: string, 
     query: rawQuery,
     results,
     total_found: matchedFiles.length,
+    total_tenant_files: allFiles.length,
     returned_results: results.length,
     matched_products: matchedProducts.map((p: any) => ({ id: p.id, name: p.name })),
+    matched_folders: [...matchingFolderIds].map(id => ({ id, name: allFolderMap[id] })),
     tip: matchedFiles.length === 0
       ? `Nenhum arquivo encontrado com "${rawQuery}". Tente termos diferentes ou use browse_drive para navegar pelas pastas manualmente.`
       : matchedFiles.length > maxResults
@@ -4987,6 +4997,15 @@ Toda vez que executar ações (criar campanhas, pausar, alterar budget, gerar cr
 - As imagens de produto também estão no catálogo (product_images) e na pasta "Imagens de Produtos" — use get_product_images para buscar fotos de produto.
 - ANTES de gerar criativos novos, verifique se já existem criativos prontos no Drive com search_drive_files.
 - Se get_product_images ou search_drive_files retornarem imagens, USE-AS — não diga que "não há imagens".
+
+## REGRA CRÍTICA: CONTAGEM DE ARQUIVOS NO DRIVE
+- Quando search_drive_files retornar, o campo \`total_found\` é a contagem EXATA e AUTORITATIVA dos arquivos encontrados.
+- O campo \`total_tenant_files\` é o total de arquivos do lojista no Drive inteiro.
+- NUNCA invente, estime ou arredonde contagens. Use SEMPRE o número exato de \`total_found\`.
+- NUNCA conte manualmente os itens do array \`results\` — ele é limitado a 50 por performance. A contagem real está em \`total_found\`.
+- Se \`matched_folders\` retornar pastas, informe ao lojista que arquivos dentro dessas pastas também foram contados.
+- Exemplo correto: "Encontrei **{total_found}** criativos do Shampoo Calvície Zero no seu Drive."
+- Exemplo ERRADO: "Encontrei 19 criativos" (quando total_found diz 85).
 
 ## CATÁLOGO REAL (Top 10 produtos)
 ${productsList || "⚠️ Catálogo vazio no contexto — use get_products para buscar produtos."}
