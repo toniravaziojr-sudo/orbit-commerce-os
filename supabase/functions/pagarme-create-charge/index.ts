@@ -129,6 +129,28 @@ serve(async (req) => {
     const credentials = await getPagarmeCredentials(supabase, payload.tenant_id);
     console.log(`[Pagar.me] Using ${credentials.source} credentials, environment: ${credentials.environment}`);
 
+    // === CANONICAL PRICE VALIDATION (Security Plan v3.1 Phase 2B) ===
+    // When order_id is present, use canonical_total from database instead of frontend amount
+    let chargeAmountCents = payload.amount;
+    if (payload.order_id) {
+      const { data: orderRecord } = await supabase
+        .from('orders')
+        .select('canonical_total, total')
+        .eq('id', payload.order_id)
+        .single();
+
+      if (orderRecord?.canonical_total) {
+        const canonicalCents = Math.round(Number(orderRecord.canonical_total) * 100);
+        if (canonicalCents !== payload.amount) {
+          console.warn(`[Pagar.me][PRICE_AUDIT] Amount drift: submitted=${payload.amount}, canonical=${canonicalCents}`);
+        }
+        chargeAmountCents = canonicalCents;
+        console.log(`[Pagar.me] Using canonical_total for charge: ${chargeAmountCents} cents`);
+      } else {
+        console.log(`[Pagar.me] No canonical_total on order, using submitted amount: ${payload.amount}`);
+      }
+    }
+
     // Check if method is enabled
     const methodEnabled = await isMethodEnabled(supabase, payload.tenant_id, payload.method);
     if (!methodEnabled) {
