@@ -1,6 +1,7 @@
 // ============================================
 // PAGAR.ME CREATE CHARGE - Payment processing
 // Uses database config first, falls back to Secrets
+// v2.0 — Canonical price validation (Security Plan v3.1 Phase 2B)
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
