@@ -110,7 +110,9 @@ export function usePayments(options: UsePaymentsOptions = {}) {
         .from('orders')
         .select('*', { count: 'exact', head: true })
         .eq('tenant_id', currentTenant.id)
-        .not('payment_status', 'is', null);
+        .not('payment_status', 'is', null)
+        // Ghost Order Rule: exclude abandoned checkouts from rate calculation
+        .or('payment_gateway_id.not.is.null,payment_status.neq.pending');
 
       const approvalRate = totalCount && totalCount > 0 ? ((approvedCount || 0) / totalCount) * 100 : 0;
 
