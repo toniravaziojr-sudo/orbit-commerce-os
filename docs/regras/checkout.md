@@ -652,3 +652,22 @@ O header e footer do checkout usam `StorefrontHeaderContent` e `StorefrontFooter
 | **Drift Detection** | Log estruturado `[PRICE_AUDIT] ⚠️ DRIFT DETECTED` quando diferença > R$0.01 entre submitted e canonical. |
 | **Modo atual** | **SIMULAÇÃO PURA** — divergências são registradas mas NÃO alteram valor cobrado e NÃO bloqueiam o pedido. Enforcement futuro será ativado por flag separada. |
 | **Performance** | 1-2 queries adicionais (produtos + variantes quando aplicável), 1 query condicional (revalidar desconto). Sem impacto perceptível — ambas usam índices existentes por tenant_id. |
+
+---
+
+## 🔒 Segurança — Remoção de Policies Públicas de Escrita (Phase 3A, v2026-03-14)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Hardening de RLS |
+| **Descrição** | Removidas 6 policies que permitiam INSERT/UPDATE anônimo nas tabelas de checkout. Todas essas operações já são realizadas por funções no servidor com permissão administrativa (service_role). |
+| **Policies removidas** | 1. `Anyone can create orders for checkout` (orders INSERT) |
+| | 2. `Anyone can create order items for checkout` (order_items INSERT) |
+| | 3. `Anyone can create customers for checkout` (customers INSERT) |
+| | 4. `Anyone can update customers for checkout` (customers UPDATE) |
+| | 5. `Anyone can create payment transactions for checkout` (payment_transactions INSERT) |
+| | 6. `Anon can insert attribution` (order_attribution INSERT) |
+| **Justificativa** | Nenhum código do frontend faz INSERT/UPDATE diretamente nessas tabelas. Tudo passa por `checkout-create-order`, `pagarme-create-charge` e `mercadopago-create-charge` (service_role). |
+| **Policies mantidas (fase futura)** | `Anyone can view order by number for confirmation` (orders SELECT) e `Anyone can view order items for checkout` (order_items SELECT) — ainda usadas pela página de confirmação e avaliação de produtos. Remoção requer migração para funções no servidor (`order-lookup`, `get-review-data`). |
+| **Rollback** | Recriar as 6 policies via migração SQL com `CREATE POLICY ... FOR INSERT/UPDATE ... WITH CHECK (true)` nas tabelas afetadas. |
+| **Impacto** | Nenhum impacto no checkout — operações já usam funções no servidor. Impede escrita anônima direta nessas tabelas sensíveis. |
