@@ -142,6 +142,23 @@ interface Order {
 }
 ```
 
+### 3.1.1 Regra de Pedidos Fantasma (Ghost Orders)
+
+> **Adicionado em**: 2026-03-13
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Regra Lógica |
+| **Localização** | `src/hooks/useOrders.ts` (query filter), `supabase/functions/pagarme-create-charge/index.ts`, `supabase/functions/mercadopago-create-charge/index.ts` |
+| **Contexto** | Listagem de pedidos no admin |
+| **Descrição** | Pedidos criados no checkout mas que nunca chegaram ao gateway de pagamento não devem aparecer na lista de pedidos. São considerados "fantasmas". |
+| **Comportamento** | O fluxo de checkout cria o pedido (status=pending) ANTES de chamar o gateway. Se o gateway nunca for chamado (browser fechou, erro de rede), o pedido fica sem `payment_gateway_id`. A query de listagem filtra: `payment_gateway_id.not.is.null OR status.neq.pending`. |
+| **Condições** | Um pedido é fantasma quando: `payment_gateway_id IS NULL` E `status = 'pending'`. Pedidos manuais (criados pelo admin) ou importados terão status diferente de `pending` e não serão filtrados. |
+| **Afeta** | `useOrders` hook, contagem de pedidos, stats do dashboard |
+| **Erros/Edge cases** | O cron `expire-stale-orders` eventualmente marca esses pedidos como expirados (30min), momento em que eles passam a aparecer na listagem com status `payment_expired`. |
+
+**Garantia no gateway:** Tanto `pagarme-create-charge` quanto `mercadopago-create-charge` DEVEM obrigatoriamente setar `payment_gateway_id` e `payment_gateway` no pedido assim que o gateway retornar, independentemente do status do pagamento (paid, pending, failed).
+
 ### 3.2 Tipos de Status (v2026-03-10 — Fluxo Fiscal Integrado)
 
 > **IMPORTANTE:** A coluna "Status" reflete o **trabalho interno** do pedido, integrado ao módulo fiscal.
