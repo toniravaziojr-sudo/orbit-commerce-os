@@ -61,7 +61,9 @@ console.log(`[function-name][${VERSION}] Request received`);
 |--------|----------------|
 | `whatsapp_messages` | `meta-whatsapp-send`, `run-notifications`, `whatsapp-send` |
 | `notifications` | `run-notifications`, `process-events` |
-| `orders` | `pagarme-webhook`, `mercadopago-webhook`, `checkout-create-order`, `get-order`, `order-lookup` |
+| `orders` | `pagarme-webhook`, `mercadopago-webhook`, `checkout-create-order`, `get-order`, `order-lookup`, `marketing-reconcile` |
+| `marketing_events_log` | `process-events`, `marketing-reconcile` |
+| `marketing_integrations` | `process-events` (leitura de `purchase_event_timing`) |
 | `order_items` | `checkout-create-order`, `get-order`, `order-lookup`, `get-review-data` |
 | `meta_catalog_items` | `meta-catalog-sync`, `meta-catalog-daily-sync`, `meta-save-selected-assets` |
 | `product_images` | `meta-catalog-sync` (coluna `sort_order`, NÃO `position`) |
