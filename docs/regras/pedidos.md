@@ -596,7 +596,20 @@ O checkout utiliza `sessionStorage` (`PENDING_ORDER_KEY`) para reutilizar o mesm
 
 ---
 
-## 14. Pendências
+## 14. Regras Visuais — Responsividade Mobile
+
+| Elemento | Comportamento Mobile | Arquivo |
+|----------|---------------------|---------|
+| **Tabela de pedidos** | `overflow-x-auto` com `min-w-[900px]` — scroll horizontal no celular | `OrderList.tsx` |
+| **Filtros** | SelectTrigger usa `w-full sm:w-44` — ocupa largura total no celular, fixo no desktop | `Orders.tsx` |
+| **Container de filtros** | `flex-wrap w-full sm:w-auto` — empilha verticalmente no celular | `Orders.tsx` |
+| **Paginação** | Botões de número escondidos no celular (`hidden sm:flex`), mostra apenas "Anterior / X de Y / Próximo" | `Orders.tsx` |
+| **Texto da paginação** | `text-center sm:text-left` — centralizado no celular | `Orders.tsx` |
+| **Container da paginação** | `flex-col gap-3 sm:flex-row` — empilha no celular | `Orders.tsx` |
+
+---
+
+## 15. Pendências
 
 - [ ] Exportação de pedidos (CSV/Excel)
 - [ ] Impressão de etiqueta de envio integrada

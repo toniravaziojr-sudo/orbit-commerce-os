@@ -888,6 +888,19 @@ Checkout abandonado é classificado como "com erro" quando:
 
 ---
 
+## Responsividade Mobile — Padrão Admin
+
+| Padrão | Regra | Aplicação |
+|--------|-------|-----------|
+| **Tabelas** | Sempre usar `overflow-x-auto` no container + `min-w-[Xpx]` na Table para scroll horizontal | Toda tabela no admin |
+| **Filtros com Select** | `w-full sm:w-44` nos SelectTrigger — ocupam largura toda no celular | Páginas com filtros múltiplos |
+| **Paginação** | Botões numéricos `hidden sm:flex`, mostra "X / Y" no celular | Toda paginação |
+| **Cards de lista** | `flex-col sm:flex-row` — empilham conteúdo no celular | Dashboard, listas com cards |
+| **Grids de stats** | `grid-cols-1 sm:grid-cols-2 lg:grid-cols-4` | Cards de estatísticas |
+| **Page header actions** | Já usa `flex-col gap-4 sm:flex-row` — manter | Todas as páginas |
+
+---
+
 ## Regra de Imutabilidade
 
 | Regra | Descrição |
