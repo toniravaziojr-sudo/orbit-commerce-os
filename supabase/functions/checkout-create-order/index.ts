@@ -171,6 +171,69 @@ serve(async (req) => {
 
     console.log('[checkout-create-order] All products validated successfully');
 
+    // === SHIPPING QUOTE VALIDATION (Security Plan v3.1 - SIMULATION MODE) ===
+    let validatedQuoteId: string | null = null;
+    if (payload.shipping_quote_id) {
+      try {
+        const cartFingerprint = await generateCartFingerprint(
+          payload.items.map(item => ({
+            product_id: item.product_id,
+            variant_id: '',
+            quantity: item.quantity,
+          }))
+        );
+
+        const { data: quote, error: quoteError } = await supabase
+          .from('shipping_quotes')
+          .select('*')
+          .eq('id', payload.shipping_quote_id)
+          .eq('tenant_id', payload.tenant_id)
+          .single();
+
+        if (quoteError || !quote) {
+          console.warn('[checkout-create-order][QUOTE_AUDIT] Quote not found:', payload.shipping_quote_id);
+        } else {
+          const issues: string[] = [];
+
+          // Check expiry (2h TTL)
+          if (new Date(quote.expires_at) < new Date()) {
+            issues.push('EXPIRED');
+          }
+          // Check single-use
+          if (quote.used_at) {
+            issues.push('ALREADY_USED');
+          }
+          // Check CEP match
+          const payloadCep = (payload.shipping.postal_code || '').replace(/\D/g, '');
+          if (quote.cep !== payloadCep) {
+            issues.push(`CEP_MISMATCH:${quote.cep}!=${payloadCep}`);
+          }
+          // Check cart fingerprint
+          if (quote.cart_fingerprint !== cartFingerprint) {
+            issues.push('CART_CHANGED');
+          }
+
+          if (issues.length > 0) {
+            console.warn(`[checkout-create-order][QUOTE_AUDIT] SIMULATION - Issues: ${issues.join(', ')} for quote ${quote.id}`);
+            // SIMULATION MODE: log only, do NOT reject
+            // ENFORCEMENT MODE (future): return error INVALID_SHIPPING_QUOTE
+          } else {
+            console.log('[checkout-create-order][QUOTE_AUDIT] Quote valid:', quote.id);
+            validatedQuoteId = quote.id;
+            // Mark as used
+            await supabase
+              .from('shipping_quotes')
+              .update({ used_at: new Date().toISOString() })
+              .eq('id', quote.id);
+          }
+        }
+      } catch (quoteErr) {
+        console.warn('[checkout-create-order][QUOTE_AUDIT] Validation error (non-blocking):', quoteErr);
+      }
+    } else {
+      console.log('[checkout-create-order][QUOTE_AUDIT] No quote_id provided - skipping validation');
+    }
+
     // 1. Generate order number
     const { data: orderNumberData, error: orderNumberError } = await supabase
       .rpc('generate_order_number', { p_tenant_id: payload.tenant_id });
