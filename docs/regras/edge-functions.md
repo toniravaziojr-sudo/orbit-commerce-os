@@ -102,6 +102,61 @@ console.log(`[function-name][${VERSION}] Request received`);
 
 ---
 
+## 🔒 Padrões de Segurança — Acesso a Dados Sensíveis (Consolidado v2026-03-14)
+
+> **REGRA ESTRUTURAL** — Estes padrões são obrigatórios e não devem ser revertidos sem aprovação explícita.
+
+### Padrão 1: Leituras sensíveis devem passar por Edge Functions
+
+Tabelas com dados de pedidos, itens, transações e clientes **NÃO devem expor SELECT anônimo**.
+Toda leitura pública ou controlada deve passar por Edge Functions específicas com validação de acesso adequada (JWT, token dedicado ou equivalente).
+
+| Tabela | Edge Function de Leitura | Validação |
+|--------|--------------------------|-----------|
+| `orders` | `order-lookup` | JWT (email do usuário autenticado) |
+| `order_items` | `order-lookup`, `get-review-data` | JWT / Token de avaliação |
+| `customers` | — (sem leitura pública) | — |
+| `payment_transactions` | — (sem leitura pública) | — |
+| `order_attribution` | — (sem leitura pública) | — |
+
+### Padrão 2: Remoção de policies só após migração completa
+
+Policies permissivas só podem ser removidas **depois** que o fluxo correspondente tiver sido migrado para Edge Functions e validado.
+
+**Ordem obrigatória:**
+1. Criar Edge Function
+2. Migrar frontend para usar a função
+3. Verificar ausência de leitura/escrita direta no código
+4. Remover policy
+
+> ❌ Nunca remover policy antes de migrar o fluxo. Isso quebra funcionalidades existentes.
+
+### Padrão 3: Checkout sensível via Edge Functions com service_role
+
+Fluxos de checkout que leem/escrevem em `orders`, `order_items`, `customers`, `payment_transactions` e `order_attribution` devem passar por Edge Functions com `service_role`.
+
+A proteção fica na **lógica da função** e nos mecanismos de autenticação/validação, **não** em escrita/leitura anônima direta nas tabelas.
+
+### Padrão 4: Estado consolidado atual
+
+As seguintes tabelas estão **sem policies anônimas** e devem permanecer assim como padrão documentado:
+
+| Tabela | INSERT anônimo | SELECT anônimo | Status |
+|--------|----------------|----------------|--------|
+| `orders` | ❌ Removido (Phase 3A) | ❌ Removido (Phase 3B) | ✅ Consolidado |
+| `order_items` | ❌ Removido (Phase 3A) | ❌ Removido (Phase 3B) | ✅ Consolidado |
+| `customers` | ❌ Removido (Phase 3A) | — | ✅ Consolidado |
+| `payment_transactions` | ❌ Removido (Phase 3A) | — | ✅ Consolidado |
+| `order_attribution` | ❌ Removido (Phase 3A) | — | ✅ Consolidado |
+
+### Padrão 5: Exceções temporárias
+
+| Tabela | Situação | Fase futura |
+|--------|----------|-------------|
+| `product_reviews` | INSERT público com policy própria (necessário para clientes enviarem avaliações) | Pendente de endurecimento — NÃO tratar como padrão final consolidado |
+
+---
+
 ## Regras Gerais
 
 > ⚠️ **REGRA DE PARIDADE BUILDER ↔ PÚBLICO:** Toda alteração em compiladores de bloco (`_shared/block-compiler/blocks/`) DEVE ser acompanhada da alteração correspondente no React (`src/components/builder/blocks/`). Consultar obrigatoriamente: **`docs/regras/paridade-builder-publico.md`** antes de qualquer mudança.

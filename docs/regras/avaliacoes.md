@@ -267,6 +267,18 @@ O sistema permite enviar links de avaliação para clientes após a compra via n
 
 ---
 
+## ⚠️ Exceção Temporária — product_reviews (v2026-03-14)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Exceção de segurança documentada |
+| **Situação** | `product_reviews` ainda permite INSERT público via policy própria para que clientes enviem avaliações pela página pública. |
+| **Por que é exceção** | Todas as demais tabelas sensíveis do checkout (`orders`, `order_items`, `customers`, `payment_transactions`, `order_attribution`) já foram endurecidas — zero policies anônimas. `product_reviews` ficou de fora desta fase. |
+| **Padrão final** | **NÃO** tratar como padrão consolidado. Este fluxo deve ser endurecido em fase futura (migração para Edge Function com validação de token). |
+| **Referência** | Ver padrões completos em `docs/regras/edge-functions.md` → "Padrões de Segurança — Acesso a Dados Sensíveis" |
+
+---
+
 ## Sincronização Automática de Rating (Trigger)
 
 > Adicionado em 2026-03-07
