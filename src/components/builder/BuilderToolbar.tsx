@@ -47,6 +47,7 @@ import {
   Globe,
 } from 'lucide-react';
 import { getPreviewUrlWithValidation } from '@/lib/publicUrls';
+import { getPlatformSubdomainUrl } from '@/lib/canonicalDomainService';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
