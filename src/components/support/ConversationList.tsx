@@ -222,37 +222,35 @@ export function ConversationList({
                         {conversation.customer_name?.[0]?.toUpperCase() || '?'}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="absolute -bottom-1 -right-1 text-sm">
-                      {channelIcons[conversation.channel_type]}
+                    <span className="absolute -bottom-1 -right-1 bg-background rounded-full p-0.5">
+                      <ChannelIcon channel={conversation.channel_type} />
                     </span>
                   </div>
                   <div className="flex-1 min-w-0">
+                    {/* Row 1: Name + unread badge */}
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium truncate">
+                      <span className="font-medium truncate text-sm">
                         {conversation.customer_name || conversation.customer_email || conversation.customer_phone || 'Desconhecido'}
                       </span>
-                      <span className="text-xs text-muted-foreground shrink-0">
-                        {conversation.last_message_at
-                          ? formatDistanceToNow(new Date(conversation.last_message_at), { addSuffix: true, locale: ptBR })
-                          : '-'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className={cn("h-2 w-2 rounded-full shrink-0", statusColors[conversation.status])} />
-                      <span className="text-xs text-muted-foreground truncate">
-                        {statusLabels[conversation.status]}
-                      </span>
                       {conversation.unread_count > 0 && (
-                        <Badge variant="destructive" className="h-5 px-1.5 ml-auto">
+                        <Badge variant="destructive" className="h-5 px-1.5 shrink-0">
                           {conversation.unread_count}
                         </Badge>
                       )}
                     </div>
-                    {conversation.subject && (
-                      <p className="text-sm text-muted-foreground truncate mt-1">
-                        {conversation.subject}
+                    {/* Row 2: Last message preview */}
+                    {conversation.summary && (
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">
+                        {conversation.summary}
                       </p>
                     )}
+                    {/* Row 3: Status dot + date */}
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={cn("h-2 w-2 rounded-full shrink-0", statusColors[conversation.status])} />
+                      <span className="text-[11px] text-muted-foreground">
+                        {formatConversationDate(conversation.last_message_at)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </button>
