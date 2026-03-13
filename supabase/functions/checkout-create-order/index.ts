@@ -1,8 +1,9 @@
 // ============================================
-// CHECKOUT CREATE ORDER - Server-side order creation v2.0
+// CHECKOUT CREATE ORDER - Server-side order creation v3.0
 // Handles customer upsert, order creation, order items
 // Uses service role to bypass RLS
 // v2.0 — Shipping quote validation (Security Plan v3.1 Phase 2A)
+// v3.0 — Canonical price recalculation (Security Plan v3.1 Phase 2B)
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -171,8 +172,34 @@ serve(async (req) => {
 
     console.log('[checkout-create-order] All products validated successfully');
 
+    // === CANONICAL PRICE RECALCULATION (Security Plan v3.1 Phase 2B) ===
+    // Fetch real prices from database — NEVER trust frontend-submitted prices
+    const { data: dbProducts, error: priceError } = await supabase
+      .from('products')
+      .select('id, price, compare_at_price')
+      .eq('tenant_id', payload.tenant_id)
+      .in('id', productIds);
+
+    let canonicalSubtotal = 0;
+    const productPriceMap = new Map<string, number>();
+    if (!priceError && dbProducts) {
+      for (const p of dbProducts) {
+        productPriceMap.set(p.id, Number(p.price) || 0);
+      }
+      for (const item of payload.items) {
+        const dbPrice = productPriceMap.get(item.product_id) || 0;
+        canonicalSubtotal += dbPrice * item.quantity;
+      }
+      // Round to 2 decimal places
+      canonicalSubtotal = Math.round(canonicalSubtotal * 100) / 100;
+    } else {
+      console.warn('[checkout-create-order][PRICE_AUDIT] Could not fetch DB prices, using submitted subtotal');
+      canonicalSubtotal = payload.subtotal;
+    }
+
     // === SHIPPING QUOTE VALIDATION (Security Plan v3.1 - SIMULATION MODE) ===
     let validatedQuoteId: string | null = null;
+    let canonicalShipping = payload.shipping_total; // fallback to submitted
     if (payload.shipping_quote_id) {
       try {
         const cartFingerprint = await generateCartFingerprint(
@@ -216,10 +243,18 @@ serve(async (req) => {
           if (issues.length > 0) {
             console.warn(`[checkout-create-order][QUOTE_AUDIT] SIMULATION - Issues: ${issues.join(', ')} for quote ${quote.id}`);
             // SIMULATION MODE: log only, do NOT reject
-            // ENFORCEMENT MODE (future): return error INVALID_SHIPPING_QUOTE
           } else {
             console.log('[checkout-create-order][QUOTE_AUDIT] Quote valid:', quote.id);
             validatedQuoteId = quote.id;
+
+            // Use the shipping price from the server-side quote as canonical
+            const selectedOption = (quote.options as any[])?.find(
+              (opt: any) => opt.service_code === payload.shipping.service_code
+            );
+            if (selectedOption?.price !== undefined) {
+              canonicalShipping = Number(selectedOption.price);
+            }
+
             // Mark as used
             await supabase
               .from('shipping_quotes')
@@ -232,6 +267,51 @@ serve(async (req) => {
       }
     } else {
       console.log('[checkout-create-order][QUOTE_AUDIT] No quote_id provided - skipping validation');
+    }
+
+    // === CANONICAL DISCOUNT VALIDATION ===
+    let canonicalDiscount = 0;
+    if (payload.discount?.discount_id) {
+      const { data: dbDiscount } = await supabase
+        .from('discounts')
+        .select('discount_type, discount_value, min_order_value, max_discount_value, free_shipping')
+        .eq('id', payload.discount.discount_id)
+        .eq('tenant_id', payload.tenant_id)
+        .eq('is_active', true)
+        .single();
+
+      if (dbDiscount) {
+        if (dbDiscount.discount_type === 'percentage') {
+          canonicalDiscount = Math.round(canonicalSubtotal * (Number(dbDiscount.discount_value) / 100) * 100) / 100;
+          if (dbDiscount.max_discount_value && canonicalDiscount > Number(dbDiscount.max_discount_value)) {
+            canonicalDiscount = Number(dbDiscount.max_discount_value);
+          }
+        } else if (dbDiscount.discount_type === 'fixed') {
+          canonicalDiscount = Number(dbDiscount.discount_value) || 0;
+        }
+        // Free shipping overrides shipping cost
+        if (dbDiscount.free_shipping) {
+          canonicalShipping = 0;
+        }
+      } else {
+        console.warn('[checkout-create-order][PRICE_AUDIT] Discount not found or inactive, using submitted discount');
+        canonicalDiscount = payload.discount_total || 0;
+      }
+    } else {
+      canonicalDiscount = payload.discount_total || 0;
+    }
+
+    // Calculate canonical total
+    const canonicalTotal = Math.round((canonicalSubtotal + canonicalShipping - canonicalDiscount - (payload.payment_method_discount || 0)) * 100) / 100;
+    const submittedTotal = payload.total;
+
+    // Log drift detection
+    const subtotalDrift = Math.abs(payload.subtotal - canonicalSubtotal);
+    const totalDrift = Math.abs(submittedTotal - canonicalTotal);
+    if (subtotalDrift > 0.01 || totalDrift > 0.01) {
+      console.warn(`[checkout-create-order][PRICE_AUDIT] ⚠️ DRIFT DETECTED — submitted_total=${submittedTotal}, canonical_total=${canonicalTotal}, subtotal_drift=${subtotalDrift.toFixed(2)}, total_drift=${totalDrift.toFixed(2)}`);
+    } else {
+      console.log(`[checkout-create-order][PRICE_AUDIT] ✅ Prices match — canonical_total=${canonicalTotal}`);
     }
 
     // 1. Generate order number
@@ -306,7 +386,7 @@ serve(async (req) => {
     
     // Calculate installment value if applicable
     const installmentsCount = payload.installments || 1;
-    const installmentValue = installmentsCount > 1 ? Math.round((payload.total / installmentsCount) * 100) / 100 : null;
+    const installmentValue = installmentsCount > 1 ? Math.round((canonicalTotal / installmentsCount) * 100) / 100 : null;
     
     const { data: order, error: orderError } = await supabase
       .from('orders')
@@ -320,13 +400,14 @@ serve(async (req) => {
         status: 'pending',
         payment_status: 'pending',
         payment_method: payload.payment_method,
-        subtotal: payload.subtotal,
-        shipping_total: payload.shipping_total,
-        discount_total: payload.discount_total || 0,
+        subtotal: canonicalSubtotal,
+        shipping_total: canonicalShipping,
+        discount_total: canonicalDiscount,
         payment_method_discount: payload.payment_method_discount || 0,
         installments: installmentsCount,
         installment_value: installmentValue,
-        total: payload.total,
+        total: canonicalTotal,
+        canonical_total: canonicalTotal,
         shipping_street: payload.shipping.street,
         shipping_number: payload.shipping.number,
         shipping_complement: payload.shipping.complement || null,
@@ -357,6 +438,32 @@ serve(async (req) => {
 
     const orderId = order.id;
     console.log('[checkout-create-order] Order created:', orderId);
+
+    // === PRICE AUDIT RECORD (Security Plan v3.1 Phase 2B) ===
+    try {
+      await supabase
+        .from('order_price_audit')
+        .insert({
+          order_id: orderId,
+          tenant_id: payload.tenant_id,
+          submitted_subtotal: payload.subtotal,
+          submitted_shipping: payload.shipping_total,
+          submitted_discount: payload.discount_total || 0,
+          submitted_payment_discount: payload.payment_method_discount || 0,
+          submitted_total: submittedTotal,
+          canonical_subtotal: canonicalSubtotal,
+          canonical_shipping: canonicalShipping,
+          canonical_discount: canonicalDiscount,
+          canonical_total: canonicalTotal,
+          shipping_quote_id: validatedQuoteId || null,
+          discount_id: payload.discount?.discount_id || null,
+          validation_notes: totalDrift > 0.01
+            ? `Drift detected: submitted=${submittedTotal}, canonical=${canonicalTotal}`
+            : 'Prices match',
+        });
+    } catch (auditErr) {
+      console.warn('[checkout-create-order][PRICE_AUDIT] Non-blocking audit insert error:', auditErr);
+    }
 
     // 4. Create order items
     console.log('[checkout-create-order] Creating order items');

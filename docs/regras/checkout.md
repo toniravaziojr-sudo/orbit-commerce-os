@@ -632,3 +632,19 @@ O header e footer do checkout usam `StorefrontHeaderContent` e `StorefrontFooter
 |--------|---------|----------|
 | Menu Sistema → Configurações | `/system/settings?tab=payments` | Sempre disponível |
 | Builder Checkout → Alert | Sistema > Configurações > Pagamentos | Link informativo |
+
+---
+
+## 🔒 Segurança — Validação de Preço Canônico (Phase 2B, v2026-03-14)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Segurança financeira |
+| **Localização** | `checkout-create-order/index.ts` (v3.0), `mercadopago-create-charge/index.ts` (v2.0), `pagarme-create-charge/index.ts` (v2.0), tabela `order_price_audit` |
+| **Descrição** | O total do pedido é recalculado no servidor usando preços do banco de dados, frete do snapshot canônico e desconto revalidado. Valores enviados pelo navegador são ignorados para fins de cobrança. |
+| **Fluxo** | 1. Checkout cria pedido → busca preços reais dos produtos no banco → recalcula subtotal canônico → busca frete canônico do shipping_quote → revalida desconto → calcula `canonical_total` → persiste no pedido e na tabela de auditoria |
+| **Cobrança** | Funções de cobrança (Pagar.me e Mercado Pago) buscam `canonical_total` do pedido no banco e usam esse valor para cobrar. Se `canonical_total` não existir, usam o valor enviado como fallback. |
+| **Auditoria** | Tabela `order_price_audit` registra: `submitted_subtotal`, `submitted_shipping`, `submitted_discount`, `submitted_total` vs `canonical_subtotal`, `canonical_shipping`, `canonical_discount`, `canonical_total`. Colunas geradas: `subtotal_drift`, `total_drift`, `has_drift`. |
+| **Drift Detection** | Log estruturado `[PRICE_AUDIT] ⚠️ DRIFT DETECTED` quando diferença > R$0.01 entre submitted e canonical. |
+| **Modo atual** | SIMULAÇÃO — divergências são registradas mas não bloqueiam o pedido. Enforcement futuro rejeitará pedidos com drift significativo. |
+| **Performance** | 1 query adicional (buscar preços dos produtos), 1 query condicional (revalidar desconto). Sem impacto perceptível — ambas usam índices existentes por tenant_id. |
