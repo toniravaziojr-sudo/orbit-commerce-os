@@ -145,6 +145,16 @@ Quando `checkout.abandoned` é disparado, pode triggerar:
 - Mensagem WhatsApp
 - Notificação para equipe
 
+### Integração com Ghost Orders (v2026-03-13)
+
+Pedidos criados no banco mas que nunca foram registrados na operadora de pagamento (`payment_gateway_id = null`) são classificados como **ghost orders**. O cron `expire-stale-orders` automaticamente:
+
+1. Cancela o ghost order após 30 minutos
+2. Marca a `checkout_session` associada como `abandoned`
+3. O registro passa a aparecer na tela de Checkouts Abandonados
+
+Isso garante que a equipe pode usar as ferramentas de recuperação (WhatsApp, email) para tentar converter essa venda.
+
 ---
 
 ## RBAC

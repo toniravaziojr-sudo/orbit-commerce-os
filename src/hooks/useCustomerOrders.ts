@@ -79,6 +79,7 @@ export function useCustomerOrders(customerEmailOverride?: string) {
       console.log('[useCustomerOrders] Fetching orders for (normalized):', customerEmail);
 
       // Real query - fetch orders by customer email (normalized)
+      // Exclude ghost orders: no gateway confirmation = not a real order
       const { data: orders, error } = await supabase
         .from('orders')
         .select(`
@@ -88,6 +89,7 @@ export function useCustomerOrders(customerEmailOverride?: string) {
           customer_name, customer_email
         `)
         .eq('customer_email', customerEmail)
+        .or('payment_gateway_id.not.is.null,status.neq.pending')
         .order('created_at', { ascending: false });
 
       if (error) {
