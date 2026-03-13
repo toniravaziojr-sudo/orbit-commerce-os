@@ -491,7 +491,15 @@ Todas as descrições completas geradas por IA seguem esta estrutura obrigatóri
 
 ---
 
-## 12. Pendências
+## 12. Regras Visuais — Responsividade Mobile
+
+| Elemento | Comportamento Mobile | Arquivo |
+|----------|---------------------|---------|
+| **Tabela de produtos** | `overflow-x-auto` com `min-w-[700px]` — scroll horizontal no celular | `ProductList.tsx` |
+
+---
+
+## 13. Pendências
 
 - [ ] Exportação em massa (CSV/Excel)
 - [ ] Histórico de alterações do produto
