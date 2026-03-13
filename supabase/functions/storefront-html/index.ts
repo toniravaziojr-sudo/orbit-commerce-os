@@ -105,7 +105,7 @@ function parseRoute(path: string): ParsedRoute {
 // ============================================
 // MARKETING PIXELS — Deferred script injection
 // ============================================
-function generateMarketingPixelScripts(config: any, trackingData?: { routeType: string; product?: any; category?: any; categoryProductIds?: string[] }): string {
+function generateMarketingPixelScripts(config: any, trackingData?: { routeType: string; product?: any; category?: any; categoryProductIds?: string[] }, capiContext?: { tenantId: string; supabaseUrl: string; anonKey: string }): string {
   if (!config) return '';
   const scripts: string[] = [];
   const prefetches: string[] = [];
