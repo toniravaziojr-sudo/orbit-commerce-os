@@ -691,3 +691,20 @@ O header e footer do checkout usam `StorefrontHeaderContent` e `StorefrontFooter
 | **Nota sobre product_reviews** | A inserção de avaliações (`product_reviews INSERT`) continua via cliente direto com policy própria separada. Não afetada por esta mudança. |
 | **Rollback** | Recriar as 2 policies: `CREATE POLICY "Anyone can view order by number for confirmation" ON public.orders FOR SELECT USING (true)` e `CREATE POLICY "Anyone can view order items for checkout" ON public.order_items FOR SELECT USING (true)`. Reverter `useCustomerOrders.ts` e `StorefrontReview.tsx` para versão anterior (leitura direta). |
 | **Resultado** | Zero policies anônimas restantes em `orders` e `order_items`. Todas as leituras e escritas passam por funções autenticadas no servidor. |
+
+---
+
+## 🔒 Estado Consolidado de Segurança (v2026-03-14)
+
+> **REGRA ESTRUTURAL** — Este estado é o padrão final das tabelas de checkout e NÃO deve ser revertido sem aprovação explícita.
+
+As seguintes tabelas estão **sem nenhuma policy anônima** (nem INSERT, nem SELECT):
+- `orders`
+- `order_items`
+- `customers`
+- `payment_transactions`
+- `order_attribution`
+
+**Toda** leitura e escrita nessas tabelas passa por Edge Functions com `service_role`.
+
+> Para detalhes dos padrões de segurança aplicáveis, consultar: `docs/regras/edge-functions.md` → seção "Padrões de Segurança — Acesso a Dados Sensíveis".
