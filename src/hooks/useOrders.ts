@@ -175,10 +175,11 @@ export function useOrders(options?: {
         .from('orders')
         .select('*, customers(total_orders)', { count: 'exact' })
         .eq('tenant_id', currentTenant.id)
-        // Ghost Order Rule: orders without gateway confirmation are NOT real orders.
-        // Show only orders that have a payment_gateway_id (confirmed by gateway).
-        // Ghost orders (no gateway_id) are hidden — they go to abandoned checkouts instead.
-        .not('payment_gateway_id', 'is', null);
+        // Ghost Order Rule: hide only truly abandoned checkouts
+        // (pending payment + no gateway confirmation = not a real order).
+        // Orders confirmed via webhook (approved, cancelled, etc.) always show,
+        // even if payment_gateway_id was not set by the charge function.
+        .or('payment_gateway_id.not.is.null,payment_status.neq.pending');
 
       if (search) {
         query = query.or(`order_number.ilike.%${search}%,customer_name.ilike.%${search}%,customer_email.ilike.%${search}%`);
