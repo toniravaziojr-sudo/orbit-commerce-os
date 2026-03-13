@@ -177,7 +177,7 @@ export default function Orders() {
                 onChange={(e) => handleSearchChange(e.target.value)}
               />
             </div>
-            <div className="flex gap-3 flex-wrap">
+            <div className="flex gap-3 flex-wrap w-full sm:w-auto">
               <DateRangeFilter
                 startDate={startDate}
                 endDate={endDate}
@@ -192,7 +192,7 @@ export default function Orders() {
                 onDateFieldChange={setDateField}
               />
               <Select value={statusFilter} onValueChange={handleStatusChange}>
-                <SelectTrigger className="w-44">
+                <SelectTrigger className="w-full sm:w-44">
                   <SelectValue placeholder="Status Pedido" />
                 </SelectTrigger>
                 <SelectContent>
@@ -211,7 +211,7 @@ export default function Orders() {
                 </SelectContent>
               </Select>
               <Select value={paymentFilter} onValueChange={handlePaymentChange}>
-                <SelectTrigger className="w-44">
+                <SelectTrigger className="w-full sm:w-44">
                   <SelectValue placeholder="Status Pgto" />
                 </SelectTrigger>
                 <SelectContent>
@@ -224,7 +224,7 @@ export default function Orders() {
                 </SelectContent>
               </Select>
               <Select value={shippingFilter} onValueChange={handleShippingChange}>
-                <SelectTrigger className="w-44">
+                <SelectTrigger className="w-full sm:w-44">
                   <SelectValue placeholder="Status Envio" />
                 </SelectTrigger>
                 <SelectContent>
@@ -275,11 +275,11 @@ export default function Orders() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-4 border-t">
-              <p className="text-sm text-muted-foreground">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pt-4 border-t">
+              <p className="text-sm text-muted-foreground text-center sm:text-left">
                 Mostrando {((currentPage - 1) * PAGE_SIZE) + 1} a {Math.min(currentPage * PAGE_SIZE, totalCount)} de {totalCount} pedidos
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -287,9 +287,9 @@ export default function Orders() {
                   disabled={currentPage === 1 || isLoading}
                 >
                   <ChevronLeft className="h-4 w-4 mr-1" />
-                  Anterior
+                  <span className="hidden sm:inline">Anterior</span>
                 </Button>
-                <div className="flex items-center gap-1">
+                <div className="hidden sm:flex items-center gap-1">
                   {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                     let pageNum: number;
                     if (totalPages <= 5) {
@@ -315,13 +315,16 @@ export default function Orders() {
                     );
                   })}
                 </div>
+                <span className="sm:hidden text-sm text-muted-foreground">
+                  {currentPage} / {totalPages}
+                </span>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                   disabled={currentPage === totalPages || isLoading}
                 >
-                  Próximo
+                  <span className="hidden sm:inline">Próximo</span>
                   <ChevronRight className="h-4 w-4 ml-1" />
                 </Button>
               </div>
