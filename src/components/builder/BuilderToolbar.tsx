@@ -237,7 +237,6 @@ export function BuilderToolbar({
   // intercepts and delivers full server-rendered HTML
   const handleOpenDraftPreview = () => {
     if (previewResult.url && tenantSlug) {
-      const { getPlatformSubdomainUrl } = require('@/lib/canonicalDomainService');
       const shopsOrigin = getPlatformSubdomainUrl(tenantSlug);
       // Strip /store/{tenantSlug} prefix since shops domain uses root-relative paths
       let cleanPath = previewResult.url.replace(/^\/store\/[^/]+/, '');
