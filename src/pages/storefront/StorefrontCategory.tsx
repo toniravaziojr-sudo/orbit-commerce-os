@@ -25,6 +25,7 @@ const defaultCategorySettings: CategorySettings = {
   quickBuyEnabled: false,
   showBadges: true,
   buyNowButtonText: 'Comprar agora',
+  defaultSortOrder: 'relevance',
   customButtonEnabled: false,
   customButtonText: '',
   customButtonColor: '',
