@@ -1,11 +1,11 @@
 import { useState, useMemo } from "react";
-import { MessageSquare, Search, Filter, Inbox, Bot, User } from "lucide-react";
+import { MessageSquare, Search, Filter, Inbox, Bot, User, Mail, Globe, Phone, ShoppingCart, Music, Instagram } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { formatDistanceToNow } from "date-fns";
+import { differenceInCalendarDays, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Conversation, ConversationStatus, SupportChannelType } from "@/hooks/useConversations";
 import { cn } from "@/lib/utils";
@@ -18,16 +18,42 @@ interface ConversationListProps {
   onFilterChange: (filter: 'needs_attention' | 'in_progress' | 'bot' | 'resolved' | 'all') => void;
 }
 
-const channelIcons: Record<SupportChannelType, string> = {
-  whatsapp: '💬',
-  email: '✉️',
-  facebook_messenger: '📘',
-  instagram_dm: '📸',
-  mercadolivre: '🛒',
-  shopee: '🧡',
-  tiktokshop: '🎵',
-  chat: '🌐',
-};
+// Channel icon components for visual distinction
+function ChannelIcon({ channel, className }: { channel: SupportChannelType; className?: string }) {
+  const iconClass = cn("h-3.5 w-3.5", className);
+  switch (channel) {
+    case 'whatsapp':
+      return <Phone className={cn(iconClass, "text-green-500")} />;
+    case 'email':
+      return <Mail className={cn(iconClass, "text-blue-500")} />;
+    case 'facebook_messenger':
+      return <MessageSquare className={cn(iconClass, "text-blue-600")} />;
+    case 'instagram_dm':
+      return <Instagram className={cn(iconClass, "text-pink-500")} />;
+    case 'mercadolivre':
+      return <ShoppingCart className={cn(iconClass, "text-yellow-500")} />;
+    case 'shopee':
+      return <ShoppingCart className={cn(iconClass, "text-orange-500")} />;
+    case 'tiktokshop':
+      return <Music className={cn(iconClass, "text-foreground")} />;
+    case 'chat':
+      return <Globe className={cn(iconClass, "text-primary")} />;
+    default:
+      return <MessageSquare className={iconClass} />;
+  }
+}
+
+/** Format date as "Hoje", "Ontem", or dd/mm/yyyy */
+function formatConversationDate(dateStr: string | null): string {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diff = differenceInCalendarDays(now, date);
+  if (diff === 0) return 'Hoje';
+  if (diff === 1) return 'Ontem';
+  if (diff < 7) return format(date, "EEEE", { locale: ptBR }); // dia da semana
+  return format(date, "dd/MM/yyyy");
+}
 
 const statusColors: Record<ConversationStatus, string> = {
   new: 'bg-blue-500',
@@ -37,16 +63,6 @@ const statusColors: Record<ConversationStatus, string> = {
   bot: 'bg-purple-500',
   resolved: 'bg-gray-400',
   spam: 'bg-red-500',
-};
-
-const statusLabels: Record<ConversationStatus, string> = {
-  new: 'Nova',
-  open: 'Em atendimento',
-  waiting_customer: 'Aguardando cliente',
-  waiting_agent: 'Aguardando agente',
-  bot: 'IA',
-  resolved: 'Resolvida',
-  spam: 'Spam',
 };
 
 export function ConversationList({
@@ -206,37 +222,35 @@ export function ConversationList({
                         {conversation.customer_name?.[0]?.toUpperCase() || '?'}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="absolute -bottom-1 -right-1 text-sm">
-                      {channelIcons[conversation.channel_type]}
+                    <span className="absolute -bottom-1 -right-1 bg-background rounded-full p-0.5">
+                      <ChannelIcon channel={conversation.channel_type} />
                     </span>
                   </div>
                   <div className="flex-1 min-w-0">
+                    {/* Row 1: Name + unread badge */}
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium truncate">
+                      <span className="font-medium truncate text-sm">
                         {conversation.customer_name || conversation.customer_email || conversation.customer_phone || 'Desconhecido'}
                       </span>
-                      <span className="text-xs text-muted-foreground shrink-0">
-                        {conversation.last_message_at
-                          ? formatDistanceToNow(new Date(conversation.last_message_at), { addSuffix: true, locale: ptBR })
-                          : '-'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className={cn("h-2 w-2 rounded-full shrink-0", statusColors[conversation.status])} />
-                      <span className="text-xs text-muted-foreground truncate">
-                        {statusLabels[conversation.status]}
-                      </span>
                       {conversation.unread_count > 0 && (
-                        <Badge variant="destructive" className="h-5 px-1.5 ml-auto">
+                        <Badge variant="destructive" className="h-5 px-1.5 shrink-0">
                           {conversation.unread_count}
                         </Badge>
                       )}
                     </div>
-                    {conversation.subject && (
-                      <p className="text-sm text-muted-foreground truncate mt-1">
-                        {conversation.subject}
+                    {/* Row 2: Last message preview */}
+                    {conversation.summary && (
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">
+                        {conversation.summary}
                       </p>
                     )}
+                    {/* Row 3: Status dot + date */}
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={cn("h-2 w-2 rounded-full shrink-0", statusColors[conversation.status])} />
+                      <span className="text-[11px] text-muted-foreground">
+                        {formatConversationDate(conversation.last_message_at)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </button>
