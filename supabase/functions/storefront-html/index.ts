@@ -346,7 +346,7 @@ function generateSupportWidgetHtml(themeSettings: any, routeType: string, tenant
         <p style="font-size:14px;color:#666;margin:0;">Olá! Para iniciar o atendimento, preencha seus dados:</p>
         <input id="sf-chat-name" type="text" placeholder="Seu nome" style="width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;outline:none;font-family:inherit;box-sizing:border-box;">
         <input id="sf-chat-email" type="email" placeholder="Seu e-mail" style="width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;outline:none;font-family:inherit;box-sizing:border-box;">
-        <button id="sf-chat-start" style="width:100%;padding:12px;background:${escapeHtml(buttonColor)};color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">Iniciar conversa</button>
+        <button id="sf-chat-start" style="width:100%;padding:12px;background:${escapeHtml(chatColor)};color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">Iniciar conversa</button>
       </div>
       <div id="sf-chat-messages" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
         <div id="sf-chat-scroll" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px;">
@@ -354,7 +354,7 @@ function generateSupportWidgetHtml(themeSettings: any, routeType: string, tenant
         </div>
         <div style="display:flex;gap:8px;padding:12px;border-top:1px solid #eee;">
           <input id="sf-chat-input" type="text" placeholder="Digite sua mensagem..." style="flex:1;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;outline:none;font-family:inherit;">
-          <button id="sf-chat-send" style="width:40px;height:40px;border-radius:8px;border:none;background:${escapeHtml(buttonColor)};color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;">
+          <button id="sf-chat-send" style="width:40px;height:40px;border-radius:8px;border:none;background:${escapeHtml(chatColor)};color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           </button>
         </div>
@@ -410,7 +410,7 @@ function generateSupportWidgetHtml(themeSettings: any, routeType: string, tenant
       var empty=scroll.querySelector("p");
       if(empty&&empty.textContent.includes("Envie"))empty.remove();
       var div=document.createElement("div");
-      div.style.cssText="max-width:80%;padding:8px 12px;border-radius:12px;font-size:14px;word-wrap:break-word;"+(direction==="inbound"?"align-self:flex-end;background:${escapeHtml(buttonColor)};color:#fff;":"align-self:flex-start;background:#f3f4f6;color:#1a1a1a;");
+      div.style.cssText="max-width:80%;padding:8px 12px;border-radius:12px;font-size:14px;word-wrap:break-word;"+(direction==="inbound"?"align-self:flex-end;background:${escapeHtml(chatColor)};color:#fff;":"align-self:flex-start;background:#f3f4f6;color:#1a1a1a;");
       div.textContent=content;
       scroll.appendChild(div);
       scroll.scrollTop=scroll.scrollHeight;

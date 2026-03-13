@@ -718,6 +718,7 @@ Armazenado em: `storefront_template_sets.draft_content.themeSettings.supportWidg
 - Quando `type = 'both'`, exibe dois botões empilhados (WhatsApp acima, Chat abaixo)
 - Cada botão tem cor independente configurável no Builder (Atendimento)
 - O header do chat drawer usa a cor do botão de chat (`chatButtonColor`)
+- **CRÍTICO**: No Edge HTML, todas as referências de cor dentro do chat (botão "Iniciar conversa", botão de envio, balões de mensagem do usuário) usam `chatColor` — NUNCA `buttonColor` (variável legada/inexistente no escopo)
 
 ---
 
