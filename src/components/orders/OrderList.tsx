@@ -176,27 +176,34 @@ export function OrderList({
     );
   }
 
+  const PAYMENT_METHOD_LABELS: Record<string, string> = {
+    pix: 'PIX',
+    credit_card: 'Cartão',
+    debit_card: 'Débito',
+    boleto: 'Boleto',
+    mercado_pago: 'Mercado Pago',
+    pagarme: 'Pagar.me',
+  };
+
   return (
     <TooltipProvider>
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Pedido</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Envio</TableHead>
-              <TableHead>Forma Pgto</TableHead>
-              <TableHead>Pagamento</TableHead>
-              <TableHead className="text-right">Total</TableHead>
-              <TableHead>Data</TableHead>
-              <TableHead className="w-12"></TableHead>
+              <TableHead className="w-[100px]">Pedido</TableHead>
+              <TableHead className="min-w-[180px]">Cliente</TableHead>
+              <TableHead className="w-[140px]">Status</TableHead>
+              <TableHead className="w-[120px]">Envio</TableHead>
+              <TableHead className="w-[90px]">Método</TableHead>
+              <TableHead className="w-[120px]">Pagamento</TableHead>
+              <TableHead className="w-[110px] text-right">Total</TableHead>
+              <TableHead className="w-[130px]">Data</TableHead>
+              <TableHead className="w-10"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {orders.map((order) => {
-              // CRITICAL: Normalize legacy DB values to new status types
-              // DB may have 'paid', 'approved', 'pending' etc. which don't exist in new configs
               const normalizedOrderStatus = normalizeOrderStatus(order.status);
               const normalizedPaymentStatus = normalizePaymentStatus(order.payment_status);
               const normalizedShippingStatus = normalizeShippingStatus(order.shipping_status);
@@ -209,39 +216,30 @@ export function OrderList({
 
               return (
                 <TableRow key={order.id} className="cursor-pointer hover:bg-muted/50">
-                  <TableCell onClick={() => onView(order)}>
-                    <div className="flex items-center gap-3">
+                  <TableCell onClick={() => onView(order)} className="py-3">
+                    <div className="flex items-center gap-2">
                       <OrderSourceBadge 
                         marketplaceSource={order.marketplace_source} 
-                        size="md"
+                        size="sm"
                       />
-                      <div>
-                        <p className="font-medium">{order.order_number}</p>
-                        {order.marketplace_order_id && (
-                          <p className="text-xs text-muted-foreground">
-                            #{order.marketplace_order_id}
-                          </p>
-                        )}
-                      </div>
+                      <span className="font-semibold text-sm">{order.order_number}</span>
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">{order.customer_name}</p>
-                      <p className="text-sm text-muted-foreground">{order.customer_email}</p>
-                    </div>
+                  <TableCell onClick={() => onView(order)} className="py-3">
+                    <p className="font-medium text-sm truncate max-w-[200px]">{order.customer_name}</p>
+                    <p className="text-xs text-muted-foreground truncate max-w-[200px]">{order.customer_email}</p>
                   </TableCell>
-                  <TableCell>
-                    <Badge variant={orderStatusCfg.variant} className="gap-1">
-                      <StatusIcon className="h-3 w-3" />
+                  <TableCell className="py-3">
+                    <Badge variant={orderStatusCfg.variant} className="gap-1 text-xs whitespace-nowrap">
+                      <StatusIcon className="h-3 w-3 shrink-0" />
                       {orderStatusCfg.label}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="py-3">
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Badge variant={shippingStatusCfg.variant} className="gap-1 cursor-help">
-                          <ShippingIcon className="h-3 w-3" />
+                        <Badge variant={shippingStatusCfg.variant} className="gap-1 text-xs cursor-help whitespace-nowrap">
+                          <ShippingIcon className="h-3 w-3 shrink-0" />
                           {shippingStatusCfg.label}
                         </Badge>
                       </TooltipTrigger>
@@ -253,86 +251,77 @@ export function OrderList({
                       </TooltipContent>
                     </Tooltip>
                   </TableCell>
-                  <TableCell>
-                    <span className="text-sm text-muted-foreground">
-                      {order.payment_method ? ({
-                        pix: 'PIX',
-                        credit_card: 'Cartão de Crédito',
-                        debit_card: 'Cartão de Débito',
-                        boleto: 'Boleto',
-                        mercado_pago: 'Mercado Pago',
-                        pagarme: 'Pagar.me',
-                      } as Record<string, string>)[order.payment_method] || order.payment_method : '—'}
+                  <TableCell className="py-3">
+                    <span className="text-xs font-medium">
+                      {order.payment_method ? PAYMENT_METHOD_LABELS[order.payment_method] || order.payment_method : '—'}
                     </span>
                   </TableCell>
-                  <TableCell>
-                    <Badge variant={paymentStatusCfg.variant}>
+                  <TableCell className="py-3">
+                    <Badge variant={paymentStatusCfg.variant} className="text-xs whitespace-nowrap">
                       {paymentStatusCfg.label}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right font-medium">
-                    <div className="flex items-center justify-end gap-2">
-                      {formatCurrency(order.total)}
-                      {order.is_first_sale && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-emerald-500/10 text-emerald-600 border-emerald-500/30 whitespace-nowrap">
-                          1ª venda
-                        </Badge>
-                      )}
-                    </div>
+                  <TableCell className="text-right py-3">
+                    <span className="font-semibold text-sm">{formatCurrency(order.total)}</span>
+                    {order.is_first_sale && (
+                      <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0 bg-emerald-500/10 text-emerald-600 border-emerald-500/30 whitespace-nowrap">
+                        1ª
+                      </Badge>
+                    )}
                   </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
+                  <TableCell className="py-3 text-xs text-muted-foreground whitespace-nowrap">
                     {formatDate(order.created_at)}
                   </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => onView(order)}>
-                        <Eye className="mr-2 h-4 w-4" />
-                        Ver detalhes
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuSub>
-                        <DropdownMenuSubTrigger>
-                          Alterar status
-                        </DropdownMenuSubTrigger>
-                        <DropdownMenuSubContent>
-                          {Object.entries(ORDER_STATUS_CONFIG).map(([key, cfg]) => {
-                            const Icon = orderStatusIcons[key as OrderStatus] || Clock;
-                            return (
-                              <DropdownMenuItem
-                                key={key}
-                                onClick={() => onUpdateStatus(order.id, key as OrderStatus)}
-                                disabled={order.status === key}
-                              >
-                                <Icon className="mr-2 h-4 w-4" />
-                                {cfg.label}
-                              </DropdownMenuItem>
-                            );
-                          })}
-                        </DropdownMenuSubContent>
-                      </DropdownMenuSub>
-                      {onDelete && (
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => handleDeleteClick(order.id)}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Excluir
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
-            );
+                  <TableCell className="py-3">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onView(order)}>
+                          <Eye className="mr-2 h-4 w-4" />
+                          Ver detalhes
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            Alterar status
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            {Object.entries(ORDER_STATUS_CONFIG).map(([key, cfg]) => {
+                              const Icon = orderStatusIcons[key as OrderStatus] || Clock;
+                              return (
+                                <DropdownMenuItem
+                                  key={key}
+                                  onClick={() => onUpdateStatus(order.id, key as OrderStatus)}
+                                  disabled={order.status === key}
+                                >
+                                  <Icon className="mr-2 h-4 w-4" />
+                                  {cfg.label}
+                                </DropdownMenuItem>
+                              );
+                            })}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                        {onDelete && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => handleDeleteClick(order.id)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Excluir
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              );
             })}
           </TableBody>
         </Table>
