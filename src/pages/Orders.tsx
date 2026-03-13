@@ -211,7 +211,7 @@ export default function Orders() {
                 </SelectContent>
               </Select>
               <Select value={paymentFilter} onValueChange={handlePaymentChange}>
-                <SelectTrigger className="w-44">
+                <SelectTrigger className="w-full sm:w-44">
                   <SelectValue placeholder="Status Pgto" />
                 </SelectTrigger>
                 <SelectContent>
