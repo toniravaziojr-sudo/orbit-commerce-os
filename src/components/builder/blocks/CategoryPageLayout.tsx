@@ -122,7 +122,8 @@ export function CategoryPageLayout({
   // Filter states — price range syncs with computed max on load
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 500]);
   const [priceInitialized, setPriceInitialized] = useState(false);
-  const [sortBy, setSortBy] = useState('relevance');
+  const defaultSort = categorySettings.defaultSortOrder || 'relevance';
+  const [sortBy, setSortBy] = useState(defaultSort);
   const [inStockOnly, setInStockOnly] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
