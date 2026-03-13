@@ -1474,6 +1474,7 @@ Após stream completo:
 
 | Versão | Data | Mudança |
 |--------|------|---------|
+| v6.11.0 | 2026-03-13 | **Drive ≠ Google Drive**: Todos os system prompts (factual, conversacional, estratégico) explicitam que "Drive" = Drive INTERNO do sistema ("Meu Drive"), NÃO Google Drive. Descrições de `browse_drive` e `search_drive_files` incluem "NÃO é Google Drive". Corrige regressão onde a IA dizia não ter acesso ao Drive ou mencionava Google Drive. |
 | v6.10.0 | 2026-03-13 | **Drive tools no fallback direto**: `browse_drive`, `search_drive_files` e `get_product_images` adicionados ao `executeToolDirect`. Corrige regressão onde a IA dizia não ter acesso ao Drive quando a delegação para v1 falhava. |
 | v6.2.0 | 2026-03-11 | **Escalação de lote**: `bulkIndicators` no classificador força modo estratégico para ações em massa. Prompt conversacional bloqueia >2 campanhas / >3 adsets direto. Segurança contra bypass de aprovação. |
 | v6.1.0 | 2026-03-11 | **Criação**: Dual-mode (factual/strategic/conversational). Classificador determinístico. Tool subsets. Orquestrador factual com Meta API live. `submit_strategic_proposal` convergindo para pipeline de aprovação. Frontend com fallback v2→v1. |
