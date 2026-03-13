@@ -172,8 +172,34 @@ serve(async (req) => {
 
     console.log('[checkout-create-order] All products validated successfully');
 
+    // === CANONICAL PRICE RECALCULATION (Security Plan v3.1 Phase 2B) ===
+    // Fetch real prices from database — NEVER trust frontend-submitted prices
+    const { data: dbProducts, error: priceError } = await supabase
+      .from('products')
+      .select('id, price, compare_at_price')
+      .eq('tenant_id', payload.tenant_id)
+      .in('id', productIds);
+
+    let canonicalSubtotal = 0;
+    const productPriceMap = new Map<string, number>();
+    if (!priceError && dbProducts) {
+      for (const p of dbProducts) {
+        productPriceMap.set(p.id, Number(p.price) || 0);
+      }
+      for (const item of payload.items) {
+        const dbPrice = productPriceMap.get(item.product_id) || 0;
+        canonicalSubtotal += dbPrice * item.quantity;
+      }
+      // Round to 2 decimal places
+      canonicalSubtotal = Math.round(canonicalSubtotal * 100) / 100;
+    } else {
+      console.warn('[checkout-create-order][PRICE_AUDIT] Could not fetch DB prices, using submitted subtotal');
+      canonicalSubtotal = payload.subtotal;
+    }
+
     // === SHIPPING QUOTE VALIDATION (Security Plan v3.1 - SIMULATION MODE) ===
     let validatedQuoteId: string | null = null;
+    let canonicalShipping = payload.shipping_total; // fallback to submitted
     if (payload.shipping_quote_id) {
       try {
         const cartFingerprint = await generateCartFingerprint(
@@ -217,10 +243,18 @@ serve(async (req) => {
           if (issues.length > 0) {
             console.warn(`[checkout-create-order][QUOTE_AUDIT] SIMULATION - Issues: ${issues.join(', ')} for quote ${quote.id}`);
             // SIMULATION MODE: log only, do NOT reject
-            // ENFORCEMENT MODE (future): return error INVALID_SHIPPING_QUOTE
           } else {
             console.log('[checkout-create-order][QUOTE_AUDIT] Quote valid:', quote.id);
             validatedQuoteId = quote.id;
+
+            // Use the shipping price from the server-side quote as canonical
+            const selectedOption = (quote.options as any[])?.find(
+              (opt: any) => opt.service_code === payload.shipping.service_code
+            );
+            if (selectedOption?.price !== undefined) {
+              canonicalShipping = Number(selectedOption.price);
+            }
+
             // Mark as used
             await supabase
               .from('shipping_quotes')
@@ -233,6 +267,51 @@ serve(async (req) => {
       }
     } else {
       console.log('[checkout-create-order][QUOTE_AUDIT] No quote_id provided - skipping validation');
+    }
+
+    // === CANONICAL DISCOUNT VALIDATION ===
+    let canonicalDiscount = 0;
+    if (payload.discount?.discount_id) {
+      const { data: dbDiscount } = await supabase
+        .from('discounts')
+        .select('discount_type, discount_value, min_order_value, max_discount_value, free_shipping')
+        .eq('id', payload.discount.discount_id)
+        .eq('tenant_id', payload.tenant_id)
+        .eq('is_active', true)
+        .single();
+
+      if (dbDiscount) {
+        if (dbDiscount.discount_type === 'percentage') {
+          canonicalDiscount = Math.round(canonicalSubtotal * (Number(dbDiscount.discount_value) / 100) * 100) / 100;
+          if (dbDiscount.max_discount_value && canonicalDiscount > Number(dbDiscount.max_discount_value)) {
+            canonicalDiscount = Number(dbDiscount.max_discount_value);
+          }
+        } else if (dbDiscount.discount_type === 'fixed') {
+          canonicalDiscount = Number(dbDiscount.discount_value) || 0;
+        }
+        // Free shipping overrides shipping cost
+        if (dbDiscount.free_shipping) {
+          canonicalShipping = 0;
+        }
+      } else {
+        console.warn('[checkout-create-order][PRICE_AUDIT] Discount not found or inactive, using submitted discount');
+        canonicalDiscount = payload.discount_total || 0;
+      }
+    } else {
+      canonicalDiscount = payload.discount_total || 0;
+    }
+
+    // Calculate canonical total
+    const canonicalTotal = Math.round((canonicalSubtotal + canonicalShipping - canonicalDiscount - (payload.payment_method_discount || 0)) * 100) / 100;
+    const submittedTotal = payload.total;
+
+    // Log drift detection
+    const subtotalDrift = Math.abs(payload.subtotal - canonicalSubtotal);
+    const totalDrift = Math.abs(submittedTotal - canonicalTotal);
+    if (subtotalDrift > 0.01 || totalDrift > 0.01) {
+      console.warn(`[checkout-create-order][PRICE_AUDIT] ⚠️ DRIFT DETECTED — submitted_total=${submittedTotal}, canonical_total=${canonicalTotal}, subtotal_drift=${subtotalDrift.toFixed(2)}, total_drift=${totalDrift.toFixed(2)}`);
+    } else {
+      console.log(`[checkout-create-order][PRICE_AUDIT] ✅ Prices match — canonical_total=${canonicalTotal}`);
     }
 
     // 1. Generate order number
