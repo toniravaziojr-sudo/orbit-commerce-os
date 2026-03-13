@@ -205,13 +205,20 @@ serve(async (req) => {
       if (newOrderStatus) orderUpdate.status = newOrderStatus;
       if (paidAt) orderUpdate.paid_at = paidAt;
 
+      // CRITICAL: Always ensure payment_gateway and payment_gateway_id are set.
+      // The create-charge function should set these, but the webhook acts as redundancy
+      // to guarantee every real order has a gateway reference.
+      // Without this, the ghost order filter hides the order from all lists.
+      orderUpdate.payment_gateway = 'mercadopago';
+      orderUpdate.payment_gateway_id = String(paymentId);
+
       if (Object.keys(orderUpdate).length > 1) {
         await supabase
           .from('orders')
           .update(orderUpdate)
           .eq('id', existingTransaction.order_id);
 
-        console.log(`[${requestId}] Order ${existingTransaction.order_id} updated: payment=${newPaymentStatus}, status=${newOrderStatus}`);
+        console.log(`[${requestId}] Order ${existingTransaction.order_id} updated: payment=${newPaymentStatus}, status=${newOrderStatus}, gateway_id=${paymentId}`);
       }
     }
 
