@@ -150,14 +150,14 @@ export default function Dashboard() {
               {DEMO_RECENT_ORDERS.map((order) => (
                 <div
                   key={order.id}
-                  className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-4 transition-colors hover:bg-muted/50"
+                  className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-border/50 bg-muted/30 p-4 transition-colors hover:bg-muted/50"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
                       <ShoppingCart className="h-5 w-5 text-primary" />
                     </div>
-                    <div>
-                      <p className="font-medium text-foreground">
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground truncate">
                         {order.id} - {order.customer}
                       </p>
                       <p className="text-sm text-muted-foreground">
@@ -165,7 +165,7 @@ export default function Dashboard() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4 pl-14 sm:pl-0">
                     <StatusBadge
                       variant={statusVariantMap[order.status as keyof typeof statusVariantMap]}
                       dot

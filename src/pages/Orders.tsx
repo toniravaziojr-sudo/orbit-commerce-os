@@ -275,11 +275,11 @@ export default function Orders() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-4 border-t">
-              <p className="text-sm text-muted-foreground">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pt-4 border-t">
+              <p className="text-sm text-muted-foreground text-center sm:text-left">
                 Mostrando {((currentPage - 1) * PAGE_SIZE) + 1} a {Math.min(currentPage * PAGE_SIZE, totalCount)} de {totalCount} pedidos
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -287,9 +287,9 @@ export default function Orders() {
                   disabled={currentPage === 1 || isLoading}
                 >
                   <ChevronLeft className="h-4 w-4 mr-1" />
-                  Anterior
+                  <span className="hidden sm:inline">Anterior</span>
                 </Button>
-                <div className="flex items-center gap-1">
+                <div className="hidden sm:flex items-center gap-1">
                   {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                     let pageNum: number;
                     if (totalPages <= 5) {
@@ -315,13 +315,16 @@ export default function Orders() {
                     );
                   })}
                 </div>
+                <span className="sm:hidden text-sm text-muted-foreground">
+                  {currentPage} / {totalPages}
+                </span>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                   disabled={currentPage === totalPages || isLoading}
                 >
-                  Próximo
+                  <span className="hidden sm:inline">Próximo</span>
                   <ChevronRight className="h-4 w-4 ml-1" />
                 </Button>
               </div>
