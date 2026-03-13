@@ -2,6 +2,7 @@
 // GET ORDER - Secure order lookup for thank-you page
 // Uses service role to bypass RLS
 // Returns order + items + payment instructions (PIX/Boleto)
+// v2 - Shared rate limiting via database
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -15,10 +16,14 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
+// Rate limit config
+const RATE_LIMIT_WINDOW_SECONDS = 60;
+const RATE_LIMIT_MAX_REQUESTS = 15;
+
 interface GetOrderRequest {
   order_id?: string;
   order_number?: string;
-  tenant_id?: string; // Required for disambiguation
+  tenant_id?: string;
 }
 
 serve(async (req) => {
@@ -27,19 +32,42 @@ serve(async (req) => {
   }
 
   try {
+    // Create Supabase client with service role (bypasses RLS + can call restricted functions)
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // --- Shared Rate Limiting (database-backed) ---
+    const clientIP = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+      || req.headers.get('x-real-ip')
+      || 'unknown';
+    const rateLimitKey = `get-order:${clientIP}`;
+
+    const { data: rlData, error: rlError } = await supabase.rpc('check_rate_limit', {
+      p_key: rateLimitKey,
+      p_window_seconds: RATE_LIMIT_WINDOW_SECONDS,
+      p_max_requests: RATE_LIMIT_MAX_REQUESTS,
+    });
+
+    if (rlError) {
+      console.warn('[get-order] Rate limit check failed (allowing request):', rlError.message);
+    } else if (rlData === false) {
+      console.warn('[get-order] Rate limited:', rateLimitKey);
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Too many requests. Please try again later.',
+      }), {
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Retry-After': String(RATE_LIMIT_WINDOW_SECONDS) },
+      });
+    }
+
     const payload: GetOrderRequest = await req.json();
     console.log('[get-order] Request:', payload);
 
-    // Normalize order_number - accept with or without # prefix
-    // The DB stores order_number WITH # (e.g., "#5001")
-    // The client may send "5001" or "#5001" - we need to handle both
+    // Normalize order_number
     const order_id = payload.order_id;
     const tenant_id = payload.tenant_id;
     const rawOrderNumber = payload.order_number?.replace(/^#/, '').trim();
-    
-    // The DB has the # prefix, so we need to search with it
     const order_number_with_hash = rawOrderNumber ? `#${rawOrderNumber}` : null;
-    // Also keep version without hash for fallback search
     const order_number_without_hash = rawOrderNumber;
 
     console.log('[get-order] Normalized:', { order_id, tenant_id, order_number_with_hash, order_number_without_hash });
@@ -54,8 +82,15 @@ serve(async (req) => {
       });
     }
 
-    // Create Supabase client with service role (bypasses RLS)
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const orderSelect = `
+      id, order_number, status, payment_status, shipping_status, payment_method,
+      total, subtotal, shipping_total, discount_total,
+      created_at, paid_at, shipped_at, delivered_at,
+      tracking_code, shipping_carrier,
+      customer_name, customer_email, customer_phone,
+      shipping_street, shipping_number, shipping_complement,
+      shipping_neighborhood, shipping_city, shipping_state, shipping_postal_code
+    `;
 
     // Find order
     let order;
@@ -64,15 +99,7 @@ serve(async (req) => {
     if (isUUID) {
       const { data, error } = await supabase
         .from('orders')
-        .select(`
-          id, order_number, status, payment_status, shipping_status, payment_method,
-          total, subtotal, shipping_total, discount_total,
-          created_at, paid_at, shipped_at, delivered_at,
-          tracking_code, shipping_carrier,
-          customer_name, customer_email, customer_phone,
-          shipping_street, shipping_number, shipping_complement,
-          shipping_neighborhood, shipping_city, shipping_state, shipping_postal_code
-        `)
+        .select(orderSelect)
         .eq('id', order_id)
         .maybeSingle();
       
@@ -83,30 +110,19 @@ serve(async (req) => {
       order = data;
     }
 
-    // If not found by ID, try by order_number (with # prefix as stored in DB)
-    // CRITICAL: Order by created_at DESC to handle duplicates + filter by tenant_id
+    // Try by order_number with # prefix
     if (!order && order_number_with_hash) {
       console.log('[get-order] Searching by order_number with hash:', order_number_with_hash, 'tenant:', tenant_id);
       
       let query = supabase
         .from('orders')
-        .select(`
-          id, order_number, status, payment_status, shipping_status, payment_method,
-          total, subtotal, shipping_total, discount_total,
-          created_at, paid_at, shipped_at, delivered_at,
-          tracking_code, shipping_carrier,
-          customer_name, customer_email, customer_phone,
-          shipping_street, shipping_number, shipping_complement,
-          shipping_neighborhood, shipping_city, shipping_state, shipping_postal_code
-        `)
+        .select(orderSelect)
         .eq('order_number', order_number_with_hash);
       
-      // Filter by tenant_id if provided (handles duplicates across tenants)
       if (tenant_id) {
         query = query.eq('tenant_id', tenant_id);
       }
       
-      // Get most recent to handle duplicates within same tenant
       const { data, error } = await query
         .order('created_at', { ascending: false })
         .limit(1)
@@ -114,27 +130,18 @@ serve(async (req) => {
       
       if (error) {
         console.error('[get-order] Error finding by order_number:', error);
-        // Don't throw, try fallback
       } else {
         order = data;
       }
     }
 
-    // Fallback: try without # prefix (for legacy order formats like PED-25-000057)
+    // Fallback: without # prefix
     if (!order && order_number_without_hash) {
       console.log('[get-order] Fallback search without hash:', order_number_without_hash, 'tenant:', tenant_id);
       
       let query = supabase
         .from('orders')
-        .select(`
-          id, order_number, status, payment_status, shipping_status, payment_method,
-          total, subtotal, shipping_total, discount_total,
-          created_at, paid_at, shipped_at, delivered_at,
-          tracking_code, shipping_carrier,
-          customer_name, customer_email, customer_phone,
-          shipping_street, shipping_number, shipping_complement,
-          shipping_neighborhood, shipping_city, shipping_state, shipping_postal_code
-        `)
+        .select(orderSelect)
         .eq('order_number', order_number_without_hash);
       
       if (tenant_id) {
@@ -148,25 +155,16 @@ serve(async (req) => {
       
       if (error) {
         console.error('[get-order] Error finding without hash:', error);
-        // Don't throw, try next fallback
       } else {
         order = data;
       }
     }
 
-    // Also try order_id as order_number (fallback for UUID-like strings)
+    // Fallback: order_id as order_number
     if (!order && order_id && !isUUID) {
       let query = supabase
         .from('orders')
-        .select(`
-          id, order_number, status, payment_status, shipping_status, payment_method,
-          total, subtotal, shipping_total, discount_total,
-          created_at, paid_at, shipped_at, delivered_at,
-          tracking_code, shipping_carrier,
-          customer_name, customer_email, customer_phone,
-          shipping_street, shipping_number, shipping_complement,
-          shipping_neighborhood, shipping_city, shipping_state, shipping_postal_code
-        `)
+        .select(orderSelect)
         .eq('order_number', order_id);
       
       if (tenant_id) {
@@ -180,7 +178,6 @@ serve(async (req) => {
       
       if (error) {
         console.error('[get-order] Error finding by order_id as order_number:', error);
-        // Don't throw, return not found
       }
       order = data;
     }
@@ -225,11 +222,9 @@ serve(async (req) => {
         paymentInstructions = {
           method: transaction.method,
           status: transaction.status,
-          // PIX data
           pix_qr_code: pd.qr_code || null,
           pix_qr_code_url: pd.qr_code_url || null,
           pix_expires_at: pd.pix_expires_at || null,
-          // Boleto data
           boleto_url: pd.boleto_url || null,
           boleto_barcode: pd.boleto_barcode || null,
           boleto_due_date: pd.boleto_due_date || null,
