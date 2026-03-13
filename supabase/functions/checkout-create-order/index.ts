@@ -175,11 +175,33 @@ serve(async (req) => {
 
     // === CANONICAL PRICE RECALCULATION (Security Plan v3.1 Phase 2B) ===
     // Fetch real prices from database — NEVER trust frontend-submitted prices
+    // Supports both simple products (products.price) and variant products (product_variants.price)
     const { data: dbProducts, error: priceError } = await supabase
       .from('products')
       .select('id, price, compare_at_price')
       .eq('tenant_id', payload.tenant_id)
       .in('id', productIds);
+
+    // Also fetch variant prices if any items have variant_id
+    const variantIds = payload.items
+      .filter(item => item.variant_id)
+      .map(item => item.variant_id!);
+    
+    let variantPriceMap = new Map<string, number>();
+    if (variantIds.length > 0) {
+      const { data: dbVariants, error: variantError } = await supabase
+        .from('product_variants')
+        .select('id, price')
+        .in('id', variantIds);
+      
+      if (!variantError && dbVariants) {
+        for (const v of dbVariants) {
+          variantPriceMap.set(v.id, Number(v.price) || 0);
+        }
+      } else {
+        console.warn('[checkout-create-order][PRICE_AUDIT] Could not fetch variant prices:', variantError);
+      }
+    }
 
     let canonicalSubtotal = 0;
     const productPriceMap = new Map<string, number>();
@@ -188,7 +210,13 @@ serve(async (req) => {
         productPriceMap.set(p.id, Number(p.price) || 0);
       }
       for (const item of payload.items) {
-        const dbPrice = productPriceMap.get(item.product_id) || 0;
+        // Use variant price if variant_id exists, otherwise product price
+        let dbPrice: number;
+        if (item.variant_id && variantPriceMap.has(item.variant_id)) {
+          dbPrice = variantPriceMap.get(item.variant_id)!;
+        } else {
+          dbPrice = productPriceMap.get(item.product_id) || 0;
+        }
         canonicalSubtotal += dbPrice * item.quantity;
       }
       // Round to 2 decimal places
