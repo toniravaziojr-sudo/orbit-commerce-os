@@ -2857,13 +2857,16 @@ Páginas SPA (carrinho, conta, rastreio, busca, quiz) ficavam presas em "Carrega
 | **Funções afetadas** | `pagarme-create-charge`, `pagarme-webhook`, `mercadopago-create-charge`, `mercadopago-storefront-webhook`, `pagbank-create-charge`, `pagbank-webhook` |
 | **Comportamento** | Todo `console.log` de payloads de gateway agora passa por `redactPayloadForLog()`. Campos como `card`, `cvv`, `security_code`, `access_token` aparecem como `[REDACTED]` nos logs. |
 
-## 🔒 Segurança — HMAC Webhook Verification em Modo Log (Fase 1C, v2026-03-14)
+## 🔒 Segurança — HMAC Webhook Verification Tenant-Aware em Modo Log (Fase 1C v2.1, v2026-03-14)
 
 | Campo | Valor |
 |-------|-------|
-| **Tipo** | Segurança de webhooks |
-| **Localização** | `_shared/webhook-hmac.ts` (v1.0), 3 webhooks de pagamento |
-| **Descrição** | Verificação HMAC de assinatura de webhooks. Modo atual: LOG (não rejeita requisições). |
-| **Provedores** | Mercado Pago (`x-signature`, HMAC-SHA256, secret: `MP_WEBHOOK_SECRET`), Pagar.me (`x-hub-signature`, HMAC-SHA256, secret: `PAGARME_WEBHOOK_SECRET`), PagBank (sem HMAC nativo — apenas aviso) |
-| **Secrets necessários** | `MP_WEBHOOK_SECRET` (já existe), `PAGARME_WEBHOOK_SECRET` (pendente configuração) |
-| **Modo futuro** | Quando enforcement for ativado, `handleHmacResult()` retornará Response 401 para assinaturas inválidas |
+| **Tipo** | Segurança de webhooks (multi-tenant) |
+| **Localização** | `_shared/webhook-hmac.ts` (v2.0), `mercadopago-storefront-webhook/index.ts` (v2.1), `pagarme-webhook/index.ts` (v2.1) |
+| **Descrição** | Verificação HMAC de assinatura de webhooks usando o `webhook_secret` do **tenant dono do evento**, não variável de ambiente global. Modo atual: LOG (não rejeita requisições). |
+| **Arquitetura** | Webhook chega → identifica transação → resolve tenant_id → busca `payment_providers.credentials.webhook_secret` do tenant → valida HMAC com secret do tenant |
+| **Provedores** | Mercado Pago (`x-signature`, HMAC-SHA256, secret: `credentials.webhook_secret` do tenant em `payment_providers` provider=`mercado_pago`), Pagar.me (`x-hub-signature`, HMAC-SHA256, secret: `credentials.webhook_secret` do tenant em `payment_providers` provider=`pagarme`), PagBank (sem HMAC nativo — apenas aviso) |
+| **Sem secrets globais** | NÃO depende de `MP_WEBHOOK_SECRET` ou `PAGARME_WEBHOOK_SECRET` como env var. O secret é por tenant. |
+| **Fallback tenant sem secret** | Em modo log: registra warning estruturado `⚠️ Tenant missing webhook_secret — skipping verification`. Não bloqueia. |
+| **Modo futuro** | Quando enforcement for ativado por tenant/provider, `handleHmacResult()` retornará Response 401 para assinaturas inválidas. Decisão de enforcement será por tenant, não global. |
+| **Log estruturado** | Inclui `tenant=XXXXXXXX` (8 primeiros chars do UUID) em todos os logs HMAC para correlação |
