@@ -175,18 +175,8 @@ export function useTemplateSetSave() {
       if (currentTenant?.id) {
         cachePurge.template(currentTenant.id);
         
-        // PHASE 6: Trigger server-side pre-render (fire-and-forget)
-        supabase.functions.invoke('storefront-prerender', {
-          body: { tenant_id: currentTenant.id, trigger_type: 'publish' },
-        }).then((res) => {
-          if (res.error) {
-            console.error('[publish] Pre-render trigger failed:', res.error);
-          } else {
-            console.log('[publish] Pre-render triggered:', res.data);
-          }
-        }).catch((err) => {
-          console.error('[publish] Pre-render trigger error:', err);
-        });
+        // PHASE 6: Trigger server-side pre-render WITH retry and feedback
+        triggerPrerenderWithRetry(currentTenant.id);
       }
       
       toast.success('Template publicado com sucesso!');
