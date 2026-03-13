@@ -269,8 +269,10 @@ function generateRouteTrackingScript(
     // Meta ViewCategory (custom event)
     if (flags.metaEnabled) {
       lines.push(`
-      function _sfMetaCat(){fbq('trackCustom','ViewCategory',{content_category:'${catName}',content_ids:${JSON.stringify(productIds)},content_type:'product_group'});}
+      var _catEid=window._sfEvtId?_sfEvtId():'';
+      function _sfMetaCat(){fbq('trackCustom','ViewCategory',{content_category:'${catName}',content_ids:${JSON.stringify(productIds)},content_type:'product_group'},{eventID:_catEid});}
       if(window._sfMetaReady){_sfMetaCat();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_sfMetaCat);}
+      ${flags.hasCapi ? `if(window._sfCapi)_sfCapi('ViewCategory',_catEid,{content_category:'${catName}',content_ids:${JSON.stringify(productIds)},content_type:'product_group'});` : ''}
       `);
     }
     // Google view_item_list
