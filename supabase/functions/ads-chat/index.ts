@@ -2577,29 +2577,73 @@ async function browseDrive(supabase: any, tenantId: string, folderId?: string, f
 // --- search_drive_files: Search files across ALL Drive folders ---
 async function searchDriveFiles(supabase: any, tenantId: string, query: string, fileType?: string, limit?: number) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const maxResults = Math.min(limit || 30, 50);
+  const maxResults = Math.min(Math.max(limit || 30, 1), 50);
+  const rawQuery = String(query || "").trim();
 
-  let filesQuery = supabase
-    .from("files")
-    .select("id, filename, original_name, storage_path, mime_type, size_bytes, metadata, folder_id, created_at")
-    .eq("tenant_id", tenantId)
-    .eq("is_folder", false)
-    .or(`original_name.ilike.%${query}%,filename.ilike.%${query}%`);
-
-  if (fileType === "image") {
-    filesQuery = filesQuery.ilike("mime_type", "image/%");
-  } else if (fileType === "video") {
-    filesQuery = filesQuery.ilike("mime_type", "video/%");
+  if (!rawQuery) {
+    return JSON.stringify({ error: "Parâmetro 'query' é obrigatório." });
   }
 
-  const { data: files, error } = await filesQuery
-    .order("created_at", { ascending: false })
-    .limit(maxResults);
+  const normalizedQuery = normalizeForSearch(rawQuery);
+  const queryTokens = normalizedQuery.split(/\s+/).filter((t) => t.length >= 2);
 
-  if (error) return JSON.stringify({ error: error.message });
+  // 1) Carrega todos os arquivos do tenant (paginado) para contagem real
+  const pageSize = 1000;
+  let from = 0;
+  const allFiles: any[] = [];
 
-  // Get folder names for context
-  const folderIds = [...new Set((files || []).map((f: any) => f.folder_id).filter(Boolean))];
+  while (true) {
+    let pageQuery = supabase
+      .from("files")
+      .select("id, filename, original_name, storage_path, mime_type, size_bytes, metadata, folder_id, created_at")
+      .eq("tenant_id", tenantId)
+      .eq("is_folder", false)
+      .order("created_at", { ascending: false })
+      .range(from, from + pageSize - 1);
+
+    if (fileType === "image") pageQuery = pageQuery.ilike("mime_type", "image/%");
+    else if (fileType === "video") pageQuery = pageQuery.ilike("mime_type", "video/%");
+
+    const { data: pageData, error: pageErr } = await pageQuery;
+    if (pageErr) return JSON.stringify({ error: pageErr.message });
+    if (!pageData || pageData.length === 0) break;
+
+    allFiles.push(...pageData);
+    if (pageData.length < pageSize) break;
+    from += pageSize;
+  }
+
+  // 2) Resolve produtos relacionados ao termo (acento-insensível)
+  const { data: products } = await supabase
+    .from("products")
+    .select("id, name")
+    .eq("tenant_id", tenantId)
+    .limit(1000);
+
+  const matchedProducts = (products || []).filter((p: any) => {
+    const normalizedProductName = normalizeForSearch(p.name || "");
+    return normalizedProductName.includes(normalizedQuery) || normalizedQuery.includes(normalizedProductName);
+  });
+  const matchedProductIds = new Set(matchedProducts.map((p: any) => p.id));
+
+  // 3) Match por nome de arquivo OU metadata.product_id
+  const matchedFiles = allFiles.filter((f: any) => {
+    const fileName = `${f.original_name || ""} ${f.filename || ""}`.trim();
+    const normalizedFileName = normalizeForSearch(fileName);
+    const byName = normalizedFileName.includes(normalizedQuery) ||
+      (queryTokens.length >= 2 && queryTokens.every((token) => normalizedFileName.includes(token)));
+
+    const meta = f.metadata as Record<string, any> | null;
+    const productId = typeof meta?.product_id === "string" ? meta.product_id : null;
+    const byProductLink = !!(productId && matchedProductIds.has(productId));
+
+    return byName || byProductLink;
+  });
+
+  const pagedFiles = matchedFiles.slice(0, maxResults);
+
+  // 4) Nomes das pastas para contexto
+  const folderIds = [...new Set(pagedFiles.map((f: any) => f.folder_id).filter(Boolean))];
   let folderMap: Record<string, string> = {};
   if (folderIds.length > 0) {
     const { data: folders } = await supabase
@@ -2612,7 +2656,7 @@ async function searchDriveFiles(supabase: any, tenantId: string, query: string, 
     }, {});
   }
 
-  const results = (files || []).map((f: any) => {
+  const results = pagedFiles.map((f: any) => {
     const meta = f.metadata as Record<string, any> | null;
     const bucket = meta?.bucket || (f.storage_path?.includes("tenants/") ? "store-assets" : "tenant-files");
     const isPublic = bucket !== "tenant-files";
@@ -2635,13 +2679,15 @@ async function searchDriveFiles(supabase: any, tenantId: string, query: string, 
   });
 
   return JSON.stringify({
-    query,
+    query: rawQuery,
     results,
-    total_found: results.length,
-    tip: results.length === 0
-      ? `Nenhum arquivo encontrado com "${query}". Tente termos diferentes ou use browse_drive para navegar pelas pastas manualmente.`
-      : results.length >= maxResults
-        ? `Mostrando os ${maxResults} resultados mais recentes. Pode haver mais — refine a busca.`
+    total_found: matchedFiles.length,
+    returned_results: results.length,
+    matched_products: matchedProducts.map((p: any) => ({ id: p.id, name: p.name })),
+    tip: matchedFiles.length === 0
+      ? `Nenhum arquivo encontrado com "${rawQuery}". Tente termos diferentes ou use browse_drive para navegar pelas pastas manualmente.`
+      : matchedFiles.length > maxResults
+        ? `Mostrando ${maxResults} de ${matchedFiles.length} resultados. A contagem total já considera todos os arquivos do Drive.`
         : null,
   });
 }
