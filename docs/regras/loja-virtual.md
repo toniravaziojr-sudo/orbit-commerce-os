@@ -689,7 +689,9 @@ Localização: **Configurações do tema > Atendimento** (`SupportSettings.tsx`)
 | `type` | `'chat' \| 'whatsapp' \| 'both'` | `'chat'` | Tipo de atendimento |
 | `whatsappNumber` | string | `''` | Número do WhatsApp (com DDI) |
 | `whatsappMessage` | string | `'Olá! Preciso de ajuda.'` | Mensagem pré-preenchida |
-| `buttonColor` | string (hex) | `'#25D366'` | Cor do botão flutuante |
+| `buttonColor` | string (hex) | `'#25D366'` | [LEGADO] Cor única do botão (mantido para compatibilidade) |
+| `whatsappButtonColor` | string (hex) | `'#25D366'` | Cor do botão WhatsApp |
+| `chatButtonColor` | string (hex) | `'#1F2937'` | Cor do botão Chat |
 | `position` | `'left' \| 'right'` | `'right'` | Posição do botão na tela |
 
 ### Interface TypeScript
@@ -700,7 +702,9 @@ interface SupportWidgetConfig {
   type?: 'chat' | 'whatsapp' | 'both';
   whatsappNumber?: string;
   whatsappMessage?: string;
-  buttonColor?: string;
+  buttonColor?: string;           // Legado
+  whatsappButtonColor?: string;   // Cor do botão WhatsApp
+  chatButtonColor?: string;       // Cor do botão Chat
   position?: 'left' | 'right';
 }
 ```
@@ -712,7 +716,8 @@ Armazenado em: `storefront_template_sets.draft_content.themeSettings.supportWidg
 - Chat interno requer `tenantId` para criar conversas
 - WhatsApp usa `getWhatsAppHref()` de `src/lib/contactHelpers.ts`
 - Quando `type = 'both'`, exibe dois botões empilhados (WhatsApp acima, Chat abaixo)
-- A cor do botão de chat usa `--primary` quando há WhatsApp, senão usa `buttonColor`
+- Cada botão tem cor independente configurável no Builder (Atendimento)
+- O header do chat drawer usa a cor do botão de chat (`chatButtonColor`)
 
 ---
 

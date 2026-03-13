@@ -306,7 +306,9 @@ function generateSupportWidgetHtml(themeSettings: any, routeType: string, tenant
   const type = config?.type || 'chat';
   const whatsappNumber = config?.whatsappNumber || '';
   const whatsappMessage = config?.whatsappMessage || 'Olá! Preciso de ajuda.';
-  const buttonColor = config?.buttonColor || '#25D366';
+  const legacyButtonColor = config?.buttonColor || '#25D366';
+  const whatsappColor = config?.whatsappButtonColor || legacyButtonColor || '#25D366';
+  const chatColor = config?.chatButtonColor || '#1F2937';
   const position = config?.position || 'right';
   const showWhatsApp = (type === 'whatsapp' || type === 'both') && whatsappNumber;
   const showChat = type === 'chat' || type === 'both';
@@ -320,11 +322,9 @@ function generateSupportWidgetHtml(themeSettings: any, routeType: string, tenant
   const btnStyle = `display:flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:50%;border:none;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.15);transition:transform 0.2s;text-decoration:none;`;
   let buttons = '';
   if (showWhatsApp) {
-    buttons += `<a href="${waHref}" target="_blank" rel="noopener noreferrer" style="${btnStyle}background:${escapeHtml(buttonColor)};" title="WhatsApp" onmouseenter="this.style.transform='scale(1.05)'" onmouseleave="this.style.transform='scale(1)'">${whatsappSvg}</a>`;
+    buttons += `<a href="${waHref}" target="_blank" rel="noopener noreferrer" style="${btnStyle}background:${escapeHtml(whatsappColor)};" title="WhatsApp" onmouseenter="this.style.transform='scale(1.05)'" onmouseleave="this.style.transform='scale(1)'">${whatsappSvg}</a>`;
   }
   if (showChat) {
-    const chatColor = showWhatsApp ? 'var(--theme-primary-bg, #1a1a1a)' : buttonColor;
-    // Use button instead of anchor to prevent # in URL
     buttons += `<button data-sf-support-chat style="${btnStyle}background:${escapeHtml(chatColor)};" title="Chat" onmouseenter="this.style.transform='scale(1.05)'" onmouseleave="this.style.transform='scale(1)'">${chatSvg}</button>`;
   }
 
@@ -334,7 +334,7 @@ function generateSupportWidgetHtml(themeSettings: any, routeType: string, tenant
   // Chat drawer HTML (hidden by default)
   const chatDrawerHtml = showChat ? `
   <div id="sf-chat-drawer" style="display:none;position:fixed;bottom:16px;${posStyle}z-index:55;width:360px;max-width:calc(100vw - 32px);height:500px;max-height:calc(100vh - 100px);background:#fff;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.2);flex-direction:column;overflow:hidden;font-family:inherit;">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:${escapeHtml(buttonColor)};color:#fff;border-radius:12px 12px 0 0;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:${escapeHtml(chatColor)};color:#fff;border-radius:12px 12px 0 0;">
       <span style="font-weight:600;font-size:15px;">Atendimento</span>
       <div style="display:flex;gap:4px;">
         <button data-sf-chat-minimize style="background:none;border:none;color:#fff;cursor:pointer;padding:4px;font-size:18px;line-height:1;">−</button>
