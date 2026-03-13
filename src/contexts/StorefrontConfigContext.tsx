@@ -447,8 +447,17 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
                 originalPrice: safeOriginalPrice,
                 deliveryDays: safeDays,
                 isFree: optionIsFree,
+                carrier: opt.carrier,
+                sourceProvider: opt.source_provider,
               };
             });
+
+            // Attach quote_id to the result array for downstream consumers
+            const result = mappedOptions as ShippingQuote[] & { quote_id?: string };
+            if (data.quote_id) {
+              result.quote_id = data.quote_id;
+            }
+            return result;
           }
         } catch (err) {
           console.error('[StorefrontConfigContext] Shipping quote exception:', err);

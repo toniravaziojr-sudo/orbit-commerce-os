@@ -80,7 +80,7 @@ export function ShippingEstimator() {
     } catch (err) {
       console.error('Shipping quote error:', err);
       setError('Erro ao calcular frete. Tente novamente.');
-      setShippingOptions([]);
+      setShippingOptions([], null);
     } finally {
       setIsCalculating(false);
     }
