@@ -262,6 +262,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
       checkoutSessionId: sessionId || undefined,
       attribution: attribution || undefined,
       affiliate: affiliate || undefined,
+      shippingQuoteId: shipping.quoteId || undefined,
     });
 
     if (result.success) {
