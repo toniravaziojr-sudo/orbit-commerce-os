@@ -149,6 +149,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     affiliate,
     paymentMethodDiscount,
     installments,
+    shippingQuoteId,
   }: {
     method: PaymentMethod;
     items: CartItem[];
@@ -162,6 +163,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     affiliate?: AffiliateData;
     paymentMethodDiscount?: { amount: number; type: string; value: number; method: string };
     installments?: number;
+    shippingQuoteId?: string | null;
   }): Promise<PaymentResult> => {
     setIsProcessing(true);
     setPaymentResult(null);
