@@ -71,9 +71,11 @@ export function ShippingEstimator() {
 
       if (options.length === 0) {
         setError('Não encontramos opções de frete para este CEP.');
-        setShippingOptions([]);
+        setShippingOptions([], null);
       } else {
-        setShippingOptions(options);
+        // Pass quote_id from async quote or null for sync
+        const resolvedQuoteId = (options as any)?.quote_id || null;
+        setShippingOptions(options, resolvedQuoteId);
       }
     } catch (err) {
       console.error('Shipping quote error:', err);
