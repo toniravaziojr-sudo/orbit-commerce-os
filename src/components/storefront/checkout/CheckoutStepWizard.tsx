@@ -655,11 +655,23 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         console.log('[Checkout] Navigating to thankYou with cleanOrderNumber:', cleanOrderNumber);
 
         if (paymentMethod === 'credit_card' && result.cardStatus === 'paid') {
+        // Build userData for PII enrichment (Phase 5)
+          const purchaseUserData = {
+            email: formData.customerEmail,
+            phone: formData.customerPhone,
+            name: formData.customerName,
+            city: formData.city,
+            state: formData.state,
+            zip: formData.cep,
+          };
+
           // Credit card approved immediately - always track Purchase
           trackPurchase({
             order_id: cleanOrderNumber,
             value: totals.grandTotal,
-            items: items.map(i => ({ id: i.product_id, name: i.name, price: i.price, quantity: i.quantity })),
+            items: items.map(i => ({ id: i.product_id, sku: i.sku, meta_retailer_id: i.meta_retailer_id, name: i.name, price: i.price, quantity: i.quantity })),
+            purchaseEventTiming: checkoutConfig.purchaseEventTiming,
+            userData: purchaseUserData,
           });
           
           setPaymentStatus('approved');
@@ -670,14 +682,20 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           toast.success('Pedido realizado com sucesso!');
           navigate(`${urls.thankYou()}?pedido=${encodeURIComponent(cleanOrderNumber)}`);
         } else {
-          // PIX/Boleto - ALWAYS track Purchase at order creation
-          // This is the last reliable touchpoint — user may close browser before paying
-          // The ThankYou page has dedup via purchaseTrackedRef so no double-firing
-          trackPurchase({
-            order_id: cleanOrderNumber,
-            value: totals.grandTotal,
-            items: items.map(i => ({ id: i.product_id, name: i.name, price: i.price, quantity: i.quantity })),
-          });
+          // PIX/Boleto — Phase 2: Respect purchaseEventTiming
+          // all_orders: track Purchase now (creation = conversion)
+          // paid_only: DO NOT track — Purchase will come from webhook when payment confirmed
+          if (checkoutConfig.purchaseEventTiming !== 'paid_only') {
+            trackPurchase({
+              order_id: cleanOrderNumber,
+              value: totals.grandTotal,
+              items: items.map(i => ({ id: i.product_id, sku: i.sku, meta_retailer_id: i.meta_retailer_id, name: i.name, price: i.price, quantity: i.quantity })),
+              purchaseEventTiming: checkoutConfig.purchaseEventTiming,
+              userData: purchaseUserData,
+            });
+          } else {
+            console.log('[Checkout] Purchase event skipped for PIX/Boleto — purchaseEventTiming is paid_only, will fire from webhook');
+          }
           
           if (result.pixQrCode || result.pixQrCodeUrl || result.boletoUrl) {
             localStorage.setItem(`pending_payment_${cleanOrderNumber}`, JSON.stringify({
