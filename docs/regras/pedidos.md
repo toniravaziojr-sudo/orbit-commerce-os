@@ -364,15 +364,27 @@ graph TD
 
 ## 6. UI/UX
 
-### 6.1 Lista de Pedidos
+### 6.1 Lista de Pedidos (v2026-03-13)
+
+| Coluna | Largura | Conteúdo |
+|--------|---------|----------|
+| Pedido | 100px | OrderSourceBadge (sm) + número (font-semibold) |
+| Cliente | min 180px | Nome (truncate 200px) + email (xs, truncate) |
+| Status | 140px | Badge com ícone + label (text-xs, whitespace-nowrap) |
+| Envio | 120px | Badge com ícone + tooltip (transportadora + rastreio) |
+| Método | 90px | Label curta: PIX, Cartão, Boleto, Débito (text-xs font-medium) |
+| Pagamento | 120px | Badge de status (text-xs, whitespace-nowrap) |
+| Total | 110px, right | Valor (font-semibold) + badge "1ª" se first_sale |
+| Data | 130px | Formato dd/mm/yyyy hh:mm (text-xs) |
+| Ações | 40px | Dropdown (ver, alterar status, excluir) |
 
 | Elemento | Comportamento |
 |----------|---------------|
 | Busca | Por número, nome ou email do cliente |
 | Filtros | Status, pagamento, envio, período, data, **🆕 1ª Venda** |
 | Estatísticas | Cards com pendentes, em separação, enviados |
-| Origem | Badge indicando Loja própria ou Marketplace |
-| **1ª Venda** | Badge verde "1ª venda" exibida ao lado do valor total quando `is_first_sale = true` |
+| Origem | Badge indicando Loja própria ou Marketplace (size="sm") |
+| **1ª Venda** | Badge compacta "1ª" exibida ao lado do valor total quando `is_first_sale = true` |
 | Ações | Ver detalhes, atualizar status, excluir |
 | Paginação | 50 por página |
 
