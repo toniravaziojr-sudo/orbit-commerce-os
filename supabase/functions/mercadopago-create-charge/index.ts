@@ -90,25 +90,30 @@ serve(async (req) => {
     // Get credentials
     const credentials = await getMercadoPagoCredentials(supabase, payload.tenant_id);
 
-    // === CANONICAL PRICE VALIDATION (Security Plan v3.1 Phase 2B) ===
-    // When order_id is present, use canonical_total from database instead of frontend amount
-    let chargeAmountCents = payload.amount;
+    // === CANONICAL PRICE AUDIT (Security Plan v3.1 Phase 2B - SIMULATION ONLY) ===
+    // Log drift between submitted amount and canonical_total for audit.
+    // DO NOT override charge amount — simulation mode only, no enforcement.
+    const chargeAmountCents = payload.amount;
     if (payload.order_id) {
-      const { data: orderRecord } = await supabase
-        .from('orders')
-        .select('canonical_total, total')
-        .eq('id', payload.order_id)
-        .single();
+      try {
+        const { data: orderRecord } = await supabase
+          .from('orders')
+          .select('canonical_total, total')
+          .eq('id', payload.order_id)
+          .single();
 
-      if (orderRecord?.canonical_total) {
-        const canonicalCents = Math.round(Number(orderRecord.canonical_total) * 100);
-        if (canonicalCents !== payload.amount) {
-          console.warn(`[MercadoPago][PRICE_AUDIT] Amount drift: submitted=${payload.amount}, canonical=${canonicalCents}`);
+        if (orderRecord?.canonical_total) {
+          const canonicalCents = Math.round(Number(orderRecord.canonical_total) * 100);
+          if (canonicalCents !== payload.amount) {
+            console.warn(`[MercadoPago][PRICE_AUDIT] ⚠️ DRIFT: submitted=${payload.amount}, canonical=${canonicalCents}, order_total=${Math.round(Number(orderRecord.total) * 100)}`);
+          } else {
+            console.log(`[MercadoPago][PRICE_AUDIT] ✅ Prices match: ${payload.amount} cents`);
+          }
+        } else {
+          console.log(`[MercadoPago][PRICE_AUDIT] No canonical_total on order — using submitted amount`);
         }
-        chargeAmountCents = canonicalCents;
-        console.log(`[MercadoPago] Using canonical_total for charge: ${chargeAmountCents} cents`);
-      } else {
-        console.log(`[MercadoPago] No canonical_total on order, using submitted amount: ${payload.amount}`);
+      } catch (auditErr) {
+        console.warn('[MercadoPago][PRICE_AUDIT] Non-blocking audit error:', auditErr);
       }
     }
 

@@ -226,6 +226,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
             },
             items: items.map(item => ({
               product_id: item.product_id,
+              variant_id: item.variant_id || undefined,
               product_name: item.name,
               sku: item.sku,
               quantity: item.quantity,
