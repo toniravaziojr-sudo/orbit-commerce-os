@@ -971,6 +971,15 @@ function buildConversationalSystemPrompt(storeName: string, context: any): strin
 - NUNCA diga que não tem acesso ao Drive. Você TEM. Use as ferramentas.
 - NUNCA mencione "Google Drive" — o sistema não usa Google Drive.
 
+## REGRA CRÍTICA: CONTAGEM DE ARQUIVOS NO DRIVE
+- Quando search_drive_files retornar, o campo \`total_found\` é a contagem EXATA e AUTORITATIVA dos arquivos encontrados.
+- O campo \`total_tenant_files\` é o total de arquivos do lojista no Drive inteiro.
+- NUNCA invente, estime ou arredonde contagens. Use SEMPRE o número exato de \`total_found\`.
+- NUNCA conte manualmente os itens do array \`results\` — ele é limitado a 50 por performance. A contagem real está em \`total_found\`.
+- Se \`matched_folders\` retornar pastas, informe ao lojista que arquivos dentro dessas pastas também foram contados.
+- Exemplo correto: "Encontrei **{total_found}** criativos do Shampoo Calvície Zero no seu Drive."
+- Exemplo ERRADO: "Encontrei 19 criativos" (quando total_found diz 85).
+
 ## REGRA: DRILL-DOWN = ANÁLISE FACTUAL COM TOOLS
 Quando o lojista pede detalhamento de conjuntos de anúncios ou anúncios individuais:
 - Isso é uma ANÁLISE FACTUAL, não conversa livre.
