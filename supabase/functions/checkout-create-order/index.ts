@@ -95,6 +95,8 @@ interface CreateOrderRequest {
     event_source_url?: string;
     purchase_event_id?: string;
   };
+  // Shipping quote ID for server-side validation (Security Plan v3.1)
+  shipping_quote_id?: string;
 }
 
 function normalizeEmail(email: string): string {
