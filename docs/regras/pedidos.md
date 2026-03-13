@@ -590,14 +590,23 @@ Mudanças de status feitas por **webhook** (`pagarme-webhook`) e **cron** (`expi
 ### 13.3 Prevenção de Duplicidade (Checkout)
 O checkout utiliza `sessionStorage` (`PENDING_ORDER_KEY`) para reutilizar o mesmo `orderId` em retentativas de pagamento, evitando pedidos duplicados.
 
-### 13.4 Ghost Order Rule (v2026-03-13)
+### 13.4 Ghost Order Rule (v2026-03-14 — CORRIGIDO)
 
-**Regra fundamental**: Um pedido só é considerado pedido se foi registrado na operadora de pagamento (Pagar.me, Mercado Pago, etc.). Se `payment_gateway_id` é nulo, o registro é um **checkout abandonado**, não um pedido.
+**Regra fundamental**: Um pedido fantasma é aquele que tem `payment_gateway_id IS NULL` **E** `payment_status = 'pending'`. Pedidos confirmados por webhook (approved, cancelled, etc.) são pedidos reais mesmo sem `payment_gateway_id`.
+
+**⚠️ NUNCA usar `.not('payment_gateway_id', 'is', null)` — isso esconde pedidos reais!**
+
+**Filtro canônico (obrigatório em TODAS as queries de pedidos):**
+```
+.or('payment_gateway_id.not.is.null,payment_status.neq.pending')
+```
 
 | Ponto | Comportamento |
 |-------|---------------|
-| **Admin (`useOrders.ts`)** | Filtra `.not('payment_gateway_id', 'is', null)` — só mostra pedidos com gateway |
-| **Storefront (`useCustomerOrders.ts`)** | Filtra `.or('payment_gateway_id.not.is.null,status.neq.pending')` — cliente não vê ghost orders |
+| **Admin (`useOrders.ts`)** | `.or('payment_gateway_id.not.is.null,payment_status.neq.pending')` |
+| **Admin (`usePayments.ts`)** | `.or('payment_gateway_id.not.is.null,payment_status.neq.pending')` |
+| **Admin (`useDashboardMetrics.ts`)** | `.or('payment_gateway_id.not.is.null,payment_status.neq.pending')` |
+| **Storefront (`useCustomerOrders.ts`)** | `.or('payment_gateway_id.not.is.null,status.neq.pending')` |
 | **Cron (`expire-stale-orders`)** | Ghost orders (sem `payment_gateway_id`, sem transação) são cancelados após 30min E a `checkout_session` associada é marcada como `abandoned` |
 | **Checkout Abandonado** | Ghost orders redirecionados aparecem na ferramenta de recuperação de vendas |
 
@@ -608,6 +617,8 @@ O checkout utiliza `sessionStorage` (`PENDING_ORDER_KEY`) para reutilizar o mesm
 4. Cron marca `checkout_session` como `abandoned`
 5. Pedido não aparece em "Pedidos" (admin nem loja)
 6. Aparece em "Checkouts Abandonados" para recuperação
+
+**Histórico de bug (2026-03-14):** O filtro antigo `.not('payment_gateway_id', 'is', null)` escondia pedidos reais cujo webhook confirmou pagamento mas a função de cobrança não preencheu `payment_gateway_id`. 32 pedidos (7 pagos) da loja "Respeite o Homem" ficaram invisíveis. Corrigido para o filtro `.or(...)` em todos os 4 hooks.
 
 ---
 
