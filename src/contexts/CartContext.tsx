@@ -65,6 +65,7 @@ export function CartProvider({ children, tenantSlug }: CartProviderProps) {
     cep: '',
     options: [],
     selected: null,
+    quoteId: null,
   });
   const [isLoading, setIsLoading] = useState(true);
   const hasHydrated = useRef(false);
