@@ -53,7 +53,10 @@ export function ShippingEstimator() {
           free_shipping: item.free_shipping || false,
           free_shipping_method: (item as any).free_shipping_method || null,
         }));
-        options = await quoteAsync(cepDigits, subtotal, cartItems);
+        const result = await quoteAsync(cepDigits, subtotal, cartItems);
+        options = result;
+        // Extract quote_id if available (from shipping-quote edge function)
+        const quoteId = (result as any)?.quote_id || null;
       } else {
         // Sync quote for mock/manual providers
         options = quote(cepDigits, subtotal);
