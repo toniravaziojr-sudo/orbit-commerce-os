@@ -192,7 +192,7 @@ export default function Orders() {
                 onDateFieldChange={setDateField}
               />
               <Select value={statusFilter} onValueChange={handleStatusChange}>
-                <SelectTrigger className="w-44">
+                <SelectTrigger className="w-full sm:w-44">
                   <SelectValue placeholder="Status Pedido" />
                 </SelectTrigger>
                 <SelectContent>
