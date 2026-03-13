@@ -203,7 +203,7 @@ function generateMarketingPixelScripts(config: any, trackingData?: { routeType: 
   // === ROUTE-SPECIFIC TRACKING EVENTS ===
   // These fire ViewContent/ViewCategory after pixels load (deferred-safe)
   if (trackingData && (metaEnabled || googleEnabled || tiktokEnabled)) {
-    const eventScript = generateRouteTrackingScript(config, trackingData, { metaEnabled: !!metaEnabled, googleEnabled: !!googleEnabled, tiktokEnabled: !!tiktokEnabled });
+    const eventScript = generateRouteTrackingScript(config, trackingData, { metaEnabled: !!metaEnabled, googleEnabled: !!googleEnabled, tiktokEnabled: !!tiktokEnabled, hasCapi });
     if (eventScript) scripts.push(eventScript);
   }
 
