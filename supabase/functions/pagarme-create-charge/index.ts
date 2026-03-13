@@ -287,7 +287,7 @@ serve(async (req) => {
       provider_transaction_id: pagarmeResponse.id,
       method: payload.method,
       status: charge?.status || 'pending',
-      amount: payload.amount,
+      amount: chargeAmountCents,
       currency: 'BRL',
       payment_data: {
         order_id: pagarmeResponse.id,
