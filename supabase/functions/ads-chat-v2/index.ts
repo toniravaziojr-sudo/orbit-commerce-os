@@ -485,7 +485,7 @@ function getToolSubset(category: IntentCategory): any[] {
           variations: { type: "number" }, funnel_stage: { type: "string", enum: ["tof", "mof", "bof", "test", "leads"] },
         }, ["product_name"]),
         toolDef("trigger_creative_generation", "Gera textos/copies.", {}),
-        toolDef("search_drive_files", "Busca arquivos no Drive INTERNO do sistema (Meu Drive). NÃO é Google Drive. Pesquisa por nome nos arquivos salvos pelo lojista.", { query: { type: "string" }, file_type: { type: "string", enum: ["image", "video", "all"] } }, ["query"]),
+        toolDef("search_drive_files", "Busca arquivos no Drive INTERNO do sistema (Meu Drive). NÃO é Google Drive. Pesquisa por nome e considera vínculos por produto para contagem mais precisa.", { query: { type: "string" }, file_type: { type: "string", enum: ["image", "video", "all"] }, limit: { type: "number" } }, ["query"]),
       ];
 
     case "drive":
