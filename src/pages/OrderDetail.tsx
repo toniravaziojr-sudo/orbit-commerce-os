@@ -464,6 +464,9 @@ export default function OrderDetail() {
             </CardContent>
           </Card>
 
+          {/* Payment Attempts */}
+          <PaymentAttemptsCard orderId={order.id} />
+
           {/* Shipments Section with Shipping Status */}
           <Card>
             <CardHeader>
