@@ -294,22 +294,27 @@ serve(async (req) => {
     // ==== SYNC ORDER STATUS for synchronous payments (credit card) ====
     // When charge is immediately paid/failed, update order right away
     // Don't rely solely on webhook which may arrive late or with incomplete payload
-    if (payload.order_id && charge?.status) {
-      const orderUpdate: Record<string, any> = { updated_at: new Date().toISOString() };
+    if (payload.order_id) {
+      const orderUpdate: Record<string, any> = { 
+        updated_at: new Date().toISOString(),
+        payment_gateway: 'pagarme',
+        payment_gateway_id: String(pagarmeResponse.id),
+      };
       
-      if (charge.status === 'paid') {
+      if (charge?.status === 'paid') {
         orderUpdate.payment_status = 'approved';
         orderUpdate.status = 'paid';
         orderUpdate.paid_at = new Date().toISOString();
         console.log(`[Pagar.me] Syncing order ${payload.order_id} → paid (synchronous)`);
-      } else if (charge.status === 'failed') {
+      } else if (charge?.status === 'failed') {
         orderUpdate.payment_status = 'declined';
         console.log(`[Pagar.me] Syncing order ${payload.order_id} → declined (synchronous)`);
-      } else if (charge.status === 'pending' || charge.status === 'processing') {
+      } else if (charge?.status === 'pending' || charge?.status === 'processing') {
         orderUpdate.payment_status = 'pending';
         orderUpdate.status = 'awaiting_payment';
         console.log(`[Pagar.me] Syncing order ${payload.order_id} → awaiting_payment`);
       }
+      console.log(`[Pagar.me] Setting payment_gateway_id=${pagarmeResponse.id} on order ${payload.order_id}`);
 
       if (Object.keys(orderUpdate).length > 1) {
         const { error: orderUpdateError } = await supabase
