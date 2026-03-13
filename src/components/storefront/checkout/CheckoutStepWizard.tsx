@@ -654,17 +654,17 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         const cleanOrderNumber = result.orderNumber?.replace(/^#/, '').trim() || '';
         console.log('[Checkout] Navigating to thankYou with cleanOrderNumber:', cleanOrderNumber);
 
-        if (paymentMethod === 'credit_card' && result.cardStatus === 'paid') {
         // Build userData for PII enrichment (Phase 5)
-          const purchaseUserData = {
-            email: formData.customerEmail,
-            phone: formData.customerPhone,
-            name: formData.customerName,
-            city: formData.city,
-            state: formData.state,
-            zip: formData.cep,
-          };
+        const purchaseUserData = {
+          email: formData.customerEmail,
+          phone: formData.customerPhone,
+          name: formData.customerName,
+          city: formData.shippingCity,
+          state: formData.shippingState,
+          zip: formData.shippingPostalCode,
+        };
 
+        if (paymentMethod === 'credit_card' && result.cardStatus === 'paid') {
           // Credit card approved immediately - always track Purchase
           trackPurchase({
             order_id: cleanOrderNumber,
