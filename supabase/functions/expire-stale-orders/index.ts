@@ -99,36 +99,61 @@ serve(async (req) => {
     }
 
     // 4. Cancel orphan orders (no payment transaction created)
+    // These are ghost orders — checkout started but payment was never created at the gateway.
+    // They must be marked as cancelled AND their checkout_session must be set to 'abandoned'.
     const { data: pendingOrders } = await supabase
       .from('orders')
-      .select('id, order_number')
+      .select('id, order_number, tenant_id, customer_email, customer_name, total')
       .eq('payment_status', 'pending')
+      .is('payment_gateway_id', null)
       .in('status', ['pending', 'awaiting_payment'])
       .lt('created_at', orphanCutoff);
 
     let orphanCount = 0;
     if (pendingOrders && pendingOrders.length > 0) {
       for (const order of pendingOrders) {
-        const { data: txData } = await supabase
-          .from('payment_transactions')
-          .select('id', { count: 'exact', head: true })
-          .eq('order_id', order.id);
+        // Cancel the ghost order
+        await supabase
+          .from('orders')
+          .update({
+            payment_status: 'cancelled',
+            status: 'cancelled',
+            cancellation_reason: 'Pedido sem pagamento na operadora (automático)',
+            cancelled_at: now.toISOString(),
+            updated_at: now.toISOString(),
+          })
+          .eq('id', order.id);
 
-        if (!txData || txData.length === 0) {
+        // Mark associated checkout_session as abandoned (if exists)
+        // Match by order_id first, then by email+tenant if no direct link
+        const { data: sessionByOrder } = await supabase
+          .from('checkout_sessions')
+          .update({
+            status: 'abandoned',
+            abandoned_at: now.toISOString(),
+            updated_at: now.toISOString(),
+          })
+          .eq('order_id', order.id)
+          .in('status', ['active'])
+          .select('id');
+
+        // If no session found by order_id, try by email + tenant (recent sessions)
+        if ((!sessionByOrder || sessionByOrder.length === 0) && order.customer_email) {
           await supabase
-            .from('orders')
+            .from('checkout_sessions')
             .update({
-              payment_status: 'cancelled',
-              status: 'cancelled',
-              cancellation_reason: 'Pedido sem pagamento (automático)',
-              cancelled_at: now.toISOString(),
+              status: 'abandoned',
+              abandoned_at: now.toISOString(),
               updated_at: now.toISOString(),
             })
-            .eq('id', order.id);
-
-          orphanCount++;
-          console.log(`[expire-stale-orders] Cancelled orphan order: ${order.order_number}`);
+            .eq('tenant_id', order.tenant_id)
+            .eq('customer_email', order.customer_email.toLowerCase())
+            .eq('status', 'active')
+            .is('order_id', null);
         }
+
+        orphanCount++;
+        console.log(`[expire-stale-orders] Ghost order → abandoned checkout: ${order.order_number}`);
       }
     }
 

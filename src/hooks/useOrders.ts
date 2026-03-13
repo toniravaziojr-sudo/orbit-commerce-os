@@ -175,10 +175,11 @@ export function useOrders(options?: {
         .from('orders')
         .select('*, customers(total_orders)', { count: 'exact' })
         .eq('tenant_id', currentTenant.id)
-        // Exclude ghost orders: created in checkout but gateway was never reached
-        // Ghost orders have payment_gateway_id=null AND status=pending
-        // Show order if gateway confirmed (has payment_gateway_id) OR status changed from initial 'pending'
-        .or('payment_gateway_id.not.is.null,status.neq.pending');
+        // Ghost Order Rule: orders without gateway confirmation are NOT real orders.
+        // They are abandoned checkouts and must not appear in the orders list.
+        // Filter: must have gateway_id OR must not be in a "ghost" state (cancelled without gateway)
+        .not('payment_gateway_id', 'is', null)
+        .or('payment_gateway_id.not.is.null,and(status.neq.cancelled,cancellation_reason.not.ilike.*automático*)');
 
       if (search) {
         query = query.or(`order_number.ilike.%${search}%,customer_name.ilike.%${search}%,customer_email.ilike.%${search}%`);
