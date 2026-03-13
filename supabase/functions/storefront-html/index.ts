@@ -227,7 +227,7 @@ function resolveMetaContentId(product: { id: string; sku?: string; meta_retailer
 function generateRouteTrackingScript(
   config: any,
   data: { routeType: string; product?: any; category?: any; categoryProductIds?: string[] },
-  flags: { metaEnabled: boolean; googleEnabled: boolean; tiktokEnabled: boolean }
+  flags: { metaEnabled: boolean; googleEnabled: boolean; tiktokEnabled: boolean; hasCapi: boolean }
 ): string {
   const lines: string[] = [];
 
