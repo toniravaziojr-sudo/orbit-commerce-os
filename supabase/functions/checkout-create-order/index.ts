@@ -277,14 +277,18 @@ serve(async (req) => {
             validatedQuoteId = quote.id;
 
             // Use the shipping price from the server-side quote as canonical
-            const selectedOption = (quote.options as any[])?.find(
+            // NOTE: DB column is "all_options", not "options"
+            const selectedOption = (quote.all_options as any[])?.find(
               (opt: any) => opt.service_code === payload.shipping.service_code
             );
             if (selectedOption?.price !== undefined) {
               canonicalShipping = Number(selectedOption.price);
+              console.log(`[checkout-create-order][QUOTE_AUDIT] Canonical shipping from quote: ${canonicalShipping}`);
+            } else {
+              console.warn(`[checkout-create-order][QUOTE_AUDIT] Could not find service_code=${payload.shipping.service_code} in quote options, using submitted shipping`);
             }
 
-            // Mark as used
+            // Mark as used (used_by_order_id set after order creation below)
             await supabase
               .from('shipping_quotes')
               .update({ used_at: new Date().toISOString() })
