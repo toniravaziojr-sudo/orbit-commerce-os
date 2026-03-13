@@ -640,11 +640,15 @@ O header e footer do checkout usam `StorefrontHeaderContent` e `StorefrontFooter
 | Campo | Valor |
 |-------|-------|
 | **Tipo** | Segurança financeira |
-| **Localização** | `checkout-create-order/index.ts` (v3.0), `mercadopago-create-charge/index.ts` (v2.0), `pagarme-create-charge/index.ts` (v2.0), tabela `order_price_audit` |
-| **Descrição** | O total do pedido é recalculado no servidor usando preços do banco de dados, frete do snapshot canônico e desconto revalidado. Valores enviados pelo navegador são ignorados para fins de cobrança. |
-| **Fluxo** | 1. Checkout cria pedido → busca preços reais dos produtos no banco → recalcula subtotal canônico → busca frete canônico do shipping_quote → revalida desconto → calcula `canonical_total` → persiste no pedido e na tabela de auditoria |
-| **Cobrança** | Funções de cobrança (Pagar.me e Mercado Pago) buscam `canonical_total` do pedido no banco e usam esse valor para cobrar. Se `canonical_total` não existir, usam o valor enviado como fallback. |
+| **Localização** | `checkout-create-order/index.ts` (v3.1), `mercadopago-create-charge/index.ts` (v2.1), `pagarme-create-charge/index.ts` (v2.1), tabela `order_price_audit` |
+| **Descrição** | O total do pedido é recalculado no servidor usando preços do banco de dados (produtos e variantes), frete do snapshot canônico e desconto revalidado. O `canonical_total` é persistido para auditoria mas **NÃO** é usado na cobrança nesta fase. |
+| **Fluxo** | 1. Checkout cria pedido → busca preços reais dos produtos e variantes no banco → recalcula subtotal canônico → busca frete canônico do shipping_quote → revalida desconto → calcula `canonical_total` → persiste no pedido e na tabela de auditoria |
+| **orders.total** | Vem do frontend (valor exibido ao cliente). É o valor usado na cobrança. |
+| **orders.canonical_total** | Recalculado no servidor. Usado apenas para auditoria e detecção de divergência. **NÃO** é usado na cobrança nesta fase. |
+| **order_items.unit_price** | Vem do frontend (preço unitário exibido ao cliente). |
+| **Cobrança** | Funções de cobrança (Pagar.me e Mercado Pago) usam `payload.amount` (valor enviado pelo frontend). Apenas **logam** comparação com `canonical_total` para auditoria. Nenhum valor é substituído. |
+| **Variantes** | Quando o item tem `variant_id`, o cálculo canônico busca o preço na tabela `product_variants`. Sem `variant_id`, usa `products.price`. |
 | **Auditoria** | Tabela `order_price_audit` registra: `submitted_subtotal`, `submitted_shipping`, `submitted_discount`, `submitted_total` vs `canonical_subtotal`, `canonical_shipping`, `canonical_discount`, `canonical_total`. Colunas geradas: `subtotal_drift`, `total_drift`, `has_drift`. |
 | **Drift Detection** | Log estruturado `[PRICE_AUDIT] ⚠️ DRIFT DETECTED` quando diferença > R$0.01 entre submitted e canonical. |
-| **Modo atual** | SIMULAÇÃO — divergências são registradas mas não bloqueiam o pedido. Enforcement futuro rejeitará pedidos com drift significativo. |
-| **Performance** | 1 query adicional (buscar preços dos produtos), 1 query condicional (revalidar desconto). Sem impacto perceptível — ambas usam índices existentes por tenant_id. |
+| **Modo atual** | **SIMULAÇÃO PURA** — divergências são registradas mas NÃO alteram valor cobrado e NÃO bloqueiam o pedido. Enforcement futuro será ativado por flag separada. |
+| **Performance** | 1-2 queries adicionais (produtos + variantes quando aplicável), 1 query condicional (revalidar desconto). Sem impacto perceptível — ambas usam índices existentes por tenant_id. |
