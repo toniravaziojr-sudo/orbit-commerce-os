@@ -692,6 +692,11 @@ serve(async (req) => {
         }
       }
 
+
+      // Phase 2: Async Purchase CAPI dispatch for paid_only mode
+      // This is OUTSIDE the webhook critical path — event is already persisted in events_inbox
+      await handlePurchaseCapiForPaidOnly(supabase, event, payload, stats);
+
       // Mark event as processed or ignored
       const newStatus = hasMatchedAny ? 'processed' : 'ignored';
       await supabase
