@@ -410,7 +410,7 @@ function generateSupportWidgetHtml(themeSettings: any, routeType: string, tenant
       var empty=scroll.querySelector("p");
       if(empty&&empty.textContent.includes("Envie"))empty.remove();
       var div=document.createElement("div");
-      div.style.cssText="max-width:80%;padding:8px 12px;border-radius:12px;font-size:14px;word-wrap:break-word;"+(direction==="inbound"?"align-self:flex-end;background:${escapeHtml(buttonColor)};color:#fff;":"align-self:flex-start;background:#f3f4f6;color:#1a1a1a;");
+      div.style.cssText="max-width:80%;padding:8px 12px;border-radius:12px;font-size:14px;word-wrap:break-word;"+(direction==="inbound"?"align-self:flex-end;background:${escapeHtml(chatColor)};color:#fff;":"align-self:flex-start;background:#f3f4f6;color:#1a1a1a;");
       div.textContent=content;
       scroll.appendChild(div);
       scroll.scrollTop=scroll.scrollHeight;
