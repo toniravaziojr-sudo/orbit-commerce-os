@@ -2,6 +2,7 @@
 // MERCADO PAGO CREATE CHARGE - Payment processing for storefront
 // Uses tenant payment_providers credentials
 // Mirrors pagarme-create-charge architecture
+// v2.0 — Canonical price validation (Security Plan v3.1 Phase 2B)
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
