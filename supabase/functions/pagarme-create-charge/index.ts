@@ -225,7 +225,8 @@ serve(async (req) => {
 
     const pagarmeResponse = await response.json();
     console.log('Pagar.me response status:', response.status);
-    console.log('Pagar.me full response:', JSON.stringify(pagarmeResponse, null, 2));
+    // PCI-safe: redact card data from gateway response before logging
+    console.log('Pagar.me response (redacted):', JSON.stringify(redactPayloadForLog(pagarmeResponse), null, 2));
 
     if (!response.ok) {
       console.error('Pagar.me API error:', JSON.stringify(pagarmeResponse));
