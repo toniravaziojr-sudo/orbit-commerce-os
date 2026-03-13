@@ -44,7 +44,7 @@ interface CartContextType {
   // Shipping
   shipping: CartShipping;
   setShippingCep: (cep: string) => void;
-  setShippingOptions: (options: ShippingOption[]) => void;
+  setShippingOptions: (options: ShippingOption[], quoteId?: string | null) => void;
   selectShipping: (option: ShippingOption | null) => void;
   total: number;
 }
