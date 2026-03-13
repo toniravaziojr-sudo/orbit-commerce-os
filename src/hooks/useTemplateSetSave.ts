@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { cachePurge } from '@/lib/storefrontCachePurge';
+import { triggerPrerenderWithRetry } from '@/lib/prerenderRetry';
 import type { BlockNode } from '@/lib/builder/types';
 import type { Json } from '@/integrations/supabase/types';
 
