@@ -170,7 +170,7 @@ export function CartProvider({ children, tenantSlug }: CartProviderProps) {
 
   const clearCart = useCallback(() => {
     setItems([]);
-    setShipping({ cep: '', options: [], selected: null });
+    setShipping({ cep: '', options: [], selected: null, quoteId: null });
   }, []);
 
   // Shipping functions
