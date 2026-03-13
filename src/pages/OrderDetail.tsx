@@ -53,6 +53,7 @@ import {
 } from '@/types/orderStatus';
 import { ShipmentSection } from '@/components/orders/ShipmentSection';
 import { NotificationLogsPanel } from '@/components/notifications/NotificationLogsPanel';
+import { PaymentAttemptsCard } from '@/components/orders/PaymentAttemptsCard';
 
 const paymentMethodLabels: Record<string, string> = {
   pix: 'PIX',
