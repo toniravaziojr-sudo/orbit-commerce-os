@@ -29,6 +29,8 @@ export interface CategorySettings {
   showAddToCartButton?: boolean;    // Exibir botão adicionar ao carrinho
   showBadges?: boolean;             // Mostrar selos dos produtos
   buyNowButtonText?: string;        // Texto do botão principal
+  // Ordenação padrão dos produtos na categoria
+  defaultSortOrder?: string;        // 'relevance' | 'price_asc' | 'price_desc' | 'name_asc' | 'name_desc' | 'biggest_discount'
   // Botão personalizado
   customButtonEnabled?: boolean;
   customButtonText?: string;
@@ -154,6 +156,7 @@ export const DEFAULT_CATEGORY_SETTINGS: CategorySettings = {
   showAddToCartButton: true,
   showBadges: true,
   buyNowButtonText: 'Comprar agora',
+  defaultSortOrder: 'relevance',
   customButtonEnabled: false,
   customButtonText: '',
   customButtonColor: '',

@@ -1231,6 +1231,28 @@ export function PageSettingsContent({
                   </div>
                 ))}
                 
+                {/* Ordenação padrão dos produtos (categoria) */}
+                {pageType === 'category' && group.id === 'structure' && (
+                  <div className="pt-2 border-t border-border/50">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Ordenação padrão dos produtos</Label>
+                      <p className="text-[10px] text-muted-foreground">Como os produtos aparecem ordenados ao abrir a categoria</p>
+                      <select
+                        value={String(settings.defaultSortOrder || 'relevance')}
+                        onChange={(e) => handleChange('defaultSortOrder', e.target.value)}
+                        className="w-full px-3 py-2 text-sm border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        <option value="relevance">Relevância</option>
+                        <option value="price_asc">Menor preço</option>
+                        <option value="price_desc">Maior preço</option>
+                        <option value="name_asc">A → Z</option>
+                        <option value="name_desc">Z → A</option>
+                        <option value="biggest_discount">Maior desconto</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+
                 {/* REGRAS.md: Campo de texto para botão principal (categoria) */}
                 {pageType === 'category' && group.id === 'buttons' && (
                   <div className="pt-2 border-t border-border/50">

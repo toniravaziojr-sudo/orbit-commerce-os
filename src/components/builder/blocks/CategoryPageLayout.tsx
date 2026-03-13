@@ -66,6 +66,7 @@ interface CategorySettingsFromContext {
   showAddToCartButton?: boolean;
   showBadges?: boolean;
   buyNowButtonText?: string;
+  defaultSortOrder?: string;
   customButtonEnabled?: boolean;
   customButtonText?: string;
   customButtonColor?: string;       // Legado
@@ -122,7 +123,8 @@ export function CategoryPageLayout({
   // Filter states — price range syncs with computed max on load
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 500]);
   const [priceInitialized, setPriceInitialized] = useState(false);
-  const [sortBy, setSortBy] = useState('relevance');
+  const defaultSort = categorySettings.defaultSortOrder || 'relevance';
+  const [sortBy, setSortBy] = useState(defaultSort);
   const [inStockOnly, setInStockOnly] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
@@ -263,8 +265,18 @@ export function CategoryPageLayout({
       case 'price_desc':
         result.sort((a, b) => b.price - a.price);
         break;
-      case 'newest':
-        // Keep original order (assumed to be by date)
+      case 'name_asc':
+        result.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+        break;
+      case 'name_desc':
+        result.sort((a, b) => b.name.localeCompare(a.name, 'pt-BR'));
+        break;
+      case 'biggest_discount':
+        result.sort((a, b) => {
+          const discountA = a.compare_at_price ? (a.compare_at_price - a.price) / a.compare_at_price : 0;
+          const discountB = b.compare_at_price ? (b.compare_at_price - b.price) / b.compare_at_price : 0;
+          return discountB - discountA;
+        });
         break;
       default:
         // relevance - keep original order

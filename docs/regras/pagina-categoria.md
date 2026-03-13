@@ -1,7 +1,7 @@
 # Página de Categoria — Regras e Especificações
 
 > **Status:** FUNCIONAL ✅ — Core + Filtros + Ordenação + Paginação + Badges Dinâmicos  
-> **Última atualização:** 2026-03-10  
+> **Última atualização:** 2026-03-13  
 > **Arquitetura:** v8.5.0 — Filtros sidebar (desktop) + Sheet (mobile) — paridade total Builder/Público
 > **Regra de paridade:** Ver `docs/regras/paridade-builder-publico.md`
 
@@ -248,11 +248,20 @@ A ordem dos botões nos cards de produto é fixa e obrigatória:
 | Relevância | `relevance` / `default` | Ordem original do servidor |
 | Menor preço | `price_asc` / `price-asc` | `price` / `data-price` crescente |
 | Maior preço | `price_desc` / `price-desc` | `price` / `data-price` decrescente |
-| Mais recentes | `newest` | Ordem de criação |
-| Mais vendidos | `bestsellers` | Por vendas |
-| A → Z | `name-asc` | `data-name` alfabético (compilador apenas) |
-| Z → A | `name-desc` | `data-name` reverso (compilador apenas) |
-| Maior desconto | `discount` | `data-discount-pct` decrescente (compilador apenas) |
+| A → Z | `name_asc` / `name-asc` | Nome alfabético crescente |
+| Z → A | `name_desc` / `name-desc` | Nome alfabético decrescente |
+| Maior desconto | `biggest_discount` / `discount` | Percentual de desconto decrescente |
+
+### Ordenação Padrão (v8.5.4)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Config |
+| **Localização** | `PageSettingsContent.tsx` → grupo `structure` (categoria) |
+| **Setting** | `defaultSortOrder` em `CategorySettings` |
+| **Valores** | `relevance` (padrão), `price_asc`, `price_desc`, `name_asc`, `name_desc`, `biggest_discount` |
+| **Descrição** | Define a ordenação inicial dos produtos ao abrir qualquer página de categoria. O cliente pode alterar no seletor de filtros. |
+| **Consumido em** | `CategoryPageLayout.tsx` (inicializa `sortBy` state com `categorySettings.defaultSortOrder`) |
 
 ### Paginação (Load More)
 - Página inicial: 24 produtos
