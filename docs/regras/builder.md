@@ -3286,6 +3286,19 @@ Para adicionar novos presets no futuro:
 
 A loja pública pode levar alguns minutos para refletir mudanças após publicação. O Preview (`?preview=1`) NÃO tem cache (`staleTime: 0`).
 
+### Resiliência de Publicação: Prerender com Retry (v2026-03-13)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Função Utilitária |
+| **Localização** | `src/lib/prerenderRetry.ts` |
+| **Contexto** | Chamada após publicação no Builder (`useTemplateSetSave.ts`) |
+| **Descrição** | Dispara a pré-renderização do storefront com retry automático e feedback visual |
+| **Comportamento** | 1. Chama `storefront-prerender` via Edge Function. 2. Se falhar, aguarda 5s e tenta novamente (máximo 3 tentativas). 3. Sucesso → toast verde com nº de páginas. 4. Sucesso parcial (algumas páginas falharam) → toast amarelo. 5. Falha total → toast vermelho orientando o lojista a tentar novamente. |
+| **Condições** | Executa em background após o save — não bloqueia a UI |
+| **Afeta** | `useTemplateSetSave.ts` (invoca a função), loja pública (resultado da pré-renderização) |
+| **Erros/Edge cases** | Se todas as 3 tentativas falharem, a publicação já foi salva no banco mas a loja pública pode exibir conteúdo antigo até o próximo publish ou limpeza manual de cache |
+
 ---
 
 ## 💬 Support Widget Settings (Atendimento) — Draft Workflow (v1.0)

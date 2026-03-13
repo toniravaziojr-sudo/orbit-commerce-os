@@ -469,9 +469,32 @@ Sem normalização, pedidos com status legado exibem badges errados (ex: pedido 
 | **Valores** | Subtotal, desconto, frete, total |
 | **Endereço** | Entrega e cobrança |
 | **Pagamento** | Método, gateway, data de pagamento |
+| **Tentativas de Pagamento** | Histórico de todas as tentativas (códigos, status, valores, erros) |
 | **Envio** | Transportadora, código de rastreio, timeline |
 | **Histórico** | Todas as alterações com timestamp e autor |
 | **Notas** | Internas (admin) e do cliente |
+
+### 6.2.1 Card: Tentativas de Pagamento (v2026-03-13)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente |
+| **Localização** | `src/components/orders/PaymentAttemptsCard.tsx` |
+| **Contexto** | Sidebar dos detalhes do pedido, entre "Pagamento" e "Remessa" |
+| **Descrição** | Exibe o log completo de tentativas de pagamento para um pedido |
+| **Comportamento** | 1. Busca registros de `payment_transactions` filtrados por `order_id`. 2. Exibe cada tentativa com: ícone de status, badge, data/hora, método (PIX/Cartão/Boleto), operadora (Pagar.me/Mercado Pago/PagBank), valor, código da transação (monospace) e mensagem de erro (se houver). 3. Badge com contagem total de tentativas. 4. Ordenado por data descendente (mais recente primeiro). |
+| **Condições** | Só renderiza se houver pelo menos 1 tentativa registrada |
+| **Visual** | Card com ícone History, separadores entre tentativas, cores semânticas por status (verde=aprovado, vermelho=recusado, cinza=pendente) |
+| **Afeta** | Nenhum outro componente |
+
+**Hook relacionado:**
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Hook |
+| **Localização** | `src/hooks/usePaymentTransactions.ts` |
+| **Descrição** | Busca tentativas de pagamento (`payment_transactions`) por `order_id` |
+| **Comportamento** | Query react-query com `enabled: !!orderId`, retorna array de `PaymentTransaction` |
 
 ### 6.3 Abas
 
