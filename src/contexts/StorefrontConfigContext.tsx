@@ -360,7 +360,7 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
     return async (
       cep: string, 
       cartTotal: number,
-      items: Array<{ weight?: number; height?: number; width?: number; length?: number; quantity: number; price: number }>
+      items: Array<{ weight?: number; height?: number; width?: number; length?: number; quantity: number; price: number; product_id?: string; variant_id?: string }>
     ): Promise<ShippingQuote[]> => {
       // Check for free shipping threshold
       const isFreeShipping = shippingConfig.freeShippingThreshold != null && 
@@ -387,6 +387,8 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
                 length: item.length || 10,
                 quantity: item.quantity,
                 price: item.price,
+                product_id: item.product_id,
+                variant_id: item.variant_id || '',
               })),
             },
           });

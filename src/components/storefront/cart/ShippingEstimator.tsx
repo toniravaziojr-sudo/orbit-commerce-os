@@ -49,7 +49,8 @@ export function ShippingEstimator() {
           length: 10,
           quantity: item.quantity,
           price: item.price,
-          product_id: item.id,
+          product_id: item.product_id,
+          variant_id: item.variant_id || '',
           free_shipping: item.free_shipping || false,
           free_shipping_method: (item as any).free_shipping_method || null,
         }));
