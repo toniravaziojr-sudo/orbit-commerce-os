@@ -226,7 +226,8 @@ O sistema permite enviar links de avaliação para clientes após a compra via n
 | Item | Valor |
 |------|-------|
 | **Rota** | `/avaliar/:token` |
-| **Componente** | `src/pages/storefront/StorefrontReview.tsx` |
+| **Componente** | `src/pages/storefront/StorefrontReview.tsx` (v2) |
+| **Edge Function** | `get-review-data` — busca itens do pedido, avaliações existentes e nome da loja numa única chamada |
 | **Funcionalidades** | Lista produtos do pedido, formulário de avaliação, badge "Compra verificada" |
 
 ### Fluxo de Avaliação via Link
@@ -246,11 +247,23 @@ O sistema permite enviar links de avaliação para clientes após a compra via n
                                     ↓
 ┌─────────────────────────────────────────────────────────────────────┐
 │  3. Cliente acessa /avaliar/:token                                  │
-│     → Token validado via validate_review_token()                    │
-│     → Exibe produtos do pedido para avaliar                         │
+│     → get-review-data valida token via validate_review_token()      │
+│     → Retorna itens do pedido + avaliações já feitas + nome da loja │
+│     → NÃO faz leitura direta em order_items (usa service_role)      │
 │     → Avaliação salva com is_verified_purchase = true               │
 └─────────────────────────────────────────────────────────────────────┘
 ```
+
+### Segurança — Migração para Edge Function (Phase 3B, v2026-03-14)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Segurança / Hardening de RLS |
+| **Localização** | `supabase/functions/get-review-data/index.ts`, `src/pages/storefront/StorefrontReview.tsx` |
+| **Descrição** | A página de avaliação não lê mais `order_items` diretamente pelo cliente. Toda leitura passa pela edge function `get-review-data`, que usa service_role e valida o token de avaliação. |
+| **Antes** | 3 queries diretas do frontend: `order_items` (SELECT), `product_reviews` (SELECT), `tenants` (SELECT). Dependia da policy anônima `Anyone can view order items for checkout`. |
+| **Depois** | 1 chamada à edge function `get-review-data` que retorna tudo numa única resposta. Policy anônima de SELECT em `order_items` foi removida. |
+| **Nota** | A inserção de avaliações (`product_reviews INSERT`) continua via cliente direto com policy própria separada. Não afetada por esta mudança. |
 
 ---
 
