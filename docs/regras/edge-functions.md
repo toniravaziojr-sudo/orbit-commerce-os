@@ -3043,3 +3043,199 @@ Páginas SPA (carrinho, conta, rastreio, busca, quiz) ficavam presas em "Carrega
 | `used_by_order_id` preenchido | `SELECT id, used_by_order_id FROM shipping_quotes WHERE used_at IS NOT NULL ORDER BY created_at DESC LIMIT 5` |
 | Audit com cobertura 100% | `SELECT o.order_number, a.id IS NOT NULL as has_audit FROM orders o LEFT JOIN order_price_audit a ON a.order_id = o.id WHERE o.created_at > now() - interval '1 day' ORDER BY o.created_at DESC` |
 | Canonical shipping correto | `SELECT canonical_shipping, submitted_shipping FROM order_price_audit ORDER BY created_at DESC LIMIT 5` |
+
+---
+
+## Marketing Reconcile (`marketing-reconcile`)
+
+### Responsabilidade
+Endpoint de reconciliação que compara eventos de tracking (browser vs server) por tenant, detecta gaps de Purchase, identifica falhas e gera relatório de saúde.
+
+### Input
+```json
+POST /functions/v1/marketing-reconcile
+{
+  "tenant_id": "uuid",   // obrigatório
+  "days": 7              // opcional, default 7
+}
+```
+
+### Output
+```json
+{
+  "success": true,
+  "report": {
+    "tenant_id": "uuid",
+    "period_days": 7,
+    "since": "ISO timestamp",
+    "total_events": 42,
+    "event_counts": {
+      "Purchase": { "browser": 5, "server": 5, "failed": 0 },
+      "PageView": { "browser": 30, "server": 0, "failed": 0 }
+    },
+    "purchase_dedup": {
+      "browser_only": 0,
+      "server_only": 1,
+      "paired": 4
+    },
+    "issues": ["1 Purchase events fired only server-side (webhook/process-events)"],
+    "health": "warning"
+  }
+}
+```
+
+### Como interpretar gaps de Purchase
+| Situação | Significado | Ação |
+|----------|-------------|------|
+| `browser_only > 0` | Purchase disparou no browser mas não teve par server-side (CAPI) | Verificar se process-events está rodando e se Meta CAPI está configurada |
+| `server_only > 0` | Purchase via process-events sem par browser — esperado em `paid_only` com PIX/boleto onde cliente não voltou à thank you | Normal para `paid_only`; investigar se > 50% dos Purchases |
+| `paired > 0` | Browser + CAPI com mesmo `event_id` — deduplicação funcionando | Saudável |
+| Issues com `paid orders have no Purchase tracking event` | Pedidos pagos sem nenhum evento Purchase registrado | Bug no fluxo — investigar |
+
+### Relação com tabelas e funções
+- **Lê**: `marketing_events_log` (eventos por tenant/período), `orders` (pedidos pagos sem tracking)
+- **Depende de**: `process-events` ter registrado os eventos server-side no log
+- **Não altera** nenhuma tabela (read-only)
+
+### Regra de uso
+- Chamada sob demanda (admin ou cron de monitoramento)
+- Limite de 1000 eventos por consulta (proteção de performance)
+- Período configurável via `days` (default 7, recomendado não exceder 30)
+
+### Limitações conhecidas
+- Limite de 1000 eventos pode esconder gaps em tenants de alto volume — usar `days` menor nesses casos
+- Não valida payload do evento, apenas existência e status
+- Não distingue entre providers (Meta vs Google vs TikTok) na contagem de browser/server
+
+---
+
+## Purchase Assíncrono via Process-Events (Modo `paid_only`)
+
+### Fluxo completo
+```
+Webhook de pagamento (Pagar.me/MercadoPago)
+  → Atualiza order.payment_status = 'approved'/'paid'
+  → Insere evento em events_inbox: { type: 'payment_status_changed', status: 'approved' }
+  → Cron/scheduler chama process-events
+  → process-events detecta payment_status_changed
+  → Consulta marketing_integrations.purchase_event_timing do tenant
+  → Se 'paid_only': gera Purchase server-side via Meta CAPI
+  → Antes de enviar: verifica idempotência em marketing_events_log
+  → Se event_id já existe → skip (sem duplicata)
+  → Se não existe → envia CAPI + registra no log
+```
+
+### Event ID determinístico
+| Modo | Formato | Exemplo |
+|------|---------|---------|
+| `all_orders` | `purchase_created_{order_number}` | `purchase_created_1042` |
+| `paid_only` | `purchase_paid_{order_number}` | `purchase_paid_1042` |
+
+**Regra crítica**: O mesmo `event_id` é usado no browser (ThankYou/Checkout) e no server (process-events/CAPI). A Meta deduplica automaticamente eventos com mesmo `event_id` recebidos por ambos os canais.
+
+### Idempotência no process-events
+1. Gera `event_id` determinístico: `purchase_paid_{order_number}`
+2. Consulta `marketing_events_log` buscando `event_id` + `event_source = 'server'` + `tenant_id`
+3. Se já existe → pula o envio (log: "Purchase already sent")
+4. Se não existe → envia via CAPI → registra no log com sucesso/falha
+
+### Isolamento do caminho crítico
+- **Tracking NUNCA bloqueia pagamento**: o webhook salva o pedido/status e retorna 200 imediatamente
+- **Tracking é assíncrono**: process-events roda depois, em ciclo separado
+- **Falha de tracking não afeta venda**: se CAPI falhar, o pedido/pagamento já está salvo
+- **Retry silencioso**: 1 tentativa extra com backoff de 2s em caso de falha de rede
+
+### Regras por modo
+| Modo | Quem dispara browser Purchase | Quem dispara server Purchase | Webhook gera Purchase? |
+|------|-------------------------------|------------------------------|----------------------|
+| `all_orders` | Checkout (criação do pedido) ou ThankYou (fallback) | CAPI no mesmo contexto | **NÃO** — webhook não gera segundo Purchase |
+| `paid_only` | Checkout (só se cartão aprovado) ou ThankYou (fallback) | process-events após aprovação | **SIM** — mas via process-events, não inline no webhook |
+| `paid_only` + PIX/boleto | **NÃO** dispara no browser na criação | process-events após aprovação | **SIM** — única origem do Purchase |
+
+---
+
+## Checklist de Validação Controlada — Marketing Tracking
+
+### Pré-requisitos
+- [ ] Tenant interno com `meta_enabled = true` e Pixel ID configurado
+- [ ] Testar com Meta Events Manager aberto para verificar recebimento
+- [ ] Verificar `marketing_events_log` após cada cenário
+
+### Cenários de teste
+
+#### 1. Bloqueio em preview/staging
+| Teste | Resultado esperado | Como validar |
+|-------|-------------------|--------------|
+| Abrir loja em localhost | Nenhum evento disparado | Console: "[MarketingTrackerProvider] Blocked: non-production domain" |
+| Abrir loja com `?preview=1` | Nenhum evento disparado | Console: mensagem de bloqueio |
+| Abrir em *.lovableproject.com | Nenhum evento disparado | Console + Meta Events Manager vazio |
+
+#### 2. all_orders + PIX
+| Teste | Resultado esperado | Como validar |
+|-------|-------------------|--------------|
+| Criar pedido PIX | Purchase `purchase_created_{order_number}` disparado | `marketing_events_log` com event_source='client' |
+| PIX aprovado depois | NÃO gera segundo Purchase | `marketing_events_log` sem duplicata |
+| ThankYou page | Mesmo event_id (fallback, deduplicado) | Verificar event_id idêntico |
+
+#### 3. paid_only + PIX
+| Teste | Resultado esperado | Como validar |
+|-------|-------------------|--------------|
+| Criar pedido PIX | NÃO dispara Purchase no browser | `marketing_events_log` vazio para este order |
+| PIX aprovado | Purchase `purchase_paid_{order_number}` via server | `marketing_events_log` com event_source='server' |
+| Cliente volta ao ThankYou | Mesmo event_id (deduplicado pela Meta) | Verificar event_id = `purchase_paid_{order_number}` |
+| Cliente NÃO volta ao ThankYou | Purchase ainda acontece via process-events | `marketing_events_log` com event_source='server' |
+
+#### 4. paid_only + Cartão
+| Teste | Resultado esperado | Como validar |
+|-------|-------------------|--------------|
+| Cartão aprovado no checkout | Purchase `purchase_paid_{order_number}` no browser | `marketing_events_log` com event_source='client' |
+| process-events roda depois | Verifica idempotência, NÃO duplica | Log sem segundo registro |
+
+#### 5. Deduplicação
+| Teste | Resultado esperado | Como validar |
+|-------|-------------------|--------------|
+| ThankYou + process-events | Não pode haver 2 Purchases distintos | Contar registros com mesmo order no log |
+| Recarregar ThankYou | trackOnce impede re-disparo no browser | Verificar `trackedRef` no hook |
+
+#### 6. Reconciliação
+| Teste | Resultado esperado | Como validar |
+|-------|-------------------|--------------|
+| Chamar marketing-reconcile com tenant real | Relatório com contagens coerentes | JSON de resposta |
+| Simular gap (pedido pago sem evento) | `issues` lista o gap | Campo `issues` no relatório |
+| health = 'healthy' quando tudo ok | Sem issues | `health: "healthy"` |
+
+#### 7. Consent Mode
+| Teste | Resultado esperado | Como validar |
+|-------|-------------------|--------------|
+| Tenant com `consent_mode_enabled=true`, sem cookie `_sf_consent` | Tracking bloqueado | Console: "Blocked: consent not granted" |
+| Mesmo tenant, cookie `_sf_consent=granted` | Tracking funciona | Eventos aparecem no Meta Events Manager |
+
+#### 8. Identidade e PII
+| Teste | Resultado esperado | Como validar |
+|-------|-------------------|--------------|
+| Primeiro acesso à loja | Cookie `_sf_vid` criado | DevTools > Application > Cookies |
+| Acesso com `?fbclid=xxx` | Cookie `_fbc` criado (90 dias) | DevTools > Cookies |
+| Purchase com email/telefone preenchido | PII hasheada no CAPI | `marketing_events_log` ou Meta Events Manager (match quality) |
+| `contents` no browser | Inclui `item_price` por item | DevTools > Network > fbevents |
+
+#### 9. Combinações cruzadas
+| Teste | Resultado esperado |
+|-------|-------------------|
+| preview + consent + paid_only | Nenhum evento (bloqueado por preview antes de tudo) |
+| produção + consent negado + paid_only | Nenhum evento browser; process-events server-side funciona (CAPI não depende de consent do browser) |
+
+### Validação de dados em cada Purchase
+- [ ] `event_id` no formato correto (`purchase_created_*` ou `purchase_paid_*`)
+- [ ] `external_id` presente (= `_sf_vid`)
+- [ ] `_fbc` presente se veio de anúncio Meta
+- [ ] `contents` com `item_price` por item
+- [ ] PII (email, phone, name) hasheada com SHA-256 nos eventos de checkout
+- [ ] Browser e CAPI com payloads coerentes (mesmos items, mesmo value)
+- [ ] `marketing_events_log` registrando provider_status (success/failed) e event_source (client/server)
+
+### Critério de aprovação
+- [ ] Todos os cenários 1-9 validados em tenant interno
+- [ ] Meta Events Manager mostra match quality ≥ 7/10
+- [ ] Nenhuma duplicata real detectada em 48h de observação
+- [ ] marketing-reconcile reporta `health: "healthy"` para o tenant de teste
+- [ ] Zero impacto em checkout/pagamento/criação de pedido
