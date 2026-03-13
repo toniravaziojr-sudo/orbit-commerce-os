@@ -66,6 +66,7 @@ interface CategorySettingsFromContext {
   showAddToCartButton?: boolean;
   showBadges?: boolean;
   buyNowButtonText?: string;
+  defaultSortOrder?: string;
   customButtonEnabled?: boolean;
   customButtonText?: string;
   customButtonColor?: string;       // Legado
