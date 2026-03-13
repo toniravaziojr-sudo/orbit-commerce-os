@@ -1,12 +1,132 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendCapiPurchase, getMetaCapiConfig } from "../_shared/meta-capi-sender.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Get nested value from object using dot-path
+// =============================================
+// PHASE 2: Async Purchase CAPI for paid_only mode
+// When payment_status_changed → approved, and tenant uses paid_only,
+// dispatch Purchase event to Meta CAPI with deterministic event_id.
+// This runs OUTSIDE the webhook critical path (async via events_inbox).
+// =============================================
+async function handlePurchaseCapiForPaidOnly(
+  supabase: any,
+  event: { id: string; tenant_id: string; event_type: string; occurred_at: string },
+  payload: Record<string, unknown>,
+  stats: { capi_purchase_sent: number; capi_purchase_skipped: number; capi_purchase_errors: number }
+): Promise<void> {
+  const eventType = event.event_type;
+  if (eventType !== 'payment_status_changed' && eventType !== 'payment.status_changed') return;
+
+  const newStatus = (payload.new_status as string) || (payload.payment_status as string) || '';
+  if (newStatus !== 'paid' && newStatus !== 'approved') return;
+
+  const orderId = (payload.order_id as string) || '';
+  if (!orderId) {
+    console.log('[process-events:capi] No order_id in payment event, skipping CAPI Purchase');
+    return;
+  }
+
+  try {
+    const config = await getMetaCapiConfig(supabase, event.tenant_id);
+    if (!config || !config.meta_enabled || !config.meta_capi_enabled) return;
+
+    const { data: storeSettings } = await supabase
+      .from('store_settings')
+      .select('checkout_config')
+      .eq('tenant_id', event.tenant_id)
+      .maybeSingle();
+
+    const checkoutConfig = storeSettings?.checkout_config as Record<string, unknown> | null;
+    const purchaseEventTiming = checkoutConfig?.purchaseEventTiming as string || 'paid_only';
+    
+    if (purchaseEventTiming !== 'paid_only') {
+      console.log('[process-events:capi] Tenant uses all_orders, skipping webhook Purchase');
+      stats.capi_purchase_skipped++;
+      return;
+    }
+
+    const orderNumber = (payload.order_number as string) || '';
+    const cleanOrderNumber = orderNumber.replace(/^#/, '').trim() || orderId;
+    const deterministicEventId = 'purchase_paid_' + cleanOrderNumber;
+
+    // Idempotency: check if already sent
+    const { data: existingLog } = await supabase
+      .from('marketing_events_log')
+      .select('id')
+      .eq('tenant_id', event.tenant_id)
+      .eq('event_name', 'Purchase')
+      .eq('event_id', deterministicEventId)
+      .eq('provider', 'meta')
+      .limit(1);
+
+    if (existingLog && existingLog.length > 0) {
+      console.log('[process-events:capi] Purchase already sent for event_id:', deterministicEventId);
+      stats.capi_purchase_skipped++;
+      return;
+    }
+
+    const { data: order } = await supabase
+      .from('orders')
+      .select('id, order_number, total, customer_email, customer_phone, customer_name, shipping_city, shipping_state, shipping_postal_code')
+      .eq('id', orderId)
+      .single();
+
+    if (!order) {
+      console.log('[process-events:capi] Order not found:', orderId);
+      stats.capi_purchase_errors++;
+      return;
+    }
+
+    const { data: orderItems } = await supabase
+      .from('order_items')
+      .select('product_id, product_name, sku, meta_retailer_id, unit_price, quantity')
+      .eq('order_id', orderId);
+
+    const items = (orderItems || []).map((i: any) => ({
+      product_id: i.product_id || '',
+      sku: i.sku || undefined,
+      meta_retailer_id: i.meta_retailer_id || null,
+      name: i.product_name || '',
+      price: (i.unit_price || 0) / 100,
+      quantity: i.quantity || 1,
+    }));
+
+    const result = await sendCapiPurchase(supabase, event.tenant_id, {
+      order_id: orderId,
+      order_number: cleanOrderNumber,
+      value: (order.total || 0) / 100,
+      currency: 'BRL',
+      items,
+      customer: {
+        email: order.customer_email || undefined,
+        phone: order.customer_phone || undefined,
+        name: order.customer_name || undefined,
+        city: order.shipping_city || undefined,
+        state: order.shipping_state || undefined,
+        zip: order.shipping_postal_code || undefined,
+      },
+      event_id: deterministicEventId,
+    });
+
+    if (result.success) {
+      console.log('[process-events:capi] Purchase CAPI sent for order:', cleanOrderNumber, 'event_id:', deterministicEventId);
+      stats.capi_purchase_sent++;
+    } else {
+      console.error('[process-events:capi] Purchase CAPI failed:', result.error);
+      stats.capi_purchase_errors++;
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    console.error('[process-events:capi] Error dispatching Purchase CAPI:', msg);
+    stats.capi_purchase_errors++;
+  }
+}
+
 function getValueByPath(obj: Record<string, unknown>, path: string): unknown {
   const parts = path.split('.');
   let current: unknown = obj;
@@ -215,6 +335,9 @@ serve(async (req) => {
       logs_created: 0,
       ledger_conflicts: 0,
       errors: 0,
+      capi_purchase_sent: 0,
+      capi_purchase_skipped: 0,
+      capi_purchase_errors: 0,
     };
 
     // 1. Fetch pending events
@@ -568,6 +691,11 @@ serve(async (req) => {
           }
         }
       }
+
+
+      // Phase 2: Async Purchase CAPI dispatch for paid_only mode
+      // This is OUTSIDE the webhook critical path — event is already persisted in events_inbox
+      await handlePurchaseCapiForPaidOnly(supabase, event, payload, stats);
 
       // Mark event as processed or ignored
       const newStatus = hasMatchedAny ? 'processed' : 'ignored';
