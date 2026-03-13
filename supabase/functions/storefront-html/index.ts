@@ -354,7 +354,7 @@ function generateSupportWidgetHtml(themeSettings: any, routeType: string, tenant
         </div>
         <div style="display:flex;gap:8px;padding:12px;border-top:1px solid #eee;">
           <input id="sf-chat-input" type="text" placeholder="Digite sua mensagem..." style="flex:1;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;outline:none;font-family:inherit;">
-          <button id="sf-chat-send" style="width:40px;height:40px;border-radius:8px;border:none;background:${escapeHtml(buttonColor)};color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;">
+          <button id="sf-chat-send" style="width:40px;height:40px;border-radius:8px;border:none;background:${escapeHtml(chatColor)};color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           </button>
         </div>
