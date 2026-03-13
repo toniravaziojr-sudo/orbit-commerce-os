@@ -29,6 +29,7 @@ export interface CartShipping {
   cep: string;
   options: ShippingOption[];
   selected: ShippingOption | null;
+  quoteId: string | null;
 }
 
 interface CartContextType {
