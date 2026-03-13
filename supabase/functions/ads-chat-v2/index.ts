@@ -1310,7 +1310,7 @@ async function executeToolDirect(supabase: any, tenantId: string, toolName: stri
       }
       case "search_drive_files": {
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-        const maxResults = Math.min(Math.max(args.limit || 30, 1), 100);
+        const maxResults = Math.min(Math.max(args.limit || 30, 1), 50);
         const rawQuery = String(args.query || "").trim();
         if (!rawQuery) {
           return JSON.stringify({ error: "Parâmetro 'query' é obrigatório." });
