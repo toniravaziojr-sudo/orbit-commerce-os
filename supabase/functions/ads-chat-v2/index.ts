@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v6.10.0"; // Add browse_drive + search_drive_files to executeToolDirect fallback
+const VERSION = "v6.11.0"; // Fix: clarify Drive = internal system drive (not Google Drive) in prompts and tool descriptions
 // ====================
 
 const AI_TIMEOUT_MS = 90000;
