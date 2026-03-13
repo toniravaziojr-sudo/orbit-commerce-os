@@ -179,8 +179,8 @@ export function CartProvider({ children, tenantSlug }: CartProviderProps) {
     setShipping(prev => ({ ...prev, cep: digits }));
   }, []);
 
-  const setShippingOptions = useCallback((options: ShippingOption[]) => {
-    setShipping(prev => ({ ...prev, options, selected: options[0] || null }));
+  const setShippingOptions = useCallback((options: ShippingOption[], quoteId?: string | null) => {
+    setShipping(prev => ({ ...prev, options, selected: options[0] || null, quoteId: quoteId ?? null }));
   }, []);
 
   const selectShipping = useCallback((option: ShippingOption | null) => {
