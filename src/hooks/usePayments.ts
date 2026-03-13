@@ -93,7 +93,9 @@ export function usePayments(options: UsePaymentsOptions = {}) {
         .from('orders')
         .select('total')
         .eq('tenant_id', currentTenant.id)
-        .in('payment_status', ['pending', 'processing']);
+        .in('payment_status', ['pending', 'processing'])
+        // Exclude ghost orders from pending stats
+        .not('payment_gateway_id', 'is', null);
 
       const totalPending = (pendingData || []).reduce((sum, o) => sum + (o.total || 0), 0);
 
