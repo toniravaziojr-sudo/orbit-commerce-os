@@ -1,7 +1,7 @@
 # Suporte — Regras e Especificações
 
 > **Status:** 🟧 Pending (não validado)  
-> **Última atualização:** 2026-03-11
+> **Última atualização:** 2026-03-13
 
 ---
 
