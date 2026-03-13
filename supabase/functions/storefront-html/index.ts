@@ -241,8 +241,10 @@ function generateRouteTrackingScript(
     // Meta ViewContent
     if (flags.metaEnabled) {
       lines.push(`
-      function _sfMetaVC(){fbq('track','ViewContent',{content_ids:['${escapeHtml(contentId)}'],content_type:'product',content_name:'${name}',value:${price},currency:'BRL'});}
+      var _vcEid=window._sfEvtId?_sfEvtId():'';
+      function _sfMetaVC(){fbq('track','ViewContent',{content_ids:['${escapeHtml(contentId)}'],content_type:'product',content_name:'${name}',value:${price},currency:'BRL'},{eventID:_vcEid});}
       if(window._sfMetaReady){_sfMetaVC();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_sfMetaVC);}
+      ${flags.hasCapi ? `if(window._sfCapi)_sfCapi('ViewContent',_vcEid,{content_ids:['${escapeHtml(contentId)}'],content_type:'product',content_name:'${name}',value:${price},currency:'BRL'});` : ''}
       `);
     }
     // Google view_item
