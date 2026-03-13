@@ -477,13 +477,13 @@ function getToolSubset(category: IntentCategory): any[] {
           variations: { type: "number" }, funnel_stage: { type: "string", enum: ["tof", "mof", "bof", "test", "leads"] },
         }, ["product_name"]),
         toolDef("trigger_creative_generation", "Gera textos/copies.", {}),
-        toolDef("search_drive_files", "Busca arquivos no Drive.", { query: { type: "string" }, file_type: { type: "string", enum: ["image", "video", "all"] } }, ["query"]),
+        toolDef("search_drive_files", "Busca arquivos no Drive INTERNO do sistema (Meu Drive). NÃO é Google Drive. Pesquisa por nome nos arquivos salvos pelo lojista.", { query: { type: "string" }, file_type: { type: "string", enum: ["image", "video", "all"] } }, ["query"]),
       ];
 
     case "drive":
       return [
-        toolDef("browse_drive", "Navega pastas do Drive.", { folder_id: { type: "string" }, file_type: { type: "string", enum: ["image", "video", "all"] } }),
-        toolDef("search_drive_files", "Busca arquivos no Drive.", { query: { type: "string" }, file_type: { type: "string", enum: ["image", "video", "all"] }, limit: { type: "number" } }, ["query"]),
+        toolDef("browse_drive", "Navega pastas do Drive INTERNO do sistema (Meu Drive). NÃO é Google Drive.", { folder_id: { type: "string" }, file_type: { type: "string", enum: ["image", "video", "all"] } }),
+        toolDef("search_drive_files", "Busca arquivos no Drive INTERNO do sistema (Meu Drive). NÃO é Google Drive. Pesquisa por nome.", { query: { type: "string" }, file_type: { type: "string", enum: ["image", "video", "all"] }, limit: { type: "number" } }, ["query"]),
       ];
 
     case "general":
