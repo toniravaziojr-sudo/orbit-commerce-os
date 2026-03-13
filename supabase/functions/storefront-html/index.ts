@@ -1132,9 +1132,11 @@ function buildFullPage(opts: {
         // === MARKETING: AddToCart event ===
         var contentId=metaRetailerId||sku||id;
         var prc=parseFloat(price)||0;
+        var _atcEid=window._sfEvtId?_sfEvtId():'';
         // Meta
-        function _atcMeta(){fbq('track','AddToCart',{content_ids:[contentId],content_type:'product',content_name:name,value:prc,currency:'BRL'});}
+        function _atcMeta(){fbq('track','AddToCart',{content_ids:[contentId],content_type:'product',content_name:name,value:prc,currency:'BRL'},{eventID:_atcEid});}
         if(window.fbq){if(window._sfMetaReady){_atcMeta();}else{window._sfPendingMetaEvents=window._sfPendingMetaEvents||[];window._sfPendingMetaEvents.push(_atcMeta);}}
+        if(window._sfCapi)_sfCapi('AddToCart',_atcEid,{content_ids:[contentId],content_type:'product',content_name:name,value:prc,currency:'BRL',contents:[{id:contentId,quantity:1,item_price:prc}]});
         // Google
         function _atcGtag(){gtag('event','add_to_cart',{currency:'BRL',value:prc,items:[{item_id:contentId,item_name:name,price:prc,quantity:1}]});}
         if(window.gtag){if(window._sfGtagReady){_atcGtag();}else{window._sfPendingGtagEvents=window._sfPendingGtagEvents||[];window._sfPendingGtagEvents.push(_atcGtag);}}
