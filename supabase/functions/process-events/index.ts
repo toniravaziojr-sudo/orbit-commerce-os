@@ -335,6 +335,9 @@ serve(async (req) => {
       logs_created: 0,
       ledger_conflicts: 0,
       errors: 0,
+      capi_purchase_sent: 0,
+      capi_purchase_skipped: 0,
+      capi_purchase_errors: 0,
     };
 
     // 1. Fetch pending events
