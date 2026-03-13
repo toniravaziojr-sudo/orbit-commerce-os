@@ -241,13 +241,13 @@ serve(async (req) => {
       const acquirerMessage = lastTx?.acquirer_message || lastTx?.reason || '';
       const gatewayMessage = gatewayResponse?.errors?.map((e: any) => e.message).join(', ') || '';
       const failureReason = acquirerMessage || gatewayMessage || firstCharge.status;
-      console.error('[Pagar.me] Charge FAILED:', JSON.stringify({
+      // PCI-safe: only log status/error fields, never card data
+      console.error('[Pagar.me] Charge FAILED:', JSON.stringify(redactPayloadForLog({
         charge_id: firstCharge.id,
         status: firstCharge.status,
-        last_transaction: lastTx,
-        gateway_response: gatewayResponse,
         acquirer_message: acquirerMessage,
-      }));
+        gateway_message: gatewayMessage,
+      })));
       // Don't throw - still save the transaction but include error details
       console.error(`[Pagar.me] Failure reason: ${failureReason}`);
     }
