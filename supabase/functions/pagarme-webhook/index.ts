@@ -1,14 +1,17 @@
 // ============================================
 // PAGAR.ME WEBHOOK - Payment status sync
 // With proper idempotency via payment_events table
+// v2.0 - PCI log redaction + HMAC verification (log mode)
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-// Meta CAPI is now handled client-side via marketing-capi-track edge function
+import { redactPayloadForLog } from "../_shared/redact-pii.ts";
+import { verifyPagarmeHmac, handleHmacResult } from "../_shared/webhook-hmac.ts";
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+const PAGARME_WEBHOOK_SECRET = Deno.env.get('PAGARME_WEBHOOK_SECRET');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -24,8 +27,17 @@ serve(async (req) => {
   const requestId = crypto.randomUUID().slice(0, 8);
 
   try {
-    const payload = await req.json();
-    console.log(`[${requestId}] Webhook received:`, JSON.stringify(payload, null, 2));
+    // Read raw body for HMAC verification
+    const rawBody = await req.text();
+    const payload = JSON.parse(rawBody);
+
+    // === HMAC VERIFICATION (log mode) ===
+    const hmacResult = await verifyPagarmeHmac(req, rawBody, PAGARME_WEBHOOK_SECRET);
+    const hmacBlock = handleHmacResult(hmacResult, requestId);
+    if (hmacBlock) return hmacBlock; // Future enforcement
+
+    // === PCI-SAFE LOGGING ===
+    console.log(`[${requestId}] Webhook received:`, JSON.stringify(redactPayloadForLog(payload), null, 2));
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -35,11 +47,9 @@ serve(async (req) => {
     const pagarmeOrderId = payload.data?.id;
     const charge = payload.data?.charges?.[0];
     const chargeId = charge?.id;
-    // FIX: Use charge status if available, fallback to order-level status
-    // Some Pagar.me events (e.g. order.paid) may not include full charges array
     const chargeStatus = charge?.status || payload.data?.status;
 
-    console.log(`[${requestId}] Event: ${eventType}, EventId: ${eventId}, Order: ${pagarmeOrderId}, Charge: ${chargeId}, ChargeStatus: ${chargeStatus}, OrderStatus: ${payload.data?.status}`);
+    console.log(`[${requestId}] Event: ${eventType}, EventId: ${eventId}, Order: ${pagarmeOrderId}, Charge: ${chargeId}, ChargeStatus: ${chargeStatus}`);
 
     if (!pagarmeOrderId) {
       console.log(`[${requestId}] No order ID in webhook payload, ignoring`);
@@ -49,8 +59,7 @@ serve(async (req) => {
     }
 
     // ==== IDEMPOTENCY CHECK via payment_events table ====
-    // Try to insert the event - if it fails with unique constraint, it's a duplicate
-    const { data: existingEvent, error: eventCheckError } = await supabase
+    const { data: existingEvent } = await supabase
       .from('payment_events')
       .select('id, processed_at')
       .eq('provider', 'pagarme')
@@ -105,7 +114,6 @@ serve(async (req) => {
       });
 
     if (insertEventError) {
-      // If unique constraint violation, another process handled it
       if (insertEventError.code === '23505') {
         console.log(`[${requestId}] Concurrent event processing, skipping`);
         return new Response(JSON.stringify({ received: true, message: 'Concurrent processing' }), {
@@ -126,7 +134,6 @@ serve(async (req) => {
       case 'paid':
         newTransactionStatus = 'paid';
         newPaymentStatus = 'approved';
-        // Novo fluxo: pagamento aprovado → pronto para emitir NF
         newOrderStatus = 'ready_to_invoice';
         paidAt = new Date().toISOString();
         paidAmount = charge?.paid_amount || charge?.amount || existingTransaction.amount;
@@ -149,7 +156,6 @@ serve(async (req) => {
       case 'overpaid':
         newTransactionStatus = 'paid';
         newPaymentStatus = 'approved';
-        // Novo fluxo: pagamento aprovado → pronto para emitir NF
         newOrderStatus = 'ready_to_invoice';
         paidAt = new Date().toISOString();
         paidAmount = charge?.paid_amount || charge?.amount;
@@ -219,10 +225,6 @@ serve(async (req) => {
         orderUpdate.paid_at = paidAt;
       }
 
-      // CRITICAL: Always ensure payment_gateway and payment_gateway_id are set.
-      // The create-charge function should set these, but the webhook acts as redundancy
-      // to guarantee every real order has a gateway reference.
-      // Without this, the ghost order filter hides the order from all lists.
       orderUpdate.payment_gateway = 'pagarme';
       orderUpdate.payment_gateway_id = String(pagarmeOrderId);
 
@@ -292,9 +294,6 @@ serve(async (req) => {
       }
     }
 
-    // NOTE: Meta CAPI Purchase is now sent client-side via marketing-capi-track
-    // edge function from the Thank You page, using the same event_id for deduplication
-
     // ==== MARK EVENT AS PROCESSED ====
     await supabase
       .from('payment_events')
@@ -309,7 +308,6 @@ serve(async (req) => {
     if (existingTransaction.order_id && newPaymentStatus) {
       const idempotencyKey = `payment_status_${existingTransaction.order_id}_${existingTransaction.status}_${newTransactionStatus}_${eventId}`;
       
-      // Fetch order details for notification payload
       const { data: orderData } = await supabase
         .from('orders')
         .select('order_number, customer_name, customer_email, customer_phone, total')

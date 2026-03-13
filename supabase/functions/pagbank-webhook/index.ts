@@ -1,11 +1,13 @@
 // ============================================
 // PAGBANK WEBHOOK - Payment status sync
 // Handles notifications from PagBank (PagSeguro)
+// v2.0 - PCI log redaction + HMAC verification (log mode)
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-// Meta CAPI is now handled client-side via marketing-capi-track edge function
+import { redactPayloadForLog } from "../_shared/redact-pii.ts";
+import { verifyPagbankHmac, handleHmacResult } from "../_shared/webhook-hmac.ts";
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -35,12 +37,17 @@ serve(async (req) => {
 
   try {
     const payload = await req.json();
-    console.log(`[${requestId}] PagBank webhook received:`, JSON.stringify(payload, null, 2));
+
+    // === HMAC VERIFICATION (log mode — PagBank has no native HMAC) ===
+    const hmacResult = verifyPagbankHmac();
+    handleHmacResult(hmacResult, requestId);
+
+    // === PCI-SAFE LOGGING (never log full payload with card data) ===
+    console.log(`[${requestId}] PagBank webhook received:`, JSON.stringify(redactPayloadForLog(payload), null, 2));
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
     // PagBank webhook structure
-    // { id, reference_id, charges: [{ id, status, ... }], qr_codes: [...] }
     const orderId = payload.id;
     const referenceId = payload.reference_id;
     const charges = payload.charges || [];
@@ -64,7 +71,7 @@ serve(async (req) => {
       chargeId = charge.id;
       newStatus = STATUS_MAP[charge.status] || 'pending';
       
-      // Extract additional payment data
+      // Extract additional payment data (safe fields only)
       if (charge.payment_method?.boleto) {
         paymentData.boleto_barcode = charge.payment_method.boleto.barcode;
         paymentData.boleto_due_date = charge.payment_method.boleto.due_date;
@@ -78,7 +85,6 @@ serve(async (req) => {
     // Check QR Codes (for PIX)
     if (qrCodes.length > 0) {
       const qrCode = qrCodes[0];
-      // PIX status: ACTIVE, PAID, EXPIRED
       if (qrCode.status === 'PAID') {
         newStatus = 'paid';
       } else if (qrCode.status === 'EXPIRED') {
@@ -177,7 +183,6 @@ serve(async (req) => {
         : newStatus === 'cancelled' ? 'refunded'
         : 'pending';
 
-      // Determine new order status (fiscal-operational workflow)
       const newOrderStatus = newStatus === 'paid' ? 'ready_to_invoice' : undefined;
 
       const orderUpdate: any = { 
@@ -229,9 +234,6 @@ serve(async (req) => {
         });
 
       console.log(`[${requestId}] Emitted payment_status_changed event for order ${internalOrderId}`);
-
-      // NOTE: Meta CAPI Purchase is now sent client-side via marketing-capi-track
-      // edge function from the Thank You page, using the same event_id for deduplication
     }
 
     // Record the event for idempotency
@@ -265,7 +267,7 @@ serve(async (req) => {
       received: true, 
       error: error.message,
     }), {
-      status: 200, // Return 200 to prevent retries for unprocessable webhooks
+      status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }

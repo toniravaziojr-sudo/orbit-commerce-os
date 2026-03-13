@@ -6,6 +6,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { redactPayloadForLog } from "../_shared/redact-pii.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -253,7 +254,7 @@ serve(async (req) => {
     console.log('[PagBank] Response status:', response.status);
 
     if (!response.ok) {
-      console.error('[PagBank] Error:', JSON.stringify(pagbankResponse, null, 2));
+      console.error('[PagBank] Error:', JSON.stringify(redactPayloadForLog(pagbankResponse), null, 2));
       const errorMsg = pagbankResponse.error_messages?.[0]?.description 
         || pagbankResponse.message 
         || 'Erro ao processar pagamento';

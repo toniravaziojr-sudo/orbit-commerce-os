@@ -2844,3 +2844,26 @@ Páginas SPA (carrinho, conta, rastreio, busca, quiz) ficavam presas em "Carrega
 | **Funções corrigidas (SECURITY DEFINER)** | `sync_product_rating()`, `migrate_existing_templates_to_sets()` |
 | **Funções corrigidas (triggers)** | `update_product_components_updated_at()`, `update_storefront_template_sets_updated_at()`, `update_youtube_updated_at()`, `update_video_jobs_updated_at()`, `update_newsletter_popup_configs_updated_at()` |
 | **Motivo** | Funções SECURITY DEFINER sem search_path fixo podem ser exploradas via manipulação de schema search path (CVE-level) |
+
+---
+
+## 🔒 Segurança — PCI Log Redaction (Fase 1B, v2026-03-14)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Segurança PCI |
+| **Localização** | `_shared/redact-pii.ts` (v2.0), todas as 6 funções de pagamento |
+| **Descrição** | Adicionado `redactPayloadForLog()` que remove dados de cartão (PAN, CVV, holder, tokens) de logs. Chaves PCI proibidas são completamente mascaradas. |
+| **Funções afetadas** | `pagarme-create-charge`, `pagarme-webhook`, `mercadopago-create-charge`, `mercadopago-storefront-webhook`, `pagbank-create-charge`, `pagbank-webhook` |
+| **Comportamento** | Todo `console.log` de payloads de gateway agora passa por `redactPayloadForLog()`. Campos como `card`, `cvv`, `security_code`, `access_token` aparecem como `[REDACTED]` nos logs. |
+
+## 🔒 Segurança — HMAC Webhook Verification em Modo Log (Fase 1C, v2026-03-14)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Segurança de webhooks |
+| **Localização** | `_shared/webhook-hmac.ts` (v1.0), 3 webhooks de pagamento |
+| **Descrição** | Verificação HMAC de assinatura de webhooks. Modo atual: LOG (não rejeita requisições). |
+| **Provedores** | Mercado Pago (`x-signature`, HMAC-SHA256, secret: `MP_WEBHOOK_SECRET`), Pagar.me (`x-hub-signature`, HMAC-SHA256, secret: `PAGARME_WEBHOOK_SECRET`), PagBank (sem HMAC nativo — apenas aviso) |
+| **Secrets necessários** | `MP_WEBHOOK_SECRET` (já existe), `PAGARME_WEBHOOK_SECRET` (pendente configuração) |
+| **Modo futuro** | Quando enforcement for ativado, `handleHmacResult()` retornará Response 401 para assinaturas inválidas |
