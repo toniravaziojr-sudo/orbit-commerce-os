@@ -405,7 +405,7 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
           console.log('[StorefrontConfigContext] Shipping quote response:', data);
 
           if (data?.options && data.options.length > 0) {
-            return data.options.map((opt: { 
+            const mappedOptions = data.options.map((opt: { 
               source_provider?: string;
               service_code?: string; 
               code?: string;
