@@ -1,11 +1,13 @@
 // ============================================
-// CHECKOUT CREATE ORDER - Server-side order creation
+// CHECKOUT CREATE ORDER - Server-side order creation v2.0
 // Handles customer upsert, order creation, order items
 // Uses service role to bypass RLS
+// v2.0 — Shipping quote validation (Security Plan v3.1 Phase 2A)
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { generateCartFingerprint } from "../_shared/cart-fingerprint.ts";
 // Meta CAPI is now handled client-side via marketing-capi-track edge function
 
 const corsHeaders = {
