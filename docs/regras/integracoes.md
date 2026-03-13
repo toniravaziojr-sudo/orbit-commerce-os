@@ -1054,6 +1054,18 @@ Quando `consent_mode_enabled === true` no tenant:
 | `src/hooks/useMarketingEvents.ts` | Hook com event_id determinístico e PII enrichment |
 | `src/components/storefront/checkout/CheckoutStepWizard.tsx` | Respeita `purchaseEventTiming` no disparo do Purchase |
 | `src/components/storefront/ThankYouContent.tsx` | Fallback de Purchase com verificação de `purchaseEventTiming` |
+| `supabase/functions/marketing-reconcile/index.ts` | Reconciliação: compara browser vs server, detecta gaps em Purchase, taxa de falha |
+
+#### Reconciliação (Fase 7)
+
+Endpoint `marketing-reconcile` permite auditoria por tenant:
+- Compara eventos browser vs server por nome
+- Detecta Purchase sem par (browser-only ou server-only)
+- Identifica pedidos pagos sem evento Purchase correspondente
+- Calcula taxa de falha por tipo de evento
+- Retorna `health: healthy | warning | critical`
+
+Chamada: `POST /functions/v1/marketing-reconcile` com `{ tenant_id, days: 7 }`
 
 #### Regras
 
