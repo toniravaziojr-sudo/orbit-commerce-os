@@ -171,7 +171,8 @@ serve(async (req) => {
 
     const mpResponse = await response.json();
     console.log('[MercadoPago] Response status:', response.status);
-    console.log('[MercadoPago] Response:', JSON.stringify(mpResponse, null, 2));
+    // PCI-safe: redact card/token data before logging
+    console.log('[MercadoPago] Response (redacted):', JSON.stringify(redactPayloadForLog(mpResponse), null, 2));
 
     if (!response.ok) {
       console.error('[MercadoPago] API error:', JSON.stringify(mpResponse));

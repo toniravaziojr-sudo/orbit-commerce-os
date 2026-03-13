@@ -254,7 +254,7 @@ serve(async (req) => {
     console.log('[PagBank] Response status:', response.status);
 
     if (!response.ok) {
-      console.error('[PagBank] Error:', JSON.stringify(pagbankResponse, null, 2));
+      console.error('[PagBank] Error:', JSON.stringify(redactPayloadForLog(pagbankResponse), null, 2));
       const errorMsg = pagbankResponse.error_messages?.[0]?.description 
         || pagbankResponse.message 
         || 'Erro ao processar pagamento';
