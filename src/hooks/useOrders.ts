@@ -176,8 +176,8 @@ export function useOrders(options?: {
         .select('*, customers(total_orders)', { count: 'exact' })
         .eq('tenant_id', currentTenant.id)
         // Exclude ghost orders: created in checkout but gateway was never reached
-        // These have no payment_gateway_id and are still in initial pending state
-        .not('payment_gateway_id', 'is', null)
+        // Ghost orders have payment_gateway_id=null AND status=pending
+        // Show order if gateway confirmed (has payment_gateway_id) OR status changed from initial 'pending'
         .or('payment_gateway_id.not.is.null,status.neq.pending');
 
       if (search) {
