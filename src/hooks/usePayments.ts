@@ -42,6 +42,8 @@ export function usePayments(options: UsePaymentsOptions = {}) {
         .from('orders')
         .select('id, order_number, customer_name, customer_email, total, payment_method, payment_status, payment_gateway, payment_gateway_id, paid_at, created_at', { count: 'exact' })
         .eq('tenant_id', currentTenant.id)
+        // Ghost Order Rule: hide abandoned checkouts (pending + no gateway)
+        .or('payment_gateway_id.not.is.null,payment_status.neq.pending')
         .order('created_at', { ascending: false });
 
       if (status) {
