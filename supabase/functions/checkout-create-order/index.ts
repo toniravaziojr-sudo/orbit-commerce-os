@@ -21,6 +21,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 interface OrderItem {
   product_id: string;
+  variant_id?: string;
   product_name: string;
   sku: string;
   quantity: number;
