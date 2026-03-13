@@ -224,7 +224,7 @@ export default function Orders() {
                 </SelectContent>
               </Select>
               <Select value={shippingFilter} onValueChange={handleShippingChange}>
-                <SelectTrigger className="w-44">
+                <SelectTrigger className="w-full sm:w-44">
                   <SelectValue placeholder="Status Envio" />
                 </SelectTrigger>
                 <SelectContent>
