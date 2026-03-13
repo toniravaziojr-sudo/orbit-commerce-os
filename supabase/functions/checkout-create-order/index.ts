@@ -344,6 +344,8 @@ serve(async (req) => {
         discount_name: payload.discount?.discount_name || null,
         discount_type: payload.discount?.discount_type || null,
         free_shipping: payload.discount?.free_shipping || false,
+        // Shipping quote traceability (Security Plan v3.1)
+        shipping_quote_id: validatedQuoteId || null,
       })
       .select('id')
       .single();
