@@ -145,7 +145,7 @@ interface Order {
 ### 3.1.1 Regra de Pedidos Fantasma (Ghost Orders) — v2026-03-14
 
 > **Adicionado em**: 2026-03-13  
-> **Corrigido em**: 2026-03-14 (bug: filtro antigo escondia pedidos reais sem gateway_id)
+> **Corrigido em**: 2026-03-14 (causa raiz: webhooks não gravavam `payment_gateway_id`)
 
 | Campo | Valor |
 |-------|-------|
@@ -153,26 +153,35 @@ interface Order {
 | **Localização** | `src/hooks/useOrders.ts`, `src/hooks/useCustomerOrders.ts`, `src/hooks/usePayments.ts`, `src/hooks/useDashboardMetrics.ts` |
 | **Contexto** | Todas as listagens e métricas de pedidos (admin, storefront, pagamentos, dashboard) |
 | **Descrição** | Pedidos criados no checkout mas que nunca chegaram ao gateway de pagamento não devem aparecer nas listas. São considerados "fantasmas". |
-| **Comportamento** | O filtro canônico é: `.or('payment_gateway_id.not.is.null,payment_status.neq.pending')`. Isso mostra pedidos que: (A) têm confirmação do gateway OU (B) têm status de pagamento diferente de pendente (ex: aprovado via webhook, cancelado, importado). |
-| **Condições** | Um pedido é fantasma quando: `payment_gateway_id IS NULL` **E** `payment_status = 'pending'`. Pedidos confirmados por webhook (approved, cancelled, etc.) SEMPRE aparecem, mesmo sem `payment_gateway_id`. |
+| **Comportamento** | O filtro canônico é: `.not('payment_gateway_id', 'is', null)`. Todo pedido real DEVE ter `payment_gateway_id` preenchido — isso é garantido por 3 pontos de gravação (ver abaixo). |
+| **Condições** | Um pedido é fantasma quando: `payment_gateway_id IS NULL`. Sem exceção. |
 | **Afeta** | `useOrders`, `useCustomerOrders`, `usePayments`, `useDashboardMetrics` — todas as queries de pedidos |
-| **Erros/Edge cases** | O cron `expire-stale-orders` eventualmente marca esses pedidos como expirados (30min), momento em que eles passam a aparecer na listagem com status `payment_expired`. |
+| **Erros/Edge cases** | O cron `expire-stale-orders` eventualmente marca esses pedidos como expirados (30min), momento em que são tratados como checkouts abandonados. |
 
-**⚠️ REGRA DE OURO — NUNCA USAR `.not('payment_gateway_id', 'is', null)` SOZINHO!**
+**⚠️ REGRA DE OURO — Todo pedido real DEVE ter `payment_gateway_id`!**
 
-O filtro `.not('payment_gateway_id', 'is', null)` esconde TODO pedido sem código do gateway, **incluindo pedidos reais** confirmados por webhook que não tiveram esse campo preenchido. Isso causou um bug grave em 2026-03-14 onde 32 pedidos (7 pagos) sumiram da interface.
+O campo `payment_gateway_id` é a prova de que o pedido foi processado pela operadora de pagamento. Sem ele, o pedido é considerado um checkout abandonado e fica invisível em todas as listas.
 
-**Filtro obrigatório para QUALQUER query que liste pedidos:**
+**3 pontos de gravação garantem que `payment_gateway_id` seja sempre preenchido:**
+
+| Ponto | Arquivo | Quando grava |
+|-------|---------|--------------|
+| 1. Função de cobrança (primário) | `pagarme-create-charge`, `mercadopago-create-charge` | Assim que a operadora responde, independente do status |
+| 2. Webhook (redundância) | `pagarme-webhook`, `mercadopago-storefront-webhook` | Em toda notificação de pagamento, regrava como segurança |
+| 3. Importação | `import-batch` | Ao importar pedidos de outras plataformas |
+
+**Filtro canônico para TODAS as queries de pedidos:**
 ```
-.or('payment_gateway_id.not.is.null,payment_status.neq.pending')
+.not('payment_gateway_id', 'is', null)
 ```
 
 **Checklist para novas queries de pedidos:**
-- [ ] Usa o filtro `.or(...)` e não `.not(...)` sozinho?
+- [ ] Usa o filtro `.not('payment_gateway_id', 'is', null)`?
 - [ ] Aplica em TODAS as queries do mesmo hook (lista, stats, contagem)?
-- [ ] Testou com pedidos que têm `payment_gateway_id = null` mas `payment_status = approved`?
 
-**Garantia no gateway:** Tanto `pagarme-create-charge` quanto `mercadopago-create-charge` DEVEM obrigatoriamente setar `payment_gateway_id` e `payment_gateway` no pedido assim que o gateway retornar, independentemente do status do pagamento (paid, pending, failed).
+**Campo na UI:** O código da operadora é exibido na seção "Pagamento" dos detalhes do pedido, como "Código da operadora" (fonte monospace).
+
+**Histórico de bug (2026-03-14):** Os webhooks do Pagar.me e Mercado Pago atualizavam o status de pagamento mas NÃO gravavam `payment_gateway_id`. Isso fez 32 pedidos da loja "Respeite o Homem" (27 com transação na operadora, incluindo 7 pagos) ficarem invisíveis. Corrigido adicionando gravação obrigatória de `payment_gateway` e `payment_gateway_id` nos webhooks, e preenchendo retroativamente os pedidos existentes via `payment_transactions`.
 
 ### 3.2 Tipos de Status (v2026-03-10 — Fluxo Fiscal Integrado)
 
