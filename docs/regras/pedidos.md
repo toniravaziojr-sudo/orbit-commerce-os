@@ -142,20 +142,35 @@ interface Order {
 }
 ```
 
-### 3.1.1 Regra de Pedidos Fantasma (Ghost Orders)
+### 3.1.1 Regra de Pedidos Fantasma (Ghost Orders) — v2026-03-14
 
-> **Adicionado em**: 2026-03-13
+> **Adicionado em**: 2026-03-13  
+> **Corrigido em**: 2026-03-14 (bug: filtro antigo escondia pedidos reais sem gateway_id)
 
 | Campo | Valor |
 |-------|-------|
-| **Tipo** | Regra Lógica |
-| **Localização** | `src/hooks/useOrders.ts` (query filter), `supabase/functions/pagarme-create-charge/index.ts`, `supabase/functions/mercadopago-create-charge/index.ts` |
-| **Contexto** | Listagem de pedidos no admin |
-| **Descrição** | Pedidos criados no checkout mas que nunca chegaram ao gateway de pagamento não devem aparecer na lista de pedidos. São considerados "fantasmas". |
-| **Comportamento** | O fluxo de checkout cria o pedido (status=pending) ANTES de chamar o gateway. Se o gateway nunca for chamado (browser fechou, erro de rede), o pedido fica sem `payment_gateway_id`. A query de listagem filtra: `payment_gateway_id.not.is.null OR status.neq.pending`. |
-| **Condições** | Um pedido é fantasma quando: `payment_gateway_id IS NULL` E `status = 'pending'`. Pedidos manuais (criados pelo admin) ou importados terão status diferente de `pending` e não serão filtrados. |
-| **Afeta** | `useOrders` hook, contagem de pedidos, stats do dashboard |
+| **Tipo** | Regra Lógica — CRÍTICA |
+| **Localização** | `src/hooks/useOrders.ts`, `src/hooks/useCustomerOrders.ts`, `src/hooks/usePayments.ts`, `src/hooks/useDashboardMetrics.ts` |
+| **Contexto** | Todas as listagens e métricas de pedidos (admin, storefront, pagamentos, dashboard) |
+| **Descrição** | Pedidos criados no checkout mas que nunca chegaram ao gateway de pagamento não devem aparecer nas listas. São considerados "fantasmas". |
+| **Comportamento** | O filtro canônico é: `.or('payment_gateway_id.not.is.null,payment_status.neq.pending')`. Isso mostra pedidos que: (A) têm confirmação do gateway OU (B) têm status de pagamento diferente de pendente (ex: aprovado via webhook, cancelado, importado). |
+| **Condições** | Um pedido é fantasma quando: `payment_gateway_id IS NULL` **E** `payment_status = 'pending'`. Pedidos confirmados por webhook (approved, cancelled, etc.) SEMPRE aparecem, mesmo sem `payment_gateway_id`. |
+| **Afeta** | `useOrders`, `useCustomerOrders`, `usePayments`, `useDashboardMetrics` — todas as queries de pedidos |
 | **Erros/Edge cases** | O cron `expire-stale-orders` eventualmente marca esses pedidos como expirados (30min), momento em que eles passam a aparecer na listagem com status `payment_expired`. |
+
+**⚠️ REGRA DE OURO — NUNCA USAR `.not('payment_gateway_id', 'is', null)` SOZINHO!**
+
+O filtro `.not('payment_gateway_id', 'is', null)` esconde TODO pedido sem código do gateway, **incluindo pedidos reais** confirmados por webhook que não tiveram esse campo preenchido. Isso causou um bug grave em 2026-03-14 onde 32 pedidos (7 pagos) sumiram da interface.
+
+**Filtro obrigatório para QUALQUER query que liste pedidos:**
+```
+.or('payment_gateway_id.not.is.null,payment_status.neq.pending')
+```
+
+**Checklist para novas queries de pedidos:**
+- [ ] Usa o filtro `.or(...)` e não `.not(...)` sozinho?
+- [ ] Aplica em TODAS as queries do mesmo hook (lista, stats, contagem)?
+- [ ] Testou com pedidos que têm `payment_gateway_id = null` mas `payment_status = approved`?
 
 **Garantia no gateway:** Tanto `pagarme-create-charge` quanto `mercadopago-create-charge` DEVEM obrigatoriamente setar `payment_gateway_id` e `payment_gateway` no pedido assim que o gateway retornar, independentemente do status do pagamento (paid, pending, failed).
 
