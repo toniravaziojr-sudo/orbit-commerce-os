@@ -42,9 +42,12 @@ const SORT_OPTIONS = [
   { value: 'relevance', label: 'Relevância' },
   { value: 'price_asc', label: 'Menor preço' },
   { value: 'price_desc', label: 'Maior preço' },
-  { value: 'newest', label: 'Mais recentes' },
-  { value: 'bestsellers', label: 'Mais vendidos' },
+  { value: 'name_asc', label: 'A → Z' },
+  { value: 'name_desc', label: 'Z → A' },
+  { value: 'biggest_discount', label: 'Maior desconto' },
 ];
+
+export { SORT_OPTIONS };
 
 const DEMO_TAGS = ['Promoção', 'Lançamento', 'Vegano', 'Orgânico', 'Sem parabenos'];
 

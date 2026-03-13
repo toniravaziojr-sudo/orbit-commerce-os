@@ -156,6 +156,7 @@ export const DEFAULT_CATEGORY_SETTINGS: CategorySettings = {
   showAddToCartButton: true,
   showBadges: true,
   buyNowButtonText: 'Comprar agora',
+  defaultSortOrder: 'relevance',
   customButtonEnabled: false,
   customButtonText: '',
   customButtonColor: '',
