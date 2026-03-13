@@ -1468,6 +1468,7 @@ Após stream completo:
 | `tenants` | R |
 | `tenant_domains` | R |
 | `ads_creative_assets` | R |
+| `files` | R (browse_drive, search_drive_files via executeToolDirect) |
 
 ### Changelog — `ads-chat-v2`
 
