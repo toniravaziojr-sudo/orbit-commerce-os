@@ -1,10 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { sendCapiPurchase, getMetaCapiConfig } from "../_shared/meta-capi-sender.ts";
 
 // Get nested value from object using dot-path
 function getValueByPath(obj: Record<string, unknown>, path: string): unknown {
