@@ -277,14 +277,18 @@ serve(async (req) => {
             validatedQuoteId = quote.id;
 
             // Use the shipping price from the server-side quote as canonical
-            const selectedOption = (quote.options as any[])?.find(
+            // NOTE: DB column is "all_options", not "options"
+            const selectedOption = (quote.all_options as any[])?.find(
               (opt: any) => opt.service_code === payload.shipping.service_code
             );
             if (selectedOption?.price !== undefined) {
               canonicalShipping = Number(selectedOption.price);
+              console.log(`[checkout-create-order][QUOTE_AUDIT] Canonical shipping from quote: ${canonicalShipping}`);
+            } else {
+              console.warn(`[checkout-create-order][QUOTE_AUDIT] Could not find service_code=${payload.shipping.service_code} in quote options, using submitted shipping`);
             }
 
-            // Mark as used
+            // Mark as used (used_by_order_id set after order creation below)
             await supabase
               .from('shipping_quotes')
               .update({ used_at: new Date().toISOString() })
@@ -468,34 +472,53 @@ serve(async (req) => {
     const orderId = order.id;
     console.log('[checkout-create-order] Order created:', orderId);
 
+    // === LINK SHIPPING QUOTE TO ORDER (Security Plan v3.1) ===
+    if (validatedQuoteId) {
+      try {
+        const { error: linkError } = await supabase
+          .from('shipping_quotes')
+          .update({ used_by_order_id: orderId })
+          .eq('id', validatedQuoteId);
+        if (linkError) {
+          console.error('[checkout-create-order][QUOTE_AUDIT] Failed to link quote to order:', linkError.message);
+        } else {
+          console.log(`[checkout-create-order][QUOTE_AUDIT] Quote ${validatedQuoteId} linked to order ${orderId}`);
+        }
+      } catch (linkErr) {
+        console.warn('[checkout-create-order][QUOTE_AUDIT] Non-blocking quote link error:', linkErr);
+      }
+    }
+
     // === PRICE AUDIT RECORD (Security Plan v3.1 Phase 2B) ===
     try {
       const hasDrift = subtotalDrift > 0.01 || totalDrift > 0.01;
+      const auditPayload = {
+        order_id: orderId,
+        tenant_id: payload.tenant_id,
+        submitted_subtotal: payload.subtotal,
+        submitted_shipping: payload.shipping_total,
+        submitted_discount: payload.discount_total || 0,
+        submitted_payment_discount: payload.payment_method_discount || 0,
+        submitted_total: submittedTotal,
+        canonical_subtotal: canonicalSubtotal,
+        canonical_shipping: canonicalShipping,
+        canonical_discount: canonicalDiscount,
+        canonical_total: canonicalTotal,
+        subtotal_drift: Math.round(subtotalDrift * 100) / 100,
+        total_drift: Math.round(totalDrift * 100) / 100,
+        has_drift: hasDrift,
+        shipping_quote_id: validatedQuoteId || null,
+        discount_id: payload.discount?.discount_id || null,
+        validation_notes: hasDrift
+          ? `Drift detected: submitted=${submittedTotal}, canonical=${canonicalTotal}`
+          : 'Prices match',
+      };
+      console.log('[checkout-create-order][PRICE_AUDIT] Inserting audit record:', JSON.stringify(auditPayload));
       const { error: auditError } = await supabase
         .from('order_price_audit')
-        .insert({
-          order_id: orderId,
-          tenant_id: payload.tenant_id,
-          submitted_subtotal: payload.subtotal,
-          submitted_shipping: payload.shipping_total,
-          submitted_discount: payload.discount_total || 0,
-          submitted_payment_discount: payload.payment_method_discount || 0,
-          submitted_total: submittedTotal,
-          canonical_subtotal: canonicalSubtotal,
-          canonical_shipping: canonicalShipping,
-          canonical_discount: canonicalDiscount,
-          canonical_total: canonicalTotal,
-          subtotal_drift: Math.round(subtotalDrift * 100) / 100,
-          total_drift: Math.round(totalDrift * 100) / 100,
-          has_drift: hasDrift,
-          shipping_quote_id: validatedQuoteId || null,
-          discount_id: payload.discount?.discount_id || null,
-          validation_notes: hasDrift
-            ? `Drift detected: submitted=${submittedTotal}, canonical=${canonicalTotal}`
-            : 'Prices match',
-        });
+        .insert(auditPayload);
       if (auditError) {
-        console.error('[checkout-create-order][PRICE_AUDIT] Audit insert FAILED:', auditError.message, auditError.details);
+        console.error('[checkout-create-order][PRICE_AUDIT] Audit insert FAILED:', auditError.message, auditError.details, auditError.hint, auditError.code);
       } else {
         console.log(`[checkout-create-order][PRICE_AUDIT] Audit recorded — has_drift=${hasDrift}, total_drift=${totalDrift.toFixed(2)}`);
       }

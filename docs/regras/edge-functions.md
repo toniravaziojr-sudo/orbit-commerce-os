@@ -3011,3 +3011,33 @@ Páginas SPA (carrinho, conta, rastreio, busca, quiz) ficavam presas em "Carrega
 ### Regra estrutural
 
 > **O pipeline de observabilidade depende de PUBLISH.** Sem publicar as Edge Functions, `order_price_audit`, `shipping_quotes` e `canonical_total` permanecem vazios em produção. Sempre verificar deploy após alterações nessas funções.
+
+---
+
+## 🔧 Correção — Consistência da Observabilidade (v2026-03-14c)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Correção de instrumentação |
+| **Problema 1** | `shipping_quotes.used_by_order_id` nunca era preenchido — cotações criadas ficavam sem vínculo ao pedido |
+| **Causa raiz 1** | O `update` da cotação marcava apenas `used_at` mas não `used_by_order_id`. Além disso, era executado ANTES da criação do pedido, quando o `order_id` ainda não existia |
+| **Problema 2** | Campo `all_options` da tabela `shipping_quotes` era referenciado como `quote.options` no código — nome errado |
+| **Causa raiz 2** | O nome da coluna no banco é `all_options`, não `options`. Resultado: o preço canônico do frete nunca vinha da cotação do servidor |
+| **Problema 3** | Pedido #34 tem `canonical_total` mas sem registro em `order_price_audit` |
+| **Causa raiz 3** | Provável erro silencioso no insert. Adicionado logging verboso com JSON do payload e todos os campos de erro |
+
+### Correções em `checkout-create-order/index.ts`
+
+| Antes | Depois |
+|-------|--------|
+| `quote.options` (campo inexistente) | `quote.all_options` (nome correto da coluna) |
+| Apenas `used_at` era atualizado na cotação | Agora `used_by_order_id` é atualizado APÓS criação do pedido |
+| Erro de audit logava apenas `.message` e `.details` | Agora loga `.message`, `.details`, `.hint`, `.code` + payload JSON completo |
+
+### Validação pós-publish
+
+| O que validar | Consulta |
+|---------------|----------|
+| `used_by_order_id` preenchido | `SELECT id, used_by_order_id FROM shipping_quotes WHERE used_at IS NOT NULL ORDER BY created_at DESC LIMIT 5` |
+| Audit com cobertura 100% | `SELECT o.order_number, a.id IS NOT NULL as has_audit FROM orders o LEFT JOIN order_price_audit a ON a.order_id = o.id WHERE o.created_at > now() - interval '1 day' ORDER BY o.created_at DESC` |
+| Canonical shipping correto | `SELECT canonical_shipping, submitted_shipping FROM order_price_audit ORDER BY created_at DESC LIMIT 5` |
