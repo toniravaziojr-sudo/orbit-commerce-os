@@ -243,7 +243,7 @@ serve(async (req) => {
       provider_transaction_id: String(mpResponse.id),
       method: payload.method,
       status: internalStatus,
-      amount: payload.amount,
+      amount: chargeAmountCents,
       currency: 'BRL',
       payment_data: paymentData,
     };
