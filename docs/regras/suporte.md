@@ -99,3 +99,53 @@ Mensagens dentro de cada conversa de atendimento.
 - Sugestões e Customizações utilizam o mesmo dialog de criação de tickets (`CreateTicketDialog`)
 - O usuário pode escolher a categoria apropriada ao criar o ticket
 - Platform Operators não veem os cards de ação rápida
+
+## Lista de Conversas (ConversationList)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente |
+| **Localização** | `src/components/support/ConversationList.tsx` |
+| **Descrição** | Lista lateral de conversas de atendimento com preview compacto |
+
+### Card de Conversa (v8.5.4)
+
+Cada item da lista exibe:
+
+| Linha | Conteúdo | Comportamento |
+|-------|----------|---------------|
+| 1 | Nome do cliente + badge de não lidas | Nome truncado; badge vermelho se `unread_count > 0` |
+| 2 | Preview da última mensagem | Campo `summary`; truncado em 1 linha com `...` |
+| 3 | Bolinha de status + data | Cor do status + data formatada (Hoje/Ontem/dia da semana/dd/mm/yyyy) |
+
+### Ícones de Canal
+
+Cada conversa exibe o ícone do canal sobre o avatar (canto inferior direito):
+
+| Canal | Ícone | Cor |
+|-------|-------|-----|
+| WhatsApp | SVG oficial WhatsApp | Verde (`text-green-500`) |
+| Email | `Mail` (lucide) | Azul (`text-blue-500`) |
+| Facebook Messenger | `MessageSquare` (lucide) | Azul escuro (`text-blue-600`) |
+| Instagram DM | `Instagram` (lucide) | Rosa (`text-pink-500`) |
+| Mercado Livre | `ShoppingCart` (lucide) | Amarelo (`text-yellow-500`) |
+| Shopee | `ShoppingCart` (lucide) | Laranja (`text-orange-500`) |
+| TikTok Shop | `Music` (lucide) | Foreground |
+| Chat do Site | `Globe` (lucide) | Primary |
+
+### Abas de Filtro
+
+| Aba | Filtro | Badge |
+|-----|--------|-------|
+| Em aberto | `needs_attention` | Vermelho (destructive) |
+| Atendendo | `in_progress` | Cinza (secondary) |
+| IA | `bot` | Roxo (`bg-purple-500`) |
+
+### Formatação de Data
+
+| Condição | Exibição |
+|----------|----------|
+| Hoje | "Hoje" |
+| Ontem | "Ontem" |
+| < 7 dias | Nome do dia da semana (ex: "segunda-feira") |
+| ≥ 7 dias | `dd/MM/yyyy` |
