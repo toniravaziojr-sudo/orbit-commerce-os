@@ -260,7 +260,9 @@ export interface SupportWidgetConfig {
   type?: SupportWidgetType;
   whatsappNumber?: string;
   whatsappMessage?: string;
-  buttonColor?: string;
+  buttonColor?: string;           // Legacy - cor única (mantido para compatibilidade)
+  whatsappButtonColor?: string;   // Cor do botão WhatsApp
+  chatButtonColor?: string;       // Cor do botão Chat
   position?: SupportWidgetPosition;
 }
 
@@ -270,6 +272,8 @@ export const DEFAULT_SUPPORT_WIDGET: SupportWidgetConfig = {
   whatsappNumber: '',
   whatsappMessage: 'Olá! Preciso de ajuda.',
   buttonColor: '#25D366',
+  whatsappButtonColor: '#25D366',
+  chatButtonColor: '#1F2937',
   position: 'right',
 };
 
