@@ -612,9 +612,11 @@ O checkout utiliza `sessionStorage` (`PENDING_ORDER_KEY`) para reutilizar o mesm
 
 | Ponto | Função | Quando |
 |-------|--------|--------|
-| 1. Função de cobrança | `pagarme-create-charge`, `mercadopago-create-charge` | Ao receber resposta da operadora |
+| 1. Função de cobrança | `pagarme-create-charge`, `mercadopago-create-charge`, `pagbank-create-charge` | Ao receber resposta da operadora (QUALQUER status: paid, pending, failed) |
 | 2. Webhook (redundância) | `pagarme-webhook`, `mercadopago-storefront-webhook` | Em toda notificação de pagamento |
 | 3. Importação | `import-batch` | Ao importar de outras plataformas |
+
+**REGRA CRÍTICA (v2026-03-14b):** O `payment_gateway_id` é gravado **independente do status do pagamento**. Mesmo que o cartão seja recusado, o pedido recebe o código da operadora e aparece na listagem. A lógica é: se a operadora respondeu (com sucesso ou recusa), o pedido é real. Sem resposta da operadora = checkout abandonado.
 
 | Ponto de uso | Filtro |
 |-------|---------------|
@@ -628,11 +630,13 @@ O checkout utiliza `sessionStorage` (`PENDING_ORDER_KEY`) para reutilizar o mesm
 
 **Fluxo do ghost order:**
 1. Cliente inicia checkout → pedido criado no banco (sem `payment_gateway_id`)
-2. Função de cobrança envia para operadora → grava `payment_gateway_id` (ponto 1)
+2. Função de cobrança envia para operadora → grava `payment_gateway_id` (ponto 1) — mesmo que recusado
 3. Webhook confirma status → regrava `payment_gateway_id` como redundância (ponto 2)
 4. Se nenhum dos dois gravou → pedido é fantasma → cron cancela em 30min → vira checkout abandonado
 
-**Histórico de bug (2026-03-14):** Os webhooks do Pagar.me e Mercado Pago atualizavam `payment_status` mas NÃO gravavam `payment_gateway_id`. 32 pedidos da "Respeite o Homem" ficaram invisíveis. Causa raiz corrigida adicionando gravação obrigatória nos webhooks (ponto 2). Pedidos existentes preenchidos retroativamente via tabela de transações.
+**Histórico de bugs:**
+- **v2026-03-14:** Webhooks não gravavam `payment_gateway_id`. 32 pedidos invisíveis. Corrigido.
+- **v2026-03-14b:** `mercadopago-create-charge` não gravava código em pagamentos recusados. `pagbank-create-charge` não sincronizava pedido de forma alguma. Corrigido.
 
 ---
 
