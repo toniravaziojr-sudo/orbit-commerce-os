@@ -427,7 +427,7 @@ export default function OrderDetail() {
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Status</span>
                 <Select 
-                  value={order.payment_status} 
+                  value={normalizePaymentStatus(order.payment_status)} 
                   onValueChange={(v) => handlePaymentStatusChange(v as PaymentStatus)}
                 >
                   <SelectTrigger className="w-40 h-8">

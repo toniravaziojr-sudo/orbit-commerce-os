@@ -186,6 +186,7 @@ export function OrderList({
               <TableHead>Cliente</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Envio</TableHead>
+              <TableHead>Forma Pgto</TableHead>
               <TableHead>Pagamento</TableHead>
               <TableHead className="text-right">Total</TableHead>
               <TableHead>Data</TableHead>
@@ -251,6 +252,18 @@ export function OrderList({
                         </div>
                       </TooltipContent>
                     </Tooltip>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-sm text-muted-foreground">
+                      {order.payment_method ? ({
+                        pix: 'PIX',
+                        credit_card: 'Cartão de Crédito',
+                        debit_card: 'Cartão de Débito',
+                        boleto: 'Boleto',
+                        mercado_pago: 'Mercado Pago',
+                        pagarme: 'Pagar.me',
+                      } as Record<string, string>)[order.payment_method] || order.payment_method : '—'}
+                    </span>
                   </TableCell>
                   <TableCell>
                     <Badge variant={paymentStatusCfg.variant}>
