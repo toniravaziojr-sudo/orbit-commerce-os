@@ -11531,6 +11531,94 @@ export type Database = {
           },
         ]
       }
+      order_price_audit: {
+        Row: {
+          canonical_discount: number
+          canonical_shipping: number
+          canonical_subtotal: number
+          canonical_total: number
+          created_at: string
+          discount_id: string | null
+          has_drift: boolean | null
+          id: string
+          order_id: string
+          shipping_quote_id: string | null
+          submitted_discount: number
+          submitted_payment_discount: number
+          submitted_shipping: number
+          submitted_subtotal: number
+          submitted_total: number
+          subtotal_drift: number | null
+          tenant_id: string
+          total_drift: number | null
+          validation_notes: string | null
+        }
+        Insert: {
+          canonical_discount?: number
+          canonical_shipping?: number
+          canonical_subtotal?: number
+          canonical_total?: number
+          created_at?: string
+          discount_id?: string | null
+          has_drift?: boolean | null
+          id?: string
+          order_id: string
+          shipping_quote_id?: string | null
+          submitted_discount?: number
+          submitted_payment_discount?: number
+          submitted_shipping?: number
+          submitted_subtotal?: number
+          submitted_total?: number
+          subtotal_drift?: number | null
+          tenant_id: string
+          total_drift?: number | null
+          validation_notes?: string | null
+        }
+        Update: {
+          canonical_discount?: number
+          canonical_shipping?: number
+          canonical_subtotal?: number
+          canonical_total?: number
+          created_at?: string
+          discount_id?: string | null
+          has_drift?: boolean | null
+          id?: string
+          order_id?: string
+          shipping_quote_id?: string | null
+          submitted_discount?: number
+          submitted_payment_discount?: number
+          submitted_shipping?: number
+          submitted_subtotal?: number
+          submitted_total?: number
+          subtotal_drift?: number | null
+          tenant_id?: string
+          total_drift?: number | null
+          validation_notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_price_audit_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_price_audit_shipping_quote_id_fkey"
+            columns: ["shipping_quote_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_price_audit_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           billing_city: string | null
@@ -11543,6 +11631,7 @@ export type Database = {
           billing_street: string | null
           cancellation_reason: string | null
           cancelled_at: string | null
+          canonical_total: number | null
           created_at: string
           currency: string | null
           customer_cnpj: string | null
@@ -11617,6 +11706,7 @@ export type Database = {
           billing_street?: string | null
           cancellation_reason?: string | null
           cancelled_at?: string | null
+          canonical_total?: number | null
           created_at?: string
           currency?: string | null
           customer_cnpj?: string | null
@@ -11691,6 +11781,7 @@ export type Database = {
           billing_street?: string | null
           cancellation_reason?: string | null
           cancelled_at?: string | null
+          canonical_total?: number | null
           created_at?: string
           currency?: string | null
           customer_cnpj?: string | null
