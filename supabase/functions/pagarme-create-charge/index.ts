@@ -176,7 +176,7 @@ serve(async (req) => {
         } : undefined,
       },
       items: [{
-        amount: payload.amount,
+        amount: chargeAmountCents,
         description: 'Pedido',
         quantity: 1,
         code: referenceId,
