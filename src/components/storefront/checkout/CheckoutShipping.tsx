@@ -51,6 +51,10 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
           length: 10,
           quantity: item.quantity,
           price: item.price,
+          product_id: item.product_id,
+          variant_id: item.variant_id || '',
+          free_shipping: item.free_shipping || false,
+          free_shipping_method: (item as any).free_shipping_method || null,
         }));
         options = await quoteAsync(cepDigits, subtotal, cartItems);
       } else {
@@ -61,7 +65,9 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
         setError('Não encontramos opções de frete para este CEP.');
       } else {
         setShippingCep(tempCep);
-        setShippingOptions(options);
+        // Extract and propagate quote_id from async quote result
+        const resolvedQuoteId = (options as any)?.quote_id || null;
+        setShippingOptions(options, resolvedQuoteId);
         setIsEditing(false);
       }
     } catch (err) {
