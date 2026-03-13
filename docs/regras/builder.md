@@ -98,14 +98,17 @@ O toolbar do builder possui dois botões distintos para visualização:
 
 - **Visibilidade:** Sempre visível
 - **Função:** Abre a loja em nova aba com `?preview=1`
-- **Comportamento:** Exibe conteúdo **DRAFT** (não publicado) da loja
+- **Domínio:** Subdomínio da plataforma (`tenantSlug.shops.comandocentral.com.br`)
+- **Comportamento:** Exibe conteúdo **DRAFT** (não publicado) da loja, renderizado pelo Cloudflare Worker
 - **Ícone:** `Eye`
 - **Uso:** Permite ao lojista visualizar como a loja ficará ANTES de publicar
+- **Motivo do domínio shops:** O Worker intercepta a requisição e entrega o HTML completo; no domínio do app isso não acontece, resultando em página em branco.
 
 ### Botão "Ver loja" (Globe icon)
 
 - **Visibilidade:** Somente quando `is_published = true` em `store_settings`
 - **Função:** Abre a loja pública em nova aba (sem `?preview`)
+- **Domínio:** Domínio público primário (custom domain se ativo, senão subdomínio shops)
 - **Comportamento:** Exibe conteúdo **PUBLICADO** da loja
 - **Ícone:** `Globe`
 - **Uso:** Permite ao lojista ver a loja como os clientes a veem
@@ -116,8 +119,8 @@ O toolbar do builder possui dois botões distintos para visualização:
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                    BOTÕES DE VISUALIZAÇÃO                               │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  [Preview]     → primaryOrigin + previewUrl + ?preview=1               │
-│  [Ver loja]    → primaryOrigin + previewUrl (sem parâmetro)            │
+│  [Preview]     → shopsOrigin (tenant.shops.domain) + path + ?preview=1 │
+│  [Ver loja]    → primaryOrigin + path (sem parâmetro preview)          │
 │                                                                          │
 │  isPublished = false → apenas [Preview] visível                         │
 │  isPublished = true  → [Preview] + [Ver loja] visíveis                  │
@@ -131,6 +134,7 @@ O toolbar do builder possui dois botões distintos para visualização:
 | `BuilderToolbar.tsx` | Renderiza os botões Preview e Ver loja |
 | `VisualBuilder.tsx` | Busca `is_published` e passa para toolbar |
 | `usePrimaryPublicHost.ts` | Resolve URL pública correta (domínio custom ou plataforma) |
+| `canonicalDomainService.ts` | `getPlatformSubdomainUrl()` gera URL do subdomínio shops |
 
 ---
 
