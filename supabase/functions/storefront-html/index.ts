@@ -334,7 +334,7 @@ function generateSupportWidgetHtml(themeSettings: any, routeType: string, tenant
   // Chat drawer HTML (hidden by default)
   const chatDrawerHtml = showChat ? `
   <div id="sf-chat-drawer" style="display:none;position:fixed;bottom:16px;${posStyle}z-index:55;width:360px;max-width:calc(100vw - 32px);height:500px;max-height:calc(100vh - 100px);background:#fff;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.2);flex-direction:column;overflow:hidden;font-family:inherit;">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:${escapeHtml(buttonColor)};color:#fff;border-radius:12px 12px 0 0;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:${escapeHtml(chatColor)};color:#fff;border-radius:12px 12px 0 0;">
       <span style="font-weight:600;font-size:15px;">Atendimento</span>
       <div style="display:flex;gap:4px;">
         <button data-sf-chat-minimize style="background:none;border:none;color:#fff;cursor:pointer;padding:4px;font-size:18px;line-height:1;">−</button>
