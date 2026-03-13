@@ -254,6 +254,18 @@ export function OrderList({
                     </Tooltip>
                   </TableCell>
                   <TableCell>
+                    <span className="text-sm text-muted-foreground">
+                      {order.payment_method ? ({
+                        pix: 'PIX',
+                        credit_card: 'Cartão de Crédito',
+                        debit_card: 'Cartão de Débito',
+                        boleto: 'Boleto',
+                        mercado_pago: 'Mercado Pago',
+                        pagarme: 'Pagar.me',
+                      } as Record<string, string>)[order.payment_method] || order.payment_method : '—'}
+                    </span>
+                  </TableCell>
+                  <TableCell>
                     <Badge variant={paymentStatusCfg.variant}>
                       {paymentStatusCfg.label}
                     </Badge>
