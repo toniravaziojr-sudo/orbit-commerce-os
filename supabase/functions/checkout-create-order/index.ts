@@ -1,8 +1,9 @@
 // ============================================
-// CHECKOUT CREATE ORDER - Server-side order creation v2.0
+// CHECKOUT CREATE ORDER - Server-side order creation v3.0
 // Handles customer upsert, order creation, order items
 // Uses service role to bypass RLS
 // v2.0 — Shipping quote validation (Security Plan v3.1 Phase 2A)
+// v3.0 — Canonical price recalculation (Security Plan v3.1 Phase 2B)
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
