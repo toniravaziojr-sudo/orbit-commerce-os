@@ -231,17 +231,19 @@ export function BuilderToolbar({
 
   const previewResult = getPreviewResult();
 
-  // Preview: Opens store on APP origin with ?preview=1 to see DRAFT content
-  // MUST use app origin (not public domain) so /store/{tenantSlug} routes work
+  // Preview: Opens store on SHOPS subdomain with ?preview=1 to see DRAFT content
+  // Uses platform subdomain (tenant.shops.comandocentral.com.br) so Cloudflare Worker
+  // intercepts and delivers full server-rendered HTML
   const handleOpenDraftPreview = () => {
-    if (previewResult.url) {
-      const appOrigin = window.location.origin;
-      // previewResult.url already has the correct /store/{tenantSlug}/... path for app domain
-      // and may already include ?preview=1 from getPreviewUrlWithValidation
-      const hasPreviewParam = previewResult.url.includes('preview=1');
-      const url = hasPreviewParam 
-        ? `${appOrigin}${previewResult.url}` 
-        : `${appOrigin}${previewResult.url}${previewResult.url.includes('?') ? '&' : '?'}preview=1`;
+    if (previewResult.url && tenantSlug) {
+      const { getPlatformSubdomainUrl } = require('@/lib/canonicalDomainService');
+      const shopsOrigin = getPlatformSubdomainUrl(tenantSlug);
+      // Strip /store/{tenantSlug} prefix since shops domain uses root-relative paths
+      let cleanPath = previewResult.url.replace(/^\/store\/[^/]+/, '');
+      // Remove any existing preview param to re-add cleanly
+      cleanPath = cleanPath.replace(/[?&]preview=1/, '').replace(/\?$/, '');
+      const separator = cleanPath.includes('?') ? '&' : '?';
+      const url = `${shopsOrigin}${cleanPath || '/'}${separator}preview=1`;
       window.open(url, '_blank');
     }
   };
