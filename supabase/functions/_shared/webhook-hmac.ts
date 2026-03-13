@@ -1,9 +1,14 @@
 /**
- * Webhook HMAC Verification — Log Mode (v1.0)
+ * Webhook HMAC Verification — Log Mode (v2.0 — tenant-aware)
  * 
  * Verifica assinaturas HMAC de webhooks de provedores de pagamento.
  * MODO ATUAL: Apenas LOG (não rejeita requisições sem assinatura válida).
  * Quando o enforcement for ativado, passará a retornar 401 para assinaturas inválidas.
+ * 
+ * ARQUITETURA MULTI-TENANT:
+ * O secret de verificação é lido das credenciais do TENANT dono do evento,
+ * não de variável de ambiente global. Cada lojista configura seu próprio
+ * webhook_secret no painel de integrações.
  * 
  * Provedores suportados:
  * - Mercado Pago: x-signature header com HMAC-SHA256
@@ -21,6 +26,8 @@ interface HmacVerificationResult {
   provider: string;
   /** Se true, o header de assinatura estava presente */
   signaturePresent: boolean;
+  /** Tenant ID para correlação (quando disponível) */
+  tenantId?: string;
 }
 
 // ============================================
@@ -56,7 +63,7 @@ function timingSafeEqual(a: string, b: string): boolean {
 // ============================================
 
 /**
- * Verifica assinatura HMAC do Mercado Pago.
+ * Verifica assinatura HMAC do Mercado Pago (tenant-aware).
  * 
  * MP envia header `x-signature` no formato:
  *   ts=<timestamp>,v1=<hmac>
@@ -64,22 +71,31 @@ function timingSafeEqual(a: string, b: string): boolean {
  * O HMAC é calculado sobre:
  *   id:<data.id>;request-id:<x-request-id>;ts:<timestamp>;<template>
  * 
+ * O secret é lido das credenciais do tenant (payment_providers.credentials.webhook_secret),
+ * NÃO de variável de ambiente global.
+ * 
+ * @param req Request original
+ * @param body Body parseado do webhook
+ * @param tenantSecret webhook_secret do tenant (de payment_providers.credentials)
+ * @param tenantId ID do tenant para log estruturado
+ * 
  * @see https://www.mercadopago.com.br/developers/pt/docs/your-integrations/notifications/webhooks
  */
 export async function verifyMercadoPagoHmac(
   req: Request,
   body: Record<string, unknown>,
-  secret: string | undefined,
+  tenantSecret: string | undefined | null,
+  tenantId?: string,
 ): Promise<HmacVerificationResult> {
   const provider = 'mercadopago';
   const signatureHeader = req.headers.get('x-signature');
   
   if (!signatureHeader) {
-    return { valid: false, reason: 'x-signature header missing', provider, signaturePresent: false };
+    return { valid: false, reason: 'x-signature header missing', provider, signaturePresent: false, tenantId };
   }
   
-  if (!secret) {
-    return { valid: false, reason: 'MP_WEBHOOK_SECRET not configured', provider, signaturePresent: true };
+  if (!tenantSecret) {
+    return { valid: false, reason: 'tenant has no webhook_secret configured', provider, signaturePresent: true, tenantId };
   }
   
   // Parse ts and v1 from header
@@ -88,7 +104,7 @@ export async function verifyMercadoPagoHmac(
   const v1Entry = parts.find(p => p.trim().startsWith('v1='));
   
   if (!tsEntry || !v1Entry) {
-    return { valid: false, reason: 'x-signature format invalid', provider, signaturePresent: true };
+    return { valid: false, reason: 'x-signature format invalid', provider, signaturePresent: true, tenantId };
   }
   
   const ts = tsEntry.split('=')[1];
@@ -101,7 +117,7 @@ export async function verifyMercadoPagoHmac(
   // MP template: id:<data.id>;request-id:<x-request-id>;ts:<ts>;
   const template = `id:${dataId};request-id:${requestId};ts:${ts};`;
   
-  const expectedHmac = await computeHmacSha256(secret, template);
+  const expectedHmac = await computeHmacSha256(tenantSecret, template);
   const isValid = timingSafeEqual(receivedHmac, expectedHmac);
   
   return {
@@ -109,6 +125,7 @@ export async function verifyMercadoPagoHmac(
     reason: isValid ? 'HMAC valid' : 'HMAC mismatch',
     provider,
     signaturePresent: true,
+    tenantId,
   };
 }
 
@@ -117,34 +134,43 @@ export async function verifyMercadoPagoHmac(
 // ============================================
 
 /**
- * Verifica assinatura HMAC do Pagar.me.
+ * Verifica assinatura HMAC do Pagar.me (tenant-aware).
  * 
  * Pagar.me envia header `x-hub-signature`:
  *   sha256=<hmac_hex>
  * 
  * O HMAC é calculado sobre o body raw (string).
  * 
+ * O secret é lido das credenciais do tenant (payment_providers.credentials.webhook_secret),
+ * NÃO de variável de ambiente global.
+ * 
+ * @param req Request original
+ * @param rawBody Body cru (string) para cálculo do HMAC
+ * @param tenantSecret webhook_secret do tenant (de payment_providers.credentials)
+ * @param tenantId ID do tenant para log estruturado
+ * 
  * @see https://docs.pagar.me/docs/webhooks
  */
 export async function verifyPagarmeHmac(
   req: Request,
   rawBody: string,
-  secret: string | undefined,
+  tenantSecret: string | undefined | null,
+  tenantId?: string,
 ): Promise<HmacVerificationResult> {
   const provider = 'pagarme';
   const signatureHeader = req.headers.get('x-hub-signature');
   
   if (!signatureHeader) {
-    return { valid: false, reason: 'x-hub-signature header missing', provider, signaturePresent: false };
+    return { valid: false, reason: 'x-hub-signature header missing', provider, signaturePresent: false, tenantId };
   }
   
-  if (!secret) {
-    return { valid: false, reason: 'PAGARME_WEBHOOK_SECRET not configured', provider, signaturePresent: true };
+  if (!tenantSecret) {
+    return { valid: false, reason: 'tenant has no webhook_secret configured', provider, signaturePresent: true, tenantId };
   }
   
   // Format: sha256=<hex>
   const receivedHmac = signatureHeader.replace('sha256=', '');
-  const expectedHmac = await computeHmacSha256(secret, rawBody);
+  const expectedHmac = await computeHmacSha256(tenantSecret, rawBody);
   const isValid = timingSafeEqual(receivedHmac, expectedHmac);
   
   return {
@@ -152,6 +178,7 @@ export async function verifyPagarmeHmac(
     reason: isValid ? 'HMAC valid' : 'HMAC mismatch',
     provider,
     signaturePresent: true,
+    tenantId,
   };
 }
 
@@ -163,12 +190,13 @@ export async function verifyPagarmeHmac(
  * PagBank não tem HMAC nativo.
  * Esta função apenas registra que a verificação não é possível.
  */
-export function verifyPagbankHmac(): HmacVerificationResult {
+export function verifyPagbankHmac(tenantId?: string): HmacVerificationResult {
   return {
     valid: false,
     reason: 'PagBank does not support HMAC verification',
     provider: 'pagbank',
     signaturePresent: false,
+    tenantId,
   };
 }
 
@@ -188,12 +216,15 @@ export function handleHmacResult(
   result: HmacVerificationResult,
   requestId: string,
 ): Response | null {
-  const prefix = `[${requestId}][HMAC:${result.provider}]`;
+  const tenantTag = result.tenantId ? ` tenant=${result.tenantId.slice(0, 8)}` : '';
+  const prefix = `[${requestId}][HMAC:${result.provider}${tenantTag}]`;
   
   if (result.valid) {
     console.log(`${prefix} ✅ Signature verified`);
   } else if (!result.signaturePresent) {
     console.warn(`${prefix} ⚠️ No signature header — ${result.reason}`);
+  } else if (result.reason.includes('no webhook_secret configured')) {
+    console.warn(`${prefix} ⚠️ Tenant missing webhook_secret — skipping verification`);
   } else {
     console.warn(`${prefix} ❌ INVALID signature — ${result.reason}`);
   }

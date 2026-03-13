@@ -1,7 +1,7 @@
 // ============================================
 // MERCADO PAGO STOREFRONT WEBHOOK - Payment status sync
 // For tenant storefront payments (not billing)
-// v2.0 - PCI log redaction + HMAC verification (log mode)
+// v2.1 - PCI log redaction + tenant-aware HMAC verification (log mode)
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -11,7 +11,6 @@ import { verifyMercadoPagoHmac, handleHmacResult } from "../_shared/webhook-hmac
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-const MP_WEBHOOK_SECRET = Deno.env.get('MP_WEBHOOK_SECRET');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -34,10 +33,7 @@ serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
 
-    // === HMAC VERIFICATION (log mode) ===
-    const hmacResult = await verifyMercadoPagoHmac(req, body, MP_WEBHOOK_SECRET);
-    const hmacBlock = handleHmacResult(hmacResult, requestId);
-    if (hmacBlock) return hmacBlock; // Future enforcement
+    // NOTE: HMAC verification is deferred to AFTER tenant resolution (tenant-aware)
 
     const eventType = body.type || body.action || queryType || 'unknown';
     const eventId = body.id || `${Date.now()}-${requestId}`;
@@ -96,7 +92,7 @@ serve(async (req) => {
       });
     }
 
-    // Fetch payment details from MP API to get current status
+    // Fetch tenant credentials (access_token + webhook_secret)
     const { data: provider } = await supabase
       .from('payment_providers')
       .select('credentials')
@@ -110,6 +106,13 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // === TENANT-AWARE HMAC VERIFICATION (log mode) ===
+    // Uses the tenant's own webhook_secret from payment_providers.credentials
+    const tenantWebhookSecret = (provider.credentials as any)?.webhook_secret;
+    const hmacResult = await verifyMercadoPagoHmac(req, body, tenantWebhookSecret, existingTransaction.tenant_id);
+    const hmacBlock = handleHmacResult(hmacResult, requestId);
+    if (hmacBlock) return hmacBlock; // Future enforcement
 
     const mpResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
       headers: { 'Authorization': `Bearer ${provider.credentials.access_token}` },
