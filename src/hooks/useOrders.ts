@@ -174,7 +174,11 @@ export function useOrders(options?: {
       let query = supabase
         .from('orders')
         .select('*, customers(total_orders)', { count: 'exact' })
-        .eq('tenant_id', currentTenant.id);
+        .eq('tenant_id', currentTenant.id)
+        // Exclude ghost orders: created in checkout but gateway was never reached
+        // These have no payment_gateway_id and are still in initial pending state
+        .not('payment_gateway_id', 'is', null)
+        .or('payment_gateway_id.not.is.null,status.neq.pending');
 
       if (search) {
         query = query.or(`order_number.ilike.%${search}%,customer_name.ilike.%${search}%,customer_email.ilike.%${search}%`);
