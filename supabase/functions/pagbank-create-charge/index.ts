@@ -329,6 +329,41 @@ serve(async (req) => {
       console.error('[PagBank] Database error:', dbError);
     }
 
+    // ==== SYNC ORDER STATUS — Always save payment_gateway_id ====
+    // The gateway ID is the "source of truth" that confirms this is a real order
+    if (payload.order_id) {
+      const orderUpdate: Record<string, any> = {
+        updated_at: new Date().toISOString(),
+        payment_gateway: 'pagbank',
+        payment_gateway_id: String(pagbankResponse.id),
+      };
+
+      if (status === 'paid') {
+        orderUpdate.payment_status = 'approved';
+        orderUpdate.status = 'paid';
+        orderUpdate.paid_at = new Date().toISOString();
+        console.log(`[PagBank] Syncing order ${payload.order_id} → paid (synchronous)`);
+      } else if (status === 'failed') {
+        orderUpdate.payment_status = 'declined';
+        console.log(`[PagBank] Syncing order ${payload.order_id} → declined`);
+      } else if (status === 'pending') {
+        orderUpdate.payment_status = 'pending';
+        orderUpdate.status = 'awaiting_payment';
+        console.log(`[PagBank] Syncing order ${payload.order_id} → awaiting_payment`);
+      }
+
+      console.log(`[PagBank] Setting payment_gateway_id=${pagbankResponse.id} on order ${payload.order_id}`);
+
+      const { error: orderUpdateError } = await supabase
+        .from('orders')
+        .update(orderUpdate)
+        .eq('id', payload.order_id);
+
+      if (orderUpdateError) {
+        console.error('[PagBank] Error syncing order status:', orderUpdateError);
+      }
+    }
+
     // Emit event for notifications (pix_generated / boleto_generated)
     if (payload.order_id && (payload.method === 'pix' || payload.method === 'boleto')) {
       const eventNewStatus = payload.method === 'pix' ? 'pix_generated' : 'boleto_generated';

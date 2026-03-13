@@ -249,6 +249,7 @@ serve(async (req) => {
       } else if (internalStatus === 'failed') {
         orderUpdate.payment_status = 'declined';
         orderUpdate.payment_gateway = 'mercadopago';
+        orderUpdate.payment_gateway_id = String(mpResponse.id);
         console.log(`[MercadoPago] Syncing order ${payload.order_id} → declined`);
       } else if (internalStatus === 'pending') {
         orderUpdate.payment_status = 'pending';
