@@ -470,7 +470,8 @@ serve(async (req) => {
 
     // === PRICE AUDIT RECORD (Security Plan v3.1 Phase 2B) ===
     try {
-      await supabase
+      const hasDrift = subtotalDrift > 0.01 || totalDrift > 0.01;
+      const { error: auditError } = await supabase
         .from('order_price_audit')
         .insert({
           order_id: orderId,
@@ -484,14 +485,22 @@ serve(async (req) => {
           canonical_shipping: canonicalShipping,
           canonical_discount: canonicalDiscount,
           canonical_total: canonicalTotal,
+          subtotal_drift: Math.round(subtotalDrift * 100) / 100,
+          total_drift: Math.round(totalDrift * 100) / 100,
+          has_drift: hasDrift,
           shipping_quote_id: validatedQuoteId || null,
           discount_id: payload.discount?.discount_id || null,
-          validation_notes: totalDrift > 0.01
+          validation_notes: hasDrift
             ? `Drift detected: submitted=${submittedTotal}, canonical=${canonicalTotal}`
             : 'Prices match',
         });
+      if (auditError) {
+        console.error('[checkout-create-order][PRICE_AUDIT] Audit insert FAILED:', auditError.message, auditError.details);
+      } else {
+        console.log(`[checkout-create-order][PRICE_AUDIT] Audit recorded — has_drift=${hasDrift}, total_drift=${totalDrift.toFixed(2)}`);
+      }
     } catch (auditErr) {
-      console.warn('[checkout-create-order][PRICE_AUDIT] Non-blocking audit insert error:', auditErr);
+      console.error('[checkout-create-order][PRICE_AUDIT] Non-blocking audit insert error:', auditErr);
     }
 
     // 4. Create order items

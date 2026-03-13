@@ -387,6 +387,8 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
                 length: item.length || 10,
                 quantity: item.quantity,
                 price: item.price,
+                product_id: item.product_id,
+                variant_id: item.variant_id || '',
               })),
             },
           });
