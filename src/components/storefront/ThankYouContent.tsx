@@ -112,7 +112,7 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
       }
     }
     
-    // Track Purchase event with all order data
+    // Phase 2: Track Purchase event with deterministic event_id
     trackPurchase({
       order_id: order.order_number,
       value: order.total,
@@ -124,6 +124,12 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
         price: item.unit_price,
         quantity: item.quantity,
       })),
+      purchaseEventTiming: checkoutConfig.purchaseEventTiming,
+      userData: {
+        email: order.customer_email,
+        phone: order.customer_phone,
+        name: order.customer_name,
+      },
     });
     
     // Only mark as tracked AFTER successful dispatch

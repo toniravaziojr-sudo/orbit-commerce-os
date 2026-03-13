@@ -2,13 +2,13 @@
 // USE MARKETING EVENTS
 // Hook for tracking marketing events in storefront
 // =============================================
-// IMPORTANT: All content_ids sent to Meta MUST use resolveMetaContentId()
-// to match the retailer_id in the Meta Catalog (meta_retailer_id || sku || id).
-// Never send raw UUID as content_id when sku/meta_retailer_id exists.
+// Phase 2: Deterministic event_id for Purchase
+// Phase 5: PII enrichment for checkout events
 
 import { useCallback, useRef } from 'react';
 import { useMarketingTracker } from '@/components/storefront/MarketingTrackerProvider';
 import { useCart } from '@/contexts/CartContext';
+import { generateDeterministicPurchaseEventId } from '@/lib/marketingTracker';
 
 /**
  * Resolve the Meta-facing content_id for a cart item or product.
@@ -23,27 +23,30 @@ function resolveItemMetaId(item: {
   return item.meta_retailer_id || item.sku || item.product_id || item.id || '';
 }
 
+export interface CheckoutUserData {
+  email?: string;
+  phone?: string;
+  name?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+}
+
 /**
  * Hook to dispatch marketing events throughout the storefront
- * Provides functions for each event type with proper deduplication
  */
 export function useMarketingEvents() {
   const { tracker } = useMarketingTracker();
   const { items, subtotal, shipping } = useCart();
   const trackedRef = useRef<Set<string>>(new Set());
 
-  // Dedupe helper - prevents double-firing in React StrictMode
   const trackOnce = useCallback((key: string, fn: () => void) => {
     if (trackedRef.current.has(key)) return;
     trackedRef.current.add(key);
     fn();
-    // Clear after a short delay to allow re-tracking on new navigation
     setTimeout(() => trackedRef.current.delete(key), 1000);
   }, []);
 
-  /**
-   * Map cart items to the tracker's item format with resolved Meta IDs.
-   */
   const mapCartItemsForTracker = useCallback(() => {
     return items.map(item => ({
       id: item.product_id,
@@ -107,13 +110,7 @@ export function useMarketingEvents() {
     quantity: number;
     category?: string;
   }) => {
-    console.log('[useMarketingEvents] trackAddToCart called, tracker available:', !!tracker);
-    if (!tracker) {
-      console.warn('[useMarketingEvents] Tracker not available, skipping AddToCart event');
-      return;
-    }
-    // No dedup for add to cart - user can add multiple times
-    console.log('[useMarketingEvents] Dispatching AddToCart event:', item);
+    if (!tracker) return;
     tracker.trackAddToCart({
       id: item.id,
       sku: item.sku,
@@ -139,7 +136,7 @@ export function useMarketingEvents() {
     });
   }, [tracker, items, subtotal, shipping.selected, trackOnce, mapCartItemsForTracker]);
 
-  // Track lead (personal info submitted)
+  // Track lead (personal info submitted) — Phase 5: includes PII
   const trackLead = useCallback((customer: {
     email?: string;
     phone?: string;
@@ -158,8 +155,8 @@ export function useMarketingEvents() {
     });
   }, [tracker, subtotal, trackOnce]);
 
-  // Track shipping info added
-  const trackAddShippingInfo = useCallback((shippingTier: string) => {
+  // Track shipping info — Phase 5: accepts userData for PII enrichment
+  const trackAddShippingInfo = useCallback((shippingTier: string, userData?: CheckoutUserData) => {
     if (!tracker || items.length === 0) return;
     const key = `shipping_${shippingTier}`;
     trackOnce(key, () => {
@@ -168,12 +165,13 @@ export function useMarketingEvents() {
         currency: 'BRL',
         shippingTier,
         items: mapCartItemsForTracker(),
+        userData,
       });
     });
   }, [tracker, items, subtotal, shipping.selected, trackOnce, mapCartItemsForTracker]);
 
-  // Track payment info added
-  const trackAddPaymentInfo = useCallback((paymentMethod: string) => {
+  // Track payment info — Phase 5: accepts userData for PII enrichment
+  const trackAddPaymentInfo = useCallback((paymentMethod: string, userData?: CheckoutUserData) => {
     if (!tracker || items.length === 0) return;
     const key = `payment_${paymentMethod}`;
     trackOnce(key, () => {
@@ -182,23 +180,31 @@ export function useMarketingEvents() {
         currency: 'BRL',
         paymentMethod,
         items: mapCartItemsForTracker(),
+        userData,
       });
     });
   }, [tracker, items, subtotal, shipping.selected, trackOnce, mapCartItemsForTracker]);
 
-  // Track purchase
+  // Track purchase — Phase 2: deterministic event_id, Phase 5: PII enrichment
   const trackPurchase = useCallback((order: {
     order_id: string;
     value: number;
     items: Array<{ id: string; sku?: string; meta_retailer_id?: string | null; name: string; price: number; quantity: number }>;
+    purchaseEventTiming?: 'all_orders' | 'paid_only';
+    userData?: CheckoutUserData;
   }) => {
     if (!tracker) return;
     const key = `purchase_${order.order_id}`;
     trackOnce(key, () => {
+      // Phase 2: Generate deterministic event_id based on mode
+      const mode = order.purchaseEventTiming || 'all_orders';
+      const deterministicEventId = generateDeterministicPurchaseEventId(mode, order.order_id);
+
       tracker.trackPurchase({
         order_id: order.order_id,
         value: order.value,
         currency: 'BRL',
+        event_id: deterministicEventId,
         items: order.items.map(i => ({
           id: i.id,
           sku: i.sku,
@@ -207,6 +213,7 @@ export function useMarketingEvents() {
           price: i.price,
           quantity: i.quantity,
         })),
+        userData: order.userData,
       });
     });
   }, [tracker, trackOnce]);
