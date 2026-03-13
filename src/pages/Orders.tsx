@@ -177,7 +177,7 @@ export default function Orders() {
                 onChange={(e) => handleSearchChange(e.target.value)}
               />
             </div>
-            <div className="flex gap-3 flex-wrap">
+            <div className="flex gap-3 flex-wrap w-full sm:w-auto">
               <DateRangeFilter
                 startDate={startDate}
                 endDate={endDate}
