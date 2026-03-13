@@ -119,8 +119,9 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
         googleSpendCurrentRes, googleSpendPrevRes,
         tiktokSpendCurrentRes, tiktokSpendPrevRes,
       ] = await Promise.all([
-        supabase.from('orders').select('id, total, payment_status').eq('tenant_id', tid).gte('created_at', periodStart).lte('created_at', periodEnd),
-        supabase.from('orders').select('id, total, payment_status').eq('tenant_id', tid).gte('created_at', prevStart).lte('created_at', prevEnd),
+        // Ghost Order Rule: exclude abandoned checkouts (pending + no gateway) from dashboard metrics
+        supabase.from('orders').select('id, total, payment_status').eq('tenant_id', tid).or('payment_gateway_id.not.is.null,payment_status.neq.pending').gte('created_at', periodStart).lte('created_at', periodEnd),
+        supabase.from('orders').select('id, total, payment_status').eq('tenant_id', tid).or('payment_gateway_id.not.is.null,payment_status.neq.pending').gte('created_at', prevStart).lte('created_at', prevEnd),
         supabase.from('customers').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).is('deleted_at', null).gte('created_at', periodStart).lte('created_at', periodEnd),
         supabase.from('customers').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).is('deleted_at', null).gte('created_at', prevStart).lte('created_at', prevEnd),
         // Unique visitors via DB-level COUNT(DISTINCT) — no 1000-row limit

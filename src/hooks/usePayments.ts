@@ -42,6 +42,8 @@ export function usePayments(options: UsePaymentsOptions = {}) {
         .from('orders')
         .select('id, order_number, customer_name, customer_email, total, payment_method, payment_status, payment_gateway, payment_gateway_id, paid_at, created_at', { count: 'exact' })
         .eq('tenant_id', currentTenant.id)
+        // Ghost Order Rule: hide abandoned checkouts (pending + no gateway)
+        .or('payment_gateway_id.not.is.null,payment_status.neq.pending')
         .order('created_at', { ascending: false });
 
       if (status) {
@@ -91,7 +93,9 @@ export function usePayments(options: UsePaymentsOptions = {}) {
         .from('orders')
         .select('total')
         .eq('tenant_id', currentTenant.id)
-        .in('payment_status', ['pending', 'processing']);
+        .in('payment_status', ['pending', 'processing'])
+        // Exclude ghost orders from pending stats
+        .not('payment_gateway_id', 'is', null);
 
       const totalPending = (pendingData || []).reduce((sum, o) => sum + (o.total || 0), 0);
 
@@ -106,7 +110,9 @@ export function usePayments(options: UsePaymentsOptions = {}) {
         .from('orders')
         .select('*', { count: 'exact', head: true })
         .eq('tenant_id', currentTenant.id)
-        .not('payment_status', 'is', null);
+        .not('payment_status', 'is', null)
+        // Ghost Order Rule: exclude abandoned checkouts from rate calculation
+        .or('payment_gateway_id.not.is.null,payment_status.neq.pending');
 
       const approvalRate = totalCount && totalCount > 0 ? ((approvedCount || 0) / totalCount) * 100 : 0;
 
