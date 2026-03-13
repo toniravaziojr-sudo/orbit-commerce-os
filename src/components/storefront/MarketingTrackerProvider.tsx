@@ -3,6 +3,8 @@
 // Provides marketing tracking context to storefront
 // Automatically injects pixels and tracks page views
 // =============================================
+// PHASE 1: Blocks tracking on preview/staging/localhost domains
+// PHASE 8: Respects consent_mode_enabled setting
 
 import { createContext, useContext, useEffect, useRef, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
@@ -10,6 +12,8 @@ import { usePublicMarketingConfig, PublicMarketingConfig } from '@/hooks/useMark
 import { MarketingTracker } from '@/lib/marketingTracker';
 import { useAttribution } from '@/hooks/useAttribution';
 import { useAffiliateTracking } from '@/hooks/useAffiliateTracking';
+import { isAppDomain } from '@/lib/canonicalDomainService';
+import { hasTrackingConsent } from '@/lib/visitorIdentity';
 
 interface MarketingTrackerContextValue {
   tracker: MarketingTracker | null;
@@ -32,6 +36,28 @@ interface Props {
   children: React.ReactNode;
 }
 
+/**
+ * PHASE 1: Check if the current domain is a non-production environment
+ * where tracking should be completely blocked.
+ */
+function isNonProductionDomain(): boolean {
+  if (typeof window === 'undefined') return true;
+
+  const hostname = window.location.hostname.toLowerCase();
+
+  // Block on localhost / 127.0.0.1
+  if (hostname === 'localhost' || hostname === '127.0.0.1') return true;
+
+  // Block on Lovable preview/app domains (*.lovableproject.com, *.lovable.app)
+  if (isAppDomain(hostname)) return true;
+
+  // Block if URL has preview=1 parameter
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('preview') === '1') return true;
+
+  return false;
+}
+
 export function MarketingTrackerProvider({ tenantId, children }: Props) {
   const { data: config, isLoading } = usePublicMarketingConfig(tenantId);
   const location = useLocation();
@@ -46,15 +72,31 @@ export function MarketingTrackerProvider({ tenantId, children }: Props) {
 
   // Create and initialize tracker when config is available
   // DEFERRED: Wait for page to fully load before injecting marketing scripts
-  // This improves FCP and TBT on mobile by avoiding render-blocking scripts
+  // PHASE 1: Skip entirely on non-production domains
+  // PHASE 8: Skip if consent_mode_enabled and user hasn't consented
   useEffect(() => {
     if (!config || initializedTracker) return;
     
+    // PHASE 1: Block tracking on preview/staging/localhost
+    if (isNonProductionDomain()) {
+      console.log('[MarketingTrackerProvider] Blocked: non-production domain detected');
+      return;
+    }
+
     // Check if any tracking is enabled
     const hasAnyEnabled = config.meta_enabled || config.google_enabled || config.tiktok_enabled;
     if (!hasAnyEnabled) return;
 
+    // PHASE 8: Check consent mode
+    if (config.consent_mode_enabled && !hasTrackingConsent()) {
+      console.log('[MarketingTrackerProvider] Blocked: consent not granted (consent_mode_enabled=true)');
+      return;
+    }
+
     const initTracker = () => {
+      // Double-check domain (in case of delayed callback)
+      if (isNonProductionDomain()) return;
+
       const tracker = new MarketingTracker({
         meta_pixel_id: config.meta_pixel_id,
         meta_enabled: config.meta_enabled,
@@ -77,7 +119,6 @@ export function MarketingTrackerProvider({ tenantId, children }: Props) {
     };
 
     // Defer initialization: use requestIdleCallback if available, otherwise setTimeout
-    // This ensures marketing scripts don't compete with critical rendering
     if ('requestIdleCallback' in window) {
       (window as any).requestIdleCallback(initTracker, { timeout: 3000 });
     } else {
@@ -89,7 +130,6 @@ export function MarketingTrackerProvider({ tenantId, children }: Props) {
   useEffect(() => {
     const currentPath = location.pathname + location.search;
     
-    // Only track if path actually changed and tracker exists
     if (initializedTracker && currentPath !== lastPathRef.current) {
       initializedTracker.trackPageView();
       lastPathRef.current = currentPath;
