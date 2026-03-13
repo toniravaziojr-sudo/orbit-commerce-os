@@ -599,35 +599,40 @@ Mudanças de status feitas por **webhook** (`pagarme-webhook`) e **cron** (`expi
 ### 13.3 Prevenção de Duplicidade (Checkout)
 O checkout utiliza `sessionStorage` (`PENDING_ORDER_KEY`) para reutilizar o mesmo `orderId` em retentativas de pagamento, evitando pedidos duplicados.
 
-### 13.4 Ghost Order Rule (v2026-03-14 — CORRIGIDO)
+### 13.4 Ghost Order Rule (v2026-03-14 — CAUSA RAIZ CORRIGIDA)
 
-**Regra fundamental**: Um pedido fantasma é aquele que tem `payment_gateway_id IS NULL` **E** `payment_status = 'pending'`. Pedidos confirmados por webhook (approved, cancelled, etc.) são pedidos reais mesmo sem `payment_gateway_id`.
-
-**⚠️ NUNCA usar `.not('payment_gateway_id', 'is', null)` — isso esconde pedidos reais!**
+**Regra fundamental**: Um pedido só é pedido se tem `payment_gateway_id`. Sem esse código, é checkout abandonado.
 
 **Filtro canônico (obrigatório em TODAS as queries de pedidos):**
 ```
-.or('payment_gateway_id.not.is.null,payment_status.neq.pending')
+.not('payment_gateway_id', 'is', null)
 ```
 
-| Ponto | Comportamento |
+**Garantia tripla de gravação do `payment_gateway_id`:**
+
+| Ponto | Função | Quando |
+|-------|--------|--------|
+| 1. Função de cobrança | `pagarme-create-charge`, `mercadopago-create-charge` | Ao receber resposta da operadora |
+| 2. Webhook (redundância) | `pagarme-webhook`, `mercadopago-storefront-webhook` | Em toda notificação de pagamento |
+| 3. Importação | `import-batch` | Ao importar de outras plataformas |
+
+| Ponto de uso | Filtro |
 |-------|---------------|
-| **Admin (`useOrders.ts`)** | `.or('payment_gateway_id.not.is.null,payment_status.neq.pending')` |
-| **Admin (`usePayments.ts`)** | `.or('payment_gateway_id.not.is.null,payment_status.neq.pending')` |
-| **Admin (`useDashboardMetrics.ts`)** | `.or('payment_gateway_id.not.is.null,payment_status.neq.pending')` |
-| **Storefront (`useCustomerOrders.ts`)** | `.or('payment_gateway_id.not.is.null,status.neq.pending')` |
-| **Cron (`expire-stale-orders`)** | Ghost orders (sem `payment_gateway_id`, sem transação) são cancelados após 30min E a `checkout_session` associada é marcada como `abandoned` |
-| **Checkout Abandonado** | Ghost orders redirecionados aparecem na ferramenta de recuperação de vendas |
+| **Admin (`useOrders.ts`)** | `.not('payment_gateway_id', 'is', null)` |
+| **Admin (`usePayments.ts`)** | `.not('payment_gateway_id', 'is', null)` |
+| **Admin (`useDashboardMetrics.ts`)** | `.not('payment_gateway_id', 'is', null)` |
+| **Storefront (`useCustomerOrders.ts`)** | `.not('payment_gateway_id', 'is', null)` |
+| **Cron (`expire-stale-orders`)** | `.is('payment_gateway_id', null)` + `payment_status = pending` → cancela após 30min |
+
+**Campo na UI:** "Código da operadora" exibido na seção Pagamento dos detalhes do pedido (`OrderDetail.tsx`).
 
 **Fluxo do ghost order:**
-1. Cliente inicia checkout → pedido criado no banco
-2. Cliente fecha browser/erro antes do gateway responder → `payment_gateway_id` fica null
-3. Após 30min, cron detecta e cancela o pedido
-4. Cron marca `checkout_session` como `abandoned`
-5. Pedido não aparece em "Pedidos" (admin nem loja)
-6. Aparece em "Checkouts Abandonados" para recuperação
+1. Cliente inicia checkout → pedido criado no banco (sem `payment_gateway_id`)
+2. Função de cobrança envia para operadora → grava `payment_gateway_id` (ponto 1)
+3. Webhook confirma status → regrava `payment_gateway_id` como redundância (ponto 2)
+4. Se nenhum dos dois gravou → pedido é fantasma → cron cancela em 30min → vira checkout abandonado
 
-**Histórico de bug (2026-03-14):** O filtro antigo `.not('payment_gateway_id', 'is', null)` escondia pedidos reais cujo webhook confirmou pagamento mas a função de cobrança não preencheu `payment_gateway_id`. 32 pedidos (7 pagos) da loja "Respeite o Homem" ficaram invisíveis. Corrigido para o filtro `.or(...)` em todos os 4 hooks.
+**Histórico de bug (2026-03-14):** Os webhooks do Pagar.me e Mercado Pago atualizavam `payment_status` mas NÃO gravavam `payment_gateway_id`. 32 pedidos da "Respeite o Homem" ficaram invisíveis. Causa raiz corrigida adicionando gravação obrigatória nos webhooks (ponto 2). Pedidos existentes preenchidos retroativamente via tabela de transações.
 
 ---
 
