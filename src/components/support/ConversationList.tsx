@@ -132,18 +132,18 @@ export function ConversationList({
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b">
+      <div className="flex border-b overflow-hidden">
         <button
           onClick={() => onFilterChange('needs_attention')}
           className={cn(
-            "flex-1 py-2 px-3 text-sm font-medium flex items-center justify-center gap-1 border-b-2 transition-colors",
+            "flex-1 min-w-0 py-2 px-2 text-sm font-medium flex items-center justify-center gap-1 border-b-2 transition-colors",
             filter === 'needs_attention' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
           )}
         >
-          <Inbox className="h-4 w-4" />
-          <span className="hidden sm:inline">Em aberto</span>
+          <Inbox className="h-4 w-4 shrink-0" />
+          <span className="hidden sm:inline truncate">Em aberto</span>
           {counts.needs_attention > 0 && (
-            <Badge variant="destructive" className="ml-1 h-5 px-1.5">
+            <Badge variant="destructive" className="ml-1 h-5 px-1.5 shrink-0">
               {counts.needs_attention}
             </Badge>
           )}
@@ -151,14 +151,14 @@ export function ConversationList({
         <button
           onClick={() => onFilterChange('in_progress')}
           className={cn(
-            "flex-1 py-2 px-3 text-sm font-medium flex items-center justify-center gap-1 border-b-2 transition-colors",
+            "flex-1 min-w-0 py-2 px-2 text-sm font-medium flex items-center justify-center gap-1 border-b-2 transition-colors",
             filter === 'in_progress' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
           )}
         >
-          <User className="h-4 w-4" />
-          <span className="hidden sm:inline">Atendendo</span>
+          <User className="h-4 w-4 shrink-0" />
+          <span className="hidden sm:inline truncate">Atendendo</span>
           {counts.in_progress > 0 && (
-            <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 shrink-0">
               {counts.in_progress}
             </Badge>
           )}
@@ -166,14 +166,14 @@ export function ConversationList({
         <button
           onClick={() => onFilterChange('bot')}
           className={cn(
-            "flex-1 py-2 px-3 text-sm font-medium flex items-center justify-center gap-1 border-b-2 transition-colors",
+            "flex-1 min-w-0 py-2 px-2 text-sm font-medium flex items-center justify-center gap-1 border-b-2 transition-colors",
             filter === 'bot' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
           )}
         >
-          <Bot className="h-4 w-4" />
-          <span className="hidden sm:inline">IA</span>
+          <Bot className="h-4 w-4 shrink-0" />
+          <span className="hidden sm:inline truncate">IA</span>
           {counts.bot > 0 && (
-            <Badge className="ml-1 h-5 px-1.5 bg-purple-500">
+            <Badge className="ml-1 h-5 px-1.5 bg-purple-500 shrink-0">
               {counts.bot}
             </Badge>
           )}
