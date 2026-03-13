@@ -3,7 +3,7 @@ import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 
 // ===== VERSION =====
-const VERSION = "v6.9.0"; // Port adset/ad performance tools to v2 executeToolDirect + purge pixel memories
+const VERSION = "v6.10.0"; // Add browse_drive + search_drive_files to executeToolDirect fallback
 // ====================
 
 const AI_TIMEOUT_MS = 90000;
