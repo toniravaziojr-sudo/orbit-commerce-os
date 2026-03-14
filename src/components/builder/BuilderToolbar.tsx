@@ -232,18 +232,19 @@ export function BuilderToolbar({
 
   const previewResult = getPreviewResult();
 
-  // Preview: Opens store on SHOPS subdomain with ?preview=1 to see DRAFT content
-  // Uses platform subdomain (tenant.shops.comandocentral.com.br) so Cloudflare Worker
-  // intercepts and delivers full server-rendered HTML
+  // Preview: Opens store on the PRIMARY PUBLIC DOMAIN with ?preview=1 to see DRAFT content
+  // Uses primaryOrigin (custom domain if active, else platform subdomain) to avoid
+  // the Cloudflare Worker 301 redirect that strips ?preview=1
   const handleOpenDraftPreview = () => {
     if (previewResult.url && tenantSlug) {
-      const shopsOrigin = getPlatformSubdomainUrl(tenantSlug);
-      // Strip /store/{tenantSlug} prefix since shops domain uses root-relative paths
+      // Use primaryOrigin (custom domain or platform subdomain) to avoid redirect
+      const previewOrigin = primaryOrigin || getPlatformSubdomainUrl(tenantSlug);
+      // Strip /store/{tenantSlug} prefix since public domain uses root-relative paths
       let cleanPath = previewResult.url.replace(/^\/store\/[^/]+/, '');
       // Remove any existing preview param to re-add cleanly
       cleanPath = cleanPath.replace(/[?&]preview=1/, '').replace(/\?$/, '');
       const separator = cleanPath.includes('?') ? '&' : '?';
-      const url = `${shopsOrigin}${cleanPath || '/'}${separator}preview=1`;
+      const url = `${previewOrigin}${cleanPath || '/'}${separator}preview=1`;
       window.open(url, '_blank');
     }
   };
