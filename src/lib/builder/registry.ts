@@ -2728,9 +2728,9 @@ const blockDefinitions: BlockDefinition[] = [
       accentColor: '',
     },
     propsSchema: {
-      title: { type: 'string', label: 'Título' },
-      subtitle: { type: 'string', label: 'Subtítulo' },
-      items: { type: 'array', label: 'Itens' },
+      title: { type: 'string', label: 'Título', aiFillable: { hint: 'Título da seção acordeão', format: 'text' } },
+      subtitle: { type: 'string', label: 'Subtítulo', aiFillable: { hint: 'Subtítulo complementar', format: 'text' } },
+      items: { type: 'array', label: 'Itens', aiFillable: { hint: 'Itens de conteúdo expansível', minItems: 2, maxItems: 5, itemSchema: { title: { hint: 'Título do item, 3-6 palavras', enabled: true }, content: { hint: 'Conteúdo do item, 1-3 frases', enabled: true } } } },
       allowMultiple: { type: 'boolean', label: 'Permitir Múltiplos Abertos' },
       defaultOpen: { type: 'number', label: 'Item Aberto por Padrão (-1 = nenhum)' },
       variant: { type: 'select', label: 'Estilo', options: [{ label: 'Padrão', value: 'default' }, { label: 'Separado', value: 'separated' }, { label: 'Com Borda', value: 'bordered' }] },
