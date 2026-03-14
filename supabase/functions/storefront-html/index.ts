@@ -1889,6 +1889,7 @@ serve(async (req) => {
     const url = new URL(req.url);
     let hostname = url.searchParams.get('hostname') || '';
     let path = url.searchParams.get('path') || '/';
+    const isPreviewMode = url.searchParams.get('preview') === '1';
     
     if (!hostname) {
       const forwardedHost = req.headers.get('x-forwarded-host') || req.headers.get('host') || '';
