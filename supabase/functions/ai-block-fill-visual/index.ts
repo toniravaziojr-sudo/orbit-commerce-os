@@ -551,13 +551,15 @@ serve(async (req) => {
             product: productCtx,
             category: categoryCtx,
             associationType,
-            storeName,
+            store: storeCtx,
           });
 
-          let dataUrl = await callImageModel(lovableApiKey, "google/gemini-3-pro-image-preview", prompt);
+          // Pass product image as multimodal reference when available
+          const refImage = productCtx?.mainImageUrl || undefined;
+          let dataUrl = await callImageModel(lovableApiKey, "google/gemini-3-pro-image-preview", prompt, refImage);
           if (!dataUrl) {
             console.log(`[ai-block-fill-visual] Pro failed for ${spec.key}, trying flash...`);
-            dataUrl = await callImageModel(lovableApiKey, "google/gemini-2.5-flash-image", prompt);
+            dataUrl = await callImageModel(lovableApiKey, "google/gemini-2.5-flash-image", prompt, refImage);
           }
           if (!dataUrl) {
             throw new Error(`Failed to generate image: ${spec.key}`);
