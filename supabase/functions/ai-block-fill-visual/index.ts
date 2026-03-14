@@ -514,13 +514,9 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // --- Store name ---
-    const { data: storeSettings } = await supabase
-      .from("store_settings")
-      .select("store_name")
-      .eq("tenant_id", tenantId)
-      .single();
-    const storeName = storeSettings?.store_name || "Loja";
+    // --- Store context (name + description) ---
+    const storeCtx = await fetchStoreContext(supabase, tenantId);
+    console.log(`[ai-block-fill-visual] Store: "${storeCtx.storeName}", desc: ${storeCtx.storeDescription ? 'yes' : 'no'}`);
 
     // --- Resolve association context with FULL product/category data ---
     let productCtx: ProductContext | null = null;
