@@ -602,17 +602,18 @@ Os componentes `AddDomainDialog` e `DomainInstructionsDialog` exibem:
 
 ---
 
-## Purge de Cache
+## Purge de Cache [MOVIDO]
 
 | Campo | Valor |
 |-------|-------|
 | **Tipo** | Ação / Botão |
-| **Localização** | `src/components/settings/DomainSettingsContent.tsx` |
-| **Contexto** | Configurações → Domínios → Card "Limpar Cache da Loja" |
+| **Localização** | `src/pages/StorefrontSettings.tsx` (tab "Configurações da loja") |
+| **Contexto** | Loja Virtual → Configurações da loja → Card "Limpar Cache da Loja" |
 | **Descrição** | Permite ao tenant limpar o cache do Cloudflare Worker manualmente quando alterações (produtos, menus, etc.) não aparecem na loja pública |
 | **Comportamento** | Chama `cachePurge.full(tenantId)` via `storefrontCachePurge`. Exibe loading state e toast de sucesso/erro |
 | **Condições** | Requer tenant logado com domínio configurado |
 | **Afeta** | Cache do Cloudflare Worker para todos os domínios do tenant |
+| **Nota** | [MOVIDO] em 2026-03-14: Card removido de `DomainSettingsContent.tsx` (Integrações > Domínios) e movido para `StorefrontSettings.tsx` (Loja Virtual > Configurações) por coerência — a ação afeta a loja inteira, não apenas domínios. |
 
 ---
 

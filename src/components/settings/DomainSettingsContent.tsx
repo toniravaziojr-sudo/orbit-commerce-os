@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Globe, Plus, RefreshCw, Trash2, Star, Copy, CheckCircle, Clock, XCircle, ExternalLink, Info, Shield, ShieldCheck, ShieldAlert, ShieldOff, ChevronDown, Zap } from 'lucide-react';
+import { Globe, Plus, RefreshCw, Trash2, Star, Copy, CheckCircle, Clock, XCircle, ExternalLink, Info, Shield, ShieldCheck, ShieldAlert, ShieldOff, ChevronDown } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,7 +8,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useTenantDomains, TenantDomain, DEFAULT_TARGET_HOSTNAME, getPlatformSubdomainUrl } from '@/hooks/useTenantDomains';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { cachePurge } from '@/lib/storefrontCachePurge';
 import { AddDomainDialog } from '@/components/settings/AddDomainDialog';
 import { DomainInstructionsDialog } from '@/components/settings/DomainInstructionsDialog';
 import {
@@ -95,7 +94,7 @@ export function DomainSettingsContent() {
   const [deleteConfirm, setDeleteConfirm] = useState<TenantDomain | null>(null);
   const [isProvisioningDefault, setIsProvisioningDefault] = useState(false);
   const [instructionsOpen, setInstructionsOpen] = useState(false);
-  const [isPurgingCache, setIsPurgingCache] = useState(false);
+  // isPurgingCache state removed - moved to StorefrontSettings
 
   // Find the platform subdomain (auto-provisioned)
   const platformSubdomain = domains.find(d => d.type === 'platform_subdomain');
@@ -535,57 +534,7 @@ export function DomainSettingsContent() {
         </Card>
       </Collapsible>
 
-      {/* Cache Purge Card */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Zap className="h-5 w-5" />
-            Limpar Cache da Loja
-          </CardTitle>
-          <CardDescription>
-            Force a atualização do conteúdo público da sua loja
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
-            <Info className="h-4 w-4 text-amber-600" />
-            <AlertDescription className="text-amber-700 dark:text-amber-300 text-sm">
-              <strong>Quando usar:</strong> Se você alterou produtos, menus ou configurações da loja e as mudanças 
-              não aparecem para os visitantes, use este botão para forçar a atualização imediata. 
-              Normalmente o cache é limpo automaticamente ao salvar no admin, mas em casos excepcionais 
-              pode ser necessário forçar manualmente.
-            </AlertDescription>
-          </Alert>
-          <Button
-            variant="outline"
-            onClick={async () => {
-              if (!currentTenant?.id) return;
-              setIsPurgingCache(true);
-              try {
-                await cachePurge.full(currentTenant.id);
-                toast.success('Cache limpo com sucesso! As alterações aparecerão em instantes.');
-              } catch (err) {
-                toast.error('Falha ao limpar o cache. Tente novamente em alguns segundos.');
-              } finally {
-                setIsPurgingCache(false);
-              }
-            }}
-            disabled={isPurgingCache || !currentTenant?.id}
-          >
-            {isPurgingCache ? (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Limpando cache...
-              </>
-            ) : (
-              <>
-                <Zap className="h-4 w-4 mr-2" />
-                Purgar Cache Agora
-              </>
-            )}
-          </Button>
-        </CardContent>
-      </Card>
+      {/* Cache Purge Card - MOVED to StorefrontSettings (Loja Virtual > Configurações) */}
 
       {/* Dialogs */}
       <AddDomainDialog 
