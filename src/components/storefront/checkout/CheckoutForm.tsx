@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { sanitizeCep, isValidCep } from '@/lib/cepUtils';
 import { useCepLookup } from '@/hooks/useCepLookup';
+import { isValidCpf, handleCpfInput } from '@/lib/formatCpf';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { CepInput } from '@/components/storefront/shared/CepInput';
