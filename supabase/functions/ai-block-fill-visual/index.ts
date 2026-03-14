@@ -1,14 +1,15 @@
 // =============================================
-// AI BLOCK FILL VISUAL v1.0.0 — Geração visual para blocos do Builder (Fase 3.2)
+// AI BLOCK FILL VISUAL v2.0.0 — Phase 3.3
+// Supports scope (images/texts/all) + expanded product data
 // Server-side registry: backend resolve contrato internamente
-// Frontend envia apenas: blockType, mode, collectedData, tenantId
+// Frontend envia: blockType, mode, scope, collectedData, tenantId
 // =============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 
-const VERSION = "1.0.0";
+const VERSION = "2.0.0";
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MAX_BRIEFING_LENGTH = 500;
 
@@ -19,8 +20,7 @@ const corsHeaders = {
 };
 
 // =============================================
-// SERVER-SIDE CONTRACT REGISTRY (source of truth)
-// Frontend NEVER sends this — backend resolves internally
+// SERVER-SIDE CONTRACT REGISTRY
 // =============================================
 
 interface ServerImageSpec {
@@ -56,6 +56,53 @@ const SERVER_CONTRACTS: Record<string, ServerContract> = {
 function resolveContract(blockType: string, mode?: string): ServerContract | null {
   const key = mode ? `${blockType}:${mode}` : blockType;
   return SERVER_CONTRACTS[key] || null;
+}
+
+// =============================================
+// PRODUCT/CATEGORY DATA FETCHER (Source of Truth)
+// =============================================
+
+interface ProductContext {
+  name: string;
+  description?: string;
+  slug?: string;
+  mainImageUrl?: string;
+}
+
+interface CategoryContext {
+  name: string;
+  slug?: string;
+}
+
+async function fetchProductContext(supabase: any, productId: string): Promise<ProductContext | null> {
+  const { data } = await supabase
+    .from("products")
+    .select("name, description, slug, images")
+    .eq("id", productId)
+    .single();
+  if (!data) return null;
+  
+  let mainImageUrl: string | undefined;
+  if (Array.isArray(data.images) && data.images.length > 0) {
+    mainImageUrl = data.images[0]?.url || data.images[0];
+  }
+  
+  return {
+    name: data.name,
+    description: data.description || undefined,
+    slug: data.slug || undefined,
+    mainImageUrl,
+  };
+}
+
+async function fetchCategoryContext(supabase: any, categoryId: string): Promise<CategoryContext | null> {
+  const { data } = await supabase
+    .from("categories")
+    .select("name, slug")
+    .eq("id", categoryId)
+    .single();
+  if (!data) return null;
+  return { name: data.name, slug: data.slug || undefined };
 }
 
 // =============================================
@@ -127,14 +174,15 @@ async function uploadImageToStorage(
 }
 
 // =============================================
-// IMAGE PROMPT BUILDER
+// IMAGE PROMPT BUILDER — Uses real product data
 // =============================================
 
 function buildBannerImagePrompt(
   spec: ServerImageSpec,
   context: {
     briefing?: string;
-    associationName?: string;
+    product?: ProductContext | null;
+    category?: CategoryContext | null;
     associationType?: string;
     storeName: string;
     slideIndex?: number;
@@ -145,9 +193,15 @@ function buildBannerImagePrompt(
     ? `HORIZONTAL PAISAGEM (${spec.width}x${spec.height}px, ultra-wide)`
     : `VERTICAL RETRATO (${spec.width}x${spec.height}px)`;
 
-  const contextLine = context.associationName
-    ? `Contexto: ${context.associationType === 'product' ? 'Produto' : 'Categoria'} "${context.associationName}".`
-    : 'Banner institucional/promocional.';
+  let contextLine = 'Banner institucional/promocional.';
+  if (context.product) {
+    contextLine = `Produto: "${context.product.name}".`;
+    if (context.product.description) {
+      contextLine += ` Descrição: "${context.product.description.substring(0, 200)}".`;
+    }
+  } else if (context.category) {
+    contextLine = `Categoria: "${context.category.name}".`;
+  }
 
   const briefingLine = context.briefing
     ? `Briefing do usuário: "${context.briefing}".`
@@ -187,7 +241,7 @@ PROIBIDO:
 }
 
 // =============================================
-// TEXT GENERATION
+// TEXT GENERATION — Uses real product data
 // =============================================
 
 async function generateTexts(
@@ -196,7 +250,8 @@ async function generateTexts(
     blockType: string;
     mode: string;
     briefing?: string;
-    associationName?: string;
+    product?: ProductContext | null;
+    category?: CategoryContext | null;
     associationType?: string;
     storeName: string;
     slideCount?: number;
@@ -205,8 +260,19 @@ async function generateTexts(
 ): Promise<Record<string, unknown>> {
   resetAIRouterCache();
 
+  // Build rich context from real data
+  let contextInfo = '';
+  if (context.product) {
+    contextInfo = `Produto REAL: "${context.product.name}".`;
+    if (context.product.description) {
+      contextInfo += ` Descrição: "${context.product.description.substring(0, 300)}".`;
+    }
+    contextInfo += ' IMPORTANTE: Use o nome EXATO do produto. Não invente outro nome.';
+  } else if (context.category) {
+    contextInfo = `Categoria REAL: "${context.category.name}". Use o nome EXATO da categoria.`;
+  }
+
   if (context.mode === 'carousel' && context.slideCount) {
-    // For carousel: generate text for each slide
     const tools = [{
       type: "function",
       function: {
@@ -238,10 +304,10 @@ async function generateTexts(
       },
     }];
 
-    const systemPrompt = `Você é um copywriter de e-commerce profissional. Gere textos em português brasileiro para banners de loja virtual. Os textos devem ser concisos, impactantes e adequados para banners hero.
+    const systemPrompt = `Você é um copywriter de e-commerce profissional. Gere textos em português brasileiro para banners de loja virtual.
 Loja: "${context.storeName}".
 ${context.briefing ? `Briefing: "${context.briefing}".` : ''}
-${context.associationName ? `Contexto: ${context.associationType === 'product' ? 'Produto' : 'Categoria'} "${context.associationName}".` : ''}
+${contextInfo}
 Cada slide deve ter textos distintos e complementares entre si.`;
 
     const { data } = await aiChatCompletionJSON("google/gemini-2.5-flash", {
@@ -287,10 +353,10 @@ Cada slide deve ter textos distintos e complementares entre si.`;
     },
   }];
 
-  const systemPrompt = `Você é um copywriter de e-commerce profissional. Gere textos em português brasileiro para um banner hero de loja virtual. Os textos devem ser concisos e impactantes.
+  const systemPrompt = `Você é um copywriter de e-commerce profissional. Gere textos em português brasileiro para um banner hero de loja virtual.
 Loja: "${context.storeName}".
 ${context.briefing ? `Briefing: "${context.briefing}".` : ''}
-${context.associationName ? `Contexto: ${context.associationType === 'product' ? 'Produto' : 'Categoria'} "${context.associationName}".` : ''}`;
+${contextInfo}`;
 
   const { data } = await aiChatCompletionJSON("google/gemini-2.5-flash", {
     messages: [
@@ -329,7 +395,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { tenantId, blockType, mode, collectedData } = body;
+    const { tenantId, blockType, mode, scope: requestedScope, collectedData } = body;
 
     // --- Validation ---
     if (!tenantId || !blockType) {
@@ -339,7 +405,12 @@ serve(async (req) => {
       );
     }
 
-    // --- Resolve contract server-side (NEVER trust frontend) ---
+    // Scope: images | texts | all (default: all)
+    const scope: string = ['images', 'texts', 'all'].includes(requestedScope) ? requestedScope : 'all';
+    const generateImages = scope === 'images' || scope === 'all';
+    const generateTextsFlag = scope === 'texts' || scope === 'all';
+
+    // --- Resolve contract server-side ---
     const contract = resolveContract(blockType, mode);
     if (!contract) {
       console.error(`[ai-block-fill-visual] Unknown blockType/mode: ${blockType}:${mode}`);
@@ -349,7 +420,7 @@ serve(async (req) => {
       );
     }
 
-    // --- Sanitize collectedData ---
+    // --- Sanitize briefing ---
     const briefing = typeof collectedData?.briefing === 'string'
       ? collectedData.briefing.replace(/<[^>]*>/g, '').substring(0, MAX_BRIEFING_LENGTH).trim()
       : undefined;
@@ -360,14 +431,12 @@ serve(async (req) => {
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
 
     if (!supabaseUrl || !supabaseServiceKey) {
-      console.error("[ai-block-fill-visual] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
       return new Response(
         JSON.stringify({ success: false, error: "Configuração do servidor incompleta (Supabase)" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
     if (!lovableApiKey) {
-      console.error("[ai-block-fill-visual] Missing LOVABLE_API_KEY");
       return new Response(
         JSON.stringify({ success: false, error: "Chave de IA não configurada no servidor" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -384,8 +453,9 @@ serve(async (req) => {
       .single();
     const storeName = storeSettings?.store_name || "Loja";
 
-    // --- Resolve association context (backend extracts names, ignores derivedLinkUrl) ---
-    let associationName: string | undefined;
+    // --- Resolve association context with FULL product/category data ---
+    let productCtx: ProductContext | null = null;
+    let categoryCtx: CategoryContext | null = null;
     let associationType: string | undefined;
 
     if (mode === 'single' || !mode) {
@@ -393,19 +463,9 @@ serve(async (req) => {
       if (assoc) {
         associationType = assoc.associationType;
         if (assoc.associationType === 'product' && assoc.productId) {
-          const { data: prod } = await supabase
-            .from("products")
-            .select("name")
-            .eq("id", assoc.productId)
-            .single();
-          associationName = prod?.name;
+          productCtx = await fetchProductContext(supabase, assoc.productId);
         } else if (assoc.associationType === 'category' && assoc.categoryId) {
-          const { data: cat } = await supabase
-            .from("categories")
-            .select("name")
-            .eq("id", assoc.categoryId)
-            .single();
-          associationName = cat?.name;
+          categoryCtx = await fetchCategoryContext(supabase, assoc.categoryId);
         }
       }
     }
@@ -414,79 +474,81 @@ serve(async (req) => {
     // BANNER SINGLE
     // =============================================
     if (blockType === 'Banner' && (!mode || mode === 'single')) {
-      console.log(`[ai-block-fill-visual] Generating Banner:single...`);
+      console.log(`[ai-block-fill-visual] Banner:single scope=${scope}`);
 
-      // Generate images in parallel (desktop + mobile)
-      const imagePromises = contract.imageSpecs.map(async (spec) => {
-        const prompt = buildBannerImagePrompt(spec, {
-          briefing,
-          associationName,
-          associationType,
-          storeName,
+      const generatedProps: Record<string, unknown> = {};
+
+      // Generate images (only if scope includes images)
+      if (generateImages) {
+        const imagePromises = contract.imageSpecs.map(async (spec) => {
+          const prompt = buildBannerImagePrompt(spec, {
+            briefing,
+            product: productCtx,
+            category: categoryCtx,
+            associationType,
+            storeName,
+          });
+
+          let dataUrl = await callImageModel(lovableApiKey, "google/gemini-3-pro-image-preview", prompt);
+          if (!dataUrl) {
+            console.log(`[ai-block-fill-visual] Pro failed for ${spec.key}, trying flash...`);
+            dataUrl = await callImageModel(lovableApiKey, "google/gemini-2.5-flash-image", prompt);
+          }
+          if (!dataUrl) {
+            throw new Error(`Failed to generate image: ${spec.key}`);
+          }
+
+          const publicUrl = await uploadImageToStorage(supabase, tenantId, dataUrl, spec.key);
+          if (!publicUrl) {
+            throw new Error(`Failed to upload image: ${spec.key}`);
+          }
+
+          return { key: spec.key, url: publicUrl };
         });
 
-        // Try pro model first, fallback to flash
-        let dataUrl = await callImageModel(lovableApiKey, "google/gemini-3-pro-image-preview", prompt);
-        if (!dataUrl) {
-          console.log(`[ai-block-fill-visual] Pro failed for ${spec.key}, trying flash...`);
-          dataUrl = await callImageModel(lovableApiKey, "google/gemini-2.5-flash-image", prompt);
-        }
-        if (!dataUrl) {
-          throw new Error(`Failed to generate image: ${spec.key}`);
-        }
-
-        const publicUrl = await uploadImageToStorage(supabase, tenantId, dataUrl, spec.key);
-        if (!publicUrl) {
-          throw new Error(`Failed to upload image: ${spec.key}`);
-        }
-
-        return { key: spec.key, url: publicUrl };
-      });
-
-      // Generate text in parallel with images
-      const textPromise = generateTexts(contract, {
-        blockType,
-        mode: 'single',
-        briefing,
-        associationName,
-        associationType,
-        storeName,
-      }, { supabaseUrl, supabaseServiceKey });
-
-      const [imageResults, textResult] = await Promise.all([
-        Promise.all(imagePromises),
-        textPromise,
-      ]);
-
-      // Build generated props (only keys in aiGenerates)
-      const generatedProps: Record<string, unknown> = {};
-      for (const img of imageResults) {
-        if (contract.aiGenerates.includes(img.key)) {
-          generatedProps[img.key] = img.url;
+        const imageResults = await Promise.all(imagePromises);
+        for (const img of imageResults) {
+          if (contract.aiGenerates.includes(img.key)) {
+            generatedProps[img.key] = img.url;
+          }
         }
       }
-      if (contract.aiGenerates.includes('title')) {
-        generatedProps.title = textResult.title || '';
-      }
-      if (contract.aiGenerates.includes('subtitle')) {
-        generatedProps.subtitle = textResult.subtitle || '';
-      }
-      if (contract.aiGenerates.includes('buttonText')) {
-        generatedProps.buttonText = textResult.buttonText || '';
+
+      // Generate texts (only if scope includes texts)
+      if (generateTextsFlag) {
+        const textResult = await generateTexts(contract, {
+          blockType,
+          mode: 'single',
+          briefing,
+          product: productCtx,
+          category: categoryCtx,
+          associationType,
+          storeName,
+        }, { supabaseUrl, supabaseServiceKey });
+
+        if (contract.aiGenerates.includes('title')) {
+          generatedProps.title = textResult.title || '';
+        }
+        if (contract.aiGenerates.includes('subtitle')) {
+          generatedProps.subtitle = textResult.subtitle || '';
+        }
+        if (contract.aiGenerates.includes('buttonText')) {
+          generatedProps.buttonText = textResult.buttonText || '';
+        }
       }
 
       const elapsed = Date.now() - startTime;
       console.log(`[ai-block-fill-visual] Banner:single done in ${elapsed}ms`);
 
-      // Record AI usage
       try {
-        await supabase.rpc('record_ai_usage', { p_tenant_id: tenantId, p_usage_cents: 10 });
+        const usageCents = (generateImages ? 8 : 0) + (generateTextsFlag ? 2 : 0);
+        await supabase.rpc('record_ai_usage', { p_tenant_id: tenantId, p_usage_cents: usageCents });
       } catch (e) {
         console.warn("[ai-block-fill-visual] Failed to record usage:", e);
       }
 
       return new Response(
-        JSON.stringify({ success: true, generatedProps, altText: textResult.altText }),
+        JSON.stringify({ success: true, generatedProps }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -495,133 +557,126 @@ serve(async (req) => {
     // BANNER CAROUSEL
     // =============================================
     if (blockType === 'Banner' && mode === 'carousel') {
-      // Enforce max slides from server contract
       let slideCount = typeof collectedData?.slideCount === 'number' ? collectedData.slideCount : 1;
       slideCount = Math.min(slideCount, contract.maxSlides || 3);
       slideCount = Math.max(slideCount, 1);
 
-      console.log(`[ai-block-fill-visual] Generating Banner:carousel with ${slideCount} slides...`);
+      console.log(`[ai-block-fill-visual] Banner:carousel slides=${slideCount} scope=${scope}`);
 
-      // Resolve per-slide associations
-      const slideAssociations: Array<{
-        associationName?: string;
+      // Resolve per-slide associations with full data
+      const slideContexts: Array<{
+        product?: ProductContext | null;
+        category?: CategoryContext | null;
         associationType?: string;
         briefing?: string;
       }> = [];
 
       for (let i = 0; i < slideCount; i++) {
         const slideData = collectedData?.[`slideAssociations_${i}`];
-        let name: string | undefined;
+        let product: ProductContext | null = null;
+        let category: CategoryContext | null = null;
         let type: string | undefined;
-        let slideBriefing: string | undefined;
 
         if (slideData) {
           type = slideData.associationType;
           if (slideData.associationType === 'product' && slideData.productId) {
-            const { data: prod } = await supabase
-              .from("products").select("name").eq("id", slideData.productId).single();
-            name = prod?.name;
+            product = await fetchProductContext(supabase, slideData.productId);
           } else if (slideData.associationType === 'category' && slideData.categoryId) {
-            const { data: cat } = await supabase
-              .from("categories").select("name").eq("id", slideData.categoryId).single();
-            name = cat?.name;
+            category = await fetchCategoryContext(supabase, slideData.categoryId);
           }
         }
 
-        // Check for per-slide briefing (from expanded steps)
-        const slideBriefingKey = `briefing_${i}`;
-        if (typeof collectedData?.[slideBriefingKey] === 'string') {
-          slideBriefing = collectedData[slideBriefingKey].replace(/<[^>]*>/g, '').substring(0, MAX_BRIEFING_LENGTH).trim();
-        }
-
-        slideAssociations.push({
-          associationName: name,
+        slideContexts.push({
+          product,
+          category,
           associationType: type,
-          briefing: slideBriefing || briefing,
+          briefing: briefing,
         });
       }
 
-      // Generate all images in parallel (slideCount × 2 images each)
-      const imagePromises: Array<Promise<{ slideIndex: number; key: string; url: string }>> = [];
+      const generatedSlides: any[] = [];
 
-      for (let i = 0; i < slideCount; i++) {
-        for (const spec of contract.imageSpecs) {
-          imagePromises.push(
-            (async () => {
-              const prompt = buildBannerImagePrompt(spec, {
-                briefing: slideAssociations[i]?.briefing,
-                associationName: slideAssociations[i]?.associationName,
-                associationType: slideAssociations[i]?.associationType,
-                storeName,
-                slideIndex: i,
-              });
+      // Generate images for all slides (if scope includes images)
+      let slideImages: Record<number, Record<string, string>> = {};
+      if (generateImages) {
+        const imagePromises: Array<Promise<{ slideIndex: number; key: string; url: string }>> = [];
 
-              let dataUrl = await callImageModel(lovableApiKey, "google/gemini-3-pro-image-preview", prompt);
-              if (!dataUrl) {
-                console.log(`[ai-block-fill-visual] Pro failed for slide ${i} ${spec.key}, trying flash...`);
-                dataUrl = await callImageModel(lovableApiKey, "google/gemini-2.5-flash-image", prompt);
-              }
-              if (!dataUrl) {
-                throw new Error(`Failed to generate image: slide ${i} ${spec.key}`);
-              }
+        for (let i = 0; i < slideCount; i++) {
+          for (const spec of contract.imageSpecs) {
+            imagePromises.push(
+              (async () => {
+                const prompt = buildBannerImagePrompt(spec, {
+                  briefing: slideContexts[i]?.briefing,
+                  product: slideContexts[i]?.product,
+                  category: slideContexts[i]?.category,
+                  associationType: slideContexts[i]?.associationType,
+                  storeName,
+                  slideIndex: i,
+                });
 
-              const publicUrl = await uploadImageToStorage(supabase, tenantId, dataUrl, `slide${i}-${spec.key}`);
-              if (!publicUrl) {
-                throw new Error(`Failed to upload image: slide ${i} ${spec.key}`);
-              }
+                let dataUrl = await callImageModel(lovableApiKey, "google/gemini-3-pro-image-preview", prompt);
+                if (!dataUrl) {
+                  dataUrl = await callImageModel(lovableApiKey, "google/gemini-2.5-flash-image", prompt);
+                }
+                if (!dataUrl) {
+                  throw new Error(`Failed to generate image: slide ${i} ${spec.key}`);
+                }
 
-              return { slideIndex: i, key: spec.key, url: publicUrl };
-            })()
-          );
-        }
-      }
+                const publicUrl = await uploadImageToStorage(supabase, tenantId, dataUrl, `slide${i}-${spec.key}`);
+                if (!publicUrl) {
+                  throw new Error(`Failed to upload image: slide ${i} ${spec.key}`);
+                }
 
-      // Generate text for all slides in parallel with images
-      const textPromise = generateTexts(contract, {
-        blockType,
-        mode: 'carousel',
-        briefing,
-        associationName: slideAssociations[0]?.associationName,
-        associationType: slideAssociations[0]?.associationType,
-        storeName,
-        slideCount,
-      }, { supabaseUrl, supabaseServiceKey });
-
-      const [imageResults, textResult] = await Promise.all([
-        Promise.all(imagePromises),
-        textPromise,
-      ]);
-
-      // Organize images by slide
-      const slideImages: Record<number, Record<string, string>> = {};
-      for (const img of imageResults) {
-        if (!slideImages[img.slideIndex]) slideImages[img.slideIndex] = {};
-        slideImages[img.slideIndex][img.key] = img.url;
-      }
-
-      // Build slides array
-      const textSlides = (textResult as any).slides || [];
-      const slides = [];
-
-      for (let i = 0; i < slideCount; i++) {
-        const images = slideImages[i] || {};
-        const texts = textSlides[i] || {};
-        const assocData = collectedData?.[`slideAssociations_${i}`];
-
-        // linkUrl is derived by the SYSTEM from the association, NEVER by AI
-        let linkUrl = '';
-        if (assocData) {
-          if (assocData.associationType === 'product' && assocData.productId) {
-            // Frontend will derive the actual product URL
-            linkUrl = `__product:${assocData.productId}`;
-          } else if (assocData.associationType === 'category' && assocData.categoryId) {
-            linkUrl = `__category:${assocData.categoryId}`;
-          } else if (assocData.associationType === 'url' && assocData.manualUrl) {
-            linkUrl = assocData.manualUrl;
+                return { slideIndex: i, key: spec.key, url: publicUrl };
+              })()
+            );
           }
         }
 
-        slides.push({
+        const imageResults = await Promise.all(imagePromises);
+        for (const img of imageResults) {
+          if (!slideImages[img.slideIndex]) slideImages[img.slideIndex] = {};
+          slideImages[img.slideIndex][img.key] = img.url;
+        }
+      }
+
+      // Generate texts for all slides (if scope includes texts)
+      let textSlides: any[] = [];
+      if (generateTextsFlag) {
+        const textResult = await generateTexts(contract, {
+          blockType,
+          mode: 'carousel',
+          briefing,
+          product: slideContexts[0]?.product,
+          category: slideContexts[0]?.category,
+          associationType: slideContexts[0]?.associationType,
+          storeName,
+          slideCount,
+        }, { supabaseUrl, supabaseServiceKey });
+        textSlides = (textResult as any).slides || [];
+      }
+
+      // Build slides array
+      for (let i = 0; i < slideCount; i++) {
+        const images = slideImages[i] || {};
+        const texts = textSlides[i] || {};
+        const slideData = collectedData?.[`slideAssociations_${i}`];
+
+        // linkUrl derived by SYSTEM from association
+        let linkUrl = '';
+        if (slideData) {
+          if (slideData.associationType === 'product' && slideData.productId) {
+            const ctx = slideContexts[i]?.product;
+            linkUrl = ctx?.slug ? `/produto/${ctx.slug}` : `__product:${slideData.productId}`;
+          } else if (slideData.associationType === 'category' && slideData.categoryId) {
+            const ctx = slideContexts[i]?.category;
+            linkUrl = ctx?.slug ? `/categoria/${ctx.slug}` : `__category:${slideData.categoryId}`;
+          } else if (slideData.associationType === 'url' && slideData.manualUrl) {
+            linkUrl = slideData.manualUrl;
+          }
+        }
+
+        generatedSlides.push({
           id: crypto.randomUUID(),
           imageDesktop: images.imageDesktop || '',
           imageMobile: images.imageMobile || '',
@@ -633,14 +688,14 @@ serve(async (req) => {
         });
       }
 
-      const generatedProps = { slides };
+      const generatedProps = { slides: generatedSlides };
 
       const elapsed = Date.now() - startTime;
       console.log(`[ai-block-fill-visual] Banner:carousel done in ${elapsed}ms (${slideCount} slides)`);
 
-      // Record AI usage
       try {
-        await supabase.rpc('record_ai_usage', { p_tenant_id: tenantId, p_usage_cents: 10 * slideCount });
+        const usageCents = (generateImages ? 8 * slideCount : 0) + (generateTextsFlag ? 2 : 0);
+        await supabase.rpc('record_ai_usage', { p_tenant_id: tenantId, p_usage_cents: usageCents });
       } catch (e) {
         console.warn("[ai-block-fill-visual] Failed to record usage:", e);
       }
@@ -651,7 +706,6 @@ serve(async (req) => {
       );
     }
 
-    // Unknown block/mode that passed contract check but has no handler
     return new Response(
       JSON.stringify({ success: false, error: "Handler not implemented for this block type" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
