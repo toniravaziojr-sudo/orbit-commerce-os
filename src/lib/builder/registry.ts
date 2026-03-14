@@ -3033,8 +3033,8 @@ const blockDefinitions: BlockDefinition[] = [
       backgroundColor: '',
     },
     propsSchema: {
-      title: { type: 'string', label: 'Título' },
-      subtitle: { type: 'string', label: 'Subtítulo' },
+      title: { type: 'string', label: 'Título', aiFillable: { hint: 'Título convidativo para seguir a rede social', format: 'text' } },
+      subtitle: { type: 'string', label: 'Subtítulo', aiFillable: { hint: 'Subtítulo engajante para o feed social', format: 'text' } },
       platform: {
         type: 'select',
         label: 'Plataforma',
