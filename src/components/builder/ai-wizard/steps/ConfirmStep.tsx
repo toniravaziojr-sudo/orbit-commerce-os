@@ -79,9 +79,9 @@ export function ConfirmStep({ contract, collectedData, steps, blockType }: Confi
       </div>
 
       {/* Phase 3.1: Generation not yet available */}
-      <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200">
-        <Sparkles className="h-4 w-4 text-amber-600 shrink-0" />
-        <p className="text-xs text-amber-800">
+      <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 border border-border">
+        <Sparkles className="h-4 w-4 text-muted-foreground shrink-0" />
+        <p className="text-xs text-muted-foreground">
           Geração com IA estará disponível em breve. Por enquanto, o wizard coleta suas configurações.
         </p>
       </div>

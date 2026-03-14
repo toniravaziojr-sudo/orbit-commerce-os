@@ -20,9 +20,9 @@ export function SourceSelectStep({ currentProps }: SourceSelectStepProps) {
 
   return (
     <div className="space-y-3">
-      <div className={`flex items-start gap-3 p-3 rounded-lg border ${isValid ? 'border-green-200 bg-green-50' : 'border-destructive/30 bg-destructive/5'}`}>
+      <div className={`flex items-start gap-3 p-3 rounded-lg border ${isValid ? 'border-primary/30 bg-primary/5' : 'border-destructive/30 bg-destructive/5'}`}>
         {isValid ? (
-          <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
+          <CheckCircle2 className="h-5 w-5 text-primary mt-0.5 shrink-0" />
         ) : (
           <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
         )}
