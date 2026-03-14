@@ -52,7 +52,7 @@ export function CheckoutForm({ data, onChange, errors, disabled = false }: Check
   const handleChange = (field: keyof CheckoutFormData, value: string) => {
     let nextValue = value;
 
-    if (field === 'customerCpf') nextValue = maskCpf(value);
+    if (field === 'customerCpf') nextValue = handleCpfInput(value);
     if (field === 'customerPhone') nextValue = maskPhone(value);
     if (field === 'shippingPostalCode') nextValue = sanitizeCep(value);
 
