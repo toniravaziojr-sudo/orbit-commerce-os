@@ -3438,11 +3438,11 @@ Blocos de sistema, e-commerce funcional e mídia pura não são elegíveis:
 | Interface `AIFillableConfig` em types.ts | ✅ Implementado |
 | Campo `aiFillable?` em `BlockPropsSchema` | ✅ Implementado |
 | Metadata nos 21 blocos elegíveis | ✅ Implementado |
-| Edge function de preenchimento | ❌ Não implementado (Fase 2.2) |
+| Edge function `ai-block-fill` | ✅ Implementado (Fase 2.2) |
 | Hook `useAIBlockFill` | ❌ Não implementado (Fase 2.3) |
 | Botão "Preencher com IA" no PropsEditor | ❌ Não implementado (Fase 2.3) |
 | Preenchimento em lote | ❌ Não implementado (futuro) |
-| Lógica de runtime/merge | ❌ Não implementado (Fase 2.2/2.3) |
+| Lógica de merge no frontend | ❌ Não implementado (Fase 2.3) |
 
 ### Arquivos Alterados
 
@@ -3450,6 +3450,8 @@ Blocos de sistema, e-commerce funcional e mídia pura não são elegíveis:
 |---------|-----------|
 | `src/lib/builder/types.ts` | Adicionada interface `AIFillableConfig` + campo `aiFillable?` em `BlockPropsSchema` |
 | `src/lib/builder/registry.ts` | Adicionado `aiFillable` nas props elegíveis dos 21 blocos |
+| `supabase/functions/ai-block-fill/index.ts` | Edge function de geração estruturada (Fase 2.2) |
+| `supabase/config.toml` | Entrada `[functions.ai-block-fill]` com `verify_jwt = false` |
 
 ### Critérios de Segurança
 
@@ -3461,3 +3463,105 @@ Blocos de sistema, e-commerce funcional e mídia pura não são elegíveis:
 | Build limpo sem erros | ✅ |
 | Nenhum bloco excluído recebeu metadata | ✅ |
 | Nenhuma prop proibida recebeu metadata | ✅ |
+
+---
+
+## 🤖 Preenchimento por IA — Edge Function Backend (Fase 2.2)
+
+> **Status:** IMPLEMENTADO ✅ — Fase 2.2 concluída. Edge function `ai-block-fill` criada. Sem UI, sem hook, sem botão no editor.
+
+### Edge Function: `ai-block-fill`
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Edge Function |
+| **Localização** | `supabase/functions/ai-block-fill/index.ts` |
+| **Contexto** | Chamada pelo frontend (Fase 2.3) para preencher props textuais de blocos do builder via IA |
+| **Versão** | v1.0.0 |
+| **Modelo** | `google/gemini-3-flash-preview` (via `aiChatCompletionJSON` do `ai-router.ts`) |
+| **Config** | `verify_jwt = false` (padrão do projeto — auth manual via `getClaims()`) |
+
+### Contrato de Entrada (POST body)
+
+```typescript
+{
+  tenantId: string;          // obrigatório — ID do tenant
+  blockType: string;         // obrigatório — tipo do bloco (ex: "Banner", "FAQ")
+  currentProps: Record<string, unknown>;  // obrigatório — props atuais do bloco
+  fillableSchema: Record<string, {       // obrigatório — metadata aiFillable filtrada
+    hint: string;
+    format?: 'text' | 'html' | 'cta' | 'label' | 'feedback';
+    minItems?: number;
+    maxItems?: number;
+    itemSchema?: Record<string, { hint: string; enabled: boolean }>;
+  }>;
+  pageContext?: {            // opcional
+    pageName?: string;
+    pageType?: string;
+    pageDescription?: string;
+  };
+}
+```
+
+### Contrato de Saída
+
+```typescript
+// 200 OK
+{ success: true, filledProps: Record<string, unknown> }
+
+// 400/401/403/429/402/500
+{ success: false, error: string }
+```
+
+### Fluxo de Processamento
+
+1. Valida Bearer token via `getClaims()`
+2. Valida payload (campos obrigatórios)
+3. Verifica acesso ao tenant via `user_has_tenant_access` RPC
+4. Filtra `fillableSchema`: aceita apenas keys que existam em `currentProps`
+5. Busca contexto da loja em `store_settings` (nome, descrição, SEO)
+6. Constrói tool schema dinâmico a partir do `fillableSchema` validado
+7. Chama `aiChatCompletionJSON` com tool calling (forçando `fill_block_content`)
+8. Extrai resultado do tool call
+9. Valida e sanitiza output (HTML, arrays, tipos)
+10. Retorna `filledProps`
+
+### Validação de Segurança (fillableSchema)
+
+| Proteção | Implementação |
+|----------|---------------|
+| Keys inválidas | Apenas keys presentes em `currentProps` são aceitas |
+| Output type | Apenas strings e arrays de strings/objetos retornados |
+| HTML sanitization | Tags permitidas: `p`, `strong`, `em`, `ul`, `ol`, `li`, `h2`, `h3`, `br`, `span` |
+| Atributos HTML | Removidos: `style`, `class`, `on*` (event handlers) |
+| Array bounds | Truncado em `maxItems`; `itemSchema` filtra apenas campos `enabled: true` |
+| Texto plano | Tags HTML removidas de campos sem `format: 'html'` |
+
+### Tratamento de Erros
+
+| Erro | Status | Mensagem |
+|------|--------|----------|
+| Sem Bearer token | 401 | "Não autorizado" |
+| Token inválido | 401 | "Token inválido" |
+| Campos obrigatórios faltando | 400 | Mensagem descritiva |
+| fillableSchema vazio após validação | 400 | "Nenhum campo válido" |
+| Sem acesso ao tenant | 403 | "Acesso negado ao tenant" |
+| Rate limit (429) | 429 | "Limite de requisições atingido" |
+| Créditos insuficientes (402) | 402 | "Créditos de IA insuficientes" |
+| IA não retornou tool call | 500 | "A IA não retornou conteúdo estruturado" |
+| Parse error do tool call | 500 | "Falha ao processar resposta da IA" |
+
+### Escopo da Fase 2.2
+
+| Item | Status |
+|------|--------|
+| Edge function `ai-block-fill` | ✅ |
+| Entrada em `config.toml` | ✅ |
+| Auth manual via `getClaims()` | ✅ |
+| Validação de `fillableSchema` contra `currentProps` | ✅ |
+| Sanitização de HTML no output | ✅ |
+| Contexto da loja via `store_settings` | ✅ |
+| Tool calling com schema dinâmico | ✅ |
+| Hook `useAIBlockFill` | ❌ (Fase 2.3) |
+| Botão no PropsEditor | ❌ (Fase 2.3) |
+| Preenchimento em lote | ❌ (futuro) |
