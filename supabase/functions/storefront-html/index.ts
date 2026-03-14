@@ -18,7 +18,7 @@ import { generateThemeCss, generateButtonCssRules, getGoogleFontsData } from '..
 import { optimizeImageUrl } from '../_shared/block-compiler/utils.ts';
 
 // ===== VERSION =====
-const VERSION = "v8.6.2"; // CEP raw-digits hardening for product + mini-cart inputs in Edge runtime
+const VERSION = "v8.7.0"; // PREVIEW PARITY: ?preview=1 reads draft_content for store_pages + template_sets
 // ====================
 
 // NOTE: FONT_FAMILY_MAP, getFontFamily, generateThemeCss, getGoogleFontsData
