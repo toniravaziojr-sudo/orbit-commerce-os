@@ -1919,6 +1919,16 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'array',
         label: 'Itens',
         defaultValue: [],
+        aiFillable: {
+          hint: 'Benefícios/diferenciais da loja (frete grátis, parcelamento, segurança, etc.)',
+          minItems: 3,
+          maxItems: 4,
+          itemSchema: {
+            icon: { hint: 'Nome do ícone Lucide (Truck, CreditCard, Shield, Clock, etc.)', enabled: true },
+            title: { hint: 'Benefício em 2-4 palavras', enabled: true },
+            description: { hint: 'Descrição curta em 1 frase', enabled: true },
+          },
+        },
       },
       layout: {
         type: 'select',
