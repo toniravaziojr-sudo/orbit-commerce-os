@@ -313,7 +313,7 @@ async function generateTexts(
     product?: ProductContext | null;
     category?: CategoryContext | null;
     associationType?: string;
-    storeName: string;
+    store: StoreContext;
     slideCount?: number;
   },
   options: { supabaseUrl: string; supabaseServiceKey: string },
