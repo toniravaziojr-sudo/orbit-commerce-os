@@ -3623,3 +3623,118 @@ Blocos de sistema, e-commerce funcional e mídia pura não são elegíveis:
 | Preenchimento em lote | ❌ (futuro) |
 | Modo "substituir tudo" | ❌ (futuro) |
 | Diálogo de confirmação | ❌ (futuro) |
+
+---
+
+## Fase 3: Wizard de Preenchimento por IA Guiado por Bloco
+
+### Princípio Central
+
+**IA não decide estrutura, dependências nem vínculos de dados.**
+**IA só gera conteúdo dentro de um escopo previamente definido pelo usuário e pelo bloco.**
+
+### Classificação dos Blocos
+
+#### Grupo A — Text-Only (fluxo direto, sem wizard)
+Blocos que só precisam de preenchimento textual. O `useAIBlockFill` existente funciona.
+Total: ~20 blocos (FAQ, RichText, Testimonials, Reviews, FeatureList, etc.)
+
+#### Grupo B — Wizard Necessário (dependências + geração visual)
+Blocos que exigem decisões do usuário antes da geração:
+
+| Bloco | Dependências do Usuário | IA Gera | IA Nunca Toca |
+|---|---|---|---|
+| **Banner (single)** | Associação: produto/categoria/URL/nenhum | imageDesktop, imageMobile, title, subtitle, buttonText | mode, linkUrl, buttonUrl, cores, height, alignment |
+| **Banner (carousel)** | Qtd slides + associação por slide | slides[] (imagens + texto por slide) | mode, autoplaySeconds, showArrows, showDots, cores |
+| **BannerProducts** | source + productIds/categoryId (já no bloco) | imageDesktop, imageMobile, title, description | source, productIds, categoryId, limit, ctaUrl |
+| **TextBanners** | Briefing obrigatório (tema) | imageDesktop1/2, imageMobile1/2 | title, text, ctaText (já são Grupo A), layout, ctaUrl, cores |
+| **ImageCarousel** | Qtd de imagens + briefing | images[] | autoplay, showArrows, showDots, aspectRatio, slidesPerView |
+| **ImageGallery** | Qtd de imagens + briefing | images[] | columns, gap, enableLightbox, aspectRatio, borderRadius |
+
+### Arquitetura
+
+#### Componentes
+
+| Tipo | Componente | Localização | Descrição |
+|------|-----------|-------------|-----------|
+| Componente | AIFillWizardDialog | `src/components/builder/ai-wizard/AIFillWizardDialog.tsx` | Modal genérico de steps do wizard |
+| Componente | WizardStepRenderer | `src/components/builder/ai-wizard/WizardStepRenderer.tsx` | Renderiza o componente correto para cada tipo de step |
+| Componente | BannerAssociationStep | `src/components/builder/ai-wizard/steps/BannerAssociationStep.tsx` | Step de associação com 4 opções: produto/categoria/URL/nenhum |
+| Componente | QuantitySelectStep | `src/components/builder/ai-wizard/steps/QuantitySelectStep.tsx` | Select numérico (slides, imagens) |
+| Componente | BriefingStep | `src/components/builder/ai-wizard/steps/BriefingStep.tsx` | Textarea para briefing/tema |
+| Componente | SourceSelectStep | `src/components/builder/ai-wizard/steps/SourceSelectStep.tsx` | Valida que BannerProducts tem fonte configurada |
+| Componente | ConfirmStep | `src/components/builder/ai-wizard/steps/ConfirmStep.tsx` | Resumo das escolhas antes de gerar |
+
+#### Funções e Hooks
+
+| Tipo | Nome | Localização | Descrição |
+|------|------|-------------|-----------|
+| Hook | useAIBlockWizard | `src/hooks/useAIBlockWizard.ts` | Gerencia estado do wizard: step atual, navegação, dados coletados |
+| Função | getWizardContract | `src/lib/builder/aiWizardRegistry.ts` | Retorna o contrato do bloco ou null (Grupo A) |
+
+#### Registry de Contratos
+
+| Tipo | Nome | Localização | Descrição |
+|------|------|-------------|-----------|
+| Registry | aiWizardRegistry | `src/lib/builder/aiWizardRegistry.ts` | Mapa declarativo blockType → WizardBlockContract com steps, aiGenerates e aiNeverTouches |
+
+### Step Types
+
+| Step Type | Descrição | Payload de Saída |
+|---|---|---|
+| `banner-association` | Seletor com 4 modos: produto, categoria, URL, nenhum | `BannerAssociationPayload` (associationType, productId?, categoryId?, manualUrl?, derivedLinkUrl) |
+| `quantity-select` | Select numérico (min/max) | `number` |
+| `source-select` | Valida fonte existente no bloco (BannerProducts) | Lê de currentProps |
+| `briefing` | Textarea com placeholder contextual | `string` |
+| `confirm` | Resumo + botão gerar | — |
+
+### Contrato de Saída (`collectedData`) por Bloco
+
+#### Banner (single)
+```typescript
+{ mode: 'single', association: BannerAssociationPayload, briefing?: string }
+```
+
+#### Banner (carousel)
+```typescript
+{ mode: 'carousel', slideCount: number, slides: [{ index, association: BannerAssociationPayload, briefing? }] }
+```
+
+#### BannerProducts
+```typescript
+{ source: 'manual'|'category', productIds?: string[], categoryId?: string, briefing?: string }
+```
+
+#### TextBanners
+```typescript
+{ briefing: string }
+```
+
+#### ImageCarousel / ImageGallery
+```typescript
+{ imageCount: number, briefing: string }
+```
+
+### Integração no PropsEditor
+
+O botão "✨ IA" no cabeçalho do PropsEditor verifica:
+1. Se o bloco tem `WizardBlockContract` (via `getWizardContract`) → abre `AIFillWizardDialog`
+2. Se não tem contrato mas tem `aiFillable` no schema → executa fill direto (Grupo A, comportamento existente)
+3. Se não tem nenhum → botão não aparece
+
+### Escopo da Fase 3.1
+
+| Item | Status |
+|------|--------|
+| Registry de contratos (6 blocos) | ✅ |
+| Dialog genérico de wizard | ✅ |
+| Step BannerAssociation (4 opções) | ✅ |
+| Step QuantitySelect | ✅ |
+| Step Briefing | ✅ |
+| Step SourceSelect (validação) | ✅ |
+| Step Confirm (resumo) | ✅ |
+| Hook useAIBlockWizard | ✅ |
+| Integração no PropsEditor | ✅ |
+| Geração real de imagens | ❌ (Fase 3.2) |
+| Edge function ai-block-fill-visual | ❌ (Fase 3.2) |
+| Loading com progresso | ❌ (Fase 3.4) |
