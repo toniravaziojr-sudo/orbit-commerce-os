@@ -22,6 +22,13 @@ export function BannerModeStep({ value, onChange }: BannerModeStepProps) {
   const mode = value?.bannerMode || 'single';
   const slideCount = value?.slideCount || 2;
 
+  // Set default value on mount so validation passes
+  useEffect(() => {
+    if (!value) {
+      onChange({ bannerMode: 'single', slideCount: 1 });
+    }
+  }, []);
+
   const handleModeChange = (newMode: string) => {
     onChange({
       bannerMode: newMode as 'single' | 'carousel',
