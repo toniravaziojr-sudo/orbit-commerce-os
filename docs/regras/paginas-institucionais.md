@@ -53,7 +53,8 @@ A listagem mescla 3 fontes em uma tabela única ordenada por `created_at`:
 | `slug` | string | URL amigável |
 | `type` | string | Tipo: `institutional`, `landing_page`, `custom` |
 | `status` | string | `draft`, `published` |
-| `content` | json | Conteúdo em blocos (BlockNode) |
+| `content` | json | Conteúdo publicado em blocos (BlockNode) — visível na loja pública |
+| `draft_content` | json | Conteúdo de rascunho em blocos (BlockNode) — usado pelo editor, não visível ao público |
 | `individual_content` | string | Conteúdo HTML individual |
 | `template_id` | uuid | Template associado |
 | `is_published` | boolean | Página publicada |
@@ -88,19 +89,26 @@ A listagem mescla 3 fontes em uma tabela única ordenada por `created_at`:
 
 ---
 
-## Fluxo de Salvamento (Páginas Institucionais)
+## Fluxo de Salvamento (Páginas Institucionais e Landing Pages)
+
+### Fluxo unificado: Salvar → Preview → Publicar
 
 1. O usuário adiciona/edita blocos no editor visual — as alterações ficam apenas na memória local.
-2. Ao clicar em **Salvar**, o conteúdo é gravado diretamente na coluna `content` da tabela `store_pages`.
-3. Após salvar com sucesso, o sistema **atualiza imediatamente o cache local da página** com o conteúdo recém-salvo e, em seguida, **invalida obrigatoriamente** a chave `['store-page', pageId]` para confirmação com dados do banco.
-4. O editor registra uma **assinatura do conteúdo salvo** e entra em modo de proteção de sincronização.
-5. Enquanto o carregamento externo ainda estiver em versão antiga, o editor **bloqueia a re-sincronização automática** para evitar rollback visual no mesmo clique de salvar.
-6. A sincronização automática só é liberada quando o conteúdo externo confirma exatamente a versão recém-salva.
+2. Ao clicar em **Salvar**, o conteúdo é gravado na coluna `draft_content` da tabela `store_pages` (NÃO reflete no público).
+3. O usuário pode usar o **Preview** para visualizar como ficaria na loja pública.
+4. Ao clicar em **Publicar**, o conteúdo é copiado de `draft_content` para `content` + `is_published=true` + `status='published'` + cache CDN é invalidado.
+5. Somente após publicar as alterações ficam visíveis na loja pública.
+
+### Proteção anti-rollback
+
+- Após salvar/publicar com sucesso, o sistema **atualiza imediatamente o cache local da página** e registra uma **assinatura do conteúdo salvo**.
+- Enquanto o carregamento externo ainda estiver em versão antiga, o editor **bloqueia a re-sincronização automática** para evitar rollback visual.
+- A sincronização automática só é liberada quando o conteúdo externo confirma exatamente a versão recém-salva.
 
 | Arquivo | Responsabilidade |
 |---------|------------------|
-| `src/hooks/useBuilderData.ts` | Mutação de salvamento + atualização imediata de cache + invalidação obrigatória |
-| `src/pages/PageBuilder.tsx` | Carregamento inicial do conteúdo da página |
+| `src/hooks/useBuilderData.ts` | Mutação de salvamento (draft_content) + publicação (content) + cache + invalidação |
+| `src/pages/PageBuilder.tsx` | Carregamento inicial: prioriza `draft_content` > `content` > template |
 | `src/components/builder/VisualBuilder.tsx` | Orquestração do editor + proteção anti-rollback na sincronização pós-save |
 
 ---
@@ -628,9 +636,19 @@ O compilador FAQ usa `<details>/<summary>` nativo (zero JS) com chevron animado 
 
 | Correção | Descrição |
 |----------|-----------|
-| `pageType` sempre enviado | VisualBuilder agora envia `pageType` em TODAS as chamadas de save/publish, não apenas para templates. Isso garante que `useBuilderData` roteie para o caminho correto. |
-| `landing_page` suportado | `useBuilderData` agora trata `landing_page` igual a `institutional` — salva direto em `store_pages.content`. |
-| Cache purge automático | Ao salvar/publicar página institucional ou landing page, dispara `cachePurge.template()` para invalidar CDN. |
-| Update otimista no publish | `onSuccess` do publish agora faz `setQueryData` otimista no cache `['store-page', pageId]` para evitar rollback visual. |
+| `pageType` sempre enviado | VisualBuilder agora envia `pageType` em TODAS as chamadas de save/publish, não apenas para templates. |
+| `landing_page` suportado | `useBuilderData` agora trata `landing_page` igual a `institutional`. |
+
+### v5.0.0 — Fluxo Unificado: Salvar → Preview → Publicar
+
+**Arquivos:** `useBuilderData.ts`, `PageBuilder.tsx`, migration (add `draft_content`)
+
+| Correção | Descrição |
+|----------|-----------|
+| `draft_content` adicionado | Nova coluna em `store_pages` para separar rascunho de publicado. |
+| Salvar grava em `draft_content` | `saveDraft` para institutional/landing agora salva em `draft_content`, não em `content`. Não reflete no público. |
+| Publicar copia para `content` | `publish` copia `draft_content` para `content` + marca publicado + invalida cache CDN. |
+| Editor carrega `draft_content` | `PageBuilder.tsx` prioriza `draft_content` > `content` > template para o editor. |
+| Cache purge só no publish | Removido cache purge do saveDraft — só dispara ao publicar. |
 
 **Causa raiz do bug:** O `pageType` era passado como `undefined` quando `entityType === 'page'`, fazendo o save cair no fluxo genérico de versionamento (`store_page_versions`) em vez do caminho direto (`store_pages.content`). Como o editor carrega de `store_pages.content`, o conteúdo salvo "sumia" ao reabrir.

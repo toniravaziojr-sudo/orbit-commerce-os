@@ -228,12 +228,12 @@ export function useSaveDraft() {
         return 1;
       }
 
-      // Special handling for institutional/landing pages with direct content - save to store_pages.content
+      // Special handling for institutional/landing pages - save to draft_content (not public yet)
       if ((pageType === 'institutional' || pageType === 'landing_page') && pageId) {
         const { error } = await supabase
           .from('store_pages')
           .update({ 
-            content: content as unknown as Json,
+            draft_content: content as unknown as Json,
             updated_at: new Date().toISOString(),
           })
           .eq('id', pageId);
@@ -300,7 +300,7 @@ export function useSaveDraft() {
             if (!previous) return previous;
             return {
               ...previous,
-              content: variables.content as unknown as Json,
+              draft_content: variables.content as unknown as Json,
               updated_at: new Date().toISOString(),
             };
           }
@@ -314,10 +314,7 @@ export function useSaveDraft() {
         queryClient.invalidateQueries({ queryKey: ['store-page', variables.pageId] });
       }
 
-      // Fire-and-forget cache purge for institutional/landing pages (save = publish for these)
-      if (currentTenant?.id && (variables.pageType === 'institutional' || variables.pageType === 'landing_page')) {
-        cachePurge.template(currentTenant.id);
-      }
+      // No cache purge on draft save - only on publish
 
       toast({ title: 'Rascunho salvo!' });
     },
@@ -386,12 +383,13 @@ export function usePublish() {
         return 1;
       }
 
-      // Special handling for institutional/landing pages with direct content - save to store_pages.content
+      // Special handling for institutional/landing pages - publish: copy draft_content to content
       if ((pageType === 'institutional' || pageType === 'landing_page') && pageId) {
         const { error } = await supabase
           .from('store_pages')
           .update({ 
             content: content as unknown as Json,
+            draft_content: content as unknown as Json,
             is_published: true,
             status: 'published',
             updated_at: new Date().toISOString(),
@@ -487,6 +485,7 @@ export function usePublish() {
             return {
               ...previous,
               content: variables.content as unknown as Json,
+              draft_content: variables.content as unknown as Json,
               is_published: true,
               status: 'published',
               updated_at: new Date().toISOString(),

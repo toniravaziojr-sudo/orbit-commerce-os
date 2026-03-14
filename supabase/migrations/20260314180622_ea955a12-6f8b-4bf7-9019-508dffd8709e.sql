@@ -1,0 +1,1 @@
+ALTER TABLE public.store_pages ADD COLUMN draft_content jsonb DEFAULT NULL;

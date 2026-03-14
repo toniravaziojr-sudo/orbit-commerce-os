@@ -14734,6 +14734,7 @@ export type Database = {
           canonical_url: string | null
           content: Json | null
           created_at: string
+          draft_content: Json | null
           draft_version: number | null
           id: string
           individual_content: string | null
@@ -14764,6 +14765,7 @@ export type Database = {
           canonical_url?: string | null
           content?: Json | null
           created_at?: string
+          draft_content?: Json | null
           draft_version?: number | null
           id?: string
           individual_content?: string | null
@@ -14794,6 +14796,7 @@ export type Database = {
           canonical_url?: string | null
           content?: Json | null
           created_at?: string
+          draft_content?: Json | null
           draft_version?: number | null
           id?: string
           individual_content?: string | null
