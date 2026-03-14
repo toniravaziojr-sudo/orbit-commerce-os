@@ -229,75 +229,87 @@ function buildBannerImagePrompt(
   }
 ): string {
   const isDesktop = spec.key === 'imageDesktop';
-  const orientation = isDesktop
-    ? `HORIZONTAL PAISAGEM (${spec.width}x${spec.height}px, ultra-wide)`
-    : `VERTICAL RETRATO (${spec.width}x${spec.height}px)`;
 
   // Build rich product context
-  let contextLine = 'Banner institucional/promocional genérico para a loja.';
+  let subjectDescription = 'Produtos variados da loja em composição premium.';
   let productImageNote = '';
   if (context.product) {
-    contextLine = `PRODUTO REAL: "${context.product.name}".`;
+    subjectDescription = `O produto "${context.product.name}"`;
     if (context.product.description) {
-      contextLine += `\nDescrição do produto: "${context.product.description.substring(0, 300)}".`;
+      subjectDescription += ` — ${context.product.description.substring(0, 200)}`;
     }
-    if (context.product.price) {
-      const formattedPrice = `R$ ${context.product.price.toFixed(2).replace('.', ',')}`;
-      contextLine += `\nPreço: ${formattedPrice}.`;
-      if (context.product.compareAtPrice && context.product.compareAtPrice > context.product.price) {
-        const formattedOldPrice = `R$ ${context.product.compareAtPrice.toFixed(2).replace('.', ',')}`;
-        contextLine += ` (de ${formattedOldPrice})`;
-      }
-    }
+    subjectDescription += '.';
     if (context.product.mainImageUrl) {
-      productImageNote = `\nIMPORTANTE: Uma imagem de referência do produto REAL foi fornecida junto com este prompt. O banner DEVE representar visualmente ESTE produto específico. Observe as características visuais (cor, forma, embalagem, textura) da imagem de referência e reproduza-as fielmente no banner.`;
+      productImageNote = `REFERÊNCIA VISUAL: Uma foto do produto real foi anexada. Reproduza FIELMENTE a cor, forma, embalagem e textura do produto na composição do banner. O produto no banner deve ser reconhecível como o mesmo da foto.`;
     }
   } else if (context.category) {
-    contextLine = `Categoria: "${context.category.name}". O banner deve representar produtos desta categoria.`;
+    subjectDescription = `Produtos da categoria "${context.category.name}" em composição premium.`;
   }
 
   // Store identity
   let storeIdentity = `Loja: "${context.store.storeName}".`;
   if (context.store.storeDescription) {
-    storeIdentity += `\nSobre a loja: "${context.store.storeDescription.substring(0, 200)}".`;
+    storeIdentity += ` ${context.store.storeDescription.substring(0, 200)}.`;
   }
 
-  const briefingLine = context.briefing
-    ? `Briefing do usuário: "${context.briefing}".`
-    : '';
-
+  const briefingLine = context.briefing ? `Briefing: "${context.briefing}".` : '';
   const slideNote = context.slideIndex !== undefined
-    ? `Este é o slide ${context.slideIndex + 1} do carrossel — varie o cenário/atmosfera em relação aos outros slides.`
+    ? `Slide ${context.slideIndex + 1} do carrossel — varie cenário/atmosfera.`
     : '';
 
-  return `BANNER PROFISSIONAL PARA E-COMMERCE — ${orientation}
+  if (isDesktop) {
+    return `CRIE UM BANNER HORIZONTAL DE E-COMMERCE. Proporção exata: ${spec.width}x${spec.height}px (21:7 ultra-wide).
 
-TAREFA: Criar uma imagem fotorrealista premium para banner de loja virtual.
 ${storeIdentity}
-${contextLine}
+ASSUNTO: ${subjectDescription}
 ${productImageNote}
 ${briefingLine}
 ${slideNote}
 
-COMPOSIÇÃO (${orientation}):
-${isDesktop
-    ? `- Layout ultra-wide (21:9 aprox). Cenário profissional de e-commerce.
-- Lado esquerdo (60%) mais escuro/com gradiente para acomodar texto branco sobreposto.
-- Lado direito (40%) com o produto/elementos visuais em destaque.`
-    : `- Layout vertical para mobile.
-- Terço superior levemente mais escuro para texto sobreposto.
-- Centro e inferior com o produto/elementos visuais em destaque.`}
+COMPOSIÇÃO OBRIGATÓRIA (DESKTOP):
+- O PRODUTO deve ocupar o TERÇO DIREITO da imagem (~30-40% da largura), bem enquadrado e em destaque.
+- O TERÇO ESQUERDO (~60% da largura) DEVE ter fundo escuro, gradiente natural ou área de baixo contraste. Esta zona será usada para overlay de texto branco — ela PRECISA ser escura o suficiente para texto branco ser legível.
+- O gradiente deve ser NATURAL e integrado ao cenário (iluminação lateral, sombra ambiente, fundo escurecido), não um retângulo de cor sólida.
+- Transição suave entre a zona escura e a zona do produto.
 
-ESTILO:
-- Fotografia comercial profissional, iluminação de estúdio
-- Cores vibrantes mas harmônicas
-- Profundidade de campo com bokeh suave
-- Qualidade 4K, sem ruído, sem artefatos
+DIREÇÃO DE ARTE:
+- Fotografia comercial profissional, iluminação de estúdio com dramática lateral.
+- Fundo contextual rico (superfície, textura, ambiente) — NUNCA fundo branco chapado.
+- Profundidade de campo com bokeh suave no fundo.
+- Cores vibrantes e harmônicas. Qualidade 4K.
 
-PROIBIDO:
-- ❌ NÃO incluir texto, lettering, logos ou badges na imagem
-- ❌ NÃO incluir mãos, pessoas ou modelos
-- ❌ NÃO usar fundo branco chapado — o cenário deve ser rico e premium`;
+PROIBIÇÕES ABSOLUTAS:
+- ❌ NENHUM texto, letra, número, logo ou badge na imagem
+- ❌ NENHUMA pessoa, mão ou modelo
+- ❌ NENHUM fundo branco ou cinza claro chapado
+- ❌ NENHUM elemento gráfico/UI (botões, bordas, molduras)`;
+  } else {
+    return `CRIE UM BANNER VERTICAL PARA MOBILE. Proporção exata: ${spec.width}x${spec.height}px.
+
+${storeIdentity}
+ASSUNTO: ${subjectDescription}
+${productImageNote}
+${briefingLine}
+${slideNote}
+
+COMPOSIÇÃO OBRIGATÓRIA (MOBILE):
+- O TERÇO SUPERIOR da imagem DEVE ser escuro/gradiente natural para receber texto branco sobreposto.
+- O PRODUTO deve estar no CENTRO-INFERIOR (~50-60% inferior), bem enquadrado e protagonista.
+- O gradiente escuro no topo deve ser NATURAL (iluminação de cima, sombra ambiente), integrado ao cenário.
+- Transição suave entre a zona escura superior e a zona do produto.
+
+DIREÇÃO DE ARTE:
+- Fotografia comercial profissional, iluminação de estúdio.
+- Fundo contextual (superfície, textura) — NUNCA fundo branco chapado.
+- Enquadramento pensado para tela estreita. Produto centralizado.
+- Cores vibrantes e harmônicas. Qualidade 4K.
+
+PROIBIÇÕES ABSOLUTAS:
+- ❌ NENHUM texto, letra, número, logo ou badge na imagem
+- ❌ NENHUMA pessoa, mão ou modelo
+- ❌ NENHUM fundo branco ou cinza claro chapado
+- ❌ NENHUM elemento gráfico/UI (botões, bordas, molduras)`;
+  }
 }
 
 // =============================================
