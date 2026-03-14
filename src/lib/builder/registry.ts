@@ -2576,9 +2576,9 @@ const blockDefinitions: BlockDefinition[] = [
       backgroundColor: 'transparent',
     },
     propsSchema: {
-      title: { type: 'string', label: 'Título' },
-      subtitle: { type: 'string', label: 'Subtítulo' },
-      steps: { type: 'array', label: 'Passos' },
+      title: { type: 'string', label: 'Título', aiFillable: { hint: 'Título da seção de passos/timeline', format: 'text' } },
+      subtitle: { type: 'string', label: 'Subtítulo', aiFillable: { hint: 'Subtítulo complementar', format: 'text' } },
+      steps: { type: 'array', label: 'Passos', aiFillable: { hint: 'Etapas de um processo (compra, entrega, etc.)', minItems: 3, maxItems: 5, itemSchema: { title: { hint: 'Título do passo em 2-4 palavras', enabled: true }, description: { hint: 'Descrição do passo em 1 frase', enabled: true }, number: { hint: 'Número sequencial', enabled: true } } } },
       layout: { type: 'select', label: 'Layout', options: [{ label: 'Horizontal', value: 'horizontal' }, { label: 'Vertical', value: 'vertical' }] },
       accentColor: { type: 'color', label: 'Cor de Destaque' },
       showNumbers: { type: 'boolean', label: 'Mostrar Números' },
