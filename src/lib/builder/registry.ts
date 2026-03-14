@@ -1046,6 +1046,7 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'string',
         label: 'Texto',
         defaultValue: 'Clique Aqui',
+        aiFillable: { hint: 'Call-to-action curto, 2-5 palavras', format: 'cta' },
       },
       url: {
         type: 'string',
