@@ -2328,11 +2328,13 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'string',
         label: 'Título',
         placeholder: 'Título da seção',
+        aiFillable: { hint: 'Título da seção sobre a marca/história', format: 'text' },
       },
       text: {
         type: 'textarea',
         label: 'Texto',
         placeholder: 'Conteúdo do texto',
+        aiFillable: { hint: 'Texto descritivo sobre a marca, 2-4 frases', format: 'text' },
       },
       imageDesktop1: {
         type: 'image',
@@ -2374,6 +2376,7 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'string',
         label: 'Texto do CTA',
         defaultValue: 'Saiba mais',
+        aiFillable: { hint: 'Call-to-action curto, 2-4 palavras', format: 'cta' },
       },
       ctaUrl: {
         type: 'string',
