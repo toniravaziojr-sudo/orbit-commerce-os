@@ -1,28 +1,25 @@
 // =============================================
 // WIZARD STEP RENDERER — Renders the right component for each step type
+// Phase 3.3: Added banner-mode-select and scope-select
 // =============================================
 
-import { WizardStepConfig } from '@/lib/builder/aiWizardRegistry';
+import { WizardStepConfig, WizardBlockContract } from '@/lib/builder/aiWizardRegistry';
 import { BannerAssociationStep } from './steps/BannerAssociationStep';
+import { BannerModeStep } from './steps/BannerModeStep';
+import { ScopeSelectStep } from './steps/ScopeSelectStep';
 import { QuantitySelectStep } from './steps/QuantitySelectStep';
 import { BriefingStep } from './steps/BriefingStep';
 import { SourceSelectStep } from './steps/SourceSelectStep';
 import { ConfirmStep } from './steps/ConfirmStep';
-import { WizardBlockContract } from '@/lib/builder/aiWizardRegistry';
 
 interface WizardStepRendererProps {
   step: WizardStepConfig;
   data: unknown;
   onChange: (data: unknown) => void;
-  /** Full contract for confirm step */
   contract: WizardBlockContract;
-  /** All collected data for confirm step */
   collectedData: Record<string, unknown>;
-  /** All steps for confirm step */
   allSteps: WizardStepConfig[];
-  /** Block type for confirm step */
   blockType: string;
-  /** Current block props (for source-select validation) */
   currentProps: Record<string, unknown>;
 }
 
@@ -37,6 +34,24 @@ export function WizardStepRenderer({
   currentProps,
 }: WizardStepRendererProps) {
   switch (step.type) {
+    case 'banner-mode-select':
+      return (
+        <BannerModeStep
+          value={data as any}
+          onChange={onChange}
+        />
+      );
+
+    case 'scope-select':
+      return (
+        <ScopeSelectStep
+          value={data as any}
+          onChange={onChange}
+          hasImages={contract.requiresImageGeneration}
+          hasTexts={contract.hasTextGeneration !== false}
+        />
+      );
+
     case 'banner-association':
       return (
         <BannerAssociationStep

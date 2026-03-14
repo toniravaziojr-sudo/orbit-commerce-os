@@ -1,11 +1,13 @@
 // =============================================
 // CONFIRM STEP — Summary of collected data before generation
-// Phase 3.2: Placeholder removed, ready for real generation
+// Phase 3.3: Shows mode, scope, and associations
 // =============================================
 
 import { WizardBlockContract, WizardStepConfig } from '@/lib/builder/aiWizardRegistry';
 import { Badge } from '@/components/ui/badge';
-import { Image as ImageIcon, Type } from 'lucide-react';
+import { Image as ImageIcon, Type, Layers } from 'lucide-react';
+import type { BannerModeData } from './BannerModeStep';
+import type { GenerationScope } from './ScopeSelectStep';
 
 interface ConfirmStepProps {
   contract: WizardBlockContract;
@@ -18,10 +20,21 @@ function summarizeStepData(step: WizardStepConfig, data: unknown): string {
   if (!data) return '—';
 
   switch (step.type) {
+    case 'banner-mode-select': {
+      const d = data as BannerModeData;
+      if (d.bannerMode === 'single') return 'Banner Único';
+      return `Carrossel (${d.slideCount} slides)`;
+    }
+    case 'scope-select': {
+      const scope = data as GenerationScope;
+      if (scope === 'images') return 'Só imagens';
+      if (scope === 'texts') return 'Só textos';
+      return 'Imagens + textos';
+    }
     case 'banner-association': {
       const assoc = data as { associationType: string; productName?: string; categoryName?: string; manualUrl?: string };
-      if (assoc.associationType === 'product') return `Produto: ${assoc.productName || assoc.associationType}`;
-      if (assoc.associationType === 'category') return `Categoria: ${assoc.categoryName || assoc.associationType}`;
+      if (assoc.associationType === 'product') return `Produto: ${assoc.productName || 'selecionado'}`;
+      if (assoc.associationType === 'category') return `Categoria: ${assoc.categoryName || 'selecionada'}`;
       if (assoc.associationType === 'url') return `URL: ${assoc.manualUrl}`;
       return 'Nenhum (institucional)';
     }
@@ -40,10 +53,10 @@ function summarizeStepData(step: WizardStepConfig, data: unknown): string {
 
 export function ConfirmStep({ contract, collectedData, steps, blockType }: ConfirmStepProps) {
   const nonConfirmSteps = steps.filter((s) => s.type !== 'confirm');
-  const textProps = contract.aiGenerates.filter(
-    (p) => !contract.imageSpecs?.some((spec) => spec.key === p)
-  );
-  const hasImages = contract.requiresImageGeneration;
+  const scope = (collectedData.scope as GenerationScope) || 'all';
+  const includeImages = scope === 'images' || scope === 'all';
+  const includeTexts = scope === 'texts' || scope === 'all';
+  const modeData = collectedData.bannerMode as BannerModeData | undefined;
 
   return (
     <div className="space-y-4">
@@ -64,13 +77,19 @@ export function ConfirmStep({ contract, collectedData, steps, blockType }: Confi
       <div className="space-y-2">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">O que a IA vai gerar</p>
         <div className="flex flex-wrap gap-1.5">
-          {hasImages && (
+          {modeData?.bannerMode === 'carousel' && (
+            <Badge variant="secondary" className="gap-1">
+              <Layers className="h-3 w-3" />
+              {modeData.slideCount} slides
+            </Badge>
+          )}
+          {includeImages && (
             <Badge variant="secondary" className="gap-1">
               <ImageIcon className="h-3 w-3" />
               Imagens
             </Badge>
           )}
-          {textProps.length > 0 && (
+          {includeTexts && (
             <Badge variant="secondary" className="gap-1">
               <Type className="h-3 w-3" />
               Textos
@@ -80,7 +99,7 @@ export function ConfirmStep({ contract, collectedData, steps, blockType }: Confi
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Clique em "Gerar com IA" para criar as imagens e textos. O processo pode levar até 1 minuto.
+        Clique em "Gerar com IA" para criar o conteúdo. O processo pode levar até 1 minuto.
       </p>
     </div>
   );

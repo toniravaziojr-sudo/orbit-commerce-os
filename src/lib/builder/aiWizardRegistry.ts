@@ -1,17 +1,19 @@
 // =============================================
 // AI WIZARD REGISTRY — Contratos declarativos por bloco
-// Fase 3.1: Infraestrutura do wizard de preenchimento guiado
+// Phase 3.3: Unified Banner contract with mode + scope inside wizard
 // =============================================
 //
 // PRINCÍPIO: IA não decide estrutura, dependências nem vínculos de dados.
-// IA só gera conteúdo dentro da whitelist (aiGenerates).
-// O usuário define dependências obrigatórias via steps.
+// IA só gera conteúdo dentro da whitelist (aiGenerates) filtrado pelo scope.
+// O usuário define modo, escopo, e vínculos via steps no wizard.
 // O sistema deriva campos determinísticos (ex: linkUrl de produto/categoria).
 // =============================================
 
 // --- Step Types ---
 
 export type WizardStepType =
+  | 'banner-mode-select'
+  | 'scope-select'
   | 'banner-association'
   | 'quantity-select'
   | 'source-select'
@@ -118,23 +120,23 @@ export interface WizardBlockContract {
   requiresImageGeneration: boolean;
   /** Image specs when image generation is needed */
   imageSpecs?: ImageSpec[];
+  /** Whether this block has text props the AI can generate */
+  hasTextGeneration?: boolean;
 }
 
 // --- Contracts per Block ---
 
 /**
  * Returns the wizard contract for a block, or null if the block uses direct fill (Group A).
- * For Banner, the contract varies by mode (single vs carousel).
+ * Phase 3.3: Banner always returns the unified contract — mode is chosen INSIDE the wizard.
  */
 export function getWizardContract(
   blockType: string,
-  currentProps?: Record<string, unknown>
+  _currentProps?: Record<string, unknown>
 ): WizardBlockContract | null {
   switch (blockType) {
-    case 'Banner': {
-      const mode = currentProps?.mode ?? 'single';
-      return mode === 'carousel' ? BANNER_CAROUSEL_CONTRACT : BANNER_SINGLE_CONTRACT;
-    }
+    case 'Banner':
+      return BANNER_UNIFIED_CONTRACT;
     case 'BannerProducts':
       return BANNER_PRODUCTS_CONTRACT;
     case 'TextBanners':
@@ -152,13 +154,31 @@ export function getWizardContract(
 // CONTRACT DEFINITIONS
 // =============================================
 
-const BANNER_SINGLE_CONTRACT: WizardBlockContract = {
+/**
+ * Unified Banner contract — Phase 3.3
+ * Steps: Mode → Scope → Association (per slide if carousel) → Briefing → Confirm
+ * The wizard dynamically expands association steps based on mode/slideCount.
+ */
+const BANNER_UNIFIED_CONTRACT: WizardBlockContract = {
   steps: [
+    {
+      id: 'bannerMode',
+      type: 'banner-mode-select',
+      label: 'Que tipo de banner quer criar?',
+      required: true,
+    },
+    {
+      id: 'scope',
+      type: 'scope-select',
+      label: 'O que deseja gerar?',
+      required: true,
+    },
     {
       id: 'association',
       type: 'banner-association',
       label: 'Para onde o banner direciona?',
       required: true,
+      perSlide: true, // Dynamically expanded for carousel
     },
     {
       id: 'briefing',
@@ -174,57 +194,19 @@ const BANNER_SINGLE_CONTRACT: WizardBlockContract = {
       required: true,
     },
   ],
-  aiGenerates: ['imageDesktop', 'imageMobile', 'title', 'subtitle', 'buttonText'],
+  // All possible props — scope filtering happens at generation time
+  aiGenerates: ['imageDesktop', 'imageMobile', 'title', 'subtitle', 'buttonText', 'slides'],
   aiNeverTouches: [
     'mode', 'linkUrl', 'buttonUrl', 'backgroundColor', 'textColor',
     'buttonColor', 'buttonTextColor', 'buttonHoverBgColor', 'buttonHoverTextColor',
     'alignment', 'overlayOpacity', 'height', 'bannerWidth',
-    'slides', 'autoplaySeconds', 'showArrows', 'showDots',
+    'autoplaySeconds', 'showArrows', 'showDots',
   ],
   requiresImageGeneration: true,
+  hasTextGeneration: true,
   imageSpecs: [
     { key: 'imageDesktop', width: 1920, height: 700, label: 'Banner Desktop' },
     { key: 'imageMobile', width: 750, height: 420, label: 'Banner Mobile' },
-  ],
-};
-
-const BANNER_CAROUSEL_CONTRACT: WizardBlockContract = {
-  steps: [
-    {
-      id: 'slideCount',
-      type: 'quantity-select',
-      label: 'Quantos slides?',
-      required: true,
-      min: 1,
-      max: 3,
-      defaultValue: 3,
-    },
-    {
-      id: 'slideAssociations',
-      type: 'banner-association',
-      label: 'Configurar slide',
-      required: true,
-      perSlide: true,
-    },
-    {
-      id: 'confirm',
-      type: 'confirm',
-      label: 'Confirmar e gerar',
-      required: true,
-    },
-  ],
-  aiGenerates: ['slides'],
-  aiNeverTouches: [
-    'mode', 'autoplaySeconds', 'showArrows', 'showDots',
-    'backgroundColor', 'textColor', 'buttonColor', 'buttonTextColor',
-    'buttonHoverBgColor', 'buttonHoverTextColor',
-    'alignment', 'overlayOpacity', 'height', 'bannerWidth',
-    'imageDesktop', 'imageMobile', 'title', 'subtitle', 'buttonText', 'buttonUrl', 'linkUrl',
-  ],
-  requiresImageGeneration: true,
-  imageSpecs: [
-    { key: 'imageDesktop', width: 1920, height: 700, label: 'Banner Desktop (por slide)' },
-    { key: 'imageMobile', width: 750, height: 420, label: 'Banner Mobile (por slide)' },
   ],
 };
 
@@ -256,6 +238,7 @@ const BANNER_PRODUCTS_CONTRACT: WizardBlockContract = {
     'showCta', 'ctaText', 'ctaUrl',
   ],
   requiresImageGeneration: true,
+  hasTextGeneration: true,
   imageSpecs: [
     { key: 'imageDesktop', width: 600, height: 400, label: 'Banner Desktop' },
     { key: 'imageMobile', width: 400, height: 500, label: 'Banner Mobile' },
