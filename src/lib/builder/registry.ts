@@ -3167,8 +3167,8 @@ const blockDefinitions: BlockDefinition[] = [
       annualDiscount: 20,
     },
     propsSchema: {
-      title: { type: 'string', label: 'Título' },
-      subtitle: { type: 'string', label: 'Subtítulo' },
+      title: { type: 'string', label: 'Título', aiFillable: { hint: 'Título da tabela de preços/planos', format: 'text' } },
+      subtitle: { type: 'string', label: 'Subtítulo', aiFillable: { hint: 'Subtítulo complementar', format: 'text' } },
       layout: {
         type: 'select',
         label: 'Layout',
