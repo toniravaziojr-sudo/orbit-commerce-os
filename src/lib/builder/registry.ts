@@ -3221,7 +3221,7 @@ const blockDefinitions: BlockDefinition[] = [
         ],
       },
       showEmailInput: { type: 'boolean', label: 'Mostrar Campo Email', defaultValue: true },
-      buttonText: { type: 'string', label: 'Texto do Botão' },
+      buttonText: { type: 'string', label: 'Texto do Botão', aiFillable: { hint: 'Call-to-action para o popup, 2-4 palavras', format: 'cta' } },
       discountCode: { type: 'string', label: 'Código de Desconto' },
     },
     canHaveChildren: false,
