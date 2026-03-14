@@ -590,7 +590,7 @@ serve(async (req) => {
           product: productCtx,
           category: categoryCtx,
           associationType,
-          storeName,
+          store: storeCtx,
         }, { supabaseUrl, supabaseServiceKey });
 
         if (contract.aiGenerates.includes('title')) {
