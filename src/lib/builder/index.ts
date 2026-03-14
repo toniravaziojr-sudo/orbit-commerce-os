@@ -22,3 +22,6 @@ export * from './pageContracts';
 
 // AI Block Catalog (for AI page generation)
 export * from './aiBlockCatalog';
+
+// AI Wizard Registry (Phase 3.1 — guided AI fill)
+export * from './aiWizardRegistry';
