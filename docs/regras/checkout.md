@@ -730,3 +730,27 @@ As seguintes tabelas estão **sem nenhuma policy anônima** (nem INSERT, nem SEL
 ### Nota sobre cobertura de auditoria (order_price_audit)
 
 O código de auditoria de preços no `checkout-create-order` foi reimplantado em 2026-03-13. Pedidos anteriores (#1-#32) foram criados antes da existência deste código. O pedido #33 foi o primeiro a registrar auditoria com sucesso. A reimplantação garante que todos os pedidos futuros gerem registros de auditoria automaticamente.
+
+---
+
+## Validação de CPF no Checkout
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Regra Lógica / Validação |
+| **Localização** | `src/lib/formatCpf.ts`, `src/components/storefront/checkout/CheckoutForm.tsx`, `src/components/storefront/checkout/CheckoutStepWizard.tsx` |
+| **Contexto** | Campo "CPF" nos dois formatos de checkout (formulário padrão e wizard por etapas) |
+| **Descrição** | Validação matemática real do CPF usando algoritmo oficial dos dígitos verificadores (módulo 11), aplicada antes de permitir avanço no checkout |
+| **Comportamento** | 1. Máscara aplicada enquanto digita (`000.000.000-00`). 2. Ao tentar avançar, valida: campo obrigatório → 11 dígitos → rejeita sequências repetidas (111.111.111-11) → calcula dígitos verificadores. 3. Se inválido, exibe "CPF inválido. Verifique os números digitados." e impede avanço. |
+| **Condições** | Validação roda em ambos os formatos de checkout. Não se aplica ao cadastro de cliente no painel admin (campo livre). |
+| **Afeta** | `pagarme-create-charge`, `mercadopago-create-charge`, `pagbank-create-charge` — CPFs inválidos nunca mais chegam às operadoras |
+| **Erros/Edge cases** | CPFs com todos os dígitos iguais são rejeitados. CPFs com menos de 11 dígitos são rejeitados. Campo vazio exibe "CPF é obrigatório". |
+
+### Utilitário `formatCpf.ts`
+
+| Função | Descrição |
+|--------|-----------|
+| `extractCpfDigits(value)` | Remove tudo que não é dígito |
+| `formatCpf(value)` | Aplica máscara `000.000.000-00` |
+| `isValidCpf(value)` | Validação completa: 11 dígitos + rejeita repetidos + dígitos verificadores (módulo 11) |
+| `handleCpfInput(value)` | Para uso em `onChange` — limita a 11 dígitos e aplica máscara |
