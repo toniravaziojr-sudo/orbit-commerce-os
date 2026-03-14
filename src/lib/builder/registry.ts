@@ -708,16 +708,19 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'string',
         label: 'Título',
         placeholder: 'Texto principal do banner',
+        aiFillable: { hint: 'Título principal do banner, 3-8 palavras impactantes', format: 'text' },
       },
       subtitle: {
         type: 'string',
         label: 'Subtítulo',
         placeholder: 'Texto secundário',
+        aiFillable: { hint: 'Subtítulo do banner, 1 frase complementar ao título', format: 'text' },
       },
       buttonText: {
         type: 'string',
         label: 'Texto do Botão',
         placeholder: 'Ex: Ver Produtos',
+        aiFillable: { hint: 'Call-to-action curto, 2-4 palavras', format: 'cta' },
       },
       buttonUrl: {
         type: 'string',
