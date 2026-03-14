@@ -2243,11 +2243,25 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'string',
         label: 'Título',
         defaultValue: 'O que nossos clientes dizem',
+        aiFillable: { hint: 'Título da seção de avaliações', format: 'text' },
       },
       reviews: {
         type: 'array',
         label: 'Avaliações',
         defaultValue: [],
+        aiFillable: {
+          hint: 'Avaliações de clientes realistas e positivas',
+          minItems: 3,
+          maxItems: 5,
+          itemSchema: {
+            name: { hint: 'Nome brasileiro realista (ex: Maria S.)', enabled: true },
+            rating: { hint: 'Nota 4 ou 5', enabled: true },
+            text: { hint: 'Avaliação positiva em 1-2 frases', enabled: true },
+            productName: { hint: '', enabled: false },
+            productUrl: { hint: '', enabled: false },
+            productImage: { hint: '', enabled: false },
+          },
+        },
       },
       visibleCount: {
         type: 'number',
