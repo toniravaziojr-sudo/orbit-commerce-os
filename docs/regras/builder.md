@@ -119,7 +119,10 @@ O toolbar do builder possui dois botões distintos para visualização:
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                    BOTÕES DE VISUALIZAÇÃO                               │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  [Preview]     → shopsOrigin (tenant.shops.domain) + path + ?preview=1 │
+│  [Preview]     → primaryOrigin (custom domain ou platform subdomain)   │
+│                  + path + ?preview=1                                    │
+│                  Usa primaryOrigin para evitar 301 redirect do Worker   │
+│                  que remove ?preview=1                                  │
 │  [Ver loja]    → primaryOrigin + path (sem parâmetro preview)          │
 │                                                                          │
 │  isPublished = false → apenas [Preview] visível                         │
