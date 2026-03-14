@@ -3198,8 +3198,8 @@ const blockDefinitions: BlockDefinition[] = [
       discountCode: 'BEMVINDO10',
     },
     propsSchema: {
-      title: { type: 'string', label: 'Título' },
-      subtitle: { type: 'string', label: 'Subtítulo' },
+      title: { type: 'string', label: 'Título', aiFillable: { hint: 'Título chamativo para o popup', format: 'text' } },
+      subtitle: { type: 'string', label: 'Subtítulo', aiFillable: { hint: 'Subtítulo com benefício/incentivo', format: 'text' } },
       type: {
         type: 'select',
         label: 'Tipo',
