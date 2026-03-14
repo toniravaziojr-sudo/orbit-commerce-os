@@ -168,16 +168,19 @@ export default function PageBuilder() {
     },
   };
 
-  // Priority: Use page's own content (imported pages) > template content > undefined
+  // Priority: draft_content (editor working copy) > page content (published) > template content > undefined
+  const pageDraftContent = page.draft_content as unknown as BlockNode | null;
   const pageOwnContent = page.content as unknown as BlockNode | null;
   const templateId = page.template_id;
   const template = page.page_templates as { id: string; content: Json; name: string } | null;
   
-  const initialContent = pageOwnContent 
-    ? pageOwnContent 
-    : template?.content 
-      ? (template.content as unknown as BlockNode)
-      : undefined;
+  const initialContent = pageDraftContent
+    ? pageDraftContent
+    : pageOwnContent 
+      ? pageOwnContent 
+      : template?.content 
+        ? (template.content as unknown as BlockNode)
+        : undefined;
 
   // Determine pageType based on the actual page type
   // For page overrides to work correctly, we need to pass the correct pageType

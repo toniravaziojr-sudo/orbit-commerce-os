@@ -300,7 +300,7 @@ export function useSaveDraft() {
             if (!previous) return previous;
             return {
               ...previous,
-              content: variables.content as unknown as Json,
+              draft_content: variables.content as unknown as Json,
               updated_at: new Date().toISOString(),
             };
           }
