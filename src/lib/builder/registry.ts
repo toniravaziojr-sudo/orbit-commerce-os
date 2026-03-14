@@ -811,6 +811,7 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'richtext',
         label: 'Conteúdo',
         defaultValue: '<p>Digite seu conteúdo aqui...</p>',
+        aiFillable: { hint: 'Conteúdo informativo em HTML simples (p, strong, ul, li, h2, h3). 2-4 parágrafos.', format: 'html' },
       },
       fontFamily: {
         type: 'select',
