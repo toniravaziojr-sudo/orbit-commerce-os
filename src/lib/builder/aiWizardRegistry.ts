@@ -196,7 +196,7 @@ const BANNER_CAROUSEL_CONTRACT: WizardBlockContract = {
       label: 'Quantos slides?',
       required: true,
       min: 1,
-      max: 5,
+      max: 3,
       defaultValue: 3,
     },
     {
