@@ -33,6 +33,8 @@ import {
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { useAIBlockFill } from '@/hooks/useAIBlockFill';
+import { getWizardContract } from '@/lib/builder/aiWizardRegistry';
+import { AIFillWizardDialog } from './ai-wizard/AIFillWizardDialog';
 import { Sparkles, Loader2 } from 'lucide-react';
 
 interface PropsEditorProps {
