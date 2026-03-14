@@ -2984,7 +2984,7 @@ const blockDefinitions: BlockDefinition[] = [
       },
       showAddress: { type: 'boolean', label: 'Mostrar Endereço', defaultValue: true },
       showDirectionsButton: { type: 'boolean', label: 'Botão "Como Chegar"', defaultValue: true },
-      directionsButtonText: { type: 'string', label: 'Texto do Botão' },
+      directionsButtonText: { type: 'string', label: 'Texto do Botão', aiFillable: { hint: 'Texto do botão de direções', format: 'cta' } },
       layout: {
         type: 'select',
         label: 'Layout',
