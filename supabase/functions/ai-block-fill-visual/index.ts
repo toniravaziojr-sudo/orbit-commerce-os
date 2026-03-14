@@ -1,6 +1,6 @@
 // =============================================
-// AI BLOCK FILL VISUAL v2.0.0 — Phase 3.3
-// Supports scope (images/texts/all) + expanded product data
+// AI BLOCK FILL VISUAL v2.1.0 — Phase 3.3 Grounding Fix
+// Fixes: real product images, enriched tenant context, multimodal reference
 // Server-side registry: backend resolve contrato internamente
 // Frontend envia: blockType, mode, scope, collectedData, tenantId
 // =============================================
@@ -9,7 +9,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 
-const VERSION = "2.0.0";
+const VERSION = "2.1.0";
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MAX_BRIEFING_LENGTH = 500;
 
@@ -66,6 +66,8 @@ interface ProductContext {
   name: string;
   description?: string;
   slug?: string;
+  price?: number;
+  compareAtPrice?: number;
   mainImageUrl?: string;
 }
 
@@ -74,24 +76,50 @@ interface CategoryContext {
   slug?: string;
 }
 
+interface StoreContext {
+  storeName: string;
+  storeDescription?: string;
+}
+
 async function fetchProductContext(supabase: any, productId: string): Promise<ProductContext | null> {
-  const { data } = await supabase
+  // Fetch product base data
+  const { data: product } = await supabase
     .from("products")
-    .select("name, description, slug, images")
+    .select("name, description, slug, price, compare_at_price")
     .eq("id", productId)
     .single();
-  if (!data) return null;
+  if (!product) return null;
   
-  let mainImageUrl: string | undefined;
-  if (Array.isArray(data.images) && data.images.length > 0) {
-    mainImageUrl = data.images[0]?.url || data.images[0];
-  }
+  // Fetch primary image from product_images table (source of truth)
+  const { data: images } = await supabase
+    .from("product_images")
+    .select("url, is_primary, sort_order")
+    .eq("product_id", productId)
+    .order("is_primary", { ascending: false })
+    .order("sort_order", { ascending: true })
+    .limit(1);
+  
+  const mainImageUrl = images?.[0]?.url || undefined;
   
   return {
-    name: data.name,
-    description: data.description || undefined,
-    slug: data.slug || undefined,
+    name: product.name,
+    description: product.description || undefined,
+    slug: product.slug || undefined,
+    price: product.price || undefined,
+    compareAtPrice: product.compare_at_price || undefined,
     mainImageUrl,
+  };
+}
+
+async function fetchStoreContext(supabase: any, tenantId: string): Promise<StoreContext> {
+  const { data } = await supabase
+    .from("store_settings")
+    .select("store_name, store_description")
+    .eq("tenant_id", tenantId)
+    .single();
+  return {
+    storeName: data?.store_name || "Loja",
+    storeDescription: data?.store_description || undefined,
   };
 }
 
@@ -113,7 +141,19 @@ async function callImageModel(
   lovableApiKey: string,
   model: string,
   prompt: string,
+  referenceImageUrl?: string,
 ): Promise<string | null> {
+  // Build content: text-only or multimodal (text + image reference)
+  let content: any;
+  if (referenceImageUrl) {
+    content = [
+      { type: 'text', text: prompt },
+      { type: 'image_url', image_url: { url: referenceImageUrl } },
+    ];
+  } else {
+    content = prompt;
+  }
+
   const response = await fetch(LOVABLE_GATEWAY_URL, {
     method: 'POST',
     headers: {
@@ -122,7 +162,7 @@ async function callImageModel(
     },
     body: JSON.stringify({
       model,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content }],
       modalities: ['image', 'text'],
     }),
   });
@@ -174,7 +214,7 @@ async function uploadImageToStorage(
 }
 
 // =============================================
-// IMAGE PROMPT BUILDER — Uses real product data
+// IMAGE PROMPT BUILDER — Uses real product data + store context
 // =============================================
 
 function buildBannerImagePrompt(
@@ -184,7 +224,7 @@ function buildBannerImagePrompt(
     product?: ProductContext | null;
     category?: CategoryContext | null;
     associationType?: string;
-    storeName: string;
+    store: StoreContext;
     slideIndex?: number;
   }
 ): string {
@@ -193,14 +233,33 @@ function buildBannerImagePrompt(
     ? `HORIZONTAL PAISAGEM (${spec.width}x${spec.height}px, ultra-wide)`
     : `VERTICAL RETRATO (${spec.width}x${spec.height}px)`;
 
-  let contextLine = 'Banner institucional/promocional.';
+  // Build rich product context
+  let contextLine = 'Banner institucional/promocional genérico para a loja.';
+  let productImageNote = '';
   if (context.product) {
-    contextLine = `Produto: "${context.product.name}".`;
+    contextLine = `PRODUTO REAL: "${context.product.name}".`;
     if (context.product.description) {
-      contextLine += ` Descrição: "${context.product.description.substring(0, 200)}".`;
+      contextLine += `\nDescrição do produto: "${context.product.description.substring(0, 300)}".`;
+    }
+    if (context.product.price) {
+      const formattedPrice = `R$ ${context.product.price.toFixed(2).replace('.', ',')}`;
+      contextLine += `\nPreço: ${formattedPrice}.`;
+      if (context.product.compareAtPrice && context.product.compareAtPrice > context.product.price) {
+        const formattedOldPrice = `R$ ${context.product.compareAtPrice.toFixed(2).replace('.', ',')}`;
+        contextLine += ` (de ${formattedOldPrice})`;
+      }
+    }
+    if (context.product.mainImageUrl) {
+      productImageNote = `\nIMPORTANTE: Uma imagem de referência do produto REAL foi fornecida junto com este prompt. O banner DEVE representar visualmente ESTE produto específico. Observe as características visuais (cor, forma, embalagem, textura) da imagem de referência e reproduza-as fielmente no banner.`;
     }
   } else if (context.category) {
-    contextLine = `Categoria: "${context.category.name}".`;
+    contextLine = `Categoria: "${context.category.name}". O banner deve representar produtos desta categoria.`;
+  }
+
+  // Store identity
+  let storeIdentity = `Loja: "${context.store.storeName}".`;
+  if (context.store.storeDescription) {
+    storeIdentity += `\nSobre a loja: "${context.store.storeDescription.substring(0, 200)}".`;
   }
 
   const briefingLine = context.briefing
@@ -214,8 +273,9 @@ function buildBannerImagePrompt(
   return `BANNER PROFISSIONAL PARA E-COMMERCE — ${orientation}
 
 TAREFA: Criar uma imagem fotorrealista premium para banner de loja virtual.
-Loja: "${context.storeName}".
+${storeIdentity}
 ${contextLine}
+${productImageNote}
 ${briefingLine}
 ${slideNote}
 
@@ -223,10 +283,10 @@ COMPOSIÇÃO (${orientation}):
 ${isDesktop
     ? `- Layout ultra-wide (21:9 aprox). Cenário profissional de e-commerce.
 - Lado esquerdo (60%) mais escuro/com gradiente para acomodar texto branco sobreposto.
-- Lado direito (40%) com elementos visuais relevantes ao contexto.`
+- Lado direito (40%) com o produto/elementos visuais em destaque.`
     : `- Layout vertical para mobile.
 - Terço superior levemente mais escuro para texto sobreposto.
-- Centro e inferior com elementos visuais relevantes.`}
+- Centro e inferior com o produto/elementos visuais em destaque.`}
 
 ESTILO:
 - Fotografia comercial profissional, iluminação de estúdio
@@ -253,7 +313,7 @@ async function generateTexts(
     product?: ProductContext | null;
     category?: CategoryContext | null;
     associationType?: string;
-    storeName: string;
+    store: StoreContext;
     slideCount?: number;
   },
   options: { supabaseUrl: string; supabaseServiceKey: string },
@@ -267,9 +327,18 @@ async function generateTexts(
     if (context.product.description) {
       contextInfo += ` Descrição: "${context.product.description.substring(0, 300)}".`;
     }
-    contextInfo += ' IMPORTANTE: Use o nome EXATO do produto. Não invente outro nome.';
+    if (context.product.price) {
+      const formatted = `R$ ${context.product.price.toFixed(2).replace('.', ',')}`;
+      contextInfo += ` Preço: ${formatted}.`;
+    }
+    contextInfo += ' IMPORTANTE: Use o nome EXATO do produto. Não invente outro nome ou produto.';
   } else if (context.category) {
     contextInfo = `Categoria REAL: "${context.category.name}". Use o nome EXATO da categoria.`;
+  }
+
+  let storeInfo = `Loja: "${context.store.storeName}".`;
+  if (context.store.storeDescription) {
+    storeInfo += ` Sobre: "${context.store.storeDescription.substring(0, 200)}".`;
   }
 
   if (context.mode === 'carousel' && context.slideCount) {
@@ -305,7 +374,7 @@ async function generateTexts(
     }];
 
     const systemPrompt = `Você é um copywriter de e-commerce profissional. Gere textos em português brasileiro para banners de loja virtual.
-Loja: "${context.storeName}".
+${storeInfo}
 ${context.briefing ? `Briefing: "${context.briefing}".` : ''}
 ${contextInfo}
 Cada slide deve ter textos distintos e complementares entre si.`;
@@ -354,7 +423,7 @@ Cada slide deve ter textos distintos e complementares entre si.`;
   }];
 
   const systemPrompt = `Você é um copywriter de e-commerce profissional. Gere textos em português brasileiro para um banner hero de loja virtual.
-Loja: "${context.storeName}".
+${storeInfo}
 ${context.briefing ? `Briefing: "${context.briefing}".` : ''}
 ${contextInfo}`;
 
@@ -445,13 +514,9 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // --- Store name ---
-    const { data: storeSettings } = await supabase
-      .from("store_settings")
-      .select("store_name")
-      .eq("tenant_id", tenantId)
-      .single();
-    const storeName = storeSettings?.store_name || "Loja";
+    // --- Store context (name + description) ---
+    const storeCtx = await fetchStoreContext(supabase, tenantId);
+    console.log(`[ai-block-fill-visual] Store: "${storeCtx.storeName}", desc: ${storeCtx.storeDescription ? 'yes' : 'no'}`);
 
     // --- Resolve association context with FULL product/category data ---
     let productCtx: ProductContext | null = null;
@@ -486,13 +551,15 @@ serve(async (req) => {
             product: productCtx,
             category: categoryCtx,
             associationType,
-            storeName,
+            store: storeCtx,
           });
 
-          let dataUrl = await callImageModel(lovableApiKey, "google/gemini-3-pro-image-preview", prompt);
+          // Pass product image as multimodal reference when available
+          const refImage = productCtx?.mainImageUrl || undefined;
+          let dataUrl = await callImageModel(lovableApiKey, "google/gemini-3-pro-image-preview", prompt, refImage);
           if (!dataUrl) {
             console.log(`[ai-block-fill-visual] Pro failed for ${spec.key}, trying flash...`);
-            dataUrl = await callImageModel(lovableApiKey, "google/gemini-2.5-flash-image", prompt);
+            dataUrl = await callImageModel(lovableApiKey, "google/gemini-2.5-flash-image", prompt, refImage);
           }
           if (!dataUrl) {
             throw new Error(`Failed to generate image: ${spec.key}`);
@@ -523,7 +590,7 @@ serve(async (req) => {
           product: productCtx,
           category: categoryCtx,
           associationType,
-          storeName,
+          store: storeCtx,
         }, { supabaseUrl, supabaseServiceKey });
 
         if (contract.aiGenerates.includes('title')) {
@@ -610,13 +677,15 @@ serve(async (req) => {
                   product: slideContexts[i]?.product,
                   category: slideContexts[i]?.category,
                   associationType: slideContexts[i]?.associationType,
-                  storeName,
+                  store: storeCtx,
                   slideIndex: i,
                 });
 
-                let dataUrl = await callImageModel(lovableApiKey, "google/gemini-3-pro-image-preview", prompt);
+                // Pass product image as multimodal reference when available
+                const refImage = slideContexts[i]?.product?.mainImageUrl || undefined;
+                let dataUrl = await callImageModel(lovableApiKey, "google/gemini-3-pro-image-preview", prompt, refImage);
                 if (!dataUrl) {
-                  dataUrl = await callImageModel(lovableApiKey, "google/gemini-2.5-flash-image", prompt);
+                  dataUrl = await callImageModel(lovableApiKey, "google/gemini-2.5-flash-image", prompt, refImage);
                 }
                 if (!dataUrl) {
                   throw new Error(`Failed to generate image: slide ${i} ${spec.key}`);
@@ -650,7 +719,7 @@ serve(async (req) => {
           product: slideContexts[0]?.product,
           category: slideContexts[0]?.category,
           associationType: slideContexts[0]?.associationType,
-          storeName,
+          store: storeCtx,
           slideCount,
         }, { supabaseUrl, supabaseServiceKey });
         textSlides = (textResult as any).slides || [];
