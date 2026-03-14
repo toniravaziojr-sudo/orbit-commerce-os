@@ -355,9 +355,25 @@ serve(async (req) => {
       : undefined;
 
     // --- Environment ---
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error("[ai-block-fill-visual] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+      return new Response(
+        JSON.stringify({ success: false, error: "Configuração do servidor incompleta (Supabase)" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    if (!lovableApiKey) {
+      console.error("[ai-block-fill-visual] Missing LOVABLE_API_KEY");
+      return new Response(
+        JSON.stringify({ success: false, error: "Chave de IA não configurada no servidor" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // --- Store name ---
