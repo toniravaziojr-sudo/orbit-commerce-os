@@ -710,3 +710,23 @@ As seguintes tabelas estão **sem nenhuma policy anônima** (nem INSERT, nem SEL
 **Toda** leitura e escrita nessas tabelas passa por Edge Functions com `service_role`.
 
 > Para detalhes dos padrões de segurança aplicáveis, consultar: `docs/regras/edge-functions.md` → seção "Padrões de Segurança — Acesso a Dados Sensíveis".
+
+---
+
+## 🔧 Correção: Propagação de quote_id no CheckoutShipping (2026-03-13)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Correção de Bug |
+| **Localização** | `src/components/storefront/checkout/CheckoutShipping.tsx` |
+| **Contexto** | Cálculo de frete na página de checkout |
+| **Problema** | O componente `CheckoutShipping` chamava `setShippingOptions(options)` sem passar o `quoteId` retornado pela cotação assíncrona (Frenet/multi). Isso fazia com que `shipping.quoteId` ficasse sempre `null` quando o frete era calculado no checkout (e não no carrinho). Como consequência, o servidor nunca recebia `shipping_quote_id`, impedindo a validação canônica de frete e o vínculo `used_by_order_id` na tabela `shipping_quotes`. |
+| **Segundo problema** | O `cartItems` montado no `CheckoutShipping` não incluía `product_id`, `variant_id`, `free_shipping` e `free_shipping_method`, impedindo o motor de frete grátis por produto de funcionar corretamente no checkout. |
+| **Correção** | (1) Extrair `quote_id` do resultado assíncrono e passá-lo como segundo argumento de `setShippingOptions`. (2) Incluir campos completos (`product_id`, `variant_id`, `free_shipping`, `free_shipping_method`) no `cartItems` enviado ao `quoteAsync`. |
+| **Comparação** | O componente `ShippingEstimator` (carrinho) já fazia ambas as coisas corretamente. O `CheckoutShipping` estava desatualizado. |
+| **Afeta** | `order_price_audit.shipping_quote_id`, `shipping_quotes.used_by_order_id`, `orders.shipping_quote_id` |
+| **Resultado** | Todos os pedidos criados a partir de agora terão `shipping_quote_id` preenchido quando o frete for calculado via Frenet/multi. |
+
+### Nota sobre cobertura de auditoria (order_price_audit)
+
+O código de auditoria de preços no `checkout-create-order` foi reimplantado em 2026-03-13. Pedidos anteriores (#1-#32) foram criados antes da existência deste código. O pedido #33 foi o primeiro a registrar auditoria com sucesso. A reimplantação garante que todos os pedidos futuros gerem registros de auditoria automaticamente.
