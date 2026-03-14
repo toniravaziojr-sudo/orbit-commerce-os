@@ -77,9 +77,22 @@ export function PropsEditor({
   pageType,
   blockType,
   isCheckoutContext = false,
+  tenantId,
+  pageName,
 }: PropsEditorProps) {
   const [noticeOpen, setNoticeOpen] = useState(false);
-  
+
+  // AI Block Fill hook
+  const { fill, isLoading: isAILoading, hasFillableProps } = useAIBlockFill({
+    tenantId: tenantId || '',
+    blockType: definition.type,
+    currentProps: props,
+    propsSchema: definition.propsSchema,
+    pageContext: {
+      pageName,
+      pageType,
+    },
+  });
   const handleChange = (key: string, value: unknown) => {
     onChange({ ...props, [key]: value });
   };
