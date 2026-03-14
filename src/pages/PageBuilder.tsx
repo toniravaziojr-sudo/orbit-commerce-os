@@ -38,6 +38,7 @@ export default function PageBuilder() {
     enabled: !!pageId,
   });
 
+
   // CRITICAL: Fetch active templateSetId for theme injection
   // Without this, useBuilderThemeInjector falls back to defaults
   const { data: activeTemplateSetId } = useQuery({
@@ -168,12 +169,10 @@ export default function PageBuilder() {
   };
 
   // Priority: Use page's own content (imported pages) > template content > undefined
-  // Imported pages have their content in the 'content' field as block structure
   const pageOwnContent = page.content as unknown as BlockNode | null;
   const templateId = page.template_id;
   const template = page.page_templates as { id: string; content: Json; name: string } | null;
   
-  // Get initial content - prioritize page's own content for imported pages
   const initialContent = pageOwnContent 
     ? pageOwnContent 
     : template?.content 
