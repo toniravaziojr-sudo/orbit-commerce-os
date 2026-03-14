@@ -314,10 +314,7 @@ export function useSaveDraft() {
         queryClient.invalidateQueries({ queryKey: ['store-page', variables.pageId] });
       }
 
-      // Fire-and-forget cache purge for institutional/landing pages (save = publish for these)
-      if (currentTenant?.id && (variables.pageType === 'institutional' || variables.pageType === 'landing_page')) {
-        cachePurge.template(currentTenant.id);
-      }
+      // No cache purge on draft save - only on publish
 
       toast({ title: 'Rascunho salvo!' });
     },
