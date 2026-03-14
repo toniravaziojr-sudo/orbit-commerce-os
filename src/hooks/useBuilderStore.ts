@@ -3,6 +3,7 @@
 // =============================================
 
 import { useState, useCallback, useMemo } from 'react';
+import { flushSync } from 'react-dom';
 import type { BlockNode } from '@/lib/builder/types';
 import { 
   cloneBlockNode, 
@@ -120,78 +121,80 @@ export function useBuilderStore(initialContent?: BlockNode) {
     // We use a ref-like pattern with an object that gets mutated inside setState.
     const resultRef = { ok: false, blockId: undefined as string | undefined, reason: 'Erro desconhecido' };
 
-    setState(prev => {
-      // CRITICAL: Use structuredClone for full immutability (new reference)
-      const clonedContent = structuredClone(prev.content);
-      
-      // Resolve the correct parent and index using current state
-      let targetParentId: string;
-      let targetIndex: number | undefined;
-      
-      if (parentId !== undefined) {
-        // Explicit parent provided
-        targetParentId = parentId;
-        targetIndex = index;
-      } else {
-        // Resolve the best insert target based on current selection
-        const resolved = resolveInsertTarget(clonedContent, prev.selectedBlockId);
-        targetParentId = resolved.parentId;
-        targetIndex = resolved.index;
-      }
-      
-      console.log('[addBlock] Current content:', { 
-        contentId: clonedContent.id, 
-        contentType: clonedContent.type,
-        childrenCount: clonedContent.children?.length,
-        targetParentId,
-        targetIndex,
-        selectedBlockId: prev.selectedBlockId
+    flushSync(() => {
+      setState(prev => {
+        // CRITICAL: Use structuredClone for full immutability (new reference)
+        const clonedContent = structuredClone(prev.content);
+        
+        // Resolve the correct parent and index using current state
+        let targetParentId: string;
+        let targetIndex: number | undefined;
+        
+        if (parentId !== undefined) {
+          // Explicit parent provided
+          targetParentId = parentId;
+          targetIndex = index;
+        } else {
+          // Resolve the best insert target based on current selection
+          const resolved = resolveInsertTarget(clonedContent, prev.selectedBlockId);
+          targetParentId = resolved.parentId;
+          targetIndex = resolved.index;
+        }
+        
+        console.log('[addBlock] Current content:', { 
+          contentId: clonedContent.id, 
+          contentType: clonedContent.type,
+          childrenCount: clonedContent.children?.length,
+          targetParentId,
+          targetIndex,
+          selectedBlockId: prev.selectedBlockId
+        });
+        
+        const newContent = addBlockChild(clonedContent, targetParentId, newBlock, targetIndex);
+        
+        // Verify block was added AND reference changed
+        const addedBlock = findBlockById(newContent, newBlock.id);
+        const referenceChanged = newContent !== prev.content;
+        
+        if (!addedBlock) {
+          console.error('[addBlock] Block was NOT added! Parent not found or addBlockChild failed.');
+          console.groupCollapsed('[ADD_BLOCK_FAIL] Diagnostic');
+          console.log('targetParentId:', targetParentId);
+          console.log('targetIndex:', targetIndex);
+          console.log('prevContentId:', prev.content.id);
+          console.log('newContentId:', newContent.id);
+          console.log('childrenCount before:', prev.content.children?.length);
+          console.log('childrenCount after:', newContent.children?.length);
+          console.groupEnd();
+          resultRef.ok = false;
+          resultRef.reason = `Não foi possível inserir no container "${targetParentId}"`;
+          return prev;
+        }
+        
+        console.log('[addBlock] Block added successfully:', { 
+          newBlockId: newBlock.id, 
+          newChildrenCount: newContent.children?.length,
+          referenceChanged 
+        });
+        
+        const newHistory = prev.history.slice(0, prev.historyIndex + 1);
+        newHistory.push(cloneBlockNode(newContent));
+        if (newHistory.length > MAX_HISTORY) newHistory.shift();
+        
+        // CRITICAL: Mutate the resultRef object so it's captured synchronously
+        resultRef.ok = true;
+        resultRef.blockId = newBlock.id;
+        resultRef.reason = undefined;
+        
+        return {
+          ...prev,
+          content: newContent,
+          selectedBlockId: newBlock.id,
+          history: newHistory,
+          historyIndex: newHistory.length - 1,
+          isDirty: true,
+        };
       });
-      
-      const newContent = addBlockChild(clonedContent, targetParentId, newBlock, targetIndex);
-      
-      // Verify block was added AND reference changed
-      const addedBlock = findBlockById(newContent, newBlock.id);
-      const referenceChanged = newContent !== prev.content;
-      
-      if (!addedBlock) {
-        console.error('[addBlock] Block was NOT added! Parent not found or addBlockChild failed.');
-        console.groupCollapsed('[ADD_BLOCK_FAIL] Diagnostic');
-        console.log('targetParentId:', targetParentId);
-        console.log('targetIndex:', targetIndex);
-        console.log('prevContentId:', prev.content.id);
-        console.log('newContentId:', newContent.id);
-        console.log('childrenCount before:', prev.content.children?.length);
-        console.log('childrenCount after:', newContent.children?.length);
-        console.groupEnd();
-        resultRef.ok = false;
-        resultRef.reason = `Não foi possível inserir no container "${targetParentId}"`;
-        return prev;
-      }
-      
-      console.log('[addBlock] Block added successfully:', { 
-        newBlockId: newBlock.id, 
-        newChildrenCount: newContent.children?.length,
-        referenceChanged 
-      });
-      
-      const newHistory = prev.history.slice(0, prev.historyIndex + 1);
-      newHistory.push(cloneBlockNode(newContent));
-      if (newHistory.length > MAX_HISTORY) newHistory.shift();
-      
-      // CRITICAL: Mutate the resultRef object so it's captured synchronously
-      resultRef.ok = true;
-      resultRef.blockId = newBlock.id;
-      resultRef.reason = undefined;
-      
-      return {
-        ...prev,
-        content: newContent,
-        selectedBlockId: newBlock.id,
-        history: newHistory,
-        historyIndex: newHistory.length - 1,
-        isDirty: true,
-      };
     });
 
     // Return the mutated result object
