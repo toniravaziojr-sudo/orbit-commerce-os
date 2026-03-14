@@ -1,6 +1,6 @@
 // =============================================
-// AI BLOCK FILL VISUAL v2.0.0 — Phase 3.3
-// Supports scope (images/texts/all) + expanded product data
+// AI BLOCK FILL VISUAL v2.1.0 — Phase 3.3 Grounding Fix
+// Fixes: real product images, enriched tenant context, multimodal reference
 // Server-side registry: backend resolve contrato internamente
 // Frontend envia: blockType, mode, scope, collectedData, tenantId
 // =============================================
@@ -9,7 +9,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 
-const VERSION = "2.0.0";
+const VERSION = "2.1.0";
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MAX_BRIEFING_LENGTH = 500;
 
