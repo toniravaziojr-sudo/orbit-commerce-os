@@ -719,3 +719,6 @@ verify_jwt = false
 
 [functions.ai-block-fill]
 verify_jwt = false
+
+[functions.ai-block-fill-visual]
+verify_jwt = false

@@ -365,6 +365,8 @@ export function PropsEditor({
           blockType={definition.type}
           blockLabel={definition.label}
           currentProps={props}
+          tenantId={tenantId || ''}
+          onGenerated={(mergedProps) => onChange(mergedProps)}
         />
       )}
     </div>

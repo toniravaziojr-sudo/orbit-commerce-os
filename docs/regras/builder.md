@@ -3735,6 +3735,80 @@ O botão "✨ IA" no cabeçalho do PropsEditor verifica:
 | Step Confirm (resumo) | ✅ |
 | Hook useAIBlockWizard | ✅ |
 | Integração no PropsEditor | ✅ |
-| Geração real de imagens | ❌ (Fase 3.2) |
-| Edge function ai-block-fill-visual | ❌ (Fase 3.2) |
+| Geração real de imagens | ✅ (Fase 3.2) |
+| Edge function ai-block-fill-visual | ✅ (Fase 3.2) |
+| Hook useAIWizardGenerate | ✅ (Fase 3.2) |
 | Loading com progresso | ❌ (Fase 3.4) |
+
+---
+
+## Fase 3.2: Geração Visual do Wizard (Banner)
+
+### Princípio de Segurança (Trust Boundary)
+
+**O backend NÃO confia no contrato vindo do frontend.**
+O frontend envia apenas `blockType`, `mode` e `collectedData`.
+O backend resolve internamente o contrato permitido a partir do `SERVER_CONTRACTS` (registry server-side).
+
+### Escopo
+
+| Item | Status |
+|------|--------|
+| Edge function `ai-block-fill-visual` | ✅ |
+| Registry server-side (`SERVER_CONTRACTS`) | ✅ |
+| Banner single (2 imagens + texto) | ✅ |
+| Banner carousel (até 3 slides × 2 imagens + texto) | ✅ |
+| Hook `useAIWizardGenerate` | ✅ |
+| Whitelist merge no frontend | ✅ |
+| Loading state no wizard | ✅ |
+| `linkUrl` derivado pelo sistema (nunca pela IA) | ✅ |
+| Partial success | ❌ (não nesta fase) |
+| Outros blocos visuais | ❌ (Fase 3.3) |
+
+### Arquitetura
+
+```text
+Frontend (Wizard confirm step)
+  │
+  └─ supabase.functions.invoke('ai-block-fill-visual', {
+       blockType, mode, collectedData, tenantId
+     })
+       │
+       ├─ 1. Backend resolve contrato via SERVER_CONTRACTS[blockType:mode]
+       │     Rejeita blockType/mode desconhecido com 400
+       │
+       ├─ 2. Gera imagens (Gemini Image Pro → fallback Flash)
+       │     Desktop (1920×700) + Mobile (750×420) por slide
+       │     Upload para store-assets/{tenantId}/block-creatives/
+       │
+       ├─ 3. Gera textos (aiChatCompletionJSON via ai-router)
+       │     Tool calling para título/subtítulo/CTA
+       │
+       └─ 4. Retorna { success, generatedProps }
+              generatedProps só contém keys da whitelist server-side
+```
+
+### Componentes
+
+| Tipo | Nome | Localização | Descrição |
+|------|------|-------------|-----------|
+| Edge Function | ai-block-fill-visual | `supabase/functions/ai-block-fill-visual/index.ts` | Gera imagens e textos para blocos visuais com registry server-side |
+| Hook | useAIWizardGenerate | `src/hooks/useAIWizardGenerate.ts` | Chama edge function e aplica whitelist merge no frontend |
+
+### Regras de Merge
+
+1. Backend gera `generatedProps` filtrado pela whitelist server-side
+2. Frontend aplica segundo filtro via `contract.aiGenerates` (defesa em profundidade)
+3. `linkUrl` de cada slide é derivado da associação (sistema), NUNCA da IA
+4. Para carousel, backend limita `slideCount` ao `maxSlides` do contrato (3)
+
+### Limites
+
+| Aspecto | Valor |
+|---------|-------|
+| Max slides no carousel | 3 |
+| Max imagens por execução | 6 (3 × desktop+mobile) |
+| Timeout budget | 130s |
+| Retry por imagem | 1 (pro → flash fallback) |
+| Partial success | Não — falha total se qualquer imagem falhar |
+| Briefing max chars | 500 |
