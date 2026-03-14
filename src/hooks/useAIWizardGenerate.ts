@@ -121,7 +121,9 @@ export function useAIWizardGenerate({
 
       if (error) {
         console.error('[useAIWizardGenerate] Edge function error:', error);
-        showErrorToast(error, { module: 'IA', action: 'gerar conteúdo visual' });
+        console.error('[useAIWizardGenerate] Error details:', JSON.stringify(error));
+        const errorMsg = typeof error === 'object' && error?.message ? error.message : 'Erro na chamada da função de geração';
+        showErrorToast(new Error(errorMsg), { module: 'IA', action: 'gerar conteúdo visual' });
         return null;
       }
 
