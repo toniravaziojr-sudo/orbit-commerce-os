@@ -1933,7 +1933,7 @@ serve(async (req) => {
     const tenantSlug = resolveResult.tenant_slug;
 
     // === STEP 1.5: Check pre-rendered pages (fast path) ===
-    const bypassPrerender = req.headers.get('x-prerender-bypass') === '1';
+    const bypassPrerender = req.headers.get('x-prerender-bypass') === '1' || isPreviewMode;
     const normalizedPath = path === '' ? '/' : path.replace(/\/+$/, '') || '/';
 
     if (!bypassPrerender) {
