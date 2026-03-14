@@ -2106,7 +2106,7 @@ serve(async (req) => {
       footer2: footer2Menu ? { name: footer2Menu.name, items: resolveMenuItems(footer2Menu.menu_items || []) } : { name: '', items: [] },
     };
 
-    if (!storeSettings?.is_published) {
+    if (!storeSettings?.is_published && !isPreviewMode) {
       return new Response(
         `<!DOCTYPE html><html><head><title>Loja em construção</title></head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;text-align:center;"><div><h1>Loja em construção</h1><p style="color:#666;">Esta loja ainda não está disponível para o público.</p></div></body></html>`,
         { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' } }
