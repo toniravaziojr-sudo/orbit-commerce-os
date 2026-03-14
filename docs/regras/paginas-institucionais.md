@@ -84,6 +84,22 @@ A listagem mescla 3 fontes em uma tabela única ordenada por `created_at`:
 | `useStorePages` | CRUD de páginas (create, update, delete) |
 | `usePageBuilder` | Gerenciamento de versões (draft/publish) |
 | `usePublicPageTemplate` | Busca página pública por slug |
+| `useBuilderData` | Salvamento de rascunho e carregamento de conteúdo do editor |
+
+---
+
+## Fluxo de Salvamento (Páginas Institucionais)
+
+1. O usuário adiciona/edita blocos no editor visual — as alterações ficam apenas na memória local.
+2. Ao clicar em **Salvar**, o conteúdo é gravado diretamente na coluna `content` da tabela `store_pages`.
+3. Após salvar com sucesso, o sistema **invalida obrigatoriamente** o cache da página (`['store-page', pageId]`), forçando o editor a recarregar os dados atualizados do banco.
+4. **Regra crítica:** Sem essa invalidação, o editor re-sincroniza com dados antigos em cache quando o estado de "alterações pendentes" muda para falso, causando o desaparecimento visual dos blocos recém-adicionados.
+
+| Arquivo | Responsabilidade |
+|---------|------------------|
+| `src/hooks/useBuilderData.ts` | Mutação de salvamento + invalidação de cache obrigatória |
+| `src/pages/PageBuilder.tsx` | Carregamento inicial do conteúdo da página |
+| `src/components/builder/VisualBuilder.tsx` | Orquestração do editor e sincronização de estado |
 
 ---
 
