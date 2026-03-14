@@ -302,6 +302,7 @@ export default function Pages() {
           title: aiPageName.trim(),
           slug,
           content: pageContent as any,
+          draft_content: pageContent as any,
           status: 'draft',
           is_published: false,
           type: 'landing_page',
