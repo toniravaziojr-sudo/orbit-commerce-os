@@ -1161,7 +1161,7 @@ function Step1PersonalData({
           <Input
             id="customerCpf"
             value={formData.customerCpf}
-            onChange={(e) => onChange('customerCpf', e.target.value)}
+            onChange={(e) => onChange('customerCpf', handleCpfInput(e.target.value))}
             placeholder="000.000.000-00"
             disabled={disabled}
             className={errors.customerCpf ? 'border-destructive' : ''}
