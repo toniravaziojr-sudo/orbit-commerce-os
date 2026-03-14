@@ -218,6 +218,28 @@ export function PropsEditor({
             <h3 className="font-semibold text-xs truncate">{definition.label}</h3>
             <p className="text-[10px] text-muted-foreground">Propriedades</p>
           </div>
+          {/* AI Fill button — only for blocks with aiFillable props and valid tenantId */}
+          {hasFillableProps && tenantId && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1 text-xs shrink-0"
+              disabled={isAILoading}
+              onClick={async () => {
+                const merged = await fill();
+                if (merged) {
+                  onChange(merged);
+                }
+              }}
+            >
+              {isAILoading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" />
+              )}
+              {isAILoading ? 'Gerando...' : 'IA'}
+            </Button>
+          )}
         </div>
       </div>
 
