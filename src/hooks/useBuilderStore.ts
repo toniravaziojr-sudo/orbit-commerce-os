@@ -3,6 +3,7 @@
 // =============================================
 
 import { useState, useCallback, useMemo } from 'react';
+import { flushSync } from 'react-dom';
 import type { BlockNode } from '@/lib/builder/types';
 import { 
   cloneBlockNode, 
