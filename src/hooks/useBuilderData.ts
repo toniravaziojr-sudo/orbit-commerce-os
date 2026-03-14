@@ -383,12 +383,13 @@ export function usePublish() {
         return 1;
       }
 
-      // Special handling for institutional/landing pages with direct content - save to store_pages.content
+      // Special handling for institutional/landing pages - publish: copy draft_content to content
       if ((pageType === 'institutional' || pageType === 'landing_page') && pageId) {
         const { error } = await supabase
           .from('store_pages')
           .update({ 
             content: content as unknown as Json,
+            draft_content: content as unknown as Json,
             is_published: true,
             status: 'published',
             updated_at: new Date().toISOString(),
