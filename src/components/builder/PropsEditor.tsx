@@ -83,8 +83,12 @@ export function PropsEditor({
   pageName,
 }: PropsEditorProps) {
   const [noticeOpen, setNoticeOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
 
-  // AI Block Fill hook
+  // Check if this block has a wizard contract (Group B)
+  const wizardContract = getWizardContract(definition.type, props);
+
+  // AI Block Fill hook (for Group A — text-only blocks)
   const { fill, isLoading: isAILoading, hasFillableProps } = useAIBlockFill({
     tenantId: tenantId || '',
     blockType: definition.type,
