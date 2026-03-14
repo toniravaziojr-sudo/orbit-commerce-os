@@ -290,11 +290,25 @@ export function useSaveDraft() {
       return newVersion;
     },
     onSuccess: (_data, variables) => {
+      // CRITICAL FIX: Update page cache synchronously before markClean/isDirty=false flows
+      // This prevents VisualBuilder from re-syncing with stale content in the same tick.
+      if (variables.pageId) {
+        queryClient.setQueryData(
+          ['store-page', variables.pageId],
+          (previous: Record<string, unknown> | undefined) => {
+            if (!previous) return previous;
+            return {
+              ...previous,
+              content: variables.content as unknown as Json,
+              updated_at: new Date().toISOString(),
+            };
+          }
+        );
+      }
+
       queryClient.invalidateQueries({ queryKey: ['template-version'] });
       queryClient.invalidateQueries({ queryKey: ['page-version-history'] });
       queryClient.invalidateQueries({ queryKey: ['page-templates'] });
-      // CRITICAL FIX: Invalidate store-page query for institutional pages
-      // Without this, the editor resets to stale cached content after save
       if (variables.pageId) {
         queryClient.invalidateQueries({ queryKey: ['store-page', variables.pageId] });
       }
