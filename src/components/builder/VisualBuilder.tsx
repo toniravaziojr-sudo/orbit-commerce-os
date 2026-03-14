@@ -128,6 +128,23 @@ function BuilderThemeInjectorInner({ tenantId, templateSetId, pageType }: { tena
   return null;
 }
 
+function getPersistedContentSignature(content: BlockNode, isCheckoutPage: boolean): string {
+  if (!content.children || isCheckoutPage) {
+    return JSON.stringify(content);
+  }
+
+  return JSON.stringify({
+    ...content,
+    children: content.children.filter(
+      child => child.type !== 'Header' && child.type !== 'Footer'
+    ),
+  });
+}
+
+function getRuntimeContentSignature(content: BlockNode): string {
+  return JSON.stringify(content);
+}
+
 export function VisualBuilder({
   tenantId,
   pageType,
