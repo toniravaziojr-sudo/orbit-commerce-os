@@ -355,6 +355,18 @@ export function PropsEditor({
           </p>
         )}
       </div>
+
+      {/* AI Wizard Dialog for Group B blocks */}
+      {wizardContract && (
+        <AIFillWizardDialog
+          open={wizardOpen}
+          onOpenChange={setWizardOpen}
+          contract={wizardContract}
+          blockType={definition.type}
+          blockLabel={definition.label}
+          currentProps={props}
+        />
+      )}
     </div>
   );
 }
