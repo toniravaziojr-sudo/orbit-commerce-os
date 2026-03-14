@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { sanitizeCep, isValidCep } from '@/lib/cepUtils';
 import { useCepLookup } from '@/hooks/useCepLookup';
+import { isValidCpf, handleCpfInput } from '@/lib/formatCpf';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { CepInput } from '@/components/storefront/shared/CepInput';
@@ -35,15 +36,7 @@ interface CheckoutFormProps {
   disabled?: boolean;
 }
 
-// Mask helpers
-function maskCpf(value: string): string {
-  return value
-    .replace(/\D/g, '')
-    .slice(0, 11)
-    .replace(/(\d{3})(\d)/, '$1.$2')
-    .replace(/(\d{3})(\d)/, '$1.$2')
-    .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-}
+// Mask helpers — CPF now uses shared utility
 
 function maskPhone(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -59,7 +52,7 @@ export function CheckoutForm({ data, onChange, errors, disabled = false }: Check
   const handleChange = (field: keyof CheckoutFormData, value: string) => {
     let nextValue = value;
 
-    if (field === 'customerCpf') nextValue = maskCpf(value);
+    if (field === 'customerCpf') nextValue = handleCpfInput(value);
     if (field === 'customerPhone') nextValue = maskPhone(value);
     if (field === 'shippingPostalCode') nextValue = sanitizeCep(value);
 
@@ -321,11 +314,10 @@ export function validateCheckoutForm(data: CheckoutFormData): Partial<Record<key
     errors.customerPhone = 'Telefone inválido';
   }
 
-  const cpfDigits = data.customerCpf.replace(/\D/g, '');
-  if (!cpfDigits) {
+  if (!data.customerCpf.replace(/\D/g, '')) {
     errors.customerCpf = 'CPF é obrigatório';
-  } else if (cpfDigits.length !== 11) {
-    errors.customerCpf = 'CPF inválido';
+  } else if (!isValidCpf(data.customerCpf)) {
+    errors.customerCpf = 'CPF inválido. Verifique os números digitados.';
   }
 
   const cepDigits = sanitizeCep(data.shippingPostalCode);

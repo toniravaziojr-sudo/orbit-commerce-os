@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useRef, Fragment } from 'react';
 import { sanitizeCep, isValidCep } from '@/lib/cepUtils';
+import { isValidCpf, handleCpfInput } from '@/lib/formatCpf';
 import { useCepLookup } from '@/hooks/useCepLookup';
 import { useNavigate, Link } from 'react-router-dom';
 import { useCart } from '@/contexts/CartContext';
@@ -391,7 +392,11 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
       if (!formData.customerEmail.trim()) errors.customerEmail = 'E-mail é obrigatório';
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.customerEmail)) errors.customerEmail = 'E-mail inválido';
       if (!formData.customerPhone.trim()) errors.customerPhone = 'Telefone é obrigatório';
-      if (!formData.customerCpf.trim()) errors.customerCpf = 'CPF é obrigatório';
+      if (!formData.customerCpf.replace(/\D/g, '')) {
+        errors.customerCpf = 'CPF é obrigatório';
+      } else if (!isValidCpf(formData.customerCpf)) {
+        errors.customerCpf = 'CPF inválido. Verifique os números digitados.';
+      }
       
       // No password validation in checkout - account creation moved to Thank You page
     }
@@ -1156,7 +1161,7 @@ function Step1PersonalData({
           <Input
             id="customerCpf"
             value={formData.customerCpf}
-            onChange={(e) => onChange('customerCpf', e.target.value)}
+            onChange={(e) => onChange('customerCpf', handleCpfInput(e.target.value))}
             placeholder="000.000.000-00"
             disabled={disabled}
             className={errors.customerCpf ? 'border-destructive' : ''}
