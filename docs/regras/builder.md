@@ -3814,29 +3814,63 @@ Frontend (Wizard confirm step)
        ├─ 1. Backend resolve contrato via SERVER_CONTRACTS[blockType:mode]
        │     Rejeita blockType/mode desconhecido com 400
        │
-       ├─ 2. Busca dados REAIS do produto/categoria (nome, descrição, slug)
-       │     Source of truth — IA não inventa produto genérico
-       │
-       ├─ 3. Filtra por scope (images/texts/all)
-       │     Só gera o que o usuário escolheu
-       │
-       ├─ 4. Gera imagens se scope inclui (Gemini Image Pro → fallback Flash)
-       │     Desktop (1920×700) + Mobile (750×420) por slide
-       │     Upload para store-assets/{tenantId}/block-creatives/
-       │
-       ├─ 5. Gera textos se scope inclui (aiChatCompletionJSON via ai-router)
-       │     Tool calling para título/subtítulo/CTA com contexto real do produto
-       │
-       └─ 6. Retorna { success, generatedProps }
-              generatedProps só contém keys da whitelist server-side filtradas por scope
+        ├─ 2. Busca dados REAIS do produto (nome, descrição, slug, preço, compare_at_price)
+        │     Source of truth — IA não inventa produto genérico
+        │     Imagem principal via tabela `product_images` (ORDER BY is_primary DESC, sort_order ASC LIMIT 1)
+        │     Fallback: se produto sem imagem, geração continua apenas com contexto textual
+        │
+        ├─ 2b. Busca contexto expandido do tenant
+        │      `store_name` + `store_description` de `store_settings`
+        │      Usado no prompt para ancorar identidade da marca
+        │
+        ├─ 3. Filtra por scope (images/texts/all)
+        │     Só gera o que o usuário escolheu
+        │
+        ├─ 4. Gera imagens se scope inclui (Gemini Image Pro → fallback Flash)
+        │     Desktop (1920×700) + Mobile (750×420) por slide
+        │     Upload para store-assets/{tenantId}/block-creatives/
+        │     **MULTIMODAL (v2.1.0):** Envia imagem real do produto como referência visual ao modelo
+        │     quando disponível — o modelo recebe [texto + imagem] para gerar banner aderente
+        │
+        ├─ 5. Gera textos se scope inclui (aiChatCompletionJSON via ai-router)
+        │     Tool calling para título/subtítulo/CTA com contexto real do produto
+        │     Inclui store_description no contexto para aderência à marca
+        │
+        └─ 6. Retorna { success, generatedProps }
+               generatedProps só contém keys da whitelist server-side filtradas por scope
 ```
 
 ### Componentes
 
 | Tipo | Nome | Localização | Descrição |
 |------|------|-------------|-----------|
-| Edge Function | ai-block-fill-visual v2.0.0 | `supabase/functions/ai-block-fill-visual/index.ts` | Gera imagens e textos com scope filtering e dados reais expandidos |
+| Edge Function | ai-block-fill-visual v2.1.0 | `supabase/functions/ai-block-fill-visual/index.ts` | Gera imagens e textos com scope filtering, dados reais expandidos, contexto de marca e referência multimodal |
 | Hook | useAIWizardGenerate | `src/hooks/useAIWizardGenerate.ts` | Chama edge function e aplica whitelist merge + scope filtering |
+
+### Grounding do Banner (v2.1.0)
+
+> Correção implementada para eliminar banners genéricos quando um produto é selecionado.
+
+#### Source of truth do produto
+- Nome, descrição, slug, preço e preço comparativo são buscados da tabela `products`
+- Imagem principal é buscada da tabela `product_images` (não da tabela `products`)
+- Prioridade: `is_primary DESC, sort_order ASC, LIMIT 1`
+- Fallback: se o produto não tem imagem cadastrada, a geração continua sem referência visual
+
+#### Contexto do tenant
+- `store_name` e `store_description` são buscados de `store_settings`
+- Ambos entram no prompt visual e textual para ancorar na identidade real da loja
+
+#### Geração multimodal
+- Quando a imagem principal do produto está disponível, ela é enviada como referência visual ao modelo
+- O payload enviado ao modelo é multimodal: `[{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url } }]`
+- O prompt instrui explicitamente o modelo a representar o produto mostrado na imagem de referência
+- Sem imagem disponível, a geração usa apenas prompt textual (comportamento anterior)
+
+#### Prompt enriquecido
+- Inclui nome real, descrição, preço/oferta e contexto da loja
+- Instrução explícita: "represente visualmente ESTE produto real"
+- Objetivo: eliminar banners genéricos de e-commerce
 
 ### Regras de Merge
 
