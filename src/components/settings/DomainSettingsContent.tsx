@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Globe, Plus, RefreshCw, Trash2, Star, Copy, CheckCircle, Clock, XCircle, ExternalLink, Info, Shield, ShieldCheck, ShieldAlert, ShieldOff, ChevronDown, Zap } from 'lucide-react';
+import { Globe, Plus, RefreshCw, Trash2, Star, Copy, CheckCircle, Clock, XCircle, ExternalLink, Info, Shield, ShieldCheck, ShieldAlert, ShieldOff, ChevronDown } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,7 +8,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useTenantDomains, TenantDomain, DEFAULT_TARGET_HOSTNAME, getPlatformSubdomainUrl } from '@/hooks/useTenantDomains';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { cachePurge } from '@/lib/storefrontCachePurge';
 import { AddDomainDialog } from '@/components/settings/AddDomainDialog';
 import { DomainInstructionsDialog } from '@/components/settings/DomainInstructionsDialog';
 import {
