@@ -113,251 +113,492 @@
 ---
 ---
 
-# Fase 2 — "Preencher com IA" nos Blocos do Builder
+# Fase 2 — "Preencher com IA" — Diagnóstico Operacional Completo
 
-## Diagnóstico Técnico da Arquitetura Real
+## 1. Arquitetura Real dos Blocos
 
-### 1. Arquitetura dos Blocos
+### Fonte de verdade
+- **Registro central:** `src/lib/builder/registry.ts` (3490 linhas)
+- **Tipos:** `src/lib/builder/types.ts` → `BlockDefinition`, `BlockPropsSchema`
+- **Store:** `src/hooks/useBuilderStore.ts` → `updateProps(blockId, props)` com undo/redo (MAX_HISTORY=50)
+- **PropsEditor:** `src/components/builder/PropsEditor.tsx` (749 linhas) — schema-driven, com tratamento especial por `blockType` para arrays
 
-**Registry (fonte de verdade única):** `src/lib/builder/registry.ts` (3490 linhas)
-- Contém TODAS as definições de blocos em `blockDefinitions: BlockDefinition[]`
-- Cada bloco tem: `type`, `label`, `category`, `icon`, `defaultProps`, `propsSchema`, `canHaveChildren`, `isRemovable`
-- `propsSchema` é o mapa completo de props com `type`, `label`, `defaultValue`, `options`, `placeholder`, `showWhen`, `helpText`
-- O `BlockRegistry` é uma classe singleton exportada como `blockRegistry`
-
-**PropsEditor (100% schema-driven):** `src/components/builder/PropsEditor.tsx` (749 linhas)
-- Monta o formulário inteiramente a partir de `definition.propsSchema`
-- Não tem lógica manual por bloco, exceto:
-  - Roteamento de arrays para editores específicos (FAQEditor, TestimonialsEditor, etc.) via `if (blockType === 'FAQ' && name === 'items')`
-  - Agrupamento de props de "Aviso Geral" no Header
-  - Blocos de sistema (SYSTEM_BLOCKS) são redirecionados para Theme Settings
-
-**onChange:** `PropsEditor` recebe `onChange: (props: Record<string, unknown>) => void` que faz merge via `handleChange(key, value) → onChange({ ...props, [key]: value })`. O state é gerenciado no `useBuilderStore` (`src/hooks/useBuilderStore.ts`), que mantém array de history para undo/redo.
-
-### 2. Formato do RichText
-
-**Formato: HTML string simples.**
-- O `RichTextEditor` (`src/components/builder/RichTextEditor.tsx`) trabalha com HTML sanitizado.
-- Entrada/saída = string HTML (ex: `<p>Texto</p><ul><li>Item</li></ul>`)
-- NÃO usa Tiptap JSON, ProseMirror JSON ou Markdown.
-- Sanitização: whitelist de tags (`p, br, strong, b, em, i, u, a, ul, ol, li, h1-h4, span, div`) e atributos (`href, target, class, style`).
-- **A IA DEVE devolver HTML já no formato aceito** (tags da whitelist, sem style inline complexo).
-
-### 3. Undo/Redo
-
-**Sim, existe e funciona.**
-- `useBuilderStore` mantém `history: BlockNode[]` e `historyIndex: number`
-- `canUndo` / `canRedo` derivados do index
-- Cada `updateBlockProps` cria nova entrada no history
-- **O preenchimento por IA será desfeito com um Ctrl+Z** — basta chamar `onChange` normalmente.
-
-### 4. Contexto Disponível para a IA
-
-**`store_settings` (tabela real no banco):** Campos disponíveis:
-- `store_name`, `logo_url`, `primary_color`, `secondary_color`, `accent_color`
-- `contact_phone`, `contact_email`, `contact_address`, `contact_support_hours`
-- `social_instagram`, `social_facebook`, `social_whatsapp`
-- `store_description`
-
-**`StoreSettingsContext` (interface TypeScript):** já definida em `src/lib/builder/types.ts` (linhas 131-148).
-
-**NÃO existe hoje:**
-- Segmento/nicho da loja
-- Tom de voz / brand rules
-- Público-alvo
-- Contexto de blocos vizinhos
-
-### 5. Infra de IA Existente
-
-- **Lovable AI Gateway:** já configurada (`LOVABLE_API_KEY` como secret)
-- **Modelo padrão:** `google/gemini-3-flash-preview`
-- **Edge function de IA para pages:** `ai-page-architect` (já existe, gera estrutura de blocos)
-- **Tool calling / structured output:** já usado no `ai-page-architect`
-- **Toast/loading:** padrão `sonner` toast já em uso no projeto
-- **NÃO existe:** edge function, hook ou helper para preenchimento de conteúdo de blocos individuais
+### Como o PropsEditor funciona
+- Itera `Object.entries(definition.propsSchema)` e renderiza campo por tipo
+- `onChange(key, value)` → chama `props.onChange({ ...props, [key]: value })`
+- No VisualBuilder: `store.updateProps(blockId, newProps)` → cria snapshot no history → isDirty=true
+- **Undo/Redo já existe**: Ctrl+Z/Y funcional via history stack
 
 ---
 
-## Classificação Completa dos Blocos
+## 2. Lista Real de Todos os Blocos (55 tipos registrados)
 
-### EXCLUÍDOS (não preenchíveis por IA) — 23 blocos de sistema/infra
+### EXCLUÍDOS do preenchimento por IA (34 blocos)
 
 | Tipo | Motivo |
 |------|--------|
-| Page, Section, Container, Columns | Infraestrutura |
-| Divider, Spacer | Sem texto |
-| Header, Footer | Sistema (Theme Settings) |
-| Cart, CartSummary, Checkout, CheckoutSteps, ThankYou | Sistema |
-| AccountHub, OrdersList, OrderDetail, TrackingLookup | Sistema |
-| CategoryPageLayout, ProductDetails | Sistema |
-| CompreJuntoSlot, CrossSellSlot, UpsellSlot, CategoryBanner | Sistema |
+| Page | Layout/sistema, sem texto preenchível |
+| Section | Layout puro |
+| Container | Layout puro |
+| Columns | Layout puro |
+| Divider | Layout visual |
+| Spacer | Layout visual |
+| Header | Sistema (PropsEditor redireciona) |
+| Footer | Sistema (PropsEditor redireciona) |
+| PageContent | Renderiza conteúdo da página, sem props |
+| Image | Apenas mídia |
+| VideoUpload | Apenas mídia |
+| CategoryList | E-commerce — dados reais |
+| ProductGrid | E-commerce — dados reais |
+| CategoryPageLayout | Sistema, sem propsSchema |
+| ProductCarousel | E-commerce — dados reais |
+| FeaturedProducts | E-commerce — dados reais |
+| ProductCard | E-commerce — dados reais |
+| ProductDetails | Sistema, sem propsSchema |
+| CartSummary | Sistema, sem propsSchema |
+| CheckoutSteps | Sistema, sem propsSchema |
+| CollectionSection | E-commerce — dados reais |
+| CategoryBanner | Sistema, sem propsSchema |
+| BannerProducts | Híbrido — depende de produtos/categorias reais |
+| FeaturedCategories | E-commerce — dados reais |
+| Cart | Sistema |
+| Checkout | Sistema |
+| ThankYou | Sistema |
+| AccountHub | Sistema |
+| OrdersList | Sistema |
+| OrderDetail | Sistema |
+| TrackingLookup | Sistema |
+| BlogListing | Sistema |
+| CompreJuntoSlot | Sistema |
+| CrossSellSlot | Sistema |
+| UpsellSlot | Sistema |
+| CustomBlock | HTML/CSS raw |
+| HTMLSection | HTML/CSS raw |
+| VideoCarousel | Mídia (título sim, vídeos não — tratado abaixo) |
+| ImageCarousel | Mídia (título sim, imagens não — tratado abaixo) |
+| ImageGallery | Mídia (título sim, imagens não — tratado abaixo) |
+| LogosCarousel | Mídia + imagens |
+| EmbedSocialPost | URL técnica |
+| QuizEmbed | ID técnico |
+| NewsletterPopup | Muito técnico (triggers, frequência, overlay) |
+| PersonalizedProducts | Apenas título/subtítulo genéricos |
+| LivePurchases | Apenas título, dados fake |
 
-### EXCLUÍDOS (dados reais / mídia / técnico) — 14 blocos
+### ELEGÍVEIS para preenchimento por IA (21 blocos)
 
-| Tipo | Motivo |
-|------|--------|
-| ProductGrid, ProductCarousel, FeaturedProducts, ProductCard | Dados de produtos reais |
-| CategoryList, FeaturedCategories, CollectionSection, BannerProducts | Dados reais |
-| Image, VideoUpload | Só mídia |
-| CustomBlock, HTMLSection, PageContent | Técnico |
-| BlogListing, EmbedSocialPost, QuizEmbed | Sistema/embed |
-
-### ELEGÍVEIS — 21 blocos
-
-#### Grupo A: Texto simples (props string/richtext)
-
-| # | blockType | Props preenchíveis por IA | Props NÃO preenchíveis |
-|---|-----------|--------------------------|------------------------|
-| 1 | **Banner** | `title`, `subtitle`, `buttonText` | `imageDesktop`, `imageMobile`, `buttonUrl`, `linkUrl`, todas as cores/estilo |
-| 2 | **RichText** | `content` (HTML) | `fontFamily`, `fontSize`, `fontWeight` |
-| 3 | **Button** | `text` | `url`, `variant`, `size`, todas as cores/estilo |
-| 4 | **TextBanners** | `title`, `text`, `ctaText` | `ctaUrl`, imagens, cores, layout |
-| 5 | **ContentColumns** | `title`, `subtitle`, `content` (richtext) | `buttonText`, `buttonUrl`, imagens, cores |
-| 6 | **CountdownTimer** | `title`, `subtitle`, `expiredMessage`, `buttonText` | `endDate`, `buttonUrl`, cores |
-| 7 | **Newsletter** | `title`, `subtitle`, `incentiveText` | `placeholder`, `buttonText`, `successMessage`, cores |
-| 8 | **ContactForm** | `title`, `subtitle` | labels, `buttonText`, `successMessage`, dados de contato reais, cores |
-| 9 | **Map** | `title`, `subtitle` | `address`, `embedUrl`, dados de contato reais, cores |
-| 10 | **SocialFeed** | `title`, `subtitle` | `profileUsername`, `profileUrl`, `followButtonText`, cores |
-| 11 | **PopupModal** | `title`, `subtitle` | `buttonText`, `discountCode`, cores |
-| 12 | **PersonalizedProducts** | `title`, `subtitle` | layout, colunas |
-| 13 | **LivePurchases** | `title` | layout, stats |
-| 14 | **PricingTable** | `title`, `subtitle` | layout, toggle |
-| 15 | **YouTubeVideo** | `title` | `youtubeUrl`, width, aspect |
-| 16 | **VideoCarousel** | `title` | `videos`, aspect |
-| 17 | **ImageCarousel** | `title` | `images`, aspect |
-| 18 | **ImageGallery** | `title`, `subtitle` | `images`, colunas |
-| 19 | **LogosCarousel** | `title`, `subtitle` | `logos`, colunas, grayscale |
-| 20 | **NewsletterForm** | `title`, `subtitle` | `listId`, `buttonText`, `successMessage`, cores |
-| 21 | **NewsletterPopup** | `title`, `subtitle` | `listId`, `buttonText`, `successMessage`, trigger, cores |
-
-#### Grupo B: Texto + Arrays estruturados
-
-| # | blockType | Props texto | Array prop | Estrutura do item | Faixa ideal |
-|---|-----------|-------------|------------|-------------------|-------------|
-| 1 | **FAQ** | `title` | `items` | `{ question, answer }` | 3-6 |
-| 2 | **Testimonials** | `title` | `items` | `{ name, content, rating, role? }` | 3-6 |
-| 3 | **FeatureList** | `title`, `subtitle` | `items` | `{ icon, text }` | 3-6 |
-| 4 | **ContentColumns** | (listado acima) | `features` | `{ icon, text }` | 3-5 |
-| 5 | **InfoHighlights** | (sem título) | `items` | `{ icon, title, description? }` | 3-4 |
-| 6 | **StepsTimeline** | `title`, `subtitle` | `steps` | `{ number, title, description }` | 3-5 |
-| 7 | **StatsNumbers** | `title`, `subtitle` | `items` | `{ number, label }` | 3-4 |
-| 8 | **AccordionBlock** | `title`, `subtitle` | `items` | `{ title, content }` | 2-6 |
-| 9 | **Reviews** | `title` | `reviews` | `{ name, rating, text }` | 3-6 |
-
----
-
-## Decisão Arquitetural: Metadata no Registry vs Arquivo Separado
-
-### RECOMENDAÇÃO: Adicionar campo `aiFillable` ao `BlockPropsSchema`
-
-**Por quê:**
-1. O `propsSchema` JÁ É a fonte de verdade para tipo, label, default de cada prop
-2. Adicionar `aiFillable` à interface elimina drift
-3. O PropsEditor e a edge function leem do MESMO schema
-4. Nenhum arquivo separado para manter sincronizado
-
-**Proposta na interface `BlockPropsSchema` (em `src/lib/builder/types.ts`):**
-```typescript
-aiFillable?: boolean | {
-  hint?: string;        // Ex: "Título chamativo, 3-8 palavras"
-  count?: { min: number; max: number }; // Para arrays
-  itemHints?: Record<string, string>;   // Hints por campo do item do array
-};
-```
-
-**Exemplo de uso no registry (FAQ):**
-```typescript
-title: {
-  type: 'string',
-  label: 'Título',
-  defaultValue: 'Perguntas Frequentes',
-  aiFillable: { hint: 'Título da seção FAQ, 2-5 palavras' },
-},
-items: {
-  type: 'array',
-  label: 'Perguntas',
-  aiFillable: {
-    count: { min: 3, max: 6 },
-    itemHints: {
-      question: 'Pergunta frequente do cliente',
-      answer: 'Resposta clara, 1-3 frases',
-    },
-  },
-},
-```
+| # | blockType | Arquivo registro | Componente |
+|---|-----------|-----------------|------------|
+| 1 | Banner | registry.ts L616 | BannerBlock.tsx |
+| 2 | RichText | registry.ts L795 | content/RichTextBlock.tsx |
+| 3 | Button | registry.ts L1019 | content/ButtonBlock.tsx |
+| 4 | FAQ | registry.ts L1162 | interactive/FAQBlock.tsx |
+| 5 | Testimonials | registry.ts L1203 | interactive/TestimonialsBlock.tsx |
+| 6 | FeatureList | registry.ts L1229 | FeatureListBlock.tsx |
+| 7 | ContentColumns | registry.ts L1298 | ContentColumnsBlock.tsx |
+| 8 | InfoHighlights | registry.ts L1849 | InfoHighlightsBlock.tsx |
+| 9 | TextBanners | registry.ts L2244 | TextBannersBlock.tsx |
+| 10 | StepsTimeline | registry.ts L2494 | StepsTimelineBlock.tsx |
+| 11 | CountdownTimer | registry.ts L2524 | CountdownTimerBlock.tsx |
+| 12 | StatsNumbers | registry.ts L2586 | StatsNumbersBlock.tsx |
+| 13 | AccordionBlock | registry.ts L2646 | AccordionBlock.tsx |
+| 14 | Reviews | registry.ts L2165 | ReviewsBlock.tsx |
+| 15 | Newsletter | registry.ts L2746 | (inline) |
+| 16 | ContactForm | registry.ts L2793 | (inline) |
+| 17 | Map | registry.ts L2858 | (inline) |
+| 18 | SocialFeed | registry.ts L2931 | (inline) |
+| 19 | PricingTable | registry.ts L3077 | (inline) |
+| 20 | PopupModal | registry.ts L3106 | (inline) |
+| 21 | NewsletterForm | registry.ts L3172 | (inline) |
 
 ---
 
-## Campos que NUNCA devem ser preenchidos pela IA
+## 3. Tabela de Props Preenchíveis por Bloco
+
+### Legenda
+- ✅ = preenchível por IA
+- ❌ = NUNCA preencher por IA
+
+### Banner
+| Prop | Tipo | IA? | Restrição | Exemplo |
+|------|------|-----|-----------|---------|
+| title | string | ✅ | 3-8 palavras | "Coleção Verão 2025" |
+| subtitle | string | ✅ | 1 frase | "Até 50% off em peças selecionadas" |
+| buttonText | string | ✅ | 2-4 palavras CTA | "Ver Coleção" |
+| buttonUrl | string | ❌ | URL real | — |
+| linkUrl | string | ❌ | URL real | — |
+| imageDesktop/Mobile | image | ❌ | Mídia | — |
+| mode/height/alignment/cores | * | ❌ | Estilo | — |
+| slides | array | ❌ | Contém imagens | — |
+
+### RichText
+| Prop | Tipo | IA? | Restrição | Exemplo |
+|------|------|-----|-----------|---------|
+| content | richtext | ✅ | HTML sanitizado (p,strong,ul,li,h2,h3) | `<h2>Sobre Nós</h2><p>Texto...</p>` |
+| fontFamily/fontSize/fontWeight | select | ❌ | Estilo | — |
+
+### Button
+| Prop | Tipo | IA? | Restrição | Exemplo |
+|------|------|-----|-----------|---------|
+| text | string | ✅ | 2-5 palavras CTA | "Comprar Agora" |
+| url | string | ❌ | URL real | — |
+| variant/size/cores/fonts | * | ❌ | Estilo | — |
+
+### FAQ
+| Prop | Tipo | IA? | Restrição | Exemplo |
+|------|------|-----|-----------|---------|
+| title | string | ✅ | Título da seção | "Perguntas Frequentes" |
+| items | array | ✅ | 3-6 itens, cada { question: s, answer: s } | — |
+| titleAlign/allowMultiple | * | ❌ | Config visual | — |
+
+### Testimonials
+| Prop | Tipo | IA? | Restrição | Exemplo |
+|------|------|-----|-----------|---------|
+| title | string | ✅ | Título | "O que dizem nossos clientes" |
+| items | array | ✅ | 3-5 itens { name, content, rating:4-5, role? } | — |
+| items[].image | string | ❌ | Avatar | — |
+
+### FeatureList
+| Prop | Tipo | IA? | Restrição | Exemplo |
+|------|------|-----|-----------|---------|
+| title | string | ✅ | | "Por que escolher a gente" |
+| subtitle | string | ✅ | | |
+| items | array | ✅ | 3-5 itens { icon, text } | icon="Check" |
+| buttonText | string | ✅ | CTA | "Saiba mais" |
+| buttonUrl | string | ❌ | URL | — |
+| cores | * | ❌ | Estilo | — |
+
+### ContentColumns
+| Prop | Tipo | IA? | Restrição | Exemplo |
+|------|------|-----|-----------|---------|
+| title | string | ✅ | | "Nossa História" |
+| subtitle | string | ✅ | | |
+| content | richtext | ✅ | HTML simples | `<p>Desde 2010...</p>` |
+| features | array | ✅ | 0-4 itens { icon, text } | — |
+| buttonText | string | ✅ | CTA | "Conheça" |
+| buttonUrl | string | ❌ | URL | — |
+| imagens/cores/layout | * | ❌ | Visual | — |
+
+### InfoHighlights
+| Prop | Tipo | IA? | Restrição | Exemplo |
+|------|------|-----|-----------|---------|
+| items | array | ✅ | 3-4 itens { icon, title, description? } | icon="Truck" |
+| layout/cores | * | ❌ | Visual | — |
+
+### TextBanners
+| Prop | Tipo | IA? | Restrição | Exemplo |
+|------|------|-----|-----------|---------|
+| title | string | ✅ | | "Conheça nossa marca" |
+| text | textarea | ✅ | 2-4 frases | |
+| ctaText | string | ✅ | CTA | "Saiba mais" |
+| ctaUrl | string | ❌ | URL | — |
+| imagens/cores/layout | * | ❌ | Visual | — |
+
+### StepsTimeline
+| Prop | Tipo | IA? | Restrição | Exemplo |
+|------|------|-----|-----------|---------|
+| title | string | ✅ | | "Como Funciona" |
+| subtitle | string | ✅ | | |
+| steps | array | ✅ | 3-5 itens { number, title, description } | — |
+| layout/cores/showNumbers | * | ❌ | Visual | — |
+
+### CountdownTimer
+| Prop | Tipo | IA? | Restrição | Exemplo |
+|------|------|-----|-----------|---------|
+| title | string | ✅ | | "Oferta por tempo limitado" |
+| subtitle | string | ✅ | | |
+| expiredMessage | string | ✅ | | "Oferta encerrada" |
+| buttonText | string | ✅ | CTA | "Aproveitar agora" |
+| buttonUrl/endDate | * | ❌ | URL / Data real | — |
+| cores/show* | * | ❌ | Visual | — |
+
+### StatsNumbers
+| Prop | Tipo | IA? | Restrição | Exemplo |
+|------|------|-----|-----------|---------|
+| title | string | ✅ | | "Nossos Números" |
+| subtitle | string | ✅ | | |
+| items | array | ✅ | 3-4 itens { number: string, label: string } | "10k+", "Clientes" |
+| layout/cores/animate | * | ❌ | Visual | — |
+
+### AccordionBlock
+| Prop | Tipo | IA? | Restrição | Exemplo |
+|------|------|-----|-----------|---------|
+| title | string | ✅ | | "Mais Informações" |
+| subtitle | string | ✅ | | |
+| items | array | ✅ | 2-5 itens { title, content } | — |
+| variant/cores/config | * | ❌ | Visual | — |
+
+### Reviews
+| Prop | Tipo | IA? | Restrição | Exemplo |
+|------|------|-----|-----------|---------|
+| title | string | ✅ | | "Avaliações dos Clientes" |
+| reviews | array | ✅ | 3-5 itens { name, rating:4-5, text } | — |
+| reviews[].productName/Url/Image | * | ❌ | Dados reais | — |
+| visibleCount | number | ❌ | Config | — |
+
+### Newsletter
+| Prop | Tipo | IA? | Restrição | Exemplo |
+|------|------|-----|-----------|---------|
+| title | string | ✅ | | "Receba nossas novidades" |
+| subtitle | string | ✅ | | |
+| buttonText | string | ✅ | CTA | "Inscrever-se" |
+| placeholder | string | ✅ | | "Digite seu e-mail" |
+| successMessage | string | ✅ | | "Inscrição confirmada!" |
+| incentiveText | string | ✅ | | "🎁 Ganhe 10% OFF!" |
+| layout/show*/cores | * | ❌ | Visual | — |
+
+### ContactForm
+| Prop | Tipo | IA? | Restrição | Exemplo |
+|------|------|-----|-----------|---------|
+| title | string | ✅ | | "Entre em Contato" |
+| subtitle | string | ✅ | | |
+| nameLabel | string | ✅ | Label | "Seu nome" |
+| emailLabel | string | ✅ | Label | "Seu e-mail" |
+| phoneLabel | string | ✅ | Label | "Telefone" |
+| subjectLabel | string | ✅ | Label | "Assunto" |
+| messageLabel | string | ✅ | Label | "Sua mensagem" |
+| buttonText | string | ✅ | CTA | "Enviar" |
+| successMessage | string | ✅ | | "Mensagem enviada!" |
+| contactEmail/Phone/Address/Hours | string | ❌ | Dados reais | — |
+| layout/show*/cores | * | ❌ | Visual | — |
+
+### Map
+| Prop | Tipo | IA? | Restrição | Exemplo |
+|------|------|-----|-----------|---------|
+| title | string | ✅ | | "Onde Estamos" |
+| subtitle | string | ✅ | | |
+| directionsButtonText | string | ✅ | | "Como Chegar" |
+| contactTitle | string | ✅ | | "Nosso Endereço" |
+| address/embedUrl/lat/lng | * | ❌ | Dados reais | — |
+| contactAddress/Phone/Email/Hours | * | ❌ | Dados reais | — |
+| layout/zoom/show*/cores | * | ❌ | Visual | — |
+
+### SocialFeed
+| Prop | Tipo | IA? | Restrição | Exemplo |
+|------|------|-----|-----------|---------|
+| title | string | ✅ | | "Siga-nos no Instagram" |
+| subtitle | string | ✅ | | |
+| followButtonText | string | ✅ | CTA | "Seguir" |
+| profileUsername/profileUrl | * | ❌ | Username real | — |
+| layout/show*/cores | * | ❌ | Visual | — |
+
+### PricingTable
+| Prop | Tipo | IA? | Restrição | Exemplo |
+|------|------|-----|-----------|---------|
+| title | string | ✅ | | "Escolha o Plano Ideal" |
+| subtitle | string | ✅ | | |
+| layout/toggle/discount | * | ❌ | Config | — |
+
+### PopupModal
+| Prop | Tipo | IA? | Restrição | Exemplo |
+|------|------|-----|-----------|---------|
+| title | string | ✅ | | "Oferta Exclusiva!" |
+| subtitle | string | ✅ | | |
+| buttonText | string | ✅ | CTA | "Quero meu desconto!" |
+| discountCode | string | ❌ | Código real | — |
+| type/layout/show* | * | ❌ | Config | — |
+
+### NewsletterForm
+| Prop | Tipo | IA? | Restrição | Exemplo |
+|------|------|-----|-----------|---------|
+| title | string | ✅ | | "Receba nossas novidades" |
+| subtitle | string | ✅ | | |
+| buttonText | string | ✅ | CTA | "Cadastrar" |
+| successMessage | string | ✅ | | "Cadastro realizado!" |
+| listId | string | ❌ | ID técnico | — |
+| show*/layout/cores | * | ❌ | Visual | — |
+
+---
+
+## 4. Campos PROIBIDOS para IA (regra global)
 
 | Categoria | Exemplos | Motivo |
 |-----------|----------|--------|
-| URLs/Links | `url`, `buttonUrl`, `linkUrl`, `ctaUrl`, `youtubeUrl`, `profileUrl`, `embedUrl` | Endereços reais |
-| Imagens | `imageDesktop`, `imageMobile`, `logos[].imageUrl` | Upload real |
-| Vídeos | `videoDesktop`, `videoMobile`, `videos[]` | Upload real |
-| Cores/Estilo | `backgroundColor`, `textColor`, `iconColor`, qualquer `*Color` | Design do tema |
-| Layout | `layout`, `columns`, `alignment`, `variant`, `size`, `height`, `width` | Estrutura |
-| Booleanos | `showButton`, `showIcon`, `autoplay`, `grayscale` | Config do usuário |
-| Dados de contato | `contactEmail`, `contactPhone`, `contactAddress`, `contactHours` | Dados reais |
-| IDs/Referências | `productId`, `categoryId`, `menuId`, `quizId`, `listId` | Dados do sistema |
-| Códigos | `discountCode` | Código real |
-| Usernames | `profileUsername` | Username real |
-| Técnicos | `htmlContent`, `cssContent`, `baseUrl`, `videosJson` | Conteúdo técnico |
-| Labels de form | `nameLabel`, `emailLabel`, etc. | Estrutura fixa |
-| Mensagens sistema | `successMessage`, `expiredMessage` | Manter padrão |
-| Placeholders | `placeholder` | UX decision |
+| URLs reais | buttonUrl, ctaUrl, linkUrl, profileUrl | Link real |
+| Imagens | imageDesktop, imageMobile, image, avatar | Upload |
+| Cores/Estilo | backgroundColor, textColor, *Color | Design |
+| Layout/Config | layout, alignment, variant, size, columns | Visual |
+| Toggles | show*, sticky, autoplay, grayscale | Config |
+| IDs técnicos | listId, quizId, productId, categoryId | Dados |
+| Dados reais | contactEmail/Phone/Address/Hours, address, embedUrl | Lojista |
+| Códigos | discountCode | Negócio |
+| Usernames | profileUsername | Conta |
+| Arrays de mídia | slides, videos, images, logos, posts | Mídia |
+| Datas | endDate | Data real |
+| Config numérica | visibleCount, zoom, limit, annualDiscount | Técnico |
 
 ---
 
-## Regras para Arrays
+## 5. RichText — Contrato Exato
 
-| Decisão | Regra |
-|---------|-------|
-| **Quantidade** | Se vazio: gerar `count.min` a `count.max` itens. Se já tem itens: SOBRESCREVER todos (undo disponível) |
-| **`icon` em arrays** | IA sugere ícone da lista permitida (Check, Shield, Truck, Star, etc.) |
-| **`rating` em arrays** | IA gera rating 4-5 (realista para depoimentos) |
-| **`number` em StepsTimeline** | Auto-incremento (1, 2, 3...) |
-| **`number` em StatsNumbers** | IA gera string (ex: "10k+", "99%", "24h") |
-| **`name` em Testimonials/Reviews** | IA gera nomes fictícios PT-BR |
-| **`role` em Testimonials** | IA gera (ex: "Cliente desde 2023") |
+### Formato aceito
+- **HTML string simples** — NÃO é JSON estruturado
+- Tags permitidas: `<p>`, `<h1>`-`<h4>`, `<strong>`, `<b>`, `<em>`, `<i>`, `<u>`, `<a>`, `<ul>`, `<ol>`, `<li>`, `<blockquote>`, `<br>`, `<span>`, `<div>`
+- **Proibido**: `<style>`, `<script>`, `<link>`, atributos `on*=`
 
----
+### Sanitização existente
+- `TextBlock.tsx` L16-24: sanitizeContent()
+- `_shared/block-compiler/blocks/rich-text.ts` L8-15: sanitizeContent() server-side
+- `sanitizeAILandingPageHtml.ts`: sanitização adicional para HTML de IA
 
-## Plano de Implementação
-
-### Fase 2.1 — Schema `aiFillable` (types.ts + registry.ts)
-- Adicionar campo opcional `aiFillable` à interface `BlockPropsSchema`
-- Marcar props preenchíveis nos 21+ blocos elegíveis do registry
-- Sem mudança visual, sem risco
-
-### Fase 2.2 — Edge Function `ai-block-fill`
-- Input: `blockType`, `fillableProps` (extraídas do registry), `businessContext` (store_settings)
-- Output via tool calling: JSON com valores para cada prop `aiFillable`
-- Modelo: `google/gemini-3-flash-preview`
-- Prompt em PT-BR, orientado a e-commerce
-- Tratar 429/402
-
-### Fase 2.3 — Hook `useAIBlockFill` + Botão no PropsEditor
-- Hook: chama edge function, retorna props preenchidas
-- Merge: sobrescreve APENAS props com `aiFillable`, preserva todas as outras
-- Botão "✨ Preencher com IA" no topo do PropsEditor
-- Loading state, toast sucesso/erro
-- undo/redo funciona automaticamente via `onChange` padrão
-
-### Fase 2.4 — (Futuro) Preenchimento em lote
-- Botão na toolbar: "Preencher página inteira"
-- Itera blocos da página sequencialmente
-- Progress bar
+### Recomendação
+A IA deve retornar HTML bruto. O builder já sanitiza na renderização.
 
 ---
 
-## Riscos Técnicos
+## 6. Regras de Merge (regra final)
 
-| Risco | Mitigação |
-|-------|-----------|
-| RichText com HTML inválido | Sanitizar retorno da IA com mesma função do RichTextEditor |
-| Ícones inválidos em arrays | Lista de ícones válidos no prompt + fallback "Check" |
-| Rate limiting Lovable AI | Toast informativo para 429 |
-| Custo de créditos | Gemini Flash é barato. Aviso antes do preenchimento. |
-| Drift do aiFillable | Impossível — está no mesmo objeto do schema |
-| Sobrescrever conteúdo editado | Undo disponível. Opcional: confirmação se já tem conteúdo. |
+| Situação | Comportamento |
+|----------|--------------|
+| Prop vazia/default | Preencher silenciosamente |
+| Prop com conteúdo editado | Confirmar "Substituir conteúdo existente?" |
+| Props de estilo/visual | NUNCA tocar |
+| Array vazio | Gerar min-max itens novos |
+| Array com itens | Perguntar: "Substituir X itens?" |
+| Campos não-fillable dentro de item (image, productUrl) | Preservar |
+
+**O undo/redo cobre qualquer preenchimento** — `updateProps()` cria snapshot.
+
+---
+
+## 7. Contrato Técnico do `aiFillable`
+
+### Extensão do tipo em `src/lib/builder/types.ts`
+
+```typescript
+// Adicionar ao BlockPropsSchema[key]:
+aiFillable?: boolean | {
+  hint: string;           // instrução para o LLM
+  format?: 'text' | 'html' | 'cta' | 'label' | 'feedback';
+  minItems?: number;      // para arrays
+  maxItems?: number;      // para arrays
+  itemSchema?: Record<string, {
+    hint: string;
+    fillable: boolean;    // nem todo campo do item é preenchível
+  }>;
+};
+```
+
+### Representação por tipo de campo:
+- **String simples**: `aiFillable: { hint: "...", format: 'text' }`
+- **RichText HTML**: `aiFillable: { hint: "...", format: 'html' }`
+- **CTA (botão)**: `aiFillable: { hint: "...", format: 'cta' }`
+- **Label de form**: `aiFillable: { hint: "...", format: 'label' }`
+- **Mensagem de feedback**: `aiFillable: { hint: "...", format: 'feedback' }`
+- **Array**: `aiFillable: { minItems: 3, maxItems: 6, itemSchema: { ... } }`
+- **Flag "não sobrescrever"**: controlada no merge (não no schema)
+
+---
+
+## 8. Contexto Disponível para a IA
+
+### Dados existentes sem criar nada novo:
+
+| Dado | Fonte | Campos reais |
+|------|-------|-------------|
+| Nome da loja | tenants.name | string |
+| Slug | tenants.slug | string |
+| Logo | store_settings.logo_url | URL |
+| Descrição | store_settings.store_description | string? |
+| Contato | store_settings | contact_phone, contact_email |
+| Social | store_settings | social_instagram, social_facebook |
+| Cores | theme settings | primary, secondary, accent |
+| Categorias | categories (top N) | name, slug |
+
+### Contexto mínimo recomendado (Fase 2):
+```typescript
+interface AIFillContext {
+  storeName: string;
+  storeDescription?: string;
+  pageTitle?: string;
+  blockType: string;
+  existingProps: Record<string, unknown>;
+}
+```
+
+### NÃO disponível (e NÃO necessário para Fase 2):
+- Segmento/nicho, tom de voz, brand rules, público-alvo, contexto de blocos vizinhos
+
+---
+
+## 9. Infra de IA Existente
+
+| Item | Status | Detalhes |
+|------|--------|---------|
+| Lovable AI Gateway | ✅ Configurado | `https://ai.gateway.lovable.dev/v1/chat/completions` |
+| LOVABLE_API_KEY | ✅ Auto-provisionado | Secret disponível |
+| Tool calling | ✅ Usado | `ai-page-architect` usa tool calling para structured output |
+| CORS headers | ✅ Padrão consolidado | Copiar de qualquer edge function |
+| Toast/loading | ✅ sonner | Padrão em todo o projeto |
+| Rate limiting | ✅ 429/402 tratados | Padrão em várias functions |
+| Modelo | ✅ `google/gemini-3-flash-preview` | Rápido, barato, bom para text generation |
+| Edge function para fill | ❌ Não existe | Criar na Fase 2.2 |
+| Hook useAIBlockFill | ❌ Não existe | Criar na Fase 2.3 |
+
+**Justificativa do modelo:** Gemini 3 Flash Preview é o padrão do projeto para tarefas rápidas. Para preenchimento de texto curto (títulos, frases, FAQ), é mais que suficiente. Gemini Pro seria overkill e mais caro.
+
+---
+
+## 10. Fase 2.1 — Plano Detalhado
+
+### Objetivo
+Adicionar metadata `aiFillable` na definição nativa dos 21 blocos elegíveis.
+
+### Arquivos alterados
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/lib/builder/types.ts` | Adicionar `aiFillable` ao tipo `BlockPropsSchema` |
+| `src/lib/builder/registry.ts` | Adicionar `aiFillable` nas props dos 21 blocos (~80 props) |
+
+### Arquivos NÃO alterados
+- PropsEditor.tsx
+- Edge functions
+- Hooks
+- Componentes visuais
+
+### Riscos de regressão
+1. **Tipo `BlockPropsSchema`** — campo opcional, não quebra nada
+2. **Registry.ts** — alteração pontual em props (não na lógica)
+3. **`aiFillable` é opcional** — blocos sem a prop funcionam normalmente
+
+### Como testar
+1. `npm run build` sem erros
+2. PropsEditor renderiza normalmente
+3. `blockRegistry.get('FAQ')?.propsSchema.items.aiFillable` retorna objeto
+4. `blockRegistry.get('ProductGrid')?.propsSchema.title.aiFillable` retorna undefined
+
+### Critérios de aceite
+- [ ] `BlockPropsSchema` tem tipo `aiFillable` opcional
+- [ ] 21 blocos elegíveis têm `aiFillable` nas props corretas
+- [ ] 34 blocos excluídos NÃO têm `aiFillable`
+- [ ] Build compila sem erro
+- [ ] PropsEditor continua funcional
+
+---
+
+## 11. Arquivos Impactados — Fase 2.1
+
+```
+src/lib/builder/types.ts          → ADD aiFillable to BlockPropsSchema type
+src/lib/builder/registry.ts       → ADD aiFillable metadata to 21 blocks (~80 props)
+```
+
+## 12. Checklist de Testes
+
+- [ ] `npm run build` sem erros
+- [ ] Abrir builder → selecionar bloco → PropsEditor renderiza
+- [ ] Console: `blockRegistry.get('FAQ')?.propsSchema.items.aiFillable` → objeto
+- [ ] Console: `blockRegistry.get('ProductGrid')?.propsSchema.title.aiFillable` → undefined
+- [ ] Nenhum campo visual/estilo/URL tem aiFillable
+
+## 13. Recomendação Final
+
+✅ **PODE IMPLEMENTAR a Fase 2.1**
+
+A alteração é:
+- **Aditiva** (campo opcional novo em tipo existente)
+- **Sem impacto runtime** (nenhuma lógica lê `aiFillable` ainda)
+- **Reversível** (remover o campo não quebra nada)
+- **Testável** (build + inspeção visual + console check)
+
+A Fase 2.2 (edge function) e 2.3 (botão no PropsEditor) só devem ser implementadas APÓS validação da 2.1.
