@@ -719,7 +719,7 @@ serve(async (req) => {
           product: slideContexts[0]?.product,
           category: slideContexts[0]?.category,
           associationType: slideContexts[0]?.associationType,
-          storeName,
+          store: storeCtx,
           slideCount,
         }, { supabaseUrl, supabaseServiceKey });
         textSlides = (textResult as any).slides || [];
