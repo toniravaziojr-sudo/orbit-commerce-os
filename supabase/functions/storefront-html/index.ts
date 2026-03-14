@@ -1995,9 +1995,17 @@ serve(async (req) => {
         .select('id, name, slug, description, image_url, banner_desktop_url, banner_mobile_url, seo_title, seo_description')
         .eq('tenant_id', tenantId).eq('slug', route.slug).eq('is_active', true).maybeSingle();
     } else if (route.type === 'page' && route.slug) {
-      routeQueryPromise = supabase.from('store_pages')
-        .select('id, title, slug, individual_content, seo_title, seo_description, content, is_published')
-        .eq('tenant_id', tenantId).eq('slug', route.slug).eq('is_published', true).maybeSingle();
+      // Preview mode: read draft_content, skip is_published filter
+      // Public mode: read content, require is_published
+      if (isPreviewMode) {
+        routeQueryPromise = supabase.from('store_pages')
+          .select('id, title, slug, individual_content, seo_title, seo_description, draft_content, content, is_published')
+          .eq('tenant_id', tenantId).eq('slug', route.slug).maybeSingle();
+      } else {
+        routeQueryPromise = supabase.from('store_pages')
+          .select('id, title, slug, individual_content, seo_title, seo_description, content, is_published')
+          .eq('tenant_id', tenantId).eq('slug', route.slug).eq('is_published', true).maybeSingle();
+      }
     } else if (route.type === 'blog_post' && route.slug) {
       routeQueryPromise = supabase.from('blog_posts')
         .select('id, title, slug, excerpt, content, body_html, cover_image_url, published_at, created_at, author_name, seo_title, seo_description, status')
