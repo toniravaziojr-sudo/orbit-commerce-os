@@ -1,6 +1,6 @@
 // =============================================
-// AI BLOCK FILL VISUAL v2.1.0 — Phase 3.3 Grounding Fix
-// Fixes: real product images, enriched tenant context, multimodal reference
+// AI BLOCK FILL VISUAL v2.2.0 — Banner Quality Fix
+// Fixes: art direction, copy quality, legibility defaults
 // Server-side registry: backend resolve contrato internamente
 // Frontend envia: blockType, mode, scope, collectedData, tenantId
 // =============================================
@@ -9,7 +9,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 
-const VERSION = "2.1.0";
+const VERSION = "2.2.0";
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MAX_BRIEFING_LENGTH = 500;
 
@@ -229,75 +229,140 @@ function buildBannerImagePrompt(
   }
 ): string {
   const isDesktop = spec.key === 'imageDesktop';
-  const orientation = isDesktop
-    ? `HORIZONTAL PAISAGEM (${spec.width}x${spec.height}px, ultra-wide)`
-    : `VERTICAL RETRATO (${spec.width}x${spec.height}px)`;
 
   // Build rich product context
-  let contextLine = 'Banner institucional/promocional genérico para a loja.';
+  let subjectDescription = 'Produtos variados da loja em composição premium.';
   let productImageNote = '';
   if (context.product) {
-    contextLine = `PRODUTO REAL: "${context.product.name}".`;
+    subjectDescription = `O produto "${context.product.name}"`;
     if (context.product.description) {
-      contextLine += `\nDescrição do produto: "${context.product.description.substring(0, 300)}".`;
+      subjectDescription += ` — ${context.product.description.substring(0, 200)}`;
     }
-    if (context.product.price) {
-      const formattedPrice = `R$ ${context.product.price.toFixed(2).replace('.', ',')}`;
-      contextLine += `\nPreço: ${formattedPrice}.`;
-      if (context.product.compareAtPrice && context.product.compareAtPrice > context.product.price) {
-        const formattedOldPrice = `R$ ${context.product.compareAtPrice.toFixed(2).replace('.', ',')}`;
-        contextLine += ` (de ${formattedOldPrice})`;
-      }
-    }
+    subjectDescription += '.';
     if (context.product.mainImageUrl) {
-      productImageNote = `\nIMPORTANTE: Uma imagem de referência do produto REAL foi fornecida junto com este prompt. O banner DEVE representar visualmente ESTE produto específico. Observe as características visuais (cor, forma, embalagem, textura) da imagem de referência e reproduza-as fielmente no banner.`;
+      productImageNote = `REFERÊNCIA VISUAL: Uma foto do produto real foi anexada. Reproduza FIELMENTE a cor, forma, embalagem e textura do produto na composição do banner. O produto no banner deve ser reconhecível como o mesmo da foto.`;
     }
   } else if (context.category) {
-    contextLine = `Categoria: "${context.category.name}". O banner deve representar produtos desta categoria.`;
+    subjectDescription = `Produtos da categoria "${context.category.name}" em composição premium.`;
   }
 
   // Store identity
   let storeIdentity = `Loja: "${context.store.storeName}".`;
   if (context.store.storeDescription) {
-    storeIdentity += `\nSobre a loja: "${context.store.storeDescription.substring(0, 200)}".`;
+    storeIdentity += ` ${context.store.storeDescription.substring(0, 200)}.`;
   }
 
-  const briefingLine = context.briefing
-    ? `Briefing do usuário: "${context.briefing}".`
-    : '';
-
+  const briefingLine = context.briefing ? `Briefing: "${context.briefing}".` : '';
   const slideNote = context.slideIndex !== undefined
-    ? `Este é o slide ${context.slideIndex + 1} do carrossel — varie o cenário/atmosfera em relação aos outros slides.`
+    ? `Slide ${context.slideIndex + 1} do carrossel — varie cenário/atmosfera.`
     : '';
 
-  return `BANNER PROFISSIONAL PARA E-COMMERCE — ${orientation}
+  if (isDesktop) {
+    return `CRIE UM BANNER HORIZONTAL DE E-COMMERCE. Proporção exata: ${spec.width}x${spec.height}px (21:7 ultra-wide).
 
-TAREFA: Criar uma imagem fotorrealista premium para banner de loja virtual.
 ${storeIdentity}
-${contextLine}
+ASSUNTO: ${subjectDescription}
 ${productImageNote}
 ${briefingLine}
 ${slideNote}
 
-COMPOSIÇÃO (${orientation}):
-${isDesktop
-    ? `- Layout ultra-wide (21:9 aprox). Cenário profissional de e-commerce.
-- Lado esquerdo (60%) mais escuro/com gradiente para acomodar texto branco sobreposto.
-- Lado direito (40%) com o produto/elementos visuais em destaque.`
-    : `- Layout vertical para mobile.
-- Terço superior levemente mais escuro para texto sobreposto.
-- Centro e inferior com o produto/elementos visuais em destaque.`}
+COMPOSIÇÃO OBRIGATÓRIA (DESKTOP):
+- O PRODUTO deve ocupar o TERÇO DIREITO da imagem (~30-40% da largura), bem enquadrado e em destaque.
+- O TERÇO ESQUERDO (~60% da largura) DEVE ter fundo escuro, gradiente natural ou área de baixo contraste. Esta zona será usada para overlay de texto branco — ela PRECISA ser escura o suficiente para texto branco ser legível.
+- O gradiente deve ser NATURAL e integrado ao cenário (iluminação lateral, sombra ambiente, fundo escurecido), não um retângulo de cor sólida.
+- Transição suave entre a zona escura e a zona do produto.
 
-ESTILO:
-- Fotografia comercial profissional, iluminação de estúdio
-- Cores vibrantes mas harmônicas
-- Profundidade de campo com bokeh suave
-- Qualidade 4K, sem ruído, sem artefatos
+DIREÇÃO DE ARTE:
+- Fotografia comercial profissional, iluminação de estúdio com dramática lateral.
+- Fundo contextual rico (superfície, textura, ambiente) — NUNCA fundo branco chapado.
+- Profundidade de campo com bokeh suave no fundo.
+- Cores vibrantes e harmônicas. Qualidade 4K.
 
-PROIBIDO:
-- ❌ NÃO incluir texto, lettering, logos ou badges na imagem
-- ❌ NÃO incluir mãos, pessoas ou modelos
-- ❌ NÃO usar fundo branco chapado — o cenário deve ser rico e premium`;
+PROIBIÇÕES ABSOLUTAS:
+- ❌ NENHUM texto, letra, número, logo ou badge na imagem
+- ❌ NENHUMA pessoa, mão ou modelo
+- ❌ NENHUM fundo branco ou cinza claro chapado
+- ❌ NENHUM elemento gráfico/UI (botões, bordas, molduras)`;
+  } else {
+    return `CRIE UM BANNER VERTICAL PARA MOBILE. Proporção exata: ${spec.width}x${spec.height}px.
+
+${storeIdentity}
+ASSUNTO: ${subjectDescription}
+${productImageNote}
+${briefingLine}
+${slideNote}
+
+COMPOSIÇÃO OBRIGATÓRIA (MOBILE):
+- O TERÇO SUPERIOR da imagem DEVE ser escuro/gradiente natural para receber texto branco sobreposto.
+- O PRODUTO deve estar no CENTRO-INFERIOR (~50-60% inferior), bem enquadrado e protagonista.
+- O gradiente escuro no topo deve ser NATURAL (iluminação de cima, sombra ambiente), integrado ao cenário.
+- Transição suave entre a zona escura superior e a zona do produto.
+
+DIREÇÃO DE ARTE:
+- Fotografia comercial profissional, iluminação de estúdio.
+- Fundo contextual (superfície, textura) — NUNCA fundo branco chapado.
+- Enquadramento pensado para tela estreita. Produto centralizado.
+- Cores vibrantes e harmônicas. Qualidade 4K.
+
+PROIBIÇÕES ABSOLUTAS:
+- ❌ NENHUM texto, letra, número, logo ou badge na imagem
+- ❌ NENHUMA pessoa, mão ou modelo
+- ❌ NENHUM fundo branco ou cinza claro chapado
+- ❌ NENHUM elemento gráfico/UI (botões, bordas, molduras)`;
+  }
+}
+
+// =============================================
+// COPY QUALITY HELPERS
+// =============================================
+
+/** System prompt for copy generation — enforces quality, tone, and char limits */
+function COPY_SYSTEM_PROMPT(storeInfo: string, contextInfo: string, briefing?: string): string {
+  return `Você é um copywriter SÊNIOR de e-commerce brasileiro. Gere textos para banners de loja virtual.
+
+REGRAS OBRIGATÓRIAS:
+1. Português brasileiro CORRETO, sem erros gramaticais.
+2. Tom profissional e direto. Sem gírias, sem emojis, sem exageros.
+3. LIMITES RÍGIDOS DE CARACTERES (conte cuidadosamente):
+   - title (headline): MÁXIMO 30 caracteres. Curta, impactante, com verbo de ação ou benefício.
+   - subtitle: MÁXIMO 60 caracteres. Complementar ao title, SEM repetir palavras do title.
+   - buttonText (CTA): MÁXIMO 15 caracteres. Ação clara e direta.
+4. Use o nome REAL do produto/categoria fornecido. NUNCA invente nomes ou características.
+5. Se houver preço/oferta, destaque naturalmente (ex: "A partir de R$ X").
+6. Cada campo deve funcionar SOZINHO — não depender dos outros para fazer sentido.
+
+${storeInfo}
+${contextInfo}
+${briefing ? `Briefing: "${briefing}".` : ''}
+
+EXEMPLOS DE BOA COPY:
+- title: "Novo Sérum Facial" (18 chars) ✅
+- title: "Descubra o poder da hidratação profunda para sua pele" (54 chars) ❌ MUITO LONGO
+- subtitle: "Hidratação profunda por 24h" (27 chars) ✅
+- buttonText: "Comprar agora" (13 chars) ✅
+- buttonText: "Aproveite esta oferta incrível" (30 chars) ❌ MUITO LONGO`;
+}
+
+/** Truncate texts as safety net — model should respect limits but this guarantees it */
+function truncateTexts(result: any): any {
+  if (result.title && typeof result.title === 'string') {
+    result.title = result.title.substring(0, 30);
+  }
+  if (result.subtitle && typeof result.subtitle === 'string') {
+    result.subtitle = result.subtitle.substring(0, 60);
+  }
+  if (result.buttonText && typeof result.buttonText === 'string') {
+    result.buttonText = result.buttonText.substring(0, 15);
+  }
+  if (Array.isArray(result.slides)) {
+    result.slides = result.slides.map((s: any) => ({
+      ...s,
+      title: s.title ? String(s.title).substring(0, 30) : '',
+      subtitle: s.subtitle ? String(s.subtitle).substring(0, 60) : '',
+      buttonText: s.buttonText ? String(s.buttonText).substring(0, 15) : '',
+    }));
+  }
+  return result;
 }
 
 // =============================================
@@ -355,10 +420,10 @@ async function generateTexts(
               items: {
                 type: "object",
                 properties: {
-                  title: { type: "string", description: "Short, impactful headline (max 40 chars)" },
-                  subtitle: { type: "string", description: "Supporting text (max 80 chars)" },
-                  buttonText: { type: "string", description: "CTA button text (max 20 chars)" },
-                  altText: { type: "string", description: "Accessible alt text for banner image" },
+                  title: { type: "string", description: "Headline curta e impactante. MÁXIMO 30 caracteres. Verbo de ação ou benefício direto." },
+                  subtitle: { type: "string", description: "Texto de apoio. MÁXIMO 60 caracteres. Complementar ao title, sem repetir." },
+                  buttonText: { type: "string", description: "Texto do botão CTA. MÁXIMO 15 caracteres. Ação clara (ex: Comprar, Ver oferta)." },
+                  altText: { type: "string", description: "Texto alt acessível descrevendo a imagem do banner." },
                 },
                 required: ["title", "subtitle", "buttonText", "altText"],
                 additionalProperties: false,
@@ -373,16 +438,12 @@ async function generateTexts(
       },
     }];
 
-    const systemPrompt = `Você é um copywriter de e-commerce profissional. Gere textos em português brasileiro para banners de loja virtual.
-${storeInfo}
-${context.briefing ? `Briefing: "${context.briefing}".` : ''}
-${contextInfo}
-Cada slide deve ter textos distintos e complementares entre si.`;
+    const systemPrompt = COPY_SYSTEM_PROMPT(storeInfo, contextInfo, context.briefing);
 
     const { data } = await aiChatCompletionJSON("google/gemini-2.5-flash", {
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: `Gere textos para ${context.slideCount} slides de banner.` },
+        { role: "user", content: `Gere textos para ${context.slideCount} slides de banner. Cada slide deve ter textos DISTINTOS e complementares entre si. Respeite os limites de caracteres rigorosamente.` },
       ],
       tools,
       tool_choice: { type: "function", function: { name: "generate_carousel_texts" } },
@@ -397,7 +458,7 @@ Cada slide deve ter textos distintos e complementares entre si.`;
       const parsed = typeof toolCall.function.arguments === 'string'
         ? JSON.parse(toolCall.function.arguments)
         : toolCall.function.arguments;
-      return parsed;
+      return truncateTexts(parsed);
     }
     return { slides: [] };
   }
@@ -411,10 +472,10 @@ Cada slide deve ter textos distintos e complementares entre si.`;
       parameters: {
         type: "object",
         properties: {
-          title: { type: "string", description: "Short, impactful headline (max 40 chars)" },
-          subtitle: { type: "string", description: "Supporting text (max 80 chars)" },
-          buttonText: { type: "string", description: "CTA button text (max 20 chars)" },
-          altText: { type: "string", description: "Accessible alt text for banner image" },
+          title: { type: "string", description: "Headline curta e impactante. MÁXIMO 30 caracteres. Verbo de ação ou benefício direto. Use o nome real do produto." },
+          subtitle: { type: "string", description: "Texto de apoio. MÁXIMO 60 caracteres. Complementar ao title, sem repetir. Destaque benefício ou oferta." },
+          buttonText: { type: "string", description: "Texto do botão CTA. MÁXIMO 15 caracteres. Ação clara (ex: Comprar agora, Ver oferta, Conhecer)." },
+          altText: { type: "string", description: "Texto alt acessível descrevendo a imagem do banner." },
         },
         required: ["title", "subtitle", "buttonText", "altText"],
         additionalProperties: false,
@@ -422,15 +483,12 @@ Cada slide deve ter textos distintos e complementares entre si.`;
     },
   }];
 
-  const systemPrompt = `Você é um copywriter de e-commerce profissional. Gere textos em português brasileiro para um banner hero de loja virtual.
-${storeInfo}
-${context.briefing ? `Briefing: "${context.briefing}".` : ''}
-${contextInfo}`;
+  const systemPrompt = COPY_SYSTEM_PROMPT(storeInfo, contextInfo, context.briefing);
 
   const { data } = await aiChatCompletionJSON("google/gemini-2.5-flash", {
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: "Gere textos para este banner." },
+      { role: "user", content: "Gere textos para este banner hero. Respeite os limites de caracteres rigorosamente." },
     ],
     tools,
     tool_choice: { type: "function", function: { name: "generate_banner_texts" } },
@@ -445,7 +503,7 @@ ${contextInfo}`;
     const parsed = typeof toolCall.function.arguments === 'string'
       ? JSON.parse(toolCall.function.arguments)
       : toolCall.function.arguments;
-    return parsed;
+    return truncateTexts(parsed);
   }
   return {};
 }
@@ -602,6 +660,16 @@ serve(async (req) => {
         if (contract.aiGenerates.includes('buttonText')) {
           generatedProps.buttonText = textResult.buttonText || '';
         }
+      }
+
+      // System-derived legibility props when generating image + text together
+      if (generateImages && generateTextsFlag) {
+        generatedProps.overlayOpacity = 35;
+        generatedProps.alignment = 'left';
+      } else if (generateImages) {
+        // Even image-only: set overlay for future text additions
+        generatedProps.overlayOpacity = 35;
+        generatedProps.alignment = 'left';
       }
 
       const elapsed = Date.now() - startTime;

@@ -3872,13 +3872,58 @@ Frontend (Wizard confirm step)
 - Instrução explícita: "represente visualmente ESTE produto real"
 - Objetivo: eliminar banners genéricos de e-commerce
 
+### Qualidade do Banner (v2.2.0)
+
+> Correção de qualidade visual e textual dos banners gerados.
+
+#### Direção de arte — Prompt visual
+
+**Desktop (1920×700):**
+- Proporção ultra-wide 21:7 explicitamente reforçada no prompt
+- Produto posicionado no TERÇO DIREITO (~30-40% da largura)
+- TERÇO ESQUERDO (~60%) com gradiente escuro natural — zona reservada para texto branco (text-safe area)
+- Gradiente integrado ao cenário (iluminação lateral, sombra ambiente), não retângulo sólido
+
+**Mobile (750×420):**
+- Produto no CENTRO-INFERIOR (~50-60% inferior)
+- TERÇO SUPERIOR com gradiente escuro natural para texto
+- Enquadramento centralizado para tela estreita
+
+#### Qualidade da copy — Prompt textual
+
+| Campo | Limite | Regra |
+|-------|--------|-------|
+| title (headline) | máx 30 chars | Verbo de ação ou benefício direto. Nome real do produto. |
+| subtitle | máx 60 chars | Complementar ao title, sem repetir palavras. |
+| buttonText (CTA) | máx 15 chars | Ação clara (Comprar agora, Ver oferta). |
+
+- Tom: profissional, direto, PT-BR correto
+- Proibido inventar características do produto
+- Safety net: backend trunca no limite mesmo que o modelo exceda
+- System prompt com exemplos de boa e má copy para guiar o modelo
+
+#### Props derivadas pelo sistema (legibilidade)
+
+Quando a geração inclui imagens (scope `images` ou `all`), o backend retorna automaticamente:
+- `overlayOpacity: 35` — escurecimento sobre a imagem para garantir legibilidade
+- `alignment: 'left'` — alinhamento do texto à esquerda (zona segura)
+
+Essas props são tratadas como `SYSTEM_DERIVED_PROPS` no frontend e **bypassam a whitelist** do `aiGenerates`.
+
+#### Proibições no prompt visual
+- Nenhum texto, letra, número, logo ou badge na imagem
+- Nenhuma pessoa, mão ou modelo
+- Nenhum fundo branco ou cinza claro chapado
+- Nenhum elemento gráfico/UI
+
 ### Regras de Merge
 
 1. Backend gera `generatedProps` filtrado pela whitelist server-side E pelo scope
 2. Frontend aplica segundo filtro via `contract.aiGenerates` + scope (defesa em profundidade)
-3. `linkUrl` de cada slide é derivado da associação (sistema), NUNCA da IA
-4. Para carousel, backend limita `slideCount` ao `maxSlides` do contrato (3)
-5. Modo do bloco é atualizado pelo merge quando wizard altera de single para carousel
+3. Props de sistema (`overlayOpacity`, `alignment`) bypassam whitelist no frontend
+4. `linkUrl` de cada slide é derivado da associação (sistema), NUNCA da IA
+5. Para carousel, backend limita `slideCount` ao `maxSlides` do contrato (3)
+6. Modo do bloco é atualizado pelo merge quando wizard altera de single para carousel
 
 ### Limites
 
@@ -3890,3 +3935,6 @@ Frontend (Wizard confirm step)
 | Retry por imagem | 1 (pro → flash fallback) |
 | Partial success | Não — falha total se qualquer imagem falhar |
 | Briefing max chars | 500 |
+| Headline max chars | 30 |
+| Subtitle max chars | 60 |
+| CTA max chars | 15 |
