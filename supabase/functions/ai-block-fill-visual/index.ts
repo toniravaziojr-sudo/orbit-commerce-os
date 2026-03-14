@@ -313,6 +313,59 @@ PROIBIÇÕES ABSOLUTAS:
 }
 
 // =============================================
+// COPY QUALITY HELPERS
+// =============================================
+
+/** System prompt for copy generation — enforces quality, tone, and char limits */
+function COPY_SYSTEM_PROMPT(storeInfo: string, contextInfo: string, briefing?: string): string {
+  return `Você é um copywriter SÊNIOR de e-commerce brasileiro. Gere textos para banners de loja virtual.
+
+REGRAS OBRIGATÓRIAS:
+1. Português brasileiro CORRETO, sem erros gramaticais.
+2. Tom profissional e direto. Sem gírias, sem emojis, sem exageros.
+3. LIMITES RÍGIDOS DE CARACTERES (conte cuidadosamente):
+   - title (headline): MÁXIMO 30 caracteres. Curta, impactante, com verbo de ação ou benefício.
+   - subtitle: MÁXIMO 60 caracteres. Complementar ao title, SEM repetir palavras do title.
+   - buttonText (CTA): MÁXIMO 15 caracteres. Ação clara e direta.
+4. Use o nome REAL do produto/categoria fornecido. NUNCA invente nomes ou características.
+5. Se houver preço/oferta, destaque naturalmente (ex: "A partir de R$ X").
+6. Cada campo deve funcionar SOZINHO — não depender dos outros para fazer sentido.
+
+${storeInfo}
+${contextInfo}
+${briefing ? `Briefing: "${briefing}".` : ''}
+
+EXEMPLOS DE BOA COPY:
+- title: "Novo Sérum Facial" (18 chars) ✅
+- title: "Descubra o poder da hidratação profunda para sua pele" (54 chars) ❌ MUITO LONGO
+- subtitle: "Hidratação profunda por 24h" (27 chars) ✅
+- buttonText: "Comprar agora" (13 chars) ✅
+- buttonText: "Aproveite esta oferta incrível" (30 chars) ❌ MUITO LONGO`;
+}
+
+/** Truncate texts as safety net — model should respect limits but this guarantees it */
+function truncateTexts(result: any): any {
+  if (result.title && typeof result.title === 'string') {
+    result.title = result.title.substring(0, 30);
+  }
+  if (result.subtitle && typeof result.subtitle === 'string') {
+    result.subtitle = result.subtitle.substring(0, 60);
+  }
+  if (result.buttonText && typeof result.buttonText === 'string') {
+    result.buttonText = result.buttonText.substring(0, 15);
+  }
+  if (Array.isArray(result.slides)) {
+    result.slides = result.slides.map((s: any) => ({
+      ...s,
+      title: s.title ? String(s.title).substring(0, 30) : '',
+      subtitle: s.subtitle ? String(s.subtitle).substring(0, 60) : '',
+      buttonText: s.buttonText ? String(s.buttonText).substring(0, 15) : '',
+    }));
+  }
+  return result;
+}
+
+// =============================================
 // TEXT GENERATION — Uses real product data
 // =============================================
 
