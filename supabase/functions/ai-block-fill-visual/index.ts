@@ -66,6 +66,8 @@ interface ProductContext {
   name: string;
   description?: string;
   slug?: string;
+  price?: number;
+  compareAtPrice?: number;
   mainImageUrl?: string;
 }
 
@@ -74,24 +76,50 @@ interface CategoryContext {
   slug?: string;
 }
 
+interface StoreContext {
+  storeName: string;
+  storeDescription?: string;
+}
+
 async function fetchProductContext(supabase: any, productId: string): Promise<ProductContext | null> {
-  const { data } = await supabase
+  // Fetch product base data
+  const { data: product } = await supabase
     .from("products")
-    .select("name, description, slug, images")
+    .select("name, description, slug, price, compare_at_price")
     .eq("id", productId)
     .single();
-  if (!data) return null;
+  if (!product) return null;
   
-  let mainImageUrl: string | undefined;
-  if (Array.isArray(data.images) && data.images.length > 0) {
-    mainImageUrl = data.images[0]?.url || data.images[0];
-  }
+  // Fetch primary image from product_images table (source of truth)
+  const { data: images } = await supabase
+    .from("product_images")
+    .select("url, is_primary, sort_order")
+    .eq("product_id", productId)
+    .order("is_primary", { ascending: false })
+    .order("sort_order", { ascending: true })
+    .limit(1);
+  
+  const mainImageUrl = images?.[0]?.url || undefined;
   
   return {
-    name: data.name,
-    description: data.description || undefined,
-    slug: data.slug || undefined,
+    name: product.name,
+    description: product.description || undefined,
+    slug: product.slug || undefined,
+    price: product.price || undefined,
+    compareAtPrice: product.compare_at_price || undefined,
     mainImageUrl,
+  };
+}
+
+async function fetchStoreContext(supabase: any, tenantId: string): Promise<StoreContext> {
+  const { data } = await supabase
+    .from("store_settings")
+    .select("store_name, store_description")
+    .eq("tenant_id", tenantId)
+    .single();
+  return {
+    storeName: data?.store_name || "Loja",
+    storeDescription: data?.store_description || undefined,
   };
 }
 
