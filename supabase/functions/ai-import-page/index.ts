@@ -460,6 +460,7 @@ Gere o HTML completo, mantendo fidelidade visual ao original. Use as URLs de ima
           .from('store_pages')
           .update({
             content: blockNodeJson,
+            draft_content: blockNodeJson,
             template_id: null,
             individual_content: null,
             updated_at: new Date().toISOString(),
