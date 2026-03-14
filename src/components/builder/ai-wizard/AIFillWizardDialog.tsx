@@ -1,6 +1,6 @@
 // =============================================
 // AI FILL WIZARD DIALOG — Multi-step modal for guided AI content generation
-// Phase 3.1: Infrastructure only (generation not yet wired)
+// Phase 3.2: Connected to real generation via useAIWizardGenerate
 // =============================================
 
 import {
@@ -14,8 +14,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { WizardBlockContract } from '@/lib/builder/aiWizardRegistry';
 import { useAIBlockWizard } from '@/hooks/useAIBlockWizard';
+import { useAIWizardGenerate } from '@/hooks/useAIWizardGenerate';
 import { WizardStepRenderer } from './WizardStepRenderer';
-import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sparkles, Loader2 } from 'lucide-react';
 
 interface AIFillWizardDialogProps {
   open: boolean;
@@ -24,6 +25,8 @@ interface AIFillWizardDialogProps {
   blockType: string;
   blockLabel: string;
   currentProps: Record<string, unknown>;
+  tenantId: string;
+  onGenerated: (mergedProps: Record<string, unknown>) => void;
 }
 
 export function AIFillWizardDialog({
@@ -33,6 +36,8 @@ export function AIFillWizardDialog({
   blockType,
   blockLabel,
   currentProps,
+  tenantId,
+  onGenerated,
 }: AIFillWizardDialogProps) {
   const wizard = useAIBlockWizard({
     contract,
@@ -40,9 +45,26 @@ export function AIFillWizardDialog({
     currentProps,
   });
 
+  const { generate, isGenerating } = useAIWizardGenerate({
+    tenantId,
+    blockType,
+    currentProps,
+    contract,
+  });
+
   const handleClose = () => {
+    if (isGenerating) return; // Don't close during generation
     wizard.reset();
     onOpenChange(false);
+  };
+
+  const handleGenerate = async () => {
+    const merged = await generate(wizard.collectedData);
+    if (merged) {
+      onGenerated(merged);
+      wizard.reset();
+      onOpenChange(false);
+    }
   };
 
   return (
@@ -65,16 +87,24 @@ export function AIFillWizardDialog({
 
         {/* Step content */}
         <div className="min-h-[160px]">
-          <WizardStepRenderer
-            step={wizard.currentStep}
-            data={wizard.getStepData(wizard.currentStep.id)}
-            onChange={(data) => wizard.setStepData(wizard.currentStep.id, data)}
-            contract={contract}
-            collectedData={wizard.collectedData}
-            allSteps={wizard.steps}
-            blockType={blockType}
-            currentProps={currentProps}
-          />
+          {isGenerating ? (
+            <div className="flex flex-col items-center justify-center h-[160px] gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Gerando imagens e textos...</p>
+              <p className="text-xs text-muted-foreground">Isso pode levar até 1 minuto</p>
+            </div>
+          ) : (
+            <WizardStepRenderer
+              step={wizard.currentStep}
+              data={wizard.getStepData(wizard.currentStep.id)}
+              onChange={(data) => wizard.setStepData(wizard.currentStep.id, data)}
+              contract={contract}
+              collectedData={wizard.collectedData}
+              allSteps={wizard.steps}
+              blockType={blockType}
+              currentProps={currentProps}
+            />
+          )}
         </div>
 
         {/* Progress bar */}
@@ -94,6 +124,7 @@ export function AIFillWizardDialog({
             variant="ghost"
             size="sm"
             onClick={wizard.canGoBack ? wizard.goBack : handleClose}
+            disabled={isGenerating}
             className="gap-1"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -103,11 +134,16 @@ export function AIFillWizardDialog({
           {wizard.isConfirmStep ? (
             <Button
               size="sm"
-              disabled
+              onClick={handleGenerate}
+              disabled={isGenerating}
               className="gap-1"
             >
-              <Sparkles className="h-3.5 w-3.5" />
-              Em breve
+              {isGenerating ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" />
+              )}
+              {isGenerating ? 'Gerando...' : 'Gerar com IA'}
             </Button>
           ) : (
             <Button
