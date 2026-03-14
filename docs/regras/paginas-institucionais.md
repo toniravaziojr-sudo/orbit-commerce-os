@@ -89,19 +89,26 @@ A listagem mescla 3 fontes em uma tabela única ordenada por `created_at`:
 
 ---
 
-## Fluxo de Salvamento (Páginas Institucionais)
+## Fluxo de Salvamento (Páginas Institucionais e Landing Pages)
+
+### Fluxo unificado: Salvar → Preview → Publicar
 
 1. O usuário adiciona/edita blocos no editor visual — as alterações ficam apenas na memória local.
-2. Ao clicar em **Salvar**, o conteúdo é gravado diretamente na coluna `content` da tabela `store_pages`.
-3. Após salvar com sucesso, o sistema **atualiza imediatamente o cache local da página** com o conteúdo recém-salvo e, em seguida, **invalida obrigatoriamente** a chave `['store-page', pageId]` para confirmação com dados do banco.
-4. O editor registra uma **assinatura do conteúdo salvo** e entra em modo de proteção de sincronização.
-5. Enquanto o carregamento externo ainda estiver em versão antiga, o editor **bloqueia a re-sincronização automática** para evitar rollback visual no mesmo clique de salvar.
-6. A sincronização automática só é liberada quando o conteúdo externo confirma exatamente a versão recém-salva.
+2. Ao clicar em **Salvar**, o conteúdo é gravado na coluna `draft_content` da tabela `store_pages` (NÃO reflete no público).
+3. O usuário pode usar o **Preview** para visualizar como ficaria na loja pública.
+4. Ao clicar em **Publicar**, o conteúdo é copiado de `draft_content` para `content` + `is_published=true` + `status='published'` + cache CDN é invalidado.
+5. Somente após publicar as alterações ficam visíveis na loja pública.
+
+### Proteção anti-rollback
+
+- Após salvar/publicar com sucesso, o sistema **atualiza imediatamente o cache local da página** e registra uma **assinatura do conteúdo salvo**.
+- Enquanto o carregamento externo ainda estiver em versão antiga, o editor **bloqueia a re-sincronização automática** para evitar rollback visual.
+- A sincronização automática só é liberada quando o conteúdo externo confirma exatamente a versão recém-salva.
 
 | Arquivo | Responsabilidade |
 |---------|------------------|
-| `src/hooks/useBuilderData.ts` | Mutação de salvamento + atualização imediata de cache + invalidação obrigatória |
-| `src/pages/PageBuilder.tsx` | Carregamento inicial do conteúdo da página |
+| `src/hooks/useBuilderData.ts` | Mutação de salvamento (draft_content) + publicação (content) + cache + invalidação |
+| `src/pages/PageBuilder.tsx` | Carregamento inicial: prioriza `draft_content` > `content` > template |
 | `src/components/builder/VisualBuilder.tsx` | Orquestração do editor + proteção anti-rollback na sincronização pós-save |
 
 ---
