@@ -228,12 +228,12 @@ export function useSaveDraft() {
         return 1;
       }
 
-      // Special handling for institutional/landing pages with direct content - save to store_pages.content
+      // Special handling for institutional/landing pages - save to draft_content (not public yet)
       if ((pageType === 'institutional' || pageType === 'landing_page') && pageId) {
         const { error } = await supabase
           .from('store_pages')
           .update({ 
-            content: content as unknown as Json,
+            draft_content: content as unknown as Json,
             updated_at: new Date().toISOString(),
           })
           .eq('id', pageId);
