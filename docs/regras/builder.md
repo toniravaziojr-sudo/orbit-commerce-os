@@ -3844,8 +3844,33 @@ Frontend (Wizard confirm step)
 
 | Tipo | Nome | Localização | Descrição |
 |------|------|-------------|-----------|
-| Edge Function | ai-block-fill-visual v2.0.0 | `supabase/functions/ai-block-fill-visual/index.ts` | Gera imagens e textos com scope filtering e dados reais expandidos |
+| Edge Function | ai-block-fill-visual v2.1.0 | `supabase/functions/ai-block-fill-visual/index.ts` | Gera imagens e textos com scope filtering, dados reais expandidos, contexto de marca e referência multimodal |
 | Hook | useAIWizardGenerate | `src/hooks/useAIWizardGenerate.ts` | Chama edge function e aplica whitelist merge + scope filtering |
+
+### Grounding do Banner (v2.1.0)
+
+> Correção implementada para eliminar banners genéricos quando um produto é selecionado.
+
+#### Source of truth do produto
+- Nome, descrição, slug, preço e preço comparativo são buscados da tabela `products`
+- Imagem principal é buscada da tabela `product_images` (não da tabela `products`)
+- Prioridade: `is_primary DESC, sort_order ASC, LIMIT 1`
+- Fallback: se o produto não tem imagem cadastrada, a geração continua sem referência visual
+
+#### Contexto do tenant
+- `store_name` e `store_description` são buscados de `store_settings`
+- Ambos entram no prompt visual e textual para ancorar na identidade real da loja
+
+#### Geração multimodal
+- Quando a imagem principal do produto está disponível, ela é enviada como referência visual ao modelo
+- O payload enviado ao modelo é multimodal: `[{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url } }]`
+- O prompt instrui explicitamente o modelo a representar o produto mostrado na imagem de referência
+- Sem imagem disponível, a geração usa apenas prompt textual (comportamento anterior)
+
+#### Prompt enriquecido
+- Inclui nome real, descrição, preço/oferta e contexto da loja
+- Instrução explícita: "represente visualmente ESTE produto real"
+- Objetivo: eliminar banners genéricos de e-commerce
 
 ### Regras de Merge
 
