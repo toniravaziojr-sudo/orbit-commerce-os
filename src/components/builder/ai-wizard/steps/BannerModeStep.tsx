@@ -3,6 +3,7 @@
 // Phase 3.3: Structure decision inside the wizard
 // =============================================
 
+import { useEffect } from 'react';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -20,6 +21,13 @@ interface BannerModeStepProps {
 export function BannerModeStep({ value, onChange }: BannerModeStepProps) {
   const mode = value?.bannerMode || 'single';
   const slideCount = value?.slideCount || 2;
+
+  // Set default value on mount so validation passes
+  useEffect(() => {
+    if (!value) {
+      onChange({ bannerMode: 'single', slideCount: 1 });
+    }
+  }, []);
 
   const handleModeChange = (newMode: string) => {
     onChange({
