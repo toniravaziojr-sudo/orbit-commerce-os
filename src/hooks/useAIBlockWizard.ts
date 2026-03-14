@@ -1,6 +1,6 @@
 // =============================================
 // useAIBlockWizard — Hook para gerenciar estado do wizard de IA
-// Fase 3.1: Navegação de steps e coleta de dados
+// Phase 3.3: Supports banner-mode-select, scope-select, dynamic step expansion
 // =============================================
 
 import { useState, useCallback, useMemo } from 'react';
@@ -8,8 +8,9 @@ import {
   WizardBlockContract,
   WizardStepConfig,
   BannerAssociationPayload,
-  WizardCollectedData,
 } from '@/lib/builder/aiWizardRegistry';
+import type { BannerModeData } from '@/components/builder/ai-wizard/steps/BannerModeStep';
+import type { GenerationScope } from '@/components/builder/ai-wizard/steps/ScopeSelectStep';
 
 interface UseAIBlockWizardParams {
   contract: WizardBlockContract;
@@ -18,53 +19,47 @@ interface UseAIBlockWizardParams {
 }
 
 interface UseAIBlockWizardReturn {
-  /** Current step index */
   currentStepIndex: number;
-  /** Current step config */
   currentStep: WizardStepConfig;
-  /** All steps (expanded for per-slide steps) */
   steps: WizardStepConfig[];
-  /** Total step count */
   totalSteps: number;
-  /** Collected data so far */
   collectedData: Record<string, unknown>;
-  /** Whether user can go to next step */
   canGoNext: boolean;
-  /** Whether user can go back */
   canGoBack: boolean;
-  /** Whether we're on the confirm step */
   isConfirmStep: boolean;
-  /** Go to next step */
   goNext: () => void;
-  /** Go to previous step */
   goBack: () => void;
-  /** Set data for a specific step */
   setStepData: (stepId: string, data: unknown) => void;
-  /** Get data for a step */
   getStepData: (stepId: string) => unknown;
-  /** Reset wizard */
   reset: () => void;
 }
 
 /**
- * Expands steps that are perSlide into N repeated steps based on slideCount.
- * In Phase 3.1, we resolve this dynamically as the user picks slideCount.
+ * Expands steps dynamically based on collected data:
+ * - perSlide steps are expanded based on bannerMode data (carousel → N slides)
+ * - For single mode, perSlide steps appear once without index suffix
  */
 function expandSteps(
   baseSteps: WizardStepConfig[],
   collectedData: Record<string, unknown>
 ): WizardStepConfig[] {
   const expanded: WizardStepConfig[] = [];
+  const modeData = collectedData['bannerMode'] as BannerModeData | undefined;
 
   for (const step of baseSteps) {
     if (step.perSlide) {
-      const slideCount = (collectedData['slideCount'] as number) || 1;
-      for (let i = 0; i < slideCount; i++) {
-        expanded.push({
-          ...step,
-          id: `${step.id}_${i}`,
-          label: `${step.label} ${i + 1}`,
-        });
+      if (modeData?.bannerMode === 'carousel') {
+        const slideCount = modeData.slideCount || 2;
+        for (let i = 0; i < slideCount; i++) {
+          expanded.push({
+            ...step,
+            id: `${step.id}_${i}`,
+            label: `${step.label} (Slide ${i + 1})`,
+          });
+        }
+      } else {
+        // Single mode: show once without suffix
+        expanded.push(step);
       }
     } else {
       expanded.push(step);
@@ -85,6 +80,16 @@ function isStepComplete(
   if (!step.required) return true;
 
   switch (step.type) {
+    case 'banner-mode-select': {
+      const modeData = data as BannerModeData | undefined;
+      if (!modeData) return false;
+      return modeData.bannerMode === 'single' || 
+        (modeData.bannerMode === 'carousel' && modeData.slideCount >= 2 && modeData.slideCount <= 3);
+    }
+    case 'scope-select': {
+      const scope = data as GenerationScope | undefined;
+      return scope === 'images' || scope === 'texts' || scope === 'all';
+    }
     case 'banner-association': {
       const assoc = data as BannerAssociationPayload | undefined;
       if (!assoc) return false;
@@ -97,7 +102,6 @@ function isStepComplete(
     case 'quantity-select':
       return typeof data === 'number' && data >= (step.min || 1);
     case 'source-select': {
-      // Reads from current props — source must be set and if manual, productIds must exist
       const source = currentProps.source as string;
       if (!source) return false;
       if (source === 'manual') {
@@ -126,7 +130,7 @@ export function useAIBlockWizard({
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [collectedData, setCollectedData] = useState<Record<string, unknown>>({});
 
-  // Expand perSlide steps dynamically
+  // Expand perSlide steps dynamically based on mode selection
   const steps = useMemo(
     () => expandSteps(contract.steps, collectedData),
     [contract.steps, collectedData]
