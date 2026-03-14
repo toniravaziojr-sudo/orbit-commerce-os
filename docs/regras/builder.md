@@ -1892,6 +1892,22 @@ const handleSave = async () => {
 };
 ```
 
+### Regra complementar: Gate anti-rollback para conteúdo de página
+
+Quando `markClean()` é acionado, o editor não pode reaplicar imediatamente qualquer conteúdo externo sem validação.
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Regra Lógica |
+| **Localização** | `src/components/builder/VisualBuilder.tsx` |
+| **Contexto** | Sincronização automática quando `isDirty=false` após salvar/publicar |
+| **Descrição** | O editor armazena a assinatura da versão recém-salva e bloqueia sincronização automática até o conteúdo externo confirmar essa mesma assinatura. |
+| **Comportamento** | 1) Salva e registra assinatura persistida. 2) Ao ficar limpo, compara assinatura externa vs assinatura salva. 3) Se divergente, não rehidrata o canvas. 4) Quando igualar, libera sincronização normal. |
+| **Condições** | Obrigatório para páginas em que header/footer são rehidratados separadamente e para cenários de refetch assíncrono. |
+| **Visual** | Evita sumiço instantâneo de blocos no canvas logo após clicar em salvar. |
+| **Afeta** | Fluxo de salvar/publicar no builder e estabilidade do conteúdo em páginas institucionais. |
+| **Erros/Edge cases** | Se o backend retornar versão antiga temporariamente, o canvas preserva o conteúdo local até confirmação da versão mais nova. |
+
 ### Por Que o Delay é Necessário?
 
 | Sem Delay | Com Delay (requestAnimationFrame + setTimeout) |

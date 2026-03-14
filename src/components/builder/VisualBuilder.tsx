@@ -2,7 +2,7 @@
 // VISUAL BUILDER - Main builder component
 // =============================================
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -128,6 +128,23 @@ function BuilderThemeInjectorInner({ tenantId, templateSetId, pageType }: { tena
   return null;
 }
 
+function getPersistedContentSignature(content: BlockNode, isCheckoutPage: boolean): string {
+  if (!content.children || isCheckoutPage) {
+    return JSON.stringify(content);
+  }
+
+  return JSON.stringify({
+    ...content,
+    children: content.children.filter(
+      child => child.type !== 'Header' && child.type !== 'Footer'
+    ),
+  });
+}
+
+function getRuntimeContentSignature(content: BlockNode): string {
+  return JSON.stringify(content);
+}
+
 export function VisualBuilder({
   tenantId,
   pageType,
@@ -142,6 +159,7 @@ export function VisualBuilder({
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const pendingPersistedSignatureRef = useRef<string | null>(null);
   
   // Safe Mode: ?safe=1 renders placeholders only (for debugging)
   const isSafeMode = searchParams.get('safe') === '1';
@@ -477,45 +495,66 @@ export function VisualBuilder({
   // When globalLayout changes (header/footer settings), we need to update those blocks
   // even if isDirty, but preserve other user changes
   useEffect(() => {
-    if (!layoutLoading && !overridesLoading) {
-      if (store.isDirty) {
-        // CHECKOUT PAGES: When dirty, DO NOT sync header/footer from globalLayout
-        // This preserves user's local edits until they click "Save"
-        // The globalLayout data is stale until save happens
-        if (isCheckoutPage) {
-          // For checkout: skip header/footer sync entirely when editing
-          // User's local changes should persist without being overwritten
-          return;
-        }
-        
-        // For non-checkout pages: sync header/footer from globalLayout
-        // This reflects settings changes without losing user's other edits
-        const currentContent = store.content;
-        if (currentContent?.children && globalLayout) {
-          const headerConfig = globalLayout.header_config;
-          const footerConfig = globalLayout.footer_config;
-          
-          const updatedChildren = currentContent.children.map(child => {
-            if (child.type === 'Header') {
-              return { ...headerConfig, id: child.id, hidden: child.hidden };
-            }
-            if (child.type === 'Footer') {
-              return { ...footerConfig, id: child.id, hidden: child.hidden };
-            }
-            return child;
-          });
-          // Only update if header/footer actually changed
-          const hasChanges = JSON.stringify(currentContent.children) !== JSON.stringify(updatedChildren);
-          if (hasChanges) {
-            store.setContent({ ...currentContent, children: updatedChildren }, true);
-          }
-        }
+    if (layoutLoading || overridesLoading) return;
+
+    if (store.isDirty) {
+      // CHECKOUT PAGES: When dirty, DO NOT sync header/footer from globalLayout
+      // This preserves user's local edits until they click "Save"
+      // The globalLayout data is stale until save happens
+      if (isCheckoutPage) {
+        // For checkout: skip header/footer sync entirely when editing
+        // User's local changes should persist without being overwritten
         return;
       }
-      // When not dirty: apply full global layout (initial load or after save)
-      store.setContent(contentWithGlobalLayout, true);
+      
+      // For non-checkout pages: sync header/footer from globalLayout
+      // This reflects settings changes without losing user's other edits
+      const currentContent = store.content;
+      if (currentContent?.children && globalLayout) {
+        const headerConfig = globalLayout.header_config;
+        const footerConfig = globalLayout.footer_config;
+        
+        const updatedChildren = currentContent.children.map(child => {
+          if (child.type === 'Header') {
+            return { ...headerConfig, id: child.id, hidden: child.hidden };
+          }
+          if (child.type === 'Footer') {
+            return { ...footerConfig, id: child.id, hidden: child.hidden };
+          }
+          return child;
+        });
+        // Only update if header/footer actually changed
+        const hasChanges = JSON.stringify(currentContent.children) !== JSON.stringify(updatedChildren);
+        if (hasChanges) {
+          store.setContent({ ...currentContent, children: updatedChildren }, true);
+        }
+      }
+      return;
     }
-  }, [pageType, contentWithGlobalLayout, layoutLoading, overridesLoading, store, store.isDirty, globalLayout, isCheckoutPage]);
+
+    // CRITICAL: After save/publish, block sync until upstream cache contains persisted content
+    const incomingPersistedSignature = getPersistedContentSignature(contentWithGlobalLayout, isCheckoutPage);
+    const pendingPersistedSignature = pendingPersistedSignatureRef.current;
+
+    if (pendingPersistedSignature && incomingPersistedSignature !== pendingPersistedSignature) {
+      console.log('[VisualBuilder] Skipping clean-sync: waiting fresh persisted content.');
+      return;
+    }
+
+    if (pendingPersistedSignature && incomingPersistedSignature === pendingPersistedSignature) {
+      pendingPersistedSignatureRef.current = null;
+    }
+
+    // Avoid redundant store resets when runtime content is already synchronized
+    const incomingRuntimeSignature = getRuntimeContentSignature(contentWithGlobalLayout);
+    const currentRuntimeSignature = getRuntimeContentSignature(store.content);
+
+    if (incomingRuntimeSignature === currentRuntimeSignature) {
+      return;
+    }
+
+    store.setContent(contentWithGlobalLayout, true);
+  }, [contentWithGlobalLayout, layoutLoading, overridesLoading, store.isDirty, store.content, store.setContent, globalLayout, isCheckoutPage]);
 
 
   // Warn before leaving with unsaved changes (includes theme settings drafts)
@@ -879,6 +918,7 @@ export function VisualBuilder({
           pageType: pageType as 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'account' | 'account_orders' | 'account_order_detail',
           content: contentToSave,
         });
+        pendingPersistedSignatureRef.current = getPersistedContentSignature(contentToSave, isCheckoutPage);
         store.markClean();
         toast.success('Rascunho salvo!');
         return;
@@ -891,6 +931,7 @@ export function VisualBuilder({
         pageId: entityType === 'page' ? pageId : undefined,
         content: contentToSave,
       });
+      pendingPersistedSignatureRef.current = getPersistedContentSignature(contentToSave, isCheckoutPage);
       store.markClean();
       toast.success('Rascunho salvo!');
     } catch (error) {
@@ -943,6 +984,7 @@ export function VisualBuilder({
         });
         // Then publish the template set
         await publishTemplateSet.mutateAsync({ templateSetId });
+        pendingPersistedSignatureRef.current = getPersistedContentSignature(contentToSave, isCheckoutPage);
         store.markClean();
         return;
       }
@@ -954,6 +996,7 @@ export function VisualBuilder({
         pageId: entityType === 'page' ? pageId : undefined,
         content: contentToSave,
       });
+      pendingPersistedSignatureRef.current = getPersistedContentSignature(contentToSave, isCheckoutPage);
       store.markClean();
       toast.success('Página publicada com sucesso!');
     } catch (error) {
