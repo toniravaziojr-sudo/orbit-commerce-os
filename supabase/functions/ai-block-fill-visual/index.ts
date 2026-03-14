@@ -662,6 +662,16 @@ serve(async (req) => {
         }
       }
 
+      // System-derived legibility props when generating image + text together
+      if (generateImages && generateTextsFlag) {
+        generatedProps.overlayOpacity = 35;
+        generatedProps.alignment = 'left';
+      } else if (generateImages) {
+        // Even image-only: set overlay for future text additions
+        generatedProps.overlayOpacity = 35;
+        generatedProps.alignment = 'left';
+      }
+
       const elapsed = Date.now() - startTime;
       console.log(`[ai-block-fill-visual] Banner:single done in ${elapsed}ms`);
 
