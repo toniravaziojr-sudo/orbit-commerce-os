@@ -159,6 +159,7 @@ export function VisualBuilder({
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const pendingPersistedSignatureRef = useRef<string | null>(null);
   
   // Safe Mode: ?safe=1 renders placeholders only (for debugging)
   const isSafeMode = searchParams.get('safe') === '1';
