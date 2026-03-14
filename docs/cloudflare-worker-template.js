@@ -514,6 +514,10 @@ export default {
         const fnUrl = new URL(edgeFnUrl);
         fnUrl.searchParams.set('hostname', publicHost);
         fnUrl.searchParams.set('path', url.pathname);
+        // CRITICAL: Forward preview flag so Edge Function reads draft_content
+        if (isPreview) {
+          fnUrl.searchParams.set('preview', '1');
+        }
         
         const htmlRes = await fetch(fnUrl.toString(), {
           method: 'GET',
