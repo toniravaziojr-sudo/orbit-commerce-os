@@ -313,6 +313,12 @@ export function useSaveDraft() {
       if (variables.pageId) {
         queryClient.invalidateQueries({ queryKey: ['store-page', variables.pageId] });
       }
+
+      // Fire-and-forget cache purge for institutional/landing pages (save = publish for these)
+      if (currentTenant?.id && (variables.pageType === 'institutional' || variables.pageType === 'landing_page')) {
+        cachePurge.template(currentTenant.id);
+      }
+
       toast({ title: 'Rascunho salvo!' });
     },
     onError: (error: Error) => {
