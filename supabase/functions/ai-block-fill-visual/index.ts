@@ -327,9 +327,18 @@ async function generateTexts(
     if (context.product.description) {
       contextInfo += ` Descrição: "${context.product.description.substring(0, 300)}".`;
     }
-    contextInfo += ' IMPORTANTE: Use o nome EXATO do produto. Não invente outro nome.';
+    if (context.product.price) {
+      const formatted = `R$ ${context.product.price.toFixed(2).replace('.', ',')}`;
+      contextInfo += ` Preço: ${formatted}.`;
+    }
+    contextInfo += ' IMPORTANTE: Use o nome EXATO do produto. Não invente outro nome ou produto.';
   } else if (context.category) {
     contextInfo = `Categoria REAL: "${context.category.name}". Use o nome EXATO da categoria.`;
+  }
+
+  let storeInfo = `Loja: "${context.store.storeName}".`;
+  if (context.store.storeDescription) {
+    storeInfo += ` Sobre: "${context.store.storeDescription.substring(0, 200)}".`;
   }
 
   if (context.mode === 'carousel' && context.slideCount) {
