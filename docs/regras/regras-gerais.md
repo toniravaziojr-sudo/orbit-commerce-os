@@ -901,6 +901,16 @@ Checkout abandonado é classificado como "com erro" quando:
 
 ---
 
+## Utilitários de Formatação e Validação
+
+| Utilitário | Arquivo | Descrição |
+|------------|---------|-----------|
+| `formatCpf.ts` | `src/lib/formatCpf.ts` | Máscara, extração de dígitos e validação matemática de CPF (dígitos verificadores módulo 11). Usado no checkout. |
+| `formatCnpj.ts` | `src/lib/formatCnpj.ts` | Máscara, extração de dígitos e validação de comprimento de CNPJ. Usado no cadastro de pessoa jurídica. |
+| `cepUtils.ts` | `src/lib/cepUtils.ts` | Sanitização e validação de CEP. Usado no checkout e estimativa de frete. |
+
+---
+
 ## Regra de Imutabilidade
 
 | Regra | Descrição |
