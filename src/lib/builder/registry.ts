@@ -2964,8 +2964,8 @@ const blockDefinitions: BlockDefinition[] = [
       backgroundColor: '',
     },
     propsSchema: {
-      title: { type: 'string', label: 'Título' },
-      subtitle: { type: 'string', label: 'Subtítulo' },
+      title: { type: 'string', label: 'Título', aiFillable: { hint: 'Título da seção de mapa/localização', format: 'text' } },
+      subtitle: { type: 'string', label: 'Subtítulo', aiFillable: { hint: 'Subtítulo da seção de localização', format: 'text' } },
       address: { type: 'string', label: 'Endereço para o Mapa' },
       embedUrl: { type: 'string', label: 'URL do Embed (opcional)', placeholder: 'Cole o URL de incorporação do Google Maps' },
       latitude: { type: 'string', label: 'Latitude (opcional)' },
