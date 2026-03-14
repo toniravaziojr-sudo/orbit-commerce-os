@@ -92,8 +92,9 @@ A listagem mescla 3 fontes em uma tabela única ordenada por `created_at`:
 
 1. O usuário adiciona/edita blocos no editor visual — as alterações ficam apenas na memória local.
 2. Ao clicar em **Salvar**, o conteúdo é gravado diretamente na coluna `content` da tabela `store_pages`.
-3. Após salvar com sucesso, o sistema **invalida obrigatoriamente** o cache da página (`['store-page', pageId]`), forçando o editor a recarregar os dados atualizados do banco.
-4. **Regra crítica:** Sem essa invalidação, o editor re-sincroniza com dados antigos em cache quando o estado de "alterações pendentes" muda para falso, causando o desaparecimento visual dos blocos recém-adicionados.
+3. Após salvar com sucesso, o sistema **atualiza imediatamente o cache local da página** com o conteúdo recém-salvo e, em seguida, **invalida obrigatoriamente** a chave `['store-page', pageId]` para confirmação com dados do banco.
+4. **Regra crítica:** A atualização imediata do cache é obrigatória para evitar re-sincronização no mesmo ciclo com dados antigos quando o estado de "alterações pendentes" muda para falso.
+5. **Regra crítica complementar:** A invalidação após a atualização local continua obrigatória para garantir consistência com a versão persistida no banco.
 
 | Arquivo | Responsabilidade |
 |---------|------------------|
