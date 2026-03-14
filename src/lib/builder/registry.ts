@@ -2668,9 +2668,9 @@ const blockDefinitions: BlockDefinition[] = [
       accentColor: '',
     },
     propsSchema: {
-      title: { type: 'string', label: 'Título' },
-      subtitle: { type: 'string', label: 'Subtítulo' },
-      items: { type: 'array', label: 'Estatísticas' },
+      title: { type: 'string', label: 'Título', aiFillable: { hint: 'Título da seção de estatísticas', format: 'text' } },
+      subtitle: { type: 'string', label: 'Subtítulo', aiFillable: { hint: 'Subtítulo complementar', format: 'text' } },
+      items: { type: 'array', label: 'Estatísticas', aiFillable: { hint: 'Números impressionantes do negócio', minItems: 3, maxItems: 4, itemSchema: { number: { hint: 'Número formatado (ex: 10k+, 99%, 24h)', enabled: true }, label: { hint: 'Label curto do número', enabled: true } } } },
       layout: { type: 'select', label: 'Layout', options: [{ label: 'Horizontal', value: 'horizontal' }, { label: 'Grid', value: 'grid' }] },
       animateNumbers: { type: 'boolean', label: 'Animar Números' },
       backgroundColor: { type: 'color', label: 'Cor de Fundo' },
