@@ -38,26 +38,6 @@ export default function PageBuilder() {
     enabled: !!pageId,
   });
 
-  // CRITICAL FIX: Fetch latest draft version content for institutional pages
-  // Without this, after save the editor resets to the original store_pages.content
-  // losing any blocks added during the editing session
-  const { data: latestDraftContent } = useQuery({
-    queryKey: ['page-draft-version-content', pageId, currentTenant?.id],
-    queryFn: async () => {
-      if (!pageId || !currentTenant?.id) return null;
-      const { data } = await supabase
-        .from('store_page_versions')
-        .select('content')
-        .eq('tenant_id', currentTenant.id)
-        .eq('entity_type', 'page')
-        .eq('page_id', pageId)
-        .order('version', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      return data?.content as unknown as BlockNode | null;
-    },
-    enabled: !!pageId && !!currentTenant?.id,
-  });
 
   // CRITICAL: Fetch active templateSetId for theme injection
   // Without this, useBuilderThemeInjector falls back to defaults
