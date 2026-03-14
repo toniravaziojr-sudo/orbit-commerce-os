@@ -514,6 +514,10 @@ export default {
         const fnUrl = new URL(edgeFnUrl);
         fnUrl.searchParams.set('hostname', publicHost);
         fnUrl.searchParams.set('path', url.pathname);
+        // CRITICAL: Forward preview flag so Edge Function reads draft_content
+        if (isPreview) {
+          fnUrl.searchParams.set('preview', '1');
+        }
         
         const htmlRes = await fetch(fnUrl.toString(), {
           method: 'GET',
@@ -550,8 +554,10 @@ export default {
           resHeaders.set('X-CC-Render-Mode', 'edge-html');
           resHeaders.set('X-CC-Domain-Type', domainType);
           resHeaders.set('X-CC-Cache', isPreview ? 'BYPASS' : 'MISS');
-          // Cache-Control for browser (short) + CDN awareness
-          resHeaders.set('Cache-Control', `public, max-age=60, s-maxage=${HTML_CACHE_TTL}, stale-while-revalidate=${HTML_STALE_TTL}`);
+          // Cache-Control: no-store for preview, normal caching for public
+          resHeaders.set('Cache-Control', isPreview 
+            ? 'no-store, no-cache, must-revalidate' 
+            : `public, max-age=60, s-maxage=${HTML_CACHE_TTL}, stale-while-revalidate=${HTML_STALE_TTL}`);
 
           // Clone body for cache storage + response
           const htmlBody = await htmlRes.text();
