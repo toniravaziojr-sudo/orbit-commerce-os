@@ -677,13 +677,15 @@ serve(async (req) => {
                   product: slideContexts[i]?.product,
                   category: slideContexts[i]?.category,
                   associationType: slideContexts[i]?.associationType,
-                  storeName,
+                  store: storeCtx,
                   slideIndex: i,
                 });
 
-                let dataUrl = await callImageModel(lovableApiKey, "google/gemini-3-pro-image-preview", prompt);
+                // Pass product image as multimodal reference when available
+                const refImage = slideContexts[i]?.product?.mainImageUrl || undefined;
+                let dataUrl = await callImageModel(lovableApiKey, "google/gemini-3-pro-image-preview", prompt, refImage);
                 if (!dataUrl) {
-                  dataUrl = await callImageModel(lovableApiKey, "google/gemini-2.5-flash-image", prompt);
+                  dataUrl = await callImageModel(lovableApiKey, "google/gemini-2.5-flash-image", prompt, refImage);
                 }
                 if (!dataUrl) {
                   throw new Error(`Failed to generate image: slide ${i} ${spec.key}`);
