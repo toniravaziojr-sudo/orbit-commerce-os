@@ -636,9 +636,19 @@ O compilador FAQ usa `<details>/<summary>` nativo (zero JS) com chevron animado 
 
 | Correção | Descrição |
 |----------|-----------|
-| `pageType` sempre enviado | VisualBuilder agora envia `pageType` em TODAS as chamadas de save/publish, não apenas para templates. Isso garante que `useBuilderData` roteie para o caminho correto. |
-| `landing_page` suportado | `useBuilderData` agora trata `landing_page` igual a `institutional` — salva direto em `store_pages.content`. |
-| Cache purge automático | Ao salvar/publicar página institucional ou landing page, dispara `cachePurge.template()` para invalidar CDN. |
-| Update otimista no publish | `onSuccess` do publish agora faz `setQueryData` otimista no cache `['store-page', pageId]` para evitar rollback visual. |
+| `pageType` sempre enviado | VisualBuilder agora envia `pageType` em TODAS as chamadas de save/publish, não apenas para templates. |
+| `landing_page` suportado | `useBuilderData` agora trata `landing_page` igual a `institutional`. |
+
+### v5.0.0 — Fluxo Unificado: Salvar → Preview → Publicar
+
+**Arquivos:** `useBuilderData.ts`, `PageBuilder.tsx`, migration (add `draft_content`)
+
+| Correção | Descrição |
+|----------|-----------|
+| `draft_content` adicionado | Nova coluna em `store_pages` para separar rascunho de publicado. |
+| Salvar grava em `draft_content` | `saveDraft` para institutional/landing agora salva em `draft_content`, não em `content`. Não reflete no público. |
+| Publicar copia para `content` | `publish` copia `draft_content` para `content` + marca publicado + invalida cache CDN. |
+| Editor carrega `draft_content` | `PageBuilder.tsx` prioriza `draft_content` > `content` > template para o editor. |
+| Cache purge só no publish | Removido cache purge do saveDraft — só dispara ao publicar. |
 
 **Causa raiz do bug:** O `pageType` era passado como `undefined` quando `entityType === 'page'`, fazendo o save cair no fluxo genérico de versionamento (`store_page_versions`) em vez do caminho direto (`store_pages.content`). Como o editor carrega de `store_pages.content`, o conteúdo salvo "sumia" ao reabrir.
