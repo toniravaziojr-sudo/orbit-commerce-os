@@ -875,6 +875,7 @@ Deno.serve(async (req) => {
           slug: candidate.slug,
           title: title,
           content: pageContent,
+          draft_content: pageContent,
           status: 'draft',
           is_published: false,
           builder_enabled: true,

@@ -83,6 +83,7 @@ export function useStorePages() {
           type: formData.type || 'institutional',
           status: formData.status || 'draft',
           content: formData.content || null,
+          draft_content: formData.content || null,
           seo_title: formData.seo_title || null,
           seo_description: formData.seo_description || null,
           is_published: formData.is_published ?? false,

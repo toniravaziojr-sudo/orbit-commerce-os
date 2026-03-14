@@ -658,6 +658,7 @@ ${storeCtx.supportHours ? `<p style="margin-top:0.5rem;font-size:0.9rem;"><stron
         title: pageSpec.title,
         slug: pageSpec.slug,
         content: pageContent,
+        draft_content: pageContent,
         status: "draft",
         is_published: false,
         type: "institutional",
