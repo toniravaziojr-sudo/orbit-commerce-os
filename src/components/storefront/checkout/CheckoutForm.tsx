@@ -314,11 +314,10 @@ export function validateCheckoutForm(data: CheckoutFormData): Partial<Record<key
     errors.customerPhone = 'Telefone inválido';
   }
 
-  const cpfDigits = data.customerCpf.replace(/\D/g, '');
-  if (!cpfDigits) {
+  if (!data.customerCpf.replace(/\D/g, '')) {
     errors.customerCpf = 'CPF é obrigatório';
-  } else if (cpfDigits.length !== 11) {
-    errors.customerCpf = 'CPF inválido';
+  } else if (!isValidCpf(data.customerCpf)) {
+    errors.customerCpf = 'CPF inválido. Verifique os números digitados.';
   }
 
   const cepDigits = sanitizeCep(data.shippingPostalCode);

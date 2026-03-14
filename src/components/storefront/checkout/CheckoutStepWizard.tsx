@@ -392,7 +392,11 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
       if (!formData.customerEmail.trim()) errors.customerEmail = 'E-mail é obrigatório';
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.customerEmail)) errors.customerEmail = 'E-mail inválido';
       if (!formData.customerPhone.trim()) errors.customerPhone = 'Telefone é obrigatório';
-      if (!formData.customerCpf.trim()) errors.customerCpf = 'CPF é obrigatório';
+      if (!formData.customerCpf.replace(/\D/g, '')) {
+        errors.customerCpf = 'CPF é obrigatório';
+      } else if (!isValidCpf(formData.customerCpf)) {
+        errors.customerCpf = 'CPF inválido. Verifique os números digitados.';
+      }
       
       // No password validation in checkout - account creation moved to Thank You page
     }
