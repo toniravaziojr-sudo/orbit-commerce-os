@@ -423,7 +423,7 @@ Cada slide deve ter textos distintos e complementares entre si.`;
   }];
 
   const systemPrompt = `Você é um copywriter de e-commerce profissional. Gere textos em português brasileiro para um banner hero de loja virtual.
-Loja: "${context.storeName}".
+${storeInfo}
 ${context.briefing ? `Briefing: "${context.briefing}".` : ''}
 ${contextInfo}`;
 
