@@ -1908,6 +1908,19 @@ Quando `markClean()` é acionado, o editor não pode reaplicar imediatamente qua
 | **Afeta** | Fluxo de salvar/publicar no builder e estabilidade do conteúdo em páginas institucionais. |
 | **Erros/Edge cases** | Se o backend retornar versão antiga temporariamente, o canvas preserva o conteúdo local até confirmação da versão mais nova. |
 
+### Regra de Persistência: Páginas Institucionais e Landing Pages
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Regra Lógica |
+| **Localização** | `src/components/builder/VisualBuilder.tsx` (linhas de save/publish), `src/hooks/useBuilderData.ts` |
+| **Contexto** | Salvamento de páginas com `entityType === 'page'` e `pageType in ('institutional', 'landing_page')` |
+| **Descrição** | Páginas institucionais e landing pages salvam **diretamente em `store_pages.content`**, NÃO no sistema de versionamento genérico (`store_page_versions`). Isso garante que salvar = aparecer na loja pública. |
+| **Comportamento** | 1) VisualBuilder SEMPRE envia `pageType` nas chamadas de save/publish (não mais condicional). 2) `useBuilderData` intercepta `pageType === 'institutional' \| 'landing_page'` e grava direto em `store_pages.content`. 3) `onSuccess` faz update otimista no cache `['store-page', pageId]` e dispara `cachePurge.template()` para invalidar CDN. |
+| **Condições** | Obrigatório para todas as páginas vindas de `store_pages` (geradas com IA, criadas manualmente, ou landing pages). |
+| **Afeta** | `PageBuilder.tsx` (leitura), `usePreviewTemplate.ts`, `usePublicTemplate.ts`, `storefront-html` (renderização pública). |
+| **Erros/Edge cases** | Sem `pageType`, o fluxo caía no versionamento genérico e `store_pages.content` nunca era atualizado, causando rollback visual ao reabrir o editor. |
+
 ### Por Que o Delay é Necessário?
 
 | Sem Delay | Com Delay (requestAnimationFrame + setTimeout) |
