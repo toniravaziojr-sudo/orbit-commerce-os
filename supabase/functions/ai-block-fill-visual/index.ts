@@ -419,10 +419,10 @@ async function generateTexts(
       parameters: {
         type: "object",
         properties: {
-          title: { type: "string", description: "Short, impactful headline (max 40 chars)" },
-          subtitle: { type: "string", description: "Supporting text (max 80 chars)" },
-          buttonText: { type: "string", description: "CTA button text (max 20 chars)" },
-          altText: { type: "string", description: "Accessible alt text for banner image" },
+          title: { type: "string", description: "Headline curta e impactante. MÁXIMO 30 caracteres. Verbo de ação ou benefício direto. Use o nome real do produto." },
+          subtitle: { type: "string", description: "Texto de apoio. MÁXIMO 60 caracteres. Complementar ao title, sem repetir. Destaque benefício ou oferta." },
+          buttonText: { type: "string", description: "Texto do botão CTA. MÁXIMO 15 caracteres. Ação clara (ex: Comprar agora, Ver oferta, Conhecer)." },
+          altText: { type: "string", description: "Texto alt acessível descrevendo a imagem do banner." },
         },
         required: ["title", "subtitle", "buttonText", "altText"],
         additionalProperties: false,
@@ -430,15 +430,12 @@ async function generateTexts(
     },
   }];
 
-  const systemPrompt = `Você é um copywriter de e-commerce profissional. Gere textos em português brasileiro para um banner hero de loja virtual.
-${storeInfo}
-${context.briefing ? `Briefing: "${context.briefing}".` : ''}
-${contextInfo}`;
+  const systemPrompt = COPY_SYSTEM_PROMPT(storeInfo, contextInfo, context.briefing);
 
   const { data } = await aiChatCompletionJSON("google/gemini-2.5-flash", {
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: "Gere textos para este banner." },
+      { role: "user", content: "Gere textos para este banner hero. Respeite os limites de caracteres rigorosamente." },
     ],
     tools,
     tool_choice: { type: "function", function: { name: "generate_banner_texts" } },
@@ -453,7 +450,7 @@ ${contextInfo}`;
     const parsed = typeof toolCall.function.arguments === 'string'
       ? JSON.parse(toolCall.function.arguments)
       : toolCall.function.arguments;
-    return parsed;
+    return truncateTexts(parsed);
   }
   return {};
 }
