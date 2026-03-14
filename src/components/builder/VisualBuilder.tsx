@@ -992,7 +992,7 @@ export function VisualBuilder({
       // LEGACY: Publish to old system
       await publish.mutateAsync({
         entityType,
-        pageType: (entityType === 'template' || pageType === 'page_template') ? pageType : undefined,
+        pageType: pageType,
         pageId: entityType === 'page' ? pageId : undefined,
         content: contentToSave,
       });
