@@ -1360,16 +1360,19 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'string',
         label: 'Título',
         defaultValue: 'Título da Seção',
+        aiFillable: { hint: 'Título da seção de conteúdo', format: 'text' },
       },
       subtitle: {
         type: 'string',
         label: 'Subtítulo',
         defaultValue: '',
+        aiFillable: { hint: 'Subtítulo complementar', format: 'text' },
       },
       content: {
         type: 'richtext',
         label: 'Conteúdo',
         defaultValue: '',
+        aiFillable: { hint: 'Conteúdo descritivo em HTML simples (p, strong, ul, li). 1-3 parágrafos.', format: 'html' },
       },
       imageDesktop: {
         type: 'image',
@@ -1392,6 +1395,15 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'array',
         label: 'Features',
         defaultValue: [],
+        aiFillable: {
+          hint: 'Lista de diferenciais ou benefícios curtos',
+          minItems: 0,
+          maxItems: 4,
+          itemSchema: {
+            icon: { hint: 'Nome do ícone Lucide (Check, Star, Shield, etc.)', enabled: true },
+            text: { hint: 'Benefício em 1 frase curta', enabled: true },
+          },
+        },
       },
       iconColor: {
         type: 'color',
@@ -1407,6 +1419,7 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'string',
         label: 'Texto do Botão',
         defaultValue: 'Saiba mais',
+        aiFillable: { hint: 'Call-to-action curto, 2-4 palavras', format: 'cta' },
       },
       buttonUrl: {
         type: 'string',
