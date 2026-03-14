@@ -2996,7 +2996,7 @@ const blockDefinitions: BlockDefinition[] = [
         ],
       },
       showContactInfo: { type: 'boolean', label: 'Mostrar Info de Contato', defaultValue: true },
-      contactTitle: { type: 'string', label: 'Título da Seção' },
+      contactTitle: { type: 'string', label: 'Título da Seção', aiFillable: { hint: 'Título da seção de contato do mapa', format: 'text' } },
       contactAddress: { type: 'string', label: 'Endereço Completo' },
       contactPhone: { type: 'string', label: 'Telefone' },
       contactEmail: { type: 'string', label: 'E-mail' },
