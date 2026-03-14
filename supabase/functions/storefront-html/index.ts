@@ -2751,11 +2751,13 @@ serve(async (req) => {
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200, max-age=120',
+        'Cache-Control': isPreviewMode ? 'no-store, no-cache' : 'public, s-maxage=600, stale-while-revalidate=1200, max-age=120',
         'Server-Timing': `resolve;dur=${resolveMs}, queries;dur=${queryMs}, total;dur=${totalMs}`,
         'X-Storefront-Version': VERSION,
         'X-Tenant': tenantSlug,
         'X-Route': `${route.type}${route.slug ? '/' + route.slug : ''}`,
+        'X-CC-Cache': isPreviewMode ? 'BYPASS' : 'LIVE',
+        ...(isPreviewMode ? { 'X-Render-Mode': 'preview-draft' } : {}),
       },
     });
 
