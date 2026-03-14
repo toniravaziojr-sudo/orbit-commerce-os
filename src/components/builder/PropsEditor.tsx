@@ -224,17 +224,23 @@ export function PropsEditor({
             <h3 className="font-semibold text-xs truncate">{definition.label}</h3>
             <p className="text-[10px] text-muted-foreground">Propriedades</p>
           </div>
-          {/* AI Fill button — only for blocks with aiFillable props and valid tenantId */}
-          {hasFillableProps && tenantId && (
+          {/* AI Fill button — Group B (wizard) or Group A (direct fill) */}
+          {(hasFillableProps || wizardContract) && tenantId && (
             <Button
               variant="outline"
               size="sm"
               className="h-7 gap-1 text-xs shrink-0"
               disabled={isAILoading}
               onClick={async () => {
-                const merged = await fill();
-                if (merged) {
-                  onChange(merged);
+                if (wizardContract) {
+                  // Group B: open wizard dialog
+                  setWizardOpen(true);
+                } else {
+                  // Group A: direct text fill
+                  const merged = await fill();
+                  if (merged) {
+                    onChange(merged);
+                  }
                 }
               }}
             >
