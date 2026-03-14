@@ -984,6 +984,7 @@ export function VisualBuilder({
         });
         // Then publish the template set
         await publishTemplateSet.mutateAsync({ templateSetId });
+        pendingPersistedSignatureRef.current = getPersistedContentSignature(contentToSave, isCheckoutPage);
         store.markClean();
         return;
       }
@@ -995,6 +996,7 @@ export function VisualBuilder({
         pageId: entityType === 'page' ? pageId : undefined,
         content: contentToSave,
       });
+      pendingPersistedSignatureRef.current = getPersistedContentSignature(contentToSave, isCheckoutPage);
       store.markClean();
       toast.success('Página publicada com sucesso!');
     } catch (error) {
