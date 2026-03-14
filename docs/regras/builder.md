@@ -3644,8 +3644,8 @@ Blocos que exigem decisões do usuário antes da geração:
 
 | Bloco | Dependências do Usuário | IA Gera | IA Nunca Toca |
 |---|---|---|---|
-| **Banner (single)** | Associação: produto/categoria/URL/nenhum | imageDesktop, imageMobile, title, subtitle, buttonText | mode, linkUrl, buttonUrl, cores, height, alignment |
-| **Banner (carousel)** | Qtd slides + associação por slide | slides[] (imagens + texto por slide) | mode, autoplaySeconds, showArrows, showDots, cores |
+| **Banner (single)** | Modo, Escopo, Associação | imageDesktop, imageMobile, title, subtitle, buttonText (filtrado por scope) | mode, linkUrl, buttonUrl, cores, height, alignment |
+| **Banner (carousel)** | Modo, Escopo, Qtd slides + associação por slide | slides[] (imagens + texto por slide, filtrado por scope) | mode, autoplaySeconds, showArrows, showDots, cores |
 | **BannerProducts** | source + productIds/categoryId (já no bloco) | imageDesktop, imageMobile, title, description | source, productIds, categoryId, limit, ctaUrl |
 | **TextBanners** | Briefing obrigatório (tema) | imageDesktop1/2, imageMobile1/2 | title, text, ctaText (já são Grupo A), layout, ctaUrl, cores |
 | **ImageCarousel** | Qtd de imagens + briefing | images[] | autoplay, showArrows, showDots, aspectRatio, slidesPerView |
@@ -3659,6 +3659,8 @@ Blocos que exigem decisões do usuário antes da geração:
 |------|-----------|-------------|-----------|
 | Componente | AIFillWizardDialog | `src/components/builder/ai-wizard/AIFillWizardDialog.tsx` | Modal genérico de steps do wizard |
 | Componente | WizardStepRenderer | `src/components/builder/ai-wizard/WizardStepRenderer.tsx` | Renderiza o componente correto para cada tipo de step |
+| Componente | BannerModeStep | `src/components/builder/ai-wizard/steps/BannerModeStep.tsx` | Step de escolha de modo: único ou carrossel + quantidade de slides |
+| Componente | ScopeSelectStep | `src/components/builder/ai-wizard/steps/ScopeSelectStep.tsx` | Step de escolha de escopo: só imagens, só textos, ou ambos |
 | Componente | BannerAssociationStep | `src/components/builder/ai-wizard/steps/BannerAssociationStep.tsx` | Step de associação com 4 opções: produto/categoria/URL/nenhum |
 | Componente | QuantitySelectStep | `src/components/builder/ai-wizard/steps/QuantitySelectStep.tsx` | Select numérico (slides, imagens) |
 | Componente | BriefingStep | `src/components/builder/ai-wizard/steps/BriefingStep.tsx` | Textarea para briefing/tema |
@@ -3670,50 +3672,118 @@ Blocos que exigem decisões do usuário antes da geração:
 | Tipo | Nome | Localização | Descrição |
 |------|------|-------------|-----------|
 | Hook | useAIBlockWizard | `src/hooks/useAIBlockWizard.ts` | Gerencia estado do wizard: step atual, navegação, dados coletados |
+| Hook | useAIWizardGenerate | `src/hooks/useAIWizardGenerate.ts` | Chama edge function e aplica whitelist merge + scope filtering no frontend |
 | Função | getWizardContract | `src/lib/builder/aiWizardRegistry.ts` | Retorna o contrato do bloco ou null (Grupo A) |
 
 #### Registry de Contratos
 
 | Tipo | Nome | Localização | Descrição |
 |------|------|-------------|-----------|
-| Registry | aiWizardRegistry | `src/lib/builder/aiWizardRegistry.ts` | Mapa declarativo blockType → WizardBlockContract com steps, aiGenerates e aiNeverTouches |
+| Registry | aiWizardRegistry | `src/lib/builder/aiWizardRegistry.ts` | Mapa declarativo blockType → WizardBlockContract com steps, aiGenerates, aiNeverTouches e hasTextGeneration |
+
+### Padrão Global de 4 Camadas (Fase 3.3)
+
+Todo bloco wizard segue obrigatoriamente 4 camadas:
+
+```text
+┌─────────────────────────────────────┐
+│  Camada 1: ESTRUTURA DO BLOCO       │
+│  modo, quantidade, layout           │
+│  (só aparece se o bloco tem opções) │
+├─────────────────────────────────────┤
+│  Camada 2: ESCOPO DA GERAÇÃO        │
+│  O que gerar? Imagens / Textos /    │
+│  Imagens+Textos                     │
+├─────────────────────────────────────┤
+│  Camada 3: CONTEXTO / VÍNCULO       │
+│  Produto / Categoria / URL / Tema   │
+│  + briefing opcional                │
+├─────────────────────────────────────┤
+│  Camada 4: CONFIRMAÇÃO              │
+│  Resumo de tudo + botão Gerar       │
+└─────────────────────────────────────┘
+```
+
+Camadas sem opções para um bloco específico são puladas automaticamente.
+
+### Classificação de Props (5 categorias)
+
+| Categoria | Significado | Exemplos (Banner) |
+|---|---|---|
+| **Estrutural** | Define a forma do bloco. Wizard camada 1. | `mode`, `slides` (contagem) |
+| **Gerável por IA** | A IA pode preencher se no escopo. Wizard camada 2. | `imageDesktop`, `imageMobile`, `title`, `subtitle`, `buttonText` |
+| **Derivada pelo sistema** | Calculada automaticamente. Nunca IA. | `linkUrl`, `buttonUrl` (derivados do produto/categoria) |
+| **Proibida para IA** | Config visual/técnica que IA nunca toca. | `backgroundColor`, `textColor`, `overlayOpacity`, `height` |
+| **Manual apenas** | Só faz sentido no caminho manual. | `autoplaySeconds`, `showArrows`, `showDots` |
 
 ### Step Types
 
 | Step Type | Descrição | Payload de Saída |
 |---|---|---|
-| `banner-association` | Seletor com 4 modos: produto, categoria, URL, nenhum | `BannerAssociationPayload` (associationType, productId?, categoryId?, manualUrl?, derivedLinkUrl) |
+| `banner-mode-select` | Escolha de modo (único/carrossel) + quantidade de slides | `BannerModeData` (bannerMode, slideCount) |
+| `scope-select` | Escolha de escopo (imagens/textos/ambos) | `GenerationScope` ('images' \| 'texts' \| 'all') |
+| `banner-association` | Seletor com 4 modos: produto, categoria, URL, nenhum | `BannerAssociationPayload` |
 | `quantity-select` | Select numérico (min/max) | `number` |
 | `source-select` | Valida fonte existente no bloco (BannerProducts) | Lê de currentProps |
 | `briefing` | Textarea com placeholder contextual | `string` |
 | `confirm` | Resumo + botão gerar | — |
 
-### Contrato de Saída (`collectedData`) por Bloco
+### Source of Truth para Vínculos Reais
 
-#### Banner (single)
-```typescript
-{ mode: 'single', association: BannerAssociationPayload, briefing?: string }
+Quando o usuário escolhe um produto no wizard, o backend busca e usa como contexto:
+
+| Dado | Campo | Uso |
+|---|---|---|
+| Nome real | `products.name` | Prompt de imagem e texto |
+| Descrição real | `products.description` | Contexto para copy (até 300 chars) |
+| Slug real | `products.slug` | Derivar `linkUrl = /produto/{slug}` |
+| Imagem principal | `products.images[0]` | Referência visual (futuro) |
+| Nome categoria | `categories.name` | Prompt contexto |
+| Slug categoria | `categories.slug` | Derivar `linkUrl = /categoria/{slug}` |
+
+### Fluxo do Banner (Fase 3.3)
+
+```text
+Step 1: ESTRUTURA (banner-mode-select)
+  "Que tipo de banner quer criar?"
+  ○ Banner Único
+  ○ Carrossel → "Quantos slides?" [2-3]
+
+Step 2: ESCOPO (scope-select)
+  "O que deseja gerar?"
+  ☑ Imagens
+  ☑ Textos
+
+Step 3: VÍNCULO (banner-association) [repetido por slide se carrossel]
+  "Para onde o banner direciona?"
+  ○ Produto → seletor
+  ○ Categoria → seletor
+  ○ URL manual → input
+  ○ Nenhum (institucional)
+
+Step 4: BRIEFING (briefing)
+  "Descreva o objetivo" (opcional)
+
+Step 5: CONFIRMAÇÃO (confirm)
+  Resumo: tipo, escopo, vínculo, briefing
+  [Gerar com IA]
 ```
 
-#### Banner (carousel)
-```typescript
-{ mode: 'carousel', slideCount: number, slides: [{ index, association: BannerAssociationPayload, briefing? }] }
-```
+### Escopo da Fase 3.3 (Banner)
 
-#### BannerProducts
-```typescript
-{ source: 'manual'|'category', productIds?: string[], categoryId?: string, briefing?: string }
-```
-
-#### TextBanners
-```typescript
-{ briefing: string }
-```
-
-#### ImageCarousel / ImageGallery
-```typescript
-{ imageCount: number, briefing: string }
-```
+| Item | Status |
+|------|--------|
+| Contrato unificado do Banner (sem split single/carousel) | ✅ |
+| Step BannerModeStep (único/carrossel + slides) | ✅ |
+| Step ScopeSelectStep (imagens/textos/ambos) | ✅ |
+| Modo escolhido DENTRO do wizard (não depende de config externa) | ✅ |
+| Escopo escolhido pelo usuário (IA não presume) | ✅ |
+| Backend aceita `scope` e filtra geração | ✅ |
+| Backend busca dados reais expandidos do produto (nome, descrição, slug) | ✅ |
+| Frontend filtra merge por scope | ✅ |
+| Wizard expande associação por slide dinamicamente | ✅ |
+| Blocos textuais inalterados | ✅ |
+| Outros blocos wizard (expansão) | ❌ (próxima fase) |
 
 ### Integração no PropsEditor
 
@@ -3722,48 +3792,15 @@ O botão "✨ IA" no cabeçalho do PropsEditor verifica:
 2. Se não tem contrato mas tem `aiFillable` no schema → executa fill direto (Grupo A, comportamento existente)
 3. Se não tem nenhum → botão não aparece
 
-### Escopo da Fase 3.1
-
-| Item | Status |
-|------|--------|
-| Registry de contratos (6 blocos) | ✅ |
-| Dialog genérico de wizard | ✅ |
-| Step BannerAssociation (4 opções) | ✅ |
-| Step QuantitySelect | ✅ |
-| Step Briefing | ✅ |
-| Step SourceSelect (validação) | ✅ |
-| Step Confirm (resumo) | ✅ |
-| Hook useAIBlockWizard | ✅ |
-| Integração no PropsEditor | ✅ |
-| Geração real de imagens | ✅ (Fase 3.2) |
-| Edge function ai-block-fill-visual | ✅ (Fase 3.2) |
-| Hook useAIWizardGenerate | ✅ (Fase 3.2) |
-| Loading com progresso | ❌ (Fase 3.4) |
-
 ---
 
-## Fase 3.2: Geração Visual do Wizard (Banner)
+## Fase 3.2: Geração Visual do Wizard (Banner) [REFATORADO → 3.3]
 
 ### Princípio de Segurança (Trust Boundary)
 
 **O backend NÃO confia no contrato vindo do frontend.**
-O frontend envia apenas `blockType`, `mode` e `collectedData`.
+O frontend envia apenas `blockType`, `mode`, `scope` e `collectedData`.
 O backend resolve internamente o contrato permitido a partir do `SERVER_CONTRACTS` (registry server-side).
-
-### Escopo
-
-| Item | Status |
-|------|--------|
-| Edge function `ai-block-fill-visual` | ✅ |
-| Registry server-side (`SERVER_CONTRACTS`) | ✅ |
-| Banner single (2 imagens + texto) | ✅ |
-| Banner carousel (até 3 slides × 2 imagens + texto) | ✅ |
-| Hook `useAIWizardGenerate` | ✅ |
-| Whitelist merge no frontend | ✅ |
-| Loading state no wizard | ✅ |
-| `linkUrl` derivado pelo sistema (nunca pela IA) | ✅ |
-| Partial success | ❌ (não nesta fase) |
-| Outros blocos visuais | ❌ (Fase 3.3) |
 
 ### Arquitetura
 
@@ -3771,36 +3808,43 @@ O backend resolve internamente o contrato permitido a partir do `SERVER_CONTRACT
 Frontend (Wizard confirm step)
   │
   └─ supabase.functions.invoke('ai-block-fill-visual', {
-       blockType, mode, collectedData, tenantId
+       blockType, mode, scope, collectedData, tenantId
      })
        │
        ├─ 1. Backend resolve contrato via SERVER_CONTRACTS[blockType:mode]
        │     Rejeita blockType/mode desconhecido com 400
        │
-       ├─ 2. Gera imagens (Gemini Image Pro → fallback Flash)
+       ├─ 2. Busca dados REAIS do produto/categoria (nome, descrição, slug)
+       │     Source of truth — IA não inventa produto genérico
+       │
+       ├─ 3. Filtra por scope (images/texts/all)
+       │     Só gera o que o usuário escolheu
+       │
+       ├─ 4. Gera imagens se scope inclui (Gemini Image Pro → fallback Flash)
        │     Desktop (1920×700) + Mobile (750×420) por slide
        │     Upload para store-assets/{tenantId}/block-creatives/
        │
-       ├─ 3. Gera textos (aiChatCompletionJSON via ai-router)
-       │     Tool calling para título/subtítulo/CTA
+       ├─ 5. Gera textos se scope inclui (aiChatCompletionJSON via ai-router)
+       │     Tool calling para título/subtítulo/CTA com contexto real do produto
        │
-       └─ 4. Retorna { success, generatedProps }
-              generatedProps só contém keys da whitelist server-side
+       └─ 6. Retorna { success, generatedProps }
+              generatedProps só contém keys da whitelist server-side filtradas por scope
 ```
 
 ### Componentes
 
 | Tipo | Nome | Localização | Descrição |
 |------|------|-------------|-----------|
-| Edge Function | ai-block-fill-visual | `supabase/functions/ai-block-fill-visual/index.ts` | Gera imagens e textos para blocos visuais com registry server-side |
-| Hook | useAIWizardGenerate | `src/hooks/useAIWizardGenerate.ts` | Chama edge function e aplica whitelist merge no frontend |
+| Edge Function | ai-block-fill-visual v2.0.0 | `supabase/functions/ai-block-fill-visual/index.ts` | Gera imagens e textos com scope filtering e dados reais expandidos |
+| Hook | useAIWizardGenerate | `src/hooks/useAIWizardGenerate.ts` | Chama edge function e aplica whitelist merge + scope filtering |
 
 ### Regras de Merge
 
-1. Backend gera `generatedProps` filtrado pela whitelist server-side
-2. Frontend aplica segundo filtro via `contract.aiGenerates` (defesa em profundidade)
+1. Backend gera `generatedProps` filtrado pela whitelist server-side E pelo scope
+2. Frontend aplica segundo filtro via `contract.aiGenerates` + scope (defesa em profundidade)
 3. `linkUrl` de cada slide é derivado da associação (sistema), NUNCA da IA
 4. Para carousel, backend limita `slideCount` ao `maxSlides` do contrato (3)
+5. Modo do bloco é atualizado pelo merge quando wizard altera de single para carousel
 
 ### Limites
 
