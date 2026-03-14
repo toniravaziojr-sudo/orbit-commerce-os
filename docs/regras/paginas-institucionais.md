@@ -84,10 +84,38 @@ A listagem mescla 3 fontes em uma tabela única ordenada por `created_at`:
 |------|--------|
 | `useStorePages` | CRUD de páginas (create, update, delete) |
 | `usePageBuilder` | Gerenciamento de versões (draft/publish) |
-| `usePublicPageTemplate` | Busca página pública por slug |
+| `usePreviewPageTemplate` | Busca rascunho da página por slug (sem filtro de tipo — unificado para institutional, landing_page, custom, system) |
+| `usePreviewLandingPageTemplate` | **[ALIAS]** Redireciona para `usePreviewPageTemplate` — mantido para retrocompatibilidade |
+| `usePublicPageTemplate` | Busca página publicada por slug (sem filtro de tipo — unificado para todos os tipos) |
 | `useBuilderData` | Salvamento de rascunho e carregamento de conteúdo do editor |
 
 ---
+
+## Regra Estrutural: Fluxo Único de Salvamento e Renderização (v1.0.0)
+
+### Contrato obrigatório para TODAS as páginas que usam builder
+
+| Etapa | Ação | Campo | Fonte |
+|-------|------|-------|-------|
+| **Editar** | Memória local (canvas) | — | Instantâneo |
+| **Salvar** | Gravar rascunho | `store_pages.draft_content` | Builder |
+| **Preview** | Ler rascunho | `store_pages.draft_content` | Edge HTML (`?preview=1`) + SPA fallback |
+| **Publicar** | Copiar rascunho → público | `draft_content` → `content` + `is_published=true` | Builder |
+| **Público** | Ler publicado | `store_pages.content` | Edge HTML + SPA fallback |
+
+### Paridade Preview = Público
+
+- **Blocos compiláveis**: O preview usa a **mesma pipeline Edge** (`storefront-html` + `compileBlockTree`) do público. A única diferença é a fonte: `draft_content` no preview, `content` no público.
+- **Blocos dinâmicos**: Shell Edge + hidratação SPA, identico em preview e público.
+- O parâmetro `?preview=1` na URL ativa o modo rascunho no Edge Function: bypassa cache, lê `draft_content`, ignora `is_published`.
+
+### Hooks SPA (fallback)
+
+Os hooks SPA servem como fallback quando o Edge não entrega o conteúdo compilado:
+- `usePreviewPageTemplate`: Prioridade `draft_content` > `content` > `template.content`
+- `usePublicPageTemplate`: Prioridade `content` > `template.content` (requer `is_published=true`)
+- **Sem filtro de tipo** — aceita `institutional`, `landing_page`, `custom`, `system`
+- **Sem dependência de `store_page_versions`** — leitura direta dos campos da tabela `store_pages`
 
 ## Fluxo de Salvamento (Páginas Institucionais e Landing Pages)
 
@@ -95,7 +123,7 @@ A listagem mescla 3 fontes em uma tabela única ordenada por `created_at`:
 
 1. O usuário adiciona/edita blocos no editor visual — as alterações ficam apenas na memória local.
 2. Ao clicar em **Salvar**, o conteúdo é gravado na coluna `draft_content` da tabela `store_pages` (NÃO reflete no público).
-3. O usuário pode usar o **Preview** para visualizar como ficaria na loja pública.
+3. O usuário pode usar o **Preview** para visualizar como ficaria na loja pública (Edge renderiza `draft_content` via `?preview=1`).
 4. Ao clicar em **Publicar**, o conteúdo é copiado de `draft_content` para `content` + `is_published=true` + `status='published'` + cache CDN é invalidado.
 5. Somente após publicar as alterações ficam visíveis na loja pública.
 
@@ -110,6 +138,7 @@ A listagem mescla 3 fontes em uma tabela única ordenada por `created_at`:
 | `src/hooks/useBuilderData.ts` | Mutação de salvamento (draft_content) + publicação (content) + cache + invalidação |
 | `src/pages/PageBuilder.tsx` | Carregamento inicial: prioriza `draft_content` > `content` > template |
 | `src/components/builder/VisualBuilder.tsx` | Orquestração do editor + proteção anti-rollback na sincronização pós-save |
+| `supabase/functions/storefront-html/index.ts` | Edge Function v8.7.0: suporte a `?preview=1` para ler `draft_content` |
 
 ---
 

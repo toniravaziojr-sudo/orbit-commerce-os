@@ -151,13 +151,12 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
         throw new Error('Tenant not found');
       }
 
-      // Get the page with SEO fields - filter by type 'institutional' only
+      // UNIFIED: Get the page — NO type filter, works for all page types
       const { data: page, error: pageError } = await supabase
         .from('store_pages')
-        .select('id, title, published_version, is_published, content, type, meta_title, meta_description, meta_image_url, no_index, canonical_url, template_id, individual_content')
+        .select('id, title, content, type, is_published, meta_title, meta_description, meta_image_url, no_index, canonical_url, template_id, individual_content')
         .eq('tenant_id', tenant.id)
         .eq('slug', pageSlug)
-        .eq('type', 'institutional')
         .maybeSingle();
 
       if (pageError || !page) {
@@ -169,31 +168,7 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
         throw new Error('Page not published');
       }
 
-      // If page has a template_id, get content from page_templates table
-      if (page.template_id) {
-        const { data: template, error: templateError } = await supabase
-          .from('page_templates')
-          .select('content')
-          .eq('id', page.template_id)
-          .single();
-        
-        if (!templateError && template?.content) {
-          return {
-            content: template.content as unknown as BlockNode,
-            pageTitle: page.title,
-            pageId: page.id,
-            individualContent: page.individual_content as string | null,
-            metaTitle: page.meta_title,
-            metaDescription: page.meta_description,
-            metaImageUrl: page.meta_image_url,
-            noIndex: page.no_index || false,
-            canonicalUrl: page.canonical_url,
-            pageType: page.type,
-          };
-        }
-      }
-
-      // Prepare SEO data
+      // SEO data
       const seoData = {
         metaTitle: page.meta_title,
         metaDescription: page.meta_description,
@@ -203,28 +178,8 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
         pageType: page.type,
       };
 
-      // If has published version, get that version's content
-      if (page.published_version) {
-        const { data: version, error: versionError } = await supabase
-          .from('store_page_versions')
-          .select('content')
-          .eq('page_id', page.id)
-          .eq('version', page.published_version)
-          .eq('status', 'published')
-          .maybeSingle();
-
-        if (!versionError && version?.content) {
-          return {
-            content: version.content as unknown as BlockNode,
-            pageTitle: page.title,
-            pageId: page.id,
-            individualContent: page.individual_content as string | null,
-            ...seoData,
-          };
-        }
-      }
-
-      // Fallback: use page.content directly if it has builder format
+      // PRIORITY: content (published) > template.content > default
+      // Published content is set by the Publish action (copies draft_content → content)
       if (page.content && typeof page.content === 'object' && 'type' in (page.content as object)) {
         return {
           content: page.content as unknown as BlockNode,
@@ -235,34 +190,17 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
         };
       }
 
-      // Fallback: try to migrate legacy content to builder format
-      if (page.content) {
-        const legacyText = typeof page.content === 'object' && page.content !== null && 'text' in page.content
-          ? (page.content as { text: string }).text
-          : '';
-        
-        if (legacyText) {
-          const defaultTemplate = getDefaultTemplate('institutional');
-          const updateContent = (node: BlockNode): BlockNode => {
-            if (node.type === 'RichText') {
-              return {
-                ...node,
-                props: {
-                  ...node.props,
-                  content: `<h1>${page.title}</h1>${legacyText.split('\n').filter(Boolean).map(p => `<p>${p}</p>`).join('')}`,
-                },
-              };
-            }
-            if (node.children) {
-              return {
-                ...node,
-                children: node.children.map(updateContent),
-              };
-            }
-            return node;
-          };
+      // Fallback: template content
+      if (page.template_id) {
+        const { data: template } = await supabase
+          .from('page_templates')
+          .select('content')
+          .eq('id', page.template_id)
+          .single();
+
+        if (template?.content) {
           return {
-            content: updateContent(defaultTemplate),
+            content: template.content as unknown as BlockNode,
             pageTitle: page.title,
             pageId: page.id,
             individualContent: page.individual_content as string | null,
@@ -282,8 +220,8 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
       };
     },
     enabled: !!tenantSlug && !!pageSlug,
-    staleTime: 1000 * 60 * 2, // Cache for 2 minutes - allows quick updates after publishing
-    gcTime: 1000 * 60 * 10, // Keep in cache for 10 minutes
+    staleTime: 1000 * 60 * 2,
+    gcTime: 1000 * 60 * 10,
   });
 
   return {

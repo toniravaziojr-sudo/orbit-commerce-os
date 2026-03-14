@@ -18,7 +18,7 @@ import { generateThemeCss, generateButtonCssRules, getGoogleFontsData } from '..
 import { optimizeImageUrl } from '../_shared/block-compiler/utils.ts';
 
 // ===== VERSION =====
-const VERSION = "v8.6.2"; // CEP raw-digits hardening for product + mini-cart inputs in Edge runtime
+const VERSION = "v8.7.0"; // PREVIEW PARITY: ?preview=1 reads draft_content for store_pages + template_sets
 // ====================
 
 // NOTE: FONT_FAMILY_MAP, getFontFamily, generateThemeCss, getGoogleFontsData
@@ -1889,6 +1889,7 @@ serve(async (req) => {
     const url = new URL(req.url);
     let hostname = url.searchParams.get('hostname') || '';
     let path = url.searchParams.get('path') || '/';
+    const isPreviewMode = url.searchParams.get('preview') === '1';
     
     if (!hostname) {
       const forwardedHost = req.headers.get('x-forwarded-host') || req.headers.get('host') || '';
@@ -1932,7 +1933,7 @@ serve(async (req) => {
     const tenantSlug = resolveResult.tenant_slug;
 
     // === STEP 1.5: Check pre-rendered pages (fast path) ===
-    const bypassPrerender = req.headers.get('x-prerender-bypass') === '1';
+    const bypassPrerender = req.headers.get('x-prerender-bypass') === '1' || isPreviewMode;
     const normalizedPath = path === '' ? '/' : path.replace(/\/+$/, '') || '/';
 
     if (!bypassPrerender) {
@@ -1972,7 +1973,9 @@ serve(async (req) => {
       storeSettings: supabase.from('store_settings').select('store_name, logo_url, store_description, social_instagram, social_facebook, social_whatsapp, social_tiktok, social_youtube, contact_phone, contact_email, contact_address, contact_support_hours, business_legal_name, business_cnpj, is_published, favicon_url, seo_title, seo_description, benefit_config').eq('tenant_id', tenantId).maybeSingle(),
       headerMenu: supabase.from('menus').select('*, menu_items(*)').eq('tenant_id', tenantId).eq('location', 'header').maybeSingle(),
       categories: supabase.from('categories').select('id, name, slug').eq('tenant_id', tenantId).eq('is_active', true).order('sort_order').limit(200),
-      templateSet: supabase.from('storefront_template_sets').select('id, published_content, is_published, base_preset').eq('tenant_id', tenantId).eq('is_published', true).maybeSingle(),
+      templateSet: isPreviewMode
+        ? supabase.from('storefront_template_sets').select('id, draft_content, published_content, is_published, base_preset').eq('tenant_id', tenantId).maybeSingle()
+        : supabase.from('storefront_template_sets').select('id, published_content, is_published, base_preset').eq('tenant_id', tenantId).eq('is_published', true).maybeSingle(),
       globalLayout: supabase.from('storefront_global_layout').select('header_config, published_header_config, footer_config, published_footer_config, header_enabled, footer_enabled').eq('tenant_id', tenantId).maybeSingle(),
       footerMenus: supabase.from('menus').select('id, name, location, menu_items(id, label, url, item_type, ref_id, sort_order)').eq('tenant_id', tenantId).in('location', ['footer', 'footer_1', 'footer_2']),
       publishedPages: supabase.from('store_pages').select('id, slug, type, is_published').eq('tenant_id', tenantId).eq('is_published', true),
@@ -1992,9 +1995,17 @@ serve(async (req) => {
         .select('id, name, slug, description, image_url, banner_desktop_url, banner_mobile_url, seo_title, seo_description')
         .eq('tenant_id', tenantId).eq('slug', route.slug).eq('is_active', true).maybeSingle();
     } else if (route.type === 'page' && route.slug) {
-      routeQueryPromise = supabase.from('store_pages')
-        .select('id, title, slug, individual_content, seo_title, seo_description, content, is_published')
-        .eq('tenant_id', tenantId).eq('slug', route.slug).eq('is_published', true).maybeSingle();
+      // Preview mode: read draft_content, skip is_published filter
+      // Public mode: read content, require is_published
+      if (isPreviewMode) {
+        routeQueryPromise = supabase.from('store_pages')
+          .select('id, title, slug, individual_content, seo_title, seo_description, draft_content, content, is_published')
+          .eq('tenant_id', tenantId).eq('slug', route.slug).maybeSingle();
+      } else {
+        routeQueryPromise = supabase.from('store_pages')
+          .select('id, title, slug, individual_content, seo_title, seo_description, content, is_published')
+          .eq('tenant_id', tenantId).eq('slug', route.slug).eq('is_published', true).maybeSingle();
+      }
     } else if (route.type === 'blog_post' && route.slug) {
       routeQueryPromise = supabase.from('blog_posts')
         .select('id, title, slug, excerpt, content, body_html, cover_image_url, published_at, created_at, author_name, seo_title, seo_description, status')
@@ -2095,7 +2106,7 @@ serve(async (req) => {
       footer2: footer2Menu ? { name: footer2Menu.name, items: resolveMenuItems(footer2Menu.menu_items || []) } : { name: '', items: [] },
     };
 
-    if (!storeSettings?.is_published) {
+    if (!storeSettings?.is_published && !isPreviewMode) {
       return new Response(
         `<!DOCTYPE html><html><head><title>Loja em construção</title></head><body style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;text-align:center;"><div><h1>Loja em construção</h1><p style="color:#666;">Esta loja ainda não está disponível para o público.</p></div></body></html>`,
         { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' } }
@@ -2105,7 +2116,9 @@ serve(async (req) => {
     // Common data
     const storeName = storeSettings?.store_name || tenant?.name || 'Loja';
     const faviconUrl = storeSettings?.favicon_url || '';
-    const publishedContent = templateSet?.published_content as Record<string, any> | null;
+    const publishedContent = isPreviewMode
+      ? ((templateSet?.draft_content || templateSet?.published_content) as Record<string, any> | null)
+      : (templateSet?.published_content as Record<string, any> | null);
     const themeSettings = publishedContent?.themeSettings || null;
     const themeCss = generateThemeCss(themeSettings);
     const fontsData = getGoogleFontsData(themeSettings);
@@ -2516,13 +2529,19 @@ serve(async (req) => {
         );
       }
 
+      // Preview mode: prioritize draft_content over content
+      // Public mode: use content (published)
+      const pageContent = isPreviewMode
+        ? (page.draft_content && typeof page.draft_content === 'object' && (page.draft_content as any).type ? page.draft_content : page.content)
+        : page.content;
+
       // Priority: 1) Block-based content (JSON tree) → compile via compileBlockTree
       //           2) individual_content (raw HTML) → wrap in container
       //           3) Fallback: title-only page
-      if (page.content && typeof page.content === 'object' && (page.content as any).type) {
+      if (pageContent && typeof pageContent === 'object' && (pageContent as any).type) {
         // Block-based content — compile like home/category pages
-        bodyHtml = compileBlockTree(page.content as BlockNode, compilerContext);
-        console.log(`[storefront-html][${VERSION}] Institutional page "${page.slug}" compiled via compileBlockTree`);
+        bodyHtml = compileBlockTree(pageContent as BlockNode, compilerContext);
+        console.log(`[storefront-html][${VERSION}] Institutional page "${page.slug}" compiled via compileBlockTree${isPreviewMode ? ' (PREVIEW)' : ''}`);
       } else if (page.individual_content) {
         // Raw HTML content — wrap in styled container
         bodyHtml = `<div style="max-width:800px;margin:0 auto;padding:48px 16px;">
@@ -2732,11 +2751,13 @@ serve(async (req) => {
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200, max-age=120',
+        'Cache-Control': isPreviewMode ? 'no-store, no-cache' : 'public, s-maxage=600, stale-while-revalidate=1200, max-age=120',
         'Server-Timing': `resolve;dur=${resolveMs}, queries;dur=${queryMs}, total;dur=${totalMs}`,
         'X-Storefront-Version': VERSION,
         'X-Tenant': tenantSlug,
         'X-Route': `${route.type}${route.slug ? '/' + route.slug : ''}`,
+        'X-CC-Cache': isPreviewMode ? 'BYPASS' : 'LIVE',
+        ...(isPreviewMode ? { 'X-Render-Mode': 'preview-draft' } : {}),
       },
     });
 
