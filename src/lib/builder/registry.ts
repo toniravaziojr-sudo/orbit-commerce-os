@@ -1181,6 +1181,7 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'string',
         label: 'Título',
         defaultValue: 'Perguntas Frequentes',
+        aiFillable: { hint: 'Título da seção de FAQ', format: 'text' },
       },
       titleAlign: {
         type: 'select',
@@ -1196,6 +1197,15 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'array',
         label: 'Perguntas',
         defaultValue: [],
+        aiFillable: {
+          hint: 'Perguntas frequentes relevantes ao negócio da loja',
+          minItems: 3,
+          maxItems: 6,
+          itemSchema: {
+            question: { hint: 'Pergunta clara e objetiva do cliente', enabled: true },
+            answer: { hint: 'Resposta completa em 1-3 frases', enabled: true },
+          },
+        },
       },
       allowMultiple: {
         type: 'boolean',
