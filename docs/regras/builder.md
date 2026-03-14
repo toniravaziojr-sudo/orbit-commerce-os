@@ -3814,21 +3814,30 @@ Frontend (Wizard confirm step)
        ├─ 1. Backend resolve contrato via SERVER_CONTRACTS[blockType:mode]
        │     Rejeita blockType/mode desconhecido com 400
        │
-       ├─ 2. Busca dados REAIS do produto/categoria (nome, descrição, slug)
-       │     Source of truth — IA não inventa produto genérico
-       │
-       ├─ 3. Filtra por scope (images/texts/all)
-       │     Só gera o que o usuário escolheu
-       │
-       ├─ 4. Gera imagens se scope inclui (Gemini Image Pro → fallback Flash)
-       │     Desktop (1920×700) + Mobile (750×420) por slide
-       │     Upload para store-assets/{tenantId}/block-creatives/
-       │
-       ├─ 5. Gera textos se scope inclui (aiChatCompletionJSON via ai-router)
-       │     Tool calling para título/subtítulo/CTA com contexto real do produto
-       │
-       └─ 6. Retorna { success, generatedProps }
-              generatedProps só contém keys da whitelist server-side filtradas por scope
+        ├─ 2. Busca dados REAIS do produto (nome, descrição, slug, preço, compare_at_price)
+        │     Source of truth — IA não inventa produto genérico
+        │     Imagem principal via tabela `product_images` (ORDER BY is_primary DESC, sort_order ASC LIMIT 1)
+        │     Fallback: se produto sem imagem, geração continua apenas com contexto textual
+        │
+        ├─ 2b. Busca contexto expandido do tenant
+        │      `store_name` + `store_description` de `store_settings`
+        │      Usado no prompt para ancorar identidade da marca
+        │
+        ├─ 3. Filtra por scope (images/texts/all)
+        │     Só gera o que o usuário escolheu
+        │
+        ├─ 4. Gera imagens se scope inclui (Gemini Image Pro → fallback Flash)
+        │     Desktop (1920×700) + Mobile (750×420) por slide
+        │     Upload para store-assets/{tenantId}/block-creatives/
+        │     **MULTIMODAL (v2.1.0):** Envia imagem real do produto como referência visual ao modelo
+        │     quando disponível — o modelo recebe [texto + imagem] para gerar banner aderente
+        │
+        ├─ 5. Gera textos se scope inclui (aiChatCompletionJSON via ai-router)
+        │     Tool calling para título/subtítulo/CTA com contexto real do produto
+        │     Inclui store_description no contexto para aderência à marca
+        │
+        └─ 6. Retorna { success, generatedProps }
+               generatedProps só contém keys da whitelist server-side filtradas por scope
 ```
 
 ### Componentes
