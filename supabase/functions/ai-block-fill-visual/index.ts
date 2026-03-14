@@ -374,7 +374,7 @@ async function generateTexts(
     }];
 
     const systemPrompt = `Você é um copywriter de e-commerce profissional. Gere textos em português brasileiro para banners de loja virtual.
-Loja: "${context.storeName}".
+${storeInfo}
 ${context.briefing ? `Briefing: "${context.briefing}".` : ''}
 ${contextInfo}
 Cada slide deve ter textos distintos e complementares entre si.`;
