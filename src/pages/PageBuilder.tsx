@@ -188,18 +188,19 @@ export default function PageBuilder() {
     },
   };
 
-  // Priority: Use page's own content (imported pages) > template content > undefined
-  // Imported pages have their content in the 'content' field as block structure
+  // Priority: draft version (latest saved) > page's own content > template content > undefined
+  // CRITICAL: Use draft version as source of truth to prevent content reset after save
   const pageOwnContent = page.content as unknown as BlockNode | null;
   const templateId = page.template_id;
   const template = page.page_templates as { id: string; content: Json; name: string } | null;
   
-  // Get initial content - prioritize page's own content for imported pages
-  const initialContent = pageOwnContent 
-    ? pageOwnContent 
-    : template?.content 
-      ? (template.content as unknown as BlockNode)
-      : undefined;
+  const initialContent = latestDraftContent
+    ? latestDraftContent
+    : pageOwnContent 
+      ? pageOwnContent 
+      : template?.content 
+        ? (template.content as unknown as BlockNode)
+        : undefined;
 
   // Determine pageType based on the actual page type
   // For page overrides to work correctly, we need to pass the correct pageType
