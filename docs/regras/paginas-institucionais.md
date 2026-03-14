@@ -53,7 +53,8 @@ A listagem mescla 3 fontes em uma tabela única ordenada por `created_at`:
 | `slug` | string | URL amigável |
 | `type` | string | Tipo: `institutional`, `landing_page`, `custom` |
 | `status` | string | `draft`, `published` |
-| `content` | json | Conteúdo em blocos (BlockNode) |
+| `content` | json | Conteúdo publicado em blocos (BlockNode) — visível na loja pública |
+| `draft_content` | json | Conteúdo de rascunho em blocos (BlockNode) — usado pelo editor, não visível ao público |
 | `individual_content` | string | Conteúdo HTML individual |
 | `template_id` | uuid | Template associado |
 | `is_published` | boolean | Página publicada |
