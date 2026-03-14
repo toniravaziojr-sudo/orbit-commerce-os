@@ -141,7 +141,19 @@ async function callImageModel(
   lovableApiKey: string,
   model: string,
   prompt: string,
+  referenceImageUrl?: string,
 ): Promise<string | null> {
+  // Build content: text-only or multimodal (text + image reference)
+  let content: any;
+  if (referenceImageUrl) {
+    content = [
+      { type: 'text', text: prompt },
+      { type: 'image_url', image_url: { url: referenceImageUrl } },
+    ];
+  } else {
+    content = prompt;
+  }
+
   const response = await fetch(LOVABLE_GATEWAY_URL, {
     method: 'POST',
     headers: {
@@ -150,7 +162,7 @@ async function callImageModel(
     },
     body: JSON.stringify({
       model,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content }],
       modalities: ['image', 'text'],
     }),
   });
@@ -202,7 +214,7 @@ async function uploadImageToStorage(
 }
 
 // =============================================
-// IMAGE PROMPT BUILDER — Uses real product data
+// IMAGE PROMPT BUILDER — Uses real product data + store context
 // =============================================
 
 function buildBannerImagePrompt(
@@ -212,7 +224,7 @@ function buildBannerImagePrompt(
     product?: ProductContext | null;
     category?: CategoryContext | null;
     associationType?: string;
-    storeName: string;
+    store: StoreContext;
     slideIndex?: number;
   }
 ): string {
@@ -221,14 +233,33 @@ function buildBannerImagePrompt(
     ? `HORIZONTAL PAISAGEM (${spec.width}x${spec.height}px, ultra-wide)`
     : `VERTICAL RETRATO (${spec.width}x${spec.height}px)`;
 
-  let contextLine = 'Banner institucional/promocional.';
+  // Build rich product context
+  let contextLine = 'Banner institucional/promocional genérico para a loja.';
+  let productImageNote = '';
   if (context.product) {
-    contextLine = `Produto: "${context.product.name}".`;
+    contextLine = `PRODUTO REAL: "${context.product.name}".`;
     if (context.product.description) {
-      contextLine += ` Descrição: "${context.product.description.substring(0, 200)}".`;
+      contextLine += `\nDescrição do produto: "${context.product.description.substring(0, 300)}".`;
+    }
+    if (context.product.price) {
+      const formattedPrice = `R$ ${context.product.price.toFixed(2).replace('.', ',')}`;
+      contextLine += `\nPreço: ${formattedPrice}.`;
+      if (context.product.compareAtPrice && context.product.compareAtPrice > context.product.price) {
+        const formattedOldPrice = `R$ ${context.product.compareAtPrice.toFixed(2).replace('.', ',')}`;
+        contextLine += ` (de ${formattedOldPrice})`;
+      }
+    }
+    if (context.product.mainImageUrl) {
+      productImageNote = `\nIMPORTANTE: Uma imagem de referência do produto REAL foi fornecida junto com este prompt. O banner DEVE representar visualmente ESTE produto específico. Observe as características visuais (cor, forma, embalagem, textura) da imagem de referência e reproduza-as fielmente no banner.`;
     }
   } else if (context.category) {
-    contextLine = `Categoria: "${context.category.name}".`;
+    contextLine = `Categoria: "${context.category.name}". O banner deve representar produtos desta categoria.`;
+  }
+
+  // Store identity
+  let storeIdentity = `Loja: "${context.store.storeName}".`;
+  if (context.store.storeDescription) {
+    storeIdentity += `\nSobre a loja: "${context.store.storeDescription.substring(0, 200)}".`;
   }
 
   const briefingLine = context.briefing
@@ -242,8 +273,9 @@ function buildBannerImagePrompt(
   return `BANNER PROFISSIONAL PARA E-COMMERCE — ${orientation}
 
 TAREFA: Criar uma imagem fotorrealista premium para banner de loja virtual.
-Loja: "${context.storeName}".
+${storeIdentity}
 ${contextLine}
+${productImageNote}
 ${briefingLine}
 ${slideNote}
 
@@ -251,10 +283,10 @@ COMPOSIÇÃO (${orientation}):
 ${isDesktop
     ? `- Layout ultra-wide (21:9 aprox). Cenário profissional de e-commerce.
 - Lado esquerdo (60%) mais escuro/com gradiente para acomodar texto branco sobreposto.
-- Lado direito (40%) com elementos visuais relevantes ao contexto.`
+- Lado direito (40%) com o produto/elementos visuais em destaque.`
     : `- Layout vertical para mobile.
 - Terço superior levemente mais escuro para texto sobreposto.
-- Centro e inferior com elementos visuais relevantes.`}
+- Centro e inferior com o produto/elementos visuais em destaque.`}
 
 ESTILO:
 - Fotografia comercial profissional, iluminação de estúdio
