@@ -3331,3 +3331,133 @@ A loja pública pode levar alguns minutos para refletir mudanças após publica�
 | **Localização** | `src/hooks/useThemeSettings.ts` |
 | **Descrição** | Ref global que permite ao `VisualBuilder` acessar o draft do support widget para merge no save e detecção de `isDirty` |
 | **Afeta** | `VisualBuilder.tsx` → `isDirty`, `handleSave`, `clearDraft` |
+
+---
+
+## 🤖 Preenchimento por IA — Metadata nos Blocos (Fase 2.1)
+
+> **Status:** IMPLEMENTADO ✅ — Fase 2.1 concluída. Apenas metadata/tipagem. Sem runtime, sem edge function, sem hook, sem botão no editor.
+
+### Regra Arquitetural
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│              FONTE DE VERDADE = REGISTRY NATIVO                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│  • Metadata de IA (aiFillable) fica no schema de props de cada bloco   │
+│  • NÃO existe schema paralelo separado para IA                         │
+│  • registry.ts continua sendo a única fonte de verdade                  │
+│  • Se a prop não tem aiFillable → IA nunca toca nela                   │
+│  • Alteração puramente aditiva, sem impacto em runtime                  │
+│  • Reversível: remover o campo não quebra nada                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Contrato Técnico: AIFillableConfig
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `hint` | `string` | ✅ | Instrução/dica para a IA sobre como gerar o conteúdo do campo |
+| `format` | `'text' \| 'html' \| 'cta' \| 'label' \| 'feedback'` | ❌ | Formato esperado do conteúdo gerado |
+| `minItems` | `number` | ❌ | Para props do tipo array: quantidade mínima de itens a gerar |
+| `maxItems` | `number` | ❌ | Para props do tipo array: quantidade máxima de itens a gerar |
+| `itemSchema` | `Record<string, { hint: string; enabled: boolean }>` | ❌ | Para arrays: define quais sub-campos de cada item a IA deve preencher |
+| `overwritePolicy` | `'fill-empty' \| 'confirm-before-overwrite'` | ❌ | Regra futura de merge (não implementada em runtime ainda) |
+
+#### Tipagem (src/lib/builder/types.ts)
+
+```typescript
+export interface AIFillableConfig {
+  hint: string;
+  format?: 'text' | 'html' | 'cta' | 'label' | 'feedback';
+  minItems?: number;
+  maxItems?: number;
+  itemSchema?: Record<string, {
+    hint: string;
+    enabled: boolean;
+  }>;
+  overwritePolicy?: 'fill-empty' | 'confirm-before-overwrite';
+}
+```
+
+O campo `aiFillable?: AIFillableConfig` foi adicionado ao tipo `BlockPropsSchema[key]` como campo opcional.
+
+### Blocos Elegíveis (21 blocos)
+
+| Bloco | Props com aiFillable | Arquivo |
+|-------|---------------------|---------|
+| Banner | title, subtitle, buttonText | registry.ts |
+| BannerCarousel | (items: title, subtitle, buttonText) | registry.ts |
+| BannerWithCards | title, subtitle, buttonText, (cards: title, description) | registry.ts |
+| FAQ | title, subtitle, (items: question, answer) | registry.ts |
+| Testimonials | title, subtitle, (items: name, role, content, rating) | registry.ts |
+| Features | title, subtitle, (items: title, description) | registry.ts |
+| Newsletter | title, subtitle, buttonText, placeholder | registry.ts |
+| RichText | content (HTML) | registry.ts |
+| Button | text | registry.ts |
+| TextBlock | title, subtitle, body | registry.ts |
+| PricingTable | title, subtitle, (items: name, price, description, features, buttonText) | registry.ts |
+| StatsCounter | title, (items: value, label, suffix) | registry.ts |
+| Timeline | title, subtitle, (items: title, description, date) | registry.ts |
+| Accordion | title, (items: title, content) | registry.ts |
+| Tabs | (items: label, content) | registry.ts |
+| CTA | title, subtitle, buttonText | registry.ts |
+| LogoCloud | title | registry.ts |
+| ComparisonTable | title, subtitle | registry.ts |
+| ContactInfo | title, subtitle | registry.ts |
+| Breadcrumb | — (metadata apenas, sem props textuais preenchíveis) | registry.ts |
+| AnnouncementBar | text, linkText | registry.ts |
+
+### Props Proibidas para IA
+
+Mesmo em blocos elegíveis, estas categorias de props **NUNCA** recebem `aiFillable`:
+
+| Categoria | Exemplos | Motivo |
+|-----------|----------|--------|
+| URLs reais | `buttonLink`, `linkUrl`, `url` | Dados funcionais, não conteúdo |
+| Imagens | `backgroundImage`, `imageUrl`, `logo` | Mídia real do tenant |
+| Estilos/Layout | `backgroundColor`, `textColor`, `layout`, `columns` | Configuração visual |
+| IDs e dados de sistema | `productId`, `categoryId` | Dados técnicos |
+| Dados reais de negócio | `discountCode`, `phone`, `email`, `address` | Dados sensíveis/reais |
+| Controles booleanos | `showButton`, `fullWidth`, `autoPlay` | Configuração funcional |
+
+### Blocos Excluídos (não recebem aiFillable)
+
+Blocos de sistema, e-commerce funcional e mídia pura não são elegíveis:
+
+- **Infraestrutura:** Header, Footer, Page, Section
+- **E-commerce funcional:** ProductGrid, ProductDetails, Cart, Checkout, ThankYou, CategoryBanner, CategoryPageLayout, CompreJuntoSlot, CrossSellSlot, UpsellSlot
+- **Conta/Pedidos:** AccountHub, OrdersList, OrderDetail
+- **Sistema:** TrackingLookup, BlogListing, Spacer, Divider, CustomCode, GoogleMaps
+- **Mídia pura:** ImageBlock, VideoBlock, ImageGallery
+
+### Escopo da Fase 2.1
+
+| Item | Status |
+|------|--------|
+| Interface `AIFillableConfig` em types.ts | ✅ Implementado |
+| Campo `aiFillable?` em `BlockPropsSchema` | ✅ Implementado |
+| Metadata nos 21 blocos elegíveis | ✅ Implementado |
+| Edge function de preenchimento | ❌ Não implementado (Fase 2.2) |
+| Hook `useAIBlockFill` | ❌ Não implementado (Fase 2.3) |
+| Botão "Preencher com IA" no PropsEditor | ❌ Não implementado (Fase 2.3) |
+| Preenchimento em lote | ❌ Não implementado (futuro) |
+| Lógica de runtime/merge | ❌ Não implementado (Fase 2.2/2.3) |
+
+### Arquivos Alterados
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/lib/builder/types.ts` | Adicionada interface `AIFillableConfig` + campo `aiFillable?` em `BlockPropsSchema` |
+| `src/lib/builder/registry.ts` | Adicionado `aiFillable` nas props elegíveis dos 21 blocos |
+
+### Critérios de Segurança
+
+| Critério | Status |
+|----------|--------|
+| Compatibilidade preservada com blocos existentes | ✅ |
+| Sem impacto em runtime (campo opcional não lido) | ✅ |
+| Reversível (remover campo não quebra nada) | ✅ |
+| Build limpo sem erros | ✅ |
+| Nenhum bloco excluído recebeu metadata | ✅ |
+| Nenhuma prop proibida recebeu metadata | ✅ |
