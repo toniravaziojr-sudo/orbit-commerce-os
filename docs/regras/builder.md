@@ -3970,3 +3970,89 @@ Essas props são tratadas como `SYSTEM_DERIVED_PROPS` no frontend e **bypassam a
 | Headline max chars | 30 |
 | Subtitle max chars | 60 |
 | CTA max chars | 15 |
+
+---
+
+## 🔗 Preview via Cloudflare Worker — Pipeline Unificada (v8.7.0)
+
+### Regra: Preview = Público (mesma pipeline, fonte diferente)
+
+O preview de rascunho utiliza **exatamente a mesma pipeline** do público:
+
+```
+Browser → Cloudflare Worker (shops-router) → Edge Function (storefront-html) → HTML
+```
+
+A única diferença é o parâmetro `?preview=1`, que instrui a Edge Function a ler `draft_content` em vez de `content`.
+
+### Fluxo do Preview
+
+```
+1. Usuário clica "Preview" no Builder
+2. Builder abre URL: https://{dominio-lojista}/page/{slug}?preview=1
+3. Cloudflare Worker intercepta a requisição
+4. Worker detecta ?preview=1 na URL original
+5. Worker repassa preview=1 para a Edge Function:
+   storefront-html?hostname={host}&path={path}&preview=1
+6. Edge Function lê draft_content (rascunho) em vez de content (publicado)
+7. HTML renderizado retorna com headers:
+   - Cache-Control: no-store, no-cache, must-revalidate
+   - X-CC-Cache: BYPASS
+8. Usuário vê o rascunho na mesma pipeline visual do público
+```
+
+### Correção Crítica no Worker (v8.7.0)
+
+O Worker **DEVE** repassar o parâmetro `preview=1` para a Edge Function. Sem isso, o preview renderiza o conteúdo publicado em vez do rascunho.
+
+**Linha obrigatória no Worker** (após montar `fnUrl`):
+
+```javascript
+if (isPreview) {
+  fnUrl.searchParams.set('preview', '1');
+}
+```
+
+**Cache-Control para preview**:
+
+```javascript
+if (isPreview) {
+  headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+}
+```
+
+### Proibições
+
+| Proibido | Motivo |
+|----------|--------|
+| Abrir preview direto na URL da Edge Function | Quebra paridade visual (sandbox HTML do Supabase), assets relativos e expõe URL interna |
+| Cachear respostas de preview | Rascunhos devem sempre ser frescos |
+| Remover `?preview=1` no Worker | Preview renderiza conteúdo publicado em vez do rascunho |
+
+### Arquivos Relacionados
+
+| Arquivo | Papel |
+|---------|-------|
+| `docs/cloudflare-worker-template.js` | Template do Worker com lógica de preview |
+| `src/components/builder/BuilderToolbar.tsx` | `handleOpenDraftPreview` — abre URL de preview |
+| `supabase/functions/storefront-html/index.ts` | Edge Function que detecta `?preview=1` |
+
+### Checklist de Validação
+
+- [ ] Salvar rascunho no Builder
+- [ ] Abrir preview com `?preview=1` → rascunho aparece
+- [ ] Abrir sem `?preview=1` → conteúdo publicado aparece
+- [ ] Publicar → conteúdo atualizado no público com `?cb=1`
+- [ ] Header `X-CC-Cache: BYPASS` presente no preview
+- [ ] Header `Cache-Control: no-store` presente no preview
+
+### Melhoria Futura: Token Assinado para Preview
+
+Atualmente, qualquer pessoa com a URL `?preview=1` pode ver o rascunho. Como melhoria futura, implementar:
+
+1. Builder gera JWT curto (15min) ao abrir preview
+2. URL inclui `?preview=1&token={jwt}`
+3. Edge Function valida o token antes de servir `draft_content`
+4. Token expirado → fallback para conteúdo publicado
+
+**Status:** Planejado, não implementado.
