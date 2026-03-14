@@ -485,6 +485,7 @@ export function usePublish() {
             return {
               ...previous,
               content: variables.content as unknown as Json,
+              draft_content: variables.content as unknown as Json,
               is_published: true,
               status: 'published',
               updated_at: new Date().toISOString(),
