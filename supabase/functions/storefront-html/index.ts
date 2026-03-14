@@ -2529,13 +2529,19 @@ serve(async (req) => {
         );
       }
 
+      // Preview mode: prioritize draft_content over content
+      // Public mode: use content (published)
+      const pageContent = isPreviewMode
+        ? (page.draft_content && typeof page.draft_content === 'object' && (page.draft_content as any).type ? page.draft_content : page.content)
+        : page.content;
+
       // Priority: 1) Block-based content (JSON tree) → compile via compileBlockTree
       //           2) individual_content (raw HTML) → wrap in container
       //           3) Fallback: title-only page
-      if (page.content && typeof page.content === 'object' && (page.content as any).type) {
+      if (pageContent && typeof pageContent === 'object' && (pageContent as any).type) {
         // Block-based content — compile like home/category pages
-        bodyHtml = compileBlockTree(page.content as BlockNode, compilerContext);
-        console.log(`[storefront-html][${VERSION}] Institutional page "${page.slug}" compiled via compileBlockTree`);
+        bodyHtml = compileBlockTree(pageContent as BlockNode, compilerContext);
+        console.log(`[storefront-html][${VERSION}] Institutional page "${page.slug}" compiled via compileBlockTree${isPreviewMode ? ' (PREVIEW)' : ''}`);
       } else if (page.individual_content) {
         // Raw HTML content — wrap in styled container
         bodyHtml = `<div style="max-width:800px;margin:0 auto;padding:48px 16px;">
