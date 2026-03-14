@@ -32,6 +32,8 @@ import {
 } from "@/components/ui/collapsible";
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
+import { useAIBlockFill } from '@/hooks/useAIBlockFill';
+import { Sparkles, Loader2 } from 'lucide-react';
 
 interface PropsEditorProps {
   definition: BlockDefinition;
@@ -44,6 +46,10 @@ interface PropsEditorProps {
   blockType?: string;
   /** When true, bypasses the SYSTEM_BLOCKS redirect for Header/Footer (checkout has its own layout) */
   isCheckoutContext?: boolean;
+  /** Tenant ID for AI block fill */
+  tenantId?: string;
+  /** Page name for AI context */
+  pageName?: string;
 }
 
 // Define which props belong to the Header notice group
