@@ -495,45 +495,66 @@ export function VisualBuilder({
   // When globalLayout changes (header/footer settings), we need to update those blocks
   // even if isDirty, but preserve other user changes
   useEffect(() => {
-    if (!layoutLoading && !overridesLoading) {
-      if (store.isDirty) {
-        // CHECKOUT PAGES: When dirty, DO NOT sync header/footer from globalLayout
-        // This preserves user's local edits until they click "Save"
-        // The globalLayout data is stale until save happens
-        if (isCheckoutPage) {
-          // For checkout: skip header/footer sync entirely when editing
-          // User's local changes should persist without being overwritten
-          return;
-        }
-        
-        // For non-checkout pages: sync header/footer from globalLayout
-        // This reflects settings changes without losing user's other edits
-        const currentContent = store.content;
-        if (currentContent?.children && globalLayout) {
-          const headerConfig = globalLayout.header_config;
-          const footerConfig = globalLayout.footer_config;
-          
-          const updatedChildren = currentContent.children.map(child => {
-            if (child.type === 'Header') {
-              return { ...headerConfig, id: child.id, hidden: child.hidden };
-            }
-            if (child.type === 'Footer') {
-              return { ...footerConfig, id: child.id, hidden: child.hidden };
-            }
-            return child;
-          });
-          // Only update if header/footer actually changed
-          const hasChanges = JSON.stringify(currentContent.children) !== JSON.stringify(updatedChildren);
-          if (hasChanges) {
-            store.setContent({ ...currentContent, children: updatedChildren }, true);
-          }
-        }
+    if (layoutLoading || overridesLoading) return;
+
+    if (store.isDirty) {
+      // CHECKOUT PAGES: When dirty, DO NOT sync header/footer from globalLayout
+      // This preserves user's local edits until they click "Save"
+      // The globalLayout data is stale until save happens
+      if (isCheckoutPage) {
+        // For checkout: skip header/footer sync entirely when editing
+        // User's local changes should persist without being overwritten
         return;
       }
-      // When not dirty: apply full global layout (initial load or after save)
-      store.setContent(contentWithGlobalLayout, true);
+      
+      // For non-checkout pages: sync header/footer from globalLayout
+      // This reflects settings changes without losing user's other edits
+      const currentContent = store.content;
+      if (currentContent?.children && globalLayout) {
+        const headerConfig = globalLayout.header_config;
+        const footerConfig = globalLayout.footer_config;
+        
+        const updatedChildren = currentContent.children.map(child => {
+          if (child.type === 'Header') {
+            return { ...headerConfig, id: child.id, hidden: child.hidden };
+          }
+          if (child.type === 'Footer') {
+            return { ...footerConfig, id: child.id, hidden: child.hidden };
+          }
+          return child;
+        });
+        // Only update if header/footer actually changed
+        const hasChanges = JSON.stringify(currentContent.children) !== JSON.stringify(updatedChildren);
+        if (hasChanges) {
+          store.setContent({ ...currentContent, children: updatedChildren }, true);
+        }
+      }
+      return;
     }
-  }, [pageType, contentWithGlobalLayout, layoutLoading, overridesLoading, store, store.isDirty, globalLayout, isCheckoutPage]);
+
+    // CRITICAL: After save/publish, block sync until upstream cache contains persisted content
+    const incomingPersistedSignature = getPersistedContentSignature(contentWithGlobalLayout, isCheckoutPage);
+    const pendingPersistedSignature = pendingPersistedSignatureRef.current;
+
+    if (pendingPersistedSignature && incomingPersistedSignature !== pendingPersistedSignature) {
+      console.log('[VisualBuilder] Skipping clean-sync: waiting fresh persisted content.');
+      return;
+    }
+
+    if (pendingPersistedSignature && incomingPersistedSignature === pendingPersistedSignature) {
+      pendingPersistedSignatureRef.current = null;
+    }
+
+    // Avoid redundant store resets when runtime content is already synchronized
+    const incomingRuntimeSignature = getRuntimeContentSignature(contentWithGlobalLayout);
+    const currentRuntimeSignature = getRuntimeContentSignature(store.content);
+
+    if (incomingRuntimeSignature === currentRuntimeSignature) {
+      return;
+    }
+
+    store.setContent(contentWithGlobalLayout, true);
+  }, [contentWithGlobalLayout, layoutLoading, overridesLoading, store.isDirty, store.content, store.setContent, globalLayout, isCheckoutPage]);
 
 
   // Warn before leaving with unsaved changes (includes theme settings drafts)
