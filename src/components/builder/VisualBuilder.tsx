@@ -918,6 +918,7 @@ export function VisualBuilder({
           pageType: pageType as 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'account' | 'account_orders' | 'account_order_detail',
           content: contentToSave,
         });
+        pendingPersistedSignatureRef.current = getPersistedContentSignature(contentToSave, isCheckoutPage);
         store.markClean();
         toast.success('Rascunho salvo!');
         return;
@@ -930,6 +931,7 @@ export function VisualBuilder({
         pageId: entityType === 'page' ? pageId : undefined,
         content: contentToSave,
       });
+      pendingPersistedSignatureRef.current = getPersistedContentSignature(contentToSave, isCheckoutPage);
       store.markClean();
       toast.success('Rascunho salvo!');
     } catch (error) {
