@@ -379,8 +379,8 @@ export function usePublish() {
         return 1;
       }
 
-      // Special handling for institutional pages with direct content - save to store_pages.content
-      if (pageType === 'institutional' && pageId) {
+      // Special handling for institutional/landing pages with direct content - save to store_pages.content
+      if ((pageType === 'institutional' || pageType === 'landing_page') && pageId) {
         const { error } = await supabase
           .from('store_pages')
           .update({ 
