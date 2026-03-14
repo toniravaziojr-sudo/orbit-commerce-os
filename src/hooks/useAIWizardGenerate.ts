@@ -44,7 +44,13 @@ function resolveScope(collectedData: Record<string, unknown>): GenerationScope {
 }
 
 /**
+ * System-derived props that bypass the whitelist — set by backend for legibility/layout.
+ */
+const SYSTEM_DERIVED_PROPS = new Set(['overlayOpacity', 'alignment']);
+
+/**
  * Applies whitelist + scope enforcement: only writes allowed props that match the scope.
+ * System-derived props (overlayOpacity, alignment) bypass the whitelist.
  */
 function whitelistMerge(
   currentProps: Record<string, unknown>,
@@ -63,8 +69,16 @@ function whitelistMerge(
   const includeImages = scope === 'images' || scope === 'all';
   const includeTexts = scope === 'texts' || scope === 'all';
 
+  // Apply system-derived props (bypass whitelist)
+  for (const key of SYSTEM_DERIVED_PROPS) {
+    if (generatedProps[key] !== undefined) {
+      merged[key] = generatedProps[key];
+    }
+  }
+
   if (blockType === 'Banner' && mode === 'single') {
     for (const [key, value] of Object.entries(generatedProps)) {
+      if (SYSTEM_DERIVED_PROPS.has(key)) continue; // already handled
       if (!allowedKeys.has(key)) continue;
       const isImage = imageKeys.has(key);
       if (isImage && !includeImages) continue;
