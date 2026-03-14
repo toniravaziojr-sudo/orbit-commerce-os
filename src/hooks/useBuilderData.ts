@@ -289,10 +289,15 @@ export function useSaveDraft() {
 
       return newVersion;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['template-version'] });
       queryClient.invalidateQueries({ queryKey: ['page-version-history'] });
       queryClient.invalidateQueries({ queryKey: ['page-templates'] });
+      // CRITICAL FIX: Invalidate store-page query for institutional pages
+      // Without this, the editor resets to stale cached content after save
+      if (variables.pageId) {
+        queryClient.invalidateQueries({ queryKey: ['store-page', variables.pageId] });
+      }
       toast({ title: 'Rascunho salvo!' });
     },
     onError: (error: Error) => {
