@@ -33,6 +33,8 @@ import {
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { useAIBlockFill } from '@/hooks/useAIBlockFill';
+import { getWizardContract } from '@/lib/builder/aiWizardRegistry';
+import { AIFillWizardDialog } from './ai-wizard/AIFillWizardDialog';
 import { Sparkles, Loader2 } from 'lucide-react';
 
 interface PropsEditorProps {
@@ -81,8 +83,12 @@ export function PropsEditor({
   pageName,
 }: PropsEditorProps) {
   const [noticeOpen, setNoticeOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
 
-  // AI Block Fill hook
+  // Check if this block has a wizard contract (Group B)
+  const wizardContract = getWizardContract(definition.type, props);
+
+  // AI Block Fill hook (for Group A — text-only blocks)
   const { fill, isLoading: isAILoading, hasFillableProps } = useAIBlockFill({
     tenantId: tenantId || '',
     blockType: definition.type,
@@ -218,17 +224,23 @@ export function PropsEditor({
             <h3 className="font-semibold text-xs truncate">{definition.label}</h3>
             <p className="text-[10px] text-muted-foreground">Propriedades</p>
           </div>
-          {/* AI Fill button — only for blocks with aiFillable props and valid tenantId */}
-          {hasFillableProps && tenantId && (
+          {/* AI Fill button — Group B (wizard) or Group A (direct fill) */}
+          {(hasFillableProps || wizardContract) && tenantId && (
             <Button
               variant="outline"
               size="sm"
               className="h-7 gap-1 text-xs shrink-0"
               disabled={isAILoading}
               onClick={async () => {
-                const merged = await fill();
-                if (merged) {
-                  onChange(merged);
+                if (wizardContract) {
+                  // Group B: open wizard dialog
+                  setWizardOpen(true);
+                } else {
+                  // Group A: direct text fill
+                  const merged = await fill();
+                  if (merged) {
+                    onChange(merged);
+                  }
                 }
               }}
             >
@@ -343,6 +355,18 @@ export function PropsEditor({
           </p>
         )}
       </div>
+
+      {/* AI Wizard Dialog for Group B blocks */}
+      {wizardContract && (
+        <AIFillWizardDialog
+          open={wizardOpen}
+          onOpenChange={setWizardOpen}
+          contract={wizardContract}
+          blockType={definition.type}
+          blockLabel={definition.label}
+          currentProps={props}
+        />
+      )}
     </div>
   );
 }
