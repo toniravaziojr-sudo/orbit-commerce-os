@@ -1279,16 +1279,27 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'string',
         label: 'Título',
         defaultValue: '',
+        aiFillable: { hint: 'Título da lista de benefícios/features', format: 'text' },
       },
       subtitle: {
         type: 'string',
         label: 'Subtítulo',
         defaultValue: '',
+        aiFillable: { hint: 'Subtítulo complementar', format: 'text' },
       },
       items: {
         type: 'array',
         label: 'Features',
         defaultValue: [],
+        aiFillable: {
+          hint: 'Lista de benefícios ou diferenciais do negócio',
+          minItems: 3,
+          maxItems: 5,
+          itemSchema: {
+            icon: { hint: 'Nome do ícone Lucide (Check, Shield, Truck, Star, etc.)', enabled: true },
+            text: { hint: 'Benefício ou diferencial em 1 frase curta', enabled: true },
+          },
+        },
       },
       iconColor: {
         type: 'color',
@@ -1314,6 +1325,7 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'string',
         label: 'Texto do Botão',
         defaultValue: 'Saiba mais',
+        aiFillable: { hint: 'Call-to-action curto, 2-4 palavras', format: 'cta' },
       },
       buttonUrl: {
         type: 'string',
