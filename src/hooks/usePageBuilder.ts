@@ -240,7 +240,6 @@ export function usePageBuilder(pageId: string | undefined) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['page-draft-version', pageId] });
-      queryClient.invalidateQueries({ queryKey: ['page-draft-version-content', pageId] });
       queryClient.invalidateQueries({ queryKey: ['page-versions', pageId] });
       toast({ title: 'Rascunho salvo!' });
     },
