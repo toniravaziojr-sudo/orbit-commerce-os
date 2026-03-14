@@ -3072,7 +3072,7 @@ const blockDefinitions: BlockDefinition[] = [
       showProfile: { type: 'boolean', label: 'Mostrar Perfil', defaultValue: true },
       profileUsername: { type: 'string', label: 'Nome de Usuário' },
       profileUrl: { type: 'string', label: 'URL do Perfil' },
-      followButtonText: { type: 'string', label: 'Texto do Botão Seguir' },
+      followButtonText: { type: 'string', label: 'Texto do Botão Seguir', aiFillable: { hint: 'Call-to-action para seguir, 1-2 palavras', format: 'cta' } },
       gap: {
         type: 'select',
         label: 'Espaçamento',
