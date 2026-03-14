@@ -1536,6 +1536,8 @@ export function VisualBuilder({
                   }
                   pageType={pageType}
                   blockType={store.selectedBlock?.type}
+                  tenantId={tenantId}
+                  pageName={pageTitle}
                 />
               )
             ) : store.selectedBlock && !store.selectedBlockDefinition ? (

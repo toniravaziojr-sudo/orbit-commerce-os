@@ -32,6 +32,8 @@ import {
 } from "@/components/ui/collapsible";
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
+import { useAIBlockFill } from '@/hooks/useAIBlockFill';
+import { Sparkles, Loader2 } from 'lucide-react';
 
 interface PropsEditorProps {
   definition: BlockDefinition;
@@ -44,6 +46,10 @@ interface PropsEditorProps {
   blockType?: string;
   /** When true, bypasses the SYSTEM_BLOCKS redirect for Header/Footer (checkout has its own layout) */
   isCheckoutContext?: boolean;
+  /** Tenant ID for AI block fill */
+  tenantId?: string;
+  /** Page name for AI context */
+  pageName?: string;
 }
 
 // Define which props belong to the Header notice group
@@ -71,9 +77,22 @@ export function PropsEditor({
   pageType,
   blockType,
   isCheckoutContext = false,
+  tenantId,
+  pageName,
 }: PropsEditorProps) {
   const [noticeOpen, setNoticeOpen] = useState(false);
-  
+
+  // AI Block Fill hook
+  const { fill, isLoading: isAILoading, hasFillableProps } = useAIBlockFill({
+    tenantId: tenantId || '',
+    blockType: definition.type,
+    currentProps: props,
+    propsSchema: definition.propsSchema,
+    pageContext: {
+      pageName,
+      pageType,
+    },
+  });
   const handleChange = (key: string, value: unknown) => {
     onChange({ ...props, [key]: value });
   };
@@ -199,6 +218,28 @@ export function PropsEditor({
             <h3 className="font-semibold text-xs truncate">{definition.label}</h3>
             <p className="text-[10px] text-muted-foreground">Propriedades</p>
           </div>
+          {/* AI Fill button — only for blocks with aiFillable props and valid tenantId */}
+          {hasFillableProps && tenantId && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1 text-xs shrink-0"
+              disabled={isAILoading}
+              onClick={async () => {
+                const merged = await fill();
+                if (merged) {
+                  onChange(merged);
+                }
+              }}
+            >
+              {isAILoading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" />
+              )}
+              {isAILoading ? 'Gerando...' : 'IA'}
+            </Button>
+          )}
         </div>
       </div>
 

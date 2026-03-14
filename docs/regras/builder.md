@@ -3562,6 +3562,64 @@ Blocos de sistema, e-commerce funcional e mídia pura não são elegíveis:
 | Sanitização de HTML no output | ✅ |
 | Contexto da loja via `store_settings` | ✅ |
 | Tool calling com schema dinâmico | ✅ |
-| Hook `useAIBlockFill` | ❌ (Fase 2.3) |
-| Botão no PropsEditor | ❌ (Fase 2.3) |
+| Hook `useAIBlockFill` | ✅ (Fase 2.3) |
+| Botão no PropsEditor | ✅ (Fase 2.3) |
 | Preenchimento em lote | ❌ (futuro) |
+
+### Fase 2.3 — Hook + UI no PropsEditor
+
+#### Arquivos criados/alterados
+
+| Arquivo | Ação |
+|---------|------|
+| `src/hooks/useAIBlockFill.ts` | **Criado** — hook que extrai fillableSchema, chama edge function, aplica merge fill-empty |
+| `src/components/builder/PropsEditor.tsx` | **Alterado** — novas props `tenantId`, `pageName`; botão "✨ IA" no header |
+| `src/components/builder/VisualBuilder.tsx` | **Alterado** — repassa `tenantId` e `pageTitle` (como `pageName`) ao PropsEditor |
+
+#### Hook `useAIBlockFill`
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Hook |
+| **Localização** | `src/hooks/useAIBlockFill.ts` |
+| **Contexto** | Usado pelo PropsEditor para gerar conteúdo IA por bloco |
+| **Descrição** | Extrai campos `aiFillable` do propsSchema, chama `ai-block-fill`, aplica merge fill-empty |
+| **Parâmetros** | `tenantId`, `blockType`, `currentProps`, `propsSchema`, `pageContext` |
+| **Retorno** | `{ fill, isLoading, hasFillableProps }` |
+| **Merge** | Preenche apenas campos vazios/default. Campos editados pelo usuário são preservados |
+| **Undo/Redo** | Funciona automaticamente — `fill()` retorna props merged, PropsEditor chama `onChange()` que entra no histórico |
+| **Erros** | Exibidos via `showErrorToast` (error-toast.ts) |
+| **Sucesso** | Toast "Conteúdo gerado com IA ✨" via sonner |
+
+#### Botão "✨ IA" no PropsEditor
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Botão |
+| **Localização** | Header do PropsEditor, ao lado do nome do bloco |
+| **Condições de exibição** | `hasFillableProps === true` E `tenantId` definido. Não aparece em system blocks |
+| **Comportamento** | Clique → `fill()` → merge fill-empty → `onChange(merged)` → histórico do builder |
+| **Loading** | Botão mostra spinner + "Gerando..." + disabled |
+| **Clique duplo** | Bloqueado por `isLoading` |
+| **Visual** | `variant="outline"`, `size="sm"`, ícone Sparkles |
+
+#### Regras de merge fill-empty
+
+- Campo vazio (`''`, `null`, `undefined`) → preenchido pela IA
+- Campo com valor `defaultValue` do schema → preenchido pela IA
+- Array vazio (`[]`) → preenchido pela IA
+- Campo já editado pelo usuário → **preservado**
+- Props não textuais (imagem, cor, etc.) → **nunca tocadas** (não estão no fillableSchema)
+
+#### Escopo da Fase 2.3
+
+| Item | Status |
+|------|--------|
+| Hook `useAIBlockFill` | ✅ |
+| Botão no PropsEditor | ✅ |
+| Merge fill-empty | ✅ |
+| Undo/redo | ✅ (via fluxo existente) |
+| Toast sucesso/erro | ✅ |
+| Preenchimento em lote | ❌ (futuro) |
+| Modo "substituir tudo" | ❌ (futuro) |
+| Diálogo de confirmação | ❌ (futuro) |
