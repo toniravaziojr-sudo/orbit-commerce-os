@@ -20,6 +20,30 @@ export interface BlockNode {
   hidden?: boolean;
 }
 
+/**
+ * AI Fill metadata for a prop.
+ * Only present on props that are eligible for AI auto-fill.
+ * Props without this field are never touched by AI.
+ */
+export interface AIFillableConfig {
+  /** Instruction/hint for the LLM on how to generate this field */
+  hint: string;
+  /** Content format expected */
+  format?: 'text' | 'html' | 'cta' | 'label' | 'feedback';
+  /** For array props: minimum number of items to generate */
+  minItems?: number;
+  /** For array props: maximum number of items to generate */
+  maxItems?: number;
+  /** Schema for each item in an array prop */
+  itemSchema?: Record<string, {
+    hint: string;
+    /** Whether this sub-field should be filled by AI */
+    enabled: boolean;
+  }>;
+  /** Future: merge behavior when prop already has content */
+  overwritePolicy?: 'fill-empty' | 'confirm-before-overwrite';
+}
+
 export interface BlockPropsSchema {
   [key: string]: {
     type: 'string' | 'number' | 'boolean' | 'select' | 'color' | 'image' | 'video' | 'richtext' | 'array' | 'product' | 'category' | 'menu' | 'categoryList' | 'textarea' | 'productMultiSelect' | 'categoryMultiSelect' | 'datetime' | 'emailList';
@@ -38,6 +62,8 @@ export interface BlockPropsSchema {
       mobile: string;
       aspectRatio?: string;
     }; // For categoryMultiSelect - recommended image dimensions
+    /** AI auto-fill metadata. Only present on eligible props. */
+    aiFillable?: AIFillableConfig;
   };
 }
 
