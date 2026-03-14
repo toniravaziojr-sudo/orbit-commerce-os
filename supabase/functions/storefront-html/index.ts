@@ -2116,7 +2116,9 @@ serve(async (req) => {
     // Common data
     const storeName = storeSettings?.store_name || tenant?.name || 'Loja';
     const faviconUrl = storeSettings?.favicon_url || '';
-    const publishedContent = templateSet?.published_content as Record<string, any> | null;
+    const publishedContent = isPreviewMode
+      ? ((templateSet?.draft_content || templateSet?.published_content) as Record<string, any> | null)
+      : (templateSet?.published_content as Record<string, any> | null);
     const themeSettings = publishedContent?.themeSettings || null;
     const themeCss = generateThemeCss(themeSettings);
     const fontsData = getGoogleFontsData(themeSettings);
