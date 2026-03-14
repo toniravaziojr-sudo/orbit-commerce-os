@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { cachePurge } from '@/lib/storefrontCachePurge';
 import { useToast } from '@/hooks/use-toast';
 import type { BlockNode, PageVersion, StorefrontTemplate } from '@/lib/builder/types';
 import type { Json } from '@/integrations/supabase/types';
