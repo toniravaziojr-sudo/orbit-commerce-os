@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { cachePurge } from '@/lib/storefrontCachePurge';
 import { useToast } from '@/hooks/use-toast';
 import type { BlockNode, PageVersion, StorefrontTemplate } from '@/lib/builder/types';
 import type { Json } from '@/integrations/supabase/types';
@@ -227,8 +228,8 @@ export function useSaveDraft() {
         return 1;
       }
 
-      // Special handling for institutional pages with direct content - save to store_pages.content
-      if (pageType === 'institutional' && pageId) {
+      // Special handling for institutional/landing pages with direct content - save to store_pages.content
+      if ((pageType === 'institutional' || pageType === 'landing_page') && pageId) {
         const { error } = await supabase
           .from('store_pages')
           .update({ 
@@ -312,6 +313,12 @@ export function useSaveDraft() {
       if (variables.pageId) {
         queryClient.invalidateQueries({ queryKey: ['store-page', variables.pageId] });
       }
+
+      // Fire-and-forget cache purge for institutional/landing pages (save = publish for these)
+      if (currentTenant?.id && (variables.pageType === 'institutional' || variables.pageType === 'landing_page')) {
+        cachePurge.template(currentTenant.id);
+      }
+
       toast({ title: 'Rascunho salvo!' });
     },
     onError: (error: Error) => {
@@ -379,8 +386,8 @@ export function usePublish() {
         return 1;
       }
 
-      // Special handling for institutional pages with direct content - save to store_pages.content
-      if (pageType === 'institutional' && pageId) {
+      // Special handling for institutional/landing pages with direct content - save to store_pages.content
+      if ((pageType === 'institutional' || pageType === 'landing_page') && pageId) {
         const { error } = await supabase
           .from('store_pages')
           .update({ 
@@ -470,11 +477,37 @@ export function usePublish() {
 
       return newVersion;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      // Optimistic cache update for pages to prevent rollback
+      if (variables.pageId) {
+        queryClient.setQueryData(
+          ['store-page', variables.pageId],
+          (previous: Record<string, unknown> | undefined) => {
+            if (!previous) return previous;
+            return {
+              ...previous,
+              content: variables.content as unknown as Json,
+              is_published: true,
+              status: 'published',
+              updated_at: new Date().toISOString(),
+            };
+          }
+        );
+      }
+
       queryClient.invalidateQueries({ queryKey: ['template-version'] });
       queryClient.invalidateQueries({ queryKey: ['page-version-history'] });
       queryClient.invalidateQueries({ queryKey: ['store-pages'] });
       queryClient.invalidateQueries({ queryKey: ['page-templates'] });
+      if (variables.pageId) {
+        queryClient.invalidateQueries({ queryKey: ['store-page', variables.pageId] });
+      }
+
+      // Fire-and-forget cache purge for published pages
+      if (currentTenant?.id && (variables.pageType === 'institutional' || variables.pageType === 'landing_page')) {
+        cachePurge.template(currentTenant.id);
+      }
+
       toast({ title: 'Publicado com sucesso!' });
     },
     onError: (error: Error) => {

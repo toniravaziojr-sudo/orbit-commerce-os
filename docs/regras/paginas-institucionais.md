@@ -621,3 +621,16 @@ O compilador FAQ usa `<details>/<summary>` nativo (zero JS) com chevron animado 
 | Hero diversificado | 3 layouts de hero (Split, Clean, Background) — IA escolhe baseado no nicho. Apenas `dark-authority` e `urgencia-conversao` usam background composicional |
 | Logo adaptativa | `max-width` aumentado para `200px`, `min-width: 180px` em comparativos, container branco condicional baseado no contraste fundo/logo |
 | Removido `min-height: 90vh` | Instrução fixa removida do prompt principal e fallback prompts |
+
+### v4.0.0 — Correção de Persistência: Salvar = Refletir na Loja
+
+**Arquivos:** `VisualBuilder.tsx`, `useBuilderData.ts`
+
+| Correção | Descrição |
+|----------|-----------|
+| `pageType` sempre enviado | VisualBuilder agora envia `pageType` em TODAS as chamadas de save/publish, não apenas para templates. Isso garante que `useBuilderData` roteie para o caminho correto. |
+| `landing_page` suportado | `useBuilderData` agora trata `landing_page` igual a `institutional` — salva direto em `store_pages.content`. |
+| Cache purge automático | Ao salvar/publicar página institucional ou landing page, dispara `cachePurge.template()` para invalidar CDN. |
+| Update otimista no publish | `onSuccess` do publish agora faz `setQueryData` otimista no cache `['store-page', pageId]` para evitar rollback visual. |
+
+**Causa raiz do bug:** O `pageType` era passado como `undefined` quando `entityType === 'page'`, fazendo o save cair no fluxo genérico de versionamento (`store_page_versions`) em vez do caminho direto (`store_pages.content`). Como o editor carrega de `store_pages.content`, o conteúdo salvo "sumia" ao reabrir.
