@@ -808,8 +808,9 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     );
   }
 
-  // Empty cart guard (allow if payment pending or approved)
-  if (items.length === 0 && paymentStatus !== 'approved' && paymentStatus !== 'pending_payment') {
+  // Empty cart guard (allow if payment pending, approved, or retry mode with prefill)
+  const isRetryMode = !!retryTokenParam && !!retryPrefill;
+  if (items.length === 0 && paymentStatus !== 'approved' && paymentStatus !== 'pending_payment' && !isRetryMode && !retryLoading) {
     return (
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-md mx-auto text-center">
