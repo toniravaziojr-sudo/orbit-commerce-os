@@ -240,12 +240,22 @@ serve(async (req) => {
 
     console.log('[get-order] Found order:', order.order_number, 'with', items?.length || 0, 'items');
 
+    // Strip sensitive fields and conditionally include retry_token
+    const { retry_token, retry_token_expires_at, ...safeOrder } = order;
+    
+    // Only include retry_token if payment is not approved and token is still valid
+    const includeRetryToken = retry_token 
+      && retry_token_expires_at 
+      && new Date(retry_token_expires_at) > new Date()
+      && order.payment_status !== 'approved';
+
     return new Response(JSON.stringify({
       success: true,
       order: {
-        ...order,
+        ...safeOrder,
         items: items || [],
         payment_instructions: paymentInstructions,
+        ...(includeRetryToken ? { retry_token } : {}),
       },
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
