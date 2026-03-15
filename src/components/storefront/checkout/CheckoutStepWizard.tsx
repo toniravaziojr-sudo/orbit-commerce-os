@@ -677,6 +677,9 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         affiliate: affiliate || undefined,
         // Shipping quote ID for server-side validation (Security Plan v3.1)
         shippingQuoteId: shipping.quoteId || undefined,
+        // Step 5: Link to original declined order via retry_token
+        retryFromOrderId: retryPrefill?.original_order_id || undefined,
+        retryToken: retryTokenParam || undefined,
       });
 
       if (result.success) {
