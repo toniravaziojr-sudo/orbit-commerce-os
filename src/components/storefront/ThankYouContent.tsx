@@ -278,11 +278,11 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
         </div>
       )}
 
-      {/* Card Retry Section — only when declined */}
-      {effectiveDeclined && order && tenant?.id && (
+      {/* Card Retry Section — only when declined and retry_token is available */}
+      {effectiveDeclined && order && (order.retry_token || searchParams.get('rt')) && (
         <CardRetrySection
-          order={order}
-          tenantId={tenant.id}
+          retryToken={order.retry_token || searchParams.get('rt') || ''}
+          orderTotal={order.total}
           onSuccess={handleRetrySuccess}
         />
       )}
