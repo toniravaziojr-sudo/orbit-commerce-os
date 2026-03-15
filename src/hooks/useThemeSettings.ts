@@ -278,6 +278,7 @@ export const DEFAULT_SUPPORT_WIDGET: SupportWidgetConfig = {
   whatsappButtonColor: '#25D366',
   chatButtonColor: '#1F2937',
   position: 'right',
+  buttonSize: 'medium',
 };
 
 export interface ThemeSettings {
