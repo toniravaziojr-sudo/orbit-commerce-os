@@ -503,9 +503,9 @@ Carrinho & Checkout → aba Checkout (no Builder)
 ```
 1 clique "Finalizar Pedido" = 1 pedido novo (sempre)
 1 pedido pode ter N tentativas de pagamento (payment_transactions)
-Retry de cartão na Thank You = mesma order + nova transaction (futuro, Etapa 4)
-Trocar para outra forma = novo pedido (futuro, Etapa 5)
-Retry no mesmo pedido = APENAS cartão (futuro, Etapa 4)
+Retry de cartão na Thank You = mesma order + nova transaction (IMPLEMENTADO — Etapa 4)
+Trocar para outra forma = novo pedido (futuro, Etapa 5 — requer retry_token)
+Retry no mesmo pedido = APENAS cartão (IMPLEMENTADO — Etapa 4)
 ```
 
 ### Classificação de Falhas de Pagamento (v8.15.0 — Etapa 3)
