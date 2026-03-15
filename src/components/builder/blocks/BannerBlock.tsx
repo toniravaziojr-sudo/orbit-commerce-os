@@ -331,7 +331,8 @@ export function BannerBlock({
   );
 
   // Wrap in link if URL provided (only for single mode or carousel slide without CTA)
-  if (currentLinkUrl && !hasCTA) {
+  // In builder mode, never navigate — clicking should select the block for editing
+  if (currentLinkUrl && !hasCTA && !isBuilderMode) {
     return (
       <a href={currentLinkUrl} className="block">
         {bannerContent}
