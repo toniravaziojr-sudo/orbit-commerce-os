@@ -245,10 +245,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
 
         orderId = orderData.order_id;
         orderNumber = orderData.order_number;
-        // Store for potential retry
-        setPendingOrderRef({ orderId, orderNumber });
         console.log('[Checkout] Step 1 OK - Order:', orderId, orderNumber);
-      }
 
       // 2. Process payment via active gateway (Pagar.me or Mercado Pago)
       const gatewayFunction = activeGateway === 'mercadopago' ? 'mercadopago-create-charge' : 'pagarme-create-charge';
