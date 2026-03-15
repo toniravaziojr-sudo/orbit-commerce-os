@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MessageCircle } from 'lucide-react';
-import { useThemeSupportWidget, type SupportWidgetConfig, type SupportWidgetType, type SupportWidgetPosition } from '@/hooks/useThemeSettings';
+import { useThemeSupportWidget, type SupportWidgetConfig, type SupportWidgetType, type SupportWidgetPosition, type SupportWidgetButtonSize } from '@/hooks/useThemeSettings';
 
 // WhatsApp SVG icon (reusable)
 function WhatsAppIconSmall({ className }: { className?: string }) {
