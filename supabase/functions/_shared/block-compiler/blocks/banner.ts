@@ -238,7 +238,7 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
   })();</script>`;
 
   return `<div style="position:relative;overflow:hidden;${widthStyle}">
-    <style>.${carouselId}-wrap{aspect-ratio:21/9;}@media(min-width:768px){.${carouselId}-wrap{aspect-ratio:21/7;}}</style>
+    <style>.${carouselId}-wrap{aspect-ratio:4/5;}@media(min-width:768px){.${carouselId}-wrap{aspect-ratio:12/5;}}</style>
     <div class="${carouselId}-wrap" style="position:relative;">
       ${slidesHtml}
     </div>
