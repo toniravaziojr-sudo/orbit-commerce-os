@@ -29,6 +29,9 @@ export interface PaymentResult {
   boletoDueDate?: string;
   // Credit card specific
   cardStatus?: string;
+  // Failure classification (v8.15.0)
+  cardDeclined?: boolean;    // Gateway explicitly rejected (antifraude, saldo, etc)
+  technicalError?: boolean;  // HTTP/network error after order was created
   // Error
   error?: string;
 }
