@@ -561,7 +561,7 @@ Gere entre 8 e 12 perguntas. Respostas em TEXTO PURO sem HTML.`;
             {
               id: `essential-${pageSpec.slug}-section`,
               type: "Section",
-              props: { paddingY: 48, paddingX: 16 },
+              props: { paddingY: 0, paddingX: 0, fullWidth: true },
               children: [
                 {
                   id: `essential-${pageSpec.slug}-container`,
