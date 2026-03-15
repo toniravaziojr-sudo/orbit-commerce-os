@@ -183,10 +183,12 @@ const footerPropsToInherit = [
 
 | Function | Função |
 |----------|--------|
-| `checkout-create-order` | Criação atômica do pedido (items, customer, address) |
+| `checkout-create-order` | Criação atômica do pedido (items, customer, address). Gera `retry_token` para cartão. Persiste `retry_from_order_id` quando é retry. |
 | `pagarme-create-charge` | Processamento de pagamento via Pagar.me |
 | `mercadopago-create-charge` | Processamento de pagamento via Mercado Pago |
 | `mercadopago-storefront-webhook` | Webhook de status de pagamento do Mercado Pago (storefront) |
+| `retry-card-payment` | Retentativa de cartão no mesmo pedido — valida `retry_token`, resolve CPF/endereço server-side, chama gateway |
+| `get-retry-checkout-data` | Retorna dados seguros para prefill do checkout no modo "outra forma" — valida `retry_token`, retorna itens/cliente/endereço (sem CPF) |
 
 ### Seleção Dinâmica de Gateway
 
