@@ -94,13 +94,21 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   
   const [currentStep, setCurrentStep] = useState<CheckoutStep>(1);
   const [formData, setFormData] = useState<ExtendedFormData>(initialExtendedFormData);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
+  const [paymentMethod, setPaymentMethodRaw] = useState<PaymentMethod>('pix');
   const [cardData, setCardData] = useState<CardData>({
     number: '', holderName: '', expMonth: '', expYear: '', cvv: '',
   });
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof ExtendedFormData, string>>>({});
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('idle');
   const [paymentError, setPaymentError] = useState<string | null>(null);
+
+  // Wrapper: limpa dados do cartão e estado de pagamento ao trocar método
+  const setPaymentMethod = (method: PaymentMethod) => {
+    setCardData({ number: '', holderName: '', expMonth: '', expYear: '', cvv: '' });
+    setPaymentError(null);
+    setPaymentStatus('idle');
+    setPaymentMethodRaw(method);
+  };
   const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
   const [isExistingCustomer, setIsExistingCustomer] = useState(false);
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);

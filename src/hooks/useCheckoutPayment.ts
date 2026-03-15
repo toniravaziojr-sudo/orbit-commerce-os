@@ -71,28 +71,6 @@ interface UseCheckoutPaymentOptions {
   tenantId: string;
 }
 
-// SessionStorage key for persisting pending order across page refreshes
-const PENDING_ORDER_KEY = 'checkout_pending_order';
-
-function loadPendingOrder(tenantId: string): { orderId: string; orderNumber: string } | null {
-  try {
-    const raw = sessionStorage.getItem(`${PENDING_ORDER_KEY}_${tenantId}`);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (parsed?.orderId && parsed?.orderNumber) return parsed;
-    return null;
-  } catch { return null; }
-}
-
-function savePendingOrder(tenantId: string, ref: { orderId: string; orderNumber: string } | null) {
-  try {
-    if (ref) {
-      sessionStorage.setItem(`${PENDING_ORDER_KEY}_${tenantId}`, JSON.stringify(ref));
-    } else {
-      sessionStorage.removeItem(`${PENDING_ORDER_KEY}_${tenantId}`);
-    }
-  } catch { /* ignore */ }
-}
 
 export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
   // Determine which payment gateway to use based on tenant config
@@ -125,16 +103,6 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentResult, setPaymentResult] = useState<PaymentResult | null>(null);
-  // Track the last created order to avoid duplicates on payment retry
-  // Persisted in sessionStorage so it survives page refreshes within the same tab
-  const [pendingOrderRef, setPendingOrderRefState] = useState<{ orderId: string; orderNumber: string } | null>(
-    () => loadPendingOrder(tenantId)
-  );
-  
-  const setPendingOrderRef = (ref: { orderId: string; orderNumber: string } | null) => {
-    setPendingOrderRefState(ref);
-    savePendingOrder(tenantId, ref);
-  };
 
   const processPayment = async ({
     method,
@@ -189,18 +157,11 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
       
       console.log('[Checkout] Totals:', { subtotal, shippingTotal: effectiveShippingTotal, discountAmount, pmDiscountAmount, total });
 
-      // 1. Create order OR reuse existing pending order (avoids duplicates on retry)
+      // 1. Always create a new order (each finalization = new order)
       let orderId: string;
       let orderNumber: string;
 
-      if (pendingOrderRef) {
-        // Reuse existing order from a previous failed payment attempt
-        orderId = pendingOrderRef.orderId;
-        orderNumber = pendingOrderRef.orderNumber;
-        console.log('[Checkout] Step 1: Reusing existing order:', orderId, orderNumber);
-      } else {
-        // Create new order
-        console.log('[Checkout] Step 1: Creating order via edge function');
+      console.log('[Checkout] Step 1: Creating order via edge function');
         const { data: orderData, error: orderError } = await supabase.functions.invoke('checkout-create-order', {
           body: {
             tenant_id: tenantId,
@@ -284,10 +245,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
 
         orderId = orderData.order_id;
         orderNumber = orderData.order_number;
-        // Store for potential retry
-        setPendingOrderRef({ orderId, orderNumber });
         console.log('[Checkout] Step 1 OK - Order:', orderId, orderNumber);
-      }
 
       // 2. Process payment via active gateway (Pagar.me or Mercado Pago)
       const gatewayFunction = activeGateway === 'mercadopago' ? 'mercadopago-create-charge' : 'pagarme-create-charge';
@@ -338,9 +296,6 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
       
       console.log('[Checkout] Step 2 OK - Payment processed');
 
-      // Payment succeeded - clear pending order ref
-      setPendingOrderRef(null);
-
       // Build result
       const result: PaymentResult = {
         success: true,
@@ -366,8 +321,6 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      // NOTE: pendingOrderRef is intentionally NOT cleared here
-      // so the next retry reuses the same order instead of creating a duplicate
       const result: PaymentResult = {
         success: false,
         error: errorMessage,
@@ -381,7 +334,6 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
 
   const resetPayment = () => {
     setPaymentResult(null);
-    setPendingOrderRef(null);
   };
 
   return {
