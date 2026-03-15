@@ -19,6 +19,7 @@ export interface PaymentInstructions {
 
 export interface OrderDetails {
   id: string;
+  tenant_id?: string;
   order_number: string;
   status: string;
   payment_status: string;
@@ -37,6 +38,7 @@ export interface OrderDetails {
   customer_name: string;
   customer_email: string;
   customer_phone?: string;
+  customer_cpf?: string;
   shipping_street?: string;
   shipping_number?: string;
   shipping_complement?: string;
@@ -44,6 +46,7 @@ export interface OrderDetails {
   shipping_city?: string;
   shipping_state?: string;
   shipping_postal_code?: string;
+  installments?: number;
   items: {
     id: string;
     product_name: string;

@@ -3,15 +3,20 @@
 // Loads REAL order data from database (SERVER-SIDE)
 // Shows PIX/Boleto payment info + Account creation
 // PIX data is fetched from server, not localStorage (reliable)
+// v8.15.0 — Declined state with inline card retry
 // =============================================
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Check, Package, Truck, Home, MessageCircle, ShoppingBag, Loader2, AlertCircle, Clock, Copy, ExternalLink, QrCode } from 'lucide-react';
+import { Check, Package, Truck, Home, MessageCircle, ShoppingBag, Loader2, AlertCircle, Clock, Copy, ExternalLink, QrCode, XCircle, CreditCard, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatCurrency } from '@/lib/cartTotals';
 import { useOrderDetails } from '@/hooks/useOrderDetails';
+import { useRetryCardPayment, RetryCardData } from '@/hooks/useRetryCardPayment';
 import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { CreateAccountSection } from '@/components/storefront/CreateAccountSection';
@@ -44,7 +49,7 @@ interface ThankYouContentProps {
 
 export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSocialShare = false, storeName }: ThankYouContentProps) {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const urls = useStorefrontUrls(tenantSlug);
   const [copied, setCopied] = useState(false);
   const [user, setUser] = useState<any>(null);
@@ -53,33 +58,31 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
   const { config: checkoutConfig } = useCheckoutConfig();
   const purchaseTrackedRef = useRef<string | null>(null);
   
+  // Declined state
+  const statusParam = searchParams.get('status');
+  const isDeclined = statusParam === 'declined';
+  const [retryApproved, setRetryApproved] = useState(false);
+  
   // CRITICAL: Get tenant ID for order disambiguation
   const { tenant } = usePublicStorefront(tenantSlug);
   
   // Get order identifier from URL - normalize by removing # and trimming
-  // CRITICAL: The # in URL becomes fragment, so we also need to check window.location.hash
   const rawOrderParam = searchParams.get('pedido') || searchParams.get('orderId') || searchParams.get('orderNumber');
-  
-  // Also check if order number was passed as hash (legacy/malformed URLs like ?pedido=#5001)
   const hashValue = typeof window !== 'undefined' ? window.location.hash.replace(/^#/, '').trim() : '';
   
-  // Normalize: remove # prefix, trim, decode URI component
   const orderParam = useMemo(() => {
-    // First try query param
     if (rawOrderParam) {
       const cleaned = decodeURIComponent(rawOrderParam).replace(/^#/, '').trim();
       if (cleaned) return cleaned;
     }
-    // Fallback to hash (for malformed URLs where # was in the value)
     if (hashValue) return hashValue;
     return null;
   }, [rawOrderParam, hashValue]);
 
-  console.log('[ThankYou] Order param:', { rawOrderParam, hashValue, orderParam, tenantId: tenant?.id });
+  console.log('[ThankYou] Order param:', { rawOrderParam, hashValue, orderParam, tenantId: tenant?.id, isDeclined });
   
-  // Fetch real order data from database (includes payment_instructions)
-  // CRITICAL: Pass tenant.id to disambiguate duplicate order_numbers
-  const { data: order, isLoading, error } = useOrderDetails(orderParam || undefined, tenant?.id);
+  // Fetch real order data from database
+  const { data: order, isLoading, error, refetch } = useOrderDetails(orderParam || undefined, tenant?.id);
 
   // Extract payment instructions from server response
   const paymentInstructions = useMemo<PaymentInstructions | null>(() => {
@@ -87,32 +90,23 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
     return order.payment_instructions as PaymentInstructions;
   }, [order?.payment_instructions]);
 
+  // Determine effective state: if retry approved or order updated to approved, show success
+  const effectiveDeclined = isDeclined && !retryApproved && order?.payment_status !== 'approved';
+
   // MARKETING: Track Purchase event when order loads (with deduplication)
-  // Respects purchaseEventTiming setting: 'all_orders' or 'paid_only'
   useEffect(() => {
     if (!order || !order.order_number || isLoading || isPreview) return;
-    
-    // Dedupe: only track once per order (even if component re-renders)
     if (purchaseTrackedRef.current === order.order_number) return;
+    if (!tracker) return;
     
-    // CRITICAL: Check if tracker is available BEFORE marking as tracked
-    if (!tracker) {
-      console.log('[ThankYou] Tracker not ready yet, will retry when available');
-      return;
-    }
+    // Don't track purchase for declined orders
+    if (effectiveDeclined) return;
 
-    // CHECK purchaseEventTiming setting:
-    // 'paid_only' → only fire when payment_status is 'approved' (paid)
-    // 'all_orders' → fire for any order regardless of payment status
     if (checkoutConfig.purchaseEventTiming === 'paid_only') {
       const isPaid = order.payment_status === 'approved' || order.payment_status === 'paid';
-      if (!isPaid) {
-        console.log('[ThankYou] Purchase event skipped - purchaseEventTiming is "paid_only" and payment_status is:', order.payment_status);
-        return;
-      }
+      if (!isPaid) return;
     }
     
-    // Phase 2: Track Purchase event with deterministic event_id
     trackPurchase({
       order_id: order.order_number,
       value: order.total,
@@ -132,10 +126,9 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
       },
     });
     
-    // Only mark as tracked AFTER successful dispatch
     purchaseTrackedRef.current = order.order_number;
     console.log('[ThankYou] Purchase event tracked for order:', order.order_number);
-  }, [order, isLoading, isPreview, tracker, trackPurchase, checkoutConfig.purchaseEventTiming]);
+  }, [order, isLoading, isPreview, tracker, trackPurchase, checkoutConfig.purchaseEventTiming, effectiveDeclined]);
 
   // Check auth state
   useEffect(() => {
@@ -164,6 +157,18 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
       toast.error('Erro ao copiar');
     }
   };
+
+  // Handle successful retry — update URL to remove declined status and refresh order
+  const handleRetrySuccess = useCallback(async () => {
+    setRetryApproved(true);
+    // Remove status=declined from URL
+    const newParams = new URLSearchParams(searchParams);
+    newParams.delete('status');
+    setSearchParams(newParams, { replace: true });
+    // Refetch order to get updated payment_status
+    await refetch();
+    toast.success('Pagamento aprovado!');
+  }, [searchParams, setSearchParams, refetch]);
 
   // Loading state
   if (isLoading) {
@@ -254,20 +259,33 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
 
   return (
     <div className="py-12 container mx-auto px-4 max-w-2xl">
-      {/* Success Header */}
-      <div className="text-center mb-8">
-        <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-green-100 flex items-center justify-center">
-          <Check className="h-10 w-10 text-green-600" />
+      {/* Header — conditional on declined vs success */}
+      {effectiveDeclined ? (
+        <DeclinedHeader orderNumber={order?.order_number} />
+      ) : (
+        <div className="text-center mb-8">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-green-100 flex items-center justify-center">
+            <Check className="h-10 w-10 text-green-600" />
+          </div>
+          
+          <h1 className="text-3xl font-bold mb-2">Obrigado pela compra!</h1>
+          <p className="text-muted-foreground">
+            Seu pedido <span className="font-semibold">#{order?.order_number}</span> foi recebido com sucesso.
+          </p>
+          <p className={`text-sm mt-2 ${paymentInfo.color}`}>
+            {paymentInfo.text}
+          </p>
         </div>
-        
-        <h1 className="text-3xl font-bold mb-2">Obrigado pela compra!</h1>
-        <p className="text-muted-foreground">
-          Seu pedido <span className="font-semibold">#{order?.order_number}</span> foi recebido com sucesso.
-        </p>
-        <p className={`text-sm mt-2 ${paymentInfo.color}`}>
-          {paymentInfo.text}
-        </p>
-      </div>
+      )}
+
+      {/* Card Retry Section — only when declined */}
+      {effectiveDeclined && order && tenant?.id && (
+        <CardRetrySection
+          order={order}
+          tenantId={tenant.id}
+          onSuccess={handleRetrySuccess}
+        />
+      )}
 
       {/* PIX Payment Section - SERVER-SIDE DATA */}
       {paymentInstructions?.method === 'pix' && paymentInstructions.pix_qr_code && order?.payment_status === 'pending' && (
@@ -446,18 +464,26 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
         <div className="space-y-4">
           <div className="flex gap-3">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-              order?.payment_status === 'approved' ? 'bg-green-100' : 'bg-yellow-100'
+              effectiveDeclined ? 'bg-red-100' : order?.payment_status === 'approved' ? 'bg-green-100' : 'bg-yellow-100'
             }`}>
-              <Check className={`h-4 w-4 ${
-                order?.payment_status === 'approved' ? 'text-green-600' : 'text-yellow-600'
-              }`} />
+              {effectiveDeclined ? (
+                <XCircle className="h-4 w-4 text-red-600" />
+              ) : (
+                <Check className={`h-4 w-4 ${
+                  order?.payment_status === 'approved' ? 'text-green-600' : 'text-yellow-600'
+                }`} />
+              )}
             </div>
             <div>
-              <p className="font-medium">Pedido confirmado</p>
+              <p className="font-medium">
+                {effectiveDeclined ? 'Pagamento não aprovado' : 'Pedido confirmado'}
+              </p>
               <p className="text-sm text-muted-foreground">
-                {order?.payment_status === 'approved' 
-                  ? 'Seu pagamento foi aprovado' 
-                  : 'Aguardando confirmação do pagamento'}
+                {effectiveDeclined
+                  ? 'O pagamento foi recusado. Tente novamente com outro cartão.'
+                  : order?.payment_status === 'approved' 
+                    ? 'Seu pagamento foi aprovado' 
+                    : 'Aguardando confirmação do pagamento'}
               </p>
             </div>
           </div>
@@ -500,10 +526,12 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
       </div>
 
       {/* Upsell Section - Post-purchase offer from Aumentar Ticket */}
-      <UpsellSection tenantId={undefined} orderId={order?.id} />
+      {!effectiveDeclined && (
+        <UpsellSection tenantId={undefined} orderId={order?.id} />
+      )}
 
       {/* Social Share - Optional */}
-      {showSocialShare && (
+      {showSocialShare && !effectiveDeclined && (
         <SocialShareButtons 
           storeName={storeName || 'a loja'} 
           orderNumber={order?.order_number} 
@@ -536,6 +564,250 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
           [Modo Preview - Dados carregados do banco de dados]
         </p>
       )}
+    </div>
+  );
+}
+
+// =============================================
+// DECLINED HEADER — Alert/failure state
+// =============================================
+
+function DeclinedHeader({ orderNumber }: { orderNumber?: string }) {
+  return (
+    <div className="text-center mb-8">
+      <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-red-100 flex items-center justify-center">
+        <XCircle className="h-10 w-10 text-red-600" />
+      </div>
+      
+      <h1 className="text-3xl font-bold mb-2">Pagamento não aprovado</h1>
+      <p className="text-muted-foreground">
+        O pagamento do pedido <span className="font-semibold">#{orderNumber}</span> foi recusado pela operadora.
+      </p>
+      <p className="text-sm text-muted-foreground mt-2">
+        Você pode tentar novamente com outro cartão de crédito.
+      </p>
+    </div>
+  );
+}
+
+// =============================================
+// CARD RETRY SECTION — Inline card form for retry
+// Only card — no PIX/boleto retry inline
+// =============================================
+
+function CardRetrySection({ order, tenantId, onSuccess }: {
+  order: NonNullable<ReturnType<typeof useOrderDetails>['data']>;
+  tenantId: string;
+  onSuccess: () => void;
+}) {
+  const { retryPayment, isRetrying, retryResult, resetRetryResult } = useRetryCardPayment({ order, tenantId });
+  
+  const [cardNumber, setCardNumber] = useState('');
+  const [holderName, setHolderName] = useState('');
+  const [expMonth, setExpMonth] = useState('');
+  const [expYear, setExpYear] = useState('');
+  const [cvv, setCvv] = useState('');
+  const [installments, setInstallments] = useState(1);
+  const [showCvv, setShowCvv] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
+
+  // Format card number with spaces
+  const formatCardNumber = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 16);
+    return digits.replace(/(\d{4})(?=\d)/g, '$1 ');
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRetryError(null);
+    resetRetryResult();
+
+    // Basic validation
+    const cleanNumber = cardNumber.replace(/\D/g, '');
+    if (cleanNumber.length < 13) {
+      setRetryError('Número do cartão inválido.');
+      return;
+    }
+    if (!holderName.trim()) {
+      setRetryError('Nome no cartão é obrigatório.');
+      return;
+    }
+    if (!expMonth || !expYear) {
+      setRetryError('Data de validade é obrigatória.');
+      return;
+    }
+    if (cvv.length < 3) {
+      setRetryError('CVV inválido.');
+      return;
+    }
+
+    const card: RetryCardData = {
+      number: cleanNumber,
+      holderName: holderName.trim(),
+      expMonth,
+      expYear,
+      cvv,
+    };
+
+    const result = await retryPayment(card, installments);
+
+    if (result.success) {
+      onSuccess();
+    }
+  };
+
+  // If retry succeeded, don't show the form
+  if (retryResult?.success) {
+    return null;
+  }
+
+  const displayError = retryResult?.error || retryError;
+  const isTechnicalError = retryResult?.technicalError === true;
+
+  return (
+    <div className="border rounded-lg p-6 mb-6 bg-muted/30">
+      <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
+        <CreditCard className="h-5 w-5" />
+        Tentar novamente com cartão
+      </h3>
+      <p className="text-sm text-muted-foreground mb-4">
+        Insira os dados de um cartão de crédito para tentar o pagamento de {formatCurrency(order.total)}.
+      </p>
+
+      {displayError && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {isTechnicalError
+              ? 'Ocorreu um problema técnico ao processar o pagamento. Tente novamente em alguns instantes.'
+              : displayError
+            }
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <Label htmlFor="retry-card-number">Número do cartão</Label>
+          <Input
+            id="retry-card-number"
+            placeholder="0000 0000 0000 0000"
+            value={cardNumber}
+            onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+            maxLength={19}
+            autoComplete="cc-number"
+            disabled={isRetrying}
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="retry-holder-name">Nome no cartão</Label>
+          <Input
+            id="retry-holder-name"
+            placeholder="Como aparece no cartão"
+            value={holderName}
+            onChange={(e) => setHolderName(e.target.value.toUpperCase())}
+            autoComplete="cc-name"
+            disabled={isRetrying}
+          />
+        </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <Label htmlFor="retry-exp-month">Mês</Label>
+            <Select value={expMonth} onValueChange={setExpMonth} disabled={isRetrying}>
+              <SelectTrigger id="retry-exp-month">
+                <SelectValue placeholder="Mês" />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 12 }, (_, i) => {
+                  const m = String(i + 1).padStart(2, '0');
+                  return <SelectItem key={m} value={m}>{m}</SelectItem>;
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="retry-exp-year">Ano</Label>
+            <Select value={expYear} onValueChange={setExpYear} disabled={isRetrying}>
+              <SelectTrigger id="retry-exp-year">
+                <SelectValue placeholder="Ano" />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 10 }, (_, i) => {
+                  const y = String(new Date().getFullYear() + i);
+                  return <SelectItem key={y} value={y.slice(-2)}>{y}</SelectItem>;
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="retry-cvv">CVV</Label>
+            <div className="relative">
+              <Input
+                id="retry-cvv"
+                type={showCvv ? 'text' : 'password'}
+                placeholder="***"
+                value={cvv}
+                onChange={(e) => setCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                maxLength={4}
+                autoComplete="cc-csc"
+                disabled={isRetrying}
+              />
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => setShowCvv(!showCvv)}
+                tabIndex={-1}
+              >
+                {showCvv ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Installments — use order's original installments info or default to 1 */}
+        <div>
+          <Label htmlFor="retry-installments">Parcelas</Label>
+          <Select value={String(installments)} onValueChange={(v) => setInstallments(Number(v))} disabled={isRetrying}>
+            <SelectTrigger id="retry-installments">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: 12 }, (_, i) => {
+                const n = i + 1;
+                const valuePerInstallment = order.total / n;
+                return (
+                  <SelectItem key={n} value={String(n)}>
+                    {n}x de {formatCurrency(valuePerInstallment)}
+                    {n === 1 ? ' (à vista)' : ''}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Button type="submit" className="w-full h-12" disabled={isRetrying}>
+          {isRetrying ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              Processando pagamento...
+            </>
+          ) : (
+            <>
+              <CreditCard className="h-4 w-4 mr-2" />
+              Pagar {formatCurrency(order.total)}
+            </>
+          )}
+        </Button>
+      </form>
+
+      {/* CTA: Other payment method — Dependent on Step 5 (retry_token) */}
+      {/* Visible but disabled — secure implementation requires retry_token which is not yet available */}
+      <p className="text-center text-sm text-muted-foreground mt-4">
+        Precisa usar outra forma de pagamento? Entre em contato pelo WhatsApp.
+      </p>
     </div>
   );
 }
