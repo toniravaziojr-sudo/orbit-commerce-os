@@ -157,18 +157,11 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
       
       console.log('[Checkout] Totals:', { subtotal, shippingTotal: effectiveShippingTotal, discountAmount, pmDiscountAmount, total });
 
-      // 1. Create order OR reuse existing pending order (avoids duplicates on retry)
+      // 1. Always create a new order (each finalization = new order)
       let orderId: string;
       let orderNumber: string;
 
-      if (pendingOrderRef) {
-        // Reuse existing order from a previous failed payment attempt
-        orderId = pendingOrderRef.orderId;
-        orderNumber = pendingOrderRef.orderNumber;
-        console.log('[Checkout] Step 1: Reusing existing order:', orderId, orderNumber);
-      } else {
-        // Create new order
-        console.log('[Checkout] Step 1: Creating order via edge function');
+      console.log('[Checkout] Step 1: Creating order via edge function');
         const { data: orderData, error: orderError } = await supabase.functions.invoke('checkout-create-order', {
           body: {
             tenant_id: tenantId,
