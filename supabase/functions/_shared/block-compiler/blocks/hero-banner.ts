@@ -73,7 +73,7 @@ export function heroBannerToStaticHTML(
 
   // Match React aspect ratio classes: aspect-[21/9] md:aspect-[21/7]
   const content = `<div style="position:relative;overflow:hidden;${widthStyle}">
-    <style>.sf-hero-banner{aspect-ratio:21/9;}@media(min-width:768px){.sf-hero-banner{aspect-ratio:21/7;}}</style>
+    <style>.sf-hero-banner{aspect-ratio:4/5;}@media(min-width:768px){.sf-hero-banner{aspect-ratio:12/5;}}</style>
     <div class="sf-hero-banner" style="position:relative;">
       ${imageHtml}
     </div>

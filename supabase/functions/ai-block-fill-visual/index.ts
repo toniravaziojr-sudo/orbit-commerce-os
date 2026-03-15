@@ -379,6 +379,21 @@ function detectCreativeTone(
 
 /** System prompt for copy generation — enforces quality, tone, and char limits */
 function COPY_SYSTEM_PROMPT(storeInfo: string, contextInfo: string, briefing?: string, toneInstruction?: string): string {
+  // Detect if briefing contains campaign/offer info that MUST appear in copy
+  const briefingLower = (briefing || '').toLowerCase();
+  const hasOffer = /\d+%|desconto|oferta|promoção|frete grátis|cupom/.test(briefingLower);
+  const hasCampaign = /páscoa|natal|black friday|dia das mães|dia dos pais|dia dos namorados|carnaval|ano novo/.test(briefingLower);
+
+  let briefingDirective = '';
+  if (hasOffer || hasCampaign) {
+    briefingDirective = `
+REGRA CRÍTICA DE BRIEFING:
+- O briefing do usuário contém informação de ${hasOffer ? 'OFERTA/DESCONTO' : 'CAMPANHA'} que DEVE aparecer na headline ou subtitle.
+- ${hasOffer ? 'A informação de desconto/oferta (ex: "até 35% OFF", "Frete Grátis") DEVE aparecer de forma proeminente na headline OU subtitle.' : ''}
+- ${hasCampaign ? 'O nome/tema da campanha (ex: "Páscoa", "Black Friday") DEVE aparecer na headline OU subtitle.' : ''}
+- O banner deve parecer peça de CAMPANHA COMERCIAL REAL, não descrição genérica de produto.`;
+  }
+
   return `Você é um copywriter SÊNIOR de e-commerce brasileiro. Gere textos para banners de loja virtual.
 
 REGRAS OBRIGATÓRIAS:
@@ -391,8 +406,10 @@ REGRAS OBRIGATÓRIAS:
 4. Use o nome REAL do produto/categoria fornecido. NUNCA invente nomes ou características.
 5. Se houver preço/oferta, destaque naturalmente (ex: "A partir de R$ X").
 6. Cada campo deve funcionar SOZINHO — não depender dos outros para fazer sentido.
+7. O banner deve parecer PEÇA COMERCIAL PROFISSIONAL — com impacto visual e força de venda.
 
 ${toneInstruction || ''}
+${briefingDirective}
 
 VARIAÇÃO OBRIGATÓRIA:
 - NUNCA comece 2 ou mais titles com o mesmo verbo (especialmente "Descubra" ou "Conheça").
@@ -401,13 +418,16 @@ VARIAÇÃO OBRIGATÓRIA:
 
 ${storeInfo}
 ${contextInfo}
-${briefing ? `Briefing: "${briefing}".` : ''}
+${briefing ? `Briefing do usuário: "${briefing}". ESTA É A DIREÇÃO CRIATIVA PRIMÁRIA — os textos devem refletir este briefing.` : ''}
 
 EXEMPLOS DE BOA COPY:
+- title: "Páscoa até 35% OFF" (19 chars) ✅ (campanha + oferta)
 - title: "Novo Sérum Facial" (18 chars) ✅
 - title: "Descubra o poder da hidratação profunda para sua pele" (54 chars) ❌ MUITO LONGO
+- subtitle: "Ofertas especiais por tempo limitado" (35 chars) ✅
 - subtitle: "Hidratação profunda por 24h" (27 chars) ✅
 - buttonText: "Comprar Sérum" (13 chars) ✅ (específico)
+- buttonText: "Ver Ofertas" (11 chars) ✅ (campanha)
 - buttonText: "Comprar agora" (13 chars) ⚠️ (genérico, evitar se nome disponível)
 - buttonText: "Aproveite esta oferta incrível" (30 chars) ❌ MUITO LONGO`;
 }

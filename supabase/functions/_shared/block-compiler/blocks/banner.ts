@@ -179,10 +179,11 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
 
     let ctaHtml = '';
     if (hasCTA) {
-      ctaHtml = `<div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:${justifyContent};text-align:${textAlign};padding:24px;z-index:2;max-width:800px;${alignment === 'center' ? 'margin:0 auto;' : ''}">
-        ${slideTitle ? `<h2 style="font-size:clamp(24px,5vw,48px);font-weight:700;color:${textColor};font-family:var(--sf-heading-font);line-height:1.2;">${escapeHtml(slideTitle)}</h2>` : ''}
-        ${slideSubtitle ? `<p style="font-size:clamp(14px,2.5vw,20px);color:${textColor};opacity:0.9;margin-top:8px;">${escapeHtml(slideSubtitle)}</p>` : ''}
-        ${slideButtonText ? `<a href="${escapeHtml(slideButtonUrl)}" style="display:inline-block;margin-top:12px;padding:12px 32px;background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};border-radius:8px;font-weight:600;font-size:16px;text-decoration:none;transition:opacity 0.2s;">${escapeHtml(slideButtonText)}</a>` : ''}
+      const maxWidthCarousel = alignment !== 'center' ? 'max-width:55%;' : '';
+      ctaHtml = `<div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:${justifyContent};text-align:${textAlign};padding:24px 64px;z-index:2;${maxWidthCarousel}${alignment === 'center' ? 'margin:0 auto;max-width:800px;' : ''}">
+        ${slideTitle ? `<h2 style="font-size:clamp(28px,5vw,60px);font-weight:700;color:${textColor};font-family:var(--sf-heading-font);line-height:1.1;">${escapeHtml(slideTitle)}</h2>` : ''}
+        ${slideSubtitle ? `<p style="font-size:clamp(16px,2.5vw,24px);color:${textColor};opacity:0.9;margin-top:8px;">${escapeHtml(slideSubtitle)}</p>` : ''}
+        ${slideButtonText ? `<a href="${escapeHtml(slideButtonUrl)}" style="display:inline-block;margin-top:12px;padding:16px 40px;background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};border-radius:8px;font-weight:600;font-size:18px;text-decoration:none;transition:opacity 0.2s;">${escapeHtml(slideButtonText)}</a>` : ''}
       </div>`;
     }
 
