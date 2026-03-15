@@ -259,18 +259,32 @@ function buildBannerImagePrompt(
 
   // Detect campaign context from briefing
   const briefingLower = (context.briefing || '').toLowerCase();
-  const isCampaign = /páscoa|natal|black friday|dia das mães|dia dos pais|dia dos namorados|carnaval|ano novo|verão|inverno|primavera|outono/.test(briefingLower);
-  const hasDiscount = /\d+%|desconto|oferta|promoção|promo|off/.test(briefingLower);
+  const isCampaign = /páscoa|natal|black friday|dia das mães|dia dos pais|dia dos namorados|carnaval|ano novo|verão|inverno|primavera|outono|dia do consumidor|aniversário/.test(briefingLower);
+  const hasDiscount = /\d+%|desconto|oferta|promoção|promo|off|frete gr[áa]tis|cupom/.test(briefingLower);
+  
+  // Extract specific campaign theme for visual direction
+  let campaignTheme = '';
+  if (/páscoa/.test(briefingLower)) campaignTheme = 'Páscoa: tons dourados, chocolate, ovos decorativos sutis no cenário, atmosfera acolhedora e festiva.';
+  else if (/natal/.test(briefingLower)) campaignTheme = 'Natal: tons vermelho/dourado/verde, luzes bokeh, atmosfera natalina elegante e premium.';
+  else if (/black friday/.test(briefingLower)) campaignTheme = 'Black Friday: tons escuros dominantes (preto, dourado), contraste dramático, atmosfera de urgência e exclusividade.';
+  else if (/dia das mães/.test(briefingLower)) campaignTheme = 'Dia das Mães: tons suaves e sofisticados, flores sutis no cenário, atmosfera carinhosa e premium.';
+  else if (/dia dos pais/.test(briefingLower)) campaignTheme = 'Dia dos Pais: tons sóbrios e elegantes (azul marinho, cinza), atmosfera masculina e sofisticada.';
+  else if (/dia dos namorados/.test(briefingLower)) campaignTheme = 'Dia dos Namorados: tons românticos (vermelho, rosa dourado), atmosfera íntima e premium.';
+  else if (/verão/.test(briefingLower)) campaignTheme = 'Verão: tons vibrantes e quentes, luz solar, atmosfera fresca e energética.';
+  else if (/inverno/.test(briefingLower)) campaignTheme = 'Inverno: tons frios e aconchegantes, atmosfera sofisticada e intimista.';
   
   let campaignDirective = '';
   if (isCampaign || hasDiscount) {
     campaignDirective = `
-DIREÇÃO DE CAMPANHA:
-- Este banner é para uma CAMPANHA REAL. O cenário e atmosfera devem refletir o tema da campanha.
-- ${isCampaign ? 'Incorpore elementos visuais temáticos SUTIS no cenário (cores, elementos decorativos ambientais), mas o PRODUTO continua como protagonista absoluto.' : ''}
-- ${hasDiscount ? 'A atmosfera deve transmitir urgência e oportunidade: cores vibrantes, contraste forte, iluminação dramática.' : ''}
-- NÃO adicione texto na imagem — a oferta será colocada como overlay HTML.
-- O cenário deve parecer campanha comercial profissional, não genérico.`;
+DIREÇÃO DE CAMPANHA (PRIORIDADE MÁXIMA):
+- Este banner é para uma CAMPANHA COMERCIAL REAL, não uma foto de produto genérica.
+- O CENÁRIO INTEIRO deve respirar o tema da campanha. Não basta colocar o produto num fundo bonito.
+${campaignTheme ? `- TEMA VISUAL: ${campaignTheme}` : ''}
+${isCampaign ? '- Elementos visuais temáticos devem estar INTEGRADOS ao cenário de forma orgânica (cores ambientais, objetos decorativos no fundo, iluminação temática).' : ''}
+${hasDiscount ? '- A atmosfera deve transmitir OPORTUNIDADE e URGÊNCIA: iluminação dramática, contraste forte, cores vibrantes que chamem atenção.' : ''}
+- NÃO adicione texto na imagem — toda informação de oferta/campanha será colocada como overlay HTML.
+- O resultado deve parecer um banner de campanha profissional de grande e-commerce, não uma montagem amadora.
+- PENSE como um diretor de arte: qual cenário, iluminação e composição fariam alguém parar e olhar?`;
   }
 
   if (isDesktop) {
