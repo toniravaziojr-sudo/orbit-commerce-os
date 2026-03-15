@@ -64,9 +64,9 @@ export function ConfirmStep({ contract, collectedData, steps, blockType }: Confi
       <div className="space-y-2">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Suas escolhas</p>
         {nonConfirmSteps.map((step) => (
-          <div key={step.id} className="flex justify-between items-center py-1.5 border-b border-muted/50 last:border-0">
-            <span className="text-sm text-muted-foreground">{step.label}</span>
-            <span className="text-sm font-medium text-right max-w-[60%] truncate">
+          <div key={step.id} className="flex justify-between items-center gap-3 py-1.5 border-b border-muted/50 last:border-0 min-w-0">
+            <span className="text-sm text-muted-foreground shrink-0">{step.label}</span>
+            <span className="text-sm font-medium text-right truncate min-w-0">
               {summarizeStepData(step, collectedData[step.id])}
             </span>
           </div>
