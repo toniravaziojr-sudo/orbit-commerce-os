@@ -104,10 +104,15 @@ export function BannerBlock({
     ? context.viewport === 'mobile' 
     : realIsMobile;
 
+  // Aspect ratio: in builder mode use explicit viewport state; in storefront use CSS media query
+  const aspectClass = isBuilderMode
+    ? (isMobile ? 'aspect-[4/5]' : 'aspect-[12/5]')
+    : 'aspect-[4/5] md:aspect-[12/5]';
+
   // Safe slides array
   const safeSlides = Array.isArray(slides) ? slides : [];
   const isCarousel = mode === 'carousel' && safeSlides.length > 0;
-  
+
   // Autoplay for carousel
   useEffect(() => {
     if (!isCarousel || safeSlides.length <= 1 || !autoplaySeconds) return;
@@ -160,7 +165,7 @@ export function BannerBlock({
       <div className={cn(
         'relative bg-muted/30 flex items-center justify-center',
         bannerWidth === 'full' ? 'w-full' : 'max-w-7xl mx-auto',
-        height === 'auto' ? 'aspect-[4/5] md:aspect-[12/5]' : ''
+        height === 'auto' ? aspectClass : ''
       )}
       style={{ minHeight: height !== 'auto' ? heightMap[height] : undefined }}
       >
@@ -202,7 +207,7 @@ export function BannerBlock({
       {/* Background Image */}
       <div className={cn(
         'relative',
-        height === 'auto' ? 'aspect-[4/5] md:aspect-[12/5]' : 'w-full h-full'
+        height === 'auto' ? aspectClass : 'w-full h-full'
       )}
       style={{ minHeight: height !== 'auto' ? heightMap[height] : undefined }}
       >
