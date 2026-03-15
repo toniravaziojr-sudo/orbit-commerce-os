@@ -1890,6 +1890,7 @@ serve(async (req) => {
     let hostname = url.searchParams.get('hostname') || '';
     let path = url.searchParams.get('path') || '/';
     const isPreviewMode = url.searchParams.get('preview') === '1';
+    const previewTemplateSetId = url.searchParams.get('templateSetId') || '';
     
     if (!hostname) {
       const forwardedHost = req.headers.get('x-forwarded-host') || req.headers.get('host') || '';
@@ -1974,7 +1975,10 @@ serve(async (req) => {
       headerMenu: supabase.from('menus').select('*, menu_items(*)').eq('tenant_id', tenantId).eq('location', 'header').maybeSingle(),
       categories: supabase.from('categories').select('id, name, slug').eq('tenant_id', tenantId).eq('is_active', true).order('sort_order').limit(200),
       templateSet: isPreviewMode
-        ? supabase.from('storefront_template_sets').select('id, draft_content, published_content, is_published, base_preset').eq('tenant_id', tenantId).maybeSingle()
+        ? (previewTemplateSetId
+            ? supabase.from('storefront_template_sets').select('id, draft_content, published_content, is_published, base_preset').eq('id', previewTemplateSetId).eq('tenant_id', tenantId).maybeSingle()
+            : supabase.from('storefront_template_sets').select('id, draft_content, published_content, is_published, base_preset').eq('tenant_id', tenantId).eq('is_published', true).maybeSingle()
+          )
         : supabase.from('storefront_template_sets').select('id, published_content, is_published, base_preset').eq('tenant_id', tenantId).eq('is_published', true).maybeSingle(),
       globalLayout: supabase.from('storefront_global_layout').select('header_config, published_header_config, footer_config, published_footer_config, header_enabled, footer_enabled').eq('tenant_id', tenantId).maybeSingle(),
       footerMenus: supabase.from('menus').select('id, name, location, menu_items(id, label, url, item_type, ref_id, sort_order)').eq('tenant_id', tenantId).in('location', ['footer', 'footer_1', 'footer_2']),

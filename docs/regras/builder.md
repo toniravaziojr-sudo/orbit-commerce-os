@@ -3985,16 +3985,21 @@ Browser → Cloudflare Worker (shops-router) → Edge Function (storefront-html)
 
 A única diferença é o parâmetro `?preview=1`, que instrui a Edge Function a ler `draft_content` em vez de `content`.
 
+Para páginas de **template sets** (Home, Categoria, Produto, etc.), o Builder também envia `&templateSetId={id}` na URL de preview. Isso garante que a Edge Function renderize o rascunho do template set correto — mesmo que ele não seja o set publicado.
+
 ### Fluxo do Preview
 
 ```
 1. Usuário clica "Preview" no Builder
-2. Builder abre URL: https://{dominio-lojista}/page/{slug}?preview=1
+2. Builder abre URL: https://{dominio-lojista}/page/{slug}?preview=1&templateSetId={id}
 3. Cloudflare Worker intercepta a requisição
-4. Worker detecta ?preview=1 na URL original
-5. Worker repassa preview=1 para a Edge Function:
-   storefront-html?hostname={host}&path={path}&preview=1
-6. Edge Function lê draft_content (rascunho) em vez de content (publicado)
+4. Worker detecta ?preview=1 (e templateSetId) na URL original
+5. Worker repassa preview=1 e templateSetId para a Edge Function:
+   storefront-html?hostname={host}&path={path}&preview=1&templateSetId={id}
+6. Edge Function:
+   - Se templateSetId fornecido: busca exatamente esse set pelo ID
+   - Se não fornecido: fallback para o set com is_published = true
+   - Em ambos os casos, lê draft_content (rascunho)
 7. HTML renderizado retorna com headers:
    - Cache-Control: no-store, no-cache, must-revalidate
    - X-CC-Cache: BYPASS
@@ -4003,13 +4008,18 @@ A única diferença é o parâmetro `?preview=1`, que instrui a Edge Function a 
 
 ### Correção Crítica no Worker (v8.7.0)
 
-O Worker **DEVE** repassar o parâmetro `preview=1` para a Edge Function. Sem isso, o preview renderiza o conteúdo publicado em vez do rascunho.
+O Worker **DEVE** repassar os parâmetros `preview=1` e `templateSetId` para a Edge Function. Sem isso, o preview renderiza o conteúdo publicado em vez do rascunho.
 
-**Linha obrigatória no Worker** (após montar `fnUrl`):
+**Linhas obrigatórias no Worker** (após montar `fnUrl`):
 
 ```javascript
 if (isPreview) {
   fnUrl.searchParams.set('preview', '1');
+}
+// Repassar templateSetId para preview de template sets específicos
+const templateSetId = originalUrl.searchParams.get('templateSetId');
+if (templateSetId) {
+  fnUrl.searchParams.set('templateSetId', templateSetId);
 }
 ```
 
@@ -4040,11 +4050,22 @@ if (isPreview) {
 ### Checklist de Validação
 
 - [ ] Salvar rascunho no Builder
-- [ ] Abrir preview com `?preview=1` → rascunho aparece
+- [ ] Abrir preview com `?preview=1&templateSetId={id}` → rascunho aparece
 - [ ] Abrir sem `?preview=1` → conteúdo publicado aparece
+- [ ] Publicar página institucional → prerender marcado como stale + cache purgado + re-prerender disparado
 - [ ] Publicar → conteúdo atualizado no público com `?cb=1`
 - [ ] Header `X-CC-Cache: BYPASS` presente no preview
 - [ ] Header `Cache-Control: no-store` presente no preview
+
+### Invalidação no Publish de Páginas Institucionais/Landing (v8.8.0)
+
+Ao publicar uma página institucional ou landing page, o hook `usePublish` em `useBuilderData.ts` executa 3 ações fire-and-forget:
+
+1. **Marca prerender como stale**: `storefront_prerendered_pages.status = 'stale'` para todo o tenant → Edge Function para de servir HTML antigo imediatamente
+2. **Purga cache CDN**: `cachePurge.full(tenantId)` → purga todas as rotas do domínio (incluindo `/page/...`) no Cloudflare Worker
+3. **Regenera prerender**: `triggerPrerenderWithRetry(tenantId)` → re-renderiza todas as páginas com conteúdo atualizado (2 retries, 5s delay)
+
+Sem esses 3 passos, o público pode continuar servindo HTML antigo por até 15 minutos (TTL do cache de borda).
 
 ### Melhoria Futura: Token Assinado para Preview
 

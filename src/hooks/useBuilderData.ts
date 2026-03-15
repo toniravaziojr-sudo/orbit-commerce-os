@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { cachePurge } from '@/lib/storefrontCachePurge';
+import { triggerPrerenderWithRetry } from '@/lib/prerenderRetry';
 import { useToast } from '@/hooks/use-toast';
 import type { BlockNode, PageVersion, StorefrontTemplate } from '@/lib/builder/types';
 import type { Json } from '@/integrations/supabase/types';
@@ -502,9 +503,19 @@ export function usePublish() {
         queryClient.invalidateQueries({ queryKey: ['store-page', variables.pageId] });
       }
 
-      // Fire-and-forget cache purge for published pages
+      // Fire-and-forget: invalidate prerender + CDN cache + regenerate for published pages
       if (currentTenant?.id && (variables.pageType === 'institutional' || variables.pageType === 'landing_page')) {
-        cachePurge.template(currentTenant.id);
+        // 1. Mark all prerendered pages as stale (Edge Function stops serving old HTML)
+        supabase
+          .from('storefront_prerendered_pages')
+          .update({ status: 'stale' })
+          .eq('tenant_id', currentTenant.id)
+          .eq('status', 'active')
+          .then(() => console.log('[publish] Prerendered pages marked stale'));
+        // 2. Purge Cloudflare Worker cache (covers all routes including /page/...)
+        cachePurge.full(currentTenant.id);
+        // 3. Trigger background re-prerender with retry and user feedback
+        triggerPrerenderWithRetry(currentTenant.id);
       }
 
       toast({ title: 'Publicado com sucesso!' });

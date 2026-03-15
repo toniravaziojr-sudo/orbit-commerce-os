@@ -244,7 +244,9 @@ export function BuilderToolbar({
       // Remove any existing preview param to re-add cleanly
       cleanPath = cleanPath.replace(/[?&]preview=1/, '').replace(/\?$/, '');
       const separator = cleanPath.includes('?') ? '&' : '?';
-      const url = `${previewOrigin}${cleanPath || '/'}${separator}preview=1`;
+      // Include templateSetId so the Edge Function renders the correct set's draft
+      const templateSetParam = templateSetId ? `&templateSetId=${templateSetId}` : '';
+      const url = `${previewOrigin}${cleanPath || '/'}${separator}preview=1${templateSetParam}`;
       window.open(url, '_blank');
     }
   };
