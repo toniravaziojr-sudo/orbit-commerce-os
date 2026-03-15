@@ -13,6 +13,7 @@
 
 export type WizardStepType =
   | 'banner-mode-select'
+  | 'creative-style-select'
   | 'scope-select'
   | 'banner-association'
   | 'quantity-select'
