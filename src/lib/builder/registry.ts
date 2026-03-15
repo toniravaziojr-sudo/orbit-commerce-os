@@ -44,13 +44,13 @@ const blockDefinitions: BlockDefinition[] = [
     icon: 'LayoutDashboard',
     defaultProps: {
       backgroundColor: 'transparent',
-      paddingX: 16,
-      paddingY: 32,
+      paddingX: 0,
+      paddingY: 0,
       marginTop: 0,
       marginBottom: 0,
       gap: 16,
       alignItems: 'stretch',
-      fullWidth: false,
+      fullWidth: true,
     },
     propsSchema: {
       backgroundColor: {
@@ -61,7 +61,7 @@ const blockDefinitions: BlockDefinition[] = [
       paddingX: {
         type: 'number',
         label: 'Padding Horizontal (px)',
-        defaultValue: 16,
+        defaultValue: 0,
         min: 0,
         max: 100,
       },
