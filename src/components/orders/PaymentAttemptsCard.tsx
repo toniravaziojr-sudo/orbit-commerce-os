@@ -76,7 +76,7 @@ function TransactionRow({ tx, isLast }: { tx: PaymentTransaction; isLast: boolea
             <span className="text-muted-foreground">
               {METHOD_LABELS[tx.method] || tx.method} • {PROVIDER_LABELS[tx.provider] || tx.provider}
             </span>
-            <span className="font-medium">{formatCurrency(tx.amount)}</span>
+            <span className="font-medium">{formatCurrency(tx.amount / 100)}</span>
           </div>
           {tx.provider_transaction_id && (
             <p className="text-[10px] font-mono text-muted-foreground truncate">

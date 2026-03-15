@@ -239,6 +239,27 @@ serve(async (req) => {
       paymentData.boleto_due_date = mpResponse.date_of_expiration;
     }
 
+    // Build error_message for failed payments
+    let errorMessage: string | null = null;
+    if (internalStatus === 'failed') {
+      const statusDetail = mpResponse.status_detail || '';
+      const failureReasonMap: Record<string, string> = {
+        'cc_rejected_bad_filled_card_number': 'Número do cartão inválido',
+        'cc_rejected_bad_filled_date': 'Data de validade inválida',
+        'cc_rejected_bad_filled_other': 'Dados do cartão incorretos',
+        'cc_rejected_bad_filled_security_code': 'Código de segurança inválido',
+        'cc_rejected_blacklist': 'Cartão não aceito',
+        'cc_rejected_call_for_authorize': 'Ligue para a operadora do cartão para autorizar',
+        'cc_rejected_card_disabled': 'Cartão desabilitado',
+        'cc_rejected_duplicated_payment': 'Pagamento duplicado',
+        'cc_rejected_high_risk': 'Pagamento recusado por segurança',
+        'cc_rejected_insufficient_amount': 'Saldo insuficiente',
+        'cc_rejected_max_attempts': 'Limite de tentativas excedido',
+        'cc_rejected_other_reason': 'Pagamento recusado pela operadora',
+      };
+      errorMessage = failureReasonMap[statusDetail] || statusDetail || 'Pagamento recusado';
+    }
+
     // Save transaction to database
     const transactionData = {
       tenant_id: payload.tenant_id,
@@ -250,6 +271,7 @@ serve(async (req) => {
       status: internalStatus,
       amount: chargeAmountCents,
       currency: 'BRL',
+      error_message: errorMessage,
       payment_data: paymentData,
     };
 
