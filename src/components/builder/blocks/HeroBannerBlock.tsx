@@ -121,7 +121,7 @@ export function HeroBannerBlock({
       bannerWidth === 'full' ? 'w-full' : 'max-w-7xl mx-auto'
     )}>
       {/* Banner Image - Builder uses state-based selection; Storefront uses <picture> */}
-      <div className="relative aspect-[4/5] md:aspect-[12/5]">
+      <div className={cn("relative", aspectClass)}>
         {effectiveDesktop ? (
           isBuilderMode ? (
             // Builder mode: select image based on viewport state
