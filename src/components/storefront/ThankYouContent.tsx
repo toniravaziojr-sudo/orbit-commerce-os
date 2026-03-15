@@ -777,7 +777,7 @@ function CardRetrySection({ retryToken, orderTotal, onSuccess }: {
             <SelectContent>
               {Array.from({ length: 12 }, (_, i) => {
                 const n = i + 1;
-                const valuePerInstallment = order.total / n;
+                const valuePerInstallment = orderTotal / n;
                 return (
                   <SelectItem key={n} value={String(n)}>
                     {n}x de {formatCurrency(valuePerInstallment)}
