@@ -3877,8 +3877,11 @@ Frontend (Wizard confirm step)
 
 | Tipo | Nome | Localização | Descrição |
 |------|------|-------------|-----------|
-| Edge Function | ai-block-fill-visual v2.1.0 | `supabase/functions/ai-block-fill-visual/index.ts` | Gera imagens e textos com scope filtering, dados reais expandidos, contexto de marca e referência multimodal |
-| Hook | useAIWizardGenerate | `src/hooks/useAIWizardGenerate.ts` | Chama edge function e aplica whitelist merge + scope filtering |
+| Edge Function | ai-block-fill-visual v3.0.0 | `supabase/functions/ai-block-fill-visual/index.ts` | Gera imagens via Motor Visual Compartilhado (visual-engine + block adapters) e textos com scope filtering. Suporta outputMode (editable/complete) e creativeStyle (product_natural/person_interacting/promotional) |
+| Shared Module | visual-engine | `supabase/functions/_shared/visual-engine.ts` | Motor central de geração visual: cascade resiliente (OpenAI→Gemini Pro→Flash), QA scoring, download robusto, upload, prompt building por estilo+composição |
+| Shared Module | banner-adapter | `supabase/functions/_shared/visual-adapters/banner-adapter.ts` | Adapter que traduz Banner single/carousel em requests genéricos para o visual-engine. Implementa mergeResults com renderMode (overlay/baked) |
+| Shared Module | visual-adapters/types | `supabase/functions/_shared/visual-adapters/types.ts` | Contratos genéricos: VisualGenerationRequest, VisualGenerationResult, OutputMode, RenderMode, ImageStyle, CompositionHint, BlockVisualAdapter |
+| Hook | useAIWizardGenerate | `src/hooks/useAIWizardGenerate.ts` | Chama edge function e aplica whitelist merge + scope filtering. Repassa outputMode e creativeStyle para o backend via bannerMode |
 
 ### Grounding do Banner (v2.1.0)
 
