@@ -104,10 +104,11 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
 
   let ctaHtml = '';
   if (hasCTA) {
-    ctaHtml = `<div style="position:relative;z-index:2;text-align:${textAlign};display:flex;flex-direction:column;align-items:${justifyContent};gap:12px;padding:24px;max-width:800px;">
-      ${currentTitle ? `<h2 style="font-size:clamp(24px,5vw,48px);font-weight:700;color:${textColor};font-family:var(--sf-heading-font);line-height:1.2;">${escapeHtml(currentTitle)}</h2>` : ''}
-      ${currentSubtitle ? `<p style="font-size:clamp(14px,2.5vw,20px);color:${textColor};opacity:0.9;">${escapeHtml(currentSubtitle)}</p>` : ''}
-      ${currentButtonText ? `<a href="${escapeHtml(currentButtonUrl || currentLinkUrl || '#')}" style="display:inline-block;margin-top:8px;padding:12px 32px;background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};border-radius:8px;font-weight:600;font-size:16px;text-decoration:none;transition:opacity 0.2s;">${escapeHtml(currentButtonText)}</a>` : ''}
+    const maxWidthStyle = alignment !== 'center' ? 'max-width:55%;' : '';
+    ctaHtml = `<div style="position:relative;z-index:2;text-align:${textAlign};display:flex;flex-direction:column;align-items:${justifyContent};gap:12px;padding:24px 64px;${maxWidthStyle}">
+      ${currentTitle ? `<h2 style="font-size:clamp(28px,5vw,60px);font-weight:700;color:${textColor};font-family:var(--sf-heading-font);line-height:1.1;">${escapeHtml(currentTitle)}</h2>` : ''}
+      ${currentSubtitle ? `<p style="font-size:clamp(16px,2.5vw,24px);color:${textColor};opacity:0.9;margin-top:8px;">${escapeHtml(currentSubtitle)}</p>` : ''}
+      ${currentButtonText ? `<a href="${escapeHtml(currentButtonUrl || currentLinkUrl || '#')}" style="display:inline-block;margin-top:12px;padding:16px 40px;background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};border-radius:8px;font-weight:600;font-size:18px;text-decoration:none;transition:opacity 0.2s;">${escapeHtml(currentButtonText)}</a>` : ''}
     </div>`;
   }
 
