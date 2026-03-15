@@ -264,7 +264,7 @@ export function BannerBlock({
             )}
             {currentSubtitle && (
               <p 
-                className="text-xl md:text-2xl mb-8 opacity-90"
+                className="text-sm sm:text-base md:text-2xl mb-4 md:mb-8 opacity-90 leading-snug"
                 style={{ color: textColor }}
               >
                 {currentSubtitle}
