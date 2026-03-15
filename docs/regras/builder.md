@@ -3818,7 +3818,7 @@ Step 5: CONFIRMAÇÃO (confirm)
 | Blocos textuais inalterados | ✅ |
 | Outros blocos wizard (expansão) | ❌ (próxima fase) |
 
-### Motor Visual Compartilhado (Phase 1 — v3.0.1)
+### Motor Visual Compartilhado (v3.1.0 — Creative Brief Architecture)
 
 Arquitetura genérica reutilizável para geração visual em blocos do builder.
 
@@ -3826,11 +3826,48 @@ Arquitetura genérica reutilizável para geração visual em blocos do builder.
 
 | Conceito | Descrição |
 |----------|-----------|
+| **Creative Brief** | Prompt narrativo consolidado que traduz TODAS as escolhas do wizard em uma direção criativa clara. Gerado por `buildCreativeBrief()` |
+| **Structural Rules** | Regras técnicas separadas (dimensão, safe areas, proibições) geradas por `buildStructuralRules()` |
+| **Final Prompt** | `creative brief + structural rules` combinados por `buildFinalPrompt()` — um prompt independente por slot (desktop/mobile) |
 | **OutputMode** | `editable` (imagem limpa para overlay HTML) ou `complete` (peça publicitária pronta, sem overlay) |
 | **RenderMode** | `overlay` (frontend renderiza textos sobre a imagem) ou `baked` (imagem é final, sem textos por cima) |
-| **CreativeStyle** | `product_natural` (produto + cenário), `person_interacting` (pessoa + produto), `promotional` (efeitos visuais) — mesmos tipos do módulo de criativos |
-| **CompositionHint** | Direção de composição por slot: `banner_desktop`, `banner_mobile`, `banner_desktop_complete`, `banner_mobile_complete`, etc. |
+| **CreativeStyle** | `product_natural` (produto + cenário), `person_interacting` (pessoa + produto), `promotional` (efeitos visuais) |
 | **BlockVisualAdapter** | Interface que cada bloco implementa: `adapt()` traduz para requests genéricos, `mergeResults()` converte de volta para props |
+
+#### Arquitetura de Prompts (v3.1.0)
+
+```text
+Escolhas do Wizard
+  │
+  ├─ Modo (single/carousel, editable/complete)
+  ├─ Estilo criativo (product_natural/person_interacting/promotional + config)
+  ├─ Escopo (images/texts/all)
+  ├─ Vínculo (produto/categoria/URL/nenhum)
+  ├─ Briefing livre do usuário
+  │
+  └─ buildCreativeBrief() ──────────────────────────────┐
+       Consolida TUDO em um prompt narrativo:            │
+       🎯 Objetivo (editable vs complete)                │
+       🏪 Marca (nome + descrição da loja)               │
+       📦 Assunto (produto/categoria/institucional)      │
+       🎨 Direção Criativa (estilo + config detalhada)   │
+       📢 Campanha (briefing + detecção de tema/oferta)  │
+       📸 Referência (nota sobre imagem do produto)      │
+                                                         │
+  buildStructuralRules() ──────────────────────────────┐ │
+       Regras técnicas POR SLOT:                        │ │
+       📐 Dimensões (1920x800 ou 750x940)              │ │
+       🖼️ Composição (safe areas, posição do produto)   │ │
+       🚫 Proibições (texto, elementos UI, etc.)        │ │
+       ✨ Qualidade (4K, iluminação, cores)              │ │
+                                                         │ │
+  buildFinalPrompt() = brief + rules ◄──────────────────┘ │
+       Um prompt INDEPENDENTE por slot (desktop/mobile)    │
+       Desktop: composição horizontal + safe area esquerda │
+       Mobile: composição vertical + safe area topo        │
+```
+
+**Regra fundamental:** O creative brief é a MESMA narrativa para desktop e mobile (mesma campanha, mesmo produto, mesma atmosfera). A diferença está APENAS nas structural rules (dimensão, composição, enquadramento).
 
 #### Fluxo
 
@@ -3840,7 +3877,8 @@ Wizard → useAIWizardGenerate → ai-block-fill-visual
   ├─ Resolve adapter por blockType (BannerAdapter, etc.)
   ├─ adapter.adapt() → VisualGenerationRequest[]
   ├─ Para cada request: visual-engine.generateForRequest()
-  │     ├─ buildPromptForSlot() (composição + estilo + campanha)
+  │     ├─ buildCreativeBrief() → log do brief consolidado
+  │     ├─ Para cada slot: buildFinalPrompt() = brief + rules
   │     ├─ resilientGenerate() (OpenAI → Gemini Pro → Flash)
   │     ├─ uploadToStorage()
   │     └─ scoreImageForRealism() (opcional)
@@ -3856,19 +3894,17 @@ Quando `outputMode === 'complete'`:
 - `_renderMode: 'baked'`, `_hideOverlayText: true`
 - `overlayOpacity: 0`, textos limpos
 
-#### Regra: creativeStyle aplica em AMBOS os modos (v3.0.1)
+#### Regra: creativeStyle aplica em AMBOS os modos
 
 O estilo criativo (person_interacting, promotional) é aplicado tanto no modo editável quanto completo:
-- **Editável**: usa o prompt de estilo + adiciona regras de safe area (zona escura para texto)
-- **Completo**: usa o prompt de estilo + composição fechada sem reservar espaço
-
-Antes da v3.0.1, estilos person_interacting e promotional só eram aplicados em complete mode. Isso causava o bug onde o usuário escolhia "Pessoa + Produto" mas a imagem gerada ignorava essa escolha no modo editável.
+- **Editável**: brief de estilo + structural rules com safe area (zona escura para texto)
+- **Completo**: brief de estilo + structural rules com composição fechada
 
 #### Adapters implementados
 
 | Adapter | Bloco | Slots | Status |
 |---------|-------|-------|--------|
-| BannerAdapter | Banner single/carousel | 2 (desktop 1920x800 + mobile 750x940) | ✅ Fase 1 |
+| BannerAdapter | Banner single/carousel | 2 (desktop 1920x800 + mobile 750x940) | ✅ |
 | TextBannersAdapter | TextBanners | 4 (2 pares desktop/mobile) | ❌ Fase 2 |
 | CarouselAdapter | ImageCarousel | N × 1 | ❌ Fase 2 |
 | GalleryAdapter | ImageGallery | N × 1 | ❌ Fase 2 |
@@ -3885,81 +3921,27 @@ Step 2: ESTILO CRIATIVO (creative-style-select)
   Produto+Cenário / Pessoa+Produto / Promocional
   + config por estilo (ambiente, ação, tom, intensidade)
 
-Step 3: ESCOPO (scope-select) [v3.0.1: fix initial value]
+Step 3: ESCOPO (scope-select)
   Imagens / Textos / Ambos
-  useEffect seta valor inicial 'all' no mount para evitar botão travado
+  useEffect seta valor inicial 'all' no mount
 
 Step 4: VÍNCULO (banner-association, por slide)
 
 Step 5: BRIEFING
 
-Step 6: CONFIRMAÇÃO [v3.0.1: fix overflow + mostra creativeStyle]
+Step 6: CONFIRMAÇÃO
   Mostra resumo com break-words e overflow correto
   Inclui estilo criativo e outputMode no resumo
-```
-
-### Integração no PropsEditor
-
-O botão "✨ IA" no cabeçalho do PropsEditor verifica:
-1. Se o bloco tem `WizardBlockContract` (via `getWizardContract`) → abre `AIFillWizardDialog`
-2. Se não tem contrato mas tem `aiFillable` no schema → executa fill direto (Grupo A, comportamento existente)
-3. Se não tem nenhum → botão não aparece
-
----
-
-## Fase 3.2: Geração Visual do Wizard (Banner) [REFATORADO → 3.3]
-
-### Princípio de Segurança (Trust Boundary)
-
-**O backend NÃO confia no contrato vindo do frontend.**
-O frontend envia apenas `blockType`, `mode`, `scope` e `collectedData`.
-O backend resolve internamente o contrato permitido a partir do `SERVER_CONTRACTS` (registry server-side).
-
-### Arquitetura
-
-```text
-Frontend (Wizard confirm step)
-  │
-  └─ supabase.functions.invoke('ai-block-fill-visual', {
-       blockType, mode, scope, collectedData, tenantId
-     })
-       │
-       ├─ 1. Backend resolve contrato via SERVER_CONTRACTS[blockType:mode]
-       │     Rejeita blockType/mode desconhecido com 400
-       │
-        ├─ 2. Busca dados REAIS do produto (nome, descrição, slug, preço, compare_at_price)
-        │     Source of truth — IA não inventa produto genérico
-        │     Imagem principal via tabela `product_images` (ORDER BY is_primary DESC, sort_order ASC LIMIT 1)
-        │     Fallback: se produto sem imagem, geração continua apenas com contexto textual
-        │
-        ├─ 2b. Busca contexto expandido do tenant
-        │      `store_name` + `store_description` de `store_settings`
-        │      Usado no prompt para ancorar identidade da marca
-        │
-        ├─ 3. Filtra por scope (images/texts/all)
-        │     Só gera o que o usuário escolheu
-        │
-        ├─ 4. Gera imagens se scope inclui (Gemini Image Pro → fallback Flash)
-        │     Desktop (1920×700) + Mobile (750×420) por slide
-        │     Upload para store-assets/{tenantId}/block-creatives/
-        │     **MULTIMODAL (v2.1.0):** Envia imagem real do produto como referência visual ao modelo
-        │     quando disponível — o modelo recebe [texto + imagem] para gerar banner aderente
-        │
-        ├─ 5. Gera textos se scope inclui (aiChatCompletionJSON via ai-router)
-        │     Tool calling para título/subtítulo/CTA com contexto real do produto
-        │     Inclui store_description no contexto para aderência à marca
-        │
-        └─ 6. Retorna { success, generatedProps }
-               generatedProps só contém keys da whitelist server-side filtradas por scope
 ```
 
 ### Componentes
 
 | Tipo | Nome | Localização | Descrição |
 |------|------|-------------|-----------|
-| Edge Function | ai-block-fill-visual v3.0.0 | `supabase/functions/ai-block-fill-visual/index.ts` | Gera imagens via Motor Visual Compartilhado (visual-engine + block adapters) e textos com scope filtering. Suporta outputMode (editable/complete) e creativeStyle (product_natural/person_interacting/promotional) |
-| Shared Module | visual-engine | `supabase/functions/_shared/visual-engine.ts` | Motor central de geração visual: cascade resiliente (OpenAI→Gemini Pro→Flash), QA scoring, download robusto, upload, prompt building por estilo+composição |
-| Shared Module | banner-adapter | `supabase/functions/_shared/visual-adapters/banner-adapter.ts` | Adapter que traduz Banner single/carousel em requests genéricos para o visual-engine. Implementa mergeResults com renderMode (overlay/baked) |
+| Edge Function | ai-block-fill-visual v3.0.0 | `supabase/functions/ai-block-fill-visual/index.ts` | Gera imagens via Motor Visual + Creative Brief Builder e textos com scope filtering |
+| Shared Module | creative-brief-builder | `supabase/functions/_shared/creative-brief-builder.ts` | Consolida escolhas do wizard em creative brief narrativo + structural rules por slot. Reutilizável para qualquer bloco visual |
+| Shared Module | visual-engine v2.0.0 | `supabase/functions/_shared/visual-engine.ts` | Motor de geração: cascade resiliente (OpenAI→Gemini Pro→Flash), QA scoring, download, upload. Delega prompt building ao creative-brief-builder |
+| Shared Module | banner-adapter | `supabase/functions/_shared/visual-adapters/banner-adapter.ts` | Adapter que traduz Banner single/carousel em requests genéricos. Implementa mergeResults com renderMode (overlay/baked) |
 | Shared Module | visual-adapters/types | `supabase/functions/_shared/visual-adapters/types.ts` | Contratos genéricos: VisualGenerationRequest, VisualGenerationResult, OutputMode, RenderMode, ImageStyle, CompositionHint, BlockVisualAdapter |
 | Hook | useAIWizardGenerate | `src/hooks/useAIWizardGenerate.ts` | Chama edge function e aplica whitelist merge + scope filtering. Repassa outputMode e creativeStyle para o backend via bannerMode |
 

@@ -1,0 +1,359 @@
+// =============================================
+// CREATIVE BRIEF BUILDER v1.0.0
+// Consolidates ALL wizard choices into a single
+// narrative creative brief for the AI.
+//
+// Architecture:
+//   1. buildCreativeBrief() → narrative prompt (WHO/WHAT/WHY/HOW)
+//   2. buildStructuralRules() → technical constraints (dimensions, safe areas, prohibitions)
+//   3. buildFinalPrompt() = brief + rules (called per slot: desktop/mobile)
+//
+// This module is BLOCK-AGNOSTIC and reusable for any visual block.
+// =============================================
+
+import type {
+  VisualGenerationRequest,
+  VisualSlot,
+  OutputMode,
+  ImageStyle,
+  ProductContext,
+  CategoryContext,
+  StoreContext,
+} from './visual-adapters/types.ts';
+
+// ===== CREATIVE BRIEF =====
+
+interface CreativeBriefInput {
+  /** Creative style chosen by user */
+  creativeStyle: ImageStyle;
+  /** Per-style config (action, tone, environment, etc.) */
+  styleConfig: Record<string, unknown>;
+  /** User's free-form briefing */
+  briefing: string;
+  /** Product context */
+  product?: ProductContext | null;
+  /** Category context */
+  category?: CategoryContext | null;
+  /** Store identity */
+  store: StoreContext;
+  /** Output mode: editable or complete */
+  outputMode: OutputMode;
+  /** Slide index for carousel variation */
+  slideIndex?: number;
+}
+
+/**
+ * Builds a consolidated creative brief from ALL user choices.
+ * This is the NARRATIVE that tells the AI what to create.
+ * It does NOT include dimensional/structural rules — those come from buildStructuralRules().
+ */
+export function buildCreativeBrief(input: CreativeBriefInput): string {
+  const { creativeStyle, styleConfig, briefing, product, category, store, outputMode, slideIndex } = input;
+
+  const sections: string[] = [];
+
+  // ── 1. OBJECTIVE ──
+  const objectiveByMode = outputMode === 'complete'
+    ? 'Criar uma PEÇA PUBLICITÁRIA COMPLETA e FINALIZADA para e-commerce. A imagem é o produto final — composição fechada, pronta para publicação.'
+    : 'Criar uma IMAGEM DE FUNDO para banner de e-commerce. Textos serão sobrepostos via HTML — a imagem deve funcionar como base visual.';
+  sections.push(`🎯 OBJETIVO:\n${objectiveByMode}`);
+
+  // ── 2. STORE IDENTITY ──
+  let storeSection = `🏪 MARCA: "${store.storeName}"`;
+  if (store.storeDescription) storeSection += `\nSobre a marca: ${store.storeDescription.substring(0, 250)}`;
+  sections.push(storeSection);
+
+  // ── 3. SUBJECT (product/category/institutional) ──
+  const subjectSection = buildSubjectSection(product, category);
+  sections.push(subjectSection);
+
+  // ── 4. CREATIVE DIRECTION (from style + config) ──
+  const creativeDirection = buildCreativeDirection(creativeStyle, styleConfig, product?.name || category?.name || 'Produto');
+  sections.push(creativeDirection);
+
+  // ── 5. CAMPAIGN / BRIEFING (user's free-form input — HIGHEST PRIORITY) ──
+  if (briefing) {
+    const campaignSection = buildCampaignSection(briefing);
+    sections.push(campaignSection);
+  }
+
+  // ── 6. CAROUSEL VARIATION ──
+  if (slideIndex !== undefined) {
+    sections.push(`🎠 VARIAÇÃO: Este é o slide ${slideIndex + 1} de um carrossel. Varie cenário, ângulo e atmosfera em relação aos outros slides, mantendo a mesma campanha e identidade visual.`);
+  }
+
+  // ── 7. PRODUCT REFERENCE NOTE ──
+  if (product?.mainImageUrl) {
+    sections.push(`📸 REFERÊNCIA DO PRODUTO: Uma foto do produto REAL foi anexada. O produto na imagem gerada DEVE ser IDÊNTICO à referência — mesma cor, forma, embalagem, rótulo e textura. O produto deve ser imediatamente reconhecível.`);
+  }
+
+  return sections.join('\n\n');
+}
+
+// ===== SUBJECT SECTION =====
+
+function buildSubjectSection(product?: ProductContext | null, category?: CategoryContext | null): string {
+  if (product) {
+    let section = `📦 PRODUTO: "${product.name}"`;
+    if (product.description) section += `\nDescrição: ${product.description.substring(0, 250)}`;
+    if (product.price) {
+      const formatted = `R$ ${product.price.toFixed(2).replace('.', ',')}`;
+      section += `\nPreço: ${formatted}`;
+      if (product.compareAtPrice && product.compareAtPrice > product.price) {
+        const oldFormatted = `R$ ${product.compareAtPrice.toFixed(2).replace('.', ',')}`;
+        const discount = Math.round((1 - product.price / product.compareAtPrice) * 100);
+        section += ` (de ${oldFormatted} — ${discount}% OFF)`;
+      }
+    }
+    return section;
+  }
+  if (category) {
+    return `📂 CATEGORIA: "${category.name}"\nMostre produtos variados desta categoria em composição premium.`;
+  }
+  return `🏢 INSTITUCIONAL: Banner de identidade da marca, sem produto ou categoria específica. Foque nos valores e atmosfera da loja.`;
+}
+
+// ===== CREATIVE DIRECTION =====
+
+function buildCreativeDirection(style: ImageStyle, styleConfig: Record<string, unknown>, productName: string): string {
+  const lines: string[] = ['🎨 DIREÇÃO CRIATIVA:'];
+
+  if (style === 'product_natural') {
+    const env = (styleConfig?.environment as string) || 'studio';
+    const lighting = (styleConfig?.lighting as string) || 'natural';
+    const mood = (styleConfig?.mood as string) || 'clean';
+    lines.push(`Estilo: FOTOGRAFIA DE PRODUTO NATURAL`);
+    lines.push(`O produto é o protagonista absoluto. Sem pessoas.`);
+    lines.push(`Cenário: ${env} | Iluminação: ${lighting} | Mood: ${mood}`);
+    lines.push(`Qualidade editorial de revista. Foco nítido no produto, fundo com leve desfoque (bokeh).`);
+    lines.push(`O produto deve parecer fotografado por um profissional — cores fiéis, sombras suaves, textura real.`);
+  } else if (style === 'person_interacting') {
+    const action = (styleConfig?.action as string) || 'holding';
+    const personProfile = (styleConfig?.personProfile as string) || 'pessoa atraente com aparência natural e saudável';
+    const tone = (styleConfig?.tone as string) || 'lifestyle';
+    const actionDesc: Record<string, string> = {
+      holding: 'segurando o produto pela base/corpo, com rótulo frontal visível',
+      using: 'usando/aplicando o produto de forma natural',
+      showing: 'mostrando o produto para câmera com expressão confiante',
+    };
+    const toneDesc: Record<string, string> = {
+      ugc: 'Estilo UGC autêntico — como se fosse criado pelo próprio consumidor, caseiro mas atraente',
+      demo: 'Demonstração profissional do produto em uso, informativa e clara',
+      review: 'Pessoa avaliando o produto, expressão de satisfação genuína',
+      lifestyle: 'Fotografia lifestyle editorial premium — a pessoa vive o momento com o produto',
+    };
+    lines.push(`Estilo: PESSOA INTERAGINDO COM O PRODUTO`);
+    lines.push(`Pessoa: ${personProfile}`);
+    lines.push(`Ação: ${actionDesc[action] || action}`);
+    lines.push(`Tom visual: ${toneDesc[tone] || tone}`);
+    lines.push(`A pessoa deve parecer REAL e fotorrealista — sem aparência de IA.`);
+    lines.push(`Mãos naturais, expressão genuína, iluminação profissional.`);
+    lines.push(buildHandInstructions(productName));
+  } else if (style === 'promotional') {
+    const intensity = (styleConfig?.effectsIntensity as string) || 'medium';
+    const elements = (styleConfig?.visualElements as string[]) || [];
+    const intensityDesc: Record<string, string> = {
+      low: 'Efeitos sutis e elegantes — sofisticação acima de tudo',
+      medium: 'Efeitos moderados com impacto visual — equilíbrio entre elegância e energia',
+      high: 'Efeitos intensos e dramáticos — máxima atenção e urgência',
+    };
+    lines.push(`Estilo: PROMOCIONAL DE ALTO IMPACTO`);
+    lines.push(`Intensidade visual: ${intensityDesc[intensity] || intensity}`);
+    if (elements.length > 0) lines.push(`Elementos visuais solicitados: ${elements.join(', ')}`);
+    lines.push(`Composição dinâmica e publicitária. Cores vibrantes, contraste alto.`);
+    lines.push(`O produto deve ser o foco central — efeitos não podem cobrir o rótulo.`);
+    lines.push(`A peça deve parecer um anúncio de grande e-commerce ou revista.`);
+  }
+
+  return lines.join('\n');
+}
+
+// ===== CAMPAIGN SECTION =====
+
+function buildCampaignSection(briefing: string): string {
+  const lines: string[] = ['📢 CAMPANHA / BRIEFING DO USUÁRIO (PRIORIDADE MÁXIMA):'];
+  lines.push(`"${briefing}"`);
+
+  const briefingLower = briefing.toLowerCase();
+
+  // Campaign theme detection
+  const themes: Record<string, string> = {
+    'páscoa': 'Páscoa: tons dourados e chocolate, ovos decorativos sutis, atmosfera acolhedora e festiva',
+    'natal': 'Natal: vermelho/dourado/verde, luzes bokeh, atmosfera natalina elegante e premium',
+    'black friday': 'Black Friday: tons escuros (preto, dourado), contraste dramático, urgência e exclusividade',
+    'dia das mães': 'Dia das Mães: tons suaves e sofisticados, flores sutis, atmosfera carinhosa e premium',
+    'dia dos pais': 'Dia dos Pais: tons sóbrios (azul marinho, cinza), atmosfera masculina e sofisticada',
+    'dia dos namorados': 'Dia dos Namorados: tons românticos (vermelho, rosa dourado), atmosfera íntima e premium',
+    'verão': 'Verão: tons vibrantes e quentes, luz solar, atmosfera fresca e energética',
+    'inverno': 'Inverno: tons frios e aconchegantes, atmosfera sofisticada e intimista',
+    'carnaval': 'Carnaval: cores vibrantes e festivas, energia alta, atmosfera de celebração',
+    'dia do consumidor': 'Dia do Consumidor: atmosfera de oportunidade, tons modernos e atraentes',
+  };
+
+  for (const [keyword, description] of Object.entries(themes)) {
+    if (briefingLower.includes(keyword)) {
+      lines.push(`🎪 TEMA VISUAL DETECTADO: ${description}`);
+      lines.push(`O cenário INTEIRO deve respirar este tema — não apenas detalhes sutis. O cliente deve reconhecer a campanha instantaneamente.`);
+      break;
+    }
+  }
+
+  // Discount/offer detection
+  const hasDiscount = /\d+%|desconto|oferta|promoção|promo|off|frete gr[áa]tis|cupom/.test(briefingLower);
+  if (hasDiscount) {
+    lines.push(`💰 OFERTA DETECTADA: A atmosfera deve transmitir OPORTUNIDADE e URGÊNCIA — iluminação dramática, contraste forte, energia comercial.`);
+  }
+
+  lines.push(`\n⚠️ REGRA: O briefing do usuário é a DIREÇÃO CRIATIVA PRIMÁRIA. Todo o cenário, atmosfera e composição devem refletir este briefing. Não ignore nenhum detalhe mencionado.`);
+
+  return lines.join('\n');
+}
+
+// ===== STRUCTURAL RULES (dimensions, safe areas, prohibitions) =====
+
+interface StructuralRulesInput {
+  slot: VisualSlot;
+  outputMode: OutputMode;
+  creativeStyle: ImageStyle;
+}
+
+/**
+ * Builds technical/structural rules for a specific slot.
+ * These are INDEPENDENT from the creative brief.
+ */
+export function buildStructuralRules(input: StructuralRulesInput): string {
+  const { slot, outputMode, creativeStyle } = input;
+  const isDesktop = slot.composition.includes('desktop') || slot.composition === 'horizontal';
+  const isComplete = outputMode === 'complete';
+  const hasPerson = creativeStyle === 'person_interacting';
+
+  const lines: string[] = [];
+
+  // Dimensions
+  lines.push(`📐 DIMENSÕES: ${slot.width}x${slot.height}px (${isDesktop ? 'horizontal widescreen' : 'vertical retrato/mobile'})`);
+
+  if (isComplete) {
+    // Complete mode: full composition, no safe areas
+    lines.push(`\n🖼️ MODO CRIATIVO COMPLETO:`);
+    lines.push(`- Composição FECHADA — toda a área é composição criativa.`);
+    lines.push(`- Sem reservar espaço vazio para texto overlay.`);
+    lines.push(`- A peça deve funcionar como anúncio PRONTO para publicação.`);
+    if (isDesktop) {
+      lines.push(`- Composição horizontal pensada para tela larga.`);
+    } else {
+      lines.push(`- Composição vertical pensada para tela de celular (stories/feed).`);
+      lines.push(`- Enquadramento vertical com produto bem proporcionado ao espaço estreito.`);
+    }
+  } else {
+    // Editable mode: safe areas for HTML overlay
+    lines.push(`\n🖼️ MODO EDITÁVEL (FUNDO PARA TEXTO HTML):`);
+    lines.push(`- Textos serão adicionados POR CIMA da imagem em HTML — NÃO inclua texto na imagem.`);
+
+    if (isDesktop) {
+      if (hasPerson) {
+        lines.push(`- COMPOSIÇÃO: Pessoa/produto no lado DIREITO (~40% da largura).`);
+        lines.push(`- Os ~50-60% ESQUERDOS devem ter fundo mais escuro ou gradiente natural para receber texto branco.`);
+      } else {
+        lines.push(`- O PRODUTO deve ocupar o TERÇO DIREITO (~30% da largura máximo), bem enquadrado e proporcionado.`);
+        lines.push(`- Os ~60-70% ESQUERDOS devem ter fundo escuro ou gradiente natural para receber texto branco.`);
+      }
+      lines.push(`- O gradiente deve ser NATURAL (iluminação lateral, sombra ambiente), integrado ao cenário.`);
+      lines.push(`- Transição suave entre zona escura e zona do produto.`);
+    } else {
+      // Mobile
+      if (hasPerson) {
+        lines.push(`- COMPOSIÇÃO: O TERÇO SUPERIOR (~35%) deve ser mais escuro para receber texto branco.`);
+        lines.push(`- Pessoa/produto no CENTRO e parte inferior.`);
+      } else {
+        lines.push(`- O TERÇO SUPERIOR (~35-40%) deve ser escuro/gradiente natural para receber texto branco.`);
+        lines.push(`- O PRODUTO no CENTRO (~40% da altura máximo), bem enquadrado e proporcionado.`);
+      }
+      lines.push(`- O TERÇO INFERIOR deve ter espaço para botão CTA (zona mais limpa/escura).`);
+      lines.push(`- Enquadramento pensado para tela estreita. Produto centralizado.`);
+    }
+  }
+
+  // Prohibitions
+  lines.push(`\n🚫 PROIBIÇÕES ABSOLUTAS:`);
+  lines.push(`- ❌ Fundo branco ou cinza claro chapado`);
+  if (!isComplete) {
+    lines.push(`- ❌ NENHUM texto, letra, número, logo ou badge na imagem`);
+    lines.push(`- ❌ NENHUM elemento gráfico/UI (botões, bordas, molduras)`);
+  }
+  if (!hasPerson && creativeStyle !== 'promotional') {
+    lines.push(`- ❌ NENHUMA pessoa, mão ou modelo`);
+  }
+  if (!isComplete) {
+    const maxSize = isDesktop ? '30% da largura total' : '40% da altura total';
+    lines.push(`- ❌ Produto NÃO pode ocupar mais de ${maxSize}`);
+  }
+
+  // Quality
+  lines.push(`\n✨ QUALIDADE:`);
+  lines.push(`- Resolução 4K, nitidez profissional`);
+  lines.push(`- Cores vibrantes e harmônicas`);
+  lines.push(`- Iluminação profissional (estúdio ou natural conforme direção criativa)`);
+  lines.push(`- O resultado deve parecer uma peça comercial de campanha profissional`);
+
+  return lines.join('\n');
+}
+
+// ===== FINAL PROMPT BUILDER =====
+
+/**
+ * Builds the FINAL prompt for a specific slot by combining:
+ * 1. Creative Brief (narrative from user choices)
+ * 2. Structural Rules (technical constraints for this slot)
+ *
+ * This is the single prompt sent to the AI for image generation.
+ */
+export function buildFinalPrompt(request: VisualGenerationRequest, slot: VisualSlot): string {
+  const brief = buildCreativeBrief({
+    creativeStyle: request.creativeStyle,
+    styleConfig: request.styleConfig,
+    briefing: request.briefing,
+    product: request.product,
+    category: request.category,
+    store: request.store,
+    outputMode: request.outputMode,
+    slideIndex: request.slideIndex,
+  });
+
+  const rules = buildStructuralRules({
+    slot,
+    outputMode: request.outputMode,
+    creativeStyle: request.creativeStyle,
+  });
+
+  const isDesktop = slot.composition.includes('desktop') || slot.composition === 'horizontal';
+  const deviceLabel = isDesktop ? 'DESKTOP' : 'MOBILE';
+
+  return `═══════════════════════════════════════
+CREATIVE BRIEF — BANNER ${deviceLabel}
+═══════════════════════════════════════
+
+${brief}
+
+═══════════════════════════════════════
+REGRAS ESTRUTURAIS — ${deviceLabel}
+═══════════════════════════════════════
+
+${rules}`;
+}
+
+// ===== HAND INSTRUCTIONS (reexported for person_interacting) =====
+
+function buildHandInstructions(productName: string): string {
+  const name = productName.toLowerCase().trim();
+  const isKit = /\b(kit|combo|conjunto|pack|coleção)\b/i.test(name);
+  const qtyMatch = name.match(/(\d+)\s*(?:x|un|pç|peças|itens|produtos)/i) || name.match(/kit\s+(?:com\s+)?(\d+)/i);
+  const estimatedItems = qtyMatch ? parseInt(qtyMatch[1]) : (isKit ? 3 : 1);
+
+  if (!isKit && estimatedItems <= 1) {
+    return `🖐️ Regra de mãos: Pode segurar com uma ou duas mãos, rótulo frontal visível, postura natural.`;
+  }
+  if (estimatedItems <= 2) {
+    return `🖐️ Regra de mãos (kit ${estimatedItems} itens): No máximo 1 produto em cada mão. Rótulos frontais visíveis.`;
+  }
+  return `🖐️ Regra de mãos (kit ${estimatedItems}+ itens): Segura no máximo 1 em cada mão (total: 2). Os demais dispostos em superfície próxima. Composição natural e organizada.`;
+}
