@@ -535,6 +535,9 @@ Tom: ${tone.toneInstruction}`;
   }
 
   // Single banner text generation
+  const contextInfo = buildContextInfo(context.product, context.category);
+  const tone = detectCreativeTone(context.product, context.category, context.briefing, context.associationType);
+
   const tools = [{
     type: "function",
     function: {
@@ -545,7 +548,7 @@ Tom: ${tone.toneInstruction}`;
         properties: {
           title: { type: "string", description: "Headline curta e impactante. MÁXIMO 30 caracteres. Verbo de ação ou benefício direto. Use o nome real do produto." },
           subtitle: { type: "string", description: "Texto de apoio. MÁXIMO 60 caracteres. Complementar ao title, sem repetir. Destaque benefício ou oferta." },
-          buttonText: { type: "string", description: "Texto do botão CTA. MÁXIMO 15 caracteres. Ação clara (ex: Comprar agora, Ver oferta, Conhecer)." },
+          buttonText: { type: "string", description: "Texto do botão CTA. MÁXIMO 15 caracteres. Ação específica ao produto/categoria (ex: 'Comprar Sérum', não 'Comprar agora')." },
           altText: { type: "string", description: "Texto alt acessível descrevendo a imagem do banner." },
         },
         required: ["title", "subtitle", "buttonText", "altText"],
@@ -554,7 +557,7 @@ Tom: ${tone.toneInstruction}`;
     },
   }];
 
-  const systemPrompt = COPY_SYSTEM_PROMPT(storeInfo, contextInfo, context.briefing);
+  const systemPrompt = COPY_SYSTEM_PROMPT(storeInfo, contextInfo, context.briefing, tone.toneInstruction);
 
   const { data } = await aiChatCompletionJSON("google/gemini-2.5-flash", {
     messages: [
