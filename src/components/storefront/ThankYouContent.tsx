@@ -672,7 +672,7 @@ function CardRetrySection({ retryToken, orderTotal, onSuccess }: {
         Tentar novamente com cartão
       </h3>
       <p className="text-sm text-muted-foreground mb-4">
-        Insira os dados de um cartão de crédito para tentar o pagamento de {formatCurrency(order.total)}.
+        Insira os dados de um cartão de crédito para tentar o pagamento de {formatCurrency(orderTotal)}.
       </p>
 
       {displayError && (
