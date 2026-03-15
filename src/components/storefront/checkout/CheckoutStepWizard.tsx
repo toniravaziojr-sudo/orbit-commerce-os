@@ -855,6 +855,18 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         </Link>
       </div>
 
+      {/* Step 5: Retry mode banner */}
+      {isRetryMode && (
+        <Alert className="mb-4">
+          <Info className="h-4 w-4" />
+          <AlertTitle>Retentativa de pagamento</AlertTitle>
+          <AlertDescription>
+            Você está retentando o pagamento do pedido #{retryPrefill.order_number}. 
+            Escolha uma forma de pagamento diferente para finalizar.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Progress Timeline (modern style like builder) */}
       <ProgressTimeline steps={STEPS} currentStep={currentStep} onStepClick={goToStep} />
 
