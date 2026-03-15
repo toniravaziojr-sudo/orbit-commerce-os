@@ -112,7 +112,7 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
   }
 
   const aspectClass = needsAspect ? 'sf-banner-auto' : '';
-  const aspectStyleTag = needsAspect ? '<style>.sf-banner-auto{aspect-ratio:21/9;}@media(min-width:768px){.sf-banner-auto{aspect-ratio:21/7;}}</style>' : '';
+  const aspectStyleTag = needsAspect ? '<style>.sf-banner-auto{aspect-ratio:4/5;}@media(min-width:768px){.sf-banner-auto{aspect-ratio:12/5;}}</style>' : '';
 
   const wrapperTag = currentLinkUrl && !hasCTA ? 'a' : 'div';
   const wrapperHref = currentLinkUrl && !hasCTA ? ` href="${escapeHtml(currentLinkUrl)}"` : '';
