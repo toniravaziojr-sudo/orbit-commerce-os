@@ -4,7 +4,7 @@
 
 ## Visão Geral
 
-Página de confirmação pós-compra com detalhes do pedido e ofertas de upsell.
+Página de confirmação pós-compra com detalhes do pedido, ofertas de upsell e **retentativa de pagamento por cartão quando recusado**.
 
 ---
 
@@ -12,9 +12,18 @@ Página de confirmação pós-compra com detalhes do pedido e ofertas de upsell.
 
 `/loja/:slug/obrigado/:orderId`
 
+### Parâmetros de URL
+
+| Parâmetro | Tipo | Descrição |
+|-----------|------|-----------|
+| `pedido` | query | Número do pedido (sem #) |
+| `status` | query | `declined` quando cartão foi recusado pelo gateway |
+
 ---
 
 ## Estrutura Visual
+
+### Estado Normal (Pagamento aprovado ou pendente)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -27,42 +36,29 @@ Página de confirmação pós-compra com detalhes do pedido e ofertas de upsell.
 │  │  Seu pedido #12345 foi recebido com sucesso.                      │  │
 │  └───────────────────────────────────────────────────────────────────┘  │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  PRÓXIMOS PASSOS                                                         │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                     │
-│  │ 📧 Email    │  │ 📦 Preparo  │  │ 🚚 Envio    │                     │
-│  │ enviado     │  │ do pedido   │  │ em breve    │                     │
-│  └─────────────┘  └─────────────┘  └─────────────┘                     │
+│  PRÓXIMOS PASSOS / RESUMO / UPSELL / FOOTER                            │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Estado Recusado (status=declined) — v8.15.0
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                              HEADER                                      │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  DETALHES DO PEDIDO                                                      │
-│  ┌────────────────────────────────┐  ┌────────────────────────────────┐│
-│  │ Itens do Pedido                │  │ Informações de Pagamento       ││
-│  │ • Produto 1 - R$ 99,90         │  │ Método: PIX                    ││
-│  │ • Produto 2 - R$ 149,90        │  │ Status: Aprovado               ││
-│  │                                │  │                                ││
-│  │ Subtotal: R$ 249,80            │  │ Endereço de Entrega            ││
-│  │ Frete: R$ 15,00                │  │ Rua Example, 123               ││
-│  │ Desconto: -R$ 20,00            │  │ São Paulo - SP                 ││
-│  │ Total: R$ 244,80               │  │ CEP: 01234-567                 ││
-│  └────────────────────────────────┘  └────────────────────────────────┘│
-├─────────────────────────────────────────────────────────────────────────┤
-│  OFERTA EXCLUSIVA (Upsell)                                              │
 │  ┌───────────────────────────────────────────────────────────────────┐  │
-│  │  🎁 APROVEITE 20% OFF no próximo pedido!                          │  │
+│  │                    ❌ PAGAMENTO NÃO APROVADO                       │  │
 │  │                                                                    │  │
-│  │  [Produto Upsell]  De R$ 199,90 por R$ 159,92                     │  │
-│  │                                                                    │  │
-│  │  [ADICIONAR AO PEDIDO - 1 CLICK]                                  │  │
-│  │                                                                    │  │
-│  │  ⏰ Oferta expira em 10:00                                        │  │
+│  │  O pagamento do pedido #12345 foi recusado pela operadora.        │  │
+│  │  Você pode tentar novamente com outro cartão de crédito.          │  │
 │  └───────────────────────────────────────────────────────────────────┘  │
-├─────────────────────────────────────────────────────────────────────────┤
-│  RASTREAMENTO                                                            │
-│  Código: [Código de rastreio]  [Copiar] [Rastrear]                     │
-├─────────────────────────────────────────────────────────────────────────┤
-│  PRODUTOS QUE VOCÊ TAMBÉM PODE GOSTAR                                   │
-│  [Grid de produtos relacionados]                                        │
-├─────────────────────────────────────────────────────────────────────────┤
-│                              FOOTER                                      │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │  💳 TENTAR NOVAMENTE COM CARTÃO                                    │  │
+│  │  [Formulário de cartão inline: número, nome, validade, CVV]       │  │
+│  │  [Seletor de parcelas]                                            │  │
+│  │  [Botão: Pagar R$ XX,XX]                                         │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│  RESUMO DO PEDIDO / ENDEREÇO / TIMELINE / AÇÕES                        │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -73,11 +69,21 @@ Página de confirmação pós-compra com detalhes do pedido e ofertas de upsell.
 | Componente | Arquivo | Função |
 |------------|---------|--------|
 | `StorefrontThankYou` | `src/pages/storefront/StorefrontThankYou.tsx` | Página container |
-| `ThankYouBlock` | `src/components/builder/blocks/ThankYouBlock.tsx` | Layout principal |
-| `OrderConfirmation` | `src/components/storefront/thankyou/OrderConfirmation.tsx` | Confirmação |
-| `OrderDetails` | `src/components/storefront/thankyou/OrderDetails.tsx` | Detalhes do pedido |
-| `UpsellSection` | `src/components/storefront/thankyou/UpsellSection.tsx` | Ofertas upsell |
-| `TrackingInfo` | `src/components/storefront/thankyou/TrackingInfo.tsx` | Rastreamento |
+| `ThankYouBlock` | `src/components/builder/BlockRenderer.tsx` | Layout principal (builder) |
+| `ThankYouContent` | `src/components/storefront/ThankYouContent.tsx` | Conteúdo real (storefront) |
+| `DeclinedHeader` | `src/components/storefront/ThankYouContent.tsx` | Header de falha (ícone vermelho ❌) |
+| `CardRetrySection` | `src/components/storefront/ThankYouContent.tsx` | Formulário de retentativa por cartão |
+| `UpsellSection` | `src/components/storefront/sections/UpsellSection.tsx` | Ofertas upsell |
+
+---
+
+## Hooks
+
+| Hook | Arquivo | Função |
+|------|---------|--------|
+| `useOrderDetails` | `src/hooks/useOrderDetails.ts` | Busca detalhes do pedido via edge function |
+| `useRetryCardPayment` | `src/hooks/useRetryCardPayment.ts` | Retentativa de pagamento por cartão no mesmo pedido |
+| `useUpsellRules` | — | Regras de upsell pós-compra |
 
 ---
 
@@ -90,16 +96,111 @@ Página de confirmação pós-compra com detalhes do pedido e ofertas de upsell.
 | `showTrackingInfo` | boolean | true | Exibe info de rastreio |
 | `showUpsell` | boolean | true | Exibe ofertas upsell |
 | `showNextSteps` | boolean | true | Exibe timeline de próximos passos |
-| `purchaseEventTiming` | `'all_orders'` \| `'paid_only'` | `'all_orders'` | Controla quando o evento Purchase dispara: `all_orders` = qualquer pedido criado; `paid_only` = somente quando `payment_status === 'approved'` |
+| `purchaseEventTiming` | `'all_orders'` \| `'paid_only'` | `'all_orders'` | Controla quando o evento Purchase dispara |
 
 ---
 
-## Hooks
+## Retentativa de Pagamento por Cartão (v8.15.0 — Etapa 4)
 
-| Hook | Função |
-|------|--------|
-| `useOrder` | Busca detalhes do pedido |
-| `useUpsellRules` | Regras de upsell pós-compra |
+### Regras
+
+| Regra | Descrição |
+|-------|-----------|
+| **Quando aparece** | Somente quando URL contém `status=declined` |
+| **Tipo de pagamento** | Apenas cartão de crédito — NÃO permite PIX ou boleto inline |
+| **Pedido** | Reutiliza o mesmo pedido existente — NÃO cria pedido novo |
+| **Gateway** | Detecta automaticamente o gateway ativo do tenant (Pagar.me ou Mercado Pago) |
+| **Sucesso** | Remove `status=declined` da URL, refaz busca do pedido, exibe estado de sucesso |
+| **Recusa de novo** | Mantém formulário com mensagem de erro da operadora |
+| **Erro técnico** | Exibe "Problema técnico" diferenciado, sem mascarar como "recusado" |
+
+### Fluxo — Retry com sucesso
+
+```
+1. Página carrega com ?status=declined
+2. Exibe header vermelho (❌) + formulário de cartão
+3. Cliente preenche dados do cartão
+4. useRetryCardPayment chama edge function de cobrança com order_id existente
+5. Gateway aprova → retryResult.success = true
+6. handleRetrySuccess: remove status=declined da URL + refetch order
+7. Página exibe header verde (✅) + timeline normal
+8. Purchase event disparado (se configurado)
+```
+
+### Fluxo — Retry com nova recusa
+
+```
+1. Cliente tenta com outro cartão
+2. Gateway recusa novamente → retryResult.cardDeclined = true
+3. Alert vermelho com mensagem da operadora
+4. Formulário continua visível para nova tentativa
+```
+
+### Fluxo — Retry com erro técnico
+
+```
+1. Cliente tenta com cartão
+2. Chamada à operadora falha (HTTP/network) → retryResult.technicalError = true
+3. Alert vermelho com "Problema técnico ao processar. Tente novamente."
+4. Formulário continua visível
+```
+
+### Hook: `useRetryCardPayment`
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Hook |
+| **Localização** | `src/hooks/useRetryCardPayment.ts` |
+| **Parâmetros** | `order: OrderDetails`, `tenantId: string` |
+| **Retorno** | `{ retryPayment, isRetrying, retryResult, resetRetryResult }` |
+| **Comportamento** | Detecta gateway ativo → chama edge function de cobrança com `order_id` existente → retorna resultado classificado (success / cardDeclined / technicalError) |
+| **Não faz** | NÃO cria pedido novo. NÃO permite PIX/boleto. |
+
+### Componente: `CardRetrySection`
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente |
+| **Localização** | `src/components/storefront/ThankYouContent.tsx` (interno) |
+| **Props** | `order`, `tenantId`, `onSuccess` |
+| **Campos do formulário** | Número do cartão (com máscara), Nome no cartão, Mês/Ano validade, CVV (mascarado), Parcelas |
+| **CVV** | `type="password"` com toggle de visibilidade |
+| **Parcelas** | Calculadas a partir do total do pedido (1x a 12x) |
+| **CTA alternativa** | Texto informativo: "Precisa usar outra forma de pagamento? Entre em contato pelo WhatsApp." |
+
+### CTA "Outra forma de pagamento" — Dependência da Etapa 5
+
+| Campo | Valor |
+|-------|-------|
+| **Status** | ⏳ AGUARDANDO ETAPA 5 |
+| **Implementação atual** | Texto informativo direcionando ao WhatsApp |
+| **Motivo** | A implementação segura requer `retry_token` (token de sessão único vinculado ao pedido) para permitir retorno ao checkout sem expor o `order_id` diretamente na URL |
+| **Proibição** | NÃO implementar fallback baseado apenas em `order_id` na URL — risco de segurança |
+
+---
+
+## Dados do Pedido
+
+| Campo | Fonte |
+|-------|-------|
+| Número | `order.order_number` |
+| Status | `order.status` |
+| Itens | `order.items` (via edge function get-order) |
+| Pagamento | `order.payment_method`, `order.payment_status` |
+| Endereço | `order.shipping_*` |
+| Rastreio | `order.tracking_code`, `order.shipping_carrier` |
+| CPF | `order.customer_cpf` (usado no retry) |
+| Parcelas | `order.installments` |
+
+---
+
+## Timeline de Status
+
+| Etapa | Ícone Normal | Ícone Recusado | Descrição |
+|-------|-------------|----------------|-----------|
+| Confirmado | ✅ | ❌ | Pedido recebido / Pagamento não aprovado |
+| Preparação | 📦 | 📦 | Separando produtos |
+| Enviado | 🚚 | 🚚 | Em trânsito |
 
 ---
 
@@ -108,10 +209,8 @@ Página de confirmação pós-compra com detalhes do pedido e ofertas de upsell.
 | Característica | Descrição |
 |----------------|-----------|
 | **Fonte** | Tabela `offer_rules` com `type='upsell'` |
+| **Visibilidade** | NÃO exibido quando `status=declined` |
 | **Trigger** | Produtos no pedido recém-finalizado |
-| **Tempo limite** | Timer countdown opcional |
-| **1-Click** | Adiciona ao pedido sem novo checkout |
-| **Desconto** | `percent` ou `fixed` |
 
 ### Regra Crítica de Ofertas
 
@@ -124,40 +223,16 @@ Página de confirmação pós-compra com detalhes do pedido e ofertas de upsell.
 
 ---
 
-## Dados do Pedido
-
-| Campo | Fonte |
-|-------|-------|
-| Número | `order.id` (formatado) |
-| Status | `order.status` |
-| Itens | `order.items_snapshot` |
-| Pagamento | `order.payment_method`, `order.payment_status` |
-| Endereço | `order.shipping_*` ou join com `customer_addresses` |
-| Rastreio | `order.tracking_code`, `order.tracking_url` |
-
----
-
-## Timeline de Status
-
-| Etapa | Ícone | Descrição |
-|-------|-------|-----------|
-| Confirmado | ✅ | Pedido recebido |
-| Pagamento | 💳 | Aguardando/Aprovado |
-| Preparação | 📦 | Separando produtos |
-| Enviado | 🚚 | Em trânsito |
-| Entregue | 🎉 | Finalizado |
-
----
-
 ## Ações Disponíveis
 
-| Ação | Descrição |
-|------|-----------|
-| Copiar código rastreio | Clipboard API |
-| Rastrear pedido | Link externo (Correios, etc) |
-| Compartilhar | Share API (mobile) |
-| Imprimir | Print do resumo |
-| Continuar comprando | Link para home |
+| Ação | Descrição | Visível quando recusado? |
+|------|-----------|--------------------------|
+| Retry cartão | Formulário inline de retentativa | ✅ Sim |
+| Ver meus pedidos | Link para conta | ✅ Sim |
+| Voltar para a loja | Link para home | ✅ Sim |
+| WhatsApp | Contato com suporte | ✅ Sim |
+| Copiar código rastreio | Clipboard API | ❌ Não (sem rastreio) |
+| Social Share | Compartilhamento | ❌ Não (oculto) |
 
 ---
 
@@ -176,6 +251,8 @@ Página de confirmação pós-compra com detalhes do pedido e ofertas de upsell.
 
 O evento `Purchase` é disparado **exclusivamente** na página de obrigado (`ThankYouContent.tsx`), tanto via browser (pixel `fbq()`) quanto via servidor (edge function `marketing-capi-track`), usando o mesmo `event_id` para desduplicação automática pela Meta.
 
+**REGRA v8.15.0:** O Purchase **NÃO** é disparado quando `status=declined` (effectiveDeclined = true). Se o retry aprovar, o evento é disparado normalmente após a atualização do estado.
+
 | Canal | Método | Deduplicação |
 |-------|--------|-------------|
 | Browser | `fbq('track', 'Purchase', params)` via `MarketingTracker.trackPurchase()` | `event_id` compartilhado |
@@ -184,32 +261,30 @@ O evento `Purchase` é disparado **exclusivamente** na página de obrigado (`Tha
 ### Regras
 
 1. **Único ponto de disparo**: Purchase só dispara em `ThankYouContent.tsx` — **nunca** em `checkout-create-order`, webhooks de pagamento ou `CheckoutStepWizard`
-2. **Respeita `purchaseEventTiming`** configurado no builder:
-   - `all_orders`: dispara para qualquer pedido criado (incluindo PIX/Boleto pendentes)
-   - `paid_only`: só dispara quando `payment_status === 'approved'`
-3. **Dedup client-side**: `purchaseTrackedRef` (ref local) + `trackOnce` key `purchase_{orderId}` — nunca duplica no mesmo carregamento
-4. **`content_ids`**: usam `resolveMetaContentId()` (meta_retailer_id || sku || id) para paridade com catálogo Meta
-5. **Dados do usuário**: email, telefone e nome do cliente são enviados ao CAPI para melhor matching (hashing SHA-256 server-side)
+2. **Respeita `purchaseEventTiming`** configurado no builder
+3. **Não dispara para declined**: `effectiveDeclined` impede o disparo
+4. **Dedup client-side**: `purchaseTrackedRef` (ref local) + `trackOnce` key `purchase_{orderId}`
+5. **`content_ids`**: usam `resolveMetaContentId()` para paridade com catálogo Meta
 
 ### Anti-Regressão: Race Condition do Tracker (v6.2.2)
 
-**Problema corrigido:** O `MarketingTrackerProvider` inicializa o tracker de forma **deferida** (`requestIdleCallback` / `setTimeout 2s`). Se o pedido carrega antes do tracker, o `purchaseTrackedRef` era marcado antes do disparo efetivo, bloqueando o retry quando o tracker ficava pronto.
+**Problema corrigido:** O `MarketingTrackerProvider` inicializa o tracker de forma **deferida**. Se o pedido carrega antes do tracker, o `purchaseTrackedRef` era marcado antes do disparo efetivo.
 
 **Solução:** 
 1. `ThankYouContent.tsx` verifica `if (!tracker) return` **ANTES** de marcar o ref
-2. `purchaseTrackedRef` só é preenchido **APÓS** o `trackPurchase()` ser chamado com tracker disponível
-3. `tracker` é adicionado como dependência do `useEffect`, garantindo re-execução quando ficar pronto
-4. Import direto de `useMarketingTracker` para acessar o estado do tracker
+2. `purchaseTrackedRef` só é preenchido **APÓS** o `trackPurchase()` ser chamado
+3. `tracker` é adicionado como dependência do `useEffect`
 
 ### Arquivos Envolvidos
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `src/components/storefront/ThankYouContent.tsx` | Dispara Purchase com verificação de `purchaseEventTiming` |
-| `src/lib/marketingTracker.ts` | `trackPurchase()` + `sendServerEvent()` (dual tracking) |
-| `src/components/storefront/MarketingTrackerProvider.tsx` | Provider que injeta `tenantId` no tracker |
-| `supabase/functions/marketing-capi-track/index.ts` | Edge function genérica para CAPI |
-| `supabase/functions/_shared/meta-capi-sender.ts` | Helper com hashing SHA-256 e envio Meta Graph API v21.0 |
+| `src/components/storefront/ThankYouContent.tsx` | Dispara Purchase + UI de declined/retry |
+| `src/hooks/useRetryCardPayment.ts` | Retry de pagamento por cartão no mesmo pedido |
+| `src/hooks/useOrderDetails.ts` | Busca dados do pedido (inclui `tenant_id`, `customer_cpf`, `installments`) |
+| `src/lib/marketingTracker.ts` | `trackPurchase()` + `sendServerEvent()` |
+| `src/components/storefront/MarketingTrackerProvider.tsx` | Provider que injeta `tenantId` |
+| `supabase/functions/get-order/index.ts` | Edge function que retorna dados do pedido |
 
 ---
 
@@ -220,3 +295,4 @@ O evento `Purchase` é disparado **exclusivamente** na página de obrigado (`Tha
 - [ ] Compartilhamento social
 - [ ] Email de confirmação visual
 - [ ] QR Code para rastreio
+- [ ] CTA "Outra forma de pagamento" com retry_token (Etapa 5)
