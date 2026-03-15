@@ -321,7 +321,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
           orderId,
           orderNumber,
           cardDeclined: true,
-          retryToken,
+          retryToken: newRetryToken,
         };
         setPaymentResult(result);
         return result;
