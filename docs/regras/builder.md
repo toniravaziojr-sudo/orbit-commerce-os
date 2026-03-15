@@ -3985,16 +3985,21 @@ Browser → Cloudflare Worker (shops-router) → Edge Function (storefront-html)
 
 A única diferença é o parâmetro `?preview=1`, que instrui a Edge Function a ler `draft_content` em vez de `content`.
 
+Para páginas de **template sets** (Home, Categoria, Produto, etc.), o Builder também envia `&templateSetId={id}` na URL de preview. Isso garante que a Edge Function renderize o rascunho do template set correto — mesmo que ele não seja o set publicado.
+
 ### Fluxo do Preview
 
 ```
 1. Usuário clica "Preview" no Builder
-2. Builder abre URL: https://{dominio-lojista}/page/{slug}?preview=1
+2. Builder abre URL: https://{dominio-lojista}/page/{slug}?preview=1&templateSetId={id}
 3. Cloudflare Worker intercepta a requisição
-4. Worker detecta ?preview=1 na URL original
-5. Worker repassa preview=1 para a Edge Function:
-   storefront-html?hostname={host}&path={path}&preview=1
-6. Edge Function lê draft_content (rascunho) em vez de content (publicado)
+4. Worker detecta ?preview=1 (e templateSetId) na URL original
+5. Worker repassa preview=1 e templateSetId para a Edge Function:
+   storefront-html?hostname={host}&path={path}&preview=1&templateSetId={id}
+6. Edge Function:
+   - Se templateSetId fornecido: busca exatamente esse set pelo ID
+   - Se não fornecido: fallback para o set com is_published = true
+   - Em ambos os casos, lê draft_content (rascunho)
 7. HTML renderizado retorna com headers:
    - Cache-Control: no-store, no-cache, must-revalidate
    - X-CC-Cache: BYPASS
