@@ -113,7 +113,7 @@ export function BannerSlidesEditor({ slides = [], onChange }: BannerSlidesEditor
               placeholder="Imagem principal do banner"
               variant="desktop"
             />
-            <p className="text-xs text-muted-foreground">Recomendado: 1920×700px (proporção 21:7)</p>
+            <p className="text-xs text-muted-foreground">Recomendado: 1920×800px (proporção 12:5)</p>
           </div>
 
           {/* Mobile Image */}
@@ -125,7 +125,7 @@ export function BannerSlidesEditor({ slides = [], onChange }: BannerSlidesEditor
               placeholder="Opcional - usa Desktop se vazio"
               variant="mobile"
             />
-            <p className="text-xs text-muted-foreground">Recomendado: 750×420px (proporção 16:9)</p>
+            <p className="text-xs text-muted-foreground">Recomendado: 750×940px (proporção 4:5, vertical)</p>
           </div>
 
           {/* Link URL */}

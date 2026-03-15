@@ -205,8 +205,8 @@ const BANNER_UNIFIED_CONTRACT: WizardBlockContract = {
   requiresImageGeneration: true,
   hasTextGeneration: true,
   imageSpecs: [
-    { key: 'imageDesktop', width: 1920, height: 700, label: 'Banner Desktop' },
-    { key: 'imageMobile', width: 750, height: 420, label: 'Banner Mobile' },
+    { key: 'imageDesktop', width: 1920, height: 800, label: 'Banner Desktop' },
+    { key: 'imageMobile', width: 750, height: 940, label: 'Banner Mobile' },
   ],
 };
 

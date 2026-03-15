@@ -11,8 +11,8 @@ export function sectionToStaticHTML(
   children?: string
 ): string {
   const backgroundColor = (props.backgroundColor as string) || 'transparent';
-  const paddingX = (props.paddingX as number) ?? 16;
-  const paddingY = (props.paddingY as number) ?? 32;
+  const paddingX = (props.paddingX as number) ?? 0;
+  const paddingY = (props.paddingY as number) ?? 0;
   const marginTop = (props.marginTop as number) ?? 0;
   const marginBottom = (props.marginBottom as number) ?? 0;
   const gap = (props.gap as number) ?? 16;
