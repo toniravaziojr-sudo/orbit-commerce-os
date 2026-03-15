@@ -508,6 +508,44 @@ Trocar para outra forma = novo pedido (futuro, Etapa 5)
 Retry no mesmo pedido = APENAS cartão (futuro, Etapa 4)
 ```
 
+### Classificação de Falhas de Pagamento (v8.15.0 — Etapa 3)
+
+O sistema agora diferencia 3 cenários de falha no pagamento:
+
+| Cenário | Pedido criado? | Cobrança na operadora? | Comportamento no checkout | Campo no resultado |
+|---------|---------------|----------------------|--------------------------|-------------------|
+| **A — Falha antes do pedido** | ❌ Não | ❌ Não | Fica no checkout com erro genérico | `success: false` (sem flags) |
+| **B — Erro técnico pós-pedido** | ✅ Sim | ❌ Não chegou | Fica no checkout com "Problema técnico" | `technicalError: true` |
+| **C — Cartão recusado** | ✅ Sim | ✅ Tentou e recusou | Redireciona para Thank You com `status=declined` | `cardDeclined: true` |
+
+#### Campos adicionados ao `PaymentResult` (v8.15.0)
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `cardDeclined` | `boolean` | `true` quando a operadora recusou explicitamente (antifraude, saldo, limite) |
+| `technicalError` | `boolean` | `true` quando houve erro HTTP/rede na chamada à operadora (pedido existe, cobrança não chegou) |
+
+#### Fluxo — Cartão recusado (Cenário C)
+
+1. Pedido criado com sucesso
+2. Cobrança enviada → operadora responde `success: false`
+3. `processPayment` retorna `{ success: false, cardDeclined: true, orderId, orderNumber }`
+4. Checkout limpa carrinho e rascunho
+5. Redireciona para `/obrigado?pedido=XXXX&status=declined`
+
+#### Fluxo — Erro técnico (Cenário B)
+
+1. Pedido criado com sucesso
+2. Chamada à operadora falha (erro HTTP, timeout, crash)
+3. `processPayment` retorna `{ success: false, technicalError: true, orderId, orderNumber }`
+4. Checkout **NÃO** limpa carrinho
+5. Mostra mensagem "Ocorreu um problema técnico ao processar o pagamento. Tente novamente."
+6. Se tentar de novo → cria pedido novo
+
+#### Heurística operacional temporária (Cenário B no admin)
+
+Pedidos do Cenário B podem ser identificados por: `payment_status = 'pending' AND payment_gateway_id IS NULL AND created_at < now() - 10min`. Isso é critério operacional temporário, não verdade de domínio.
+
 ### Automação (v8.2.5) — Expiração de PIX/Boleto pendentes
 
 **Edge function:** `expire-stale-orders` (cron a cada 15 min)
