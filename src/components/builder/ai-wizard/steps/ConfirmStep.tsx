@@ -1,6 +1,6 @@
 // =============================================
 // CONFIRM STEP — Summary of collected data before generation
-// Phase 3.3: Shows mode, scope, and associations
+// Phase 3.3: Shows mode, scope, creative style, and associations
 // =============================================
 
 import { WizardBlockContract, WizardStepConfig } from '@/lib/builder/aiWizardRegistry';
@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Image as ImageIcon, Type, Layers } from 'lucide-react';
 import type { BannerModeData } from './BannerModeStep';
 import type { GenerationScope } from './ScopeSelectStep';
+import type { CreativeStyleData } from './CreativeStyleStep';
 
 interface ConfirmStepProps {
   contract: WizardBlockContract;
@@ -16,14 +17,30 @@ interface ConfirmStepProps {
   blockType: string;
 }
 
+const STYLE_LABELS: Record<string, string> = {
+  product_natural: 'Produto + Cenário',
+  person_interacting: 'Pessoa + Produto',
+  promotional: 'Promocional',
+};
+
+const OUTPUT_MODE_LABELS: Record<string, string> = {
+  editable: 'Editável',
+  complete: 'Criativo Completo',
+};
+
 function summarizeStepData(step: WizardStepConfig, data: unknown): string {
   if (!data) return '—';
 
   switch (step.type) {
     case 'banner-mode-select': {
       const d = data as BannerModeData;
-      if (d.bannerMode === 'single') return 'Banner Único';
-      return `Carrossel (${d.slideCount} slides)`;
+      const modeLabel = d.bannerMode === 'single' ? 'Banner Único' : `Carrossel (${d.slideCount} slides)`;
+      const outputLabel = OUTPUT_MODE_LABELS[d.outputMode] || 'Editável';
+      return `${modeLabel} · ${outputLabel}`;
+    }
+    case 'creative-style-select': {
+      const d = data as CreativeStyleData;
+      return STYLE_LABELS[d.creativeStyle] || d.creativeStyle;
     }
     case 'scope-select': {
       const scope = data as GenerationScope;
@@ -42,7 +59,7 @@ function summarizeStepData(step: WizardStepConfig, data: unknown): string {
       return `${data}`;
     case 'briefing': {
       const text = data as string;
-      return text.length > 60 ? `${text.substring(0, 60)}...` : text;
+      return text.length > 50 ? `${text.substring(0, 50)}…` : text;
     }
     case 'source-select':
       return 'Configurado no bloco';
@@ -59,14 +76,14 @@ export function ConfirmStep({ contract, collectedData, steps, blockType }: Confi
   const modeData = collectedData.bannerMode as BannerModeData | undefined;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 min-w-0 overflow-hidden">
       {/* Summary of choices */}
-      <div className="space-y-2">
+      <div className="space-y-2 min-w-0">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Suas escolhas</p>
         {nonConfirmSteps.map((step) => (
-          <div key={step.id} className="flex justify-between items-center gap-3 py-1.5 border-b border-muted/50 last:border-0 min-w-0">
-            <span className="text-sm text-muted-foreground shrink-0">{step.label}</span>
-            <span className="text-sm font-medium text-right truncate min-w-0">
+          <div key={step.id} className="flex justify-between items-start gap-2 py-1.5 border-b border-muted/50 last:border-0 min-w-0">
+            <span className="text-sm text-muted-foreground shrink-0 max-w-[40%]">{step.label}</span>
+            <span className="text-sm font-medium text-right min-w-0 break-words">
               {summarizeStepData(step, collectedData[step.id])}
             </span>
           </div>

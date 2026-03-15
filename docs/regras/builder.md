@@ -3818,7 +3818,7 @@ Step 5: CONFIRMAÇÃO (confirm)
 | Blocos textuais inalterados | ✅ |
 | Outros blocos wizard (expansão) | ❌ (próxima fase) |
 
-### Motor Visual Compartilhado (Phase 1 — v3.0.0)
+### Motor Visual Compartilhado (Phase 1 — v3.0.1)
 
 Arquitetura genérica reutilizável para geração visual em blocos do builder.
 
@@ -3856,6 +3856,14 @@ Quando `outputMode === 'complete'`:
 - `_renderMode: 'baked'`, `_hideOverlayText: true`
 - `overlayOpacity: 0`, textos limpos
 
+#### Regra: creativeStyle aplica em AMBOS os modos (v3.0.1)
+
+O estilo criativo (person_interacting, promotional) é aplicado tanto no modo editável quanto completo:
+- **Editável**: usa o prompt de estilo + adiciona regras de safe area (zona escura para texto)
+- **Completo**: usa o prompt de estilo + composição fechada sem reservar espaço
+
+Antes da v3.0.1, estilos person_interacting e promotional só eram aplicados em complete mode. Isso causava o bug onde o usuário escolhia "Pessoa + Produto" mas a imagem gerada ignorava essa escolha no modo editável.
+
 #### Adapters implementados
 
 | Adapter | Bloco | Slots | Status |
@@ -3877,14 +3885,17 @@ Step 2: ESTILO CRIATIVO (creative-style-select)
   Produto+Cenário / Pessoa+Produto / Promocional
   + config por estilo (ambiente, ação, tom, intensidade)
 
-Step 3: ESCOPO (scope-select)
+Step 3: ESCOPO (scope-select) [v3.0.1: fix initial value]
   Imagens / Textos / Ambos
+  useEffect seta valor inicial 'all' no mount para evitar botão travado
 
 Step 4: VÍNCULO (banner-association, por slide)
 
 Step 5: BRIEFING
 
-Step 6: CONFIRMAÇÃO
+Step 6: CONFIRMAÇÃO [v3.0.1: fix overflow + mostra creativeStyle]
+  Mostra resumo com break-words e overflow correto
+  Inclui estilo criativo e outputMode no resumo
 ```
 
 ### Integração no PropsEditor

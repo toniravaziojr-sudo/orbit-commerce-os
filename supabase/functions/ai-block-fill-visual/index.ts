@@ -461,7 +461,12 @@ serve(async (req) => {
     const creativeStyle: ImageStyle = bannerModeData?.creativeStyle || 'product_natural';
     const styleConfig: Record<string, unknown> = bannerModeData?.styleConfig || {};
 
-    console.log(`[ai-block-fill-visual] outputMode=${outputMode} creativeStyle=${creativeStyle}`);
+    // Debug: log full payload to verify propagation
+    console.log(`[ai-block-fill-visual] PAYLOAD: blockType=${blockType} mode=${mode} scope=${scope} outputMode=${outputMode} creativeStyle=${creativeStyle}`);
+    console.log(`[ai-block-fill-visual] styleConfig=${JSON.stringify(styleConfig)}`);
+    console.log(`[ai-block-fill-visual] briefing="${briefing || '(none)'}"`);
+    console.log(`[ai-block-fill-visual] bannerModeData=${JSON.stringify(bannerModeData)}`);
+    console.log(`[ai-block-fill-visual] creativeStyleRaw=${JSON.stringify(collectedData?.creativeStyle)}`);
 
     // Resolve association context
     let productCtx: ProductContext | null = null;

@@ -187,8 +187,9 @@ ${hasDiscount ? '- A atmosfera deve transmitir OPORTUNIDADE e URGÊNCIA: ilumina
 - PENSE como um diretor de arte: qual cenário, iluminação e composição fariam alguém parar e olhar?`;
   }
 
-  // For COMPLETE mode with person_interacting or promotional, use the style prompt as base
-  if (isComplete && (creativeStyle === 'person_interacting' || creativeStyle === 'promotional')) {
+  // For person_interacting or promotional style, use the style-specific prompt builder
+  // This applies to BOTH editable and complete modes
+  if (creativeStyle === 'person_interacting' || creativeStyle === 'promotional') {
     const productName = product?.name || category?.name || 'Produto';
     const basePrompt = buildPromptForStyle({
       productName,
@@ -198,11 +199,21 @@ ${hasDiscount ? '- A atmosfera deve transmitir OPORTUNIDADE e URGÊNCIA: ilumina
       format: `${slot.width}x${slot.height}`,
     });
 
-    const compositionNote = slot.composition.includes('desktop')
+    const isDesktopSlot = slot.composition.includes('desktop') || slot.composition === 'horizontal';
+    const compositionNote = isDesktopSlot
       ? `PROPORÇÃO: ${slot.width}x${slot.height}px (horizontal widescreen). Composição pensada para tela larga.`
       : `PROPORÇÃO: ${slot.width}x${slot.height}px (vertical retrato). Composição pensada para tela de celular.`;
 
-    return `${basePrompt}\n\n${compositionNote}\n\n${storeIdentity}\n${briefingLine}\n${slideNote}\n${campaignDirective}\n\nMODO CRIATIVO COMPLETO:\n- Esta é uma peça publicitária FINAL. Composição fechada, sem reservar espaço vazio para texto.\n- A imagem deve funcionar como anúncio pronto para e-commerce.\n- Se incluir texto na imagem, deve ser visualmente integrado e legível.`;
+    if (isComplete) {
+      return `${basePrompt}\n\n${compositionNote}\n\n${storeIdentity}\n${briefingLine}\n${slideNote}\n${campaignDirective}\n\nMODO CRIATIVO COMPLETO:\n- Esta é uma peça publicitária FINAL. Composição fechada, sem reservar espaço vazio para texto.\n- A imagem deve funcionar como anúncio pronto para e-commerce.\n- Se incluir texto na imagem, deve ser visualmente integrado e legível.`;
+    } else {
+      // EDITABLE mode with person/promotional: keep style but add safe area rules
+      const safeAreaRule = isDesktopSlot
+        ? `COMPOSIÇÃO (EDITÁVEL - DESKTOP):\n- Os ~50-60% ESQUERDOS DEVEM ter fundo mais escuro ou gradiente natural para receber texto branco sobreposto.\n- A pessoa/produto pode ocupar o lado DIREITO.\n- Transição suave entre zona escura e zona da cena.`
+        : `COMPOSIÇÃO (EDITÁVEL - MOBILE):\n- O TERÇO SUPERIOR (~35% da altura) DEVE ser mais escuro/gradiente para receber texto branco sobreposto.\n- A pessoa/produto pode ocupar o CENTRO e parte inferior.\n- O TERÇO INFERIOR deve ter espaço para um botão CTA.`;
+
+      return `${basePrompt}\n\n${compositionNote}\n\n${storeIdentity}\n${briefingLine}\n${slideNote}\n${campaignDirective}\n\nMODO EDITÁVEL (FUNDO PARA OVERLAY):\n- Textos serão adicionados em HTML POR CIMA da imagem — NÃO inclua texto na imagem.\n${safeAreaRule}\n\nPROIBIÇÕES:\n- ❌ NENHUM texto, letra, número, logo ou badge na imagem\n- ❌ NENHUM elemento gráfico/UI (botões, bordas, molduras)`;
+    }
   }
 
   // Composition rules based on slot composition hint + output mode
