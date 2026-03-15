@@ -257,8 +257,8 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
 
         orderId = orderData.order_id;
         orderNumber = orderData.order_number;
-        const retryToken = orderData.retry_token || undefined;
-        console.log('[Checkout] Step 1 OK - Order:', orderId, orderNumber, retryToken ? '(retry_token generated)' : '');
+        const newRetryToken = orderData.retry_token || undefined;
+        console.log('[Checkout] Step 1 OK - Order:', orderId, orderNumber, newRetryToken ? '(retry_token generated)' : '');
 
       // 2. Process payment via active gateway (Pagar.me or Mercado Pago)
       const gatewayFunction = activeGateway === 'mercadopago' ? 'mercadopago-create-charge' : 'pagarme-create-charge';
