@@ -482,7 +482,7 @@ Sem normalização, pedidos com status legado exibem badges errados (ex: pedido 
 | **Localização** | `src/components/orders/PaymentAttemptsCard.tsx` |
 | **Contexto** | Sidebar dos detalhes do pedido, entre "Pagamento" e "Remessa" |
 | **Descrição** | Exibe o log completo de tentativas de pagamento para um pedido |
-| **Comportamento** | 1. Busca registros de `payment_transactions` filtrados por `order_id`. 2. Exibe cada tentativa com: ícone de status, badge, data/hora, método (PIX/Cartão/Boleto), operadora (Pagar.me/Mercado Pago/PagBank), valor, código da transação (monospace) e mensagem de erro (se houver). 3. Badge com contagem total de tentativas. 4. Ordenado por data descendente (mais recente primeiro). |
+| **Comportamento** | 1. Busca registros de `payment_transactions` filtrados por `order_id`. 2. Exibe cada tentativa com: ícone de status, badge, data/hora, método (PIX/Cartão/Boleto), operadora (Pagar.me/Mercado Pago/PagBank), valor (**dividido por 100** pois o banco armazena em centavos), código da transação (monospace) e mensagem de erro (se houver). 3. Badge com contagem total de tentativas. 4. Ordenado por data descendente (mais recente primeiro). |
 | **Condições** | Só renderiza se houver pelo menos 1 tentativa registrada |
 | **Visual** | Card com ícone History, separadores entre tentativas, cores semânticas por status (verde=aprovado, vermelho=recusado, cinza=pendente) |
 | **Afeta** | Nenhum outro componente |
