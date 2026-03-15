@@ -242,6 +242,9 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
             } : undefined,
             // Shipping quote ID for server-side validation (Security Plan v3.1)
             shipping_quote_id: shippingQuoteId || undefined,
+            // Step 5: Link to original declined order
+            retry_from_order_id: retryFromOrderId || undefined,
+            retry_token: retryToken || undefined,
             // Meta CAPI is now handled client-side via marketing-capi-track edge function
             // No need to pass browser identifiers in order creation
           },
