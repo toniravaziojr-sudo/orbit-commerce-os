@@ -3,6 +3,7 @@
 // Phase 3.3: Scope decision inside the wizard
 // =============================================
 
+import { useEffect } from 'react';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Image as ImageIcon, Type } from 'lucide-react';
@@ -19,11 +20,19 @@ interface ScopeSelectStepProps {
 }
 
 export function ScopeSelectStep({
-  value = 'all',
+  value,
   onChange,
   hasImages = true,
   hasTexts = true,
 }: ScopeSelectStepProps) {
+  // Set initial value on mount so validation passes immediately
+  useEffect(() => {
+    if (value === undefined) {
+      onChange('all');
+    }
+  }, []);
+
+  const effectiveValue = value || 'all';
   const imagesChecked = value === 'images' || value === 'all';
   const textsChecked = value === 'texts' || value === 'all';
 
