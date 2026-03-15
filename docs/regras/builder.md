@@ -4077,3 +4077,75 @@ Atualmente, qualquer pessoa com a URL `?preview=1` pode ver o rascunho. Como mel
 4. Token expirado → fallback para conteúdo publicado
 
 **Status:** Planejado, não implementado.
+
+---
+
+## [REMOVIDO] Inserção de Blocos Direta no Canvas (v8.9.0)
+
+> **Removido em:** 2026-03-15
+
+Os botões "Adicionar bloco" (AddBlockButton) que apareciam entre os blocos dentro do canvas do builder foram **removidos completamente**. A funcionalidade era redundante com o menu lateral esquerdo de adição de blocos e com a reordenação via drag-and-drop.
+
+### Motivo da Remoção
+
+| Problema | Impacto |
+|----------|---------|
+| Redundância com menu lateral | Confusão do usuário sobre qual usar |
+| Faixa visual entre blocos | Atrapalhava a visualização real do layout, especialmente banners |
+| Desalinhamento WYSIWYG | O canvas não refletia a aparência real da loja |
+
+### Como Adicionar Blocos (método único)
+
+1. Menu lateral esquerdo → seção "Blocos"
+2. Clicar no bloco desejado para adicioná-lo
+3. Reordenar via drag-and-drop no menu lateral
+
+---
+
+## Correção de Dimensão do Banner Mobile no Builder (v8.9.0)
+
+> **Corrigido em:** 2026-03-15
+
+O banner (HeroBannerBlock) no builder agora respeita as proporções corretas para cada viewport simulado:
+
+| Viewport Builder | Proporção |
+|------------------|-----------|
+| Desktop | `aspect-[12/5]` (largura × altura) |
+| Mobile | `aspect-[4/5]` (mais alto, formato retrato) |
+
+Antes, o builder usava CSS media queries reais (`md:aspect-[12/5]`), que não funcionavam dentro do canvas simulado. Agora usa a propriedade `context.viewport` do builder para determinar a proporção corretamente.
+
+---
+
+## Tamanho dos Botões do Widget de Atendimento (v8.9.0)
+
+> **Implementado em:** 2026-03-15
+
+Os botões flutuantes de WhatsApp e Chat possuem tamanhos responsivos configuráveis via **Configurações do Tema > Atendimento > Tamanho dos botões**.
+
+### Opções de Tamanho
+
+| Tamanho | Desktop (px) | Mobile (px) | Ícone Desktop | Ícone Mobile |
+|---------|-------------|-------------|---------------|--------------|
+| Pequeno | 44 | 32 | 20 | 16 |
+| Médio (padrão) | 56 | 39 | 24 | 18 |
+| Grande | 68 | 48 | 28 | 22 |
+
+### Regras
+
+- O tamanho **Médio** é o padrão
+- Mobile é ~30% menor que desktop para não ocupar espaço excessivo
+- A configuração se aplica a ambos os botões (WhatsApp e Chat) simultaneamente
+- A redução/aumento é proporcional e diferente entre mobile e desktop
+- Implementado via CSS responsivo (`@media max-width: 767px`) na Edge Function `storefront-html`
+
+### Config
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Config |
+| **Localização** | `src/hooks/useThemeSettings.ts` → `SupportWidgetConfig.buttonSize` |
+| **UI** | `src/components/builder/theme-settings/SupportSettings.tsx` |
+| **Rendering** | `supabase/functions/storefront-html/index.ts` → `generateSupportWidgetHtml()` |
+| **Valores** | `'small'` \| `'medium'` \| `'large'` |
+| **Padrão** | `'medium'` |
