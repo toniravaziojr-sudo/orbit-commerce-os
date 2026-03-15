@@ -169,6 +169,17 @@ export function useAIWizardGenerate({
         }
       }
 
+      // Debug: log the full payload being sent
+      console.log('[useAIWizardGenerate] Sending to backend:', JSON.stringify({
+        tenantId,
+        blockType,
+        mode,
+        scope,
+        bannerMode: backendData.bannerMode,
+        creativeStyle: backendData.creativeStyle,
+        briefing: backendData.briefing,
+      }, null, 2));
+
       const { data, error } = await supabase.functions.invoke('ai-block-fill-visual', {
         body: {
           tenantId,
