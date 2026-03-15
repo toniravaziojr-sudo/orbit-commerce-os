@@ -104,10 +104,15 @@ export function BannerBlock({
     ? context.viewport === 'mobile' 
     : realIsMobile;
 
+  // Aspect ratio: in builder mode use explicit viewport state; in storefront use CSS media query
+  const aspectClass = isBuilderMode
+    ? (isMobile ? 'aspect-[4/5]' : 'aspect-[12/5]')
+    : 'aspect-[4/5] md:aspect-[12/5]';
+
   // Safe slides array
   const safeSlides = Array.isArray(slides) ? slides : [];
   const isCarousel = mode === 'carousel' && safeSlides.length > 0;
-  
+
   // Autoplay for carousel
   useEffect(() => {
     if (!isCarousel || safeSlides.length <= 1 || !autoplaySeconds) return;

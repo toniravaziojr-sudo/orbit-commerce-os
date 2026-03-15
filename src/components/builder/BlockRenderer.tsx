@@ -15,7 +15,6 @@ import { isBlockRequired, getRequiredBlockInfo, canDeleteBlock } from '@/lib/bui
 import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { AddBlockButton } from './AddBlockButton';
 import { BlockQuickActions } from './BlockQuickActions';
 import { BlockErrorBoundary } from './BlockErrorBoundary';
 
