@@ -225,7 +225,7 @@ export function BannerBlock({
                 fetchPriority="high"
                 decoding="async"
                 width={1920}
-                height={686}
+                height={800}
               />
             </picture>
           )
