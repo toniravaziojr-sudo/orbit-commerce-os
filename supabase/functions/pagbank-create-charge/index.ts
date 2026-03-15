@@ -299,11 +299,20 @@ serve(async (req) => {
 
     // Determine status
     let status = 'pending';
+    let errorMessage: string | null = null;
     if (pagbankResponse.charges?.length > 0) {
-      const chargeStatus = pagbankResponse.charges[0].status;
+      const charge = pagbankResponse.charges[0];
+      const chargeStatus = charge.status;
       if (chargeStatus === 'PAID') status = 'paid';
-      else if (chargeStatus === 'DECLINED') status = 'failed';
+      else if (chargeStatus === 'DECLINED') {
+        status = 'failed';
+        errorMessage = charge.payment_response?.message || charge.payment_response?.reference || 'Pagamento recusado pelo PagBank';
+      }
       else if (chargeStatus === 'CANCELED') status = 'cancelled';
+    }
+    // Also check for API-level validation errors (e.g. invalid CPF)
+    if (pagbankResponse.error_messages?.length > 0) {
+      errorMessage = pagbankResponse.error_messages.map((e: any) => e.description || e.message).join('; ');
     }
 
     // Save transaction to database
@@ -317,6 +326,7 @@ serve(async (req) => {
       status: status,
       amount: payload.amount,
       currency: 'BRL',
+      error_message: errorMessage,
       payment_data: paymentData,
     };
 

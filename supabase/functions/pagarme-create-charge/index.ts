@@ -284,6 +284,16 @@ serve(async (req) => {
     // Note: checkout_id is NOT used here because it has FK to checkouts table
     // and we're now linking via order_id (FK to orders table)
     const charge = firstCharge || pagarmeResponse.charges?.[0];
+    // Build error_message from charge failure details
+    let errorMessage: string | null = null;
+    if (firstCharge?.status === 'failed') {
+      const lastTx = firstCharge.last_transaction;
+      const gatewayResponse = lastTx?.gateway_response;
+      const acquirerMessage = lastTx?.acquirer_message || lastTx?.reason || '';
+      const gatewayMessage = gatewayResponse?.errors?.map((e: any) => e.message).join(', ') || '';
+      errorMessage = acquirerMessage || gatewayMessage || 'Pagamento recusado pela operadora';
+    }
+
     const transactionData = {
       tenant_id: payload.tenant_id,
       order_id: payload.order_id || null, // Link to order for get-order lookup
@@ -294,6 +304,7 @@ serve(async (req) => {
       status: charge?.status || 'pending',
       amount: chargeAmountCents,
       currency: 'BRL',
+      error_message: errorMessage,
       payment_data: {
         order_id: pagarmeResponse.id,
         charge_id: charge?.id,
