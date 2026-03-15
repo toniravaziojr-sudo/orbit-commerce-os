@@ -87,7 +87,7 @@ export function HeroBannerBlock({
       <div className={cn(
         'relative bg-muted/30 flex items-center justify-center',
         bannerWidth === 'full' ? 'w-full' : 'max-w-7xl mx-auto',
-        'aspect-[21/9] md:aspect-[21/7]'
+        'aspect-[4/5] md:aspect-[12/5]'
       )}>
         <div className="text-center text-muted-foreground">
           <ImageIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
@@ -116,7 +116,7 @@ export function HeroBannerBlock({
       bannerWidth === 'full' ? 'w-full' : 'max-w-7xl mx-auto'
     )}>
       {/* Banner Image - Builder uses state-based selection; Storefront uses <picture> */}
-      <div className="relative aspect-[21/9] md:aspect-[21/7]">
+      <div className="relative aspect-[4/5] md:aspect-[12/5]">
         {effectiveDesktop ? (
           isBuilderMode ? (
             // Builder mode: select image based on viewport state
@@ -139,7 +139,7 @@ export function HeroBannerBlock({
                 decoding="sync"
                 loading="eager"
                 width={1920}
-                height={686}
+                height={800}
               />
             </picture>
           )

@@ -104,15 +104,16 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
 
   let ctaHtml = '';
   if (hasCTA) {
-    ctaHtml = `<div style="position:relative;z-index:2;text-align:${textAlign};display:flex;flex-direction:column;align-items:${justifyContent};gap:12px;padding:24px;max-width:800px;">
-      ${currentTitle ? `<h2 style="font-size:clamp(24px,5vw,48px);font-weight:700;color:${textColor};font-family:var(--sf-heading-font);line-height:1.2;">${escapeHtml(currentTitle)}</h2>` : ''}
-      ${currentSubtitle ? `<p style="font-size:clamp(14px,2.5vw,20px);color:${textColor};opacity:0.9;">${escapeHtml(currentSubtitle)}</p>` : ''}
-      ${currentButtonText ? `<a href="${escapeHtml(currentButtonUrl || currentLinkUrl || '#')}" style="display:inline-block;margin-top:8px;padding:12px 32px;background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};border-radius:8px;font-weight:600;font-size:16px;text-decoration:none;transition:opacity 0.2s;">${escapeHtml(currentButtonText)}</a>` : ''}
+    const maxWidthStyle = alignment !== 'center' ? 'max-width:55%;' : '';
+    ctaHtml = `<div style="position:relative;z-index:2;text-align:${textAlign};display:flex;flex-direction:column;align-items:${justifyContent};gap:12px;padding:24px 64px;${maxWidthStyle}">
+      ${currentTitle ? `<h2 style="font-size:clamp(28px,5vw,60px);font-weight:700;color:${textColor};font-family:var(--sf-heading-font);line-height:1.1;">${escapeHtml(currentTitle)}</h2>` : ''}
+      ${currentSubtitle ? `<p style="font-size:clamp(16px,2.5vw,24px);color:${textColor};opacity:0.9;margin-top:8px;">${escapeHtml(currentSubtitle)}</p>` : ''}
+      ${currentButtonText ? `<a href="${escapeHtml(currentButtonUrl || currentLinkUrl || '#')}" style="display:inline-block;margin-top:12px;padding:16px 40px;background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};border-radius:8px;font-weight:600;font-size:18px;text-decoration:none;transition:opacity 0.2s;">${escapeHtml(currentButtonText)}</a>` : ''}
     </div>`;
   }
 
   const aspectClass = needsAspect ? 'sf-banner-auto' : '';
-  const aspectStyleTag = needsAspect ? '<style>.sf-banner-auto{aspect-ratio:21/9;}@media(min-width:768px){.sf-banner-auto{aspect-ratio:21/7;}}</style>' : '';
+  const aspectStyleTag = needsAspect ? '<style>.sf-banner-auto{aspect-ratio:4/5;}@media(min-width:768px){.sf-banner-auto{aspect-ratio:12/5;}}</style>' : '';
 
   const wrapperTag = currentLinkUrl && !hasCTA ? 'a' : 'div';
   const wrapperHref = currentLinkUrl && !hasCTA ? ` href="${escapeHtml(currentLinkUrl)}"` : '';
@@ -178,10 +179,11 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
 
     let ctaHtml = '';
     if (hasCTA) {
-      ctaHtml = `<div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:${justifyContent};text-align:${textAlign};padding:24px;z-index:2;max-width:800px;${alignment === 'center' ? 'margin:0 auto;' : ''}">
-        ${slideTitle ? `<h2 style="font-size:clamp(24px,5vw,48px);font-weight:700;color:${textColor};font-family:var(--sf-heading-font);line-height:1.2;">${escapeHtml(slideTitle)}</h2>` : ''}
-        ${slideSubtitle ? `<p style="font-size:clamp(14px,2.5vw,20px);color:${textColor};opacity:0.9;margin-top:8px;">${escapeHtml(slideSubtitle)}</p>` : ''}
-        ${slideButtonText ? `<a href="${escapeHtml(slideButtonUrl)}" style="display:inline-block;margin-top:12px;padding:12px 32px;background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};border-radius:8px;font-weight:600;font-size:16px;text-decoration:none;transition:opacity 0.2s;">${escapeHtml(slideButtonText)}</a>` : ''}
+      const maxWidthCarousel = alignment !== 'center' ? 'max-width:55%;' : '';
+      ctaHtml = `<div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:${justifyContent};text-align:${textAlign};padding:24px 64px;z-index:2;${maxWidthCarousel}${alignment === 'center' ? 'margin:0 auto;max-width:800px;' : ''}">
+        ${slideTitle ? `<h2 style="font-size:clamp(28px,5vw,60px);font-weight:700;color:${textColor};font-family:var(--sf-heading-font);line-height:1.1;">${escapeHtml(slideTitle)}</h2>` : ''}
+        ${slideSubtitle ? `<p style="font-size:clamp(16px,2.5vw,24px);color:${textColor};opacity:0.9;margin-top:8px;">${escapeHtml(slideSubtitle)}</p>` : ''}
+        ${slideButtonText ? `<a href="${escapeHtml(slideButtonUrl)}" style="display:inline-block;margin-top:12px;padding:16px 40px;background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};border-radius:8px;font-weight:600;font-size:18px;text-decoration:none;transition:opacity 0.2s;">${escapeHtml(slideButtonText)}</a>` : ''}
       </div>`;
     }
 
@@ -237,7 +239,7 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
   })();</script>`;
 
   return `<div style="position:relative;overflow:hidden;${widthStyle}">
-    <style>.${carouselId}-wrap{aspect-ratio:21/9;}@media(min-width:768px){.${carouselId}-wrap{aspect-ratio:21/7;}}</style>
+    <style>.${carouselId}-wrap{aspect-ratio:4/5;}@media(min-width:768px){.${carouselId}-wrap{aspect-ratio:12/5;}}</style>
     <div class="${carouselId}-wrap" style="position:relative;">
       ${slidesHtml}
     </div>

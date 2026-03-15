@@ -160,7 +160,7 @@ export function BannerBlock({
       <div className={cn(
         'relative bg-muted/30 flex items-center justify-center',
         bannerWidth === 'full' ? 'w-full' : 'max-w-7xl mx-auto',
-        height === 'auto' ? 'aspect-[21/9] md:aspect-[21/7]' : ''
+        height === 'auto' ? 'aspect-[4/5] md:aspect-[12/5]' : ''
       )}
       style={{ minHeight: height !== 'auto' ? heightMap[height] : undefined }}
       >
@@ -202,7 +202,7 @@ export function BannerBlock({
       {/* Background Image */}
       <div className={cn(
         'relative',
-        height === 'auto' ? 'aspect-[21/9] md:aspect-[21/7]' : 'w-full h-full'
+        height === 'auto' ? 'aspect-[4/5] md:aspect-[12/5]' : 'w-full h-full'
       )}
       style={{ minHeight: height !== 'auto' ? heightMap[height] : undefined }}
       >
@@ -225,7 +225,7 @@ export function BannerBlock({
                 fetchPriority="high"
                 decoding="async"
                 width={1920}
-                height={686}
+                height={800}
               />
             </picture>
           )
@@ -244,13 +244,14 @@ export function BannerBlock({
         {/* CTA Content */}
         {hasCTA && (
           <div className={cn(
-            "absolute inset-0 flex flex-col justify-center px-4 py-12 max-w-4xl mx-auto",
+            "absolute inset-0 flex flex-col justify-center px-6 md:px-16 py-12 z-10",
             alignClass,
-            bannerWidth === 'contained' ? 'mx-auto' : ''
-          )}>
+          )}
+          style={{ maxWidth: alignment === 'center' ? '100%' : '55%' }}
+          >
             {currentTitle && (
               <h2 
-                className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 z-10"
+                className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4"
                 style={{ color: textColor }}
               >
                 {currentTitle}
@@ -258,7 +259,7 @@ export function BannerBlock({
             )}
             {currentSubtitle && (
               <p 
-                className="text-lg md:text-xl mb-6 opacity-90 z-10"
+                className="text-xl md:text-2xl mb-8 opacity-90"
                 style={{ color: textColor }}
               >
                 {currentSubtitle}
@@ -278,7 +279,7 @@ export function BannerBlock({
                 `}</style>
                 <a 
                   href={currentButtonUrl || '#'} 
-                  className={`${btnId} inline-block px-8 py-3 rounded-lg font-semibold transition-colors z-10`}
+                  className={`${btnId} inline-block px-10 py-4 rounded-lg font-semibold text-lg transition-colors`}
                 >
                   {currentButtonText}
                 </a>

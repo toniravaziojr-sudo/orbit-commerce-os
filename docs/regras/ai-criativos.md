@@ -1,8 +1,8 @@
 # Padrão de Qualidade Criativa — IA
 
-> Versão: 1.0.0
+> Versão: 2.0.0 (Banner v2)
 > Última atualização: 2026-03-15
-> Status: Track A implementado, Track B documentado (futuro)
+> Status: Track A implementado, Banner v2 implementado, Track B documentado (futuro)
 
 ---
 
@@ -14,84 +14,131 @@ Este documento define o **padrão de qualidade** que todo criativo gerado deve a
 
 ---
 
-## 2. Track A — Correções Implementadas (v2.3.0)
+## 2. Banner v2 — Proporções e Render
+
+### 2.1 Proporções (atualizado v2.0.0)
+
+| Contexto | Proporção | Dimensão Gerada | Aspect Ratio CSS |
+|----------|-----------|------------------|------------------|
+| Banner Desktop | 12:5 | 1920×800 | `aspect-[12/5]` |
+| Banner Mobile | 4:5 | 750×940 | `aspect-[4/5]` |
+
+### 2.2 Arquivos com aspect-ratio
+
+| Arquivo | Classe/Style |
+|---------|-------------|
+| `BannerBlock.tsx` | `aspect-[4/5] md:aspect-[12/5]` |
+| `HeroBannerBlock.tsx` | `aspect-[4/5] md:aspect-[12/5]` |
+| `banner.ts` (compiler) | `.sf-banner-auto{aspect-ratio:4/5;}@media(min-width:768px){…12/5}` |
+| `hero-banner.ts` (compiler) | `.sf-hero-banner{aspect-ratio:4/5;}@media(min-width:768px){…12/5}` |
+
+### 2.3 Tipografia do Banner (v2.0.0)
+
+| Elemento | React Classes | Compiler Inline |
+|----------|---------------|-----------------|
+| Headline | `text-4xl md:text-5xl lg:text-6xl` | `clamp(28px,5vw,60px)` |
+| Subtitle | `text-xl md:text-2xl` | `clamp(16px,2.5vw,24px)` |
+| CTA Button | `px-10 py-4 text-lg` | `padding:16px 40px; font-size:18px` |
+| Padding lateral | `px-6 md:px-16` | `padding:24px 64px` |
+| Área de texto | `maxWidth: 55%` (quando left/right) | `max-width:55%` |
+
+---
+
+## 3. Track A — Correções Implementadas (v2.3.0)
 
 ### A1. Copy per-slide no Carousel
 - **Antes**: Todos os slides usavam contexto do slide 0.
 - **Depois**: Cada slide recebe seu próprio contexto (produto/categoria) no prompt.
-- **Arquivo**: `supabase/functions/ai-block-fill-visual/index.ts`
-- **Como funciona**: `generateTexts` recebe `slideContexts[]` com dados individuais. O prompt lista `SLIDE 1: ...`, `SLIDE 2: ...` etc.
 
 ### A2. CTA/Overlay no Compilador Estático do Carousel
 - **Antes**: O HTML público do carousel renderizava apenas imagem + dots.
-- **Depois**: Renderiza overlay + título + subtítulo + botão por slide (paridade com React `BannerBlock.tsx`).
-- **Arquivo**: `supabase/functions/_shared/block-compiler/blocks/banner.ts`
+- **Depois**: Renderiza overlay + título + subtítulo + botão por slide.
 
 ### A3. Fallback de Modelo Melhorado
-- **Antes**: `gemini-3-pro-image-preview` → `gemini-2.5-flash-image`
-- **Depois**: `gemini-3-pro-image-preview` → `gemini-3.1-flash-image-preview` → `gemini-2.5-flash-image`
-- **Arquivo**: `supabase/functions/ai-block-fill-visual/index.ts`
+- `gemini-3-pro-image-preview` → `gemini-3.1-flash-image-preview` → `gemini-2.5-flash-image`
 
 ### A4. Prompt de Copy com Tom Contextual
-- **Antes**: Um único tom genérico para todos os banners.
-- **Depois**: Detecção automática de tom: promocional, premium, categoria, institucional, produto.
-- **Função**: `detectCreativeTone()` analisa contexto (preço, compare_at_price, briefing, tipo de associação).
-- **Regras adicionadas**:
-  - Nunca repetir verbo inicial entre slides
-  - CTA específico ao produto (não "Comprar agora" genérico)
-  - Variação obrigatória de vocabulário
+- Detecção automática de tom: promocional, premium, categoria, institucional, produto.
+- Variação obrigatória de vocabulário entre slides.
 
 ---
 
-## 3. Padrão Global de Qualidade (Banner)
+## 4. Banner v2 — Geração Criativa (v2.0.0)
 
-### 3.1 Critérios de Aprovação
+### 4.1 Detecção de Campanha
+
+O `buildBannerImagePrompt` detecta automaticamente campanhas sazonais e ofertas no briefing:
+
+| Gatilho | Exemplo | Efeito na Imagem |
+|---------|---------|------------------|
+| Campanha sazonal | "páscoa", "natal", "black friday" | Elementos temáticos sutis no cenário |
+| Oferta/desconto | "35% off", "desconto", "promoção" | Atmosfera de urgência, cores vibrantes |
+| Ambos | "Páscoa até 35% OFF" | Cenário temático + urgência |
+
+### 4.2 Composição Obrigatória
+
+```
+DESKTOP (12:5 — 1920×800)
+┌──────────────────────────────────────────────────────┐
+│  ████████████████████████████     │                   │
+│  █ SAFE AREA TEXTO (60-70%) █    │  PRODUTO (≤30%)   │
+│  █ Gradiente escuro natural  █   │  Bem iluminado     │
+│  █ Overlay ≥ 35%             █   │  Contextual        │
+│  █ Headline + Subtitle + CTA █   │  Proporcionado     │
+│  ████████████████████████████     │                   │
+└──────────────────────────────────────────────────────┘
+
+MOBILE (4:5 — 750×940)
+┌──────────────────┐
+│ ██████████████████│
+│ █ SAFE AREA (35%)█│  ← Topo escuro: headline + subtitle
+│ ██████████████████│
+│                   │
+│    PRODUTO        │  ← Centro (≤40% da altura)
+│    Proporcionado  │
+│                   │
+│ ██████████████████│
+│ █ CTA AREA       █│  ← Base: botão
+│ ██████████████████│
+└──────────────────┘
+```
+
+### 4.3 Briefing como Direção Criativa Primária
+
+Quando o usuário fornece briefing (ex: "Banners para campanha de páscoa com até 35% de desconto"):
+- **Imagem**: O cenário reflete o tema da campanha (elementos visuais temáticos sutis)
+- **Copy**: A headline ou subtitle DEVE conter a informação de oferta/campanha
+- **CTA**: Deve ser específico ao contexto da campanha
+
+### 4.4 Regras de Enquadramento do Produto
+
+| Regra | Desktop | Mobile |
+|-------|---------|--------|
+| Largura/altura máxima do produto | ≤30% da largura | ≤40% da altura |
+| Posição | Terço direito | Centro vertical |
+| Corte | Nunca cortado | Nunca cortado |
+| Proporção | Integrado ao cenário | Integrado ao cenário |
+
+---
+
+## 5. Padrão Global de Qualidade (Banner)
+
+### 5.1 Critérios de Aprovação
 
 | # | Critério | Regra |
 |---|----------|-------|
 | 1 | Produto reconhecível | Se vinculado a produto, deve ser visualmente identificável |
-| 2 | Enquadramento desktop | Produto no terço direito (~30-40%), safe area escura à esquerda (~60%) |
-| 3 | Enquadramento mobile | Produto centro-inferior (~50-60%), safe area escura no topo |
+| 2 | Enquadramento desktop | Produto no terço direito (≤30%), safe area escura à esquerda (≥60%) |
+| 3 | Enquadramento mobile | Produto centro (≤40% altura), safe area escura no topo |
 | 4 | Headline | ≤30 chars, verbo de ação ou benefício, nome real do produto |
 | 5 | Subtitle | ≤60 chars, complementar, sem repetir headline |
 | 6 | CTA | ≤15 chars, ação específica ao contexto |
 | 7 | Overlay | ≥35% quando há texto sobre imagem |
 | 8 | Sem texto na imagem | Nenhuma letra, número ou logo gerado na imagem |
 | 9 | Desktop/Mobile coerentes | Mesmo produto, mesma atmosfera, composição adaptada |
-| 10 | Sem fundo chapado | Sempre contextual com profundidade |
+| 10 | Banner = peça comercial | Deve parecer campanha real, não foto de catálogo |
 
-### 3.2 Proporções
-
-| Contexto | Proporção | Dimensão |
-|----------|-----------|----------|
-| Banner Desktop | 21:7 | 1920×700 |
-| Banner Mobile | ~750×420 | 750×420 |
-
-### 3.3 Safe Areas
-
-```
-DESKTOP (21:7)
-┌──────────────────────────────────────────────────────┐
-│  ████████████████████████     │                      │
-│  █ SAFE AREA TEXTO (60%) █   │  PRODUTO (30-40%)    │
-│  █ Gradiente escuro       █  │  Bem iluminado        │
-│  █ Overlay ≥ 35%          █  │  Contextual           │
-│  ████████████████████████     │                      │
-└──────────────────────────────────────────────────────┘
-
-MOBILE (750×420)
-┌──────────────────┐
-│ ██████████████████│
-│ █ SAFE AREA (40%)█│  ← Topo escuro para texto
-│ ██████████████████│
-│                   │
-│    PRODUTO        │  ← Centro-inferior
-│    (50-60%)       │
-│                   │
-└──────────────────┘
-```
-
-### 3.4 Tons Criativos (Detecção Automática)
+### 5.2 Tons Criativos (Detecção Automática)
 
 | Tom | Gatilho | Instrução |
 |-----|---------|-----------|
@@ -103,20 +150,17 @@ MOBILE (750×420)
 
 ---
 
-## 4. Track B — Padrão Futuro (Não Implementado)
+## 6. Track B — Padrão Futuro (Não Implementado)
 
-### 4.1 Presets Criativos no Wizard
+### 6.1 Presets Criativos no Wizard
 - `hero-product`, `hero-promo`, `hero-category`, `hero-brand`, `hero-premium`
-- Detecção automática pelo backend, sem step adicional no wizard
 - **Status**: Apenas documentado, não implementado
 
-### 4.2 Validação Pós-Geração
+### 6.2 Validação Pós-Geração
 - Verificação automática de aspecto/resolução
-- Retry se artefatos detectados
-- Score de qualidade
 - **Status**: Futuro
 
-### 4.3 Escalabilidade para Outros Blocos
+### 6.3 Escalabilidade para Outros Blocos
 
 | Bloco | Proporção | Safe Area | Fase |
 |-------|-----------|-----------|------|
@@ -128,12 +172,14 @@ MOBILE (750×420)
 
 ---
 
-## 5. Arquivos Relacionados
+## 7. Arquivos Relacionados
 
 | Arquivo | Papel |
 |---------|-------|
 | `supabase/functions/ai-block-fill-visual/index.ts` | Pipeline de geração (imagem + copy) |
-| `supabase/functions/_shared/block-compiler/blocks/banner.ts` | Compilador estático (público) |
-| `src/components/builder/blocks/BannerBlock.tsx` | Componente React (builder/preview) |
+| `supabase/functions/_shared/block-compiler/blocks/banner.ts` | Compilador estático Banner (público) |
+| `supabase/functions/_shared/block-compiler/blocks/hero-banner.ts` | Compilador estático HeroBanner (público) |
+| `src/components/builder/blocks/BannerBlock.tsx` | Componente React Banner (builder/preview) |
+| `src/components/builder/blocks/HeroBannerBlock.tsx` | Componente React HeroBanner (builder/preview) |
 | `src/hooks/useAIWizardGenerate.ts` | Hook frontend do wizard |
 | `src/lib/builder/aiWizardRegistry.ts` | Contratos de geração (frontend) |

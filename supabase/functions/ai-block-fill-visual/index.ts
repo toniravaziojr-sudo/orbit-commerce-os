@@ -39,15 +39,15 @@ const SERVER_CONTRACTS: Record<string, ServerContract> = {
   'Banner:single': {
     aiGenerates: ['imageDesktop', 'imageMobile', 'title', 'subtitle', 'buttonText'],
     imageSpecs: [
-      { key: 'imageDesktop', width: 1920, height: 700 },
-      { key: 'imageMobile', width: 750, height: 420 },
+      { key: 'imageDesktop', width: 1920, height: 800 },
+      { key: 'imageMobile', width: 750, height: 940 },
     ],
   },
   'Banner:carousel': {
     aiGenerates: ['slides'],
     imageSpecs: [
-      { key: 'imageDesktop', width: 1920, height: 700 },
-      { key: 'imageMobile', width: 750, height: 420 },
+      { key: 'imageDesktop', width: 1920, height: 800 },
+      { key: 'imageMobile', width: 750, height: 940 },
     ],
     maxSlides: 3,
   },
@@ -257,8 +257,24 @@ function buildBannerImagePrompt(
     ? `Slide ${context.slideIndex + 1} do carrossel — varie cenário/atmosfera.`
     : '';
 
+  // Detect campaign context from briefing
+  const briefingLower = (context.briefing || '').toLowerCase();
+  const isCampaign = /páscoa|natal|black friday|dia das mães|dia dos pais|dia dos namorados|carnaval|ano novo|verão|inverno|primavera|outono/.test(briefingLower);
+  const hasDiscount = /\d+%|desconto|oferta|promoção|promo|off/.test(briefingLower);
+  
+  let campaignDirective = '';
+  if (isCampaign || hasDiscount) {
+    campaignDirective = `
+DIREÇÃO DE CAMPANHA:
+- Este banner é para uma CAMPANHA REAL. O cenário e atmosfera devem refletir o tema da campanha.
+- ${isCampaign ? 'Incorpore elementos visuais temáticos SUTIS no cenário (cores, elementos decorativos ambientais), mas o PRODUTO continua como protagonista absoluto.' : ''}
+- ${hasDiscount ? 'A atmosfera deve transmitir urgência e oportunidade: cores vibrantes, contraste forte, iluminação dramática.' : ''}
+- NÃO adicione texto na imagem — a oferta será colocada como overlay HTML.
+- O cenário deve parecer campanha comercial profissional, não genérico.`;
+  }
+
   if (isDesktop) {
-    return `CRIE UM BANNER HORIZONTAL DE E-COMMERCE. Proporção exata: ${spec.width}x${spec.height}px (21:7 ultra-wide).
+    return `CRIE UM BANNER HORIZONTAL DE E-COMMERCE. Proporção exata: ${spec.width}x${spec.height}px (12:5 widescreen).
 
 ${storeIdentity}
 ASSUNTO: ${subjectDescription}
@@ -267,24 +283,28 @@ ${briefingLine}
 ${slideNote}
 
 COMPOSIÇÃO OBRIGATÓRIA (DESKTOP):
-- O PRODUTO deve ocupar o TERÇO DIREITO da imagem (~30-40% da largura), bem enquadrado e em destaque.
-- O TERÇO ESQUERDO (~60% da largura) DEVE ter fundo escuro, gradiente natural ou área de baixo contraste. Esta zona será usada para overlay de texto branco — ela PRECISA ser escura o suficiente para texto branco ser legível.
+- O PRODUTO deve ocupar o TERÇO DIREITO da imagem (~30% da largura MÁXIMO), bem enquadrado, proporcionado ao cenário e em destaque.
+- O PRODUTO NÃO pode dominar todo o banner. Ele deve estar integrado à composição, não colado ou gigante.
+- Os ~60-70% ESQUERDOS DEVEM ter fundo escuro, gradiente natural ou área de baixo contraste. Esta zona será usada para overlay de texto branco — PRECISA ser escura o suficiente para texto branco ser legível.
 - O gradiente deve ser NATURAL e integrado ao cenário (iluminação lateral, sombra ambiente, fundo escurecido), não um retângulo de cor sólida.
 - Transição suave entre a zona escura e a zona do produto.
+${campaignDirective}
 
 DIREÇÃO DE ARTE:
 - Fotografia comercial profissional, iluminação de estúdio com dramática lateral.
 - Fundo contextual rico (superfície, textura, ambiente) — NUNCA fundo branco chapado.
 - Profundidade de campo com bokeh suave no fundo.
 - Cores vibrantes e harmônicas. Qualidade 4K.
+- O banner deve parecer uma peça comercial de campanha, não apenas uma foto de produto.
 
 PROIBIÇÕES ABSOLUTAS:
 - ❌ NENHUM texto, letra, número, logo ou badge na imagem
 - ❌ NENHUMA pessoa, mão ou modelo
 - ❌ NENHUM fundo branco ou cinza claro chapado
-- ❌ NENHUM elemento gráfico/UI (botões, bordas, molduras)`;
+- ❌ NENHUM elemento gráfico/UI (botões, bordas, molduras)
+- ❌ Produto NÃO pode ocupar mais de 30% da largura total`;
   } else {
-    return `CRIE UM BANNER VERTICAL PARA MOBILE. Proporção exata: ${spec.width}x${spec.height}px.
+    return `CRIE UM BANNER VERTICAL PARA MOBILE. Proporção exata: ${spec.width}x${spec.height}px (4:5 retrato).
 
 ${storeIdentity}
 ASSUNTO: ${subjectDescription}
@@ -293,22 +313,26 @@ ${briefingLine}
 ${slideNote}
 
 COMPOSIÇÃO OBRIGATÓRIA (MOBILE):
-- O TERÇO SUPERIOR da imagem DEVE ser escuro/gradiente natural para receber texto branco sobreposto.
-- O PRODUTO deve estar no CENTRO-INFERIOR (~50-60% inferior), bem enquadrado e protagonista.
+- O TERÇO SUPERIOR (~35-40% da altura) DEVE ser escuro/gradiente natural para receber texto branco sobreposto.
+- O PRODUTO deve estar no CENTRO da imagem (~40% da altura MÁXIMO), bem enquadrado e proporcionado — NÃO gigante, NÃO cortado.
+- O TERÇO INFERIOR deve ter espaço para um botão CTA (zona mais limpa/escura).
 - O gradiente escuro no topo deve ser NATURAL (iluminação de cima, sombra ambiente), integrado ao cenário.
-- Transição suave entre a zona escura superior e a zona do produto.
+- Transição suave entre as zonas.
+${campaignDirective}
 
 DIREÇÃO DE ARTE:
 - Fotografia comercial profissional, iluminação de estúdio.
 - Fundo contextual (superfície, textura) — NUNCA fundo branco chapado.
-- Enquadramento pensado para tela estreita. Produto centralizado.
+- Enquadramento pensado para tela estreita. Produto centralizado e PROPORCIONADO ao espaço.
 - Cores vibrantes e harmônicas. Qualidade 4K.
+- O banner deve parecer uma peça comercial de campanha, não apenas uma foto de produto.
 
 PROIBIÇÕES ABSOLUTAS:
 - ❌ NENHUM texto, letra, número, logo ou badge na imagem
 - ❌ NENHUMA pessoa, mão ou modelo
 - ❌ NENHUM fundo branco ou cinza claro chapado
-- ❌ NENHUM elemento gráfico/UI (botões, bordas, molduras)`;
+- ❌ NENHUM elemento gráfico/UI (botões, bordas, molduras)
+- ❌ Produto NÃO pode ocupar mais de 40% da altura total`;
   }
 }
 
@@ -355,6 +379,21 @@ function detectCreativeTone(
 
 /** System prompt for copy generation — enforces quality, tone, and char limits */
 function COPY_SYSTEM_PROMPT(storeInfo: string, contextInfo: string, briefing?: string, toneInstruction?: string): string {
+  // Detect if briefing contains campaign/offer info that MUST appear in copy
+  const briefingLower = (briefing || '').toLowerCase();
+  const hasOffer = /\d+%|desconto|oferta|promoção|frete grátis|cupom/.test(briefingLower);
+  const hasCampaign = /páscoa|natal|black friday|dia das mães|dia dos pais|dia dos namorados|carnaval|ano novo/.test(briefingLower);
+
+  let briefingDirective = '';
+  if (hasOffer || hasCampaign) {
+    briefingDirective = `
+REGRA CRÍTICA DE BRIEFING:
+- O briefing do usuário contém informação de ${hasOffer ? 'OFERTA/DESCONTO' : 'CAMPANHA'} que DEVE aparecer na headline ou subtitle.
+- ${hasOffer ? 'A informação de desconto/oferta (ex: "até 35% OFF", "Frete Grátis") DEVE aparecer de forma proeminente na headline OU subtitle.' : ''}
+- ${hasCampaign ? 'O nome/tema da campanha (ex: "Páscoa", "Black Friday") DEVE aparecer na headline OU subtitle.' : ''}
+- O banner deve parecer peça de CAMPANHA COMERCIAL REAL, não descrição genérica de produto.`;
+  }
+
   return `Você é um copywriter SÊNIOR de e-commerce brasileiro. Gere textos para banners de loja virtual.
 
 REGRAS OBRIGATÓRIAS:
@@ -367,8 +406,10 @@ REGRAS OBRIGATÓRIAS:
 4. Use o nome REAL do produto/categoria fornecido. NUNCA invente nomes ou características.
 5. Se houver preço/oferta, destaque naturalmente (ex: "A partir de R$ X").
 6. Cada campo deve funcionar SOZINHO — não depender dos outros para fazer sentido.
+7. O banner deve parecer PEÇA COMERCIAL PROFISSIONAL — com impacto visual e força de venda.
 
 ${toneInstruction || ''}
+${briefingDirective}
 
 VARIAÇÃO OBRIGATÓRIA:
 - NUNCA comece 2 ou mais titles com o mesmo verbo (especialmente "Descubra" ou "Conheça").
@@ -377,13 +418,16 @@ VARIAÇÃO OBRIGATÓRIA:
 
 ${storeInfo}
 ${contextInfo}
-${briefing ? `Briefing: "${briefing}".` : ''}
+${briefing ? `Briefing do usuário: "${briefing}". ESTA É A DIREÇÃO CRIATIVA PRIMÁRIA — os textos devem refletir este briefing.` : ''}
 
 EXEMPLOS DE BOA COPY:
+- title: "Páscoa até 35% OFF" (19 chars) ✅ (campanha + oferta)
 - title: "Novo Sérum Facial" (18 chars) ✅
 - title: "Descubra o poder da hidratação profunda para sua pele" (54 chars) ❌ MUITO LONGO
+- subtitle: "Ofertas especiais por tempo limitado" (35 chars) ✅
 - subtitle: "Hidratação profunda por 24h" (27 chars) ✅
 - buttonText: "Comprar Sérum" (13 chars) ✅ (específico)
+- buttonText: "Ver Ofertas" (11 chars) ✅ (campanha)
 - buttonText: "Comprar agora" (13 chars) ⚠️ (genérico, evitar se nome disponível)
 - buttonText: "Aproveite esta oferta incrível" (30 chars) ❌ MUITO LONGO`;
 }
