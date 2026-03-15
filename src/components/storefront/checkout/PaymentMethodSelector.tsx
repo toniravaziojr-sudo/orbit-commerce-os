@@ -181,7 +181,7 @@ export function PaymentMethodSelector({
               <Label htmlFor="card-cvv">CVV</Label>
               <Input
                 id="card-cvv"
-                type="text"
+                type="password"
                 placeholder="123"
                 value={cardData.cvv}
                 onChange={(e) => onCardDataChange({ ...cardData, cvv: e.target.value.replace(/\D/g, '').slice(0, 4) })}

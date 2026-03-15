@@ -53,12 +53,20 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('idle');
   const [paymentError, setPaymentError] = useState<string | null>(null);
   // Initialize payment method from config order (first enabled method)
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(
+  const [paymentMethod, setPaymentMethodRaw] = useState<PaymentMethod>(
     checkoutConfig.paymentMethodsOrder[0] || 'pix'
   );
   const [cardData, setCardData] = useState<CardData>({
     number: '', holderName: '', expMonth: '', expYear: '', cvv: '',
   });
+
+  // Wrapper: limpa dados do cartão e estado de pagamento ao trocar método
+  const setPaymentMethod = (method: PaymentMethod) => {
+    setCardData({ number: '', holderName: '', expMonth: '', expYear: '', cvv: '' });
+    setPaymentError(null);
+    setPaymentStatus('idle');
+    setPaymentMethodRaw(method);
+  };
 
   // Checkout session tracking refs
   const sessionStarted = useRef(false);
