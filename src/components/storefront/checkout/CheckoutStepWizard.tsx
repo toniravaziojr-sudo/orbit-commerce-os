@@ -75,7 +75,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   const navigate = useNavigate();
   const tenantSlug = useTenantSlug();
   const urls = useStorefrontUrls(tenantSlug);
-  const { items, shipping, setShippingCep, setShippingOptions, selectShipping, isLoading: cartLoading, clearCart, subtotal } = useCart();
+  const { items, shipping, setShippingCep, setShippingOptions, selectShipping, isLoading: cartLoading, clearCart, addItem, subtotal } = useCart();
 
   // Step 5: Detect retry mode from URL param ?rt=TOKEN
   const [searchParams] = useState(() => new URLSearchParams(window.location.search));
