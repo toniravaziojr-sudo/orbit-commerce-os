@@ -99,6 +99,10 @@ interface CreateOrderRequest {
   };
   // Shipping quote ID for server-side validation (Security Plan v3.1)
   shipping_quote_id?: string;
+  // Step 5: Link to original declined order (retry with different payment method)
+  retry_from_order_id?: string;
+  // retry_token to invalidate original order's token after new order creation
+  retry_token?: string;
 }
 
 function normalizeEmail(email: string): string {
