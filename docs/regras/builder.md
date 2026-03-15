@@ -4140,6 +4140,7 @@ Os botões flutuantes de WhatsApp e Chat possuem tamanhos responsivos configurá
 - Implementado via CSS responsivo (`@media max-width: 767px`) com `!important` na Edge Function `storefront-html`
 - Inline styles de width/height foram removidos dos botões para não sobrescrever o CSS responsivo
 - O seletor usa **ToggleGroup visual** (botões clicáveis) ao invés de Select, pois o Select não dispara `onValueChange` ao re-selecionar o mesmo valor (ex: clicar em "Médio" quando já é "Médio")
+- **Race condition fix (v8.9.1):** O `updateSupportWidget` atualiza o `globalSupportWidgetDraftRef.hasDraftChanges` de forma eagerly (síncrona) ANTES de notificar os listeners, para que a toolbar veja o estado correto imediatamente
 
 ### Config
 
