@@ -690,7 +690,11 @@ serve(async (req) => {
           const refImage = productCtx?.mainImageUrl || undefined;
           let dataUrl = await callImageModel(lovableApiKey, "google/gemini-3-pro-image-preview", prompt, refImage);
           if (!dataUrl) {
-            console.log(`[ai-block-fill-visual] Pro failed for ${spec.key}, trying flash...`);
+            console.log(`[ai-block-fill-visual] Pro failed for ${spec.key}, trying 3.1-flash...`);
+            dataUrl = await callImageModel(lovableApiKey, "google/gemini-3.1-flash-image-preview", prompt, refImage);
+          }
+          if (!dataUrl) {
+            console.log(`[ai-block-fill-visual] 3.1-flash failed for ${spec.key}, trying 2.5-flash...`);
             dataUrl = await callImageModel(lovableApiKey, "google/gemini-2.5-flash-image", prompt, refImage);
           }
           if (!dataUrl) {
