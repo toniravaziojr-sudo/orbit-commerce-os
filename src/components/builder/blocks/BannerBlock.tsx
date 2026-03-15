@@ -207,7 +207,7 @@ export function BannerBlock({
       {/* Background Image */}
       <div className={cn(
         'relative',
-        height === 'auto' ? 'aspect-[4/5] md:aspect-[12/5]' : 'w-full h-full'
+        height === 'auto' ? aspectClass : 'w-full h-full'
       )}
       style={{ minHeight: height !== 'auto' ? heightMap[height] : undefined }}
       >
