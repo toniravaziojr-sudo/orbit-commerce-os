@@ -4008,13 +4008,18 @@ Para páginas de **template sets** (Home, Categoria, Produto, etc.), o Builder t
 
 ### Correção Crítica no Worker (v8.7.0)
 
-O Worker **DEVE** repassar o parâmetro `preview=1` para a Edge Function. Sem isso, o preview renderiza o conteúdo publicado em vez do rascunho.
+O Worker **DEVE** repassar os parâmetros `preview=1` e `templateSetId` para a Edge Function. Sem isso, o preview renderiza o conteúdo publicado em vez do rascunho.
 
-**Linha obrigatória no Worker** (após montar `fnUrl`):
+**Linhas obrigatórias no Worker** (após montar `fnUrl`):
 
 ```javascript
 if (isPreview) {
   fnUrl.searchParams.set('preview', '1');
+}
+// Repassar templateSetId para preview de template sets específicos
+const templateSetId = originalUrl.searchParams.get('templateSetId');
+if (templateSetId) {
+  fnUrl.searchParams.set('templateSetId', templateSetId);
 }
 ```
 
