@@ -1,5 +1,5 @@
 // =============================================
-// AI BLOCK FILL VISUAL v2.2.0 — Banner Quality Fix
+// AI BLOCK FILL VISUAL v2.3.0 — Banner Quality Phase (Track A)
 // Fixes: art direction, copy quality, legibility defaults
 // Server-side registry: backend resolve contrato internamente
 // Frontend envia: blockType, mode, scope, collectedData, tenantId
