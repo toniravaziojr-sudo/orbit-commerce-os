@@ -103,16 +103,6 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentResult, setPaymentResult] = useState<PaymentResult | null>(null);
-  // Track the last created order to avoid duplicates on payment retry
-  // Persisted in sessionStorage so it survives page refreshes within the same tab
-  const [pendingOrderRef, setPendingOrderRefState] = useState<{ orderId: string; orderNumber: string } | null>(
-    () => loadPendingOrder(tenantId)
-  );
-  
-  const setPendingOrderRef = (ref: { orderId: string; orderNumber: string } | null) => {
-    setPendingOrderRefState(ref);
-    savePendingOrder(tenantId, ref);
-  };
 
   const processPayment = async ({
     method,
