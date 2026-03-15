@@ -29,6 +29,9 @@ export interface PaymentResult {
   boletoDueDate?: string;
   // Credit card specific
   cardStatus?: string;
+  // Failure classification (v8.15.0)
+  cardDeclined?: boolean;    // Gateway explicitly rejected (antifraude, saldo, etc)
+  technicalError?: boolean;  // HTTP/network error after order was created
   // Error
   error?: string;
 }
@@ -284,14 +287,33 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
       });
 
       if (paymentError) {
+        // Technical error: HTTP/network failure calling the gateway
+        // Order exists but no real charge was attempted at the gateway
         console.error('[Checkout] Step 2 FAILED (invoke error):', paymentError);
-        throw new Error(paymentError.message || 'Erro ao processar pagamento');
+        const result: PaymentResult = {
+          success: false,
+          error: paymentError.message || 'Erro ao processar pagamento',
+          orderId,
+          orderNumber,
+          technicalError: true,
+        };
+        setPaymentResult(result);
+        return result;
       }
 
       // Check if payment was rejected by the gateway
       if (paymentData?.success === false) {
+        // Card declined: gateway explicitly rejected (antifraude, saldo, limite, etc)
         console.error('[Checkout] Step 2 FAILED (gateway rejection):', paymentData.error);
-        throw new Error(paymentData.error || 'Pagamento recusado. Tente novamente.');
+        const result: PaymentResult = {
+          success: false,
+          error: paymentData.error || 'Pagamento recusado pela operadora.',
+          orderId,
+          orderNumber,
+          cardDeclined: true,
+        };
+        setPaymentResult(result);
+        return result;
       }
       
       console.log('[Checkout] Step 2 OK - Payment processed');
@@ -320,6 +342,8 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
       return result;
 
     } catch (error) {
+      // Scenario A: Error before order creation (throw from step 1)
+      // No order exists, no charge attempted
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       const result: PaymentResult = {
         success: false,

@@ -729,8 +729,30 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           clearStoredAffiliateData();
           navigate(`${urls.thankYou()}?pedido=${encodeURIComponent(cleanOrderNumber)}`);
         }
+      } else if (result.cardDeclined && result.orderId && result.orderNumber) {
+        // Card declined by gateway — redirect to Thank You with declined status
+        // Order exists, charge was attempted and rejected
+        const cleanOrderNumber = result.orderNumber?.replace(/^#/, '').trim() || '';
+        console.log('[Checkout] Card declined — redirecting to thankYou with status=declined');
+        
+        clearCart();
+        clearDraft();
+        clearStoredAttribution();
+        clearStoredAffiliateData();
+        setPaymentStatus('failed');
+        navigate(`${urls.thankYou()}?pedido=${encodeURIComponent(cleanOrderNumber)}&status=declined`);
+      } else if (result.technicalError) {
+        // Technical error — order exists but charge failed to reach gateway
+        // Stay on checkout, show error, let user retry (will create new order)
+        console.warn('[Checkout] Technical error after order creation:', result.error);
+        setPaymentStatus('failed');
+        setPaymentError('Ocorreu um problema técnico ao processar o pagamento. Tente novamente.');
+        toast.error('Problema técnico no pagamento');
       } else {
-        throw new Error(result.error || 'Erro ao processar pagamento');
+        // Generic error (e.g. order creation failed — no order exists)
+        setPaymentStatus('failed');
+        setPaymentError(result.error || 'Erro ao processar pagamento');
+        toast.error('Falha no pagamento');
       }
     } catch (error) {
       setPaymentStatus('failed');

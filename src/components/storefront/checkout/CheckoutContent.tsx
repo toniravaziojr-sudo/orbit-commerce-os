@@ -293,6 +293,17 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
         setPaymentStatus('pending_payment');
         clearCart(); clearDraft(); clearStoredAttribution(); clearStoredAffiliateData();
       }
+    } else if (result.cardDeclined && result.orderId && result.orderNumber) {
+      // Card declined by gateway — redirect to Thank You with declined status
+      const cleanOrderNumber = result.orderNumber?.replace(/^#/, '').trim() || '';
+      clearCart(); clearDraft(); clearStoredAttribution(); clearStoredAffiliateData();
+      setPaymentStatus('failed');
+      navigate(`${urls.thankYou()}?pedido=${encodeURIComponent(cleanOrderNumber)}&status=declined`);
+    } else if (result.technicalError) {
+      // Technical error — stay on checkout
+      setPaymentStatus('failed');
+      setPaymentError('Ocorreu um problema técnico ao processar o pagamento. Tente novamente.');
+      toast.error('Problema técnico no pagamento');
     } else {
       setPaymentStatus('failed');
       setPaymentError(result.error || 'Erro ao processar pagamento');
