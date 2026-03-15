@@ -255,6 +255,8 @@ export interface ThemePageSettings {
 export type SupportWidgetType = 'chat' | 'whatsapp' | 'both';
 export type SupportWidgetPosition = 'left' | 'right';
 
+export type SupportWidgetButtonSize = 'small' | 'medium' | 'large';
+
 export interface SupportWidgetConfig {
   enabled?: boolean;
   type?: SupportWidgetType;
@@ -264,6 +266,7 @@ export interface SupportWidgetConfig {
   whatsappButtonColor?: string;   // Cor do botão WhatsApp
   chatButtonColor?: string;       // Cor do botão Chat
   position?: SupportWidgetPosition;
+  buttonSize?: SupportWidgetButtonSize; // Tamanho dos botões (small/medium/large)
 }
 
 export const DEFAULT_SUPPORT_WIDGET: SupportWidgetConfig = {
@@ -275,6 +278,7 @@ export const DEFAULT_SUPPORT_WIDGET: SupportWidgetConfig = {
   whatsappButtonColor: '#25D366',
   chatButtonColor: '#1F2937',
   position: 'right',
+  buttonSize: 'medium',
 };
 
 export interface ThemeSettings {

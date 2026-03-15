@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MessageCircle } from 'lucide-react';
-import { useThemeSupportWidget, type SupportWidgetConfig, type SupportWidgetType, type SupportWidgetPosition } from '@/hooks/useThemeSettings';
+import { useThemeSupportWidget, type SupportWidgetConfig, type SupportWidgetType, type SupportWidgetPosition, type SupportWidgetButtonSize } from '@/hooks/useThemeSettings';
 
 // WhatsApp SVG icon (reusable)
 function WhatsAppIconSmall({ className }: { className?: string }) {
@@ -184,6 +184,24 @@ export function SupportSettings({ tenantId, templateSetId }: SupportSettingsProp
                 icon={<MessageCircle className="h-3 w-3" />}
               />
             )}
+          </div>
+
+          {/* Button Size */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Tamanho dos botões</Label>
+            <Select value={supportWidget.buttonSize ?? 'medium'} onValueChange={(v) => handleChange('buttonSize', v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="small">Pequeno</SelectItem>
+                <SelectItem value="medium">Médio</SelectItem>
+                <SelectItem value="large">Grande</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Altera o tamanho dos botões de WhatsApp e Chat na loja
+            </p>
           </div>
 
           {/* Position */}
