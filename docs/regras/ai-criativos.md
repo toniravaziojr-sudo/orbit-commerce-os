@@ -1,8 +1,8 @@
 # Padrão de Qualidade Criativa — IA
 
-> Versão: 2.0.0 (Banner v2)
+> Versão: 2.1.0 (Banner v2 — Correção Estrutural)
 > Última atualização: 2026-03-15
-> Status: Track A implementado, Banner v2 implementado, Track B documentado (futuro)
+> Status: Banner v2 implementado + correção de proporções/layout/campanha
 
 ---
 
