@@ -165,7 +165,7 @@ export function BannerBlock({
       <div className={cn(
         'relative bg-muted/30 flex items-center justify-center',
         bannerWidth === 'full' ? 'w-full' : 'max-w-7xl mx-auto',
-        height === 'auto' ? 'aspect-[4/5] md:aspect-[12/5]' : ''
+        height === 'auto' ? aspectClass : ''
       )}
       style={{ minHeight: height !== 'auto' ? heightMap[height] : undefined }}
       >
