@@ -4050,11 +4050,22 @@ if (isPreview) {
 ### Checklist de Validação
 
 - [ ] Salvar rascunho no Builder
-- [ ] Abrir preview com `?preview=1` → rascunho aparece
+- [ ] Abrir preview com `?preview=1&templateSetId={id}` → rascunho aparece
 - [ ] Abrir sem `?preview=1` → conteúdo publicado aparece
+- [ ] Publicar página institucional → prerender marcado como stale + cache purgado + re-prerender disparado
 - [ ] Publicar → conteúdo atualizado no público com `?cb=1`
 - [ ] Header `X-CC-Cache: BYPASS` presente no preview
 - [ ] Header `Cache-Control: no-store` presente no preview
+
+### Invalidação no Publish de Páginas Institucionais/Landing (v8.8.0)
+
+Ao publicar uma página institucional ou landing page, o hook `usePublish` em `useBuilderData.ts` executa 3 ações fire-and-forget:
+
+1. **Marca prerender como stale**: `storefront_prerendered_pages.status = 'stale'` para todo o tenant → Edge Function para de servir HTML antigo imediatamente
+2. **Purga cache CDN**: `cachePurge.full(tenantId)` → purga todas as rotas do domínio (incluindo `/page/...`) no Cloudflare Worker
+3. **Regenera prerender**: `triggerPrerenderWithRetry(tenantId)` → re-renderiza todas as páginas com conteúdo atualizado (2 retries, 5s delay)
+
+Sem esses 3 passos, o público pode continuar servindo HTML antigo por até 15 minutos (TTL do cache de borda).
 
 ### Melhoria Futura: Token Assinado para Preview
 
