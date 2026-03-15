@@ -75,7 +75,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   const navigate = useNavigate();
   const tenantSlug = useTenantSlug();
   const urls = useStorefrontUrls(tenantSlug);
-  const { items, shipping, setShippingCep, setShippingOptions, selectShipping, isLoading: cartLoading, clearCart, subtotal } = useCart();
+  const { items, shipping, setShippingCep, setShippingOptions, selectShipping, isLoading: cartLoading, clearCart, addItem, subtotal } = useCart();
 
   // Step 5: Detect retry mode from URL param ?rt=TOKEN
   const [searchParams] = useState(() => new URLSearchParams(window.location.search));
@@ -286,11 +286,13 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     };
   }, [items, totals.grandTotal, formData.customerEmail, formData.customerPhone, formData.customerName, currentStep, shipping.cep, tenantSlug]);
 
-  // Step 5: Apply retry prefill data when loaded
+  // Step 5: Apply retry prefill data when loaded (form + cart reconstruction)
   useEffect(() => {
     if (!retryPrefill || retryPrefillAppliedRef.current) return;
     retryPrefillAppliedRef.current = true;
     console.log('[Checkout] Applying retry prefill from order:', retryPrefill.order_number);
+    
+    // 1) Prefill form fields (customer + address)
     setFormData(prev => ({
       ...prev,
       customerName: retryPrefill.customer.name || prev.customerName,
@@ -304,6 +306,28 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
       shippingState: retryPrefill.shipping.state || prev.shippingState,
       shippingPostalCode: retryPrefill.shipping.postal_code || prev.shippingPostalCode,
     }));
+
+    // 2) Reconstruct cart from original order items
+    if (retryPrefill.items.length > 0) {
+      clearCart(); // Clear any stale items first
+      retryPrefill.items.forEach(item => {
+        addItem({
+          product_id: item.product_id,
+          variant_id: item.variant_id || undefined,
+          name: item.product_name,
+          sku: item.sku,
+          price: item.unit_price,
+          quantity: item.quantity,
+          image_url: item.image_url,
+        });
+      });
+      console.log('[Checkout] Cart reconstructed with', retryPrefill.items.length, 'items from original order');
+    }
+
+    // 3) Set shipping CEP from original order if available
+    if (retryPrefill.shipping.postal_code) {
+      setShippingCep(retryPrefill.shipping.postal_code);
+    }
   }, [retryPrefill]);
 
   useEffect(() => {

@@ -195,14 +195,16 @@ Página de confirmação pós-compra com detalhes do pedido, ofertas de upsell e
 | **Parcelas** | Calculadas a partir do total do pedido (1x a 12x) |
 | **CTA alternativa** | Texto informativo: "Precisa usar outra forma de pagamento? Entre em contato pelo WhatsApp." |
 
-### CTA "Outra forma de pagamento" — Dependência da Etapa 5
+### CTA "Outra forma de pagamento" — Etapa 5 (IMPLEMENTADO)
 
 | Campo | Valor |
 |-------|-------|
-| **Status** | ⏳ AGUARDANDO ETAPA 5 |
-| **Implementação atual** | Texto informativo direcionando ao WhatsApp |
-| **Nota** | O `retry_token` já existe e pode ser reutilizado na Etapa 5 para permitir retorno seguro ao checkout com PIX/boleto |
-| **Proibição** | NÃO implementar fallback baseado apenas em `order_id` na URL — risco de segurança |
+| **Status** | ✅ IMPLEMENTADO (v8.15.1) |
+| **Comportamento** | Redireciona para checkout com `?rt=TOKEN` |
+| **Reconstrução do carrinho** | Itens do pedido original são repopulados automaticamente no carrinho via `get-retry-checkout-data` |
+| **Dados prefill** | Nome, email, telefone, endereço (sem CPF — resolvido server-side) |
+| **Novo pedido** | Vinculado ao original via `retry_from_order_id` |
+| **Token** | Invalidado após criação do novo pedido |
 
 ---
 
@@ -323,4 +325,5 @@ O evento `Purchase` é disparado **exclusivamente** na página de obrigado (`Tha
 - [ ] Compartilhamento social
 - [ ] Email de confirmação visual
 - [ ] QR Code para rastreio
-- [ ] CTA "Outra forma de pagamento" com retry_token (Etapa 5)
+- [x] CTA "Outra forma de pagamento" com retry_token (Etapa 5) — IMPLEMENTADO
+- [x] Reconstrução automática do carrinho no modo retry (Etapa 5) — IMPLEMENTADO
