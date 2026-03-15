@@ -4137,7 +4137,9 @@ Os botões flutuantes de WhatsApp e Chat possuem tamanhos responsivos configurá
 - Mobile é ~30% menor que desktop para não ocupar espaço excessivo
 - A configuração se aplica a ambos os botões (WhatsApp e Chat) simultaneamente
 - A redução/aumento é proporcional e diferente entre mobile e desktop
-- Implementado via CSS responsivo (`@media max-width: 767px`) na Edge Function `storefront-html`
+- Implementado via CSS responsivo (`@media max-width: 767px`) com `!important` na Edge Function `storefront-html`
+- Inline styles de width/height foram removidos dos botões para não sobrescrever o CSS responsivo
+- O seletor usa **ToggleGroup visual** (botões clicáveis) ao invés de Select, pois o Select não dispara `onValueChange` ao re-selecionar o mesmo valor (ex: clicar em "Médio" quando já é "Médio")
 
 ### Config
 
@@ -4145,7 +4147,8 @@ Os botões flutuantes de WhatsApp e Chat possuem tamanhos responsivos configurá
 |-------|-------|
 | **Tipo** | Config |
 | **Localização** | `src/hooks/useThemeSettings.ts` → `SupportWidgetConfig.buttonSize` |
-| **UI** | `src/components/builder/theme-settings/SupportSettings.tsx` |
+| **UI** | `src/components/builder/theme-settings/SupportSettings.tsx` (ToggleGroup visual com cn()) |
 | **Rendering** | `supabase/functions/storefront-html/index.ts` → `generateSupportWidgetHtml()` |
 | **Valores** | `'small'` \| `'medium'` \| `'large'` |
 | **Padrão** | `'medium'` |
+| **CSS** | Dimensões injetadas via `<style>` com `!important`, sem inline styles nos elementos |
