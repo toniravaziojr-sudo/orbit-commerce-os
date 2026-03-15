@@ -3691,7 +3691,8 @@ Blocos que exigem decisões do usuário antes da geração:
 |------|-----------|-------------|-----------|
 | Componente | AIFillWizardDialog | `src/components/builder/ai-wizard/AIFillWizardDialog.tsx` | Modal genérico de steps do wizard |
 | Componente | WizardStepRenderer | `src/components/builder/ai-wizard/WizardStepRenderer.tsx` | Renderiza o componente correto para cada tipo de step |
-| Componente | BannerModeStep | `src/components/builder/ai-wizard/steps/BannerModeStep.tsx` | Step de escolha de modo: único ou carrossel + quantidade de slides |
+| Componente | BannerModeStep | `src/components/builder/ai-wizard/steps/BannerModeStep.tsx` | Step de escolha de modo: único ou carrossel + quantidade de slides + modo de saída (editável/completo) |
+| Componente | CreativeStyleStep | `src/components/builder/ai-wizard/steps/CreativeStyleStep.tsx` | Step de escolha de estilo criativo: produto+cenário, pessoa+produto, promocional. Inclui config por estilo (ambiente, ação, intensidade). Reutilizável para qualquer bloco visual. |
 | Componente | ScopeSelectStep | `src/components/builder/ai-wizard/steps/ScopeSelectStep.tsx` | Step de escolha de escopo: só imagens, só textos, ou ambos |
 | Componente | BannerAssociationStep | `src/components/builder/ai-wizard/steps/BannerAssociationStep.tsx` | Step de associação com 4 opções: produto/categoria/URL/nenhum |
 | Componente | QuantitySelectStep | `src/components/builder/ai-wizard/steps/QuantitySelectStep.tsx` | Select numérico (slides, imagens) |
