@@ -619,8 +619,8 @@ Mudanças de status feitas por **webhook** (`pagarme-webhook`) e **cron** (`expi
 - `previous_value` / `new_value`: JSON com campo e valor
 - `description`: inclui origem (ex: "webhook Pagar.me", "PIX expirado (automático)")
 
-### 13.3 Prevenção de Duplicidade (Checkout)
-O checkout utiliza `sessionStorage` (`PENDING_ORDER_KEY`) para reutilizar o mesmo `orderId` em retentativas de pagamento, evitando pedidos duplicados.
+### 13.3 [REMOVIDO] Prevenção de Duplicidade via pendingOrderRef (Checkout)
+> **REMOVIDO em v8.15.0** — O checkout NÃO reutiliza mais pedidos. Cada finalização cria um pedido novo. A lógica de `PENDING_ORDER_KEY` / `pendingOrderRef` foi eliminada por causar pedidos fantasma (caso Odair #41). Pedidos órfãos são tratados pelo robô automático `expire-stale-orders`.
 
 ### 13.4 Ghost Order Rule (v2026-03-14 — CAUSA RAIZ CORRIGIDA)
 

@@ -788,7 +788,7 @@ O dashboard segue uma arquitetura **híbrida com reconciliação**, onde:
 | Tipo | Mecanismo |
 |------|-----------|
 | **Visitantes** | Cookie `_sf_vid` (365 dias). Mesmo visitante de múltiplas fontes (orgânico, Meta, Google) = 1 visita |
-| **Pedidos** | UUID único por pedido. Reuso via `PENDING_ORDER_KEY` no sessionStorage previne duplicidade |
+| **Pedidos** | UUID único por pedido. Cada finalização de checkout cria pedido novo (v8.15.0 — `pendingOrderRef` [REMOVIDO]). Expiração automática de pedidos órfãos via `expire-stale-orders`. |
 | **Clientes** | Deduplicação por `email` (normalizado lowercase) na tabela `customers` |
 | **Ad Insights** | Upsert por `(meta_campaign_id, date_start)` / `(google_campaign_id, date)` / `(tiktok_campaign_id, date_start)` |
 
