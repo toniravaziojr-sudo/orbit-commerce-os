@@ -695,11 +695,24 @@ serve(async (req) => {
     // NOTE: Meta CAPI Purchase is now sent client-side via marketing-capi-track
     // edge function from the Thank You page, using the same event_id for deduplication
 
+    // Generate retry_token for credit card orders (used if payment is declined)
+    let retryToken: string | null = null;
+    if (payload.payment_method === 'credit_card') {
+      try {
+        const { data: tokenData } = await supabase.rpc('generate_order_retry_token', { p_order_id: orderId });
+        retryToken = tokenData || null;
+        console.log('[checkout-create-order] Retry token generated for credit card order');
+      } catch (e) {
+        console.warn('[checkout-create-order] Failed to generate retry token:', e);
+      }
+    }
+
     return new Response(JSON.stringify({
       success: true,
       order_id: orderId,
       order_number: orderNumber,
       customer_id: customerId,
+      retry_token: retryToken,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
