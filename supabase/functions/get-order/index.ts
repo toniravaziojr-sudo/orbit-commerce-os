@@ -87,10 +87,10 @@ serve(async (req) => {
       total, subtotal, shipping_total, discount_total,
       created_at, paid_at, shipped_at, delivered_at,
       tracking_code, shipping_carrier,
-      customer_name, customer_email, customer_phone, customer_cpf,
+      customer_name, customer_email, customer_phone,
       shipping_street, shipping_number, shipping_complement,
       shipping_neighborhood, shipping_city, shipping_state, shipping_postal_code,
-      installments
+      installments, retry_token, retry_token_expires_at
     `;
 
     // Find order
