@@ -277,12 +277,20 @@ export function BannerBlock({
                     color: ${hoverText};
                   }
                 `}</style>
-                <a 
-                  href={currentButtonUrl || '#'} 
-                  className={`${btnId} inline-block px-10 py-4 rounded-lg font-semibold text-lg transition-colors`}
-                >
-                  {currentButtonText}
-                </a>
+                {isBuilderMode ? (
+                  <span 
+                    className={`${btnId} inline-block px-10 py-4 rounded-lg font-semibold text-lg transition-colors cursor-pointer`}
+                  >
+                    {currentButtonText}
+                  </span>
+                ) : (
+                  <a 
+                    href={currentButtonUrl || '#'} 
+                    className={`${btnId} inline-block px-10 py-4 rounded-lg font-semibold text-lg transition-colors`}
+                  >
+                    {currentButtonText}
+                  </a>
+                )}
               </>
             )}
           </div>
