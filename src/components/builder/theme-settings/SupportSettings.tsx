@@ -186,6 +186,24 @@ export function SupportSettings({ tenantId, templateSetId }: SupportSettingsProp
             )}
           </div>
 
+          {/* Button Size */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Tamanho dos botões</Label>
+            <Select value={supportWidget.buttonSize ?? 'medium'} onValueChange={(v) => handleChange('buttonSize', v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="small">Pequeno</SelectItem>
+                <SelectItem value="medium">Médio</SelectItem>
+                <SelectItem value="large">Grande</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Altera o tamanho dos botões de WhatsApp e Chat na loja
+            </p>
+          </div>
+
           {/* Position */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Posição</Label>
