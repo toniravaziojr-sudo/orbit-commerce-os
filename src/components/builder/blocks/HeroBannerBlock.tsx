@@ -87,7 +87,7 @@ export function HeroBannerBlock({
       <div className={cn(
         'relative bg-muted/30 flex items-center justify-center',
         bannerWidth === 'full' ? 'w-full' : 'max-w-7xl mx-auto',
-        'aspect-[21/9] md:aspect-[21/7]'
+        'aspect-[4/5] md:aspect-[12/5]'
       )}>
         <div className="text-center text-muted-foreground">
           <ImageIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
