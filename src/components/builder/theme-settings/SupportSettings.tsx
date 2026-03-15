@@ -4,6 +4,7 @@
 // =============================================
 
 import { useCallback } from 'react';
+import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -189,16 +190,30 @@ export function SupportSettings({ tenantId, templateSetId }: SupportSettingsProp
           {/* Button Size */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Tamanho dos botões</Label>
-            <Select value={supportWidget.buttonSize ?? 'medium'} onValueChange={(v) => handleChange('buttonSize', v)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="small">Pequeno</SelectItem>
-                <SelectItem value="medium">Médio</SelectItem>
-                <SelectItem value="large">Grande</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex gap-1 p-1 rounded-lg bg-muted">
+              {([
+                { value: 'small', label: 'Pequeno' },
+                { value: 'medium', label: 'Médio' },
+                { value: 'large', label: 'Grande' },
+              ] as const).map((opt) => {
+                const isActive = (supportWidget.buttonSize ?? 'medium') === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => handleChange('buttonSize', opt.value)}
+                    className={cn(
+                      'flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors',
+                      isActive
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
             <p className="text-xs text-muted-foreground">
               Altera o tamanho dos botões de WhatsApp e Chat na loja
             </p>
