@@ -3980,22 +3980,55 @@ Step 6: CONFIRMAÇÃO
 - Instrução explícita: "represente visualmente ESTE produto real"
 - Objetivo: eliminar banners genéricos de e-commerce
 
-### Qualidade do Banner (v2.2.0)
+### Qualidade do Banner (v3.1.1)
 
-> Correção de qualidade visual e textual dos banners gerados.
+> Arquitetura de geração via Creative Brief Builder. Todas as escolhas do wizard são consolidadas em um prompt narrativo único.
 
-#### Direção de arte — Prompt visual
+#### Direção de arte — Creative Brief Builder
 
-**Desktop (1920×700):**
-- Proporção ultra-wide 21:7 explicitamente reforçada no prompt
-- Produto posicionado no TERÇO DIREITO (~30-40% da largura)
-- TERÇO ESQUERDO (~60%) com gradiente escuro natural — zona reservada para texto branco (text-safe area)
-- Gradiente integrado ao cenário (iluminação lateral, sombra ambiente), não retângulo sólido
+O sistema NÃO envia campos soltos para a IA. Em vez disso, o `creative-brief-builder.ts` consolida tudo em:
 
-**Mobile (750×420):**
-- Produto no CENTRO-INFERIOR (~50-60% inferior)
-- TERÇO SUPERIOR com gradiente escuro natural para texto
-- Enquadramento centralizado para tela estreita
+1. **Creative Brief** — narrativa coesa com identidade da loja, produto/categoria, estilo visual e briefing do usuário
+2. **Structural Rules** — regras técnicas por slot (dimensão, safe area, proibições)
+3. **Final Prompt** — `brief + rules` = um prompt independente por slot
+
+**Desktop (1920×800, proporção 12:5):**
+- Composição horizontal com produto à direita (~30% da largura)
+- Modo editável: zona esquerda (~60%) com gradiente escuro para legibilidade do overlay HTML
+- Modo completo: composição livre, sem restrição de safe area
+
+**Mobile (750×940, proporção 4:5):**
+- Composição vertical (portrait) — NÃO é crop do desktop
+- Produto centralizado (~40% da altura central)
+- Modo editável: terço superior com gradiente escuro para texto
+- Modo completo: composição livre vertical
+
+#### Estilos visuais suportados
+
+| Estilo | Slug | Comportamento |
+|--------|------|---------------|
+| Produto + Cenário | `product_natural` | Produto em cenário contextual (padrão) |
+| Pessoa + Produto | `person_interacting` | Pessoa real segurando/usando o produto |
+| Promocional | `promotional` | Atmosfera de campanha comercial (bold, vibrante) |
+
+Cada estilo modifica o creative brief de forma narrativa. O estilo `person_interacting` instrui explicitamente a IA a gerar uma pessoa real interagindo com o produto.
+
+#### Modos de saída
+
+| Modo | OutputMode | RenderMode | Comportamento |
+|------|-----------|------------|---------------|
+| Editável | `editable` | `overlay` | Imagem limpa com safe areas para overlay HTML (título, subtítulo, CTA) |
+| Criativo Completo | `complete` | `baked` | Peça publicitária final com composição livre. Sistema oculta overlay HTML via `_hideOverlayText` |
+
+No modo **Criativo Completo**, o sistema automaticamente:
+- Define `_renderMode = 'baked'`
+- Define `_hideOverlayText = true`
+- Define `overlayOpacity = 0`
+- Limpa `title`, `subtitle`, `buttonText`
+
+#### Detecção automática de campanha
+
+O creative-brief-builder detecta automaticamente campanhas sazonais no briefing do usuário (ex: Páscoa, Black Friday, Natal, Dia das Mães) e ajusta atmosfera, paleta e cenário no prompt.
 
 #### Qualidade da copy — Prompt textual
 
@@ -4008,27 +4041,26 @@ Step 6: CONFIRMAÇÃO
 - Tom: profissional, direto, PT-BR correto
 - Proibido inventar características do produto
 - Safety net: backend trunca no limite mesmo que o modelo exceda
-- System prompt com exemplos de boa e má copy para guiar o modelo
 
 #### Props derivadas pelo sistema (legibilidade)
 
 Quando a geração inclui imagens (scope `images` ou `all`), o backend retorna automaticamente:
-- `overlayOpacity: 35` — escurecimento sobre a imagem para garantir legibilidade
-- `alignment: 'left'` — alinhamento do texto à esquerda (zona segura)
+- Modo editável: `overlayOpacity: 35`, `alignment: 'left'`, `_renderMode: 'overlay'`
+- Modo completo: `overlayOpacity: 0`, `_renderMode: 'baked'`, `_hideOverlayText: true`
 
 Essas props são tratadas como `SYSTEM_DERIVED_PROPS` no frontend e **bypassam a whitelist** do `aiGenerates`.
 
 #### Proibições no prompt visual
 - Nenhum texto, letra, número, logo ou badge na imagem
-- Nenhuma pessoa, mão ou modelo
 - Nenhum fundo branco ou cinza claro chapado
 - Nenhum elemento gráfico/UI
+- ⚠️ Pessoas SÃO permitidas quando o estilo `person_interacting` é selecionado
 
 ### Regras de Merge
 
 1. Backend gera `generatedProps` filtrado pela whitelist server-side E pelo scope
 2. Frontend aplica segundo filtro via `contract.aiGenerates` + scope (defesa em profundidade)
-3. Props de sistema (`overlayOpacity`, `alignment`) bypassam whitelist no frontend
+3. Props de sistema (`overlayOpacity`, `alignment`, `_renderMode`, `_hideOverlayText`) bypassam whitelist no frontend
 4. `linkUrl` de cada slide é derivado da associação (sistema), NUNCA da IA
 5. Para carousel, backend limita `slideCount` ao `maxSlides` do contrato (3)
 6. Modo do bloco é atualizado pelo merge quando wizard altera de single para carousel
