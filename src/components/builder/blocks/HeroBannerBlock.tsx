@@ -81,13 +81,18 @@ export function HeroBannerBlock({
     setCurrentIndex((prev) => (prev + 1) % safeSlides.length);
   }, [safeSlides.length]);
 
+  // Aspect ratio: in builder mode, use context.viewport; in public, use responsive CSS
+  const aspectClass = isBuilderMode
+    ? (isMobile ? 'aspect-[4/5]' : 'aspect-[12/5]')
+    : 'aspect-[4/5] md:aspect-[12/5]';
+
   // Empty state
   if (safeSlides.length === 0) {
     return (
       <div className={cn(
         'relative bg-muted/30 flex items-center justify-center',
         bannerWidth === 'full' ? 'w-full' : 'max-w-7xl mx-auto',
-        'aspect-[4/5] md:aspect-[12/5]'
+        aspectClass
       )}>
         <div className="text-center text-muted-foreground">
           <ImageIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
@@ -116,7 +121,7 @@ export function HeroBannerBlock({
       bannerWidth === 'full' ? 'w-full' : 'max-w-7xl mx-auto'
     )}>
       {/* Banner Image - Builder uses state-based selection; Storefront uses <picture> */}
-      <div className="relative aspect-[4/5] md:aspect-[12/5]">
+      <div className={cn("relative", aspectClass)}>
         {effectiveDesktop ? (
           isBuilderMode ? (
             // Builder mode: select image based on viewport state
