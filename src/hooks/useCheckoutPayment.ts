@@ -123,6 +123,8 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     paymentMethodDiscount,
     installments,
     shippingQuoteId,
+    retryFromOrderId,
+    retryToken,
   }: {
     method: PaymentMethod;
     items: CartItem[];
@@ -137,6 +139,8 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     paymentMethodDiscount?: { amount: number; type: string; value: number; method: string };
     installments?: number;
     shippingQuoteId?: string | null;
+    retryFromOrderId?: string;
+    retryToken?: string;
   }): Promise<PaymentResult> => {
     setIsProcessing(true);
     setPaymentResult(null);
