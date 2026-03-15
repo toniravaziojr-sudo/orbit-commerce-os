@@ -37,6 +37,7 @@ const standardHomeTemplate: BlockNode = {
         backgroundColor: 'transparent',
         paddingX: 0,
         paddingY: 0,
+        fullWidth: true,
       },
       children: [
         // 1. Banner (carrossel)

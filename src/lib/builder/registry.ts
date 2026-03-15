@@ -61,7 +61,7 @@ const blockDefinitions: BlockDefinition[] = [
       paddingX: {
         type: 'number',
         label: 'Padding Horizontal (px)',
-        defaultValue: 16,
+        defaultValue: 0,
         min: 0,
         max: 100,
       },

@@ -356,7 +356,7 @@ function createMinimalPage(): BlockNode {
       {
         id: generateBlockId('Section'),
         type: 'Section',
-        props: { paddingY: 32 },
+        props: { paddingY: 0, paddingX: 0, fullWidth: true },
         children: [],
       },
       {
