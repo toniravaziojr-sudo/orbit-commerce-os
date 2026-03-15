@@ -482,14 +482,31 @@ Carrinho & Checkout → aba Checkout (no Builder)
 - `pagarme-webhook`: Agora usa fallback `payload.data?.status` quando `charges[0].status` não está disponível
 - Trigger: Corrigido de `'paid'` para `'approved'` no enum `payment_status`
 
-### Correção (v8.2.5) — Pedidos duplicados e órfãos
+### [REMOVIDO] Correção (v8.2.5) — Pedidos duplicados e órfãos (pendingOrderRef)
 
-**Problema:** Cada tentativa de pagamento criava um novo pedido, poluindo a lista. Pedidos sem transação ficavam como "órfãos".
+> **REMOVIDO em v8.15.0** — A lógica de `pendingOrderRef` foi eliminada. Cada clique em "Finalizar Pedido" agora SEMPRE cria um pedido novo. O reuso de pedido causava problemas graves (caso Odair #41: pedido reutilizado sem cobrança real na operadora). A prevenção de duplicidade será tratada via fluxo de retry dedicado (Etapas 3-6 do plano v4).
+
+### Correção (v8.15.0) — Segurança e limpeza ao trocar forma de pagamento
+
+**Problema:** Ao trocar a forma de pagamento (ex: de Cartão para PIX), os dados do cartão ficavam em memória. O CVV era exibido em texto visível.
 
 **Correções:**
-- `useCheckoutPayment`: Agora armazena `pendingOrderRef` (orderId + orderNumber) no state. Se o pagamento falha, a próxima tentativa reutiliza o pedido existente ao invés de criar outro.
-- `resetPayment()` limpa o ref para permitir um novo pedido em caso de mudança de contexto.
-- `pagarme-create-charge` (v8.2.4): Já sincroniza `orders.status` imediatamente quando o gateway retorna falha.
+- `PaymentMethodSelector`: CVV agora usa `type="password"` (mascarado com bolinhas)
+- `CheckoutStepWizard` e `CheckoutContent`: Ao trocar forma de pagamento, executa limpeza automática:
+  - Apaga todos os dados do cartão (número, nome, validade, CVV)
+  - Limpa erro de pagamento anterior
+  - Reseta status de pagamento para `idle`
+- `useCheckoutPayment`: Removida toda lógica de `pendingOrderRef`, `PENDING_ORDER_KEY`, `loadPendingOrder`, `savePendingOrder`. Cada finalização sempre cria pedido novo.
+
+### Modelo de Negócio de Pedido e Pagamento (v8.15.0)
+
+```
+1 clique "Finalizar Pedido" = 1 pedido novo (sempre)
+1 pedido pode ter N tentativas de pagamento (payment_transactions)
+Retry de cartão na Thank You = mesma order + nova transaction (futuro, Etapa 4)
+Trocar para outra forma = novo pedido (futuro, Etapa 5)
+Retry no mesmo pedido = APENAS cartão (futuro, Etapa 4)
+```
 
 ### Automação (v8.2.5) — Expiração de PIX/Boleto pendentes
 
