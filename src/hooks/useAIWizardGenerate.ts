@@ -46,7 +46,7 @@ function resolveScope(collectedData: Record<string, unknown>): GenerationScope {
 /**
  * System-derived props that bypass the whitelist — set by backend for legibility/layout.
  */
-const SYSTEM_DERIVED_PROPS = new Set(['overlayOpacity', 'alignment']);
+const SYSTEM_DERIVED_PROPS = new Set(['overlayOpacity', 'alignment', '_renderMode', '_hideOverlayText']);
 
 /**
  * Applies whitelist + scope enforcement: only writes allowed props that match the scope.
