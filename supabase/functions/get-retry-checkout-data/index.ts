@@ -112,6 +112,7 @@ serve(async (req) => {
         },
         items: (items || []).map((item: any) => ({
           product_id: item.product_id,
+          variant_id: item.variant_id || null,
           product_name: item.product_name,
           sku: item.sku || '',
           quantity: item.quantity,

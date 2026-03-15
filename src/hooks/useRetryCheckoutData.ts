@@ -30,6 +30,7 @@ export interface RetryCheckoutPrefill {
   };
   items: {
     product_id: string;
+    variant_id: string | null;
     product_name: string;
     sku: string;
     quantity: number;
