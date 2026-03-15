@@ -130,6 +130,16 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
   const showArrows = (props.showArrows as boolean) ?? false;
   const widthStyle = bannerWidth === 'full' ? 'width:100%;' : 'max-width:1280px;margin:0 auto;';
 
+  // Shared style props for CTA rendering
+  const overlayOpacity = (props.overlayOpacity as number) || 0;
+  const textColor = (props.textColor as string) || '#ffffff';
+  const alignment = (props.alignment as string) || 'center';
+  const buttonColor = (props.buttonColor as string) || '#ffffff';
+  const buttonTextColor = (props.buttonTextColor as string) || (buttonColor ? '#ffffff' : '#1a1a1a');
+  const alignMap: Record<string, string> = { left: 'flex-start', center: 'center', right: 'flex-end' };
+  const justifyContent = alignMap[alignment] || 'center';
+  const textAlign = alignment;
+
   // Generate unique ID for this carousel
   const carouselId = 'sf-carousel-' + Math.random().toString(36).slice(2, 8);
 
@@ -154,16 +164,35 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
       <img src="${escapeHtml(desktopImage)}" alt="${escapeHtml(altText)}" style="width:100%;height:100%;object-fit:cover;" ${isFirst ? 'fetchpriority="high" decoding="sync" loading="eager"' : 'loading="lazy"'}>
     </picture>` : '';
 
-    const slideContent = `<div class="${carouselId}-slide" data-slide-index="${idx}" style="position:absolute;inset:0;opacity:${isFirst ? '1' : '0'};transition:opacity 0.6s ease-in-out;z-index:${isFirst ? '1' : '0'};">
-      ${imgHtml}
-    </div>`;
+    // Build per-slide CTA overlay (mirrors BannerBlock.tsx)
+    const slideTitle = slide.title || '';
+    const slideSubtitle = slide.subtitle || '';
+    const slideButtonText = slide.buttonText || '';
+    const slideButtonUrl = slide.buttonUrl || linkUrl || '#';
+    const hasCTA = !!(slideTitle || slideSubtitle || slideButtonText);
 
-    if (linkUrl) {
-      return `<a href="${escapeHtml(linkUrl)}" style="display:block;position:absolute;inset:0;z-index:${isFirst ? '1' : '0'};opacity:${isFirst ? '1' : '0'};transition:opacity 0.6s ease-in-out;" class="${carouselId}-slide" data-slide-index="${idx}">
-        ${imgHtml}
-      </a>`;
+    let overlayHtml = '';
+    if (overlayOpacity > 0) {
+      overlayHtml = `<div style="position:absolute;inset:0;background:rgba(0,0,0,${overlayOpacity / 100});"></div>`;
     }
-    return slideContent;
+
+    let ctaHtml = '';
+    if (hasCTA) {
+      ctaHtml = `<div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:${justifyContent};text-align:${textAlign};padding:24px;z-index:2;max-width:800px;${alignment === 'center' ? 'margin:0 auto;' : ''}">
+        ${slideTitle ? `<h2 style="font-size:clamp(24px,5vw,48px);font-weight:700;color:${textColor};font-family:var(--sf-heading-font);line-height:1.2;">${escapeHtml(slideTitle)}</h2>` : ''}
+        ${slideSubtitle ? `<p style="font-size:clamp(14px,2.5vw,20px);color:${textColor};opacity:0.9;margin-top:8px;">${escapeHtml(slideSubtitle)}</p>` : ''}
+        ${slideButtonText ? `<a href="${escapeHtml(slideButtonUrl)}" style="display:inline-block;margin-top:12px;padding:12px 32px;background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};border-radius:8px;font-weight:600;font-size:16px;text-decoration:none;transition:opacity 0.2s;">${escapeHtml(slideButtonText)}</a>` : ''}
+      </div>`;
+    }
+
+    const wrapTag = linkUrl && !hasCTA ? 'a' : 'div';
+    const wrapHref = linkUrl && !hasCTA ? ` href="${escapeHtml(linkUrl)}"` : '';
+
+    return `<${wrapTag}${wrapHref} class="${carouselId}-slide" data-slide-index="${idx}" style="position:absolute;inset:0;opacity:${isFirst ? '1' : '0'};transition:opacity 0.6s ease-in-out;z-index:${isFirst ? '1' : '0'};">
+      ${imgHtml}
+      ${overlayHtml}
+      ${ctaHtml}
+    </${wrapTag}>`;
   }).join('');
 
   // Dots HTML

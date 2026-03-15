@@ -1,5 +1,5 @@
 // =============================================
-// AI BLOCK FILL VISUAL v2.2.0 — Banner Quality Fix
+// AI BLOCK FILL VISUAL v2.3.0 — Banner Quality Phase (Track A)
 // Fixes: art direction, copy quality, legibility defaults
 // Server-side registry: backend resolve contrato internamente
 // Frontend envia: blockType, mode, scope, collectedData, tenantId
@@ -9,7 +9,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 
-const VERSION = "2.2.0";
+const VERSION = "2.3.0";
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MAX_BRIEFING_LENGTH = 500;
 
@@ -316,8 +316,45 @@ PROIBIÇÕES ABSOLUTAS:
 // COPY QUALITY HELPERS
 // =============================================
 
+/** Detect creative tone from context — promotional, institutional, premium, or category */
+function detectCreativeTone(
+  product?: ProductContext | null,
+  category?: CategoryContext | null,
+  briefing?: string,
+  associationType?: string,
+): { tone: string; toneInstruction: string } {
+  const briefingLower = (briefing || '').toLowerCase();
+  const hasDiscount = product?.compareAtPrice && product?.price && product.compareAtPrice > product.price;
+  const isPromo = briefingLower.includes('oferta') || briefingLower.includes('desconto') || briefingLower.includes('promoção') || briefingLower.includes('promo') || hasDiscount;
+  const isPremium = briefingLower.includes('premium') || briefingLower.includes('luxo') || briefingLower.includes('exclusiv');
+  const isCategory = associationType === 'category' || (category && !product);
+
+  if (isPromo) return {
+    tone: 'promocional',
+    toneInstruction: 'TOM PROMOCIONAL: Urgência + benefício direto. Destaque preço/desconto se disponível. Use verbos como "Aproveite", "Garanta", "Economize". CTA com ação específica (ex: "Comprar Sérum", não "Comprar agora").',
+  };
+  if (isPremium) return {
+    tone: 'premium',
+    toneInstruction: 'TOM PREMIUM: Exclusividade + craft. Use linguagem sofisticada sem ser rebuscada. Palavras como "Edição limitada", "Formulação exclusiva", "Experiência única". CTA elegante (ex: "Experimentar", "Conhecer linha").',
+  };
+  if (isCategory) return {
+    tone: 'categoria',
+    toneInstruction: 'TOM DE CATEGORIA: Exploração + variedade. Convide a descobrir a coleção. Use verbos como "Explore", "Encontre", "Confira". CTA direcionado (ex: "Ver coleção", "Explorar linha").',
+  };
+  // Default: institutional/brand
+  if (!product && !category) return {
+    tone: 'institucional',
+    toneInstruction: 'TOM INSTITUCIONAL: Confiança + identidade de marca. Use valores da loja. Palavras como "Qualidade", "Cuidado", "Confiança". CTA genérico mas firme (ex: "Visitar loja", "Ver novidades").',
+  };
+  // Product without promo/premium
+  return {
+    tone: 'produto',
+    toneInstruction: 'TOM DE PRODUTO: Benefício + ação direta. Destaque o que o produto faz de especial. CTA específico ao produto (ex: "Comprar Sérum", "Ver detalhes"). NUNCA use "Comprar agora" se o nome do produto está disponível.',
+  };
+}
+
 /** System prompt for copy generation — enforces quality, tone, and char limits */
-function COPY_SYSTEM_PROMPT(storeInfo: string, contextInfo: string, briefing?: string): string {
+function COPY_SYSTEM_PROMPT(storeInfo: string, contextInfo: string, briefing?: string, toneInstruction?: string): string {
   return `Você é um copywriter SÊNIOR de e-commerce brasileiro. Gere textos para banners de loja virtual.
 
 REGRAS OBRIGATÓRIAS:
@@ -331,6 +368,13 @@ REGRAS OBRIGATÓRIAS:
 5. Se houver preço/oferta, destaque naturalmente (ex: "A partir de R$ X").
 6. Cada campo deve funcionar SOZINHO — não depender dos outros para fazer sentido.
 
+${toneInstruction || ''}
+
+VARIAÇÃO OBRIGATÓRIA:
+- NUNCA comece 2 ou mais titles com o mesmo verbo (especialmente "Descubra" ou "Conheça").
+- NUNCA use "Saiba mais" ou "Comprar agora" como CTA se existe o nome do produto/categoria disponível. Prefira CTAs específicos (ex: "Comprar Sérum", "Ver Linha Solar").
+- Cada slide (se carousel) DEVE ter abordagem e vocabulário distintos.
+
 ${storeInfo}
 ${contextInfo}
 ${briefing ? `Briefing: "${briefing}".` : ''}
@@ -339,7 +383,8 @@ EXEMPLOS DE BOA COPY:
 - title: "Novo Sérum Facial" (18 chars) ✅
 - title: "Descubra o poder da hidratação profunda para sua pele" (54 chars) ❌ MUITO LONGO
 - subtitle: "Hidratação profunda por 24h" (27 chars) ✅
-- buttonText: "Comprar agora" (13 chars) ✅
+- buttonText: "Comprar Sérum" (13 chars) ✅ (específico)
+- buttonText: "Comprar agora" (13 chars) ⚠️ (genérico, evitar se nome disponível)
 - buttonText: "Aproveite esta oferta incrível" (30 chars) ❌ MUITO LONGO`;
 }
 
@@ -369,6 +414,36 @@ function truncateTexts(result: any): any {
 // TEXT GENERATION — Uses real product data
 // =============================================
 
+/** Build context info string from product/category data */
+function buildContextInfo(product?: ProductContext | null, category?: CategoryContext | null): string {
+  if (product) {
+    let info = `Produto REAL: "${product.name}".`;
+    if (product.description) {
+      info += ` Descrição: "${product.description.substring(0, 300)}".`;
+    }
+    if (product.price) {
+      const formatted = `R$ ${product.price.toFixed(2).replace('.', ',')}`;
+      info += ` Preço: ${formatted}.`;
+      if (product.compareAtPrice && product.compareAtPrice > product.price) {
+        const oldFormatted = `R$ ${product.compareAtPrice.toFixed(2).replace('.', ',')}`;
+        info += ` De ${oldFormatted} por ${formatted}.`;
+      }
+    }
+    info += ' IMPORTANTE: Use o nome EXATO do produto. Não invente outro nome ou produto.';
+    return info;
+  } else if (category) {
+    return `Categoria REAL: "${category.name}". Use o nome EXATO da categoria.`;
+  }
+  return '';
+}
+
+interface SlideContext {
+  product?: ProductContext | null;
+  category?: CategoryContext | null;
+  associationType?: string;
+  briefing?: string;
+}
+
 async function generateTexts(
   contract: ServerContract,
   context: {
@@ -380,38 +455,31 @@ async function generateTexts(
     associationType?: string;
     store: StoreContext;
     slideCount?: number;
+    slideContexts?: SlideContext[];
   },
   options: { supabaseUrl: string; supabaseServiceKey: string },
 ): Promise<Record<string, unknown>> {
   resetAIRouterCache();
-
-  // Build rich context from real data
-  let contextInfo = '';
-  if (context.product) {
-    contextInfo = `Produto REAL: "${context.product.name}".`;
-    if (context.product.description) {
-      contextInfo += ` Descrição: "${context.product.description.substring(0, 300)}".`;
-    }
-    if (context.product.price) {
-      const formatted = `R$ ${context.product.price.toFixed(2).replace('.', ',')}`;
-      contextInfo += ` Preço: ${formatted}.`;
-    }
-    contextInfo += ' IMPORTANTE: Use o nome EXATO do produto. Não invente outro nome ou produto.';
-  } else if (context.category) {
-    contextInfo = `Categoria REAL: "${context.category.name}". Use o nome EXATO da categoria.`;
-  }
 
   let storeInfo = `Loja: "${context.store.storeName}".`;
   if (context.store.storeDescription) {
     storeInfo += ` Sobre: "${context.store.storeDescription.substring(0, 200)}".`;
   }
 
-  if (context.mode === 'carousel' && context.slideCount) {
+  if (context.mode === 'carousel' && context.slideCount && context.slideContexts) {
+    // Build per-slide context info for the prompt
+    const perSlideContexts = context.slideContexts.map((sc, i) => {
+      const info = buildContextInfo(sc.product, sc.category);
+      const tone = detectCreativeTone(sc.product, sc.category, sc.briefing, sc.associationType);
+      return `SLIDE ${i + 1}: ${info || 'Sem produto/categoria vinculado (use tom institucional).'}
+Tom: ${tone.toneInstruction}`;
+    }).join('\n\n');
+
     const tools = [{
       type: "function",
       function: {
         name: "generate_carousel_texts",
-        description: `Generate compelling marketing text for ${context.slideCount} banner slides for an e-commerce store.`,
+        description: `Generate compelling marketing text for ${context.slideCount} banner slides for an e-commerce store. Each slide has its own product/category context.`,
         parameters: {
           type: "object",
           properties: {
@@ -422,7 +490,7 @@ async function generateTexts(
                 properties: {
                   title: { type: "string", description: "Headline curta e impactante. MÁXIMO 30 caracteres. Verbo de ação ou benefício direto." },
                   subtitle: { type: "string", description: "Texto de apoio. MÁXIMO 60 caracteres. Complementar ao title, sem repetir." },
-                  buttonText: { type: "string", description: "Texto do botão CTA. MÁXIMO 15 caracteres. Ação clara (ex: Comprar, Ver oferta)." },
+                  buttonText: { type: "string", description: "Texto do botão CTA. MÁXIMO 15 caracteres. Ação clara e específica ao produto/categoria do slide." },
                   altText: { type: "string", description: "Texto alt acessível descrevendo a imagem do banner." },
                 },
                 required: ["title", "subtitle", "buttonText", "altText"],
@@ -438,12 +506,15 @@ async function generateTexts(
       },
     }];
 
-    const systemPrompt = COPY_SYSTEM_PROMPT(storeInfo, contextInfo, context.briefing);
+    // Use first slide's context for overall tone detection
+    const firstSlideCtx = context.slideContexts[0];
+    const tone = detectCreativeTone(firstSlideCtx?.product, firstSlideCtx?.category, context.briefing, firstSlideCtx?.associationType);
+    const systemPrompt = COPY_SYSTEM_PROMPT(storeInfo, perSlideContexts, context.briefing, tone.toneInstruction);
 
     const { data } = await aiChatCompletionJSON("google/gemini-2.5-flash", {
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: `Gere textos para ${context.slideCount} slides de banner. Cada slide deve ter textos DISTINTOS e complementares entre si. Respeite os limites de caracteres rigorosamente.` },
+        { role: "user", content: `Gere textos para ${context.slideCount} slides de banner. CADA SLIDE tem seu próprio contexto (produto ou categoria diferente). Os textos de cada slide DEVEM refletir o produto/categoria específico daquele slide. Varie verbos e abordagem entre slides. Respeite os limites de caracteres rigorosamente.` },
       ],
       tools,
       tool_choice: { type: "function", function: { name: "generate_carousel_texts" } },
@@ -464,6 +535,9 @@ async function generateTexts(
   }
 
   // Single banner text generation
+  const contextInfo = buildContextInfo(context.product, context.category);
+  const tone = detectCreativeTone(context.product, context.category, context.briefing, context.associationType);
+
   const tools = [{
     type: "function",
     function: {
@@ -474,7 +548,7 @@ async function generateTexts(
         properties: {
           title: { type: "string", description: "Headline curta e impactante. MÁXIMO 30 caracteres. Verbo de ação ou benefício direto. Use o nome real do produto." },
           subtitle: { type: "string", description: "Texto de apoio. MÁXIMO 60 caracteres. Complementar ao title, sem repetir. Destaque benefício ou oferta." },
-          buttonText: { type: "string", description: "Texto do botão CTA. MÁXIMO 15 caracteres. Ação clara (ex: Comprar agora, Ver oferta, Conhecer)." },
+          buttonText: { type: "string", description: "Texto do botão CTA. MÁXIMO 15 caracteres. Ação específica ao produto/categoria (ex: 'Comprar Sérum', não 'Comprar agora')." },
           altText: { type: "string", description: "Texto alt acessível descrevendo a imagem do banner." },
         },
         required: ["title", "subtitle", "buttonText", "altText"],
@@ -483,7 +557,7 @@ async function generateTexts(
     },
   }];
 
-  const systemPrompt = COPY_SYSTEM_PROMPT(storeInfo, contextInfo, context.briefing);
+  const systemPrompt = COPY_SYSTEM_PROMPT(storeInfo, contextInfo, context.briefing, tone.toneInstruction);
 
   const { data } = await aiChatCompletionJSON("google/gemini-2.5-flash", {
     messages: [
@@ -616,7 +690,11 @@ serve(async (req) => {
           const refImage = productCtx?.mainImageUrl || undefined;
           let dataUrl = await callImageModel(lovableApiKey, "google/gemini-3-pro-image-preview", prompt, refImage);
           if (!dataUrl) {
-            console.log(`[ai-block-fill-visual] Pro failed for ${spec.key}, trying flash...`);
+            console.log(`[ai-block-fill-visual] Pro failed for ${spec.key}, trying 3.1-flash...`);
+            dataUrl = await callImageModel(lovableApiKey, "google/gemini-3.1-flash-image-preview", prompt, refImage);
+          }
+          if (!dataUrl) {
+            console.log(`[ai-block-fill-visual] 3.1-flash failed for ${spec.key}, trying 2.5-flash...`);
             dataUrl = await callImageModel(lovableApiKey, "google/gemini-2.5-flash-image", prompt, refImage);
           }
           if (!dataUrl) {
@@ -753,6 +831,11 @@ serve(async (req) => {
                 const refImage = slideContexts[i]?.product?.mainImageUrl || undefined;
                 let dataUrl = await callImageModel(lovableApiKey, "google/gemini-3-pro-image-preview", prompt, refImage);
                 if (!dataUrl) {
+                  console.log(`[ai-block-fill-visual] Pro failed for slide ${i} ${spec.key}, trying 3.1-flash...`);
+                  dataUrl = await callImageModel(lovableApiKey, "google/gemini-3.1-flash-image-preview", prompt, refImage);
+                }
+                if (!dataUrl) {
+                  console.log(`[ai-block-fill-visual] 3.1-flash failed for slide ${i} ${spec.key}, trying 2.5-flash...`);
                   dataUrl = await callImageModel(lovableApiKey, "google/gemini-2.5-flash-image", prompt, refImage);
                 }
                 if (!dataUrl) {
@@ -789,6 +872,7 @@ serve(async (req) => {
           associationType: slideContexts[0]?.associationType,
           store: storeCtx,
           slideCount,
+          slideContexts,
         }, { supabaseUrl, supabaseServiceKey });
         textSlides = (textResult as any).slides || [];
       }
