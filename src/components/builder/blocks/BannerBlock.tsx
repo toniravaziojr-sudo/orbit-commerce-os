@@ -249,7 +249,7 @@ export function BannerBlock({
         {/* CTA Content */}
         {hasCTA && (
           <div className={cn(
-            "absolute inset-0 flex flex-col justify-center px-6 md:px-16 py-12 z-10",
+            "absolute inset-0 flex flex-col justify-center px-5 md:px-16 py-8 md:py-12 z-10",
             alignClass,
           )}
           style={{ maxWidth: isMobile ? '100%' : (alignment === 'center' ? '100%' : '55%') }}
