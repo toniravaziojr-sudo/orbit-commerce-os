@@ -321,8 +321,6 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      // NOTE: pendingOrderRef is intentionally NOT cleared here
-      // so the next retry reuses the same order instead of creating a duplicate
       const result: PaymentResult = {
         success: false,
         error: errorMessage,
