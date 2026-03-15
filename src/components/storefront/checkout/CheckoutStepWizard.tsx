@@ -740,7 +740,8 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         clearStoredAttribution();
         clearStoredAffiliateData();
         setPaymentStatus('failed');
-        navigate(`${urls.thankYou()}?pedido=${encodeURIComponent(cleanOrderNumber)}&status=declined`);
+        const retryParam = result.retryToken ? `&rt=${encodeURIComponent(result.retryToken)}` : '';
+        navigate(`${urls.thankYou()}?pedido=${encodeURIComponent(cleanOrderNumber)}&status=declined${retryParam}`);
       } else if (result.technicalError) {
         // Technical error — order exists but charge failed to reach gateway
         // Stay on checkout, show error, let user retry (will create new order)

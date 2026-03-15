@@ -298,7 +298,8 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
       const cleanOrderNumber = result.orderNumber?.replace(/^#/, '').trim() || '';
       clearCart(); clearDraft(); clearStoredAttribution(); clearStoredAffiliateData();
       setPaymentStatus('failed');
-      navigate(`${urls.thankYou()}?pedido=${encodeURIComponent(cleanOrderNumber)}&status=declined`);
+      const retryParam = result.retryToken ? `&rt=${encodeURIComponent(result.retryToken)}` : '';
+      navigate(`${urls.thankYou()}?pedido=${encodeURIComponent(cleanOrderNumber)}&status=declined${retryParam}`);
     } else if (result.technicalError) {
       // Technical error — stay on checkout
       setPaymentStatus('failed');
