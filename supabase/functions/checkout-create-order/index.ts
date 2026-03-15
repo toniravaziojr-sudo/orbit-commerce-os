@@ -464,6 +464,8 @@ serve(async (req) => {
         free_shipping: payload.discount?.free_shipping || false,
         // Shipping quote traceability (Security Plan v3.1)
         shipping_quote_id: validatedQuoteId || null,
+        // Step 5: Link to original declined order
+        retry_from_order_id: payload.retry_from_order_id || null,
       })
       .select('id')
       .single();
