@@ -325,4 +325,5 @@ O evento `Purchase` é disparado **exclusivamente** na página de obrigado (`Tha
 - [ ] Compartilhamento social
 - [ ] Email de confirmação visual
 - [ ] QR Code para rastreio
-- [ ] CTA "Outra forma de pagamento" com retry_token (Etapa 5)
+- [x] CTA "Outra forma de pagamento" com retry_token (Etapa 5) — IMPLEMENTADO
+- [x] Reconstrução automática do carrinho no modo retry (Etapa 5) — IMPLEMENTADO
