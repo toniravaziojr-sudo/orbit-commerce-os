@@ -149,6 +149,15 @@ export function useAIWizardGenerate({
       // Wizard uses association_0, association_1 for carousel slides
       // Backend expects slideAssociations_0, slideAssociations_1
       const backendData: Record<string, unknown> = { ...collectedData };
+
+      // Merge creativeStyle data into bannerMode for backend compatibility
+      const creativeStyleData = collectedData.creativeStyle as { creativeStyle?: string; styleConfig?: Record<string, unknown> } | undefined;
+      if (creativeStyleData && backendData.bannerMode) {
+        const modeDataForStyle = backendData.bannerMode as Record<string, unknown>;
+        modeDataForStyle.creativeStyle = creativeStyleData.creativeStyle || 'product_natural';
+        modeDataForStyle.styleConfig = creativeStyleData.styleConfig || {};
+      }
+
       if (mode === 'carousel') {
         const modeData = collectedData.bannerMode as BannerModeData | undefined;
         const slideCount = modeData?.slideCount || 2;

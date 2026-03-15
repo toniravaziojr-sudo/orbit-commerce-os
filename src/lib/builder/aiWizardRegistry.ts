@@ -169,6 +169,12 @@ const BANNER_UNIFIED_CONTRACT: WizardBlockContract = {
       required: true,
     },
     {
+      id: 'creativeStyle',
+      type: 'creative-style-select',
+      label: 'Estilo visual da imagem',
+      required: true,
+    },
+    {
       id: 'scope',
       type: 'scope-select',
       label: 'O que deseja gerar?',

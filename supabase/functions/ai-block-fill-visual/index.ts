@@ -1,6 +1,6 @@
 // =============================================
-// AI BLOCK FILL VISUAL v2.3.0 — Banner Quality Phase (Track A)
-// Fixes: art direction, copy quality, legibility defaults
+// AI BLOCK FILL VISUAL v3.0.0 — Visual Engine Integration
+// Uses shared visual engine + block adapters architecture
 // Server-side registry: backend resolve contrato internamente
 // Frontend envia: blockType, mode, scope, collectedData, tenantId
 // =============================================
@@ -8,9 +8,19 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
+import { generateForRequest, uploadToStorage } from "../_shared/visual-engine.ts";
+import { BannerAdapter } from "../_shared/visual-adapters/banner-adapter.ts";
+import type {
+  ProductContext,
+  CategoryContext,
+  StoreContext,
+  SlideContext,
+  AdapterInput,
+  OutputMode,
+  ImageStyle,
+} from "../_shared/visual-adapters/types.ts";
 
-const VERSION = "2.3.0";
-const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const VERSION = "3.0.0";
 const MAX_BRIEFING_LENGTH = 500;
 
 const corsHeaders = {
@@ -59,30 +69,23 @@ function resolveContract(blockType: string, mode?: string): ServerContract | nul
 }
 
 // =============================================
+// ADAPTER REGISTRY
+// =============================================
+
+const bannerAdapter = new BannerAdapter();
+
+function getAdapter(blockType: string) {
+  switch (blockType) {
+    case 'Banner': return bannerAdapter;
+    default: return null;
+  }
+}
+
+// =============================================
 // PRODUCT/CATEGORY DATA FETCHER (Source of Truth)
 // =============================================
 
-interface ProductContext {
-  name: string;
-  description?: string;
-  slug?: string;
-  price?: number;
-  compareAtPrice?: number;
-  mainImageUrl?: string;
-}
-
-interface CategoryContext {
-  name: string;
-  slug?: string;
-}
-
-interface StoreContext {
-  storeName: string;
-  storeDescription?: string;
-}
-
 async function fetchProductContext(supabase: any, productId: string): Promise<ProductContext | null> {
-  // Fetch product base data
   const { data: product } = await supabase
     .from("products")
     .select("name, description, slug, price, compare_at_price")
@@ -90,7 +93,6 @@ async function fetchProductContext(supabase: any, productId: string): Promise<Pr
     .single();
   if (!product) return null;
   
-  // Fetch primary image from product_images table (source of truth)
   const { data: images } = await supabase
     .from("product_images")
     .select("url, is_primary, sort_order")
@@ -134,227 +136,9 @@ async function fetchCategoryContext(supabase: any, categoryId: string): Promise<
 }
 
 // =============================================
-// IMAGE GENERATION HELPERS
-// =============================================
-
-async function callImageModel(
-  lovableApiKey: string,
-  model: string,
-  prompt: string,
-  referenceImageUrl?: string,
-): Promise<string | null> {
-  // Build content: text-only or multimodal (text + image reference)
-  let content: any;
-  if (referenceImageUrl) {
-    content = [
-      { type: 'text', text: prompt },
-      { type: 'image_url', image_url: { url: referenceImageUrl } },
-    ];
-  } else {
-    content = prompt;
-  }
-
-  const response = await fetch(LOVABLE_GATEWAY_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Bearer ' + lovableApiKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: 'user', content }],
-      modalities: ['image', 'text'],
-    }),
-  });
-  if (!response.ok) {
-    const errText = await response.text();
-    console.error(`[ai-block-fill-visual] ${model} error: ${response.status}`, errText.substring(0, 300));
-    return null;
-  }
-  const data = await response.json();
-  return data.choices?.[0]?.message?.images?.[0]?.image_url?.url || null;
-}
-
-async function uploadImageToStorage(
-  supabase: any,
-  tenantId: string,
-  dataUrl: string,
-  label: string,
-): Promise<string | null> {
-  try {
-    const base64Data = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
-    const binaryStr = atob(base64Data);
-    const bytes = new Uint8Array(binaryStr.length);
-    for (let i = 0; i < binaryStr.length; i++) {
-      bytes[i] = binaryStr.charCodeAt(i);
-    }
-    const timestamp = Date.now();
-    const safeName = label.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 30);
-    const filename = `block-${safeName}-${timestamp}.png`;
-    const filePath = `${tenantId}/block-creatives/${filename}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from('store-assets')
-      .upload(filePath, bytes, { contentType: 'image/png', upsert: false });
-
-    if (uploadError) {
-      console.error("[ai-block-fill-visual] Upload error:", uploadError);
-      return null;
-    }
-
-    const { data: publicUrlData } = supabase.storage
-      .from('store-assets')
-      .getPublicUrl(filePath);
-
-    return publicUrlData?.publicUrl || null;
-  } catch (error) {
-    console.error("[ai-block-fill-visual] Upload error:", error);
-    return null;
-  }
-}
-
-// =============================================
-// IMAGE PROMPT BUILDER — Uses real product data + store context
-// =============================================
-
-function buildBannerImagePrompt(
-  spec: ServerImageSpec,
-  context: {
-    briefing?: string;
-    product?: ProductContext | null;
-    category?: CategoryContext | null;
-    associationType?: string;
-    store: StoreContext;
-    slideIndex?: number;
-  }
-): string {
-  const isDesktop = spec.key === 'imageDesktop';
-
-  // Build rich product context
-  let subjectDescription = 'Produtos variados da loja em composição premium.';
-  let productImageNote = '';
-  if (context.product) {
-    subjectDescription = `O produto "${context.product.name}"`;
-    if (context.product.description) {
-      subjectDescription += ` — ${context.product.description.substring(0, 200)}`;
-    }
-    subjectDescription += '.';
-    if (context.product.mainImageUrl) {
-      productImageNote = `REFERÊNCIA VISUAL: Uma foto do produto real foi anexada. Reproduza FIELMENTE a cor, forma, embalagem e textura do produto na composição do banner. O produto no banner deve ser reconhecível como o mesmo da foto.`;
-    }
-  } else if (context.category) {
-    subjectDescription = `Produtos da categoria "${context.category.name}" em composição premium.`;
-  }
-
-  // Store identity
-  let storeIdentity = `Loja: "${context.store.storeName}".`;
-  if (context.store.storeDescription) {
-    storeIdentity += ` ${context.store.storeDescription.substring(0, 200)}.`;
-  }
-
-  const briefingLine = context.briefing ? `Briefing: "${context.briefing}".` : '';
-  const slideNote = context.slideIndex !== undefined
-    ? `Slide ${context.slideIndex + 1} do carrossel — varie cenário/atmosfera.`
-    : '';
-
-  // Detect campaign context from briefing
-  const briefingLower = (context.briefing || '').toLowerCase();
-  const isCampaign = /páscoa|natal|black friday|dia das mães|dia dos pais|dia dos namorados|carnaval|ano novo|verão|inverno|primavera|outono|dia do consumidor|aniversário/.test(briefingLower);
-  const hasDiscount = /\d+%|desconto|oferta|promoção|promo|off|frete gr[áa]tis|cupom/.test(briefingLower);
-  
-  // Extract specific campaign theme for visual direction
-  let campaignTheme = '';
-  if (/páscoa/.test(briefingLower)) campaignTheme = 'Páscoa: tons dourados, chocolate, ovos decorativos sutis no cenário, atmosfera acolhedora e festiva.';
-  else if (/natal/.test(briefingLower)) campaignTheme = 'Natal: tons vermelho/dourado/verde, luzes bokeh, atmosfera natalina elegante e premium.';
-  else if (/black friday/.test(briefingLower)) campaignTheme = 'Black Friday: tons escuros dominantes (preto, dourado), contraste dramático, atmosfera de urgência e exclusividade.';
-  else if (/dia das mães/.test(briefingLower)) campaignTheme = 'Dia das Mães: tons suaves e sofisticados, flores sutis no cenário, atmosfera carinhosa e premium.';
-  else if (/dia dos pais/.test(briefingLower)) campaignTheme = 'Dia dos Pais: tons sóbrios e elegantes (azul marinho, cinza), atmosfera masculina e sofisticada.';
-  else if (/dia dos namorados/.test(briefingLower)) campaignTheme = 'Dia dos Namorados: tons românticos (vermelho, rosa dourado), atmosfera íntima e premium.';
-  else if (/verão/.test(briefingLower)) campaignTheme = 'Verão: tons vibrantes e quentes, luz solar, atmosfera fresca e energética.';
-  else if (/inverno/.test(briefingLower)) campaignTheme = 'Inverno: tons frios e aconchegantes, atmosfera sofisticada e intimista.';
-  
-  let campaignDirective = '';
-  if (isCampaign || hasDiscount) {
-    campaignDirective = `
-DIREÇÃO DE CAMPANHA (PRIORIDADE MÁXIMA):
-- Este banner é para uma CAMPANHA COMERCIAL REAL, não uma foto de produto genérica.
-- O CENÁRIO INTEIRO deve respirar o tema da campanha. Não basta colocar o produto num fundo bonito.
-${campaignTheme ? `- TEMA VISUAL: ${campaignTheme}` : ''}
-${isCampaign ? '- Elementos visuais temáticos devem estar INTEGRADOS ao cenário de forma orgânica (cores ambientais, objetos decorativos no fundo, iluminação temática).' : ''}
-${hasDiscount ? '- A atmosfera deve transmitir OPORTUNIDADE e URGÊNCIA: iluminação dramática, contraste forte, cores vibrantes que chamem atenção.' : ''}
-- NÃO adicione texto na imagem — toda informação de oferta/campanha será colocada como overlay HTML.
-- O resultado deve parecer um banner de campanha profissional de grande e-commerce, não uma montagem amadora.
-- PENSE como um diretor de arte: qual cenário, iluminação e composição fariam alguém parar e olhar?`;
-  }
-
-  if (isDesktop) {
-    return `CRIE UM BANNER HORIZONTAL DE E-COMMERCE. Proporção exata: ${spec.width}x${spec.height}px (12:5 widescreen).
-
-${storeIdentity}
-ASSUNTO: ${subjectDescription}
-${productImageNote}
-${briefingLine}
-${slideNote}
-
-COMPOSIÇÃO OBRIGATÓRIA (DESKTOP):
-- O PRODUTO deve ocupar o TERÇO DIREITO da imagem (~30% da largura MÁXIMO), bem enquadrado, proporcionado ao cenário e em destaque.
-- O PRODUTO NÃO pode dominar todo o banner. Ele deve estar integrado à composição, não colado ou gigante.
-- Os ~60-70% ESQUERDOS DEVEM ter fundo escuro, gradiente natural ou área de baixo contraste. Esta zona será usada para overlay de texto branco — PRECISA ser escura o suficiente para texto branco ser legível.
-- O gradiente deve ser NATURAL e integrado ao cenário (iluminação lateral, sombra ambiente, fundo escurecido), não um retângulo de cor sólida.
-- Transição suave entre a zona escura e a zona do produto.
-${campaignDirective}
-
-DIREÇÃO DE ARTE:
-- Fotografia comercial profissional, iluminação de estúdio com dramática lateral.
-- Fundo contextual rico (superfície, textura, ambiente) — NUNCA fundo branco chapado.
-- Profundidade de campo com bokeh suave no fundo.
-- Cores vibrantes e harmônicas. Qualidade 4K.
-- O banner deve parecer uma peça comercial de campanha, não apenas uma foto de produto.
-
-PROIBIÇÕES ABSOLUTAS:
-- ❌ NENHUM texto, letra, número, logo ou badge na imagem
-- ❌ NENHUMA pessoa, mão ou modelo
-- ❌ NENHUM fundo branco ou cinza claro chapado
-- ❌ NENHUM elemento gráfico/UI (botões, bordas, molduras)
-- ❌ Produto NÃO pode ocupar mais de 30% da largura total`;
-  } else {
-    return `CRIE UM BANNER VERTICAL PARA MOBILE. Proporção exata: ${spec.width}x${spec.height}px (4:5 retrato).
-
-${storeIdentity}
-ASSUNTO: ${subjectDescription}
-${productImageNote}
-${briefingLine}
-${slideNote}
-
-COMPOSIÇÃO OBRIGATÓRIA (MOBILE):
-- O TERÇO SUPERIOR (~35-40% da altura) DEVE ser escuro/gradiente natural para receber texto branco sobreposto.
-- O PRODUTO deve estar no CENTRO da imagem (~40% da altura MÁXIMO), bem enquadrado e proporcionado — NÃO gigante, NÃO cortado.
-- O TERÇO INFERIOR deve ter espaço para um botão CTA (zona mais limpa/escura).
-- O gradiente escuro no topo deve ser NATURAL (iluminação de cima, sombra ambiente), integrado ao cenário.
-- Transição suave entre as zonas.
-${campaignDirective}
-
-DIREÇÃO DE ARTE:
-- Fotografia comercial profissional, iluminação de estúdio.
-- Fundo contextual (superfície, textura) — NUNCA fundo branco chapado.
-- Enquadramento pensado para tela estreita. Produto centralizado e PROPORCIONADO ao espaço.
-- Cores vibrantes e harmônicas. Qualidade 4K.
-- O banner deve parecer uma peça comercial de campanha, não apenas uma foto de produto.
-
-PROIBIÇÕES ABSOLUTAS:
-- ❌ NENHUM texto, letra, número, logo ou badge na imagem
-- ❌ NENHUMA pessoa, mão ou modelo
-- ❌ NENHUM fundo branco ou cinza claro chapado
-- ❌ NENHUM elemento gráfico/UI (botões, bordas, molduras)
-- ❌ Produto NÃO pode ocupar mais de 40% da altura total`;
-  }
-}
-
-// =============================================
 // COPY QUALITY HELPERS
 // =============================================
 
-/** Detect creative tone from context — promotional, institutional, premium, or category */
 function detectCreativeTone(
   product?: ProductContext | null,
   category?: CategoryContext | null,
@@ -379,21 +163,17 @@ function detectCreativeTone(
     tone: 'categoria',
     toneInstruction: 'TOM DE CATEGORIA: Exploração + variedade. Convide a descobrir a coleção. Use verbos como "Explore", "Encontre", "Confira". CTA direcionado (ex: "Ver coleção", "Explorar linha").',
   };
-  // Default: institutional/brand
   if (!product && !category) return {
     tone: 'institucional',
     toneInstruction: 'TOM INSTITUCIONAL: Confiança + identidade de marca. Use valores da loja. Palavras como "Qualidade", "Cuidado", "Confiança". CTA genérico mas firme (ex: "Visitar loja", "Ver novidades").',
   };
-  // Product without promo/premium
   return {
     tone: 'produto',
     toneInstruction: 'TOM DE PRODUTO: Benefício + ação direta. Destaque o que o produto faz de especial. CTA específico ao produto (ex: "Comprar Sérum", "Ver detalhes"). NUNCA use "Comprar agora" se o nome do produto está disponível.',
   };
 }
 
-/** System prompt for copy generation — enforces quality, tone, and char limits */
 function COPY_SYSTEM_PROMPT(storeInfo: string, contextInfo: string, briefing?: string, toneInstruction?: string): string {
-  // Detect if briefing contains campaign/offer info that MUST appear in copy
   const briefingLower = (briefing || '').toLowerCase();
   const hasOffer = /\d+%|desconto|oferta|promoção|frete grátis|cupom/.test(briefingLower);
   const hasCampaign = /páscoa|natal|black friday|dia das mães|dia dos pais|dia dos namorados|carnaval|ano novo/.test(briefingLower);
@@ -437,26 +217,15 @@ ${briefing ? `Briefing do usuário: "${briefing}". ESTA É A DIREÇÃO CRIATIVA 
 EXEMPLOS DE BOA COPY:
 - title: "Páscoa até 35% OFF" (19 chars) ✅ (campanha + oferta)
 - title: "Novo Sérum Facial" (18 chars) ✅
-- title: "Descubra o poder da hidratação profunda para sua pele" (54 chars) ❌ MUITO LONGO
 - subtitle: "Ofertas especiais por tempo limitado" (35 chars) ✅
-- subtitle: "Hidratação profunda por 24h" (27 chars) ✅
 - buttonText: "Comprar Sérum" (13 chars) ✅ (específico)
-- buttonText: "Ver Ofertas" (11 chars) ✅ (campanha)
-- buttonText: "Comprar agora" (13 chars) ⚠️ (genérico, evitar se nome disponível)
-- buttonText: "Aproveite esta oferta incrível" (30 chars) ❌ MUITO LONGO`;
+- buttonText: "Comprar agora" (13 chars) ⚠️ (genérico, evitar se nome disponível)`;
 }
 
-/** Truncate texts as safety net — model should respect limits but this guarantees it */
 function truncateTexts(result: any): any {
-  if (result.title && typeof result.title === 'string') {
-    result.title = result.title.substring(0, 30);
-  }
-  if (result.subtitle && typeof result.subtitle === 'string') {
-    result.subtitle = result.subtitle.substring(0, 60);
-  }
-  if (result.buttonText && typeof result.buttonText === 'string') {
-    result.buttonText = result.buttonText.substring(0, 15);
-  }
+  if (result.title && typeof result.title === 'string') result.title = result.title.substring(0, 30);
+  if (result.subtitle && typeof result.subtitle === 'string') result.subtitle = result.subtitle.substring(0, 60);
+  if (result.buttonText && typeof result.buttonText === 'string') result.buttonText = result.buttonText.substring(0, 15);
   if (Array.isArray(result.slides)) {
     result.slides = result.slides.map((s: any) => ({
       ...s,
@@ -469,16 +238,13 @@ function truncateTexts(result: any): any {
 }
 
 // =============================================
-// TEXT GENERATION — Uses real product data
+// TEXT GENERATION
 // =============================================
 
-/** Build context info string from product/category data */
 function buildContextInfo(product?: ProductContext | null, category?: CategoryContext | null): string {
   if (product) {
     let info = `Produto REAL: "${product.name}".`;
-    if (product.description) {
-      info += ` Descrição: "${product.description.substring(0, 300)}".`;
-    }
+    if (product.description) info += ` Descrição: "${product.description.substring(0, 300)}".`;
     if (product.price) {
       const formatted = `R$ ${product.price.toFixed(2).replace('.', ',')}`;
       info += ` Preço: ${formatted}.`;
@@ -493,13 +259,6 @@ function buildContextInfo(product?: ProductContext | null, category?: CategoryCo
     return `Categoria REAL: "${category.name}". Use o nome EXATO da categoria.`;
   }
   return '';
-}
-
-interface SlideContext {
-  product?: ProductContext | null;
-  category?: CategoryContext | null;
-  associationType?: string;
-  briefing?: string;
 }
 
 async function generateTexts(
@@ -520,12 +279,9 @@ async function generateTexts(
   resetAIRouterCache();
 
   let storeInfo = `Loja: "${context.store.storeName}".`;
-  if (context.store.storeDescription) {
-    storeInfo += ` Sobre: "${context.store.storeDescription.substring(0, 200)}".`;
-  }
+  if (context.store.storeDescription) storeInfo += ` Sobre: "${context.store.storeDescription.substring(0, 200)}".`;
 
   if (context.mode === 'carousel' && context.slideCount && context.slideContexts) {
-    // Build per-slide context info for the prompt
     const perSlideContexts = context.slideContexts.map((sc, i) => {
       const info = buildContextInfo(sc.product, sc.category);
       const tone = detectCreativeTone(sc.product, sc.category, sc.briefing, sc.associationType);
@@ -546,10 +302,10 @@ Tom: ${tone.toneInstruction}`;
               items: {
                 type: "object",
                 properties: {
-                  title: { type: "string", description: "Headline curta e impactante. MÁXIMO 30 caracteres. Verbo de ação ou benefício direto." },
-                  subtitle: { type: "string", description: "Texto de apoio. MÁXIMO 60 caracteres. Complementar ao title, sem repetir." },
-                  buttonText: { type: "string", description: "Texto do botão CTA. MÁXIMO 15 caracteres. Ação clara e específica ao produto/categoria do slide." },
-                  altText: { type: "string", description: "Texto alt acessível descrevendo a imagem do banner." },
+                  title: { type: "string", description: "Headline curta e impactante. MÁXIMO 30 caracteres." },
+                  subtitle: { type: "string", description: "Texto de apoio. MÁXIMO 60 caracteres." },
+                  buttonText: { type: "string", description: "Texto do botão CTA. MÁXIMO 15 caracteres." },
+                  altText: { type: "string", description: "Texto alt acessível." },
                 },
                 required: ["title", "subtitle", "buttonText", "altText"],
                 additionalProperties: false,
@@ -564,7 +320,6 @@ Tom: ${tone.toneInstruction}`;
       },
     }];
 
-    // Use first slide's context for overall tone detection
     const firstSlideCtx = context.slideContexts[0];
     const tone = detectCreativeTone(firstSlideCtx?.product, firstSlideCtx?.category, context.briefing, firstSlideCtx?.associationType);
     const systemPrompt = COPY_SYSTEM_PROMPT(storeInfo, perSlideContexts, context.briefing, tone.toneInstruction);
@@ -572,7 +327,7 @@ Tom: ${tone.toneInstruction}`;
     const { data } = await aiChatCompletionJSON("google/gemini-2.5-flash", {
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: `Gere textos para ${context.slideCount} slides de banner. CADA SLIDE tem seu próprio contexto (produto ou categoria diferente). Os textos de cada slide DEVEM refletir o produto/categoria específico daquele slide. Varie verbos e abordagem entre slides. Respeite os limites de caracteres rigorosamente.` },
+        { role: "user", content: `Gere textos para ${context.slideCount} slides de banner. CADA SLIDE tem seu próprio contexto. Varie verbos e abordagem entre slides.` },
       ],
       tools,
       tool_choice: { type: "function", function: { name: "generate_carousel_texts" } },
@@ -604,10 +359,10 @@ Tom: ${tone.toneInstruction}`;
       parameters: {
         type: "object",
         properties: {
-          title: { type: "string", description: "Headline curta e impactante. MÁXIMO 30 caracteres. Verbo de ação ou benefício direto. Use o nome real do produto." },
-          subtitle: { type: "string", description: "Texto de apoio. MÁXIMO 60 caracteres. Complementar ao title, sem repetir. Destaque benefício ou oferta." },
-          buttonText: { type: "string", description: "Texto do botão CTA. MÁXIMO 15 caracteres. Ação específica ao produto/categoria (ex: 'Comprar Sérum', não 'Comprar agora')." },
-          altText: { type: "string", description: "Texto alt acessível descrevendo a imagem do banner." },
+          title: { type: "string", description: "Headline curta e impactante. MÁXIMO 30 caracteres." },
+          subtitle: { type: "string", description: "Texto de apoio. MÁXIMO 60 caracteres." },
+          buttonText: { type: "string", description: "Texto do botão CTA. MÁXIMO 15 caracteres." },
+          altText: { type: "string", description: "Texto alt acessível." },
         },
         required: ["title", "subtitle", "buttonText", "altText"],
         additionalProperties: false,
@@ -656,7 +411,6 @@ serve(async (req) => {
     const body = await req.json();
     const { tenantId, blockType, mode, scope: requestedScope, collectedData } = body;
 
-    // --- Validation ---
     if (!tenantId || !blockType) {
       return new Response(
         JSON.stringify({ success: false, error: "Missing tenantId or blockType" }),
@@ -664,27 +418,22 @@ serve(async (req) => {
       );
     }
 
-    // Scope: images | texts | all (default: all)
     const scope: string = ['images', 'texts', 'all'].includes(requestedScope) ? requestedScope : 'all';
     const generateImages = scope === 'images' || scope === 'all';
     const generateTextsFlag = scope === 'texts' || scope === 'all';
 
-    // --- Resolve contract server-side ---
     const contract = resolveContract(blockType, mode);
     if (!contract) {
-      console.error(`[ai-block-fill-visual] Unknown blockType/mode: ${blockType}:${mode}`);
       return new Response(
         JSON.stringify({ success: false, error: `Bloco não suportado: ${blockType}` }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    // --- Sanitize briefing ---
     const briefing = typeof collectedData?.briefing === 'string'
       ? collectedData.briefing.replace(/<[^>]*>/g, '').substring(0, MAX_BRIEFING_LENGTH).trim()
       : undefined;
 
-    // --- Environment ---
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
@@ -703,12 +452,18 @@ serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // --- Store context (name + description) ---
     const storeCtx = await fetchStoreContext(supabase, tenantId);
-    console.log(`[ai-block-fill-visual] Store: "${storeCtx.storeName}", desc: ${storeCtx.storeDescription ? 'yes' : 'no'}`);
+    const openaiApiKey = Deno.env.get("OPENAI_API_KEY") || null;
 
-    // --- Resolve association context with FULL product/category data ---
+    // Extract outputMode and creativeStyle from collectedData (Phase 1)
+    const bannerModeData = collectedData?.bannerMode;
+    const outputMode: OutputMode = bannerModeData?.outputMode || 'editable';
+    const creativeStyle: ImageStyle = bannerModeData?.creativeStyle || 'product_natural';
+    const styleConfig: Record<string, unknown> = bannerModeData?.styleConfig || {};
+
+    console.log(`[ai-block-fill-visual] outputMode=${outputMode} creativeStyle=${creativeStyle}`);
+
+    // Resolve association context
     let productCtx: ProductContext | null = null;
     let categoryCtx: CategoryContext | null = null;
     let associationType: string | undefined;
@@ -726,253 +481,184 @@ serve(async (req) => {
     }
 
     // =============================================
-    // BANNER SINGLE
+    // BANNER — Uses Visual Engine + Adapter
     // =============================================
-    if (blockType === 'Banner' && (!mode || mode === 'single')) {
-      console.log(`[ai-block-fill-visual] Banner:single scope=${scope}`);
+    if (blockType === 'Banner') {
+      const adapter = getAdapter('Banner')!;
+      const isSingle = !mode || mode === 'single';
+      const isCarousel = mode === 'carousel';
+
+      // Build slide contexts
+      const slideContexts: SlideContext[] = [];
+
+      if (isCarousel) {
+        let slideCount = typeof collectedData?.slideCount === 'number' ? collectedData.slideCount : 2;
+        slideCount = Math.min(slideCount, contract.maxSlides || 3);
+        slideCount = Math.max(slideCount, 1);
+
+        for (let i = 0; i < slideCount; i++) {
+          const slideData = collectedData?.[`slideAssociations_${i}`];
+          let product: ProductContext | null = null;
+          let category: CategoryContext | null = null;
+          let type: string | undefined;
+
+          if (slideData) {
+            type = slideData.associationType;
+            if (slideData.associationType === 'product' && slideData.productId) {
+              product = await fetchProductContext(supabase, slideData.productId);
+            } else if (slideData.associationType === 'category' && slideData.categoryId) {
+              category = await fetchCategoryContext(supabase, slideData.categoryId);
+            }
+          }
+
+          slideContexts.push({ product, category, associationType: type, briefing });
+        }
+      } else {
+        slideContexts.push({ product: productCtx, category: categoryCtx, associationType, briefing });
+      }
 
       const generatedProps: Record<string, unknown> = {};
 
-      // Generate images (only if scope includes images)
+      // ===== IMAGE GENERATION via Visual Engine =====
       if (generateImages) {
-        const imagePromises = contract.imageSpecs.map(async (spec) => {
-          const prompt = buildBannerImagePrompt(spec, {
+        const adapterInput: AdapterInput = {
+          mode: mode || 'single',
+          outputMode,
+          creativeStyle,
+          styleConfig,
+          briefing: briefing || '',
+          contexts: slideContexts,
+          store: storeCtx,
+          enableQA: false,
+        };
+
+        const requests = adapter.adapt(adapterInput);
+        console.log(`[ai-block-fill-visual] Banner:${mode || 'single'} generating ${requests.length} request(s) via visual engine`);
+
+        const results = await Promise.all(
+          requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey))
+        );
+
+        // Merge visual results back into props
+        const mergedVisual = adapter.mergeResults(results, adapterInput);
+        Object.assign(generatedProps, mergedVisual);
+      }
+
+      // ===== TEXT GENERATION (only for editable mode or when scope includes texts) =====
+      if (generateTextsFlag && outputMode !== 'complete') {
+        if (isCarousel) {
+          const slideCount = slideContexts.length;
+          const textResult = await generateTexts(contract, {
+            blockType,
+            mode: 'carousel',
+            briefing,
+            product: slideContexts[0]?.product,
+            category: slideContexts[0]?.category,
+            associationType: slideContexts[0]?.associationType,
+            store: storeCtx,
+            slideCount,
+            slideContexts,
+          }, { supabaseUrl, supabaseServiceKey });
+
+          const textSlides = (textResult as any).slides || [];
+
+          // Merge texts into existing slides from image generation
+          if (Array.isArray(generatedProps.slides)) {
+            const existingSlides = generatedProps.slides as any[];
+            for (let i = 0; i < existingSlides.length; i++) {
+              const texts = textSlides[i] || {};
+              existingSlides[i].title = texts.title || '';
+              existingSlides[i].subtitle = texts.subtitle || '';
+              existingSlides[i].buttonText = texts.buttonText || '';
+              existingSlides[i].altText = texts.altText || `Banner ${i + 1}`;
+
+              // Derive linkUrl from association
+              const slideData = collectedData?.[`slideAssociations_${i}`];
+              if (slideData) {
+                if (slideData.associationType === 'product' && slideData.productId) {
+                  const ctx = slideContexts[i]?.product;
+                  existingSlides[i].linkUrl = ctx?.slug ? `/produto/${ctx.slug}` : `__product:${slideData.productId}`;
+                } else if (slideData.associationType === 'category' && slideData.categoryId) {
+                  const ctx = slideContexts[i]?.category;
+                  existingSlides[i].linkUrl = ctx?.slug ? `/categoria/${ctx.slug}` : `__category:${slideData.categoryId}`;
+                } else if (slideData.associationType === 'url' && slideData.manualUrl) {
+                  existingSlides[i].linkUrl = slideData.manualUrl;
+                }
+              }
+            }
+          } else if (generateImages) {
+            // Images generated but no slides array — shouldn't happen for carousel
+          } else {
+            // Text-only carousel
+            const slides = textSlides.map((t: any, i: number) => {
+              const slideData = collectedData?.[`slideAssociations_${i}`];
+              let linkUrl = '';
+              if (slideData) {
+                if (slideData.associationType === 'product' && slideData.productId) {
+                  const ctx = slideContexts[i]?.product;
+                  linkUrl = ctx?.slug ? `/produto/${ctx.slug}` : `__product:${slideData.productId}`;
+                } else if (slideData.associationType === 'category' && slideData.categoryId) {
+                  const ctx = slideContexts[i]?.category;
+                  linkUrl = ctx?.slug ? `/categoria/${ctx.slug}` : `__category:${slideData.categoryId}`;
+                } else if (slideData.associationType === 'url' && slideData.manualUrl) {
+                  linkUrl = slideData.manualUrl;
+                }
+              }
+              return {
+                id: crypto.randomUUID(),
+                imageDesktop: '',
+                imageMobile: '',
+                title: t.title || '',
+                subtitle: t.subtitle || '',
+                buttonText: t.buttonText || '',
+                altText: t.altText || `Banner ${i + 1}`,
+                linkUrl,
+              };
+            });
+            generatedProps.slides = slides;
+          }
+        } else {
+          // Single banner text
+          const textResult = await generateTexts(contract, {
+            blockType,
+            mode: 'single',
             briefing,
             product: productCtx,
             category: categoryCtx,
             associationType,
             store: storeCtx,
-          });
+          }, { supabaseUrl, supabaseServiceKey });
 
-          // Pass product image as multimodal reference when available
-          const refImage = productCtx?.mainImageUrl || undefined;
-          let dataUrl = await callImageModel(lovableApiKey, "google/gemini-3-pro-image-preview", prompt, refImage);
-          if (!dataUrl) {
-            console.log(`[ai-block-fill-visual] Pro failed for ${spec.key}, trying 3.1-flash...`);
-            dataUrl = await callImageModel(lovableApiKey, "google/gemini-3.1-flash-image-preview", prompt, refImage);
-          }
-          if (!dataUrl) {
-            console.log(`[ai-block-fill-visual] 3.1-flash failed for ${spec.key}, trying 2.5-flash...`);
-            dataUrl = await callImageModel(lovableApiKey, "google/gemini-2.5-flash-image", prompt, refImage);
-          }
-          if (!dataUrl) {
-            throw new Error(`Failed to generate image: ${spec.key}`);
-          }
-
-          const publicUrl = await uploadImageToStorage(supabase, tenantId, dataUrl, spec.key);
-          if (!publicUrl) {
-            throw new Error(`Failed to upload image: ${spec.key}`);
-          }
-
-          return { key: spec.key, url: publicUrl };
-        });
-
-        const imageResults = await Promise.all(imagePromises);
-        for (const img of imageResults) {
-          if (contract.aiGenerates.includes(img.key)) {
-            generatedProps[img.key] = img.url;
-          }
+          if (contract.aiGenerates.includes('title')) generatedProps.title = textResult.title || '';
+          if (contract.aiGenerates.includes('subtitle')) generatedProps.subtitle = textResult.subtitle || '';
+          if (contract.aiGenerates.includes('buttonText')) generatedProps.buttonText = textResult.buttonText || '';
         }
       }
 
-      // Generate texts (only if scope includes texts)
-      if (generateTextsFlag) {
-        const textResult = await generateTexts(contract, {
-          blockType,
-          mode: 'single',
-          briefing,
-          product: productCtx,
-          category: categoryCtx,
-          associationType,
-          store: storeCtx,
-        }, { supabaseUrl, supabaseServiceKey });
-
-        if (contract.aiGenerates.includes('title')) {
-          generatedProps.title = textResult.title || '';
+      // Complete mode: explicitly clear text fields and overlay
+      if (outputMode === 'complete') {
+        if (isSingle) {
+          generatedProps._renderMode = 'baked';
+          generatedProps._hideOverlayText = true;
+          generatedProps.overlayOpacity = 0;
+          generatedProps.title = '';
+          generatedProps.subtitle = '';
+          generatedProps.buttonText = '';
         }
-        if (contract.aiGenerates.includes('subtitle')) {
-          generatedProps.subtitle = textResult.subtitle || '';
-        }
-        if (contract.aiGenerates.includes('buttonText')) {
-          generatedProps.buttonText = textResult.buttonText || '';
-        }
-      }
-
-      // System-derived legibility props when generating image + text together
-      if (generateImages && generateTextsFlag) {
-        generatedProps.overlayOpacity = 35;
-        generatedProps.alignment = 'left';
+        // For carousel, _renderMode and _hideOverlayText are set by the adapter mergeResults
       } else if (generateImages) {
-        // Even image-only: set overlay for future text additions
-        generatedProps.overlayOpacity = 35;
-        generatedProps.alignment = 'left';
+        // Editable mode: set overlay defaults for legibility
+        if (isSingle) {
+          generatedProps.overlayOpacity = 35;
+          generatedProps.alignment = 'left';
+        }
       }
 
       const elapsed = Date.now() - startTime;
-      console.log(`[ai-block-fill-visual] Banner:single done in ${elapsed}ms`);
+      console.log(`[ai-block-fill-visual] Banner:${mode || 'single'} done in ${elapsed}ms (outputMode=${outputMode})`);
 
       try {
-        const usageCents = (generateImages ? 8 : 0) + (generateTextsFlag ? 2 : 0);
-        await supabase.rpc('record_ai_usage', { p_tenant_id: tenantId, p_usage_cents: usageCents });
-      } catch (e) {
-        console.warn("[ai-block-fill-visual] Failed to record usage:", e);
-      }
-
-      return new Response(
-        JSON.stringify({ success: true, generatedProps }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
-    // =============================================
-    // BANNER CAROUSEL
-    // =============================================
-    if (blockType === 'Banner' && mode === 'carousel') {
-      let slideCount = typeof collectedData?.slideCount === 'number' ? collectedData.slideCount : 1;
-      slideCount = Math.min(slideCount, contract.maxSlides || 3);
-      slideCount = Math.max(slideCount, 1);
-
-      console.log(`[ai-block-fill-visual] Banner:carousel slides=${slideCount} scope=${scope}`);
-
-      // Resolve per-slide associations with full data
-      const slideContexts: Array<{
-        product?: ProductContext | null;
-        category?: CategoryContext | null;
-        associationType?: string;
-        briefing?: string;
-      }> = [];
-
-      for (let i = 0; i < slideCount; i++) {
-        const slideData = collectedData?.[`slideAssociations_${i}`];
-        let product: ProductContext | null = null;
-        let category: CategoryContext | null = null;
-        let type: string | undefined;
-
-        if (slideData) {
-          type = slideData.associationType;
-          if (slideData.associationType === 'product' && slideData.productId) {
-            product = await fetchProductContext(supabase, slideData.productId);
-          } else if (slideData.associationType === 'category' && slideData.categoryId) {
-            category = await fetchCategoryContext(supabase, slideData.categoryId);
-          }
-        }
-
-        slideContexts.push({
-          product,
-          category,
-          associationType: type,
-          briefing: briefing,
-        });
-      }
-
-      const generatedSlides: any[] = [];
-
-      // Generate images for all slides (if scope includes images)
-      let slideImages: Record<number, Record<string, string>> = {};
-      if (generateImages) {
-        const imagePromises: Array<Promise<{ slideIndex: number; key: string; url: string }>> = [];
-
-        for (let i = 0; i < slideCount; i++) {
-          for (const spec of contract.imageSpecs) {
-            imagePromises.push(
-              (async () => {
-                const prompt = buildBannerImagePrompt(spec, {
-                  briefing: slideContexts[i]?.briefing,
-                  product: slideContexts[i]?.product,
-                  category: slideContexts[i]?.category,
-                  associationType: slideContexts[i]?.associationType,
-                  store: storeCtx,
-                  slideIndex: i,
-                });
-
-                // Pass product image as multimodal reference when available
-                const refImage = slideContexts[i]?.product?.mainImageUrl || undefined;
-                let dataUrl = await callImageModel(lovableApiKey, "google/gemini-3-pro-image-preview", prompt, refImage);
-                if (!dataUrl) {
-                  console.log(`[ai-block-fill-visual] Pro failed for slide ${i} ${spec.key}, trying 3.1-flash...`);
-                  dataUrl = await callImageModel(lovableApiKey, "google/gemini-3.1-flash-image-preview", prompt, refImage);
-                }
-                if (!dataUrl) {
-                  console.log(`[ai-block-fill-visual] 3.1-flash failed for slide ${i} ${spec.key}, trying 2.5-flash...`);
-                  dataUrl = await callImageModel(lovableApiKey, "google/gemini-2.5-flash-image", prompt, refImage);
-                }
-                if (!dataUrl) {
-                  throw new Error(`Failed to generate image: slide ${i} ${spec.key}`);
-                }
-
-                const publicUrl = await uploadImageToStorage(supabase, tenantId, dataUrl, `slide${i}-${spec.key}`);
-                if (!publicUrl) {
-                  throw new Error(`Failed to upload image: slide ${i} ${spec.key}`);
-                }
-
-                return { slideIndex: i, key: spec.key, url: publicUrl };
-              })()
-            );
-          }
-        }
-
-        const imageResults = await Promise.all(imagePromises);
-        for (const img of imageResults) {
-          if (!slideImages[img.slideIndex]) slideImages[img.slideIndex] = {};
-          slideImages[img.slideIndex][img.key] = img.url;
-        }
-      }
-
-      // Generate texts for all slides (if scope includes texts)
-      let textSlides: any[] = [];
-      if (generateTextsFlag) {
-        const textResult = await generateTexts(contract, {
-          blockType,
-          mode: 'carousel',
-          briefing,
-          product: slideContexts[0]?.product,
-          category: slideContexts[0]?.category,
-          associationType: slideContexts[0]?.associationType,
-          store: storeCtx,
-          slideCount,
-          slideContexts,
-        }, { supabaseUrl, supabaseServiceKey });
-        textSlides = (textResult as any).slides || [];
-      }
-
-      // Build slides array
-      for (let i = 0; i < slideCount; i++) {
-        const images = slideImages[i] || {};
-        const texts = textSlides[i] || {};
-        const slideData = collectedData?.[`slideAssociations_${i}`];
-
-        // linkUrl derived by SYSTEM from association
-        let linkUrl = '';
-        if (slideData) {
-          if (slideData.associationType === 'product' && slideData.productId) {
-            const ctx = slideContexts[i]?.product;
-            linkUrl = ctx?.slug ? `/produto/${ctx.slug}` : `__product:${slideData.productId}`;
-          } else if (slideData.associationType === 'category' && slideData.categoryId) {
-            const ctx = slideContexts[i]?.category;
-            linkUrl = ctx?.slug ? `/categoria/${ctx.slug}` : `__category:${slideData.categoryId}`;
-          } else if (slideData.associationType === 'url' && slideData.manualUrl) {
-            linkUrl = slideData.manualUrl;
-          }
-        }
-
-        generatedSlides.push({
-          id: crypto.randomUUID(),
-          imageDesktop: images.imageDesktop || '',
-          imageMobile: images.imageMobile || '',
-          title: texts.title || '',
-          subtitle: texts.subtitle || '',
-          buttonText: texts.buttonText || '',
-          altText: texts.altText || `Banner ${i + 1}`,
-          linkUrl,
-        });
-      }
-
-      const generatedProps = { slides: generatedSlides };
-
-      const elapsed = Date.now() - startTime;
-      console.log(`[ai-block-fill-visual] Banner:carousel done in ${elapsed}ms (${slideCount} slides)`);
-
-      try {
+        const slideCount = isCarousel ? slideContexts.length : 1;
         const usageCents = (generateImages ? 8 * slideCount : 0) + (generateTextsFlag ? 2 : 0);
         await supabase.rpc('record_ai_usage', { p_tenant_id: tenantId, p_usage_cents: usageCents });
       } catch (e) {
