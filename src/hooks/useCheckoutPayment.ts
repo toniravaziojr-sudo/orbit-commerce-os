@@ -296,9 +296,6 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
       
       console.log('[Checkout] Step 2 OK - Payment processed');
 
-      // Payment succeeded - clear pending order ref
-      setPendingOrderRef(null);
-
       // Build result
       const result: PaymentResult = {
         success: true,
