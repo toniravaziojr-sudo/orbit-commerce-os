@@ -195,16 +195,63 @@ Página de confirmação pós-compra com detalhes do pedido, ofertas de upsell e
 | **Parcelas** | Calculadas a partir do total do pedido (1x a 12x) |
 | **CTA alternativa** | Texto informativo: "Precisa usar outra forma de pagamento? Entre em contato pelo WhatsApp." |
 
-### CTA "Outra forma de pagamento" — Etapa 5 (IMPLEMENTADO)
+### CTA "Outra forma de pagamento" — Etapa 5 (IMPLEMENTADO v8.15.2)
 
 | Campo | Valor |
 |-------|-------|
-| **Status** | ✅ IMPLEMENTADO (v8.15.1) |
-| **Comportamento** | Redireciona para checkout com `?rt=TOKEN` |
-| **Reconstrução do carrinho** | Itens do pedido original são repopulados automaticamente no carrinho via `get-retry-checkout-data` |
-| **Dados prefill** | Nome, email, telefone, endereço (sem CPF — resolvido server-side) |
+| **Status** | ✅ IMPLEMENTADO (v8.15.2) |
+| **Comportamento** | Redireciona para checkout com `?rt=TOKEN` na URL |
+| **Reconstrução do carrinho** | Itens do pedido original (product_id, variant_id, quantity) são repopulados automaticamente no carrinho via `get-retry-checkout-data` |
+| **Dados prefill** | Nome, email, telefone, endereço completo, CEP (sem CPF — resolvido server-side) |
+| **Recálculo** | Preços, frete, cupom e total são recalculados do zero no checkout |
 | **Novo pedido** | Vinculado ao original via `retry_from_order_id` |
 | **Token** | Invalidado após criação do novo pedido |
+
+### Fluxo Completo — "Outra forma de pagamento"
+
+```
+1. Thank You exibe botão "Tentar com outra forma de pagamento" (apenas quando status=declined e retry_token válido)
+2. Botão redireciona para /loja/:slug/checkout?rt=TOKEN
+3. CheckoutStepWizard detecta ?rt= na URL → chama useRetryCheckoutData(token)
+4. Hook chama edge function get-retry-checkout-data → valida token server-side
+5. Retorna dados seguros: nome, email, phone, endereço, itens (sem CPF)
+6. CheckoutStepWizard:
+   a. clearCart() → remove itens antigos
+   b. addItem() para cada item do pedido original (product_id, variant_id, quantity, unit_price)
+   c. Preenche formulário com dados do cliente (nome, email, telefone)
+   d. Preenche endereço (rua, número, complemento, bairro, cidade, estado, CEP)
+   e. Exibe banner informativo: "Você está retomando o pedido #XXXX com outra forma de pagamento"
+7. Cliente escolhe nova forma de pagamento e finaliza
+8. checkout-create-order recebe retry_from_order_id → cria novo pedido vinculado
+9. checkout-create-order invalida retry_token do pedido original (set null)
+10. Novo pedido aparece no admin com link visual para o pedido anterior
+```
+
+### Hook: `useRetryCheckoutData`
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Hook |
+| **Localização** | `src/hooks/useRetryCheckoutData.ts` |
+| **Parâmetros** | `retryToken: string \| null` |
+| **Retorno** | `{ prefill, isLoading, error }` |
+| **Comportamento** | Chama edge function `get-retry-checkout-data` com retry_token → retorna dados seguros para prefill do checkout |
+| **Interface prefill** | `original_order_id`, `order_number`, `tenant_id`, `tenant_slug`, `total`, `customer` (name, email, phone), `shipping` (street, number, complement, neighborhood, city, state, postal_code), `items[]` (product_id, variant_id, product_name, sku, quantity, unit_price, image_url) |
+| **Segurança** | NÃO recebe CPF. NÃO recebe dados sensíveis. Tudo resolvido server-side. |
+
+### Edge Function: `get-retry-checkout-data`
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Edge Function |
+| **Localização** | `supabase/functions/get-retry-checkout-data/index.ts` |
+| **Entrada** | `{ retry_token: string }` |
+| **Validação** | `validate_order_retry_token()` — verifica token válido, pedido não pago, dentro do prazo de 24h |
+| **Retorno** | `checkout_prefill` com dados do cliente, endereço e itens do pedido original |
+| **Dados incluídos** | Nome, email, telefone, endereço completo, itens com product_id/variant_id/quantity/unit_price |
+| **Dados excluídos** | CPF, dados bancários, dados sensíveis de pagamento |
+| **Segurança** | `verify_jwt = false` (público, mas protegido por retry_token opaco) |
+| **Erros** | Token inválido → 403. Token expirado → 403. Pedido já pago → 403. |
 
 ---
 
