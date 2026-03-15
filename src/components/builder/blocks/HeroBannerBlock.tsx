@@ -139,7 +139,7 @@ export function HeroBannerBlock({
                 decoding="sync"
                 loading="eager"
                 width={1920}
-                height={686}
+                height={800}
               />
             </picture>
           )
