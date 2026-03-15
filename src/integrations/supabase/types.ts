@@ -11665,6 +11665,7 @@ export type Database = {
           payment_method: Database["public"]["Enums"]["payment_method"] | null
           payment_method_discount: number | null
           payment_status: Database["public"]["Enums"]["payment_status"]
+          retry_from_order_id: string | null
           retry_token: string | null
           retry_token_expires_at: string | null
           shipped_at: string | null
@@ -11742,6 +11743,7 @@ export type Database = {
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_method_discount?: number | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
+          retry_from_order_id?: string | null
           retry_token?: string | null
           retry_token_expires_at?: string | null
           shipped_at?: string | null
@@ -11819,6 +11821,7 @@ export type Database = {
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_method_discount?: number | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
+          retry_from_order_id?: string | null
           retry_token?: string | null
           retry_token_expires_at?: string | null
           shipped_at?: string | null
@@ -11857,6 +11860,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_retry_from_order_id_fkey"
+            columns: ["retry_from_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
           {

@@ -99,6 +99,10 @@ interface CreateOrderRequest {
   };
   // Shipping quote ID for server-side validation (Security Plan v3.1)
   shipping_quote_id?: string;
+  // Step 5: Link to original declined order (retry with different payment method)
+  retry_from_order_id?: string;
+  // retry_token to invalidate original order's token after new order creation
+  retry_token?: string;
 }
 
 function normalizeEmail(email: string): string {
@@ -460,6 +464,8 @@ serve(async (req) => {
         free_shipping: payload.discount?.free_shipping || false,
         // Shipping quote traceability (Security Plan v3.1)
         shipping_quote_id: validatedQuoteId || null,
+        // Step 5: Link to original declined order
+        retry_from_order_id: payload.retry_from_order_id || null,
       })
       .select('id')
       .single();
@@ -704,6 +710,19 @@ serve(async (req) => {
         console.log('[checkout-create-order] Retry token generated for credit card order');
       } catch (e) {
         console.warn('[checkout-create-order] Failed to generate retry token:', e);
+      }
+    }
+
+    // Step 5: Invalidate original order's retry_token if this is a retry with different payment method
+    if (payload.retry_from_order_id && payload.retry_token) {
+      try {
+        await supabase
+          .from('orders')
+          .update({ retry_token: null, retry_token_expires_at: null })
+          .eq('id', payload.retry_from_order_id);
+        console.log('[checkout-create-order] Invalidated retry_token on original order:', payload.retry_from_order_id);
+      } catch (e) {
+        console.warn('[checkout-create-order] Failed to invalidate original retry_token:', e);
       }
     }
 

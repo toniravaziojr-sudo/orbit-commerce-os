@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useRef, Fragment } from 'react';
 import { sanitizeCep, isValidCep } from '@/lib/cepUtils';
+import { useRetryCheckoutData } from '@/hooks/useRetryCheckoutData';
 import { isValidCpf, handleCpfInput } from '@/lib/formatCpf';
 import { useCepLookup } from '@/hooks/useCepLookup';
 import { useNavigate, Link } from 'react-router-dom';
@@ -75,6 +76,12 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   const tenantSlug = useTenantSlug();
   const urls = useStorefrontUrls(tenantSlug);
   const { items, shipping, setShippingCep, setShippingOptions, selectShipping, isLoading: cartLoading, clearCart, subtotal } = useCart();
+
+  // Step 5: Detect retry mode from URL param ?rt=TOKEN
+  const [searchParams] = useState(() => new URLSearchParams(window.location.search));
+  const retryTokenParam = searchParams.get('rt');
+  const { prefill: retryPrefill, isLoading: retryLoading, error: retryError } = useRetryCheckoutData(retryTokenParam);
+  const retryPrefillAppliedRef = useRef(false);
   const { appliedDiscount, applyDiscount, removeDiscount, getDiscountAmount, revalidateDiscount, checkFirstPurchaseEligibility } = useDiscount();
   const { draft, isHydrated, updateCartSnapshot, updateCustomer, clearDraft } = useOrderDraft();
   const { config: shippingConfig, quote, quoteAsync, isLoading: shippingLoading } = useShipping();
@@ -279,7 +286,26 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     };
   }, [items, totals.grandTotal, formData.customerEmail, formData.customerPhone, formData.customerName, currentStep, shipping.cep, tenantSlug]);
 
-  // Revalidate discount on mount and when cart changes
+  // Step 5: Apply retry prefill data when loaded
+  useEffect(() => {
+    if (!retryPrefill || retryPrefillAppliedRef.current) return;
+    retryPrefillAppliedRef.current = true;
+    console.log('[Checkout] Applying retry prefill from order:', retryPrefill.order_number);
+    setFormData(prev => ({
+      ...prev,
+      customerName: retryPrefill.customer.name || prev.customerName,
+      customerEmail: retryPrefill.customer.email || prev.customerEmail,
+      customerPhone: retryPrefill.customer.phone || prev.customerPhone,
+      shippingStreet: retryPrefill.shipping.street || prev.shippingStreet,
+      shippingNumber: retryPrefill.shipping.number || prev.shippingNumber,
+      shippingComplement: retryPrefill.shipping.complement || prev.shippingComplement,
+      shippingNeighborhood: retryPrefill.shipping.neighborhood || prev.shippingNeighborhood,
+      shippingCity: retryPrefill.shipping.city || prev.shippingCity,
+      shippingState: retryPrefill.shipping.state || prev.shippingState,
+      shippingPostalCode: retryPrefill.shipping.postal_code || prev.shippingPostalCode,
+    }));
+  }, [retryPrefill]);
+
   useEffect(() => {
     if (appliedDiscount && subtotal > 0) {
       revalidateDiscount(storeHost, subtotal, shipping.selected?.price || 0, formData.customerEmail || undefined);
@@ -651,6 +677,9 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         affiliate: affiliate || undefined,
         // Shipping quote ID for server-side validation (Security Plan v3.1)
         shippingQuoteId: shipping.quoteId || undefined,
+        // Step 5: Link to original declined order via retry_token
+        retryFromOrderId: retryPrefill?.original_order_id || undefined,
+        retryToken: retryTokenParam || undefined,
       });
 
       if (result.success) {
@@ -779,8 +808,9 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     );
   }
 
-  // Empty cart guard (allow if payment pending or approved)
-  if (items.length === 0 && paymentStatus !== 'approved' && paymentStatus !== 'pending_payment') {
+  // Empty cart guard (allow if payment pending, approved, or retry mode with prefill)
+  const isRetryMode = !!retryTokenParam && !!retryPrefill;
+  if (items.length === 0 && paymentStatus !== 'approved' && paymentStatus !== 'pending_payment' && !isRetryMode && !retryLoading) {
     return (
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-md mx-auto text-center">
@@ -824,6 +854,18 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           Voltar ao carrinho
         </Link>
       </div>
+
+      {/* Step 5: Retry mode banner */}
+      {isRetryMode && (
+        <Alert className="mb-4">
+          <Info className="h-4 w-4" />
+          <AlertTitle>Retentativa de pagamento</AlertTitle>
+          <AlertDescription>
+            Você está retentando o pagamento do pedido #{retryPrefill.order_number}. 
+            Escolha uma forma de pagamento diferente para finalizar.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Progress Timeline (modern style like builder) */}
       <ProgressTimeline steps={STEPS} currentStep={currentStep} onStepClick={goToStep} />

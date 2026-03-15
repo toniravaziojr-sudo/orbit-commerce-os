@@ -804,11 +804,22 @@ function CardRetrySection({ retryToken, orderTotal, onSuccess }: {
         </Button>
       </form>
 
-      {/* CTA: Other payment method — Dependent on Step 5 (retry_token) */}
-      {/* Visible but disabled — secure implementation requires retry_token which is not yet available */}
-      <p className="text-center text-sm text-muted-foreground mt-4">
-        Precisa usar outra forma de pagamento? Entre em contato pelo WhatsApp.
-      </p>
+      {/* CTA: Other payment method — Step 5: redirect to checkout with retry_token */}
+      <div className="text-center mt-4">
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() => {
+            const checkoutUrl = `/loja/${window.location.pathname.split('/loja/')[1]?.split('/')[0]}/checkout?rt=${encodeURIComponent(retryToken)}`;
+            window.location.href = checkoutUrl;
+          }}
+        >
+          Tentar com outra forma de pagamento
+        </Button>
+        <p className="text-xs text-muted-foreground mt-2">
+          Você será redirecionado ao checkout para escolher PIX, boleto ou outro cartão.
+        </p>
+      </div>
     </div>
   );
 }

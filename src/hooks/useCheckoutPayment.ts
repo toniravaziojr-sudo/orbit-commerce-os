@@ -123,6 +123,8 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     paymentMethodDiscount,
     installments,
     shippingQuoteId,
+    retryFromOrderId,
+    retryToken,
   }: {
     method: PaymentMethod;
     items: CartItem[];
@@ -137,6 +139,8 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     paymentMethodDiscount?: { amount: number; type: string; value: number; method: string };
     installments?: number;
     shippingQuoteId?: string | null;
+    retryFromOrderId?: string;
+    retryToken?: string;
   }): Promise<PaymentResult> => {
     setIsProcessing(true);
     setPaymentResult(null);
@@ -238,6 +242,9 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
             } : undefined,
             // Shipping quote ID for server-side validation (Security Plan v3.1)
             shipping_quote_id: shippingQuoteId || undefined,
+            // Step 5: Link to original declined order
+            retry_from_order_id: retryFromOrderId || undefined,
+            retry_token: retryToken || undefined,  // param from caller, used to invalidate original order's token
             // Meta CAPI is now handled client-side via marketing-capi-track edge function
             // No need to pass browser identifiers in order creation
           },
@@ -250,8 +257,8 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
 
         orderId = orderData.order_id;
         orderNumber = orderData.order_number;
-        const retryToken = orderData.retry_token || undefined;
-        console.log('[Checkout] Step 1 OK - Order:', orderId, orderNumber, retryToken ? '(retry_token generated)' : '');
+        const newRetryToken = orderData.retry_token || undefined;
+        console.log('[Checkout] Step 1 OK - Order:', orderId, orderNumber, newRetryToken ? '(retry_token generated)' : '');
 
       // 2. Process payment via active gateway (Pagar.me or Mercado Pago)
       const gatewayFunction = activeGateway === 'mercadopago' ? 'mercadopago-create-charge' : 'pagarme-create-charge';
@@ -314,7 +321,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
           orderId,
           orderNumber,
           cardDeclined: true,
-          retryToken,
+          retryToken: newRetryToken,
         };
         setPaymentResult(result);
         return result;
