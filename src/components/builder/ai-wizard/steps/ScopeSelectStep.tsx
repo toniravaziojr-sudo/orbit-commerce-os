@@ -33,8 +33,8 @@ export function ScopeSelectStep({
   }, []);
 
   const effectiveValue = value || 'all';
-  const imagesChecked = value === 'images' || value === 'all';
-  const textsChecked = value === 'texts' || value === 'all';
+  const imagesChecked = effectiveValue === 'images' || effectiveValue === 'all';
+  const textsChecked = effectiveValue === 'texts' || effectiveValue === 'all';
 
   const handleToggle = (type: 'images' | 'texts', checked: boolean) => {
     if (type === 'images') {
