@@ -356,12 +356,15 @@ O evento `Purchase` é disparado **exclusivamente** na página de obrigado (`Tha
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `src/components/storefront/ThankYouContent.tsx` | Dispara Purchase + UI de declined/retry |
+| `src/components/storefront/ThankYouContent.tsx` | Dispara Purchase + UI de declined/retry + CTA "outra forma" |
 | `src/hooks/useRetryCardPayment.ts` | Retry de pagamento por cartão no mesmo pedido |
-| `src/hooks/useOrderDetails.ts` | Busca dados do pedido (inclui `tenant_id`, `customer_cpf`, `installments`) |
+| `src/hooks/useRetryCheckoutData.ts` | Carrega dados seguros para prefill do checkout no modo retry |
+| `src/hooks/useOrderDetails.ts` | Busca dados do pedido (sem CPF) |
 | `src/lib/marketingTracker.ts` | `trackPurchase()` + `sendServerEvent()` |
 | `src/components/storefront/MarketingTrackerProvider.tsx` | Provider que injeta `tenantId` |
-| `supabase/functions/get-order/index.ts` | Edge function que retorna dados do pedido |
+| `supabase/functions/get-order/index.ts` | Edge function que retorna dados do pedido (sem CPF) |
+| `supabase/functions/get-retry-checkout-data/index.ts` | Edge function que retorna dados seguros para retry com outra forma |
+| `supabase/functions/retry-card-payment/index.ts` | Edge function que processa retry de cartão server-side |
 
 ---
 
