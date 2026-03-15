@@ -659,7 +659,7 @@ const blockDefinitions: BlockDefinition[] = [
       imageDesktop: {
         type: 'image',
         label: 'Imagem Desktop',
-        helpText: 'Recomendado: 1920×700px (proporção ~21:7)',
+        helpText: 'Recomendado: 1920×800px (proporção 12:5)',
         showWhen: { mode: 'single' },
       },
       imageMobile: {
