@@ -70,7 +70,7 @@ serve(async (req) => {
     // Fetch order items
     const { data: items, error: itemsError } = await supabase
       .from('order_items')
-      .select('product_id, product_name, sku, quantity, unit_price, total_price, product_image_url')
+      .select('product_id, variant_id, product_name, sku, quantity, unit_price, total_price, product_image_url')
       .eq('order_id', order.order_id);
 
     if (itemsError) {
