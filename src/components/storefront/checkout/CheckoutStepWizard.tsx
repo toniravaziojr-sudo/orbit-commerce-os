@@ -286,7 +286,26 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     };
   }, [items, totals.grandTotal, formData.customerEmail, formData.customerPhone, formData.customerName, currentStep, shipping.cep, tenantSlug]);
 
-  // Revalidate discount on mount and when cart changes
+  // Step 5: Apply retry prefill data when loaded
+  useEffect(() => {
+    if (!retryPrefill || retryPrefillAppliedRef.current) return;
+    retryPrefillAppliedRef.current = true;
+    console.log('[Checkout] Applying retry prefill from order:', retryPrefill.order_number);
+    setFormData(prev => ({
+      ...prev,
+      customerName: retryPrefill.customer.name || prev.customerName,
+      customerEmail: retryPrefill.customer.email || prev.customerEmail,
+      customerPhone: retryPrefill.customer.phone || prev.customerPhone,
+      shippingStreet: retryPrefill.shipping.street || prev.shippingStreet,
+      shippingNumber: retryPrefill.shipping.number || prev.shippingNumber,
+      shippingComplement: retryPrefill.shipping.complement || prev.shippingComplement,
+      shippingNeighborhood: retryPrefill.shipping.neighborhood || prev.shippingNeighborhood,
+      shippingCity: retryPrefill.shipping.city || prev.shippingCity,
+      shippingState: retryPrefill.shipping.state || prev.shippingState,
+      shippingPostalCode: retryPrefill.shipping.postal_code || prev.shippingPostalCode,
+    }));
+  }, [retryPrefill]);
+
   useEffect(() => {
     if (appliedDiscount && subtotal > 0) {
       revalidateDiscount(storeHost, subtotal, shipping.selected?.price || 0, formData.customerEmail || undefined);
