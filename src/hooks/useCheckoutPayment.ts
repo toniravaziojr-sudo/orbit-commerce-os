@@ -71,28 +71,6 @@ interface UseCheckoutPaymentOptions {
   tenantId: string;
 }
 
-// SessionStorage key for persisting pending order across page refreshes
-const PENDING_ORDER_KEY = 'checkout_pending_order';
-
-function loadPendingOrder(tenantId: string): { orderId: string; orderNumber: string } | null {
-  try {
-    const raw = sessionStorage.getItem(`${PENDING_ORDER_KEY}_${tenantId}`);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (parsed?.orderId && parsed?.orderNumber) return parsed;
-    return null;
-  } catch { return null; }
-}
-
-function savePendingOrder(tenantId: string, ref: { orderId: string; orderNumber: string } | null) {
-  try {
-    if (ref) {
-      sessionStorage.setItem(`${PENDING_ORDER_KEY}_${tenantId}`, JSON.stringify(ref));
-    } else {
-      sessionStorage.removeItem(`${PENDING_ORDER_KEY}_${tenantId}`);
-    }
-  } catch { /* ignore */ }
-}
 
 export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
   // Determine which payment gateway to use based on tenant config
