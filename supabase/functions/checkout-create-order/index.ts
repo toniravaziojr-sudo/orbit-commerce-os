@@ -713,6 +713,19 @@ serve(async (req) => {
       }
     }
 
+    // Step 5: Invalidate original order's retry_token if this is a retry with different payment method
+    if (payload.retry_from_order_id && payload.retry_token) {
+      try {
+        await supabase
+          .from('orders')
+          .update({ retry_token: null, retry_token_expires_at: null })
+          .eq('id', payload.retry_from_order_id);
+        console.log('[checkout-create-order] Invalidated retry_token on original order:', payload.retry_from_order_id);
+      } catch (e) {
+        console.warn('[checkout-create-order] Failed to invalidate original retry_token:', e);
+      }
+    }
+
     return new Response(JSON.stringify({
       success: true,
       order_id: orderId,
