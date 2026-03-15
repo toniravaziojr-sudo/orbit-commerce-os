@@ -335,10 +335,10 @@ function generateSupportWidgetHtml(themeSettings: any, routeType: string, tenant
   const btnStyle = `display:flex;align-items:center;justify-content:center;border-radius:50%;border:none;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.15);transition:transform 0.2s;text-decoration:none;width:${sz.d}px;height:${sz.d}px;`;
   let buttons = '';
   if (showWhatsApp) {
-    buttons += `<a href="${waHref}" target="_blank" rel="noopener noreferrer" style="${btnStyle}background:${escapeHtml(whatsappColor)};" title="WhatsApp" onmouseenter="this.style.transform='scale(1.05)'" onmouseleave="this.style.transform='scale(1)'">${whatsappSvg}</a>`;
+    buttons += `<a href="${waHref}" target="_blank" rel="noopener noreferrer" class="sf-widget-btn" style="${btnStyle}background:${escapeHtml(whatsappColor)};" title="WhatsApp" onmouseenter="this.style.transform='scale(1.05)'" onmouseleave="this.style.transform='scale(1)'">${whatsappSvg}</a>`;
   }
   if (showChat) {
-    buttons += `<button data-sf-support-chat style="${btnStyle}background:${escapeHtml(chatColor)};" title="Chat" onmouseenter="this.style.transform='scale(1.05)'" onmouseleave="this.style.transform='scale(1)'">${chatSvg}</button>`;
+    buttons += `<button data-sf-support-chat class="sf-widget-btn" style="${btnStyle}background:${escapeHtml(chatColor)};" title="Chat" onmouseenter="this.style.transform='scale(1.05)'" onmouseleave="this.style.transform='scale(1)'">${chatSvg}</button>`;
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
