@@ -39,15 +39,15 @@ const SERVER_CONTRACTS: Record<string, ServerContract> = {
   'Banner:single': {
     aiGenerates: ['imageDesktop', 'imageMobile', 'title', 'subtitle', 'buttonText'],
     imageSpecs: [
-      { key: 'imageDesktop', width: 1920, height: 700 },
-      { key: 'imageMobile', width: 750, height: 420 },
+      { key: 'imageDesktop', width: 1920, height: 800 },
+      { key: 'imageMobile', width: 750, height: 940 },
     ],
   },
   'Banner:carousel': {
     aiGenerates: ['slides'],
     imageSpecs: [
-      { key: 'imageDesktop', width: 1920, height: 700 },
-      { key: 'imageMobile', width: 750, height: 420 },
+      { key: 'imageDesktop', width: 1920, height: 800 },
+      { key: 'imageMobile', width: 750, height: 940 },
     ],
     maxSlides: 3,
   },
