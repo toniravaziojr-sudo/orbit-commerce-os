@@ -3943,7 +3943,17 @@ Step 6: CONFIRMAÇÃO
 | Shared Module | visual-engine v2.0.0 | `supabase/functions/_shared/visual-engine.ts` | Motor de geração: cascade resiliente (OpenAI→Gemini Pro→Flash), QA scoring, download, upload. Delega prompt building ao creative-brief-builder |
 | Shared Module | banner-adapter | `supabase/functions/_shared/visual-adapters/banner-adapter.ts` | Adapter que traduz Banner single/carousel em requests genéricos. Implementa mergeResults com renderMode (overlay/baked) |
 | Shared Module | visual-adapters/types | `supabase/functions/_shared/visual-adapters/types.ts` | Contratos genéricos: VisualGenerationRequest, VisualGenerationResult, OutputMode, RenderMode, ImageStyle, CompositionHint, BlockVisualAdapter |
-| Hook | useAIWizardGenerate | `src/hooks/useAIWizardGenerate.ts` | Chama edge function e aplica whitelist merge + scope filtering. Repassa outputMode e creativeStyle para o backend via bannerMode |
+| Hook | useAIWizardGenerate | `src/hooks/useAIWizardGenerate.ts` | Chama edge function e aplica whitelist merge + scope filtering. Repassa outputMode e creativeStyle para o backend via bannerMode. System-derived props (`overlayOpacity`, `alignment`, `_renderMode`, `_hideOverlayText`) bypass whitelist. Inclui log de debug do payload enviado. |
+
+### BannerBlock Responsividade (v3.1.1)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Regra Visual |
+| **Localização** | `src/components/builder/blocks/BannerBlock.tsx` |
+| **Descrição** | O overlay de texto (título, subtítulo, botão) é totalmente responsivo para mobile |
+| **Comportamento** | Mobile: `text-2xl`, `text-sm`, padding `px-5 py-8`, maxWidth `100%`. Desktop: `text-5xl`, `text-2xl`, padding `px-16 py-12`, maxWidth `55%` (alinhado à esquerda) |
+| **Afeta** | Renderização do banner em dispositivos móveis e no modo mobile do builder |
 
 ### Grounding do Banner (v2.1.0)
 

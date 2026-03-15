@@ -249,14 +249,14 @@ export function BannerBlock({
         {/* CTA Content */}
         {hasCTA && (
           <div className={cn(
-            "absolute inset-0 flex flex-col justify-center px-6 md:px-16 py-12 z-10",
+            "absolute inset-0 flex flex-col justify-center px-5 md:px-16 py-8 md:py-12 z-10",
             alignClass,
           )}
-          style={{ maxWidth: alignment === 'center' ? '100%' : '55%' }}
+          style={{ maxWidth: isMobile ? '100%' : (alignment === 'center' ? '100%' : '55%') }}
           >
             {currentTitle && (
               <h2 
-                className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4"
+                className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl font-bold mb-2 md:mb-4 leading-tight"
                 style={{ color: textColor }}
               >
                 {currentTitle}
@@ -264,7 +264,7 @@ export function BannerBlock({
             )}
             {currentSubtitle && (
               <p 
-                className="text-xl md:text-2xl mb-8 opacity-90"
+                className="text-sm sm:text-base md:text-2xl mb-4 md:mb-8 opacity-90 leading-snug"
                 style={{ color: textColor }}
               >
                 {currentSubtitle}
@@ -284,14 +284,14 @@ export function BannerBlock({
                 `}</style>
                 {isBuilderMode ? (
                   <span 
-                    className={`${btnId} inline-block px-10 py-4 rounded-lg font-semibold text-lg transition-colors cursor-pointer`}
+                    className={`${btnId} inline-block px-6 md:px-10 py-3 md:py-4 rounded-lg font-semibold text-sm md:text-lg transition-colors cursor-pointer`}
                   >
                     {currentButtonText}
                   </span>
                 ) : (
                   <a 
                     href={currentButtonUrl || '#'} 
-                    className={`${btnId} inline-block px-10 py-4 rounded-lg font-semibold text-lg transition-colors`}
+                    className={`${btnId} inline-block px-6 md:px-10 py-3 md:py-4 rounded-lg font-semibold text-sm md:text-lg transition-colors`}
                   >
                     {currentButtonText}
                   </a>

@@ -46,7 +46,7 @@ function resolveScope(collectedData: Record<string, unknown>): GenerationScope {
 /**
  * System-derived props that bypass the whitelist — set by backend for legibility/layout.
  */
-const SYSTEM_DERIVED_PROPS = new Set(['overlayOpacity', 'alignment']);
+const SYSTEM_DERIVED_PROPS = new Set(['overlayOpacity', 'alignment', '_renderMode', '_hideOverlayText']);
 
 /**
  * Applies whitelist + scope enforcement: only writes allowed props that match the scope.
@@ -168,6 +168,17 @@ export function useAIWizardGenerate({
           }
         }
       }
+
+      // Debug: log the full payload being sent
+      console.log('[useAIWizardGenerate] Sending to backend:', JSON.stringify({
+        tenantId,
+        blockType,
+        mode,
+        scope,
+        bannerMode: backendData.bannerMode,
+        creativeStyle: backendData.creativeStyle,
+        briefing: backendData.briefing,
+      }, null, 2));
 
       const { data, error } = await supabase.functions.invoke('ai-block-fill-visual', {
         body: {
