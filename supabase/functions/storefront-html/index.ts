@@ -512,7 +512,18 @@ function generateSupportWidgetHtml(themeSettings: any, routeType: string, tenant
   })();
   </script>` : '';
 
-  return `<div id="sf-support-widget" style="position:fixed;bottom:16px;${posStyle}z-index:50;display:flex;flex-direction:column;gap:12px;">${buttons}</div>${chatDrawerHtml}`;
+  // Responsive CSS for mobile button sizing
+  const widgetCss = `<style>
+#sf-support-widget .sf-widget-btn{width:${sz.d}px;height:${sz.d}px;}
+#sf-support-widget .sf-widget-icon{width:${sz.iconD}px;height:${sz.iconD}px;}
+@media(max-width:767px){
+#sf-support-widget .sf-widget-btn{width:${sz.m}px;height:${sz.m}px;}
+#sf-support-widget .sf-widget-icon{width:${sz.iconM}px;height:${sz.iconM}px;}
+#sf-support-widget{bottom:12px;gap:8px;}
+}
+</style>`;
+
+  return `${widgetCss}<div id="sf-support-widget" style="position:fixed;bottom:16px;${posStyle}z-index:50;display:flex;flex-direction:column;gap:12px;">${buttons}</div>${chatDrawerHtml}`;
 }
 
 // ============================================
