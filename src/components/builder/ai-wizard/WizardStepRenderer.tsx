@@ -1,6 +1,6 @@
 // =============================================
 // WIZARD STEP RENDERER — Renders the right component for each step type
-// Phase 3.3: Added banner-mode-select and scope-select
+// Phase 1: Added creative-style-select step
 // =============================================
 
 import { WizardStepConfig, WizardBlockContract } from '@/lib/builder/aiWizardRegistry';
@@ -11,6 +11,7 @@ import { QuantitySelectStep } from './steps/QuantitySelectStep';
 import { BriefingStep } from './steps/BriefingStep';
 import { SourceSelectStep } from './steps/SourceSelectStep';
 import { ConfirmStep } from './steps/ConfirmStep';
+import { CreativeStyleStep } from './steps/CreativeStyleStep';
 
 interface WizardStepRendererProps {
   step: WizardStepConfig;
@@ -37,6 +38,14 @@ export function WizardStepRenderer({
     case 'banner-mode-select':
       return (
         <BannerModeStep
+          value={data as any}
+          onChange={onChange}
+        />
+      );
+
+    case 'creative-style-select':
+      return (
+        <CreativeStyleStep
           value={data as any}
           onChange={onChange}
         />

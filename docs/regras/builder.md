@@ -3691,7 +3691,8 @@ Blocos que exigem decisões do usuário antes da geração:
 |------|-----------|-------------|-----------|
 | Componente | AIFillWizardDialog | `src/components/builder/ai-wizard/AIFillWizardDialog.tsx` | Modal genérico de steps do wizard |
 | Componente | WizardStepRenderer | `src/components/builder/ai-wizard/WizardStepRenderer.tsx` | Renderiza o componente correto para cada tipo de step |
-| Componente | BannerModeStep | `src/components/builder/ai-wizard/steps/BannerModeStep.tsx` | Step de escolha de modo: único ou carrossel + quantidade de slides |
+| Componente | BannerModeStep | `src/components/builder/ai-wizard/steps/BannerModeStep.tsx` | Step de escolha de modo: único ou carrossel + quantidade de slides + modo de saída (editável/completo) |
+| Componente | CreativeStyleStep | `src/components/builder/ai-wizard/steps/CreativeStyleStep.tsx` | Step de escolha de estilo criativo: produto+cenário, pessoa+produto, promocional. Inclui config por estilo (ambiente, ação, intensidade). Reutilizável para qualquer bloco visual. |
 | Componente | ScopeSelectStep | `src/components/builder/ai-wizard/steps/ScopeSelectStep.tsx` | Step de escolha de escopo: só imagens, só textos, ou ambos |
 | Componente | BannerAssociationStep | `src/components/builder/ai-wizard/steps/BannerAssociationStep.tsx` | Step de associação com 4 opções: produto/categoria/URL/nenhum |
 | Componente | QuantitySelectStep | `src/components/builder/ai-wizard/steps/QuantitySelectStep.tsx` | Select numérico (slides, imagens) |
@@ -3817,6 +3818,75 @@ Step 5: CONFIRMAÇÃO (confirm)
 | Blocos textuais inalterados | ✅ |
 | Outros blocos wizard (expansão) | ❌ (próxima fase) |
 
+### Motor Visual Compartilhado (Phase 1 — v3.0.0)
+
+Arquitetura genérica reutilizável para geração visual em blocos do builder.
+
+#### Conceitos
+
+| Conceito | Descrição |
+|----------|-----------|
+| **OutputMode** | `editable` (imagem limpa para overlay HTML) ou `complete` (peça publicitária pronta, sem overlay) |
+| **RenderMode** | `overlay` (frontend renderiza textos sobre a imagem) ou `baked` (imagem é final, sem textos por cima) |
+| **CreativeStyle** | `product_natural` (produto + cenário), `person_interacting` (pessoa + produto), `promotional` (efeitos visuais) — mesmos tipos do módulo de criativos |
+| **CompositionHint** | Direção de composição por slot: `banner_desktop`, `banner_mobile`, `banner_desktop_complete`, `banner_mobile_complete`, etc. |
+| **BlockVisualAdapter** | Interface que cada bloco implementa: `adapt()` traduz para requests genéricos, `mergeResults()` converte de volta para props |
+
+#### Fluxo
+
+```text
+Wizard → useAIWizardGenerate → ai-block-fill-visual
+  │
+  ├─ Resolve adapter por blockType (BannerAdapter, etc.)
+  ├─ adapter.adapt() → VisualGenerationRequest[]
+  ├─ Para cada request: visual-engine.generateForRequest()
+  │     ├─ buildPromptForSlot() (composição + estilo + campanha)
+  │     ├─ resilientGenerate() (OpenAI → Gemini Pro → Flash)
+  │     ├─ uploadToStorage()
+  │     └─ scoreImageForRealism() (opcional)
+  ├─ adapter.mergeResults() → props do bloco
+  └─ Retorna generatedProps
+```
+
+#### Regra: complete mode = sem overlay
+
+Quando `outputMode === 'complete'`:
+- A imagem gerada é a peça publicitária FINAL
+- O bloco NÃO renderiza título, subtítulo ou botão por cima
+- `_renderMode: 'baked'`, `_hideOverlayText: true`
+- `overlayOpacity: 0`, textos limpos
+
+#### Adapters implementados
+
+| Adapter | Bloco | Slots | Status |
+|---------|-------|-------|--------|
+| BannerAdapter | Banner single/carousel | 2 (desktop 1920x800 + mobile 750x940) | ✅ Fase 1 |
+| TextBannersAdapter | TextBanners | 4 (2 pares desktop/mobile) | ❌ Fase 2 |
+| CarouselAdapter | ImageCarousel | N × 1 | ❌ Fase 2 |
+| GalleryAdapter | ImageGallery | N × 1 | ❌ Fase 2 |
+| BannerProductsAdapter | BannerProducts | 2 (desktop/mobile) | ❌ Fase 3 |
+
+#### Steps do wizard (Banner)
+
+```text
+Step 1: MODO (banner-mode-select)
+  Único / Carrossel + slides
+  Editável / Criativo Completo (outputMode)
+
+Step 2: ESTILO CRIATIVO (creative-style-select)
+  Produto+Cenário / Pessoa+Produto / Promocional
+  + config por estilo (ambiente, ação, tom, intensidade)
+
+Step 3: ESCOPO (scope-select)
+  Imagens / Textos / Ambos
+
+Step 4: VÍNCULO (banner-association, por slide)
+
+Step 5: BRIEFING
+
+Step 6: CONFIRMAÇÃO
+```
+
 ### Integração no PropsEditor
 
 O botão "✨ IA" no cabeçalho do PropsEditor verifica:
@@ -3876,8 +3946,11 @@ Frontend (Wizard confirm step)
 
 | Tipo | Nome | Localização | Descrição |
 |------|------|-------------|-----------|
-| Edge Function | ai-block-fill-visual v2.1.0 | `supabase/functions/ai-block-fill-visual/index.ts` | Gera imagens e textos com scope filtering, dados reais expandidos, contexto de marca e referência multimodal |
-| Hook | useAIWizardGenerate | `src/hooks/useAIWizardGenerate.ts` | Chama edge function e aplica whitelist merge + scope filtering |
+| Edge Function | ai-block-fill-visual v3.0.0 | `supabase/functions/ai-block-fill-visual/index.ts` | Gera imagens via Motor Visual Compartilhado (visual-engine + block adapters) e textos com scope filtering. Suporta outputMode (editable/complete) e creativeStyle (product_natural/person_interacting/promotional) |
+| Shared Module | visual-engine | `supabase/functions/_shared/visual-engine.ts` | Motor central de geração visual: cascade resiliente (OpenAI→Gemini Pro→Flash), QA scoring, download robusto, upload, prompt building por estilo+composição |
+| Shared Module | banner-adapter | `supabase/functions/_shared/visual-adapters/banner-adapter.ts` | Adapter que traduz Banner single/carousel em requests genéricos para o visual-engine. Implementa mergeResults com renderMode (overlay/baked) |
+| Shared Module | visual-adapters/types | `supabase/functions/_shared/visual-adapters/types.ts` | Contratos genéricos: VisualGenerationRequest, VisualGenerationResult, OutputMode, RenderMode, ImageStyle, CompositionHint, BlockVisualAdapter |
+| Hook | useAIWizardGenerate | `src/hooks/useAIWizardGenerate.ts` | Chama edge function e aplica whitelist merge + scope filtering. Repassa outputMode e creativeStyle para o backend via bannerMode |
 
 ### Grounding do Banner (v2.1.0)
 

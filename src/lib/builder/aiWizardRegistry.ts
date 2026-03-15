@@ -13,6 +13,7 @@
 
 export type WizardStepType =
   | 'banner-mode-select'
+  | 'creative-style-select'
   | 'scope-select'
   | 'banner-association'
   | 'quantity-select'
@@ -165,6 +166,12 @@ const BANNER_UNIFIED_CONTRACT: WizardBlockContract = {
       id: 'bannerMode',
       type: 'banner-mode-select',
       label: 'Que tipo de banner quer criar?',
+      required: true,
+    },
+    {
+      id: 'creativeStyle',
+      type: 'creative-style-select',
+      label: 'Estilo visual da imagem',
       required: true,
     },
     {
