@@ -76,6 +76,12 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   const tenantSlug = useTenantSlug();
   const urls = useStorefrontUrls(tenantSlug);
   const { items, shipping, setShippingCep, setShippingOptions, selectShipping, isLoading: cartLoading, clearCart, subtotal } = useCart();
+
+  // Step 5: Detect retry mode from URL param ?rt=TOKEN
+  const [searchParams] = useState(() => new URLSearchParams(window.location.search));
+  const retryTokenParam = searchParams.get('rt');
+  const { prefill: retryPrefill, isLoading: retryLoading, error: retryError } = useRetryCheckoutData(retryTokenParam);
+  const retryPrefillAppliedRef = useRef(false);
   const { appliedDiscount, applyDiscount, removeDiscount, getDiscountAmount, revalidateDiscount, checkFirstPurchaseEligibility } = useDiscount();
   const { draft, isHydrated, updateCartSnapshot, updateCustomer, clearDraft } = useOrderDraft();
   const { config: shippingConfig, quote, quoteAsync, isLoading: shippingLoading } = useShipping();
