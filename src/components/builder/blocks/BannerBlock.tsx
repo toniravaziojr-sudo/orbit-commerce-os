@@ -256,7 +256,7 @@ export function BannerBlock({
           >
             {currentTitle && (
               <h2 
-                className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4"
+                className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl font-bold mb-2 md:mb-4 leading-tight"
                 style={{ color: textColor }}
               >
                 {currentTitle}
