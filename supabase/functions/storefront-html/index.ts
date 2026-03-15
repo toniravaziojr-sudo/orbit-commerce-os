@@ -514,12 +514,12 @@ function generateSupportWidgetHtml(themeSettings: any, routeType: string, tenant
 
   // Responsive CSS for mobile button sizing
   const widgetCss = `<style>
-#sf-support-widget .sf-widget-btn{width:${sz.d}px;height:${sz.d}px;}
-#sf-support-widget .sf-widget-icon{width:${sz.iconD}px;height:${sz.iconD}px;}
+#sf-support-widget .sf-widget-btn{width:${sz.d}px!important;height:${sz.d}px!important;}
+#sf-support-widget .sf-widget-icon{width:${sz.iconD}px!important;height:${sz.iconD}px!important;}
 @media(max-width:767px){
-#sf-support-widget .sf-widget-btn{width:${sz.m}px;height:${sz.m}px;}
-#sf-support-widget .sf-widget-icon{width:${sz.iconM}px;height:${sz.iconM}px;}
-#sf-support-widget{bottom:12px;gap:8px;}
+#sf-support-widget .sf-widget-btn{width:${sz.m}px!important;height:${sz.m}px!important;}
+#sf-support-widget .sf-widget-icon{width:${sz.iconM}px!important;height:${sz.iconM}px!important;}
+#sf-support-widget{bottom:12px!important;gap:8px!important;}
 }
 </style>`;
 
