@@ -1890,6 +1890,7 @@ serve(async (req) => {
     let hostname = url.searchParams.get('hostname') || '';
     let path = url.searchParams.get('path') || '/';
     const isPreviewMode = url.searchParams.get('preview') === '1';
+    const previewTemplateSetId = url.searchParams.get('templateSetId') || '';
     
     if (!hostname) {
       const forwardedHost = req.headers.get('x-forwarded-host') || req.headers.get('host') || '';
