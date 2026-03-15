@@ -414,6 +414,36 @@ function truncateTexts(result: any): any {
 // TEXT GENERATION — Uses real product data
 // =============================================
 
+/** Build context info string from product/category data */
+function buildContextInfo(product?: ProductContext | null, category?: CategoryContext | null): string {
+  if (product) {
+    let info = `Produto REAL: "${product.name}".`;
+    if (product.description) {
+      info += ` Descrição: "${product.description.substring(0, 300)}".`;
+    }
+    if (product.price) {
+      const formatted = `R$ ${product.price.toFixed(2).replace('.', ',')}`;
+      info += ` Preço: ${formatted}.`;
+      if (product.compareAtPrice && product.compareAtPrice > product.price) {
+        const oldFormatted = `R$ ${product.compareAtPrice.toFixed(2).replace('.', ',')}`;
+        info += ` De ${oldFormatted} por ${formatted}.`;
+      }
+    }
+    info += ' IMPORTANTE: Use o nome EXATO do produto. Não invente outro nome ou produto.';
+    return info;
+  } else if (category) {
+    return `Categoria REAL: "${category.name}". Use o nome EXATO da categoria.`;
+  }
+  return '';
+}
+
+interface SlideContext {
+  product?: ProductContext | null;
+  category?: CategoryContext | null;
+  associationType?: string;
+  briefing?: string;
+}
+
 async function generateTexts(
   contract: ServerContract,
   context: {
@@ -425,38 +455,31 @@ async function generateTexts(
     associationType?: string;
     store: StoreContext;
     slideCount?: number;
+    slideContexts?: SlideContext[];
   },
   options: { supabaseUrl: string; supabaseServiceKey: string },
 ): Promise<Record<string, unknown>> {
   resetAIRouterCache();
-
-  // Build rich context from real data
-  let contextInfo = '';
-  if (context.product) {
-    contextInfo = `Produto REAL: "${context.product.name}".`;
-    if (context.product.description) {
-      contextInfo += ` Descrição: "${context.product.description.substring(0, 300)}".`;
-    }
-    if (context.product.price) {
-      const formatted = `R$ ${context.product.price.toFixed(2).replace('.', ',')}`;
-      contextInfo += ` Preço: ${formatted}.`;
-    }
-    contextInfo += ' IMPORTANTE: Use o nome EXATO do produto. Não invente outro nome ou produto.';
-  } else if (context.category) {
-    contextInfo = `Categoria REAL: "${context.category.name}". Use o nome EXATO da categoria.`;
-  }
 
   let storeInfo = `Loja: "${context.store.storeName}".`;
   if (context.store.storeDescription) {
     storeInfo += ` Sobre: "${context.store.storeDescription.substring(0, 200)}".`;
   }
 
-  if (context.mode === 'carousel' && context.slideCount) {
+  if (context.mode === 'carousel' && context.slideCount && context.slideContexts) {
+    // Build per-slide context info for the prompt
+    const perSlideContexts = context.slideContexts.map((sc, i) => {
+      const info = buildContextInfo(sc.product, sc.category);
+      const tone = detectCreativeTone(sc.product, sc.category, sc.briefing, sc.associationType);
+      return `SLIDE ${i + 1}: ${info || 'Sem produto/categoria vinculado (use tom institucional).'}
+Tom: ${tone.toneInstruction}`;
+    }).join('\n\n');
+
     const tools = [{
       type: "function",
       function: {
         name: "generate_carousel_texts",
-        description: `Generate compelling marketing text for ${context.slideCount} banner slides for an e-commerce store.`,
+        description: `Generate compelling marketing text for ${context.slideCount} banner slides for an e-commerce store. Each slide has its own product/category context.`,
         parameters: {
           type: "object",
           properties: {
@@ -467,7 +490,7 @@ async function generateTexts(
                 properties: {
                   title: { type: "string", description: "Headline curta e impactante. MÁXIMO 30 caracteres. Verbo de ação ou benefício direto." },
                   subtitle: { type: "string", description: "Texto de apoio. MÁXIMO 60 caracteres. Complementar ao title, sem repetir." },
-                  buttonText: { type: "string", description: "Texto do botão CTA. MÁXIMO 15 caracteres. Ação clara (ex: Comprar, Ver oferta)." },
+                  buttonText: { type: "string", description: "Texto do botão CTA. MÁXIMO 15 caracteres. Ação clara e específica ao produto/categoria do slide." },
                   altText: { type: "string", description: "Texto alt acessível descrevendo a imagem do banner." },
                 },
                 required: ["title", "subtitle", "buttonText", "altText"],
@@ -483,12 +506,15 @@ async function generateTexts(
       },
     }];
 
-    const systemPrompt = COPY_SYSTEM_PROMPT(storeInfo, contextInfo, context.briefing);
+    // Use first slide's context for overall tone detection
+    const firstSlideCtx = context.slideContexts[0];
+    const tone = detectCreativeTone(firstSlideCtx?.product, firstSlideCtx?.category, context.briefing, firstSlideCtx?.associationType);
+    const systemPrompt = COPY_SYSTEM_PROMPT(storeInfo, perSlideContexts, context.briefing, tone.toneInstruction);
 
     const { data } = await aiChatCompletionJSON("google/gemini-2.5-flash", {
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: `Gere textos para ${context.slideCount} slides de banner. Cada slide deve ter textos DISTINTOS e complementares entre si. Respeite os limites de caracteres rigorosamente.` },
+        { role: "user", content: `Gere textos para ${context.slideCount} slides de banner. CADA SLIDE tem seu próprio contexto (produto ou categoria diferente). Os textos de cada slide DEVEM refletir o produto/categoria específico daquele slide. Varie verbos e abordagem entre slides. Respeite os limites de caracteres rigorosamente.` },
       ],
       tools,
       tool_choice: { type: "function", function: { name: "generate_carousel_texts" } },
