@@ -183,10 +183,12 @@ const footerPropsToInherit = [
 
 | Function | Função |
 |----------|--------|
-| `checkout-create-order` | Criação atômica do pedido (items, customer, address) |
+| `checkout-create-order` | Criação atômica do pedido (items, customer, address). Gera `retry_token` para cartão. Persiste `retry_from_order_id` quando é retry. |
 | `pagarme-create-charge` | Processamento de pagamento via Pagar.me |
 | `mercadopago-create-charge` | Processamento de pagamento via Mercado Pago |
 | `mercadopago-storefront-webhook` | Webhook de status de pagamento do Mercado Pago (storefront) |
+| `retry-card-payment` | Retentativa de cartão no mesmo pedido — valida `retry_token`, resolve CPF/endereço server-side, chama gateway |
+| `get-retry-checkout-data` | Retorna dados seguros para prefill do checkout no modo "outra forma" — valida `retry_token`, retorna itens/cliente/endereço (sem CPF) |
 
 ### Seleção Dinâmica de Gateway
 
@@ -782,6 +784,34 @@ As seguintes tabelas estão **sem nenhuma policy anônima** (nem INSERT, nem SEL
 | **Invalidação** | Após pagamento aprovado, token é removido (set null) |
 | **Dados protegidos** | CPF, endereço completo, dados do pedido — NUNCA expostos ao frontend para retry |
 | **`get-order` response** | `customer_cpf` **REMOVIDO** do response público. `retry_token` incluído apenas quando payment_status != approved e token válido |
+
+---
+
+## 🔒 Retry com Outra Forma de Pagamento (v8.15.2 — Etapa 5)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Regra de Segurança + UX |
+| **Tabela** | `orders.retry_from_order_id` — vincula novo pedido ao original recusado |
+| **Ativação** | Thank You exibe botão "Tentar com outra forma" quando `status=declined` e `retry_token` válido |
+| **Redirect** | `/loja/:slug/checkout?rt=TOKEN` |
+| **Edge Function** | `get-retry-checkout-data` — valida token, retorna dados seguros (sem CPF) |
+| **Reconstrução do carrinho** | `CheckoutStepWizard` recebe prefill → `clearCart()` → `addItem()` para cada item original → restaura CEP/endereço |
+| **Recálculo** | Preços atuais, frete, cupom e total são recalculados do zero — NÃO reutiliza valores do pedido anterior |
+| **Novo pedido** | `checkout-create-order` recebe `retry_from_order_id` → persiste vínculo → invalida `retry_token` do original |
+| **Dados protegidos** | CPF resolvido server-side pelo `checkout-create-order` (já existia no fluxo normal). Frontend NÃO recebe CPF. |
+| **Produto indisponível** | Se produto saiu do catálogo entre o pedido original e o retry, `checkout-create-order` rejeita com `INVALID_PRODUCTS` — comportamento correto e esperado |
+
+### Hook: `useRetryCheckoutData`
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Hook |
+| **Localização** | `src/hooks/useRetryCheckoutData.ts` |
+| **Parâmetros** | `retryToken: string \| null` |
+| **Retorno** | `{ prefill: RetryCheckoutPrefill \| null, isLoading, error }` |
+| **Dados retornados** | `original_order_id`, `order_number`, `tenant_id`, `tenant_slug`, `total`, `customer` (name, email, phone), `shipping` (completo), `items[]` (product_id, variant_id, product_name, sku, quantity, unit_price, image_url) |
+| **Segurança** | NÃO recebe CPF. Token validado server-side. |
 
 ---
 
