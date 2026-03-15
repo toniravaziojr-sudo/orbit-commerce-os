@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useRef, Fragment } from 'react';
 import { sanitizeCep, isValidCep } from '@/lib/cepUtils';
+import { useRetryCheckoutData } from '@/hooks/useRetryCheckoutData';
 import { isValidCpf, handleCpfInput } from '@/lib/formatCpf';
 import { useCepLookup } from '@/hooks/useCepLookup';
 import { useNavigate, Link } from 'react-router-dom';
