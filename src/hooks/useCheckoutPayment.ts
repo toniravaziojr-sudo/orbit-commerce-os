@@ -32,6 +32,8 @@ export interface PaymentResult {
   // Failure classification (v8.15.0)
   cardDeclined?: boolean;    // Gateway explicitly rejected (antifraude, saldo, etc)
   technicalError?: boolean;  // HTTP/network error after order was created
+  // Secure retry token (v8.15.1) — for card retry on thank you page
+  retryToken?: string;
   // Error
   error?: string;
 }
