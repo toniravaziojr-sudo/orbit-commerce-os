@@ -316,8 +316,45 @@ PROIBIÇÕES ABSOLUTAS:
 // COPY QUALITY HELPERS
 // =============================================
 
+/** Detect creative tone from context — promotional, institutional, premium, or category */
+function detectCreativeTone(
+  product?: ProductContext | null,
+  category?: CategoryContext | null,
+  briefing?: string,
+  associationType?: string,
+): { tone: string; toneInstruction: string } {
+  const briefingLower = (briefing || '').toLowerCase();
+  const hasDiscount = product?.compareAtPrice && product?.price && product.compareAtPrice > product.price;
+  const isPromo = briefingLower.includes('oferta') || briefingLower.includes('desconto') || briefingLower.includes('promoção') || briefingLower.includes('promo') || hasDiscount;
+  const isPremium = briefingLower.includes('premium') || briefingLower.includes('luxo') || briefingLower.includes('exclusiv');
+  const isCategory = associationType === 'category' || (category && !product);
+
+  if (isPromo) return {
+    tone: 'promocional',
+    toneInstruction: 'TOM PROMOCIONAL: Urgência + benefício direto. Destaque preço/desconto se disponível. Use verbos como "Aproveite", "Garanta", "Economize". CTA com ação específica (ex: "Comprar Sérum", não "Comprar agora").',
+  };
+  if (isPremium) return {
+    tone: 'premium',
+    toneInstruction: 'TOM PREMIUM: Exclusividade + craft. Use linguagem sofisticada sem ser rebuscada. Palavras como "Edição limitada", "Formulação exclusiva", "Experiência única". CTA elegante (ex: "Experimentar", "Conhecer linha").',
+  };
+  if (isCategory) return {
+    tone: 'categoria',
+    toneInstruction: 'TOM DE CATEGORIA: Exploração + variedade. Convide a descobrir a coleção. Use verbos como "Explore", "Encontre", "Confira". CTA direcionado (ex: "Ver coleção", "Explorar linha").',
+  };
+  // Default: institutional/brand
+  if (!product && !category) return {
+    tone: 'institucional',
+    toneInstruction: 'TOM INSTITUCIONAL: Confiança + identidade de marca. Use valores da loja. Palavras como "Qualidade", "Cuidado", "Confiança". CTA genérico mas firme (ex: "Visitar loja", "Ver novidades").',
+  };
+  // Product without promo/premium
+  return {
+    tone: 'produto',
+    toneInstruction: 'TOM DE PRODUTO: Benefício + ação direta. Destaque o que o produto faz de especial. CTA específico ao produto (ex: "Comprar Sérum", "Ver detalhes"). NUNCA use "Comprar agora" se o nome do produto está disponível.',
+  };
+}
+
 /** System prompt for copy generation — enforces quality, tone, and char limits */
-function COPY_SYSTEM_PROMPT(storeInfo: string, contextInfo: string, briefing?: string): string {
+function COPY_SYSTEM_PROMPT(storeInfo: string, contextInfo: string, briefing?: string, toneInstruction?: string): string {
   return `Você é um copywriter SÊNIOR de e-commerce brasileiro. Gere textos para banners de loja virtual.
 
 REGRAS OBRIGATÓRIAS:
@@ -331,6 +368,13 @@ REGRAS OBRIGATÓRIAS:
 5. Se houver preço/oferta, destaque naturalmente (ex: "A partir de R$ X").
 6. Cada campo deve funcionar SOZINHO — não depender dos outros para fazer sentido.
 
+${toneInstruction || ''}
+
+VARIAÇÃO OBRIGATÓRIA:
+- NUNCA comece 2 ou mais titles com o mesmo verbo (especialmente "Descubra" ou "Conheça").
+- NUNCA use "Saiba mais" ou "Comprar agora" como CTA se existe o nome do produto/categoria disponível. Prefira CTAs específicos (ex: "Comprar Sérum", "Ver Linha Solar").
+- Cada slide (se carousel) DEVE ter abordagem e vocabulário distintos.
+
 ${storeInfo}
 ${contextInfo}
 ${briefing ? `Briefing: "${briefing}".` : ''}
@@ -339,7 +383,8 @@ EXEMPLOS DE BOA COPY:
 - title: "Novo Sérum Facial" (18 chars) ✅
 - title: "Descubra o poder da hidratação profunda para sua pele" (54 chars) ❌ MUITO LONGO
 - subtitle: "Hidratação profunda por 24h" (27 chars) ✅
-- buttonText: "Comprar agora" (13 chars) ✅
+- buttonText: "Comprar Sérum" (13 chars) ✅ (específico)
+- buttonText: "Comprar agora" (13 chars) ⚠️ (genérico, evitar se nome disponível)
 - buttonText: "Aproveite esta oferta incrível" (30 chars) ❌ MUITO LONGO`;
 }
 
