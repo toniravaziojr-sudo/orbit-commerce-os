@@ -3818,6 +3818,75 @@ Step 5: CONFIRMAÇÃO (confirm)
 | Blocos textuais inalterados | ✅ |
 | Outros blocos wizard (expansão) | ❌ (próxima fase) |
 
+### Motor Visual Compartilhado (Phase 1 — v3.0.0)
+
+Arquitetura genérica reutilizável para geração visual em blocos do builder.
+
+#### Conceitos
+
+| Conceito | Descrição |
+|----------|-----------|
+| **OutputMode** | `editable` (imagem limpa para overlay HTML) ou `complete` (peça publicitária pronta, sem overlay) |
+| **RenderMode** | `overlay` (frontend renderiza textos sobre a imagem) ou `baked` (imagem é final, sem textos por cima) |
+| **CreativeStyle** | `product_natural` (produto + cenário), `person_interacting` (pessoa + produto), `promotional` (efeitos visuais) — mesmos tipos do módulo de criativos |
+| **CompositionHint** | Direção de composição por slot: `banner_desktop`, `banner_mobile`, `banner_desktop_complete`, `banner_mobile_complete`, etc. |
+| **BlockVisualAdapter** | Interface que cada bloco implementa: `adapt()` traduz para requests genéricos, `mergeResults()` converte de volta para props |
+
+#### Fluxo
+
+```text
+Wizard → useAIWizardGenerate → ai-block-fill-visual
+  │
+  ├─ Resolve adapter por blockType (BannerAdapter, etc.)
+  ├─ adapter.adapt() → VisualGenerationRequest[]
+  ├─ Para cada request: visual-engine.generateForRequest()
+  │     ├─ buildPromptForSlot() (composição + estilo + campanha)
+  │     ├─ resilientGenerate() (OpenAI → Gemini Pro → Flash)
+  │     ├─ uploadToStorage()
+  │     └─ scoreImageForRealism() (opcional)
+  ├─ adapter.mergeResults() → props do bloco
+  └─ Retorna generatedProps
+```
+
+#### Regra: complete mode = sem overlay
+
+Quando `outputMode === 'complete'`:
+- A imagem gerada é a peça publicitária FINAL
+- O bloco NÃO renderiza título, subtítulo ou botão por cima
+- `_renderMode: 'baked'`, `_hideOverlayText: true`
+- `overlayOpacity: 0`, textos limpos
+
+#### Adapters implementados
+
+| Adapter | Bloco | Slots | Status |
+|---------|-------|-------|--------|
+| BannerAdapter | Banner single/carousel | 2 (desktop 1920x800 + mobile 750x940) | ✅ Fase 1 |
+| TextBannersAdapter | TextBanners | 4 (2 pares desktop/mobile) | ❌ Fase 2 |
+| CarouselAdapter | ImageCarousel | N × 1 | ❌ Fase 2 |
+| GalleryAdapter | ImageGallery | N × 1 | ❌ Fase 2 |
+| BannerProductsAdapter | BannerProducts | 2 (desktop/mobile) | ❌ Fase 3 |
+
+#### Steps do wizard (Banner)
+
+```text
+Step 1: MODO (banner-mode-select)
+  Único / Carrossel + slides
+  Editável / Criativo Completo (outputMode)
+
+Step 2: ESTILO CRIATIVO (creative-style-select)
+  Produto+Cenário / Pessoa+Produto / Promocional
+  + config por estilo (ambiente, ação, tom, intensidade)
+
+Step 3: ESCOPO (scope-select)
+  Imagens / Textos / Ambos
+
+Step 4: VÍNCULO (banner-association, por slide)
+
+Step 5: BRIEFING
+
+Step 6: CONFIRMAÇÃO
+```
+
 ### Integração no PropsEditor
 
 O botão "✨ IA" no cabeçalho do PropsEditor verifica:
