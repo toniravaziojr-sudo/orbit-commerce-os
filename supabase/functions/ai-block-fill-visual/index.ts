@@ -9,7 +9,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 
-const VERSION = "2.2.0";
+const VERSION = "2.3.0";
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MAX_BRIEFING_LENGTH = 500;
 
