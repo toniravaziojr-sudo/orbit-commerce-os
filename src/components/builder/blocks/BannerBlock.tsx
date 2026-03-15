@@ -284,7 +284,7 @@ export function BannerBlock({
                 `}</style>
                 {isBuilderMode ? (
                   <span 
-                    className={`${btnId} inline-block px-10 py-4 rounded-lg font-semibold text-lg transition-colors cursor-pointer`}
+                    className={`${btnId} inline-block px-6 md:px-10 py-3 md:py-4 rounded-lg font-semibold text-sm md:text-lg transition-colors cursor-pointer`}
                   >
                     {currentButtonText}
                   </span>
