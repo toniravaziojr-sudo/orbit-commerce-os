@@ -1004,8 +1004,17 @@ export function useThemeSupportWidget(tenantId: string | undefined, templateSetI
   };
 
   // updateSupportWidget: Updates LOCAL draft state only (NO database save)
+  // IMPORTANT: Eagerly update global ref BEFORE notifying listeners,
+  // otherwise toolbar reads stale hasDraftChanges=false (race condition)
   const updateSupportWidget = useCallback((newConfig: Partial<SupportWidgetConfig>) => {
-    setDraftUpdates(prev => ({ ...prev, ...newConfig }));
+    setDraftUpdates(prev => {
+      const next = { ...prev, ...newConfig };
+      // Eagerly mark ref as dirty so toolbar sees it immediately when notified
+      if (globalSupportWidgetDraftRef) {
+        (globalSupportWidgetDraftRef as any).hasDraftChanges = Object.keys(next).length > 0;
+      }
+      return next;
+    });
     notifyHeaderFooterDraftChange();
   }, []);
 
