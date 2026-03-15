@@ -65,15 +65,28 @@ Este documento define o **padrão de qualidade** que todo criativo gerado deve a
 
 ## 4. Banner v2 — Geração Criativa (v2.0.0)
 
-### 4.1 Detecção de Campanha
+### 4.1 Detecção de Campanha (v2.1.0 — melhorado)
 
-O `buildBannerImagePrompt` detecta automaticamente campanhas sazonais e ofertas no briefing:
+O `buildBannerImagePrompt` detecta automaticamente campanhas sazonais e ofertas no briefing, e agora mapeia cada tema a uma direção visual específica:
 
-| Gatilho | Exemplo | Efeito na Imagem |
-|---------|---------|------------------|
-| Campanha sazonal | "páscoa", "natal", "black friday" | Elementos temáticos sutis no cenário |
-| Oferta/desconto | "35% off", "desconto", "promoção" | Atmosfera de urgência, cores vibrantes |
+| Gatilho | Exemplo | Direção Visual |
+|---------|---------|----------------|
+| Páscoa | "páscoa", "easter" | Tons dourados, chocolate, ovos decorativos sutis, atmosfera acolhedora |
+| Natal | "natal" | Tons vermelho/dourado/verde, luzes bokeh, atmosfera natalina elegante |
+| Black Friday | "black friday" | Tons escuros (preto/dourado), contraste dramático, urgência |
+| Dia das Mães | "dia das mães" | Tons suaves e sofisticados, flores sutis, atmosfera carinhosa |
+| Dia dos Pais | "dia dos pais" | Tons sóbrios (azul marinho/cinza), atmosfera masculina |
+| Dia dos Namorados | "dia dos namorados" | Tons românticos (vermelho/rosa dourado), atmosfera íntima |
+| Verão/Inverno | "verão", "inverno" | Cores quentes/frias conforme estação |
+| Oferta/desconto | "35% off", "desconto", "promoção" | Atmosfera de urgência, iluminação dramática |
 | Ambos | "Páscoa até 35% OFF" | Cenário temático + urgência |
+
+### 4.1.1 Regras de Seção/Layout (v2.1.0)
+
+- **Seções**: Default de padding mudado de 32/16 para 0/0 (React + compilador)
+- **Motivo**: Blocos como Banner precisam encostar no header sem espaço indesejado
+- **Controle**: Usuário pode ajustar padding manualmente pela UI do builder
+- **Impacto**: Afeta React (`SectionBlock.tsx`) e compilador (`section.ts`)
 
 ### 4.2 Composição Obrigatória
 
