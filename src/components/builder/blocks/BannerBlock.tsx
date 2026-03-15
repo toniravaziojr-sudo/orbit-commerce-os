@@ -277,12 +277,20 @@ export function BannerBlock({
                     color: ${hoverText};
                   }
                 `}</style>
-                <a 
-                  href={currentButtonUrl || '#'} 
-                  className={`${btnId} inline-block px-10 py-4 rounded-lg font-semibold text-lg transition-colors`}
-                >
-                  {currentButtonText}
-                </a>
+                {isBuilderMode ? (
+                  <span 
+                    className={`${btnId} inline-block px-10 py-4 rounded-lg font-semibold text-lg transition-colors cursor-pointer`}
+                  >
+                    {currentButtonText}
+                  </span>
+                ) : (
+                  <a 
+                    href={currentButtonUrl || '#'} 
+                    className={`${btnId} inline-block px-10 py-4 rounded-lg font-semibold text-lg transition-colors`}
+                  >
+                    {currentButtonText}
+                  </a>
+                )}
               </>
             )}
           </div>
@@ -331,7 +339,8 @@ export function BannerBlock({
   );
 
   // Wrap in link if URL provided (only for single mode or carousel slide without CTA)
-  if (currentLinkUrl && !hasCTA) {
+  // In builder mode, never navigate — clicking should select the block for editing
+  if (currentLinkUrl && !hasCTA && !isBuilderMode) {
     return (
       <a href={currentLinkUrl} className="block">
         {bannerContent}

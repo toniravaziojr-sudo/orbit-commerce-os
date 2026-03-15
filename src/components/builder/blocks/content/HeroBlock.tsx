@@ -140,12 +140,20 @@ export function HeroBlock({
                 color: ${hoverText};
               }
             `}</style>
-            <a 
-              href={buttonUrl || '#'} 
-              className={`${btnId} inline-block px-8 py-3 rounded-lg font-semibold transition-colors`}
-            >
-              {buttonText}
-            </a>
+            {isBuilderMode ? (
+              <span 
+                className={`${btnId} inline-block px-8 py-3 rounded-lg font-semibold transition-colors cursor-pointer`}
+              >
+                {buttonText}
+              </span>
+            ) : (
+              <a 
+                href={buttonUrl || '#'} 
+                className={`${btnId} inline-block px-8 py-3 rounded-lg font-semibold transition-colors`}
+              >
+                {buttonText}
+              </a>
+            )}
           </>
         )}
       </div>

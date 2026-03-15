@@ -191,8 +191,8 @@ export function HeroBannerBlock({
     </div>
   );
 
-  // Wrap in link if URL provided
-  if (currentSlide?.linkUrl) {
+  // Wrap in link if URL provided — but NOT in builder mode
+  if (currentSlide?.linkUrl && !isBuilderMode) {
     return (
       <a href={currentSlide.linkUrl} className="block">
         {content}
