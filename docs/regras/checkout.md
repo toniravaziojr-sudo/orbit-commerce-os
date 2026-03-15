@@ -768,6 +768,22 @@ As seguintes tabelas estão **sem nenhuma policy anônima** (nem INSERT, nem SEL
 
 ---
 
+## 🔒 Retry Token para Retentativa Segura (v8.15.1)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Regra de Segurança |
+| **Tabela** | `orders.retry_token`, `orders.retry_token_expires_at` |
+| **Geração** | `checkout-create-order` chama `generate_order_retry_token()` para pedidos com `payment_method = 'credit_card'` |
+| **Transporte** | Retornado no response do `checkout-create-order` → passado via `PaymentResult.retryToken` → URL param `rt` no redirect para Thank You |
+| **Uso** | `retry-card-payment` edge function valida o token e processa nova cobrança server-side |
+| **Validade** | 24 horas |
+| **Invalidação** | Após pagamento aprovado, token é removido (set null) |
+| **Dados protegidos** | CPF, endereço completo, dados do pedido — NUNCA expostos ao frontend para retry |
+| **`get-order` response** | `customer_cpf` **REMOVIDO** do response público. `retry_token` incluído apenas quando payment_status != approved e token válido |
+
+---
+
 ## 🔧 Correção: Propagação de quote_id no CheckoutShipping (2026-03-13)
 
 | Campo | Valor |

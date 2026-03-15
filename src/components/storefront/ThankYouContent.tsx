@@ -278,11 +278,11 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
         </div>
       )}
 
-      {/* Card Retry Section — only when declined */}
-      {effectiveDeclined && order && tenant?.id && (
+      {/* Card Retry Section — only when declined and retry_token is available */}
+      {effectiveDeclined && order && (order.retry_token || searchParams.get('rt')) && (
         <CardRetrySection
-          order={order}
-          tenantId={tenant.id}
+          retryToken={order.retry_token || searchParams.get('rt') || ''}
+          orderTotal={order.total}
           onSuccess={handleRetrySuccess}
         />
       )}
@@ -593,14 +593,15 @@ function DeclinedHeader({ orderNumber }: { orderNumber?: string }) {
 // =============================================
 // CARD RETRY SECTION — Inline card form for retry
 // Only card — no PIX/boleto retry inline
+// Uses retry_token — NO sensitive data from frontend
 // =============================================
 
-function CardRetrySection({ order, tenantId, onSuccess }: {
-  order: NonNullable<ReturnType<typeof useOrderDetails>['data']>;
-  tenantId: string;
+function CardRetrySection({ retryToken, orderTotal, onSuccess }: {
+  retryToken: string;
+  orderTotal: number;
   onSuccess: () => void;
 }) {
-  const { retryPayment, isRetrying, retryResult, resetRetryResult } = useRetryCardPayment({ order, tenantId });
+  const { retryPayment, isRetrying, retryResult, resetRetryResult } = useRetryCardPayment({ retryToken });
   
   const [cardNumber, setCardNumber] = useState('');
   const [holderName, setHolderName] = useState('');
@@ -671,7 +672,7 @@ function CardRetrySection({ order, tenantId, onSuccess }: {
         Tentar novamente com cartão
       </h3>
       <p className="text-sm text-muted-foreground mb-4">
-        Insira os dados de um cartão de crédito para tentar o pagamento de {formatCurrency(order.total)}.
+        Insira os dados de um cartão de crédito para tentar o pagamento de {formatCurrency(orderTotal)}.
       </p>
 
       {displayError && (
@@ -776,7 +777,7 @@ function CardRetrySection({ order, tenantId, onSuccess }: {
             <SelectContent>
               {Array.from({ length: 12 }, (_, i) => {
                 const n = i + 1;
-                const valuePerInstallment = order.total / n;
+                const valuePerInstallment = orderTotal / n;
                 return (
                   <SelectItem key={n} value={String(n)}>
                     {n}x de {formatCurrency(valuePerInstallment)}
@@ -797,7 +798,7 @@ function CardRetrySection({ order, tenantId, onSuccess }: {
           ) : (
             <>
               <CreditCard className="h-4 w-4 mr-2" />
-              Pagar {formatCurrency(order.total)}
+              Pagar {formatCurrency(orderTotal)}
             </>
           )}
         </Button>

@@ -11665,6 +11665,8 @@ export type Database = {
           payment_method: Database["public"]["Enums"]["payment_method"] | null
           payment_method_discount: number | null
           payment_status: Database["public"]["Enums"]["payment_status"]
+          retry_token: string | null
+          retry_token_expires_at: string | null
           shipped_at: string | null
           shipping_carrier: string | null
           shipping_city: string | null
@@ -11740,6 +11742,8 @@ export type Database = {
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_method_discount?: number | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
+          retry_token?: string | null
+          retry_token_expires_at?: string | null
           shipped_at?: string | null
           shipping_carrier?: string | null
           shipping_city?: string | null
@@ -11815,6 +11819,8 @@ export type Database = {
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_method_discount?: number | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
+          retry_token?: string | null
+          retry_token_expires_at?: string | null
           shipped_at?: string | null
           shipping_carrier?: string | null
           shipping_city?: string | null
@@ -18586,6 +18592,10 @@ export type Database = {
         Returns: string
       }
       generate_order_number: { Args: { p_tenant_id: string }; Returns: string }
+      generate_order_retry_token: {
+        Args: { p_order_id: string }
+        Returns: string
+      }
       generate_review_token: {
         Args: {
           p_customer_email?: string
@@ -18895,6 +18905,28 @@ export type Database = {
           tenant_id: string
           tenant_name: string
           user_type: Database["public"]["Enums"]["tenant_user_type"]
+        }[]
+      }
+      validate_order_retry_token: {
+        Args: { p_token: string }
+        Returns: {
+          customer_cpf: string
+          customer_email: string
+          customer_name: string
+          customer_phone: string
+          installments: number
+          is_valid: boolean
+          order_id: string
+          order_number: string
+          shipping_city: string
+          shipping_complement: string
+          shipping_neighborhood: string
+          shipping_number: string
+          shipping_postal_code: string
+          shipping_state: string
+          shipping_street: string
+          tenant_id: string
+          total: number
         }[]
       }
       validate_review_token: {

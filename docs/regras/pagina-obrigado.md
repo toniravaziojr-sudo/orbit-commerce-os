@@ -100,16 +100,29 @@ Página de confirmação pós-compra com detalhes do pedido, ofertas de upsell e
 
 ---
 
-## Retentativa de Pagamento por Cartão (v8.15.0 — Etapa 4)
+## Retentativa de Pagamento por Cartão (v8.15.1 — Etapa 4 + Correção de Segurança)
+
+### Modelo de Segurança (v8.15.1)
+
+| Aspecto | Implementação |
+|---------|---------------|
+| **Autenticação do retry** | `retry_token` — token opaco de 64 caracteres gerado no servidor |
+| **Geração do token** | Gerado pela função `generate_order_retry_token()` no momento da criação do pedido (apenas para cartão de crédito) |
+| **Validade** | 24 horas após geração |
+| **Transporte** | Passado via URL param `rt` no redirect para Thank You |
+| **Validação** | Função `validate_order_retry_token()` valida token e retorna dados do pedido server-side |
+| **Dados sensíveis** | CPF, endereço e dados do pedido são resolvidos APENAS no servidor — NUNCA expostos no frontend |
+| **Invalidação** | Token é removido após pagamento aprovado com sucesso |
+| **Fallback** | Se o `rt` do URL expirar, o `get-order` retorna `retry_token` do pedido (se ainda válido) |
 
 ### Regras
 
 | Regra | Descrição |
 |-------|-----------|
-| **Quando aparece** | Somente quando URL contém `status=declined` |
+| **Quando aparece** | Somente quando URL contém `status=declined` E existe `retry_token` válido |
 | **Tipo de pagamento** | Apenas cartão de crédito — NÃO permite PIX ou boleto inline |
 | **Pedido** | Reutiliza o mesmo pedido existente — NÃO cria pedido novo |
-| **Gateway** | Detecta automaticamente o gateway ativo do tenant (Pagar.me ou Mercado Pago) |
+| **Gateway** | Detectado automaticamente server-side pelo tenant do pedido |
 | **Sucesso** | Remove `status=declined` da URL, refaz busca do pedido, exibe estado de sucesso |
 | **Recusa de novo** | Mantém formulário com mensagem de erro da operadora |
 | **Erro técnico** | Exibe "Problema técnico" diferenciado, sem mascarar como "recusado" |
@@ -117,21 +130,23 @@ Página de confirmação pós-compra com detalhes do pedido, ofertas de upsell e
 ### Fluxo — Retry com sucesso
 
 ```
-1. Página carrega com ?status=declined
-2. Exibe header vermelho (❌) + formulário de cartão
-3. Cliente preenche dados do cartão
-4. useRetryCardPayment chama edge function de cobrança com order_id existente
-5. Gateway aprova → retryResult.success = true
-6. handleRetrySuccess: remove status=declined da URL + refetch order
-7. Página exibe header verde (✅) + timeline normal
-8. Purchase event disparado (se configurado)
+1. Checkout detecta cardDeclined → gera retry_token → redirect com ?status=declined&rt=TOKEN
+2. Thank You carrega pedido via get-order (sem CPF, com retry_token se válido)
+3. Exibe header vermelho (❌) + formulário de cartão
+4. Cliente preenche dados do cartão
+5. useRetryCardPayment chama edge function retry-card-payment com retry_token + card
+6. Edge function valida token → carrega CPF/endereço server-side → chama gateway
+7. Gateway aprova → retryResult.success = true
+8. handleRetrySuccess: remove status=declined da URL + refetch order
+9. Página exibe header verde (✅) + timeline normal
+10. Purchase event disparado (se configurado)
 ```
 
 ### Fluxo — Retry com nova recusa
 
 ```
 1. Cliente tenta com outro cartão
-2. Gateway recusa novamente → retryResult.cardDeclined = true
+2. retry-card-payment chama gateway → recusa → retorna cardDeclined: true
 3. Alert vermelho com mensagem da operadora
 4. Formulário continua visível para nova tentativa
 ```
@@ -140,7 +155,7 @@ Página de confirmação pós-compra com detalhes do pedido, ofertas de upsell e
 
 ```
 1. Cliente tenta com cartão
-2. Chamada à operadora falha (HTTP/network) → retryResult.technicalError = true
+2. retry-card-payment falha (HTTP/network) → retorna technicalError: true
 3. Alert vermelho com "Problema técnico ao processar. Tente novamente."
 4. Formulário continua visível
 ```
@@ -151,10 +166,22 @@ Página de confirmação pós-compra com detalhes do pedido, ofertas de upsell e
 |-------|-------|
 | **Tipo** | Hook |
 | **Localização** | `src/hooks/useRetryCardPayment.ts` |
-| **Parâmetros** | `order: OrderDetails`, `tenantId: string` |
+| **Parâmetros** | `retryToken: string` |
 | **Retorno** | `{ retryPayment, isRetrying, retryResult, resetRetryResult }` |
-| **Comportamento** | Detecta gateway ativo → chama edge function de cobrança com `order_id` existente → retorna resultado classificado (success / cardDeclined / technicalError) |
-| **Não faz** | NÃO cria pedido novo. NÃO permite PIX/boleto. |
+| **Comportamento** | Chama edge function `retry-card-payment` com `retry_token` + dados do cartão → resultado classificado (success / cardDeclined / technicalError) |
+| **Não faz** | NÃO recebe CPF/endereço. NÃO cria pedido novo. NÃO permite PIX/boleto. |
+
+### Edge Function: `retry-card-payment`
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Edge Function |
+| **Localização** | `supabase/functions/retry-card-payment/index.ts` |
+| **Entrada** | `retry_token`, `card` (number, holder_name, exp_month, exp_year, cvv), `installments` |
+| **Validação** | `validate_order_retry_token()` — retorna dados do pedido se token válido e pedido não pago |
+| **Processamento** | Detecta gateway ativo → monta payload com dados server-side → chama gateway → retorna resultado |
+| **Pós-sucesso** | Invalida retry_token (seta null) |
+| **Segurança** | `verify_jwt = false` (público, mas protegido por retry_token) |
 
 ### Componente: `CardRetrySection`
 
@@ -162,7 +189,7 @@ Página de confirmação pós-compra com detalhes do pedido, ofertas de upsell e
 |-------|-------|
 | **Tipo** | Componente |
 | **Localização** | `src/components/storefront/ThankYouContent.tsx` (interno) |
-| **Props** | `order`, `tenantId`, `onSuccess` |
+| **Props** | `retryToken`, `orderTotal`, `onSuccess` |
 | **Campos do formulário** | Número do cartão (com máscara), Nome no cartão, Mês/Ano validade, CVV (mascarado), Parcelas |
 | **CVV** | `type="password"` com toggle de visibilidade |
 | **Parcelas** | Calculadas a partir do total do pedido (1x a 12x) |
@@ -174,23 +201,24 @@ Página de confirmação pós-compra com detalhes do pedido, ofertas de upsell e
 |-------|-------|
 | **Status** | ⏳ AGUARDANDO ETAPA 5 |
 | **Implementação atual** | Texto informativo direcionando ao WhatsApp |
-| **Motivo** | A implementação segura requer `retry_token` (token de sessão único vinculado ao pedido) para permitir retorno ao checkout sem expor o `order_id` diretamente na URL |
+| **Nota** | O `retry_token` já existe e pode ser reutilizado na Etapa 5 para permitir retorno seguro ao checkout com PIX/boleto |
 | **Proibição** | NÃO implementar fallback baseado apenas em `order_id` na URL — risco de segurança |
 
 ---
 
-## Dados do Pedido
+## Dados do Pedido (expostos ao frontend)
 
-| Campo | Fonte |
-|-------|-------|
-| Número | `order.order_number` |
-| Status | `order.status` |
-| Itens | `order.items` (via edge function get-order) |
-| Pagamento | `order.payment_method`, `order.payment_status` |
-| Endereço | `order.shipping_*` |
-| Rastreio | `order.tracking_code`, `order.shipping_carrier` |
-| CPF | `order.customer_cpf` (usado no retry) |
-| Parcelas | `order.installments` |
+| Campo | Fonte | Nota |
+|-------|-------|------|
+| Número | `order.order_number` | |
+| Status | `order.status` | |
+| Itens | `order.items` (via edge function get-order) | |
+| Pagamento | `order.payment_method`, `order.payment_status` | |
+| Endereço | `order.shipping_*` | |
+| Rastreio | `order.tracking_code`, `order.shipping_carrier` | |
+| Parcelas | `order.installments` | |
+| retry_token | `order.retry_token` | Só presente quando payment_status != approved e token válido |
+| ~~CPF~~ | ~~`order.customer_cpf`~~ | **[REMOVIDO v8.15.1]** — resolvido server-side |
 
 ---
 

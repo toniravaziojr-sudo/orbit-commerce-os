@@ -32,6 +32,8 @@ export interface PaymentResult {
   // Failure classification (v8.15.0)
   cardDeclined?: boolean;    // Gateway explicitly rejected (antifraude, saldo, etc)
   technicalError?: boolean;  // HTTP/network error after order was created
+  // Secure retry token (v8.15.1) — for card retry on thank you page
+  retryToken?: string;
   // Error
   error?: string;
 }
@@ -248,7 +250,8 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
 
         orderId = orderData.order_id;
         orderNumber = orderData.order_number;
-        console.log('[Checkout] Step 1 OK - Order:', orderId, orderNumber);
+        const retryToken = orderData.retry_token || undefined;
+        console.log('[Checkout] Step 1 OK - Order:', orderId, orderNumber, retryToken ? '(retry_token generated)' : '');
 
       // 2. Process payment via active gateway (Pagar.me or Mercado Pago)
       const gatewayFunction = activeGateway === 'mercadopago' ? 'mercadopago-create-charge' : 'pagarme-create-charge';
@@ -311,6 +314,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
           orderId,
           orderNumber,
           cardDeclined: true,
+          retryToken,
         };
         setPaymentResult(result);
         return result;

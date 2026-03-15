@@ -38,7 +38,7 @@ export interface OrderDetails {
   customer_name: string;
   customer_email: string;
   customer_phone?: string;
-  customer_cpf?: string;
+  // NOTE: customer_cpf is NOT exposed to the frontend (resolved server-side)
   shipping_street?: string;
   shipping_number?: string;
   shipping_complement?: string;
@@ -47,6 +47,8 @@ export interface OrderDetails {
   shipping_state?: string;
   shipping_postal_code?: string;
   installments?: number;
+  // Secure retry token (v8.15.1) — only present when payment is declined and token is valid
+  retry_token?: string;
   items: {
     id: string;
     product_name: string;

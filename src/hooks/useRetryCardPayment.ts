@@ -1,14 +1,13 @@
 // =============================================
-// USE RETRY CARD PAYMENT - Retry card payment on existing order
+// USE RETRY CARD PAYMENT - Secure card retry via server-side edge function
 // Used on Thank You page when card is declined
-// Calls the same charge edge function with existing order data
+// Sends ONLY retry_token + card data — all sensitive order data resolved server-side
 // Does NOT create a new order — reuses existing order_id
+// v8.15.1 — Security: no CPF/address/order_id exposure to frontend
 // =============================================
 
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { sanitizeCep } from '@/lib/cepUtils';
-import type { OrderDetails } from '@/hooks/useOrderDetails';
 
 export interface RetryCardData {
   number: string;
@@ -26,11 +25,10 @@ export interface RetryResult {
 }
 
 interface UseRetryCardPaymentOptions {
-  order: OrderDetails;
-  tenantId: string;
+  retryToken: string;
 }
 
-export function useRetryCardPayment({ order, tenantId }: UseRetryCardPaymentOptions) {
+export function useRetryCardPayment({ retryToken }: UseRetryCardPaymentOptions) {
   const [isRetrying, setIsRetrying] = useState(false);
   const [retryResult, setRetryResult] = useState<RetryResult | null>(null);
 
@@ -39,49 +37,21 @@ export function useRetryCardPayment({ order, tenantId }: UseRetryCardPaymentOpti
     setRetryResult(null);
 
     try {
-      // Determine active gateway for this tenant
-      let gatewayFunction = 'pagarme-create-charge';
-      try {
-        const { data: providers } = await supabase
-          .from('payment_providers')
-          .select('provider, is_enabled')
-          .eq('tenant_id', tenantId)
-          .eq('is_enabled', true)
-          .order('updated_at', { ascending: false });
-        
-        if (providers?.find((p: any) => p.provider === 'mercado_pago')) {
-          gatewayFunction = 'mercadopago-create-charge';
-        }
-      } catch {
-        console.warn('[RetryPayment] Could not determine gateway, defaulting to pagarme');
+      if (!retryToken) {
+        const result: RetryResult = {
+          success: false,
+          error: 'Token de retentativa não disponível. Tente voltar ao checkout.',
+          technicalError: true,
+        };
+        setRetryResult(result);
+        return result;
       }
 
-      const amountCents = Math.round(order.total * 100);
+      console.log('[RetryPayment] Retrying card payment via secure edge function');
 
-      console.log(`[RetryPayment] Retrying card payment on order ${order.order_number} via ${gatewayFunction}`);
-
-      const { data: paymentData, error: paymentError } = await supabase.functions.invoke(gatewayFunction, {
+      const { data, error } = await supabase.functions.invoke('retry-card-payment', {
         body: {
-          tenant_id: tenantId,
-          order_id: order.id,
-          method: 'credit_card',
-          amount: amountCents,
-          customer: {
-            name: order.customer_name,
-            email: order.customer_email,
-            phone: (order.customer_phone || '').replace(/\D/g, ''),
-            document: (order.customer_cpf || '').replace(/\D/g, ''),
-          },
-          billing_address: {
-            street: order.shipping_street || '',
-            number: order.shipping_number || '',
-            complement: order.shipping_complement || '',
-            neighborhood: order.shipping_neighborhood || '',
-            city: order.shipping_city || '',
-            state: order.shipping_state || '',
-            postal_code: sanitizeCep(order.shipping_postal_code || ''),
-            country: 'BR',
-          },
+          retry_token: retryToken,
           card: {
             number: card.number.replace(/\D/g, ''),
             holder_name: card.holderName,
@@ -93,8 +63,8 @@ export function useRetryCardPayment({ order, tenantId }: UseRetryCardPaymentOpti
         },
       });
 
-      if (paymentError) {
-        console.error('[RetryPayment] Invoke error (technical):', paymentError);
+      if (error) {
+        console.error('[RetryPayment] Invoke error (technical):', error);
         const result: RetryResult = {
           success: false,
           error: 'Ocorreu um problema técnico ao processar o pagamento. Tente novamente.',
@@ -104,13 +74,14 @@ export function useRetryCardPayment({ order, tenantId }: UseRetryCardPaymentOpti
         return result;
       }
 
-      if (paymentData?.success === false) {
-        console.error('[RetryPayment] Gateway rejection:', paymentData.error);
+      if (data?.success === false) {
         const result: RetryResult = {
           success: false,
-          error: paymentData.error || 'Pagamento recusado pela operadora.',
-          cardDeclined: true,
+          error: data.error || 'Pagamento recusado pela operadora.',
+          cardDeclined: data.cardDeclined === true,
+          technicalError: data.technicalError === true,
         };
+        console.error('[RetryPayment] Payment failed:', result.cardDeclined ? 'declined' : 'technical');
         setRetryResult(result);
         return result;
       }
