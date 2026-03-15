@@ -198,43 +198,16 @@ export function BlockRenderer({
   // Note: Click handling moved to onMouseDown in the return block
   // to allow :hover events to pass through to child elements (WYSIWYG)
 
-  // Render children with "+" buttons between them
-  // Check if this is a root Page block - should NOT show AddBlockButtons between Header/Section/Footer
-  const isRootPage = node.type === 'Page' && !parentId;
-  
+  // Render children recursively (adição de blocos feita pelo menu lateral)
   const renderChildren = () => {
     if (!node.children?.length) {
-      // For root Page, never show AddBlockButton (blocks are added via left menu)
-      if (isRootPage) {
-        return null;
-      }
-      if (definition.canHaveChildren && isEditing && onAddBlock) {
-        return (
-          <div className="py-4 group">
-            <AddBlockButton
-              parentId={node.id}
-              index={0}
-              onAddBlock={onAddBlock}
-              className="opacity-40"
-            />
-          </div>
-        );
-      }
       return null;
     }
-    
+
     return (
       <>
         {node.children.map((child, index) => (
           <div key={child.id} className="group/block">
-            {/* NO AddBlockButton for root Page children (Header/Section/Footer) */}
-            {/* Blocks are added ONLY via left menu - no inline buttons */}
-            {!isRootPage && index === 0 && isEditing && onAddBlock && definition.canHaveChildren && (
-              <div className="py-1">
-                <AddBlockButton parentId={node.id} index={0} onAddBlock={onAddBlock} />
-              </div>
-            )}
-            
             <BlockRenderer
               node={child}
               context={context}
@@ -254,13 +227,6 @@ export function BlockRenderer({
             {/* Render afterHeaderSlot after Header block */}
             {child.type === 'Header' && context.afterHeaderSlot && (
               <div className="w-full">{context.afterHeaderSlot}</div>
-            )}
-            
-            {/* NO AddBlockButton for root Page children */}
-            {!isRootPage && isEditing && onAddBlock && definition.canHaveChildren && (
-              <div className="py-1">
-                <AddBlockButton parentId={node.id} index={index + 1} onAddBlock={onAddBlock} />
-              </div>
             )}
           </div>
         ))}
