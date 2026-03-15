@@ -252,7 +252,7 @@ export function BannerBlock({
             "absolute inset-0 flex flex-col justify-center px-6 md:px-16 py-12 z-10",
             alignClass,
           )}
-          style={{ maxWidth: alignment === 'center' ? '100%' : '55%' }}
+          style={{ maxWidth: isMobile ? '100%' : (alignment === 'center' ? '100%' : '55%') }}
           >
             {currentTitle && (
               <h2 
