@@ -593,14 +593,15 @@ function DeclinedHeader({ orderNumber }: { orderNumber?: string }) {
 // =============================================
 // CARD RETRY SECTION — Inline card form for retry
 // Only card — no PIX/boleto retry inline
+// Uses retry_token — NO sensitive data from frontend
 // =============================================
 
-function CardRetrySection({ order, tenantId, onSuccess }: {
-  order: NonNullable<ReturnType<typeof useOrderDetails>['data']>;
-  tenantId: string;
+function CardRetrySection({ retryToken, orderTotal, onSuccess }: {
+  retryToken: string;
+  orderTotal: number;
   onSuccess: () => void;
 }) {
-  const { retryPayment, isRetrying, retryResult, resetRetryResult } = useRetryCardPayment({ order, tenantId });
+  const { retryPayment, isRetrying, retryResult, resetRetryResult } = useRetryCardPayment({ retryToken });
   
   const [cardNumber, setCardNumber] = useState('');
   const [holderName, setHolderName] = useState('');
