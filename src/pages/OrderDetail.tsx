@@ -14,7 +14,10 @@ import {
   ExternalLink,
   Bell,
   Pencil,
-  X
+  X,
+  Link2,
+  AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
