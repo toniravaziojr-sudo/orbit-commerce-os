@@ -124,36 +124,44 @@ serve(async (req) => {
           })
           .eq('id', order.id);
 
-        // Mark associated checkout_session as abandoned (if exists)
-        // Match by order_id first, then by email+tenant if no direct link
-        const { data: sessionByOrder } = await supabase
-          .from('checkout_sessions')
-          .update({
-            status: 'abandoned',
-            abandoned_at: now.toISOString(),
-            updated_at: now.toISOString(),
-          })
-          .eq('order_id', order.id)
-          .in('status', ['active'])
-          .select('id');
-
-        // If no session found by order_id, try by email + tenant (recent sessions)
-        if ((!sessionByOrder || sessionByOrder.length === 0) && order.customer_email) {
-          await supabase
-            .from('checkout_sessions')
-            .update({
-              status: 'abandoned',
-              abandoned_at: now.toISOString(),
-              updated_at: now.toISOString(),
-            })
-            .eq('tenant_id', order.tenant_id)
-            .eq('customer_email', order.customer_email.toLowerCase())
-            .eq('status', 'active')
-            .is('order_id', null);
+        // REGRA: com pedido = fluxo operacional, NÃO abandono de checkout
+        // Emitir evento order.ghost_cancelled em vez de marcar checkout_session como abandoned
+        try {
+          const emitResponse = await fetch(`${supabaseUrl}/functions/v1/emit-internal-event`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+            },
+            body: JSON.stringify({
+              tenant_id: order.tenant_id,
+              event_type: 'order.ghost_cancelled',
+              occurred_at: now.toISOString(),
+              subject: {
+                type: 'order',
+                id: order.id,
+              },
+              payload_normalized: {
+                order_id: order.id,
+                order_number: order.order_number,
+                customer_email: order.customer_email || null,
+                customer_name: order.customer_name || null,
+                total: order.total || 0,
+                reason: 'ghost_order_no_gateway',
+              },
+              idempotency_key: `ghost_cancelled_${order.id}`,
+            }),
+          });
+          
+          if (!emitResponse.ok) {
+            console.warn(`[expire-stale-orders] Failed to emit ghost_cancelled for ${order.order_number}:`, await emitResponse.text());
+          }
+        } catch (emitErr) {
+          console.warn(`[expire-stale-orders] Error emitting ghost_cancelled for ${order.order_number}:`, emitErr);
         }
 
         orphanCount++;
-        console.log(`[expire-stale-orders] Ghost order → abandoned checkout: ${order.order_number}`);
+        console.log(`[expire-stale-orders] Ghost order cancelled (no checkout contamination): ${order.order_number}`);
       }
     }
 

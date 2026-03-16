@@ -215,8 +215,9 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
       // Checkout sessions metrics
       const checkoutsCurrent = checkoutsCurrentRes.data || [];
       const checkoutsPrev = checkoutsPrevRes.data || [];
-      const abandonedCurrent = checkoutsCurrent.filter(c => c.status === 'abandoned');
-      const abandonedPrev = checkoutsPrev.filter(c => c.status === 'abandoned');
+      // REGRA: só contar abandono real (sem pedido vinculado) — ghost orders não são abandono
+      const abandonedCurrent = checkoutsCurrent.filter(c => c.status === 'abandoned' && !c.order_id);
+      const abandonedPrev = checkoutsPrev.filter(c => c.status === 'abandoned' && !c.order_id);
       const recoveredCurrent = checkoutsCurrent.filter(c => c.recovered_at != null);
       const errorCurrent = abandonedCurrent.filter(c => {
         const hasEmail = c.customer_email && c.customer_email.includes('@');
