@@ -35,7 +35,7 @@ import { useState } from 'react';
 import { useAIBlockFill } from '@/hooks/useAIBlockFill';
 import { getWizardContract } from '@/lib/builder/aiWizardRegistry';
 import { AIFillWizardDialog } from './ai-wizard/AIFillWizardDialog';
-import { Sparkles, Loader2 } from 'lucide-react';
+import { Sparkles, Loader2, RefreshCw } from 'lucide-react';
 
 interface PropsEditorProps {
   definition: BlockDefinition;
@@ -84,9 +84,13 @@ export function PropsEditor({
 }: PropsEditorProps) {
   const [noticeOpen, setNoticeOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   // Check if this block has a wizard contract (Group B)
   const wizardContract = getWizardContract(definition.type, props);
+
+  // Check if block has a saved wizard config for regeneration
+  const lastWizardConfig = props._lastWizardConfig as { collectedData: Record<string, unknown>; mode?: string; scope?: string; blockType: string } | undefined;
 
   // AI Block Fill hook (for Group A — text-only blocks)
   const { fill, isLoading: isAILoading, hasFillableProps } = useAIBlockFill({
@@ -225,33 +229,110 @@ export function PropsEditor({
             <p className="text-[10px] text-muted-foreground">Propriedades</p>
           </div>
           {/* AI Fill button — Group B (wizard) or Group A (direct fill) */}
-          {(hasFillableProps || wizardContract) && tenantId && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 gap-1 text-xs shrink-0"
-              disabled={isAILoading}
-              onClick={async () => {
-                if (wizardContract) {
-                  // Group B: open wizard dialog
-                  setWizardOpen(true);
-                } else {
-                  // Group A: direct text fill
-                  const merged = await fill();
-                  if (merged) {
-                    onChange(merged);
+          <div className="flex items-center gap-1 shrink-0">
+            {(hasFillableProps || wizardContract) && tenantId && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1 text-xs"
+                disabled={isAILoading || isRegenerating}
+                onClick={async () => {
+                  if (wizardContract) {
+                    setWizardOpen(true);
+                  } else {
+                    const merged = await fill();
+                    if (merged) onChange(merged);
                   }
-                }
-              }}
-            >
-              {isAILoading ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Sparkles className="h-3.5 w-3.5" />
-              )}
-              {isAILoading ? 'Gerando...' : 'IA'}
-            </Button>
-          )}
+                }}
+              >
+                {isAILoading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5" />
+                )}
+                {isAILoading ? 'Gerando...' : 'IA'}
+              </Button>
+            )}
+            {/* Regenerate button — only after first AI generation */}
+            {lastWizardConfig && wizardContract && tenantId && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1 text-xs"
+                disabled={isRegenerating || isAILoading}
+                title="Gerar nova variante com as mesmas configurações"
+                onClick={async () => {
+                  if (!lastWizardConfig || !wizardContract || isRegenerating) return;
+                  setIsRegenerating(true);
+                  try {
+                    const { useAIWizardGenerate } = await import('@/hooks/useAIWizardGenerate');
+                    // We can't use hooks dynamically, so invoke edge function directly
+                    const { supabase } = await import('@/integrations/supabase/client');
+                    const { toast } = await import('sonner');
+                    
+                    const mode = lastWizardConfig.mode;
+                    const scope = lastWizardConfig.scope || 'all';
+                    const backendData = { ...lastWizardConfig.collectedData };
+                    
+                    // Same remapping as useAIWizardGenerate
+                    const creativeStyleData = backendData.creativeStyle as any;
+                    if (creativeStyleData && backendData.bannerMode) {
+                      const modeDataForStyle = backendData.bannerMode as Record<string, unknown>;
+                      modeDataForStyle.creativeStyle = creativeStyleData.creativeStyle || 'product_natural';
+                      modeDataForStyle.styleConfig = creativeStyleData.styleConfig || {};
+                    }
+
+                    if (mode === 'carousel') {
+                      const modeData = backendData.bannerMode as any;
+                      const slideCount = modeData?.slideCount || 2;
+                      backendData.slideCount = slideCount;
+                      for (let i = 0; i < slideCount; i++) {
+                        if (backendData[`association_${i}`]) {
+                          backendData[`slideAssociations_${i}`] = backendData[`association_${i}`];
+                        }
+                      }
+                    }
+
+                    const { data, error } = await supabase.functions.invoke('ai-block-fill-visual', {
+                      body: { tenantId, blockType: lastWizardConfig.blockType, mode, scope, collectedData: backendData },
+                    });
+
+                    if (error || !data?.success || !data?.generatedProps) {
+                      toast.error('Erro ao regenerar', { description: data?.error || 'Tente novamente' });
+                      return;
+                    }
+
+                    // Merge generated props keeping existing structure
+                    const merged = { ...props };
+                    const gen = data.generatedProps;
+                    
+                    // Apply all generated props (images + texts)
+                    for (const [key, value] of Object.entries(gen)) {
+                      merged[key] = value;
+                    }
+
+                    // Keep the wizard config for future regenerations
+                    merged._lastWizardConfig = { ...lastWizardConfig, timestamp: Date.now() };
+                    
+                    onChange(merged);
+                    toast.success('Nova variante gerada ✨');
+                  } catch (err) {
+                    console.error('[Regenerate] Error:', err);
+                    const { toast } = await import('sonner');
+                    toast.error('Erro ao regenerar');
+                  } finally {
+                    setIsRegenerating(false);
+                  }
+                }}
+              >
+                {isRegenerating ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 

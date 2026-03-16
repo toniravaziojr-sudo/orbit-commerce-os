@@ -131,6 +131,7 @@ function buildCreativeDirection(style: ImageStyle, styleConfig: Record<string, u
     const action = (styleConfig?.action as string) || 'holding';
     const personProfile = (styleConfig?.personProfile as string) || 'pessoa atraente com aparência natural e saudável';
     const tone = (styleConfig?.tone as string) || 'lifestyle';
+    const env = (styleConfig?.environment as string) || 'studio';
     const actionDesc: Record<string, string> = {
       holding: 'segurando o produto pela base/corpo, com rótulo frontal visível',
       using: 'usando/aplicando o produto de forma natural',
@@ -145,6 +146,7 @@ function buildCreativeDirection(style: ImageStyle, styleConfig: Record<string, u
     lines.push(`Estilo: PESSOA INTERAGINDO COM O PRODUTO`);
     lines.push(`Pessoa: ${personProfile}`);
     lines.push(`Ação: ${actionDesc[action] || action}`);
+    lines.push(`Cenário/Ambiente: ${env}`);
     lines.push(`Tom visual: ${toneDesc[tone] || tone}`);
     lines.push(`A pessoa deve parecer REAL e fotorrealista — sem aparência de IA.`);
     lines.push(`Mãos naturais, expressão genuína, iluminação profissional.`);
@@ -233,17 +235,23 @@ export function buildStructuralRules(input: StructuralRulesInput): string {
   lines.push(`📐 DIMENSÕES: ${slot.width}x${slot.height}px (${isDesktop ? 'horizontal widescreen' : 'vertical retrato/mobile'})`);
 
   if (isComplete) {
-    // Complete mode: full composition, no safe areas
+    // Complete mode: full composition with strict safe-area rules
     lines.push(`\n🖼️ MODO CRIATIVO COMPLETO:`);
     lines.push(`- Composição FECHADA — toda a área é composição criativa.`);
-    lines.push(`- Sem reservar espaço vazio para texto overlay.`);
     lines.push(`- A peça deve funcionar como anúncio PRONTO para publicação.`);
+    lines.push(`- MARGEM DE SEGURANÇA: Nenhum elemento visual importante (texto, produto, logotipo) pode estar a menos de 5% das bordas.`);
     if (isDesktop) {
-      lines.push(`- Composição horizontal pensada para tela larga.`);
+      lines.push(`- Composição horizontal pensada para tela larga (widescreen ${slot.width}x${slot.height}).`);
+      lines.push(`- Se houver copy/texto na imagem, ele DEVE estar centralizado ou alinhado à esquerda, com contraste garantido (fundo escurecido ou badge atrás do texto).`);
+      lines.push(`- O texto deve ocupar no máximo 40% da largura, fonte grande e legível.`);
     } else {
-      lines.push(`- Composição vertical pensada para tela de celular (stories/feed).`);
+      lines.push(`- Composição vertical pensada para tela de celular (portrait ${slot.width}x${slot.height}).`);
       lines.push(`- Enquadramento vertical com produto bem proporcionado ao espaço estreito.`);
+      lines.push(`- Se houver copy/texto na imagem, ele DEVE estar dentro dos 80% CENTRAIS da altura (não nos extremos superior/inferior de 10%).`);
+      lines.push(`- Textos devem ter tamanho legível em tela mobile (mínimo equivalente a 24pt).`);
+      lines.push(`- O produto não pode ser cortado pelas bordas.`);
     }
+    lines.push(`- Estilo publicitário profissional com composição balanceada e foco visual claro.`);
   } else {
     // Editable mode: safe areas for HTML overlay
     lines.push(`\n🖼️ MODO EDITÁVEL (FUNDO PARA TEXTO HTML):`);
@@ -259,6 +267,7 @@ export function buildStructuralRules(input: StructuralRulesInput): string {
       }
       lines.push(`- O gradiente deve ser NATURAL (iluminação lateral, sombra ambiente), integrado ao cenário.`);
       lines.push(`- Transição suave entre zona escura e zona do produto.`);
+      lines.push(`- O produto DEVE estar completamente visível e bem enquadrado, sem cortes nas bordas.`);
     } else {
       // Mobile
       if (hasPerson) {
@@ -270,6 +279,7 @@ export function buildStructuralRules(input: StructuralRulesInput): string {
       }
       lines.push(`- O TERÇO INFERIOR deve ter espaço para botão CTA (zona mais limpa/escura).`);
       lines.push(`- Enquadramento pensado para tela estreita. Produto centralizado.`);
+      lines.push(`- O produto NÃO pode ser cortado pelas bordas. Deve estar integralmente visível.`);
     }
   }
 

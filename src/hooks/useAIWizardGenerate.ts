@@ -46,7 +46,7 @@ function resolveScope(collectedData: Record<string, unknown>): GenerationScope {
 /**
  * System-derived props that bypass the whitelist — set by backend for legibility/layout.
  */
-const SYSTEM_DERIVED_PROPS = new Set(['overlayOpacity', 'alignment', '_renderMode', '_hideOverlayText']);
+const SYSTEM_DERIVED_PROPS = new Set(['overlayOpacity', 'alignment', '_renderMode', '_hideOverlayText', '_lastWizardConfig']);
 
 /**
  * Applies whitelist + scope enforcement: only writes allowed props that match the scope.
@@ -217,6 +217,15 @@ export function useAIWizardGenerate({
       if (blockType === 'Banner' && mode) {
         merged.mode = mode;
       }
+
+      // Save wizard config for regeneration (prefixed with _ to avoid render interference)
+      merged._lastWizardConfig = {
+        collectedData,
+        mode,
+        scope,
+        blockType,
+        timestamp: Date.now(),
+      };
 
       toast.success('Conteúdo gerado com IA ✨', {
         description: scope === 'images' ? 'Imagens geradas.' : scope === 'texts' ? 'Textos gerados.' : 'Imagens e textos gerados.',

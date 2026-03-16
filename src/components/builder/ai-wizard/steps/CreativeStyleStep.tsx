@@ -50,8 +50,15 @@ const ENVIRONMENTS = [
   { value: 'nature', label: 'Natureza' },
   { value: 'kitchen', label: 'Cozinha' },
   { value: 'bedroom', label: 'Quarto' },
+  { value: 'living_room', label: 'Sala de estar' },
   { value: 'office', label: 'Escritório' },
   { value: 'gym', label: 'Academia' },
+  { value: 'outdoor', label: 'Área externa / Jardim' },
+  { value: 'pool', label: 'Piscina / Spa' },
+  { value: 'urban', label: 'Cenário urbano' },
+  { value: 'beach', label: 'Praia' },
+  { value: 'marble', label: 'Superfície de mármore' },
+  { value: 'wooden', label: 'Superfície de madeira' },
 ];
 
 const ACTIONS = [
@@ -90,7 +97,7 @@ export function CreativeStyleStep({ value, onChange }: CreativeStyleStepProps) {
     const s = newStyle as CreativeStyleType;
     let defaultConfig: Record<string, unknown> = {};
     if (s === 'product_natural') defaultConfig = { environment: 'studio', lighting: 'natural', mood: 'clean' };
-    if (s === 'person_interacting') defaultConfig = { action: 'holding', tone: 'lifestyle' };
+    if (s === 'person_interacting') defaultConfig = { action: 'holding', tone: 'lifestyle', environment: 'studio' };
     if (s === 'promotional') defaultConfig = { effectsIntensity: 'medium' };
     onChange({ creativeStyle: s, styleConfig: defaultConfig });
   };
@@ -145,6 +152,17 @@ export function CreativeStyleStep({ value, onChange }: CreativeStyleStepProps) {
               <SelectContent>
                 {ACTIONS.map((a) => (
                   <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs mb-1.5 block">Ambiente</Label>
+            <Select value={(config.environment as string) || 'studio'} onValueChange={(v) => updateConfig('environment', v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {ENVIRONMENTS.map((e) => (
+                  <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
