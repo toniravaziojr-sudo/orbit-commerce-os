@@ -792,6 +792,7 @@ serve(async (req) => {
       order_number: orderNumber,
       customer_id: customerId,
       retry_token: retryToken,
+      canonical_total: canonicalTotal,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

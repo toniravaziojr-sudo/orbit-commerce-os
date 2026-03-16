@@ -716,6 +716,9 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         // Step 5: Link to original declined order via retry_token
         retryFromOrderId: retryPrefill?.original_order_id || undefined,
         retryToken: retryTokenParam || undefined,
+        // Idempotency keys (stable per click)
+        checkoutAttemptId,
+        paymentAttemptId,
       });
 
       if (result.success) {
