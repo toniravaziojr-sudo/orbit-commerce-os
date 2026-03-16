@@ -151,8 +151,8 @@ export function BuilderDraftPageSettingsProvider({ children }: BuilderDraftPageS
       ...prev,
       [pageType]: settings,
     }));
-    // Notify external observers (VisualBuilder) to trigger re-render
-    notifyDraftPageSettingsChange();
+    // NOTA: a notificação agora ocorre em useEffect após commit do state,
+    // evitando condição de corrida com globalDraftPageSettingsRef.
   }, []);
 
   const getDraftPageSettings = useCallback(<T extends PageSettingsType>(pageType: PageSettingsKey): T | null => {
