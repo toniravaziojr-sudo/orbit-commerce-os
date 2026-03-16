@@ -27,6 +27,7 @@ const OPENAI_CHAT_API = 'https://api.openai.com/v1/chat/completions';
 
 export const LOVABLE_MODELS = {
   primary: 'google/gemini-3-pro-image-preview',
+  fast: 'google/gemini-3.1-flash-image-preview',
   fallback: 'google/gemini-2.5-flash-image',
 } as const;
 
