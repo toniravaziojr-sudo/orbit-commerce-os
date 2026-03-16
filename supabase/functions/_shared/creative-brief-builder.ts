@@ -407,12 +407,16 @@ export function buildFinalPrompt(request: VisualGenerationRequest, slot: VisualS
     creativeStyle: request.creativeStyle,
   });
 
-  const isDesktop = slot.composition.includes('desktop') || slot.composition === 'horizontal';
-  const deviceLabel = isDesktop ? 'DESKTOP' : 'MOBILE';
+  // Determine block label from composition
+  const isContentSlot = slot.composition.startsWith('content_');
+  const blockLabel = isContentSlot ? 'IMAGEM' : 'BANNER';
+  const isDesktop = slot.composition.includes('desktop') || slot.composition === 'horizontal' || slot.composition === 'content_landscape';
+  const deviceLabel = slot.composition === 'content_square' ? 'QUADRADA' : (isDesktop ? 'DESKTOP' : 'MOBILE');
   const isEditable = request.outputMode !== 'complete';
 
-  // For editable mode, the ABSOLUTE FIRST thing the AI sees must be the no-text rule
-  const noTextPreamble = isEditable
+  // For editable mode on BANNER blocks (not content slots), the ABSOLUTE FIRST thing must be the no-text rule
+  // Content slots get a simpler no-text instruction inside buildContentSlotRules
+  const noTextPreamble = (isEditable && !isContentSlot)
     ? `⛔ MANDATORY RULE — READ FIRST ⛔
 THIS IMAGE MUST CONTAIN ZERO TEXT. NO letters, words, numbers, logos, labels, watermarks, slogans, prices, badges, or ANY form of typography/writing. 
 The image is a PHOTOGRAPHIC BACKGROUND ONLY. All text will be added via HTML overlay AFTER generation.
@@ -424,7 +428,7 @@ Generate ONLY photography/scenery — absolutely NO written characters of any ki
     : '';
 
   return `${noTextPreamble}═══════════════════════════════════════
-CREATIVE BRIEF — BANNER ${deviceLabel}
+CREATIVE BRIEF — ${blockLabel} ${deviceLabel}
 ═══════════════════════════════════════
 
 ${brief}
