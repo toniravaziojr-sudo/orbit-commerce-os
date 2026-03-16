@@ -130,6 +130,7 @@ const QuizEditor = lazy(() => import("@/components/quizzes").then(m => ({ defaul
 const BlockSuggestions = lazy(() => import("@/pages/BlockSuggestions"));
 const DemoEstruturaPage = lazy(() => import("@/pages/DemoEstruturaPage"));
 const DemoLandingPage = lazy(() => import("@/pages/DemoLandingPage"));
+const ErrorTestPage = lazy(() => import("@/pages/dev/ErrorTest"));
 const MetaOAuthCallback = lazy(() => import("@/pages/MetaOAuthCallback"));
 const MeliOAuthCallback = lazy(() => import("@/pages/MeliOAuthCallback"));
 const YouTubeCallback = lazy(() => import("@/pages/integrations/YouTubeCallback"));
@@ -249,6 +250,7 @@ const App = () => {
               <Route path="/integrations/tiktok/callback" element={<TikTokOAuthCallback />} />
               <Route path="/demo-estrutura" element={<DemoEstruturaPage />} />
               <Route path="/demo-lp" element={<DemoLandingPage />} />
+              <Route path="/dev/error-test" element={<ErrorTestPage />} />
               <Route path="/accept-invite" element={<AcceptInvite />} />
               {/* Preview route for review page (development only) */}
               <Route path="/avaliar/:token" element={<StorefrontReview />} />
