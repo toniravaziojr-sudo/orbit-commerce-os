@@ -44,18 +44,26 @@ export function bannerToStaticHTML(
  * and text-sm md:text-lg, px-6 md:px-10 py-3 md:py-4 for the button.
  * maxWidth:55% for non-center alignment only on desktop (React: isMobile ? '100%' : '55%')
  */
-function buildCtaStyleTag(bannerId: string, alignment: string): string {
+function buildCtaStyleTag(bannerId: string, alignment: string, buttonAlignment: string): string {
   const maxWidthDesktop = alignment !== 'center' ? 'max-width:55%;' : '';
+  const btnAlignMap: Record<string, string> = { left: 'flex-start', center: 'center', right: 'flex-end' };
+  const effectiveBtnAlign = buttonAlignment || alignment;
+  const btnJustify = btnAlignMap[effectiveBtnAlign] || 'center';
   return `<style>
-.${bannerId}-cta{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;z-index:2;padding:32px 20px;}
+.${bannerId}-cta{position:absolute;inset:0;display:flex;flex-direction:column;z-index:2;padding:32px 20px;}
 .${bannerId}-cta h2{font-size:clamp(24px,5vw,36px);font-weight:700;font-family:var(--sf-heading-font);line-height:1.1;}
 .${bannerId}-cta p{font-size:clamp(14px,2.5vw,16px);opacity:0.9;margin-top:8px;}
-.${bannerId}-btn{display:inline-block;margin-top:12px;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;text-decoration:none;transition:opacity 0.2s;}
+.${bannerId}-btn-wrap{display:flex;justify-content:${btnJustify};margin-top:12px;}
+.${bannerId}-btn{display:inline-block;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;text-decoration:none;transition:opacity 0.2s;}
 @media(min-width:768px){
-.${bannerId}-cta{padding:48px 64px;${maxWidthDesktop}}
+.${bannerId}-cta{padding:48px 64px;${maxWidthDesktop}justify-content:center;}
 .${bannerId}-cta h2{font-size:clamp(28px,5vw,60px);}
 .${bannerId}-cta p{font-size:clamp(16px,2.5vw,24px);}
 .${bannerId}-btn{padding:16px 40px;font-size:18px;}
+}
+@media(max-width:767px){
+.${bannerId}-cta{justify-content:space-between;align-items:center;}
+.${bannerId}-cta .${bannerId}-bottom{text-align:center;}
 }
 </style>`;
 }
