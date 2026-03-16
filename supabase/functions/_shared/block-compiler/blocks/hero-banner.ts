@@ -29,12 +29,30 @@ export function heroBannerToStaticHTML(
   const slides = (Array.isArray(props.slides) ? props.slides : []) as BannerSlide[];
   const bannerWidth = (props.bannerWidth as string) || 'full';
   const showDots = (props.showDots as boolean) ?? true;
+  const layoutPreset = (props.layoutPreset as string) || '';
   
+  // Resolve preset (mirrors React resolvePreset logic)
+  let preset = 'standard';
+  if (['standard', 'compact-centered', 'compact-full', 'large'].includes(layoutPreset)) {
+    preset = layoutPreset;
+  } else {
+    const height = (props.height as string) || 'auto';
+    if (height === 'full' || height === 'lg') preset = 'large';
+    else if (height === 'sm' || height === 'md') preset = bannerWidth === 'contained' ? 'compact-centered' : 'compact-full';
+    else preset = bannerWidth === 'contained' ? 'compact-centered' : 'standard';
+  }
+
+  const isCompact = preset === 'compact-centered' || preset === 'compact-full';
+  const isLarge = preset === 'large';
+  const isFullWidth = preset !== 'compact-centered';
+
   // Unique ID per instance to avoid CSS class collisions
   const bannerId = 'sf-hb-' + Math.random().toString(36).slice(2, 8);
 
+  const widthStyle = isFullWidth ? 'width:100%;' : 'max-width:1280px;margin:0 auto;';
+
   if (slides.length === 0) {
-    return `<div style="position:relative;background:#f5f5f5;display:flex;align-items:center;justify-content:center;aspect-ratio:12/5;${bannerWidth === 'full' ? 'width:100%;' : 'max-width:1280px;margin:0 auto;'}">
+    return `<div style="position:relative;background:#f5f5f5;display:flex;align-items:center;justify-content:center;aspect-ratio:12/5;${widthStyle}">
       <p style="color:#999;font-size:14px;">Adicione banners para exibir aqui</p>
     </div>`;
   }
@@ -49,8 +67,6 @@ export function heroBannerToStaticHTML(
   const desktopImage = optimizeImageUrl(effectiveDesktop, 1920, 85);
   const mobileImage = optimizeImageUrl(effectiveMobile, 768, 80);
 
-  const widthStyle = bannerWidth === 'full' ? 'width:100%;' : 'max-width:1280px;margin:0 auto;';
-
   // Build dots HTML (matches React: w-2.5 h-2.5 rounded-full, active gets w-6)
   let dotsHtml = '';
   if (showDots && slides.length > 1) {
@@ -64,6 +80,11 @@ export function heroBannerToStaticHTML(
   }
 
   // Build image HTML using <picture> (matches React storefront mode)
+  // Compact presets use height:auto (natural image proportions)
+  const imgStyle = isCompact
+    ? 'width:100%;height:auto;display:block;'
+    : 'width:100%;height:100%;object-fit:cover;';
+
   let imageHtml = '';
   if (effectiveDesktop) {
     const sourceTag = effectiveMobile && effectiveMobile !== effectiveDesktop
@@ -71,14 +92,25 @@ export function heroBannerToStaticHTML(
       : '';
     imageHtml = `<picture>
       ${sourceTag}
-      <img src="${escapeHtml(desktopImage)}" alt="${escapeHtml(currentSlide.altText || 'Banner 1')}" style="width:100%;height:100%;object-fit:cover;" fetchpriority="high" decoding="sync" loading="eager" width="1920" height="800">
+      <img src="${escapeHtml(desktopImage)}" alt="${escapeHtml(currentSlide.altText || 'Banner 1')}" style="${imgStyle}" fetchpriority="high" decoding="sync" loading="eager" width="1920" height="800">
     </picture>`;
   }
 
-  // Use unique class per instance (avoid sf-hero-banner collision with multiple HeroBanners)
+  // Build container styles based on preset
+  let innerStyle = 'position:relative;';
+  let cssBlock = '';
+  if (isCompact) {
+    // Natural height, no aspect ratio
+  } else if (isLarge) {
+    innerStyle += 'min-height:100vh;';
+  } else {
+    // Standard: use aspect ratio
+    cssBlock = `<style>.${bannerId}{aspect-ratio:4/5;}@media(min-width:768px){.${bannerId}{aspect-ratio:12/5;}}</style>`;
+  }
+
   const content = `<div style="position:relative;overflow:hidden;${widthStyle}">
-    <style>.${bannerId}{aspect-ratio:4/5;}@media(min-width:768px){.${bannerId}{aspect-ratio:12/5;}}</style>
-    <div class="${bannerId}" style="position:relative;">
+    ${cssBlock}
+    <div class="${bannerId}" style="${innerStyle}">
       ${imageHtml}
     </div>
     ${dotsHtml}
