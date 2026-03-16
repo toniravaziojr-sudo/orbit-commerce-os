@@ -11632,6 +11632,7 @@ export type Database = {
           cancellation_reason: string | null
           cancelled_at: string | null
           canonical_total: number | null
+          checkout_attempt_id: string | null
           created_at: string
           currency: string | null
           customer_cnpj: string | null
@@ -11710,6 +11711,7 @@ export type Database = {
           cancellation_reason?: string | null
           cancelled_at?: string | null
           canonical_total?: number | null
+          checkout_attempt_id?: string | null
           created_at?: string
           currency?: string | null
           customer_cnpj?: string | null
@@ -11788,6 +11790,7 @@ export type Database = {
           cancellation_reason?: string | null
           cancelled_at?: string | null
           canonical_total?: number | null
+          checkout_attempt_id?: string | null
           created_at?: string
           currency?: string | null
           customer_cnpj?: string | null
