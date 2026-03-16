@@ -130,6 +130,7 @@ const QuizEditor = lazy(() => import("@/components/quizzes").then(m => ({ defaul
 const BlockSuggestions = lazy(() => import("@/pages/BlockSuggestions"));
 const DemoEstruturaPage = lazy(() => import("@/pages/DemoEstruturaPage"));
 const DemoLandingPage = lazy(() => import("@/pages/DemoLandingPage"));
+const ErrorTestPage = lazy(() => import("@/pages/dev/ErrorTest"));
 const MetaOAuthCallback = lazy(() => import("@/pages/MetaOAuthCallback"));
 const MeliOAuthCallback = lazy(() => import("@/pages/MeliOAuthCallback"));
 const YouTubeCallback = lazy(() => import("@/pages/integrations/YouTubeCallback"));
