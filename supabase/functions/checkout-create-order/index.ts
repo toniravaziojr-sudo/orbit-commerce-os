@@ -585,16 +585,25 @@ serve(async (req) => {
 
     // 4. Create order items
     console.log('[checkout-create-order] Creating order items');
-    const orderItems = payload.items.map(item => ({
-      order_id: orderId,
-      product_id: item.product_id,
-      product_name: item.product_name,
-      sku: item.sku,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      total_price: item.unit_price * item.quantity,
-      product_image_url: item.image_url || null,
-    }));
+    // === CANONICAL SNAPSHOT: use DB prices for order_items ===
+    const orderItems = payload.items.map(item => {
+      let canonicalUnitPrice: number;
+      if (item.variant_id && variantPriceMap.has(item.variant_id)) {
+        canonicalUnitPrice = variantPriceMap.get(item.variant_id)!;
+      } else {
+        canonicalUnitPrice = productPriceMap.get(item.product_id) || item.unit_price;
+      }
+      return {
+        order_id: orderId,
+        product_id: item.product_id,
+        product_name: item.product_name,
+        sku: item.sku,
+        quantity: item.quantity,
+        unit_price: canonicalUnitPrice,
+        total_price: Math.round(canonicalUnitPrice * item.quantity * 100) / 100,
+        product_image_url: item.image_url || null,
+      };
+    });
 
     const { error: itemsError } = await supabase
       .from('order_items')
