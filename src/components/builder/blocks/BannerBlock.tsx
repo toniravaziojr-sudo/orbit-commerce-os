@@ -246,26 +246,38 @@ export function BannerBlock({
           />
         )}
 
-        {/* CTA Content */}
+        {/* CTA Content — uses programmatic isMobile for Builder parity */}
         {hasCTA && (
-          <div className={cn(
-            "absolute inset-0 flex flex-col justify-center px-5 md:px-16 py-8 md:py-12 z-10",
-            alignClass,
-          )}
-          style={{ maxWidth: isMobile ? '100%' : (alignment === 'center' ? '100%' : '55%') }}
+          <div 
+            className={cn(
+              "absolute inset-0 flex flex-col justify-center z-10",
+              alignClass,
+            )}
+            style={{ 
+              padding: isMobile ? '24px 20px' : '48px 64px',
+              maxWidth: isMobile ? '100%' : (alignment === 'center' ? '100%' : '55%'),
+            }}
           >
             {currentTitle && (
               <h2 
-                className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl font-bold mb-2 md:mb-4 leading-tight"
-                style={{ color: textColor }}
+                className="font-bold leading-tight"
+                style={{ 
+                  color: textColor,
+                  fontSize: isMobile ? '1.5rem' : '3rem',
+                  marginBottom: isMobile ? '0.5rem' : '1rem',
+                }}
               >
                 {currentTitle}
               </h2>
             )}
             {currentSubtitle && (
               <p 
-                className="text-sm sm:text-base md:text-2xl mb-4 md:mb-8 opacity-90 leading-snug"
-                style={{ color: textColor }}
+                className="opacity-90 leading-snug"
+                style={{ 
+                  color: textColor,
+                  fontSize: isMobile ? '0.875rem' : '1.5rem',
+                  marginBottom: isMobile ? '1rem' : '2rem',
+                }}
               >
                 {currentSubtitle}
               </p>
@@ -284,14 +296,22 @@ export function BannerBlock({
                 `}</style>
                 {isBuilderMode ? (
                   <span 
-                    className={`${btnId} inline-block px-6 md:px-10 py-3 md:py-4 rounded-lg font-semibold text-sm md:text-lg transition-colors cursor-pointer`}
+                    className={`${btnId} inline-block rounded-lg font-semibold transition-colors cursor-pointer`}
+                    style={{
+                      padding: isMobile ? '0.625rem 1.25rem' : '1rem 2.5rem',
+                      fontSize: isMobile ? '0.875rem' : '1.125rem',
+                    }}
                   >
                     {currentButtonText}
                   </span>
                 ) : (
                   <a 
                     href={currentButtonUrl || '#'} 
-                    className={`${btnId} inline-block px-6 md:px-10 py-3 md:py-4 rounded-lg font-semibold text-sm md:text-lg transition-colors`}
+                    className={`${btnId} inline-block rounded-lg font-semibold transition-colors`}
+                    style={{
+                      padding: isMobile ? '0.625rem 1.25rem' : '1rem 2.5rem',
+                      fontSize: isMobile ? '0.875rem' : '1.125rem',
+                    }}
                   >
                     {currentButtonText}
                   </a>

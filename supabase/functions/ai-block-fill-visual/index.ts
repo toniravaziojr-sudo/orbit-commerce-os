@@ -652,10 +652,13 @@ serve(async (req) => {
         }
         // For carousel, _renderMode and _hideOverlayText are set by the adapter mergeResults
       } else if (generateImages) {
-        // Editable mode: set overlay defaults for legibility
+        // Editable mode: set overlay + high-contrast button defaults for legibility
         if (isSingle) {
           generatedProps.overlayOpacity = 35;
           generatedProps.alignment = 'left';
+          generatedProps.textColor = '#ffffff';
+          generatedProps.buttonColor = '#ffffff';
+          generatedProps.buttonTextColor = '#1a1a1a';
         }
       }
 
