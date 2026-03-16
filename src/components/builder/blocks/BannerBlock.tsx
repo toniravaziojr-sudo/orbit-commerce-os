@@ -77,13 +77,47 @@ interface BannerBlockProps {
   context?: BlockRenderContext;
 }
 
-const heightMap: Record<string, string> = {
-  sm: '300px',
-  md: '400px',
-  lg: '500px',
-  full: '100vh',
-  auto: 'auto',
-};
+// ===== Resolve layoutPreset from new prop or legacy height+bannerWidth =====
+function resolvePreset(
+  layoutPreset?: string,
+  height?: string,
+  bannerWidth?: string,
+): 'standard' | 'compact-centered' | 'compact-full' | 'large' {
+  if (layoutPreset && ['standard', 'compact-centered', 'compact-full', 'large'].includes(layoutPreset)) {
+    return layoutPreset as 'standard' | 'compact-centered' | 'compact-full' | 'large';
+  }
+  // Fallback: infer from legacy props
+  if (height === 'full' || height === 'lg') return 'large';
+  if (height === 'sm' || height === 'md') {
+    return bannerWidth === 'contained' ? 'compact-centered' : 'compact-full';
+  }
+  // height === 'auto' or undefined
+  return bannerWidth === 'contained' ? 'compact-centered' : 'standard';
+}
+
+// Preset layout config
+const PRESET_CONFIG = {
+  'standard': {
+    useAspect: true,
+    fullWidth: true,
+    minHeight: undefined as string | undefined,
+  },
+  'compact-centered': {
+    useAspect: false,
+    fullWidth: false, // contained on desktop
+    minHeight: '300px',
+  },
+  'compact-full': {
+    useAspect: false,
+    fullWidth: true,
+    minHeight: '300px',
+  },
+  'large': {
+    useAspect: false,
+    fullWidth: true,
+    minHeight: '100vh',
+  },
+} as const;
 
 export function BannerBlock({
   mode = 'single',
