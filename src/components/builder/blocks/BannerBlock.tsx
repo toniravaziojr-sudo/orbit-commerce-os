@@ -44,6 +44,7 @@ interface BannerBlockProps {
   buttonHoverBgColor?: string;
   buttonHoverTextColor?: string;
   alignment?: 'left' | 'center' | 'right';
+  buttonAlignment?: 'left' | 'center' | 'right';
   overlayOpacity?: number;
   height?: 'sm' | 'md' | 'lg' | 'full' | 'auto';
   bannerWidth?: 'full' | 'contained';
@@ -87,6 +88,7 @@ export function BannerBlock({
   buttonHoverBgColor,
   buttonHoverTextColor,
   alignment = 'center',
+  buttonAlignment,
   overlayOpacity = 0,
   height = 'auto',
   bannerWidth = 'full',
@@ -192,12 +194,20 @@ export function BannerBlock({
   );
   }
 
-  // Alignment classes
+  // Alignment classes (for text)
   const alignClass = {
     left: 'items-start text-left',
     center: 'items-center text-center',
     right: 'items-end text-right',
   }[alignment] || 'items-center text-center';
+
+  // Button alignment (falls back to text alignment if not set)
+  const effectiveButtonAlignment = buttonAlignment || alignment;
+  const btnAlignClass = {
+    left: 'justify-start',
+    center: 'justify-center',
+    right: 'justify-end',
+  }[effectiveButtonAlignment] || 'justify-center';
 
   // Button styles
   const btnId = `banner-btn-${Math.random().toString(36).substr(2, 9)}`;
@@ -263,69 +273,103 @@ export function BannerBlock({
 
         {/* CTA Content — uses programmatic isMobile for Builder parity */}
         {hasCTA && (
-          <div 
-            className={cn(
-              "absolute inset-0 flex flex-col z-10",
-              isMobile 
-                ? 'items-center justify-between' 
-                : cn('justify-center', alignClass),
+          <>
+            {/* Shared button style tag (rendered once) */}
+            {currentButtonText && (
+              <style>{`
+                .${btnId} {
+                  background-color: ${baseBgColor};
+                  color: ${baseTextColor};
+                }
+                .${btnId}:hover {
+                  background-color: ${hoverBg};
+                  color: ${hoverText};
+                }
+              `}</style>
             )}
-            style={{ 
-              padding: isMobile ? '32px 20px 28px' : '48px 64px',
-              maxWidth: isMobile ? '100%' : (alignment === 'center' ? '100%' : '55%'),
-            }}
-          >
-            {/* MOBILE: Title at top */}
-            {isMobile ? (
-              <>
-                {/* Top zone: Title */}
-                <div className="w-full text-center">
+            <div 
+              className={cn(
+                "absolute inset-0 flex flex-col z-10",
+                isMobile 
+                  ? 'justify-between' 
+                  : cn('justify-center', alignClass),
+              )}
+              style={{ 
+                padding: isMobile ? '32px 20px 28px' : '48px 64px',
+                maxWidth: isMobile ? '100%' : (alignment === 'center' ? '100%' : '55%'),
+              }}
+            >
+              {isMobile ? (
+                <>
+                  {/* Top zone: Title */}
+                  <div className="w-full text-center">
+                    {currentTitle && (
+                      <h2 
+                        className="font-bold leading-tight"
+                        style={{ color: textColor, fontSize: '1.5rem' }}
+                      >
+                        {currentTitle}
+                      </h2>
+                    )}
+                  </div>
+
+                  {/* Bottom zone: Subtitle + Button */}
+                  <div className="w-full flex flex-col items-center text-center">
+                    {currentSubtitle && (
+                      <p 
+                        className="opacity-90 leading-snug"
+                        style={{ color: textColor, fontSize: '0.875rem', marginBottom: '0.75rem' }}
+                      >
+                        {currentSubtitle}
+                      </p>
+                    )}
+                    {currentButtonText && (
+                      <div className={cn("flex w-full", btnAlignClass)}>
+                        {isBuilderMode ? (
+                          <span 
+                            className={`${btnId} inline-block rounded-lg font-semibold transition-colors cursor-pointer`}
+                            style={{ padding: '0.625rem 1.25rem', fontSize: '0.875rem' }}
+                          >
+                            {currentButtonText}
+                          </span>
+                        ) : (
+                          <a 
+                            href={currentButtonUrl || '#'} 
+                            className={`${btnId} inline-block rounded-lg font-semibold transition-colors`}
+                            style={{ padding: '0.625rem 1.25rem', fontSize: '0.875rem' }}
+                          >
+                            {currentButtonText}
+                          </a>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                /* DESKTOP: Title → Subtitle → Button */
+                <>
                   {currentTitle && (
                     <h2 
                       className="font-bold leading-tight"
-                      style={{ 
-                        color: textColor,
-                        fontSize: '1.5rem',
-                      }}
+                      style={{ color: textColor, fontSize: '3rem', marginBottom: '1rem' }}
                     >
                       {currentTitle}
                     </h2>
                   )}
-                </div>
-
-                {/* Bottom zone: Subtitle + Button centered */}
-                <div className="w-full text-center flex flex-col items-center">
                   {currentSubtitle && (
                     <p 
                       className="opacity-90 leading-snug"
-                      style={{ 
-                        color: textColor,
-                        fontSize: '0.875rem',
-                        marginBottom: '0.75rem',
-                      }}
+                      style={{ color: textColor, fontSize: '1.5rem', marginBottom: '2rem' }}
                     >
                       {currentSubtitle}
                     </p>
                   )}
                   {currentButtonText && (
-                    <>
-                      <style>{`
-                        .${btnId} {
-                          background-color: ${baseBgColor};
-                          color: ${baseTextColor};
-                        }
-                        .${btnId}:hover {
-                          background-color: ${hoverBg};
-                          color: ${hoverText};
-                        }
-                      `}</style>
+                    <div className={cn("flex w-full", btnAlignClass)}>
                       {isBuilderMode ? (
                         <span 
                           className={`${btnId} inline-block rounded-lg font-semibold transition-colors cursor-pointer`}
-                          style={{
-                            padding: '0.625rem 1.25rem',
-                            fontSize: '0.875rem',
-                          }}
+                          style={{ padding: '1rem 2.5rem', fontSize: '1.125rem' }}
                         >
                           {currentButtonText}
                         </span>
@@ -333,83 +377,26 @@ export function BannerBlock({
                         <a 
                           href={currentButtonUrl || '#'} 
                           className={`${btnId} inline-block rounded-lg font-semibold transition-colors`}
-                          style={{
-                            padding: '0.625rem 1.25rem',
-                            fontSize: '0.875rem',
-                          }}
+                          style={{ padding: '1rem 2.5rem', fontSize: '1.125rem' }}
                         >
                           {currentButtonText}
                         </a>
                       )}
-                    </>
+                    </div>
                   )}
-                </div>
-              </>
-            ) : (
-              /* DESKTOP: Original layout */
-              <>
-                {currentTitle && (
-                  <h2 
-                    className="font-bold leading-tight"
-                    style={{ 
-                      color: textColor,
-                      fontSize: '3rem',
-                      marginBottom: '1rem',
-                    }}
-                  >
-                    {currentTitle}
-                  </h2>
-                )}
-                {currentSubtitle && (
-                  <p 
-                    className="opacity-90 leading-snug"
-                    style={{ 
-                      color: textColor,
-                      fontSize: '1.5rem',
-                      marginBottom: '2rem',
-                    }}
-                  >
-                    {currentSubtitle}
-                  </p>
-                )}
-                {currentButtonText && (
-                  <>
-                    <style>{`
-                      .${btnId} {
-                        background-color: ${baseBgColor};
-                        color: ${baseTextColor};
-                      }
-                      .${btnId}:hover {
-                        background-color: ${hoverBg};
-                        color: ${hoverText};
-                      }
-                    `}</style>
-                    {isBuilderMode ? (
-                      <span 
-                        className={`${btnId} inline-block rounded-lg font-semibold transition-colors cursor-pointer`}
-                        style={{
-                          padding: '1rem 2.5rem',
-                          fontSize: '1.125rem',
-                        }}
-                      >
-                        {currentButtonText}
-                      </span>
-                    ) : (
-                      <a 
-                        href={currentButtonUrl || '#'} 
-                        className={`${btnId} inline-block rounded-lg font-semibold transition-colors`}
-                        style={{
-                          padding: '1rem 2.5rem',
-                          fontSize: '1.125rem',
-                        }}
-                      >
-                        {currentButtonText}
-                      </a>
-                    )}
-                  </>
-                )}
-              </>
-            )}
+                </>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Loading overlay during regeneration */}
+        {_isRegenerating && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-3 text-white">
+              <Loader2 className="h-10 w-10 animate-spin" />
+              <span className="text-sm font-medium">Gerando nova variante...</span>
+            </div>
           </div>
         )}
       </div>

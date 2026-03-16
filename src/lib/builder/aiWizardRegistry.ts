@@ -206,7 +206,7 @@ const BANNER_UNIFIED_CONTRACT: WizardBlockContract = {
   aiNeverTouches: [
     'mode', 'linkUrl', 'buttonUrl', 'backgroundColor', 'textColor',
     'buttonColor', 'buttonTextColor', 'buttonHoverBgColor', 'buttonHoverTextColor',
-    'alignment', 'overlayOpacity', 'height', 'bannerWidth',
+    'alignment', 'buttonAlignment', 'overlayOpacity', 'height', 'bannerWidth',
     'autoplaySeconds', 'showArrows', 'showDots',
   ],
   requiresImageGeneration: true,

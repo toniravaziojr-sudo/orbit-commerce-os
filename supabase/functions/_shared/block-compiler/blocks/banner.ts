@@ -44,18 +44,26 @@ export function bannerToStaticHTML(
  * and text-sm md:text-lg, px-6 md:px-10 py-3 md:py-4 for the button.
  * maxWidth:55% for non-center alignment only on desktop (React: isMobile ? '100%' : '55%')
  */
-function buildCtaStyleTag(bannerId: string, alignment: string): string {
+function buildCtaStyleTag(bannerId: string, alignment: string, buttonAlignment: string): string {
   const maxWidthDesktop = alignment !== 'center' ? 'max-width:55%;' : '';
+  const btnAlignMap: Record<string, string> = { left: 'flex-start', center: 'center', right: 'flex-end' };
+  const effectiveBtnAlign = buttonAlignment || alignment;
+  const btnJustify = btnAlignMap[effectiveBtnAlign] || 'center';
   return `<style>
-.${bannerId}-cta{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;z-index:2;padding:32px 20px;}
+.${bannerId}-cta{position:absolute;inset:0;display:flex;flex-direction:column;z-index:2;padding:32px 20px;}
 .${bannerId}-cta h2{font-size:clamp(24px,5vw,36px);font-weight:700;font-family:var(--sf-heading-font);line-height:1.1;}
 .${bannerId}-cta p{font-size:clamp(14px,2.5vw,16px);opacity:0.9;margin-top:8px;}
-.${bannerId}-btn{display:inline-block;margin-top:12px;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;text-decoration:none;transition:opacity 0.2s;}
+.${bannerId}-btn-wrap{display:flex;justify-content:${btnJustify};margin-top:12px;}
+.${bannerId}-btn{display:inline-block;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;text-decoration:none;transition:opacity 0.2s;}
 @media(min-width:768px){
-.${bannerId}-cta{padding:48px 64px;${maxWidthDesktop}}
+.${bannerId}-cta{padding:48px 64px;${maxWidthDesktop}justify-content:center;}
 .${bannerId}-cta h2{font-size:clamp(28px,5vw,60px);}
 .${bannerId}-cta p{font-size:clamp(16px,2.5vw,24px);}
 .${bannerId}-btn{padding:16px 40px;font-size:18px;}
+}
+@media(max-width:767px){
+.${bannerId}-cta{justify-content:space-between;align-items:center;}
+.${bannerId}-cta .${bannerId}-bottom{text-align:center;}
 }
 </style>`;
 }
@@ -83,6 +91,7 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
   const overlayOpacity = (props.overlayOpacity as number) || 0;
   const textColor = (props.textColor as string) || '#ffffff';
   const alignment = (props.alignment as string) || 'center';
+  const buttonAlignment = (props.buttonAlignment as string) || '';
   const backgroundColor = (props.backgroundColor as string) || '';
   const bannerWidth = (props.bannerWidth as string) || 'full';
   const buttonColor = (props.buttonColor as string) || '#ffffff';
@@ -134,11 +143,16 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
   let ctaHtml = '';
   let ctaStyleTag = '';
   if (hasCTA) {
-    ctaStyleTag = buildCtaStyleTag(bannerId, alignment);
+    ctaStyleTag = buildCtaStyleTag(bannerId, alignment, buttonAlignment);
+    // Mobile: title in top zone, subtitle+button in bottom zone
+    // Desktop: all stacked vertically
+    const titleHtml = currentTitle ? `<h2 style="color:${textColor};">${escapeHtml(currentTitle)}</h2>` : '';
+    const subtitleHtml = currentSubtitle ? `<p style="color:${textColor};">${escapeHtml(currentSubtitle)}</p>` : '';
+    const buttonHtml = currentButtonText ? `<div class="${bannerId}-btn-wrap"><a href="${escapeHtml(currentButtonUrl || currentLinkUrl || '#')}" class="${bannerId}-btn" style="background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};">${escapeHtml(currentButtonText)}</a></div>` : '';
+    
     ctaHtml = `<div class="${bannerId}-cta" style="align-items:${justifyContent};text-align:${textAlign};">
-      ${currentTitle ? `<h2 style="color:${textColor};">${escapeHtml(currentTitle)}</h2>` : ''}
-      ${currentSubtitle ? `<p style="color:${textColor};">${escapeHtml(currentSubtitle)}</p>` : ''}
-      ${currentButtonText ? `<a href="${escapeHtml(currentButtonUrl || currentLinkUrl || '#')}" class="${bannerId}-btn" style="background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};">${escapeHtml(currentButtonText)}</a>` : ''}
+      <div>${titleHtml}</div>
+      <div class="${bannerId}-bottom">${subtitleHtml}${buttonHtml}</div>
     </div>`;
   }
 
@@ -165,6 +179,7 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
   const overlayOpacity = (props.overlayOpacity as number) || 0;
   const textColor = (props.textColor as string) || '#ffffff';
   const alignment = (props.alignment as string) || 'center';
+  const buttonAlignment = (props.buttonAlignment as string) || '';
   const buttonColor = (props.buttonColor as string) || '#ffffff';
   const buttonTextColor = (props.buttonTextColor as string) || (buttonColor ? '#ffffff' : '#1a1a1a');
   const alignMap: Record<string, string> = { left: 'flex-start', center: 'center', right: 'flex-end' };
@@ -178,7 +193,7 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
   const anySlideHasCTA = slides.some(s => s.title || s.subtitle || s.buttonText);
 
   // Build responsive CTA style tag (shared across slides)
-  const ctaStyleTag = anySlideHasCTA ? buildCtaStyleTag(carouselId, alignment) : '';
+  const ctaStyleTag = anySlideHasCTA ? buildCtaStyleTag(carouselId, alignment, buttonAlignment) : '';
 
   // Build slides HTML
   const slidesHtml = slides.map((slide, idx) => {
@@ -215,10 +230,12 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
 
     let ctaHtml = '';
     if (hasCTA) {
+      const titleHtml = slideTitle ? `<h2 style="color:${textColor};">${escapeHtml(slideTitle)}</h2>` : '';
+      const subtitleHtml = slideSubtitle ? `<p style="color:${textColor};">${escapeHtml(slideSubtitle)}</p>` : '';
+      const buttonHtml = slideButtonText ? `<div class="${carouselId}-btn-wrap"><a href="${escapeHtml(slideButtonUrl)}" class="${carouselId}-btn" style="background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};">${escapeHtml(slideButtonText)}</a></div>` : '';
       ctaHtml = `<div class="${carouselId}-cta" style="align-items:${justifyContent};text-align:${textAlign};">
-        ${slideTitle ? `<h2 style="color:${textColor};">${escapeHtml(slideTitle)}</h2>` : ''}
-        ${slideSubtitle ? `<p style="color:${textColor};">${escapeHtml(slideSubtitle)}</p>` : ''}
-        ${slideButtonText ? `<a href="${escapeHtml(slideButtonUrl)}" class="${carouselId}-btn" style="background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};">${escapeHtml(slideButtonText)}</a>` : ''}
+        <div>${titleHtml}</div>
+        <div class="${carouselId}-bottom">${subtitleHtml}${buttonHtml}</div>
       </div>`;
     }
 
