@@ -4,10 +4,11 @@
 // =============================================
 // KEY PARITY POINTS from React component:
 // - Uses <picture> with <source> for mobile
-// - aspect-ratio: 21/9 on mobile, 21/7 on desktop
+// - aspect-ratio: 4/5 on mobile, 12/5 on desktop (matching BannerBlock)
 // - fetchPriority="high", loading="eager" on first slide
 // - Shows dots and arrows only when >1 slide
 // - Static render: always shows first slide (no carousel JS)
+// - Uses unique CSS class per instance to avoid collisions
 // =============================================
 
 import type { CompilerContext } from '../types.ts';
@@ -29,8 +30,11 @@ export function heroBannerToStaticHTML(
   const bannerWidth = (props.bannerWidth as string) || 'full';
   const showDots = (props.showDots as boolean) ?? true;
   
+  // Unique ID per instance to avoid CSS class collisions
+  const bannerId = 'sf-hb-' + Math.random().toString(36).slice(2, 8);
+
   if (slides.length === 0) {
-    return `<div style="position:relative;background:#f5f5f5;display:flex;align-items:center;justify-content:center;aspect-ratio:21/9;${bannerWidth === 'full' ? 'width:100%;' : 'max-width:1280px;margin:0 auto;'}">
+    return `<div style="position:relative;background:#f5f5f5;display:flex;align-items:center;justify-content:center;aspect-ratio:12/5;${bannerWidth === 'full' ? 'width:100%;' : 'max-width:1280px;margin:0 auto;'}">
       <p style="color:#999;font-size:14px;">Adicione banners para exibir aqui</p>
     </div>`;
   }
@@ -67,14 +71,14 @@ export function heroBannerToStaticHTML(
       : '';
     imageHtml = `<picture>
       ${sourceTag}
-      <img src="${escapeHtml(desktopImage)}" alt="${escapeHtml(currentSlide.altText || 'Banner 1')}" style="width:100%;height:100%;object-fit:cover;" fetchpriority="high" decoding="sync" loading="eager" width="1920" height="686">
+      <img src="${escapeHtml(desktopImage)}" alt="${escapeHtml(currentSlide.altText || 'Banner 1')}" style="width:100%;height:100%;object-fit:cover;" fetchpriority="high" decoding="sync" loading="eager" width="1920" height="800">
     </picture>`;
   }
 
-  // Match React aspect ratio classes: aspect-[21/9] md:aspect-[21/7]
+  // Use unique class per instance (avoid sf-hero-banner collision with multiple HeroBanners)
   const content = `<div style="position:relative;overflow:hidden;${widthStyle}">
-    <style>.sf-hero-banner{aspect-ratio:4/5;}@media(min-width:768px){.sf-hero-banner{aspect-ratio:12/5;}}</style>
-    <div class="sf-hero-banner" style="position:relative;">
+    <style>.${bannerId}{aspect-ratio:4/5;}@media(min-width:768px){.${bannerId}{aspect-ratio:12/5;}}</style>
+    <div class="${bannerId}" style="position:relative;">
       ${imageHtml}
     </div>
     ${dotsHtml}
