@@ -132,7 +132,7 @@ export function useCheckoutSessionsStats() {
       // IMPORTANTE: Só contar sessões com contato capturado
       const params = new URLSearchParams();
       params.set('tenant_id', `eq.${currentTenant.id}`);
-      params.set('select', 'status,total_estimated');
+      params.set('select', 'status,total_estimated,order_id');
       params.set('contact_captured_at', 'not.is.null');
 
       const response = await fetch(`${supabaseUrl}/rest/v1/checkout_sessions?${params.toString()}`, {
