@@ -50,6 +50,8 @@ interface ChargeRequest {
     cvv: string;
   };
   installments?: number;
+  // Idempotency key for gateway charge (prevents duplicate charges on same click)
+  payment_attempt_id?: string;
 }
 
 // Get Pagar.me credentials from database or fallback to Secrets
@@ -240,14 +242,20 @@ serve(async (req) => {
       });
     }
 
-    // Call Pagar.me API
+    // Call Pagar.me API with idempotency key
     const authHeader = btoa(`${credentials.apiKey}:`);
+    const pagarmeHeaders: Record<string, string> = {
+      'Authorization': `Basic ${authHeader}`,
+      'Content-Type': 'application/json',
+    };
+    // Use payment_attempt_id as X-Idempotency-Key to prevent duplicate charges
+    if (payload.payment_attempt_id) {
+      pagarmeHeaders['X-Idempotency-Key'] = payload.payment_attempt_id;
+      console.log(`[Pagar.me] Using X-Idempotency-Key: ${payload.payment_attempt_id}`);
+    }
     const response = await fetch('https://api.pagar.me/core/v5/orders', {
       method: 'POST',
-      headers: {
-        'Authorization': `Basic ${authHeader}`,
-        'Content-Type': 'application/json',
-      },
+      headers: pagarmeHeaders,
       body: JSON.stringify(orderPayload),
     });
 

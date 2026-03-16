@@ -626,14 +626,26 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   };
 
   // Real payment processing using Pagar.me
+  // Synchronous lock to prevent double-click submitting two orders
+  const submissionLockRef = useRef(false);
+
   const handlePayment = async () => {
-    if (!validateStep(4)) return;
+    // === SYNC LOCK: immediate guard before any async operation ===
+    if (submissionLockRef.current) return;
+    submissionLockRef.current = true;
+
+    if (!validateStep(4)) { submissionLockRef.current = false; return; }
 
     // Validate card data if credit card selected
     if (paymentMethod === 'credit_card' && (!cardData.number || !cardData.holderName || !cardData.cvv)) {
       toast.error('Preencha os dados do cartão');
+      submissionLockRef.current = false;
       return;
     }
+
+    // Generate stable idempotency keys for this click
+    const checkoutAttemptId = crypto.randomUUID();
+    const paymentAttemptId = crypto.randomUUID();
 
     setPaymentStatus('processing');
     setPaymentError(null);
@@ -704,6 +716,9 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         // Step 5: Link to original declined order via retry_token
         retryFromOrderId: retryPrefill?.original_order_id || undefined,
         retryToken: retryTokenParam || undefined,
+        // Idempotency keys (stable per click)
+        checkoutAttemptId,
+        paymentAttemptId,
       });
 
       if (result.success) {
@@ -812,6 +827,8 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
       setPaymentStatus('failed');
       setPaymentError(error instanceof Error ? error.message : 'Erro ao processar pagamento');
       toast.error('Falha no pagamento');
+    } finally {
+      submissionLockRef.current = false;
     }
   };
 

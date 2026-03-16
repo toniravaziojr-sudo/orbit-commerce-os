@@ -103,6 +103,8 @@ interface CreateOrderRequest {
   retry_from_order_id?: string;
   // retry_token to invalidate original order's token after new order creation
   retry_token?: string;
+  // Idempotency key to prevent duplicate order creation on double-click
+  checkout_attempt_id?: string;
 }
 
 function normalizeEmail(email: string): string {
@@ -417,6 +419,40 @@ serve(async (req) => {
     // 3. Create order
     console.log('[checkout-create-order] Creating order');
     
+    // === IDEMPOTENCY CHECK via checkout_attempt_id ===
+    if (payload.checkout_attempt_id) {
+      const { data: existingOrder } = await supabase
+        .from('orders')
+        .select('id, order_number')
+        .eq('tenant_id', payload.tenant_id)
+        .eq('checkout_attempt_id', payload.checkout_attempt_id)
+        .maybeSingle();
+
+      if (existingOrder) {
+        console.log(`[checkout-create-order] IDEMPOTENT: returning existing order ${existingOrder.order_number} for attempt ${payload.checkout_attempt_id}`);
+        // Return existing order — skip all creation steps
+        // Generate retry_token if credit card (same logic as below)
+        let retryToken: string | null = null;
+        if (payload.payment_method === 'credit_card') {
+          try {
+            const { data: tokenData } = await supabase.rpc('generate_order_retry_token', { p_order_id: existingOrder.id });
+            retryToken = tokenData || null;
+          } catch (_e) { /* non-blocking */ }
+        }
+        return new Response(JSON.stringify({
+          success: true,
+          order_id: existingOrder.id,
+          order_number: existingOrder.order_number,
+          customer_id: customerId,
+          retry_token: retryToken,
+          canonical_total: canonicalTotal,
+          idempotent: true,
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     // Calculate installment value if applicable
     const installmentsCount = payload.installments || 1;
     const installmentValue = installmentsCount > 1 ? Math.round((canonicalTotal / installmentsCount) * 100) / 100 : null;
@@ -433,13 +469,14 @@ serve(async (req) => {
         status: 'pending',
         payment_status: 'pending',
         payment_method: payload.payment_method,
-        subtotal: payload.subtotal,
-        shipping_total: payload.shipping_total,
-        discount_total: payload.discount_total || 0,
+        // === CANONICAL SNAPSHOT: use server-calculated values ===
+        subtotal: canonicalSubtotal,
+        shipping_total: canonicalShipping,
+        discount_total: canonicalDiscount,
         payment_method_discount: payload.payment_method_discount || 0,
         installments: installmentsCount,
         installment_value: installmentValue,
-        total: payload.total,
+        total: canonicalTotal,
         canonical_total: canonicalTotal,
         shipping_street: payload.shipping.street,
         shipping_number: payload.shipping.number,
@@ -462,6 +499,8 @@ serve(async (req) => {
         shipping_quote_id: validatedQuoteId || null,
         // Step 5: Link to original declined order
         retry_from_order_id: payload.retry_from_order_id || null,
+        // Idempotency key
+        checkout_attempt_id: payload.checkout_attempt_id || null,
       })
       .select('id')
       .single();
@@ -546,16 +585,25 @@ serve(async (req) => {
 
     // 4. Create order items
     console.log('[checkout-create-order] Creating order items');
-    const orderItems = payload.items.map(item => ({
-      order_id: orderId,
-      product_id: item.product_id,
-      product_name: item.product_name,
-      sku: item.sku,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      total_price: item.unit_price * item.quantity,
-      product_image_url: item.image_url || null,
-    }));
+    // === CANONICAL SNAPSHOT: use DB prices for order_items ===
+    const orderItems = payload.items.map(item => {
+      let canonicalUnitPrice: number;
+      if (item.variant_id && variantPriceMap.has(item.variant_id)) {
+        canonicalUnitPrice = variantPriceMap.get(item.variant_id)!;
+      } else {
+        canonicalUnitPrice = productPriceMap.get(item.product_id) || item.unit_price;
+      }
+      return {
+        order_id: orderId,
+        product_id: item.product_id,
+        product_name: item.product_name,
+        sku: item.sku,
+        quantity: item.quantity,
+        unit_price: canonicalUnitPrice,
+        total_price: Math.round(canonicalUnitPrice * item.quantity * 100) / 100,
+        product_image_url: item.image_url || null,
+      };
+    });
 
     const { error: itemsError } = await supabase
       .from('order_items')
@@ -744,6 +792,7 @@ serve(async (req) => {
       order_number: orderNumber,
       customer_id: customerId,
       retry_token: retryToken,
+      canonical_total: canonicalTotal,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

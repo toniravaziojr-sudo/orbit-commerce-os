@@ -232,14 +232,25 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
   }, [formData, isHydrated]);
 
 
+  // Synchronous lock to prevent double-click submitting two orders
+  const submissionLockRef = useRef(false);
+
   const handleSubmit = async () => {
+    // === SYNC LOCK: immediate guard before any async operation ===
+    if (submissionLockRef.current) return;
+    submissionLockRef.current = true;
+
     const errors = validateCheckoutForm(formData);
     setFormErrors(errors);
-    if (Object.keys(errors).length > 0) { toast.error('Corrija os erros no formulário'); return; }
-    if (!shipping.selected) { toast.error('Selecione uma opção de frete'); return; }
+    if (Object.keys(errors).length > 0) { toast.error('Corrija os erros no formulário'); submissionLockRef.current = false; return; }
+    if (!shipping.selected) { toast.error('Selecione uma opção de frete'); submissionLockRef.current = false; return; }
     if (paymentMethod === 'credit_card' && (!cardData.number || !cardData.holderName || !cardData.cvv)) {
-      toast.error('Preencha os dados do cartão'); return;
+      toast.error('Preencha os dados do cartão'); submissionLockRef.current = false; return;
     }
+
+    // Generate stable idempotency keys for this click
+    const checkoutAttemptId = crypto.randomUUID();
+    const paymentAttemptId = crypto.randomUUID();
 
     setPaymentStatus('processing');
     setPaymentError(null);
@@ -253,6 +264,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
     // Get affiliate data
     const affiliate = getStoredAffiliateData();
 
+    try {
     const result = await processPayment({
       method: paymentMethod,
       items,
@@ -271,6 +283,8 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
       attribution: attribution || undefined,
       affiliate: affiliate || undefined,
       shippingQuoteId: shipping.quoteId || undefined,
+      checkoutAttemptId,
+      paymentAttemptId,
     });
 
     if (result.success) {
@@ -309,6 +323,13 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
       setPaymentStatus('failed');
       setPaymentError(result.error || 'Erro ao processar pagamento');
       toast.error('Falha no pagamento');
+    }
+    } catch (error) {
+      setPaymentStatus('failed');
+      setPaymentError(error instanceof Error ? error.message : 'Erro ao processar pagamento');
+      toast.error('Falha no pagamento');
+    } finally {
+      submissionLockRef.current = false;
     }
   };
 

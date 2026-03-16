@@ -618,8 +618,16 @@ function CardRetrySection({ retryToken, orderTotal, onSuccess }: {
     return digits.replace(/(\d{4})(?=\d)/g, '$1 ');
   };
 
+  // Synchronous lock to prevent double-click on retry
+  const retryLockRef = useRef(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // === SYNC LOCK: immediate guard before any async operation ===
+    if (retryLockRef.current) return;
+    retryLockRef.current = true;
+
     setRetryError(null);
     resetRetryResult();
 
@@ -627,20 +635,27 @@ function CardRetrySection({ retryToken, orderTotal, onSuccess }: {
     const cleanNumber = cardNumber.replace(/\D/g, '');
     if (cleanNumber.length < 13) {
       setRetryError('Número do cartão inválido.');
+      retryLockRef.current = false;
       return;
     }
     if (!holderName.trim()) {
       setRetryError('Nome no cartão é obrigatório.');
+      retryLockRef.current = false;
       return;
     }
     if (!expMonth || !expYear) {
       setRetryError('Data de validade é obrigatória.');
+      retryLockRef.current = false;
       return;
     }
     if (cvv.length < 3) {
       setRetryError('CVV inválido.');
+      retryLockRef.current = false;
       return;
     }
+
+    // Generate stable idempotency key for this retry click
+    const paymentAttemptId = crypto.randomUUID();
 
     const card: RetryCardData = {
       number: cleanNumber,
@@ -650,10 +665,14 @@ function CardRetrySection({ retryToken, orderTotal, onSuccess }: {
       cvv,
     };
 
-    const result = await retryPayment(card, installments);
+    try {
+      const result = await retryPayment(card, installments, paymentAttemptId);
 
-    if (result.success) {
-      onSuccess();
+      if (result.success) {
+        onSuccess();
+      }
+    } finally {
+      retryLockRef.current = false;
     }
   };
 

@@ -125,6 +125,8 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     shippingQuoteId,
     retryFromOrderId,
     retryToken,
+    checkoutAttemptId,
+    paymentAttemptId,
   }: {
     method: PaymentMethod;
     items: CartItem[];
@@ -141,6 +143,8 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     shippingQuoteId?: string | null;
     retryFromOrderId?: string;
     retryToken?: string;
+    checkoutAttemptId?: string;
+    paymentAttemptId?: string;
   }): Promise<PaymentResult> => {
     setIsProcessing(true);
     setPaymentResult(null);
@@ -245,8 +249,8 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
             // Step 5: Link to original declined order
             retry_from_order_id: retryFromOrderId || undefined,
             retry_token: retryToken || undefined,  // param from caller, used to invalidate original order's token
-            // Meta CAPI is now handled client-side via marketing-capi-track edge function
-            // No need to pass browser identifiers in order creation
+            // Idempotency key to prevent duplicate order creation
+            checkout_attempt_id: checkoutAttemptId || undefined,
           },
         });
 
@@ -261,6 +265,13 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
         console.log('[Checkout] Step 1 OK - Order:', orderId, orderNumber, newRetryToken ? '(retry_token generated)' : '');
 
       // 2. Process payment via active gateway (Pagar.me or Mercado Pago)
+      // Use canonical_total from server response for gateway amount (prevents frontend drift)
+      const canonicalTotal = orderData.canonical_total;
+      const gatewayAmount = canonicalTotal != null
+        ? Math.round(Number(canonicalTotal) * 100)
+        : Math.round(total * 100);
+      console.log(`[Checkout] Using ${canonicalTotal != null ? 'canonical' : 'frontend'} total for gateway: ${gatewayAmount} cents`);
+
       const gatewayFunction = activeGateway === 'mercadopago' ? 'mercadopago-create-charge' : 'pagarme-create-charge';
       console.log(`[Checkout] Step 2: Processing payment via ${gatewayFunction}`);
       const { data: paymentData, error: paymentError } = await supabase.functions.invoke(gatewayFunction, {
@@ -268,7 +279,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
           tenant_id: tenantId,
           order_id: orderId,
           method,
-          amount: Math.round(total * 100), // Convert to cents
+          amount: gatewayAmount, // Use canonical total from server
           customer: {
             name: customer.name,
             email: customer.email,
@@ -293,6 +304,8 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
             cvv: card.cvv,
           } : undefined,
           installments: method === 'credit_card' ? (installments || 1) : 1,
+          // Idempotency key for gateway charge (prevents duplicate charges on same click)
+          payment_attempt_id: paymentAttemptId || undefined,
         },
       });
 
