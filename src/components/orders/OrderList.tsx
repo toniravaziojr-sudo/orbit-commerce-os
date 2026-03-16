@@ -16,6 +16,7 @@ import {
   PackageX,
   Trash2,
   Sparkles,
+  Link2,
 } from 'lucide-react';
 import {
   Table,
