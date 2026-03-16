@@ -95,35 +95,20 @@ export function CategoryBannerBlock({
             <div className="w-full aspect-[4/1] bg-gradient-to-br from-muted via-muted/80 to-muted-foreground/20" />
           )}
           
-          {/* Overlay + Title ON the banner (matches static HTML parity) */}
-          {(overlayOpacity > 0 || (showTitle && hasBannerImage)) && (
+          {/* Overlay - only for darkening effect, NO title here */}
+          {overlayOpacity > 0 && (
             <div 
-              className="absolute inset-0 flex items-center pointer-events-none"
+              className="absolute inset-0 pointer-events-none"
               style={{ 
-                background: overlayOpacity > 0 ? `rgba(0,0,0,${overlayOpacity / 100})` : 'transparent',
-                justifyContent: titlePosition === 'left' ? 'flex-start' : titlePosition === 'right' ? 'flex-end' : 'center',
-                padding: '0 24px',
+                background: `rgba(0,0,0,${overlayOpacity / 100})`,
               }}
-            >
-              {showTitle && hasBannerImage && (
-                <h1 
-                  className="text-2xl md:text-3xl font-bold"
-                  style={{ 
-                    color: '#fff', 
-                    textShadow: '0 2px 8px rgba(0,0,0,0.3)',
-                    fontFamily: 'var(--sf-heading-font, inherit)',
-                  }}
-                >
-                  {categoryName}
-                </h1>
-              )}
-            </div>
+            />
           )}
         </div>
       )}
       
-      {/* Title below - only when NO banner image but showTitle=true */}
-      {showTitle && !hasBannerImage && (
+      {/* Title BELOW the banner - always when showTitle=true */}
+      {showTitle && (
         <div className={`py-3 sm:py-4 md:py-6 px-4 md:px-8 flex flex-col ${titlePositionClasses[titlePosition]}`}>
           <div className={`max-w-4xl w-full ${titlePosition === 'center' ? 'text-center mx-auto' : titlePosition === 'right' ? 'text-right ml-auto' : ''}`}>
             <h1 className="text-2xl md:text-3xl font-bold text-foreground">

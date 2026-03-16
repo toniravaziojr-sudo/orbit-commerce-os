@@ -48,35 +48,32 @@ export const categoryBannerToStaticHTML: BlockCompilerFn = (
   };
   const justify = alignMap[titlePosition] || 'center';
 
+  let html = '';
+
   if (bannerUrl) {
-    // CRITICAL: Use direct URLs for banner images (no wsrv.nl proxy).
-    // wsrv.nl can fail silently in browsers due to rate limits, referer checks,
-    // or CDN issues, causing banners to show as empty gray boxes.
-    // Banner images are already uploaded at the correct resolution by the user.
-    // This ensures parity with the Builder (React) which uses direct URLs.
     const desktopSrc = bannerUrl;
     const mobileSrc = bannerMobileUrl || desktopSrc;
 
-    return `
+    html += `
       <div style="position:relative;width:100%;overflow:hidden;background:#f5f5f5;">
         <picture>
           ${mobileSrc !== desktopSrc ? `<source srcset="${escapeHtml(mobileSrc)}" media="(max-width:768px)">` : ''}
           <img src="${escapeHtml(desktopSrc)}" alt="${escapeHtml(category.name)}" style="display:block;width:100%;height:auto;object-fit:cover;" loading="eager" fetchpriority="high">
         </picture>
-        ${overlayBg !== 'transparent' || showCategoryName ? `
-          <div style="position:absolute;inset:0;background:${overlayBg};display:flex;align-items:center;justify-content:${justify};padding:0 24px;">
-            ${showCategoryName ? `<h1 style="font-size:clamp(24px,4vw,40px);font-weight:700;color:#fff;font-family:var(--sf-heading-font);text-shadow:0 2px 8px rgba(0,0,0,0.3);">${escapeHtml(category.name)}</h1>` : ''}
-          </div>
+        ${overlayBg !== 'transparent' ? `
+          <div style="position:absolute;inset:0;background:${overlayBg};pointer-events:none;"></div>
         ` : ''}
       </div>`;
   }
 
-  // No banner image - text-only header
-  if (!showCategoryName) return '';
+  // Title BELOW the banner (or standalone if no banner)
+  if (showCategoryName) {
+    html += `
+      <div style="padding:12px 16px 16px;text-align:${titlePosition};">
+        <h1 style="font-size:clamp(24px,4vw,36px);font-weight:700;font-family:var(--sf-heading-font);">${escapeHtml(category.name)}</h1>
+        ${category.description ? `<p style="font-size:15px;color:var(--theme-text-secondary,#666);margin-top:8px;max-width:600px;${titlePosition === 'center' ? 'margin-left:auto;margin-right:auto;' : ''}">${escapeHtml(category.description)}</p>` : ''}
+      </div>`;
+  }
 
-  return `
-    <div style="padding:32px 16px;text-align:${titlePosition};">
-      <h1 style="font-size:clamp(24px,4vw,36px);font-weight:700;font-family:var(--sf-heading-font);">${escapeHtml(category.name)}</h1>
-      ${category.description ? `<p style="font-size:15px;color:var(--theme-text-secondary,#666);margin-top:8px;max-width:600px;${titlePosition === 'center' ? 'margin-left:auto;margin-right:auto;' : ''}">${escapeHtml(category.description)}</p>` : ''}
-    </div>`;
+  return html;
 };
