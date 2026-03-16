@@ -84,9 +84,13 @@ export function PropsEditor({
 }: PropsEditorProps) {
   const [noticeOpen, setNoticeOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   // Check if this block has a wizard contract (Group B)
   const wizardContract = getWizardContract(definition.type, props);
+
+  // Check if block has a saved wizard config for regeneration
+  const lastWizardConfig = props._lastWizardConfig as { collectedData: Record<string, unknown>; mode?: string; scope?: string; blockType: string } | undefined;
 
   // AI Block Fill hook (for Group A — text-only blocks)
   const { fill, isLoading: isAILoading, hasFillableProps } = useAIBlockFill({
