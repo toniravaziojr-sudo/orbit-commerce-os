@@ -827,6 +827,8 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
       setPaymentStatus('failed');
       setPaymentError(error instanceof Error ? error.message : 'Erro ao processar pagamento');
       toast.error('Falha no pagamento');
+    } finally {
+      submissionLockRef.current = false;
     }
   };
 

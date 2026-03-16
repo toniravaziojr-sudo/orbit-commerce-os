@@ -264,6 +264,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
     // Get affiliate data
     const affiliate = getStoredAffiliateData();
 
+    try {
     const result = await processPayment({
       method: paymentMethod,
       items,
@@ -282,6 +283,8 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
       attribution: attribution || undefined,
       affiliate: affiliate || undefined,
       shippingQuoteId: shipping.quoteId || undefined,
+      checkoutAttemptId,
+      paymentAttemptId,
     });
 
     if (result.success) {
