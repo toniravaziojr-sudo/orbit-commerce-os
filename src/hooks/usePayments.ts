@@ -21,6 +21,8 @@ interface PaymentStats {
   totalPending: number;
   approvedCount: number;
   approvalRate: number;
+  declinedCount: number;
+  declinedTotal: number;
 }
 
 interface UsePaymentsOptions {
@@ -116,11 +118,24 @@ export function usePayments(options: UsePaymentsOptions = {}) {
 
       const approvalRate = totalCount && totalCount > 0 ? ((approvedCount || 0) / totalCount) * 100 : 0;
 
+      // Get declined payments this month
+      const { data: declinedData, count: declinedCount } = await supabase
+        .from('orders')
+        .select('total', { count: 'exact' })
+        .eq('tenant_id', currentTenant.id)
+        .eq('payment_status', 'declined')
+        .not('payment_gateway_id', 'is', null)
+        .gte('created_at', monthStart);
+
+      const declinedTotal = (declinedData || []).reduce((sum, o) => sum + (o.total || 0), 0);
+
       return {
         totalReceived,
         totalPending,
         approvedCount: approvedCount || 0,
         approvalRate,
+        declinedCount: declinedCount || 0,
+        declinedTotal,
       };
     },
     enabled: !!currentTenant?.id,
@@ -129,7 +144,7 @@ export function usePayments(options: UsePaymentsOptions = {}) {
   return {
     payments: paymentsQuery.data?.payments || [],
     totalCount: paymentsQuery.data?.totalCount || 0,
-    stats: statsQuery.data || { totalReceived: 0, totalPending: 0, approvedCount: 0, approvalRate: 0 },
+    stats: statsQuery.data || { totalReceived: 0, totalPending: 0, approvedCount: 0, approvalRate: 0, declinedCount: 0, declinedTotal: 0 },
     isLoading: paymentsQuery.isLoading,
     isStatsLoading: statsQuery.isLoading,
     error: paymentsQuery.error || statsQuery.error,

@@ -14,7 +14,10 @@ import {
   ExternalLink,
   Bell,
   Pencil,
-  X
+  X,
+  Link2,
+  AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,6 +57,7 @@ import {
 import { ShipmentSection } from '@/components/orders/ShipmentSection';
 import { NotificationLogsPanel } from '@/components/notifications/NotificationLogsPanel';
 import { PaymentAttemptsCard } from '@/components/orders/PaymentAttemptsCard';
+import { useRetryLinkedOrder } from '@/hooks/useRetryLinkedOrder';
 
 const paymentMethodLabels: Record<string, string> = {
   pix: 'PIX',
@@ -100,6 +104,7 @@ export default function OrderDetail() {
 
   const { order, items, history, isLoading, addNote, updateTrackingCode, updatePaymentStatus, updateShippingAddress, updateShippingStatus } = useOrderDetails(id);
   const { updateOrderStatus } = useOrders();
+  const { replacedBy, retryOf } = useRetryLinkedOrder(id, order?.retry_from_order_id);
 
   const handleStatusChange = (status: OrderStatus) => {
     if (id) {
@@ -222,6 +227,36 @@ export default function OrderDetail() {
           </Select>
         </div>
       </div>
+
+      {/* Retry Banners (6B) */}
+      {retryOf && (
+        <div className="flex items-center gap-3 p-3 rounded-lg border border-info/30 bg-info/5">
+          <RefreshCw className="h-4 w-4 text-info shrink-0" />
+          <p className="text-sm">
+            Este pedido foi criado como retentativa do pedido{' '}
+            <button
+              onClick={() => navigate(`/orders/${retryOf.id}`)}
+              className="font-semibold text-info hover:underline"
+            >
+              {retryOf.order_number}
+            </button>
+          </p>
+        </div>
+      )}
+      {replacedBy && (
+        <div className="flex items-center gap-3 p-3 rounded-lg border border-warning/30 bg-warning/5">
+          <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
+          <p className="text-sm">
+            Este pedido foi substituído pelo pedido{' '}
+            <button
+              onClick={() => navigate(`/orders/${replacedBy.id}`)}
+              className="font-semibold text-warning hover:underline"
+            >
+              {replacedBy.order_number}
+            </button>
+          </p>
+        </div>
+      )}
 
       <Tabs defaultValue="details" className="space-y-4">
         <TabsList>

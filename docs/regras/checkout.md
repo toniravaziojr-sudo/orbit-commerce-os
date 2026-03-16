@@ -856,3 +856,31 @@ O código de auditoria de preços no `checkout-create-order` foi reimplantado em
 | `formatCpf(value)` | Aplica máscara `000.000.000-00` |
 | `isValidCpf(value)` | Validação completa: 11 dígitos + rejeita repetidos + dígitos verificadores (módulo 11) |
 | `handleCpfInput(value)` | Para uso em `onChange` — limita a 11 dígitos e aplica máscara |
+
+---
+
+## Etapa 6B — Visibilidade de Declined e Retry no Admin
+
+### Regras de Exibição
+
+1. **Pedidos recusados (declined)** aparecem normalmente na lista de pedidos e na página de pagamentos com badge "Recusado" (vermelho)
+2. **Pedidos com retentativa** mostram ícone de link (🔗) ao lado do número na lista
+3. **No detalhe do pedido**: banners bidirecionais mostram vínculo entre pedido original e substituto
+4. **Histórico de tentativas de pagamento**: sempre visível no detalhe via `PaymentAttemptsCard` quando existem transações
+
+### Regras de Integridade
+
+- GMV filtra apenas `payment_status = 'approved'` — declined e substituídos **não** entram
+- Ghost Order Rule continua ativa — pedidos sem `payment_gateway_id` continuam ocultos
+- Stat card "Recusados" conta apenas pedidos do mês com `payment_gateway_id` (não conta ghost orders)
+
+### Arquivos Afetados
+
+| Arquivo | Mudança |
+|---------|---------|
+| `src/hooks/useOrders.ts` | Campo `retry_from_order_id` no tipo `Order` |
+| `src/hooks/useRetryLinkedOrder.ts` | Hook bidirecional de busca de vínculo retry |
+| `src/pages/OrderDetail.tsx` | Banners de retentativa e substituição |
+| `src/components/orders/OrderList.tsx` | Ícone de link para retry |
+| `src/hooks/usePayments.ts` | Stats `declinedCount` e `declinedTotal` |
+| `src/pages/Payments.tsx` | Card "Recusados (Mês)" |
