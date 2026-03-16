@@ -168,7 +168,8 @@ Página de confirmação pós-compra com detalhes do pedido, ofertas de upsell e
 | **Localização** | `src/hooks/useRetryCardPayment.ts` |
 | **Parâmetros** | `retryToken: string` |
 | **Retorno** | `{ retryPayment, isRetrying, retryResult, resetRetryResult }` |
-| **Comportamento** | Chama edge function `retry-card-payment` com `retry_token` + dados do cartão → resultado classificado (success / cardDeclined / technicalError) |
+| **Comportamento** | Chama edge function `retry-card-payment` com `retry_token` + dados do cartão + `payment_attempt_id` → resultado classificado (success / cardDeclined / technicalError) |
+| **Idempotência (v4)** | Aceita `paymentAttemptId` opcional como 4º parâmetro de `retryPayment`. Enviado no body para o gateway usar como `X-Idempotency-Key`. |
 | **Não faz** | NÃO recebe CPF/endereço. NÃO cria pedido novo. NÃO permite PIX/boleto. |
 
 ### Edge Function: `retry-card-payment`
@@ -177,9 +178,10 @@ Página de confirmação pós-compra com detalhes do pedido, ofertas de upsell e
 |-------|-------|
 | **Tipo** | Edge Function |
 | **Localização** | `supabase/functions/retry-card-payment/index.ts` |
-| **Entrada** | `retry_token`, `card` (number, holder_name, exp_month, exp_year, cvv), `installments` |
+| **Entrada** | `retry_token`, `card` (number, holder_name, exp_month, exp_year, cvv), `installments`, `payment_attempt_id` (opcional, UUID) |
 | **Validação** | `validate_order_retry_token()` — retorna dados do pedido se token válido e pedido não pago |
 | **Processamento** | Detecta gateway ativo → monta payload com dados server-side → chama gateway → retorna resultado |
+| **Idempotência (v4)** | Passa `payment_attempt_id` para o gateway charge. Se não recebido, gera UUID fallback server-side. Cada clique de retry gera nova chave = nova cobrança legítima. |
 | **Pós-sucesso** | Invalida retry_token (seta null) |
 | **Segurança** | `verify_jwt = false` (público, mas protegido por retry_token) |
 
@@ -193,6 +195,7 @@ Página de confirmação pós-compra com detalhes do pedido, ofertas de upsell e
 | **Campos do formulário** | Número do cartão (com máscara), Nome no cartão, Mês/Ano validade, CVV (mascarado), Parcelas |
 | **CVV** | `type="password"` com toggle de visibilidade |
 | **Parcelas** | Calculadas a partir do total do pedido (1x a 12x) |
+| **Lock síncrono (v4)** | `useRef(false)` guard em `handleSubmit` — bloqueia clique duplo imediatamente. Gera `payment_attempt_id = crypto.randomUUID()` dentro do lock. Libera no `finally`. |
 | **CTA alternativa** | Texto informativo: "Precisa usar outra forma de pagamento? Entre em contato pelo WhatsApp." |
 
 ### CTA "Outra forma de pagamento" — Etapa 5 (IMPLEMENTADO v8.15.2)
@@ -368,6 +371,33 @@ O evento `Purchase` é disparado **exclusivamente** na página de obrigado (`Tha
 
 ---
 
+## 🔒 Idempotência e Lock Síncrono — Checkout v4 (v2026-03-16)
+
+### Distinção de Chaves
+
+| Chave | Onde é gerada | Escopo |
+|---|---|---|
+| `checkout_attempt_id` | Frontend, clique "Finalizar Pedido" | Evita pedido duplicado |
+| `payment_attempt_id` | Frontend, clique "Finalizar Pedido" ou "Tentar novamente" | Evita cobrança duplicada no gateway |
+
+### Lock no CardRetrySection
+
+O componente `CardRetrySection` usa `useRef(false)` como guard síncrono no `handleSubmit`:
+1. `if (retryLockRef.current) return` — bloqueia imediatamente clique duplo
+2. `retryLockRef.current = true`
+3. Gera `payment_attempt_id = crypto.randomUUID()`
+4. Chama `retryPayment(cardData, installments, paymentAttemptId)`
+5. `finally`: `retryLockRef.current = false`
+
+### Comportamento de Idempotência no Retry
+
+- Cada clique gera nova `payment_attempt_id` = nova cobrança legítima
+- Mesma tentativa (mesmo clique) usa mesma chave — operadora retorna resultado anterior se já processado
+- Lock síncrono garante que não existe clique duplo com mesma chave
+- Gateway recebe a chave via `X-Idempotency-Key`
+
+---
+
 ## Pendências
 
 - [ ] Upsell 1-click funcional
@@ -377,3 +407,4 @@ O evento `Purchase` é disparado **exclusivamente** na página de obrigado (`Tha
 - [ ] QR Code para rastreio
 - [x] CTA "Outra forma de pagamento" com retry_token (Etapa 5) — IMPLEMENTADO
 - [x] Reconstrução automática do carrinho no modo retry (Etapa 5) — IMPLEMENTADO
+- [x] Idempotência e lock síncrono no retry de cartão (v4) — IMPLEMENTADO

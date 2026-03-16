@@ -3282,3 +3282,102 @@ Webhook de pagamento (Pagar.me/MercadoPago)
 - [ ] Nenhuma duplicata real detectada em 48h de observação
 - [ ] marketing-reconcile reporta `health: "healthy"` para o tenant de teste
 - [ ] Zero impacto em checkout/pagamento/criação de pedido
+
+---
+
+## 🔒 Idempotência Ponta a Ponta — Checkout v4 (v2026-03-16)
+
+### Arquitetura de Chaves
+
+| Chave | Gerada onde | Quando | Escopo |
+|---|---|---|---|
+| `checkout_attempt_id` (UUID) | Frontend, no clique em "Finalizar Pedido" | 1× por clique | Evita pedido duplicado no `checkout-create-order` |
+| `payment_attempt_id` (UUID) | Frontend, no clique em "Finalizar Pedido" | 1× por clique | Evita cobrança duplicada no gateway (checkout inicial) |
+| `payment_attempt_id` (UUID) | Frontend, no clique em "Tentar novamente" (Thank You) | 1× por clique de retry | Evita cobrança duplicada no gateway (retry de cartão) |
+
+### Regras
+
+1. **`checkout_attempt_id`** é passado para `checkout-create-order`. Se já existe pedido com mesmo `checkout_attempt_id` + `tenant_id`, retorna o pedido existente (idempotente, sem criar duplicata).
+2. **`payment_attempt_id`** é passado para o gateway (`pagarme-create-charge`, `mercadopago-create-charge`) como `X-Idempotency-Key`. Cada clique gera uma nova chave; a mesma tentativa reutiliza a mesma chave (protegido pelo lock síncrono no frontend).
+3. Retry de cartão na Thank You gera seu próprio `payment_attempt_id` — chave diferente da cobrança inicial, permitindo nova cobrança legítima.
+4. Se `payment_attempt_id` não vier no body (retrocompatibilidade), o gateway gera um UUID fallback server-side.
+
+### Lock Síncrono (Frontend)
+
+| Componente | Arquivo | Mecanismo |
+|---|---|---|
+| `CheckoutStepWizard` | `src/components/storefront/checkout/CheckoutStepWizard.tsx` | `useRef(false)` em `handlePayment` |
+| `CheckoutContent` | `src/components/storefront/checkout/CheckoutContent.tsx` | `useRef(false)` em `handleSubmit` |
+| `CardRetrySection` | `src/components/storefront/ThankYouContent.tsx` | `useRef(false)` em `handleSubmit` |
+
+### Snapshot Canônico (Server-Side)
+
+| Campo | Fonte | Regra |
+|---|---|---|
+| `orders.total` | Recalculado no servidor (`checkout-create-order`) | Ignora `payload.total` do frontend |
+| `orders.subtotal` | Recalculado no servidor | Ignora `payload.subtotal` do frontend |
+| `order_items.unit_price` | Preço do banco de dados (`products.price` / `product_variants.price`) | Ignora `payload.items[].price` do frontend |
+| Gateway `amount` | `canonical_total × 100` retornado pelo servidor | Frontend usa `orderData.canonical_total` |
+
+### `pagarme-create-charge` — Idempotência
+
+| Campo | Valor |
+|---|---|
+| **Tipo** | Edge Function (atualizada v4) |
+| **Localização** | `supabase/functions/pagarme-create-charge/index.ts` |
+| **Novo campo aceito** | `payment_attempt_id` (UUID, opcional) |
+| **Uso** | Enviado como `X-Idempotency-Key` na chamada à API Pagar.me |
+| **Fallback** | Se não recebido, gera `crypto.randomUUID()` server-side |
+| **Comportamento** | Mesma chave = mesma cobrança (operadora retorna resultado anterior). Nova chave = nova cobrança legítima. |
+
+### `retry-card-payment` — Idempotência
+
+| Campo | Valor |
+|---|---|
+| **Tipo** | Edge Function (atualizada v4) |
+| **Localização** | `supabase/functions/retry-card-payment/index.ts` |
+| **Novo campo aceito** | `payment_attempt_id` (UUID, opcional) |
+| **Uso** | Passado para o gateway charge (via body) como chave de idempotência |
+| **Fallback** | Se não recebido, gera UUID server-side |
+| **Comportamento** | Cada clique no retry gera nova chave (nova cobrança legítima). Lock síncrono no frontend impede clique duplo com mesma chave. |
+
+### `checkout-create-order` — Idempotência + Snapshot
+
+| Campo | Valor |
+|---|---|
+| **Tipo** | Edge Function (atualizada v4) |
+| **Localização** | `supabase/functions/checkout-create-order/index.ts` |
+| **Novo campo aceito** | `checkout_attempt_id` (UUID, opcional) |
+| **Idempotência** | Busca pedido existente com mesmo `checkout_attempt_id` + `tenant_id` antes de criar |
+| **Snapshot** | Recalcula `total`, `subtotal` e `unit_price` usando preços do banco de dados |
+| **Retorno** | Inclui `canonical_total` na response para uso pelo gateway |
+
+### Migração SQL
+
+```sql
+ALTER TABLE orders ADD COLUMN checkout_attempt_id UUID;
+CREATE UNIQUE INDEX idx_orders_checkout_attempt_id 
+  ON orders (tenant_id, checkout_attempt_id) 
+  WHERE checkout_attempt_id IS NOT NULL;
+```
+
+### Fluxo Resumido
+
+```text
+CHECKOUT INICIAL
+├── submissionLockRef = true (síncrono)
+├── checkout_attempt_id = crypto.randomUUID()
+├── payment_attempt_id = crypto.randomUUID()
+├── checkout-create-order (idempotente por checkout_attempt_id)
+│   └── Retorna { order_id, canonical_total }
+├── gateway-create-charge (X-Idempotency-Key = payment_attempt_id)
+│   └── amount = canonical_total × 100
+└── submissionLockRef = false
+
+RETRY CARTÃO (THANK YOU)
+├── retryLockRef = true (síncrono)
+├── payment_attempt_id = crypto.randomUUID()
+├── retry-card-payment (passa payment_attempt_id ao gateway)
+│   └── Nova cobrança legítima (chave diferente da inicial)
+└── retryLockRef = false
+```
