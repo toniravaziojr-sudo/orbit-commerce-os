@@ -191,48 +191,97 @@ export async function generateWithRealOpenAI(
   }
 }
 
-// ===== RESILIENT GENERATE (OpenAI → Gemini Pro → Gemini Flash) =====
+// ===== RESILIENT GENERATE — Quality-First with Per-Slot Timeout =====
 
+/**
+ * Wraps a promise with a timeout. Rejects with 'TIMEOUT' if exceeded.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      console.warn(`[visual-engine] ⏱ TIMEOUT (${ms}ms) for ${label}`);
+      reject(new Error('TIMEOUT'));
+    }, ms);
+    promise.then(
+      (val) => { clearTimeout(timer); resolve(val); },
+      (err) => { clearTimeout(timer); reject(err); },
+    );
+  });
+}
+
+/**
+ * Quality-first generation cascade per slot:
+ *   1. Pro model with 70s timeout
+ *   2. Flash model (no aggressive timeout)
+ *   3. Simplified prompt + Flash model (last resort)
+ *
+ * The same creative brief/prompt is used for steps 1 and 2.
+ * Only step 3 simplifies the prompt as a final fallback.
+ *
+ * Returns which model was used and whether fallback occurred.
+ */
 export async function resilientGenerate(
   lovableApiKey: string,
   openaiApiKey: string | null,
   prompt: string,
   referenceImageBase64: string | null,
   preferOpenAI: boolean = false,
-  useFastModel: boolean = false,
-): Promise<{ imageBase64: string | null; model: string; error?: string }> {
+  slotLabel: string = 'slot',
+): Promise<{ imageBase64: string | null; model: string; fallbackReason?: string; error?: string }> {
+  const PRO_TIMEOUT_MS = 70_000; // 70s per slot for pro model
+
+  // Step 0: Try OpenAI if preferred (complete mode)
   if (preferOpenAI && openaiApiKey) {
-    const attempt1 = await generateWithRealOpenAI(openaiApiKey, prompt, referenceImageBase64);
-    if (attempt1.imageBase64) return attempt1;
-    console.warn(`[visual-engine] OpenAI failed: ${attempt1.error}. Falling back to Gemini...`);
+    const attempt0 = await generateWithRealOpenAI(openaiApiKey, prompt, referenceImageBase64);
+    if (attempt0.imageBase64) return { ...attempt0, fallbackReason: undefined };
+    console.warn(`[visual-engine] [${slotLabel}] OpenAI failed: ${attempt0.error}. Trying Pro...`);
   }
 
-  // For editable mode backgrounds, use the faster model to avoid timeout
-  const primaryModel = useFastModel ? LOVABLE_MODELS.fast : LOVABLE_MODELS.primary;
-  console.log(`[visual-engine] Using model: ${primaryModel} (fast=${useFastModel})`);
-
-  const attempt2 = await generateWithLovableGateway(lovableApiKey, primaryModel, prompt, referenceImageBase64);
-  if (attempt2.imageBase64) return { imageBase64: attempt2.imageBase64, model: primaryModel };
-
-  // Fallback chain
-  if (useFastModel) {
-    // If fast failed, try the old fallback
-    console.warn(`[visual-engine] Fast model failed: ${attempt2.error}. Trying flash fallback...`);
-    const attempt3 = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.fallback, prompt, referenceImageBase64);
-    if (attempt3.imageBase64) return { imageBase64: attempt3.imageBase64, model: LOVABLE_MODELS.fallback };
-  } else {
-    console.warn(`[visual-engine] Gemini Pro failed: ${attempt2.error}. Trying Flash...`);
-    const attempt3 = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.fallback, prompt, referenceImageBase64);
-    if (attempt3.imageBase64) return { imageBase64: attempt3.imageBase64, model: LOVABLE_MODELS.fallback };
+  // Step 1: Pro model with timeout — QUALITY FIRST
+  console.log(`[visual-engine] [${slotLabel}] Step 1: ${LOVABLE_MODELS.primary} (timeout ${PRO_TIMEOUT_MS}ms)`);
+  try {
+    const proResult = await withTimeout(
+      generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.primary, prompt, referenceImageBase64),
+      PRO_TIMEOUT_MS,
+      `${slotLabel}:pro`,
+    );
+    if (proResult.imageBase64) {
+      console.log(`[visual-engine] [${slotLabel}] ✅ Pro model succeeded`);
+      return { imageBase64: proResult.imageBase64, model: LOVABLE_MODELS.primary };
+    }
+    console.warn(`[visual-engine] [${slotLabel}] Pro returned no image: ${proResult.error}`);
+  } catch (err: any) {
+    const reason = err?.message === 'TIMEOUT' ? 'timeout' : 'error';
+    console.warn(`[visual-engine] [${slotLabel}] Pro failed (${reason}). Falling back to Flash...`);
   }
 
-  console.warn(`[visual-engine] All primary attempts failed. Trying simplified prompt...`);
+  // Step 2: Flash model with SAME prompt — no brief degradation
+  console.log(`[visual-engine] [${slotLabel}] Step 2: ${LOVABLE_MODELS.fast} (fallback, same brief)`);
+  const flashResult = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.fast, prompt, referenceImageBase64);
+  if (flashResult.imageBase64) {
+    console.warn(`[visual-engine] [${slotLabel}] ⚠️ FALLBACK: Flash model used (same brief)`);
+    return {
+      imageBase64: flashResult.imageBase64,
+      model: LOVABLE_MODELS.fast,
+      fallbackReason: 'pro_timeout_or_error',
+    };
+  }
+
+  // Step 3: Simplified prompt + Flash — LAST RESORT
+  console.warn(`[visual-engine] [${slotLabel}] Step 3: Simplified prompt (last resort)`);
   const productName = prompt.match(/"([^"]+)"/)?.[1] || 'produto';
   const simplifiedPrompt = `Crie uma fotografia profissional do produto "${productName}" em fundo escuro elegante. O produto deve ser IDÊNTICO à imagem de referência. Qualidade editorial.`;
-  const attempt4 = await generateWithLovableGateway(lovableApiKey, primaryModel, simplifiedPrompt, referenceImageBase64);
-  if (attempt4.imageBase64) return { imageBase64: attempt4.imageBase64, model: `${primaryModel} (simplified)` };
+  const lastResort = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.fast, simplifiedPrompt, referenceImageBase64);
+  if (lastResort.imageBase64) {
+    console.warn(`[visual-engine] [${slotLabel}] ⚠️ FALLBACK: Simplified prompt used`);
+    return {
+      imageBase64: lastResort.imageBase64,
+      model: `${LOVABLE_MODELS.fast} (simplified)`,
+      fallbackReason: 'all_failed_simplified',
+    };
+  }
 
-  return { imageBase64: null, model: primaryModel, error: 'All generation attempts failed' };
+  return { imageBase64: null, model: LOVABLE_MODELS.primary, error: 'All generation attempts failed' };
 }
 
 // ===== QA SCORER =====
@@ -402,15 +451,15 @@ export async function generateForRequest(
   }
 
   const preferOpenAI = !!openaiApiKey && request.outputMode === 'complete';
-  const useFastModel = request.outputMode === 'editable';
 
-  // Generate all slots in parallel
+  // Generate all slots in parallel — each slot has its own quality-first cascade
   const slotPromises = request.slots.map(async (slot) => {
     const prompt = buildFinalPrompt(request, slot);
     
-    // Log final prompt per slot (truncated for readability)
+    // Determine slot label for logging/audit
     const isDesktop = slot.composition.includes('desktop');
-    console.log(`[visual-engine] ══ FINAL PROMPT (${isDesktop ? 'DESKTOP' : 'MOBILE'}) ══\n${prompt.substring(0, 500)}...`);
+    const slotLabel = isDesktop ? 'desktop' : 'mobile';
+    console.log(`[visual-engine] ══ FINAL PROMPT (${slotLabel.toUpperCase()}) ══\n${prompt.substring(0, 500)}...`);
 
     const result = await resilientGenerate(
       lovableApiKey,
@@ -418,8 +467,15 @@ export async function generateForRequest(
       prompt,
       referenceBase64,
       preferOpenAI,
-      useFastModel,
+      slotLabel,
     );
+
+    // Log fallback audit trail
+    if (result.fallbackReason) {
+      console.warn(`[visual-engine] 📊 AUDIT [${slotLabel}]: model=${result.model}, fallbackReason=${result.fallbackReason}`);
+    } else {
+      console.log(`[visual-engine] 📊 AUDIT [${slotLabel}]: model=${result.model}, fallback=none`);
+    }
 
     if (!result.imageBase64) {
       console.error(`[visual-engine] Failed to generate slot: ${slot.key}`);
