@@ -371,6 +371,33 @@ O evento `Purchase` é disparado **exclusivamente** na página de obrigado (`Tha
 
 ---
 
+## 🔒 Idempotência e Lock Síncrono — Checkout v4 (v2026-03-16)
+
+### Distinção de Chaves
+
+| Chave | Onde é gerada | Escopo |
+|---|---|---|
+| `checkout_attempt_id` | Frontend, clique "Finalizar Pedido" | Evita pedido duplicado |
+| `payment_attempt_id` | Frontend, clique "Finalizar Pedido" ou "Tentar novamente" | Evita cobrança duplicada no gateway |
+
+### Lock no CardRetrySection
+
+O componente `CardRetrySection` usa `useRef(false)` como guard síncrono no `handleSubmit`:
+1. `if (retryLockRef.current) return` — bloqueia imediatamente clique duplo
+2. `retryLockRef.current = true`
+3. Gera `payment_attempt_id = crypto.randomUUID()`
+4. Chama `retryPayment(cardData, installments, paymentAttemptId)`
+5. `finally`: `retryLockRef.current = false`
+
+### Comportamento de Idempotência no Retry
+
+- Cada clique gera nova `payment_attempt_id` = nova cobrança legítima
+- Mesma tentativa (mesmo clique) usa mesma chave — operadora retorna resultado anterior se já processado
+- Lock síncrono garante que não existe clique duplo com mesma chave
+- Gateway recebe a chave via `X-Idempotency-Key`
+
+---
+
 ## Pendências
 
 - [ ] Upsell 1-click funcional
@@ -380,3 +407,4 @@ O evento `Purchase` é disparado **exclusivamente** na página de obrigado (`Tha
 - [ ] QR Code para rastreio
 - [x] CTA "Outra forma de pagamento" com retry_token (Etapa 5) — IMPLEMENTADO
 - [x] Reconstrução automática do carrinho no modo retry (Etapa 5) — IMPLEMENTADO
+- [x] Idempotência e lock síncrono no retry de cartão (v4) — IMPLEMENTADO
