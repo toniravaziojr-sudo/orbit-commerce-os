@@ -131,6 +131,7 @@ function buildCreativeDirection(style: ImageStyle, styleConfig: Record<string, u
     const action = (styleConfig?.action as string) || 'holding';
     const personProfile = (styleConfig?.personProfile as string) || 'pessoa atraente com aparência natural e saudável';
     const tone = (styleConfig?.tone as string) || 'lifestyle';
+    const env = (styleConfig?.environment as string) || 'studio';
     const actionDesc: Record<string, string> = {
       holding: 'segurando o produto pela base/corpo, com rótulo frontal visível',
       using: 'usando/aplicando o produto de forma natural',
@@ -145,6 +146,7 @@ function buildCreativeDirection(style: ImageStyle, styleConfig: Record<string, u
     lines.push(`Estilo: PESSOA INTERAGINDO COM O PRODUTO`);
     lines.push(`Pessoa: ${personProfile}`);
     lines.push(`Ação: ${actionDesc[action] || action}`);
+    lines.push(`Cenário/Ambiente: ${env}`);
     lines.push(`Tom visual: ${toneDesc[tone] || tone}`);
     lines.push(`A pessoa deve parecer REAL e fotorrealista — sem aparência de IA.`);
     lines.push(`Mãos naturais, expressão genuína, iluminação profissional.`);
