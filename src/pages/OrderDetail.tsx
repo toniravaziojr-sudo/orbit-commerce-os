@@ -57,6 +57,7 @@ import {
 import { ShipmentSection } from '@/components/orders/ShipmentSection';
 import { NotificationLogsPanel } from '@/components/notifications/NotificationLogsPanel';
 import { PaymentAttemptsCard } from '@/components/orders/PaymentAttemptsCard';
+import { useRetryLinkedOrder } from '@/hooks/useRetryLinkedOrder';
 
 const paymentMethodLabels: Record<string, string> = {
   pix: 'PIX',
