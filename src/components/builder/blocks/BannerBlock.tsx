@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { BlockRenderContext } from '@/lib/builder/types';
 import { cn } from '@/lib/utils';
-import { ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ImageIcon, Loader2 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getHeroBannerImageUrl } from '@/lib/imageTransform';
 
