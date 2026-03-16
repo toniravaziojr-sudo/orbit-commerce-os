@@ -21,6 +21,8 @@ interface PaymentStats {
   totalPending: number;
   approvedCount: number;
   approvalRate: number;
+  declinedCount: number;
+  declinedTotal: number;
 }
 
 interface UsePaymentsOptions {
