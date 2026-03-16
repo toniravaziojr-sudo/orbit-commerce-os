@@ -54,6 +54,9 @@ interface BannerBlockProps {
   showArrows?: boolean;
   showDots?: boolean;
   
+  // Transient state (set by PropsEditor during regeneration)
+  _isRegenerating?: boolean;
+  
   // Context
   context?: BlockRenderContext;
 }
