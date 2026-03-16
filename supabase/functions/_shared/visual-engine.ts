@@ -451,15 +451,15 @@ export async function generateForRequest(
   }
 
   const preferOpenAI = !!openaiApiKey && request.outputMode === 'complete';
-  const useFastModel = request.outputMode === 'editable';
 
-  // Generate all slots in parallel
+  // Generate all slots in parallel — each slot has its own quality-first cascade
   const slotPromises = request.slots.map(async (slot) => {
     const prompt = buildFinalPrompt(request, slot);
     
-    // Log final prompt per slot (truncated for readability)
+    // Determine slot label for logging/audit
     const isDesktop = slot.composition.includes('desktop');
-    console.log(`[visual-engine] ══ FINAL PROMPT (${isDesktop ? 'DESKTOP' : 'MOBILE'}) ══\n${prompt.substring(0, 500)}...`);
+    const slotLabel = isDesktop ? 'desktop' : 'mobile';
+    console.log(`[visual-engine] ══ FINAL PROMPT (${slotLabel.toUpperCase()}) ══\n${prompt.substring(0, 500)}...`);
 
     const result = await resilientGenerate(
       lovableApiKey,
@@ -467,8 +467,15 @@ export async function generateForRequest(
       prompt,
       referenceBase64,
       preferOpenAI,
-      useFastModel,
+      slotLabel,
     );
+
+    // Log fallback audit trail
+    if (result.fallbackReason) {
+      console.warn(`[visual-engine] 📊 AUDIT [${slotLabel}]: model=${result.model}, fallbackReason=${result.fallbackReason}`);
+    } else {
+      console.log(`[visual-engine] 📊 AUDIT [${slotLabel}]: model=${result.model}, fallback=none`);
+    }
 
     if (!result.imageBase64) {
       console.error(`[visual-engine] Failed to generate slot: ${slot.key}`);
