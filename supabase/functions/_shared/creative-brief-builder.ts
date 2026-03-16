@@ -369,15 +369,6 @@ function buildContentSlotRules(
   lines.push(`- O resultado deve parecer fotografia profissional de e-commerce`);
 
   return lines.join('\n');
-
-  // Quality
-  lines.push(`\n✨ QUALIDADE:`);
-  lines.push(`- Resolução 4K, nitidez profissional`);
-  lines.push(`- Cores vibrantes e harmônicas`);
-  lines.push(`- Iluminação profissional (estúdio ou natural conforme direção criativa)`);
-  lines.push(`- O resultado deve parecer uma peça comercial de campanha profissional`);
-
-  return lines.join('\n');
 }
 
 // ===== FINAL PROMPT BUILDER =====
