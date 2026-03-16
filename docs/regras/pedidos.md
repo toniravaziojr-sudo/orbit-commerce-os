@@ -676,7 +676,56 @@ Mudanças de status feitas por **webhook** (`pagarme-webhook`) e **cron** (`expi
 
 ---
 
-## 15. Pendências
+## 16. Etapa 6B — Visibilidade de Retentativas e Recusados no Admin
+
+### 16.1 Vínculo Bidirecional de Retry
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Regra Lógica + Componente |
+| **Localização** | `src/hooks/useRetryLinkedOrder.ts`, `src/pages/OrderDetail.tsx` |
+| **Descrição** | Quando um pedido é retentativa de outro (via `retry_from_order_id`), banners bidirecionais aparecem no detalhe do pedido |
+| **Comportamento** | 1. Se o pedido atual tem `retry_from_order_id`: banner azul "Este pedido foi criado como retentativa do pedido #X" com link. 2. Se outro pedido aponta para o atual: banner amarelo "Este pedido foi substituído pelo pedido #Y" com link. |
+| **Visual** | Banners renderizados entre o header e as tabs. Azul (info) para retentativa, amarelo (warning) para substituído. |
+| **Afeta** | Navegação entre pedidos vinculados |
+
+### 16.2 Ícone de Retry na Lista
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente Visual |
+| **Localização** | `src/components/orders/OrderList.tsx` |
+| **Descrição** | Ícone de link (Link2) ao lado do número do pedido quando `retry_from_order_id` existe |
+| **Comportamento** | Tooltip exibe "Retentativa de pagamento" |
+| **Visual** | Ícone `Link2` com cor `text-info`, 3.5x3.5 |
+
+### 16.3 Histórico de Tentativas de Pagamento
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente |
+| **Localização** | `src/components/orders/PaymentAttemptsCard.tsx` (integrado em `OrderDetail.tsx` linha 472) |
+| **Descrição** | Card que exibe o histórico de tentativas de pagamento via `payment_transactions` |
+| **Comportamento** | Renderiza: status, método, valor, data, ID do gateway (`provider_transaction_id`) e mensagem de erro quando existir. Oculto se não há tentativas. |
+| **Condições** | Sempre visível no detalhe do pedido quando há transações registradas |
+
+### 16.4 Stat Card "Recusados"
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente + Hook |
+| **Localização** | `src/pages/Payments.tsx`, `src/hooks/usePayments.ts` |
+| **Descrição** | Card de estatística mostrando contagem e valor total de pedidos recusados no mês |
+| **Comportamento** | Exibe `declinedCount` como valor principal e `declinedTotal` formatado como descrição |
+| **Visual** | Variante `destructive`, ícone `XCircle`. Grid expandido para 5 colunas. |
+
+### 16.5 Integridade do GMV
+
+GMV e receita continuam filtrando apenas `payment_status = 'approved'`. Pedidos recusados e substituídos **não** entram no GMV. Sem distorção.
+
+---
+
+## 17. Pendências
 
 - [ ] Exportação de pedidos (CSV/Excel)
 - [ ] Impressão de etiqueta de envio integrada
