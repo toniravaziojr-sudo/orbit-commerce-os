@@ -56,7 +56,7 @@ export interface BlockPropsSchema {
     max?: number;
     itemType?: 'string' | 'category'; // For array types
     helpText?: string; // Help text / recommended sizes hint
-    showWhen?: Record<string, string>; // Conditional visibility based on other props
+    showWhen?: Record<string, string | boolean>; // Conditional visibility based on other props
     imageDimensions?: {
       desktop: string;
       mobile: string;
