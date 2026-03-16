@@ -124,6 +124,9 @@ const bannerAdapter = new BannerAdapter();
 const imageAdapter = new ImageAdapter();
 const contentColumnsAdapter = new ContentColumnsAdapter();
 const bannerProductsAdapter = new BannerProductsAdapter();
+const textBannersAdapter = new TextBannersAdapter();
+const imageCarouselAdapter = new ImageCarouselAdapter();
+const imageGalleryAdapter = new ImageGalleryAdapter();
 
 function getAdapter(blockType: string) {
   switch (blockType) {
@@ -131,6 +134,9 @@ function getAdapter(blockType: string) {
     case 'Image': return imageAdapter;
     case 'ContentColumns': return contentColumnsAdapter;
     case 'BannerProducts': return bannerProductsAdapter;
+    case 'TextBanners': return textBannersAdapter;
+    case 'ImageCarousel': return imageCarouselAdapter;
+    case 'ImageGallery': return imageGalleryAdapter;
     default: return null;
   }
 }
