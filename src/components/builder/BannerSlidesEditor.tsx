@@ -1,19 +1,46 @@
 // =============================================
-// BANNER SLIDES EDITOR - UI for editing HeroBanner slides
+// BANNER SLIDES EDITOR — Expanded with CTA + refinements per slide
+// Phase 1: Accordion per slide, internal collapsibles, per-slide style
 // =============================================
 
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
-import { Plus, Trash2, ChevronUp, ChevronDown, GripVertical, ImageIcon } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { Plus, Trash2, ChevronUp, ChevronDown, GripVertical, ImageIcon, ChevronRight } from 'lucide-react';
 import { ImageUploaderWithLibrary } from './ImageUploaderWithLibrary';
+import { cn } from '@/lib/utils';
+
 export interface BannerSlide {
   id: string;
   imageDesktop: string;
   imageMobile: string;
   linkUrl?: string;
   altText?: string;
+  // CTA per slide
+  hasEditableContent?: boolean;
+  title?: string;
+  subtitle?: string;
+  buttonText?: string;
+  buttonUrl?: string;
+  // Style per slide
+  overlayOpacity?: number;
+  textColor?: string;
+  alignment?: string;
+  buttonAlignment?: string;
+  buttonColor?: string;
+  buttonTextColor?: string;
+  buttonHoverBgColor?: string;
+  buttonHoverTextColor?: string;
 }
 
 interface BannerSlidesEditorProps {
@@ -23,20 +50,25 @@ interface BannerSlidesEditorProps {
 
 export function BannerSlidesEditor({ slides = [], onChange }: BannerSlidesEditorProps) {
   const safeSlides = Array.isArray(slides) ? slides : [];
+  // Only 1 slide expanded at a time
+  const [expandedSlide, setExpandedSlide] = useState<number | null>(null);
 
   const generateId = () => `slide-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
   const addSlide = () => {
-    onChange([...safeSlides, { 
+    const newIndex = safeSlides.length;
+    onChange([...safeSlides, {
       id: generateId(),
       imageDesktop: '',
       imageMobile: '',
       linkUrl: '',
       altText: `Banner ${safeSlides.length + 1}`,
+      hasEditableContent: false,
     }]);
+    setExpandedSlide(newIndex);
   };
 
-  const updateSlide = (index: number, field: keyof BannerSlide, value: string) => {
+  const updateSlide = (index: number, field: keyof BannerSlide, value: unknown) => {
     const newSlides = [...safeSlides];
     newSlides[index] = { ...newSlides[index], [field]: value };
     onChange(newSlides);
@@ -44,20 +76,30 @@ export function BannerSlidesEditor({ slides = [], onChange }: BannerSlidesEditor
 
   const removeSlide = (index: number) => {
     onChange(safeSlides.filter((_, i) => i !== index));
+    if (expandedSlide === index) setExpandedSlide(null);
+    else if (expandedSlide !== null && expandedSlide > index) setExpandedSlide(expandedSlide - 1);
   };
 
   const moveSlide = (index: number, direction: 'up' | 'down') => {
     if (direction === 'up' && index === 0) return;
     if (direction === 'down' && index === safeSlides.length - 1) return;
-    
+
     const newSlides = [...safeSlides];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     [newSlides[index], newSlides[targetIndex]] = [newSlides[targetIndex], newSlides[index]];
     onChange(newSlides);
+
+    // Follow the expanded slide
+    if (expandedSlide === index) setExpandedSlide(targetIndex);
+    else if (expandedSlide === targetIndex) setExpandedSlide(index);
+  };
+
+  const toggleSlide = (index: number) => {
+    setExpandedSlide(expandedSlide === index ? null : index);
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {safeSlides.length === 0 && (
         <div className="text-center py-4 text-muted-foreground border border-dashed rounded-lg">
           <ImageIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
@@ -65,97 +107,249 @@ export function BannerSlidesEditor({ slides = [], onChange }: BannerSlidesEditor
           <p className="text-xs">Adicione slides para criar um carrossel</p>
         </div>
       )}
-      
-      {safeSlides.map((slide, index) => (
-        <Card key={slide.id || index} className="p-3 space-y-3">
-          {/* Header with controls */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1 text-muted-foreground">
-              <GripVertical className="h-4 w-4" />
-              <span className="text-xs font-medium">Slide {index + 1}</span>
+
+      {safeSlides.map((slide, index) => {
+        const isExpanded = expandedSlide === index;
+        const previewImage = slide.imageDesktop || slide.imageMobile;
+        // Infer hasEditableContent for old slides
+        const hasEditable = slide.hasEditableContent !== undefined
+          ? Boolean(slide.hasEditableContent)
+          : !!(slide.title || slide.buttonText);
+
+        return (
+          <Card key={slide.id || index} className="overflow-hidden">
+            {/* Slide header — click to expand/collapse */}
+            <div
+              className={cn(
+                "flex items-center justify-between p-2.5 cursor-pointer transition-colors",
+                isExpanded ? "bg-muted/50" : "hover:bg-muted/30"
+              )}
+              onClick={() => toggleSlide(index)}
+            >
+              <div className="flex items-center gap-2">
+                <GripVertical className="h-4 w-4 text-muted-foreground" />
+                {previewImage ? (
+                  <img src={previewImage} alt="" className="w-10 h-6 object-cover rounded" />
+                ) : (
+                  <div className="w-10 h-6 bg-muted rounded flex items-center justify-center">
+                    <ImageIcon className="h-3 w-3 text-muted-foreground" />
+                  </div>
+                )}
+                <span className="text-xs font-medium">Slide {index + 1}</span>
+                {slide.altText && (
+                  <span className="text-[10px] text-muted-foreground truncate max-w-20">• {slide.altText}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="icon" className="h-6 w-6"
+                  onClick={(e) => { e.stopPropagation(); moveSlide(index, 'up'); }}
+                  disabled={index === 0}>
+                  <ChevronUp className="h-3 w-3" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-6 w-6"
+                  onClick={(e) => { e.stopPropagation(); moveSlide(index, 'down'); }}
+                  disabled={index === safeSlides.length - 1}>
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive"
+                  onClick={(e) => { e.stopPropagation(); removeSlide(index); }}>
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+                <ChevronRight className={cn(
+                  "h-3.5 w-3.5 text-muted-foreground transition-transform duration-200",
+                  isExpanded && "rotate-90"
+                )} />
+              </div>
             </div>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => moveSlide(index, 'up')}
-                disabled={index === 0}
-              >
-                <ChevronUp className="h-3 w-3" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => moveSlide(index, 'down')}
-                disabled={index === safeSlides.length - 1}
-              >
-                <ChevronDown className="h-3 w-3" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-destructive hover:text-destructive"
-                onClick={() => removeSlide(index)}
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
-            </div>
-          </div>
 
-          {/* Desktop Image */}
-          <div className="space-y-1.5">
-            <Label className="text-xs">Imagem Desktop</Label>
-            <ImageUploaderWithLibrary
-              value={slide.imageDesktop || ''}
-              onChange={(url) => updateSlide(index, 'imageDesktop', url)}
-              placeholder="Imagem principal do banner"
-              variant="desktop"
-            />
-            <p className="text-xs text-muted-foreground">Recomendado: 1920×800px (proporção 12:5)</p>
-          </div>
+            {/* Slide content — internal sections */}
+            {isExpanded && (
+              <div className="border-t p-2.5 space-y-2">
+                <SlideConfigSection slide={slide} index={index} hasEditable={hasEditable} onUpdate={updateSlide} />
+                <SlideImagesSection slide={slide} index={index} onUpdate={updateSlide} />
+                <SlideRefinementsSection slide={slide} index={index} hasEditable={hasEditable} onUpdate={updateSlide} />
+              </div>
+            )}
+          </Card>
+        );
+      })}
 
-          {/* Mobile Image */}
-          <div className="space-y-1.5">
-            <Label className="text-xs">Imagem Mobile</Label>
-            <ImageUploaderWithLibrary
-              value={slide.imageMobile || ''}
-              onChange={(url) => updateSlide(index, 'imageMobile', url)}
-              placeholder="Opcional - usa Desktop se vazio"
-              variant="mobile"
-            />
-            <p className="text-xs text-muted-foreground">Recomendado: 750×940px (proporção 4:5, vertical)</p>
-          </div>
-
-          {/* Link URL */}
-          <div className="space-y-1.5">
-            <Label className="text-xs">Link (opcional)</Label>
-            <Input
-              value={slide.linkUrl || ''}
-              onChange={(e) => updateSlide(index, 'linkUrl', e.target.value)}
-              placeholder="https://..."
-              className="h-8 text-sm"
-            />
-          </div>
-
-          {/* Alt Text */}
-          <div className="space-y-1.5">
-            <Label className="text-xs">Texto Alternativo</Label>
-            <Input
-              value={slide.altText || ''}
-              onChange={(e) => updateSlide(index, 'altText', e.target.value)}
-              placeholder="Descrição da imagem para acessibilidade"
-              className="h-8 text-sm"
-            />
-          </div>
-        </Card>
-      ))}
-      
       <Button variant="outline" size="sm" className="w-full gap-1" onClick={addSlide}>
         <Plus className="h-3 w-3" />
         Adicionar slide
       </Button>
+    </div>
+  );
+}
+
+// ===== Internal section components =====
+
+function SubSection({
+  icon, label, defaultOpen = false, children,
+}: { icon: string; label: string; defaultOpen?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger className="flex items-center justify-between w-full p-1.5 rounded bg-muted/40 hover:bg-muted/60 transition-colors">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs">{icon}</span>
+          <span className="font-medium text-[11px]">{label}</span>
+        </div>
+        <ChevronDown className={cn("h-3 w-3 transition-transform duration-200", open && "rotate-180")} />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="pt-2 pl-2 pr-1 space-y-2 border-l border-muted ml-1.5 mt-1">
+        {children}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function SlideConfigSection({ slide, index, hasEditable, onUpdate }: {
+  slide: BannerSlide; index: number; hasEditable: boolean;
+  onUpdate: (i: number, field: keyof BannerSlide, value: unknown) => void;
+}) {
+  return (
+    <SubSection icon="⚙️" label="Configurações" defaultOpen={true}>
+      <div className="flex items-center justify-between py-1">
+        <span className="text-xs text-muted-foreground">Conteúdo editável</span>
+        <Switch checked={hasEditable} onCheckedChange={v => onUpdate(index, 'hasEditableContent', v)} className="scale-90" />
+      </div>
+
+      {hasEditable && (
+        <div className="space-y-2 pt-1">
+          <div className="space-y-1">
+            <Label className="text-[10px] font-medium">Título</Label>
+            <Input value={slide.title || ''} onChange={e => onUpdate(index, 'title', e.target.value)} placeholder="Texto principal" className="h-7 text-xs" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] font-medium">Subtítulo</Label>
+            <Input value={slide.subtitle || ''} onChange={e => onUpdate(index, 'subtitle', e.target.value)} placeholder="Texto secundário" className="h-7 text-xs" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] font-medium">Texto do Botão</Label>
+            <Input value={slide.buttonText || ''} onChange={e => onUpdate(index, 'buttonText', e.target.value)} placeholder="Ex: Ver Produtos" className="h-7 text-xs" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] font-medium">Link do Botão</Label>
+            <Input value={slide.buttonUrl || ''} onChange={e => onUpdate(index, 'buttonUrl', e.target.value)} placeholder="/produtos" className="h-7 text-xs" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] font-medium">Alinhamento do Texto</Label>
+            <Select value={slide.alignment || 'center'} onValueChange={v => onUpdate(index, 'alignment', v)}>
+              <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="left" className="text-xs">Esquerda</SelectItem>
+                <SelectItem value="center" className="text-xs">Centro</SelectItem>
+                <SelectItem value="right" className="text-xs">Direita</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] font-medium">Alinhamento do Botão</Label>
+            <Select value={slide.buttonAlignment || 'auto'} onValueChange={v => onUpdate(index, 'buttonAlignment', v)}>
+              <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto" className="text-xs">Seguir Texto</SelectItem>
+                <SelectItem value="left" className="text-xs">Esquerda</SelectItem>
+                <SelectItem value="center" className="text-xs">Centro</SelectItem>
+                <SelectItem value="right" className="text-xs">Direita</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
+    </SubSection>
+  );
+}
+
+function SlideImagesSection({ slide, index, onUpdate }: {
+  slide: BannerSlide; index: number;
+  onUpdate: (i: number, field: keyof BannerSlide, value: unknown) => void;
+}) {
+  return (
+    <SubSection icon="🖼️" label="Imagens">
+      <div className="space-y-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Desktop</Label>
+          <ImageUploaderWithLibrary
+            value={slide.imageDesktop || ''}
+            onChange={url => onUpdate(index, 'imageDesktop', url)}
+            placeholder="Imagem principal"
+            variant="desktop"
+          />
+          <p className="text-[10px] text-muted-foreground">Rec: 1920×800px (12:5)</p>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Mobile</Label>
+          <ImageUploaderWithLibrary
+            value={slide.imageMobile || ''}
+            onChange={url => onUpdate(index, 'imageMobile', url)}
+            placeholder="Opcional — usa Desktop se vazio"
+            variant="mobile"
+          />
+          <p className="text-[10px] text-muted-foreground">Rec: 750×940px (4:5)</p>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[10px] font-medium">Texto Alternativo</Label>
+          <Input value={slide.altText || ''} onChange={e => onUpdate(index, 'altText', e.target.value)} placeholder="Descrição para acessibilidade" className="h-7 text-xs" />
+        </div>
+      </div>
+    </SubSection>
+  );
+}
+
+function SlideRefinementsSection({ slide, index, hasEditable, onUpdate }: {
+  slide: BannerSlide; index: number; hasEditable: boolean;
+  onUpdate: (i: number, field: keyof BannerSlide, value: unknown) => void;
+}) {
+  return (
+    <SubSection icon="🎨" label="Refinamentos">
+      {hasEditable && (
+        <div className="space-y-1">
+          <Label className="text-[10px] font-medium">Cor do Texto</Label>
+          <div className="flex items-center gap-1.5">
+            <input type="color" value={slide.textColor || '#ffffff'} onChange={e => onUpdate(index, 'textColor', e.target.value)} className="w-8 h-7 rounded border cursor-pointer" />
+            <Input value={slide.textColor || ''} onChange={e => onUpdate(index, 'textColor', e.target.value)} placeholder="#ffffff" className="flex-1 h-7 font-mono text-xs" />
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-1">
+        <Label className="text-[10px] font-medium">Escurecimento (%)</Label>
+        <div className="flex items-center gap-2">
+          <Slider value={[Number(slide.overlayOpacity) || 0]} onValueChange={([v]) => onUpdate(index, 'overlayOpacity', v)} min={0} max={100} step={1} className="flex-1" />
+          <Input type="number" value={Number(slide.overlayOpacity) || 0} onChange={e => onUpdate(index, 'overlayOpacity', Number(e.target.value))} min={0} max={100} className="w-14 h-7 text-xs" />
+        </div>
+      </div>
+
+      {hasEditable && (
+        <div className="space-y-2 pt-2 border-t border-border/50">
+          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Botão</p>
+          <ColorInline label="Cor de Fundo" value={slide.buttonColor || '#ffffff'} onChange={v => onUpdate(index, 'buttonColor', v)} />
+          <ColorInline label="Cor do Texto" value={slide.buttonTextColor || ''} onChange={v => onUpdate(index, 'buttonTextColor', v)} />
+          <ColorInline label="Fundo (Hover)" value={slide.buttonHoverBgColor || ''} onChange={v => onUpdate(index, 'buttonHoverBgColor', v)} />
+          <ColorInline label="Texto (Hover)" value={slide.buttonHoverTextColor || ''} onChange={v => onUpdate(index, 'buttonHoverTextColor', v)} />
+        </div>
+      )}
+
+      {!hasEditable && (
+        <div className="space-y-1">
+          <Label className="text-[10px] font-medium">Link do Slide</Label>
+          <Input value={slide.linkUrl || ''} onChange={e => onUpdate(index, 'linkUrl', e.target.value)} placeholder="URL ao clicar" className="h-7 text-xs" />
+        </div>
+      )}
+    </SubSection>
+  );
+}
+
+function ColorInline({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-[10px] font-medium">{label}</Label>
+      <div className="flex items-center gap-1.5">
+        <input type="color" value={value || '#000000'} onChange={e => onChange(e.target.value)} className="w-8 h-7 rounded border cursor-pointer" />
+        <Input value={value || ''} onChange={e => onChange(e.target.value)} placeholder="#000000" className="flex-1 h-7 font-mono text-xs" />
+      </div>
     </div>
   );
 }

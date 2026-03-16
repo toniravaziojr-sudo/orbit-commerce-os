@@ -3945,6 +3945,73 @@ Step 6: CONFIRMAÇÃO
 | Shared Module | visual-adapters/types | `supabase/functions/_shared/visual-adapters/types.ts` | Contratos genéricos: VisualGenerationRequest, VisualGenerationResult, OutputMode, RenderMode, ImageStyle, CompositionHint, BlockVisualAdapter |
 | Hook | useAIWizardGenerate | `src/hooks/useAIWizardGenerate.ts` | Chama edge function e aplica whitelist merge + scope filtering. Repassa outputMode e creativeStyle para o backend via bannerMode. System-derived props (`overlayOpacity`, `alignment`, `_renderMode`, `_hideOverlayText`) bypass whitelist. Inclui log de debug do payload enviado. |
 
+### BannerBlock — Refatoração Fase 1 (v4.0.0)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente / Regra Visual / Regra Lógica |
+| **Localização** | `BannerBlock.tsx`, `BannerPropsPanel.tsx`, `BannerSlidesEditor.tsx`, `PropsEditor.tsx`, `registry.ts`, `aiWizardRegistry.ts` |
+| **Descrição** | Painel do Banner reorganizado com sanfonas, visibilidade condicional e configuração por slide |
+
+#### Novas Props
+
+| Prop | Tipo | Default | Escopo | Descrição |
+|------|------|---------|--------|-----------|
+| `bannerType` | `'image' \| 'solid'` | `'image'` | Single only | Tipo de fundo do banner. Quando `solid`, esconde seção de imagens e usa `backgroundColor` |
+| `hasEditableContent` | `boolean` | `false` | Single + per slide | Controla se CTA (título/subtítulo/botão) é exibido. Quando `false`, mostra `linkUrl` |
+
+#### Compatibilidade com dados antigos
+
+- `bannerType` ausente → tratado como `'image'` (comportamento atual preservado)
+- `hasEditableContent` ausente → inferido: `true` se `title` ou `buttonText` preenchidos, `false` caso contrário
+- Slides antigos sem campos novos funcionam normalmente com defaults seguros
+- Props adicionadas ao `aiNeverTouches` — IA nunca altera esses campos
+
+#### Estrutura do painel — Banner Único
+
+| Seção | Estado padrão | Conteúdo |
+|-------|---------------|----------|
+| Modo (select) | Sempre visível | `single` / `carousel` |
+| ⚙️ Configurações | **Aberta** | `bannerType`, `hasEditableContent` toggle, dimensão, largura. Se editável: título, subtítulo, botão, alinhamentos |
+| 🖼️ Imagens | Fechada | Desktop + Mobile uploaders. Oculta quando `bannerType=solid` |
+| 🎨 Refinamentos | Fechada | Escurecimento, cores de texto/botão (se editável), `linkUrl` (se NÃO editável), `backgroundColor` (se solid) |
+
+#### Estrutura do painel — Carrossel
+
+| Seção | Estado padrão | Conteúdo |
+|-------|---------------|----------|
+| Modo (select) | Sempre visível | `single` / `carousel` |
+| ⚙️ Config do Carrossel | **Aberta** | Dimensão, largura, autoplay, setas, indicadores (GLOBAIS) |
+| Slides | Accordion (1 aberto por vez) | Cada slide com 3 sub-seções: ⚙️ Config (editável, CTA), 🖼️ Imagens, 🎨 Refinamentos |
+
+#### Props globais vs por slide no carrossel
+
+| Global | Por Slide |
+|--------|-----------|
+| `height`, `bannerWidth` | `imageDesktop`, `imageMobile`, `altText` |
+| `autoplaySeconds`, `showArrows`, `showDots` | `hasEditableContent`, `title`, `subtitle`, `buttonText`, `buttonUrl` |
+| | `overlayOpacity`, `textColor`, `alignment`, `buttonAlignment` |
+| | `buttonColor`, `buttonTextColor`, `buttonHoverBgColor`, `buttonHoverTextColor` |
+| | `linkUrl` (quando sem CTA) |
+
+#### Regra link vs CTA
+
+- `hasEditableContent=true` → campo `linkUrl` **oculto**, link feito via `buttonUrl`
+- `hasEditableContent=false` → campos CTA **ocultos**, `linkUrl` visível
+- Renderer já implementa: `if (currentLinkUrl && !hasCTA && !isBuilderMode)` → wraps em `<a>`
+
+#### Arquivos criados/alterados
+
+| Arquivo | Mudança |
+|---------|---------|
+| `BannerPropsPanel.tsx` | **NOVO** — Painel customizado com sanfonas para Banner |
+| `BannerSlidesEditor.tsx` | **REESCRITO** — Accordion por slide, sub-seções internas, CTA + refinamentos por slide |
+| `BannerBlock.tsx` | **REESCRITO** — Per-slide style resolution, `bannerType`, `hasEditableContent` com fallbacks |
+| `registry.ts` | Adicionadas props `bannerType`/`hasEditableContent`, labels de dimensão melhorados, `showWhen` condicionais |
+| `PropsEditor.tsx` | Detecta `Banner` e renderiza `BannerPropsPanel` em vez do loop genérico |
+| `aiWizardRegistry.ts` | `bannerType` e `hasEditableContent` adicionados ao `aiNeverTouches` |
+| `types.ts` | `showWhen` aceita `string | boolean` |
+
 ### BannerBlock Responsividade (v3.1.1)
 
 | Campo | Valor |
@@ -3952,7 +4019,7 @@ Step 6: CONFIRMAÇÃO
 | **Tipo** | Regra Visual |
 | **Localização** | `src/components/builder/blocks/BannerBlock.tsx` |
 | **Descrição** | O overlay de texto (título, subtítulo, botão) é totalmente responsivo para mobile |
-| **Comportamento** | Mobile: `text-2xl`, `text-sm`, padding `px-5 py-8`, maxWidth `100%`. Desktop: `text-5xl`, `text-2xl`, padding `px-16 py-12`, maxWidth `55%` (alinhado à esquerda) |
+| **Comportamento** | Mobile: título 1.5rem, subtítulo 0.875rem, padding 32px/20px. Desktop: título 3rem, subtítulo 1.5rem, padding 48px/64px, maxWidth 55% |
 | **Afeta** | Renderização do banner em dispositivos móveis e no modo mobile do builder |
 
 ### Grounding do Banner (v2.1.0)

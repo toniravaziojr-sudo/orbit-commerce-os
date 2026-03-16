@@ -20,6 +20,7 @@ import { ProductMultiSelect } from './ProductMultiSelect';
 import { CategoryMultiSelect, CategoryItemConfig } from './CategoryMultiSelect';
 import { FAQEditor, TestimonialsEditor, InfoHighlightsEditor, FeaturesEditor, StepsEditor, StatsEditor, AccordionItemsEditor, LogosEditor } from './ArrayEditor';
 import { BannerSlidesEditor, BannerSlide } from './BannerSlidesEditor';
+import { BannerPropsPanel } from './BannerPropsPanel';
 import { RichTextEditor } from './RichTextEditor';
 import { ImageUploader } from './ImageUploader';
 import { ImageUploaderWithLibrary } from './ImageUploaderWithLibrary';
@@ -354,22 +355,55 @@ export function PropsEditor({
       {/* Props */}
       <ScrollArea className="flex-1">
         <div className="p-3 pr-4 space-y-2.5">
-          {/* Header Notice Accordion - FIRST, collapsed by default */}
-          {isHeaderBlock && noticePropsEntries.length > 0 && (
+          {/* Banner custom panel — replaces generic loop */}
+          {definition.type === 'Banner' ? (
+            <BannerPropsPanel
+              props={props}
+              onChange={handleChange}
+            />
+          ) : (
             <>
-              <Collapsible open={noticeOpen} onOpenChange={setNoticeOpen}>
-                <CollapsibleTrigger className="flex items-center justify-between w-full p-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm">📢</span>
-                    <span className="font-medium text-xs">Aviso Geral</span>
-                  </div>
-                  <ChevronDown className={cn(
-                    "h-3.5 w-3.5 transition-transform duration-200",
-                    noticeOpen && "rotate-180"
-                  )} />
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pt-2 pl-2 pr-1 space-y-2 border-l-2 border-muted ml-2 mt-1.5">
-                  {noticePropsEntries.map(([key, schema]) => (
+              {/* Header Notice Accordion - FIRST, collapsed by default */}
+              {isHeaderBlock && noticePropsEntries.length > 0 && (
+                <>
+                  <Collapsible open={noticeOpen} onOpenChange={setNoticeOpen}>
+                    <CollapsibleTrigger className="flex items-center justify-between w-full p-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm">📢</span>
+                        <span className="font-medium text-xs">Aviso Geral</span>
+                      </div>
+                      <ChevronDown className={cn(
+                        "h-3.5 w-3.5 transition-transform duration-200",
+                        noticeOpen && "rotate-180"
+                      )} />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-2 pl-2 pr-1 space-y-2 border-l-2 border-muted ml-2 mt-1.5">
+                      {noticePropsEntries.map(([key, schema]) => (
+                        <PropField
+                          key={key}
+                          name={key}
+                          schema={schema}
+                          value={props[key] ?? schema.defaultValue}
+                          onChange={(value) => handleChange(key, value)}
+                          blockType={definition.type}
+                        />
+                      ))}
+                    </CollapsibleContent>
+                  </Collapsible>
+                  <Separator className="my-2" />
+                </>
+              )}
+              
+              {/* Generic props loop */}
+              {otherPropsEntries.length > 0 ? (
+                otherPropsEntries.map(([key, schema]) => {
+                  if (schema.showWhen) {
+                    const shouldShow = Object.entries(schema.showWhen).every(
+                      ([propKey, expectedValue]) => props[propKey] === expectedValue
+                    );
+                    if (!shouldShow) return null;
+                  }
+                  return (
                     <PropField
                       key={key}
                       name={key}
@@ -377,41 +411,17 @@ export function PropsEditor({
                       value={props[key] ?? schema.defaultValue}
                       onChange={(value) => handleChange(key, value)}
                       blockType={definition.type}
+                      allProps={props}
                     />
-                  ))}
-                </CollapsibleContent>
-              </Collapsible>
-              <Separator className="my-2" />
+                  );
+                })
+              ) : !isHeaderBlock && (
+                <div className="text-center py-6 text-muted-foreground">
+                  <Settings2 className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">Este bloco não possui propriedades editáveis.</p>
+                </div>
+              )}
             </>
-          )}
-          
-          {/* Header main props - AFTER the accordion */}
-          {otherPropsEntries.length > 0 ? (
-            otherPropsEntries.map(([key, schema]) => {
-              // Check showWhen condition
-              if (schema.showWhen) {
-                const shouldShow = Object.entries(schema.showWhen).every(
-                  ([propKey, expectedValue]) => props[propKey] === expectedValue
-                );
-                if (!shouldShow) return null;
-              }
-              return (
-                <PropField
-                  key={key}
-                  name={key}
-                  schema={schema}
-                  value={props[key] ?? schema.defaultValue}
-                  onChange={(value) => handleChange(key, value)}
-                  blockType={definition.type}
-                  allProps={props}
-                />
-              );
-            })
-          ) : !isHeaderBlock && (
-            <div className="text-center py-6 text-muted-foreground">
-              <Settings2 className="h-8 w-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">Este bloco não possui propriedades editáveis.</p>
-            </div>
           )}
         </div>
       </ScrollArea>
