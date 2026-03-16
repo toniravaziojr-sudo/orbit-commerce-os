@@ -129,8 +129,8 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
         supabase.rpc('count_unique_visitors', { p_tenant_id: tid, p_start: prevStart, p_end: prevEnd }),
         supabase.from('carts').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).gte('created_at', periodStart).lte('created_at', periodEnd),
         supabase.from('carts').select('id', { count: 'exact', head: true }).eq('tenant_id', tid).gte('created_at', prevStart).lte('created_at', prevEnd),
-        supabase.from('checkout_sessions').select('id, status, recovered_at, customer_email, customer_phone').eq('tenant_id', tid).gte('created_at', periodStart).lte('created_at', periodEnd),
-        supabase.from('checkout_sessions').select('id, status').eq('tenant_id', tid).gte('created_at', prevStart).lte('created_at', prevEnd),
+        supabase.from('checkout_sessions').select('id, status, recovered_at, customer_email, customer_phone, order_id').eq('tenant_id', tid).gte('created_at', periodStart).lte('created_at', periodEnd),
+        supabase.from('checkout_sessions').select('id, status, order_id').eq('tenant_id', tid).gte('created_at', prevStart).lte('created_at', prevEnd),
         // Ad spend - Meta
         supabase.from('meta_ad_insights').select('spend_cents').eq('tenant_id', tid).gte('date_start', periodStart.slice(0, 10)).lte('date_start', periodEnd.slice(0, 10)),
         supabase.from('meta_ad_insights').select('spend_cents').eq('tenant_id', tid).gte('date_start', prevStart.slice(0, 10)).lte('date_start', prevEnd.slice(0, 10)),
