@@ -760,6 +760,17 @@ const blockDefinitions: BlockDefinition[] = [
           { label: 'Direita', value: 'right' },
         ],
       },
+      buttonAlignment: {
+        type: 'select',
+        label: 'Alinhamento do Botão',
+        defaultValue: '',
+        options: [
+          { label: 'Seguir Texto', value: '' },
+          { label: 'Esquerda', value: 'left' },
+          { label: 'Centro', value: 'center' },
+          { label: 'Direita', value: 'right' },
+        ],
+      },
       backgroundColor: {
         type: 'color',
         label: 'Cor de Fundo (se sem imagem)',
