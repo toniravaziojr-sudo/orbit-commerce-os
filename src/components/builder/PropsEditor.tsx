@@ -35,7 +35,7 @@ import { useState } from 'react';
 import { useAIBlockFill } from '@/hooks/useAIBlockFill';
 import { getWizardContract } from '@/lib/builder/aiWizardRegistry';
 import { AIFillWizardDialog } from './ai-wizard/AIFillWizardDialog';
-import { Sparkles, Loader2 } from 'lucide-react';
+import { Sparkles, Loader2, RefreshCw } from 'lucide-react';
 
 interface PropsEditorProps {
   definition: BlockDefinition;
