@@ -329,7 +329,46 @@ export function buildStructuralRules(input: StructuralRulesInput): string {
   if (!isComplete) {
     const maxSize = isDesktop ? '30% da largura total' : '40% da altura total';
     lines.push(`- ❌ Produto NÃO pode ocupar mais de ${maxSize}`);
+}
+
+// ===== CONTENT SLOT RULES (no scrim, no safe areas) =====
+
+function buildContentSlotRules(
+  lines: string[],
+  slot: VisualSlot,
+  creativeStyle: ImageStyle,
+  hasPerson: boolean,
+): string {
+  lines.push(`\n🖼️ IMAGEM DE CONTEÚDO (SEM OVERLAY DE TEXTO):`);
+  lines.push(`- Esta imagem será exibida SOZINHA — não terá texto HTML sobreposto.`);
+  lines.push(`- NÃO precisa de zonas escuras, scrim ou safe areas.`);
+  lines.push(`- Composição EQUILIBRADA — o produto/cena pode ocupar toda a área.`);
+  lines.push(`- Enquadramento centralizado e harmonioso.`);
+
+  if (slot.composition === 'content_square') {
+    lines.push(`- Proporção 1:1 (quadrada) — composição simétrica ou bem balanceada.`);
+  } else if (slot.composition === 'content_portrait') {
+    lines.push(`- Proporção retrato/vertical — ideal para visualização mobile.`);
+  } else {
+    lines.push(`- Proporção paisagem/horizontal — composição fotográfica widescreen.`);
   }
+
+  // No-text rule still applies (no text baked into photo)
+  lines.push(`\n🚨 REGRA DE TEXTO:`);
+  lines.push(`- NÃO inclua texto, tipografia, watermarks ou badges na imagem.`);
+  lines.push(`- Rótulos do produto são OK se naturais à foto, mas NÃO devem ser o foco.`);
+
+  if (!hasPerson && creativeStyle !== 'promotional') {
+    lines.push(`- ❌ NENHUMA pessoa, mão ou modelo`);
+  }
+
+  lines.push(`\n✨ QUALIDADE:`);
+  lines.push(`- Resolução 4K, nitidez profissional`);
+  lines.push(`- Cores vibrantes e harmônicas`);
+  lines.push(`- Iluminação profissional`);
+  lines.push(`- O resultado deve parecer fotografia profissional de e-commerce`);
+
+  return lines.join('\n');
 
   // Quality
   lines.push(`\n✨ QUALIDADE:`);
