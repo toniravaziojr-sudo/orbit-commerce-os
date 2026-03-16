@@ -329,6 +329,16 @@ export function buildStructuralRules(input: StructuralRulesInput): string {
   if (!isComplete) {
     const maxSize = isDesktop ? '30% da largura total' : '40% da altura total';
     lines.push(`- ❌ Produto NÃO pode ocupar mais de ${maxSize}`);
+  }
+
+  // Quality
+  lines.push(`\n✨ QUALIDADE:`);
+  lines.push(`- Resolução 4K, nitidez profissional`);
+  lines.push(`- Cores vibrantes e harmônicas`);
+  lines.push(`- Iluminação profissional (estúdio ou natural conforme direção criativa)`);
+  lines.push(`- O resultado deve parecer uma peça comercial de campanha profissional`);
+
+  return lines.join('\n');
 }
 
 // ===== CONTENT SLOT RULES (no scrim, no safe areas) =====
