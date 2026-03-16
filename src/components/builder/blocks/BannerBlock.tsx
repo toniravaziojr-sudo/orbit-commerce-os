@@ -194,12 +194,20 @@ export function BannerBlock({
   );
   }
 
-  // Alignment classes
+  // Alignment classes (for text)
   const alignClass = {
     left: 'items-start text-left',
     center: 'items-center text-center',
     right: 'items-end text-right',
   }[alignment] || 'items-center text-center';
+
+  // Button alignment (falls back to text alignment if not set)
+  const effectiveButtonAlignment = buttonAlignment || alignment;
+  const btnAlignClass = {
+    left: 'justify-start',
+    center: 'justify-center',
+    right: 'justify-end',
+  }[effectiveButtonAlignment] || 'justify-center';
 
   // Button styles
   const btnId = `banner-btn-${Math.random().toString(36).substr(2, 9)}`;
