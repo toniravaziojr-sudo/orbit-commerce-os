@@ -157,6 +157,17 @@ export function CreativeStyleStep({ value, onChange }: CreativeStyleStepProps) {
             </Select>
           </div>
           <div>
+            <Label className="text-xs mb-1.5 block">Ambiente</Label>
+            <Select value={(config.environment as string) || 'studio'} onValueChange={(v) => updateConfig('environment', v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {ENVIRONMENTS.map((e) => (
+                  <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
             <Label className="text-xs mb-1.5 block">Tom visual</Label>
             <Select value={(config.tone as string) || 'lifestyle'} onValueChange={(v) => updateConfig('tone', v)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
