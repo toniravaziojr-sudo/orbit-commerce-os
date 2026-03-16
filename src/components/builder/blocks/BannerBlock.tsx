@@ -110,6 +110,7 @@ export function BannerBlock({
   overlayOpacity = 0,
   height = 'auto',
   bannerWidth = 'full',
+  layoutPreset,
   // Carousel
   slides = [],
   autoplaySeconds = 5,
