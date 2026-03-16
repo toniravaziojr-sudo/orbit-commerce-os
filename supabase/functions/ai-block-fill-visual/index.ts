@@ -667,11 +667,13 @@ serve(async (req) => {
       } else if (generateImages) {
         // Editable mode: set overlay + high-contrast button defaults for legibility
         if (isSingle) {
-          generatedProps.overlayOpacity = 35;
+          generatedProps.overlayOpacity = 40;
           generatedProps.alignment = 'left';
           generatedProps.textColor = '#ffffff';
           generatedProps.buttonColor = '#ffffff';
           generatedProps.buttonTextColor = '#1a1a1a';
+          generatedProps.buttonHoverBgColor = '#e0e0e0';
+          generatedProps.buttonHoverTextColor = '#000000';
         }
       }
 

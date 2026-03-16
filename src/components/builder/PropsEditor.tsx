@@ -331,6 +331,8 @@ export function PropsEditor({
                     console.error('[Regenerate] Error:', err);
                     const { toast } = await import('sonner');
                     toast.error('Erro ao regenerar');
+                    // Remove loading state on error
+                    onChange({ ...props, _isRegenerating: undefined });
                   } finally {
                     setIsRegenerating(false);
                   }
