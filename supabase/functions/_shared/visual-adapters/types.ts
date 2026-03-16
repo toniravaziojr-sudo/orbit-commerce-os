@@ -20,6 +20,9 @@ export type CompositionHint =
   | 'banner_mobile'    // 4:5, product center, safe area top
   | 'banner_desktop_complete' // 12:5, full composition, no safe areas
   | 'banner_mobile_complete'  // 4:5, full composition, no safe areas
+  | 'content_landscape' // 3:2, no safe areas, no scrim
+  | 'content_portrait'  // 4:5, no safe areas, no scrim
+  | 'content_square'    // 1:1, no safe areas, no scrim
   | 'square'           // 1:1
   | 'vertical'         // 9:16
   | 'horizontal'       // 16:9
