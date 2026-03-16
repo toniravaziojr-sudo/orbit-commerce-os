@@ -624,21 +624,90 @@ useQuery({
 
 ---
 
-## 🚨 Tratamento de Erros — Padrão v1.0
+## 🚨 Tratamento de Erros — Padrão v2.0
 
-> **REGRA OBRIGATÓRIA** — Aplica-se a TODOS os módulos do admin (Comando Central).
+> **REGRA OBRIGATÓRIA** — Aplica-se a TODOS os módulos do admin (Comando Central) e Builder.
 
 ### Princípio
 
 **Nenhum erro pode ser silencioso.** Todo erro deve resultar em feedback visual claro para o usuário.
 
+### Componente Base: `ErrorFallback`
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente visual/presentational |
+| **Localização** | `src/components/ui/error-fallback.tsx` |
+| **Descrição** | Componente base unificado para exibir erros em todo o sistema. Apenas renderiza — sem logging interno, sem lógica de captura. |
+
+#### Variantes
+
+| Variante | Quando usar | Comportamento |
+|----------|-------------|---------------|
+| `fullscreen` | Crash total de página (Admin, Builder) | Tela inteira com ícone, título, mensagem, botões "Tentar novamente" / "Recarregar página" / "Contatar suporte" |
+| `card` | Falha de seção ou query (ex: lista de produtos não carregou) | Card com bordas vermelhas, mesmos botões |
+| `inline` | Erro de bloco dentro do Builder | Faixa compacta com altura mínima fixa (80px), não expande nem empurra outros blocos |
+
+#### Props
+
+| Prop | Tipo | Obrigatória | Descrição |
+|------|------|-------------|-----------|
+| `variant` | `'fullscreen' \| 'card' \| 'inline'` | ✅ | Variante visual |
+| `title` | `string` | ❌ | Título do erro (tem default por variante) |
+| `message` | `string` | ❌ | Mensagem descritiva (tem default por variante) |
+| `onRetry` | `() => void` | ❌ | Callback para tentar novamente (reset boundary) |
+| `onReload` | `() => void` | ❌ | Callback para recarregar a página |
+| `showSupport` | `boolean` | ❌ | Exibe link de suporte (default: false) |
+| `supportHref` | `string` | ❌ | URL do link de suporte (default: '/support') |
+| `extraActions` | `ReactNode` | ❌ | Ações extras (ex: "Copiar Diagnóstico") |
+| `error` | `Error \| null` | ❌ | Erro original — detalhes técnicos visíveis apenas em debug |
+| `errorInfo` | `React.ErrorInfo \| null` | ❌ | Info do componente React que falhou |
+| `className` | `string` | ❌ | Classe CSS adicional |
+
+#### Detalhes Técnicos (Debug)
+
+| Regra | Descrição |
+|-------|-----------|
+| **Visibilidade** | Stack trace e component stack são exibidos APENAS em ambiente `development` OU quando `?debug=1` está na URL |
+| **Segurança** | A leitura de `?debug=1` usa try/catch seguro, não quebra fora do browser (SSR/edge) |
+| **Produção** | Em produção sem `?debug=1`, usuário vê apenas título + mensagem amigável + botões de ação |
+
 ### Camadas de Proteção
 
-| Camada | Componente | Descrição |
-|--------|-----------|-----------|
-| **Global** | `AdminErrorBoundary` (`src/components/layout/AdminErrorBoundary.tsx`) | Captura erros não tratados em qualquer componente do admin. Mostra tela de erro com botão "Tentar novamente" e "Contatar suporte" |
-| **Página** | `QueryErrorState` (`src/components/ui/query-error-state.tsx`) | Componente reutilizável para exibir quando uma query falha (`isError === true`) |
-| **Hook/Ação** | `showErrorToast` (`src/lib/error-toast.ts`) | Utilitário para categorizar erros e exibir toasts com mensagem clara |
+| Camada | Componente | Variante | Descrição |
+|--------|-----------|----------|-----------|
+| **Global (Admin)** | `AdminErrorBoundary` (`src/components/layout/AdminErrorBoundary.tsx`) | `fullscreen` | Captura erros não tratados no admin. Mostra tela com "Tentar novamente", "Recarregar" e "Contatar suporte" |
+| **Global (Builder)** | `BuilderErrorBoundary` (`src/components/builder/BuilderErrorBoundary.tsx`) | `fullscreen` | Captura erros no editor visual. Inclui "Copiar Diagnóstico" com dados completos (stack, componentStack, erros globais, URL, userAgent) |
+| **Bloco (Builder)** | `BlockErrorBoundary` (`src/components/builder/BlockErrorBoundary.tsx`) | `inline` | Captura erros em blocos individuais. Altura mínima 80px estável. Logging detalhado no console (block ID, type, page, React status). Inclui "Copiar" diagnóstico |
+| **Página (Query)** | `QueryErrorState` (`src/components/ui/query-error-state.tsx`) | `card` | Wrapper fino sobre ErrorFallback. Preserva API legada para ~20 páginas |
+| **Hook/Ação** | `showErrorToast` (`src/lib/error-toast.ts`) | — | Utilitário para categorizar erros e exibir toasts com mensagem clara |
+
+### QueryErrorState — API Preservada
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Componente wrapper |
+| **Localização** | `src/components/ui/query-error-state.tsx` |
+| **Descrição** | Wrapper fino sobre `ErrorFallback variant="card"`. Mantém a API exata usada em ~20 páginas existentes. |
+
+#### Props (NÃO ALTERAR — contrato legado)
+
+| Prop | Tipo | Default | Descrição |
+|------|------|---------|-----------|
+| `title` | `string` | `'Erro ao carregar dados'` | Título do erro |
+| `message` | `string` | `'Não foi possível carregar os dados. Tente novamente.'` | Mensagem descritiva |
+| `onRetry` | `() => void` | — | Callback para tentar novamente |
+| `showSupportLink` | `boolean` | `true` | Exibe link de suporte |
+| `className` | `string` | `''` | Classe CSS adicional |
+
+### BlockErrorBoundary — Regras de Layout
+
+| Regra | Descrição |
+|-------|-----------|
+| **Altura mínima** | `min-h-[80px]` — nunca colapsa a zero |
+| **Não empurra** | Não pode expandir indefinidamente ou desorganizar blocos vizinhos |
+| **Isolado** | Erro em um bloco NÃO afeta outros blocos — cada bloco tem seu boundary |
+| **Logging** | Detalhes técnicos vão para `console.group` (block ID, type, page, React instance status) — nunca na UI |
 
 ### Regras Obrigatórias
 
@@ -649,6 +718,7 @@ useQuery({
 | **Catches vazios proibidos** | `catch {}` vazio é proibido exceto para fallbacks de `localStorage` |
 | **Erros técnicos orientam suporte** | Erros de rede/500/timeout devem incluir "Se o problema persistir, entre em contato com o suporte" |
 | **Erros de permissão são claros** | Erros 403/RLS devem dizer "Você não tem permissão para esta ação" |
+| **ErrorFallback é só visual** | Sem logging interno, sem lógica de captura — só recebe props e renderiza |
 
 ### Categorias de Erro (error-toast.ts)
 
@@ -697,14 +767,30 @@ try {
 | `catch {}` vazio (exceto localStorage) | `catch (e) { toast.error("Mensagem clara") }` |
 | Página sem tratamento de `isError` | `if (isError) return <QueryErrorState ... />` |
 | Mensagem genérica "Algo deu errado" sem ação | Mensagem + botão "Tentar novamente" + link suporte |
+| Logging interno dentro do `ErrorFallback` | Logging fica nos ErrorBoundaries, nunca no componente visual |
+| Detalhes técnicos visíveis em produção | Stack trace só aparece com `?debug=1` ou em `development` |
+| Alterar props do `QueryErrorState` | API congelada — contrato legado de ~20 páginas |
+
+### Página de Teste (temporária)
+
+| Campo | Valor |
+|-------|-------|
+| **Rota** | `/dev/error-test` |
+| **Arquivo** | `src/pages/dev/ErrorTest.tsx` |
+| **Descrição** | Página temporária para validar visualmente as 3 variantes do ErrorFallback. Botões para forçar erro fullscreen, card (QueryErrorState), inline (BlockErrorBoundary com componente "Bomb") e preview estático do inline. |
+| **Status** | 🧪 Temporário — remover após validação visual |
 
 ### Arquivos de Referência
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `src/components/layout/AdminErrorBoundary.tsx` | ErrorBoundary global do admin |
-| `src/components/ui/query-error-state.tsx` | Componente de estado de erro em queries |
+| `src/components/ui/error-fallback.tsx` | Componente base unificado (3 variantes: fullscreen, card, inline) |
+| `src/components/layout/AdminErrorBoundary.tsx` | ErrorBoundary global do admin (usa fullscreen) |
+| `src/components/builder/BuilderErrorBoundary.tsx` | ErrorBoundary global do Builder (usa fullscreen + Copiar Diagnóstico) |
+| `src/components/builder/BlockErrorBoundary.tsx` | ErrorBoundary por bloco do Builder (usa inline) |
+| `src/components/ui/query-error-state.tsx` | Wrapper legado sobre ErrorFallback card |
 | `src/lib/error-toast.ts` | Utilitário centralizado de toast de erro |
+| `src/pages/dev/ErrorTest.tsx` | Página temporária de teste visual 🧪 |
 
 ---
 
