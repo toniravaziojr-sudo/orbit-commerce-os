@@ -361,7 +361,7 @@ export const categoryPageLayoutToStaticHTML: BlockCompilerFn = (
   return `
     ${jsonLd ? `<script type="application/ld+json">${jsonLd}</script>` : ''}
     ${styles}
-    <div style="max-width:1280px;margin:0 auto;padding:24px 16px;" data-sf-cat-container data-page-size="${PRODUCTS_PER_PAGE}" data-total="${totalProducts}">
+    <div style="max-width:1280px;margin:0 auto;padding:16px 16px 24px;" data-sf-cat-container data-page-size="${PRODUCTS_PER_PAGE}" data-total="${totalProducts}">
       ${mobileFilterHtml}
       <div class="sf-cat-layout">
         ${sidebarHtml}
