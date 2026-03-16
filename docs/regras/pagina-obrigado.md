@@ -168,7 +168,8 @@ Página de confirmação pós-compra com detalhes do pedido, ofertas de upsell e
 | **Localização** | `src/hooks/useRetryCardPayment.ts` |
 | **Parâmetros** | `retryToken: string` |
 | **Retorno** | `{ retryPayment, isRetrying, retryResult, resetRetryResult }` |
-| **Comportamento** | Chama edge function `retry-card-payment` com `retry_token` + dados do cartão → resultado classificado (success / cardDeclined / technicalError) |
+| **Comportamento** | Chama edge function `retry-card-payment` com `retry_token` + dados do cartão + `payment_attempt_id` → resultado classificado (success / cardDeclined / technicalError) |
+| **Idempotência (v4)** | Aceita `paymentAttemptId` opcional como 4º parâmetro de `retryPayment`. Enviado no body para o gateway usar como `X-Idempotency-Key`. |
 | **Não faz** | NÃO recebe CPF/endereço. NÃO cria pedido novo. NÃO permite PIX/boleto. |
 
 ### Edge Function: `retry-card-payment`
@@ -177,9 +178,10 @@ Página de confirmação pós-compra com detalhes do pedido, ofertas de upsell e
 |-------|-------|
 | **Tipo** | Edge Function |
 | **Localização** | `supabase/functions/retry-card-payment/index.ts` |
-| **Entrada** | `retry_token`, `card` (number, holder_name, exp_month, exp_year, cvv), `installments` |
+| **Entrada** | `retry_token`, `card` (number, holder_name, exp_month, exp_year, cvv), `installments`, `payment_attempt_id` (opcional, UUID) |
 | **Validação** | `validate_order_retry_token()` — retorna dados do pedido se token válido e pedido não pago |
 | **Processamento** | Detecta gateway ativo → monta payload com dados server-side → chama gateway → retorna resultado |
+| **Idempotência (v4)** | Passa `payment_attempt_id` para o gateway charge. Se não recebido, gera UUID fallback server-side. Cada clique de retry gera nova chave = nova cobrança legítima. |
 | **Pós-sucesso** | Invalida retry_token (seta null) |
 | **Segurança** | `verify_jwt = false` (público, mas protegido por retry_token) |
 
@@ -193,6 +195,7 @@ Página de confirmação pós-compra com detalhes do pedido, ofertas de upsell e
 | **Campos do formulário** | Número do cartão (com máscara), Nome no cartão, Mês/Ano validade, CVV (mascarado), Parcelas |
 | **CVV** | `type="password"` com toggle de visibilidade |
 | **Parcelas** | Calculadas a partir do total do pedido (1x a 12x) |
+| **Lock síncrono (v4)** | `useRef(false)` guard em `handleSubmit` — bloqueia clique duplo imediatamente. Gera `payment_attempt_id = crypto.randomUUID()` dentro do lock. Libera no `finally`. |
 | **CTA alternativa** | Texto informativo: "Precisa usar outra forma de pagamento? Entre em contato pelo WhatsApp." |
 
 ### CTA "Outra forma de pagamento" — Etapa 5 (IMPLEMENTADO v8.15.2)
