@@ -320,7 +320,7 @@ export function BannerBlock({
     >
       <div className={cn(
         'relative',
-        presetCfg.useAspect ? aspectClass : 'w-full h-full'
+        presetCfg.useAspect ? aspectClass : (presetCfg.naturalHeight ? 'w-full' : 'w-full h-full')
       )}
       style={{ minHeight: presetCfg.minHeight }}
       >
@@ -329,17 +329,17 @@ export function BannerBlock({
             <img
               src={isMobile && currentMobileImage ? currentMobileImage : currentDesktopImage}
               alt={currentSlide?.altText || currentTitle || 'Banner'}
-              className="w-full h-full object-cover"
+              className={presetCfg.naturalHeight ? 'w-full h-auto block' : 'w-full h-full object-cover'}
             />
           ) : (
-            <picture className="block w-full h-full">
+            <picture className={presetCfg.naturalHeight ? 'block w-full' : 'block w-full h-full'}>
               {currentMobileImage && currentMobileImage !== currentDesktopImage && (
                 <source media="(max-width: 767px)" srcSet={currentMobileImage} />
               )}
               <img
                 src={currentDesktopImage}
                 alt={currentSlide?.altText || currentTitle || 'Banner'}
-                className="w-full h-full object-cover"
+                className={presetCfg.naturalHeight ? 'w-full h-auto block' : 'w-full h-full object-cover'}
                 fetchPriority="high"
                 decoding="async"
                 width={1920}
@@ -348,7 +348,7 @@ export function BannerBlock({
             </picture>
           )
         ) : (
-          <div className="w-full h-full" style={{ backgroundColor: backgroundColor || '#f3f4f6' }} />
+          <div className="w-full h-full" style={{ backgroundColor: backgroundColor || '#f3f4f6', minHeight: presetCfg.naturalHeight ? '200px' : undefined }} />
         )}
 
         {/* Overlay */}
