@@ -230,10 +230,12 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
 
     let ctaHtml = '';
     if (hasCTA) {
+      const titleHtml = slideTitle ? `<h2 style="color:${textColor};">${escapeHtml(slideTitle)}</h2>` : '';
+      const subtitleHtml = slideSubtitle ? `<p style="color:${textColor};">${escapeHtml(slideSubtitle)}</p>` : '';
+      const buttonHtml = slideButtonText ? `<div class="${carouselId}-btn-wrap"><a href="${escapeHtml(slideButtonUrl)}" class="${carouselId}-btn" style="background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};">${escapeHtml(slideButtonText)}</a></div>` : '';
       ctaHtml = `<div class="${carouselId}-cta" style="align-items:${justifyContent};text-align:${textAlign};">
-        ${slideTitle ? `<h2 style="color:${textColor};">${escapeHtml(slideTitle)}</h2>` : ''}
-        ${slideSubtitle ? `<p style="color:${textColor};">${escapeHtml(slideSubtitle)}</p>` : ''}
-        ${slideButtonText ? `<a href="${escapeHtml(slideButtonUrl)}" class="${carouselId}-btn" style="background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};">${escapeHtml(slideButtonText)}</a>` : ''}
+        <div>${titleHtml}</div>
+        <div class="${carouselId}-bottom">${subtitleHtml}${buttonHtml}</div>
       </div>`;
     }
 
