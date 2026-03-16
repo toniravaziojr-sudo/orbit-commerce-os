@@ -90,7 +90,7 @@ export default function Payments() {
       )}
 
       {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatCard
           title="Total Recebido (Mês)"
           value={formatCurrency(stats.totalReceived)}
@@ -108,6 +108,13 @@ export default function Payments() {
           value={stats.approvedCount.toString()}
           icon={CreditCard}
           variant="primary"
+        />
+        <StatCard
+          title="Recusados (Mês)"
+          value={stats.declinedCount.toString()}
+          description={formatCurrency(stats.declinedTotal)}
+          icon={XCircle}
+          variant="destructive"
         />
         <StatCard
           title="Taxa de Aprovação"

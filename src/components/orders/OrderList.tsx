@@ -224,6 +224,16 @@ export function OrderList({
                         size="sm"
                       />
                       <span className="font-semibold text-sm">{order.order_number}</span>
+                      {order.retry_from_order_id && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Link2 className="h-3.5 w-3.5 text-info shrink-0" />
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-xs">
+                            Retentativa de pagamento
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell onClick={() => onView(order)} className="py-3">

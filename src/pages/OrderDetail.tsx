@@ -228,6 +228,36 @@ export default function OrderDetail() {
         </div>
       </div>
 
+      {/* Retry Banners (6B) */}
+      {retryOf && (
+        <div className="flex items-center gap-3 p-3 rounded-lg border border-info/30 bg-info/5">
+          <RefreshCw className="h-4 w-4 text-info shrink-0" />
+          <p className="text-sm">
+            Este pedido foi criado como retentativa do pedido{' '}
+            <button
+              onClick={() => navigate(`/orders/${retryOf.id}`)}
+              className="font-semibold text-info hover:underline"
+            >
+              {retryOf.order_number}
+            </button>
+          </p>
+        </div>
+      )}
+      {replacedBy && (
+        <div className="flex items-center gap-3 p-3 rounded-lg border border-warning/30 bg-warning/5">
+          <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
+          <p className="text-sm">
+            Este pedido foi substituído pelo pedido{' '}
+            <button
+              onClick={() => navigate(`/orders/${replacedBy.id}`)}
+              className="font-semibold text-warning hover:underline"
+            >
+              {replacedBy.order_number}
+            </button>
+          </p>
+        </div>
+      )}
+
       <Tabs defaultValue="details" className="space-y-4">
         <TabsList>
           <TabsTrigger value="details" className="gap-2">
