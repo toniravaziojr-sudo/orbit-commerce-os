@@ -605,11 +605,13 @@ serve(async (req) => {
     const storeCtx = await fetchStoreContext(supabase, tenantId);
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY") || null;
 
-    // Extract outputMode and creativeStyle from collectedData (Phase 1)
+    // Extract outputMode and creativeStyle from collectedData
+    // Banner stores in bannerMode; other blocks store in creativeStyle directly
     const bannerModeData = collectedData?.bannerMode;
+    const creativeStyleData = collectedData?.creativeStyle as { creativeStyle?: string; styleConfig?: Record<string, unknown> } | undefined;
     const outputMode: OutputMode = bannerModeData?.outputMode || 'editable';
-    const creativeStyle: ImageStyle = bannerModeData?.creativeStyle || 'product_natural';
-    const styleConfig: Record<string, unknown> = bannerModeData?.styleConfig || {};
+    const creativeStyle: ImageStyle = bannerModeData?.creativeStyle || creativeStyleData?.creativeStyle || 'product_natural';
+    const styleConfig: Record<string, unknown> = bannerModeData?.styleConfig || creativeStyleData?.styleConfig || {};
 
     // Debug: log full payload to verify propagation
     console.log(`[ai-block-fill-visual] PAYLOAD: blockType=${blockType} mode=${mode} scope=${scope} outputMode=${outputMode} creativeStyle=${creativeStyle}`);
