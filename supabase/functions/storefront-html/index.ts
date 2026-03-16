@@ -766,7 +766,7 @@ function buildFullPage(opts: {
   <style>${opts.themeCss}</style>
   ${opts.extraHead || ''}
 </head>
-<body>
+<body style="margin:0;padding:0;">
   ${opts.headerHtml}
   <main>
     ${opts.bodyHtml}

@@ -82,7 +82,7 @@ export function CategoryBannerBlock({
               <img
                 src={bannerMobile || bannerDesktop || ''}
                 alt={categoryName}
-                className="w-full h-auto"
+                className="w-full h-auto block"
                 style={{ 
                   maxHeight: '500px',
                   objectFit: 'cover',
@@ -95,19 +95,36 @@ export function CategoryBannerBlock({
             <div className="w-full aspect-[4/1] bg-gradient-to-br from-muted via-muted/80 to-muted-foreground/20" />
           )}
           
-          {/* Overlay - só aplica se overlayOpacity > 0 */}
-          {overlayOpacity > 0 && (
+          {/* Overlay + Title ON the banner (matches static HTML parity) */}
+          {(overlayOpacity > 0 || (showTitle && hasBannerImage)) && (
             <div 
-              className="absolute inset-0 bg-black pointer-events-none"
-              style={{ opacity: overlayOpacity / 100 }}
-            />
+              className="absolute inset-0 flex items-center pointer-events-none"
+              style={{ 
+                background: overlayOpacity > 0 ? `rgba(0,0,0,${overlayOpacity / 100})` : 'transparent',
+                justifyContent: titlePosition === 'left' ? 'flex-start' : titlePosition === 'right' ? 'flex-end' : 'center',
+                padding: '0 24px',
+              }}
+            >
+              {showTitle && hasBannerImage && (
+                <h1 
+                  className="text-2xl md:text-3xl font-bold"
+                  style={{ 
+                    color: '#fff', 
+                    textShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                    fontFamily: 'var(--sf-heading-font, inherit)',
+                  }}
+                >
+                  {categoryName}
+                </h1>
+              )}
+            </div>
           )}
         </div>
       )}
       
-      {/* Title - independente do banner, aparece se showTitle=true */}
-      {showTitle && (
-        <div className={`py-6 px-4 md:px-8 flex flex-col ${titlePositionClasses[titlePosition]}`}>
+      {/* Title below - only when NO banner image but showTitle=true */}
+      {showTitle && !hasBannerImage && (
+        <div className={`py-3 sm:py-4 md:py-6 px-4 md:px-8 flex flex-col ${titlePositionClasses[titlePosition]}`}>
           <div className={`max-w-4xl w-full ${titlePosition === 'center' ? 'text-center mx-auto' : titlePosition === 'right' ? 'text-right ml-auto' : ''}`}>
             <h1 className="text-2xl md:text-3xl font-bold text-foreground">
               {categoryName}
