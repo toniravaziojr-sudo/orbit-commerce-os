@@ -141,6 +141,7 @@ export function BuilderDraftPageSettingsProvider({ children }: BuilderDraftPageS
   });
 
   const hasDraftChanges = Object.values(draftPageSettings).some(v => v !== null);
+  const hasMountedDraftSyncRef = useRef(false);
 
   const hasPageDraftChanges = useCallback((pageType: PageSettingsKey): boolean => {
     return draftPageSettings[pageType] !== null;
