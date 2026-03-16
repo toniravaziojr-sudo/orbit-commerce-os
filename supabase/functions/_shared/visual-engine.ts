@@ -402,6 +402,7 @@ export async function generateForRequest(
   }
 
   const preferOpenAI = !!openaiApiKey && request.outputMode === 'complete';
+  const useFastModel = request.outputMode === 'editable';
 
   // Generate all slots in parallel
   const slotPromises = request.slots.map(async (slot) => {
@@ -417,6 +418,7 @@ export async function generateForRequest(
       prompt,
       referenceBase64,
       preferOpenAI,
+      useFastModel,
     );
 
     if (!result.imageBase64) {
