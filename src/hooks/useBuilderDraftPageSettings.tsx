@@ -222,6 +222,16 @@ export function BuilderDraftPageSettingsProvider({ children }: BuilderDraftPageS
     };
   }, [value]);
 
+  // Notifica observers APÓS commit do draft + sync da ref global.
+  // Isso evita leitura defasada no VisualBuilder (toggle invertido/atrasado).
+  useEffect(() => {
+    if (!hasMountedDraftSyncRef.current) {
+      hasMountedDraftSyncRef.current = true;
+      return;
+    }
+    notifyDraftPageSettingsChange();
+  }, [draftPageSettings]);
+
   return (
     <BuilderDraftPageSettingsContext.Provider value={value}>
       {children}
