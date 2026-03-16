@@ -276,7 +276,7 @@ export default function Pages() {
           {
             id: generateBlockId('Section'),
             type: 'Section',
-            props: { paddingY: 0, paddingX: 0, backgroundColor: 'transparent' },
+            props: { paddingY: 0, paddingX: 0, fullWidth: true, backgroundColor: 'transparent' },
             children: contentBlocks,
           },
           {
