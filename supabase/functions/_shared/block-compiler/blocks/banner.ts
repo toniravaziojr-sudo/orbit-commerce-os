@@ -47,7 +47,7 @@ export function bannerToStaticHTML(
 function buildCtaStyleTag(bannerId: string, alignment: string, buttonAlignment: string): string {
   const maxWidthDesktop = alignment !== 'center' ? 'max-width:55%;' : '';
   const btnAlignMap: Record<string, string> = { left: 'flex-start', center: 'center', right: 'flex-end' };
-  const effectiveBtnAlign = buttonAlignment || alignment;
+  const effectiveBtnAlign = (!buttonAlignment || buttonAlignment === 'auto') ? alignment : buttonAlignment;
   const btnJustify = btnAlignMap[effectiveBtnAlign] || 'center';
   return `<style>
 .${bannerId}-cta{position:absolute;inset:0;display:flex;flex-direction:column;z-index:2;padding:32px 20px;}
