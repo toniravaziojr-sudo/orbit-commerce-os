@@ -249,8 +249,8 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
             // Step 5: Link to original declined order
             retry_from_order_id: retryFromOrderId || undefined,
             retry_token: retryToken || undefined,  // param from caller, used to invalidate original order's token
-            // Meta CAPI is now handled client-side via marketing-capi-track edge function
-            // No need to pass browser identifiers in order creation
+            // Idempotency key to prevent duplicate order creation
+            checkout_attempt_id: checkoutAttemptId || undefined,
           },
         });
 
