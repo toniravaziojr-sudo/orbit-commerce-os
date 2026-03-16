@@ -1,0 +1,1 @@
+UPDATE payment_transactions SET amount = 22877 WHERE id = '643105c0-c8ac-41a5-bcd8-2e9de2eac564';
