@@ -50,6 +50,8 @@ interface ChargeRequest {
     cvv: string;
   };
   installments?: number;
+  // Idempotency key for gateway charge (prevents duplicate charges on same click)
+  payment_attempt_id?: string;
 }
 
 // Get Pagar.me credentials from database or fallback to Secrets
