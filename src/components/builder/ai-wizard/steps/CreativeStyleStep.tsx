@@ -97,7 +97,7 @@ export function CreativeStyleStep({ value, onChange }: CreativeStyleStepProps) {
     const s = newStyle as CreativeStyleType;
     let defaultConfig: Record<string, unknown> = {};
     if (s === 'product_natural') defaultConfig = { environment: 'studio', lighting: 'natural', mood: 'clean' };
-    if (s === 'person_interacting') defaultConfig = { action: 'holding', tone: 'lifestyle' };
+    if (s === 'person_interacting') defaultConfig = { action: 'holding', tone: 'lifestyle', environment: 'studio' };
     if (s === 'promotional') defaultConfig = { effectsIntensity: 'medium' };
     onChange({ creativeStyle: s, styleConfig: defaultConfig });
   };
