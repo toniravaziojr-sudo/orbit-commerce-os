@@ -50,8 +50,15 @@ const ENVIRONMENTS = [
   { value: 'nature', label: 'Natureza' },
   { value: 'kitchen', label: 'Cozinha' },
   { value: 'bedroom', label: 'Quarto' },
+  { value: 'living_room', label: 'Sala de estar' },
   { value: 'office', label: 'Escritório' },
   { value: 'gym', label: 'Academia' },
+  { value: 'outdoor', label: 'Área externa / Jardim' },
+  { value: 'pool', label: 'Piscina / Spa' },
+  { value: 'urban', label: 'Cenário urbano' },
+  { value: 'beach', label: 'Praia' },
+  { value: 'marble', label: 'Superfície de mármore' },
+  { value: 'wooden', label: 'Superfície de madeira' },
 ];
 
 const ACTIONS = [
