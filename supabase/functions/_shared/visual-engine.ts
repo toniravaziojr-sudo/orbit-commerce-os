@@ -199,6 +199,7 @@ export async function resilientGenerate(
   prompt: string,
   referenceImageBase64: string | null,
   preferOpenAI: boolean = false,
+  useFastModel: boolean = false,
 ): Promise<{ imageBase64: string | null; model: string; error?: string }> {
   if (preferOpenAI && openaiApiKey) {
     const attempt1 = await generateWithRealOpenAI(openaiApiKey, prompt, referenceImageBase64);
@@ -206,22 +207,32 @@ export async function resilientGenerate(
     console.warn(`[visual-engine] OpenAI failed: ${attempt1.error}. Falling back to Gemini...`);
   }
 
-  const attempt2 = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.primary, prompt, referenceImageBase64);
-  if (attempt2.imageBase64) return { imageBase64: attempt2.imageBase64, model: LOVABLE_MODELS.primary };
+  // For editable mode backgrounds, use the faster model to avoid timeout
+  const primaryModel = useFastModel ? LOVABLE_MODELS.fast : LOVABLE_MODELS.primary;
+  console.log(`[visual-engine] Using model: ${primaryModel} (fast=${useFastModel})`);
 
-  console.warn(`[visual-engine] Gemini Pro failed: ${attempt2.error}. Trying Flash...`);
+  const attempt2 = await generateWithLovableGateway(lovableApiKey, primaryModel, prompt, referenceImageBase64);
+  if (attempt2.imageBase64) return { imageBase64: attempt2.imageBase64, model: primaryModel };
 
-  const attempt3 = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.fallback, prompt, referenceImageBase64);
-  if (attempt3.imageBase64) return { imageBase64: attempt3.imageBase64, model: LOVABLE_MODELS.fallback };
+  // Fallback chain
+  if (useFastModel) {
+    // If fast failed, try the old fallback
+    console.warn(`[visual-engine] Fast model failed: ${attempt2.error}. Trying flash fallback...`);
+    const attempt3 = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.fallback, prompt, referenceImageBase64);
+    if (attempt3.imageBase64) return { imageBase64: attempt3.imageBase64, model: LOVABLE_MODELS.fallback };
+  } else {
+    console.warn(`[visual-engine] Gemini Pro failed: ${attempt2.error}. Trying Flash...`);
+    const attempt3 = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.fallback, prompt, referenceImageBase64);
+    if (attempt3.imageBase64) return { imageBase64: attempt3.imageBase64, model: LOVABLE_MODELS.fallback };
+  }
 
-  console.warn(`[visual-engine] Flash failed: ${attempt3.error}. Trying simplified prompt...`);
-
+  console.warn(`[visual-engine] All primary attempts failed. Trying simplified prompt...`);
   const productName = prompt.match(/"([^"]+)"/)?.[1] || 'produto';
   const simplifiedPrompt = `Crie uma fotografia profissional do produto "${productName}" em fundo escuro elegante. O produto deve ser IDÊNTICO à imagem de referência. Qualidade editorial.`;
-  const attempt4 = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.primary, simplifiedPrompt, referenceImageBase64);
-  if (attempt4.imageBase64) return { imageBase64: attempt4.imageBase64, model: `${LOVABLE_MODELS.primary} (simplified)` };
+  const attempt4 = await generateWithLovableGateway(lovableApiKey, primaryModel, simplifiedPrompt, referenceImageBase64);
+  if (attempt4.imageBase64) return { imageBase64: attempt4.imageBase64, model: `${primaryModel} (simplified)` };
 
-  return { imageBase64: null, model: LOVABLE_MODELS.primary, error: 'All generation attempts failed' };
+  return { imageBase64: null, model: primaryModel, error: 'All generation attempts failed' };
 }
 
 // ===== QA SCORER =====
