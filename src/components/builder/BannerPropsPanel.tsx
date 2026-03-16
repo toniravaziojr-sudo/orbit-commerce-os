@@ -320,29 +320,29 @@ function CarouselPanel({ props, onChange }: BannerPropsPanelProps) {
         <FieldWrapper label="Modelo do Banner">
           <Select value={(props.layoutPreset as string) || 'standard'} onValueChange={v => onChange('layoutPreset', v)}>
             <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="standard" className="text-xs">
-                <div className="flex flex-col items-start">
-                  <span>Padrão</span>
-                  <span className="text-[10px] text-muted-foreground">Proporcional, largura total</span>
+            <SelectContent className="min-w-[220px]">
+              <SelectItem value="standard" className="text-xs py-2">
+                <div className="flex flex-col items-start gap-0.5">
+                  <span className="font-medium text-foreground">Padrão</span>
+                  <span className="text-[10px] text-muted-foreground leading-tight">Proporcional, largura total</span>
                 </div>
               </SelectItem>
-              <SelectItem value="compact-centered" className="text-xs">
-                <div className="flex flex-col items-start">
-                  <span>Compacto centralizado</span>
-                  <span className="text-[10px] text-muted-foreground">Contido no desktop, compacto</span>
+              <SelectItem value="compact-centered" className="text-xs py-2">
+                <div className="flex flex-col items-start gap-0.5">
+                  <span className="font-medium text-foreground">Compacto centralizado</span>
+                  <span className="text-[10px] text-muted-foreground leading-tight">Contido no desktop, compacto</span>
                 </div>
               </SelectItem>
-              <SelectItem value="compact-full" className="text-xs">
-                <div className="flex flex-col items-start">
-                  <span>Compacto cheio</span>
-                  <span className="text-[10px] text-muted-foreground">Largura total, altura reduzida</span>
+              <SelectItem value="compact-full" className="text-xs py-2">
+                <div className="flex flex-col items-start gap-0.5">
+                  <span className="font-medium text-foreground">Compacto cheio</span>
+                  <span className="text-[10px] text-muted-foreground leading-tight">Largura total, altura reduzida</span>
                 </div>
               </SelectItem>
-              <SelectItem value="large" className="text-xs">
-                <div className="flex flex-col items-start">
-                  <span>Grande</span>
-                  <span className="text-[10px] text-muted-foreground">Tela cheia, máximo impacto</span>
+              <SelectItem value="large" className="text-xs py-2">
+                <div className="flex flex-col items-start gap-0.5">
+                  <span className="font-medium text-foreground">Grande</span>
+                  <span className="text-[10px] text-muted-foreground leading-tight">Tela cheia, máximo impacto</span>
                 </div>
               </SelectItem>
             </SelectContent>
