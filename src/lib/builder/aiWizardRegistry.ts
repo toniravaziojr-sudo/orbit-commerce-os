@@ -91,12 +91,22 @@ export interface ImageGalleryWizardData {
   briefing: string;
 }
 
+export interface ImageBlockWizardData {
+  briefing: string;
+}
+
+export interface ContentColumnsWizardData {
+  briefing: string;
+}
+
 export type WizardCollectedData =
   | BannerWizardData
   | BannerProductsWizardData
   | TextBannersWizardData
   | ImageCarouselWizardData
-  | ImageGalleryWizardData;
+  | ImageGalleryWizardData
+  | ImageBlockWizardData
+  | ContentColumnsWizardData;
 
 // --- Image Spec ---
 
@@ -146,6 +156,10 @@ export function getWizardContract(
       return IMAGE_CAROUSEL_CONTRACT;
     case 'ImageGallery':
       return IMAGE_GALLERY_CONTRACT;
+    case 'Image':
+      return IMAGE_BLOCK_CONTRACT;
+    case 'ContentColumns':
+      return CONTENT_COLUMNS_CONTRACT;
     default:
       return null;
   }
@@ -223,6 +237,18 @@ const BANNER_PRODUCTS_CONTRACT: WizardBlockContract = {
       id: 'sourceCheck',
       type: 'source-select',
       label: 'Fonte dos produtos',
+      required: true,
+    },
+    {
+      id: 'creativeStyle',
+      type: 'creative-style-select',
+      label: 'Estilo visual da imagem',
+      required: true,
+    },
+    {
+      id: 'scope',
+      type: 'scope-select',
+      label: 'O que deseja gerar?',
       required: true,
     },
     {
@@ -351,5 +377,86 @@ const IMAGE_GALLERY_CONTRACT: WizardBlockContract = {
   requiresImageGeneration: true,
   imageSpecs: [
     { key: 'image', width: 800, height: 800, label: 'Imagem da galeria' },
+  ],
+};
+
+// =============================================
+// IMAGE BLOCK CONTRACT — Pure image, no text
+// Steps: Creative Style → Briefing → Confirm
+// =============================================
+
+const IMAGE_BLOCK_CONTRACT: WizardBlockContract = {
+  steps: [
+    {
+      id: 'creativeStyle',
+      type: 'creative-style-select',
+      label: 'Estilo visual da imagem',
+      required: true,
+    },
+    {
+      id: 'briefing',
+      type: 'briefing',
+      label: 'Descreva a imagem desejada',
+      required: false,
+      placeholder: 'Ex: Produto em cenário natural, foto lifestyle...',
+    },
+    {
+      id: 'confirm',
+      type: 'confirm',
+      label: 'Confirmar e gerar',
+      required: true,
+    },
+  ],
+  aiGenerates: ['imageDesktop', 'imageMobile'],
+  aiNeverTouches: [
+    'alt', 'linkUrl', 'width', 'height', 'objectFit',
+    'objectPosition', 'aspectRatio', 'rounded', 'shadow',
+  ],
+  requiresImageGeneration: true,
+  hasTextGeneration: false,
+  imageSpecs: [
+    { key: 'imageDesktop', width: 1200, height: 800, label: 'Imagem Desktop' },
+    { key: 'imageMobile', width: 800, height: 1000, label: 'Imagem Mobile' },
+  ],
+};
+
+// =============================================
+// CONTENT COLUMNS CONTRACT — Image-only via wizard (texts via aiFillable)
+// Steps: Creative Style → Briefing → Confirm
+// =============================================
+
+const CONTENT_COLUMNS_CONTRACT: WizardBlockContract = {
+  steps: [
+    {
+      id: 'creativeStyle',
+      type: 'creative-style-select',
+      label: 'Estilo visual da imagem',
+      required: true,
+    },
+    {
+      id: 'briefing',
+      type: 'briefing',
+      label: 'Descreva a imagem desejada',
+      required: false,
+      placeholder: 'Ex: Imagem ilustrativa para a seção, foto do produto em uso...',
+    },
+    {
+      id: 'confirm',
+      type: 'confirm',
+      label: 'Confirmar e gerar',
+      required: true,
+    },
+  ],
+  aiGenerates: ['imageDesktop', 'imageMobile'],
+  aiNeverTouches: [
+    'title', 'subtitle', 'content', 'features', 'imagePosition',
+    'iconColor', 'showButton', 'buttonText', 'buttonUrl',
+    'backgroundColor', 'textColor',
+  ],
+  requiresImageGeneration: true,
+  hasTextGeneration: false,
+  imageSpecs: [
+    { key: 'imageDesktop', width: 800, height: 600, label: 'Imagem Desktop' },
+    { key: 'imageMobile', width: 600, height: 800, label: 'Imagem Mobile' },
   ],
 };

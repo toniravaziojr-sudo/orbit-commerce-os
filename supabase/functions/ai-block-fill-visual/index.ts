@@ -10,6 +10,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { generateForRequest, uploadToStorage } from "../_shared/visual-engine.ts";
 import { BannerAdapter } from "../_shared/visual-adapters/banner-adapter.ts";
+import { ImageAdapter } from "../_shared/visual-adapters/image-adapter.ts";
+import { ContentColumnsAdapter } from "../_shared/visual-adapters/content-columns-adapter.ts";
+import { BannerProductsAdapter } from "../_shared/visual-adapters/banner-products-adapter.ts";
 import type {
   ProductContext,
   CategoryContext,
@@ -61,6 +64,27 @@ const SERVER_CONTRACTS: Record<string, ServerContract> = {
     ],
     maxSlides: 3,
   },
+  'Image': {
+    aiGenerates: ['imageDesktop', 'imageMobile'],
+    imageSpecs: [
+      { key: 'imageDesktop', width: 1200, height: 800 },
+      { key: 'imageMobile', width: 800, height: 1000 },
+    ],
+  },
+  'ContentColumns': {
+    aiGenerates: ['imageDesktop', 'imageMobile'],
+    imageSpecs: [
+      { key: 'imageDesktop', width: 800, height: 600 },
+      { key: 'imageMobile', width: 600, height: 800 },
+    ],
+  },
+  'BannerProducts': {
+    aiGenerates: ['imageDesktop', 'imageMobile', 'title', 'description'],
+    imageSpecs: [
+      { key: 'imageDesktop', width: 600, height: 400 },
+      { key: 'imageMobile', width: 400, height: 500 },
+    ],
+  },
 };
 
 function resolveContract(blockType: string, mode?: string): ServerContract | null {
@@ -73,10 +97,16 @@ function resolveContract(blockType: string, mode?: string): ServerContract | nul
 // =============================================
 
 const bannerAdapter = new BannerAdapter();
+const imageAdapter = new ImageAdapter();
+const contentColumnsAdapter = new ContentColumnsAdapter();
+const bannerProductsAdapter = new BannerProductsAdapter();
 
 function getAdapter(blockType: string) {
   switch (blockType) {
     case 'Banner': return bannerAdapter;
+    case 'Image': return imageAdapter;
+    case 'ContentColumns': return contentColumnsAdapter;
+    case 'BannerProducts': return bannerProductsAdapter;
     default: return null;
   }
 }
@@ -409,6 +439,83 @@ Tom: ${tone.toneInstruction}`;
 }
 
 // =============================================
+// BANNER PRODUCTS TEXT GENERATION
+// =============================================
+
+async function generateBannerProductsTexts(
+  product: ProductContext | null,
+  category: CategoryContext | null,
+  store: StoreContext,
+  briefing?: string,
+  options?: { supabaseUrl: string; supabaseServiceKey: string },
+): Promise<{ title?: string; description?: string }> {
+  resetAIRouterCache();
+
+  let storeInfo = `Loja: "${store.storeName}".`;
+  if (store.storeDescription) storeInfo += ` Sobre: "${store.storeDescription.substring(0, 200)}".`;
+
+  const contextInfo = buildContextInfo(product, category);
+  const tone = detectCreativeTone(product, category, briefing);
+
+  const tools = [{
+    type: "function",
+    function: {
+      name: "generate_banner_products_texts",
+      description: "Generate a compelling title and description for a product showcase banner section.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Título curto e impactante. MÁXIMO 30 caracteres." },
+          description: { type: "string", description: "Descrição da seção. MÁXIMO 80 caracteres." },
+        },
+        required: ["title", "description"],
+        additionalProperties: false,
+      },
+    },
+  }];
+
+  const systemPrompt = `Você é um copywriter SÊNIOR de e-commerce brasileiro. Gere textos para uma seção de produtos em destaque.
+
+REGRAS:
+1. Português brasileiro correto.
+2. title: MÁXIMO 30 caracteres. Curta, impactante.
+3. description: MÁXIMO 80 caracteres. Complementar ao title.
+4. Use o nome REAL do produto/categoria.
+5. Tom: ${tone.toneInstruction}
+
+${storeInfo}
+${contextInfo}
+${briefing ? `Briefing: "${briefing}"` : ''}`;
+
+  if (!options) return {};
+
+  const { data } = await aiChatCompletionJSON("google/gemini-2.5-flash", {
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: "Gere título e descrição para esta seção de produtos." },
+    ],
+    tools,
+    tool_choice: { type: "function", function: { name: "generate_banner_products_texts" } },
+  }, {
+    supabaseUrl: options.supabaseUrl,
+    supabaseServiceKey: options.supabaseServiceKey,
+    logPrefix: '[ai-block-fill-visual:bp]',
+  });
+
+  const toolCall = data?.choices?.[0]?.message?.tool_calls?.[0];
+  if (toolCall?.function?.arguments) {
+    const parsed = typeof toolCall.function.arguments === 'string'
+      ? JSON.parse(toolCall.function.arguments)
+      : toolCall.function.arguments;
+    return {
+      title: sanitizeText(parsed.title).substring(0, 30),
+      description: sanitizeText(parsed.description).substring(0, 80),
+    };
+  }
+  return {};
+}
+
+// =============================================
 // MAIN HANDLER
 // =============================================
 
@@ -683,6 +790,167 @@ serve(async (req) => {
       try {
         const slideCount = isCarousel ? slideContexts.length : 1;
         const usageCents = (generateImages ? 8 * slideCount : 0) + (generateTextsFlag ? 2 : 0);
+        await supabase.rpc('record_ai_usage', { p_tenant_id: tenantId, p_usage_cents: usageCents });
+      } catch (e) {
+        console.warn("[ai-block-fill-visual] Failed to record usage:", e);
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, generatedProps }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // =============================================
+    // IMAGE — Pure image block, no text generation
+    // =============================================
+    if (blockType === 'Image') {
+      const adapter = getAdapter('Image')!;
+      const generatedProps: Record<string, unknown> = {};
+
+      // Pass aspectRatio from currentProps to adapter via styleConfig
+      const imageStyleConfig = { ...styleConfig, _aspectRatio: collectedData?.currentProps?.aspectRatio || 'auto' };
+
+      const adapterInput: AdapterInput = {
+        outputMode: 'editable',
+        creativeStyle,
+        styleConfig: imageStyleConfig,
+        briefing: briefing || '',
+        contexts: [{ product: productCtx, category: categoryCtx, associationType }],
+        store: storeCtx,
+        enableQA: false,
+      };
+
+      const requests = adapter.adapt(adapterInput);
+      console.log(`[ai-block-fill-visual] Image generating ${requests.length} request(s) via visual engine`);
+
+      const results = await Promise.all(
+        requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey))
+      );
+
+      Object.assign(generatedProps, adapter.mergeResults(results, adapterInput));
+
+      const elapsed = Date.now() - startTime;
+      console.log(`[ai-block-fill-visual] Image done in ${elapsed}ms`);
+
+      try {
+        await supabase.rpc('record_ai_usage', { p_tenant_id: tenantId, p_usage_cents: 8 });
+      } catch (e) {
+        console.warn("[ai-block-fill-visual] Failed to record usage:", e);
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, generatedProps }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // =============================================
+    // CONTENT COLUMNS — Image-only (texts via aiFillable)
+    // =============================================
+    if (blockType === 'ContentColumns') {
+      const adapter = getAdapter('ContentColumns')!;
+      const generatedProps: Record<string, unknown> = {};
+
+      const adapterInput: AdapterInput = {
+        outputMode: 'editable',
+        creativeStyle,
+        styleConfig,
+        briefing: briefing || '',
+        contexts: [{ product: productCtx, category: categoryCtx, associationType }],
+        store: storeCtx,
+        enableQA: false,
+      };
+
+      const requests = adapter.adapt(adapterInput);
+      console.log(`[ai-block-fill-visual] ContentColumns generating ${requests.length} request(s) via visual engine`);
+
+      const results = await Promise.all(
+        requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey))
+      );
+
+      Object.assign(generatedProps, adapter.mergeResults(results, adapterInput));
+
+      const elapsed = Date.now() - startTime;
+      console.log(`[ai-block-fill-visual] ContentColumns done in ${elapsed}ms`);
+
+      try {
+        await supabase.rpc('record_ai_usage', { p_tenant_id: tenantId, p_usage_cents: 8 });
+      } catch (e) {
+        console.warn("[ai-block-fill-visual] Failed to record usage:", e);
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, generatedProps }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // =============================================
+    // BANNER PRODUCTS — Image + text generation
+    // Grounding: first product from block's selection, or category
+    // =============================================
+    if (blockType === 'BannerProducts') {
+      const adapter = getAdapter('BannerProducts')!;
+      const generatedProps: Record<string, unknown> = {};
+
+      // Resolve grounding from block's current products
+      let bpProductCtx: ProductContext | null = null;
+      let bpCategoryCtx: CategoryContext | null = null;
+
+      const currentProps = collectedData?.currentProps || {};
+      const source = currentProps.source || 'manual';
+
+      if (source === 'manual' && Array.isArray(currentProps.productIds) && currentProps.productIds.length > 0) {
+        // Use FIRST product as primary grounding (documented rule)
+        bpProductCtx = await fetchProductContext(supabase, currentProps.productIds[0]);
+        console.log(`[ai-block-fill-visual] BannerProducts grounding: first product "${bpProductCtx?.name || 'not found'}" (of ${currentProps.productIds.length} total)`);
+      } else if (source === 'category' && currentProps.categoryId) {
+        bpCategoryCtx = await fetchCategoryContext(supabase, currentProps.categoryId);
+        console.log(`[ai-block-fill-visual] BannerProducts grounding: category "${bpCategoryCtx?.name || 'not found'}"`);
+      }
+
+      // Image generation
+      if (generateImages) {
+        const adapterInput: AdapterInput = {
+          outputMode: 'editable',
+          creativeStyle,
+          styleConfig,
+          briefing: briefing || '',
+          contexts: [{ product: bpProductCtx, category: bpCategoryCtx }],
+          store: storeCtx,
+          enableQA: false,
+        };
+
+        const requests = adapter.adapt(adapterInput);
+        console.log(`[ai-block-fill-visual] BannerProducts generating ${requests.length} request(s) via visual engine`);
+
+        const results = await Promise.all(
+          requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey))
+        );
+
+        Object.assign(generatedProps, adapter.mergeResults(results, adapterInput));
+      }
+
+      // Text generation (title + description)
+      if (generateTextsFlag) {
+        const bpContract = resolveContract('BannerProducts')!;
+        const textResult = await generateBannerProductsTexts(
+          bpProductCtx,
+          bpCategoryCtx,
+          storeCtx,
+          briefing,
+          { supabaseUrl: supabaseUrl!, supabaseServiceKey: supabaseServiceKey! },
+        );
+        if (bpContract.aiGenerates.includes('title')) generatedProps.title = textResult.title || '';
+        if (bpContract.aiGenerates.includes('description')) generatedProps.description = textResult.description || '';
+      }
+
+      const elapsed = Date.now() - startTime;
+      console.log(`[ai-block-fill-visual] BannerProducts done in ${elapsed}ms`);
+
+      try {
+        const usageCents = (generateImages ? 8 : 0) + (generateTextsFlag ? 2 : 0);
         await supabase.rpc('record_ai_usage', { p_tenant_id: tenantId, p_usage_cents: usageCents });
       } catch (e) {
         console.warn("[ai-block-fill-visual] Failed to record usage:", e);

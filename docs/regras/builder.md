@@ -4288,3 +4288,83 @@ Os botões flutuantes de WhatsApp e Chat possuem tamanhos responsivos configurá
 | **Valores** | `'small'` \| `'medium'` \| `'large'` |
 | **Padrão** | `'medium'` |
 | **CSS** | Dimensões injetadas via `<style>` com `!important`, sem inline styles nos elementos |
+
+---
+
+## 🎨 Geração Visual IA — Motor Compartilhado (Onda 1)
+
+### Arquitetura
+
+O motor visual é compartilhado entre todos os blocos que usam imagens. Cada bloco tem um **adapter exclusivo** que define dimensões, composição e mapeamento de propriedades.
+
+```
+┌─────────────────────────────────────────────────────┐
+│              ai-block-fill-visual (Edge)             │
+│                                                     │
+│  blockType ──► getAdapter(blockType) ──► Adapter    │
+│                                                     │
+│  Adapter.adapt()  → VisualGenerationRequest[]       │
+│  visual-engine    → VisualGenerationResult[]        │
+│  Adapter.merge()  → generatedProps                  │
+└─────────────────────────────────────────────────────┘
+```
+
+### Blocos Implementados (Onda 1)
+
+| Bloco | Adapter | Slots | Dimensões Desktop | Dimensões Mobile | Texto IA? | Composition Hint |
+|-------|---------|-------|-------------------|------------------|-----------|------------------|
+| **Banner** | `banner-adapter.ts` | imageDesktop, imageMobile | 1920×800 | 750×940 | Sim (title, subtitle, buttonText) | `banner_desktop` / `banner_mobile` |
+| **Image** | `image-adapter.ts` | imageDesktop, imageMobile | 1200×800 (varia com aspectRatio) | 800×1000 (varia) | Não | `content_landscape` / `content_portrait` / `content_square` |
+| **ContentColumns** | `content-columns-adapter.ts` | imageDesktop, imageMobile | 800×600 | 600×800 | Não (textos via aiFillable) | `content_landscape` / `content_portrait` |
+| **BannerProducts** | `banner-products-adapter.ts` | imageDesktop, imageMobile | 600×400 | 400×500 | Sim (title, description) | `content_landscape` / `content_portrait` |
+
+### Composition Hints
+
+| Hint | Comportamento |
+|------|--------------|
+| `banner_desktop` | 12:5, produto à direita, safe area (scrim) à esquerda para texto |
+| `banner_mobile` | 4:5, produto centro, safe area topo para texto |
+| `banner_desktop_complete` | 12:5, composição fechada, sem safe areas |
+| `banner_mobile_complete` | 4:5, composição fechada, sem safe areas |
+| `content_landscape` | 3:2 paisagem, SEM scrim, SEM safe areas — foto pura |
+| `content_portrait` | 4:5 retrato, SEM scrim, SEM safe areas — foto pura |
+| `content_square` | 1:1 quadrado, SEM scrim, SEM safe areas — foto pura |
+
+### Regra de Grounding (BannerProducts)
+
+Quando o bloco tem múltiplos produtos selecionados:
+- **O PRIMEIRO produto da lista é usado como grounding principal** (hero)
+- Se a fonte é "categoria", usa o contexto da categoria
+- Log identifica quantos produtos existem e qual foi escolhido
+
+### Wizard Contracts
+
+| Bloco | Steps |
+|-------|-------|
+| **Image** | Creative Style → Briefing → Confirm |
+| **ContentColumns** | Creative Style → Briefing → Confirm |
+| **BannerProducts** | Source Check → Creative Style → Scope → Briefing → Confirm |
+
+### Image Block — Respeito ao aspectRatio
+
+O adapter de Image lê o `aspectRatio` do bloco e ajusta as dimensões geradas:
+
+| aspectRatio | Desktop | Mobile |
+|-------------|---------|--------|
+| auto | 1200×800 | 800×1000 |
+| 1:1 | 1024×1024 | 800×800 |
+| 4:3 | 1200×900 | 800×600 |
+| 16:9 | 1280×720 | 800×450 |
+| 21:9 | 1680×720 | 800×343 |
+
+### Regeneração
+
+Todos os blocos novos são compatíveis com regeneração via `_lastWizardConfig`:
+- O hook `useAIWizardGenerate` salva a config do wizard no bloco
+- O botão ↻ no PropsEditor reutiliza exatamente os mesmos parâmetros
+- `_isRegenerating: undefined` para limpeza de estado
+
+### Ondas Futuras (planejadas, não implementadas)
+
+- **Onda 2:** TextBanners (4 slots flat independentes)
+- **Onda 3:** ImageCarousel e ImageGallery (arrays dinâmicos, cap de 6 por geração)
