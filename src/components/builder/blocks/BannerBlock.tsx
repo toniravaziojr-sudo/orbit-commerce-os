@@ -261,10 +261,10 @@ export function BannerBlock({
     return (
       <div className={cn(
         'relative bg-muted/30 flex items-center justify-center',
-        bannerWidth === 'full' ? 'w-full' : 'max-w-7xl mx-auto',
-        height === 'auto' ? aspectClass : ''
+        widthClass,
+        presetCfg.useAspect ? aspectClass : ''
       )}
-      style={{ minHeight: height !== 'auto' ? heightMap[height] : undefined }}
+      style={{ minHeight: presetCfg.minHeight }}
       >
         <div className="text-center text-muted-foreground">
           <ImageIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
