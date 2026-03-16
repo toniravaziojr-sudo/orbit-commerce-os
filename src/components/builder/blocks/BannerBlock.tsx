@@ -163,9 +163,20 @@ export function BannerBlock({
     ? context.viewport === 'mobile' 
     : realIsMobile;
 
+  // Resolve preset
+  const preset = resolvePreset(layoutPreset, height, bannerWidth);
+  const presetCfg = PRESET_CONFIG[preset];
+
   const aspectClass = isBuilderMode
     ? (isMobile ? 'aspect-[4/5]' : 'aspect-[12/5]')
     : 'aspect-[4/5] md:aspect-[12/5]';
+
+  // For compact-centered: contained on desktop, full on mobile
+  const widthClass = presetCfg.fullWidth
+    ? 'w-full'
+    : (isBuilderMode
+        ? (isMobile ? 'w-full' : 'max-w-7xl mx-auto')
+        : 'w-full md:max-w-7xl md:mx-auto');
 
   const safeSlides = Array.isArray(slides) ? slides : [];
   const isCarousel = mode === 'carousel' && safeSlides.length > 0;
