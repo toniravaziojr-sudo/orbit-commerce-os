@@ -4073,6 +4073,16 @@ O modo editável gera imagens de fundo para overlay HTML — qualquer texto embu
 
 > **REGRA:** O preâmbulo anti-texto é aplicado APENAS no modo `editable`. O modo `complete` pode conter texto se o modelo decidir.
 
+### Regeneração de Blocos (↻) — Regras de Estado
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Regra Lógica |
+| **Localização** | `src/components/builder/PropsEditor.tsx` |
+| **Descrição** | O botão ↻ regenera imagens/textos mantendo os mesmos parâmetros do wizard via `_lastWizardConfig` |
+| **Comportamento** | 1. Seta `_isRegenerating: true` no bloco → overlay de loading aparece. 2. Chama edge function. 3. No sucesso/erro, seta `_isRegenerating: undefined` para limpar o loading. |
+| **Erros/Edge cases** | `_isRegenerating` deve ser setado como `undefined` (NÃO usar `delete`). O `updateBlockProps` usa spread merge (`{...old, ...new}`) que não remove chaves ausentes — `delete` não funciona. |
+
 ### Regras de Merge
 
 1. Backend gera `generatedProps` filtrado pela whitelist server-side E pelo scope
