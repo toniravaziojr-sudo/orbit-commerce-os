@@ -3046,6 +3046,49 @@ Páginas SPA (carrinho, conta, rastreio, busca, quiz) ficavam presas em "Carrega
 
 ---
 
+## 🔧 Correção — Rastreabilidade de Frete em Simulation Mode (v2026-03-16)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Correção de rastreabilidade / observabilidade |
+| **Problema 1** | `shipping_quote_id` não era gravado no pedido quando a cotação tinha qualquer issue de validação (expirada, CEP diferente, fingerprint alterado, já usada) |
+| **Causa raiz 1** | `validatedQuoteId` só era atribuído dentro do `else` (sem issues). Se houvesse qualquer issue, ficava `null` e o pedido era criado sem vínculo |
+| **Problema 2** | `canonical_shipping` (preço do frete vindo do servidor) também só era extraído no cenário sem issues — auditoria ficava com preço do frontend |
+| **Causa raiz 2** | A extração do `all_options` estava dentro do mesmo bloco `else` |
+| **Problema 3** | `used_by_order_id` podia ser sobrescrito se a mesma cotação fosse reutilizada por outro pedido |
+| **Causa raiz 3** | O update era incondicional — não verificava se já existia um consumidor original |
+
+### Correções em `checkout-create-order/index.ts`
+
+| Antes | Depois |
+|-------|--------|
+| `validatedQuoteId` só era atribuído se zero issues | Agora é atribuído sempre que a cotação existe, independente de issues |
+| `canonical_shipping` só era extraído se zero issues | Agora é extraído sempre que a cotação existe |
+| Issues de validação impediam qualquer vínculo | Issues são logados mas não bloqueiam a rastreabilidade |
+| `used_by_order_id` era sobrescrito incondicionalmente | Agora verifica: se já tem `used_by_order_id`, preserva o original e apenas loga |
+| `used_at` era marcado antes da criação do pedido | Agora `used_at` e `used_by_order_id` são marcados juntos, após criação do pedido |
+
+### Regra estrutural — Rastreabilidade vs Consumo
+
+> **Conceitos distintos que não devem ser confundidos:**
+>
+> 1. **Rastreabilidade** (`shipping_quote_id` no pedido): vínculo de auditoria. Todo pedido que teve uma cotação de frete calculada DEVE registrar qual cotação foi usada, mesmo que a cotação tenha issues de validação. Isso permite investigar divergências de preço depois.
+>
+> 2. **Consumo** (`used_by_order_id` na cotação): indica qual pedido efetivamente "consumiu" aquela cotação. Uma cotação só pode ser consumida uma vez. Se `used_by_order_id` já estiver preenchido, o sistema NÃO sobrescreve — preserva o consumidor original.
+>
+> 3. **Simulation mode**: validações de frete logam issues mas NÃO bloqueiam a criação do pedido nem a rastreabilidade. Isso permite coletar dados reais de divergência sem impactar a operação.
+
+### Validação pós-deploy
+
+| O que validar | Consulta |
+|---------------|----------|
+| `shipping_quote_id` preenchido em pedidos novos | `SELECT id, order_number, shipping_quote_id FROM orders WHERE created_at > '2026-03-16' ORDER BY created_at DESC LIMIT 10` |
+| `order_price_audit` com cobertura | `SELECT o.order_number, a.id IS NOT NULL as has_audit FROM orders o LEFT JOIN order_price_audit a ON a.order_id = o.id WHERE o.created_at > '2026-03-16' ORDER BY o.created_at DESC` |
+| `canonical_shipping` vindo da cotação | `SELECT canonical_shipping, submitted_shipping, shipping_quote_id FROM order_price_audit WHERE created_at > '2026-03-16' ORDER BY created_at DESC` |
+| `used_by_order_id` preservado | `SELECT id, used_by_order_id, used_at FROM shipping_quotes WHERE used_at IS NOT NULL ORDER BY created_at DESC LIMIT 10` |
+
+---
+
 ## Marketing Reconcile (`marketing-reconcile`)
 
 ### Responsabilidade
