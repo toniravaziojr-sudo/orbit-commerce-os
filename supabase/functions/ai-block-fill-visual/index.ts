@@ -439,6 +439,83 @@ Tom: ${tone.toneInstruction}`;
 }
 
 // =============================================
+// BANNER PRODUCTS TEXT GENERATION
+// =============================================
+
+async function generateBannerProductsTexts(
+  product: ProductContext | null,
+  category: CategoryContext | null,
+  store: StoreContext,
+  briefing?: string,
+  options?: { supabaseUrl: string; supabaseServiceKey: string },
+): Promise<{ title?: string; description?: string }> {
+  resetAIRouterCache();
+
+  let storeInfo = `Loja: "${store.storeName}".`;
+  if (store.storeDescription) storeInfo += ` Sobre: "${store.storeDescription.substring(0, 200)}".`;
+
+  const contextInfo = buildContextInfo(product, category);
+  const tone = detectCreativeTone(product, category, briefing);
+
+  const tools = [{
+    type: "function",
+    function: {
+      name: "generate_banner_products_texts",
+      description: "Generate a compelling title and description for a product showcase banner section.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Título curto e impactante. MÁXIMO 30 caracteres." },
+          description: { type: "string", description: "Descrição da seção. MÁXIMO 80 caracteres." },
+        },
+        required: ["title", "description"],
+        additionalProperties: false,
+      },
+    },
+  }];
+
+  const systemPrompt = `Você é um copywriter SÊNIOR de e-commerce brasileiro. Gere textos para uma seção de produtos em destaque.
+
+REGRAS:
+1. Português brasileiro correto.
+2. title: MÁXIMO 30 caracteres. Curta, impactante.
+3. description: MÁXIMO 80 caracteres. Complementar ao title.
+4. Use o nome REAL do produto/categoria.
+5. Tom: ${tone.toneInstruction}
+
+${storeInfo}
+${contextInfo}
+${briefing ? `Briefing: "${briefing}"` : ''}`;
+
+  if (!options) return {};
+
+  const { data } = await aiChatCompletionJSON("google/gemini-2.5-flash", {
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: "Gere título e descrição para esta seção de produtos." },
+    ],
+    tools,
+    tool_choice: { type: "function", function: { name: "generate_banner_products_texts" } },
+  }, {
+    supabaseUrl: options.supabaseUrl,
+    supabaseServiceKey: options.supabaseServiceKey,
+    logPrefix: '[ai-block-fill-visual:bp]',
+  });
+
+  const toolCall = data?.choices?.[0]?.message?.tool_calls?.[0];
+  if (toolCall?.function?.arguments) {
+    const parsed = typeof toolCall.function.arguments === 'string'
+      ? JSON.parse(toolCall.function.arguments)
+      : toolCall.function.arguments;
+    return {
+      title: sanitizeText(parsed.title).substring(0, 30),
+      description: sanitizeText(parsed.description).substring(0, 80),
+    };
+  }
+  return {};
+}
+
+// =============================================
 // MAIN HANDLER
 // =============================================
 
