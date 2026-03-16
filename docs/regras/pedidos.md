@@ -156,7 +156,7 @@ interface Order {
 | **Comportamento** | O filtro canônico é: `.not('payment_gateway_id', 'is', null)`. Todo pedido real DEVE ter `payment_gateway_id` preenchido — isso é garantido por 3 pontos de gravação (ver abaixo). |
 | **Condições** | Um pedido é fantasma quando: `payment_gateway_id IS NULL`. Sem exceção. |
 | **Afeta** | `useOrders`, `useCustomerOrders`, `usePayments`, `useDashboardMetrics` — todas as queries de pedidos |
-| **Erros/Edge cases** | O cron `expire-stale-orders` eventualmente marca esses pedidos como expirados (30min), momento em que são tratados como checkouts abandonados. |
+| **Erros/Edge cases** | O cron `expire-stale-orders` cancela esses pedidos após 30min e emite evento `order.ghost_cancelled`. **NÃO marca checkout_session como abandoned** (v2026-03-16: regra de separação abandono × operacional). |
 
 **⚠️ REGRA DE OURO — Todo pedido real DEVE ter `payment_gateway_id`!**
 

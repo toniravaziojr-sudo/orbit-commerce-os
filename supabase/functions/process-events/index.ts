@@ -418,19 +418,40 @@ serve(async (req) => {
         stats.rules_matched++;
         hasMatchedAny = true;
 
-        // For abandoned_checkout, check if customer already has an order
+        // For abandoned_checkout: 2-layer protection
+        // REGRA: sem pedido = abandono | com pedido = fluxo operacional
         if (rule.rule_type === 'abandoned_checkout') {
+          // CAMADA 1 (prioridade máxima): Verificar se a sessão já tem pedido vinculado
+          const sessionId = (payload.session_id as string) || (payload.checkout_session_id as string) || '';
+          if (sessionId) {
+            const { data: linkedSession } = await supabase
+              .from('checkout_sessions')
+              .select('order_id')
+              .eq('id', sessionId)
+              .not('order_id', 'is', null)
+              .limit(1);
+
+            if (linkedSession && linkedSession.length > 0) {
+              console.log(`[process-events] Skipping abandoned checkout - session ${sessionId} has linked order (not abandonment, it's operational)`);
+              continue;
+            }
+          }
+
+          // CAMADA 2 (heurística complementar): Verificar se o cliente tem pedido aprovado recente (24h)
           const customerEmail = (payload.customer_email as string) || '';
           if (customerEmail) {
-            const { data: existingOrder } = await supabase
+            const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+            const { data: recentApprovedOrder } = await supabase
               .from('orders')
               .select('id')
               .eq('tenant_id', event.tenant_id)
               .ilike('customer_email', customerEmail)
+              .eq('payment_status', 'approved')
+              .gte('created_at', twentyFourHoursAgo)
               .limit(1);
 
-            if (existingOrder && existingOrder.length > 0) {
-              console.log(`[process-events] Skipping abandoned checkout - customer ${customerEmail} already has an order`);
+            if (recentApprovedOrder && recentApprovedOrder.length > 0) {
+              console.log(`[process-events] Skipping abandoned checkout - customer ${customerEmail} has recent approved order (within 24h)`);
               continue;
             }
           }

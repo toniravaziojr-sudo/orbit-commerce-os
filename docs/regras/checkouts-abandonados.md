@@ -145,15 +145,30 @@ Quando `checkout.abandoned` é disparado, pode triggerar:
 - Mensagem WhatsApp
 - Notificação para equipe
 
-### Integração com Ghost Orders (v2026-03-13)
+### Integração com Ghost Orders (v2026-03-16 — CORRIGIDO)
 
 Pedidos criados no banco mas que nunca foram registrados na operadora de pagamento (`payment_gateway_id = null`) são classificados como **ghost orders**. O cron `expire-stale-orders` automaticamente:
 
 1. Cancela o ghost order após 30 minutos
-2. Marca a `checkout_session` associada como `abandoned`
-3. O registro passa a aparecer na tela de Checkouts Abandonados
+2. Emite evento `order.ghost_cancelled` na `events_inbox`
+3. **NÃO marca** a `checkout_session` como `abandoned` (regra: com pedido = fluxo operacional)
 
-Isso garante que a equipe pode usar as ferramentas de recuperação (WhatsApp, email) para tentar converter essa venda.
+**Regra de separação (v2026-03-16):**
+- Sem pedido = checkout abandonado (aparece na tela de Checkouts Abandonados)
+- Com pedido (mesmo cancelado/ghost) = fluxo operacional (NÃO contamina métricas de abandono)
+
+### Proteção de Notificação para Abandono (v2026-03-16)
+
+O motor de notificações (`process-events`) usa 2 camadas de proteção para `abandoned_checkout`:
+
+| Camada | Verificação | Prioridade |
+|--------|------------|------------|
+| **1 — Sessão** | Se a `checkout_session` tem `order_id` preenchido → NÃO é abandono | Máxima |
+| **2 — Heurística** | Se o cliente tem pedido aprovado nas últimas 24h → skip | Complementar |
+
+### Stats/Dashboard (v2026-03-16)
+
+Métricas de abandono (`useDashboardMetrics`, `useCheckoutSessionsStats`) filtram por `order_id IS NULL`, garantindo que apenas abandonos reais (sem pedido vinculado) sejam contabilizados.
 
 ---
 

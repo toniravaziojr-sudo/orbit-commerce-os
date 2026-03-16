@@ -132,7 +132,7 @@ export function useCheckoutSessionsStats() {
       // IMPORTANTE: Só contar sessões com contato capturado
       const params = new URLSearchParams();
       params.set('tenant_id', `eq.${currentTenant.id}`);
-      params.set('select', 'status,total_estimated');
+      params.set('select', 'status,total_estimated,order_id');
       params.set('contact_captured_at', 'not.is.null');
 
       const response = await fetch(`${supabaseUrl}/rest/v1/checkout_sessions?${params.toString()}`, {
@@ -154,16 +154,17 @@ export function useCheckoutSessionsStats() {
         };
       }
 
-      const data: { status: string; total_estimated: number | null }[] = await response.json();
+      const data: { status: string; total_estimated: number | null; order_id: string | null }[] = await response.json();
+
+      // REGRA: só contar abandono real (sem pedido vinculado) — ghost orders não são abandono
+      const realAbandoned = data.filter(c => (c.status === 'abandoned' || c.status === 'recovered') && !c.order_id);
 
       const stats = {
-        total: data.filter(c => c.status === 'abandoned' || c.status === 'recovered').length,
-        abandoned: data.filter(c => c.status === 'abandoned' || c.status === 'recovered').length,
-        recovered: data.filter(c => c.status === 'recovered').length,
-        notRecovered: data.filter(c => c.status === 'abandoned').length,
-        totalValue: data
-          .filter(c => c.status === 'abandoned' || c.status === 'recovered')
-          .reduce((sum, c) => sum + (c.total_estimated || 0), 0),
+        total: realAbandoned.length,
+        abandoned: realAbandoned.length,
+        recovered: realAbandoned.filter(c => c.status === 'recovered').length,
+        notRecovered: realAbandoned.filter(c => c.status === 'abandoned').length,
+        totalValue: realAbandoned.reduce((sum, c) => sum + (c.total_estimated || 0), 0),
       };
 
       return stats;
