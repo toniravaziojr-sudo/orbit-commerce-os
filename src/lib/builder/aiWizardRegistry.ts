@@ -91,12 +91,22 @@ export interface ImageGalleryWizardData {
   briefing: string;
 }
 
+export interface ImageBlockWizardData {
+  briefing: string;
+}
+
+export interface ContentColumnsWizardData {
+  briefing: string;
+}
+
 export type WizardCollectedData =
   | BannerWizardData
   | BannerProductsWizardData
   | TextBannersWizardData
   | ImageCarouselWizardData
-  | ImageGalleryWizardData;
+  | ImageGalleryWizardData
+  | ImageBlockWizardData
+  | ContentColumnsWizardData;
 
 // --- Image Spec ---
 
