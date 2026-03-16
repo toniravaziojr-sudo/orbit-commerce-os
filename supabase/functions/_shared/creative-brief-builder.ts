@@ -364,8 +364,21 @@ export function buildFinalPrompt(request: VisualGenerationRequest, slot: VisualS
 
   const isDesktop = slot.composition.includes('desktop') || slot.composition === 'horizontal';
   const deviceLabel = isDesktop ? 'DESKTOP' : 'MOBILE';
+  const isEditable = request.outputMode !== 'complete';
 
-  return `═══════════════════════════════════════
+  // For editable mode, the ABSOLUTE FIRST thing the AI sees must be the no-text rule
+  const noTextPreamble = isEditable
+    ? `⛔ MANDATORY RULE — READ FIRST ⛔
+THIS IMAGE MUST CONTAIN ZERO TEXT. NO letters, words, numbers, logos, labels, watermarks, slogans, prices, badges, or ANY form of typography/writing. 
+The image is a PHOTOGRAPHIC BACKGROUND ONLY. All text will be added via HTML overlay AFTER generation.
+Any text rendered in the image is a CRITICAL DEFECT and will be rejected.
+Generate ONLY photography/scenery — absolutely NO written characters of any kind.
+
+═══════════════════════════════════════
+`
+    : '';
+
+  return `${noTextPreamble}═══════════════════════════════════════
 CREATIVE BRIEF — BANNER ${deviceLabel}
 ═══════════════════════════════════════
 
