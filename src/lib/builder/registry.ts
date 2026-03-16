@@ -636,7 +636,7 @@ const blockDefinitions: BlockDefinition[] = [
       buttonHoverBgColor: '',
       buttonHoverTextColor: '',
       alignment: 'center',
-      buttonAlignment: '',
+      buttonAlignment: 'auto',
       overlayOpacity: 0,
       height: 'auto',
       bannerWidth: 'full',
@@ -763,9 +763,9 @@ const blockDefinitions: BlockDefinition[] = [
       buttonAlignment: {
         type: 'select',
         label: 'Alinhamento do Botão',
-        defaultValue: '',
+        defaultValue: 'auto',
         options: [
-          { label: 'Seguir Texto', value: '' },
+          { label: 'Seguir Texto', value: 'auto' },
           { label: 'Esquerda', value: 'left' },
           { label: 'Centro', value: 'center' },
           { label: 'Direita', value: 'right' },

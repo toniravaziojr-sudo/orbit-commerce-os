@@ -44,7 +44,7 @@ interface BannerBlockProps {
   buttonHoverBgColor?: string;
   buttonHoverTextColor?: string;
   alignment?: 'left' | 'center' | 'right';
-  buttonAlignment?: 'left' | 'center' | 'right';
+  buttonAlignment?: 'left' | 'center' | 'right' | 'auto' | '';
   overlayOpacity?: number;
   height?: 'sm' | 'md' | 'lg' | 'full' | 'auto';
   bannerWidth?: 'full' | 'contained';
@@ -202,7 +202,7 @@ export function BannerBlock({
   }[alignment] || 'items-center text-center';
 
   // Button alignment (falls back to text alignment if not set)
-  const effectiveButtonAlignment = buttonAlignment || alignment;
+  const effectiveButtonAlignment = (!buttonAlignment || buttonAlignment === 'auto') ? alignment : buttonAlignment;
   const btnAlignClass = {
     left: 'justify-start',
     center: 'justify-center',

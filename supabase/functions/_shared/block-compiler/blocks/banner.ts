@@ -47,7 +47,7 @@ export function bannerToStaticHTML(
 function buildCtaStyleTag(bannerId: string, alignment: string, buttonAlignment: string): string {
   const maxWidthDesktop = alignment !== 'center' ? 'max-width:55%;' : '';
   const btnAlignMap: Record<string, string> = { left: 'flex-start', center: 'center', right: 'flex-end' };
-  const effectiveBtnAlign = buttonAlignment || alignment;
+  const effectiveBtnAlign = (!buttonAlignment || buttonAlignment === 'auto') ? alignment : buttonAlignment;
   const btnJustify = btnAlignMap[effectiveBtnAlign] || 'center';
   return `<style>
 .${bannerId}-cta{position:absolute;inset:0;display:flex;flex-direction:column;z-index:2;padding:32px 20px;}
@@ -91,7 +91,7 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
   const overlayOpacity = (props.overlayOpacity as number) || 0;
   const textColor = (props.textColor as string) || '#ffffff';
   const alignment = (props.alignment as string) || 'center';
-  const buttonAlignment = (props.buttonAlignment as string) || '';
+  const buttonAlignment = (props.buttonAlignment as string) || 'auto';
   const backgroundColor = (props.backgroundColor as string) || '';
   const bannerWidth = (props.bannerWidth as string) || 'full';
   const buttonColor = (props.buttonColor as string) || '#ffffff';
@@ -179,7 +179,7 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
   const overlayOpacity = (props.overlayOpacity as number) || 0;
   const textColor = (props.textColor as string) || '#ffffff';
   const alignment = (props.alignment as string) || 'center';
-  const buttonAlignment = (props.buttonAlignment as string) || '';
+  const buttonAlignment = (props.buttonAlignment as string) || 'auto';
   const buttonColor = (props.buttonColor as string) || '#ffffff';
   const buttonTextColor = (props.buttonTextColor as string) || (buttonColor ? '#ffffff' : '#1a1a1a');
   const alignMap: Record<string, string> = { left: 'flex-start', center: 'center', right: 'flex-end' };
