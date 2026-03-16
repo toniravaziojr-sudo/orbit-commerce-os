@@ -104,6 +104,7 @@ export default function OrderDetail() {
 
   const { order, items, history, isLoading, addNote, updateTrackingCode, updatePaymentStatus, updateShippingAddress, updateShippingStatus } = useOrderDetails(id);
   const { updateOrderStatus } = useOrders();
+  const { replacedBy, retryOf } = useRetryLinkedOrder(id, order?.retry_from_order_id);
 
   const handleStatusChange = (status: OrderStatus) => {
     if (id) {
