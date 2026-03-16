@@ -118,11 +118,24 @@ export function usePayments(options: UsePaymentsOptions = {}) {
 
       const approvalRate = totalCount && totalCount > 0 ? ((approvedCount || 0) / totalCount) * 100 : 0;
 
+      // Get declined payments this month
+      const { data: declinedData, count: declinedCount } = await supabase
+        .from('orders')
+        .select('total', { count: 'exact' })
+        .eq('tenant_id', currentTenant.id)
+        .eq('payment_status', 'declined')
+        .not('payment_gateway_id', 'is', null)
+        .gte('created_at', monthStart);
+
+      const declinedTotal = (declinedData || []).reduce((sum, o) => sum + (o.total || 0), 0);
+
       return {
         totalReceived,
         totalPending,
         approvedCount: approvedCount || 0,
         approvalRate,
+        declinedCount: declinedCount || 0,
+        declinedTotal,
       };
     },
     enabled: !!currentTenant?.id,
