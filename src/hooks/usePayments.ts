@@ -144,7 +144,7 @@ export function usePayments(options: UsePaymentsOptions = {}) {
   return {
     payments: paymentsQuery.data?.payments || [],
     totalCount: paymentsQuery.data?.totalCount || 0,
-    stats: statsQuery.data || { totalReceived: 0, totalPending: 0, approvedCount: 0, approvalRate: 0 },
+    stats: statsQuery.data || { totalReceived: 0, totalPending: 0, approvedCount: 0, approvalRate: 0, declinedCount: 0, declinedTotal: 0 },
     isLoading: paymentsQuery.isLoading,
     isStatsLoading: statsQuery.isLoading,
     error: paymentsQuery.error || statsQuery.error,

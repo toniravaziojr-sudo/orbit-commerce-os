@@ -93,6 +93,8 @@ export interface Order {
   customer_cpf: string | null;
   installments: number | null;
   installment_value: number | null;
+  // Retry linking (6B)
+  retry_from_order_id: string | null;
   // Computed: first sale flag
   is_first_sale?: boolean;
 }
