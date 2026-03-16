@@ -884,3 +884,60 @@ O código de auditoria de preços no `checkout-create-order` foi reimplantado em
 | `src/components/orders/OrderList.tsx` | Ícone de link para retry |
 | `src/hooks/usePayments.ts` | Stats `declinedCount` e `declinedTotal` |
 | `src/pages/Payments.tsx` | Card "Recusados (Mês)" |
+
+---
+
+## Idempotência e Snapshot Canônico (v4 — 2026-03-16)
+
+### Conceito
+
+Toda finalização de pedido segue 3 camadas de proteção:
+
+1. **Lock síncrono no frontend** — `useRef(false)` impede duplo clique antes de qualquer operação assíncrona
+2. **Snapshot canônico no servidor** — preços, frete e descontos são recalculados no servidor a partir do banco de dados; o frontend não define valores oficiais
+3. **Idempotência na cobrança** — cada tentativa de pagamento carrega uma chave única que impede cobranças duplicadas na operadora
+
+### Chaves de Idempotência
+
+| Chave | Gerada onde | Quando | Escopo |
+|---|---|---|---|
+| `checkout_attempt_id` (UUID) | Frontend, no clique em "Finalizar Pedido" | 1× por clique | Evita pedido duplicado no banco |
+| `payment_attempt_id` (UUID) | Frontend, no clique em "Finalizar Pedido" | 1× por clique | Evita cobrança duplicada no gateway (via `X-Idempotency-Key`) |
+| `payment_attempt_id` (UUID) | Frontend, no clique em "Tentar novamente" (Thank You) | 1× por clique de retry | Evita cobrança duplicada no retry |
+
+### Lock Síncrono
+
+| Componente | Ref | Proteção |
+|---|---|---|
+| `CheckoutStepWizard.tsx` | `submissionLockRef` | Bloqueia duplo clique em "Finalizar Pedido" |
+| `CheckoutContent.tsx` | `submissionLockRef` | Idem (checkout clássico) |
+| `ThankYouContent.tsx` (`CardRetrySection`) | `retryLockRef` | Bloqueia duplo clique em "Tentar novamente" |
+
+### Snapshot Canônico
+
+| Campo | Antes (v3) | Depois (v4) |
+|---|---|---|
+| `orders.subtotal` | `payload.subtotal` (frontend) | `canonicalSubtotal` (servidor) |
+| `orders.shipping_total` | `payload.shipping_total` (frontend) | `canonicalShipping` (servidor) |
+| `orders.discount_total` | `payload.discount_total` (frontend) | `canonicalDiscount` (servidor) |
+| `orders.total` | `payload.total` (frontend) | `canonicalTotal` (servidor) |
+| `order_items.unit_price` | `item.unit_price` (frontend) | Preço do DB (`productPriceMap` / `variantPriceMap`) |
+| Gateway amount | `Math.round(total * 100)` (frontend) | `canonical_total` retornado pelo servidor |
+
+### Risco Residual
+
+- `payment_method_discount` ainda vem do frontend (detectado via audit, validação server-side futura)
+
+### Arquivos Afetados
+
+| Arquivo | Mudança |
+|---------|---------|
+| `supabase/functions/checkout-create-order/index.ts` | Snapshot canônico oficial + idempotência via `checkout_attempt_id` |
+| `src/hooks/useCheckoutPayment.ts` | Aceita `checkoutAttemptId` + `paymentAttemptId`, usa `canonical_total` do servidor |
+| `src/components/storefront/checkout/CheckoutStepWizard.tsx` | `submissionLockRef` + geração de UUIDs |
+| `src/components/storefront/checkout/CheckoutContent.tsx` | `submissionLockRef` + geração de UUIDs |
+| `supabase/functions/pagarme-create-charge/index.ts` | `X-Idempotency-Key` via `payment_attempt_id` |
+| `supabase/functions/retry-card-payment/index.ts` | Aceita + repassa `payment_attempt_id` |
+| `src/hooks/useRetryCardPayment.ts` | Aceita `paymentAttemptId` como parâmetro |
+| `src/components/storefront/ThankYouContent.tsx` | `retryLockRef` + geração de `payment_attempt_id` |
+| Migration SQL | Coluna `checkout_attempt_id UUID` + índice único parcial em `orders` |
