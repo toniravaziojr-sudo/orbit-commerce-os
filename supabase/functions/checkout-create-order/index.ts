@@ -477,14 +477,30 @@ serve(async (req) => {
     // === LINK SHIPPING QUOTE TO ORDER (Security Plan v3.1) ===
     if (validatedQuoteId) {
       try {
-        const { error: linkError } = await supabase
+        // First check if quote was already consumed by another order
+        const { data: currentQuote } = await supabase
           .from('shipping_quotes')
-          .update({ used_by_order_id: orderId })
-          .eq('id', validatedQuoteId);
-        if (linkError) {
-          console.error('[checkout-create-order][QUOTE_AUDIT] Failed to link quote to order:', linkError.message);
+          .select('used_by_order_id, used_at')
+          .eq('id', validatedQuoteId)
+          .single();
+
+        if (currentQuote?.used_by_order_id) {
+          // Quote already consumed — preserve original consumer, just log
+          console.warn(`[checkout-create-order][QUOTE_AUDIT] Quote ${validatedQuoteId} already consumed by order ${currentQuote.used_by_order_id} — preserving original link, traceability maintained via shipping_quote_id on this order`);
         } else {
-          console.log(`[checkout-create-order][QUOTE_AUDIT] Quote ${validatedQuoteId} linked to order ${orderId}`);
+          // Quote not yet consumed — mark as used
+          const { error: linkError } = await supabase
+            .from('shipping_quotes')
+            .update({ 
+              used_by_order_id: orderId, 
+              used_at: new Date().toISOString() 
+            })
+            .eq('id', validatedQuoteId);
+          if (linkError) {
+            console.error('[checkout-create-order][QUOTE_AUDIT] Failed to link quote to order:', linkError.message);
+          } else {
+            console.log(`[checkout-create-order][QUOTE_AUDIT] Quote ${validatedQuoteId} linked to order ${orderId}`);
+          }
         }
       } catch (linkErr) {
         console.warn('[checkout-create-order][QUOTE_AUDIT] Non-blocking quote link error:', linkErr);
