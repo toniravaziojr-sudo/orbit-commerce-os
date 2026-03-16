@@ -97,10 +97,16 @@ function resolveContract(blockType: string, mode?: string): ServerContract | nul
 // =============================================
 
 const bannerAdapter = new BannerAdapter();
+const imageAdapter = new ImageAdapter();
+const contentColumnsAdapter = new ContentColumnsAdapter();
+const bannerProductsAdapter = new BannerProductsAdapter();
 
 function getAdapter(blockType: string) {
   switch (blockType) {
     case 'Banner': return bannerAdapter;
+    case 'Image': return imageAdapter;
+    case 'ContentColumns': return contentColumnsAdapter;
+    case 'BannerProducts': return bannerProductsAdapter;
     default: return null;
   }
 }
