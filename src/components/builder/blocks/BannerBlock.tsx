@@ -88,6 +88,7 @@ export function BannerBlock({
   buttonHoverBgColor,
   buttonHoverTextColor,
   alignment = 'center',
+  buttonAlignment,
   overlayOpacity = 0,
   height = 'auto',
   bannerWidth = 'full',
