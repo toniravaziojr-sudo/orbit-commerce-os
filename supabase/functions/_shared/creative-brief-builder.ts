@@ -225,14 +225,20 @@ interface StructuralRulesInput {
  */
 export function buildStructuralRules(input: StructuralRulesInput): string {
   const { slot, outputMode, creativeStyle } = input;
-  const isDesktop = slot.composition.includes('desktop') || slot.composition === 'horizontal';
+  const isContentSlot = slot.composition.startsWith('content_');
+  const isDesktop = slot.composition.includes('desktop') || slot.composition === 'horizontal' || slot.composition === 'content_landscape';
   const isComplete = outputMode === 'complete';
   const hasPerson = creativeStyle === 'person_interacting';
 
   const lines: string[] = [];
 
   // Dimensions
-  lines.push(`📐 DIMENSÕES: ${slot.width}x${slot.height}px (${isDesktop ? 'horizontal widescreen' : 'vertical retrato/mobile'})`);
+  lines.push(`📐 DIMENSÕES: ${slot.width}x${slot.height}px (${isDesktop ? 'horizontal' : slot.composition === 'content_square' ? 'quadrado' : 'vertical'})`);
+
+  // Content slots: NO scrim, NO safe areas, NO overlay — pure photographic image
+  if (isContentSlot) {
+    return buildContentSlotRules(lines, slot, creativeStyle, hasPerson);
+  }
 
   if (isComplete) {
     // Complete mode: full composition with strict safe-area rules
