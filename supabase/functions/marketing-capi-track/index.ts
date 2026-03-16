@@ -117,10 +117,11 @@ serve(async (req) => {
       });
     }
 
-    // Get client IP and user agent from request headers for better matching
-    const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() 
-      || req.headers.get('cf-connecting-ip')
+    // Get client IP - prefer headers that preserve the real client IP (including IPv6)
+    // Priority: cf-connecting-ip (Cloudflare real IP) > x-real-ip > x-forwarded-for (first entry)
+    const clientIp = req.headers.get('cf-connecting-ip')
       || req.headers.get('x-real-ip')
+      || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
       || null;
     const clientUserAgent = req.headers.get('user-agent') || null;
 
