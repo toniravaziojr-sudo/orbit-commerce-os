@@ -265,71 +265,148 @@ export function BannerBlock({
         {hasCTA && (
           <div 
             className={cn(
-              "absolute inset-0 flex flex-col justify-center z-10",
-              alignClass,
+              "absolute inset-0 flex flex-col z-10",
+              isMobile 
+                ? 'items-center justify-between' 
+                : cn('justify-center', alignClass),
             )}
             style={{ 
-              padding: isMobile ? '24px 20px' : '48px 64px',
+              padding: isMobile ? '32px 20px 28px' : '48px 64px',
               maxWidth: isMobile ? '100%' : (alignment === 'center' ? '100%' : '55%'),
             }}
           >
-            {currentTitle && (
-              <h2 
-                className="font-bold leading-tight"
-                style={{ 
-                  color: textColor,
-                  fontSize: isMobile ? '1.5rem' : '3rem',
-                  marginBottom: isMobile ? '0.5rem' : '1rem',
-                }}
-              >
-                {currentTitle}
-              </h2>
-            )}
-            {currentSubtitle && (
-              <p 
-                className="opacity-90 leading-snug"
-                style={{ 
-                  color: textColor,
-                  fontSize: isMobile ? '0.875rem' : '1.5rem',
-                  marginBottom: isMobile ? '1rem' : '2rem',
-                }}
-              >
-                {currentSubtitle}
-              </p>
-            )}
-            {currentButtonText && (
+            {/* MOBILE: Title at top */}
+            {isMobile ? (
               <>
-                <style>{`
-                  .${btnId} {
-                    background-color: ${baseBgColor};
-                    color: ${baseTextColor};
-                  }
-                  .${btnId}:hover {
-                    background-color: ${hoverBg};
-                    color: ${hoverText};
-                  }
-                `}</style>
-                {isBuilderMode ? (
-                  <span 
-                    className={`${btnId} inline-block rounded-lg font-semibold transition-colors cursor-pointer`}
-                    style={{
-                      padding: isMobile ? '0.625rem 1.25rem' : '1rem 2.5rem',
-                      fontSize: isMobile ? '0.875rem' : '1.125rem',
+                {/* Top zone: Title */}
+                <div className="w-full text-center">
+                  {currentTitle && (
+                    <h2 
+                      className="font-bold leading-tight"
+                      style={{ 
+                        color: textColor,
+                        fontSize: '1.5rem',
+                      }}
+                    >
+                      {currentTitle}
+                    </h2>
+                  )}
+                </div>
+
+                {/* Bottom zone: Subtitle + Button centered */}
+                <div className="w-full text-center flex flex-col items-center">
+                  {currentSubtitle && (
+                    <p 
+                      className="opacity-90 leading-snug"
+                      style={{ 
+                        color: textColor,
+                        fontSize: '0.875rem',
+                        marginBottom: '0.75rem',
+                      }}
+                    >
+                      {currentSubtitle}
+                    </p>
+                  )}
+                  {currentButtonText && (
+                    <>
+                      <style>{`
+                        .${btnId} {
+                          background-color: ${baseBgColor};
+                          color: ${baseTextColor};
+                        }
+                        .${btnId}:hover {
+                          background-color: ${hoverBg};
+                          color: ${hoverText};
+                        }
+                      `}</style>
+                      {isBuilderMode ? (
+                        <span 
+                          className={`${btnId} inline-block rounded-lg font-semibold transition-colors cursor-pointer`}
+                          style={{
+                            padding: '0.625rem 1.25rem',
+                            fontSize: '0.875rem',
+                          }}
+                        >
+                          {currentButtonText}
+                        </span>
+                      ) : (
+                        <a 
+                          href={currentButtonUrl || '#'} 
+                          className={`${btnId} inline-block rounded-lg font-semibold transition-colors`}
+                          style={{
+                            padding: '0.625rem 1.25rem',
+                            fontSize: '0.875rem',
+                          }}
+                        >
+                          {currentButtonText}
+                        </a>
+                      )}
+                    </>
+                  )}
+                </div>
+              </>
+            ) : (
+              /* DESKTOP: Original layout */
+              <>
+                {currentTitle && (
+                  <h2 
+                    className="font-bold leading-tight"
+                    style={{ 
+                      color: textColor,
+                      fontSize: '3rem',
+                      marginBottom: '1rem',
                     }}
                   >
-                    {currentButtonText}
-                  </span>
-                ) : (
-                  <a 
-                    href={currentButtonUrl || '#'} 
-                    className={`${btnId} inline-block rounded-lg font-semibold transition-colors`}
-                    style={{
-                      padding: isMobile ? '0.625rem 1.25rem' : '1rem 2.5rem',
-                      fontSize: isMobile ? '0.875rem' : '1.125rem',
+                    {currentTitle}
+                  </h2>
+                )}
+                {currentSubtitle && (
+                  <p 
+                    className="opacity-90 leading-snug"
+                    style={{ 
+                      color: textColor,
+                      fontSize: '1.5rem',
+                      marginBottom: '2rem',
                     }}
                   >
-                    {currentButtonText}
-                  </a>
+                    {currentSubtitle}
+                  </p>
+                )}
+                {currentButtonText && (
+                  <>
+                    <style>{`
+                      .${btnId} {
+                        background-color: ${baseBgColor};
+                        color: ${baseTextColor};
+                      }
+                      .${btnId}:hover {
+                        background-color: ${hoverBg};
+                        color: ${hoverText};
+                      }
+                    `}</style>
+                    {isBuilderMode ? (
+                      <span 
+                        className={`${btnId} inline-block rounded-lg font-semibold transition-colors cursor-pointer`}
+                        style={{
+                          padding: '1rem 2.5rem',
+                          fontSize: '1.125rem',
+                        }}
+                      >
+                        {currentButtonText}
+                      </span>
+                    ) : (
+                      <a 
+                        href={currentButtonUrl || '#'} 
+                        className={`${btnId} inline-block rounded-lg font-semibold transition-colors`}
+                        style={{
+                          padding: '1rem 2.5rem',
+                          fontSize: '1.125rem',
+                        }}
+                      >
+                        {currentButtonText}
+                      </a>
+                    )}
+                  </>
                 )}
               </>
             )}
