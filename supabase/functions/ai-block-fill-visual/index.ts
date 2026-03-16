@@ -992,6 +992,150 @@ serve(async (req) => {
       );
     }
 
+    // =============================================
+    // TEXT BANNERS — 4 image slots, no text generation
+    // =============================================
+    if (blockType === 'TextBanners') {
+      const adapter = getAdapter('TextBanners')!;
+      const generatedProps: Record<string, unknown> = {};
+
+      const adapterInput: AdapterInput = {
+        outputMode: 'editable',
+        creativeStyle,
+        styleConfig,
+        briefing: briefing || '',
+        contexts: [{ product: productCtx, category: categoryCtx, associationType }],
+        store: storeCtx,
+        enableQA: false,
+      };
+
+      const requests = adapter.adapt(adapterInput);
+      console.log(`[ai-block-fill-visual] TextBanners generating ${requests.length} request(s) with ${requests[0]?.slots?.length || 0} slots`);
+
+      const results = await Promise.all(
+        requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey))
+      );
+
+      Object.assign(generatedProps, adapter.mergeResults(results, adapterInput));
+
+      const elapsed = Date.now() - startTime;
+      console.log(`[ai-block-fill-visual] TextBanners done in ${elapsed}ms`);
+
+      try {
+        // 4 images = 16 cents
+        await supabase.rpc('record_ai_usage', { p_tenant_id: tenantId, p_usage_cents: 16 });
+      } catch (e) {
+        console.warn("[ai-block-fill-visual] Failed to record usage:", e);
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, generatedProps }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // =============================================
+    // IMAGE CAROUSEL — Dynamic N images (max 6)
+    // =============================================
+    if (blockType === 'ImageCarousel') {
+      const adapter = getAdapter('ImageCarousel')!;
+      const generatedProps: Record<string, unknown> = {};
+
+      const imageCount = typeof collectedData?.imageCount === 'number'
+        ? Math.min(collectedData.imageCount, 6)
+        : 4;
+
+      const carouselStyleConfig = {
+        ...styleConfig,
+        _imageCount: imageCount,
+        _aspectRatio: collectedData?.currentProps?.aspectRatio || 'auto',
+      };
+
+      const adapterInput: AdapterInput = {
+        outputMode: 'editable',
+        creativeStyle,
+        styleConfig: carouselStyleConfig,
+        briefing: briefing || '',
+        contexts: [{ product: productCtx, category: categoryCtx, associationType }],
+        store: storeCtx,
+        enableQA: false,
+      };
+
+      const requests = adapter.adapt(adapterInput);
+      console.log(`[ai-block-fill-visual] ImageCarousel generating ${imageCount} images via visual engine`);
+
+      const results = await Promise.all(
+        requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey))
+      );
+
+      Object.assign(generatedProps, adapter.mergeResults(results, adapterInput));
+
+      const elapsed = Date.now() - startTime;
+      console.log(`[ai-block-fill-visual] ImageCarousel done in ${elapsed}ms (${imageCount} images)`);
+
+      try {
+        await supabase.rpc('record_ai_usage', { p_tenant_id: tenantId, p_usage_cents: imageCount * 4 });
+      } catch (e) {
+        console.warn("[ai-block-fill-visual] Failed to record usage:", e);
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, generatedProps }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // =============================================
+    // IMAGE GALLERY — Dynamic N images (max 6)
+    // =============================================
+    if (blockType === 'ImageGallery') {
+      const adapter = getAdapter('ImageGallery')!;
+      const generatedProps: Record<string, unknown> = {};
+
+      const imageCount = typeof collectedData?.imageCount === 'number'
+        ? Math.min(collectedData.imageCount, 6)
+        : 6;
+
+      const galleryStyleConfig = {
+        ...styleConfig,
+        _imageCount: imageCount,
+        _aspectRatio: collectedData?.currentProps?.aspectRatio || 'auto',
+      };
+
+      const adapterInput: AdapterInput = {
+        outputMode: 'editable',
+        creativeStyle,
+        styleConfig: galleryStyleConfig,
+        briefing: briefing || '',
+        contexts: [{ product: productCtx, category: categoryCtx, associationType }],
+        store: storeCtx,
+        enableQA: false,
+      };
+
+      const requests = adapter.adapt(adapterInput);
+      console.log(`[ai-block-fill-visual] ImageGallery generating ${imageCount} images via visual engine`);
+
+      const results = await Promise.all(
+        requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey))
+      );
+
+      Object.assign(generatedProps, adapter.mergeResults(results, adapterInput));
+
+      const elapsed = Date.now() - startTime;
+      console.log(`[ai-block-fill-visual] ImageGallery done in ${elapsed}ms (${imageCount} images)`);
+
+      try {
+        await supabase.rpc('record_ai_usage', { p_tenant_id: tenantId, p_usage_cents: imageCount * 4 });
+      } catch (e) {
+        console.warn("[ai-block-fill-visual] Failed to record usage:", e);
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, generatedProps }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     return new Response(
       JSON.stringify({ success: false, error: "Handler not implemented for this block type" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
