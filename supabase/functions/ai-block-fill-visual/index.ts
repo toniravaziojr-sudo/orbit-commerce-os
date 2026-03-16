@@ -88,6 +88,27 @@ const SERVER_CONTRACTS: Record<string, ServerContract> = {
       { key: 'imageMobile', width: 400, height: 500 },
     ],
   },
+  'TextBanners': {
+    aiGenerates: ['imageDesktop1', 'imageMobile1', 'imageDesktop2', 'imageMobile2'],
+    imageSpecs: [
+      { key: 'imageDesktop1', width: 600, height: 800 },
+      { key: 'imageMobile1', width: 400, height: 500 },
+      { key: 'imageDesktop2', width: 600, height: 800 },
+      { key: 'imageMobile2', width: 400, height: 500 },
+    ],
+  },
+  'ImageCarousel': {
+    aiGenerates: ['images'],
+    imageSpecs: [
+      { key: 'image', width: 800, height: 600 },
+    ],
+  },
+  'ImageGallery': {
+    aiGenerates: ['images'],
+    imageSpecs: [
+      { key: 'image', width: 800, height: 800 },
+    ],
+  },
 };
 
 function resolveContract(blockType: string, mode?: string): ServerContract | null {
