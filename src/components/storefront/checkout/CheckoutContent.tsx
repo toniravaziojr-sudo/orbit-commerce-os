@@ -324,6 +324,13 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
       setPaymentError(result.error || 'Erro ao processar pagamento');
       toast.error('Falha no pagamento');
     }
+    } catch (error) {
+      setPaymentStatus('failed');
+      setPaymentError(error instanceof Error ? error.message : 'Erro ao processar pagamento');
+      toast.error('Falha no pagamento');
+    } finally {
+      submissionLockRef.current = false;
+    }
   };
 
   const handleRetry = () => { setPaymentStatus('idle'); setPaymentError(null); };
