@@ -20,6 +20,7 @@ import { ProductMultiSelect } from './ProductMultiSelect';
 import { CategoryMultiSelect, CategoryItemConfig } from './CategoryMultiSelect';
 import { FAQEditor, TestimonialsEditor, InfoHighlightsEditor, FeaturesEditor, StepsEditor, StatsEditor, AccordionItemsEditor, LogosEditor } from './ArrayEditor';
 import { BannerSlidesEditor, BannerSlide } from './BannerSlidesEditor';
+import { BannerPropsPanel } from './BannerPropsPanel';
 import { RichTextEditor } from './RichTextEditor';
 import { ImageUploader } from './ImageUploader';
 import { ImageUploaderWithLibrary } from './ImageUploaderWithLibrary';
