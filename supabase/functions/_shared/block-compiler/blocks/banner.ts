@@ -143,11 +143,16 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
   let ctaHtml = '';
   let ctaStyleTag = '';
   if (hasCTA) {
-    ctaStyleTag = buildCtaStyleTag(bannerId, alignment);
+    ctaStyleTag = buildCtaStyleTag(bannerId, alignment, buttonAlignment);
+    // Mobile: title in top zone, subtitle+button in bottom zone
+    // Desktop: all stacked vertically
+    const titleHtml = currentTitle ? `<h2 style="color:${textColor};">${escapeHtml(currentTitle)}</h2>` : '';
+    const subtitleHtml = currentSubtitle ? `<p style="color:${textColor};">${escapeHtml(currentSubtitle)}</p>` : '';
+    const buttonHtml = currentButtonText ? `<div class="${bannerId}-btn-wrap"><a href="${escapeHtml(currentButtonUrl || currentLinkUrl || '#')}" class="${bannerId}-btn" style="background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};">${escapeHtml(currentButtonText)}</a></div>` : '';
+    
     ctaHtml = `<div class="${bannerId}-cta" style="align-items:${justifyContent};text-align:${textAlign};">
-      ${currentTitle ? `<h2 style="color:${textColor};">${escapeHtml(currentTitle)}</h2>` : ''}
-      ${currentSubtitle ? `<p style="color:${textColor};">${escapeHtml(currentSubtitle)}</p>` : ''}
-      ${currentButtonText ? `<a href="${escapeHtml(currentButtonUrl || currentLinkUrl || '#')}" class="${bannerId}-btn" style="background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};">${escapeHtml(currentButtonText)}</a>` : ''}
+      <div>${titleHtml}</div>
+      <div class="${bannerId}-bottom">${subtitleHtml}${buttonHtml}</div>
     </div>`;
   }
 
