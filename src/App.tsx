@@ -249,6 +249,7 @@ const App = () => {
               <Route path="/integrations/tiktok/callback" element={<TikTokOAuthCallback />} />
               <Route path="/demo-estrutura" element={<DemoEstruturaPage />} />
               <Route path="/demo-lp" element={<DemoLandingPage />} />
+              <Route path="/dev/error-test" element={<ErrorTestPage />} />
               <Route path="/accept-invite" element={<AcceptInvite />} />
               {/* Preview route for review page (development only) */}
               <Route path="/avaliar/:token" element={<StorefrontReview />} />
