@@ -122,6 +122,16 @@ function whitelistMerge(
       merged.slides = slides;
       merged.mode = 'carousel';
     }
+  } else {
+    // Generic handler for Image, ContentColumns, BannerProducts, etc.
+    for (const [key, value] of Object.entries(generatedProps)) {
+      if (SYSTEM_DERIVED_PROPS.has(key)) continue;
+      if (!allowedKeys.has(key)) continue;
+      const isImage = imageKeys.has(key);
+      if (isImage && !includeImages) continue;
+      if (!isImage && !includeTexts) continue;
+      merged[key] = value;
+    }
   }
 
   return merged;
