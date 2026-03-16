@@ -64,6 +64,27 @@ const SERVER_CONTRACTS: Record<string, ServerContract> = {
     ],
     maxSlides: 3,
   },
+  'Image': {
+    aiGenerates: ['imageDesktop', 'imageMobile'],
+    imageSpecs: [
+      { key: 'imageDesktop', width: 1200, height: 800 },
+      { key: 'imageMobile', width: 800, height: 1000 },
+    ],
+  },
+  'ContentColumns': {
+    aiGenerates: ['imageDesktop', 'imageMobile'],
+    imageSpecs: [
+      { key: 'imageDesktop', width: 800, height: 600 },
+      { key: 'imageMobile', width: 600, height: 800 },
+    ],
+  },
+  'BannerProducts': {
+    aiGenerates: ['imageDesktop', 'imageMobile', 'title', 'description'],
+    imageSpecs: [
+      { key: 'imageDesktop', width: 600, height: 400 },
+      { key: 'imageMobile', width: 400, height: 500 },
+    ],
+  },
 };
 
 function resolveContract(blockType: string, mode?: string): ServerContract | null {
