@@ -256,7 +256,12 @@ export function buildStructuralRules(input: StructuralRulesInput): string {
     // Editable mode: safe areas for HTML overlay — STRICT RULES
     lines.push(`\n🖼️ MODO EDITÁVEL (FUNDO PARA TEXTO HTML — REGRAS RÍGIDAS):`);
     lines.push(`- Esta imagem será usada como FUNDO. Textos e botões serão sobrepostos via HTML.`);
-    lines.push(`- NÃO inclua NENHUM texto, tipografia, lettering ou badge na imagem.`);
+    lines.push(`\n🚨🚨🚨 REGRA #1 ABSOLUTA — ZERO TEXTO NA IMAGEM 🚨🚨🚨`);
+    lines.push(`- NÃO inclua NENHUM texto, tipografia, lettering, palavra, número, slogan, logo, badge, etiqueta de preço, watermark ou qualquer forma de escrita na imagem.`);
+    lines.push(`- NENHUMA letra do alfabeto pode aparecer na imagem gerada — nem estilizada, nem como parte do cenário, nem como decoração.`);
+    lines.push(`- Se o rótulo do produto contiver texto, o produto deve estar posicionado de forma que o rótulo NÃO seja o foco principal.`);
+    lines.push(`- A imagem é EXCLUSIVAMENTE fotografia/cenário. Todo texto será adicionado depois via HTML.`);
+    lines.push(`- Qualquer texto renderizado na imagem será considerado um DEFEITO GRAVE.`);
     lines.push(`- A imagem deve parecer FOTOGRAFIA PUBLICITÁRIA DE FUNDO — como um backdrop de campanha.`);
 
     if (isDesktop) {
@@ -308,8 +313,9 @@ export function buildStructuralRules(input: StructuralRulesInput): string {
   lines.push(`\n🚫 PROIBIÇÕES ABSOLUTAS:`);
   lines.push(`- ❌ Fundo branco ou cinza claro chapado`);
   if (!isComplete) {
-    lines.push(`- ❌ NENHUM texto, letra, número, logo ou badge na imagem`);
-    lines.push(`- ❌ NENHUM elemento gráfico/UI (botões, bordas, molduras)`);
+    lines.push(`- ❌ ZERO texto, letra, número, palavra, slogan, logo, badge, etiqueta ou qualquer escrita — DEFEITO GRAVE`);
+    lines.push(`- ❌ NENHUM elemento gráfico/UI (botões, bordas, molduras, watermarks)`);
+    lines.push(`- ❌ A imagem deve conter APENAS fotografia/cenário — sem qualquer forma de tipografia`);
   }
   if (!hasPerson && creativeStyle !== 'promotional') {
     lines.push(`- ❌ NENHUMA pessoa, mão ou modelo`);
