@@ -91,6 +91,7 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
   const overlayOpacity = (props.overlayOpacity as number) || 0;
   const textColor = (props.textColor as string) || '#ffffff';
   const alignment = (props.alignment as string) || 'center';
+  const buttonAlignment = (props.buttonAlignment as string) || '';
   const backgroundColor = (props.backgroundColor as string) || '';
   const bannerWidth = (props.bannerWidth as string) || 'full';
   const buttonColor = (props.buttonColor as string) || '#ffffff';
