@@ -313,8 +313,9 @@ export function buildStructuralRules(input: StructuralRulesInput): string {
   lines.push(`\n🚫 PROIBIÇÕES ABSOLUTAS:`);
   lines.push(`- ❌ Fundo branco ou cinza claro chapado`);
   if (!isComplete) {
-    lines.push(`- ❌ NENHUM texto, letra, número, logo ou badge na imagem`);
-    lines.push(`- ❌ NENHUM elemento gráfico/UI (botões, bordas, molduras)`);
+    lines.push(`- ❌ ZERO texto, letra, número, palavra, slogan, logo, badge, etiqueta ou qualquer escrita — DEFEITO GRAVE`);
+    lines.push(`- ❌ NENHUM elemento gráfico/UI (botões, bordas, molduras, watermarks)`);
+    lines.push(`- ❌ A imagem deve conter APENAS fotografia/cenário — sem qualquer forma de tipografia`);
   }
   if (!hasPerson && creativeStyle !== 'promotional') {
     lines.push(`- ❌ NENHUMA pessoa, mão ou modelo`);
