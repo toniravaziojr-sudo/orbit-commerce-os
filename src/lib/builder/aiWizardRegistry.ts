@@ -281,6 +281,12 @@ const BANNER_PRODUCTS_CONTRACT: WizardBlockContract = {
 const TEXT_BANNERS_CONTRACT: WizardBlockContract = {
   steps: [
     {
+      id: 'creativeStyle',
+      type: 'creative-style-select',
+      label: 'Estilo visual das imagens',
+      required: true,
+    },
+    {
       id: 'briefing',
       type: 'briefing',
       label: 'Qual o tema das imagens?',
