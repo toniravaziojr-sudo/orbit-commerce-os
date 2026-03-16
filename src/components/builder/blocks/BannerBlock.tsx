@@ -62,6 +62,7 @@ interface BannerBlockProps {
   overlayOpacity?: number;
   height?: 'sm' | 'md' | 'lg' | 'full' | 'auto';
   bannerWidth?: 'full' | 'contained';
+  layoutPreset?: 'standard' | 'compact-centered' | 'compact-full' | 'large';
   
   // Carousel mode props
   slides?: BannerSlide[];
