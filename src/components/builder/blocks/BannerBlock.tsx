@@ -62,6 +62,7 @@ interface BannerBlockProps {
   overlayOpacity?: number;
   height?: 'sm' | 'md' | 'lg' | 'full' | 'auto';
   bannerWidth?: 'full' | 'contained';
+  layoutPreset?: 'standard' | 'compact-centered' | 'compact-full' | 'large';
   
   // Carousel mode props
   slides?: BannerSlide[];
@@ -76,13 +77,47 @@ interface BannerBlockProps {
   context?: BlockRenderContext;
 }
 
-const heightMap: Record<string, string> = {
-  sm: '300px',
-  md: '400px',
-  lg: '500px',
-  full: '100vh',
-  auto: 'auto',
-};
+// ===== Resolve layoutPreset from new prop or legacy height+bannerWidth =====
+function resolvePreset(
+  layoutPreset?: string,
+  height?: string,
+  bannerWidth?: string,
+): 'standard' | 'compact-centered' | 'compact-full' | 'large' {
+  if (layoutPreset && ['standard', 'compact-centered', 'compact-full', 'large'].includes(layoutPreset)) {
+    return layoutPreset as 'standard' | 'compact-centered' | 'compact-full' | 'large';
+  }
+  // Fallback: infer from legacy props
+  if (height === 'full' || height === 'lg') return 'large';
+  if (height === 'sm' || height === 'md') {
+    return bannerWidth === 'contained' ? 'compact-centered' : 'compact-full';
+  }
+  // height === 'auto' or undefined
+  return bannerWidth === 'contained' ? 'compact-centered' : 'standard';
+}
+
+// Preset layout config
+const PRESET_CONFIG = {
+  'standard': {
+    useAspect: true,
+    fullWidth: true,
+    minHeight: undefined as string | undefined,
+  },
+  'compact-centered': {
+    useAspect: false,
+    fullWidth: false, // contained on desktop
+    minHeight: '300px',
+  },
+  'compact-full': {
+    useAspect: false,
+    fullWidth: true,
+    minHeight: '300px',
+  },
+  'large': {
+    useAspect: false,
+    fullWidth: true,
+    minHeight: '100vh',
+  },
+} as const;
 
 export function BannerBlock({
   mode = 'single',
@@ -109,6 +144,7 @@ export function BannerBlock({
   overlayOpacity = 0,
   height = 'auto',
   bannerWidth = 'full',
+  layoutPreset,
   // Carousel
   slides = [],
   autoplaySeconds = 5,
@@ -127,9 +163,20 @@ export function BannerBlock({
     ? context.viewport === 'mobile' 
     : realIsMobile;
 
+  // Resolve preset
+  const preset = resolvePreset(layoutPreset, height, bannerWidth);
+  const presetCfg = PRESET_CONFIG[preset];
+
   const aspectClass = isBuilderMode
     ? (isMobile ? 'aspect-[4/5]' : 'aspect-[12/5]')
     : 'aspect-[4/5] md:aspect-[12/5]';
+
+  // For compact-centered: contained on desktop, full on mobile
+  const widthClass = presetCfg.fullWidth
+    ? 'w-full'
+    : (isBuilderMode
+        ? (isMobile ? 'w-full' : 'max-w-7xl mx-auto')
+        : 'w-full md:max-w-7xl md:mx-auto');
 
   const safeSlides = Array.isArray(slides) ? slides : [];
   const isCarousel = mode === 'carousel' && safeSlides.length > 0;
@@ -214,10 +261,10 @@ export function BannerBlock({
     return (
       <div className={cn(
         'relative bg-muted/30 flex items-center justify-center',
-        bannerWidth === 'full' ? 'w-full' : 'max-w-7xl mx-auto',
-        height === 'auto' ? aspectClass : ''
+        widthClass,
+        presetCfg.useAspect ? aspectClass : ''
       )}
-      style={{ minHeight: height !== 'auto' ? heightMap[height] : undefined }}
+      style={{ minHeight: presetCfg.minHeight }}
       >
         <div className="text-center text-muted-foreground">
           <ImageIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
@@ -260,18 +307,18 @@ export function BannerBlock({
     <div
       className={cn(
         'relative overflow-hidden',
-        bannerWidth === 'full' ? 'w-full' : 'max-w-7xl mx-auto'
+        widthClass
       )}
       style={{
         backgroundColor: currentDesktopImage ? undefined : (backgroundColor || '#f3f4f6'),
-        minHeight: height !== 'auto' ? heightMap[height] : undefined,
+        minHeight: presetCfg.minHeight,
       }}
     >
       <div className={cn(
         'relative',
-        height === 'auto' ? aspectClass : 'w-full h-full'
+        presetCfg.useAspect ? aspectClass : 'w-full h-full'
       )}
-      style={{ minHeight: height !== 'auto' ? heightMap[height] : undefined }}
+      style={{ minHeight: presetCfg.minHeight }}
       >
         {currentDesktopImage ? (
           isBuilderMode ? (

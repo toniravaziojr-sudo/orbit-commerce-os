@@ -641,6 +641,8 @@ const blockDefinitions: BlockDefinition[] = [
       alignment: 'center',
       buttonAlignment: 'auto',
       overlayOpacity: 0,
+      layoutPreset: 'standard',
+      // Legacy (kept for backward compat, not shown in UI)
       height: 'auto',
       bannerWidth: 'full',
       // Carousel mode
@@ -755,21 +757,33 @@ const blockDefinitions: BlockDefinition[] = [
         showWhen: { mode: 'single', hasEditableContent: true },
       },
       // === STYLE ===
+      layoutPreset: {
+        type: 'select',
+        label: 'Modelo do Banner',
+        defaultValue: 'standard',
+        options: [
+          { label: 'Padrão', value: 'standard' },
+          { label: 'Compacto centralizado', value: 'compact-centered' },
+          { label: 'Compacto cheio', value: 'compact-full' },
+          { label: 'Grande', value: 'large' },
+        ],
+      },
+      // Legacy props kept in schema for backward compat with AI and old data
       height: {
         type: 'select',
-        label: 'Dimensão',
+        label: 'Dimensão (legado)',
         defaultValue: 'auto',
         options: [
-          { label: 'Proporcional (12:5 / 4:5)', value: 'auto' },
-          { label: 'Compacto (300px)', value: 'sm' },
-          { label: 'Médio (400px)', value: 'md' },
-          { label: 'Grande (500px)', value: 'lg' },
-          { label: 'Tela Cheia (100vh)', value: 'full' },
+          { label: 'Proporcional', value: 'auto' },
+          { label: 'Compacto', value: 'sm' },
+          { label: 'Médio', value: 'md' },
+          { label: 'Grande', value: 'lg' },
+          { label: 'Tela Cheia', value: 'full' },
         ],
       },
       bannerWidth: {
         type: 'select',
-        label: 'Largura',
+        label: 'Largura (legado)',
         defaultValue: 'full',
         options: [
           { label: 'Largura Total', value: 'full' },

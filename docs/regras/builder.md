@@ -2777,7 +2777,7 @@ Para adicionar novos presets no futuro:
 | **Descrição** | 2 modos: single (banner único) e carousel (múltiplos slides). Overlay de texto e CTA opcionais |
 | **Props (Single)** | `imageDesktop` (image), `imageMobile` (image), `linkUrl` (string), `title` (string), `subtitle` (string), `buttonText` (string), `buttonUrl` (string) |
 | **Props (Carousel)** | `slides` (array: {imageDesktop, imageMobile, linkUrl, altText}), `autoplaySeconds` (number: 0-30), `showArrows` (boolean), `showDots` (boolean) |
-| **Props (Style)** | `height` (select: auto/sm/md/lg/full), `bannerWidth` (select: full/contained), `alignment` (select: left/center/right), `backgroundColor` (color), `textColor` (color), `overlayOpacity` (number: 0-100), `buttonColor` (color), `buttonTextColor` (color), `buttonHoverBgColor` (color), `buttonHoverTextColor` (color) |
+| **Props (Style)** | `layoutPreset` (select: standard/compact-centered/compact-full/large), `alignment` (select: left/center/right), `backgroundColor` (color), `textColor` (color), `overlayOpacity` (number: 0-100), `buttonColor` (color), `buttonTextColor` (color), `buttonHoverBgColor` (color), `buttonHoverTextColor` (color) |
 | **Compilador** | `banner.ts` (Base) |
 
 #### 4.2 Imagem (`Image`)
@@ -3945,13 +3945,13 @@ Step 6: CONFIRMAÇÃO
 | Shared Module | visual-adapters/types | `supabase/functions/_shared/visual-adapters/types.ts` | Contratos genéricos: VisualGenerationRequest, VisualGenerationResult, OutputMode, RenderMode, ImageStyle, CompositionHint, BlockVisualAdapter |
 | Hook | useAIWizardGenerate | `src/hooks/useAIWizardGenerate.ts` | Chama edge function e aplica whitelist merge + scope filtering. Repassa outputMode e creativeStyle para o backend via bannerMode. System-derived props (`overlayOpacity`, `alignment`, `_renderMode`, `_hideOverlayText`) bypass whitelist. Inclui log de debug do payload enviado. |
 
-### BannerBlock — Refatoração Fase 1 (v4.0.0)
+### BannerBlock — Refatoração Fase 1 (v4.1.0)
 
 | Campo | Valor |
 |-------|-------|
 | **Tipo** | Componente / Regra Visual / Regra Lógica |
 | **Localização** | `BannerBlock.tsx`, `BannerPropsPanel.tsx`, `BannerSlidesEditor.tsx`, `PropsEditor.tsx`, `registry.ts`, `aiWizardRegistry.ts` |
-| **Descrição** | Painel do Banner reorganizado com sanfonas, visibilidade condicional e configuração por slide |
+| **Descrição** | Painel do Banner reorganizado com sanfonas, visibilidade condicional, configuração por slide e presets de layout |
 
 #### Novas Props
 
@@ -3959,20 +3959,38 @@ Step 6: CONFIRMAÇÃO
 |------|------|---------|--------|-----------|
 | `bannerType` | `'image' \| 'solid'` | `'image'` | Single only | Tipo de fundo do banner. Quando `solid`, esconde seção de imagens e usa `backgroundColor` |
 | `hasEditableContent` | `boolean` | `false` | Single + per slide | Controla se CTA (título/subtítulo/botão) é exibido. Quando `false`, mostra `linkUrl` |
+| `layoutPreset` | `'standard' \| 'compact-centered' \| 'compact-full' \| 'large'` | `'standard'` | Global | Modelo de layout do banner. Substitui `height` + `bannerWidth` na UI |
+
+#### Layout Presets
+
+| Preset | Desktop | Mobile | Equivalente legado |
+|--------|---------|--------|--------------------|
+| `standard` | Full width, aspect 12:5 | Full width, aspect 4:5 | `height=auto, bannerWidth=full` |
+| `compact-centered` | Contido (max-w-7xl), 300px | Full width, 300px | `height=sm, bannerWidth=contained` |
+| `compact-full` | Full width, 300px | Full width, 300px | `height=sm, bannerWidth=full` |
+| `large` | Full width, 100vh | Full width, 100vh | `height=full, bannerWidth=full` |
+
+**Fallback para banners antigos (sem `layoutPreset`):**
+- `height=full` ou `lg` → `large`
+- `height=sm` ou `md` + `bannerWidth=contained` → `compact-centered`
+- `height=sm` ou `md` + `bannerWidth=full` → `compact-full`
+- `height=auto` + `bannerWidth=contained` → `compact-centered`
+- `height=auto` + `bannerWidth=full` (ou ausente) → `standard`
 
 #### Compatibilidade com dados antigos
 
-- `bannerType` ausente → tratado como `'image'` (comportamento atual preservado)
-- `hasEditableContent` ausente → inferido: `true` se `title` ou `buttonText` preenchidos, `false` caso contrário
-- Slides antigos sem campos novos funcionam normalmente com defaults seguros
-- Props adicionadas ao `aiNeverTouches` — IA nunca altera esses campos
+- `bannerType` ausente → tratado como `'image'`
+- `hasEditableContent` ausente → inferido: `true` se `title` ou `buttonText` preenchidos
+- `layoutPreset` ausente → inferido de `height` + `bannerWidth` legados
+- Slides antigos sem campos novos funcionam normalmente
+- Props adicionadas ao `aiNeverTouches`
 
 #### Estrutura do painel — Banner Único
 
 | Seção | Estado padrão | Conteúdo |
 |-------|---------------|----------|
 | Modo (select) | Sempre visível | `single` / `carousel` |
-| ⚙️ Configurações | **Aberta** | `bannerType`, `hasEditableContent` toggle, dimensão, largura. Se editável: título, subtítulo, botão, alinhamentos |
+| ⚙️ Configurações | **Aberta** | `bannerType`, `hasEditableContent` toggle, modelo do banner (4 presets). Se editável: título, subtítulo, botão, alinhamentos |
 | 🖼️ Imagens | Fechada | Desktop + Mobile uploaders. Oculta quando `bannerType=solid` |
 | 🎨 Refinamentos | Fechada | Escurecimento, cores de texto/botão (se editável), `linkUrl` (se NÃO editável), `backgroundColor` (se solid) |
 
@@ -3981,14 +3999,14 @@ Step 6: CONFIRMAÇÃO
 | Seção | Estado padrão | Conteúdo |
 |-------|---------------|----------|
 | Modo (select) | Sempre visível | `single` / `carousel` |
-| ⚙️ Config do Carrossel | **Aberta** | Dimensão, largura, autoplay, setas, indicadores (GLOBAIS) |
-| Slides | Accordion (1 aberto por vez) | Cada slide com 3 sub-seções: ⚙️ Config (editável, CTA), 🖼️ Imagens, 🎨 Refinamentos |
+| ⚙️ Config do Carrossel | **Aberta** | Modelo do banner (4 presets), autoplay, setas, indicadores (GLOBAIS) |
+| Slides | Accordion (1 aberto por vez) | Cada slide com 3 sub-seções |
 
 #### Props globais vs por slide no carrossel
 
 | Global | Por Slide |
 |--------|-----------|
-| `height`, `bannerWidth` | `imageDesktop`, `imageMobile`, `altText` |
+| `layoutPreset` | `imageDesktop`, `imageMobile`, `altText` |
 | `autoplaySeconds`, `showArrows`, `showDots` | `hasEditableContent`, `title`, `subtitle`, `buttonText`, `buttonUrl` |
 | | `overlayOpacity`, `textColor`, `alignment`, `buttonAlignment` |
 | | `buttonColor`, `buttonTextColor`, `buttonHoverBgColor`, `buttonHoverTextColor` |
@@ -3998,19 +4016,15 @@ Step 6: CONFIRMAÇÃO
 
 - `hasEditableContent=true` → campo `linkUrl` **oculto**, link feito via `buttonUrl`
 - `hasEditableContent=false` → campos CTA **ocultos**, `linkUrl` visível
-- Renderer já implementa: `if (currentLinkUrl && !hasCTA && !isBuilderMode)` → wraps em `<a>`
 
-#### Arquivos criados/alterados
+#### Arquivos alterados
 
 | Arquivo | Mudança |
 |---------|---------|
-| `BannerPropsPanel.tsx` | **NOVO** — Painel customizado com sanfonas para Banner |
-| `BannerSlidesEditor.tsx` | **REESCRITO** — Accordion por slide, sub-seções internas, CTA + refinamentos por slide |
-| `BannerBlock.tsx` | **REESCRITO** — Per-slide style resolution, `bannerType`, `hasEditableContent` com fallbacks |
-| `registry.ts` | Adicionadas props `bannerType`/`hasEditableContent`, labels de dimensão melhorados, `showWhen` condicionais |
-| `PropsEditor.tsx` | Detecta `Banner` e renderiza `BannerPropsPanel` em vez do loop genérico |
-| `aiWizardRegistry.ts` | `bannerType` e `hasEditableContent` adicionados ao `aiNeverTouches` |
-| `types.ts` | `showWhen` aceita `string | boolean` |
+| `BannerPropsPanel.tsx` | Painel customizado — `height`/`bannerWidth` substituídos por `layoutPreset` (4 presets com descrição) |
+| `BannerBlock.tsx` | `resolvePreset()` infere preset de props legadas; `PRESET_CONFIG` define comportamento por preset |
+| `registry.ts` | Nova prop `layoutPreset` no schema; `height`/`bannerWidth` mantidos como legado |
+| `aiWizardRegistry.ts` | `layoutPreset` adicionado ao `aiNeverTouches` |
 
 ### BannerBlock Responsividade (v3.1.1)
 

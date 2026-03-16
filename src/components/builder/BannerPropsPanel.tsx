@@ -175,25 +175,34 @@ function SinglePanel({ props, onChange }: BannerPropsPanelProps) {
           />
         </div>
 
-        <FieldWrapper label="Dimensão">
-          <Select value={(props.height as string) || 'auto'} onValueChange={v => onChange('height', v)}>
+        <FieldWrapper label="Modelo do Banner">
+          <Select value={(props.layoutPreset as string) || 'standard'} onValueChange={v => onChange('layoutPreset', v)}>
             <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="auto" className="text-xs">Proporcional (12:5 / 4:5)</SelectItem>
-              <SelectItem value="sm" className="text-xs">Compacto (300px)</SelectItem>
-              <SelectItem value="md" className="text-xs">Médio (400px)</SelectItem>
-              <SelectItem value="lg" className="text-xs">Grande (500px)</SelectItem>
-              <SelectItem value="full" className="text-xs">Tela Cheia (100vh)</SelectItem>
-            </SelectContent>
-          </Select>
-        </FieldWrapper>
-
-        <FieldWrapper label="Largura">
-          <Select value={(props.bannerWidth as string) || 'full'} onValueChange={v => onChange('bannerWidth', v)}>
-            <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="full" className="text-xs">Largura Total</SelectItem>
-              <SelectItem value="contained" className="text-xs">Contido</SelectItem>
+              <SelectItem value="standard" className="text-xs">
+                <div className="flex flex-col items-start">
+                  <span>Padrão</span>
+                  <span className="text-[10px] text-muted-foreground">Proporcional, largura total</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="compact-centered" className="text-xs">
+                <div className="flex flex-col items-start">
+                  <span>Compacto centralizado</span>
+                  <span className="text-[10px] text-muted-foreground">Contido no desktop, compacto</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="compact-full" className="text-xs">
+                <div className="flex flex-col items-start">
+                  <span>Compacto cheio</span>
+                  <span className="text-[10px] text-muted-foreground">Largura total, altura reduzida</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="large" className="text-xs">
+                <div className="flex flex-col items-start">
+                  <span>Grande</span>
+                  <span className="text-[10px] text-muted-foreground">Tela cheia, máximo impacto</span>
+                </div>
+              </SelectItem>
             </SelectContent>
           </Select>
         </FieldWrapper>
@@ -308,25 +317,34 @@ function CarouselPanel({ props, onChange }: BannerPropsPanelProps) {
     <>
       {/* Global carousel config */}
       <SectionCollapsible icon="⚙️" label="Configurações do Carrossel" open={configOpen} onOpenChange={setConfigOpen}>
-        <FieldWrapper label="Dimensão">
-          <Select value={(props.height as string) || 'auto'} onValueChange={v => onChange('height', v)}>
+        <FieldWrapper label="Modelo do Banner">
+          <Select value={(props.layoutPreset as string) || 'standard'} onValueChange={v => onChange('layoutPreset', v)}>
             <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="auto" className="text-xs">Proporcional (12:5 / 4:5)</SelectItem>
-              <SelectItem value="sm" className="text-xs">Compacto (300px)</SelectItem>
-              <SelectItem value="md" className="text-xs">Médio (400px)</SelectItem>
-              <SelectItem value="lg" className="text-xs">Grande (500px)</SelectItem>
-              <SelectItem value="full" className="text-xs">Tela Cheia (100vh)</SelectItem>
-            </SelectContent>
-          </Select>
-        </FieldWrapper>
-
-        <FieldWrapper label="Largura">
-          <Select value={(props.bannerWidth as string) || 'full'} onValueChange={v => onChange('bannerWidth', v)}>
-            <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="full" className="text-xs">Largura Total</SelectItem>
-              <SelectItem value="contained" className="text-xs">Contido</SelectItem>
+              <SelectItem value="standard" className="text-xs">
+                <div className="flex flex-col items-start">
+                  <span>Padrão</span>
+                  <span className="text-[10px] text-muted-foreground">Proporcional, largura total</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="compact-centered" className="text-xs">
+                <div className="flex flex-col items-start">
+                  <span>Compacto centralizado</span>
+                  <span className="text-[10px] text-muted-foreground">Contido no desktop, compacto</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="compact-full" className="text-xs">
+                <div className="flex flex-col items-start">
+                  <span>Compacto cheio</span>
+                  <span className="text-[10px] text-muted-foreground">Largura total, altura reduzida</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="large" className="text-xs">
+                <div className="flex flex-col items-start">
+                  <span>Grande</span>
+                  <span className="text-[10px] text-muted-foreground">Tela cheia, máximo impacto</span>
+                </div>
+              </SelectItem>
             </SelectContent>
           </Select>
         </FieldWrapper>
