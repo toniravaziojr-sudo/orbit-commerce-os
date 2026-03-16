@@ -1,6 +1,6 @@
 // =============================================
 // BANNER BLOCK - Unified banner with single or carousel mode
-// Combines Hero (single banner with CTA) and HeroBanner (carousel)
+// Phase 1: Per-slide style, bannerType, hasEditableContent with fallbacks
 // =============================================
 
 import { useState, useEffect, useCallback } from 'react';
@@ -16,11 +16,21 @@ interface BannerSlide {
   imageMobile?: string;
   linkUrl?: string;
   altText?: string;
-  // CTA overlay props (optional per slide)
+  // CTA per slide
   title?: string;
   subtitle?: string;
   buttonText?: string;
   buttonUrl?: string;
+  hasEditableContent?: boolean;
+  // Style per slide
+  overlayOpacity?: number;
+  textColor?: string;
+  alignment?: string;
+  buttonAlignment?: string;
+  buttonColor?: string;
+  buttonTextColor?: string;
+  buttonHoverBgColor?: string;
+  buttonHoverTextColor?: string;
 }
 
 interface BannerBlockProps {
@@ -36,7 +46,11 @@ interface BannerBlockProps {
   buttonUrl?: string;
   linkUrl?: string;
   
-  // Style props
+  // New Phase 1 props
+  bannerType?: 'image' | 'solid';
+  hasEditableContent?: boolean;
+  
+  // Style props (block-level defaults)
   backgroundColor?: string;
   textColor?: string;
   buttonColor?: string;
@@ -55,7 +69,7 @@ interface BannerBlockProps {
   showArrows?: boolean;
   showDots?: boolean;
   
-  // Transient state (set by PropsEditor during regeneration)
+  // Transient state
   _isRegenerating?: boolean;
   
   // Context
@@ -80,7 +94,10 @@ export function BannerBlock({
   buttonText,
   buttonUrl,
   linkUrl,
-  // Style
+  // New props
+  bannerType,
+  hasEditableContent,
+  // Style (block-level defaults)
   backgroundColor,
   textColor = '#ffffff',
   buttonColor = '#ffffff',
@@ -105,33 +122,27 @@ export function BannerBlock({
   const [currentIndex, setCurrentIndex] = useState(0);
   const realIsMobile = useIsMobile();
   
-  // Builder mode: use context.viewport state; Storefront: use real viewport
   const isBuilderMode = context?.viewport !== undefined;
   const isMobile = isBuilderMode 
     ? context.viewport === 'mobile' 
     : realIsMobile;
 
-  // Aspect ratio: in builder mode use explicit viewport state; in storefront use CSS media query
   const aspectClass = isBuilderMode
     ? (isMobile ? 'aspect-[4/5]' : 'aspect-[12/5]')
     : 'aspect-[4/5] md:aspect-[12/5]';
 
-  // Safe slides array
   const safeSlides = Array.isArray(slides) ? slides : [];
   const isCarousel = mode === 'carousel' && safeSlides.length > 0;
 
-  // Autoplay for carousel
+  // Autoplay
   useEffect(() => {
     if (!isCarousel || safeSlides.length <= 1 || !autoplaySeconds) return;
-    
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % safeSlides.length);
     }, autoplaySeconds * 1000);
-
     return () => clearInterval(interval);
   }, [isCarousel, safeSlides.length, autoplaySeconds]);
 
-  // Reset index if out of bounds
   useEffect(() => {
     if (currentIndex >= safeSlides.length && safeSlides.length > 0) {
       setCurrentIndex(0);
@@ -146,27 +157,59 @@ export function BannerBlock({
     setCurrentIndex((prev) => (prev + 1) % safeSlides.length);
   }, [safeSlides.length]);
 
-  // Get current slide data
+  // ===== Resolve current slide data + per-slide style =====
   const currentSlide = isCarousel ? safeSlides[currentIndex] || safeSlides[0] : null;
-  const rawDesktopImage = isCarousel ? currentSlide?.imageDesktop : imageDesktop;
-  const rawMobileImage = isCarousel 
-    ? (currentSlide?.imageMobile || currentSlide?.imageDesktop) 
-    : (imageMobile || imageDesktop);
+
+  // Content
   const currentTitle = isCarousel ? currentSlide?.title : title;
   const currentSubtitle = isCarousel ? currentSlide?.subtitle : subtitle;
   const currentButtonText = isCarousel ? currentSlide?.buttonText : buttonText;
   const currentButtonUrl = isCarousel ? currentSlide?.buttonUrl : buttonUrl;
   const currentLinkUrl = isCarousel ? currentSlide?.linkUrl : linkUrl;
 
-  // Apply wsrv.nl transform for public mode (matches LcpPreloader URLs)
-  const currentDesktopImage = isBuilderMode 
-    ? rawDesktopImage 
-    : (rawDesktopImage ? getHeroBannerImageUrl(rawDesktopImage, 'desktop') : undefined);
-  const currentMobileImage = isBuilderMode 
-    ? rawMobileImage 
-    : (rawMobileImage ? getHeroBannerImageUrl(rawMobileImage, 'mobile') : undefined);
+  // Images — bannerType=solid only applies to single mode
+  const isSolidBanner = mode === 'single' && (bannerType === 'solid');
+  const rawDesktopImage = isCarousel ? currentSlide?.imageDesktop : imageDesktop;
+  const rawMobileImage = isCarousel
+    ? (currentSlide?.imageMobile || currentSlide?.imageDesktop)
+    : (imageMobile || imageDesktop);
+  const effectiveDesktopImage = isSolidBanner ? undefined : rawDesktopImage;
+  const effectiveMobileImage = isSolidBanner ? undefined : rawMobileImage;
 
-  // Empty state
+  // Apply wsrv.nl for public mode
+  const currentDesktopImage = isBuilderMode
+    ? effectiveDesktopImage
+    : (effectiveDesktopImage ? getHeroBannerImageUrl(effectiveDesktopImage, 'desktop') : undefined);
+  const currentMobileImage = isBuilderMode
+    ? effectiveMobileImage
+    : (effectiveMobileImage ? getHeroBannerImageUrl(effectiveMobileImage, 'mobile') : undefined);
+
+  // Per-slide style with fallback to block-level defaults
+  const currentOverlayOpacity = isCarousel ? (currentSlide?.overlayOpacity ?? overlayOpacity) : overlayOpacity;
+  const currentTextColor = isCarousel ? (currentSlide?.textColor ?? textColor) : textColor;
+  const currentAlignment = (isCarousel ? ((currentSlide?.alignment as typeof alignment) ?? alignment) : alignment) || 'center';
+  const currentButtonAlignment = isCarousel ? ((currentSlide?.buttonAlignment as typeof buttonAlignment) ?? buttonAlignment) : buttonAlignment;
+  const currentButtonColor = isCarousel ? (currentSlide?.buttonColor ?? buttonColor) : buttonColor;
+  const currentButtonTextColorVal = isCarousel ? (currentSlide?.buttonTextColor ?? buttonTextColor) : buttonTextColor;
+  const currentButtonHoverBg = isCarousel ? (currentSlide?.buttonHoverBgColor ?? buttonHoverBgColor) : buttonHoverBgColor;
+  const currentButtonHoverText = isCarousel ? (currentSlide?.buttonHoverTextColor ?? buttonHoverTextColor) : buttonHoverTextColor;
+
+  // hasEditableContent resolution with backward compatibility
+  const effectiveHasEditable = (() => {
+    if (isCarousel) {
+      const slideVal = currentSlide?.hasEditableContent;
+      if (slideVal !== undefined) return slideVal;
+      // Infer from slide content for old slides
+      return !!(currentSlide?.title || currentSlide?.buttonText);
+    }
+    if (hasEditableContent !== undefined) return hasEditableContent;
+    // Infer from props for old banners
+    return !!(title || buttonText);
+  })();
+
+  const hasCTA = effectiveHasEditable !== false && (currentTitle || currentSubtitle || currentButtonText);
+
+  // ===== Empty state =====
   if (!currentDesktopImage && !backgroundColor) {
     return (
       <div className={cn(
@@ -179,57 +222,51 @@ export function BannerBlock({
         <div className="text-center text-muted-foreground">
           <ImageIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
           <p className="text-sm">Adicione uma imagem para o banner</p>
-      </div>
-
-      {/* Loading overlay during regeneration */}
-      {_isRegenerating && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-3 text-white">
-            <Loader2 className="h-8 w-8 animate-spin" />
-            <span className="text-sm font-medium">Gerando nova variante...</span>
-          </div>
         </div>
-      )}
-    </div>
-  );
+        {_isRegenerating && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-3 text-white">
+              <Loader2 className="h-8 w-8 animate-spin" />
+              <span className="text-sm font-medium">Gerando nova variante...</span>
+            </div>
+          </div>
+        )}
+      </div>
+    );
   }
 
-  // Alignment classes (for text)
+  // ===== Alignment =====
   const alignClass = {
     left: 'items-start text-left',
     center: 'items-center text-center',
     right: 'items-end text-right',
-  }[alignment] || 'items-center text-center';
+  }[currentAlignment] || 'items-center text-center';
 
-  // Button alignment (falls back to text alignment if not set)
-  const effectiveButtonAlignment = (!buttonAlignment || buttonAlignment === 'auto') ? alignment : buttonAlignment;
+  const effectiveButtonAlignment = (!currentButtonAlignment || currentButtonAlignment === 'auto') ? currentAlignment : currentButtonAlignment;
   const btnAlignClass = {
     left: 'justify-start',
     center: 'justify-center',
     right: 'justify-end',
   }[effectiveButtonAlignment] || 'justify-center';
 
-  // Button styles
+  // ===== Button styles =====
   const btnId = `banner-btn-${Math.random().toString(36).substr(2, 9)}`;
-  const baseBgColor = buttonColor || '#ffffff';
-  const baseTextColor = buttonTextColor || (buttonColor ? '#ffffff' : '#1a1a1a');
-  const hoverBg = buttonHoverBgColor || baseBgColor;
-  const hoverText = buttonHoverTextColor || baseTextColor;
-
-  const hasCTA = currentTitle || currentSubtitle || currentButtonText;
+  const baseBgColor = currentButtonColor || '#ffffff';
+  const baseTextColor = currentButtonTextColorVal || (currentButtonColor ? '#ffffff' : '#1a1a1a');
+  const hoverBg = currentButtonHoverBg || baseBgColor;
+  const hoverText = currentButtonHoverText || baseTextColor;
 
   const bannerContent = (
-    <div 
+    <div
       className={cn(
         'relative overflow-hidden',
         bannerWidth === 'full' ? 'w-full' : 'max-w-7xl mx-auto'
       )}
-      style={{ 
+      style={{
         backgroundColor: currentDesktopImage ? undefined : (backgroundColor || '#f3f4f6'),
         minHeight: height !== 'auto' ? heightMap[height] : undefined,
       }}
     >
-      {/* Background Image */}
       <div className={cn(
         'relative',
         height === 'auto' ? aspectClass : 'w-full h-full'
@@ -264,17 +301,16 @@ export function BannerBlock({
         )}
 
         {/* Overlay */}
-        {currentDesktopImage && overlayOpacity > 0 && (
-          <div 
-            className="absolute inset-0 bg-black" 
-            style={{ opacity: overlayOpacity / 100 }} 
+        {currentDesktopImage && currentOverlayOpacity > 0 && (
+          <div
+            className="absolute inset-0 bg-black"
+            style={{ opacity: currentOverlayOpacity / 100 }}
           />
         )}
 
-        {/* CTA Content — uses programmatic isMobile for Builder parity */}
+        {/* CTA Content */}
         {hasCTA && (
           <>
-            {/* Shared button style tag (rendered once) */}
             {currentButtonText && (
               <style>{`
                 .${btnId} {
@@ -287,16 +323,16 @@ export function BannerBlock({
                 }
               `}</style>
             )}
-            <div 
+            <div
               className={cn(
                 "absolute inset-0 flex flex-col z-10",
-                isMobile 
-                  ? 'justify-between' 
+                isMobile
+                  ? 'justify-between'
                   : cn('justify-center', alignClass),
               )}
-              style={{ 
+              style={{
                 padding: isMobile ? '32px 20px 28px' : '48px 64px',
-                maxWidth: isMobile ? '100%' : (alignment === 'center' ? '100%' : '55%'),
+                maxWidth: isMobile ? '100%' : (currentAlignment === 'center' ? '100%' : '55%'),
               }}
             >
               {isMobile ? (
@@ -304,21 +340,20 @@ export function BannerBlock({
                   {/* Top zone: Title */}
                   <div className="w-full text-center">
                     {currentTitle && (
-                      <h2 
+                      <h2
                         className="font-bold leading-tight"
-                        style={{ color: textColor, fontSize: '1.5rem' }}
+                        style={{ color: currentTextColor, fontSize: '1.5rem' }}
                       >
                         {currentTitle}
                       </h2>
                     )}
                   </div>
-
                   {/* Bottom zone: Subtitle + Button */}
                   <div className="w-full flex flex-col items-center text-center">
                     {currentSubtitle && (
-                      <p 
+                      <p
                         className="opacity-90 leading-snug"
-                        style={{ color: textColor, fontSize: '0.875rem', marginBottom: '0.75rem' }}
+                        style={{ color: currentTextColor, fontSize: '0.875rem', marginBottom: '0.75rem' }}
                       >
                         {currentSubtitle}
                       </p>
@@ -326,15 +361,15 @@ export function BannerBlock({
                     {currentButtonText && (
                       <div className={cn("flex w-full", btnAlignClass)}>
                         {isBuilderMode ? (
-                          <span 
+                          <span
                             className={`${btnId} inline-block rounded-lg font-semibold transition-colors cursor-pointer`}
                             style={{ padding: '0.625rem 1.25rem', fontSize: '0.875rem' }}
                           >
                             {currentButtonText}
                           </span>
                         ) : (
-                          <a 
-                            href={currentButtonUrl || '#'} 
+                          <a
+                            href={currentButtonUrl || '#'}
                             className={`${btnId} inline-block rounded-lg font-semibold transition-colors`}
                             style={{ padding: '0.625rem 1.25rem', fontSize: '0.875rem' }}
                           >
@@ -346,20 +381,19 @@ export function BannerBlock({
                   </div>
                 </>
               ) : (
-                /* DESKTOP: Title → Subtitle → Button */
                 <>
                   {currentTitle && (
-                    <h2 
+                    <h2
                       className="font-bold leading-tight"
-                      style={{ color: textColor, fontSize: '3rem', marginBottom: '1rem' }}
+                      style={{ color: currentTextColor, fontSize: '3rem', marginBottom: '1rem' }}
                     >
                       {currentTitle}
                     </h2>
                   )}
                   {currentSubtitle && (
-                    <p 
+                    <p
                       className="opacity-90 leading-snug"
-                      style={{ color: textColor, fontSize: '1.5rem', marginBottom: '2rem' }}
+                      style={{ color: currentTextColor, fontSize: '1.5rem', marginBottom: '2rem' }}
                     >
                       {currentSubtitle}
                     </p>
@@ -367,15 +401,15 @@ export function BannerBlock({
                   {currentButtonText && (
                     <div className={cn("flex w-full", btnAlignClass)}>
                       {isBuilderMode ? (
-                        <span 
+                        <span
                           className={`${btnId} inline-block rounded-lg font-semibold transition-colors cursor-pointer`}
                           style={{ padding: '1rem 2.5rem', fontSize: '1.125rem' }}
                         >
                           {currentButtonText}
                         </span>
                       ) : (
-                        <a 
-                          href={currentButtonUrl || '#'} 
+                        <a
+                          href={currentButtonUrl || '#'}
                           className={`${btnId} inline-block rounded-lg font-semibold transition-colors`}
                           style={{ padding: '1rem 2.5rem', fontSize: '1.125rem' }}
                         >
@@ -430,8 +464,8 @@ export function BannerBlock({
               onClick={(e) => { e.preventDefault(); setCurrentIndex(idx); }}
               className={cn(
                 'w-2.5 h-2.5 rounded-full transition-all',
-                idx === currentIndex 
-                  ? 'bg-primary w-6' 
+                idx === currentIndex
+                  ? 'bg-primary w-6'
                   : 'bg-background/60 hover:bg-background'
               )}
               aria-label={`Ir para banner ${idx + 1}`}
@@ -442,8 +476,7 @@ export function BannerBlock({
     </div>
   );
 
-  // Wrap in link if URL provided (only for single mode or carousel slide without CTA)
-  // In builder mode, never navigate — clicking should select the block for editing
+  // Wrap in link if URL provided (only without CTA, only in public mode)
   if (currentLinkUrl && !hasCTA && !isBuilderMode) {
     return (
       <a href={currentLinkUrl} className="block">

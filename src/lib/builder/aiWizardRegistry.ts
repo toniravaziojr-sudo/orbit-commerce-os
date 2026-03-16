@@ -222,6 +222,7 @@ const BANNER_UNIFIED_CONTRACT: WizardBlockContract = {
     'buttonColor', 'buttonTextColor', 'buttonHoverBgColor', 'buttonHoverTextColor',
     'alignment', 'buttonAlignment', 'overlayOpacity', 'height', 'bannerWidth',
     'autoplaySeconds', 'showArrows', 'showDots',
+    'bannerType', 'hasEditableContent',
   ],
   requiresImageGeneration: true,
   hasTextGeneration: true,

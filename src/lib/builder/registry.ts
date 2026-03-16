@@ -620,6 +620,9 @@ const blockDefinitions: BlockDefinition[] = [
     icon: 'Image',
     defaultProps: {
       mode: 'single',
+      // New Phase 1 props
+      bannerType: 'image',
+      hasEditableContent: false,
       // Single mode
       imageDesktop: '',
       imageMobile: '',
@@ -646,6 +649,9 @@ const blockDefinitions: BlockDefinition[] = [
       showArrows: true,
       showDots: true,
     },
+    // NOTE: Banner uses a custom panel (BannerPropsPanel) in PropsEditor.
+    // The propsSchema below is kept for compatibility with AI fill, legacy fallback,
+    // and documentation of all available props.
     propsSchema: {
       mode: {
         type: 'select',
@@ -655,6 +661,22 @@ const blockDefinitions: BlockDefinition[] = [
           { label: 'Banner Único', value: 'single' },
           { label: 'Carrossel', value: 'carousel' },
         ],
+      },
+      bannerType: {
+        type: 'select',
+        label: 'Tipo de Banner',
+        defaultValue: 'image',
+        options: [
+          { label: 'Com Imagem', value: 'image' },
+          { label: 'Cor de Fundo', value: 'solid' },
+        ],
+        showWhen: { mode: 'single' },
+      },
+      hasEditableContent: {
+        type: 'boolean',
+        label: 'Conteúdo editável (textos e botão)',
+        defaultValue: false,
+        showWhen: { mode: 'single' },
       },
       // === SINGLE MODE ===
       imageDesktop: {
@@ -704,41 +726,45 @@ const blockDefinitions: BlockDefinition[] = [
         defaultValue: true,
         showWhen: { mode: 'carousel' },
       },
-      // === CTA OVERLAY ===
+      // === CTA OVERLAY (single mode, when hasEditableContent=true) ===
       title: {
         type: 'string',
         label: 'Título',
         placeholder: 'Texto principal do banner',
+        showWhen: { mode: 'single', hasEditableContent: true },
         aiFillable: { hint: 'Título principal do banner, 3-8 palavras impactantes', format: 'text' },
       },
       subtitle: {
         type: 'string',
         label: 'Subtítulo',
         placeholder: 'Texto secundário',
+        showWhen: { mode: 'single', hasEditableContent: true },
         aiFillable: { hint: 'Subtítulo do banner, 1 frase complementar ao título', format: 'text' },
       },
       buttonText: {
         type: 'string',
         label: 'Texto do Botão',
         placeholder: 'Ex: Ver Produtos',
+        showWhen: { mode: 'single', hasEditableContent: true },
         aiFillable: { hint: 'Call-to-action curto, 2-4 palavras', format: 'cta' },
       },
       buttonUrl: {
         type: 'string',
         label: 'Link do Botão',
         placeholder: '/produtos',
+        showWhen: { mode: 'single', hasEditableContent: true },
       },
       // === STYLE ===
       height: {
         type: 'select',
-        label: 'Altura',
+        label: 'Dimensão',
         defaultValue: 'auto',
         options: [
-          { label: 'Automático', value: 'auto' },
-          { label: 'Pequeno', value: 'sm' },
-          { label: 'Médio', value: 'md' },
-          { label: 'Grande', value: 'lg' },
-          { label: 'Tela Cheia', value: 'full' },
+          { label: 'Proporcional (12:5 / 4:5)', value: 'auto' },
+          { label: 'Compacto (300px)', value: 'sm' },
+          { label: 'Médio (400px)', value: 'md' },
+          { label: 'Grande (500px)', value: 'lg' },
+          { label: 'Tela Cheia (100vh)', value: 'full' },
         ],
       },
       bannerWidth: {
@@ -754,6 +780,7 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'select',
         label: 'Alinhamento do Texto',
         defaultValue: 'center',
+        showWhen: { mode: 'single', hasEditableContent: true },
         options: [
           { label: 'Esquerda', value: 'left' },
           { label: 'Centro', value: 'center' },
@@ -764,6 +791,7 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'select',
         label: 'Alinhamento do Botão',
         defaultValue: 'auto',
+        showWhen: { mode: 'single', hasEditableContent: true },
         options: [
           { label: 'Seguir Texto', value: 'auto' },
           { label: 'Esquerda', value: 'left' },
@@ -773,12 +801,14 @@ const blockDefinitions: BlockDefinition[] = [
       },
       backgroundColor: {
         type: 'color',
-        label: 'Cor de Fundo (se sem imagem)',
+        label: 'Cor de Fundo',
+        showWhen: { mode: 'single', bannerType: 'solid' },
       },
       textColor: {
         type: 'color',
         label: 'Cor do Texto',
         defaultValue: '#ffffff',
+        showWhen: { mode: 'single', hasEditableContent: true },
       },
       overlayOpacity: {
         type: 'number',
@@ -786,23 +816,28 @@ const blockDefinitions: BlockDefinition[] = [
         defaultValue: 0,
         min: 0,
         max: 100,
+        showWhen: { mode: 'single' },
       },
       buttonColor: {
         type: 'color',
         label: 'Cor de Fundo do Botão',
         defaultValue: '#ffffff',
+        showWhen: { mode: 'single', hasEditableContent: true },
       },
       buttonTextColor: {
         type: 'color',
         label: 'Cor do Texto do Botão',
+        showWhen: { mode: 'single', hasEditableContent: true },
       },
       buttonHoverBgColor: {
         type: 'color',
         label: 'Cor de Fundo (Hover)',
+        showWhen: { mode: 'single', hasEditableContent: true },
       },
       buttonHoverTextColor: {
         type: 'color',
         label: 'Cor do Texto (Hover)',
+        showWhen: { mode: 'single', hasEditableContent: true },
       },
     },
     canHaveChildren: false,
