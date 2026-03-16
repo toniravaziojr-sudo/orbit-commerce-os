@@ -156,6 +156,10 @@ export function getWizardContract(
       return IMAGE_CAROUSEL_CONTRACT;
     case 'ImageGallery':
       return IMAGE_GALLERY_CONTRACT;
+    case 'Image':
+      return IMAGE_BLOCK_CONTRACT;
+    case 'ContentColumns':
+      return CONTENT_COLUMNS_CONTRACT;
     default:
       return null;
   }
