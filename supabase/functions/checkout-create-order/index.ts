@@ -103,6 +103,8 @@ interface CreateOrderRequest {
   retry_from_order_id?: string;
   // retry_token to invalidate original order's token after new order creation
   retry_token?: string;
+  // Idempotency key to prevent duplicate order creation on double-click
+  checkout_attempt_id?: string;
 }
 
 function normalizeEmail(email: string): string {
