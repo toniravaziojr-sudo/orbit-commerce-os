@@ -641,6 +641,8 @@ const blockDefinitions: BlockDefinition[] = [
       alignment: 'center',
       buttonAlignment: 'auto',
       overlayOpacity: 0,
+      layoutPreset: 'standard',
+      // Legacy (kept for backward compat, not shown in UI)
       height: 'auto',
       bannerWidth: 'full',
       // Carousel mode
