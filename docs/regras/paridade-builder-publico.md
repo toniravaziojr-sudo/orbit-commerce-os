@@ -223,4 +223,5 @@ Após qualquer alteração em compiler (Edge):
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
+| 2026-03-16 | v1.1.0 | **Hardening do Banner**: CTA responsivo no compiler (padding, font-size, button size adaptam mobile/desktop via @media). IDs únicos por instância em Banner e HeroBanner (evita colisões CSS). Removido min-height:400px hardcoded, usando aspect-ratio consistente. maxWidth:55% só no desktop. Validação estrutural completa em todas as famílias de página. |
 | 2026-03-10 | v1.0.0 | Criação do documento. Regra universal de paridade obrigatória entre Builder (React) e Público (Edge Compiler). Mapeamento completo de 45+ blocos. Checklist de validação. Fluxo de deploy obrigatório. |

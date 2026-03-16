@@ -10,10 +10,16 @@
 // - Button uses per-banner props (buttonColor, buttonTextColor), not theme vars
 // - Uses <picture> with srcMobile
 // - Carousel: renders ALL slides with JS rotation
+// - RESPONSIVE CTA: px-5 md:px-16, py-8 md:py-12, text-sm md:text-lg
 // =============================================
 
 import type { CompilerContext } from '../types.ts';
 import { escapeHtml, optimizeImageUrl } from '../utils.ts';
+
+// Generate unique ID to avoid CSS class collisions
+function uid(): string {
+  return 'sf-b-' + Math.random().toString(36).slice(2, 8);
+}
 
 export function bannerToStaticHTML(
   props: Record<string, unknown>,
@@ -30,6 +36,28 @@ export function bannerToStaticHTML(
 
   // Carousel mode with multiple slides
   return renderCarousel(props, slides, autoplaySeconds);
+}
+
+/**
+ * Build responsive CTA style tag.
+ * React uses: px-5 md:px-16 py-8 md:py-12 for the CTA container
+ * and text-sm md:text-lg, px-6 md:px-10 py-3 md:py-4 for the button.
+ * maxWidth:55% for non-center alignment only on desktop (React: isMobile ? '100%' : '55%')
+ */
+function buildCtaStyleTag(bannerId: string, alignment: string): string {
+  const maxWidthDesktop = alignment !== 'center' ? 'max-width:55%;' : '';
+  return `<style>
+.${bannerId}-cta{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;z-index:2;padding:32px 20px;}
+.${bannerId}-cta h2{font-size:clamp(24px,5vw,36px);font-weight:700;font-family:var(--sf-heading-font);line-height:1.1;}
+.${bannerId}-cta p{font-size:clamp(14px,2.5vw,16px);opacity:0.9;margin-top:8px;}
+.${bannerId}-btn{display:inline-block;margin-top:12px;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;text-decoration:none;transition:opacity 0.2s;}
+@media(min-width:768px){
+.${bannerId}-cta{padding:48px 64px;${maxWidthDesktop}}
+.${bannerId}-cta h2{font-size:clamp(28px,5vw,60px);}
+.${bannerId}-cta p{font-size:clamp(16px,2.5vw,24px);}
+.${bannerId}-btn{padding:16px 40px;font-size:18px;}
+}
+</style>`;
 }
 
 function renderSingleBanner(props: Record<string, unknown>, slide: any | null): string {
@@ -73,12 +101,11 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
 
   const hasCTA = !!(currentTitle || currentSubtitle || currentButtonText);
   const isAutoHeight = cssHeight === 'auto';
-  const needsAspect = isAutoHeight && !hasCTA;
+  // Always use aspect ratio for auto height (with or without CTA)
+  const needsAspect = isAutoHeight;
 
   const widthStyle = bannerWidth === 'full' ? 'width:100%;' : 'max-width:1280px;margin-left:auto;margin-right:auto;';
-  const containerHeight = isAutoHeight
-    ? (hasCTA ? 'min-height:400px;' : '')
-    : `height:${cssHeight};`;
+  const containerHeight = isAutoHeight ? '' : `height:${cssHeight};`;
   
   const useAbsoluteImage = !isAutoHeight || hasCTA;
   const imgStyle = useAbsoluteImage
@@ -102,23 +129,26 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
     </picture>`;
   }
 
+  const bannerId = uid();
+
   let ctaHtml = '';
+  let ctaStyleTag = '';
   if (hasCTA) {
-    const maxWidthStyle = alignment !== 'center' ? 'max-width:55%;' : '';
-    ctaHtml = `<div style="position:relative;z-index:2;text-align:${textAlign};display:flex;flex-direction:column;align-items:${justifyContent};gap:12px;padding:24px 64px;${maxWidthStyle}">
-      ${currentTitle ? `<h2 style="font-size:clamp(28px,5vw,60px);font-weight:700;color:${textColor};font-family:var(--sf-heading-font);line-height:1.1;">${escapeHtml(currentTitle)}</h2>` : ''}
-      ${currentSubtitle ? `<p style="font-size:clamp(16px,2.5vw,24px);color:${textColor};opacity:0.9;margin-top:8px;">${escapeHtml(currentSubtitle)}</p>` : ''}
-      ${currentButtonText ? `<a href="${escapeHtml(currentButtonUrl || currentLinkUrl || '#')}" style="display:inline-block;margin-top:12px;padding:16px 40px;background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};border-radius:8px;font-weight:600;font-size:18px;text-decoration:none;transition:opacity 0.2s;">${escapeHtml(currentButtonText)}</a>` : ''}
+    ctaStyleTag = buildCtaStyleTag(bannerId, alignment);
+    ctaHtml = `<div class="${bannerId}-cta" style="align-items:${justifyContent};text-align:${textAlign};">
+      ${currentTitle ? `<h2 style="color:${textColor};">${escapeHtml(currentTitle)}</h2>` : ''}
+      ${currentSubtitle ? `<p style="color:${textColor};">${escapeHtml(currentSubtitle)}</p>` : ''}
+      ${currentButtonText ? `<a href="${escapeHtml(currentButtonUrl || currentLinkUrl || '#')}" class="${bannerId}-btn" style="background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};">${escapeHtml(currentButtonText)}</a>` : ''}
     </div>`;
   }
 
-  const aspectClass = needsAspect ? 'sf-banner-auto' : '';
-  const aspectStyleTag = needsAspect ? '<style>.sf-banner-auto{aspect-ratio:4/5;}@media(min-width:768px){.sf-banner-auto{aspect-ratio:12/5;}}</style>' : '';
+  const aspectClass = needsAspect ? `${bannerId}-ar` : '';
+  const aspectStyleTag = needsAspect ? `<style>.${bannerId}-ar{aspect-ratio:4/5;}@media(min-width:768px){.${bannerId}-ar{aspect-ratio:12/5;}}</style>` : '';
 
   const wrapperTag = currentLinkUrl && !hasCTA ? 'a' : 'div';
   const wrapperHref = currentLinkUrl && !hasCTA ? ` href="${escapeHtml(currentLinkUrl)}"` : '';
 
-  return `${aspectStyleTag}<${wrapperTag}${wrapperHref} class="${aspectClass}" style="position:relative;${widthStyle}${containerHeight}overflow:hidden;${useAbsoluteImage ? `display:flex;align-items:center;justify-content:${justifyContent};` : ''}${backgroundColor && !optDesktop ? `background-color:${escapeHtml(backgroundColor)};` : 'background:#f5f5f5;'}">
+  return `${aspectStyleTag}${ctaStyleTag}<${wrapperTag}${wrapperHref} class="${aspectClass}" style="position:relative;${widthStyle}${containerHeight}overflow:hidden;${useAbsoluteImage ? `display:flex;align-items:center;justify-content:${justifyContent};` : ''}${backgroundColor && !optDesktop ? `background-color:${escapeHtml(backgroundColor)};` : 'background:#f5f5f5;'}">
     ${imageHtml}
     ${overlayHtml}
     ${ctaHtml}
@@ -142,7 +172,13 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
   const textAlign = alignment;
 
   // Generate unique ID for this carousel
-  const carouselId = 'sf-carousel-' + Math.random().toString(36).slice(2, 8);
+  const carouselId = uid();
+
+  // Check if any slide has CTA content
+  const anySlideHasCTA = slides.some(s => s.title || s.subtitle || s.buttonText);
+
+  // Build responsive CTA style tag (shared across slides)
+  const ctaStyleTag = anySlideHasCTA ? buildCtaStyleTag(carouselId, alignment) : '';
 
   // Build slides HTML
   const slidesHtml = slides.map((slide, idx) => {
@@ -165,7 +201,7 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
       <img src="${escapeHtml(desktopImage)}" alt="${escapeHtml(altText)}" style="width:100%;height:100%;object-fit:cover;" ${isFirst ? 'fetchpriority="high" decoding="sync" loading="eager"' : 'loading="lazy"'}>
     </picture>` : '';
 
-    // Build per-slide CTA overlay (mirrors BannerBlock.tsx)
+    // Build per-slide CTA overlay (mirrors BannerBlock.tsx responsive behavior)
     const slideTitle = slide.title || '';
     const slideSubtitle = slide.subtitle || '';
     const slideButtonText = slide.buttonText || '';
@@ -179,11 +215,10 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
 
     let ctaHtml = '';
     if (hasCTA) {
-      const maxWidthCarousel = alignment !== 'center' ? 'max-width:55%;' : '';
-      ctaHtml = `<div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:${justifyContent};text-align:${textAlign};padding:24px 64px;z-index:2;${maxWidthCarousel}${alignment === 'center' ? 'margin:0 auto;max-width:800px;' : ''}">
-        ${slideTitle ? `<h2 style="font-size:clamp(28px,5vw,60px);font-weight:700;color:${textColor};font-family:var(--sf-heading-font);line-height:1.1;">${escapeHtml(slideTitle)}</h2>` : ''}
-        ${slideSubtitle ? `<p style="font-size:clamp(16px,2.5vw,24px);color:${textColor};opacity:0.9;margin-top:8px;">${escapeHtml(slideSubtitle)}</p>` : ''}
-        ${slideButtonText ? `<a href="${escapeHtml(slideButtonUrl)}" style="display:inline-block;margin-top:12px;padding:16px 40px;background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};border-radius:8px;font-weight:600;font-size:18px;text-decoration:none;transition:opacity 0.2s;">${escapeHtml(slideButtonText)}</a>` : ''}
+      ctaHtml = `<div class="${carouselId}-cta" style="align-items:${justifyContent};text-align:${textAlign};">
+        ${slideTitle ? `<h2 style="color:${textColor};">${escapeHtml(slideTitle)}</h2>` : ''}
+        ${slideSubtitle ? `<p style="color:${textColor};">${escapeHtml(slideSubtitle)}</p>` : ''}
+        ${slideButtonText ? `<a href="${escapeHtml(slideButtonUrl)}" class="${carouselId}-btn" style="background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};">${escapeHtml(slideButtonText)}</a>` : ''}
       </div>`;
     }
 
@@ -238,7 +273,7 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
     if(next)next.addEventListener("click",function(){clearInterval(timer);go(cur+1);timer=setInterval(function(){go(cur+1)},delay);});
   })();</script>`;
 
-  return `<div style="position:relative;overflow:hidden;${widthStyle}">
+  return `${ctaStyleTag}<div style="position:relative;overflow:hidden;${widthStyle}">
     <style>.${carouselId}-wrap{aspect-ratio:4/5;}@media(min-width:768px){.${carouselId}-wrap{aspect-ratio:12/5;}}</style>
     <div class="${carouselId}-wrap" style="position:relative;">
       ${slidesHtml}
