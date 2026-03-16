@@ -10,6 +10,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { generateForRequest, uploadToStorage } from "../_shared/visual-engine.ts";
 import { BannerAdapter } from "../_shared/visual-adapters/banner-adapter.ts";
+import { ImageAdapter } from "../_shared/visual-adapters/image-adapter.ts";
+import { ContentColumnsAdapter } from "../_shared/visual-adapters/content-columns-adapter.ts";
+import { BannerProductsAdapter } from "../_shared/visual-adapters/banner-products-adapter.ts";
 import type {
   ProductContext,
   CategoryContext,
