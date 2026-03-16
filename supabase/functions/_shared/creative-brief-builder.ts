@@ -253,34 +253,55 @@ export function buildStructuralRules(input: StructuralRulesInput): string {
     }
     lines.push(`- Estilo publicitário profissional com composição balanceada e foco visual claro.`);
   } else {
-    // Editable mode: safe areas for HTML overlay
-    lines.push(`\n🖼️ MODO EDITÁVEL (FUNDO PARA TEXTO HTML):`);
-    lines.push(`- Textos serão adicionados POR CIMA da imagem em HTML — NÃO inclua texto na imagem.`);
+    // Editable mode: safe areas for HTML overlay — STRICT RULES
+    lines.push(`\n🖼️ MODO EDITÁVEL (FUNDO PARA TEXTO HTML — REGRAS RÍGIDAS):`);
+    lines.push(`- Esta imagem será usada como FUNDO. Textos e botões serão sobrepostos via HTML.`);
+    lines.push(`- NÃO inclua NENHUM texto, tipografia, lettering ou badge na imagem.`);
+    lines.push(`- A imagem deve parecer FOTOGRAFIA PUBLICITÁRIA DE FUNDO — como um backdrop de campanha.`);
 
     if (isDesktop) {
+      // Desktop editable: left half is text zone, right half is product zone
+      lines.push(`\n📏 LAYOUT DESKTOP — DIVISÃO OBRIGATÓRIA:`);
+      lines.push(`- METADE ESQUERDA (0% a 50% da largura): ZONA DE TEXTO.`);
+      lines.push(`  → Esta área DEVE ser SIGNIFICATIVAMENTE MAIS ESCURA que o restante.`);
+      lines.push(`  → Use gradiente escuro natural (iluminação lateral, sombra dramática, vinheta).`);
+      lines.push(`  → Nenhum produto, objeto em destaque ou elemento visual pode invadir esta zona.`);
+      lines.push(`  → Imagine que texto branco será escrito aqui — o fundo precisa garantir legibilidade.`);
       if (hasPerson) {
-        lines.push(`- COMPOSIÇÃO: Pessoa/produto no lado DIREITO (~40% da largura).`);
-        lines.push(`- Os ~50-60% ESQUERDOS devem ter fundo mais escuro ou gradiente natural para receber texto branco.`);
+        lines.push(`- METADE DIREITA (50% a 100%): Pessoa interagindo com o produto.`);
+        lines.push(`  → Pessoa e produto confinados aos 45% direitos da imagem.`);
       } else {
-        lines.push(`- O PRODUTO deve ocupar o TERÇO DIREITO (~30% da largura máximo), bem enquadrado e proporcionado.`);
-        lines.push(`- Os ~60-70% ESQUERDOS devem ter fundo escuro ou gradiente natural para receber texto branco.`);
+        lines.push(`- METADE DIREITA (50% a 100%): Produto em destaque.`);
+        lines.push(`  → Produto confinado aos 40% direitos da imagem, bem enquadrado.`);
       }
-      lines.push(`- O gradiente deve ser NATURAL (iluminação lateral, sombra ambiente), integrado ao cenário.`);
-      lines.push(`- Transição suave entre zona escura e zona do produto.`);
-      lines.push(`- O produto DEVE estar completamente visível e bem enquadrado, sem cortes nas bordas.`);
+      lines.push(`- TRANSIÇÃO: Gradiente suave entre zona escura (esquerda) e zona do produto (direita).`);
+      lines.push(`- O resultado deve parecer uma foto publicitária com iluminação lateral — lado esquerdo escuro, lado direito iluminado com o produto.`);
+      lines.push(`- O produto DEVE estar completamente visível, sem cortes nas bordas.`);
     } else {
-      // Mobile
+      // Mobile editable: top third is text zone, center is product, bottom is CTA zone
+      lines.push(`\n📏 LAYOUT MOBILE — DIVISÃO VERTICAL OBRIGATÓRIA:`);
+      lines.push(`- TERÇO SUPERIOR (0% a 35% da altura): ZONA DE TEXTO.`);
+      lines.push(`  → Esta área DEVE ser CONSIDERAVELMENTE MAIS ESCURA — aplique gradiente de preto/escuro no topo.`);
+      lines.push(`  → O escurecimento deve ser forte e inequívoco, não apenas "levemente mais escuro".`);
+      lines.push(`  → Texto branco será escrito aqui — legibilidade é obrigatória.`);
+      lines.push(`  → NENHUM produto, pessoa ou elemento visual pode invadir esta zona.`);
+      lines.push(`- CENTRO (35% a 70% da altura): Zona do produto.`);
       if (hasPerson) {
-        lines.push(`- COMPOSIÇÃO: O TERÇO SUPERIOR (~35%) deve ser mais escuro para receber texto branco.`);
-        lines.push(`- Pessoa/produto no CENTRO e parte inferior.`);
+        lines.push(`  → Pessoa com produto, centralizada, bem enquadrada.`);
       } else {
-        lines.push(`- O TERÇO SUPERIOR (~35-40%) deve ser escuro/gradiente natural para receber texto branco.`);
-        lines.push(`- O PRODUTO no CENTRO (~40% da altura máximo), bem enquadrado e proporcionado.`);
+        lines.push(`  → Produto centralizado, proporcionado e nítido.`);
       }
-      lines.push(`- O TERÇO INFERIOR deve ter espaço para botão CTA (zona mais limpa/escura).`);
-      lines.push(`- Enquadramento pensado para tela estreita. Produto centralizado.`);
+      lines.push(`- TERÇO INFERIOR (70% a 100% da altura): ZONA DO BOTÃO CTA.`);
+      lines.push(`  → Deve ter fundo mais escuro ou limpo para receber um botão HTML.`);
+      lines.push(`  → O produto NÃO pode invadir o terço inferior.`);
+      lines.push(`- Enquadramento pensado para tela estreita (portrait). Produto centralizado horizontalmente.`);
       lines.push(`- O produto NÃO pode ser cortado pelas bordas. Deve estar integralmente visível.`);
     }
+
+    lines.push(`\n⚠️ REGRA CRÍTICA DE CONTRASTE:`);
+    lines.push(`- A zona de texto DEVE ter luminosidade baixa o suficiente para texto branco (#FFFFFF) ser PERFEITAMENTE legível.`);
+    lines.push(`- Use técnicas de fotografia real: iluminação lateral, vinheta, gradiente de sombra, scrim natural.`);
+    lines.push(`- NÃO gere imagem uniformemente iluminada — o contraste entre zona de texto e zona de produto é OBRIGATÓRIO.`);
   }
 
   // Prohibitions

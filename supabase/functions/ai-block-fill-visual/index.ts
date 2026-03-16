@@ -222,16 +222,29 @@ EXEMPLOS DE BOA COPY:
 - buttonText: "Comprar agora" (13 chars) ⚠️ (genérico, evitar se nome disponível)`;
 }
 
+/**
+ * Strip any HTML tags, entities, and garbage from AI-generated text.
+ */
+function sanitizeText(text: unknown): string {
+  if (!text || typeof text !== 'string') return '';
+  return text
+    .replace(/<[^>]*>/g, '')           // Remove HTML tags
+    .replace(/&[a-zA-Z]+;/g, '')       // Remove HTML entities
+    .replace(/&\#\d+;/g, '')           // Remove numeric entities
+    .replace(/[\u0000-\u001F]/g, '')   // Remove control characters
+    .trim();
+}
+
 function truncateTexts(result: any): any {
-  if (result.title && typeof result.title === 'string') result.title = result.title.substring(0, 30);
-  if (result.subtitle && typeof result.subtitle === 'string') result.subtitle = result.subtitle.substring(0, 60);
-  if (result.buttonText && typeof result.buttonText === 'string') result.buttonText = result.buttonText.substring(0, 15);
+  if (result.title && typeof result.title === 'string') result.title = sanitizeText(result.title).substring(0, 30);
+  if (result.subtitle && typeof result.subtitle === 'string') result.subtitle = sanitizeText(result.subtitle).substring(0, 60);
+  if (result.buttonText && typeof result.buttonText === 'string') result.buttonText = sanitizeText(result.buttonText).substring(0, 15);
   if (Array.isArray(result.slides)) {
     result.slides = result.slides.map((s: any) => ({
       ...s,
-      title: s.title ? String(s.title).substring(0, 30) : '',
-      subtitle: s.subtitle ? String(s.subtitle).substring(0, 60) : '',
-      buttonText: s.buttonText ? String(s.buttonText).substring(0, 15) : '',
+      title: sanitizeText(s.title).substring(0, 30),
+      subtitle: sanitizeText(s.subtitle).substring(0, 60),
+      buttonText: sanitizeText(s.buttonText).substring(0, 15),
     }));
   }
   return result;
@@ -654,11 +667,13 @@ serve(async (req) => {
       } else if (generateImages) {
         // Editable mode: set overlay + high-contrast button defaults for legibility
         if (isSingle) {
-          generatedProps.overlayOpacity = 35;
+          generatedProps.overlayOpacity = 40;
           generatedProps.alignment = 'left';
           generatedProps.textColor = '#ffffff';
           generatedProps.buttonColor = '#ffffff';
           generatedProps.buttonTextColor = '#1a1a1a';
+          generatedProps.buttonHoverBgColor = '#e0e0e0';
+          generatedProps.buttonHoverTextColor = '#000000';
         }
       }
 

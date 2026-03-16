@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { BlockRenderContext } from '@/lib/builder/types';
 import { cn } from '@/lib/utils';
-import { ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ImageIcon, Loader2 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getHeroBannerImageUrl } from '@/lib/imageTransform';
 
@@ -54,6 +54,9 @@ interface BannerBlockProps {
   showArrows?: boolean;
   showDots?: boolean;
   
+  // Transient state (set by PropsEditor during regeneration)
+  _isRegenerating?: boolean;
+  
   // Context
   context?: BlockRenderContext;
 }
@@ -92,6 +95,8 @@ export function BannerBlock({
   autoplaySeconds = 5,
   showArrows = true,
   showDots = true,
+  // Transient
+  _isRegenerating,
   // Context
   context,
 }: BannerBlockProps) {
@@ -172,9 +177,19 @@ export function BannerBlock({
         <div className="text-center text-muted-foreground">
           <ImageIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
           <p className="text-sm">Adicione uma imagem para o banner</p>
-        </div>
       </div>
-    );
+
+      {/* Loading overlay during regeneration */}
+      {_isRegenerating && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3 text-white">
+            <Loader2 className="h-8 w-8 animate-spin" />
+            <span className="text-sm font-medium">Gerando nova variante...</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
   }
 
   // Alignment classes

@@ -264,9 +264,9 @@ export function PropsEditor({
                 onClick={async () => {
                   if (!lastWizardConfig || !wizardContract || isRegenerating) return;
                   setIsRegenerating(true);
+                  // Show loading state on the block itself
+                  onChange({ ...props, _isRegenerating: true });
                   try {
-                    const { useAIWizardGenerate } = await import('@/hooks/useAIWizardGenerate');
-                    // We can't use hooks dynamically, so invoke edge function directly
                     const { supabase } = await import('@/integrations/supabase/client');
                     const { toast } = await import('sonner');
                     
@@ -299,16 +299,27 @@ export function PropsEditor({
 
                     if (error || !data?.success || !data?.generatedProps) {
                       toast.error('Erro ao regenerar', { description: data?.error || 'Tente novamente' });
+                      // Remove loading state
+                      onChange({ ...props, _isRegenerating: undefined });
                       return;
                     }
 
-                    // Merge generated props keeping existing structure
+                    // Merge generated props — overwrite ALL text fields to clear old content
                     const merged = { ...props };
+                    delete merged._isRegenerating;
                     const gen = data.generatedProps;
                     
                     // Apply all generated props (images + texts)
                     for (const [key, value] of Object.entries(gen)) {
                       merged[key] = value;
+                    }
+                    
+                    // Ensure text fields are ALWAYS set (even empty) to clear old garbage
+                    const textKeys = ['title', 'subtitle', 'buttonText'];
+                    for (const tk of textKeys) {
+                      if (!(tk in gen)) {
+                        merged[tk] = '';
+                      }
                     }
 
                     // Keep the wizard config for future regenerations
@@ -320,6 +331,8 @@ export function PropsEditor({
                     console.error('[Regenerate] Error:', err);
                     const { toast } = await import('sonner');
                     toast.error('Erro ao regenerar');
+                    // Remove loading state on error
+                    onChange({ ...props, _isRegenerating: undefined });
                   } finally {
                     setIsRegenerating(false);
                   }
