@@ -306,7 +306,9 @@ export function PropsEditor({
 
                     // Merge generated props — overwrite ALL text fields to clear old content
                     const merged = { ...props };
-                    delete merged._isRegenerating;
+                    // CRITICAL: Explicitly set to undefined (not delete) because 
+                    // updateBlockProps uses spread merge which won't remove missing keys
+                    merged._isRegenerating = undefined;
                     const gen = data.generatedProps;
                     
                     // Apply all generated props (images + texts)

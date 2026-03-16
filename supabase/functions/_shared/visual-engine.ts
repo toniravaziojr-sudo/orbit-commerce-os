@@ -270,7 +270,9 @@ export async function resilientGenerate(
   // Step 3: Simplified prompt + Flash — LAST RESORT
   console.warn(`[visual-engine] [${slotLabel}] Step 3: Simplified prompt (last resort)`);
   const productName = prompt.match(/"([^"]+)"/)?.[1] || 'produto';
-  const simplifiedPrompt = `Crie uma fotografia profissional do produto "${productName}" em fundo escuro elegante. O produto deve ser IDÊNTICO à imagem de referência. Qualidade editorial.`;
+  const hasNoTextRule = prompt.includes('ZERO TEXT') || prompt.includes('ZERO TEXTO');
+  const noTextSuffix = hasNoTextRule ? ' A imagem NÃO pode conter NENHUM texto, letra, número ou tipografia.' : '';
+  const simplifiedPrompt = `Crie uma fotografia profissional do produto "${productName}" em fundo escuro elegante. O produto deve ser IDÊNTICO à imagem de referência. Qualidade editorial.${noTextSuffix}`;
   const lastResort = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.fast, simplifiedPrompt, referenceImageBase64);
   if (lastResort.imageBase64) {
     console.warn(`[visual-engine] [${slotLabel}] ⚠️ FALLBACK: Simplified prompt used`);
