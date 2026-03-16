@@ -70,21 +70,7 @@ const heightMap: Record<string, string> = {
   auto: 'auto',
 };
 
-export function BannerBlock(allProps: BannerBlockProps) {
-  try {
-    return BannerBlockInner(allProps);
-  } catch (err) {
-    console.error('[BannerBlock] RENDER CRASH:', err);
-    return (
-      <div className="p-4 bg-destructive/10 border border-destructive/30 rounded text-sm text-destructive">
-        <p className="font-bold">Erro ao renderizar Banner</p>
-        <p className="text-xs mt-1">{String(err)}</p>
-      </div>
-    );
-  }
-}
-
-function BannerBlockInner({
+export function BannerBlock({
   mode = 'single',
   // Single mode
   imageDesktop,
@@ -116,7 +102,6 @@ function BannerBlockInner({
   // Context
   context,
 }: BannerBlockProps) {
-  console.log('[BannerBlock] Rendering with props:', { mode, imageDesktop: !!imageDesktop, backgroundColor: !!backgroundColor, slides: slides?.length });
   const [currentIndex, setCurrentIndex] = useState(0);
   const realIsMobile = useIsMobile();
   
