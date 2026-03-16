@@ -100,21 +100,25 @@ const PRESET_CONFIG = {
   'standard': {
     useAspect: true,
     fullWidth: true,
+    naturalHeight: false,
     minHeight: undefined as string | undefined,
   },
   'compact-centered': {
     useAspect: false,
     fullWidth: false, // contained on desktop
-    minHeight: '300px',
+    naturalHeight: true, // image determines height (like category banners)
+    minHeight: undefined as string | undefined,
   },
   'compact-full': {
     useAspect: false,
-    fullWidth: true,
-    minHeight: '300px',
+    fullWidth: true, // full width on desktop (like standard)
+    naturalHeight: true, // image determines height (like compact-centered)
+    minHeight: undefined as string | undefined,
   },
   'large': {
     useAspect: false,
     fullWidth: true,
+    naturalHeight: false,
     minHeight: '100vh',
   },
 } as const;
