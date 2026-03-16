@@ -307,18 +307,18 @@ export function BannerBlock({
     <div
       className={cn(
         'relative overflow-hidden',
-        bannerWidth === 'full' ? 'w-full' : 'max-w-7xl mx-auto'
+        widthClass
       )}
       style={{
         backgroundColor: currentDesktopImage ? undefined : (backgroundColor || '#f3f4f6'),
-        minHeight: height !== 'auto' ? heightMap[height] : undefined,
+        minHeight: presetCfg.minHeight,
       }}
     >
       <div className={cn(
         'relative',
-        height === 'auto' ? aspectClass : 'w-full h-full'
+        presetCfg.useAspect ? aspectClass : 'w-full h-full'
       )}
-      style={{ minHeight: height !== 'auto' ? heightMap[height] : undefined }}
+      style={{ minHeight: presetCfg.minHeight }}
       >
         {currentDesktopImage ? (
           isBuilderMode ? (
