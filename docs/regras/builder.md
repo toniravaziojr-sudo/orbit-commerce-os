@@ -4050,11 +4050,28 @@ Quando a geração inclui imagens (scope `images` ou `all`), o backend retorna a
 
 Essas props são tratadas como `SYSTEM_DERIVED_PROPS` no frontend e **bypassam a whitelist** do `aiGenerates`.
 
-#### Proibições no prompt visual
+#### Proibições no prompt visual (Anti-Texto v2 — reforço mandatório)
+
 - Nenhum texto, letra, número, logo ou badge na imagem
 - Nenhum fundo branco ou cinza claro chapado
 - Nenhum elemento gráfico/UI
 - ⚠️ Pessoas SÃO permitidas quando o estilo `person_interacting` é selecionado
+
+**Mecanismo Anti-Texto (modo editável):**
+
+O modo editável gera imagens de fundo para overlay HTML — qualquer texto embutido na imagem cria conflito visual. Para garantir zero texto:
+
+1. `buildFinalPrompt()` injeta um preâmbulo **⛔ MANDATORY RULE — ZERO TEXT** como PRIMEIRA instrução do prompt, antes do creative brief
+2. `buildStructuralRules()` repete a proibição dentro das regras estruturais de cada slot
+3. O fallback simplificado (Step 3 do visual-engine) também herda a proibição no prompt reduzido
+
+| Camada | Arquivo | Mecanismo |
+|--------|---------|-----------|
+| Preâmbulo | `creative-brief-builder.ts` → `buildFinalPrompt()` | Injeta regra como primeira linha do prompt final |
+| Regras estruturais | `creative-brief-builder.ts` → `buildStructuralRules()` | Repete proibição nas rules do slot |
+| Fallback | `visual-engine.ts` → prompt simplificado | Inclui "absolutely no text" no prompt curto |
+
+> **REGRA:** O preâmbulo anti-texto é aplicado APENAS no modo `editable`. O modo `complete` pode conter texto se o modelo decidir.
 
 ### Regras de Merge
 
