@@ -44,6 +44,7 @@ interface BannerBlockProps {
   buttonHoverBgColor?: string;
   buttonHoverTextColor?: string;
   alignment?: 'left' | 'center' | 'right';
+  buttonAlignment?: 'left' | 'center' | 'right';
   overlayOpacity?: number;
   height?: 'sm' | 'md' | 'lg' | 'full' | 'auto';
   bannerWidth?: 'full' | 'contained';
