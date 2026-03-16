@@ -141,6 +141,7 @@ export function BuilderDraftPageSettingsProvider({ children }: BuilderDraftPageS
   });
 
   const hasDraftChanges = Object.values(draftPageSettings).some(v => v !== null);
+  const hasMountedDraftSyncRef = useRef(false);
 
   const hasPageDraftChanges = useCallback((pageType: PageSettingsKey): boolean => {
     return draftPageSettings[pageType] !== null;
@@ -151,8 +152,8 @@ export function BuilderDraftPageSettingsProvider({ children }: BuilderDraftPageS
       ...prev,
       [pageType]: settings,
     }));
-    // Notify external observers (VisualBuilder) to trigger re-render
-    notifyDraftPageSettingsChange();
+    // NOTA: a notificação agora ocorre em useEffect após commit do state,
+    // evitando condição de corrida com globalDraftPageSettingsRef.
   }, []);
 
   const getDraftPageSettings = useCallback(<T extends PageSettingsType>(pageType: PageSettingsKey): T | null => {
@@ -220,6 +221,16 @@ export function BuilderDraftPageSettingsProvider({ children }: BuilderDraftPageS
       globalDraftPageSettingsRef = null;
     };
   }, [value]);
+
+  // Notifica observers APÓS commit do draft + sync da ref global.
+  // Isso evita leitura defasada no VisualBuilder (toggle invertido/atrasado).
+  useEffect(() => {
+    if (!hasMountedDraftSyncRef.current) {
+      hasMountedDraftSyncRef.current = true;
+      return;
+    }
+    notifyDraftPageSettingsChange();
+  }, [draftPageSettings]);
 
   return (
     <BuilderDraftPageSettingsContext.Provider value={value}>
