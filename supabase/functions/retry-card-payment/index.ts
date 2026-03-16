@@ -26,6 +26,8 @@ interface RetryRequest {
     cvv: string;
   };
   installments?: number;
+  // Idempotency key for this retry attempt (prevents duplicate charges on double-click)
+  payment_attempt_id?: string;
 }
 
 serve(async (req) => {
