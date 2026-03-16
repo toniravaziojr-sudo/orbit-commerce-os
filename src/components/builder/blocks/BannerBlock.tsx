@@ -95,6 +95,8 @@ export function BannerBlock({
   autoplaySeconds = 5,
   showArrows = true,
   showDots = true,
+  // Transient
+  _isRegenerating,
   // Context
   context,
 }: BannerBlockProps) {
