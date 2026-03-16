@@ -158,7 +158,7 @@ export function useAIWizardGenerate({
       // Remap association keys for backend compatibility
       // Wizard uses association_0, association_1 for carousel slides
       // Backend expects slideAssociations_0, slideAssociations_1
-      const backendData: Record<string, unknown> = { ...collectedData };
+      const backendData: Record<string, unknown> = { ...collectedData, currentProps };
 
       // Merge creativeStyle data into bannerMode for backend compatibility
       const creativeStyleData = collectedData.creativeStyle as { creativeStyle?: string; styleConfig?: Record<string, unknown> } | undefined;
