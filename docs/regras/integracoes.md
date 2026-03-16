@@ -1004,6 +1004,27 @@ Nenhum evento Meta/Google/TikTok é disparado fora de produção.
 4. O servidor adiciona `client_ip_address` e `client_user_agent` dos headers do request
 5. A Meta usa `event_id` + `fbp` para deduplicar automaticamente (janela 48h)
 
+#### Extração de IP do Cliente (v8.16.0)
+
+O `marketing-capi-track` extrai o IP real do visitante com prioridade que preserva IPv6:
+
+| Prioridade | Header | Descrição |
+|------------|--------|-----------|
+| 1 | `cf-connecting-ip` | IP real do Cloudflare (preserva IPv6) |
+| 2 | `x-real-ip` | IP real via proxy reverso |
+| 3 | `x-forwarded-for` (1º entry) | Fallback — primeiro IP da cadeia de proxies |
+
+**Regra:** NUNCA normalizar para IPv4 quando o header fornece IPv6. O IP enviado ao CAPI deve corresponder ao IP que o Pixel vê no navegador.
+
+#### Persistência de FBC no Edge HTML (v8.16.0)
+
+O script inline da storefront HTML (`storefront-html/index.ts`) persiste o `fbclid` da URL em:
+- **Cookie `_fbc`** (first-party, 90 dias) — formato: `fb.1.{timestamp}.{fbclid}`
+- **localStorage `_fbc`** — fallback para cenários onde cookies são bloqueados
+
+A função `_sfCapi()` lê `_fbc` na ordem: cookie → localStorage → null.
+Isso garante que o primeiro PageView vindo de um anúncio já inclua `fbc` no CAPI server-side.
+
 #### Identidade e Atribuição (Fase 4)
 
 | Campo | Fonte | Descrição |
