@@ -126,7 +126,7 @@ serve(async (req) => {
     console.log(`[retry-card-payment] Calling ${gatewayFunction} for order ${order.order_number}, amount: ${amountCents} cents`);
 
     // 5. Call payment gateway — all sensitive data from server
-    const chargeBody = {
+    const chargeBody: Record<string, any> = {
       tenant_id: order.tenant_id,
       order_id: order.order_id,
       method: 'credit_card',
@@ -156,6 +156,11 @@ serve(async (req) => {
       },
       installments: payload.installments || 1,
     };
+
+    // Pass payment_attempt_id for gateway idempotency (prevents duplicate charges on double-click)
+    if (payload.payment_attempt_id) {
+      chargeBody.payment_attempt_id = payload.payment_attempt_id;
+    }
 
     // Log with PCI redaction
     console.log('[retry-card-payment] Charge payload (redacted):', JSON.stringify(redactPayloadForLog(chargeBody)));

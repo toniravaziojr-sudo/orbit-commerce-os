@@ -32,7 +32,7 @@ export function useRetryCardPayment({ retryToken }: UseRetryCardPaymentOptions) 
   const [isRetrying, setIsRetrying] = useState(false);
   const [retryResult, setRetryResult] = useState<RetryResult | null>(null);
 
-  const retryPayment = async (card: RetryCardData, installments: number = 1): Promise<RetryResult> => {
+  const retryPayment = async (card: RetryCardData, installments: number = 1, paymentAttemptId?: string): Promise<RetryResult> => {
     setIsRetrying(true);
     setRetryResult(null);
 
@@ -60,6 +60,8 @@ export function useRetryCardPayment({ retryToken }: UseRetryCardPaymentOptions) 
             cvv: card.cvv,
           },
           installments: installments || 1,
+          // Idempotency key for this retry attempt
+          payment_attempt_id: paymentAttemptId || undefined,
         },
       });
 
