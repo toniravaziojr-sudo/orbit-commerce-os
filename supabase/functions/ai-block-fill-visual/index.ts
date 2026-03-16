@@ -13,6 +13,9 @@ import { BannerAdapter } from "../_shared/visual-adapters/banner-adapter.ts";
 import { ImageAdapter } from "../_shared/visual-adapters/image-adapter.ts";
 import { ContentColumnsAdapter } from "../_shared/visual-adapters/content-columns-adapter.ts";
 import { BannerProductsAdapter } from "../_shared/visual-adapters/banner-products-adapter.ts";
+import { TextBannersAdapter } from "../_shared/visual-adapters/text-banners-adapter.ts";
+import { ImageCarouselAdapter } from "../_shared/visual-adapters/image-carousel-adapter.ts";
+import { ImageGalleryAdapter } from "../_shared/visual-adapters/image-gallery-adapter.ts";
 import type {
   ProductContext,
   CategoryContext,
