@@ -238,6 +238,11 @@ serve(async (req) => {
       orderUpdate.payment_gateway = 'pagarme';
       orderUpdate.payment_gateway_id = String(pagarmeOrderId);
 
+      // Sync payment_method from transaction to order
+      if (existingTransaction.method) {
+        orderUpdate.payment_method = existingTransaction.method;
+      }
+
       const { error: updateOrderError } = await supabase
         .from('orders')
         .update(orderUpdate)

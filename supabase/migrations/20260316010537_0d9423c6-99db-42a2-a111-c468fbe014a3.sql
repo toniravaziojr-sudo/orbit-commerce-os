@@ -1,0 +1,1 @@
+UPDATE orders SET payment_method = 'boleto', installments = 1, installment_value = 228.77 WHERE id = '89565efd-2374-4225-a511-03ee1e4cd38e';
