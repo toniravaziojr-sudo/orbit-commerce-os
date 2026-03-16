@@ -13,6 +13,9 @@ import { BannerAdapter } from "../_shared/visual-adapters/banner-adapter.ts";
 import { ImageAdapter } from "../_shared/visual-adapters/image-adapter.ts";
 import { ContentColumnsAdapter } from "../_shared/visual-adapters/content-columns-adapter.ts";
 import { BannerProductsAdapter } from "../_shared/visual-adapters/banner-products-adapter.ts";
+import { TextBannersAdapter } from "../_shared/visual-adapters/text-banners-adapter.ts";
+import { ImageCarouselAdapter } from "../_shared/visual-adapters/image-carousel-adapter.ts";
+import { ImageGalleryAdapter } from "../_shared/visual-adapters/image-gallery-adapter.ts";
 import type {
   ProductContext,
   CategoryContext,
@@ -85,6 +88,27 @@ const SERVER_CONTRACTS: Record<string, ServerContract> = {
       { key: 'imageMobile', width: 400, height: 500 },
     ],
   },
+  'TextBanners': {
+    aiGenerates: ['imageDesktop1', 'imageMobile1', 'imageDesktop2', 'imageMobile2'],
+    imageSpecs: [
+      { key: 'imageDesktop1', width: 600, height: 800 },
+      { key: 'imageMobile1', width: 400, height: 500 },
+      { key: 'imageDesktop2', width: 600, height: 800 },
+      { key: 'imageMobile2', width: 400, height: 500 },
+    ],
+  },
+  'ImageCarousel': {
+    aiGenerates: ['images'],
+    imageSpecs: [
+      { key: 'image', width: 800, height: 600 },
+    ],
+  },
+  'ImageGallery': {
+    aiGenerates: ['images'],
+    imageSpecs: [
+      { key: 'image', width: 800, height: 800 },
+    ],
+  },
 };
 
 function resolveContract(blockType: string, mode?: string): ServerContract | null {
@@ -100,6 +124,9 @@ const bannerAdapter = new BannerAdapter();
 const imageAdapter = new ImageAdapter();
 const contentColumnsAdapter = new ContentColumnsAdapter();
 const bannerProductsAdapter = new BannerProductsAdapter();
+const textBannersAdapter = new TextBannersAdapter();
+const imageCarouselAdapter = new ImageCarouselAdapter();
+const imageGalleryAdapter = new ImageGalleryAdapter();
 
 function getAdapter(blockType: string) {
   switch (blockType) {
@@ -107,6 +134,9 @@ function getAdapter(blockType: string) {
     case 'Image': return imageAdapter;
     case 'ContentColumns': return contentColumnsAdapter;
     case 'BannerProducts': return bannerProductsAdapter;
+    case 'TextBanners': return textBannersAdapter;
+    case 'ImageCarousel': return imageCarouselAdapter;
+    case 'ImageGallery': return imageGalleryAdapter;
     default: return null;
   }
 }
@@ -575,11 +605,13 @@ serve(async (req) => {
     const storeCtx = await fetchStoreContext(supabase, tenantId);
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY") || null;
 
-    // Extract outputMode and creativeStyle from collectedData (Phase 1)
+    // Extract outputMode and creativeStyle from collectedData
+    // Banner stores in bannerMode; other blocks store in creativeStyle directly
     const bannerModeData = collectedData?.bannerMode;
+    const creativeStyleData = collectedData?.creativeStyle as { creativeStyle?: string; styleConfig?: Record<string, unknown> } | undefined;
     const outputMode: OutputMode = bannerModeData?.outputMode || 'editable';
-    const creativeStyle: ImageStyle = bannerModeData?.creativeStyle || 'product_natural';
-    const styleConfig: Record<string, unknown> = bannerModeData?.styleConfig || {};
+    const creativeStyle: ImageStyle = bannerModeData?.creativeStyle || creativeStyleData?.creativeStyle || 'product_natural';
+    const styleConfig: Record<string, unknown> = bannerModeData?.styleConfig || creativeStyleData?.styleConfig || {};
 
     // Debug: log full payload to verify propagation
     console.log(`[ai-block-fill-visual] PAYLOAD: blockType=${blockType} mode=${mode} scope=${scope} outputMode=${outputMode} creativeStyle=${creativeStyle}`);
@@ -952,6 +984,150 @@ serve(async (req) => {
       try {
         const usageCents = (generateImages ? 8 : 0) + (generateTextsFlag ? 2 : 0);
         await supabase.rpc('record_ai_usage', { p_tenant_id: tenantId, p_usage_cents: usageCents });
+      } catch (e) {
+        console.warn("[ai-block-fill-visual] Failed to record usage:", e);
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, generatedProps }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // =============================================
+    // TEXT BANNERS — 4 image slots, no text generation
+    // =============================================
+    if (blockType === 'TextBanners') {
+      const adapter = getAdapter('TextBanners')!;
+      const generatedProps: Record<string, unknown> = {};
+
+      const adapterInput: AdapterInput = {
+        outputMode: 'editable',
+        creativeStyle,
+        styleConfig,
+        briefing: briefing || '',
+        contexts: [{ product: productCtx, category: categoryCtx, associationType }],
+        store: storeCtx,
+        enableQA: false,
+      };
+
+      const requests = adapter.adapt(adapterInput);
+      console.log(`[ai-block-fill-visual] TextBanners generating ${requests.length} request(s) with ${requests[0]?.slots?.length || 0} slots`);
+
+      const results = await Promise.all(
+        requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey))
+      );
+
+      Object.assign(generatedProps, adapter.mergeResults(results, adapterInput));
+
+      const elapsed = Date.now() - startTime;
+      console.log(`[ai-block-fill-visual] TextBanners done in ${elapsed}ms`);
+
+      try {
+        // 4 images = 16 cents
+        await supabase.rpc('record_ai_usage', { p_tenant_id: tenantId, p_usage_cents: 16 });
+      } catch (e) {
+        console.warn("[ai-block-fill-visual] Failed to record usage:", e);
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, generatedProps }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // =============================================
+    // IMAGE CAROUSEL — Dynamic N images (max 6)
+    // =============================================
+    if (blockType === 'ImageCarousel') {
+      const adapter = getAdapter('ImageCarousel')!;
+      const generatedProps: Record<string, unknown> = {};
+
+      const imageCount = typeof collectedData?.imageCount === 'number'
+        ? Math.min(collectedData.imageCount, 6)
+        : 4;
+
+      const carouselStyleConfig = {
+        ...styleConfig,
+        _imageCount: imageCount,
+        _aspectRatio: collectedData?.currentProps?.aspectRatio || 'auto',
+      };
+
+      const adapterInput: AdapterInput = {
+        outputMode: 'editable',
+        creativeStyle,
+        styleConfig: carouselStyleConfig,
+        briefing: briefing || '',
+        contexts: [{ product: productCtx, category: categoryCtx, associationType }],
+        store: storeCtx,
+        enableQA: false,
+      };
+
+      const requests = adapter.adapt(adapterInput);
+      console.log(`[ai-block-fill-visual] ImageCarousel generating ${imageCount} images via visual engine`);
+
+      const results = await Promise.all(
+        requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey))
+      );
+
+      Object.assign(generatedProps, adapter.mergeResults(results, adapterInput));
+
+      const elapsed = Date.now() - startTime;
+      console.log(`[ai-block-fill-visual] ImageCarousel done in ${elapsed}ms (${imageCount} images)`);
+
+      try {
+        await supabase.rpc('record_ai_usage', { p_tenant_id: tenantId, p_usage_cents: imageCount * 4 });
+      } catch (e) {
+        console.warn("[ai-block-fill-visual] Failed to record usage:", e);
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, generatedProps }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // =============================================
+    // IMAGE GALLERY — Dynamic N images (max 6)
+    // =============================================
+    if (blockType === 'ImageGallery') {
+      const adapter = getAdapter('ImageGallery')!;
+      const generatedProps: Record<string, unknown> = {};
+
+      const imageCount = typeof collectedData?.imageCount === 'number'
+        ? Math.min(collectedData.imageCount, 6)
+        : 6;
+
+      const galleryStyleConfig = {
+        ...styleConfig,
+        _imageCount: imageCount,
+        _aspectRatio: collectedData?.currentProps?.aspectRatio || 'auto',
+      };
+
+      const adapterInput: AdapterInput = {
+        outputMode: 'editable',
+        creativeStyle,
+        styleConfig: galleryStyleConfig,
+        briefing: briefing || '',
+        contexts: [{ product: productCtx, category: categoryCtx, associationType }],
+        store: storeCtx,
+        enableQA: false,
+      };
+
+      const requests = adapter.adapt(adapterInput);
+      console.log(`[ai-block-fill-visual] ImageGallery generating ${imageCount} images via visual engine`);
+
+      const results = await Promise.all(
+        requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey))
+      );
+
+      Object.assign(generatedProps, adapter.mergeResults(results, adapterInput));
+
+      const elapsed = Date.now() - startTime;
+      console.log(`[ai-block-fill-visual] ImageGallery done in ${elapsed}ms (${imageCount} images)`);
+
+      try {
+        await supabase.rpc('record_ai_usage', { p_tenant_id: tenantId, p_usage_cents: imageCount * 4 });
       } catch (e) {
         console.warn("[ai-block-fill-visual] Failed to record usage:", e);
       }

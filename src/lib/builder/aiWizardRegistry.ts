@@ -281,6 +281,12 @@ const BANNER_PRODUCTS_CONTRACT: WizardBlockContract = {
 const TEXT_BANNERS_CONTRACT: WizardBlockContract = {
   steps: [
     {
+      id: 'creativeStyle',
+      type: 'creative-style-select',
+      label: 'Estilo visual das imagens',
+      required: true,
+    },
+    {
       id: 'briefing',
       type: 'briefing',
       label: 'Qual o tema das imagens?',
@@ -311,12 +317,18 @@ const TEXT_BANNERS_CONTRACT: WizardBlockContract = {
 const IMAGE_CAROUSEL_CONTRACT: WizardBlockContract = {
   steps: [
     {
+      id: 'creativeStyle',
+      type: 'creative-style-select',
+      label: 'Estilo visual das imagens',
+      required: true,
+    },
+    {
       id: 'imageCount',
       type: 'quantity-select',
       label: 'Quantas imagens?',
       required: true,
       min: 1,
-      max: 10,
+      max: 6,
       defaultValue: 4,
     },
     {
@@ -347,12 +359,18 @@ const IMAGE_CAROUSEL_CONTRACT: WizardBlockContract = {
 const IMAGE_GALLERY_CONTRACT: WizardBlockContract = {
   steps: [
     {
+      id: 'creativeStyle',
+      type: 'creative-style-select',
+      label: 'Estilo visual das imagens',
+      required: true,
+    },
+    {
       id: 'imageCount',
       type: 'quantity-select',
       label: 'Quantas imagens?',
       required: true,
       min: 1,
-      max: 12,
+      max: 6,
       defaultValue: 6,
     },
     {

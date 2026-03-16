@@ -168,6 +168,11 @@ export function useAIWizardGenerate({
         modeDataForStyle.styleConfig = creativeStyleData.styleConfig || {};
       }
 
+      // Pass imageCount for array-based blocks (ImageCarousel, ImageGallery)
+      if (collectedData.imageCount !== undefined) {
+        backendData.imageCount = collectedData.imageCount;
+      }
+
       if (mode === 'carousel') {
         const modeData = collectedData.bannerMode as BannerModeData | undefined;
         const slideCount = modeData?.slideCount || 2;
