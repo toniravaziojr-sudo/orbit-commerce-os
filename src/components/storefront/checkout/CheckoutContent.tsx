@@ -232,14 +232,25 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
   }, [formData, isHydrated]);
 
 
+  // Synchronous lock to prevent double-click submitting two orders
+  const submissionLockRef = useRef(false);
+
   const handleSubmit = async () => {
+    // === SYNC LOCK: immediate guard before any async operation ===
+    if (submissionLockRef.current) return;
+    submissionLockRef.current = true;
+
     const errors = validateCheckoutForm(formData);
     setFormErrors(errors);
-    if (Object.keys(errors).length > 0) { toast.error('Corrija os erros no formulário'); return; }
-    if (!shipping.selected) { toast.error('Selecione uma opção de frete'); return; }
+    if (Object.keys(errors).length > 0) { toast.error('Corrija os erros no formulário'); submissionLockRef.current = false; return; }
+    if (!shipping.selected) { toast.error('Selecione uma opção de frete'); submissionLockRef.current = false; return; }
     if (paymentMethod === 'credit_card' && (!cardData.number || !cardData.holderName || !cardData.cvv)) {
-      toast.error('Preencha os dados do cartão'); return;
+      toast.error('Preencha os dados do cartão'); submissionLockRef.current = false; return;
     }
+
+    // Generate stable idempotency keys for this click
+    const checkoutAttemptId = crypto.randomUUID();
+    const paymentAttemptId = crypto.randomUUID();
 
     setPaymentStatus('processing');
     setPaymentError(null);
