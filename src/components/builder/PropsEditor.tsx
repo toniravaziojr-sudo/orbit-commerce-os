@@ -354,7 +354,7 @@ export function PropsEditor({
 
       {/* Props */}
       <ScrollArea className="flex-1">
-        <div className="p-3 pr-6 space-y-2.5">
+        <div className="p-3 pr-7 space-y-2.5">
           {/* Banner custom panel — replaces generic loop */}
           {definition.type === 'Banner' ? (
             <BannerPropsPanel
@@ -378,7 +378,7 @@ export function PropsEditor({
                         noticeOpen && "rotate-180"
                       )} />
                     </CollapsibleTrigger>
-                    <CollapsibleContent className="pt-2 pl-2 pr-1 space-y-2 border-l-2 border-muted ml-2 mt-1.5">
+                    <CollapsibleContent className="pt-2 pl-2 pr-0 space-y-2 border-l-2 border-muted ml-2 mt-1.5">
                       {noticePropsEntries.map(([key, schema]) => (
                         <PropField
                           key={key}
