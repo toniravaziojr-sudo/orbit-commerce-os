@@ -31,8 +31,8 @@ export function heroBannerToStaticHTML(
   const showDots = (props.showDots as boolean) ?? true;
   const layoutPreset = (props.layoutPreset as string) || '';
   
-  // Resolve preset (mirrors React resolvePreset logic)
-  let preset = 'standard';
+  // Resolve preset (mirrors BannerBlock.tsx resolvePreset logic exactly)
+  let preset: string = 'standard';
   if (['standard', 'compact-centered', 'compact-full', 'large'].includes(layoutPreset)) {
     preset = layoutPreset;
   } else {
