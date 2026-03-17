@@ -166,7 +166,7 @@ export function BannerSlidesEditor({ slides = [], onChange }: BannerSlidesEditor
             {isExpanded && (
               <div className="border-t p-2.5 space-y-2">
                 <SlideConfigSection slide={slide} index={index} hasEditable={hasEditable} onUpdate={updateSlide} />
-                <SlideImagesSection slide={slide} index={index} onUpdate={updateSlide} />
+                <SlideImagesSection slide={slide} index={index} onUpdate={updateSlide} defaultOpen={true} />
                 <SlideRefinementsSection slide={slide} index={index} hasEditable={hasEditable} onUpdate={updateSlide} />
               </div>
             )}
