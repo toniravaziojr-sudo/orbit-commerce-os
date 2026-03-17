@@ -772,7 +772,7 @@ export function HeaderFooterPropsEditor({
           </div>
 
           <ScrollArea className="flex-1">
-            <div className="p-2 space-y-1.5">
+            <div className="p-2 space-y-1.5 min-w-0 overflow-x-hidden pr-4 box-border">
               {/* === CORES DO CABEÇALHO DO CHECKOUT === */}
               <Collapsible open={openSections.colors} onOpenChange={() => toggleSection('colors')}>
                 <CollapsibleTrigger asChild>
