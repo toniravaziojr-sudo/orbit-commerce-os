@@ -354,7 +354,7 @@ export function PropsEditor({
 
       {/* Props */}
       <ScrollArea className="flex-1">
-        <div className="p-3 pr-7 space-y-2.5">
+        <div className="p-3 pr-6 space-y-2.5">
           {/* Banner custom panel — replaces generic loop */}
           {definition.type === 'Banner' ? (
             <BannerPropsPanel
