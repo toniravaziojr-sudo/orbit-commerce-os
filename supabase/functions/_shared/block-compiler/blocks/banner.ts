@@ -251,11 +251,11 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
   const preset = resolvePreset(layoutPreset, height, bannerWidth);
   const presetCfg = PRESET_CONFIG[preset];
 
-  // Shared style props for CTA rendering
-  const overlayOpacity = (props.overlayOpacity as number) || 0;
-  const textColor = (props.textColor as string) || '#ffffff';
-  const buttonColor = (props.buttonColor as string) || '#ffffff';
-  const buttonTextColor = (props.buttonTextColor as string) || (buttonColor ? '#ffffff' : '#1a1a1a');
+  // Global style props (fallback for per-slide)
+  const globalOverlayOpacity = (props.overlayOpacity as number) || 0;
+  const globalTextColor = (props.textColor as string) || '#ffffff';
+  const globalButtonColor = (props.buttonColor as string) || '#ffffff';
+  const globalButtonTextColor = (props.buttonTextColor as string) || (globalButtonColor ? '#ffffff' : '#1a1a1a');
 
   const carouselId = uid();
 
