@@ -129,8 +129,7 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
 
   const overlayOpacity = (props.overlayOpacity as number) || 0;
   const textColor = (props.textColor as string) || '#ffffff';
-  const alignment = (props.alignment as string) || 'center';
-  const buttonAlignment = (props.buttonAlignment as string) || 'auto';
+  const alignment = 'left'; // Fixed: always left on desktop
   const backgroundColor = (props.backgroundColor as string) || '';
   const buttonColor = (props.buttonColor as string) || '#ffffff';
   const buttonTextColor = (props.buttonTextColor as string) || (buttonColor ? '#ffffff' : '#1a1a1a');
