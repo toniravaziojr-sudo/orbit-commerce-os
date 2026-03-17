@@ -132,7 +132,7 @@ export function BannerPropsPanel({ props, onChange, tenantId }: BannerPropsPanel
       </FieldWrapper>
 
       {mode === 'carousel' ? (
-        <CarouselPanel props={props} onChange={onChange} />
+        <CarouselPanel props={props} onChange={onChange} tenantId={tenantId} />
       ) : (
         <SinglePanel props={props} onChange={onChange} />
       )}
