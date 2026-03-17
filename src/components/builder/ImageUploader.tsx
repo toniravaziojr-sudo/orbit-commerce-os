@@ -314,7 +314,7 @@ export function ImageUploader({
             </div>
           )}
         </TabsContent>
-      </Tabs>
+      </Tabs>)}
 
       {/* Error message */}
       {error && (

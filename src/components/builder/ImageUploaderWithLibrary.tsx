@@ -195,7 +195,7 @@ export function ImageUploaderWithLibrary({
             </Button>
           </div>
         </TabsContent>
-      </Tabs>
+      </Tabs>)}
 
       {/* Error message */}
       {error && (

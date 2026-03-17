@@ -229,7 +229,7 @@ export function UniversalImageUploader({
             </p>
           </TabsContent>
         )}
-      </Tabs>
+      </Tabs>)}
 
       {/* Error message */}
       {error && (

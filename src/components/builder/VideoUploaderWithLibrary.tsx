@@ -343,7 +343,7 @@ export function VideoUploaderWithLibrary({
             </Button>
           </div>
         </TabsContent>
-      </Tabs>
+      </Tabs>)}
 
       {/* Error message */}
       {error && (
