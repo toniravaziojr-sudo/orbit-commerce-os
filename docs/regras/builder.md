@@ -3708,6 +3708,7 @@ Blocos que exigem decisões do usuário antes da geração:
 | Hook | useAIBlockWizard | `src/hooks/useAIBlockWizard.ts` | Gerencia estado do wizard: step atual, navegação, dados coletados |
 | Hook | useAIWizardGenerate | `src/hooks/useAIWizardGenerate.ts` | Chama edge function e aplica whitelist merge + scope filtering no frontend |
 | Função | getWizardContract | `src/lib/builder/aiWizardRegistry.ts` | Retorna o contrato do bloco ou null (Grupo A) |
+| Função | getSlideWizardContract | `src/lib/builder/aiWizardRegistry.ts` | Retorna o contrato dedicado para geração IA por slide (`BANNER_SLIDE_CONTRACT`). Pula a etapa de modo (single/carrossel) e não expande associação por slide, pois o contexto já é um slide individual. Steps: Estilo visual → Escopo → Destino → Briefing → Confirmar (5 passos). |
 
 #### Registry de Contratos
 
