@@ -44,6 +44,8 @@ export interface BannerSlide {
   buttonTextColor?: string;
   buttonHoverBgColor?: string;
   buttonHoverTextColor?: string;
+  // AI regeneration config (hidden)
+  _lastSlideWizardConfig?: Record<string, unknown>;
 }
 
 interface BannerSlidesEditorProps {
