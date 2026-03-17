@@ -296,7 +296,7 @@ const BANNER_SLIDE_CONTRACT: WizardBlockContract = {
   ],
 };
 
-
+const BANNER_PRODUCTS_CONTRACT: WizardBlockContract = {
   steps: [
     {
       id: 'sourceCheck',
