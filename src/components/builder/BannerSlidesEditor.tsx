@@ -319,8 +319,8 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId }: BannerSl
         Adicionar slide
       </Button>
 
-      {/* Per-slide AI Wizard Dialog — reuses Banner single mode contract */}
-      {singleSlideContract && tenantId && aiWizardSlideIndex !== null && (
+      {/* Per-slide AI Wizard Dialog — dedicated slide contract (no mode select) */}
+      {tenantId && aiWizardSlideIndex !== null && (
         <AIFillWizardDialog
           open={true}
           onOpenChange={(open) => { if (!open) setAiWizardSlideIndex(null); }}
