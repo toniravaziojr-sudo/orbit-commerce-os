@@ -4030,8 +4030,8 @@ O posicionamento dos textos e botão do banner é **fixo**, sem opções de alin
 |-------|-------|
 | **Tipo** | Ação / Componente |
 | **Localização** | `BannerSlidesEditor.tsx` |
-| **Descrição** | Botão ✨ no cabeçalho de cada slide que abre o wizard de geração IA no modo `single`, gerando imagens e textos para aquele slide individual |
-| **Comportamento** | 1. Usuário clica ✨ no slide desejado. 2. Abre o mesmo wizard do Banner (modo single). 3. Resultado é mesclado apenas no slide clicado (imageDesktop, imageMobile, title, subtitle, buttonText, altText, linkUrl). 4. Se IA gerar título ou botão, `hasEditableContent` é ativado automaticamente. 5. Configuração do wizard é salva em `_lastSlideWizardConfig` no slide |
+| **Descrição** | Botão ✨ no cabeçalho de cada slide que abre o wizard de geração IA dedicado para slides individuais |
+| **Comportamento** | 1. Usuário clica ✨ no slide desejado. 2. Abre o wizard dedicado de slide (`BANNER_SLIDE_CONTRACT`) com 5 passos: Estilo visual → Escopo → Destino do slide → Briefing → Confirmar. **Não inclui** a etapa de modo (single/carrossel) pois o slide já faz parte de um carrossel. 3. Resultado é mesclado apenas no slide clicado (imageDesktop, imageMobile, title, subtitle, buttonText, altText, linkUrl). 4. Se IA gerar título ou botão, `hasEditableContent` é ativado automaticamente. 5. Configuração do wizard é salva em `_lastSlideWizardConfig` no slide |
 | **Condições** | Só aparece se `tenantId` está disponível |
 | **Afeta** | Resolve o limite de 3 slides por geração — agora o usuário pode gerar slide a slide sem timeout |
 
