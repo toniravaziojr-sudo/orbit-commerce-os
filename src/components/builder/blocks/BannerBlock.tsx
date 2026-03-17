@@ -372,11 +372,11 @@ export function BannerBlock({
                 "absolute inset-0 flex flex-col z-10",
                 isMobile
                   ? 'justify-between'
-                  : cn('justify-center', alignClass),
+                  : 'justify-between items-start text-left',
               )}
               style={{
                 padding: isMobile ? '32px 20px 28px' : '48px 64px',
-                maxWidth: isMobile ? '100%' : (currentAlignment === 'center' ? '100%' : '55%'),
+                maxWidth: isMobile ? '100%' : '55%',
               }}
             >
               {isMobile ? (
@@ -386,7 +386,7 @@ export function BannerBlock({
                     {currentTitle && (
                       <h2
                         className="font-bold leading-tight"
-                        style={{ color: currentTextColor, fontSize: '1.5rem' }}
+                        style={{ color: currentTextColor, fontSize: '1.5rem', fontFamily: 'var(--sf-heading-font, inherit)' }}
                       >
                         {currentTitle}
                       </h2>
@@ -397,13 +397,13 @@ export function BannerBlock({
                     {currentSubtitle && (
                       <p
                         className="opacity-90 leading-snug"
-                        style={{ color: currentTextColor, fontSize: '0.875rem', marginBottom: '0.75rem' }}
+                        style={{ color: currentTextColor, fontSize: '0.875rem', marginBottom: '0.75rem', fontFamily: 'var(--sf-body-font, inherit)' }}
                       >
                         {currentSubtitle}
                       </p>
                     )}
                     {currentButtonText && (
-                      <div className={cn("flex w-full", btnAlignClass)}>
+                      <div className="flex w-full justify-center">
                         {isBuilderMode ? (
                           <span
                             className={`${btnId} inline-block rounded-lg font-semibold transition-colors cursor-pointer`}
@@ -426,24 +426,31 @@ export function BannerBlock({
                 </>
               ) : (
                 <>
-                  {currentTitle && (
-                    <h2
-                      className="font-bold leading-tight"
-                      style={{ color: currentTextColor, fontSize: '3rem', marginBottom: '1rem' }}
-                    >
-                      {currentTitle}
-                    </h2>
-                  )}
-                  {currentSubtitle && (
-                    <p
-                      className="opacity-90 leading-snug"
-                      style={{ color: currentTextColor, fontSize: '1.5rem', marginBottom: '2rem' }}
-                    >
-                      {currentSubtitle}
-                    </p>
-                  )}
+                  {/* Desktop: Title at top */}
+                  <div>
+                    {currentTitle && (
+                      <h2
+                        className="font-bold leading-tight"
+                        style={{ color: currentTextColor, fontSize: '3rem', fontFamily: 'var(--sf-heading-font, inherit)' }}
+                      >
+                        {currentTitle}
+                      </h2>
+                    )}
+                  </div>
+                  {/* Desktop: Subtitle in the middle (equal spacing from title and button via justify-between) */}
+                  <div>
+                    {currentSubtitle && (
+                      <p
+                        className="opacity-90 leading-snug"
+                        style={{ color: currentTextColor, fontSize: '1.5rem', fontFamily: 'var(--sf-body-font, inherit)' }}
+                      >
+                        {currentSubtitle}
+                      </p>
+                    )}
+                  </div>
+                  {/* Desktop: Button at bottom-left */}
                   {currentButtonText && (
-                    <div className={cn("flex w-full", btnAlignClass)}>
+                    <div className="flex w-full justify-start">
                       {isBuilderMode ? (
                         <span
                           className={`${btnId} inline-block rounded-lg font-semibold transition-colors cursor-pointer`}
