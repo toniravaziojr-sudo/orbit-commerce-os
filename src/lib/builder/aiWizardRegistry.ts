@@ -165,6 +165,15 @@ export function getWizardContract(
   }
 }
 
+/**
+ * Returns the simplified wizard contract for per-slide AI generation.
+ * Removes block-level steps (mode select) and perSlide expansion since
+ * we're generating content for a single slide that already exists in a carousel.
+ */
+export function getSlideWizardContract(): WizardBlockContract {
+  return BANNER_SLIDE_CONTRACT;
+}
+
 // =============================================
 // CONTRACT DEFINITIONS
 // =============================================
