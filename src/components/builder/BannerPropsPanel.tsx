@@ -294,7 +294,6 @@ function SinglePanel({ props, onChange }: BannerPropsPanelProps) {
             <ColorField label="Cor de Fundo" value={(props.buttonColor as string) || '#ffffff'} onChange={v => onChange('buttonColor', v)} />
             <ColorField label="Cor do Texto" value={(props.buttonTextColor as string) || ''} onChange={v => onChange('buttonTextColor', v)} />
             <ColorField label="Fundo (Hover)" value={(props.buttonHoverBgColor as string) || ''} onChange={v => onChange('buttonHoverBgColor', v)} />
-            <ColorField label="Texto (Hover)" value={(props.buttonHoverTextColor as string) || ''} onChange={v => onChange('buttonHoverTextColor', v)} />
           </div>
         )}
 
