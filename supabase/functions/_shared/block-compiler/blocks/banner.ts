@@ -311,9 +311,10 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
       const titleHtml = slideTitle ? `<h2 style="color:${textColor};">${escapeHtml(slideTitle)}</h2>` : '';
       const subtitleHtml = slideSubtitle ? `<p style="color:${textColor};">${escapeHtml(slideSubtitle)}</p>` : '';
       const buttonHtml = slideButtonText ? `<div class="${carouselId}-btn-wrap"><a href="${escapeHtml(slideButtonUrl)}" class="${carouselId}-btn" style="background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};">${escapeHtml(slideButtonText)}</a></div>` : '';
-      ctaHtml = `<div class="${carouselId}-cta" style="align-items:${justifyContent};text-align:${textAlign};">
+      ctaHtml = `<div class="${carouselId}-cta">
         <div>${titleHtml}</div>
-        <div class="${carouselId}-bottom">${subtitleHtml}${buttonHtml}</div>
+        <div>${subtitleHtml}</div>
+        <div class="${carouselId}-bottom">${buttonHtml}</div>
       </div>`;
     }
 
