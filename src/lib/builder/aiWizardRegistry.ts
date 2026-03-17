@@ -165,6 +165,15 @@ export function getWizardContract(
   }
 }
 
+/**
+ * Returns the simplified wizard contract for per-slide AI generation.
+ * Removes block-level steps (mode select) and perSlide expansion since
+ * we're generating content for a single slide that already exists in a carousel.
+ */
+export function getSlideWizardContract(): WizardBlockContract {
+  return BANNER_SLIDE_CONTRACT;
+}
+
 // =============================================
 // CONTRACT DEFINITIONS
 // =============================================
@@ -221,6 +230,61 @@ const BANNER_UNIFIED_CONTRACT: WizardBlockContract = {
     'mode', 'linkUrl', 'buttonUrl', 'backgroundColor', 'textColor',
     'buttonColor', 'buttonTextColor', 'buttonHoverBgColor', 'buttonHoverTextColor',
     'alignment', 'buttonAlignment', 'overlayOpacity', 'height', 'bannerWidth',
+    'autoplaySeconds', 'showArrows', 'showDots',
+    'bannerType', 'hasEditableContent', 'layoutPreset',
+  ],
+  requiresImageGeneration: true,
+  hasTextGeneration: true,
+  imageSpecs: [
+    { key: 'imageDesktop', width: 1920, height: 800, label: 'Banner Desktop' },
+    { key: 'imageMobile', width: 750, height: 940, label: 'Banner Mobile' },
+  ],
+};
+
+/**
+ * Simplified contract for per-slide AI generation.
+ * Skips: banner-mode-select (already in carousel), perSlide expansion.
+ * Steps: Style → Scope → Association → Briefing → Confirm
+ */
+const BANNER_SLIDE_CONTRACT: WizardBlockContract = {
+  steps: [
+    {
+      id: 'creativeStyle',
+      type: 'creative-style-select',
+      label: 'Estilo visual da imagem',
+      required: true,
+    },
+    {
+      id: 'scope',
+      type: 'scope-select',
+      label: 'O que deseja gerar?',
+      required: true,
+    },
+    {
+      id: 'association',
+      type: 'banner-association',
+      label: 'Para onde este slide direciona?',
+      required: true,
+      // NOT perSlide — single association for this one slide
+    },
+    {
+      id: 'briefing',
+      type: 'briefing',
+      label: 'Descreva o objetivo deste slide',
+      required: false,
+      placeholder: 'Ex: Promoção de verão, lançamento da coleção X...',
+    },
+    {
+      id: 'confirm',
+      type: 'confirm',
+      label: 'Confirmar e gerar',
+      required: true,
+    },
+  ],
+  aiGenerates: ['imageDesktop', 'imageMobile', 'title', 'subtitle', 'buttonText'],
+  aiNeverTouches: [
+    'mode', 'linkUrl', 'buttonUrl', 'backgroundColor', 'textColor',
+    'buttonColor', 'buttonTextColor', 'overlayOpacity', 'height', 'bannerWidth',
     'autoplaySeconds', 'showArrows', 'showDots',
     'bannerType', 'hasEditableContent', 'layoutPreset',
   ],

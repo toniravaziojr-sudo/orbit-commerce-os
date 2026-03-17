@@ -20,7 +20,7 @@ import {
 import { Plus, Trash2, ChevronUp, ChevronDown, GripVertical, ImageIcon, ChevronRight, Sparkles, Loader2, RefreshCw } from 'lucide-react';
 import { ImageUploaderWithLibrary } from './ImageUploaderWithLibrary';
 import { cn } from '@/lib/utils';
-import { getWizardContract } from '@/lib/builder/aiWizardRegistry';
+import { getSlideWizardContract } from '@/lib/builder/aiWizardRegistry';
 import { AIFillWizardDialog } from './ai-wizard/AIFillWizardDialog';
 
 export interface BannerSlide {
@@ -63,7 +63,7 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId }: BannerSl
   // Per-slide regeneration loading
   const [regeneratingSlide, setRegeneratingSlide] = useState<number | null>(null);
 
-  const singleSlideContract = getWizardContract('Banner');
+  const singleSlideContract = getSlideWizardContract();
 
   const generateId = () => `slide-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -319,8 +319,8 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId }: BannerSl
         Adicionar slide
       </Button>
 
-      {/* Per-slide AI Wizard Dialog — reuses Banner single mode contract */}
-      {singleSlideContract && tenantId && aiWizardSlideIndex !== null && (
+      {/* Per-slide AI Wizard Dialog — dedicated slide contract (no mode select) */}
+      {tenantId && aiWizardSlideIndex !== null && (
         <AIFillWizardDialog
           open={true}
           onOpenChange={(open) => { if (!open) setAiWizardSlideIndex(null); }}
