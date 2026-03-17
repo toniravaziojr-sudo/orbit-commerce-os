@@ -353,7 +353,14 @@ function CarouselPanel({ props, onChange, onBatchChange, tenantId }: BannerProps
         slides={(props.slides as BannerSlide[]) || []}
         onChange={(slides) => onChange('slides', slides)}
         tenantId={tenantId}
-        onRegeneratingChange={(isRegenerating) => onChange('_isRegenerating', isRegenerating ? true : undefined)}
+        onRegeneratingChange={(isRegenerating, finalSlides) => {
+          if (!isRegenerating && finalSlides && onBatchChange) {
+            // Atomic batch: update slides + clear loading in one call (no stale-props race)
+            onBatchChange({ slides: finalSlides, _isRegenerating: undefined });
+          } else {
+            onChange('_isRegenerating', isRegenerating ? true : undefined);
+          }
+        }}
       />
     </>
   );

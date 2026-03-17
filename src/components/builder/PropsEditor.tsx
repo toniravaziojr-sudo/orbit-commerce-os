@@ -365,6 +365,7 @@ export function PropsEditor({
             <BannerPropsPanel
               props={props}
               onChange={handleChange}
+              onBatchChange={handleBatchChange}
               tenantId={tenantId}
             />
           ) : (
