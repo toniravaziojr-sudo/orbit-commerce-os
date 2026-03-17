@@ -4599,3 +4599,66 @@ Ao criar qualquer novo editor/painel dentro da sidebar direita:
 - [ ] Tabs/botões usam apenas ícones (sem labels de texto)?
 - [ ] Nenhum `sm:` breakpoint para show/hide de conteúdo?
 - [ ] Padding de scrollbar existe em UMA camada só?
+
+---
+
+## Regra Visual — Upload/Preview de Mídia (Substituição, Não Coexistência)
+
+> **Status:** IMPLEMENTADO ✅ — Padronização global (2026-03-17)
+
+### Princípio
+
+```
+Preview SUBSTITUI a área de upload. Nunca coexistem.
+```
+
+### Lógica obrigatória em todo componente de mídia
+
+| Estado | O que mostrar |
+|--------|--------------|
+| Sem mídia (`!value`) | Área de upload (Tabs com Upload/Drive/URL) |
+| Com mídia (`value`) | Apenas preview + botão X vermelho para remover |
+| Ao remover (X) | Preview some, área de upload reaparece |
+
+### Implementação técnica
+
+Envolver as `<Tabs>` em `{!value && (...)}`:
+
+```tsx
+{!value && (
+  <Tabs defaultValue="upload">
+    {/* Upload / Drive / URL */}
+  </Tabs>
+)}
+
+{value && (
+  <div className="relative ...">
+    <img src={value} ... />
+    <Button variant="destructive" onClick={handleClear}>
+      <X />
+    </Button>
+  </div>
+)}
+```
+
+### Componentes corrigidos
+
+| Componente | Arquivo |
+|-----------|---------|
+| ImageUploaderWithLibrary | `src/components/builder/ImageUploaderWithLibrary.tsx` |
+| ImageUploader | `src/components/builder/ImageUploader.tsx` |
+| VideoUploaderWithLibrary | `src/components/builder/VideoUploaderWithLibrary.tsx` |
+| UniversalImageUploader | `src/components/ui/UniversalImageUploader.tsx` |
+
+### Componentes que já estavam corretos (não alterados)
+
+- `ImageUpload` (settings) — já alternava corretamente
+- `TestimonialDialog` — lógica inline correta
+- `ProductVariantPicker` — lógica inline correta
+- `ProductImageUploader` — multi-image, lógica própria
+
+### Proibições
+
+- ❌ Mostrar Tabs de upload e preview ao mesmo tempo
+- ❌ Criar novo componente de mídia sem seguir esta regra
+- ❌ Duplicar lógica de upload/preview em componentes inline quando existe componente base
