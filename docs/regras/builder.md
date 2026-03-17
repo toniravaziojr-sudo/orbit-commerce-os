@@ -3977,6 +3977,26 @@ Step 6: CONFIRMAÇÃO
 - `height=auto` + `bannerWidth=contained` → `compact-centered`
 - `height=auto` + `bannerWidth=full` (ou ausente) → `standard`
 
+#### Layout fixo do CTA (v4.2.0) — SEM seletores de alinhamento
+
+O posicionamento dos textos e botão do banner é **fixo**, sem opções de alinhamento no editor:
+
+| Elemento | Desktop | Mobile |
+|----------|---------|--------|
+| **Título** | Topo, alinhado à esquerda | Topo, centralizado |
+| **Subtítulo** | Meio (espaçamento igual entre título e botão) | Ligeiramente acima do botão, centralizado |
+| **Botão** | Parte inferior, alinhado à esquerda | Parte inferior, centralizado |
+| **Container CTA** | `justify-between`, `max-width: 55%`, `padding: 48px 64px` | `justify-between`, `width: 100%`, `padding: 32px 20px 28px` |
+
+**Tipografia:** Títulos usam `var(--sf-heading-font)`, subtítulos usam `var(--sf-body-font)` — seguem as configurações do tema.
+
+**Campos REMOVIDOS do editor (v4.2.0):**
+- `alignment` (Alinhamento do Texto) — [REMOVIDO]
+- `buttonAlignment` (Alinhamento do Botão) — [REMOVIDO]
+- `buttonHoverTextColor` (Texto Hover) — [REMOVIDO]
+
+> **Nota:** As props `alignment` e `buttonAlignment` ainda existem nos dados salvos de banners antigos, mas são **ignoradas** pela renderização. O layout fixo sempre se aplica.
+
 #### Compatibilidade com dados antigos
 
 - `bannerType` ausente → tratado como `'image'`
@@ -4008,8 +4028,8 @@ Step 6: CONFIRMAÇÃO
 |--------|-----------|
 | `layoutPreset` | `imageDesktop`, `imageMobile`, `altText` |
 | `autoplaySeconds`, `showArrows`, `showDots` | `hasEditableContent`, `title`, `subtitle`, `buttonText`, `buttonUrl` |
-| | `overlayOpacity`, `textColor`, `alignment`, `buttonAlignment` |
-| | `buttonColor`, `buttonTextColor`, `buttonHoverBgColor`, `buttonHoverTextColor` |
+| | `overlayOpacity`, `textColor` |
+| | `buttonColor`, `buttonTextColor`, `buttonHoverBgColor` |
 | | `linkUrl` (quando sem CTA) |
 
 #### Regra link vs CTA

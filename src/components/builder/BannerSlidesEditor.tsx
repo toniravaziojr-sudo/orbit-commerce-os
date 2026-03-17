@@ -233,29 +233,6 @@ function SlideConfigSection({ slide, index, hasEditable, onUpdate }: {
             <Label className="text-[10px] font-medium">Link do Botão</Label>
             <Input value={slide.buttonUrl || ''} onChange={e => onUpdate(index, 'buttonUrl', e.target.value)} placeholder="/produtos" className="h-7 text-xs" />
           </div>
-          <div className="space-y-1">
-            <Label className="text-[10px] font-medium">Alinhamento do Texto</Label>
-            <Select value={slide.alignment || 'center'} onValueChange={v => onUpdate(index, 'alignment', v)}>
-              <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="left" className="text-xs">Esquerda</SelectItem>
-                <SelectItem value="center" className="text-xs">Centro</SelectItem>
-                <SelectItem value="right" className="text-xs">Direita</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[10px] font-medium">Alinhamento do Botão</Label>
-            <Select value={slide.buttonAlignment || 'auto'} onValueChange={v => onUpdate(index, 'buttonAlignment', v)}>
-              <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="auto" className="text-xs">Seguir Texto</SelectItem>
-                <SelectItem value="left" className="text-xs">Esquerda</SelectItem>
-                <SelectItem value="center" className="text-xs">Centro</SelectItem>
-                <SelectItem value="right" className="text-xs">Direita</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
         </div>
       )}
     </SubSection>
@@ -328,7 +305,6 @@ function SlideRefinementsSection({ slide, index, hasEditable, onUpdate }: {
           <ColorInline label="Cor de Fundo" value={slide.buttonColor || '#ffffff'} onChange={v => onUpdate(index, 'buttonColor', v)} />
           <ColorInline label="Cor do Texto" value={slide.buttonTextColor || ''} onChange={v => onUpdate(index, 'buttonTextColor', v)} />
           <ColorInline label="Fundo (Hover)" value={slide.buttonHoverBgColor || ''} onChange={v => onUpdate(index, 'buttonHoverBgColor', v)} />
-          <ColorInline label="Texto (Hover)" value={slide.buttonHoverTextColor || ''} onChange={v => onUpdate(index, 'buttonHoverTextColor', v)} />
         </div>
       )}
 

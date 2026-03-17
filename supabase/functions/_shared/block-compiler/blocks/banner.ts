@@ -87,25 +87,22 @@ export function bannerToStaticHTML(
 /**
  * Build responsive CTA style tag.
  */
-function buildCtaStyleTag(bannerId: string, alignment: string, buttonAlignment: string): string {
-  const maxWidthDesktop = alignment !== 'center' ? 'max-width:55%;' : '';
-  const btnAlignMap: Record<string, string> = { left: 'flex-start', center: 'center', right: 'flex-end' };
-  const effectiveBtnAlign = (!buttonAlignment || buttonAlignment === 'auto') ? alignment : buttonAlignment;
-  const btnJustify = btnAlignMap[effectiveBtnAlign] || 'center';
+function buildCtaStyleTag(bannerId: string): string {
+  // Fixed layout: Desktop=left+justify-between, Mobile=center+justify-between
   return `<style>
-.${bannerId}-cta{position:absolute;inset:0;display:flex;flex-direction:column;z-index:2;padding:32px 20px;}
-.${bannerId}-cta h2{font-size:clamp(24px,5vw,36px);font-weight:700;font-family:var(--sf-heading-font);line-height:1.1;}
-.${bannerId}-cta p{font-size:clamp(14px,2.5vw,16px);opacity:0.9;margin-top:8px;}
-.${bannerId}-btn-wrap{display:flex;justify-content:${btnJustify};margin-top:12px;}
+.${bannerId}-cta{position:absolute;inset:0;display:flex;flex-direction:column;z-index:2;padding:32px 20px;justify-content:space-between;align-items:center;text-align:center;}
+.${bannerId}-cta h2{font-size:clamp(24px,5vw,36px);font-weight:700;font-family:var(--sf-heading-font, inherit);line-height:1.1;}
+.${bannerId}-cta p{font-size:clamp(14px,2.5vw,16px);opacity:0.9;font-family:var(--sf-body-font, inherit);}
+.${bannerId}-btn-wrap{display:flex;justify-content:center;width:100%;}
 .${bannerId}-btn{display:inline-block;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;text-decoration:none;transition:opacity 0.2s;}
 @media(min-width:768px){
-.${bannerId}-cta{padding:48px 64px;${maxWidthDesktop}justify-content:center;}
+.${bannerId}-cta{padding:48px 64px;max-width:55%;align-items:flex-start;text-align:left;}
 .${bannerId}-cta h2{font-size:clamp(28px,5vw,60px);}
 .${bannerId}-cta p{font-size:clamp(16px,2.5vw,24px);}
+.${bannerId}-btn-wrap{justify-content:flex-start;}
 .${bannerId}-btn{padding:16px 40px;font-size:18px;}
 }
 @media(max-width:767px){
-.${bannerId}-cta{justify-content:space-between;align-items:center;}
 .${bannerId}-cta .${bannerId}-bottom{text-align:center;}
 }
 </style>`;
@@ -132,8 +129,7 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
 
   const overlayOpacity = (props.overlayOpacity as number) || 0;
   const textColor = (props.textColor as string) || '#ffffff';
-  const alignment = (props.alignment as string) || 'center';
-  const buttonAlignment = (props.buttonAlignment as string) || 'auto';
+  const alignment = 'left'; // Fixed: always left on desktop
   const backgroundColor = (props.backgroundColor as string) || '';
   const buttonColor = (props.buttonColor as string) || '#ffffff';
   const buttonTextColor = (props.buttonTextColor as string) || (buttonColor ? '#ffffff' : '#1a1a1a');
@@ -202,22 +198,20 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
     </picture>`;
   }
 
-  const bannerId = uid();
-  const alignMap: Record<string, string> = { left: 'flex-start', center: 'center', right: 'flex-end' };
-  const justifyContent = alignMap[alignment] || 'center';
-  const textAlign = alignment;
 
   let ctaHtml = '';
   let ctaStyleTag = '';
   if (hasCTA) {
-    ctaStyleTag = buildCtaStyleTag(bannerId, alignment, buttonAlignment);
+    ctaStyleTag = buildCtaStyleTag(bannerId);
     const titleHtml = currentTitle ? `<h2 style="color:${textColor};">${escapeHtml(currentTitle)}</h2>` : '';
     const subtitleHtml = currentSubtitle ? `<p style="color:${textColor};">${escapeHtml(currentSubtitle)}</p>` : '';
     const buttonHtml = currentButtonText ? `<div class="${bannerId}-btn-wrap"><a href="${escapeHtml(currentButtonUrl || currentLinkUrl || '#')}" class="${bannerId}-btn" style="background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};">${escapeHtml(currentButtonText)}</a></div>` : '';
     
-    ctaHtml = `<div class="${bannerId}-cta" style="align-items:${justifyContent};text-align:${textAlign};">
+    // Desktop: title top, subtitle middle, button bottom (all via justify-between in CSS)
+    ctaHtml = `<div class="${bannerId}-cta">
       <div>${titleHtml}</div>
-      <div class="${bannerId}-bottom">${subtitleHtml}${buttonHtml}</div>
+      <div>${subtitleHtml}</div>
+      <div class="${bannerId}-bottom">${buttonHtml}</div>
     </div>`;
   }
 
@@ -259,19 +253,14 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
   // Shared style props for CTA rendering
   const overlayOpacity = (props.overlayOpacity as number) || 0;
   const textColor = (props.textColor as string) || '#ffffff';
-  const alignment = (props.alignment as string) || 'center';
-  const buttonAlignment = (props.buttonAlignment as string) || 'auto';
   const buttonColor = (props.buttonColor as string) || '#ffffff';
   const buttonTextColor = (props.buttonTextColor as string) || (buttonColor ? '#ffffff' : '#1a1a1a');
-  const alignMap: Record<string, string> = { left: 'flex-start', center: 'center', right: 'flex-end' };
-  const justifyContent = alignMap[alignment] || 'center';
-  const textAlign = alignment;
 
   const carouselId = uid();
 
   // Check if any slide has CTA content
   const anySlideHasCTA = slides.some(s => s.title || s.subtitle || s.buttonText);
-  const ctaStyleTag = anySlideHasCTA ? buildCtaStyleTag(carouselId, alignment, buttonAlignment) : '';
+  const ctaStyleTag = anySlideHasCTA ? buildCtaStyleTag(carouselId) : '';
 
   // Image style for carousel slides based on preset
   // Compact presets: cap mobile height at 240px
@@ -322,9 +311,10 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
       const titleHtml = slideTitle ? `<h2 style="color:${textColor};">${escapeHtml(slideTitle)}</h2>` : '';
       const subtitleHtml = slideSubtitle ? `<p style="color:${textColor};">${escapeHtml(slideSubtitle)}</p>` : '';
       const buttonHtml = slideButtonText ? `<div class="${carouselId}-btn-wrap"><a href="${escapeHtml(slideButtonUrl)}" class="${carouselId}-btn" style="background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};">${escapeHtml(slideButtonText)}</a></div>` : '';
-      ctaHtml = `<div class="${carouselId}-cta" style="align-items:${justifyContent};text-align:${textAlign};">
+      ctaHtml = `<div class="${carouselId}-cta">
         <div>${titleHtml}</div>
-        <div class="${carouselId}-bottom">${subtitleHtml}${buttonHtml}</div>
+        <div>${subtitleHtml}</div>
+        <div class="${carouselId}-bottom">${buttonHtml}</div>
       </div>`;
     }
 
