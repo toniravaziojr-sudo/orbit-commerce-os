@@ -111,13 +111,13 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId }: BannerSl
     if (aiWizardSlideIndex === null) return;
     const idx = aiWizardSlideIndex;
     const newSlides = [...safeSlides];
-    const current = newSlides[idx] || {};
+    const current: BannerSlide = newSlides[idx] || { id: '', imageDesktop: '', imageMobile: '' };
     
     // The wizard generates in single mode, so merge imageDesktop/imageMobile/title/subtitle/buttonText into the slide
     newSlides[idx] = {
       ...current,
-      imageDesktop: (mergedProps.imageDesktop as string) || current.imageDesktop || '',
-      imageMobile: (mergedProps.imageMobile as string) || current.imageMobile || '',
+      imageDesktop: (mergedProps.imageDesktop as string) || current.imageDesktop,
+      imageMobile: (mergedProps.imageMobile as string) || current.imageMobile,
       title: mergedProps.title !== undefined ? (mergedProps.title as string) : current.title,
       subtitle: mergedProps.subtitle !== undefined ? (mergedProps.subtitle as string) : current.subtitle,
       buttonText: mergedProps.buttonText !== undefined ? (mergedProps.buttonText as string) : current.buttonText,
