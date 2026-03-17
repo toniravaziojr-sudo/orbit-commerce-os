@@ -52,9 +52,10 @@ interface BannerSlidesEditorProps {
   slides: BannerSlide[];
   onChange: (slides: BannerSlide[]) => void;
   tenantId?: string;
+  onRegeneratingChange?: (isRegenerating: boolean) => void;
 }
 
-export function BannerSlidesEditor({ slides = [], onChange, tenantId }: BannerSlidesEditorProps) {
+export function BannerSlidesEditor({ slides = [], onChange, tenantId, onRegeneratingChange }: BannerSlidesEditorProps) {
   const safeSlides = Array.isArray(slides) ? slides : [];
   // Only 1 slide expanded at a time
   const [expandedSlide, setExpandedSlide] = useState<number | null>(null);
@@ -146,6 +147,7 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId }: BannerSl
     if (!config || !tenantId || regeneratingSlide !== null) return;
 
     setRegeneratingSlide(index);
+    onRegeneratingChange?.(true);
     try {
       const { supabase } = await import('@/integrations/supabase/client');
       const { toast } = await import('sonner');
@@ -199,11 +201,12 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId }: BannerSl
       toast.error('Erro ao regenerar slide');
     } finally {
       setRegeneratingSlide(null);
+      onRegeneratingChange?.(false);
     }
   };
 
   return (
-    <div className="space-y-2 pr-3">
+    <div className="space-y-2 pr-5">
       {safeSlides.length === 0 && (
         <div className="text-center py-4 text-muted-foreground border border-dashed rounded-lg">
           <ImageIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
@@ -225,7 +228,7 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId }: BannerSl
             {/* Slide header — click to expand/collapse */}
             <div
               className={cn(
-                "flex items-center justify-between pl-2.5 pr-3 py-2.5 cursor-pointer transition-colors",
+                "flex items-center justify-between pl-2.5 pr-4 py-2.5 cursor-pointer transition-colors",
                 isExpanded ? "bg-muted/50" : "hover:bg-muted/30"
               )}
               onClick={() => toggleSlide(index)}
@@ -359,7 +362,7 @@ function SubSection({
         </div>
         <ChevronDown className={cn("h-3 w-3 transition-transform duration-200", open && "rotate-180")} />
       </CollapsibleTrigger>
-      <CollapsibleContent className="pt-2 pl-2 pr-1 space-y-2 border-l border-muted ml-1.5 mt-1">
+      <CollapsibleContent className="pt-2 pl-2 pr-2 space-y-2 border-l border-muted ml-1.5 mt-1">
         {children}
       </CollapsibleContent>
     </Collapsible>

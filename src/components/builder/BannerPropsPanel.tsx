@@ -351,6 +351,7 @@ function CarouselPanel({ props, onChange, tenantId }: BannerPropsPanelProps) {
         slides={(props.slides as BannerSlide[]) || []}
         onChange={(slides) => onChange('slides', slides)}
         tenantId={tenantId}
+        onRegeneratingChange={(isRegenerating) => onChange('_isRegenerating', isRegenerating ? true : undefined)}
       />
     </>
   );
