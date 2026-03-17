@@ -4045,6 +4045,19 @@ O posicionamento dos textos e botão do banner é **fixo**, sem opções de alin
 | **Condições** | Requer `tenantId` + `_lastSlideWizardConfig` salvo no slide |
 | **Afeta** | Permite ao usuário pedir "outra variante" sem refazer o wizard |
 
+#### Estabilização e Paridade v4.2.3
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Correção técnica |
+| **Localização** | `banner.ts` (Edge compiler), `hero-banner.ts`, `BannerPropsPanel.tsx`, `BannerSlidesEditor.tsx`, `registry.ts` |
+| **Descrição** | Fase de estabilização técnica do bloco Banner com foco em bugs críticos e paridade Builder vs público |
+| **Correções P0** | 1. `bannerId` não declarado em `renderSingleBanner` → adicionado `const bannerId = uid()`. 2. `justifyContent` não declarado → substituído por valor fixo `center`. 3. Carousel compacto invisível no público → primeiro slide usa `position:relative` para dar altura ao container. |
+| **Correções P1** | 1. Estilos por slide no carrossel Edge (`overlayOpacity`, `textColor`, `buttonColor`, `buttonTextColor`) agora respeitam valores do slide com fallback global. 2. Default de `showArrows` no Edge corrigido de `false` para `true`. |
+| **Correções P2** | 1. `buttonHoverBgColor` removido dos painéis single e slide. 2. `alignment` e `buttonAlignment` removidos do `propsSchema`. 3. `buttonHoverBgColor/TextColor` removidos do `propsSchema` (mantidos no `defaultProps` para backward compat). |
+| **Correção P3** | `hero-banner.ts` agora delega para `bannerToStaticHTML` com props adaptadas, eliminando lógica duplicada. |
+| **Afeta** | Renderização pública de banners com CTA, carrosseis compactos, paridade visual Builder/público |
+
 #### Props globais vs por slide no carrossel
 
 | Global | Por Slide |
@@ -4052,7 +4065,7 @@ O posicionamento dos textos e botão do banner é **fixo**, sem opções de alin
 | `layoutPreset` | `imageDesktop`, `imageMobile`, `altText` |
 | `autoplaySeconds`, `showArrows`, `showDots` | `hasEditableContent`, `title`, `subtitle`, `buttonText`, `buttonUrl` |
 | | `overlayOpacity`, `textColor` |
-| | `buttonColor`, `buttonTextColor`, `buttonHoverBgColor` |
+| | `buttonColor`, `buttonTextColor` |
 | | `linkUrl` (quando sem CTA) |
 
 #### Regra link vs CTA
