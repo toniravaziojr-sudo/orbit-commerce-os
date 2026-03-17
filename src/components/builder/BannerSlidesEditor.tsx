@@ -63,7 +63,7 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId }: BannerSl
   // Per-slide regeneration loading
   const [regeneratingSlide, setRegeneratingSlide] = useState<number | null>(null);
 
-  const singleSlideContract = getWizardContract('Banner');
+  const singleSlideContract = getSlideWizardContract();
 
   const generateId = () => `slide-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
