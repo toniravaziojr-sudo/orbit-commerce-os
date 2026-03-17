@@ -170,7 +170,7 @@ export function ImageUploader({
 
   return (
     <div className="space-y-3">
-      <Tabs defaultValue="upload" className="w-full" onValueChange={() => setError(null)}>
+      {!value && (<Tabs defaultValue="upload" className="w-full" onValueChange={() => setError(null)}>
         <TabsList className="grid w-full grid-cols-3 h-8">
           <TabsTrigger value="upload" className="text-xs gap-1">
             <Upload className="h-3 w-3" />
