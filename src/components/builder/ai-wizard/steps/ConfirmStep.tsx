@@ -28,6 +28,10 @@ const OUTPUT_MODE_LABELS: Record<string, string> = {
   complete: 'Criativo Completo',
 };
 
+const STEP_TYPE_LABELS: Record<string, string> = {
+  'output-mode-select': 'Modo de imagem',
+};
+
 function summarizeStepData(step: WizardStepConfig, data: unknown): string {
   if (!data) return '—';
 
@@ -37,6 +41,10 @@ function summarizeStepData(step: WizardStepConfig, data: unknown): string {
       const modeLabel = d.bannerMode === 'single' ? 'Banner Único' : `Carrossel (${d.slideCount} slides)`;
       const outputLabel = OUTPUT_MODE_LABELS[d.outputMode] || 'Editável';
       return `${modeLabel} · ${outputLabel}`;
+    }
+    case 'output-mode-select': {
+      const d = data as BannerModeData;
+      return OUTPUT_MODE_LABELS[d.outputMode] || 'Editável';
     }
     case 'creative-style-select': {
       const d = data as CreativeStyleData;

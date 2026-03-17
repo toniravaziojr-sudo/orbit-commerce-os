@@ -304,7 +304,7 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId }: BannerSl
 
             {/* Slide content — internal sections */}
             {isExpanded && (
-              <div className="border-t p-2.5 pr-3 space-y-2">
+              <div className="border-t p-2.5 pr-5 space-y-2">
                 <SlideConfigSection slide={slide} index={index} hasEditable={hasEditable} onUpdate={updateSlide} />
                 <SlideImagesSection slide={slide} index={index} onUpdate={updateSlide} defaultOpen={true} />
                 <SlideRefinementsSection slide={slide} index={index} hasEditable={hasEditable} onUpdate={updateSlide} />
@@ -359,7 +359,7 @@ function SubSection({
         </div>
         <ChevronDown className={cn("h-3 w-3 transition-transform duration-200", open && "rotate-180")} />
       </CollapsibleTrigger>
-      <CollapsibleContent className="pt-2 pl-2 pr-3 space-y-2 border-l border-muted ml-1.5 mt-1">
+      <CollapsibleContent className="pt-2 pl-2 pr-1 space-y-2 border-l border-muted ml-1.5 mt-1">
         {children}
       </CollapsibleContent>
     </Collapsible>
@@ -372,7 +372,7 @@ function SlideConfigSection({ slide, index, hasEditable, onUpdate }: {
 }) {
   return (
     <SubSection icon="⚙️" label="Configurações" defaultOpen={true}>
-      <div className="flex items-center justify-between py-1 pr-2">
+      <div className="flex items-center justify-between py-1 pr-0">
         <span className="text-xs text-muted-foreground">Conteúdo editável</span>
         <Switch checked={hasEditable} onCheckedChange={v => onUpdate(index, 'hasEditableContent', v)} className="scale-90" />
       </div>

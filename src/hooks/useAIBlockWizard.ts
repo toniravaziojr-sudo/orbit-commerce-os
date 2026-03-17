@@ -86,6 +86,10 @@ function isStepComplete(
       return modeData.bannerMode === 'single' || 
         (modeData.bannerMode === 'carousel' && modeData.slideCount >= 2 && modeData.slideCount <= 3);
     }
+    case 'output-mode-select': {
+      const modeData = data as BannerModeData | undefined;
+      return !!modeData?.outputMode;
+    }
     case 'scope-select': {
       const scope = data as GenerationScope | undefined;
       return scope === 'images' || scope === 'texts' || scope === 'all';

@@ -13,6 +13,7 @@
 
 export type WizardStepType =
   | 'banner-mode-select'
+  | 'output-mode-select'
   | 'creative-style-select'
   | 'scope-select'
   | 'banner-association'
@@ -248,6 +249,12 @@ const BANNER_UNIFIED_CONTRACT: WizardBlockContract = {
  */
 const BANNER_SLIDE_CONTRACT: WizardBlockContract = {
   steps: [
+    {
+      id: 'bannerMode',
+      type: 'output-mode-select',
+      label: 'Modo de imagem',
+      required: true,
+    },
     {
       id: 'creativeStyle',
       type: 'creative-style-select',

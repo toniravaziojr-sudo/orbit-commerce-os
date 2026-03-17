@@ -12,6 +12,7 @@ import { BriefingStep } from './steps/BriefingStep';
 import { SourceSelectStep } from './steps/SourceSelectStep';
 import { ConfirmStep } from './steps/ConfirmStep';
 import { CreativeStyleStep } from './steps/CreativeStyleStep';
+import { OutputModeStep } from './steps/OutputModeStep';
 
 interface WizardStepRendererProps {
   step: WizardStepConfig;
@@ -46,6 +47,14 @@ export function WizardStepRenderer({
     case 'creative-style-select':
       return (
         <CreativeStyleStep
+          value={data as any}
+          onChange={onChange}
+        />
+      );
+
+    case 'output-mode-select':
+      return (
+        <OutputModeStep
           value={data as any}
           onChange={onChange}
         />
