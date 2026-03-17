@@ -242,7 +242,7 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
 
 function renderCarousel(props: Record<string, unknown>, slides: any[], autoplaySeconds: number): string {
   const showDots = (props.showDots as boolean) ?? true;
-  const showArrows = (props.showArrows as boolean) ?? false;
+  const showArrows = (props.showArrows as boolean) ?? true;
 
   // ===== PRESET RESOLUTION =====
   const layoutPreset = props.layoutPreset as string | undefined;
