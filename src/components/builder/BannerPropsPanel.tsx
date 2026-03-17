@@ -54,7 +54,7 @@ function SectionCollapsible({
           open && "rotate-180"
         )} />
       </CollapsibleTrigger>
-      <CollapsibleContent className="pt-2 pl-2 pr-0 space-y-2 border-l-2 border-muted ml-2 mt-1.5">
+      <CollapsibleContent className="pt-2 pl-2 pr-0 space-y-2 border-l-2 border-muted ml-2 mt-1.5 min-w-0 overflow-hidden">
         {children}
       </CollapsibleContent>
     </Collapsible>

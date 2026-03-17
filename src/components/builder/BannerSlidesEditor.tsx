@@ -232,32 +232,33 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId, onRegenera
             {/* Slide header — click to expand/collapse */}
             <div
               className={cn(
-                "flex items-center justify-between pl-2.5 pr-3 py-2.5 cursor-pointer transition-colors min-w-0",
+                "flex items-center gap-1.5 pl-2 pr-1.5 py-2 cursor-pointer transition-colors min-w-0 overflow-hidden",
                 isExpanded ? "bg-muted/50" : "hover:bg-muted/30"
               )}
               onClick={() => toggleSlide(index)}
             >
-              <div className="flex items-center gap-2 min-w-0">
-                <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
+              {/* Left side — shrinks to fit */}
+              <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
+                <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 {previewImage ? (
-                  <img src={previewImage} alt="" className="w-10 h-6 object-cover rounded shrink-0" />
+                  <img src={previewImage} alt="" className="w-8 h-5 object-cover rounded shrink-0" />
                 ) : (
-                  <div className="w-10 h-6 bg-muted rounded flex items-center justify-center shrink-0">
+                  <div className="w-8 h-5 bg-muted rounded flex items-center justify-center shrink-0">
                     <ImageIcon className="h-3 w-3 text-muted-foreground" />
                   </div>
                 )}
-                <span className="text-xs font-medium shrink-0">Slide {index + 1}</span>
-                {slide.altText && (
-                  <span className="text-[10px] text-muted-foreground truncate max-w-20">• {slide.altText}</span>
-                )}
+                <span className="text-xs font-medium truncate min-w-0">
+                  {index + 1}{slide.altText ? ` · ${slide.altText}` : ''}
+                </span>
               </div>
-              <div className="flex items-center gap-1 shrink-0">
+              {/* Right side — fixed icons, compact */}
+              <div className="flex items-center shrink-0">
                 {/* Per-slide AI generation button */}
                 {tenantId && singleSlideContract && (
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6 text-primary hover:text-primary"
+                    className="h-5 w-5 text-primary hover:text-primary"
                     title="Gerar com IA"
                     disabled={regeneratingSlide !== null}
                     onClick={(e) => {
@@ -273,7 +274,7 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId, onRegenera
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6 text-primary hover:text-primary"
+                    className="h-5 w-5 text-primary hover:text-primary"
                     title="Regenerar com mesmas configurações"
                     disabled={regeneratingSlide !== null}
                     onClick={(e) => {
@@ -288,22 +289,22 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId, onRegenera
                     )}
                   </Button>
                 )}
-                <Button variant="ghost" size="icon" className="h-6 w-6"
+                <Button variant="ghost" size="icon" className="h-5 w-5"
                   onClick={(e) => { e.stopPropagation(); moveSlide(index, 'up'); }}
                   disabled={index === 0}>
                   <ChevronUp className="h-3 w-3" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-6 w-6"
+                <Button variant="ghost" size="icon" className="h-5 w-5"
                   onClick={(e) => { e.stopPropagation(); moveSlide(index, 'down'); }}
                   disabled={index === safeSlides.length - 1}>
                   <ChevronDown className="h-3 w-3" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive"
+                <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive hover:text-destructive"
                   onClick={(e) => { e.stopPropagation(); removeSlide(index); }}>
                   <Trash2 className="h-3 w-3" />
                 </Button>
                 <ChevronRight className={cn(
-                  "h-3.5 w-3.5 text-muted-foreground transition-transform duration-200",
+                  "h-3 w-3 text-muted-foreground transition-transform duration-200 ml-0.5",
                   isExpanded && "rotate-90"
                 )} />
               </div>
@@ -311,7 +312,7 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId, onRegenera
 
             {/* Slide content — internal sections */}
             {isExpanded && (
-              <div className="border-t p-2.5 space-y-2 min-w-0 box-border">
+              <div className="border-t p-2.5 space-y-2 min-w-0 box-border overflow-hidden">
                 <SlideConfigSection slide={slide} index={index} hasEditable={hasEditable} onUpdate={updateSlide} />
                 <SlideImagesSection slide={slide} index={index} onUpdate={updateSlide} defaultOpen={true} />
                 <SlideRefinementsSection slide={slide} index={index} hasEditable={hasEditable} onUpdate={updateSlide} />
@@ -366,7 +367,7 @@ function SubSection({
         </div>
         <ChevronDown className={cn("h-3 w-3 transition-transform duration-200", open && "rotate-180")} />
       </CollapsibleTrigger>
-      <CollapsibleContent className="pt-2 pl-2 pr-0 space-y-2 border-l border-muted ml-1.5 mt-1">
+      <CollapsibleContent className="pt-2 pl-2 pr-0 space-y-2 border-l border-muted ml-1.5 mt-1 min-w-0 overflow-hidden">
         {children}
       </CollapsibleContent>
     </Collapsible>
@@ -379,7 +380,7 @@ function SlideConfigSection({ slide, index, hasEditable, onUpdate }: {
 }) {
   return (
     <SubSection icon="⚙️" label="Configurações" defaultOpen={true}>
-      <div className="flex items-center justify-between py-1 pr-0">
+      <div className="flex items-center justify-between py-1 min-w-0">
         <span className="text-xs text-muted-foreground">Conteúdo editável</span>
         <Switch checked={hasEditable} onCheckedChange={v => onUpdate(index, 'hasEditableContent', v)} className="scale-90" />
       </div>

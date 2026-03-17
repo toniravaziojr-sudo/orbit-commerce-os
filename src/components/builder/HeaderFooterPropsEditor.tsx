@@ -772,7 +772,7 @@ export function HeaderFooterPropsEditor({
           </div>
 
           <ScrollArea className="flex-1">
-            <div className="p-2 space-y-1.5">
+            <div className="p-2 space-y-1.5 min-w-0 overflow-x-hidden pr-4 box-border">
               {/* === CORES DO CABEÇALHO DO CHECKOUT === */}
               <Collapsible open={openSections.colors} onOpenChange={() => toggleSection('colors')}>
                 <CollapsibleTrigger asChild>
@@ -1009,7 +1009,7 @@ export function HeaderFooterPropsEditor({
           </div>
 
           <ScrollArea className="flex-1">
-            <div className="p-2 space-y-1.5">
+            <div className="p-2 space-y-1.5 min-w-0 overflow-x-hidden pr-4 box-border">
               {/* === CORES DO RODAPÉ DO CHECKOUT === */}
               <Collapsible open={openSections.colors} onOpenChange={() => toggleSection('colors')}>
                 <CollapsibleTrigger asChild>
@@ -1320,7 +1320,7 @@ export function HeaderFooterPropsEditor({
         </div>
 
         <ScrollArea className="flex-1">
-          <div className="p-2 space-y-1.5">
+          <div className="p-2 space-y-1.5 min-w-0 overflow-x-hidden pr-4 box-border">
             {/* 
               REMOVIDO: Estilo do Cabeçalho (headerStyle, menuId)
               Motivo: StorefrontHeader.tsx usa layout fixo, não implementa variações de estilo.
@@ -1617,7 +1617,7 @@ export function HeaderFooterPropsEditor({
         </div>
 
         <ScrollArea className="flex-1">
-          <div className="p-4 space-y-2">
+          <div className="p-4 space-y-2 min-w-0 overflow-x-hidden pr-5 box-border">
             {/* === CORES DO RODAPÉ === */}
             <Collapsible open={openSections.colors} onOpenChange={() => toggleSection('colors')}>
               <CollapsibleTrigger asChild>
@@ -1858,7 +1858,7 @@ export function HeaderFooterPropsEditor({
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-4 space-y-4">
+        <div className="p-4 space-y-4 min-w-0 overflow-x-hidden pr-5 box-border">
           {/* Info about global inheritance */}
           <Alert className="bg-muted/50 border-muted">
             <Globe className="h-4 w-4" />
