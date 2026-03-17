@@ -56,6 +56,10 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId }: BannerSl
   const safeSlides = Array.isArray(slides) ? slides : [];
   // Only 1 slide expanded at a time
   const [expandedSlide, setExpandedSlide] = useState<number | null>(null);
+  // Per-slide AI wizard
+  const [aiWizardSlideIndex, setAiWizardSlideIndex] = useState<number | null>(null);
+
+  const singleSlideContract = getWizardContract('Banner');
 
   const generateId = () => `slide-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -102,6 +106,34 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId }: BannerSl
     setExpandedSlide(expandedSlide === index ? null : index);
   };
 
+  // Handle per-slide AI generation result
+  const handleSlideAIGenerated = (mergedProps: Record<string, unknown>) => {
+    if (aiWizardSlideIndex === null) return;
+    const idx = aiWizardSlideIndex;
+    const newSlides = [...safeSlides];
+    const current = newSlides[idx] || {};
+    
+    // The wizard generates in single mode, so merge imageDesktop/imageMobile/title/subtitle/buttonText into the slide
+    newSlides[idx] = {
+      ...current,
+      imageDesktop: (mergedProps.imageDesktop as string) || current.imageDesktop || '',
+      imageMobile: (mergedProps.imageMobile as string) || current.imageMobile || '',
+      title: mergedProps.title !== undefined ? (mergedProps.title as string) : current.title,
+      subtitle: mergedProps.subtitle !== undefined ? (mergedProps.subtitle as string) : current.subtitle,
+      buttonText: mergedProps.buttonText !== undefined ? (mergedProps.buttonText as string) : current.buttonText,
+      altText: mergedProps.altText !== undefined ? (mergedProps.altText as string) : current.altText,
+      linkUrl: mergedProps.linkUrl !== undefined ? (mergedProps.linkUrl as string) : current.linkUrl,
+    };
+    
+    // If AI set hasEditableContent via content presence
+    if (mergedProps.title || mergedProps.buttonText) {
+      newSlides[idx].hasEditableContent = true;
+    }
+    
+    onChange(newSlides);
+    setAiWizardSlideIndex(null);
+  };
+
   return (
     <div className="space-y-2">
       {safeSlides.length === 0 && (
@@ -145,6 +177,21 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId }: BannerSl
                 )}
               </div>
               <div className="flex items-center gap-1">
+                {/* Per-slide AI generation button */}
+                {tenantId && singleSlideContract && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-primary hover:text-primary"
+                    title="Gerar com IA"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAiWizardSlideIndex(index);
+                    }}
+                  >
+                    <Sparkles className="h-3 w-3" />
+                  </Button>
+                )}
                 <Button variant="ghost" size="icon" className="h-6 w-6"
                   onClick={(e) => { e.stopPropagation(); moveSlide(index, 'up'); }}
                   disabled={index === 0}>
@@ -182,6 +229,28 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId }: BannerSl
         <Plus className="h-3 w-3" />
         Adicionar slide
       </Button>
+
+      {/* Per-slide AI Wizard Dialog — reuses Banner single mode contract */}
+      {singleSlideContract && tenantId && aiWizardSlideIndex !== null && (
+        <AIFillWizardDialog
+          open={true}
+          onOpenChange={(open) => { if (!open) setAiWizardSlideIndex(null); }}
+          contract={singleSlideContract}
+          blockType="Banner"
+          blockLabel={`Slide ${aiWizardSlideIndex + 1}`}
+          currentProps={safeSlides[aiWizardSlideIndex] ? {
+            imageDesktop: safeSlides[aiWizardSlideIndex].imageDesktop,
+            imageMobile: safeSlides[aiWizardSlideIndex].imageMobile,
+            title: safeSlides[aiWizardSlideIndex].title,
+            subtitle: safeSlides[aiWizardSlideIndex].subtitle,
+            buttonText: safeSlides[aiWizardSlideIndex].buttonText,
+            linkUrl: safeSlides[aiWizardSlideIndex].linkUrl,
+            altText: safeSlides[aiWizardSlideIndex].altText,
+          } : {}}
+          tenantId={tenantId}
+          onGenerated={handleSlideAIGenerated}
+        />
+      )}
     </div>
   );
 }
