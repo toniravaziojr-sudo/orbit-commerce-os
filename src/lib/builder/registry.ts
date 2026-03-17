@@ -821,16 +821,7 @@ const blockDefinitions: BlockDefinition[] = [
         label: 'Cor do Texto do Botão',
         showWhen: { mode: 'single', hasEditableContent: true },
       },
-      buttonHoverBgColor: {
-        type: 'color',
-        label: 'Cor de Fundo (Hover)',
-        showWhen: { mode: 'single', hasEditableContent: true },
-      },
-      buttonHoverTextColor: {
-        type: 'color',
-        label: 'Cor do Texto (Hover)',
-        showWhen: { mode: 'single', hasEditableContent: true },
-      },
+      // buttonHoverBgColor and buttonHoverTextColor — removed from schema, kept in defaultProps for backward compat
     },
     canHaveChildren: false,
   },
