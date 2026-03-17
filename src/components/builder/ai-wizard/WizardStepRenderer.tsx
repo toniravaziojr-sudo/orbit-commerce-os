@@ -12,6 +12,7 @@ import { BriefingStep } from './steps/BriefingStep';
 import { SourceSelectStep } from './steps/SourceSelectStep';
 import { ConfirmStep } from './steps/ConfirmStep';
 import { CreativeStyleStep } from './steps/CreativeStyleStep';
+import { OutputModeStep } from './steps/OutputModeStep';
 
 interface WizardStepRendererProps {
   step: WizardStepConfig;
