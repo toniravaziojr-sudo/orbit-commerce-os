@@ -789,29 +789,8 @@ const blockDefinitions: BlockDefinition[] = [
           { label: 'Contido', value: 'contained' },
         ],
       },
-      alignment: {
-        type: 'select',
-        label: 'Alinhamento do Texto',
-        defaultValue: 'center',
-        showWhen: { mode: 'single', hasEditableContent: true },
-        options: [
-          { label: 'Esquerda', value: 'left' },
-          { label: 'Centro', value: 'center' },
-          { label: 'Direita', value: 'right' },
-        ],
-      },
-      buttonAlignment: {
-        type: 'select',
-        label: 'Alinhamento do Botão',
-        defaultValue: 'auto',
-        showWhen: { mode: 'single', hasEditableContent: true },
-        options: [
-          { label: 'Seguir Texto', value: 'auto' },
-          { label: 'Esquerda', value: 'left' },
-          { label: 'Centro', value: 'center' },
-          { label: 'Direita', value: 'right' },
-        ],
-      },
+      // alignment and buttonAlignment removed from UI — layout is now fixed
+      // buttonHoverBgColor and buttonHoverTextColor removed from UI — hover handled by CSS only
       backgroundColor: {
         type: 'color',
         label: 'Cor de Fundo',
