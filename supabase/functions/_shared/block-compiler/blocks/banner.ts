@@ -253,19 +253,14 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
   // Shared style props for CTA rendering
   const overlayOpacity = (props.overlayOpacity as number) || 0;
   const textColor = (props.textColor as string) || '#ffffff';
-  const alignment = (props.alignment as string) || 'center';
-  const buttonAlignment = (props.buttonAlignment as string) || 'auto';
   const buttonColor = (props.buttonColor as string) || '#ffffff';
   const buttonTextColor = (props.buttonTextColor as string) || (buttonColor ? '#ffffff' : '#1a1a1a');
-  const alignMap: Record<string, string> = { left: 'flex-start', center: 'center', right: 'flex-end' };
-  const justifyContent = alignMap[alignment] || 'center';
-  const textAlign = alignment;
 
   const carouselId = uid();
 
   // Check if any slide has CTA content
   const anySlideHasCTA = slides.some(s => s.title || s.subtitle || s.buttonText);
-  const ctaStyleTag = anySlideHasCTA ? buildCtaStyleTag(carouselId, alignment, buttonAlignment) : '';
+  const ctaStyleTag = anySlideHasCTA ? buildCtaStyleTag(carouselId) : '';
 
   // Image style for carousel slides based on preset
   // Compact presets: cap mobile height at 240px
