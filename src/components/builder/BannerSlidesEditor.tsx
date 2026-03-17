@@ -239,12 +239,13 @@ function SlideConfigSection({ slide, index, hasEditable, onUpdate }: {
   );
 }
 
-function SlideImagesSection({ slide, index, onUpdate }: {
+function SlideImagesSection({ slide, index, onUpdate, defaultOpen = false }: {
   slide: BannerSlide; index: number;
   onUpdate: (i: number, field: keyof BannerSlide, value: unknown) => void;
+  defaultOpen?: boolean;
 }) {
   return (
-    <SubSection icon="🖼️" label="Imagens">
+    <SubSection icon="🖼️" label="Imagens" defaultOpen={defaultOpen}>
       <div className="space-y-3">
         <div className="space-y-1.5">
           <Label className="text-xs">Desktop</Label>
