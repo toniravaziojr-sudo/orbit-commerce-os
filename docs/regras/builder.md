@@ -3966,8 +3966,8 @@ Step 6: CONFIRMAÇÃO
 | Preset | Desktop | Mobile | Equivalente legado |
 |--------|---------|--------|--------------------|
 | `standard` | Full width, aspect 12:5 | Full width, aspect 4:5 | `height=auto, bannerWidth=full` |
-| `compact-centered` | Contido (max-w-7xl), 300px | Full width, 300px | `height=sm, bannerWidth=contained` |
-| `compact-full` | Full width, 300px | Full width, 300px | `height=sm, bannerWidth=full` |
+| `compact-centered` | Contido (max-w-7xl), h-auto | Full width, max-h 240px + object-cover | `height=sm, bannerWidth=contained` |
+| `compact-full` | Full width, h-auto | Full width, max-h 240px + object-cover | `height=sm, bannerWidth=full` |
 | `large` | Full width, 100vh | Full width, 100vh | `height=full, bannerWidth=full` |
 
 **Fallback para banners antigos (sem `layoutPreset`):**
