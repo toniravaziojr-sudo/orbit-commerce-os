@@ -1320,7 +1320,7 @@ export function HeaderFooterPropsEditor({
         </div>
 
         <ScrollArea className="flex-1">
-          <div className="p-2 space-y-1.5">
+          <div className="p-2 space-y-1.5 min-w-0 overflow-x-hidden pr-4 box-border">
             {/* 
               REMOVIDO: Estilo do Cabeçalho (headerStyle, menuId)
               Motivo: StorefrontHeader.tsx usa layout fixo, não implementa variações de estilo.
