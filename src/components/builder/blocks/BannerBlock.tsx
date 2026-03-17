@@ -286,19 +286,7 @@ export function BannerBlock({
     );
   }
 
-  // ===== Alignment =====
-  const alignClass = {
-    left: 'items-start text-left',
-    center: 'items-center text-center',
-    right: 'items-end text-right',
-  }[currentAlignment] || 'items-center text-center';
-
-  const effectiveButtonAlignment = (!currentButtonAlignment || currentButtonAlignment === 'auto') ? currentAlignment : currentButtonAlignment;
-  const btnAlignClass = {
-    left: 'justify-start',
-    center: 'justify-center',
-    right: 'justify-end',
-  }[effectiveButtonAlignment] || 'justify-center';
+  // ===== Fixed alignment: Desktop=left, Mobile=center (button centered mobile, left desktop) =====
 
   // ===== Button styles =====
   const btnId = `banner-btn-${Math.random().toString(36).substr(2, 9)}`;
