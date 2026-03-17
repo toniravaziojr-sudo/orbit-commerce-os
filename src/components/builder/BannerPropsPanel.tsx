@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 interface BannerPropsPanelProps {
   props: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
+  tenantId?: string;
 }
 
 // ===== Helper components =====
