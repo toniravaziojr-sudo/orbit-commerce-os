@@ -52,7 +52,8 @@ interface BannerSlidesEditorProps {
   slides: BannerSlide[];
   onChange: (slides: BannerSlide[]) => void;
   tenantId?: string;
-  onRegeneratingChange?: (isRegenerating: boolean) => void;
+  /** Signal regeneration state. When finishing (false), pass finalSlides to batch the update atomically. */
+  onRegeneratingChange?: (isRegenerating: boolean, finalSlides?: BannerSlide[]) => void;
 }
 
 export function BannerSlidesEditor({ slides = [], onChange, tenantId, onRegeneratingChange }: BannerSlidesEditorProps) {
