@@ -42,6 +42,10 @@ function summarizeStepData(step: WizardStepConfig, data: unknown): string {
       const outputLabel = OUTPUT_MODE_LABELS[d.outputMode] || 'Editável';
       return `${modeLabel} · ${outputLabel}`;
     }
+    case 'output-mode-select': {
+      const d = data as BannerModeData;
+      return OUTPUT_MODE_LABELS[d.outputMode] || 'Editável';
+    }
     case 'creative-style-select': {
       const d = data as CreativeStyleData;
       return STYLE_LABELS[d.creativeStyle] || d.creativeStyle;
