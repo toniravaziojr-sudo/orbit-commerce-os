@@ -1,6 +1,7 @@
 // =============================================
 // BANNER SLIDES EDITOR — Expanded with CTA + refinements per slide
 // Phase 1: Accordion per slide, internal collapsibles, per-slide style
+// Phase 4.2: Per-slide AI generation button
 // =============================================
 
 import { useState } from 'react';
@@ -16,9 +17,11 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { Plus, Trash2, ChevronUp, ChevronDown, GripVertical, ImageIcon, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, ChevronUp, ChevronDown, GripVertical, ImageIcon, ChevronRight, Sparkles, Loader2 } from 'lucide-react';
 import { ImageUploaderWithLibrary } from './ImageUploaderWithLibrary';
 import { cn } from '@/lib/utils';
+import { getWizardContract } from '@/lib/builder/aiWizardRegistry';
+import { AIFillWizardDialog } from './ai-wizard/AIFillWizardDialog';
 
 export interface BannerSlide {
   id: string;
@@ -46,6 +49,7 @@ export interface BannerSlide {
 interface BannerSlidesEditorProps {
   slides: BannerSlide[];
   onChange: (slides: BannerSlide[]) => void;
+  tenantId?: string;
 }
 
 export function BannerSlidesEditor({ slides = [], onChange }: BannerSlidesEditorProps) {
