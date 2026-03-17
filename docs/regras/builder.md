@@ -4011,7 +4011,7 @@ O posicionamento dos textos e botão do banner é **fixo**, sem opções de alin
 | Seção | Estado padrão | Conteúdo |
 |-------|---------------|----------|
 | Modo (select) | Sempre visível | `single` / `carousel` |
-| ⚙️ Configurações | **Aberta** | `bannerType`, `hasEditableContent` toggle, modelo do banner (4 presets). Se editável: título, subtítulo, botão, alinhamentos |
+| ⚙️ Configurações | **Aberta** | `bannerType`, `hasEditableContent` toggle, modelo do banner (4 presets). Se editável: título, subtítulo, botão (layout fixo, sem alinhamentos) |
 | 🖼️ Imagens | Fechada | Desktop + Mobile uploaders. Oculta quando `bannerType=solid` |
 | 🎨 Refinamentos | Fechada | Escurecimento, cores de texto/botão (se editável), `linkUrl` (se NÃO editável), `backgroundColor` (se solid) |
 
