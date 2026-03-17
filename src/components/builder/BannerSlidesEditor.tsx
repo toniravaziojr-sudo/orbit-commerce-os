@@ -52,9 +52,10 @@ interface BannerSlidesEditorProps {
   slides: BannerSlide[];
   onChange: (slides: BannerSlide[]) => void;
   tenantId?: string;
+  onRegeneratingChange?: (isRegenerating: boolean) => void;
 }
 
-export function BannerSlidesEditor({ slides = [], onChange, tenantId }: BannerSlidesEditorProps) {
+export function BannerSlidesEditor({ slides = [], onChange, tenantId, onRegeneratingChange }: BannerSlidesEditorProps) {
   const safeSlides = Array.isArray(slides) ? slides : [];
   // Only 1 slide expanded at a time
   const [expandedSlide, setExpandedSlide] = useState<number | null>(null);
