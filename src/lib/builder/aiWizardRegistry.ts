@@ -250,6 +250,12 @@ const BANNER_UNIFIED_CONTRACT: WizardBlockContract = {
 const BANNER_SLIDE_CONTRACT: WizardBlockContract = {
   steps: [
     {
+      id: 'bannerMode',
+      type: 'output-mode-select',
+      label: 'Modo de imagem',
+      required: true,
+    },
+    {
       id: 'creativeStyle',
       type: 'creative-style-select',
       label: 'Estilo visual da imagem',

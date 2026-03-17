@@ -372,7 +372,7 @@ function SlideConfigSection({ slide, index, hasEditable, onUpdate }: {
 }) {
   return (
     <SubSection icon="⚙️" label="Configurações" defaultOpen={true}>
-      <div className="flex items-center justify-between py-1 pr-2">
+      <div className="flex items-center justify-between py-1 pr-0">
         <span className="text-xs text-muted-foreground">Conteúdo editável</span>
         <Switch checked={hasEditable} onCheckedChange={v => onUpdate(index, 'hasEditableContent', v)} className="scale-90" />
       </div>

@@ -52,6 +52,14 @@ export function WizardStepRenderer({
         />
       );
 
+    case 'output-mode-select':
+      return (
+        <OutputModeStep
+          value={data as any}
+          onChange={onChange}
+        />
+      );
+
     case 'scope-select':
       return (
         <ScopeSelectStep

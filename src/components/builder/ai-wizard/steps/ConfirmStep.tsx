@@ -28,6 +28,10 @@ const OUTPUT_MODE_LABELS: Record<string, string> = {
   complete: 'Criativo Completo',
 };
 
+const STEP_TYPE_LABELS: Record<string, string> = {
+  'output-mode-select': 'Modo de imagem',
+};
+
 function summarizeStepData(step: WizardStepConfig, data: unknown): string {
   if (!data) return '—';
 
