@@ -238,8 +238,6 @@ export function BannerBlock({
   // Per-slide style with fallback to block-level defaults
   const currentOverlayOpacity = isCarousel ? (currentSlide?.overlayOpacity ?? overlayOpacity) : overlayOpacity;
   const currentTextColor = isCarousel ? (currentSlide?.textColor ?? textColor) : textColor;
-  const currentAlignment = (isCarousel ? ((currentSlide?.alignment as typeof alignment) ?? alignment) : alignment) || 'center';
-  const currentButtonAlignment = isCarousel ? ((currentSlide?.buttonAlignment as typeof buttonAlignment) ?? buttonAlignment) : buttonAlignment;
   const currentButtonColor = isCarousel ? (currentSlide?.buttonColor ?? buttonColor) : buttonColor;
   const currentButtonTextColorVal = isCarousel ? (currentSlide?.buttonTextColor ?? buttonTextColor) : buttonTextColor;
   const currentButtonHoverBg = isCarousel ? (currentSlide?.buttonHoverBgColor ?? buttonHoverBgColor) : buttonHoverBgColor;
