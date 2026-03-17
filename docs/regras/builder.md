@@ -4021,7 +4021,18 @@ O posicionamento dos textos e botão do banner é **fixo**, sem opções de alin
 |-------|---------------|----------|
 | Modo (select) | Sempre visível | `single` / `carousel` |
 | ⚙️ Config do Carrossel | **Aberta** | Modelo do banner (4 presets), autoplay, setas, indicadores (GLOBAIS) |
-| Slides | Accordion (1 aberto por vez) | Cada slide com 3 sub-seções |
+| Slides | Accordion (1 aberto por vez) | Cada slide com 3 sub-seções + botão ✨ IA por slide |
+
+#### Geração IA por Slide (v4.2.1)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Ação / Componente |
+| **Localização** | `BannerSlidesEditor.tsx` |
+| **Descrição** | Botão ✨ no cabeçalho de cada slide que abre o wizard de geração IA no modo `single`, gerando imagens e textos para aquele slide individual |
+| **Comportamento** | 1. Usuário clica ✨ no slide desejado. 2. Abre o mesmo wizard do Banner (modo single). 3. Resultado é mesclado apenas no slide clicado (imageDesktop, imageMobile, title, subtitle, buttonText, altText, linkUrl). 4. Se IA gerar título ou botão, `hasEditableContent` é ativado automaticamente |
+| **Condições** | Só aparece se `tenantId` está disponível |
+| **Afeta** | Resolve o limite de 3 slides por geração — agora o usuário pode gerar slide a slide sem timeout |
 
 #### Props globais vs por slide no carrossel
 
