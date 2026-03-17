@@ -274,9 +274,16 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
   const ctaStyleTag = anySlideHasCTA ? buildCtaStyleTag(carouselId, alignment, buttonAlignment) : '';
 
   // Image style for carousel slides based on preset
+  // Compact presets: cap mobile height at 240px
   const slideImgStyle = presetCfg.naturalHeight
-    ? 'width:100%;height:auto;display:block;'
+    ? 'width:100%;height:auto;display:block;object-fit:cover;'
     : 'width:100%;height:100%;object-fit:cover;';
+
+  // Responsive max-height CSS for compact presets on mobile (carousel)
+  const compactCarouselCapId = presetCfg.naturalHeight ? `${carouselId}-cap` : '';
+  const compactCarouselCapCss = presetCfg.naturalHeight
+    ? `<style>.${compactCarouselCapId} img{max-height:240px;object-fit:cover;}@media(min-width:768px){.${compactCarouselCapId} img{max-height:none;}}</style>`
+    : '';
 
   // Build slides HTML
   const slidesHtml = slides.map((slide, idx) => {
