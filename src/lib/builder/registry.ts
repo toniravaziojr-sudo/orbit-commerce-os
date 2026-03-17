@@ -636,10 +636,9 @@ const blockDefinitions: BlockDefinition[] = [
       textColor: '#ffffff',
       buttonColor: '#ffffff',
       buttonTextColor: '',
+      // Legacy props kept but unused in UI (backward compat only)
       buttonHoverBgColor: '',
       buttonHoverTextColor: '',
-      alignment: 'center',
-      buttonAlignment: 'auto',
       overlayOpacity: 0,
       layoutPreset: 'standard',
       // Legacy (kept for backward compat, not shown in UI)
@@ -790,29 +789,8 @@ const blockDefinitions: BlockDefinition[] = [
           { label: 'Contido', value: 'contained' },
         ],
       },
-      alignment: {
-        type: 'select',
-        label: 'Alinhamento do Texto',
-        defaultValue: 'center',
-        showWhen: { mode: 'single', hasEditableContent: true },
-        options: [
-          { label: 'Esquerda', value: 'left' },
-          { label: 'Centro', value: 'center' },
-          { label: 'Direita', value: 'right' },
-        ],
-      },
-      buttonAlignment: {
-        type: 'select',
-        label: 'Alinhamento do Botão',
-        defaultValue: 'auto',
-        showWhen: { mode: 'single', hasEditableContent: true },
-        options: [
-          { label: 'Seguir Texto', value: 'auto' },
-          { label: 'Esquerda', value: 'left' },
-          { label: 'Centro', value: 'center' },
-          { label: 'Direita', value: 'right' },
-        ],
-      },
+      // alignment and buttonAlignment removed from UI — layout is now fixed
+      // buttonHoverBgColor and buttonHoverTextColor removed from UI — hover handled by CSS only
       backgroundColor: {
         type: 'color',
         label: 'Cor de Fundo',
@@ -843,16 +821,7 @@ const blockDefinitions: BlockDefinition[] = [
         label: 'Cor do Texto do Botão',
         showWhen: { mode: 'single', hasEditableContent: true },
       },
-      buttonHoverBgColor: {
-        type: 'color',
-        label: 'Cor de Fundo (Hover)',
-        showWhen: { mode: 'single', hasEditableContent: true },
-      },
-      buttonHoverTextColor: {
-        type: 'color',
-        label: 'Cor do Texto (Hover)',
-        showWhen: { mode: 'single', hasEditableContent: true },
-      },
+      // buttonHoverBgColor and buttonHoverTextColor — removed from schema, kept in defaultProps for backward compat
     },
     canHaveChildren: false,
   },

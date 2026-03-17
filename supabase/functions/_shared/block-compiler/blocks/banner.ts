@@ -109,6 +109,7 @@ function buildCtaStyleTag(bannerId: string): string {
 }
 
 function renderSingleBanner(props: Record<string, unknown>, slide: any | null): string {
+  const bannerId = uid();
   let imageDesktop = (props.imageDesktop as string) || '';
   let imageMobile = (props.imageMobile as string) || '';
   let currentTitle = (props.title as string) || '';
@@ -232,7 +233,7 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
 
   const inlineWidthStyle = presetCfg.fullWidth ? 'width:100%;' : '';
 
-  return `${aspectStyleTag}${widthCssBlock}${compactMobileCapCss}${ctaStyleTag}<${wrapperTag}${wrapperHref} class="${[aspectClass, widthCssClass].filter(Boolean).join(' ')}" style="position:relative;${inlineWidthStyle}${containerHeight}overflow:hidden;${useAbsoluteImage ? `display:flex;align-items:center;justify-content:${justifyContent};` : ''}${backgroundColor && !optDesktop ? `background-color:${escapeHtml(backgroundColor)};${presetCfg.naturalHeight ? 'min-height:200px;' : ''}` : !optDesktop ? 'background:#f5f5f5;' : ''}">
+  return `${aspectStyleTag}${widthCssBlock}${compactMobileCapCss}${ctaStyleTag}<${wrapperTag}${wrapperHref} class="${[aspectClass, widthCssClass].filter(Boolean).join(' ')}" style="position:relative;${inlineWidthStyle}${containerHeight}overflow:hidden;${useAbsoluteImage ? 'display:flex;align-items:center;justify-content:center;' : ''}${backgroundColor && !optDesktop ? `background-color:${escapeHtml(backgroundColor)};${presetCfg.naturalHeight ? 'min-height:200px;' : ''}` : !optDesktop ? 'background:#f5f5f5;' : ''}">
     ${imageHtml}
     ${overlayHtml}
     ${ctaHtml}
@@ -241,7 +242,7 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
 
 function renderCarousel(props: Record<string, unknown>, slides: any[], autoplaySeconds: number): string {
   const showDots = (props.showDots as boolean) ?? true;
-  const showArrows = (props.showArrows as boolean) ?? false;
+  const showArrows = (props.showArrows as boolean) ?? true;
 
   // ===== PRESET RESOLUTION =====
   const layoutPreset = props.layoutPreset as string | undefined;
@@ -250,11 +251,11 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
   const preset = resolvePreset(layoutPreset, height, bannerWidth);
   const presetCfg = PRESET_CONFIG[preset];
 
-  // Shared style props for CTA rendering
-  const overlayOpacity = (props.overlayOpacity as number) || 0;
-  const textColor = (props.textColor as string) || '#ffffff';
-  const buttonColor = (props.buttonColor as string) || '#ffffff';
-  const buttonTextColor = (props.buttonTextColor as string) || (buttonColor ? '#ffffff' : '#1a1a1a');
+  // Global style props (fallback for per-slide)
+  const globalOverlayOpacity = (props.overlayOpacity as number) || 0;
+  const globalTextColor = (props.textColor as string) || '#ffffff';
+  const globalButtonColor = (props.buttonColor as string) || '#ffffff';
+  const globalButtonTextColor = (props.buttonTextColor as string) || (globalButtonColor ? '#ffffff' : '#1a1a1a');
 
   const carouselId = uid();
 
@@ -301,16 +302,22 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
     const slideButtonUrl = slide.buttonUrl || linkUrl || '#';
     const hasCTA = !!(slideTitle || slideSubtitle || slideButtonText);
 
+    // Per-slide style with fallback to global
+    const slideOverlay = slide.overlayOpacity ?? globalOverlayOpacity;
+    const slideTextColor = slide.textColor || globalTextColor;
+    const slideButtonColor = slide.buttonColor || globalButtonColor;
+    const slideButtonTextColor = slide.buttonTextColor || globalButtonTextColor;
+
     let overlayHtml = '';
-    if (overlayOpacity > 0) {
-      overlayHtml = `<div style="position:absolute;inset:0;background:rgba(0,0,0,${overlayOpacity / 100});"></div>`;
+    if (slideOverlay > 0) {
+      overlayHtml = `<div style="position:absolute;inset:0;background:rgba(0,0,0,${slideOverlay / 100});"></div>`;
     }
 
     let ctaHtml = '';
     if (hasCTA) {
-      const titleHtml = slideTitle ? `<h2 style="color:${textColor};">${escapeHtml(slideTitle)}</h2>` : '';
-      const subtitleHtml = slideSubtitle ? `<p style="color:${textColor};">${escapeHtml(slideSubtitle)}</p>` : '';
-      const buttonHtml = slideButtonText ? `<div class="${carouselId}-btn-wrap"><a href="${escapeHtml(slideButtonUrl)}" class="${carouselId}-btn" style="background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};">${escapeHtml(slideButtonText)}</a></div>` : '';
+      const titleHtml = slideTitle ? `<h2 style="color:${slideTextColor};">${escapeHtml(slideTitle)}</h2>` : '';
+      const subtitleHtml = slideSubtitle ? `<p style="color:${slideTextColor};">${escapeHtml(slideSubtitle)}</p>` : '';
+      const buttonHtml = slideButtonText ? `<div class="${carouselId}-btn-wrap"><a href="${escapeHtml(slideButtonUrl)}" class="${carouselId}-btn" style="background:${escapeHtml(slideButtonColor)};color:${escapeHtml(slideButtonTextColor)};">${escapeHtml(slideButtonText)}</a></div>` : '';
       ctaHtml = `<div class="${carouselId}-cta">
         <div>${titleHtml}</div>
         <div>${subtitleHtml}</div>
@@ -321,7 +328,13 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
     const wrapTag = linkUrl && !hasCTA ? 'a' : 'div';
     const wrapHref = linkUrl && !hasCTA ? ` href="${escapeHtml(linkUrl)}"` : '';
 
-    return `<${wrapTag}${wrapHref} class="${carouselId}-slide" data-slide-index="${idx}" style="position:absolute;inset:0;opacity:${isFirst ? '1' : '0'};transition:opacity 0.6s ease-in-out;z-index:${isFirst ? '1' : '0'};">
+    // For naturalHeight presets: first slide is position:relative (gives container height),
+    // others are position:absolute overlaid. Non-naturalHeight: all absolute.
+    const slidePos = presetCfg.naturalHeight
+      ? (isFirst ? 'position:relative;' : 'position:absolute;inset:0;')
+      : 'position:absolute;inset:0;';
+
+    return `<${wrapTag}${wrapHref} class="${carouselId}-slide" data-slide-index="${idx}" style="${slidePos}opacity:${isFirst ? '1' : '0'};transition:opacity 0.6s ease-in-out;z-index:${isFirst ? '1' : '0'};">
       ${imgHtml}
       ${overlayHtml}
       ${ctaHtml}

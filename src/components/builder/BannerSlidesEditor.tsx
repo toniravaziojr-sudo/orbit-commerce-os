@@ -467,7 +467,7 @@ function SlideRefinementsSection({ slide, index, hasEditable, onUpdate }: {
           <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Botão</p>
           <ColorInline label="Cor de Fundo" value={slide.buttonColor || '#ffffff'} onChange={v => onUpdate(index, 'buttonColor', v)} />
           <ColorInline label="Cor do Texto" value={slide.buttonTextColor || ''} onChange={v => onUpdate(index, 'buttonTextColor', v)} />
-          <ColorInline label="Fundo (Hover)" value={slide.buttonHoverBgColor || ''} onChange={v => onUpdate(index, 'buttonHoverBgColor', v)} />
+          
         </div>
       )}
 
