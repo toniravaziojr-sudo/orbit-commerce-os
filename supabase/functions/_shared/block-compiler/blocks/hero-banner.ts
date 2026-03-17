@@ -80,17 +80,22 @@ export function heroBannerToStaticHTML(
   }
 
   // Build image HTML using <picture> (matches React storefront mode)
-  // Compact presets use height:auto (natural image proportions)
+  // Compact presets: cap mobile height at 240px (matching category banner proportions)
   const imgStyle = isCompact
-    ? 'width:100%;height:auto;display:block;'
+    ? 'width:100%;height:auto;display:block;object-fit:cover;'
     : 'width:100%;height:100%;object-fit:cover;';
+
+  // Responsive max-height for compact presets on mobile
+  const compactCapCss = isCompact
+    ? `<style>.${bannerId}-cap img{max-height:240px;object-fit:cover;}@media(min-width:768px){.${bannerId}-cap img{max-height:none;}}</style>`
+    : '';
 
   let imageHtml = '';
   if (effectiveDesktop) {
     const sourceTag = effectiveMobile && effectiveMobile !== effectiveDesktop
       ? `<source media="(max-width: 767px)" srcset="${escapeHtml(mobileImage)}">`
       : '';
-    imageHtml = `<picture>
+    imageHtml = `<picture${isCompact ? ` class="${bannerId}-cap"` : ''}>
       ${sourceTag}
       <img src="${escapeHtml(desktopImage)}" alt="${escapeHtml(currentSlide.altText || 'Banner 1')}" style="${imgStyle}" fetchpriority="high" decoding="sync" loading="eager" width="1920" height="800">
     </picture>`;
