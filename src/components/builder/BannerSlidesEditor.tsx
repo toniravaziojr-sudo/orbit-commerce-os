@@ -312,7 +312,7 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId, onRegenera
 
             {/* Slide content — internal sections */}
             {isExpanded && (
-              <div className="border-t p-2.5 space-y-2 min-w-0 box-border">
+              <div className="border-t p-2.5 space-y-2 min-w-0 box-border overflow-hidden">
                 <SlideConfigSection slide={slide} index={index} hasEditable={hasEditable} onUpdate={updateSlide} />
                 <SlideImagesSection slide={slide} index={index} onUpdate={updateSlide} defaultOpen={true} />
                 <SlideRefinementsSection slide={slide} index={index} hasEditable={hasEditable} onUpdate={updateSlide} />
