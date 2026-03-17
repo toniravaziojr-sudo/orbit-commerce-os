@@ -1,18 +1,11 @@
 // =============================================
-// HERO BANNER BLOCK COMPILER
-// Mirrors: src/components/builder/blocks/HeroBannerBlock.tsx
-// =============================================
-// KEY PARITY POINTS from React component:
-// - Uses <picture> with <source> for mobile
-// - aspect-ratio: 4/5 on mobile, 12/5 on desktop (matching BannerBlock)
-// - fetchPriority="high", loading="eager" on first slide
-// - Shows dots and arrows only when >1 slide
-// - Static render: always shows first slide (no carousel JS)
-// - Uses unique CSS class per instance to avoid collisions
+// HERO BANNER BLOCK COMPILER — Legacy Delegation
+// Delegates to unified Banner compiler (banner.ts) with adapted props.
+// Maintains backward compatibility for blocks saved as type "HeroBanner".
 // =============================================
 
 import type { CompilerContext } from '../types.ts';
-import { escapeHtml, optimizeImageUrl } from '../utils.ts';
+import { bannerToStaticHTML } from './banner.ts';
 
 interface BannerSlide {
   id?: string;
@@ -24,105 +17,42 @@ interface BannerSlide {
 
 export function heroBannerToStaticHTML(
   props: Record<string, unknown>,
-  _context: CompilerContext,
+  context: CompilerContext,
 ): string {
   const slides = (Array.isArray(props.slides) ? props.slides : []) as BannerSlide[];
   const bannerWidth = (props.bannerWidth as string) || 'full';
   const showDots = (props.showDots as boolean) ?? true;
+  const showArrows = (props.showArrows as boolean) ?? true;
+  const autoplaySeconds = (props.autoplaySeconds as number) || 5;
   const layoutPreset = (props.layoutPreset as string) || '';
-  
-  // Resolve preset (mirrors BannerBlock.tsx resolvePreset logic exactly)
-  let preset: string = 'standard';
-  if (['standard', 'compact-centered', 'compact-full', 'large'].includes(layoutPreset)) {
-    preset = layoutPreset;
-  } else {
-    const height = (props.height as string) || 'auto';
-    if (height === 'full' || height === 'lg') preset = 'large';
-    else if (height === 'sm' || height === 'md') preset = bannerWidth === 'contained' ? 'compact-centered' : 'compact-full';
-    else preset = bannerWidth === 'contained' ? 'compact-centered' : 'standard';
-  }
 
-  const isCompact = preset === 'compact-centered' || preset === 'compact-full';
-  const isLarge = preset === 'large';
-  const isFullWidth = preset !== 'compact-centered';
+  // Adapt HeroBanner props to unified Banner format
+  const adaptedProps: Record<string, unknown> = {
+    ...props,
+    // HeroBanner is always carousel-like (image-only slides, no CTA)
+    mode: slides.length > 1 ? 'carousel' : 'single',
+    bannerType: 'image',
+    hasEditableContent: false,
+    // Map first slide images to top-level for single mode
+    imageDesktop: slides[0]?.imageDesktop || '',
+    imageMobile: slides[0]?.imageMobile || slides[0]?.imageDesktop || '',
+    linkUrl: slides[0]?.linkUrl || '',
+    // Carousel props
+    slides: slides.map(s => ({
+      ...s,
+      imageDesktop: s.imageDesktop || '',
+      imageMobile: s.imageMobile || s.imageDesktop || '',
+      hasEditableContent: false,
+    })),
+    autoplaySeconds,
+    showDots,
+    showArrows,
+    // Preserve layout props for resolvePreset fallback
+    bannerWidth,
+    layoutPreset: layoutPreset || undefined,
+    // Ensure overlay is passed through
+    overlayOpacity: (props.overlayOpacity as number) || 0,
+  };
 
-  // Unique ID per instance to avoid CSS class collisions
-  const bannerId = 'sf-hb-' + Math.random().toString(36).slice(2, 8);
-
-  const widthStyle = isFullWidth ? 'width:100%;' : 'max-width:1280px;margin:0 auto;';
-
-  if (slides.length === 0) {
-    return `<div style="position:relative;background:#f5f5f5;display:flex;align-items:center;justify-content:center;aspect-ratio:12/5;${widthStyle}">
-      <p style="color:#999;font-size:14px;">Adicione banners para exibir aqui</p>
-    </div>`;
-  }
-
-  const currentSlide = slides[0];
-  const rawDesktop = (currentSlide.imageDesktop || '').trim();
-  const rawMobile = (currentSlide.imageMobile || '').trim() || rawDesktop;
-  const effectiveDesktop = rawDesktop || rawMobile;
-  const effectiveMobile = rawMobile || rawDesktop;
-
-  // Match React component's image transform
-  const desktopImage = optimizeImageUrl(effectiveDesktop, 1920, 85);
-  const mobileImage = optimizeImageUrl(effectiveMobile, 768, 80);
-
-  // Build dots HTML (matches React: w-2.5 h-2.5 rounded-full, active gets w-6)
-  let dotsHtml = '';
-  if (showDots && slides.length > 1) {
-    const dots = slides.map((_, idx) => {
-      const isActive = idx === 0;
-      const w = isActive ? '24px' : '10px';
-      const bg = isActive ? 'var(--theme-button-primary-bg, #1a1a1a)' : 'rgba(255,255,255,0.6)';
-      return `<button style="width:${w};height:10px;border-radius:9999px;border:none;background:${bg};cursor:pointer;transition:all 0.2s;" aria-label="Ir para banner ${idx + 1}"></button>`;
-    }).join('');
-    dotsHtml = `<div style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:8px;">${dots}</div>`;
-  }
-
-  // Build image HTML using <picture> (matches React storefront mode)
-  // Compact presets: cap mobile height at 240px (matching category banner proportions)
-  const imgStyle = isCompact
-    ? 'width:100%;height:auto;display:block;object-fit:cover;'
-    : 'width:100%;height:100%;object-fit:cover;';
-
-  // Responsive max-height for compact presets on mobile
-  const compactCapCss = isCompact
-    ? `<style>.${bannerId}-cap img{max-height:240px;object-fit:cover;}@media(min-width:768px){.${bannerId}-cap img{max-height:none;}}</style>`
-    : '';
-
-  let imageHtml = '';
-  if (effectiveDesktop) {
-    const sourceTag = effectiveMobile && effectiveMobile !== effectiveDesktop
-      ? `<source media="(max-width: 767px)" srcset="${escapeHtml(mobileImage)}">`
-      : '';
-    imageHtml = `<picture${isCompact ? ` class="${bannerId}-cap"` : ''}>
-      ${sourceTag}
-      <img src="${escapeHtml(desktopImage)}" alt="${escapeHtml(currentSlide.altText || 'Banner 1')}" style="${imgStyle}" fetchpriority="high" decoding="sync" loading="eager" width="1920" height="800">
-    </picture>`;
-  }
-
-  // Build container styles based on preset
-  let innerStyle = 'position:relative;';
-  let cssBlock = '';
-  if (isCompact) {
-    // Natural height, no aspect ratio
-  } else if (isLarge) {
-    innerStyle += 'min-height:100vh;';
-  } else {
-    // Standard: use aspect ratio
-    cssBlock = `<style>.${bannerId}{aspect-ratio:4/5;}@media(min-width:768px){.${bannerId}{aspect-ratio:12/5;}}</style>`;
-  }
-
-  const content = `<div style="position:relative;overflow:hidden;${widthStyle}">
-    ${cssBlock}${compactCapCss}
-    <div class="${bannerId}" style="${innerStyle}">
-      ${imageHtml}
-    </div>
-    ${dotsHtml}
-  </div>`;
-
-  if (currentSlide.linkUrl) {
-    return `<a href="${escapeHtml(currentSlide.linkUrl)}" style="display:block;">${content}</a>`;
-  }
-  return content;
+  return bannerToStaticHTML(adaptedProps, context);
 }
