@@ -172,8 +172,9 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
   }
 
   // Image style based on preset
+  // Compact presets: cap mobile height at 240px (matching category banner proportions)
   const imgStyle = presetCfg.naturalHeight
-    ? 'width:100%;height:auto;display:block;'
+    ? 'width:100%;height:auto;display:block;object-fit:cover;'
     : (presetCfg.useAspect || presetCfg.minHeight)
       ? 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;'
       : 'width:100%;height:auto;display:block;';
@@ -184,12 +185,18 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
     ? `<div style="position:absolute;inset:0;background:rgba(0,0,0,${overlayOpacity / 100});"></div>`
     : '';
 
+  // Responsive max-height CSS for compact presets on mobile
+  const compactMobileCapId = presetCfg.naturalHeight ? uid() : '';
+  const compactMobileCapCss = presetCfg.naturalHeight
+    ? `<style>.${compactMobileCapId} img{max-height:240px;object-fit:cover;}@media(min-width:768px){.${compactMobileCapId} img{max-height:none;}}</style>`
+    : '';
+
   let imageHtml = '';
   if (optDesktop) {
     const sourceTag = optMobile && optMobile !== optDesktop
       ? `<source srcset="${escapeHtml(optMobile)}" media="(max-width:768px)">`
       : '';
-    imageHtml = `<picture${presetCfg.naturalHeight ? ' style="display:block;width:100%;"' : ''}>
+    imageHtml = `<picture${presetCfg.naturalHeight ? ` class="${compactMobileCapId}" style="display:block;width:100%;"` : ''}>
       ${sourceTag}
       <img src="${escapeHtml(optDesktop)}" alt="${escapeHtml(currentTitle || 'Banner')}" style="${imgStyle}" loading="eager" fetchpriority="high">
     </picture>`;
@@ -231,7 +238,7 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
 
   const inlineWidthStyle = presetCfg.fullWidth ? 'width:100%;' : '';
 
-  return `${aspectStyleTag}${widthCssBlock}${ctaStyleTag}<${wrapperTag}${wrapperHref} class="${[aspectClass, widthCssClass].filter(Boolean).join(' ')}" style="position:relative;${inlineWidthStyle}${containerHeight}overflow:hidden;${useAbsoluteImage ? `display:flex;align-items:center;justify-content:${justifyContent};` : ''}${backgroundColor && !optDesktop ? `background-color:${escapeHtml(backgroundColor)};${presetCfg.naturalHeight ? 'min-height:200px;' : ''}` : !optDesktop ? 'background:#f5f5f5;' : ''}">
+  return `${aspectStyleTag}${widthCssBlock}${compactMobileCapCss}${ctaStyleTag}<${wrapperTag}${wrapperHref} class="${[aspectClass, widthCssClass].filter(Boolean).join(' ')}" style="position:relative;${inlineWidthStyle}${containerHeight}overflow:hidden;${useAbsoluteImage ? `display:flex;align-items:center;justify-content:${justifyContent};` : ''}${backgroundColor && !optDesktop ? `background-color:${escapeHtml(backgroundColor)};${presetCfg.naturalHeight ? 'min-height:200px;' : ''}` : !optDesktop ? 'background:#f5f5f5;' : ''}">
     ${imageHtml}
     ${overlayHtml}
     ${ctaHtml}
@@ -267,9 +274,16 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
   const ctaStyleTag = anySlideHasCTA ? buildCtaStyleTag(carouselId, alignment, buttonAlignment) : '';
 
   // Image style for carousel slides based on preset
+  // Compact presets: cap mobile height at 240px
   const slideImgStyle = presetCfg.naturalHeight
-    ? 'width:100%;height:auto;display:block;'
+    ? 'width:100%;height:auto;display:block;object-fit:cover;'
     : 'width:100%;height:100%;object-fit:cover;';
+
+  // Responsive max-height CSS for compact presets on mobile (carousel)
+  const compactCarouselCapId = presetCfg.naturalHeight ? `${carouselId}-cap` : '';
+  const compactCarouselCapCss = presetCfg.naturalHeight
+    ? `<style>.${compactCarouselCapId} img{max-height:240px;object-fit:cover;}@media(min-width:768px){.${compactCarouselCapId} img{max-height:none;}}</style>`
+    : '';
 
   // Build slides HTML
   const slidesHtml = slides.map((slide, idx) => {
@@ -287,7 +301,7 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
       ? `<source media="(max-width: 767px)" srcset="${escapeHtml(mobileImage)}">`
       : '';
 
-    const imgHtml = effectiveDesktop ? `<picture>
+    const imgHtml = effectiveDesktop ? `<picture${compactCarouselCapId ? ` class="${compactCarouselCapId}"` : ''}>
       ${sourceTag}
       <img src="${escapeHtml(desktopImage)}" alt="${escapeHtml(altText)}" style="${slideImgStyle}" ${isFirst ? 'fetchpriority="high" decoding="sync" loading="eager"' : 'loading="lazy"'}>
     </picture>` : '';
@@ -386,7 +400,7 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
     sizingClass = `${carouselId}-wrap`;
   }
 
-  return `${ctaStyleTag}${widthCssBlock}<div class="${widthCssClass}" style="position:relative;overflow:hidden;${widthStyleInline}">
+  return `${ctaStyleTag}${widthCssBlock}${compactCarouselCapCss}<div class="${widthCssClass}" style="position:relative;overflow:hidden;${widthStyleInline}">
     ${sizingCssBlock}
     <div class="${sizingClass}" style="position:relative;">
       ${slidesHtml}
