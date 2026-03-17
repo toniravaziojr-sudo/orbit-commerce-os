@@ -52,7 +52,8 @@ interface BannerSlidesEditorProps {
   slides: BannerSlide[];
   onChange: (slides: BannerSlide[]) => void;
   tenantId?: string;
-  onRegeneratingChange?: (isRegenerating: boolean) => void;
+  /** Signal regeneration state. When finishing (false), pass finalSlides to batch the update atomically. */
+  onRegeneratingChange?: (isRegenerating: boolean, finalSlides?: BannerSlide[]) => void;
 }
 
 export function BannerSlidesEditor({ slides = [], onChange, tenantId, onRegeneratingChange }: BannerSlidesEditorProps) {
@@ -193,20 +194,23 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId, onRegenera
         newSlides[index].hasEditableContent = true;
       }
 
-      onChange(newSlides);
+      // Batch: update slides + clear loading in a single callback to avoid stale-props race
+      onRegeneratingChange?.(false, newSlides);
+      // Fallback if no batch handler: update slides directly
+      if (!onRegeneratingChange) onChange(newSlides);
       toast.success('Slide regenerado ✨');
     } catch (err) {
       console.error('[SlideRegenerate] Error:', err);
       const { toast } = await import('sonner');
       toast.error('Erro ao regenerar slide');
+      onRegeneratingChange?.(false);
     } finally {
       setRegeneratingSlide(null);
-      onRegeneratingChange?.(false);
     }
   };
 
   return (
-    <div className="space-y-2 pr-5">
+    <div className="space-y-2">
       {safeSlides.length === 0 && (
         <div className="text-center py-4 text-muted-foreground border border-dashed rounded-lg">
           <ImageIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
@@ -228,7 +232,7 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId, onRegenera
             {/* Slide header — click to expand/collapse */}
             <div
               className={cn(
-                "flex items-center justify-between pl-2.5 pr-4 py-2.5 cursor-pointer transition-colors",
+                "flex items-center justify-between pl-2.5 pr-3 py-2.5 cursor-pointer transition-colors min-w-0",
                 isExpanded ? "bg-muted/50" : "hover:bg-muted/30"
               )}
               onClick={() => toggleSlide(index)}
@@ -307,7 +311,7 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId, onRegenera
 
             {/* Slide content — internal sections */}
             {isExpanded && (
-              <div className="border-t p-2.5 pr-5 space-y-2">
+              <div className="border-t p-2.5 space-y-2 min-w-0 box-border">
                 <SlideConfigSection slide={slide} index={index} hasEditable={hasEditable} onUpdate={updateSlide} />
                 <SlideImagesSection slide={slide} index={index} onUpdate={updateSlide} defaultOpen={true} />
                 <SlideRefinementsSection slide={slide} index={index} hasEditable={hasEditable} onUpdate={updateSlide} />

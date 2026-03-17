@@ -22,6 +22,8 @@ import { cn } from '@/lib/utils';
 interface BannerPropsPanelProps {
   props: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
+  /** Batch multiple key-value updates atomically (avoids stale-props race) */
+  onBatchChange?: (updates: Record<string, unknown>) => void;
   tenantId?: string;
 }
 
@@ -113,7 +115,7 @@ function SliderField({ label, value, onChange, min = 0, max = 100 }: { label: st
 
 // ===== Main Panel =====
 
-export function BannerPropsPanel({ props, onChange, tenantId }: BannerPropsPanelProps) {
+export function BannerPropsPanel({ props, onChange, onBatchChange, tenantId }: BannerPropsPanelProps) {
   const mode = (props.mode as string) || 'single';
 
   return (
@@ -132,7 +134,7 @@ export function BannerPropsPanel({ props, onChange, tenantId }: BannerPropsPanel
       </FieldWrapper>
 
       {mode === 'carousel' ? (
-        <CarouselPanel props={props} onChange={onChange} tenantId={tenantId} />
+        <CarouselPanel props={props} onChange={onChange} onBatchChange={onBatchChange} tenantId={tenantId} />
       ) : (
         <SinglePanel props={props} onChange={onChange} />
       )}
@@ -289,7 +291,7 @@ function SinglePanel({ props, onChange }: BannerPropsPanelProps) {
 
 // ===== Carousel Mode Panel =====
 
-function CarouselPanel({ props, onChange, tenantId }: BannerPropsPanelProps) {
+function CarouselPanel({ props, onChange, onBatchChange, tenantId }: BannerPropsPanelProps) {
   const [configOpen, setConfigOpen] = useState(true);
 
   return (
@@ -351,7 +353,14 @@ function CarouselPanel({ props, onChange, tenantId }: BannerPropsPanelProps) {
         slides={(props.slides as BannerSlide[]) || []}
         onChange={(slides) => onChange('slides', slides)}
         tenantId={tenantId}
-        onRegeneratingChange={(isRegenerating) => onChange('_isRegenerating', isRegenerating ? true : undefined)}
+        onRegeneratingChange={(isRegenerating, finalSlides) => {
+          if (!isRegenerating && finalSlides && onBatchChange) {
+            // Atomic batch: update slides + clear loading in one call (no stale-props race)
+            onBatchChange({ slides: finalSlides, _isRegenerating: undefined });
+          } else {
+            onChange('_isRegenerating', isRegenerating ? true : undefined);
+          }
+        }}
       />
     </>
   );
