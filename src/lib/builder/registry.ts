@@ -636,10 +636,9 @@ const blockDefinitions: BlockDefinition[] = [
       textColor: '#ffffff',
       buttonColor: '#ffffff',
       buttonTextColor: '',
+      // Legacy props kept but unused in UI (backward compat only)
       buttonHoverBgColor: '',
       buttonHoverTextColor: '',
-      alignment: 'center',
-      buttonAlignment: 'auto',
       overlayOpacity: 0,
       layoutPreset: 'standard',
       // Legacy (kept for backward compat, not shown in UI)
