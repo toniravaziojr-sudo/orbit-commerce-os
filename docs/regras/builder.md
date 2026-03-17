@@ -4008,8 +4008,8 @@ Step 6: CONFIRMAÇÃO
 |--------|-----------|
 | `layoutPreset` | `imageDesktop`, `imageMobile`, `altText` |
 | `autoplaySeconds`, `showArrows`, `showDots` | `hasEditableContent`, `title`, `subtitle`, `buttonText`, `buttonUrl` |
-| | `overlayOpacity`, `textColor`, `alignment`, `buttonAlignment` |
-| | `buttonColor`, `buttonTextColor`, `buttonHoverBgColor`, `buttonHoverTextColor` |
+| | `overlayOpacity`, `textColor` |
+| | `buttonColor`, `buttonTextColor`, `buttonHoverBgColor` |
 | | `linkUrl` (quando sem CTA) |
 
 #### Regra link vs CTA
