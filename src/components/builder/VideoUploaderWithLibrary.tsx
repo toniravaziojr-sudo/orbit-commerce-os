@@ -216,7 +216,7 @@ export function VideoUploaderWithLibrary({
 
   return (
     <div className="space-y-3">
-      <Tabs defaultValue="upload" className="w-full">
+      {!value && (<Tabs defaultValue="upload" className="w-full">
         <TabsList className="grid w-full grid-cols-3 h-8">
           <TabsTrigger value="upload" className="text-xs gap-1">
             <Upload className="h-3 w-3" />
