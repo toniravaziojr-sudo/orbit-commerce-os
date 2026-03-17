@@ -328,7 +328,13 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
     const wrapTag = linkUrl && !hasCTA ? 'a' : 'div';
     const wrapHref = linkUrl && !hasCTA ? ` href="${escapeHtml(linkUrl)}"` : '';
 
-    return `<${wrapTag}${wrapHref} class="${carouselId}-slide" data-slide-index="${idx}" style="position:absolute;inset:0;opacity:${isFirst ? '1' : '0'};transition:opacity 0.6s ease-in-out;z-index:${isFirst ? '1' : '0'};">
+    // For naturalHeight presets: first slide is position:relative (gives container height),
+    // others are position:absolute overlaid. Non-naturalHeight: all absolute.
+    const slidePos = presetCfg.naturalHeight
+      ? (isFirst ? 'position:relative;' : 'position:absolute;inset:0;')
+      : 'position:absolute;inset:0;';
+
+    return `<${wrapTag}${wrapHref} class="${carouselId}-slide" data-slide-index="${idx}" style="${slidePos}opacity:${isFirst ? '1' : '0'};transition:opacity 0.6s ease-in-out;z-index:${isFirst ? '1' : '0'};">
       ${imgHtml}
       ${overlayHtml}
       ${ctaHtml}
