@@ -400,7 +400,7 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
     sizingClass = `${carouselId}-wrap`;
   }
 
-  return `${ctaStyleTag}${widthCssBlock}<div class="${widthCssClass}" style="position:relative;overflow:hidden;${widthStyleInline}">
+  return `${ctaStyleTag}${widthCssBlock}${compactCarouselCapCss}<div class="${widthCssClass}" style="position:relative;overflow:hidden;${widthStyleInline}">
     ${sizingCssBlock}
     <div class="${sizingClass}" style="position:relative;">
       ${slidesHtml}
