@@ -252,12 +252,33 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId }: BannerSl
                     size="icon"
                     className="h-6 w-6 text-primary hover:text-primary"
                     title="Gerar com IA"
+                    disabled={regeneratingSlide !== null}
                     onClick={(e) => {
                       e.stopPropagation();
                       setAiWizardSlideIndex(index);
                     }}
                   >
                     <Sparkles className="h-3 w-3" />
+                  </Button>
+                )}
+                {/* Per-slide regenerate button — only after first AI generation */}
+                {tenantId && slide._lastSlideWizardConfig && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-primary hover:text-primary"
+                    title="Regenerar com mesmas configurações"
+                    disabled={regeneratingSlide !== null}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSlideRegenerate(index);
+                    }}
+                  >
+                    {regeneratingSlide === index ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3 w-3" />
+                    )}
                   </Button>
                 )}
                 <Button variant="ghost" size="icon" className="h-6 w-6"
