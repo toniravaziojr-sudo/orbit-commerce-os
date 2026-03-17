@@ -114,7 +114,7 @@ export function heroBannerToStaticHTML(
   }
 
   const content = `<div style="position:relative;overflow:hidden;${widthStyle}">
-    ${cssBlock}
+    ${cssBlock}${compactCapCss}
     <div class="${bannerId}" style="${innerStyle}">
       ${imageHtml}
     </div>
