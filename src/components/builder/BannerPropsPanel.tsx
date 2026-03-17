@@ -350,6 +350,7 @@ function CarouselPanel({ props, onChange }: BannerPropsPanelProps) {
       <BannerSlidesEditor
         slides={(props.slides as BannerSlide[]) || []}
         onChange={(slides) => onChange('slides', slides)}
+        tenantId={tenantId}
       />
     </>
   );
