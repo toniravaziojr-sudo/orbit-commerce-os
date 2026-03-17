@@ -198,10 +198,6 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
     </picture>`;
   }
 
-  const bannerId = uid();
-  const alignMap: Record<string, string> = { left: 'flex-start', center: 'center', right: 'flex-end' };
-  const justifyContent = alignMap[alignment] || 'center';
-  const textAlign = alignment;
 
   let ctaHtml = '';
   let ctaStyleTag = '';
@@ -211,9 +207,11 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
     const subtitleHtml = currentSubtitle ? `<p style="color:${textColor};">${escapeHtml(currentSubtitle)}</p>` : '';
     const buttonHtml = currentButtonText ? `<div class="${bannerId}-btn-wrap"><a href="${escapeHtml(currentButtonUrl || currentLinkUrl || '#')}" class="${bannerId}-btn" style="background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};">${escapeHtml(currentButtonText)}</a></div>` : '';
     
-    ctaHtml = `<div class="${bannerId}-cta" style="align-items:${justifyContent};text-align:${textAlign};">
+    // Desktop: title top, subtitle middle, button bottom (all via justify-between in CSS)
+    ctaHtml = `<div class="${bannerId}-cta">
       <div>${titleHtml}</div>
-      <div class="${bannerId}-bottom">${subtitleHtml}${buttonHtml}</div>
+      <div>${subtitleHtml}</div>
+      <div class="${bannerId}-bottom">${buttonHtml}</div>
     </div>`;
   }
 
