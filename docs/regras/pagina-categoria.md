@@ -278,11 +278,23 @@ Cada card de produto tem atributos `data-*` para filtragem client-side:
 - `data-discount-pct` — percentual de desconto
 - `data-index` — posição original
 
-### Espaçamento Mobile (v8.5.3)
+### Espaçamento Mobile (v8.5.3 → v8.5.6)
 
 | Campo | Valor |
 |-------|-------|
 | **Tipo** | Regra Visual |
-| **Localização** | `supabase/functions/_shared/block-compiler/blocks/category-page-layout.ts` |
+| **Localização** | `supabase/functions/_shared/block-compiler/blocks/category-page-layout.ts` + `supabase/functions/_shared/block-compiler/index.ts` |
 | **Descrição** | No mobile (< 640px), o padding-top do container da categoria é reduzido de 24px para 12px para eliminar o espaçamento desproporcional entre o banner e o botão "Filtrar" |
 | **CSS** | `@media(max-width:639px) { [data-sf-cat-container] { padding-top:12px !important; } }` |
+
+### Neutralização de Wrappers Legados (v8.5.6 — Fase 1)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Regra Lógica / Runtime |
+| **Localização** | `supabase/functions/_shared/block-compiler/index.ts` |
+| **Descrição** | Templates legados envolvem `CategoryBanner` e `CategoryPageLayout` dentro de blocos `Section` com `paddingY: 32/48/24` e `paddingX: 16`. Isso gera gaps indesejados no mobile entre header → banner → filtros. |
+| **Solução** | Função `isLegacyCategorySectionWrapper()` detecta esses wrappers pela assinatura legada exata (tipo Section + filhos Category* + padding nos valores conhecidos) e zera o padding em runtime, sem alterar dados salvos. |
+| **Regra de segurança** | Só neutraliza se o padding bate exatamente com os padrões legados. Padding customizado intencional NÃO é afetado. |
+| **Camada da causa raiz** | Edge compiler (`compileBlockTree`) — o Builder React já tratava isso internamente, mas o compilador público renderizava o Section com padding real. |
+| **Deploy obrigatório** | Após editar `index.ts`, é OBRIGATÓRIO fazer deploy de `storefront-html` e `storefront-prerender` para que a loja pública reflita a correção. |
