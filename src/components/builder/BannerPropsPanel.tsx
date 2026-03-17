@@ -22,6 +22,8 @@ import { cn } from '@/lib/utils';
 interface BannerPropsPanelProps {
   props: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
+  /** Batch multiple key-value updates atomically (avoids stale-props race) */
+  onBatchChange?: (updates: Record<string, unknown>) => void;
   tenantId?: string;
 }
 
