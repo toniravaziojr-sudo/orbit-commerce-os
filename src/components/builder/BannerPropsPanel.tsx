@@ -291,7 +291,7 @@ function SinglePanel({ props, onChange }: BannerPropsPanelProps) {
 
 // ===== Carousel Mode Panel =====
 
-function CarouselPanel({ props, onChange, tenantId }: BannerPropsPanelProps) {
+function CarouselPanel({ props, onChange, onBatchChange, tenantId }: BannerPropsPanelProps) {
   const [configOpen, setConfigOpen] = useState(true);
 
   return (
