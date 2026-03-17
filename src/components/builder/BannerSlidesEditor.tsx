@@ -232,7 +232,7 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId, onRegenera
             {/* Slide header — click to expand/collapse */}
             <div
               className={cn(
-                "flex items-center justify-between pl-2.5 pr-4 py-2.5 cursor-pointer transition-colors",
+                "flex items-center justify-between pl-2.5 pr-3 py-2.5 cursor-pointer transition-colors min-w-0",
                 isExpanded ? "bg-muted/50" : "hover:bg-muted/30"
               )}
               onClick={() => toggleSlide(index)}
