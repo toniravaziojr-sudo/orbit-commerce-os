@@ -52,7 +52,7 @@ interface BannerSlidesEditorProps {
   tenantId?: string;
 }
 
-export function BannerSlidesEditor({ slides = [], onChange }: BannerSlidesEditorProps) {
+export function BannerSlidesEditor({ slides = [], onChange, tenantId }: BannerSlidesEditorProps) {
   const safeSlides = Array.isArray(slides) ? slides : [];
   // Only 1 slide expanded at a time
   const [expandedSlide, setExpandedSlide] = useState<number | null>(null);
