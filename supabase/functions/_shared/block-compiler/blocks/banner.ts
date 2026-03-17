@@ -302,16 +302,22 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
     const slideButtonUrl = slide.buttonUrl || linkUrl || '#';
     const hasCTA = !!(slideTitle || slideSubtitle || slideButtonText);
 
+    // Per-slide style with fallback to global
+    const slideOverlay = slide.overlayOpacity ?? globalOverlayOpacity;
+    const slideTextColor = slide.textColor || globalTextColor;
+    const slideButtonColor = slide.buttonColor || globalButtonColor;
+    const slideButtonTextColor = slide.buttonTextColor || globalButtonTextColor;
+
     let overlayHtml = '';
-    if (overlayOpacity > 0) {
-      overlayHtml = `<div style="position:absolute;inset:0;background:rgba(0,0,0,${overlayOpacity / 100});"></div>`;
+    if (slideOverlay > 0) {
+      overlayHtml = `<div style="position:absolute;inset:0;background:rgba(0,0,0,${slideOverlay / 100});"></div>`;
     }
 
     let ctaHtml = '';
     if (hasCTA) {
-      const titleHtml = slideTitle ? `<h2 style="color:${textColor};">${escapeHtml(slideTitle)}</h2>` : '';
-      const subtitleHtml = slideSubtitle ? `<p style="color:${textColor};">${escapeHtml(slideSubtitle)}</p>` : '';
-      const buttonHtml = slideButtonText ? `<div class="${carouselId}-btn-wrap"><a href="${escapeHtml(slideButtonUrl)}" class="${carouselId}-btn" style="background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};">${escapeHtml(slideButtonText)}</a></div>` : '';
+      const titleHtml = slideTitle ? `<h2 style="color:${slideTextColor};">${escapeHtml(slideTitle)}</h2>` : '';
+      const subtitleHtml = slideSubtitle ? `<p style="color:${slideTextColor};">${escapeHtml(slideSubtitle)}</p>` : '';
+      const buttonHtml = slideButtonText ? `<div class="${carouselId}-btn-wrap"><a href="${escapeHtml(slideButtonUrl)}" class="${carouselId}-btn" style="background:${escapeHtml(slideButtonColor)};color:${escapeHtml(slideButtonTextColor)};">${escapeHtml(slideButtonText)}</a></div>` : '';
       ctaHtml = `<div class="${carouselId}-cta">
         <div>${titleHtml}</div>
         <div>${subtitleHtml}</div>
