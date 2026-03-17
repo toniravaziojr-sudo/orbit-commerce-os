@@ -206,7 +206,7 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
   let ctaHtml = '';
   let ctaStyleTag = '';
   if (hasCTA) {
-    ctaStyleTag = buildCtaStyleTag(bannerId, alignment, buttonAlignment);
+    ctaStyleTag = buildCtaStyleTag(bannerId);
     const titleHtml = currentTitle ? `<h2 style="color:${textColor};">${escapeHtml(currentTitle)}</h2>` : '';
     const subtitleHtml = currentSubtitle ? `<p style="color:${textColor};">${escapeHtml(currentSubtitle)}</p>` : '';
     const buttonHtml = currentButtonText ? `<div class="${bannerId}-btn-wrap"><a href="${escapeHtml(currentButtonUrl || currentLinkUrl || '#')}" class="${bannerId}-btn" style="background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};">${escapeHtml(currentButtonText)}</a></div>` : '';
