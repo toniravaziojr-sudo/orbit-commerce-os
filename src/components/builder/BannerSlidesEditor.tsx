@@ -194,15 +194,18 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId, onRegenera
         newSlides[index].hasEditableContent = true;
       }
 
-      onChange(newSlides);
+      // Batch: update slides + clear loading in a single callback to avoid stale-props race
+      onRegeneratingChange?.(false, newSlides);
+      // Fallback if no batch handler: update slides directly
+      if (!onRegeneratingChange) onChange(newSlides);
       toast.success('Slide regenerado ✨');
     } catch (err) {
       console.error('[SlideRegenerate] Error:', err);
       const { toast } = await import('sonner');
       toast.error('Erro ao regenerar slide');
+      onRegeneratingChange?.(false);
     } finally {
       setRegeneratingSlide(null);
-      onRegeneratingChange?.(false);
     }
   };
 
