@@ -113,7 +113,7 @@ function SliderField({ label, value, onChange, min = 0, max = 100 }: { label: st
 
 // ===== Main Panel =====
 
-export function BannerPropsPanel({ props, onChange }: BannerPropsPanelProps) {
+export function BannerPropsPanel({ props, onChange, tenantId }: BannerPropsPanelProps) {
   const mode = (props.mode as string) || 'single';
 
   return (
