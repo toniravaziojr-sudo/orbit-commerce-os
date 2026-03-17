@@ -201,6 +201,7 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId, onRegenera
       toast.error('Erro ao regenerar slide');
     } finally {
       setRegeneratingSlide(null);
+      onRegeneratingChange?.(false);
     }
   };
 
