@@ -1858,7 +1858,7 @@ export function HeaderFooterPropsEditor({
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-4 space-y-4">
+        <div className="p-4 space-y-4 min-w-0 overflow-x-hidden pr-5 box-border">
           {/* Info about global inheritance */}
           <Alert className="bg-muted/50 border-muted">
             <Globe className="h-4 w-4" />
