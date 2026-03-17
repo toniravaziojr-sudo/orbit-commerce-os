@@ -172,8 +172,9 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
   }
 
   // Image style based on preset
+  // Compact presets: cap mobile height at 240px (matching category banner proportions)
   const imgStyle = presetCfg.naturalHeight
-    ? 'width:100%;height:auto;display:block;'
+    ? 'width:100%;height:auto;display:block;object-fit:cover;'
     : (presetCfg.useAspect || presetCfg.minHeight)
       ? 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;'
       : 'width:100%;height:auto;display:block;';
