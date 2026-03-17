@@ -185,12 +185,18 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
     ? `<div style="position:absolute;inset:0;background:rgba(0,0,0,${overlayOpacity / 100});"></div>`
     : '';
 
+  // Responsive max-height CSS for compact presets on mobile
+  const compactMobileCapId = presetCfg.naturalHeight ? uid() : '';
+  const compactMobileCapCss = presetCfg.naturalHeight
+    ? `<style>.${compactMobileCapId} img{max-height:240px;object-fit:cover;}@media(min-width:768px){.${compactMobileCapId} img{max-height:none;}}</style>`
+    : '';
+
   let imageHtml = '';
   if (optDesktop) {
     const sourceTag = optMobile && optMobile !== optDesktop
       ? `<source srcset="${escapeHtml(optMobile)}" media="(max-width:768px)">`
       : '';
-    imageHtml = `<picture${presetCfg.naturalHeight ? ' style="display:block;width:100%;"' : ''}>
+    imageHtml = `<picture${presetCfg.naturalHeight ? ` class="${compactMobileCapId}" style="display:block;width:100%;"` : ''}>
       ${sourceTag}
       <img src="${escapeHtml(optDesktop)}" alt="${escapeHtml(currentTitle || 'Banner')}" style="${imgStyle}" loading="eager" fetchpriority="high">
     </picture>`;

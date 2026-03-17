@@ -329,7 +329,10 @@ export function BannerBlock({
             <img
               src={isMobile && currentMobileImage ? currentMobileImage : currentDesktopImage}
               alt={currentSlide?.altText || currentTitle || 'Banner'}
-              className={presetCfg.naturalHeight ? 'w-full h-auto block' : 'w-full h-full object-cover'}
+              className={presetCfg.naturalHeight
+                ? (isMobile ? 'w-full block object-cover' : 'w-full h-auto block')
+                : 'w-full h-full object-cover'}
+              style={presetCfg.naturalHeight && isMobile ? { maxHeight: '240px' } : undefined}
             />
           ) : (
             <picture className={presetCfg.naturalHeight ? 'block w-full' : 'block w-full h-full'}>
@@ -339,7 +342,9 @@ export function BannerBlock({
               <img
                 src={currentDesktopImage}
                 alt={currentSlide?.altText || currentTitle || 'Banner'}
-                className={presetCfg.naturalHeight ? 'w-full h-auto block' : 'w-full h-full object-cover'}
+                className={presetCfg.naturalHeight
+                  ? 'w-full block max-h-[240px] md:max-h-none object-cover'
+                  : 'w-full h-full object-cover'}
                 fetchPriority="high"
                 decoding="async"
                 width={1920}
