@@ -109,6 +109,7 @@ function buildCtaStyleTag(bannerId: string): string {
 }
 
 function renderSingleBanner(props: Record<string, unknown>, slide: any | null): string {
+  const bannerId = uid();
   let imageDesktop = (props.imageDesktop as string) || '';
   let imageMobile = (props.imageMobile as string) || '';
   let currentTitle = (props.title as string) || '';
