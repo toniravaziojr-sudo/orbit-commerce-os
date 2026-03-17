@@ -223,27 +223,6 @@ function SinglePanel({ props, onChange }: BannerPropsPanelProps) {
             <FieldWrapper label="Link do Botão">
               <Input value={(props.buttonUrl as string) || ''} onChange={e => onChange('buttonUrl', e.target.value)} placeholder="/produtos" className="h-7 text-xs" />
             </FieldWrapper>
-            <FieldWrapper label="Alinhamento do Texto">
-              <Select value={(props.alignment as string) || 'center'} onValueChange={v => onChange('alignment', v)}>
-                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="left" className="text-xs">Esquerda</SelectItem>
-                  <SelectItem value="center" className="text-xs">Centro</SelectItem>
-                  <SelectItem value="right" className="text-xs">Direita</SelectItem>
-                </SelectContent>
-              </Select>
-            </FieldWrapper>
-            <FieldWrapper label="Alinhamento do Botão">
-              <Select value={(props.buttonAlignment as string) || 'auto'} onValueChange={v => onChange('buttonAlignment', v)}>
-                <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto" className="text-xs">Seguir Texto</SelectItem>
-                  <SelectItem value="left" className="text-xs">Esquerda</SelectItem>
-                  <SelectItem value="center" className="text-xs">Centro</SelectItem>
-                  <SelectItem value="right" className="text-xs">Direita</SelectItem>
-                </SelectContent>
-              </Select>
-            </FieldWrapper>
           </div>
         )}
       </SectionCollapsible>
