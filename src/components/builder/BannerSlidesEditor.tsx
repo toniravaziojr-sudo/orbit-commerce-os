@@ -20,7 +20,7 @@ import {
 import { Plus, Trash2, ChevronUp, ChevronDown, GripVertical, ImageIcon, ChevronRight, Sparkles, Loader2, RefreshCw } from 'lucide-react';
 import { ImageUploaderWithLibrary } from './ImageUploaderWithLibrary';
 import { cn } from '@/lib/utils';
-import { getWizardContract } from '@/lib/builder/aiWizardRegistry';
+import { getSlideWizardContract } from '@/lib/builder/aiWizardRegistry';
 import { AIFillWizardDialog } from './ai-wizard/AIFillWizardDialog';
 
 export interface BannerSlide {
