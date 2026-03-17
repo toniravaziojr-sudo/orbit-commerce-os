@@ -17,7 +17,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { Plus, Trash2, ChevronUp, ChevronDown, GripVertical, ImageIcon, ChevronRight, Sparkles, Loader2 } from 'lucide-react';
+import { Plus, Trash2, ChevronUp, ChevronDown, GripVertical, ImageIcon, ChevronRight, Sparkles, Loader2, RefreshCw } from 'lucide-react';
 import { ImageUploaderWithLibrary } from './ImageUploaderWithLibrary';
 import { cn } from '@/lib/utils';
 import { getWizardContract } from '@/lib/builder/aiWizardRegistry';
