@@ -131,7 +131,7 @@ export function UniversalImageUploader({
 
   return (
     <div className="space-y-3">
-      <Tabs defaultValue="upload" className="w-full">
+      {!value && (<Tabs defaultValue="upload" className="w-full">
         <TabsList className={cn('grid w-full h-9', tabCount === 3 ? 'grid-cols-3' : 'grid-cols-2')}>
           <TabsTrigger value="upload" className="text-xs gap-1.5" disabled={disabled}>
             <Upload className="h-3.5 w-3.5" />
