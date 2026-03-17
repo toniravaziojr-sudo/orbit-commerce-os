@@ -301,7 +301,7 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
       ? `<source media="(max-width: 767px)" srcset="${escapeHtml(mobileImage)}">`
       : '';
 
-    const imgHtml = effectiveDesktop ? `<picture>
+    const imgHtml = effectiveDesktop ? `<picture${compactCarouselCapId ? ` class="${compactCarouselCapId}"` : ''}>
       ${sourceTag}
       <img src="${escapeHtml(desktopImage)}" alt="${escapeHtml(altText)}" style="${slideImgStyle}" ${isFirst ? 'fetchpriority="high" decoding="sync" loading="eager"' : 'loading="lazy"'}>
     </picture>` : '';
