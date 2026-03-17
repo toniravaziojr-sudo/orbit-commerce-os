@@ -2777,7 +2777,8 @@ Para adicionar novos presets no futuro:
 | **Descrição** | 2 modos: single (banner único) e carousel (múltiplos slides). Overlay de texto e CTA opcionais |
 | **Props (Single)** | `imageDesktop` (image), `imageMobile` (image), `linkUrl` (string), `title` (string), `subtitle` (string), `buttonText` (string), `buttonUrl` (string) |
 | **Props (Carousel)** | `slides` (array: {imageDesktop, imageMobile, linkUrl, altText}), `autoplaySeconds` (number: 0-30), `showArrows` (boolean), `showDots` (boolean) |
-| **Props (Style)** | `layoutPreset` (select: standard/compact-centered/compact-full/large), `alignment` (select: left/center/right), `backgroundColor` (color), `textColor` (color), `overlayOpacity` (number: 0-100), `buttonColor` (color), `buttonTextColor` (color), `buttonHoverBgColor` (color), `buttonHoverTextColor` (color) |
+| **Props (Style)** | `layoutPreset` (select: standard/compact-centered/compact-full/large), `backgroundColor` (color), `textColor` (color), `overlayOpacity` (number: 0-100), `buttonColor` (color), `buttonTextColor` (color) |
+| **Props [REMOVIDAS v4.2.0]** | `alignment` [REMOVIDO], `buttonAlignment` [REMOVIDO], `buttonHoverBgColor` [REMOVIDO], `buttonHoverTextColor` [REMOVIDO] — layout fixo, sem hover |
 | **Compilador** | `banner.ts` (Base) |
 
 #### 4.2 Imagem (`Image`)
