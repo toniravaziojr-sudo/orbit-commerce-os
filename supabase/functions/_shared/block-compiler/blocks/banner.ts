@@ -238,7 +238,7 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
 
   const inlineWidthStyle = presetCfg.fullWidth ? 'width:100%;' : '';
 
-  return `${aspectStyleTag}${widthCssBlock}${compactMobileCapCss}${ctaStyleTag}<${wrapperTag}${wrapperHref} class="${[aspectClass, widthCssClass].filter(Boolean).join(' ')}" style="position:relative;${inlineWidthStyle}${containerHeight}overflow:hidden;${useAbsoluteImage ? `display:flex;align-items:center;justify-content:${justifyContent};` : ''}${backgroundColor && !optDesktop ? `background-color:${escapeHtml(backgroundColor)};${presetCfg.naturalHeight ? 'min-height:200px;' : ''}` : !optDesktop ? 'background:#f5f5f5;' : ''}">`; class="${[aspectClass, widthCssClass].filter(Boolean).join(' ')}" style="position:relative;${inlineWidthStyle}${containerHeight}overflow:hidden;${useAbsoluteImage ? `display:flex;align-items:center;justify-content:${justifyContent};` : ''}${backgroundColor && !optDesktop ? `background-color:${escapeHtml(backgroundColor)};${presetCfg.naturalHeight ? 'min-height:200px;' : ''}` : !optDesktop ? 'background:#f5f5f5;' : ''}">
+  return `${aspectStyleTag}${widthCssBlock}${compactMobileCapCss}${ctaStyleTag}<${wrapperTag}${wrapperHref} class="${[aspectClass, widthCssClass].filter(Boolean).join(' ')}" style="position:relative;${inlineWidthStyle}${containerHeight}overflow:hidden;${useAbsoluteImage ? `display:flex;align-items:center;justify-content:${justifyContent};` : ''}${backgroundColor && !optDesktop ? `background-color:${escapeHtml(backgroundColor)};${presetCfg.naturalHeight ? 'min-height:200px;' : ''}` : !optDesktop ? 'background:#f5f5f5;' : ''}">
     ${imageHtml}
     ${overlayHtml}
     ${ctaHtml}
