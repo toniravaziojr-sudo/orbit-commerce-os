@@ -17,7 +17,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { Plus, Trash2, ChevronUp, ChevronDown, GripVertical, ImageIcon, ChevronRight, Sparkles, Loader2 } from 'lucide-react';
+import { Plus, Trash2, ChevronUp, ChevronDown, GripVertical, ImageIcon, ChevronRight, Sparkles, Loader2, RefreshCw } from 'lucide-react';
 import { ImageUploaderWithLibrary } from './ImageUploaderWithLibrary';
 import { cn } from '@/lib/utils';
 import { getWizardContract } from '@/lib/builder/aiWizardRegistry';
@@ -44,6 +44,8 @@ export interface BannerSlide {
   buttonTextColor?: string;
   buttonHoverBgColor?: string;
   buttonHoverTextColor?: string;
+  // AI regeneration config (hidden)
+  _lastSlideWizardConfig?: Record<string, unknown>;
 }
 
 interface BannerSlidesEditorProps {
@@ -58,6 +60,8 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId }: BannerSl
   const [expandedSlide, setExpandedSlide] = useState<number | null>(null);
   // Per-slide AI wizard
   const [aiWizardSlideIndex, setAiWizardSlideIndex] = useState<number | null>(null);
+  // Per-slide regeneration loading
+  const [regeneratingSlide, setRegeneratingSlide] = useState<number | null>(null);
 
   const singleSlideContract = getWizardContract('Banner');
 
@@ -106,14 +110,13 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId }: BannerSl
     setExpandedSlide(expandedSlide === index ? null : index);
   };
 
-  // Handle per-slide AI generation result
+  // Handle per-slide AI generation result — also saves wizard config for regeneration
   const handleSlideAIGenerated = (mergedProps: Record<string, unknown>) => {
     if (aiWizardSlideIndex === null) return;
     const idx = aiWizardSlideIndex;
     const newSlides = [...safeSlides];
     const current: BannerSlide = newSlides[idx] || { id: '', imageDesktop: '', imageMobile: '' };
     
-    // The wizard generates in single mode, so merge imageDesktop/imageMobile/title/subtitle/buttonText into the slide
     newSlides[idx] = {
       ...current,
       imageDesktop: (mergedProps.imageDesktop as string) || current.imageDesktop,
@@ -123,6 +126,8 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId }: BannerSl
       buttonText: mergedProps.buttonText !== undefined ? (mergedProps.buttonText as string) : current.buttonText,
       altText: mergedProps.altText !== undefined ? (mergedProps.altText as string) : current.altText,
       linkUrl: mergedProps.linkUrl !== undefined ? (mergedProps.linkUrl as string) : current.linkUrl,
+      // Save wizard config for regeneration
+      _lastSlideWizardConfig: mergedProps._lastWizardConfig as Record<string, unknown> || undefined,
     };
     
     // If AI set hasEditableContent via content presence
@@ -132,6 +137,69 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId }: BannerSl
     
     onChange(newSlides);
     setAiWizardSlideIndex(null);
+  };
+
+  // Regenerate a single slide using saved wizard config
+  const handleSlideRegenerate = async (index: number) => {
+    const slide = safeSlides[index];
+    const config = slide?._lastSlideWizardConfig as any;
+    if (!config || !tenantId || regeneratingSlide !== null) return;
+
+    setRegeneratingSlide(index);
+    try {
+      const { supabase } = await import('@/integrations/supabase/client');
+      const { toast } = await import('sonner');
+
+      const backendData = { ...config.collectedData };
+      const mode = config.mode;
+      const scope = config.scope || 'all';
+
+      // Same remapping as useAIWizardGenerate
+      const creativeStyleData = backendData.creativeStyle as any;
+      if (creativeStyleData && backendData.bannerMode) {
+        const modeDataForStyle = backendData.bannerMode as Record<string, unknown>;
+        modeDataForStyle.creativeStyle = creativeStyleData.creativeStyle || 'product_natural';
+        modeDataForStyle.styleConfig = creativeStyleData.styleConfig || {};
+      }
+
+      const { data, error } = await supabase.functions.invoke('ai-block-fill-visual', {
+        body: { tenantId, blockType: config.blockType || 'Banner', mode, scope, collectedData: backendData },
+      });
+
+      if (error || !data?.success || !data?.generatedProps) {
+        toast.error('Erro ao regenerar slide', { description: data?.error || 'Tente novamente' });
+        return;
+      }
+
+      const gen = data.generatedProps;
+      const newSlides = [...safeSlides];
+      const current = newSlides[index];
+
+      newSlides[index] = {
+        ...current,
+        imageDesktop: gen.imageDesktop || current.imageDesktop,
+        imageMobile: gen.imageMobile || current.imageMobile,
+        title: gen.title !== undefined ? gen.title : '',
+        subtitle: gen.subtitle !== undefined ? gen.subtitle : '',
+        buttonText: gen.buttonText !== undefined ? gen.buttonText : '',
+        altText: gen.altText !== undefined ? gen.altText : current.altText,
+        // Update wizard config timestamp
+        _lastSlideWizardConfig: { ...config, timestamp: Date.now() },
+      };
+
+      if (gen.title || gen.buttonText) {
+        newSlides[index].hasEditableContent = true;
+      }
+
+      onChange(newSlides);
+      toast.success('Slide regenerado ✨');
+    } catch (err) {
+      console.error('[SlideRegenerate] Error:', err);
+      const { toast } = await import('sonner');
+      toast.error('Erro ao regenerar slide');
+    } finally {
+      setRegeneratingSlide(null);
+    }
   };
 
   return (
@@ -184,12 +252,33 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId }: BannerSl
                     size="icon"
                     className="h-6 w-6 text-primary hover:text-primary"
                     title="Gerar com IA"
+                    disabled={regeneratingSlide !== null}
                     onClick={(e) => {
                       e.stopPropagation();
                       setAiWizardSlideIndex(index);
                     }}
                   >
                     <Sparkles className="h-3 w-3" />
+                  </Button>
+                )}
+                {/* Per-slide regenerate button — only after first AI generation */}
+                {tenantId && slide._lastSlideWizardConfig && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-primary hover:text-primary"
+                    title="Regenerar com mesmas configurações"
+                    disabled={regeneratingSlide !== null}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSlideRegenerate(index);
+                    }}
+                  >
+                    {regeneratingSlide === index ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3 w-3" />
+                    )}
                   </Button>
                 )}
                 <Button variant="ghost" size="icon" className="h-6 w-6"
