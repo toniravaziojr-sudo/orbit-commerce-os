@@ -4506,3 +4506,96 @@ Todos os blocos novos são compatíveis com regeneração via `_lastWizardConfig
 
 - **Onda 2:** TextBanners (4 slots flat independentes)
 - **Onda 3:** ImageCarousel e ImageGallery (arrays dinâmicos, cap de 6 por geração)
+
+---
+
+## Regras Estruturais — Sidebar Direita (Scroll-Safe)
+
+> **Status:** IMPLEMENTADO ✅ — Correção estrutural definitiva (2026-03-17)
+
+### Contexto
+
+O painel de propriedades da sidebar direita (288px / `w-72`) usa `ScrollArea` do Radix, cuja scrollbar é um overlay absoluto de ~10px. Isso causa sobreposição sobre o conteúdo se os elementos internos não respeitarem a largura disponível.
+
+### Cadeia de Containers (Scroll Contract)
+
+```
+VisualBuilder.tsx
+  └─ <div className="w-72"> ← sidebar raiz (288px)
+       └─ PropsEditor.tsx / HeaderFooterPropsEditor.tsx
+            └─ <ScrollArea className="flex-1"> ← Radix scroll com scrollbar overlay
+                 └─ Radix ScrollAreaPrimitive.Viewport ← viewport real (288px)
+                      └─ <div className="p-3 pr-6 ... min-w-0 overflow-x-hidden box-border">
+                           ← content wrapper com gutter de 24px para scrollbar
+                           └─ BannerPropsPanel / BannerSlidesEditor / etc.
+```
+
+### Regras Obrigatórias (para qualquer conteúdo dentro da sidebar)
+
+| Regra | Onde aplicar | Por quê |
+|-------|-------------|---------|
+| `min-w-0` | Todo wrapper flex/grid que carrega conteúdo | Permite que filhos encolham abaixo do min-content |
+| `overflow-hidden` ou `overflow-x-hidden` | Content wrappers e CollapsibleContent | Impede transbordo horizontal |
+| `box-border` | Content wrappers principais | Garante que padding não soma à largura |
+| `pr-6` (24px) | Content wrapper imediato dentro do ScrollArea | Reserva espaço para scrollbar overlay (10px) + margem |
+| `shrink-0` APENAS em ícones | Botões/ícones de ação | Texto e labels NUNCA devem ser `shrink-0` em coluna estreita |
+| `truncate` | Textos variáveis em linhas flex | Evita que texto longo empurre layout |
+
+### Proibições
+
+| Proibido | Motivo |
+|----------|--------|
+| Usar `sm:inline` para labels dentro da sidebar | `sm:` responde ao viewport (ex: 1517px), não ao container (288px). Labels apareceriam e transbordariam |
+| Aplicar `shrink-0` em texto/labels em flex rows | Impede contração, causa overflow |
+| Compensar scrollbar com padding em MÚLTIPLAS camadas | Padding deve existir em UMA camada só (content wrapper) |
+| Mudar `ScrollArea` globalmente sem opt-in | Alto risco de regressão em outros módulos |
+
+### Padrão para Collapsible Sections
+
+Toda `CollapsibleContent` dentro da sidebar DEVE incluir:
+
+```tsx
+<CollapsibleContent className="... min-w-0 overflow-hidden">
+```
+
+### Padrão para Tabs/Upload em Coluna Estreita
+
+Tabs dentro da sidebar (ex: Upload/Drive/URL) devem usar **apenas ícones**, sem labels de texto:
+
+```tsx
+<TabsTrigger value="upload" className="text-xs px-1" title="Upload do computador">
+  <Upload className="h-3.5 w-3.5" />
+</TabsTrigger>
+```
+
+O atributo `title` garante acessibilidade via tooltip nativo.
+
+### Padrão para Headers de Itens (ex: Slide)
+
+Headers com múltiplos botões de ação devem:
+- Usar botões compactos (`h-5 w-5`)
+- Lado esquerdo: `flex-1 min-w-0 overflow-hidden` com texto `truncate`
+- Lado direito: `shrink-0` sem `gap` (botões encostados)
+- Container: `overflow-hidden`
+
+### Arquivos que Implementam o Padrão
+
+| Arquivo | O que foi aplicado |
+|---------|-------------------|
+| `PropsEditor.tsx` | Content wrapper com `pr-6 min-w-0 overflow-x-hidden box-border` |
+| `HeaderFooterPropsEditor.tsx` | 5 ScrollArea wrappers com `min-w-0 overflow-x-hidden pr-4/pr-5 box-border` |
+| `BannerPropsPanel.tsx` | `SectionCollapsible` content com `min-w-0 overflow-hidden` |
+| `BannerSlidesEditor.tsx` | Header compacto (h-5 w-5), `SubSection` com `min-w-0 overflow-hidden`, expanded content com `overflow-hidden` |
+| `ImageUploaderWithLibrary.tsx` | Tabs icon-only (sem labels `sm:inline`) |
+
+### Checklist para Novos Editores na Sidebar
+
+Ao criar qualquer novo editor/painel dentro da sidebar direita:
+
+- [ ] Content wrapper tem `min-w-0 overflow-x-hidden box-border`?
+- [ ] CollapsibleContent tem `min-w-0 overflow-hidden`?
+- [ ] Flex rows com ações à direita usam `shrink-0` apenas nos ícones?
+- [ ] Textos variáveis usam `truncate`?
+- [ ] Tabs/botões usam apenas ícones (sem labels de texto)?
+- [ ] Nenhum `sm:` breakpoint para show/hide de conteúdo?
+- [ ] Padding de scrollbar existe em UMA camada só?
