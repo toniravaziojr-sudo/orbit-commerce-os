@@ -147,6 +147,7 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId, onRegenera
     if (!config || !tenantId || regeneratingSlide !== null) return;
 
     setRegeneratingSlide(index);
+    onRegeneratingChange?.(true);
     try {
       const { supabase } = await import('@/integrations/supabase/client');
       const { toast } = await import('sonner');
