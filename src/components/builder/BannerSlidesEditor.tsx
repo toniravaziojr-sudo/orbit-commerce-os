@@ -367,7 +367,7 @@ function SubSection({
         </div>
         <ChevronDown className={cn("h-3 w-3 transition-transform duration-200", open && "rotate-180")} />
       </CollapsibleTrigger>
-      <CollapsibleContent className="pt-2 pl-2 pr-0 space-y-2 border-l border-muted ml-1.5 mt-1">
+      <CollapsibleContent className="pt-2 pl-2 pr-0 space-y-2 border-l border-muted ml-1.5 mt-1 min-w-0 overflow-hidden">
         {children}
       </CollapsibleContent>
     </Collapsible>
