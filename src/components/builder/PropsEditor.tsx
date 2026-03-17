@@ -108,6 +108,11 @@ export function PropsEditor({
     onChange({ ...props, [key]: value });
   };
 
+  // Batch multiple key-value updates in a single onChange call (avoids stale-props race)
+  const handleBatchChange = (updates: Record<string, unknown>) => {
+    onChange({ ...props, ...updates });
+  };
+
   const propsEntries = Object.entries(definition.propsSchema);
   
   // For Header block, separate notice props from other props
