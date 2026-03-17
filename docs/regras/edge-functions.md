@@ -2769,19 +2769,23 @@ No mobile (< 640px), o popup de newsletter com layout `side-image` renderizava a
 
 ---
 
-## category-page-layout — Mobile Spacing Fix (v8.5.3)
+## category-page-layout — Mobile Spacing Fix (v8.5.3 → v8.5.6)
 
 ### Problema resolvido
-Espaçamento desproporcional entre banner da categoria e botão "Filtrar" no mobile.
+Espaçamento desproporcional entre banner da categoria e botão "Filtrar" no mobile, persistente mesmo após ajustes de CSS porque a causa raiz era o compilador renderizando wrappers legados com padding real.
 
-### Solução
+### Causa raiz (v8.5.6)
+Templates legados contêm blocos `Section` com `paddingY: 32/48/24` envolvendo `CategoryBanner` e `CategoryPageLayout`. O Builder React ignorava esses wrappers internamente, mas o compilador Edge os renderizava com padding real, criando gaps visíveis no público.
+
+### Solução (Fase 1 — runtime, sem migração de dados)
 | Campo | Valor |
 |-------|-------|
-| **Tipo** | Regra Visual |
-| **Localização** | `supabase/functions/_shared/block-compiler/blocks/category-page-layout.ts` |
-| **CSS** | `@media(max-width:639px) { [data-sf-cat-container] { padding-top:12px !important; } }` |
-| **Antes** | 24px padding-top + 16px margin-bottom no trigger = 40px gap total |
-| **Depois** | 12px padding-top + 12px margin-bottom = 24px gap total |
+| **Tipo** | Regra Visual + Lógica |
+| **Localização** | `supabase/functions/_shared/block-compiler/index.ts` + `blocks/category-page-layout.ts` |
+| **Camada 1 (CSS)** | `@media(max-width:639px) { [data-sf-cat-container] { padding-top:12px !important; } }` |
+| **Camada 2 (Neutralização)** | Função `isLegacyCategorySectionWrapper()` zera padding de wrappers legados em runtime sem alterar JSON salvo |
+| **Segurança** | Só afeta Sections com assinatura legada exata. Padding customizado intencional preservado. |
+| **Deploy** | Requer deploy de `storefront-html` + `storefront-prerender` + republicação do template |
 
 ---
 
