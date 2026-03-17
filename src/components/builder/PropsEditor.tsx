@@ -360,6 +360,7 @@ export function PropsEditor({
             <BannerPropsPanel
               props={props}
               onChange={handleChange}
+              tenantId={tenantId}
             />
           ) : (
             <>

@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 interface BannerPropsPanelProps {
   props: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
+  tenantId?: string;
 }
 
 // ===== Helper components =====
@@ -112,7 +113,7 @@ function SliderField({ label, value, onChange, min = 0, max = 100 }: { label: st
 
 // ===== Main Panel =====
 
-export function BannerPropsPanel({ props, onChange }: BannerPropsPanelProps) {
+export function BannerPropsPanel({ props, onChange, tenantId }: BannerPropsPanelProps) {
   const mode = (props.mode as string) || 'single';
 
   return (
@@ -131,7 +132,7 @@ export function BannerPropsPanel({ props, onChange }: BannerPropsPanelProps) {
       </FieldWrapper>
 
       {mode === 'carousel' ? (
-        <CarouselPanel props={props} onChange={onChange} />
+        <CarouselPanel props={props} onChange={onChange} tenantId={tenantId} />
       ) : (
         <SinglePanel props={props} onChange={onChange} />
       )}
@@ -288,7 +289,7 @@ function SinglePanel({ props, onChange }: BannerPropsPanelProps) {
 
 // ===== Carousel Mode Panel =====
 
-function CarouselPanel({ props, onChange }: BannerPropsPanelProps) {
+function CarouselPanel({ props, onChange, tenantId }: BannerPropsPanelProps) {
   const [configOpen, setConfigOpen] = useState(true);
 
   return (
@@ -349,6 +350,7 @@ function CarouselPanel({ props, onChange }: BannerPropsPanelProps) {
       <BannerSlidesEditor
         slides={(props.slides as BannerSlide[]) || []}
         onChange={(slides) => onChange('slides', slides)}
+        tenantId={tenantId}
       />
     </>
   );
