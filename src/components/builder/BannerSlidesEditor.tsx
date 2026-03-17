@@ -206,7 +206,7 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId, onRegenera
   };
 
   return (
-    <div className="space-y-2 pr-3">
+    <div className="space-y-2 pr-5">
       {safeSlides.length === 0 && (
         <div className="text-center py-4 text-muted-foreground border border-dashed rounded-lg">
           <ImageIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
