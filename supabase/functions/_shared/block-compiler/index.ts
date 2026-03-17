@@ -175,6 +175,28 @@ export const UNSUPPORTED_BLOCKS = new Set([
 ]);
 
 /**
+ * Detect if a Section node is a legacy wrapper around category blocks
+ * and should have its padding neutralized.
+ * Legacy signature: Section with paddingY 32 or 48, wrapping CategoryBanner or CategoryPageLayout.
+ */
+function isLegacyCategorySectionWrapper(node: BlockNode): boolean {
+  if (node.type !== 'Section') return false;
+  if (!node.children || node.children.length === 0) return false;
+  
+  const paddingY = (node.props.paddingY as number) ?? 0;
+  const paddingX = (node.props.paddingX as number) ?? 0;
+  
+  // Only neutralize if padding matches known legacy defaults
+  const isLegacyPaddingY = paddingY === 32 || paddingY === 48 || paddingY === 24;
+  const isLegacyPaddingX = paddingX === 0 || paddingX === 16;
+  if (!isLegacyPaddingY || !isLegacyPaddingX) return false;
+  
+  // Check if any direct child is a category block
+  const categoryBlockTypes = new Set(['CategoryBanner', 'CategoryPageLayout']);
+  return node.children.some(child => categoryBlockTypes.has(child.type));
+}
+
+/**
  * Compile a single BlockNode to static HTML.
  * Recursively compiles children first, then passes to the block's compiler.
  */
@@ -185,6 +207,20 @@ function compileNode(node: BlockNode, context: CompilerContext): string {
   // Skip structural blocks (handled separately)
   if (STRUCTURAL_BLOCKS.has(node.type)) return '';
   
+  // === LEGACY WRAPPER NEUTRALIZATION ===
+  // If this Section wraps CategoryBanner/CategoryPageLayout with legacy padding,
+  // zero out the padding to eliminate unwanted spacing.
+  let effectiveProps = node.props;
+  if (isLegacyCategorySectionWrapper(node)) {
+    effectiveProps = {
+      ...node.props,
+      paddingY: 0,
+      paddingX: 0,
+      marginTop: 0,
+      marginBottom: 0,
+    };
+  }
+  
   // Recursively compile children
   let childrenHtml = '';
   if (node.children && node.children.length > 0) {
@@ -194,7 +230,7 @@ function compileNode(node: BlockNode, context: CompilerContext): string {
   // Look up compiler
   const compiler = COMPILER_REGISTRY[node.type];
   if (compiler) {
-    return compiler(node.props, context, childrenHtml);
+    return compiler(effectiveProps, context, childrenHtml);
   }
   
   // No compiler: return children directly (pass-through for layout wrappers)

@@ -3,14 +3,15 @@
 // Mirrors: src/components/builder/blocks/BannerBlock.tsx
 // =============================================
 // KEY PARITY POINTS from React component:
-// - Supports 'single' and 'carousel' modes
+// - layoutPreset: 'standard' | 'compact-centered' | 'compact-full' | 'large'
+// - bannerType: 'image' | 'solid'
+// - hasEditableContent toggle
 // - Per-slide CTA: title, subtitle, buttonText, buttonUrl
-// - Height: sm/md/lg/full/auto with aspect-ratio fallback
 // - Overlay opacity
 // - Button uses per-banner props (buttonColor, buttonTextColor), not theme vars
 // - Uses <picture> with srcMobile
 // - Carousel: renders ALL slides with JS rotation
-// - RESPONSIVE CTA: px-5 md:px-16, py-8 md:py-12, text-sm md:text-lg
+// - RESPONSIVE CTA: mobile justify-between layout
 // =============================================
 
 import type { CompilerContext } from '../types.ts';
@@ -20,6 +21,51 @@ import { escapeHtml, optimizeImageUrl } from '../utils.ts';
 function uid(): string {
   return 'sf-b-' + Math.random().toString(36).slice(2, 8);
 }
+
+// ===== Resolve layoutPreset — mirrors BannerBlock.tsx resolvePreset exactly =====
+function resolvePreset(
+  layoutPreset?: string,
+  height?: string,
+  bannerWidth?: string,
+): 'standard' | 'compact-centered' | 'compact-full' | 'large' {
+  if (layoutPreset && ['standard', 'compact-centered', 'compact-full', 'large'].includes(layoutPreset)) {
+    return layoutPreset as any;
+  }
+  // Fallback: infer from legacy props
+  if (height === 'full' || height === 'lg') return 'large';
+  if (height === 'sm' || height === 'md') {
+    return bannerWidth === 'contained' ? 'compact-centered' : 'compact-full';
+  }
+  return bannerWidth === 'contained' ? 'compact-centered' : 'standard';
+}
+
+// ===== Preset config — mirrors BannerBlock.tsx PRESET_CONFIG exactly =====
+const PRESET_CONFIG = {
+  'standard': {
+    useAspect: true,
+    fullWidth: true,
+    naturalHeight: false,
+    minHeight: undefined as string | undefined,
+  },
+  'compact-centered': {
+    useAspect: false,
+    fullWidth: false, // contained on desktop
+    naturalHeight: true, // image determines height
+    minHeight: undefined as string | undefined,
+  },
+  'compact-full': {
+    useAspect: false,
+    fullWidth: true, // full width on desktop
+    naturalHeight: true, // image determines height
+    minHeight: undefined as string | undefined,
+  },
+  'large': {
+    useAspect: false,
+    fullWidth: true,
+    naturalHeight: false,
+    minHeight: '100vh',
+  },
+} as const;
 
 export function bannerToStaticHTML(
   props: Record<string, unknown>,
@@ -40,9 +86,6 @@ export function bannerToStaticHTML(
 
 /**
  * Build responsive CTA style tag.
- * React uses: px-5 md:px-16 py-8 md:py-12 for the CTA container
- * and text-sm md:text-lg, px-6 md:px-10 py-3 md:py-4 for the button.
- * maxWidth:55% for non-center alignment only on desktop (React: isMobile ? '100%' : '55%')
  */
 function buildCtaStyleTag(bannerId: string, alignment: string, buttonAlignment: string): string {
   const maxWidthDesktop = alignment !== 'center' ? 'max-width:55%;' : '';
@@ -87,41 +130,55 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
     currentLinkUrl = slide.linkUrl || currentLinkUrl;
   }
 
-  const height = (props.height as string) || 'auto';
   const overlayOpacity = (props.overlayOpacity as number) || 0;
   const textColor = (props.textColor as string) || '#ffffff';
   const alignment = (props.alignment as string) || 'center';
   const buttonAlignment = (props.buttonAlignment as string) || 'auto';
   const backgroundColor = (props.backgroundColor as string) || '';
-  const bannerWidth = (props.bannerWidth as string) || 'full';
   const buttonColor = (props.buttonColor as string) || '#ffffff';
   const buttonTextColor = (props.buttonTextColor as string) || (buttonColor ? '#ffffff' : '#1a1a1a');
+  const bannerType = (props.bannerType as string) || 'image';
 
-  const heightMap: Record<string, string> = {
-    sm: '300px', md: '400px', lg: '500px', full: '100vh', auto: 'auto',
-  };
-  const cssHeight = heightMap[height] || 'auto';
-  const alignMap: Record<string, string> = { left: 'flex-start', center: 'center', right: 'flex-end' };
-  const justifyContent = alignMap[alignment] || 'center';
-  const textAlign = alignment;
+  // ===== PRESET RESOLUTION (mirrors BannerBlock.tsx) =====
+  const layoutPreset = props.layoutPreset as string | undefined;
+  const height = (props.height as string) || 'auto';
+  const bannerWidth = (props.bannerWidth as string) || 'full';
+  const preset = resolvePreset(layoutPreset, height, bannerWidth);
+  const presetCfg = PRESET_CONFIG[preset];
 
-  const optDesktop = optimizeImageUrl(imageDesktop, 1920, 85);
-  const optMobile = optimizeImageUrl(imageMobile || imageDesktop, 768, 80);
+  // Solid banner: no images
+  const isSolid = bannerType === 'solid';
+  const effectiveDesktop = isSolid ? '' : imageDesktop;
+  const effectiveMobile = isSolid ? '' : (imageMobile || imageDesktop);
 
-  const hasCTA = !!(currentTitle || currentSubtitle || currentButtonText);
-  const isAutoHeight = cssHeight === 'auto';
-  // Always use aspect ratio for auto height (with or without CTA)
-  const needsAspect = isAutoHeight;
+  const optDesktop = optimizeImageUrl(effectiveDesktop, 1920, 85);
+  const optMobile = optimizeImageUrl(effectiveMobile || effectiveDesktop, 768, 80);
 
-  const widthStyle = bannerWidth === 'full' ? 'width:100%;' : 'max-width:1280px;margin-left:auto;margin-right:auto;';
-  const containerHeight = isAutoHeight ? '' : `height:${cssHeight};`;
-  
-  const useAbsoluteImage = !isAutoHeight || hasCTA;
-  const imgStyle = useAbsoluteImage
-    ? 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;'
-    : needsAspect
-      ? 'width:100%;height:100%;object-fit:cover;display:block;'
+  // hasEditableContent resolution
+  const hasEditableContent = props.hasEditableContent !== undefined
+    ? Boolean(props.hasEditableContent)
+    : !!(props.title || props.buttonText);
+  const hasCTA = hasEditableContent && !!(currentTitle || currentSubtitle || currentButtonText);
+
+  // Width style based on preset
+  const widthStyle = presetCfg.fullWidth
+    ? 'width:100%;'
+    : 'max-width:1280px;margin-left:auto;margin-right:auto;';
+
+  // Container sizing based on preset
+  let containerHeight = '';
+  if (presetCfg.minHeight) {
+    containerHeight = `min-height:${presetCfg.minHeight};`;
+  }
+
+  // Image style based on preset
+  const imgStyle = presetCfg.naturalHeight
+    ? 'width:100%;height:auto;display:block;'
+    : (presetCfg.useAspect || presetCfg.minHeight)
+      ? 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;'
       : 'width:100%;height:auto;display:block;';
+
+  const useAbsoluteImage = !presetCfg.naturalHeight && (presetCfg.useAspect || !!presetCfg.minHeight || hasCTA);
 
   const overlayHtml = overlayOpacity > 0
     ? `<div style="position:absolute;inset:0;background:rgba(0,0,0,${overlayOpacity / 100});"></div>`
@@ -132,20 +189,21 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
     const sourceTag = optMobile && optMobile !== optDesktop
       ? `<source srcset="${escapeHtml(optMobile)}" media="(max-width:768px)">`
       : '';
-    imageHtml = `<picture>
+    imageHtml = `<picture${presetCfg.naturalHeight ? ' style="display:block;width:100%;"' : ''}>
       ${sourceTag}
       <img src="${escapeHtml(optDesktop)}" alt="${escapeHtml(currentTitle || 'Banner')}" style="${imgStyle}" loading="eager" fetchpriority="high">
     </picture>`;
   }
 
   const bannerId = uid();
+  const alignMap: Record<string, string> = { left: 'flex-start', center: 'center', right: 'flex-end' };
+  const justifyContent = alignMap[alignment] || 'center';
+  const textAlign = alignment;
 
   let ctaHtml = '';
   let ctaStyleTag = '';
   if (hasCTA) {
     ctaStyleTag = buildCtaStyleTag(bannerId, alignment, buttonAlignment);
-    // Mobile: title in top zone, subtitle+button in bottom zone
-    // Desktop: all stacked vertically
     const titleHtml = currentTitle ? `<h2 style="color:${textColor};">${escapeHtml(currentTitle)}</h2>` : '';
     const subtitleHtml = currentSubtitle ? `<p style="color:${textColor};">${escapeHtml(currentSubtitle)}</p>` : '';
     const buttonHtml = currentButtonText ? `<div class="${bannerId}-btn-wrap"><a href="${escapeHtml(currentButtonUrl || currentLinkUrl || '#')}" class="${bannerId}-btn" style="background:${escapeHtml(buttonColor)};color:${escapeHtml(buttonTextColor)};">${escapeHtml(currentButtonText)}</a></div>` : '';
@@ -156,13 +214,24 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
     </div>`;
   }
 
-  const aspectClass = needsAspect ? `${bannerId}-ar` : '';
-  const aspectStyleTag = needsAspect ? `<style>.${bannerId}-ar{aspect-ratio:4/5;}@media(min-width:768px){.${bannerId}-ar{aspect-ratio:12/5;}}</style>` : '';
+  // Aspect ratio for standard preset
+  const aspectClass = presetCfg.useAspect ? `${bannerId}-ar` : '';
+  const aspectStyleTag = presetCfg.useAspect
+    ? `<style>.${bannerId}-ar{aspect-ratio:4/5;}@media(min-width:768px){.${bannerId}-ar{aspect-ratio:12/5;}}</style>`
+    : '';
+
+  // Width class for compact-centered: full on mobile, contained on desktop
+  const widthCssBlock = !presetCfg.fullWidth
+    ? `<style>.${bannerId}-w{width:100%;}@media(min-width:768px){.${bannerId}-w{max-width:1280px;margin-left:auto;margin-right:auto;}}</style>`
+    : '';
+  const widthCssClass = !presetCfg.fullWidth ? `${bannerId}-w` : '';
 
   const wrapperTag = currentLinkUrl && !hasCTA ? 'a' : 'div';
   const wrapperHref = currentLinkUrl && !hasCTA ? ` href="${escapeHtml(currentLinkUrl)}"` : '';
 
-  return `${aspectStyleTag}${ctaStyleTag}<${wrapperTag}${wrapperHref} class="${aspectClass}" style="position:relative;${widthStyle}${containerHeight}overflow:hidden;${useAbsoluteImage ? `display:flex;align-items:center;justify-content:${justifyContent};` : ''}${backgroundColor && !optDesktop ? `background-color:${escapeHtml(backgroundColor)};` : 'background:#f5f5f5;'}">
+  const inlineWidthStyle = presetCfg.fullWidth ? 'width:100%;' : '';
+
+  return `${aspectStyleTag}${widthCssBlock}${ctaStyleTag}<${wrapperTag}${wrapperHref} class="${[aspectClass, widthCssClass].filter(Boolean).join(' ')}" style="position:relative;${inlineWidthStyle}${containerHeight}overflow:hidden;${useAbsoluteImage ? `display:flex;align-items:center;justify-content:${justifyContent};` : ''}${backgroundColor && !optDesktop ? `background-color:${escapeHtml(backgroundColor)};${presetCfg.naturalHeight ? 'min-height:200px;' : ''}` : !optDesktop ? 'background:#f5f5f5;' : ''}">
     ${imageHtml}
     ${overlayHtml}
     ${ctaHtml}
@@ -170,10 +239,15 @@ function renderSingleBanner(props: Record<string, unknown>, slide: any | null): 
 }
 
 function renderCarousel(props: Record<string, unknown>, slides: any[], autoplaySeconds: number): string {
-  const bannerWidth = (props.bannerWidth as string) || 'full';
   const showDots = (props.showDots as boolean) ?? true;
   const showArrows = (props.showArrows as boolean) ?? false;
-  const widthStyle = bannerWidth === 'full' ? 'width:100%;' : 'max-width:1280px;margin:0 auto;';
+
+  // ===== PRESET RESOLUTION =====
+  const layoutPreset = props.layoutPreset as string | undefined;
+  const height = (props.height as string) || 'auto';
+  const bannerWidth = (props.bannerWidth as string) || 'full';
+  const preset = resolvePreset(layoutPreset, height, bannerWidth);
+  const presetCfg = PRESET_CONFIG[preset];
 
   // Shared style props for CTA rendering
   const overlayOpacity = (props.overlayOpacity as number) || 0;
@@ -186,14 +260,16 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
   const justifyContent = alignMap[alignment] || 'center';
   const textAlign = alignment;
 
-  // Generate unique ID for this carousel
   const carouselId = uid();
 
   // Check if any slide has CTA content
   const anySlideHasCTA = slides.some(s => s.title || s.subtitle || s.buttonText);
-
-  // Build responsive CTA style tag (shared across slides)
   const ctaStyleTag = anySlideHasCTA ? buildCtaStyleTag(carouselId, alignment, buttonAlignment) : '';
+
+  // Image style for carousel slides based on preset
+  const slideImgStyle = presetCfg.naturalHeight
+    ? 'width:100%;height:auto;display:block;'
+    : 'width:100%;height:100%;object-fit:cover;';
 
   // Build slides HTML
   const slidesHtml = slides.map((slide, idx) => {
@@ -213,10 +289,9 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
 
     const imgHtml = effectiveDesktop ? `<picture>
       ${sourceTag}
-      <img src="${escapeHtml(desktopImage)}" alt="${escapeHtml(altText)}" style="width:100%;height:100%;object-fit:cover;" ${isFirst ? 'fetchpriority="high" decoding="sync" loading="eager"' : 'loading="lazy"'}>
+      <img src="${escapeHtml(desktopImage)}" alt="${escapeHtml(altText)}" style="${slideImgStyle}" ${isFirst ? 'fetchpriority="high" decoding="sync" loading="eager"' : 'loading="lazy"'}>
     </picture>` : '';
 
-    // Build per-slide CTA overlay (mirrors BannerBlock.tsx responsive behavior)
     const slideTitle = slide.title || '';
     const slideSubtitle = slide.subtitle || '';
     const slideButtonText = slide.buttonText || '';
@@ -290,9 +365,30 @@ function renderCarousel(props: Record<string, unknown>, slides: any[], autoplayS
     if(next)next.addEventListener("click",function(){clearInterval(timer);go(cur+1);timer=setInterval(function(){go(cur+1)},delay);});
   })();</script>`;
 
-  return `${ctaStyleTag}<div style="position:relative;overflow:hidden;${widthStyle}">
-    <style>.${carouselId}-wrap{aspect-ratio:4/5;}@media(min-width:768px){.${carouselId}-wrap{aspect-ratio:12/5;}}</style>
-    <div class="${carouselId}-wrap" style="position:relative;">
+  // Width based on preset
+  const widthStyleInline = presetCfg.fullWidth ? 'width:100%;' : '';
+  const widthCssBlock = !presetCfg.fullWidth
+    ? `<style>.${carouselId}-w{width:100%;}@media(min-width:768px){.${carouselId}-w{max-width:1280px;margin-left:auto;margin-right:auto;}}</style>`
+    : '';
+  const widthCssClass = !presetCfg.fullWidth ? `${carouselId}-w` : '';
+
+  // Aspect/sizing based on preset
+  let sizingCssBlock = '';
+  let sizingClass = '';
+  if (presetCfg.useAspect) {
+    sizingClass = `${carouselId}-wrap`;
+    sizingCssBlock = `<style>.${carouselId}-wrap{aspect-ratio:4/5;}@media(min-width:768px){.${carouselId}-wrap{aspect-ratio:12/5;}}</style>`;
+  } else if (presetCfg.minHeight) {
+    sizingClass = `${carouselId}-wrap`;
+    sizingCssBlock = `<style>.${carouselId}-wrap{min-height:${presetCfg.minHeight};}</style>`;
+  } else {
+    // naturalHeight — no fixed sizing, slides determine height
+    sizingClass = `${carouselId}-wrap`;
+  }
+
+  return `${ctaStyleTag}${widthCssBlock}<div class="${widthCssClass}" style="position:relative;overflow:hidden;${widthStyleInline}">
+    ${sizingCssBlock}
+    <div class="${sizingClass}" style="position:relative;">
       ${slidesHtml}
     </div>
     ${dotsHtml}
