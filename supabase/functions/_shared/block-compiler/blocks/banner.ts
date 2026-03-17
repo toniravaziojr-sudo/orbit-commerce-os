@@ -87,25 +87,22 @@ export function bannerToStaticHTML(
 /**
  * Build responsive CTA style tag.
  */
-function buildCtaStyleTag(bannerId: string, alignment: string, buttonAlignment: string): string {
-  const maxWidthDesktop = alignment !== 'center' ? 'max-width:55%;' : '';
-  const btnAlignMap: Record<string, string> = { left: 'flex-start', center: 'center', right: 'flex-end' };
-  const effectiveBtnAlign = (!buttonAlignment || buttonAlignment === 'auto') ? alignment : buttonAlignment;
-  const btnJustify = btnAlignMap[effectiveBtnAlign] || 'center';
+function buildCtaStyleTag(bannerId: string): string {
+  // Fixed layout: Desktop=left+justify-between, Mobile=center+justify-between
   return `<style>
-.${bannerId}-cta{position:absolute;inset:0;display:flex;flex-direction:column;z-index:2;padding:32px 20px;}
-.${bannerId}-cta h2{font-size:clamp(24px,5vw,36px);font-weight:700;font-family:var(--sf-heading-font);line-height:1.1;}
-.${bannerId}-cta p{font-size:clamp(14px,2.5vw,16px);opacity:0.9;margin-top:8px;}
-.${bannerId}-btn-wrap{display:flex;justify-content:${btnJustify};margin-top:12px;}
+.${bannerId}-cta{position:absolute;inset:0;display:flex;flex-direction:column;z-index:2;padding:32px 20px;justify-content:space-between;align-items:center;text-align:center;}
+.${bannerId}-cta h2{font-size:clamp(24px,5vw,36px);font-weight:700;font-family:var(--sf-heading-font, inherit);line-height:1.1;}
+.${bannerId}-cta p{font-size:clamp(14px,2.5vw,16px);opacity:0.9;font-family:var(--sf-body-font, inherit);}
+.${bannerId}-btn-wrap{display:flex;justify-content:center;width:100%;}
 .${bannerId}-btn{display:inline-block;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;text-decoration:none;transition:opacity 0.2s;}
 @media(min-width:768px){
-.${bannerId}-cta{padding:48px 64px;${maxWidthDesktop}justify-content:center;}
+.${bannerId}-cta{padding:48px 64px;max-width:55%;align-items:flex-start;text-align:left;}
 .${bannerId}-cta h2{font-size:clamp(28px,5vw,60px);}
 .${bannerId}-cta p{font-size:clamp(16px,2.5vw,24px);}
+.${bannerId}-btn-wrap{justify-content:flex-start;}
 .${bannerId}-btn{padding:16px 40px;font-size:18px;}
 }
 @media(max-width:767px){
-.${bannerId}-cta{justify-content:space-between;align-items:center;}
 .${bannerId}-cta .${bannerId}-bottom{text-align:center;}
 }
 </style>`;
