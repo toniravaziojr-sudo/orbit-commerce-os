@@ -225,32 +225,46 @@ export function buildStructuralRules(input: StructuralRulesInput): string {
 
 // ===== BANNER SIMPLIFIED RULES (v2.0.0) =====
 
-function buildBannerSimplifiedRules(slot: VisualSlot, isDesktop: boolean): string {
+function buildBannerSimplifiedRules(slot: VisualSlot, isDesktop: boolean, outputMode: OutputMode): string {
+  const isComplete = outputMode === 'complete';
   const lines: string[] = [];
 
   lines.push(`📐 DIMENSIONS: ${slot.width}x${slot.height}px (${isDesktop ? 'horizontal/desktop' : 'vertical/mobile'})`);
   
-  lines.push(`\n🖼️ IMAGE TYPE: Background image for e-commerce banner.`);
-  lines.push(`- This image will have HTML text overlaid on top of it.`);
-  lines.push(`- The image should work as a PHOTOGRAPHIC BACKGROUND.`);
-  
-  // Simple no-text rule
-  lines.push(`\n🚫 NO TEXT IN IMAGE:`);
-  lines.push(`- Do NOT include any text, letters, numbers, logos, watermarks, price tags, or typography of any kind.`);
-  lines.push(`- Product labels are OK if they're a natural part of the product, but should NOT be the focal point.`);
+  if (isComplete) {
+    // Complete creative mode — no text restrictions
+    lines.push(`\n🎨 COMPLETE CREATIVE MODE:`);
+    lines.push(`- This is a FINISHED advertising piece — the final image IS the banner.`);
+    lines.push(`- You MAY include text, headlines, slogans, promotional copy, CTAs, or any typography if it enhances the creative concept.`);
+    lines.push(`- Text is ALLOWED but NOT mandatory — only include it if it serves the design.`);
+    lines.push(`- Think of this as a professional ad creative for Instagram, Google Ads, or a store homepage.`);
+  } else {
+    // Editable mode — strict no-text rules
+    lines.push(`\n🖼️ IMAGE TYPE: Background image for e-commerce banner.`);
+    lines.push(`- This image will have HTML text overlaid on top of it.`);
+    lines.push(`- The image should work as a PHOTOGRAPHIC BACKGROUND.`);
+    
+    lines.push(`\n🚫 NO TEXT IN IMAGE:`);
+    lines.push(`- Do NOT include any text, letters, numbers, logos, watermarks, price tags, or typography of any kind.`);
+    lines.push(`- Product labels are OK if they're a natural part of the product, but should NOT be the focal point.`);
+  }
 
-  // Lightweight composition guidance (not rigid zones)
+  // Lightweight composition guidance
   if (isDesktop) {
     lines.push(`\n📏 COMPOSITION TIPS (desktop):`);
     lines.push(`- Widescreen format — use the horizontal space creatively.`);
-    lines.push(`- Consider leaving some area with lower visual density for text legibility (the system will overlay text).`);
+    if (!isComplete) {
+      lines.push(`- Consider leaving some area with lower visual density for text legibility (the system will overlay text).`);
+    }
     lines.push(`- Product should be well-framed and visible.`);
   } else {
     lines.push(`\n📏 COMPOSITION TIPS (mobile):`);
     lines.push(`- Portrait format — vertical composition.`);
     lines.push(`- Product should be well-centered and proportioned for a narrow screen.`);
     lines.push(`- Avoid cutting important elements at the edges.`);
-    lines.push(`- Consider leaving some breathing room at top and bottom for text overlay.`);
+    if (!isComplete) {
+      lines.push(`- Consider leaving some breathing room at top and bottom for text overlay.`);
+    }
   }
 
   // Quality
