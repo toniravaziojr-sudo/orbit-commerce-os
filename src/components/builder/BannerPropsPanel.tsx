@@ -146,7 +146,7 @@ export function BannerPropsPanel({ props, onChange, onBatchChange, tenantId }: B
 
 // ===== Single Mode Panel =====
 
-function SinglePanel({ props, onChange }: BannerPropsPanelProps) {
+function SinglePanel({ props, onChange, tenantId }: BannerPropsPanelProps) {
   const [configOpen, setConfigOpen] = useState(true);
   const [imagesOpen, setImagesOpen] = useState(false);
   const [refinementsOpen, setRefinementsOpen] = useState(false);
