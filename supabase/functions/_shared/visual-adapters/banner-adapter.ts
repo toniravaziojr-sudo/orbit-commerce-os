@@ -17,10 +17,8 @@ import type {
 const BANNER_DESKTOP = { width: 1920, height: 800 };
 const BANNER_MOBILE = { width: 750, height: 940 };
 
-function getCompositionHint(device: 'desktop' | 'mobile', outputMode: OutputMode): CompositionHint {
-  if (outputMode === 'complete') {
-    return device === 'desktop' ? 'banner_desktop_complete' : 'banner_mobile_complete';
-  }
+// v4.0.0: Banner always uses editable composition (text overlay via HTML)
+function getCompositionHint(device: 'desktop' | 'mobile'): CompositionHint {
   return device === 'desktop' ? 'banner_desktop' : 'banner_mobile';
 }
 
