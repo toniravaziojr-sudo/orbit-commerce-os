@@ -69,34 +69,10 @@ export class BannerAdapter implements BlockVisualAdapter {
 
   mergeResults(
     results: VisualGenerationResult[],
-    params: AdapterInput,
+    _params: AdapterInput,
   ): Record<string, unknown> {
-    const { mode, outputMode } = params;
-    const renderMode = results[0]?.renderMode || 'overlay';
-    const isComplete = outputMode === 'complete';
-
-    if (mode === 'carousel') {
-      // Build slides array from results
-      const slides = results.map((result, i) => {
-        const desktopAsset = result.assets.find(a => a.slotKey === 'imageDesktop');
-        const mobileAsset = result.assets.find(a => a.slotKey === 'imageMobile');
-        return {
-          id: crypto.randomUUID(),
-          imageDesktop: desktopAsset?.publicUrl || '',
-          imageMobile: mobileAsset?.publicUrl || '',
-        };
-      });
-      
-      const merged: Record<string, unknown> = { slides };
-      // In complete mode, signal to frontend that no overlay text should be rendered
-      if (isComplete) {
-        merged._renderMode = 'baked';
-        merged._hideOverlayText = true;
-      }
-      return merged;
-    }
-
-    // Single banner
+    // v4.0.0: Banner always generates images only (single request)
+    // Text generation is decoupled and handled separately
     const result = results[0];
     if (!result) return {};
 
@@ -106,22 +82,6 @@ export class BannerAdapter implements BlockVisualAdapter {
     const merged: Record<string, unknown> = {};
     if (desktopAsset) merged.imageDesktop = desktopAsset.publicUrl;
     if (mobileAsset) merged.imageMobile = mobileAsset.publicUrl;
-
-    if (isComplete) {
-      // COMPLETE MODE: image is the final piece, no overlay
-      merged._renderMode = 'baked';
-      merged._hideOverlayText = true;
-      // Set overlay to 0 and clear texts so block doesn't render text on top
-      merged.overlayOpacity = 0;
-      merged.title = '';
-      merged.subtitle = '';
-      merged.buttonText = '';
-    } else {
-      // EDITABLE MODE: set default overlay for legibility
-      merged.overlayOpacity = 35;
-      merged.alignment = 'left';
-      merged._renderMode = 'overlay';
-    }
 
     return merged;
   }

@@ -52,20 +52,14 @@ interface ServerContract {
 }
 
 const SERVER_CONTRACTS: Record<string, ServerContract> = {
+  // v4.0.0: Banner uses simplified path (blockType === 'Banner' handler)
+  // These contracts are kept only for legacy compatibility but NOT used in new flow
   'Banner:single': {
-    aiGenerates: ['imageDesktop', 'imageMobile', 'title', 'subtitle', 'buttonText'],
+    aiGenerates: ['imageDesktop', 'imageMobile'],
     imageSpecs: [
       { key: 'imageDesktop', width: 1920, height: 800 },
       { key: 'imageMobile', width: 750, height: 940 },
     ],
-  },
-  'Banner:carousel': {
-    aiGenerates: ['slides'],
-    imageSpecs: [
-      { key: 'imageDesktop', width: 1920, height: 800 },
-      { key: 'imageMobile', width: 750, height: 940 },
-    ],
-    maxSlides: 3,
   },
   'Image': {
     aiGenerates: ['imageDesktop', 'imageMobile'],
