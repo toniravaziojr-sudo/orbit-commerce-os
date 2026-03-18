@@ -3692,14 +3692,15 @@ Blocos que exigem decisões do usuário antes da geração:
 |------|-----------|-------------|-----------|
 | Componente | AIFillWizardDialog | `src/components/builder/ai-wizard/AIFillWizardDialog.tsx` | Modal genérico de steps do wizard |
 | Componente | WizardStepRenderer | `src/components/builder/ai-wizard/WizardStepRenderer.tsx` | Renderiza o componente correto para cada tipo de step |
-| Componente | BannerModeStep | `src/components/builder/ai-wizard/steps/BannerModeStep.tsx` | Step de escolha de modo: único ou carrossel + quantidade de slides + modo de saída (editável/completo) |
-| Componente | CreativeStyleStep | `src/components/builder/ai-wizard/steps/CreativeStyleStep.tsx` | Step de escolha de estilo criativo: produto+cenário, pessoa+produto, promocional. Inclui config por estilo (ambiente, ação, intensidade). Reutilizável para qualquer bloco visual. |
-| Componente | ScopeSelectStep | `src/components/builder/ai-wizard/steps/ScopeSelectStep.tsx` | Step de escolha de escopo: só imagens, só textos, ou ambos |
-| Componente | BannerAssociationStep | `src/components/builder/ai-wizard/steps/BannerAssociationStep.tsx` | Step de associação com 4 opções: produto/categoria/URL/nenhum |
-| Componente | QuantitySelectStep | `src/components/builder/ai-wizard/steps/QuantitySelectStep.tsx` | Select numérico (slides, imagens) |
+| Componente | ProductSelectStep | `src/components/builder/ai-wizard/steps/ProductSelectStep.tsx` | **[v4.0.0]** Step simplificado: selecionar um produto ou "nenhum produto" |
 | Componente | BriefingStep | `src/components/builder/ai-wizard/steps/BriefingStep.tsx` | Textarea para briefing/tema |
-| Componente | SourceSelectStep | `src/components/builder/ai-wizard/steps/SourceSelectStep.tsx` | Valida que BannerProducts tem fonte configurada |
 | Componente | ConfirmStep | `src/components/builder/ai-wizard/steps/ConfirmStep.tsx` | Resumo das escolhas antes de gerar |
+| Componente | CreativeStyleStep | `src/components/builder/ai-wizard/steps/CreativeStyleStep.tsx` | Step de escolha de estilo criativo (usado por blocos não-Banner) |
+| Componente | ScopeSelectStep | `src/components/builder/ai-wizard/steps/ScopeSelectStep.tsx` | Step de escolha de escopo (usado por blocos não-Banner) |
+| Componente | QuantitySelectStep | `src/components/builder/ai-wizard/steps/QuantitySelectStep.tsx` | Select numérico (slides, imagens) |
+| Componente | SourceSelectStep | `src/components/builder/ai-wizard/steps/SourceSelectStep.tsx` | Valida que BannerProducts tem fonte configurada |
+| [REMOVIDO] | BannerModeStep | — | Removido na v4.0.0. O Banner não usa mais seleção de modo/outputMode no wizard |
+| [REMOVIDO] | BannerAssociationStep | — | Removido na v4.0.0. Substituído pelo ProductSelectStep simplificado |
 
 #### Funções e Hooks
 
@@ -3707,14 +3708,39 @@ Blocos que exigem decisões do usuário antes da geração:
 |------|------|-------------|-----------|
 | Hook | useAIBlockWizard | `src/hooks/useAIBlockWizard.ts` | Gerencia estado do wizard: step atual, navegação, dados coletados |
 | Hook | useAIWizardGenerate | `src/hooks/useAIWizardGenerate.ts` | Chama edge function e aplica whitelist merge + scope filtering no frontend |
+| Hook | useBannerTextGenerate | `src/hooks/useBannerTextGenerate.ts` | **[v4.1.0]** Hook para gerar textos editáveis (título/subtítulo/botão) separadamente da imagem. Aparece nas configurações do bloco quando "Conteúdo editável" está ativo |
 | Função | getWizardContract | `src/lib/builder/aiWizardRegistry.ts` | Retorna o contrato do bloco ou null (Grupo A) |
-| Função | getSlideWizardContract | `src/lib/builder/aiWizardRegistry.ts` | Retorna o contrato dedicado para geração IA por slide (`BANNER_SLIDE_CONTRACT`). Pula a etapa de modo (single/carrossel) e não expande associação por slide, pois o contexto já é um slide individual. Steps: Estilo visual → Escopo → Destino → Briefing → Confirmar (5 passos). |
+| Função | getSlideWizardContract | `src/lib/builder/aiWizardRegistry.ts` | **[v4.0.0]** Retorna o mesmo BANNER_SIMPLIFIED_CONTRACT (unificado com bloco). Steps: Produto → Briefing → Confirmar (3 passos) |
 
 #### Registry de Contratos
 
 | Tipo | Nome | Localização | Descrição |
 |------|------|-------------|-----------|
 | Registry | aiWizardRegistry | `src/lib/builder/aiWizardRegistry.ts` | Mapa declarativo blockType → WizardBlockContract com steps, aiGenerates, aiNeverTouches e hasTextGeneration |
+
+#### Arquitetura v4.0.0 — Banner Simplificado
+
+**Fluxo de geração de imagem (banner único e slide):**
+1. Passo 1: Selecionar produto ou "Nenhum produto"
+2. Passo 2: Prompt simples do usuário (briefing)
+3. Passo 3: Confirmar e gerar
+
+**Geração de textos editáveis (separada):**
+- Só aparece quando "Conteúdo editável" está ativo nas configurações do bloco
+- Botão "✨ Gerar textos com IA" disponível tanto no banner único quanto por slide
+- Gera: título, subtítulo, texto do botão
+- Se já houver banner/imagem, considera como contexto
+- Se não houver, gera copy com base no negócio/tenant
+- Usa scope `texts-only` na edge function
+
+**O que foi removido (v4.0.0):**
+- Seleção de estilo visual (product_natural/person_interacting/promotional) no Banner
+- Seleção de escopo (imagens/textos/ambos) no Banner
+- Seleção de modo de saída (editável/completo) no Banner
+- Seleção de destino (BannerAssociationStep) no Banner
+- Injeção automática de preço/logo/marca no prompt
+- Regras rígidas de safe-zone/composição forçada
+- Geração de texto junto com imagem no fluxo principal
 
 ### Padrão Global de 4 Camadas (Fase 3.3)
 
