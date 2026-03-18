@@ -707,7 +707,7 @@ serve(async (req) => {
         mode: 'single',
         outputMode: 'editable',
         creativeStyle: 'product_natural', // Not used in simplified flow
-        styleConfig: {},
+        styleConfig: { _layoutPreset: collectedData?._layoutPreset || collectedData?.currentProps?.layoutPreset || 'standard' },
         briefing: briefing || 'Professional e-commerce banner',
         contexts: slideContexts,
         store: storeCtx,
