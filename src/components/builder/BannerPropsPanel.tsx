@@ -228,11 +228,25 @@ function SinglePanel({ props, onChange, onBatchChange, tenantId }: BannerPropsPa
           </Select>
         </FieldWrapper>
 
+        {/* AI Image Generation button — inside single banner config */}
+        {tenantId && wizardContract && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full gap-1.5 text-xs h-8 mt-1"
+            onClick={() => setWizardOpen(true)}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            Gerar imagem com IA
+          </Button>
+        )}
+
         {/* CTA fields */}
         {hasEditableContent && (
           <EditableContentWithAI
             props={props}
             onChange={onChange}
+            onBatchChange={onBatchChange}
             tenantId={tenantId}
           />
         )}
@@ -293,6 +307,20 @@ function SinglePanel({ props, onChange, onBatchChange, tenantId }: BannerPropsPa
           </FieldWrapper>
         )}
       </SectionCollapsible>
+
+      {/* AI Wizard Dialog for single banner */}
+      {tenantId && wizardContract && (
+        <AIFillWizardDialog
+          open={wizardOpen}
+          onOpenChange={setWizardOpen}
+          contract={wizardContract}
+          blockType="Banner"
+          blockLabel="Banner"
+          currentProps={props}
+          tenantId={tenantId}
+          onGenerated={handleAIGenerated}
+        />
+      )}
     </>
   );
 }
