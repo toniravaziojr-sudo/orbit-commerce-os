@@ -183,7 +183,7 @@ const BANNER_SIMPLIFIED_CONTRACT: WizardBlockContract = {
       required: true,
     },
   ],
-  aiGenerates: ['imageDesktop', 'imageMobile', 'title', 'subtitle', 'buttonText', 'hasEditableContent'],
+  aiGenerates: ['imageDesktop', 'imageMobile'],
   aiNeverTouches: [
     'mode', 'linkUrl', 'buttonUrl', 'backgroundColor', 'textColor',
     'buttonColor', 'buttonTextColor', 'buttonHoverBgColor', 'buttonHoverTextColor',

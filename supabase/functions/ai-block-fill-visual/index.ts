@@ -734,10 +734,8 @@ serve(async (req) => {
       // Text (title/subtitle/buttonText) is handled exclusively by the
       // separate "texts-only" scope via useBannerTextGenerate hook.
 
-      // v4.0.0: Set editable defaults (overlay for text legibility)
+      // v4.3.0: Only set visual defaults, no text/editable flags
       generatedProps.overlayOpacity = 35;
-      generatedProps.alignment = 'left';
-      generatedProps._renderMode = 'overlay';
 
       const elapsed = Date.now() - startTime;
       console.log(`[ai-block-fill-visual] Banner:simplified done in ${elapsed}ms`);
