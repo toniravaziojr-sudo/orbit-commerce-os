@@ -113,36 +113,27 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId, onRegenera
     setExpandedSlide(expandedSlide === index ? null : index);
   };
 
-  // Handle per-slide AI generation result — also saves wizard config for regeneration
+  // Handle per-slide AI generation result — v4.0.0: only images
   const handleSlideAIGenerated = (mergedProps: Record<string, unknown>) => {
     if (aiWizardSlideIndex === null) return;
     const idx = aiWizardSlideIndex;
     const newSlides = [...safeSlides];
     const current: BannerSlide = newSlides[idx] || { id: '', imageDesktop: '', imageMobile: '' };
     
+    // v4.0.0: Only update images — texts are handled separately via "Gerar textos com IA"
     newSlides[idx] = {
       ...current,
       imageDesktop: (mergedProps.imageDesktop as string) || current.imageDesktop,
       imageMobile: (mergedProps.imageMobile as string) || current.imageMobile,
-      title: mergedProps.title !== undefined ? (mergedProps.title as string) : current.title,
-      subtitle: mergedProps.subtitle !== undefined ? (mergedProps.subtitle as string) : current.subtitle,
-      buttonText: mergedProps.buttonText !== undefined ? (mergedProps.buttonText as string) : current.buttonText,
-      altText: mergedProps.altText !== undefined ? (mergedProps.altText as string) : current.altText,
-      linkUrl: mergedProps.linkUrl !== undefined ? (mergedProps.linkUrl as string) : current.linkUrl,
       // Save wizard config for regeneration
       _lastSlideWizardConfig: mergedProps._lastWizardConfig as Record<string, unknown> || undefined,
     };
-    
-    // If AI set hasEditableContent via content presence
-    if (mergedProps.title || mergedProps.buttonText) {
-      newSlides[idx].hasEditableContent = true;
-    }
     
     onChange(newSlides);
     setAiWizardSlideIndex(null);
   };
 
-  // Regenerate a single slide using saved wizard config
+  // Regenerate a single slide using saved wizard config (v4.0.0 simplified)
   const handleSlideRegenerate = async (index: number) => {
     const slide = safeSlides[index];
     const config = slide?._lastSlideWizardConfig as any;
@@ -154,20 +145,25 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId, onRegenera
       const { supabase } = await import('@/integrations/supabase/client');
       const { toast } = await import('sonner');
 
+      // v4.0.0: Send the same simplified payload — product + briefing only
       const backendData = { ...config.collectedData };
-      const mode = config.mode;
-      const scope = config.scope || 'all';
 
-      // Same remapping as useAIWizardGenerate
-      const creativeStyleData = backendData.creativeStyle as any;
-      if (creativeStyleData && backendData.bannerMode) {
-        const modeDataForStyle = backendData.bannerMode as Record<string, unknown>;
-        modeDataForStyle.creativeStyle = creativeStyleData.creativeStyle || 'product_natural';
-        modeDataForStyle.styleConfig = creativeStyleData.styleConfig || {};
+      // Re-extract product association from productSelect (simplified flow)
+      const productSelect = backendData.productSelect as { hasProduct?: boolean; productId?: string } | undefined;
+      if (productSelect?.hasProduct && productSelect.productId) {
+        backendData.association = { associationType: 'product', productId: productSelect.productId };
+      } else {
+        backendData.association = { associationType: 'none' };
       }
 
       const { data, error } = await supabase.functions.invoke('ai-block-fill-visual', {
-        body: { tenantId, blockType: config.blockType || 'Banner', mode, scope, collectedData: backendData },
+        body: {
+          tenantId,
+          blockType: 'Banner',
+          mode: 'single',
+          scope: 'images',
+          collectedData: backendData,
+        },
       });
 
       if (error || !data?.success || !data?.generatedProps) {
@@ -179,25 +175,15 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId, onRegenera
       const newSlides = [...safeSlides];
       const current = newSlides[index];
 
+      // v4.0.0: Only update images — texts are separate
       newSlides[index] = {
         ...current,
         imageDesktop: gen.imageDesktop || current.imageDesktop,
         imageMobile: gen.imageMobile || current.imageMobile,
-        title: gen.title !== undefined ? gen.title : '',
-        subtitle: gen.subtitle !== undefined ? gen.subtitle : '',
-        buttonText: gen.buttonText !== undefined ? gen.buttonText : '',
-        altText: gen.altText !== undefined ? gen.altText : current.altText,
-        // Update wizard config timestamp
         _lastSlideWizardConfig: { ...config, timestamp: Date.now() },
       };
 
-      if (gen.title || gen.buttonText) {
-        newSlides[index].hasEditableContent = true;
-      }
-
-      // Batch: update slides + clear loading in a single callback to avoid stale-props race
       onRegeneratingChange?.(false, newSlides);
-      // Fallback if no batch handler: update slides directly
       if (!onRegeneratingChange) onChange(newSlides);
       toast.success('Slide regenerado ✨');
     } catch (err) {

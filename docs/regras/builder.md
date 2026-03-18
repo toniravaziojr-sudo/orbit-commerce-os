@@ -3742,109 +3742,74 @@ Blocos que exigem decisões do usuário antes da geração:
 - Regras rígidas de safe-zone/composição forçada
 - Geração de texto junto com imagem no fluxo principal
 
-### Padrão Global de 4 Camadas (Fase 3.3)
+### [REMOVIDO] Padrão Global de 4 Camadas (Fase 3.3)
 
-Todo bloco wizard segue obrigatoriamente 4 camadas:
+> **Nota v4.0.0:** O padrão de 4 camadas foi removido para o bloco Banner. O Banner agora usa um wizard simplificado de 2 passos + confirmação. Outros blocos mantêm suas arquiteturas individuais.
+
+### [REMOVIDO] Step Types antigos do Banner
+
+Os seguintes steps foram removidos do wizard do Banner em v4.0.0:
+- `banner-mode-select` — Removido. O modo (único/carrossel) é escolhido no painel do bloco, não no wizard.
+- `scope-select` — Removido. Banner sempre gera apenas imagens. Textos são gerados separadamente.
+- `banner-association` — Substituído por `product-select` (simplificado: produto ou nenhum).
+- `output-mode-select` — Removido. Banner sempre gera no modo editável.
+- `creative-style-select` — Removido do Banner. O estilo visual é determinado pelo prompt do usuário.
+
+### Step Types Ativos
+
+| Step Type | Descrição | Usado em |
+|---|---|---|
+| `product-select` | Produto ou "nenhum produto" | Banner |
+| `creative-style-select` | Estilo visual (product_natural/person/promo) | Outros blocos (Image, ImageCarousel, etc.) |
+| `scope-select` | Escopo (imagens/textos/ambos) | BannerProducts |
+| `quantity-select` | Select numérico (min/max) | ImageCarousel, ImageGallery |
+| `source-select` | Valida fonte existente no bloco | BannerProducts |
+| `briefing` | Textarea com placeholder contextual | Todos os blocos wizard |
+| `confirm` | Resumo + botão gerar | Todos os blocos wizard |
+
+### Fluxo do Banner (v4.0.0 — Simplificado)
 
 ```text
-┌─────────────────────────────────────┐
-│  Camada 1: ESTRUTURA DO BLOCO       │
-│  modo, quantidade, layout           │
-│  (só aparece se o bloco tem opções) │
-├─────────────────────────────────────┤
-│  Camada 2: ESCOPO DA GERAÇÃO        │
-│  O que gerar? Imagens / Textos /    │
-│  Imagens+Textos                     │
-├─────────────────────────────────────┤
-│  Camada 3: CONTEXTO / VÍNCULO       │
-│  Produto / Categoria / URL / Tema   │
-│  + briefing opcional                │
-├─────────────────────────────────────┤
-│  Camada 4: CONFIRMAÇÃO              │
-│  Resumo de tudo + botão Gerar       │
-└─────────────────────────────────────┘
-```
+Step 1: PRODUTO (product-select)
+  "Associar a um produto?"
+  ○ Associar a um produto → seletor de produto
+  ○ Nenhum produto (institucional, campanha, genérico)
 
-Camadas sem opções para um bloco específico são puladas automaticamente.
+Step 2: BRIEFING (briefing)
+  "Descreva o banner que deseja"
+  Ex: "Banner de lançamento para este produto"
+  Ex: "Banner institucional moderno"
+  Ex: "Promoção de verão com cores vibrantes"
 
-### Classificação de Props (5 categorias)
-
-| Categoria | Significado | Exemplos (Banner) |
-|---|---|---|
-| **Estrutural** | Define a forma do bloco. Wizard camada 1. | `mode`, `slides` (contagem) |
-| **Gerável por IA** | A IA pode preencher se no escopo. Wizard camada 2. | `imageDesktop`, `imageMobile`, `title`, `subtitle`, `buttonText` |
-| **Derivada pelo sistema** | Calculada automaticamente. Nunca IA. | `linkUrl`, `buttonUrl` (derivados do produto/categoria) |
-| **Proibida para IA** | Config visual/técnica que IA nunca toca. | `backgroundColor`, `textColor`, `overlayOpacity`, `height` |
-| **Manual apenas** | Só faz sentido no caminho manual. | `autoplaySeconds`, `showArrows`, `showDots` |
-
-### Step Types
-
-| Step Type | Descrição | Payload de Saída |
-|---|---|---|
-| `banner-mode-select` | Escolha de modo (único/carrossel) + quantidade de slides | `BannerModeData` (bannerMode, slideCount) |
-| `scope-select` | Escolha de escopo (imagens/textos/ambos) | `GenerationScope` ('images' \| 'texts' \| 'all') |
-| `banner-association` | Seletor com 4 modos: produto, categoria, URL, nenhum | `BannerAssociationPayload` |
-| `quantity-select` | Select numérico (min/max) | `number` |
-| `source-select` | Valida fonte existente no bloco (BannerProducts) | Lê de currentProps |
-| `briefing` | Textarea com placeholder contextual | `string` |
-| `confirm` | Resumo + botão gerar | — |
-
-### Source of Truth para Vínculos Reais
-
-Quando o usuário escolhe um produto no wizard, o backend busca e usa como contexto:
-
-| Dado | Campo | Uso |
-|---|---|---|
-| Nome real | `products.name` | Prompt de imagem e texto |
-| Descrição real | `products.description` | Contexto para copy (até 300 chars) |
-| Slug real | `products.slug` | Derivar `linkUrl = /produto/{slug}` |
-| Imagem principal | `products.images[0]` | Referência visual (futuro) |
-| Nome categoria | `categories.name` | Prompt contexto |
-| Slug categoria | `categories.slug` | Derivar `linkUrl = /categoria/{slug}` |
-
-### Fluxo do Banner (Fase 3.3)
-
-```text
-Step 1: ESTRUTURA (banner-mode-select)
-  "Que tipo de banner quer criar?"
-  ○ Banner Único
-  ○ Carrossel → "Quantos slides?" [2-3]
-
-Step 2: ESCOPO (scope-select)
-  "O que deseja gerar?"
-  ☑ Imagens
-  ☑ Textos
-
-Step 3: VÍNCULO (banner-association) [repetido por slide se carrossel]
-  "Para onde o banner direciona?"
-  ○ Produto → seletor
-  ○ Categoria → seletor
-  ○ URL manual → input
-  ○ Nenhum (institucional)
-
-Step 4: BRIEFING (briefing)
-  "Descreva o objetivo" (opcional)
-
-Step 5: CONFIRMAÇÃO (confirm)
-  Resumo: tipo, escopo, vínculo, briefing
+Step 3: CONFIRMAÇÃO (confirm)
+  Resumo: produto (se houver) + briefing
   [Gerar com IA]
 ```
 
-### Escopo da Fase 3.3 (Banner)
+Este mesmo fluxo é usado para:
+- Banner único (botão ✨ no painel de configurações)
+- Slide individual do carrossel (botão ✨ no cabeçalho de cada slide)
 
-| Item | Status |
-|------|--------|
-| Contrato unificado do Banner (sem split single/carousel) | ✅ |
-| Step BannerModeStep (único/carrossel + slides) | ✅ |
-| Step ScopeSelectStep (imagens/textos/ambos) | ✅ |
-| Modo escolhido DENTRO do wizard (não depende de config externa) | ✅ |
-| Escopo escolhido pelo usuário (IA não presume) | ✅ |
-| Backend aceita `scope` e filtra geração | ✅ |
-| Backend busca dados reais expandidos do produto (nome, descrição, slug) | ✅ |
-| Frontend filtra merge por scope | ✅ |
-| Wizard expande associação por slide dinamicamente | ✅ |
-| Blocos textuais inalterados | ✅ |
-| Outros blocos wizard (expansão) | ❌ (próxima fase) |
+### Regeneração de Slide (v4.0.0)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Ação |
+| **Localização** | `BannerSlidesEditor.tsx` |
+| **Descrição** | Botão 🔄 (RefreshCw) que regenera imagens usando o mesmo produto + briefing da última geração |
+| **Comportamento** | 1. Só aparece após primeira geração IA do slide (`_lastSlideWizardConfig` existe). 2. Envia `mode: 'single'`, `scope: 'images'` com mesmos dados. 3. Resultado sobrescreve APENAS imagens do slide (não textos). 4. Loading spinner durante geração |
+| **Condições** | Requer `tenantId` + `_lastSlideWizardConfig` |
+
+### Geração de Textos Editáveis (v4.1.0 — Decoupled)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Ação |
+| **Localização** | `BannerPropsPanel.tsx` (single), `BannerSlidesEditor.tsx` (slide) |
+| **Descrição** | Botão "✨ Gerar textos com IA" para gerar título, subtítulo e texto do botão separadamente |
+| **Condições** | Só aparece quando "Conteúdo editável" está ativo |
+| **Hook** | `useBannerTextGenerate` → `scope: 'texts-only'` na edge function |
+| **Comportamento** | Se já houver imagem no banner, usa como contexto. Se não, gera com base no negócio/tenant |
 
 ### Motor Visual Compartilhado (v3.1.0 — Creative Brief Architecture)
 
