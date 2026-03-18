@@ -148,16 +148,30 @@ export function BannerPropsPanel({ props, onChange, onBatchChange, tenantId }: B
 
 // ===== Single Mode Panel =====
 
-function SinglePanel({ props, onChange, tenantId }: BannerPropsPanelProps) {
+function SinglePanel({ props, onChange, onBatchChange, tenantId }: BannerPropsPanelProps) {
   const [configOpen, setConfigOpen] = useState(true);
   const [imagesOpen, setImagesOpen] = useState(false);
   const [refinementsOpen, setRefinementsOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   const bannerType = (props.bannerType as string) || 'image';
   // Infer hasEditableContent for backward compatibility
   const hasEditableContent = props.hasEditableContent !== undefined
     ? Boolean(props.hasEditableContent)
     : !!(props.title || props.buttonText);
+
+  const wizardContract = getWizardContract('Banner');
+
+  const handleAIGenerated = (mergedProps: Record<string, unknown>) => {
+    if (onBatchChange) {
+      onBatchChange(mergedProps);
+    } else {
+      for (const [key, value] of Object.entries(mergedProps)) {
+        onChange(key, value);
+      }
+    }
+    setWizardOpen(false);
+  };
 
   return (
     <>
