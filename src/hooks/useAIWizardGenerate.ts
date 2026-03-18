@@ -175,6 +175,11 @@ export function useAIWizardGenerate({
         blockType,
       );
 
+      // Apply layoutPreset from wizard if selected (Banner)
+      if (blockType === 'Banner' && collectedData._layoutPreset) {
+        merged.layoutPreset = collectedData._layoutPreset;
+      }
+
       // Save wizard config for regeneration
       merged._lastWizardConfig = {
         collectedData,
