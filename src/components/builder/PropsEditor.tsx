@@ -235,8 +235,9 @@ export function PropsEditor({
             <p className="text-[10px] text-muted-foreground">Propriedades</p>
           </div>
           {/* AI Fill button — Group B (wizard) or Group A (direct fill) */}
+          {/* Banner has its own AI button inside BannerPropsPanel — skip here */}
           <div className="flex items-center gap-1 shrink-0">
-            {(hasFillableProps || wizardContract) && tenantId && (
+            {(hasFillableProps || wizardContract) && tenantId && definition.type !== 'Banner' && (
               <Button
                 variant="outline"
                 size="sm"
