@@ -379,13 +379,77 @@ export async function downloadImageAsBase64(url: string): Promise<string | null>
 
 // ===== UPLOAD TO STORAGE =====
 
+interface UploadContext {
+  /** Block type for folder routing (e.g. 'Banner', 'Image') */
+  blockType?: string;
+  /** Product name for semantic file naming */
+  productName?: string;
+  /** Slot device label (e.g. 'desktop', 'mobile') */
+  device?: string;
+}
+
+/**
+ * Maps blockType to a dedicated subfolder inside the tenant's storage.
+ * Rule: Every AI creative generation system MUST have its own folder.
+ */
+function getCreativeSubfolder(blockType?: string): string {
+  switch (blockType) {
+    case 'Banner': return 'ai-banners';
+    case 'Image': return 'ai-images';
+    case 'ContentColumns': return 'ai-content-columns';
+    case 'BannerProducts': return 'ai-banner-products';
+    case 'TextBanners': return 'ai-text-banners';
+    case 'ImageCarousel': return 'ai-image-carousel';
+    case 'ImageGallery': return 'ai-image-gallery';
+    default: return 'ai-creatives';
+  }
+}
+
+/**
+ * Builds a semantic filename: {product}-{device}-{YYYY-MM-DD}-{shortId}.png
+ */
+function buildCreativeFilename(label: string, context?: UploadContext): string {
+  const now = new Date();
+  const date = now.toISOString().split('T')[0]; // YYYY-MM-DD
+  const shortId = Date.now().toString(36).slice(-5);
+
+  const parts: string[] = [];
+
+  // Product name (sanitized)
+  if (context?.productName) {
+    const safeProd = context.productName
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove accents
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .substring(0, 40);
+    if (safeProd) parts.push(safeProd);
+  }
+
+  // Device label (desktop/mobile)
+  if (context?.device) {
+    parts.push(context.device);
+  } else {
+    // Fallback to original label
+    const safeLabel = label.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 20);
+    parts.push(safeLabel);
+  }
+
+  // Date + short unique id
+  parts.push(date);
+  parts.push(shortId);
+
+  return `${parts.join('-')}.png`;
+}
+
 export async function uploadToStorage(
   supabase: any,
   tenantId: string,
   imageData: string,
   label: string,
   bucket: string = 'store-assets',
-  subfolder: string = 'block-creatives',
+  subfolder?: string,
+  context?: UploadContext,
 ): Promise<string | null> {
   try {
     const base64Data = imageData.includes(',') ? imageData.split(',')[1] : imageData;
@@ -393,10 +457,9 @@ export async function uploadToStorage(
     const bytes = new Uint8Array(binaryStr.length);
     for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
 
-    const timestamp = Date.now();
-    const safeName = label.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 30);
-    const filename = `${safeName}-${timestamp}.png`;
-    const filePath = `${tenantId}/${subfolder}/${filename}`;
+    const resolvedFolder = subfolder || getCreativeSubfolder(context?.blockType);
+    const filename = buildCreativeFilename(label, context);
+    const filePath = `${tenantId}/${resolvedFolder}/${filename}`;
 
     const { error: uploadError } = await supabase.storage
       .from(bucket)
@@ -408,6 +471,7 @@ export async function uploadToStorage(
     }
 
     const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(filePath);
+    console.log(`[visual-engine] Uploaded: ${filePath}`);
     return publicUrlData?.publicUrl || null;
   } catch (error) {
     console.error('[visual-engine] Upload error:', error);
@@ -484,7 +548,11 @@ export async function generateForRequest(
       return null;
     }
 
-    const publicUrl = await uploadToStorage(supabase, tenantId, result.imageBase64, slot.key);
+    const publicUrl = await uploadToStorage(supabase, tenantId, result.imageBase64, slot.key, 'store-assets', undefined, {
+      blockType: request.blockType,
+      productName: request.product?.name,
+      device: slotLabel,
+    });
     if (!publicUrl) {
       console.error(`[visual-engine] Failed to upload slot: ${slot.key}`);
       return null;
