@@ -1,6 +1,6 @@
 // =============================================
 // CONFIRM STEP — Summary of collected data before generation
-// Phase 3.3: Shows mode, scope, creative style, and associations
+// v4.0.0: Supports new product-select step
 // =============================================
 
 import { WizardBlockContract, WizardStepConfig } from '@/lib/builder/aiWizardRegistry';
@@ -9,6 +9,7 @@ import { Image as ImageIcon, Type, Layers } from 'lucide-react';
 import type { BannerModeData } from './BannerModeStep';
 import type { GenerationScope } from './ScopeSelectStep';
 import type { CreativeStyleData } from './CreativeStyleStep';
+import type { ProductSelectData } from './ProductSelectStep';
 
 interface ConfirmStepProps {
   contract: WizardBlockContract;
@@ -28,14 +29,15 @@ const OUTPUT_MODE_LABELS: Record<string, string> = {
   complete: 'Criativo Completo',
 };
 
-const STEP_TYPE_LABELS: Record<string, string> = {
-  'output-mode-select': 'Modo de imagem',
-};
-
 function summarizeStepData(step: WizardStepConfig, data: unknown): string {
   if (!data) return '—';
 
   switch (step.type) {
+    case 'product-select': {
+      const d = data as ProductSelectData;
+      if (d.hasProduct) return `Produto selecionado`;
+      return 'Sem produto (livre)';
+    }
     case 'banner-mode-select': {
       const d = data as BannerModeData;
       const modeLabel = d.bannerMode === 'single' ? 'Banner Único' : `Carrossel (${d.slideCount} slides)`;
@@ -78,10 +80,7 @@ function summarizeStepData(step: WizardStepConfig, data: unknown): string {
 
 export function ConfirmStep({ contract, collectedData, steps, blockType }: ConfirmStepProps) {
   const nonConfirmSteps = steps.filter((s) => s.type !== 'confirm');
-  const scope = (collectedData.scope as GenerationScope) || 'all';
-  const includeImages = scope === 'images' || scope === 'all';
-  const includeTexts = scope === 'texts' || scope === 'all';
-  const modeData = collectedData.bannerMode as BannerModeData | undefined;
+  const isBanner = blockType === 'Banner';
 
   return (
     <div className="space-y-4 min-w-0 overflow-hidden">
@@ -102,24 +101,10 @@ export function ConfirmStep({ contract, collectedData, steps, blockType }: Confi
       <div className="space-y-2">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">O que a IA vai gerar</p>
         <div className="flex flex-wrap gap-1.5">
-          {modeData?.bannerMode === 'carousel' && (
-            <Badge variant="secondary" className="gap-1">
-              <Layers className="h-3 w-3" />
-              {modeData.slideCount} slides
-            </Badge>
-          )}
-          {includeImages && (
-            <Badge variant="secondary" className="gap-1">
-              <ImageIcon className="h-3 w-3" />
-              Imagens
-            </Badge>
-          )}
-          {includeTexts && (
-            <Badge variant="secondary" className="gap-1">
-              <Type className="h-3 w-3" />
-              Textos
-            </Badge>
-          )}
+          <Badge variant="secondary" className="gap-1">
+            <ImageIcon className="h-3 w-3" />
+            {isBanner ? 'Imagens (desktop + mobile)' : 'Imagens'}
+          </Badge>
         </div>
       </div>
 

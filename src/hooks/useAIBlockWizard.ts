@@ -1,6 +1,6 @@
 // =============================================
 // useAIBlockWizard — Hook para gerenciar estado do wizard de IA
-// Phase 3.3: Supports banner-mode-select, scope-select, dynamic step expansion
+// v4.0.0: Simplified for new Banner architecture (no perSlide expansion)
 // =============================================
 
 import { useState, useCallback, useMemo } from 'react';
@@ -11,6 +11,7 @@ import {
 } from '@/lib/builder/aiWizardRegistry';
 import type { BannerModeData } from '@/components/builder/ai-wizard/steps/BannerModeStep';
 import type { GenerationScope } from '@/components/builder/ai-wizard/steps/ScopeSelectStep';
+import type { ProductSelectData } from '@/components/builder/ai-wizard/steps/ProductSelectStep';
 
 interface UseAIBlockWizardParams {
   contract: WizardBlockContract;
@@ -35,9 +36,9 @@ interface UseAIBlockWizardReturn {
 }
 
 /**
- * Expands steps dynamically based on collected data:
- * - perSlide steps are expanded based on bannerMode data (carousel → N slides)
- * - For single mode, perSlide steps appear once without index suffix
+ * Expands steps dynamically based on collected data.
+ * v4.0.0: perSlide expansion removed for Banner (unified flow).
+ * Kept for backward compatibility with other blocks.
  */
 function expandSteps(
   baseSteps: WizardStepConfig[],
@@ -58,7 +59,6 @@ function expandSteps(
           });
         }
       } else {
-        // Single mode: show once without suffix
         expanded.push(step);
       }
     } else {
@@ -80,6 +80,13 @@ function isStepComplete(
   if (!step.required) return true;
 
   switch (step.type) {
+    case 'product-select': {
+      const ps = data as ProductSelectData | undefined;
+      if (!ps) return false;
+      // "none" is valid, "product" requires a productId
+      if (ps.hasProduct) return !!ps.productId;
+      return true; // hasProduct === false means "none" selected
+    }
     case 'banner-mode-select': {
       const modeData = data as BannerModeData | undefined;
       if (!modeData) return false;
@@ -134,7 +141,6 @@ export function useAIBlockWizard({
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [collectedData, setCollectedData] = useState<Record<string, unknown>>({});
 
-  // Expand perSlide steps dynamically based on mode selection
   const steps = useMemo(
     () => expandSteps(contract.steps, collectedData),
     [contract.steps, collectedData]
