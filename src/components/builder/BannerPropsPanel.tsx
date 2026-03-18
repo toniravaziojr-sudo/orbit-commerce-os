@@ -138,7 +138,7 @@ export function BannerPropsPanel({ props, onChange, onBatchChange, tenantId }: B
       {mode === 'carousel' ? (
         <CarouselPanel props={props} onChange={onChange} onBatchChange={onBatchChange} tenantId={tenantId} />
       ) : (
-        <SinglePanel props={props} onChange={onChange} />
+        <SinglePanel props={props} onChange={onChange} tenantId={tenantId} />
       )}
     </div>
   );
