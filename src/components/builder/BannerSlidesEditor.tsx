@@ -22,6 +22,7 @@ import { ImageUploaderWithLibrary } from './ImageUploaderWithLibrary';
 import { cn } from '@/lib/utils';
 import { getSlideWizardContract } from '@/lib/builder/aiWizardRegistry';
 import { AIFillWizardDialog } from './ai-wizard/AIFillWizardDialog';
+import { useBannerTextGenerate } from '@/hooks/useBannerTextGenerate';
 
 export interface BannerSlide {
   id: string;
