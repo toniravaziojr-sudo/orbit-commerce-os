@@ -730,30 +730,9 @@ serve(async (req) => {
       const mergedVisual = adapter.mergeResults(results, adapterInput);
       Object.assign(generatedProps, mergedVisual);
 
-      // v4.2.0: Also generate texts (title/subtitle/buttonText) alongside images
-      // This gives the user a complete banner instead of just a background image
-      try {
-        const textResult = await generateTexts(
-          { aiGenerates: ['title', 'subtitle', 'buttonText'], imageSpecs: [] },
-          {
-            blockType: 'Banner',
-            mode: 'single',
-            briefing: briefing || undefined,
-            product: productCtx,
-            category: categoryCtx,
-            associationType: assoc?.associationType,
-            store: storeCtx,
-          },
-          { supabaseUrl: supabaseUrl!, supabaseServiceKey: supabaseServiceKey! },
-        );
-        if (textResult.title) generatedProps.title = textResult.title;
-        if (textResult.subtitle) generatedProps.subtitle = textResult.subtitle;
-        if (textResult.buttonText) generatedProps.buttonText = textResult.buttonText;
-        // Auto-enable editable content when texts are generated
-        generatedProps.hasEditableContent = true;
-      } catch (textErr) {
-        console.warn('[ai-block-fill-visual] Text generation failed (non-fatal):', textErr);
-      }
+      // v4.3.0: Image generation ONLY — no text generation here.
+      // Text (title/subtitle/buttonText) is handled exclusively by the
+      // separate "texts-only" scope via useBannerTextGenerate hook.
 
       // v4.0.0: Set editable defaults (overlay for text legibility)
       generatedProps.overlayOpacity = 35;
