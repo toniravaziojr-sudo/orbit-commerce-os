@@ -323,17 +323,36 @@ function SinglePanel({ props, onChange, onBatchChange, tenantId }: BannerPropsPa
           </Select>
         </FieldWrapper>
 
-        {/* AI Image Generation button — inside single banner config */}
+        {/* AI Image Generation buttons */}
         {tenantId && wizardContract && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full gap-1.5 text-xs h-8 mt-1"
-            onClick={() => setWizardOpen(true)}
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            Gerar imagem com IA
-          </Button>
+          <div className="flex gap-1.5 mt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 gap-1.5 text-xs h-8"
+              onClick={() => setWizardOpen(true)}
+              disabled={isRegenerating}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              Gerar imagem com IA
+            </Button>
+            {lastWizardConfig && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1 text-xs h-8 px-2.5"
+                onClick={handleRegenerate}
+                disabled={isRegenerating}
+                title="Gerar nova variante com as mesmas configurações"
+              >
+                {isRegenerating ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <span className="text-sm">🔄</span>
+                )}
+              </Button>
+            )}
+          </div>
         )}
 
         {/* CTA fields */}
