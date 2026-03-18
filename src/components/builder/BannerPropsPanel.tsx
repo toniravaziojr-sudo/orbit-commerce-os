@@ -3,7 +3,7 @@
 // v4.2.0: AI button inside panel, batch text generation fix
 // =============================================
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Collapsible,
   CollapsibleContent,
