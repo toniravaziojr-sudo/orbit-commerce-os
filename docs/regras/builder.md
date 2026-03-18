@@ -3718,22 +3718,45 @@ Blocos que exigem decisões do usuário antes da geração:
 |------|------|-------------|-----------|
 | Registry | aiWizardRegistry | `src/lib/builder/aiWizardRegistry.ts` | Mapa declarativo blockType → WizardBlockContract com steps, aiGenerates, aiNeverTouches e hasTextGeneration |
 
-#### Arquitetura v4.0.0 — Banner Simplificado
+#### Arquitetura v4.3.0 — Banner Simplificado (Separação Definitiva)
 
-**Fluxo de geração de imagem (banner único e slide):**
+**Motor principal — geração de imagem (banner único e slide):**
 1. Passo 1: Selecionar produto ou "Nenhum produto"
-2. Passo 2: Prompt simples do usuário (briefing)
+2. Passo 2: Escolher proporção do banner + prompt simples do usuário (briefing)
 3. Passo 3: Confirmar e gerar
 
-**Geração de textos editáveis (separada):**
+O motor principal **somente** gera:
+- Imagem desktop (proporção conforme layoutPreset selecionado)
+- Imagem mobile (proporção conforme layoutPreset selecionado)
+
+O motor principal **NÃO** gera, aplica ou sobrescreve:
+- Título
+- Subtítulo
+- Texto do botão
+- Flag hasEditableContent
+
+**aiGenerates do contrato Banner:** `['imageDesktop', 'imageMobile']` — somente imagens.
+
+**Proporções por layoutPreset:**
+| Preset | Desktop | Mobile |
+|--------|---------|--------|
+| Padrão | 1920×800 | 750×940 |
+| Compacto centralizado | 1200×400 | 750×400 |
+| Compacto cheio | 1920×400 | 750×400 |
+| Grande | 1920×1080 | 750×1200 |
+
+**Motor secundário — geração de textos editáveis (separada):**
 - Só aparece quando "Conteúdo editável" está ativo nas configurações do bloco
 - Botão "✨ Gerar textos com IA" disponível tanto no banner único quanto por slide
 - Gera: título, subtítulo, texto do botão
 - Se já houver banner/imagem, considera como contexto
 - Se não houver, gera copy com base no negócio/tenant
 - Usa scope `texts-only` na edge function
+- Aplica via `onBatchChange` para atualização atômica
 
-**O que foi removido (v4.0.0):**
+**Separação obrigatória:** Os dois motores NUNCA devem ser combinados. A geração de imagem não invoca nem retorna textos.
+
+**O que foi removido (v4.0.0+):**
 - Seleção de estilo visual (product_natural/person_interacting/promotional) no Banner
 - Seleção de escopo (imagens/textos/ambos) no Banner
 - Seleção de modo de saída (editável/completo) no Banner
