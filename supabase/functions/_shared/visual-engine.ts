@@ -380,29 +380,25 @@ export async function downloadImageAsBase64(url: string): Promise<string | null>
 // ===== UPLOAD TO STORAGE =====
 
 interface UploadContext {
-  /** Block type for folder routing (e.g. 'Banner', 'Image') */
-  blockType?: string;
   /** Product name for semantic file naming */
   productName?: string;
   /** Slot device label (e.g. 'desktop', 'mobile') */
   device?: string;
+  /** Slot dimensions for folder organization */
+  width?: number;
+  height?: number;
 }
 
 /**
- * Maps blockType to a dedicated subfolder inside the tenant's storage.
- * Rule: Every AI creative generation system MUST have its own folder.
+ * Builds the subfolder path: criativos-builder/{WIDTHxHEIGHT}
+ * Rule: All AI creatives go under one root folder, organized by dimensions.
  */
-function getCreativeSubfolder(blockType?: string): string {
-  switch (blockType) {
-    case 'Banner': return 'ai-banners';
-    case 'Image': return 'ai-images';
-    case 'ContentColumns': return 'ai-content-columns';
-    case 'BannerProducts': return 'ai-banner-products';
-    case 'TextBanners': return 'ai-text-banners';
-    case 'ImageCarousel': return 'ai-image-carousel';
-    case 'ImageGallery': return 'ai-image-gallery';
-    default: return 'ai-creatives';
+function getCreativeSubfolder(context?: UploadContext): string {
+  const root = 'criativos-builder';
+  if (context?.width && context?.height) {
+    return `${root}/${context.width}x${context.height}`;
   }
+  return root;
 }
 
 /**
@@ -430,7 +426,6 @@ function buildCreativeFilename(label: string, context?: UploadContext): string {
   if (context?.device) {
     parts.push(context.device);
   } else {
-    // Fallback to original label
     const safeLabel = label.toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 20);
     parts.push(safeLabel);
   }
@@ -457,7 +452,7 @@ export async function uploadToStorage(
     const bytes = new Uint8Array(binaryStr.length);
     for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
 
-    const resolvedFolder = subfolder || getCreativeSubfolder(context?.blockType);
+    const resolvedFolder = subfolder || getCreativeSubfolder(context);
     const filename = buildCreativeFilename(label, context);
     const filePath = `${tenantId}/${resolvedFolder}/${filename}`;
 
@@ -549,9 +544,10 @@ export async function generateForRequest(
     }
 
     const publicUrl = await uploadToStorage(supabase, tenantId, result.imageBase64, slot.key, 'store-assets', undefined, {
-      blockType: request.blockType,
       productName: request.product?.name,
       device: slotLabel,
+      width: slot.width,
+      height: slot.height,
     });
     if (!publicUrl) {
       console.error(`[visual-engine] Failed to upload slot: ${slot.key}`);
