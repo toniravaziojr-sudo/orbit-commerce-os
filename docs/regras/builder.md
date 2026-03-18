@@ -3784,7 +3784,34 @@ O motor principal **NÃO** gera, aplica ou sobrescreve:
 **Restaurado em v4.4.0:**
 - `output-mode-select` — Restaurado com novo propósito: escolha entre "Editável" (imagem limpa) e "100% Criativo" (peça completa com copy integrada permitida)
 
-### [REMOVIDO] Padrão Global de 4 Camadas (Fase 3.3)
+### Regra de Armazenamento de Criativos IA (OBRIGATÓRIA)
+
+**Todo sistema de geração de criativos com IA DEVE seguir estas regras:**
+
+1. **Pasta exclusiva por tipo de bloco** — Cada sistema de geração salva em sua própria subpasta dentro do bucket `store-assets`:
+
+| Bloco | Pasta |
+|-------|-------|
+| Banner | `{tenantId}/ai-banners/` |
+| Image | `{tenantId}/ai-images/` |
+| ContentColumns | `{tenantId}/ai-content-columns/` |
+| BannerProducts | `{tenantId}/ai-banner-products/` |
+| TextBanners | `{tenantId}/ai-text-banners/` |
+| ImageCarousel | `{tenantId}/ai-image-carousel/` |
+| ImageGallery | `{tenantId}/ai-image-gallery/` |
+| Outros/genérico | `{tenantId}/ai-creatives/` |
+
+2. **Nome de arquivo semântico** — Todo criativo gerado DEVE ter nome com referência de produto e data:
+   - Formato: `{nome-produto}-{device}-{YYYY-MM-DD}-{shortId}.png`
+   - Exemplo: `serum-facial-vitamina-c-desktop-2026-03-18-k8f2x.png`
+   - Se não houver produto: `{device}-{YYYY-MM-DD}-{shortId}.png`
+   - O nome do produto é sanitizado (sem acentos, lowercase, hífens)
+
+3. **Bucket público** — Todos os criativos vão para `store-assets` (público), pois são usados em páginas públicas da loja.
+
+4. **Nunca sobrescrever** — Upload usa `upsert: false`. Cada geração cria um arquivo novo.
+
+
 
 > **Nota v4.0.0:** O padrão de 4 camadas foi removido para o bloco Banner. O Banner agora usa um wizard simplificado de 2 passos + confirmação. Outros blocos mantêm suas arquiteturas individuais.
 
