@@ -638,191 +638,66 @@ serve(async (req) => {
     }
 
     // =============================================
-    // BANNER — Uses Visual Engine + Adapter
+    // BANNER v4.0.0 — Simplified: images only, user briefing is king
     // =============================================
     if (blockType === 'Banner') {
       const adapter = getAdapter('Banner')!;
-      const isSingle = !mode || mode === 'single';
-      const isCarousel = mode === 'carousel';
 
-      // Build slide contexts
-      const slideContexts: SlideContext[] = [];
-
-      if (isCarousel) {
-        let slideCount = typeof collectedData?.slideCount === 'number' ? collectedData.slideCount : 2;
-        slideCount = Math.min(slideCount, contract.maxSlides || 3);
-        slideCount = Math.max(slideCount, 1);
-
-        for (let i = 0; i < slideCount; i++) {
-          const slideData = collectedData?.[`slideAssociations_${i}`];
-          let product: ProductContext | null = null;
-          let category: CategoryContext | null = null;
-          let type: string | undefined;
-
-          if (slideData) {
-            type = slideData.associationType;
-            if (slideData.associationType === 'product' && slideData.productId) {
-              product = await fetchProductContext(supabase, slideData.productId);
-            } else if (slideData.associationType === 'category' && slideData.categoryId) {
-              category = await fetchCategoryContext(supabase, slideData.categoryId);
-            }
-          }
-
-          slideContexts.push({ product, category, associationType: type, briefing });
+      // v4.0.0: Always single mode (per-slide or single banner)
+      // Product comes from simplified productSelect or legacy association
+      const assoc = collectedData?.association;
+      if (assoc) {
+        if (assoc.associationType === 'product' && assoc.productId) {
+          productCtx = await fetchProductContext(supabase, assoc.productId);
+        } else if (assoc.associationType === 'category' && assoc.categoryId) {
+          categoryCtx = await fetchCategoryContext(supabase, assoc.categoryId);
         }
-      } else {
-        slideContexts.push({ product: productCtx, category: categoryCtx, associationType, briefing });
       }
+
+      const slideContexts: SlideContext[] = [
+        { product: productCtx, category: categoryCtx, associationType: assoc?.associationType, briefing }
+      ];
 
       const generatedProps: Record<string, unknown> = {};
 
-      // ===== IMAGE GENERATION via Visual Engine =====
-      if (generateImages) {
-        const adapterInput: AdapterInput = {
-          mode: mode || 'single',
-          outputMode,
-          creativeStyle,
-          styleConfig,
-          briefing: briefing || '',
-          contexts: slideContexts,
-          store: storeCtx,
-          enableQA: false,
-        };
+      // v4.0.0: Always generate images, no scope filtering for Banner
+      const adapterInput: AdapterInput = {
+        mode: 'single',
+        outputMode: 'editable',
+        creativeStyle: 'product_natural', // Not used in simplified flow
+        styleConfig: {},
+        briefing: briefing || 'Professional e-commerce banner',
+        contexts: slideContexts,
+        store: storeCtx,
+        enableQA: false,
+      };
 
-        const requests = adapter.adapt(adapterInput);
-        console.log(`[ai-block-fill-visual] Banner:${mode || 'single'} generating ${requests.length} request(s) via visual engine`);
-
-        const results = await Promise.all(
-          requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey))
-        );
-
-        // Merge visual results back into props
-        const mergedVisual = adapter.mergeResults(results, adapterInput);
-        Object.assign(generatedProps, mergedVisual);
+      // Mark request as simplified so creative-brief-builder uses lightweight prompts
+      const requests = adapter.adapt(adapterInput);
+      // Tag each request with _isBannerSimplified
+      for (const r of requests) {
+        (r as any)._isBannerSimplified = true;
       }
 
-      // ===== TEXT GENERATION (only for editable mode or when scope includes texts) =====
-      if (generateTextsFlag && outputMode !== 'complete') {
-        if (isCarousel) {
-          const slideCount = slideContexts.length;
-          const textResult = await generateTexts(contract, {
-            blockType,
-            mode: 'carousel',
-            briefing,
-            product: slideContexts[0]?.product,
-            category: slideContexts[0]?.category,
-            associationType: slideContexts[0]?.associationType,
-            store: storeCtx,
-            slideCount,
-            slideContexts,
-          }, { supabaseUrl, supabaseServiceKey });
+      console.log(`[ai-block-fill-visual] Banner:simplified generating ${requests.length} request(s)`);
 
-          const textSlides = (textResult as any).slides || [];
+      const results = await Promise.all(
+        requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey))
+      );
 
-          // Merge texts into existing slides from image generation
-          if (Array.isArray(generatedProps.slides)) {
-            const existingSlides = generatedProps.slides as any[];
-            for (let i = 0; i < existingSlides.length; i++) {
-              const texts = textSlides[i] || {};
-              existingSlides[i].title = texts.title || '';
-              existingSlides[i].subtitle = texts.subtitle || '';
-              existingSlides[i].buttonText = texts.buttonText || '';
-              existingSlides[i].altText = texts.altText || `Banner ${i + 1}`;
+      const mergedVisual = adapter.mergeResults(results, adapterInput);
+      Object.assign(generatedProps, mergedVisual);
 
-              // Derive linkUrl from association
-              const slideData = collectedData?.[`slideAssociations_${i}`];
-              if (slideData) {
-                if (slideData.associationType === 'product' && slideData.productId) {
-                  const ctx = slideContexts[i]?.product;
-                  existingSlides[i].linkUrl = ctx?.slug ? `/produto/${ctx.slug}` : `__product:${slideData.productId}`;
-                } else if (slideData.associationType === 'category' && slideData.categoryId) {
-                  const ctx = slideContexts[i]?.category;
-                  existingSlides[i].linkUrl = ctx?.slug ? `/categoria/${ctx.slug}` : `__category:${slideData.categoryId}`;
-                } else if (slideData.associationType === 'url' && slideData.manualUrl) {
-                  existingSlides[i].linkUrl = slideData.manualUrl;
-                }
-              }
-            }
-          } else if (generateImages) {
-            // Images generated but no slides array — shouldn't happen for carousel
-          } else {
-            // Text-only carousel
-            const slides = textSlides.map((t: any, i: number) => {
-              const slideData = collectedData?.[`slideAssociations_${i}`];
-              let linkUrl = '';
-              if (slideData) {
-                if (slideData.associationType === 'product' && slideData.productId) {
-                  const ctx = slideContexts[i]?.product;
-                  linkUrl = ctx?.slug ? `/produto/${ctx.slug}` : `__product:${slideData.productId}`;
-                } else if (slideData.associationType === 'category' && slideData.categoryId) {
-                  const ctx = slideContexts[i]?.category;
-                  linkUrl = ctx?.slug ? `/categoria/${ctx.slug}` : `__category:${slideData.categoryId}`;
-                } else if (slideData.associationType === 'url' && slideData.manualUrl) {
-                  linkUrl = slideData.manualUrl;
-                }
-              }
-              return {
-                id: crypto.randomUUID(),
-                imageDesktop: '',
-                imageMobile: '',
-                title: t.title || '',
-                subtitle: t.subtitle || '',
-                buttonText: t.buttonText || '',
-                altText: t.altText || `Banner ${i + 1}`,
-                linkUrl,
-              };
-            });
-            generatedProps.slides = slides;
-          }
-        } else {
-          // Single banner text
-          const textResult = await generateTexts(contract, {
-            blockType,
-            mode: 'single',
-            briefing,
-            product: productCtx,
-            category: categoryCtx,
-            associationType,
-            store: storeCtx,
-          }, { supabaseUrl, supabaseServiceKey });
-
-          if (contract.aiGenerates.includes('title')) generatedProps.title = textResult.title || '';
-          if (contract.aiGenerates.includes('subtitle')) generatedProps.subtitle = textResult.subtitle || '';
-          if (contract.aiGenerates.includes('buttonText')) generatedProps.buttonText = textResult.buttonText || '';
-        }
-      }
-
-      // Complete mode: explicitly clear text fields and overlay
-      if (outputMode === 'complete') {
-        if (isSingle) {
-          generatedProps._renderMode = 'baked';
-          generatedProps._hideOverlayText = true;
-          generatedProps.overlayOpacity = 0;
-          generatedProps.title = '';
-          generatedProps.subtitle = '';
-          generatedProps.buttonText = '';
-        }
-        // For carousel, _renderMode and _hideOverlayText are set by the adapter mergeResults
-      } else if (generateImages) {
-        // Editable mode: set overlay + high-contrast button defaults for legibility
-        if (isSingle) {
-          generatedProps.overlayOpacity = 40;
-          generatedProps.alignment = 'left';
-          generatedProps.textColor = '#ffffff';
-          generatedProps.buttonColor = '#ffffff';
-          generatedProps.buttonTextColor = '#1a1a1a';
-          generatedProps.buttonHoverBgColor = '#e0e0e0';
-          generatedProps.buttonHoverTextColor = '#000000';
-        }
-      }
+      // v4.0.0: Set editable defaults (overlay for text legibility)
+      generatedProps.overlayOpacity = 35;
+      generatedProps.alignment = 'left';
+      generatedProps._renderMode = 'overlay';
 
       const elapsed = Date.now() - startTime;
-      console.log(`[ai-block-fill-visual] Banner:${mode || 'single'} done in ${elapsed}ms (outputMode=${outputMode})`);
+      console.log(`[ai-block-fill-visual] Banner:simplified done in ${elapsed}ms`);
 
       try {
-        const slideCount = isCarousel ? slideContexts.length : 1;
-        const usageCents = (generateImages ? 8 * slideCount : 0) + (generateTextsFlag ? 2 : 0);
-        await supabase.rpc('record_ai_usage', { p_tenant_id: tenantId, p_usage_cents: usageCents });
+        await supabase.rpc('record_ai_usage', { p_tenant_id: tenantId, p_usage_cents: 8 });
       } catch (e) {
         console.warn("[ai-block-fill-visual] Failed to record usage:", e);
       }
