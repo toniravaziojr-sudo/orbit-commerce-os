@@ -214,21 +214,11 @@ function SinglePanel({ props, onChange, tenantId }: BannerPropsPanelProps) {
 
         {/* CTA fields */}
         {hasEditableContent && (
-          <div className="space-y-2 pt-2 border-t border-border/50">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Conteúdo</p>
-            <FieldWrapper label="Título">
-              <Input value={(props.title as string) || ''} onChange={e => onChange('title', e.target.value)} placeholder="Texto principal" className="h-7 text-xs" />
-            </FieldWrapper>
-            <FieldWrapper label="Subtítulo">
-              <Input value={(props.subtitle as string) || ''} onChange={e => onChange('subtitle', e.target.value)} placeholder="Texto secundário" className="h-7 text-xs" />
-            </FieldWrapper>
-            <FieldWrapper label="Texto do Botão">
-              <Input value={(props.buttonText as string) || ''} onChange={e => onChange('buttonText', e.target.value)} placeholder="Ex: Ver Produtos" className="h-7 text-xs" />
-            </FieldWrapper>
-            <FieldWrapper label="Link do Botão">
-              <Input value={(props.buttonUrl as string) || ''} onChange={e => onChange('buttonUrl', e.target.value)} placeholder="/produtos" className="h-7 text-xs" />
-            </FieldWrapper>
-          </div>
+          <EditableContentWithAI
+            props={props}
+            onChange={onChange}
+            tenantId={tenantId}
+          />
         )}
       </SectionCollapsible>
 
