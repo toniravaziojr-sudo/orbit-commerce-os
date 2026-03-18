@@ -113,30 +113,21 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId, onRegenera
     setExpandedSlide(expandedSlide === index ? null : index);
   };
 
-  // Handle per-slide AI generation result — also saves wizard config for regeneration
+  // Handle per-slide AI generation result — v4.0.0: only images
   const handleSlideAIGenerated = (mergedProps: Record<string, unknown>) => {
     if (aiWizardSlideIndex === null) return;
     const idx = aiWizardSlideIndex;
     const newSlides = [...safeSlides];
     const current: BannerSlide = newSlides[idx] || { id: '', imageDesktop: '', imageMobile: '' };
     
+    // v4.0.0: Only update images — texts are handled separately via "Gerar textos com IA"
     newSlides[idx] = {
       ...current,
       imageDesktop: (mergedProps.imageDesktop as string) || current.imageDesktop,
       imageMobile: (mergedProps.imageMobile as string) || current.imageMobile,
-      title: mergedProps.title !== undefined ? (mergedProps.title as string) : current.title,
-      subtitle: mergedProps.subtitle !== undefined ? (mergedProps.subtitle as string) : current.subtitle,
-      buttonText: mergedProps.buttonText !== undefined ? (mergedProps.buttonText as string) : current.buttonText,
-      altText: mergedProps.altText !== undefined ? (mergedProps.altText as string) : current.altText,
-      linkUrl: mergedProps.linkUrl !== undefined ? (mergedProps.linkUrl as string) : current.linkUrl,
       // Save wizard config for regeneration
       _lastSlideWizardConfig: mergedProps._lastWizardConfig as Record<string, unknown> || undefined,
     };
-    
-    // If AI set hasEditableContent via content presence
-    if (mergedProps.title || mergedProps.buttonText) {
-      newSlides[idx].hasEditableContent = true;
-    }
     
     onChange(newSlides);
     setAiWizardSlideIndex(null);
