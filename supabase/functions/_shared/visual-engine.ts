@@ -548,7 +548,11 @@ export async function generateForRequest(
       return null;
     }
 
-    const publicUrl = await uploadToStorage(supabase, tenantId, result.imageBase64, slot.key);
+    const publicUrl = await uploadToStorage(supabase, tenantId, result.imageBase64, slot.key, 'store-assets', undefined, {
+      blockType: request.blockType,
+      productName: request.product?.name,
+      device: slotLabel,
+    });
     if (!publicUrl) {
       console.error(`[visual-engine] Failed to upload slot: ${slot.key}`);
       return null;
