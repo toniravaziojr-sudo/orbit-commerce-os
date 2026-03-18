@@ -562,9 +562,9 @@ serve(async (req) => {
       );
     }
 
-    const scope: string = ['images', 'texts', 'all'].includes(requestedScope) ? requestedScope : 'all';
+    const scope: string = ['images', 'texts', 'texts-only', 'all'].includes(requestedScope) ? requestedScope : 'all';
     const generateImages = scope === 'images' || scope === 'all';
-    const generateTextsFlag = scope === 'texts' || scope === 'all';
+    const generateTextsFlag = scope === 'texts' || scope === 'texts-only' || scope === 'all';
 
     const contract = resolveContract(blockType, mode);
     if (!contract) {
