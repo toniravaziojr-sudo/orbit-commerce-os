@@ -145,6 +145,7 @@ export function useAIWizardGenerate({
         blockType,
         mode,
         scope,
+        outputMode,
         briefing: backendData.briefing,
       }, null, 2));
 
@@ -154,6 +155,7 @@ export function useAIWizardGenerate({
           blockType,
           mode,
           scope,
+          outputMode,
           collectedData: backendData,
         },
       });
