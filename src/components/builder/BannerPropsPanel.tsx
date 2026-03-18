@@ -1,6 +1,6 @@
 // =============================================
 // BANNER PROPS PANEL — Custom accordion-based editor for Banner block
-// v4.1.0: Added AI text generation for editable content
+// v4.2.0: AI button inside panel, batch text generation fix
 // =============================================
 
 import { useState } from 'react';
@@ -20,6 +20,8 @@ import { ImageUploaderWithLibrary } from './ImageUploaderWithLibrary';
 import { BannerSlidesEditor, BannerSlide } from './BannerSlidesEditor';
 import { cn } from '@/lib/utils';
 import { useBannerTextGenerate } from '@/hooks/useBannerTextGenerate';
+import { getWizardContract } from '@/lib/builder/aiWizardRegistry';
+import { AIFillWizardDialog } from './ai-wizard/AIFillWizardDialog';
 
 interface BannerPropsPanelProps {
   props: Record<string, unknown>;
@@ -138,7 +140,7 @@ export function BannerPropsPanel({ props, onChange, onBatchChange, tenantId }: B
       {mode === 'carousel' ? (
         <CarouselPanel props={props} onChange={onChange} onBatchChange={onBatchChange} tenantId={tenantId} />
       ) : (
-        <SinglePanel props={props} onChange={onChange} tenantId={tenantId} />
+        <SinglePanel props={props} onChange={onChange} onBatchChange={onBatchChange} tenantId={tenantId} />
       )}
     </div>
   );
@@ -146,16 +148,30 @@ export function BannerPropsPanel({ props, onChange, onBatchChange, tenantId }: B
 
 // ===== Single Mode Panel =====
 
-function SinglePanel({ props, onChange, tenantId }: BannerPropsPanelProps) {
+function SinglePanel({ props, onChange, onBatchChange, tenantId }: BannerPropsPanelProps) {
   const [configOpen, setConfigOpen] = useState(true);
   const [imagesOpen, setImagesOpen] = useState(false);
   const [refinementsOpen, setRefinementsOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   const bannerType = (props.bannerType as string) || 'image';
   // Infer hasEditableContent for backward compatibility
   const hasEditableContent = props.hasEditableContent !== undefined
     ? Boolean(props.hasEditableContent)
     : !!(props.title || props.buttonText);
+
+  const wizardContract = getWizardContract('Banner');
+
+  const handleAIGenerated = (mergedProps: Record<string, unknown>) => {
+    if (onBatchChange) {
+      onBatchChange(mergedProps);
+    } else {
+      for (const [key, value] of Object.entries(mergedProps)) {
+        onChange(key, value);
+      }
+    }
+    setWizardOpen(false);
+  };
 
   return (
     <>
@@ -212,11 +228,25 @@ function SinglePanel({ props, onChange, tenantId }: BannerPropsPanelProps) {
           </Select>
         </FieldWrapper>
 
+        {/* AI Image Generation button — inside single banner config */}
+        {tenantId && wizardContract && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full gap-1.5 text-xs h-8 mt-1"
+            onClick={() => setWizardOpen(true)}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            Gerar imagem com IA
+          </Button>
+        )}
+
         {/* CTA fields */}
         {hasEditableContent && (
           <EditableContentWithAI
             props={props}
             onChange={onChange}
+            onBatchChange={onBatchChange}
             tenantId={tenantId}
           />
         )}
@@ -277,15 +307,30 @@ function SinglePanel({ props, onChange, tenantId }: BannerPropsPanelProps) {
           </FieldWrapper>
         )}
       </SectionCollapsible>
+
+      {/* AI Wizard Dialog for single banner */}
+      {tenantId && wizardContract && (
+        <AIFillWizardDialog
+          open={wizardOpen}
+          onOpenChange={setWizardOpen}
+          contract={wizardContract}
+          blockType="Banner"
+          blockLabel="Banner"
+          currentProps={props}
+          tenantId={tenantId}
+          onGenerated={handleAIGenerated}
+        />
+      )}
     </>
   );
 }
 
 // ===== Editable Content with AI Generate Button =====
 
-function EditableContentWithAI({ props, onChange, tenantId }: {
+function EditableContentWithAI({ props, onChange, onBatchChange, tenantId }: {
   props: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
+  onBatchChange?: (updates: Record<string, unknown>) => void;
   tenantId?: string;
 }) {
   const { generateTexts, isGenerating } = useBannerTextGenerate({ tenantId: tenantId || '' });
@@ -296,9 +341,19 @@ function EditableContentWithAI({ props, onChange, tenantId }: {
       briefing: '',
     });
     if (result) {
-      onChange('title', result.title);
-      onChange('subtitle', result.subtitle);
-      onChange('buttonText', result.buttonText);
+      // Use batch update to avoid stale-props race condition
+      if (onBatchChange) {
+        onBatchChange({
+          title: result.title,
+          subtitle: result.subtitle,
+          buttonText: result.buttonText,
+        });
+      } else {
+        // Fallback: sequential (last wins)
+        onChange('title', result.title);
+        onChange('subtitle', result.subtitle);
+        onChange('buttonText', result.buttonText);
+      }
     }
   };
 
