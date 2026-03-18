@@ -118,12 +118,31 @@ serve(async (req) => {
     }
 
     // Get client IP - prefer headers that preserve the real client IP (including IPv6)
-    // Priority: cf-connecting-ip (Cloudflare real IP) > x-real-ip > x-forwarded-for (first entry)
+    // Priority chain: most specific → most generic
+    // 1. cf-connecting-ip: Cloudflare sets this to the REAL visitor IP (most reliable)
+    // 2. true-client-ip: Some CDNs (Akamai, Cloudflare Enterprise) set this
+    // 3. x-real-ip: Nginx/reverse proxies set this to the original client IP
+    // 4. x-forwarded-for: Standard proxy header, first entry = original client
+    // 5. x-envoy-external-address: Used by Envoy-based proxies (GCP, some k8s)
     const clientIp = req.headers.get('cf-connecting-ip')
+      || req.headers.get('true-client-ip')
       || req.headers.get('x-real-ip')
       || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+      || req.headers.get('x-envoy-external-address')
       || null;
     const clientUserAgent = req.headers.get('user-agent') || null;
+
+    // Diagnostic log: track which header provided the IP (helps debug shared IP issues)
+    if (payload.event_name === 'PageView') {
+      const ipSource = req.headers.get('cf-connecting-ip') ? 'cf-connecting-ip'
+        : req.headers.get('true-client-ip') ? 'true-client-ip'
+        : req.headers.get('x-real-ip') ? 'x-real-ip'
+        : req.headers.get('x-forwarded-for') ? 'x-forwarded-for'
+        : req.headers.get('x-envoy-external-address') ? 'x-envoy-external-address'
+        : 'none';
+      const xff = req.headers.get('x-forwarded-for');
+      console.log(`[marketing-capi-track] PageView IP diagnostic: source=${ipSource}, ip=${clientIp?.substring(0, 12)}..., xff_entries=${xff ? xff.split(',').length : 0}, ua=${clientUserAgent?.substring(0, 50)}`);
+    }
 
     // Split name into first/last
     const nameParts = payload.user_data?.name?.trim().split(/\s+/) || [];
