@@ -192,6 +192,7 @@ function SinglePanel({ props, onChange, onBatchChange, tenantId }: BannerPropsPa
   const [imagesOpen, setImagesOpen] = useState(false);
   const [refinementsOpen, setRefinementsOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   const bannerType = (props.bannerType as string) || 'image';
   // Infer hasEditableContent for backward compatibility
@@ -200,6 +201,7 @@ function SinglePanel({ props, onChange, onBatchChange, tenantId }: BannerPropsPa
     : !!(props.title || props.buttonText);
 
   const wizardContract = getWizardContract('Banner');
+  const lastWizardConfig = props._lastWizardConfig as Record<string, unknown> | undefined;
 
   const handleAIGenerated = (mergedProps: Record<string, unknown>) => {
     if (onBatchChange) {
@@ -211,6 +213,60 @@ function SinglePanel({ props, onChange, onBatchChange, tenantId }: BannerPropsPa
     }
     setWizardOpen(false);
   };
+
+  const handleRegenerate = useCallback(async () => {
+    if (!lastWizardConfig || !wizardContract || isRegenerating || !tenantId) return;
+    setIsRegenerating(true);
+    if (onBatchChange) {
+      onBatchChange({ _isRegenerating: true });
+    } else {
+      onChange('_isRegenerating', true);
+    }
+    try {
+      const { supabase } = await import('@/integrations/supabase/client');
+      const { toast } = await import('sonner');
+      const collectedData = (lastWizardConfig.collectedData as Record<string, unknown>) || lastWizardConfig;
+      const { data, error } = await supabase.functions.invoke('ai-block-fill-visual', {
+        body: {
+          tenantId,
+          blockType: 'Banner',
+          currentProps: props,
+          collectedData,
+        },
+      });
+      if (error || !data?.generatedProps) {
+        toast.error('Erro ao regenerar', { description: data?.error || 'Tente novamente' });
+        if (onBatchChange) {
+          onBatchChange({ _isRegenerating: undefined });
+        } else {
+          onChange('_isRegenerating', undefined);
+        }
+        return;
+      }
+      const merged = { ...props, ...data.generatedProps };
+      merged._isRegenerating = undefined;
+      merged._lastWizardConfig = { ...lastWizardConfig, timestamp: Date.now() };
+      if (onBatchChange) {
+        onBatchChange(merged);
+      } else {
+        for (const [key, value] of Object.entries(merged)) {
+          onChange(key, value);
+        }
+      }
+      toast.success('Nova variante gerada ✨');
+    } catch (err) {
+      console.error('[Banner Regenerate] Error:', err);
+      const { toast } = await import('sonner');
+      toast.error('Erro ao regenerar');
+      if (onBatchChange) {
+        onBatchChange({ _isRegenerating: undefined });
+      } else {
+        onChange('_isRegenerating', undefined);
+      }
+    } finally {
+      setIsRegenerating(false);
+    }
+  }, [lastWizardConfig, wizardContract, isRegenerating, tenantId, props, onBatchChange, onChange]);
 
   return (
     <>
