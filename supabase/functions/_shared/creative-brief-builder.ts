@@ -55,7 +55,8 @@ export function buildCreativeBrief(input: CreativeBriefInput): string {
 // ===== BANNER SIMPLIFIED BRIEF (v2.0.0) =====
 
 function buildBannerSimplifiedBrief(input: CreativeBriefInput): string {
-  const { briefing, product, category, store, slideIndex } = input;
+  const { briefing, product, category, store, slideIndex, outputMode } = input;
+  const isComplete = outputMode === 'complete';
   const sections: string[] = [];
 
   // 1. User's briefing is THE creative direction
