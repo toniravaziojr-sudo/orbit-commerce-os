@@ -4059,12 +4059,32 @@ O posicionamento dos textos e botão do banner é **fixo**, sem opções de alin
 - Slides antigos sem campos novos funcionam normalmente
 - Props adicionadas ao `aiNeverTouches`
 
+#### Migração automática Single → Carrossel (v4.5.1)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Regra Lógica |
+| **Localização** | `BannerPropsPanel.tsx` — `handleModeChange` |
+| **Descrição** | Ao trocar de Banner Único para Carrossel, se não há slides existentes e há imagem configurada, a imagem e todas as propriedades do banner único (textos, cores, overlay, link) são copiadas automaticamente para `slides[0]` |
+| **Comportamento** | Usa `onBatchChange` para atualizar `mode` + `slides` atomicamente |
+| **Condições** | Só migra se `slides[]` está vazio E existe `imageDesktop` ou `imageMobile` |
+
+#### Botão de Regenerar IA — Banner Único (v4.5.1)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Ação |
+| **Localização** | `BannerPropsPanel.tsx` — `SinglePanel` |
+| **Descrição** | Botão 🔄 ao lado do "Gerar imagem com IA" que aparece após a primeira geração |
+| **Comportamento** | Reutiliza `_lastWizardConfig` para chamar `ai-block-fill-visual` com as mesmas configurações, gerando nova variante. Exibe overlay de loading (`_isRegenerating`) no bloco |
+| **Condições** | Só aparece quando `_lastWizardConfig` existe (pós-primeira geração) |
+
 #### Estrutura do painel — Banner Único
 
 | Seção | Estado padrão | Conteúdo |
 |-------|---------------|----------|
 | Modo (select) | Sempre visível | `single` / `carousel` |
-| ⚙️ Configurações | **Aberta** | `bannerType`, `hasEditableContent` toggle, modelo do banner (4 presets). Se editável: título, subtítulo, botão (layout fixo, sem alinhamentos) |
+| ⚙️ Configurações | **Aberta** | `bannerType`, `hasEditableContent` toggle, modelo do banner (4 presets). Botão IA + botão regenerar (se já gerou). Se editável: título, subtítulo, botão (layout fixo, sem alinhamentos) |
 | 🖼️ Imagens | Fechada | Desktop + Mobile uploaders. Oculta quando `bannerType=solid` |
 | 🎨 Refinamentos | Fechada | Escurecimento, cores de texto/botão (se editável), `linkUrl` (se NÃO editável), `backgroundColor` (se solid) |
 
