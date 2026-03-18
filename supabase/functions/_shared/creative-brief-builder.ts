@@ -217,7 +217,7 @@ export function buildStructuralRules(input: StructuralRulesInput): string {
   }
 
   if (isBannerSimplified) {
-    return buildBannerSimplifiedRules(slot, isDesktop);
+    return buildBannerSimplifiedRules(slot, isDesktop, outputMode);
   }
 
   return buildFullStructuralRules(slot, outputMode, creativeStyle, isDesktop);
