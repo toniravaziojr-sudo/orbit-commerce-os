@@ -111,12 +111,7 @@ export function WizardStepRenderer({
           showLayoutPreset={blockType === 'Banner'}
           layoutPreset={(collectedData._layoutPreset as string) || (currentProps.layoutPreset as string) || 'standard'}
           onLayoutPresetChange={blockType === 'Banner' ? (preset) => {
-            // Store layoutPreset in collectedData via a special key
-            // We need to trigger a separate data update for this
-            // Using a callback pattern through the parent
-            if ((window as any).__wizardSetStepData) {
-              (window as any).__wizardSetStepData('_layoutPreset', preset);
-            }
+            onExtraDataChange?.('_layoutPreset', preset);
           } : undefined}
         />
       );
