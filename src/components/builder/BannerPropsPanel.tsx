@@ -327,9 +327,10 @@ function SinglePanel({ props, onChange, onBatchChange, tenantId }: BannerPropsPa
 
 // ===== Editable Content with AI Generate Button =====
 
-function EditableContentWithAI({ props, onChange, tenantId }: {
+function EditableContentWithAI({ props, onChange, onBatchChange, tenantId }: {
   props: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
+  onBatchChange?: (updates: Record<string, unknown>) => void;
   tenantId?: string;
 }) {
   const { generateTexts, isGenerating } = useBannerTextGenerate({ tenantId: tenantId || '' });
@@ -340,9 +341,19 @@ function EditableContentWithAI({ props, onChange, tenantId }: {
       briefing: '',
     });
     if (result) {
-      onChange('title', result.title);
-      onChange('subtitle', result.subtitle);
-      onChange('buttonText', result.buttonText);
+      // Use batch update to avoid stale-props race condition
+      if (onBatchChange) {
+        onBatchChange({
+          title: result.title,
+          subtitle: result.subtitle,
+          buttonText: result.buttonText,
+        });
+      } else {
+        // Fallback: sequential (last wins)
+        onChange('title', result.title);
+        onChange('subtitle', result.subtitle);
+        onChange('buttonText', result.buttonText);
+      }
     }
   };
 
