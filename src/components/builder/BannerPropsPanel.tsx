@@ -3,7 +3,7 @@
 // v4.2.0: AI button inside panel, batch text generation fix
 // =============================================
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Collapsible,
   CollapsibleContent,
@@ -122,11 +122,50 @@ function SliderField({ label, value, onChange, min = 0, max = 100 }: { label: st
 export function BannerPropsPanel({ props, onChange, onBatchChange, tenantId }: BannerPropsPanelProps) {
   const mode = (props.mode as string) || 'single';
 
+  const handleModeChange = (newMode: string) => {
+    if (newMode === 'carousel' && mode === 'single') {
+      // Migrate single-mode image into slides[0] so it doesn't disappear
+      const existingSlides = Array.isArray(props.slides) ? (props.slides as BannerSlide[]) : [];
+      const desktopImg = (props.imageDesktop as string) || '';
+      const mobileImg = (props.imageMobile as string) || '';
+
+      if (existingSlides.length === 0 && (desktopImg || mobileImg)) {
+        const migratedSlide: BannerSlide = {
+          id: crypto.randomUUID(),
+          imageDesktop: desktopImg,
+          imageMobile: mobileImg,
+          linkUrl: (props.linkUrl as string) || '',
+          altText: (props.altText as string) || '',
+          title: (props.title as string) || '',
+          subtitle: (props.subtitle as string) || '',
+          buttonText: (props.buttonText as string) || '',
+          buttonUrl: (props.buttonUrl as string) || '',
+          hasEditableContent: Boolean(props.hasEditableContent),
+          overlayOpacity: Number(props.overlayOpacity) || 0,
+          textColor: (props.textColor as string) || '',
+          alignment: (props.alignment as string) || '',
+          buttonAlignment: (props.buttonAlignment as string) || '',
+          buttonColor: (props.buttonColor as string) || '',
+          buttonTextColor: (props.buttonTextColor as string) || '',
+        };
+
+        if (onBatchChange) {
+          onBatchChange({ mode: newMode, slides: [migratedSlide] });
+        } else {
+          onChange('slides', [migratedSlide]);
+          onChange('mode', newMode);
+        }
+        return;
+      }
+    }
+    onChange('mode', newMode);
+  };
+
   return (
     <div className="space-y-2.5">
       {/* Mode selector — always visible */}
       <FieldWrapper label="Modo">
-        <Select value={mode} onValueChange={v => onChange('mode', v)}>
+        <Select value={mode} onValueChange={handleModeChange}>
           <SelectTrigger className="h-7 text-xs">
             <SelectValue />
           </SelectTrigger>
@@ -153,6 +192,7 @@ function SinglePanel({ props, onChange, onBatchChange, tenantId }: BannerPropsPa
   const [imagesOpen, setImagesOpen] = useState(false);
   const [refinementsOpen, setRefinementsOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   const bannerType = (props.bannerType as string) || 'image';
   // Infer hasEditableContent for backward compatibility
@@ -161,6 +201,7 @@ function SinglePanel({ props, onChange, onBatchChange, tenantId }: BannerPropsPa
     : !!(props.title || props.buttonText);
 
   const wizardContract = getWizardContract('Banner');
+  const lastWizardConfig = props._lastWizardConfig as Record<string, unknown> | undefined;
 
   const handleAIGenerated = (mergedProps: Record<string, unknown>) => {
     if (onBatchChange) {
@@ -172,6 +213,60 @@ function SinglePanel({ props, onChange, onBatchChange, tenantId }: BannerPropsPa
     }
     setWizardOpen(false);
   };
+
+  const handleRegenerate = useCallback(async () => {
+    if (!lastWizardConfig || !wizardContract || isRegenerating || !tenantId) return;
+    setIsRegenerating(true);
+    if (onBatchChange) {
+      onBatchChange({ _isRegenerating: true });
+    } else {
+      onChange('_isRegenerating', true);
+    }
+    try {
+      const { supabase } = await import('@/integrations/supabase/client');
+      const { toast } = await import('sonner');
+      const collectedData = (lastWizardConfig.collectedData as Record<string, unknown>) || lastWizardConfig;
+      const { data, error } = await supabase.functions.invoke('ai-block-fill-visual', {
+        body: {
+          tenantId,
+          blockType: 'Banner',
+          currentProps: props,
+          collectedData,
+        },
+      });
+      if (error || !data?.generatedProps) {
+        toast.error('Erro ao regenerar', { description: data?.error || 'Tente novamente' });
+        if (onBatchChange) {
+          onBatchChange({ _isRegenerating: undefined });
+        } else {
+          onChange('_isRegenerating', undefined);
+        }
+        return;
+      }
+      const merged = { ...props, ...data.generatedProps };
+      merged._isRegenerating = undefined;
+      merged._lastWizardConfig = { ...lastWizardConfig, timestamp: Date.now() };
+      if (onBatchChange) {
+        onBatchChange(merged);
+      } else {
+        for (const [key, value] of Object.entries(merged)) {
+          onChange(key, value);
+        }
+      }
+      toast.success('Nova variante gerada ✨');
+    } catch (err) {
+      console.error('[Banner Regenerate] Error:', err);
+      const { toast } = await import('sonner');
+      toast.error('Erro ao regenerar');
+      if (onBatchChange) {
+        onBatchChange({ _isRegenerating: undefined });
+      } else {
+        onChange('_isRegenerating', undefined);
+      }
+    } finally {
+      setIsRegenerating(false);
+    }
+  }, [lastWizardConfig, wizardContract, isRegenerating, tenantId, props, onBatchChange, onChange]);
 
   return (
     <>
@@ -228,17 +323,36 @@ function SinglePanel({ props, onChange, onBatchChange, tenantId }: BannerPropsPa
           </Select>
         </FieldWrapper>
 
-        {/* AI Image Generation button — inside single banner config */}
+        {/* AI Image Generation buttons */}
         {tenantId && wizardContract && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full gap-1.5 text-xs h-8 mt-1"
-            onClick={() => setWizardOpen(true)}
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            Gerar imagem com IA
-          </Button>
+          <div className="flex gap-1.5 mt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 gap-1.5 text-xs h-8"
+              onClick={() => setWizardOpen(true)}
+              disabled={isRegenerating}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              Gerar imagem com IA
+            </Button>
+            {lastWizardConfig && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1 text-xs h-8 px-2.5"
+                onClick={handleRegenerate}
+                disabled={isRegenerating}
+                title="Gerar nova variante com as mesmas configurações"
+              >
+                {isRegenerating ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <span className="text-sm">🔄</span>
+                )}
+              </Button>
+            )}
+          </div>
         )}
 
         {/* CTA fields */}
