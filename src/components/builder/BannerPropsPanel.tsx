@@ -281,6 +281,64 @@ function SinglePanel({ props, onChange, tenantId }: BannerPropsPanelProps) {
   );
 }
 
+// ===== Editable Content with AI Generate Button =====
+
+function EditableContentWithAI({ props, onChange, tenantId }: {
+  props: Record<string, unknown>;
+  onChange: (key: string, value: unknown) => void;
+  tenantId?: string;
+}) {
+  const { generateTexts, isGenerating } = useBannerTextGenerate({ tenantId: tenantId || '' });
+
+  const handleGenerateTexts = async () => {
+    const result = await generateTexts({
+      bannerImageUrl: (props.imageDesktop as string) || '',
+      briefing: '',
+    });
+    if (result) {
+      onChange('title', result.title);
+      onChange('subtitle', result.subtitle);
+      onChange('buttonText', result.buttonText);
+    }
+  };
+
+  return (
+    <div className="space-y-2 pt-2 border-t border-border/50">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Conteúdo</p>
+        {tenantId && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 gap-1 text-[10px] text-primary hover:text-primary"
+            disabled={isGenerating}
+            onClick={handleGenerateTexts}
+          >
+            {isGenerating ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Sparkles className="h-3 w-3" />
+            )}
+            {isGenerating ? 'Gerando...' : 'Gerar textos com IA'}
+          </Button>
+        )}
+      </div>
+      <FieldWrapper label="Título">
+        <Input value={(props.title as string) || ''} onChange={e => onChange('title', e.target.value)} placeholder="Texto principal" className="h-7 text-xs" />
+      </FieldWrapper>
+      <FieldWrapper label="Subtítulo">
+        <Input value={(props.subtitle as string) || ''} onChange={e => onChange('subtitle', e.target.value)} placeholder="Texto secundário" className="h-7 text-xs" />
+      </FieldWrapper>
+      <FieldWrapper label="Texto do Botão">
+        <Input value={(props.buttonText as string) || ''} onChange={e => onChange('buttonText', e.target.value)} placeholder="Ex: Ver Produtos" className="h-7 text-xs" />
+      </FieldWrapper>
+      <FieldWrapper label="Link do Botão">
+        <Input value={(props.buttonUrl as string) || ''} onChange={e => onChange('buttonUrl', e.target.value)} placeholder="/produtos" className="h-7 text-xs" />
+      </FieldWrapper>
+    </div>
+  );
+}
+
 // ===== Carousel Mode Panel =====
 
 function CarouselPanel({ props, onChange, onBatchChange, tenantId }: BannerPropsPanelProps) {
@@ -347,7 +405,6 @@ function CarouselPanel({ props, onChange, onBatchChange, tenantId }: BannerProps
         tenantId={tenantId}
         onRegeneratingChange={(isRegenerating, finalSlides) => {
           if (!isRegenerating && finalSlides && onBatchChange) {
-            // Atomic batch: update slides + clear loading in one call (no stale-props race)
             onBatchChange({ slides: finalSlides, _isRegenerating: undefined });
           } else {
             onChange('_isRegenerating', isRegenerating ? true : undefined);
