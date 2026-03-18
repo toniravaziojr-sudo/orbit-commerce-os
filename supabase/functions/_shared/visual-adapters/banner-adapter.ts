@@ -26,45 +26,21 @@ function getCompositionHint(device: 'desktop' | 'mobile', outputMode: OutputMode
 
 export class BannerAdapter implements BlockVisualAdapter {
   adapt(params: AdapterInput): VisualGenerationRequest[] {
-    const { mode, outputMode, creativeStyle, styleConfig, briefing, contexts, store, enableQA } = params;
-    const requests: VisualGenerationRequest[] = [];
-
-    if (mode === 'carousel') {
-      // One request per slide, each with desktop + mobile slots
-      for (let i = 0; i < contexts.length; i++) {
-        const ctx = contexts[i];
-        requests.push({
-          blockType: 'Banner',
-          outputMode,
-          creativeStyle,
-          styleConfig,
-          briefing: ctx.briefing || briefing,
-          product: ctx.product,
-          category: ctx.category,
-          store,
-          enableQA,
-          slideIndex: i,
-          slots: this.buildSlots(outputMode),
-        });
-      }
-    } else {
-      // Single banner: 1 request with 2 slots
-      const ctx = contexts[0] || {};
-      requests.push({
-        blockType: 'Banner',
-        outputMode,
-        creativeStyle,
-        styleConfig,
-        briefing: ctx.briefing || briefing,
-        product: ctx.product,
-        category: ctx.category,
-        store,
-        enableQA,
-        slots: this.buildSlots(outputMode),
-      });
-    }
-
-    return requests;
+    const { briefing, contexts, store, enableQA } = params;
+    // v4.0.0: Always single request — per-slide generation is handled by frontend calling once per slide
+    const ctx = contexts[0] || {};
+    return [{
+      blockType: 'Banner',
+      outputMode: 'editable',
+      creativeStyle: 'product_natural',
+      styleConfig: {},
+      briefing: ctx.briefing || briefing,
+      product: ctx.product,
+      category: ctx.category,
+      store,
+      enableQA,
+      slots: this.buildSlots(),
+    }];
   }
 
   mergeResults(
