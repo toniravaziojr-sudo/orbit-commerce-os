@@ -90,7 +90,7 @@ export function AIFillWizardDialog({
           {isGenerating ? (
             <div className="flex flex-col items-center justify-center h-[160px] gap-3">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Gerando imagens e textos...</p>
+              <p className="text-sm text-muted-foreground">Gerando imagens...</p>
               <p className="text-xs text-muted-foreground">Isso pode levar até 1 minuto</p>
             </div>
           ) : (
