@@ -3788,28 +3788,20 @@ O motor principal **NÃO** gera, aplica ou sobrescreve:
 
 **Todo sistema de geração de criativos com IA DEVE seguir estas regras:**
 
-1. **Pasta exclusiva por tipo de bloco** — Cada sistema de geração salva em sua própria subpasta dentro do bucket `store-assets`:
+1. **Pasta raiz única** — Todos os criativos ficam sob `{tenantId}/criativos-builder/` no bucket `store-assets`.
 
-| Bloco | Pasta |
-|-------|-------|
-| Banner | `{tenantId}/ai-banners/` |
-| Image | `{tenantId}/ai-images/` |
-| ContentColumns | `{tenantId}/ai-content-columns/` |
-| BannerProducts | `{tenantId}/ai-banner-products/` |
-| TextBanners | `{tenantId}/ai-text-banners/` |
-| ImageCarousel | `{tenantId}/ai-image-carousel/` |
-| ImageGallery | `{tenantId}/ai-image-gallery/` |
-| Outros/genérico | `{tenantId}/ai-creatives/` |
+2. **Subpastas por dimensão** — Dentro da pasta raiz, os criativos são organizados pela dimensão da imagem gerada:
+   - Exemplo: `criativos-builder/1920x800/`, `criativos-builder/750x940/`, `criativos-builder/800x600/`
+   - A dimensão é extraída automaticamente do slot de geração (width × height)
 
-2. **Nome de arquivo semântico** — Todo criativo gerado DEVE ter nome com referência de produto e data:
+3. **Nome de arquivo semântico** — Com referência de produto e data:
    - Formato: `{nome-produto}-{device}-{YYYY-MM-DD}-{shortId}.png`
    - Exemplo: `serum-facial-vitamina-c-desktop-2026-03-18-k8f2x.png`
    - Se não houver produto: `{device}-{YYYY-MM-DD}-{shortId}.png`
-   - O nome do produto é sanitizado (sem acentos, lowercase, hífens)
 
-3. **Bucket público** — Todos os criativos vão para `store-assets` (público), pois são usados em páginas públicas da loja.
+4. **Bucket público** — Todos os criativos vão para `store-assets` (público).
 
-4. **Nunca sobrescrever** — Upload usa `upsert: false`. Cada geração cria um arquivo novo.
+5. **Nunca sobrescrever** — Upload usa `upsert: false`. Cada geração cria um arquivo novo.
 
 
 
