@@ -81,6 +81,8 @@ function summarizeStepData(step: WizardStepConfig, data: unknown): string {
 export function ConfirmStep({ contract, collectedData, steps, blockType }: ConfirmStepProps) {
   const nonConfirmSteps = steps.filter((s) => s.type !== 'confirm');
   const isBanner = blockType === 'Banner';
+  const outputModeData = collectedData.outputMode as BannerModeData | undefined;
+  const isComplete = isBanner && outputModeData?.outputMode === 'complete';
 
   return (
     <div className="space-y-4 min-w-0 overflow-hidden">
@@ -103,9 +105,20 @@ export function ConfirmStep({ contract, collectedData, steps, blockType }: Confi
         <div className="flex flex-wrap gap-1.5">
           <Badge variant="secondary" className="gap-1">
             <ImageIcon className="h-3 w-3" />
-            {isBanner ? 'Imagens (desktop + mobile)' : 'Imagens'}
+            {isBanner
+              ? isComplete
+                ? 'Criativo completo (desktop + mobile)'
+                : 'Imagem de fundo (desktop + mobile)'
+              : 'Imagens'}
           </Badge>
         </div>
+        {isBanner && (
+          <p className="text-xs text-muted-foreground">
+            {isComplete
+              ? 'A IA pode incluir textos e copy diretamente na imagem.'
+              : 'Imagem limpa, sem texto. Use "Gerar textos com IA" para adicionar copy editável.'}
+          </p>
+        )}
       </div>
 
       <p className="text-xs text-muted-foreground">
