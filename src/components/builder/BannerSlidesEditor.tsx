@@ -375,10 +375,25 @@ function SubSection({
   );
 }
 
-function SlideConfigSection({ slide, index, hasEditable, onUpdate }: {
+function SlideConfigSection({ slide, index, hasEditable, onUpdate, tenantId }: {
   slide: BannerSlide; index: number; hasEditable: boolean;
   onUpdate: (i: number, field: keyof BannerSlide, value: unknown) => void;
+  tenantId?: string;
 }) {
+  const { generateTexts, isGenerating } = useBannerTextGenerate({ tenantId: tenantId || '' });
+
+  const handleGenerateTexts = async () => {
+    const result = await generateTexts({
+      bannerImageUrl: slide.imageDesktop || '',
+      briefing: '',
+    });
+    if (result) {
+      onUpdate(index, 'title', result.title);
+      onUpdate(index, 'subtitle', result.subtitle);
+      onUpdate(index, 'buttonText', result.buttonText);
+    }
+  };
+
   return (
     <SubSection icon="⚙️" label="Configurações" defaultOpen={true}>
       <div className="flex items-center justify-between py-1 min-w-0">
@@ -388,6 +403,22 @@ function SlideConfigSection({ slide, index, hasEditable, onUpdate }: {
 
       {hasEditable && (
         <div className="space-y-2 pt-1">
+          {tenantId && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-full gap-1 text-[10px] text-primary hover:text-primary justify-start"
+              disabled={isGenerating}
+              onClick={handleGenerateTexts}
+            >
+              {isGenerating ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Sparkles className="h-3 w-3" />
+              )}
+              {isGenerating ? 'Gerando...' : 'Gerar textos com IA'}
+            </Button>
+          )}
           <div className="space-y-1">
             <Label className="text-[10px] font-medium">Título</Label>
             <Input value={slide.title || ''} onChange={e => onUpdate(index, 'title', e.target.value)} placeholder="Texto principal" className="h-7 text-xs" />
