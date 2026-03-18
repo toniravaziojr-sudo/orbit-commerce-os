@@ -1,6 +1,6 @@
 // =============================================
 // BANNER PROPS PANEL — Custom accordion-based editor for Banner block
-// v4.1.0: Added AI text generation for editable content
+// v4.2.0: AI button inside panel, batch text generation fix
 // =============================================
 
 import { useState } from 'react';
@@ -20,6 +20,8 @@ import { ImageUploaderWithLibrary } from './ImageUploaderWithLibrary';
 import { BannerSlidesEditor, BannerSlide } from './BannerSlidesEditor';
 import { cn } from '@/lib/utils';
 import { useBannerTextGenerate } from '@/hooks/useBannerTextGenerate';
+import { getWizardContract } from '@/lib/builder/aiWizardRegistry';
+import { AIFillWizardDialog } from './ai-wizard/AIFillWizardDialog';
 
 interface BannerPropsPanelProps {
   props: Record<string, unknown>;
