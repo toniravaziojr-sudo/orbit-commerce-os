@@ -553,7 +553,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { tenantId, blockType, mode, scope: requestedScope, collectedData } = body;
+    const { tenantId, blockType, mode, scope: requestedScope, collectedData, outputMode: requestedOutputMode } = body;
 
     if (!tenantId || !blockType) {
       return new Response(
