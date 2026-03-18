@@ -1,6 +1,6 @@
 // =============================================
 // BANNER ADAPTER — Translates Banner block needs to Visual Engine
-// v1.0.0: Supports single + carousel, editable + complete modes
+// v4.3.0: Uses layoutPreset for correct proportions
 // =============================================
 
 import type {
@@ -13,20 +13,24 @@ import type {
   CompositionHint,
 } from './types.ts';
 
-// Banner proportions (commercial standard v2.2.0)
-const BANNER_DESKTOP = { width: 1920, height: 800 };
-const BANNER_MOBILE = { width: 750, height: 940 };
+// Banner proportions by layoutPreset
+const PRESET_DIMENSIONS: Record<string, { desktop: { width: number; height: number }; mobile: { width: number; height: number } }> = {
+  standard:          { desktop: { width: 1920, height: 800 },  mobile: { width: 750, height: 940 } },
+  'compact-centered': { desktop: { width: 1200, height: 400 },  mobile: { width: 750, height: 400 } },
+  'compact-full':    { desktop: { width: 1920, height: 400 },  mobile: { width: 750, height: 400 } },
+  large:             { desktop: { width: 1920, height: 1080 }, mobile: { width: 750, height: 1200 } },
+};
 
-// v4.0.0: Banner always uses editable composition (text overlay via HTML)
 function getCompositionHint(device: 'desktop' | 'mobile'): CompositionHint {
   return device === 'desktop' ? 'banner_desktop' : 'banner_mobile';
 }
 
 export class BannerAdapter implements BlockVisualAdapter {
   adapt(params: AdapterInput): VisualGenerationRequest[] {
-    const { briefing, contexts, store, enableQA } = params;
-    // v4.0.0: Always single request — per-slide generation is handled by frontend calling once per slide
+    const { briefing, contexts, store, enableQA, styleConfig } = params;
     const ctx = contexts[0] || {};
+    const layoutPreset = (styleConfig as any)?._layoutPreset || 'standard';
+
     return [{
       blockType: 'Banner',
       outputMode: 'editable',
@@ -37,7 +41,7 @@ export class BannerAdapter implements BlockVisualAdapter {
       category: ctx.category,
       store,
       enableQA,
-      slots: this.buildSlots(),
+      slots: this.buildSlots(layoutPreset),
     }];
   }
 
@@ -45,8 +49,6 @@ export class BannerAdapter implements BlockVisualAdapter {
     results: VisualGenerationResult[],
     _params: AdapterInput,
   ): Record<string, unknown> {
-    // v4.0.0: Banner always generates images only (single request)
-    // Text generation is decoupled and handled separately
     const result = results[0];
     if (!result) return {};
 
@@ -60,19 +62,21 @@ export class BannerAdapter implements BlockVisualAdapter {
     return merged;
   }
 
-  private buildSlots(): VisualSlot[] {
+  private buildSlots(layoutPreset: string): VisualSlot[] {
+    const dims = PRESET_DIMENSIONS[layoutPreset] || PRESET_DIMENSIONS.standard;
+
     return [
       {
         key: 'imageDesktop',
-        width: BANNER_DESKTOP.width,
-        height: BANNER_DESKTOP.height,
+        width: dims.desktop.width,
+        height: dims.desktop.height,
         label: 'Banner Desktop',
         composition: getCompositionHint('desktop'),
       },
       {
         key: 'imageMobile',
-        width: BANNER_MOBILE.width,
-        height: BANNER_MOBILE.height,
+        width: dims.mobile.width,
+        height: dims.mobile.height,
         label: 'Banner Mobile',
         composition: getCompositionHint('mobile'),
       },
