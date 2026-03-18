@@ -1,6 +1,6 @@
 // =============================================
 // WIZARD STEP RENDERER — Renders the right component for each step type
-// Phase 1: Added creative-style-select step
+// v4.0.0: Added product-select step for simplified Banner wizard
 // =============================================
 
 import { WizardStepConfig, WizardBlockContract } from '@/lib/builder/aiWizardRegistry';
@@ -13,6 +13,7 @@ import { SourceSelectStep } from './steps/SourceSelectStep';
 import { ConfirmStep } from './steps/ConfirmStep';
 import { CreativeStyleStep } from './steps/CreativeStyleStep';
 import { OutputModeStep } from './steps/OutputModeStep';
+import { ProductSelectStep } from './steps/ProductSelectStep';
 
 interface WizardStepRendererProps {
   step: WizardStepConfig;
@@ -36,6 +37,14 @@ export function WizardStepRenderer({
   currentProps,
 }: WizardStepRendererProps) {
   switch (step.type) {
+    case 'product-select':
+      return (
+        <ProductSelectStep
+          value={data as any}
+          onChange={onChange}
+        />
+      );
+
     case 'banner-mode-select':
       return (
         <BannerModeStep
