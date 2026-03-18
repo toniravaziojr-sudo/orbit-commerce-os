@@ -60,21 +60,21 @@ export class BannerAdapter implements BlockVisualAdapter {
     return merged;
   }
 
-  private buildSlots(outputMode: OutputMode): VisualSlot[] {
+  private buildSlots(): VisualSlot[] {
     return [
       {
         key: 'imageDesktop',
         width: BANNER_DESKTOP.width,
         height: BANNER_DESKTOP.height,
         label: 'Banner Desktop',
-        composition: getCompositionHint('desktop', outputMode),
+        composition: getCompositionHint('desktop'),
       },
       {
         key: 'imageMobile',
         width: BANNER_MOBILE.width,
         height: BANNER_MOBILE.height,
         label: 'Banner Mobile',
-        composition: getCompositionHint('mobile', outputMode),
+        composition: getCompositionHint('mobile'),
       },
     ];
   }
