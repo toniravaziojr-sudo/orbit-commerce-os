@@ -27,13 +27,13 @@ function getCompositionHint(device: 'desktop' | 'mobile'): CompositionHint {
 
 export class BannerAdapter implements BlockVisualAdapter {
   adapt(params: AdapterInput): VisualGenerationRequest[] {
-    const { briefing, contexts, store, enableQA, styleConfig } = params;
+    const { briefing, contexts, store, enableQA, styleConfig, outputMode } = params;
     const ctx = contexts[0] || {};
     const layoutPreset = (styleConfig as any)?._layoutPreset || 'standard';
 
     return [{
       blockType: 'Banner',
-      outputMode: 'editable',
+      outputMode: outputMode || 'editable',
       creativeStyle: 'product_natural',
       styleConfig: {},
       briefing: ctx.briefing || briefing,

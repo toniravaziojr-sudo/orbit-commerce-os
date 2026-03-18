@@ -55,7 +55,8 @@ export function buildCreativeBrief(input: CreativeBriefInput): string {
 // ===== BANNER SIMPLIFIED BRIEF (v2.0.0) =====
 
 function buildBannerSimplifiedBrief(input: CreativeBriefInput): string {
-  const { briefing, product, category, store, slideIndex } = input;
+  const { briefing, product, category, store, slideIndex, outputMode } = input;
+  const isComplete = outputMode === 'complete';
   const sections: string[] = [];
 
   // 1. User's briefing is THE creative direction
@@ -77,6 +78,11 @@ function buildBannerSimplifiedBrief(input: CreativeBriefInput): string {
     sections.push(`📂 CATEGORY: "${category.name}" — show varied products from this category.`);
   } else {
     sections.push(`🏢 CONTEXT: "${store.storeName}" — this is a brand/institutional banner. No specific product.`);
+  }
+
+  // Complete creative mode guidance
+  if (isComplete) {
+    sections.push(`🎨 CREATIVE MODE: This is a COMPLETE advertising piece. You are FREE to include text, headlines, slogans, promotional copy, or any typography if it serves the creative concept. Text is ALLOWED but NOT mandatory — use it only if it enhances the piece.`);
   }
 
   // 3. Carousel variation
@@ -211,7 +217,7 @@ export function buildStructuralRules(input: StructuralRulesInput): string {
   }
 
   if (isBannerSimplified) {
-    return buildBannerSimplifiedRules(slot, isDesktop);
+    return buildBannerSimplifiedRules(slot, isDesktop, outputMode);
   }
 
   return buildFullStructuralRules(slot, outputMode, creativeStyle, isDesktop);
@@ -219,32 +225,46 @@ export function buildStructuralRules(input: StructuralRulesInput): string {
 
 // ===== BANNER SIMPLIFIED RULES (v2.0.0) =====
 
-function buildBannerSimplifiedRules(slot: VisualSlot, isDesktop: boolean): string {
+function buildBannerSimplifiedRules(slot: VisualSlot, isDesktop: boolean, outputMode: OutputMode): string {
+  const isComplete = outputMode === 'complete';
   const lines: string[] = [];
 
   lines.push(`📐 DIMENSIONS: ${slot.width}x${slot.height}px (${isDesktop ? 'horizontal/desktop' : 'vertical/mobile'})`);
   
-  lines.push(`\n🖼️ IMAGE TYPE: Background image for e-commerce banner.`);
-  lines.push(`- This image will have HTML text overlaid on top of it.`);
-  lines.push(`- The image should work as a PHOTOGRAPHIC BACKGROUND.`);
-  
-  // Simple no-text rule
-  lines.push(`\n🚫 NO TEXT IN IMAGE:`);
-  lines.push(`- Do NOT include any text, letters, numbers, logos, watermarks, price tags, or typography of any kind.`);
-  lines.push(`- Product labels are OK if they're a natural part of the product, but should NOT be the focal point.`);
+  if (isComplete) {
+    // Complete creative mode — no text restrictions
+    lines.push(`\n🎨 COMPLETE CREATIVE MODE:`);
+    lines.push(`- This is a FINISHED advertising piece — the final image IS the banner.`);
+    lines.push(`- You MAY include text, headlines, slogans, promotional copy, CTAs, or any typography if it enhances the creative concept.`);
+    lines.push(`- Text is ALLOWED but NOT mandatory — only include it if it serves the design.`);
+    lines.push(`- Think of this as a professional ad creative for Instagram, Google Ads, or a store homepage.`);
+  } else {
+    // Editable mode — strict no-text rules
+    lines.push(`\n🖼️ IMAGE TYPE: Background image for e-commerce banner.`);
+    lines.push(`- This image will have HTML text overlaid on top of it.`);
+    lines.push(`- The image should work as a PHOTOGRAPHIC BACKGROUND.`);
+    
+    lines.push(`\n🚫 NO TEXT IN IMAGE:`);
+    lines.push(`- Do NOT include any text, letters, numbers, logos, watermarks, price tags, or typography of any kind.`);
+    lines.push(`- Product labels are OK if they're a natural part of the product, but should NOT be the focal point.`);
+  }
 
-  // Lightweight composition guidance (not rigid zones)
+  // Lightweight composition guidance
   if (isDesktop) {
     lines.push(`\n📏 COMPOSITION TIPS (desktop):`);
     lines.push(`- Widescreen format — use the horizontal space creatively.`);
-    lines.push(`- Consider leaving some area with lower visual density for text legibility (the system will overlay text).`);
+    if (!isComplete) {
+      lines.push(`- Consider leaving some area with lower visual density for text legibility (the system will overlay text).`);
+    }
     lines.push(`- Product should be well-framed and visible.`);
   } else {
     lines.push(`\n📏 COMPOSITION TIPS (mobile):`);
     lines.push(`- Portrait format — vertical composition.`);
     lines.push(`- Product should be well-centered and proportioned for a narrow screen.`);
     lines.push(`- Avoid cutting important elements at the edges.`);
-    lines.push(`- Consider leaving some breathing room at top and bottom for text overlay.`);
+    if (!isComplete) {
+      lines.push(`- Consider leaving some breathing room at top and bottom for text overlay.`);
+    }
   }
 
   // Quality
@@ -357,10 +377,11 @@ export function buildFinalPrompt(request: VisualGenerationRequest, slot: VisualS
   const isDesktop = slot.composition.includes('desktop') || slot.composition === 'horizontal' || slot.composition === 'content_landscape';
   const deviceLabel = slot.composition === 'content_square' ? 'SQUARE' : (isDesktop ? 'DESKTOP' : 'MOBILE');
 
-  // For Banner simplified: lightweight no-text preamble
+  // For Banner simplified: conditional no-text preamble based on outputMode
+  const isComplete = request.outputMode === 'complete';
   const noTextPreamble = isBannerSimplified
-    ? `⛔ IMPORTANT: This image must contain ZERO text, letters, numbers, logos, or typography. Photography only.\n\n`
-    : (request.outputMode !== 'complete' && !slot.composition.startsWith('content_'))
+    ? (isComplete ? '' : `⛔ IMPORTANT: This image must contain ZERO text, letters, numbers, logos, or typography. Photography only.\n\n`)
+    : (!isComplete && !slot.composition.startsWith('content_'))
       ? `⛔ MANDATORY RULE — ZERO TEXT ⛔\nTHIS IMAGE MUST CONTAIN ZERO TEXT. NO letters, words, numbers, logos, labels, watermarks, slogans, prices, badges, or ANY form of typography/writing.\nGenerate ONLY photography/scenery.\n\n`
       : '';
 

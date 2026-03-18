@@ -3718,12 +3718,29 @@ Blocos que exigem decisões do usuário antes da geração:
 |------|------|-------------|-----------|
 | Registry | aiWizardRegistry | `src/lib/builder/aiWizardRegistry.ts` | Mapa declarativo blockType → WizardBlockContract com steps, aiGenerates, aiNeverTouches e hasTextGeneration |
 
-#### Arquitetura v4.3.0 — Banner Simplificado (Separação Definitiva)
+#### Arquitetura v4.4.0 — Banner Simplificado (Separação Definitiva + Modo Criativo)
 
 **Motor principal — geração de imagem (banner único e slide):**
 1. Passo 1: Selecionar produto ou "Nenhum produto"
-2. Passo 2: Escolher proporção do banner + prompt simples do usuário (briefing)
-3. Passo 3: Confirmar e gerar
+2. Passo 2: Escolher tipo de criativo (Editável ou 100% Criativo)
+3. Passo 3: Escolher proporção do banner + prompt simples do usuário (briefing)
+4. Passo 4: Confirmar e gerar
+
+**Modos de criativo (output-mode-select):**
+
+| Modo | Descrição | Regras de texto na imagem |
+|------|-----------|--------------------------|
+| **Editável** | Imagem de fundo limpa para overlay de HTML | ⛔ Proibido qualquer texto/tipografia na imagem |
+| **100% Criativo** | Peça publicitária completa | ✅ Texto permitido (não obrigatório) — a IA decide |
+
+**Regras por modo:**
+- **Editável:** Mantém todas as restrições anti-texto (preâmbulo "ZERO TEXT", regras estruturais). Ideal para banners com título, subtítulo e botão editáveis.
+- **100% Criativo:** Remove todas as restrições anti-texto. A IA pode incluir headlines, slogans, copy promocional diretamente na imagem se fizer sentido para o criativo. Texto não é obrigatório, apenas permitido.
+
+**Em ambos os modos:**
+- A copy do bloco (título, subtítulo, botão) **NÃO** é preenchida automaticamente
+- Esses campos continuam sendo responsabilidade exclusiva da função "Gerar textos com IA"
+- O motor principal **somente** gera imagens (imageDesktop + imageMobile)
 
 O motor principal **somente** gera:
 - Imagem desktop (proporção conforme layoutPreset selecionado)
@@ -3759,11 +3776,13 @@ O motor principal **NÃO** gera, aplica ou sobrescreve:
 **O que foi removido (v4.0.0+):**
 - Seleção de estilo visual (product_natural/person_interacting/promotional) no Banner
 - Seleção de escopo (imagens/textos/ambos) no Banner
-- Seleção de modo de saída (editável/completo) no Banner
 - Seleção de destino (BannerAssociationStep) no Banner
 - Injeção automática de preço/logo/marca no prompt
 - Regras rígidas de safe-zone/composição forçada
 - Geração de texto junto com imagem no fluxo principal
+
+**Restaurado em v4.4.0:**
+- `output-mode-select` — Restaurado com novo propósito: escolha entre "Editável" (imagem limpa) e "100% Criativo" (peça completa com copy integrada permitida)
 
 ### [REMOVIDO] Padrão Global de 4 Camadas (Fase 3.3)
 

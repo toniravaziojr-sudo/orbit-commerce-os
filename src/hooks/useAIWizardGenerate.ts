@@ -123,13 +123,17 @@ export function useAIWizardGenerate({
         }
       }
 
-      // Resolve mode and scope
+      // Resolve mode, scope and outputMode
       let mode: string | undefined;
       let scope: string = 'all';
+      let outputMode: string = 'editable';
 
       if (blockType === 'Banner') {
-        mode = 'single'; // Always single in new architecture (per-slide or single banner)
-        scope = 'images'; // Banner wizard only generates images now
+        mode = 'single';
+        scope = 'images';
+        // Extract outputMode from the wizard step
+        const outputModeData = collectedData.outputMode as BannerModeData | undefined;
+        outputMode = outputModeData?.outputMode || 'editable';
       } else {
         const modeData = collectedData.bannerMode as BannerModeData | undefined;
         mode = modeData?.bannerMode;
@@ -141,6 +145,7 @@ export function useAIWizardGenerate({
         blockType,
         mode,
         scope,
+        outputMode,
         briefing: backendData.briefing,
       }, null, 2));
 
@@ -150,6 +155,7 @@ export function useAIWizardGenerate({
           blockType,
           mode,
           scope,
+          outputMode,
           collectedData: backendData,
         },
       });

@@ -170,6 +170,12 @@ const BANNER_SIMPLIFIED_CONTRACT: WizardBlockContract = {
       required: true,
     },
     {
+      id: 'outputMode',
+      type: 'output-mode-select',
+      label: 'Tipo de criativo',
+      required: true,
+    },
+    {
       id: 'briefing',
       type: 'briefing',
       label: 'Descreva o banner que deseja',

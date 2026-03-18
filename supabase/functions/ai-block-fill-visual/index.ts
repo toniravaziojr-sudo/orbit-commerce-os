@@ -553,7 +553,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { tenantId, blockType, mode, scope: requestedScope, collectedData } = body;
+    const { tenantId, blockType, mode, scope: requestedScope, collectedData, outputMode: requestedOutputMode } = body;
 
     if (!tenantId || !blockType) {
       return new Response(
@@ -599,11 +599,12 @@ serve(async (req) => {
     const storeCtx = await fetchStoreContext(supabase, tenantId);
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY") || null;
 
-    // Extract outputMode and creativeStyle from collectedData
+    // Extract outputMode and creativeStyle from collectedData or top-level
     // Banner stores in bannerMode; other blocks store in creativeStyle directly
     const bannerModeData = collectedData?.bannerMode;
     const creativeStyleData = collectedData?.creativeStyle as { creativeStyle?: string; styleConfig?: Record<string, unknown> } | undefined;
-    const outputMode: OutputMode = bannerModeData?.outputMode || 'editable';
+    // For Banner: prefer top-level outputMode sent from wizard, then fallback to bannerModeData
+    const outputMode: OutputMode = requestedOutputMode || bannerModeData?.outputMode || 'editable';
     const creativeStyle: ImageStyle = bannerModeData?.creativeStyle || creativeStyleData?.creativeStyle || 'product_natural';
     const styleConfig: Record<string, unknown> = bannerModeData?.styleConfig || creativeStyleData?.styleConfig || {};
 
@@ -705,8 +706,8 @@ serve(async (req) => {
       // v4.0.0: Always generate images, no scope filtering for Banner
       const adapterInput: AdapterInput = {
         mode: 'single',
-        outputMode: 'editable',
-        creativeStyle: 'product_natural', // Not used in simplified flow
+        outputMode: outputMode, // 'editable' or 'complete' — controls anti-text rules
+        creativeStyle: 'product_natural',
         styleConfig: { _layoutPreset: collectedData?._layoutPreset || collectedData?.currentProps?.layoutPreset || 'standard' },
         briefing: briefing || 'Professional e-commerce banner',
         contexts: slideContexts,
@@ -716,9 +717,10 @@ serve(async (req) => {
 
       // Mark request as simplified so creative-brief-builder uses lightweight prompts
       const requests = adapter.adapt(adapterInput);
-      // Tag each request with _isBannerSimplified
+      // Tag each request with _isBannerSimplified and outputMode
       for (const r of requests) {
         (r as any)._isBannerSimplified = true;
+        r.outputMode = outputMode as OutputMode;
       }
 
       console.log(`[ai-block-fill-visual] Banner:simplified generating ${requests.length} request(s)`);
