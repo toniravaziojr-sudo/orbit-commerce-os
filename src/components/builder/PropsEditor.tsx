@@ -261,7 +261,7 @@ export function PropsEditor({
               </Button>
             )}
             {/* Regenerate button — only after first AI generation */}
-            {lastWizardConfig && wizardContract && tenantId && (
+            {lastWizardConfig && wizardContract && tenantId && definition.type !== 'Banner' && (
               <Button
                 variant="outline"
                 size="sm"
