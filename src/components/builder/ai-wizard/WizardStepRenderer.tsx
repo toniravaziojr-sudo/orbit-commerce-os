@@ -32,6 +32,7 @@ export function WizardStepRenderer({
   step,
   data,
   onChange,
+  onExtraDataChange,
   contract,
   collectedData,
   allSteps,
