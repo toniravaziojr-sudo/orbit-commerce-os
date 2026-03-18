@@ -80,6 +80,11 @@ function buildBannerSimplifiedBrief(input: CreativeBriefInput): string {
     sections.push(`🏢 CONTEXT: "${store.storeName}" — this is a brand/institutional banner. No specific product.`);
   }
 
+  // Complete creative mode guidance
+  if (isComplete) {
+    sections.push(`🎨 CREATIVE MODE: This is a COMPLETE advertising piece. You are FREE to include text, headlines, slogans, promotional copy, or any typography if it serves the creative concept. Text is ALLOWED but NOT mandatory — use it only if it enhances the piece.`);
+  }
+
   // 3. Carousel variation
   if (slideIndex !== undefined) {
     sections.push(`🎠 VARIATION: This is slide ${slideIndex + 1} of a carousel. Vary the angle, scene, and mood while keeping the same campaign feel.`);
