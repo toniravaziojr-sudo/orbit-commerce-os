@@ -639,8 +639,56 @@ serve(async (req) => {
 
     // =============================================
     // BANNER v4.0.0 — Simplified: images only, user briefing is king
+    // Also handles texts-only scope for editable content
     // =============================================
     if (blockType === 'Banner') {
+      // ---- TEXTS-ONLY: Generate title/subtitle/buttonText separately ----
+      if (scope === 'texts-only') {
+        console.log(`[ai-block-fill-visual] Banner:texts-only generating copy`);
+        
+        // Resolve product if provided
+        const assoc = collectedData?.association;
+        if (assoc?.associationType === 'product' && assoc?.productId) {
+          productCtx = await fetchProductContext(supabase, assoc.productId);
+        } else if (assoc?.associationType === 'category' && assoc?.categoryId) {
+          categoryCtx = await fetchCategoryContext(supabase, assoc.categoryId);
+        }
+
+        const textResult = await generateTexts(
+          { aiGenerates: ['title', 'subtitle', 'buttonText'], imageSpecs: [] },
+          {
+            blockType: 'Banner',
+            mode: 'single',
+            briefing: briefing || undefined,
+            product: productCtx,
+            category: categoryCtx,
+            associationType: assoc?.associationType,
+            store: storeCtx,
+          },
+          { supabaseUrl: supabaseUrl!, supabaseServiceKey: supabaseServiceKey! },
+        );
+
+        const generatedProps: Record<string, unknown> = {};
+        if (textResult.title) generatedProps.title = textResult.title;
+        if (textResult.subtitle) generatedProps.subtitle = textResult.subtitle;
+        if (textResult.buttonText) generatedProps.buttonText = textResult.buttonText;
+
+        const elapsed = Date.now() - startTime;
+        console.log(`[ai-block-fill-visual] Banner:texts-only done in ${elapsed}ms`);
+
+        try {
+          await supabase.rpc('record_ai_usage', { p_tenant_id: tenantId, p_usage_cents: 2 });
+        } catch (e) {
+          console.warn("[ai-block-fill-visual] Failed to record usage:", e);
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, generatedProps }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      // ---- IMAGE GENERATION: Standard simplified flow ----
       const adapter = getAdapter('Banner')!;
 
       // v4.0.0: Always single mode (per-slide or single banner)
