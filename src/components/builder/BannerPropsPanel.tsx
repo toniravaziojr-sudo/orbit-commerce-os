@@ -1,6 +1,6 @@
 // =============================================
 // BANNER PROPS PANEL — Custom accordion-based editor for Banner block
-// Phase 1: Reorganized UI with sections, conditional visibility, per-slide config
+// v4.1.0: Added AI text generation for editable content
 // =============================================
 
 import { useState } from 'react';
@@ -14,10 +14,12 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
-import { ChevronDown } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ChevronDown, Sparkles, Loader2 } from 'lucide-react';
 import { ImageUploaderWithLibrary } from './ImageUploaderWithLibrary';
 import { BannerSlidesEditor, BannerSlide } from './BannerSlidesEditor';
 import { cn } from '@/lib/utils';
+import { useBannerTextGenerate } from '@/hooks/useBannerTextGenerate';
 
 interface BannerPropsPanelProps {
   props: Record<string, unknown>;
