@@ -1004,17 +1004,23 @@ Nenhum evento Meta/Google/TikTok é disparado fora de produção.
 4. O servidor adiciona `client_ip_address` e `client_user_agent` dos headers do request
 5. A Meta usa `event_id` + `fbp` para deduplicar automaticamente (janela 48h)
 
-#### Extração de IP do Cliente (v8.16.0)
+#### Extração de IP do Cliente (v8.17.0)
 
-O `marketing-capi-track` extrai o IP real do visitante com prioridade que preserva IPv6:
+O `marketing-capi-track` extrai o IP real do visitante com cadeia expandida de headers + logging diagnóstico:
 
 | Prioridade | Header | Descrição |
 |------------|--------|-----------|
 | 1 | `cf-connecting-ip` | IP real do Cloudflare (preserva IPv6) |
-| 2 | `x-real-ip` | IP real via proxy reverso |
-| 3 | `x-forwarded-for` (1º entry) | Fallback — primeiro IP da cadeia de proxies |
+| 2 | `true-client-ip` | CDNs como Akamai, Cloudflare Enterprise |
+| 3 | `x-real-ip` | IP real via proxy reverso (Nginx) |
+| 4 | `x-forwarded-for` (1º entry) | Fallback — primeiro IP da cadeia de proxies |
+| 5 | `x-envoy-external-address` | Proxies Envoy (GCP, k8s) |
+
+**Logging diagnóstico (PageView):** Para cada PageView, o servidor loga qual header forneceu o IP, quantos entries existem no `x-forwarded-for` e o user-agent. Isso permite auditar se IPs de proxy/CDN estão vazando.
 
 **Regra:** NUNCA normalizar para IPv4 quando o header fornece IPv6. O IP enviado ao CAPI deve corresponder ao IP que o Pixel vê no navegador.
+
+**Nota sobre CGNAT no Brasil:** Operadoras móveis brasileiras (Claro, Vivo, Tim) usam CGNAT extensivamente, fazendo com que milhares de usuários compartilhem o mesmo IP público. Isso causa o alerta "IP associado a vários usuários" na Meta e **não é um bug do sistema**. O impacto é mitigado pelos sinais adicionais de identidade (`external_id`, `fbp`, `fbc`).
 
 #### Persistência de FBC no Edge HTML (v8.16.0)
 
