@@ -122,11 +122,50 @@ function SliderField({ label, value, onChange, min = 0, max = 100 }: { label: st
 export function BannerPropsPanel({ props, onChange, onBatchChange, tenantId }: BannerPropsPanelProps) {
   const mode = (props.mode as string) || 'single';
 
+  const handleModeChange = (newMode: string) => {
+    if (newMode === 'carousel' && mode === 'single') {
+      // Migrate single-mode image into slides[0] so it doesn't disappear
+      const existingSlides = Array.isArray(props.slides) ? (props.slides as BannerSlide[]) : [];
+      const desktopImg = (props.imageDesktop as string) || '';
+      const mobileImg = (props.imageMobile as string) || '';
+
+      if (existingSlides.length === 0 && (desktopImg || mobileImg)) {
+        const migratedSlide: BannerSlide = {
+          id: crypto.randomUUID(),
+          imageDesktop: desktopImg,
+          imageMobile: mobileImg,
+          linkUrl: (props.linkUrl as string) || '',
+          altText: (props.altText as string) || '',
+          title: (props.title as string) || '',
+          subtitle: (props.subtitle as string) || '',
+          buttonText: (props.buttonText as string) || '',
+          buttonUrl: (props.buttonUrl as string) || '',
+          hasEditableContent: Boolean(props.hasEditableContent),
+          overlayOpacity: Number(props.overlayOpacity) || 0,
+          textColor: (props.textColor as string) || '',
+          alignment: (props.alignment as string) || '',
+          buttonAlignment: (props.buttonAlignment as string) || '',
+          buttonColor: (props.buttonColor as string) || '',
+          buttonTextColor: (props.buttonTextColor as string) || '',
+        };
+
+        if (onBatchChange) {
+          onBatchChange({ mode: newMode, slides: [migratedSlide] });
+        } else {
+          onChange('slides', [migratedSlide]);
+          onChange('mode', newMode);
+        }
+        return;
+      }
+    }
+    onChange('mode', newMode);
+  };
+
   return (
     <div className="space-y-2.5">
       {/* Mode selector — always visible */}
       <FieldWrapper label="Modo">
-        <Select value={mode} onValueChange={v => onChange('mode', v)}>
+        <Select value={mode} onValueChange={handleModeChange}>
           <SelectTrigger className="h-7 text-xs">
             <SelectValue />
           </SelectTrigger>
