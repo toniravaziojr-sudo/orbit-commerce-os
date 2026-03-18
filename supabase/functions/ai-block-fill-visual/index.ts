@@ -599,11 +599,12 @@ serve(async (req) => {
     const storeCtx = await fetchStoreContext(supabase, tenantId);
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY") || null;
 
-    // Extract outputMode and creativeStyle from collectedData
+    // Extract outputMode and creativeStyle from collectedData or top-level
     // Banner stores in bannerMode; other blocks store in creativeStyle directly
     const bannerModeData = collectedData?.bannerMode;
     const creativeStyleData = collectedData?.creativeStyle as { creativeStyle?: string; styleConfig?: Record<string, unknown> } | undefined;
-    const outputMode: OutputMode = bannerModeData?.outputMode || 'editable';
+    // For Banner: prefer top-level outputMode sent from wizard, then fallback to bannerModeData
+    const outputMode: OutputMode = requestedOutputMode || bannerModeData?.outputMode || 'editable';
     const creativeStyle: ImageStyle = bannerModeData?.creativeStyle || creativeStyleData?.creativeStyle || 'product_natural';
     const styleConfig: Record<string, unknown> = bannerModeData?.styleConfig || creativeStyleData?.styleConfig || {};
 
