@@ -19,6 +19,8 @@ interface WizardStepRendererProps {
   step: WizardStepConfig;
   data: unknown;
   onChange: (data: unknown) => void;
+  /** Set data for a different step/key (e.g. _layoutPreset) */
+  onExtraDataChange?: (key: string, value: unknown) => void;
   contract: WizardBlockContract;
   collectedData: Record<string, unknown>;
   allSteps: WizardStepConfig[];
@@ -30,6 +32,7 @@ export function WizardStepRenderer({
   step,
   data,
   onChange,
+  onExtraDataChange,
   contract,
   collectedData,
   allSteps,
@@ -105,6 +108,11 @@ export function WizardStepRenderer({
           onChange={onChange}
           placeholder={step.placeholder}
           required={step.required}
+          showLayoutPreset={blockType === 'Banner'}
+          layoutPreset={(collectedData._layoutPreset as string) || (currentProps.layoutPreset as string) || 'standard'}
+          onLayoutPresetChange={blockType === 'Banner' ? (preset) => {
+            onExtraDataChange?.('_layoutPreset', preset);
+          } : undefined}
         />
       );
 
