@@ -19,6 +19,8 @@ interface WizardStepRendererProps {
   step: WizardStepConfig;
   data: unknown;
   onChange: (data: unknown) => void;
+  /** Set data for a different step/key (e.g. _layoutPreset) */
+  onExtraDataChange?: (key: string, value: unknown) => void;
   contract: WizardBlockContract;
   collectedData: Record<string, unknown>;
   allSteps: WizardStepConfig[];
