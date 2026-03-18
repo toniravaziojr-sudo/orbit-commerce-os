@@ -1,12 +1,13 @@
 // =============================================
-// OUTPUT MODE STEP — User chooses editable vs complete creative (for per-slide wizard)
+// OUTPUT MODE STEP — User chooses editable vs complete creative
+// v4.4.0: Used in Banner simplified wizard for image mode selection
 // Stores data as BannerModeData with bannerMode='single' for backend compatibility
 // =============================================
 
 import { useEffect } from 'react';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Image, Layers } from 'lucide-react';
+import { Image, Sparkles } from 'lucide-react';
 import type { BannerModeData } from './BannerModeStep';
 
 interface OutputModeStepProps {
@@ -33,7 +34,7 @@ export function OutputModeStep({ value, onChange }: OutputModeStepProps) {
 
   return (
     <div className="space-y-2">
-      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Modo de imagem</Label>
+      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Tipo de criativo</Label>
       <RadioGroup
         value={outputMode}
         onValueChange={handleOutputModeChange}
@@ -47,19 +48,19 @@ export function OutputModeStep({ value, onChange }: OutputModeStepProps) {
               Editável
             </Label>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Imagem de fundo + textos por cima (título, subtítulo, botão)
+              Imagem de fundo limpa, sem texto integrado. Ideal para adicionar título, subtítulo e botão por cima.
             </p>
           </div>
         </div>
         <div className="flex items-start space-x-3 p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors">
           <RadioGroupItem value="complete" id="slide-output-complete" className="mt-0.5" />
-          <Layers className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
+          <Sparkles className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
           <div>
             <Label htmlFor="slide-output-complete" className="text-sm font-medium cursor-pointer">
-              Criativo Completo
+              100% Criativo
             </Label>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Peça publicitária pronta — a IA gera a imagem final sem textos sobrepostos
+              A IA cria a peça completa — pode incluir textos, headlines e copy diretamente na imagem.
             </p>
           </div>
         </div>
