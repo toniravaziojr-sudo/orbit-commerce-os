@@ -98,6 +98,7 @@ export function AIFillWizardDialog({
               step={wizard.currentStep}
               data={wizard.getStepData(wizard.currentStep.id)}
               onChange={(data) => wizard.setStepData(wizard.currentStep.id, data)}
+              onExtraDataChange={(key, value) => wizard.setStepData(key, value)}
               contract={contract}
               collectedData={wizard.collectedData}
               allSteps={wizard.steps}
