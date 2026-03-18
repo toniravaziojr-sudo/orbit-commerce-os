@@ -377,10 +377,11 @@ export function buildFinalPrompt(request: VisualGenerationRequest, slot: VisualS
   const isDesktop = slot.composition.includes('desktop') || slot.composition === 'horizontal' || slot.composition === 'content_landscape';
   const deviceLabel = slot.composition === 'content_square' ? 'SQUARE' : (isDesktop ? 'DESKTOP' : 'MOBILE');
 
-  // For Banner simplified: lightweight no-text preamble
+  // For Banner simplified: conditional no-text preamble based on outputMode
+  const isComplete = request.outputMode === 'complete';
   const noTextPreamble = isBannerSimplified
-    ? `⛔ IMPORTANT: This image must contain ZERO text, letters, numbers, logos, or typography. Photography only.\n\n`
-    : (request.outputMode !== 'complete' && !slot.composition.startsWith('content_'))
+    ? (isComplete ? '' : `⛔ IMPORTANT: This image must contain ZERO text, letters, numbers, logos, or typography. Photography only.\n\n`)
+    : (!isComplete && !slot.composition.startsWith('content_'))
       ? `⛔ MANDATORY RULE — ZERO TEXT ⛔\nTHIS IMAGE MUST CONTAIN ZERO TEXT. NO letters, words, numbers, logos, labels, watermarks, slogans, prices, badges, or ANY form of typography/writing.\nGenerate ONLY photography/scenery.\n\n`
       : '';
 
