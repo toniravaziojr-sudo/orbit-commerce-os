@@ -151,7 +151,8 @@ function generateMarketingPixelScripts(config: any, trackingData?: { routeType: 
     (function(){
       function loadMeta(){
         !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
-        fbq('init','${pixelId}');var _pvEid=window._sfEvtId?_sfEvtId():'';fbq('track','PageView',{},{eventID:_pvEid});if(window._sfCapi)_sfCapi('PageView',_pvEid);
+        fbq('init','${pixelId}');var _pvEid=window._sfEvtId?_sfEvtId():'';var _pvFbpBefore=(document.cookie.match(/(?:^|;\s*)_fbp=([^;]+)/)||[])[1];fbq('track','PageView',{},{eventID:_pvEid});if(window._sfCapi)_sfCapi('PageView',_pvEid);
+        if(!_pvFbpBefore){setTimeout(function(){var _fbpNow=(document.cookie.match(/(?:^|;\s*)_fbp=([^;]+)/)||[])[1];if(_fbpNow&&window._sfCapi){window._sfCapi('PageView',_pvEid);}},3500);}
         window._sfMetaReady=true;
         if(window._sfPendingMetaEvents){window._sfPendingMetaEvents.forEach(function(fn){fn();});delete window._sfPendingMetaEvents;}
       }
