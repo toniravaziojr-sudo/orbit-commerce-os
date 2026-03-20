@@ -300,11 +300,23 @@ function sendServerEvent(tenantId: string, payload: {
 
   // Phase 4: Include external_id + identity
   const metaIds = getMetaIdentifiers();
+  
+  // Phase 10: Include stored advanced matching PII (from previous checkout) for all events
+  let storedEmail: string | undefined;
+  let storedPhone: string | undefined;
+  try {
+    storedEmail = localStorage.getItem('_sf_am_em') || undefined;
+    storedPhone = localStorage.getItem('_sf_am_ph') || undefined;
+  } catch {}
+
   const userData = {
     ...(payload.user_data || {}),
     fbp: metaIds.fbp || undefined,
     fbc: metaIds.fbc || undefined,
     external_id: metaIds.external_id || undefined,
+    // Only add stored PII if not already provided in payload
+    ...(storedEmail && !payload.user_data?.email ? { email: storedEmail } : {}),
+    ...(storedPhone && !payload.user_data?.phone ? { phone: storedPhone } : {}),
   };
 
   const body = JSON.stringify({
@@ -403,9 +415,9 @@ export class MarketingTracker {
   // Phase 9: Get hashed user data for advanced matching (from session/cookies)
   private getAdvancedMatchingData(): Record<string, string> | undefined {
     try {
-      // Check if we have stored customer data from a previous checkout session
-      const storedEmail = sessionStorage.getItem('_sf_am_em');
-      const storedPhone = sessionStorage.getItem('_sf_am_ph');
+      // Check localStorage first (persistent), then sessionStorage (legacy fallback)
+      const storedEmail = localStorage.getItem('_sf_am_em') || sessionStorage.getItem('_sf_am_em');
+      const storedPhone = localStorage.getItem('_sf_am_ph') || sessionStorage.getItem('_sf_am_ph');
       if (!storedEmail && !storedPhone) return undefined;
 
       const data: Record<string, string> = {};
@@ -706,10 +718,13 @@ export class MarketingTracker {
     try {
       if (email) {
         const hashed = await hashPII(email);
+        // Store in both localStorage (persistent across sessions) and sessionStorage (legacy compat)
+        localStorage.setItem('_sf_am_em', hashed);
         sessionStorage.setItem('_sf_am_em', hashed);
       }
       if (phone) {
         const hashed = await hashPII(phone);
+        localStorage.setItem('_sf_am_ph', hashed);
         sessionStorage.setItem('_sf_am_ph', hashed);
       }
     } catch {}

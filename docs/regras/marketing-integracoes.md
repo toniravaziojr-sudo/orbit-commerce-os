@@ -103,6 +103,18 @@ A divisão reflete nas permissões:
 > - **Sync CAPI:** Ao renovar, o novo token é automaticamente sincronizado com `marketing_integrations.meta_access_token`.
 > - **Fallback:** Se o token já expirou/foi revogado, a conexão é marcada como inativa e o usuário precisa reconectar.
 
+> #### Cobertura de Parâmetros CAPI (v8.18.0 — Auditoria Março 2026)
+>
+> **Problema:** Cobertura baixa de `fbp`, `fbc`, `external_id` e PII (email/phone) nos eventos CAPI.
+>
+> | Parâmetro | Causa | Fix |
+> |-----------|-------|-----|
+> | `external_id` | SSR `_sfCapi` não lia `_sf_vid` | Adicionado `_sfGetVid()` |
+> | `fbp` | Primeira carga: Pixel não criou `_fbp` antes do CAPI | Re-tentativa CAPI 3.5s depois |
+> | `fbc` | Só existe com `fbclid` na URL | 6-18% é NORMAL |
+> | `email/phone` | `sessionStorage` perdia ao fechar aba | Migrado para `localStorage` + SSR beacon lê |
+> | Facebook Login ID | Sistema não usa Facebook Login | Não aplicável |
+
 ---
 
 ## 2. Atribuição de Vendas
