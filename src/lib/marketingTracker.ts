@@ -706,10 +706,13 @@ export class MarketingTracker {
     try {
       if (email) {
         const hashed = await hashPII(email);
+        // Store in both localStorage (persistent across sessions) and sessionStorage (legacy compat)
+        localStorage.setItem('_sf_am_em', hashed);
         sessionStorage.setItem('_sf_am_em', hashed);
       }
       if (phone) {
         const hashed = await hashPII(phone);
+        localStorage.setItem('_sf_am_ph', hashed);
         sessionStorage.setItem('_sf_am_ph', hashed);
       }
     } catch {}
