@@ -403,9 +403,9 @@ export class MarketingTracker {
   // Phase 9: Get hashed user data for advanced matching (from session/cookies)
   private getAdvancedMatchingData(): Record<string, string> | undefined {
     try {
-      // Check if we have stored customer data from a previous checkout session
-      const storedEmail = sessionStorage.getItem('_sf_am_em');
-      const storedPhone = sessionStorage.getItem('_sf_am_ph');
+      // Check localStorage first (persistent), then sessionStorage (legacy fallback)
+      const storedEmail = localStorage.getItem('_sf_am_em') || sessionStorage.getItem('_sf_am_em');
+      const storedPhone = localStorage.getItem('_sf_am_ph') || sessionStorage.getItem('_sf_am_ph');
       if (!storedEmail && !storedPhone) return undefined;
 
       const data: Record<string, string> = {};
