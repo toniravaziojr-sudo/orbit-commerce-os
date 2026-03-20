@@ -125,11 +125,17 @@ function generateMarketingPixelScripts(config: any, trackingData?: { routeType: 
     window._sfEvtId=function(){return Date.now()+'-'+Math.random().toString(36).substr(2,7);};
     (function(){var p=new URLSearchParams(location.search);var fc=p.get('fbclid');if(fc){var fbcVal='fb.1.'+Date.now()+'.'+fc;try{localStorage.setItem('_fbc',fbcVal);}catch(e){}var d=new Date();d.setDate(d.getDate()+90);document.cookie='_fbc='+encodeURIComponent(fbcVal)+';path=/;expires='+d.toUTCString()+';SameSite=Lax';}})();
     window._sfGetFbc=function(){var m=document.cookie.match(/(?:^|;\s*)_fbc=([^;]+)/);if(m)return decodeURIComponent(m[1]);try{return localStorage.getItem('_fbc')||undefined}catch(e){return undefined}};
+    window._sfGetVid=function(){var m=document.cookie.match(/(?:^|;\s*)_sf_vid=([^;]+)/);return m?decodeURIComponent(m[1]):undefined};
+    window._sfGetAM=function(){var r={};try{var em=localStorage.getItem('_sf_am_em');var ph=localStorage.getItem('_sf_am_ph');if(em)r.email=em;if(ph)r.phone=ph;}catch(e){}return r;};
     window._sfCapi=function(n,eid,cd,ud){
+      var am=window._sfGetAM();
+      var base={fbp:(document.cookie.match(/(?:^|;\s*)_fbp=([^;]+)/)||[])[1]||undefined,fbc:window._sfGetFbc(),external_id:window._sfGetVid()};
+      if(am.email)base.email=am.email;
+      if(am.phone)base.phone=am.phone;
       fetch('${ctxUrl}/functions/v1/marketing-capi-track',{
         method:'POST',headers:{'Content-Type':'application/json','apikey':'${ctxKey}'},
         body:JSON.stringify({tenant_id:'${ctxTenantId}',event_name:n,event_id:eid,event_source_url:location.href,
-          custom_data:cd||{},user_data:Object.assign({fbp:(document.cookie.match(/(?:^|;\s*)_fbp=([^;]+)/)||[])[1]||undefined,fbc:window._sfGetFbc()},ud||{})}),
+          custom_data:cd||{},user_data:Object.assign(base,ud||{})}),
         keepalive:true
       }).catch(function(){});
     };
