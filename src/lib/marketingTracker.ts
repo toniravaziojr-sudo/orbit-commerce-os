@@ -300,11 +300,23 @@ function sendServerEvent(tenantId: string, payload: {
 
   // Phase 4: Include external_id + identity
   const metaIds = getMetaIdentifiers();
+  
+  // Phase 10: Include stored advanced matching PII (from previous checkout) for all events
+  let storedEmail: string | undefined;
+  let storedPhone: string | undefined;
+  try {
+    storedEmail = localStorage.getItem('_sf_am_em') || undefined;
+    storedPhone = localStorage.getItem('_sf_am_ph') || undefined;
+  } catch {}
+
   const userData = {
     ...(payload.user_data || {}),
     fbp: metaIds.fbp || undefined,
     fbc: metaIds.fbc || undefined,
     external_id: metaIds.external_id || undefined,
+    // Only add stored PII if not already provided in payload
+    ...(storedEmail && !payload.user_data?.email ? { email: storedEmail } : {}),
+    ...(storedPhone && !payload.user_data?.phone ? { phone: storedPhone } : {}),
   };
 
   const body = JSON.stringify({
