@@ -239,6 +239,21 @@ export function useNotificationRulesV2() {
       if (error) throw error;
       
       toast.success('Regra criada com sucesso');
+
+      // Auto-submit WhatsApp template to Meta for approval
+      if (input.channels.includes('whatsapp') && input.whatsapp_message && data) {
+        const ruleId = (data as any).id;
+        toast.info('Enviando template para aprovação da Meta (pode levar até 24h)...');
+        try {
+          await supabase.functions.invoke('whatsapp-submit-template', {
+            body: { rule_id: ruleId, tenant_id: tenantId },
+          });
+        } catch (submitErr) {
+          console.error('[useNotificationRulesV2] Template submission error:', submitErr);
+          toast.warning('Regra criada, mas houve erro ao enviar template para Meta');
+        }
+      }
+
       await fetchRules();
       
       return data as unknown as NotificationRuleV2;
