@@ -61,6 +61,8 @@ export interface NotificationRuleV2 {
   attachments: RuleAttachment[];
   priority: number;
   dedupe_scope: 'order' | 'customer' | 'cart' | 'none' | null;
+  meta_template_name: string | null;
+  meta_template_status: string | null;
   created_at: string;
   updated_at: string;
 }
