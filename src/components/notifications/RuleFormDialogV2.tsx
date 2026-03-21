@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Clock, Info } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { RuleTypeSelector } from "./RuleTypeSelector";
 import { TriggerConditionSelector } from "./TriggerConditionSelector";
