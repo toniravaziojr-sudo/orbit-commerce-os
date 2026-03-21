@@ -924,8 +924,8 @@ Deno.serve(async (req) => {
           }
         }
       } else if (notification.channel === 'whatsapp') {
-        // WhatsApp via Meta Cloud API
-        sendResult = await sendWhatsApp(supabase, notification.tenant_id, notification.recipient, whatsappMessage);
+        // WhatsApp via Meta Cloud API (with template support)
+        sendResult = await sendWhatsApp(supabase, notification.tenant_id, notification.recipient, whatsappMessage, notification.rule_id, payload);
       } else {
         sendResult = {
           success: false,
