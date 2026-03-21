@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.3.1"; // Fix: external_id -> external_message_id
+const VERSION = "v1.4.0"; // Template support for WhatsApp notifications
 // ===========================================================
 
 const corsHeaders = {
