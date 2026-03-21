@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.3.1"; // Fix: external_id -> external_message_id
+const VERSION = "v1.4.0"; // Template support for WhatsApp notifications
 // ===========================================================
 
 const corsHeaders = {
@@ -436,12 +436,14 @@ async function getWhatsAppConfig(supabase: any, tenantId: string): Promise<Whats
   return data;
 }
 
-// Send WhatsApp via Meta Cloud API
+// Send WhatsApp via Meta Cloud API (with template support)
 async function sendWhatsApp(
   supabase: any,
   tenantId: string,
   recipient: string,
-  message: string
+  message: string,
+  ruleId?: string | null,
+  payload?: Record<string, unknown> | null
 ): Promise<{ success: boolean; error?: string; response?: Record<string, unknown>; messageId?: string }> {
   console.log(`[RunNotifications] WhatsApp: Sending to ${recipient} for tenant ${tenantId}`);
   
@@ -479,7 +481,142 @@ async function sendWhatsApp(
     };
   }
 
+  // Check if this rule has an approved template
+  if (ruleId) {
+    const { data: ruleData } = await supabase
+      .from('notification_rules')
+      .select('meta_template_name, meta_template_status')
+      .eq('id', ruleId)
+      .single();
+
+    if (ruleData?.meta_template_name && ruleData?.meta_template_status === 'approved') {
+      console.log(`[RunNotifications] Using approved template: ${ruleData.meta_template_name}`);
+      return await sendWhatsAppViaMetaTemplate(
+        supabase, tenantId, cleanPhone, ruleData.meta_template_name, message, payload, config
+      );
+    }
+  }
+
   return await sendWhatsAppViaMeta(supabase, tenantId, cleanPhone, message, config);
+}
+
+// Send WhatsApp via Meta template
+async function sendWhatsAppViaMetaTemplate(
+  supabase: any,
+  tenantId: string,
+  cleanPhone: string,
+  templateName: string,
+  originalMessage: string,
+  payload: Record<string, unknown> | null | undefined,
+  config: WhatsAppConfig
+): Promise<{ success: boolean; error?: string; response?: Record<string, unknown>; messageId?: string }> {
+  console.log(`[RunNotifications] Sending template "${templateName}" to ${cleanPhone}`);
+
+  if (!config.phone_number_id || !config.access_token) {
+    return {
+      success: false,
+      error: 'Configuração Meta incompleta.',
+      response: { channel: 'whatsapp', to: cleanPhone, provider: 'meta' }
+    };
+  }
+
+  try {
+    const { data: versionCred } = await supabase
+      .from("platform_credentials")
+      .select("credential_value")
+      .eq("credential_key", "META_GRAPH_API_VERSION")
+      .eq("is_active", true)
+      .single();
+    const graphApiVersion = versionCred?.credential_value || "v21.0";
+
+    // Extract variables from the original message to fill template parameters
+    const variableValues: string[] = [];
+    const variablePattern = /\{\{(\w+)\}\}/g;
+    const seenVars: string[] = [];
+    let match;
+    
+    // We need to match the original whatsapp_message template (with {{var}} placeholders)
+    // and fill with actual payload values
+    while ((match = variablePattern.exec(originalMessage)) !== null) {
+      const varName = match[1];
+      if (!seenVars.includes(varName)) {
+        seenVars.push(varName);
+        const value = (payload as Record<string, unknown>)?.[varName] as string || '';
+        variableValues.push(value || varName);
+      }
+    }
+
+    // Build template components with parameters
+    const components: any[] = [];
+    if (variableValues.length > 0) {
+      components.push({
+        type: "body",
+        parameters: variableValues.map(v => ({ type: "text", text: v })),
+      });
+    }
+
+    const messagePayload: any = {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: cleanPhone,
+      type: "template",
+      template: {
+        name: templateName,
+        language: { code: "pt_BR" },
+        ...(components.length > 0 ? { components } : {}),
+      },
+    };
+
+    const sendUrl = `https://graph.facebook.com/${graphApiVersion}/${config.phone_number_id}/messages`;
+    const sendResponse = await fetch(sendUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.access_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(messagePayload),
+    });
+
+    const sendResult = await sendResponse.json();
+
+    if (sendResult.error) {
+      console.error(`[RunNotifications] Template send error:`, sendResult.error);
+      await supabase.from('whatsapp_messages').insert({
+        tenant_id: tenantId,
+        recipient_phone: cleanPhone,
+        message_type: 'template',
+        message_content: `[Template: ${templateName}]`,
+        status: 'failed',
+        error_message: sendResult.error.message,
+      });
+      return { success: false, error: sendResult.error.message, response: sendResult };
+    }
+
+    const messageId = sendResult.messages?.[0]?.id;
+    console.log(`[RunNotifications] Template sent - ID: ${messageId}`);
+
+    await supabase.from('whatsapp_messages').insert({
+      tenant_id: tenantId,
+      recipient_phone: cleanPhone,
+      message_type: 'template',
+      message_content: `[Template: ${templateName}]`,
+      status: 'sent',
+      sent_at: new Date().toISOString(),
+      provider_message_id: messageId,
+    });
+
+    await registerInAttendanceTimeline(supabase, tenantId, cleanPhone, `[Template: ${templateName}] ${originalMessage}`, messageId, 'notification');
+
+    return {
+      success: true,
+      messageId,
+      response: { channel: 'whatsapp', provider: 'meta', template: templateName, to: cleanPhone, ...sendResult },
+    };
+
+  } catch (error: any) {
+    console.error(`[RunNotifications] Template send exception:`, error);
+    return { success: false, error: error.message, response: { channel: 'whatsapp', provider: 'meta', to: cleanPhone } };
+  }
 }
 
 // Send WhatsApp via Meta Cloud API
@@ -787,8 +924,8 @@ Deno.serve(async (req) => {
           }
         }
       } else if (notification.channel === 'whatsapp') {
-        // WhatsApp via Meta Cloud API
-        sendResult = await sendWhatsApp(supabase, notification.tenant_id, notification.recipient, whatsappMessage);
+        // WhatsApp via Meta Cloud API (with template support)
+        sendResult = await sendWhatsApp(supabase, notification.tenant_id, notification.recipient, whatsappMessage, notification.rule_id, payload);
       } else {
         sendResult = {
           success: false,

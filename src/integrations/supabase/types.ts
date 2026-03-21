@@ -11063,6 +11063,8 @@ export type Database = {
           filters: Json | null
           id: string
           is_enabled: boolean
+          meta_template_name: string | null
+          meta_template_status: string | null
           name: string
           priority: number
           product_ids: string[] | null
@@ -11089,6 +11091,8 @@ export type Database = {
           filters?: Json | null
           id?: string
           is_enabled?: boolean
+          meta_template_name?: string | null
+          meta_template_status?: string | null
           name: string
           priority?: number
           product_ids?: string[] | null
@@ -11115,6 +11119,8 @@ export type Database = {
           filters?: Json | null
           id?: string
           is_enabled?: boolean
+          meta_template_name?: string | null
+          meta_template_status?: string | null
           name?: string
           priority?: number
           product_ids?: string[] | null
@@ -18145,6 +18151,84 @@ export type Database = {
           },
           {
             foreignKeyName: "whatsapp_messages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_template_submissions: {
+        Row: {
+          approved_at: string | null
+          created_at: string
+          id: string
+          last_checked_at: string | null
+          meta_reject_reason: string | null
+          meta_status: string
+          meta_template_id: string | null
+          rejected_at: string | null
+          rule_id: string
+          submitted_at: string | null
+          template_body: string
+          template_category: string
+          template_footer: string | null
+          template_header: string | null
+          template_language: string
+          template_name: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          created_at?: string
+          id?: string
+          last_checked_at?: string | null
+          meta_reject_reason?: string | null
+          meta_status?: string
+          meta_template_id?: string | null
+          rejected_at?: string | null
+          rule_id: string
+          submitted_at?: string | null
+          template_body: string
+          template_category?: string
+          template_footer?: string | null
+          template_header?: string | null
+          template_language?: string
+          template_name: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          created_at?: string
+          id?: string
+          last_checked_at?: string | null
+          meta_reject_reason?: string | null
+          meta_status?: string
+          meta_template_id?: string | null
+          rejected_at?: string | null
+          rule_id?: string
+          submitted_at?: string | null
+          template_body?: string
+          template_category?: string
+          template_footer?: string | null
+          template_header?: string | null
+          template_language?: string
+          template_name?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_template_submissions_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "notification_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_template_submissions_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"

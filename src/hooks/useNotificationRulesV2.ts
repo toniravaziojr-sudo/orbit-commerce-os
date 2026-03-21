@@ -61,6 +61,8 @@ export interface NotificationRuleV2 {
   attachments: RuleAttachment[];
   priority: number;
   dedupe_scope: 'order' | 'customer' | 'cart' | 'none' | null;
+  meta_template_name: string | null;
+  meta_template_status: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -173,6 +175,8 @@ export function useNotificationRulesV2() {
         attachments: (row.attachments as unknown as RuleAttachment[]) || [],
         priority: row.priority,
         dedupe_scope: row.dedupe_scope as NotificationRuleV2['dedupe_scope'],
+        meta_template_name: (row as any).meta_template_name as string | null,
+        meta_template_status: (row as any).meta_template_status as string | null,
         created_at: row.created_at,
         updated_at: row.updated_at,
       }));
@@ -235,6 +239,21 @@ export function useNotificationRulesV2() {
       if (error) throw error;
       
       toast.success('Regra criada com sucesso');
+
+      // Auto-submit WhatsApp template to Meta for approval
+      if (input.channels.includes('whatsapp') && input.whatsapp_message && data) {
+        const ruleId = (data as any).id;
+        toast.info('Enviando template para aprovação da Meta (pode levar até 24h)...');
+        try {
+          await supabase.functions.invoke('whatsapp-submit-template', {
+            body: { rule_id: ruleId, tenant_id: tenantId },
+          });
+        } catch (submitErr) {
+          console.error('[useNotificationRulesV2] Template submission error:', submitErr);
+          toast.warning('Regra criada, mas houve erro ao enviar template para Meta');
+        }
+      }
+
       await fetchRules();
       
       return data as unknown as NotificationRuleV2;
