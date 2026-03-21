@@ -254,6 +254,24 @@ export function RuleFormDialogV2({
               onUnitChange={setDelayUnit}
             />
 
+            {/* WhatsApp Template Info */}
+            {channels.includes('whatsapp') && (
+              <Alert className="border-blue-200 bg-blue-50/50">
+                <Info className="h-4 w-4 text-blue-600" />
+                <AlertDescription className="text-sm text-blue-800">
+                  {isEditing && rule?.meta_template_status === 'approved' ? (
+                    <>✅ Template aprovado pela Meta. As notificações estão sendo enviadas normalmente.</>
+                  ) : isEditing && rule?.meta_template_status === 'pending' ? (
+                    <>⏳ Template aguardando aprovação da Meta (pode levar até 24h). As notificações só serão enviadas após aprovação.</>
+                  ) : isEditing && rule?.meta_template_status === 'rejected' ? (
+                    <>❌ Template rejeitado pela Meta. Ajuste a mensagem e salve novamente para reenviar.</>
+                  ) : (
+                    <>Ao salvar, a mensagem será enviada automaticamente para a Meta aprovar como template. Isso pode levar até 24 horas. Os disparos começarão automaticamente após a aprovação.</>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Escopo de Produtos */}
             <ProductScopeSelector
               scope={productScope}
