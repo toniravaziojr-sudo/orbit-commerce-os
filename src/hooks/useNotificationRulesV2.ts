@@ -175,6 +175,8 @@ export function useNotificationRulesV2() {
         attachments: (row.attachments as unknown as RuleAttachment[]) || [],
         priority: row.priority,
         dedupe_scope: row.dedupe_scope as NotificationRuleV2['dedupe_scope'],
+        meta_template_name: (row as any).meta_template_name as string | null,
+        meta_template_status: (row as any).meta_template_status as string | null,
         created_at: row.created_at,
         updated_at: row.updated_at,
       }));
