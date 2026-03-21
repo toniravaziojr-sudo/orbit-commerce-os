@@ -52,10 +52,54 @@ evento (events_inbox) → process-events (cron 1min) → notifications (fila) �
 |-----|----------|---------------|-----------|
 | `process-events-every-minute` | `* * * * *` | `process-events` | Processa eventos pendentes e gera notificações |
 | `run-notifications-every-minute` | `* * * * *` | `run-notifications` | Envia notificações agendadas via canal configurado |
+| `check-whatsapp-templates-hourly` | `0 * * * *` | `whatsapp-check-templates` | Verifica status de aprovação de templates WhatsApp na Meta |
 
 #### Pré-requisitos para Envio
 - **WhatsApp**: tenant precisa ter `whatsapp_configs` com `connection_status=connected` e `is_enabled=true`
+- **WhatsApp Template**: regras com canal WhatsApp submetem template automaticamente à Meta; disparo só ocorre após `meta_template_status=approved`
 - **Email**: tenant precisa ter `email_provider_configs` verificado OU sistema precisa ter `system_email_config` verificado + `SENDGRID_API_KEY`
+
+### Aprovação Automática de Templates WhatsApp (v1.0.0)
+
+#### Fluxo Completo
+```
+criar/editar regra com WhatsApp → whatsapp-submit-template (auto) → Meta API → status: pending
+                                                                                     ↓
+                                                    whatsapp-check-templates (cron 1h) → approved/rejected
+                                                                                     ↓
+                                                    run-notifications usa template_name → mensagem entregue
+```
+
+#### Tabelas
+| Tabela | Descrição |
+|--------|-----------|
+| `whatsapp_template_submissions` | Registro de cada template enviado à Meta (status, template_name, etc.) |
+| `notification_rules.meta_template_name` | Nome do template gerado (ex: `pagamento_aprovado_abc123`) |
+| `notification_rules.meta_template_status` | Status: `none`, `pending`, `approved`, `rejected`, `error`, `not_found` |
+
+#### Edge Functions
+| Função | Trigger | Descrição |
+|--------|---------|-----------|
+| `whatsapp-submit-template` | Chamada pelo hook ao criar/editar regra | Converte mensagem em template Meta e submete via API |
+| `whatsapp-check-templates` | Cron a cada 1 hora | Consulta status de templates pendentes na Meta e atualiza BD |
+
+#### Comportamento na UI
+| Estado | Badge | Cor | Comportamento |
+|--------|-------|-----|---------------|
+| `none` | — | — | Regra sem template (canal email only) |
+| `pending` | "Aguardando Meta (até 24h)" | Amarelo | Disparos bloqueados |
+| `approved` | "Template aprovado" | Verde | Disparos ativos via template |
+| `rejected` | "Template rejeitado" | Vermelho | Disparos bloqueados, usuário deve editar |
+| `error` | "Erro no envio" | Laranja | Erro ao submeter, retry ao salvar |
+| `not_found` | "Template não encontrado" | Laranja | Template sumiu da Meta |
+
+#### Conversão de Variáveis
+As variáveis amigáveis (`{{customer_first_name}}`) são convertidas para o formato Meta (`{{1}}`) automaticamente:
+- `{{customer_first_name}}` → `{{1}}`
+- `{{order_number}}` → `{{2}}`
+- etc.
+
+O `run-notifications` reconstrói os valores reais do payload ao enviar.
 
 ### Tipos de Notificação (Regras V2)
 | rule_type | trigger_condition | Descrição |
