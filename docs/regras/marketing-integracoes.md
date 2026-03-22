@@ -114,6 +114,14 @@ A divisão reflete nas permissões:
 > | `fbc` | Só existe com `fbclid` na URL | 6-18% é NORMAL |
 > | `email/phone` | `sessionStorage` perdia ao fechar aba | Migrado para `localStorage` + SSR beacon lê |
 > | Facebook Login ID | Sistema não usa Facebook Login | Não aplicável |
+>
+> #### Correções v8.19.0 — Março 2026
+>
+> | Problema | Causa | Fix |
+> |----------|-------|-----|
+> | `fbc` expirado enviado ao CAPI | `localStorage` persistia `fbc` sem validade; ao cookie expirar (90d), valor velho era re-criado | Adicionada validação `isFbcExpired()` em `visitorIdentity.ts` — descarta valores >90 dias |
+> | Purchase sem par CAPI | `fetch()` cancelado pelo redirect pós-checkout para /obrigado | `sendServerEvent` usa `navigator.sendBeacon()` para Purchase, Lead e InitiateCheckout — sobrevive a navegação |
+> | sendBeacon sem headers | `sendBeacon` não permite headers customizados | `apikey` enviado via query string; edge function já opera com `verify_jwt=false` |
 
 ---
 
