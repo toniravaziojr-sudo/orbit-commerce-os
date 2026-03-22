@@ -65,7 +65,7 @@ export function getFbp(): string | null {
 export function getFbc(): string | null {
   if (typeof window === 'undefined') return null;
 
-  // 1. Check URL for fbclid
+  // 1. Check URL for fbclid (fresh click = always use)
   const urlParams = new URLSearchParams(window.location.search);
   const fbclid = urlParams.get('fbclid');
 
@@ -79,12 +79,17 @@ export function getFbc(): string | null {
 
   // 2. Check cookie first (more reliable than localStorage)
   const cookieFbc = getCookie('_fbc');
-  if (cookieFbc) return cookieFbc;
+  if (cookieFbc && !isFbcExpired(cookieFbc)) return cookieFbc;
 
-  // 3. Fallback to localStorage
+  // 3. Fallback to localStorage (with expiration check)
   try {
     const lsFbc = localStorage.getItem('_fbc');
     if (lsFbc) {
+      if (isFbcExpired(lsFbc)) {
+        // Expired — clean up stale value
+        localStorage.removeItem('_fbc');
+        return null;
+      }
       // Migrate to cookie for next time
       setCookie('_fbc', lsFbc, 90);
       return lsFbc;
@@ -92,6 +97,24 @@ export function getFbc(): string | null {
   } catch {}
 
   return null;
+}
+
+/**
+ * Check if an fbc value is expired (older than 90 days).
+ * fbc format: fb.{version}.{timestamp_ms}.{fbclid}
+ */
+function isFbcExpired(fbc: string): boolean {
+  try {
+    const parts = fbc.split('.');
+    if (parts.length < 3) return true;
+    const timestamp = parseInt(parts[2], 10);
+    if (isNaN(timestamp)) return true;
+    const ageMs = Date.now() - timestamp;
+    const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
+    return ageMs > ninetyDaysMs;
+  } catch {
+    return true;
+  }
 }
 
 // =============================================

@@ -286,6 +286,7 @@ export interface MarketingConfig {
 }
 
 // Phase 7: Fire-and-forget server-side CAPI event with 1 retry
+// Phase 11: Critical events (Purchase) use sendBeacon to survive page redirects
 function sendServerEvent(tenantId: string, payload: {
   event_name: string;
   event_id: string;
@@ -327,6 +328,21 @@ function sendServerEvent(tenantId: string, payload: {
     user_data: userData,
     custom_data: payload.custom_data,
   });
+
+  // Phase 11: Use sendBeacon for critical conversion events (Purchase, Lead)
+  // These events fire right before page redirects and fetch() gets cancelled
+  const BEACON_EVENTS = ['Purchase', 'Lead', 'InitiateCheckout'];
+  if (BEACON_EVENTS.includes(payload.event_name) && typeof navigator !== 'undefined' && navigator.sendBeacon) {
+    const beaconUrl = `${url}?apikey=${encodeURIComponent(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '')}`;
+    const blob = new Blob([body], { type: 'application/json' });
+    const sent = navigator.sendBeacon(beaconUrl, blob);
+    if (sent) {
+      console.log(`[MarketingTracker] CAPI ${payload.event_name} sent via beacon (event_id: ${payload.event_id})`);
+      return;
+    }
+    // Beacon failed (payload too large?), fall through to fetch
+    console.warn(`[MarketingTracker] Beacon failed for ${payload.event_name}, falling back to fetch`);
+  }
 
   const headers = {
     'Content-Type': 'application/json',
