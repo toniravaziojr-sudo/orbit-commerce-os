@@ -212,7 +212,7 @@ async function runAbandonSweep(supabaseUrl: string, supabaseServiceKey: string):
                 started_at: session.started_at,
                 abandoned_at: now,
               },
-              status: 'pending',
+              status: 'new',
             }),
           });
           stats.events_emitted++;

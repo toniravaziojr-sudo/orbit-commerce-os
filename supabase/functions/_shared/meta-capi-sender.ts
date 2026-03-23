@@ -346,8 +346,15 @@ export function resolveMetaContentId(item: {
   id?: string;
   sku?: string;
   meta_retailer_id?: string | null;
-}): string {
-  return item.meta_retailer_id || item.sku || item.product_id || item.id || '';
+}, logContext?: string): string {
+  if (item.meta_retailer_id) return item.meta_retailer_id;
+  if (item.sku) return item.sku;
+  // Fallback to UUID — log this so we have visibility
+  const fallbackId = item.product_id || item.id || '';
+  if (fallbackId) {
+    console.warn(`[meta-capi] content_id UUID fallback used for product ${fallbackId}${logContext ? ` (${logContext})` : ''} — consider adding SKU or meta_retailer_id`);
+  }
+  return fallbackId;
 }
 
 /**
@@ -418,9 +425,9 @@ export async function sendCapiPurchase(
   const { first, last } = splitName(params.customer.name);
   const currency = params.currency || 'BRL';
 
-  const contentIds = params.items.map(i => resolveMetaContentId(i));
+  const contentIds = params.items.map(i => resolveMetaContentId(i, 'Purchase'));
   const contents = params.items.map(i => ({
-    id: resolveMetaContentId(i),
+    id: resolveMetaContentId(i, 'Purchase'),
     quantity: i.quantity,
     item_price: i.price,
   }));

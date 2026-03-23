@@ -286,7 +286,10 @@ export interface MarketingConfig {
 }
 
 // Phase 7: Fire-and-forget server-side CAPI event with 1 retry
-// Phase 11: Critical events (Purchase) use sendBeacon to survive page redirects
+// v8.20.0: Hybrid transport strategy
+//   - Lead, InitiateCheckout: fetch + keepalive (no redirect risk)
+//   - Purchase: fetch + keepalive primary, sendBeacon text/plain fallback
+//   - All other events: fetch + keepalive
 function sendServerEvent(tenantId: string, payload: {
   event_name: string;
   event_id: string;
@@ -329,21 +332,6 @@ function sendServerEvent(tenantId: string, payload: {
     custom_data: payload.custom_data,
   });
 
-  // Phase 11: Use sendBeacon for critical conversion events (Purchase, Lead)
-  // These events fire right before page redirects and fetch() gets cancelled
-  const BEACON_EVENTS = ['Purchase', 'Lead', 'InitiateCheckout'];
-  if (BEACON_EVENTS.includes(payload.event_name) && typeof navigator !== 'undefined' && navigator.sendBeacon) {
-    const beaconUrl = `${url}?apikey=${encodeURIComponent(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '')}`;
-    const blob = new Blob([body], { type: 'application/json' });
-    const sent = navigator.sendBeacon(beaconUrl, blob);
-    if (sent) {
-      console.log(`[MarketingTracker] CAPI ${payload.event_name} sent via beacon (event_id: ${payload.event_id})`);
-      return;
-    }
-    // Beacon failed (payload too large?), fall through to fetch
-    console.warn(`[MarketingTracker] Beacon failed for ${payload.event_name}, falling back to fetch`);
-  }
-
   const headers = {
     'Content-Type': 'application/json',
     'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
@@ -353,13 +341,12 @@ function sendServerEvent(tenantId: string, payload: {
     fetch(url, { method: 'POST', headers, body, keepalive: true })
       .then(response => {
         if (!response.ok && attempt === 1) {
-          // Phase 7: 1 retry after 3s
           console.warn(`[MarketingTracker] CAPI ${payload.event_name} failed (attempt ${attempt}), retrying in 3s...`);
           setTimeout(() => doFetch(2), 3000);
         } else if (!response.ok) {
           console.warn(`[MarketingTracker] CAPI ${payload.event_name} failed after retry (event_id: ${payload.event_id})`);
         } else {
-          console.log(`[MarketingTracker] CAPI ${payload.event_name} sent (attempt ${attempt}, event_id: ${payload.event_id})`);
+          console.log(`[MarketingTracker] CAPI ${payload.event_name} sent via fetch (attempt ${attempt}, event_id: ${payload.event_id})`);
         }
       })
       .catch(err => {
@@ -367,7 +354,16 @@ function sendServerEvent(tenantId: string, payload: {
           console.warn(`[MarketingTracker] CAPI network error for ${payload.event_name}, retrying...`);
           setTimeout(() => doFetch(2), 3000);
         } else {
-          console.warn(`[MarketingTracker] CAPI ${payload.event_name} failed after retry:`, err);
+          // v8.20.0: For Purchase, use sendBeacon as last-resort fallback (page might be unloading)
+          if (payload.event_name === 'Purchase' && typeof navigator !== 'undefined' && navigator.sendBeacon) {
+            const beaconUrl = `${url}?apikey=${encodeURIComponent(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '')}`;
+            // Use text/plain to avoid CORS preflight (beacon can't handle preflight)
+            const blob = new Blob([body], { type: 'text/plain' });
+            const sent = navigator.sendBeacon(beaconUrl, blob);
+            console.warn(`[MarketingTracker] CAPI Purchase fetch failed, beacon fallback: ${sent ? 'queued' : 'FAILED'} (event_id: ${payload.event_id})`);
+          } else {
+            console.warn(`[MarketingTracker] CAPI ${payload.event_name} failed after retry:`, err);
+          }
         }
       });
   };
