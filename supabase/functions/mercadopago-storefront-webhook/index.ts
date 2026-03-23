@@ -295,7 +295,7 @@ serve(async (req) => {
             payment_method: existingTransaction.method || 'unknown',
             payment_gateway: 'mercadopago',
           },
-          status: 'pending',
+          status: 'new',
         })
         .then(({ error }) => {
           if (error && !error.message?.includes('duplicate')) {

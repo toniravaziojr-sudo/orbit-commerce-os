@@ -166,7 +166,7 @@ serve(async (req) => {
               order_id,
               was_recovered: wasAbandoned,
             },
-            status: 'pending',
+            status: 'new',
           });
         console.log(`[checkout-session-complete] Event checkout.completed emitted`);
       } catch (eventError) {

@@ -77,7 +77,15 @@ serve(async (req) => {
   }
 
   try {
-    const payload: TrackRequest = await req.json();
+    // v8.20.0: Accept text/plain payloads (from sendBeacon fallback)
+    const contentType = req.headers.get('content-type') || '';
+    let payload: TrackRequest;
+    if (contentType.includes('text/plain')) {
+      const text = await req.text();
+      payload = JSON.parse(text);
+    } else {
+      payload = await req.json();
+    }
 
     // Validate required fields
     if (!payload.tenant_id || !payload.event_name || !payload.event_id) {

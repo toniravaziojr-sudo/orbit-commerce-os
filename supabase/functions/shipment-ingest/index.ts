@@ -385,7 +385,7 @@ Deno.serve(async (req) => {
           new_status: deliveryStatus,
           shipping_status: newShippingStatus,
         },
-        status: 'pending',
+        status: 'new',
       });
 
     if (canonicalEventError && !canonicalEventError.message?.includes('duplicate')) {

@@ -1111,7 +1111,7 @@ async function processShipment(
           new_status: lastEventStatus,
           last_event: result.events[result.events.length - 1] || null,
         },
-        status: 'pending',
+        status: 'new',
       });
 
     if (eventError) {
