@@ -425,9 +425,9 @@ export async function sendCapiPurchase(
   const { first, last } = splitName(params.customer.name);
   const currency = params.currency || 'BRL';
 
-  const contentIds = params.items.map(i => resolveMetaContentId(i));
+  const contentIds = params.items.map(i => resolveMetaContentId(i, 'Purchase'));
   const contents = params.items.map(i => ({
-    id: resolveMetaContentId(i),
+    id: resolveMetaContentId(i, 'Purchase'),
     quantity: i.quantity,
     item_price: i.price,
   }));
