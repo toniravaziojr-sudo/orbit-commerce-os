@@ -271,6 +271,14 @@ serve(async (req) => {
       });
     }
 
+    // v8.20.1: Capture client IP from headers for server-side CAPI
+    const clientIp = req.headers.get('cf-connecting-ip')
+      || req.headers.get('true-client-ip')
+      || req.headers.get('x-real-ip')
+      || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+      || null;
+    const clientUserAgent = req.headers.get('user-agent') || null;
+
     // Create new session
     const { data: newSession, error: insertError } = await supabase
       .from('checkout_sessions')
@@ -290,6 +298,12 @@ serve(async (req) => {
         status: 'active',
         started_at: new Date().toISOString(),
         last_seen_at: new Date().toISOString(),
+        // v8.20.1: Tracking identity
+        visitor_id: visitor_id || null,
+        fbp: fbp || null,
+        fbc: fbc || null,
+        client_ip: clientIp,
+        client_user_agent: clientUserAgent,
       })
       .select()
       .single();
