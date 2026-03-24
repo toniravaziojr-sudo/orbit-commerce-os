@@ -69,6 +69,10 @@ export interface CheckoutSessionParams {
   customerName?: string;
   region?: string;
   step?: string;
+  // v8.20.1: Tracking identity for server-side CAPI
+  visitorId?: string;
+  fbp?: string;
+  fbc?: string;
 }
 
 export interface CaptureContactParams {
@@ -128,6 +132,17 @@ export async function startCheckoutSession(params: CheckoutSessionParams): Promi
     return { success: false, sessionId };
   }
 
+  // v8.20.1: Capture tracking identity for server-side CAPI
+  let visitorId: string | undefined;
+  let fbp: string | undefined;
+  let fbc: string | undefined;
+  try {
+    const { getVisitorId, getFbp, getFbc } = await import('@/lib/visitorIdentity');
+    visitorId = getVisitorId() || undefined;
+    fbp = getFbp() || undefined;
+    fbc = getFbc() || undefined;
+  } catch {}
+
   try {
     const response = await fetch(`${supabaseUrl}/functions/v1/checkout-session-start`, {
       method: 'POST',
@@ -142,6 +157,10 @@ export async function startCheckoutSession(params: CheckoutSessionParams): Promi
         total_estimated: params.totalEstimated,
         items_snapshot: params.cartItems,
         store_host: window.location.host,
+        // v8.20.1: Include tracking identity
+        visitor_id: visitorId,
+        fbp,
+        fbc,
       }),
     });
 

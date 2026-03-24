@@ -111,6 +111,10 @@ serve(async (req) => {
       items_snapshot,
       utm,
       metadata,
+      // v8.20.1: Tracking identity for server-side CAPI
+      visitor_id,
+      fbp,
+      fbc,
     } = body as Record<string, any>;
 
     // Log all incoming data for debugging
@@ -238,6 +242,10 @@ serve(async (req) => {
       if (region) updateData.region = region;
       if (total_estimated !== undefined) updateData.total_estimated = total_estimated;
       if (items_snapshot) updateData.items_snapshot = items_snapshot;
+      // v8.20.1: Update tracking identity (always overwrite with latest)
+      if (visitor_id) updateData.visitor_id = visitor_id;
+      if (fbp) updateData.fbp = fbp;
+      if (fbc) updateData.fbc = fbc;
 
       const { error: updateError } = await supabase
         .from('checkout_sessions')
@@ -263,6 +271,14 @@ serve(async (req) => {
       });
     }
 
+    // v8.20.1: Capture client IP from headers for server-side CAPI
+    const clientIp = req.headers.get('cf-connecting-ip')
+      || req.headers.get('true-client-ip')
+      || req.headers.get('x-real-ip')
+      || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+      || null;
+    const clientUserAgent = req.headers.get('user-agent') || null;
+
     // Create new session
     const { data: newSession, error: insertError } = await supabase
       .from('checkout_sessions')
@@ -282,6 +298,12 @@ serve(async (req) => {
         status: 'active',
         started_at: new Date().toISOString(),
         last_seen_at: new Date().toISOString(),
+        // v8.20.1: Tracking identity
+        visitor_id: visitor_id || null,
+        fbp: fbp || null,
+        fbc: fbc || null,
+        client_ip: clientIp,
+        client_user_agent: clientUserAgent,
       })
       .select()
       .single();

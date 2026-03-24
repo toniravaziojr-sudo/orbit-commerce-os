@@ -96,6 +96,28 @@ async function handlePurchaseCapiForPaidOnly(
       quantity: i.quantity || 1,
     }));
 
+    // v8.20.1: Try to get browser identity from checkout_sessions
+    // This allows server-side Purchase CAPI to include fbp, fbc, external_id, IP, UA
+    let sessionIdentity: { visitor_id?: string; fbp?: string; fbc?: string; client_ip?: string; client_user_agent?: string } = {};
+    try {
+      const { data: sessions } = await supabase
+        .from('checkout_sessions')
+        .select('visitor_id, fbp, fbc, client_ip, client_user_agent')
+        .eq('order_id', orderId)
+        .eq('tenant_id', event.tenant_id)
+        .limit(1);
+      
+      if (sessions && sessions.length > 0) {
+        sessionIdentity = sessions[0];
+        console.log('[process-events:capi] Found checkout session identity for order:', orderId, 
+          'visitor_id:', !!sessionIdentity.visitor_id, 'fbp:', !!sessionIdentity.fbp, 'ip:', !!sessionIdentity.client_ip);
+      } else {
+        console.log('[process-events:capi] No checkout session found for order:', orderId, '— Purchase CAPI will lack browser identity');
+      }
+    } catch (sessionErr) {
+      console.warn('[process-events:capi] Error fetching session identity:', sessionErr);
+    }
+
     const result = await sendCapiPurchase(supabase, event.tenant_id, {
       order_id: orderId,
       order_number: cleanOrderNumber,
@@ -109,8 +131,14 @@ async function handlePurchaseCapiForPaidOnly(
         city: order.shipping_city || undefined,
         state: order.shipping_state || undefined,
         zip: order.shipping_postal_code || undefined,
+        external_id: sessionIdentity.visitor_id || undefined,
       },
       event_id: deterministicEventId,
+      // v8.20.1: Include browser identity from checkout session
+      fbp: sessionIdentity.fbp || undefined,
+      fbc: sessionIdentity.fbc || undefined,
+      client_ip_address: sessionIdentity.client_ip || undefined,
+      client_user_agent: sessionIdentity.client_user_agent || undefined,
     });
 
     if (result.success) {
