@@ -13,7 +13,7 @@ import { MarketingTracker } from '@/lib/marketingTracker';
 import { useAttribution } from '@/hooks/useAttribution';
 import { useAffiliateTracking } from '@/hooks/useAffiliateTracking';
 import { isAppDomain } from '@/lib/canonicalDomainService';
-import { hasTrackingConsent } from '@/lib/visitorIdentity';
+import { hasTrackingConsent, getOrCreateVisitorId } from '@/lib/visitorIdentity';
 
 interface MarketingTrackerContextValue {
   tracker: MarketingTracker | null;

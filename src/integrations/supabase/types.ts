@@ -2563,6 +2563,8 @@ export type Database = {
           abandoned_at: string | null
           attribution_data: Json | null
           cart_id: string | null
+          client_ip: string | null
+          client_user_agent: string | null
           contact_captured_at: string | null
           converted_at: string | null
           created_at: string
@@ -2571,6 +2573,8 @@ export type Database = {
           customer_id: string | null
           customer_name: string | null
           customer_phone: string | null
+          fbc: string | null
+          fbp: string | null
           id: string
           items_snapshot: Json | null
           last_seen_at: string
@@ -2586,11 +2590,14 @@ export type Database = {
           total_estimated: number | null
           updated_at: string
           utm: Json | null
+          visitor_id: string | null
         }
         Insert: {
           abandoned_at?: string | null
           attribution_data?: Json | null
           cart_id?: string | null
+          client_ip?: string | null
+          client_user_agent?: string | null
           contact_captured_at?: string | null
           converted_at?: string | null
           created_at?: string
@@ -2599,6 +2606,8 @@ export type Database = {
           customer_id?: string | null
           customer_name?: string | null
           customer_phone?: string | null
+          fbc?: string | null
+          fbp?: string | null
           id?: string
           items_snapshot?: Json | null
           last_seen_at?: string
@@ -2614,11 +2623,14 @@ export type Database = {
           total_estimated?: number | null
           updated_at?: string
           utm?: Json | null
+          visitor_id?: string | null
         }
         Update: {
           abandoned_at?: string | null
           attribution_data?: Json | null
           cart_id?: string | null
+          client_ip?: string | null
+          client_user_agent?: string | null
           contact_captured_at?: string | null
           converted_at?: string | null
           created_at?: string
@@ -2627,6 +2639,8 @@ export type Database = {
           customer_id?: string | null
           customer_name?: string | null
           customer_phone?: string | null
+          fbc?: string | null
+          fbp?: string | null
           id?: string
           items_snapshot?: Json | null
           last_seen_at?: string
@@ -2642,6 +2656,7 @@ export type Database = {
           total_estimated?: number | null
           updated_at?: string
           utm?: Json | null
+          visitor_id?: string | null
         }
         Relationships: [
           {
