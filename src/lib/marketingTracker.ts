@@ -290,6 +290,33 @@ export interface MarketingConfig {
 //   - Lead, InitiateCheckout: fetch + keepalive (no redirect risk)
 //   - Purchase: fetch + keepalive primary, sendBeacon text/plain fallback
 //   - All other events: fetch + keepalive
+// v8.20.1: Wait for _fbp cookie (created by Meta Pixel script) with timeout
+// Returns fbp value or null if not available within timeout
+function waitForFbp(timeoutMs: number = 1500): Promise<string | null> {
+  return new Promise((resolve) => {
+    // Check immediately
+    const identity = getTrackingIdentity();
+    if (identity.fbp) {
+      resolve(identity.fbp);
+      return;
+    }
+    // Poll every 200ms up to timeout
+    let elapsed = 0;
+    const interval = setInterval(() => {
+      elapsed += 200;
+      const id = getTrackingIdentity();
+      if (id.fbp) {
+        clearInterval(interval);
+        resolve(id.fbp);
+      } else if (elapsed >= timeoutMs) {
+        clearInterval(interval);
+        console.warn('[MarketingTracker] _fbp cookie not available after', timeoutMs, 'ms — sending CAPI without it');
+        resolve(null);
+      }
+    }, 200);
+  });
+}
+
 function sendServerEvent(tenantId: string, payload: {
   event_name: string;
   event_id: string;
@@ -302,73 +329,81 @@ function sendServerEvent(tenantId: string, payload: {
 
   const url = `https://${projectId}.supabase.co/functions/v1/marketing-capi-track`;
 
-  // Phase 4: Include external_id + identity
-  const metaIds = getMetaIdentifiers();
-  
-  // Phase 10: Include stored advanced matching PII (from previous checkout) for all events
-  let storedEmail: string | undefined;
-  let storedPhone: string | undefined;
-  try {
-    storedEmail = localStorage.getItem('_sf_am_em') || undefined;
-    storedPhone = localStorage.getItem('_sf_am_ph') || undefined;
-  } catch {}
+  // v8.20.1: For early events (ViewContent, AddToCart), wait for _fbp before sending
+  const needsFbpWait = ['ViewContent', 'AddToCart', 'PageView'].includes(payload.event_name);
 
-  const userData = {
-    ...(payload.user_data || {}),
-    fbp: metaIds.fbp || undefined,
-    fbc: metaIds.fbc || undefined,
-    external_id: metaIds.external_id || undefined,
-    // Only add stored PII if not already provided in payload
-    ...(storedEmail && !payload.user_data?.email ? { email: storedEmail } : {}),
-    ...(storedPhone && !payload.user_data?.phone ? { phone: storedPhone } : {}),
-  };
+  const doSend = (resolvedFbp: string | null) => {
+    // Phase 4: Include external_id + identity
+    const metaIds = getMetaIdentifiers();
+    
+    // Phase 10: Include stored advanced matching PII
+    let storedEmail: string | undefined;
+    let storedPhone: string | undefined;
+    try {
+      storedEmail = localStorage.getItem('_sf_am_em') || undefined;
+      storedPhone = localStorage.getItem('_sf_am_ph') || undefined;
+    } catch {}
 
-  const body = JSON.stringify({
-    tenant_id: tenantId,
-    event_name: payload.event_name,
-    event_id: payload.event_id,
-    event_source_url: payload.event_source_url || window.location.href,
-    user_data: userData,
-    custom_data: payload.custom_data,
-  });
+    const userData = {
+      ...(payload.user_data || {}),
+      fbp: resolvedFbp || metaIds.fbp || undefined,
+      fbc: metaIds.fbc || undefined,
+      external_id: metaIds.external_id || undefined,
+      ...(storedEmail && !payload.user_data?.email ? { email: storedEmail } : {}),
+      ...(storedPhone && !payload.user_data?.phone ? { phone: storedPhone } : {}),
+    };
 
-  const headers = {
-    'Content-Type': 'application/json',
-    'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
-  };
+    const body = JSON.stringify({
+      tenant_id: tenantId,
+      event_name: payload.event_name,
+      event_id: payload.event_id,
+      event_source_url: payload.event_source_url || window.location.href,
+      user_data: userData,
+      custom_data: payload.custom_data,
+    });
 
-  const doFetch = (attempt: number) => {
-    fetch(url, { method: 'POST', headers, body, keepalive: true })
-      .then(response => {
-        if (!response.ok && attempt === 1) {
-          console.warn(`[MarketingTracker] CAPI ${payload.event_name} failed (attempt ${attempt}), retrying in 3s...`);
-          setTimeout(() => doFetch(2), 3000);
-        } else if (!response.ok) {
-          console.warn(`[MarketingTracker] CAPI ${payload.event_name} failed after retry (event_id: ${payload.event_id})`);
-        } else {
-          console.log(`[MarketingTracker] CAPI ${payload.event_name} sent via fetch (attempt ${attempt}, event_id: ${payload.event_id})`);
-        }
-      })
-      .catch(err => {
-        if (attempt === 1) {
-          console.warn(`[MarketingTracker] CAPI network error for ${payload.event_name}, retrying...`);
-          setTimeout(() => doFetch(2), 3000);
-        } else {
-          // v8.20.0: For Purchase, use sendBeacon as last-resort fallback (page might be unloading)
-          if (payload.event_name === 'Purchase' && typeof navigator !== 'undefined' && navigator.sendBeacon) {
-            const beaconUrl = `${url}?apikey=${encodeURIComponent(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '')}`;
-            // Use text/plain to avoid CORS preflight (beacon can't handle preflight)
-            const blob = new Blob([body], { type: 'text/plain' });
-            const sent = navigator.sendBeacon(beaconUrl, blob);
-            console.warn(`[MarketingTracker] CAPI Purchase fetch failed, beacon fallback: ${sent ? 'queued' : 'FAILED'} (event_id: ${payload.event_id})`);
+    const headers = {
+      'Content-Type': 'application/json',
+      'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
+    };
+
+    const doFetch = (attempt: number) => {
+      fetch(url, { method: 'POST', headers, body, keepalive: true })
+        .then(response => {
+          if (!response.ok && attempt === 1) {
+            console.warn(`[MarketingTracker] CAPI ${payload.event_name} failed (attempt ${attempt}), retrying in 3s...`);
+            setTimeout(() => doFetch(2), 3000);
+          } else if (!response.ok) {
+            console.warn(`[MarketingTracker] CAPI ${payload.event_name} failed after retry (event_id: ${payload.event_id})`);
           } else {
-            console.warn(`[MarketingTracker] CAPI ${payload.event_name} failed after retry:`, err);
+            console.log(`[MarketingTracker] CAPI ${payload.event_name} sent via fetch (attempt ${attempt}, event_id: ${payload.event_id})`);
           }
-        }
-      });
+        })
+        .catch(err => {
+          if (attempt === 1) {
+            console.warn(`[MarketingTracker] CAPI network error for ${payload.event_name}, retrying...`);
+            setTimeout(() => doFetch(2), 3000);
+          } else {
+            if (payload.event_name === 'Purchase' && typeof navigator !== 'undefined' && navigator.sendBeacon) {
+              const beaconUrl = `${url}?apikey=${encodeURIComponent(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '')}`;
+              const blob = new Blob([body], { type: 'text/plain' });
+              const sent = navigator.sendBeacon(beaconUrl, blob);
+              console.warn(`[MarketingTracker] CAPI Purchase fetch failed, beacon fallback: ${sent ? 'queued' : 'FAILED'} (event_id: ${payload.event_id})`);
+            } else {
+              console.warn(`[MarketingTracker] CAPI ${payload.event_name} failed after retry:`, err);
+            }
+          }
+        });
+    };
+
+    doFetch(1);
   };
 
-  doFetch(1);
+  if (needsFbpWait) {
+    waitForFbp(1500).then(doSend);
+  } else {
+    doSend(null);
+  }
 }
 
 export class MarketingTracker {

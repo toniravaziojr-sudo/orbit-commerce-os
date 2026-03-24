@@ -64,6 +64,12 @@ export function MarketingTrackerProvider({ tenantId, children }: Props) {
   const lastPathRef = useRef<string>('');
   const [initializedTracker, setInitializedTracker] = useState<MarketingTracker | null>(null);
   
+  // v8.20.1: Create _sf_vid SYNCHRONOUSLY before any deferred tracking
+  // This ensures external_id is available for ALL CAPI calls including early ViewContent/AddToCart
+  if (typeof window !== 'undefined' && !isNonProductionDomain()) {
+    getOrCreateVisitorId();
+  }
+
   // Capture attribution data on storefront entry
   useAttribution();
   
