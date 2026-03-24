@@ -111,6 +111,10 @@ serve(async (req) => {
       items_snapshot,
       utm,
       metadata,
+      // v8.20.1: Tracking identity for server-side CAPI
+      visitor_id,
+      fbp,
+      fbc,
     } = body as Record<string, any>;
 
     // Log all incoming data for debugging
@@ -238,6 +242,10 @@ serve(async (req) => {
       if (region) updateData.region = region;
       if (total_estimated !== undefined) updateData.total_estimated = total_estimated;
       if (items_snapshot) updateData.items_snapshot = items_snapshot;
+      // v8.20.1: Update tracking identity (always overwrite with latest)
+      if (visitor_id) updateData.visitor_id = visitor_id;
+      if (fbp) updateData.fbp = fbp;
+      if (fbc) updateData.fbc = fbc;
 
       const { error: updateError } = await supabase
         .from('checkout_sessions')
