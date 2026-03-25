@@ -406,17 +406,33 @@ shouldPublishFacebook  = target_channel inclui "facebook" OU target_platforms co
 
 | Condição | Comportamento | Status do Item |
 |----------|---------------|----------------|
-| `scheduled_at` > 2 min no futuro (Facebook) | Se > 10 min: agendamento nativo Meta. Se 2-10 min: status `scheduled`, delegado ao cron. | `scheduled` (Azul) |
-| `scheduled_at` > 2 min no futuro (Instagram) | Status `scheduled`, delegado ao cron `media-auto-publish-scheduler` | `scheduled` (Azul) |
+| `scheduled_at` > 2 min no futuro (Facebook) | Se > 10 min: agendamento nativo Meta. Se 2-10 min: status `scheduled`, delegado ao worker. | `scheduled` (Azul) |
+| `scheduled_at` > 2 min no futuro (Instagram) | Status `scheduled`, delegado ao worker `media-social-publish-worker` | `scheduled` (Azul) |
 | `scheduled_at` ≤ 2 min no futuro ou passado | Publicação imediata | `published` (Verde) |
 
-**REGRA CRÍTICA:** Itens agendados para o futuro **NUNCA** devem ficar com status `published` (Verde) antes do horário. Devem permanecer `scheduled` (Azul) até a publicação efetiva pelo cron job.
+**REGRA CRÍTICA:** Itens agendados para o futuro **NUNCA** devem ficar com status `published` (Verde) antes do horário. Devem permanecer `scheduled` (Azul) até a publicação efetiva pelo worker.
+
+### Worker de Publicação Automática: `media-social-publish-worker`
+
+Cron job que roda a cada **5 minutos** e publica posts agendados cujo horário já chegou.
+
+| Plataforma | Comportamento |
+|------------|---------------|
+| **Instagram** | Cria container + publica via Graph API (container flow completo) |
+| **Facebook (com meta_post_id)** | Verifica se o Facebook já publicou nativamente, atualiza status |
+| **Facebook (sem meta_post_id)** | Publica imediatamente via Pages API |
+
+Após publicar todos os `social_posts` de um `calendar_item`, atualiza o status do item no calendário para `published`.
+
+**Arquivo:** `supabase/functions/media-social-publish-worker/index.ts`
+**Cron:** `*/5 * * * *` (a cada 5 minutos)
+**Limite por execução:** 20 posts (para evitar timeout)
 
 ### Facebook: Gap de Agendamento Nativo
 
 O Facebook exige mínimo de **10 minutos** para agendamento nativo via API. Para itens entre 2-10 minutos no futuro:
 - Status é marcado como `scheduled`
-- Publicação é delegada ao cron job `media-auto-publish-scheduler`
+- Publicação é delegada ao worker `media-social-publish-worker`
 - Isso evita rejeição pela API da Meta
 
 ### Fluxo Instagram (Container Flow)
