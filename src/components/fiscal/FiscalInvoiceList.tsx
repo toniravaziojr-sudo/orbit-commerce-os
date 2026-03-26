@@ -95,6 +95,7 @@ export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
     marketplaceSource: marketplaceSource !== 'all' ? marketplaceSource : undefined,
   });
   const checkStatus = useCheckInvoiceStatus();
+  useFiscalRealtime();
 
   const isLoading = settingsLoading || statsLoading || invoicesLoading;
   const isConfigured = settings?.is_configured;
