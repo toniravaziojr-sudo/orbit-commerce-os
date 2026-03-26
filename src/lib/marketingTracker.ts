@@ -329,8 +329,9 @@ function sendServerEvent(tenantId: string, payload: {
 
   const url = `https://${projectId}.supabase.co/functions/v1/marketing-capi-track`;
 
-  // v8.20.1: For early events (ViewContent, AddToCart), wait for _fbp before sending
-  const needsFbpWait = ['ViewContent', 'AddToCart', 'PageView'].includes(payload.event_name);
+  // v8.21.1: Wait for _fbp on ALL Meta events (not just early ones)
+  // This ensures identity coverage across the entire funnel
+  const needsFbpWait = true;
 
   const doSend = (resolvedFbp: string | null) => {
     // Phase 4: Include external_id + identity
