@@ -11,7 +11,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useFiscalStats, useFiscalInvoices, useFiscalSettings, useCheckInvoiceStatus, type FiscalInvoice } from '@/hooks/useFiscal';
+import { useFiscalStats, useFiscalInvoices, useFiscalSettings, useCheckInvoiceStatus, useFiscalRealtime, type FiscalInvoice } from '@/hooks/useFiscal';
 import { FiscalAlertsCard } from '@/components/fiscal/FiscalAlertsCard';
 import { ManualInvoiceDialog } from '@/components/fiscal/ManualInvoiceDialog';
 import { InvoiceEditor, type InvoiceData } from '@/components/fiscal/InvoiceEditor';
@@ -95,6 +95,7 @@ export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
     marketplaceSource: marketplaceSource !== 'all' ? marketplaceSource : undefined,
   });
   const checkStatus = useCheckInvoiceStatus();
+  useFiscalRealtime();
 
   const isLoading = settingsLoading || statsLoading || invoicesLoading;
   const isConfigured = settings?.is_configured;
