@@ -2,6 +2,7 @@
 // FISCAL HOOKS - Gerenciamento de NF-e
 // =============================================
 
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -706,4 +707,37 @@ export function useFiscalAlerts() {
     dismissAlert,
     refetch: alertsQuery.refetch,
   };
+}
+
+// Hook: Realtime subscription for fiscal_invoices
+export function useFiscalRealtime() {
+  const { profile } = useAuth();
+  const tenantId = profile?.current_tenant_id;
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!tenantId) return;
+
+    const channel = supabase
+      .channel('fiscal-invoices-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'fiscal_invoices',
+          filter: `tenant_id=eq.${tenantId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['fiscal-invoices'] });
+          queryClient.invalidateQueries({ queryKey: ['fiscal-stats'] });
+          queryClient.invalidateQueries({ queryKey: ['fiscal-alerts'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [tenantId, queryClient]);
 }
