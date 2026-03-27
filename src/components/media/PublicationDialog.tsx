@@ -973,7 +973,7 @@ export function PublicationDialog({
                         Prompt para Criativo IA (opcional)
                       </FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Descreva como o criativo deve ser gerado pela IA..." className="min-h-[60px] resize-none" {...field} />
+                        <Textarea placeholder="Descreva como o criativo deve ser gerado pela IA..." className="min-h-[60px]" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -1123,7 +1123,7 @@ export function PublicationDialog({
                         Prompt para Criativo IA (opcional)
                       </FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Descreva como o criativo deve ser gerado pela IA..." className="min-h-[60px] resize-none" {...field} />
+                        <Textarea placeholder="Descreva como o criativo deve ser gerado pela IA..." className="min-h-[60px]" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
