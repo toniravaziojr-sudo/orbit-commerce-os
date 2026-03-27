@@ -145,17 +145,20 @@ A partir da Fase 1B, após o upload, o sistema registra automaticamente no Drive
 
 | Arquivo | Uso |
 |---------|-----|
-| `src/lib/driveService.ts` | **Hub central** — upload, registro, URL, bucket, ensureFolder, download. Toda lógica de arquivos passa por aqui. |
+| `src/lib/driveService.ts` | **Hub central** — upload, registro, URL, bucket, ensureFolder, folder routing, download. |
+| `src/lib/registerProductImageToDrive.ts` | Helper fire-and-forget para registrar imagens de produtos no Drive |
 | `src/hooks/useSystemUpload.ts` | Hook React para uploads em componentes (wrapper sobre driveService) |
 | `src/hooks/useFiles.ts` | CRUD de arquivos/pastas do Drive (consome driveService para bucket/URL/download) |
 | `src/hooks/useDriveFiles.ts` | Navegação, busca e breadcrumbs do Drive (consome driveService para URL) |
+| `supabase/functions/_shared/drive-register.ts` | **Helper server-side** — ensureFolderPathEdge, registerFileToDriveEdge, resolveAndEnsureFolderEdge |
+| `supabase/functions/_shared/visual-engine.ts` | Motor de geração visual — agora registra no Drive via drive-register.ts |
 | `src/lib/uploadAndRegisterToSystemDrive.ts` | **[WRAPPER]** Compatibilidade — delega para driveService.uploadToDrive |
-| `src/lib/registerFileToDrive.ts` | **[WRAPPER]** Compatibilidade — delega para driveService.ensureSystemFolder/registerExternalFile |
+| `src/lib/registerFileToDrive.ts` | **[WRAPPER]** Compatibilidade — delega para driveService |
 | `src/lib/replaceSystemAsset.ts` | **[WRAPPER]** Compatibilidade — delega para driveService.replaceDriveAsset |
-| `src/lib/registerReviewMediaToDrive.ts` | **[WRAPPER]** Compatibilidade — delega para driveService.ensureFolder/registerExternalFile |
+| `src/lib/registerReviewMediaToDrive.ts` | **[WRAPPER]** Compatibilidade — delega para driveService |
 | `src/lib/ensureMediaMonthFolder.ts` | **[WRAPPER]** Compatibilidade — delega para driveService.ensureFolder |
 
-> **REGRA:** Novos módulos devem importar diretamente de `driveService.ts`. Os wrappers serão removidos em fase futura de limpeza.
+> **REGRA:** Novos módulos devem importar diretamente de `driveService.ts` (frontend) ou `drive-register.ts` (edge functions).
 
 ---
 
