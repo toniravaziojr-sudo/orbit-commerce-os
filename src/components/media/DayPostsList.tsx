@@ -207,6 +207,27 @@ export function DayPostsList({
 
         <ScrollArea className="flex-1 overflow-y-auto pr-4">
           <div className="space-y-2">
+            {/* Summary bar */}
+            {items.length > 0 && (() => {
+              const published = items.filter(i => i.status === "published").length;
+              const scheduled = items.filter(i => ["scheduled", "publishing", "retry_pending"].includes(i.status)).length;
+              const failed = items.filter(i => ["failed", "partially_failed"].includes(i.status)).length;
+              const partial = items.filter(i => ["partially_published"].includes(i.status)).length;
+              const hasOperational = published + scheduled + failed + partial > 0;
+              if (!hasOperational) return null;
+              const parts: string[] = [];
+              if (published > 0) parts.push(`${published} publicado(s)`);
+              if (scheduled > 0) parts.push(`${scheduled} agendado(s)`);
+              if (failed > 0) parts.push(`${failed} com erro`);
+              if (partial > 0) parts.push(`${partial} parcial`);
+              return (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 text-xs text-muted-foreground mb-2">
+                  <span className="font-medium">Resumo:</span>
+                  <span>{parts.join(" · ")}</span>
+                </div>
+              );
+            })()}
+
             {items.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <p className="mb-4">Nenhuma publicação neste dia</p>
