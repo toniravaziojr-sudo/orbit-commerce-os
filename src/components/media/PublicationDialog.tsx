@@ -704,7 +704,7 @@ export function PublicationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px] max-h-[85vh] flex flex-col overflow-hidden p-0">
+      <DialogContent className="sm:max-w-[480px] max-h-[80vh] flex flex-col overflow-hidden p-0">
         {/* Step 1: Tipo de publicação - APENAS PARA REDES SOCIAIS */}
         {step === "type" && campaignType === "social" && (
           <div className="p-5">
@@ -944,10 +944,11 @@ export function PublicationDialog({
                     source="media_creative"
                     subPath="criativos"
                     accept="all"
-                    aspectRatio="video"
+                    aspectRatio="square"
                     placeholder="Enviar imagem ou vídeo"
                     showUrlTab={false}
                     disabled={isUploading}
+                    maxSize={5}
                   />
                 </div>
                 )}
