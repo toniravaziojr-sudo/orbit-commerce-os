@@ -8939,6 +8939,7 @@ export type Database = {
           hashtags: string[] | null
           id: string
           metadata: Json | null
+          platform_summary: Json | null
           publish_results: Json | null
           published_at: string | null
           published_blog_at: string | null
@@ -8970,6 +8971,7 @@ export type Database = {
           hashtags?: string[] | null
           id?: string
           metadata?: Json | null
+          platform_summary?: Json | null
           publish_results?: Json | null
           published_at?: string | null
           published_blog_at?: string | null
@@ -9001,6 +9003,7 @@ export type Database = {
           hashtags?: string[] | null
           id?: string
           metadata?: Json | null
+          platform_summary?: Json | null
           publish_results?: Json | null
           published_at?: string | null
           published_blog_at?: string | null
@@ -14595,6 +14598,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           error_message: string | null
+          execution_log: Json | null
           hashtags: string[] | null
           id: string
           instagram_account_id: string | null
@@ -14616,8 +14620,11 @@ export type Database = {
           published_at: string | null
           scheduled_at: string | null
           status: string
+          superseded_at: string | null
+          superseded_by: string | null
           tenant_id: string
           updated_at: string
+          warning_flags: Json | null
         }
         Insert: {
           api_response?: Json | null
@@ -14627,6 +14634,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           error_message?: string | null
+          execution_log?: Json | null
           hashtags?: string[] | null
           id?: string
           instagram_account_id?: string | null
@@ -14648,8 +14656,11 @@ export type Database = {
           published_at?: string | null
           scheduled_at?: string | null
           status?: string
+          superseded_at?: string | null
+          superseded_by?: string | null
           tenant_id: string
           updated_at?: string
+          warning_flags?: Json | null
         }
         Update: {
           api_response?: Json | null
@@ -14659,6 +14670,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           error_message?: string | null
+          execution_log?: Json | null
           hashtags?: string[] | null
           id?: string
           instagram_account_id?: string | null
@@ -14680,8 +14692,11 @@ export type Database = {
           published_at?: string | null
           scheduled_at?: string | null
           status?: string
+          superseded_at?: string | null
+          superseded_by?: string | null
           tenant_id?: string
           updated_at?: string
+          warning_flags?: Json | null
         }
         Relationships: [
           {
@@ -14689,6 +14704,13 @@ export type Database = {
             columns: ["calendar_item_id"]
             isOneToOne: false
             referencedRelation: "media_calendar_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_posts_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "social_posts"
             referencedColumns: ["id"]
           },
           {
@@ -18680,6 +18702,10 @@ export type Database = {
       cleanup_expired_meta_oauth_states: { Args: never; Returns: undefined }
       cleanup_expired_tiktok_oauth_states: { Args: never; Returns: undefined }
       cleanup_expired_youtube_oauth_states: { Args: never; Returns: undefined }
+      compute_calendar_item_aggregate_status: {
+        Args: { p_calendar_item_id: string }
+        Returns: string
+      }
       consume_credits: {
         Args: {
           p_cost_usd: number
@@ -19154,6 +19180,11 @@ export type Database = {
         | "published"
         | "failed"
         | "skipped"
+        | "partially_published"
+        | "partially_failed"
+        | "retry_pending"
+        | "superseded"
+        | "canceled"
       message_delivery_status:
         | "queued"
         | "sent"
@@ -19441,6 +19472,11 @@ export const Constants = {
         "published",
         "failed",
         "skipped",
+        "partially_published",
+        "partially_failed",
+        "retry_pending",
+        "superseded",
+        "canceled",
       ],
       message_delivery_status: [
         "queued",
