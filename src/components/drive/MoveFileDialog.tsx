@@ -25,9 +25,11 @@ interface MoveFileDialogProps {
   onOpenChange: (open: boolean) => void;
   fileName: string;
   currentFolderId: string | null;
-  excludeFolderId?: string | null; // To prevent moving folder into itself
-  isSystemItem?: boolean; // Whether the item being moved is a system item
-  systemFolderId?: string | null; // The ID of the system folder
+  excludeFolderId?: string | null;
+  isSystemItem?: boolean;
+  systemFolderId?: string | null;
+  isFileInUse?: boolean;
+  usageCount?: number;
   folders: Array<{
     id: string;
     original_name: string;
