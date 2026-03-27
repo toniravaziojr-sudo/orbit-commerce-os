@@ -274,6 +274,17 @@ export function ProductImageManager({ productId, images, onImagesChange }: Produ
           .getPublicUrl(fileName);
 
         uploadedImages.push(publicUrl);
+
+        // Register in Drive (fire-and-forget)
+        if (currentTenant?.id && user?.id) {
+          registerProductImageToDrive({
+            tenantId: currentTenant.id,
+            userId: user.id,
+            publicUrl,
+            storagePath: fileName,
+            originalName: file.name,
+          }).catch(() => {});
+        }
       }
 
       // Insert image records
