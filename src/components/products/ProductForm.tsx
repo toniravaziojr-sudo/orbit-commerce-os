@@ -346,6 +346,17 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
             .getPublicUrl(fileName);
 
           imageUrl = publicUrl;
+
+          // Register in Drive (fire-and-forget)
+          if (currentTenant?.id && user?.id) {
+            registerProductImageToDrive({
+              tenantId: currentTenant.id,
+              userId: user.id,
+              publicUrl,
+              storagePath: fileName,
+              originalName: image.file.name,
+            }).catch(() => {});
+          }
         }
 
         // Insert image record
