@@ -836,6 +836,17 @@ export function CampaignCalendar() {
                                   <TooltipContent><p>{statusSummary.failed} com erro(s)</p></TooltipContent>
                                 </Tooltip>
                               )}
+                              {statusSummary.partial > 0 && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="flex items-center gap-0.5">
+                                      <div className="w-2 h-2 rounded-full bg-amber-500" />
+                                      <span className="text-[9px] font-medium text-amber-700 dark:text-amber-400">{statusSummary.partial}</span>
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent><p>{statusSummary.partial} parcial(is)</p></TooltipContent>
+                                </Tooltip>
+                              )}
                               {statusSummary.draft > 0 && (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -892,6 +903,10 @@ export function CampaignCalendar() {
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
           <span className="text-xs text-muted-foreground">Publicado</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+          <span className="text-xs text-muted-foreground">Parcial</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
