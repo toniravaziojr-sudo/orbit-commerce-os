@@ -130,12 +130,49 @@ A partir da Fase 1B, após o upload, o sistema registra automaticamente no Drive
 
 ---
 
-## "Em uso" — Matching
+## "Em uso" — Detecção Expandida
 
-| Regra | Descrição |
-|-------|-----------|
-| Matching estrito | `file_id` > `path` > URL normalizada (sem contains/prefix) |
-| Em duplicidade | `updated_at` mais recente |
+### Fontes de detecção
+
+| Fonte | Campo(s) verificados | Tipo de uso | Badge |
+|-------|---------------------|-------------|-------|
+| `store_settings` | `logo_url`, `favicon_url`, `logo_file_id`, `favicon_file_id` | `logo`, `favicon` | Logo, Favicon |
+| `categories` | `image_url`, `banner_desktop_url`, `banner_mobile_url` | `category_image`, `category_banner` | Categoria |
+| `product_images` | `url`, `file_id` | `product_image` | Produto |
+| `social_posts` | `media_urls[]` (status: scheduled/published/processing) | `social_post` | Publicação |
+| `ai_landing_pages` | `seo_image_url` | `landing_page` | Landing page |
+
+### Matching (prioridade)
+
+| Prioridade | Método | Descrição |
+|-----------|--------|-----------|
+| 1 | `file_id` | Match exato pelo ID do arquivo |
+| 2 | `bucket::storage_path` | Match por bucket + caminho |
+| 3 | URL normalizada | Match por URL sem query params |
+
+### Performance
+- Consultas em lote por tenant (não arquivo a arquivo)
+- Índices pré-construídos com `useMemo` para lookups O(1)
+- `staleTime` diferenciado: 5s (store_settings), 30s (categories/products/posts), 60s (landing pages)
+- Realtime apenas para `store_settings` (mudanças mais frequentes)
+
+### UX
+
+| Comportamento | Descrição |
+|---------------|-----------|
+| Badge "Em uso" | Exibido com ícone de link e tooltip detalhando onde |
+| Tooltip | Lista todos os locais de uso com detalhes |
+| Excluir arquivo em uso | Alerta com lista de impactos + confirmação explícita |
+| Mover arquivo em uso | Aviso informativo (não bloqueante) |
+
+### Componentes
+
+| Componente | Arquivo | Função |
+|-----------|---------|--------|
+| `useFileUsageDetection` | `src/hooks/useFileUsageDetection.ts` | Hook central de detecção |
+| `FileUsageBadge` | `src/components/drive/FileUsageBadge.tsx` | Badge com tooltip |
+| `DeleteFileDialog` | `src/components/drive/DeleteFileDialog.tsx` | Alerta de exclusão com impacto |
+| `MoveFileDialog` | `src/components/drive/MoveFileDialog.tsx` | Aviso de arquivo em uso ao mover |
 
 **Decisão:** `media_library` não é banco do usuário; builder consome imagens do Meu Drive.
 
