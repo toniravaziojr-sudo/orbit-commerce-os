@@ -382,14 +382,11 @@ export async function uploadToDrive(options: UploadToDriveOptions): Promise<Uplo
     customFilename, folderId, bucket: bucketOverride, upsert = false,
   } = options;
 
-  // Resolver pasta destino
-  let targetFolderId = folderId || null;
+  // Resolver pasta destino via folder routing
+  const targetFolderId = await resolveTargetFolder(tenantId, userId, source, folderId);
   if (!targetFolderId) {
-    targetFolderId = await ensureSystemFolder(tenantId, userId);
-    if (!targetFolderId) {
-      console.error('[driveService] Could not get/create system folder');
-      return null;
-    }
+    console.error('[driveService] Could not resolve target folder for source:', source);
+    return null;
   }
 
   // Gerar path único
@@ -466,9 +463,10 @@ export async function replaceDriveAsset(
   const { tenantId, userId, file, assetType, oldUrl } = options;
   const bucket = 'store-assets';
 
-  const systemFolderId = await ensureSystemFolder(tenantId, userId);
-  if (!systemFolderId) {
-    console.error('[driveService] Could not get/create system folder');
+  // Route to Branding folder
+  const brandingFolderId = await resolveTargetFolder(tenantId, userId, `storefront_${assetType}`);
+  if (!brandingFolderId) {
+    console.error('[driveService] Could not resolve branding folder');
     return null;
   }
 
