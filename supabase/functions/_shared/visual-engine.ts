@@ -1,8 +1,8 @@
 // =============================================
 // VISUAL ENGINE — Shared image generation motor
-// v2.0.0: Refactored to use Creative Brief Builder
+// v2.1.0: Now registers generated assets in Meu Drive
 // Provides: resilient generation cascade, QA scoring,
-// image download, upload to storage
+// image download, upload to storage + Drive registration
 //
 // ARCHITECTURE CHANGE (v2.0.0):
 // - Prompt building moved to creative-brief-builder.ts
@@ -445,6 +445,7 @@ export async function uploadToStorage(
   bucket: string = 'store-assets',
   subfolder?: string,
   context?: UploadContext,
+  driveSource?: string,
 ): Promise<string | null> {
   try {
     const base64Data = imageData.includes(',') ? imageData.split(',')[1] : imageData;
@@ -466,8 +467,37 @@ export async function uploadToStorage(
     }
 
     const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(filePath);
+    const publicUrl = publicUrlData?.publicUrl || null;
     console.log(`[visual-engine] Uploaded: ${filePath}`);
-    return publicUrlData?.publicUrl || null;
+
+    // Register in Drive (fire-and-forget)
+    if (publicUrl) {
+      try {
+        const { resolveAndEnsureFolderEdge, registerFileToDriveEdge } = await import('./drive-register.ts');
+        const source = driveSource || 'ai_creative_storefront';
+        const folderId = await resolveAndEnsureFolderEdge(supabase, tenantId, tenantId, source);
+        if (folderId) {
+          await registerFileToDriveEdge(supabase, {
+            tenantId,
+            userId: tenantId, // fallback: tenantId as creator (no user context in edge)
+            folderId,
+            storagePath: filePath,
+            originalName: filename,
+            publicUrl,
+            mimeType: 'image/png',
+            sizeBytes: bytes.length,
+            source,
+            bucket,
+            extraMetadata: context?.productName ? { product_name: context.productName } : undefined,
+          });
+          console.log(`[visual-engine] 📁 Registered in Drive: ${source}`);
+        }
+      } catch (driveErr) {
+        console.warn('[visual-engine] Drive registration failed (non-blocking):', driveErr);
+      }
+    }
+
+    return publicUrl;
   } catch (error) {
     console.error('[visual-engine] Upload error:', error);
     return null;
@@ -548,7 +578,7 @@ export async function generateForRequest(
       device: slotLabel,
       width: slot.width,
       height: slot.height,
-    });
+    }, 'ai_creative_storefront');
     if (!publicUrl) {
       console.error(`[visual-engine] Failed to upload slot: ${slot.key}`);
       return null;
