@@ -1,13 +1,15 @@
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Check, Image as ImageIcon, FileText, Instagram, Facebook, Send, Loader2, ArrowLeft, AlertCircle } from "lucide-react";
+import { Check, Image as ImageIcon, FileText, Instagram, Facebook, Send, Loader2, ArrowLeft, AlertCircle, PenTool } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MediaCalendarItem, MediaCampaign } from "@/hooks/useMediaCampaigns";
 import { useAuth } from "@/hooks/useAuth";
@@ -143,6 +145,16 @@ export function ApprovalTab({
 
   const isEmpty = readyToApprove.length === 0 && approvedItems.length === 0;
 
+  // Count incomplete drafts (have title but missing copy or creative)
+  const incompleteDrafts = useMemo(() => {
+    if (!items) return 0;
+    return items.filter(i =>
+      ["draft", "suggested", "review"].includes(i.status) &&
+      i.title &&
+      ((!i.copy || i.copy.trim() === "") || (!isBlog && i.content_type !== "text" && !i.asset_url))
+    ).length;
+  }, [items, isBlog]);
+
   return (
     <div className="space-y-4">
       {/* Meta connection warning */}
@@ -156,16 +168,29 @@ export function ApprovalTab({
         </Alert>
       )}
 
-      {isEmpty ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground mb-4">Nenhum item pronto para aprovar ou publicar.</p>
-            <Button variant="outline" onClick={onGoToPlanning} className="gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Voltar ao Planejamento
+      {/* Incomplete drafts alert */}
+      {incompleteDrafts > 0 && isEmpty && (
+        <Alert className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
+          <PenTool className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="flex items-center justify-between">
+            <span className="text-amber-800 dark:text-amber-200">
+              {incompleteDrafts} item(ns) ainda precisam de copy ou criativo antes de aprovar.
+            </span>
+            <Button size="sm" variant="outline" onClick={onGoToPlanning} className="ml-4 gap-1">
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Ir ao Planejamento
             </Button>
-          </CardContent>
-        </Card>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {isEmpty ? (
+        <EmptyState
+          icon={CheckCircle2}
+          title="Nenhum item pronto para aprovar"
+          description="Quando os itens estiverem com copy e criativo preenchidos, eles aparecerão aqui para revisão e publicação."
+          action={{ label: "Ir ao Planejamento", onClick: onGoToPlanning }}
+        />
       ) : (
         <>
           {/* Filter tabs */}

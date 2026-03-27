@@ -499,14 +499,41 @@ export function PlanningTab({
                               </div>
                             )}
                           </div>
-                          {/* Status indicators */}
-                          <div className="flex items-center gap-1 px-1 flex-wrap">
-                            {dayItems.some(i => !i.copy || i.copy.trim() === "") && (
-                              <span className="text-[8px] px-1 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">sem copy</span>
-                            )}
-                            {dayItems.some(i => i.copy && !i.asset_url && i.content_type !== "text") && (
-                              <span className="text-[8px] px-1 rounded bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">sem criativo</span>
-                            )}
+                          {/* Attention dots — priority: amber (no copy) > purple (no creative) > green (complete) */}
+                          <div className="flex items-center gap-1 px-1">
+                            {(() => {
+                              const missingCopy = dayItems.some(i => !i.copy || i.copy.trim() === "");
+                              const missingCreative = dayItems.some(i => i.copy && i.copy.trim() !== "" && !i.asset_url && i.content_type !== "text");
+                              const allComplete = !missingCopy && !missingCreative;
+                              return (
+                                <>
+                                  {missingCopy && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                                      </TooltipTrigger>
+                                      <TooltipContent><p>Item(ns) sem copy</p></TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                  {missingCreative && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <div className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
+                                      </TooltipTrigger>
+                                      <TooltipContent><p>Item(ns) sem criativo</p></TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                  {allComplete && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                                      </TooltipTrigger>
+                                      <TooltipContent><p>Tudo preenchido</p></TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
                       )}
@@ -570,6 +597,8 @@ export function PlanningTab({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {ConfirmDialog}
     </div>
   );
 }
