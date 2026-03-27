@@ -273,7 +273,7 @@ export function PlanningTab({
   const currentStep = getCurrentStep();
 
   const workflowSteps: StepConfig[] = [
-    { number: 1, label: "Selecionar Dias", icon: <MousePointer2 className="h-3.5 w-3.5" />, action: () => setIsSelectMode(true), isActive: true, isLoading: false, isCurrent: currentStep === 1 },
+    { number: 1, label: isSelectMode ? "Sair da Seleção" : "Selecionar Dias", icon: <MousePointer2 className="h-3.5 w-3.5" />, action: () => { if (isSelectMode) { setIsSelectMode(false); setSelectedDays(new Set()); } else { setIsSelectMode(true); } }, isActive: true, isLoading: false, isCurrent: currentStep === 1 },
     { number: 2, label: isGenerating ? "Gerando..." : "Estratégia IA", icon: <Sparkles className="h-3.5 w-3.5" />, action: handleOpenStrategyPrompt, isActive: selectedDays.size > 0 || hasSuggestions === true, isLoading: isGenerating, isAI: true, isCurrent: currentStep === 2 },
     { number: 3, label: isGeneratingCopys ? "Gerando..." : "Copys IA", icon: <PenTool className="h-3.5 w-3.5" />, action: handleGenerateCopys, isActive: hasSuggestions === true && stats.needsCopy > 0, isLoading: isGeneratingCopys, isAI: true, count: stats.needsCopy, isCurrent: currentStep === 3 },
     ...(!isBlog ? [{
