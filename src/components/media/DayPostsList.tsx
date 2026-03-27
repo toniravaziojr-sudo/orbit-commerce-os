@@ -296,7 +296,13 @@ export function DayPostsList({
                       </div>
                     </div>
 
-                    {/* Actions - below content, always visible */}
+                    {/* Per-platform status (only for scheduled/published/failed items) */}
+                    {["scheduled", "publishing", "published", "failed", "partially_published", "partially_failed", "retry_pending"].includes(item.status) && (
+                      <div className="mt-2 pt-2 border-t border-border/50" onClick={(e) => e.stopPropagation()}>
+                        <PlatformStatusPanel calendarItemId={item.id} compact />
+                      </div>
+                    )}
+
                     <div className="flex justify-end gap-1 mt-2 pt-2 border-t border-border/50" onClick={(e) => e.stopPropagation()}>
                       {confirmDelete === item.id ? (
                         <div className="flex gap-2">
