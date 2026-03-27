@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { MediaCalendarItem } from "@/hooks/useMediaCampaigns";
 import { getHolidayForDate } from "@/lib/brazilian-holidays";
 import { PublicationPreviewDialog } from "./PublicationPreviewDialog";
+import { PlatformStatusPanel } from "./PlatformStatusPanel";
 
 // Limites por tipo
 const PUBLICATION_LIMITS = {
@@ -36,6 +37,11 @@ const statusColors: Record<string, string> = {
   published: "bg-green-600 text-white",
   failed: "bg-destructive/10 text-destructive",
   skipped: "bg-muted text-muted-foreground line-through",
+  partially_published: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+  partially_failed: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
+  retry_pending: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+  superseded: "bg-muted text-muted-foreground line-through",
+  canceled: "bg-muted text-muted-foreground",
 };
 
 const statusLabels: Record<string, string> = {
@@ -50,6 +56,11 @@ const statusLabels: Record<string, string> = {
   published: "Publicado",
   failed: "Com Erros",
   skipped: "Ignorado",
+  partially_published: "Parcial ✓",
+  partially_failed: "Parcial ✗",
+  retry_pending: "Reenviando",
+  superseded: "Substituído",
+  canceled: "Encerrado",
 };
 
 interface DayPostsListProps {
