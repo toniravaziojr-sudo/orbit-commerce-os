@@ -200,7 +200,7 @@ export async function ensureFolder(opts: {
       is_folder: true,
       is_system_folder: isSystemFolder || false,
       created_by: userId,
-      metadata: metadata || null,
+      metadata: (metadata || null) as Json,
     })
     .select('id')
     .single();
