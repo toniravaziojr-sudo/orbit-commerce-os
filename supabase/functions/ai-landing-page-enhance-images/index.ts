@@ -84,17 +84,8 @@ async function callImageModel(
 
 async function ensureDriveFolder(supabase: any, tenantId: string, userId: string): Promise<string | null> {
   try {
-    const folderName = "Criativos de página";
-    const { data: existing } = await supabase.from("files").select("id").eq("tenant_id", tenantId).eq("is_folder", true).eq("filename", folderName).limit(1).maybeSingle();
-    if (existing?.id) return existing.id;
-    const { data: created, error } = await supabase.from("files").insert({
-      tenant_id: tenantId, filename: folderName, original_name: folderName,
-      storage_path: `drive/${tenantId}/criativos-de-pagina`,
-      is_folder: true, is_system_folder: true, created_by: userId,
-      metadata: { source: "ai_landing_page_enhance", system_managed: true },
-    }).select("id").single();
-    if (error) { console.error("[AI-LP-Enhance] Error creating folder:", error); return null; }
-    return created?.id || null;
+    const { ensureFolderPathEdge } = await import("../_shared/drive-register.ts");
+    return await ensureFolderPathEdge(supabase, tenantId, userId, "Criativos IA/Landing Pages");
   } catch (e) { console.error("[AI-LP-Enhance] Folder ensure error:", e); return null; }
 }
 
