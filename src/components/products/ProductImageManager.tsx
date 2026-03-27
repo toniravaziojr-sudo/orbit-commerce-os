@@ -162,6 +162,7 @@ function SortableImageCard({ image, onSetPrimary, onDelete }: SortableImageCardP
 
 export function ProductImageManager({ productId, images, onImagesChange }: ProductImageManagerProps) {
   const { toast } = useToast();
+  const { currentTenant, user } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
   const [isAddingUrl, setIsAddingUrl] = useState(false);
   const [urlDialogOpen, setUrlDialogOpen] = useState(false);
