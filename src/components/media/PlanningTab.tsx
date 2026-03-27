@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWithinInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Plus, Sparkles, Image, Check, Loader2, MousePointer2, Trash2, LayoutGrid, FileText, PenTool, AlertCircle, ArrowRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Sparkles, Image, Check, Loader2, MousePointer2, Trash2, LayoutGrid, FileText, PenTool, AlertCircle, ArrowRight, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getHolidayForDate } from "@/lib/brazilian-holidays";
 import { useNavigate } from "react-router-dom";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface PlanningTabProps {
   campaignId: string;
@@ -101,6 +103,7 @@ export function PlanningTab({
 }: PlanningTabProps) {
   const { currentTenant } = useAuth();
   const navigate = useNavigate();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const [currentMonth, setCurrentMonth] = useState(() => {
     if (campaign?.start_date) return startOfMonth(parseISO(campaign.start_date));
@@ -335,7 +338,14 @@ export function PlanningTab({
                   <Button variant="destructive" size="sm" className="gap-1" onClick={async () => {
                     const ids: string[] = [];
                     selectedDays.forEach(dk => (itemsByDate.get(dk) || []).forEach(i => ids.push(i.id)));
-                    if (!confirm(`Excluir ${ids.length} publicação(ões)?`)) return;
+                    const confirmed = await confirm({
+                      title: "Excluir publicações selecionadas",
+                      description: `Tem certeza que deseja excluir ${ids.length} publicação(ões)? Esta ação não pode ser desfeita.`,
+                      confirmLabel: `Excluir ${ids.length}`,
+                      cancelLabel: "Cancelar",
+                      variant: "destructive",
+                    });
+                    if (!confirmed) return;
                     try {
                       for (const id of ids) await onDeleteItem(id);
                       toast.success(`${ids.length} excluída(s)`);
