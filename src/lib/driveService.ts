@@ -99,6 +99,127 @@ export interface RegisterExternalFileOptions {
   extraMetadata?: Record<string, unknown>;
 }
 
+// ─── Folder routing map ────────────────────────────────────────────────────
+// Maps source identifiers to automatic folder paths.
+// Nested paths use '/' separator — ensureFolderPath creates the hierarchy.
+
+export const FOLDER_ROUTES: Record<string, string> = {
+  // Branding
+  storefront_logo: 'Uploads do sistema/Branding',
+  storefront_favicon: 'Uploads do sistema/Branding',
+  storefront_icon: 'Uploads do sistema/Branding',
+  // Banners
+  page_banner: 'Uploads do sistema/Banners',
+  page_banner_desktop: 'Uploads do sistema/Banners',
+  page_banner_mobile: 'Uploads do sistema/Banners',
+  header_featured_promo: 'Uploads do sistema/Banners',
+  'additional-highlight': 'Uploads do sistema/Banners',
+  // Testimonials / Reviews
+  testimonial_image: 'Uploads do sistema/Depoimentos',
+  review_media: 'Uploads do sistema/Review de clientes',
+  // Products
+  product_image: 'Produtos',
+  // Categories
+  category_image: 'Categorias',
+  category_banner: 'Categorias',
+  // Builder / Storefront blocks
+  builder_desktop: 'Loja Virtual',
+  builder_mobile: 'Loja Virtual',
+  // Media / Social calendar
+  media_creative: 'Mídias Sociais',
+  // AI Creatives — specific sub-routes
+  ai_creative_traffic: 'Criativos IA/Tráfego IA',
+  ai_creative_calendar: 'Criativos IA/Calendário de Conteúdo',
+  ai_creative_storefront: 'Criativos IA/Loja Virtual',
+  ai_creative_landing: 'Criativos IA/Landing Pages',
+  ai_creative: 'Criativos IA',
+  // Landing Pages
+  landing_page_chat: 'Landing Pages',
+  landing_page_asset: 'Landing Pages',
+  // Assistants / Chat
+  ads_chat_attachment: 'Assistente',
+  command_assistant: 'Assistente',
+  chatgpt: 'Assistente',
+  chatgpt_audio: 'Assistente',
+  // Voice
+  voice_sample: 'Uploads do sistema',
+  // Videos
+  video_desktop: 'Loja Virtual',
+  video_mobile: 'Loja Virtual',
+};
+
+/**
+ * Resolve a pasta-alvo para um source. Retorna null se não houver rota definida
+ * (cai no fallback padrão: "Uploads do sistema").
+ */
+function getFolderRouteForSource(source: string): string | null {
+  // Exact match first
+  if (FOLDER_ROUTES[source]) return FOLDER_ROUTES[source];
+  // Prefix match (e.g. 'page_banner_hero' matches 'page_banner')
+  for (const key of Object.keys(FOLDER_ROUTES)) {
+    if (source.startsWith(key)) return FOLDER_ROUTES[key];
+  }
+  return null;
+}
+
+/**
+ * Garante uma hierarquia de pastas (ex: "Criativos IA/Loja Virtual").
+ * Cria cada nível sequencialmente e retorna o ID da pasta final (folha).
+ */
+export async function ensureFolderPath(opts: {
+  tenantId: string;
+  userId: string;
+  path: string; // "Foo/Bar/Baz"
+}): Promise<string | null> {
+  const { tenantId, userId, path } = opts;
+  const parts = path.split('/').filter(Boolean);
+  if (parts.length === 0) return null;
+
+  let parentId: string | null = null;
+  let storagePath = `${tenantId}/`;
+
+  for (const part of parts) {
+    storagePath += `${part}/`;
+    const isSystem = part === SYSTEM_FOLDER_NAME;
+    const folderId = await ensureFolder({
+      tenantId,
+      userId,
+      folderName: part,
+      parentFolderId: parentId,
+      storagePath,
+      isSystemFolder: isSystem,
+      metadata: { system_managed: true },
+    });
+    if (!folderId) return null;
+    parentId = folderId;
+  }
+
+  return parentId;
+}
+
+/**
+ * Resolve o folder ID alvo para um upload com base no `source`.
+ * Se o source tem rota definida, cria a hierarquia de pastas.
+ * Caso contrário, cai na pasta "Uploads do sistema" (padrão).
+ */
+async function resolveTargetFolder(
+  tenantId: string,
+  userId: string,
+  source: string,
+  explicitFolderId?: string | null,
+): Promise<string | null> {
+  // Explicit folderId always wins
+  if (explicitFolderId) return explicitFolderId;
+
+  const route = getFolderRouteForSource(source);
+  if (route) {
+    return ensureFolderPath({ tenantId, userId, path: route });
+  }
+
+  // Fallback: "Uploads do sistema"
+  return ensureSystemFolder(tenantId, userId);
+}
+
 // ─── Bucket resolution ─────────────────────────────────────────────────────
 
 /** Determina o bucket correto para um arquivo com base em metadata/path. */
@@ -261,14 +382,11 @@ export async function uploadToDrive(options: UploadToDriveOptions): Promise<Uplo
     customFilename, folderId, bucket: bucketOverride, upsert = false,
   } = options;
 
-  // Resolver pasta destino
-  let targetFolderId = folderId || null;
+  // Resolver pasta destino via folder routing
+  const targetFolderId = await resolveTargetFolder(tenantId, userId, source, folderId);
   if (!targetFolderId) {
-    targetFolderId = await ensureSystemFolder(tenantId, userId);
-    if (!targetFolderId) {
-      console.error('[driveService] Could not get/create system folder');
-      return null;
-    }
+    console.error('[driveService] Could not resolve target folder for source:', source);
+    return null;
   }
 
   // Gerar path único
@@ -345,9 +463,10 @@ export async function replaceDriveAsset(
   const { tenantId, userId, file, assetType, oldUrl } = options;
   const bucket = 'store-assets';
 
-  const systemFolderId = await ensureSystemFolder(tenantId, userId);
-  if (!systemFolderId) {
-    console.error('[driveService] Could not get/create system folder');
+  // Route to Branding folder
+  const brandingFolderId = await resolveTargetFolder(tenantId, userId, `storefront_${assetType}`);
+  if (!brandingFolderId) {
+    console.error('[driveService] Could not resolve branding folder');
     return null;
   }
 
@@ -382,7 +501,7 @@ export async function replaceDriveAsset(
     .from('files')
     .insert({
       tenant_id: tenantId,
-      folder_id: systemFolderId,
+      folder_id: brandingFolderId,
       filename: `${assetType}.${fileExt}`,
       original_name: file.name,
       storage_path: storagePath,
@@ -424,14 +543,11 @@ export async function registerExternalFile(
     mimeType, size, source, bucket, folderId, extraMetadata,
   } = options;
 
-  // Resolver pasta destino
-  let targetFolderId = folderId || null;
+  // Resolver pasta destino via folder routing
+  const targetFolderId = await resolveTargetFolder(tenantId, userId, source, folderId);
   if (!targetFolderId) {
-    targetFolderId = await ensureSystemFolder(tenantId, userId);
-    if (!targetFolderId) {
-      console.error('[driveService] Could not get/create system folder');
-      return null;
-    }
+    console.error('[driveService] Could not resolve target folder for source:', source);
+    return null;
   }
 
   // Evitar duplicata

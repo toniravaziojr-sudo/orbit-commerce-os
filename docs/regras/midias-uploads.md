@@ -49,6 +49,56 @@ if (result?.publicUrl) {
 
 ---
 
+## Roteamento Automático de Pastas (Fase 1B)
+
+O `driveService.ts` implementa roteamento automático baseado no campo `source` do upload.
+Cada source é mapeado para uma pasta-alvo no Meu Drive. Pastas são criadas sob demanda.
+
+| source | Pasta no Drive |
+|--------|---------------|
+| `storefront_logo`, `storefront_favicon`, `storefront_icon` | Uploads do sistema/Branding |
+| `page_banner*`, `header_featured_promo`, `additional-highlight` | Uploads do sistema/Banners |
+| `testimonial_image` | Uploads do sistema/Depoimentos |
+| `review_media` | Uploads do sistema/Review de clientes |
+| `product_image` | Produtos |
+| `category_image`, `category_banner` | Categorias |
+| `builder_desktop`, `builder_mobile` | Loja Virtual |
+| `media_creative` | Mídias Sociais |
+| `ai_creative_traffic` | Criativos IA/Tráfego IA |
+| `ai_creative_calendar` | Criativos IA/Calendário de Conteúdo |
+| `ai_creative_storefront` | Criativos IA/Loja Virtual |
+| `ai_creative_landing` | Criativos IA/Landing Pages |
+| `ai_creative` | Criativos IA |
+| `landing_page_chat`, `landing_page_asset` | Landing Pages |
+| `ads_chat_attachment`, `command_assistant`, `chatgpt*` | Assistente |
+| `video_desktop`, `video_mobile` | Loja Virtual |
+| `voice_sample` | Uploads do sistema |
+| (sem rota definida) | Uploads do sistema (fallback) |
+
+**API de roteamento:**
+- `FOLDER_ROUTES` — mapa estático source → path
+- `ensureFolderPath({ tenantId, userId, path })` — cria hierarquia de pastas (ex: "Criativos IA/Loja Virtual")
+- `resolveTargetFolder(tenantId, userId, source, explicitFolderId?)` — resolve folder ID automaticamente
+
+**Regra:** `folderId` explícito sempre tem prioridade sobre o roteamento automático.
+
+---
+
+## Registro de Imagens de Produtos
+
+Imagens de produtos são uploaded para o bucket `product-images` (fluxo legado).
+A partir da Fase 1B, após o upload, o sistema registra automaticamente no Drive via `registerProductImageToDrive()` (fire-and-forget).
+
+| Arquivo | Função |
+|---------|--------|
+| `src/lib/registerProductImageToDrive.ts` | Helper fire-and-forget para registrar imagens de produtos no Drive |
+| `src/components/products/ProductForm.tsx` | Chama `registerProductImageToDrive` após upload de imagens e variantes |
+| `src/components/products/ProductImageManager.tsx` | Chama `registerProductImageToDrive` após upload de novas imagens |
+
+**Regra:** A falha no registro do Drive nunca bloqueia o upload do produto.
+
+---
+
 ## Pasta "Uploads do sistema"
 
 | Regra | Descrição |
@@ -64,7 +114,7 @@ if (result?.publicUrl) {
 | Regra | Descrição |
 |-------|-----------|
 | Path único | Não sobrescrever |
-| Registro | Em `public.files` (folder do sistema), com `metadata { source, system_managed:true }` |
+| Registro | Em `public.files` com pasta automática via roteamento de source |
 | Referência | Atualizar referência do módulo para nova mídia |
 | Cache-busting | Em previews ao trocar |
 

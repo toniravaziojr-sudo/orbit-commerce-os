@@ -4,6 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Product, useProducts, useCategories } from '@/hooks/useProducts';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { registerProductImageToDrive } from '@/lib/registerProductImageToDrive';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -136,6 +138,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
   const { categories } = useCategories();
   const { methods: availableShippingMethods } = useAvailableShippingMethods();
   const { toast } = useToast();
+  const { currentTenant, user } = useAuth();
   const isEditing = !!product;
   const [productImages, setProductImages] = useState<ProductImage[]>([]);
   
@@ -343,6 +346,17 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
             .getPublicUrl(fileName);
 
           imageUrl = publicUrl;
+
+          // Register in Drive (fire-and-forget)
+          if (currentTenant?.id && user?.id) {
+            registerProductImageToDrive({
+              tenantId: currentTenant.id,
+              userId: user.id,
+              publicUrl,
+              storagePath: fileName,
+              originalName: image.file.name,
+            }).catch(() => {});
+          }
         }
 
         // Insert image record
@@ -445,6 +459,17 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
             .from('product-images')
             .getPublicUrl(fileName);
           imageUrl = publicUrl;
+
+          // Register in Drive (fire-and-forget)
+          if (currentTenant?.id && user?.id) {
+            registerProductImageToDrive({
+              tenantId: currentTenant.id,
+              userId: user.id,
+              publicUrl,
+              storagePath: fileName,
+              originalName: variant.image_file.name,
+            }).catch(() => {});
+          }
         }
       }
 

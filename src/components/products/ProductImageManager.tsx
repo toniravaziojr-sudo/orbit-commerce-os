@@ -1,5 +1,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { registerProductImageToDrive } from '@/lib/registerProductImageToDrive';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -160,6 +162,7 @@ function SortableImageCard({ image, onSetPrimary, onDelete }: SortableImageCardP
 
 export function ProductImageManager({ productId, images, onImagesChange }: ProductImageManagerProps) {
   const { toast } = useToast();
+  const { currentTenant, user } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
   const [isAddingUrl, setIsAddingUrl] = useState(false);
   const [urlDialogOpen, setUrlDialogOpen] = useState(false);
@@ -271,6 +274,17 @@ export function ProductImageManager({ productId, images, onImagesChange }: Produ
           .getPublicUrl(fileName);
 
         uploadedImages.push(publicUrl);
+
+        // Register in Drive (fire-and-forget)
+        if (currentTenant?.id && user?.id) {
+          registerProductImageToDrive({
+            tenantId: currentTenant.id,
+            userId: user.id,
+            publicUrl,
+            storagePath: fileName,
+            originalName: file.name,
+          }).catch(() => {});
+        }
       }
 
       // Insert image records
