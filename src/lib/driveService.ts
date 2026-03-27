@@ -501,7 +501,7 @@ export async function replaceDriveAsset(
     .from('files')
     .insert({
       tenant_id: tenantId,
-      folder_id: systemFolderId,
+      folder_id: brandingFolderId,
       filename: `${assetType}.${fileExt}`,
       original_name: file.name,
       storage_path: storagePath,
