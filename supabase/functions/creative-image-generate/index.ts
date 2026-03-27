@@ -792,31 +792,41 @@ serve(async (req) => {
     }
 
     if (!folderId) {
-      // Fallback: use/create default "Criativos com IA" folder
-      const { data: folder } = await supabase
-        .from('files')
-        .select('id')
-        .eq('tenant_id', tenant_id)
-        .eq('filename', 'Criativos com IA')
-        .eq('is_folder', true)
-        .maybeSingle();
+      // Use standardized folder routing via drive-register
+      try {
+        const { ensureFolderPathEdge } = await import("../_shared/drive-register.ts");
+        folderId = await ensureFolderPathEdge(supabase, tenant_id, userId, "Criativos IA");
+      } catch (e) {
+        console.warn("[creative-image] drive-register fallback:", e);
+      }
 
-      folderId = folder?.id;
+      // Legacy fallback if drive-register fails
       if (!folderId) {
-        const { data: newFolder } = await supabase
+        const { data: folder } = await supabase
           .from('files')
-          .insert({
-            tenant_id,
-            filename: 'Criativos com IA',
-            original_name: 'Criativos com IA',
-            storage_path: `${tenant_id}/criativos-ia/`,
-            is_folder: true,
-            created_by: userId,
-            metadata: { source: 'creatives_module', system_managed: true },
-          })
           .select('id')
-          .single();
-        folderId = newFolder?.id;
+          .eq('tenant_id', tenant_id)
+          .eq('filename', 'Criativos IA')
+          .eq('is_folder', true)
+          .limit(1);
+
+        folderId = folder?.[0]?.id;
+        if (!folderId) {
+          const { data: newFolder } = await supabase
+            .from('files')
+            .insert({
+              tenant_id,
+              filename: 'Criativos IA',
+              original_name: 'Criativos IA',
+              storage_path: `${tenant_id}/criativos-ia/`,
+              is_folder: true,
+              created_by: userId,
+              metadata: { source: 'creatives_module', system_managed: true },
+            })
+            .select('id')
+            .single();
+          folderId = newFolder?.id;
+        }
       }
     }
 
