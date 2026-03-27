@@ -190,14 +190,19 @@ export function CampaignsList() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir campanha?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta ação não pode ser desfeita. A campanha "{campaignToDelete?.name}" e todos os seus itens serão excluídos permanentemente.
+            <AlertDialogDescription className="space-y-2">
+              <span className="block">
+                Esta ação não pode ser desfeita. A campanha "<strong>{campaignToDelete?.name}</strong>" e todos os seus itens serão excluídos permanentemente.
+              </span>
+              <span className="block font-semibold text-destructive">
+                ⚠️ Todas as publicações agendadas desta campanha serão canceladas e não serão mais publicadas.
+              </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Excluir
+              Excluir campanha
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
