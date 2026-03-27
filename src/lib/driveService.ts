@@ -543,14 +543,11 @@ export async function registerExternalFile(
     mimeType, size, source, bucket, folderId, extraMetadata,
   } = options;
 
-  // Resolver pasta destino
-  let targetFolderId = folderId || null;
+  // Resolver pasta destino via folder routing
+  const targetFolderId = await resolveTargetFolder(tenantId, userId, source, folderId);
   if (!targetFolderId) {
-    targetFolderId = await ensureSystemFolder(tenantId, userId);
-    if (!targetFolderId) {
-      console.error('[driveService] Could not get/create system folder');
-      return null;
-    }
+    console.error('[driveService] Could not resolve target folder for source:', source);
+    return null;
   }
 
   // Evitar duplicata
