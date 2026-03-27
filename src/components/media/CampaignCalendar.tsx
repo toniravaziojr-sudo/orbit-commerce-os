@@ -44,6 +44,11 @@ const statusColors: Record<string, string> = {
   asset_review: "bg-muted text-muted-foreground",
   publishing: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
   skipped: "bg-muted text-muted-foreground line-through",
+  partially_published: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+  partially_failed: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
+  retry_pending: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+  superseded: "bg-muted text-muted-foreground line-through",
+  canceled: "bg-muted text-muted-foreground",
 };
 
 // ========== STEPPER COMPONENT ==========
@@ -539,13 +544,14 @@ export function CampaignCalendar() {
 
   // Get status summary for a day's items
   const getStatusSummary = (dayItems: MediaCalendarItem[]) => {
-    const summary = { published: 0, scheduled: 0, approved: 0, failed: 0, draft: 0 };
+    const summary = { published: 0, scheduled: 0, approved: 0, failed: 0, draft: 0, partial: 0 };
     dayItems.forEach(item => {
       if (item.status === "published") summary.published++;
-      else if (item.status === "scheduled" || item.status === "publishing") summary.scheduled++;
+      else if (item.status === "scheduled" || item.status === "publishing" || item.status === "retry_pending") summary.scheduled++;
       else if (item.status === "approved") summary.approved++;
       else if (item.status === "failed") summary.failed++;
-      else summary.draft++;
+      else if (item.status === "partially_published" || item.status === "partially_failed") summary.partial++;
+      else if (item.status !== "superseded" && item.status !== "canceled") summary.draft++;
     });
     return summary;
   };
