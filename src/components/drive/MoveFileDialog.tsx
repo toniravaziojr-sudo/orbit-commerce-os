@@ -128,6 +128,8 @@ export function MoveFileDialog({
   currentFolderId,
   excludeFolderId,
   isSystemItem = false,
+  isFileInUse = false,
+  usageCount = 0,
   systemFolderId,
   folders,
   onConfirm,
