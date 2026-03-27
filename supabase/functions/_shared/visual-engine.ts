@@ -578,7 +578,7 @@ export async function generateForRequest(
       device: slotLabel,
       width: slot.width,
       height: slot.height,
-    });
+    }, 'ai_creative_storefront');
     if (!publicUrl) {
       console.error(`[visual-engine] Failed to upload slot: ${slot.key}`);
       return null;
