@@ -842,6 +842,8 @@ export default function Files() {
         currentFolderId={fileToMove?.folder_id || null}
         excludeFolderId={fileToMove?.is_folder ? fileToMove.id : undefined}
         isSystemItem={fileToMove ? isSystemItem(fileToMove) : false}
+        isFileInUse={fileToMove ? isFileInUse(fileToMove) : false}
+        usageCount={fileToMove ? getFileUsage(fileToMove).length : 0}
         systemFolderId={systemFolderId}
         folders={allFolders}
         onConfirm={handleConfirmMove}

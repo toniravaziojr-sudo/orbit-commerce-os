@@ -25,9 +25,11 @@ interface MoveFileDialogProps {
   onOpenChange: (open: boolean) => void;
   fileName: string;
   currentFolderId: string | null;
-  excludeFolderId?: string | null; // To prevent moving folder into itself
-  isSystemItem?: boolean; // Whether the item being moved is a system item
-  systemFolderId?: string | null; // The ID of the system folder
+  excludeFolderId?: string | null;
+  isSystemItem?: boolean;
+  systemFolderId?: string | null;
+  isFileInUse?: boolean;
+  usageCount?: number;
   folders: Array<{
     id: string;
     original_name: string;
@@ -126,6 +128,8 @@ export function MoveFileDialog({
   currentFolderId,
   excludeFolderId,
   isSystemItem = false,
+  isFileInUse = false,
+  usageCount = 0,
   systemFolderId,
   folders,
   onConfirm,
@@ -186,6 +190,16 @@ export function MoveFileDialog({
             <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
             <span>
               Este arquivo é do sistema e só pode ser movido dentro de "Uploads do sistema".
+            </span>
+          </div>
+        )}
+
+        {/* Warning for in-use files */}
+        {isFileInUse && !isSystemItem && (
+          <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 rounded-md text-sm">
+            <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+            <span>
+              Este arquivo está em uso em {usageCount} {usageCount === 1 ? 'local' : 'locais'} do sistema. Mover não altera os vínculos, mas pode dificultar a organização.
             </span>
           </div>
         )}
