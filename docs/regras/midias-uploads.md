@@ -423,6 +423,122 @@ Criativos gerados pela IA (edge function `creative-image-generate`) usam nomes d
 
 ---
 
+## Fase 1A — Robustez Operacional do Calendário de Conteúdo
+
+### Novas Colunas — social_posts
+
+| Coluna | Tipo | Default | Propósito |
+|--------|------|---------|-----------|
+| `attempt_count` | int | 0 | Quantas tentativas de publicação foram feitas |
+| `next_retry_at` | timestamptz | null | Quando o robô deve tentar publicar de novo |
+| `processing_started_at` | timestamptz | null | Marca quando o robô começou a processar (lock) |
+| `lock_token` | uuid | null | Token único que impede processamento duplicado |
+| `last_error_code` | text | null | Código do erro: `retryable`, `permanent`, `preflight_failed`, etc. |
+| `last_error_message` | text | null | Mensagem detalhada do erro |
+| `payload_snapshot` | jsonb | {} | **Fonte de verdade para execução** — conteúdo congelado no momento do agendamento |
+| `normalization_result` | jsonb | null | Resultado da normalização de mídia (MIME detectado, conversão, URL normalizada) |
+
+### Novas Colunas — media_calendar_items
+
+| Coluna | Tipo | Default | Propósito |
+|--------|------|---------|-----------|
+| `frozen_payload` | jsonb | null | Snapshot do conteúdo no momento do agendamento — referência/auditoria do lote |
+
+### Hierarquia de fonte de verdade
+
+| Nível | Fonte | Uso |
+|-------|-------|-----|
+| **Execução** | `social_posts.payload_snapshot` | O robô de publicação usa este snapshot, não o item pai |
+| **Auditoria** | `media_calendar_items.frozen_payload` | Referência do que foi congelado no agendamento |
+| **Fallback** | `media_calendar_items.*` | Usado apenas se `payload_snapshot` estiver vazio (posts antigos) |
+
+### Nova Edge Function — media-normalize-asset
+
+| Item | Valor |
+|------|-------|
+| **Arquivo** | `supabase/functions/media-normalize-asset/index.ts` |
+| **Versão** | 1.0.0 |
+| **Propósito** | Validar e normalizar mídia antes de enviar às redes sociais |
+| **Chamada** | Automática pelo worker, antes de publicar no Instagram |
+
+**Comportamento por tipo de mídia:**
+
+| Tipo | Comportamento |
+|------|---------------|
+| Imagem aceita (JPEG, PNG) | Retorna URL original sem conversão |
+| Imagem incompatível (WebP, AVIF, BMP, GIF) | Re-upload com Content-Type correto para Instagram |
+| Vídeo compatível (MP4, MOV) | Retorna URL original sem conversão |
+| Vídeo incompatível | Falha permanente com motivo claro |
+| Formato não reconhecido | Falha com `unconvertible_format` |
+
+**Validações realizadas:**
+- MIME real via magic bytes (não confia na extensão)
+- Tamanho máximo por plataforma (Instagram: 8MB, Facebook: 10MB)
+- Resultado da normalização é salvo em `social_posts.normalization_result`
+
+### Robô de Publicação — media-social-publish-worker v2.0.0
+
+| Item | Valor |
+|------|-------|
+| **Arquivo** | `supabase/functions/media-social-publish-worker/index.ts` |
+| **Versão** | 2.0.0 |
+
+**Mudanças em relação à v1.0.0:**
+
+| Feature | Antes | Agora |
+|---------|-------|-------|
+| Retry | Nenhum | Até 3 tentativas com backoff (1min, 5min, 15min) |
+| Locking | Nenhum | `processing_started_at` + `lock_token` por post |
+| Stale lock | N/A | Liberado automaticamente após 10 minutos |
+| Fonte de dados | Item pai direto | `payload_snapshot` do social_post (fallback para pai) |
+| Normalização | Nenhuma | Chama `media-normalize-asset` antes do Instagram |
+| Classificação de erro | Nenhuma | `retryable` vs `permanent` |
+| Agregação do pai | `published` ou `failed` | Aguarda se ainda há posts pendentes/em retry |
+
+**Classificação de erros:**
+
+| Tipo | Exemplos | Comportamento |
+|------|----------|---------------|
+| Retryable | timeout, rate limit, 429, 500, 503 | Agenda retry com backoff |
+| Permanent | token expired, permission denied, conta desconectada | Falha definitiva |
+
+### Publicador — meta-publish-post v3.0.0
+
+| Item | Valor |
+|------|-------|
+| **Arquivo** | `supabase/functions/meta-publish-post/index.ts` |
+| **Versão** | 3.0.0 |
+
+**Mudanças em relação à v2.4.0:**
+
+| Feature | Antes | Agora |
+|---------|-------|-------|
+| Preflight | Nenhum | Validação por plataforma antes de agendar |
+| Snapshot | Nenhum | `payload_snapshot` salvo em cada social_post |
+| Frozen payload | Nenhum | `frozen_payload` salvo no item pai ao agendar |
+| Erro granular | Genérico | `last_error_code` + `last_error_message` por post |
+
+**Validações do preflight (por plataforma):**
+
+| Validação | Instagram | Facebook |
+|-----------|-----------|----------|
+| Conta conectada | ✅ | ✅ |
+| Mídia obrigatória (exceto texto) | ✅ | — |
+| Story requer mídia | ✅ | — |
+| Limite de 6 meses | ✅ | ✅ |
+| Conteúdo não vazio | ✅ | ✅ |
+| Data definida | ✅ | ✅ |
+
+### Proteção contra edição silenciosa
+
+| Regra | Comportamento |
+|-------|---------------|
+| Item agendado → pai editado | Os `social_posts` continuam com `payload_snapshot` original |
+| Worker executa | Usa `payload_snapshot`, ignora valores atuais do pai |
+| Substituição explícita | Será implementada na Fase 2 ("Editar e substituir agendamento") |
+
+---
+
 ## Histórico de Alterações
 
 | Data | Alteração |
