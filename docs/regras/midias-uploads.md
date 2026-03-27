@@ -729,6 +729,13 @@ O `CampaignCalendar.tsx` foi reduzido de ~1020 linhas para ~40 linhas, servindo 
 
 | Data | Alteração |
 |------|-----------|
+| 2026-03-27 | **Fase 4** — Exclusão em lote segura com useConfirmDialog (substitui confirm() nativo) |
+| 2026-03-27 | **Fase 4** — Estados vazios orientativos nas 3 abas com EmptyState + atalhos contextuais |
+| 2026-03-27 | **Fase 4** — Resumo compacto no topo do painel do dia (DayPostsList) |
+| 2026-03-27 | **Fase 4** — Microcopy melhorado: "Publicação parcial", "Falha parcial", "Aguardando reenvio", "Substituir agendamento" |
+| 2026-03-27 | **Fase 4** — Indicadores de atenção no calendário de Planejamento (dots âmbar/roxo/verde com prioridade) |
+| 2026-03-27 | **Fase 4** — Status parciais/superseded/canceled adicionados ao PublicationPreviewDialog |
+| 2026-03-27 | **Fase 4** — Alerta de rascunhos incompletos na aba Aprovação com atalho para Planejamento |
 | 2026-03-27 | **Fase 3** — Reorganização em 3 abas (CampaignTabs, PlanningTab, ApprovalTab, TrackingTab) |
 | 2026-03-27 | **Fase 3** — CampaignCalendar reduzido a casca de ~40 linhas |
 | 2026-03-27 | **Fase 3** — Aprovação transformada em lista inline com filtros (prontos/aprovados) |

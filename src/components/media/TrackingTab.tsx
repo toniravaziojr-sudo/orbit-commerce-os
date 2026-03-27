@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWithinInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Loader2, LayoutGrid, FileText } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, LayoutGrid, FileText, BarChart3 } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -100,8 +101,18 @@ export function TrackingTab({
 
   const weekDayHeaders = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
+  const hasTrackingItems = stats.published + stats.scheduled + stats.failed + stats.partial > 0;
+
   return (
     <div className="space-y-4">
+      {!hasTrackingItems && !isLoading ? (
+        <EmptyState
+          icon={BarChart3}
+          title="Nenhuma publicação no acompanhamento"
+          description="Quando itens forem publicados ou agendados, você poderá acompanhar o status aqui."
+        />
+      ) : (
+        <>
       {/* Summary stats */}
       <div className="grid grid-cols-4 gap-3">
         {[
@@ -263,6 +274,8 @@ export function TrackingTab({
           </div>
         ))}
       </div>
+      </>
+      )}
     </div>
   );
 }

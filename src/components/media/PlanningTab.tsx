@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWithinInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Plus, Sparkles, Image, Check, Loader2, MousePointer2, Trash2, LayoutGrid, FileText, PenTool, AlertCircle, ArrowRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Sparkles, Image, Check, Loader2, MousePointer2, Trash2, LayoutGrid, FileText, PenTool, AlertCircle, ArrowRight, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getHolidayForDate } from "@/lib/brazilian-holidays";
 import { useNavigate } from "react-router-dom";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface PlanningTabProps {
   campaignId: string;
@@ -101,6 +103,7 @@ export function PlanningTab({
 }: PlanningTabProps) {
   const { currentTenant } = useAuth();
   const navigate = useNavigate();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const [currentMonth, setCurrentMonth] = useState(() => {
     if (campaign?.start_date) return startOfMonth(parseISO(campaign.start_date));
@@ -335,7 +338,14 @@ export function PlanningTab({
                   <Button variant="destructive" size="sm" className="gap-1" onClick={async () => {
                     const ids: string[] = [];
                     selectedDays.forEach(dk => (itemsByDate.get(dk) || []).forEach(i => ids.push(i.id)));
-                    if (!confirm(`Excluir ${ids.length} publicação(ões)?`)) return;
+                    const confirmed = await confirm({
+                      title: "Excluir publicações selecionadas",
+                      description: `Tem certeza que deseja excluir ${ids.length} publicação(ões)? Esta ação não pode ser desfeita.`,
+                      confirmLabel: `Excluir ${ids.length}`,
+                      cancelLabel: "Cancelar",
+                      variant: "destructive",
+                    });
+                    if (!confirmed) return;
                     try {
                       for (const id of ids) await onDeleteItem(id);
                       toast.success(`${ids.length} excluída(s)`);
@@ -489,14 +499,41 @@ export function PlanningTab({
                               </div>
                             )}
                           </div>
-                          {/* Status indicators */}
-                          <div className="flex items-center gap-1 px-1 flex-wrap">
-                            {dayItems.some(i => !i.copy || i.copy.trim() === "") && (
-                              <span className="text-[8px] px-1 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">sem copy</span>
-                            )}
-                            {dayItems.some(i => i.copy && !i.asset_url && i.content_type !== "text") && (
-                              <span className="text-[8px] px-1 rounded bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">sem criativo</span>
-                            )}
+                          {/* Attention dots — priority: amber (no copy) > purple (no creative) > green (complete) */}
+                          <div className="flex items-center gap-1 px-1">
+                            {(() => {
+                              const missingCopy = dayItems.some(i => !i.copy || i.copy.trim() === "");
+                              const missingCreative = dayItems.some(i => i.copy && i.copy.trim() !== "" && !i.asset_url && i.content_type !== "text");
+                              const allComplete = !missingCopy && !missingCreative;
+                              return (
+                                <>
+                                  {missingCopy && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                                      </TooltipTrigger>
+                                      <TooltipContent><p>Item(ns) sem copy</p></TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                  {missingCreative && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <div className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
+                                      </TooltipTrigger>
+                                      <TooltipContent><p>Item(ns) sem criativo</p></TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                  {allComplete && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                                      </TooltipTrigger>
+                                      <TooltipContent><p>Tudo preenchido</p></TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
                       )}
@@ -560,6 +597,8 @@ export function PlanningTab({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {ConfirmDialog}
     </div>
   );
 }
