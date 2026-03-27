@@ -8,14 +8,17 @@ const MEDIA_ROOT_FOLDER = 'Mídias Sociais';
  * Ensures the root "Mídias Sociais" folder exists in Drive and returns its ID.
  */
 async function ensureMediaRootFolder(tenantId: string, userId: string): Promise<string | null> {
-  const { data: existing } = await supabase
+  const { data: existingArr } = await supabase
     .from('files')
     .select('id')
     .eq('tenant_id', tenantId)
     .eq('filename', MEDIA_ROOT_FOLDER)
     .eq('is_folder', true)
-    .maybeSingle();
+    .is('folder_id', null)
+    .order('created_at', { ascending: true })
+    .limit(1);
 
+  const existing = existingArr?.[0];
   if (existing) return existing.id;
 
   const { data: created, error } = await supabase
@@ -72,16 +75,18 @@ export async function ensureMediaMonthFolder(
   const monthName = getMonthFolderName(campaignStartDate);
 
   // Check if month folder already exists
-  const { data: existing } = await supabase
+  const { data: existingMonthArr } = await supabase
     .from('files')
     .select('id')
     .eq('tenant_id', tenantId)
     .eq('folder_id', rootFolderId)
     .eq('filename', monthName)
     .eq('is_folder', true)
-    .maybeSingle();
+    .order('created_at', { ascending: true })
+    .limit(1);
 
-  if (existing) return existing.id;
+  const existingMonth = existingMonthArr?.[0];
+  if (existingMonth) return existingMonth.id;
 
   // Create month folder
   const monthSlug = format(parseISO(campaignStartDate), 'yyyy-MM');

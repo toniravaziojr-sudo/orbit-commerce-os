@@ -68,13 +68,16 @@ async function ensureMediaMonthFolderEdge(
   try {
     // Ensure root folder
     let rootFolderId: string | null = null;
-    const { data: existingRoot } = await supabase
+    const { data: existingRootArr } = await supabase
       .from('files')
       .select('id')
       .eq('tenant_id', tenantId)
       .eq('filename', MEDIA_ROOT_FOLDER)
       .eq('is_folder', true)
-      .maybeSingle();
+      .is('folder_id', null)
+      .order('created_at', { ascending: true })
+      .limit(1);
+    const existingRoot = existingRootArr?.[0];
 
     if (existingRoot) {
       rootFolderId = existingRoot.id;
@@ -106,14 +109,16 @@ async function ensureMediaMonthFolderEdge(
     const monthSlug = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
     // Ensure month folder
-    const { data: existingMonth } = await supabase
+    const { data: existingMonthArr } = await supabase
       .from('files')
       .select('id')
       .eq('tenant_id', tenantId)
       .eq('folder_id', rootFolderId)
       .eq('filename', monthName)
       .eq('is_folder', true)
-      .maybeSingle();
+      .order('created_at', { ascending: true })
+      .limit(1);
+    const existingMonth = existingMonthArr?.[0];
 
     if (existingMonth) return existingMonth.id;
 
