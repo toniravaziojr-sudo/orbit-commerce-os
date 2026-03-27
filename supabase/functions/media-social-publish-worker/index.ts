@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const VERSION = "2.0.0";
+const VERSION = "2.1.0"; // Phase 1B: execution_log, warning_flags, aggregate trigger
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -228,19 +228,35 @@ serve(async (req) => {
           console.log(`[worker] Publishing Instagram post ${post.id} (attempt ${(post.attempt_count || 0) + 1})`);
           const result = await publishToInstagram(igAccount.id, userAccessToken, itemForPublish, contentType);
 
+          const igAttempt = (post.attempt_count || 0) + 1;
+          const igLogEntry = {
+            timestamp: nowISO,
+            attempt: igAttempt,
+            platform: "instagram",
+            action: "publish",
+            result: "success",
+            meta_post_id: result.id,
+            normalization: normalizationResult ? {
+              was_converted: normalizationResult.was_converted,
+              original_mime: normalizationResult.original_mime,
+              final_mime: normalizationResult.mime_type,
+            } : null,
+          };
+
           await supabase.from("social_posts").update({
             status: "published",
             published_at: nowISO,
             meta_post_id: result.id,
             meta_container_id: result.container_id,
             api_response: result,
-            attempt_count: (post.attempt_count || 0) + 1,
+            attempt_count: igAttempt,
             last_error_code: null,
             last_error_message: null,
             next_retry_at: null,
             processing_started_at: null,
             lock_token: null,
             normalization_result: normalizationResult,
+            execution_log: [...(post.execution_log || []), igLogEntry],
           }).eq("id", post.id).eq("lock_token", lockToken);
 
           published++;
@@ -254,25 +270,42 @@ serve(async (req) => {
               );
               const checkData = await checkRes.json();
 
-              let confirmationState = "confirmed";
+              const fbAttempt = (post.attempt_count || 0) + 1;
+              const warningFlags: any[] = [...(post.warning_flags || [])];
+
               // Validate media presence if item required asset
               if (item.asset_url && !checkData.full_picture && !checkData.attachments?.data?.length) {
-                confirmationState = "degraded";
                 console.warn(`[worker] FB post ${post.meta_post_id} published WITHOUT expected media — marking degraded`);
+                warningFlags.push({
+                  type: "media_missing_on_platform",
+                  message: "Post publicado sem a mídia esperada",
+                  detected_at: nowISO,
+                });
               }
+
+              const fbLogEntry = {
+                timestamp: nowISO,
+                attempt: fbAttempt,
+                platform: "facebook",
+                action: "verify_scheduled",
+                result: "success",
+                meta_post_id: post.meta_post_id,
+                warnings: warningFlags.length > 0 ? warningFlags : null,
+              };
 
               await supabase.from("social_posts").update({
                 status: "published",
                 published_at: checkData.created_time || nowISO,
                 processing_started_at: null,
                 lock_token: null,
-                attempt_count: (post.attempt_count || 0) + 1,
+                attempt_count: fbAttempt,
+                execution_log: [...(post.execution_log || []), fbLogEntry],
+                warning_flags: warningFlags,
               }).eq("id", post.id).eq("lock_token", lockToken);
 
               published++;
             } catch {
               await releaseLock(supabase, post.id, lockToken);
-              // Network error — will retry next cycle
               throw new Error("Erro de rede ao verificar post do Facebook");
             }
           } else {
@@ -285,20 +318,31 @@ serve(async (req) => {
             }
 
             const pageAccessToken = page.access_token || userAccessToken;
-            console.log(`[worker] Publishing Facebook post ${post.id} (attempt ${(post.attempt_count || 0) + 1})`);
+            const fbAttempt = (post.attempt_count || 0) + 1;
+            console.log(`[worker] Publishing Facebook post ${post.id} (attempt ${fbAttempt})`);
             const result = await publishToFacebook(page.id, pageAccessToken, item, contentType);
+
+            const fbLogEntry = {
+              timestamp: nowISO,
+              attempt: fbAttempt,
+              platform: "facebook",
+              action: "publish",
+              result: "success",
+              meta_post_id: result.id || result.post_id,
+            };
 
             await supabase.from("social_posts").update({
               status: "published",
               published_at: nowISO,
               meta_post_id: result.id || result.post_id,
               api_response: result,
-              attempt_count: (post.attempt_count || 0) + 1,
+              attempt_count: fbAttempt,
               last_error_code: null,
               last_error_message: null,
               next_retry_at: null,
               processing_started_at: null,
               lock_token: null,
+              execution_log: [...(post.execution_log || []), fbLogEntry],
             }).eq("id", post.id).eq("lock_token", lockToken);
 
             published++;
@@ -318,6 +362,17 @@ serve(async (req) => {
 
         console.error(`[worker] Error post ${post.id} (attempt ${attemptCount}): [${errorCode}] ${errMsg}`);
 
+        const errorLogEntry = {
+          timestamp: nowISO,
+          attempt: attemptCount,
+          platform: post.platform,
+          action: "publish",
+          result: isRetryable ? "retryable_error" : "permanent_error",
+          error_code: errorCode,
+          error_message: errMsg,
+          will_retry: isRetryable,
+        };
+
         if (isRetryable) {
           const backoffMs = RETRY_BACKOFF_MS[Math.min(attemptCount - 1, RETRY_BACKOFF_MS.length - 1)];
           const nextRetry = new Date(Date.now() + backoffMs).toISOString();
@@ -330,6 +385,7 @@ serve(async (req) => {
             next_retry_at: nextRetry,
             processing_started_at: null,
             lock_token: null,
+            execution_log: [...(post.execution_log || []), errorLogEntry],
           }).eq("id", post.id).eq("lock_token", lockToken);
 
           retried++;
@@ -344,14 +400,13 @@ serve(async (req) => {
             next_retry_at: null,
             processing_started_at: null,
             lock_token: null,
+            execution_log: [...(post.execution_log || []), errorLogEntry],
           }).eq("id", post.id).eq("lock_token", lockToken);
 
           failed++;
         }
 
-        if (post.calendar_item_id) {
-          await maybeUpdateCalendarItem(supabase, post.calendar_item_id);
-        }
+        // Trigger fires automatically via DB trigger now
       }
     }
 
@@ -418,48 +473,10 @@ async function markPermanentFailure(
 }
 
 // ========== Calendar Item Aggregation ==========
-
-async function maybeUpdateCalendarItem(supabase: any, calendarItemId: string) {
-  const { data: allPosts } = await supabase
-    .from("social_posts")
-    .select("status, attempt_count, next_retry_at")
-    .eq("calendar_item_id", calendarItemId);
-
-  if (!allPosts?.length) return;
-
-  const statuses = allPosts.map((p: any) => p.status);
-  const allPublished = statuses.every((s: string) => s === "published");
-  const anyPublished = statuses.some((s: string) => s === "published");
-  const anyFailed = statuses.some((s: string) => s === "failed");
-  const anyScheduled = statuses.some((s: string) => s === "scheduled");
-  const anyPublishing = statuses.some((s: string) => s === "publishing");
-  const anyRetryPending = allPosts.some((p: any) => p.status === "failed" && (p.attempt_count || 0) < MAX_ATTEMPTS && p.next_retry_at);
-
-  let aggregateStatus: string;
-
-  if (allPublished) {
-    aggregateStatus = "published";
-  } else if (anyScheduled || anyPublishing || anyRetryPending) {
-    // Still processing — don't finalize status yet
-    return;
-  } else if (anyPublished && anyFailed) {
-    // Some published, some permanently failed — partial success
-    // Use "failed" for now (Phase 1B will add partially_published/partially_failed)
-    aggregateStatus = "failed";
-  } else if (anyFailed) {
-    aggregateStatus = "failed";
-  } else {
-    return; // Unknown state, don't touch
-  }
-
-  const updateData: any = { status: aggregateStatus };
-  if (aggregateStatus === "published") {
-    updateData.published_at = new Date().toISOString();
-  }
-
-  await supabase.from("media_calendar_items")
-    .update(updateData)
-    .eq("id", calendarItemId);
+// Phase 1B: Aggregate status is now computed by DB trigger (sync_calendar_item_status)
+// This function is kept as a no-op for backwards compatibility with call sites
+async function maybeUpdateCalendarItem(_supabase: any, _calendarItemId: string) {
+  // DB trigger handles this automatically now
 }
 
 // ========== Helpers ==========

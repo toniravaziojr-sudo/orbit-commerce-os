@@ -44,6 +44,11 @@ const statusColors: Record<string, string> = {
   asset_review: "bg-muted text-muted-foreground",
   publishing: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
   skipped: "bg-muted text-muted-foreground line-through",
+  partially_published: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+  partially_failed: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
+  retry_pending: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+  superseded: "bg-muted text-muted-foreground line-through",
+  canceled: "bg-muted text-muted-foreground",
 };
 
 // ========== STEPPER COMPONENT ==========
@@ -539,13 +544,14 @@ export function CampaignCalendar() {
 
   // Get status summary for a day's items
   const getStatusSummary = (dayItems: MediaCalendarItem[]) => {
-    const summary = { published: 0, scheduled: 0, approved: 0, failed: 0, draft: 0 };
+    const summary = { published: 0, scheduled: 0, approved: 0, failed: 0, draft: 0, partial: 0 };
     dayItems.forEach(item => {
       if (item.status === "published") summary.published++;
-      else if (item.status === "scheduled" || item.status === "publishing") summary.scheduled++;
+      else if (item.status === "scheduled" || item.status === "publishing" || item.status === "retry_pending") summary.scheduled++;
       else if (item.status === "approved") summary.approved++;
       else if (item.status === "failed") summary.failed++;
-      else summary.draft++;
+      else if (item.status === "partially_published" || item.status === "partially_failed") summary.partial++;
+      else if (item.status !== "superseded" && item.status !== "canceled") summary.draft++;
     });
     return summary;
   };
@@ -555,6 +561,7 @@ export function CampaignCalendar() {
     if (dayItems.length === 0) return "";
     const s = getStatusSummary(dayItems);
     if (s.failed > 0) return "border-red-500 dark:border-red-600";
+    if (s.partial > 0) return "border-amber-500 dark:border-amber-600";
     if (s.published > 0 && s.published === dayItems.length) return "border-green-500 dark:border-green-600";
     if (s.scheduled > 0) return "border-blue-500 dark:border-blue-600";
     if (s.published > 0) return "border-green-500 dark:border-green-600";
@@ -567,6 +574,7 @@ export function CampaignCalendar() {
     if (dayItems.length === 0) return "";
     const s = getStatusSummary(dayItems);
     if (s.failed > 0) return "bg-red-50 dark:bg-red-950/20";
+    if (s.partial > 0) return "bg-amber-50 dark:bg-amber-950/20";
     if (s.published > 0 && s.published === dayItems.length) return "bg-green-50 dark:bg-green-950/30";
     if (s.scheduled > 0) return "bg-blue-50 dark:bg-blue-950/20";
     if (s.published > 0) return "bg-green-50 dark:bg-green-950/30";
@@ -830,6 +838,17 @@ export function CampaignCalendar() {
                                   <TooltipContent><p>{statusSummary.failed} com erro(s)</p></TooltipContent>
                                 </Tooltip>
                               )}
+                              {statusSummary.partial > 0 && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="flex items-center gap-0.5">
+                                      <div className="w-2 h-2 rounded-full bg-amber-500" />
+                                      <span className="text-[9px] font-medium text-amber-700 dark:text-amber-400">{statusSummary.partial}</span>
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent><p>{statusSummary.partial} parcial(is)</p></TooltipContent>
+                                </Tooltip>
+                              )}
                               {statusSummary.draft > 0 && (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -886,6 +905,10 @@ export function CampaignCalendar() {
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
           <span className="text-xs text-muted-foreground">Publicado</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+          <span className="text-xs text-muted-foreground">Parcial</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
