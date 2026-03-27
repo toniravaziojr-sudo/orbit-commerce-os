@@ -29,7 +29,6 @@ export function DeleteFileDialog({
   isPending,
 }: DeleteFileDialogProps) {
   const isInUse = usages.length > 0;
-  const usageLabels = usages.map((u) => u.label).join(' e ');
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -39,24 +38,33 @@ export function DeleteFileDialog({
             {isInUse && <AlertTriangle className="h-5 w-5 text-amber-500" />}
             {isInUse ? 'Isso impactará sua loja' : 'Excluir arquivo'}
           </AlertDialogTitle>
-          <AlertDialogDescription className="space-y-2">
-            {isInUse ? (
-              <>
+          <AlertDialogDescription asChild>
+            <div className="space-y-2">
+              {isInUse ? (
+                <>
+                  <p>
+                    <strong>Este arquivo está sendo usado em {usages.length} {usages.length === 1 ? 'local' : 'locais'}:</strong>
+                  </p>
+                  <ul className="text-sm space-y-1 pl-4">
+                    {usages.map((u, i) => (
+                      <li key={i} className="list-disc">
+                        {u.label}{u.detail ? ` — ${u.detail}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-sm text-destructive font-medium mt-2">
+                    Ao excluir, esses locais ficarão sem a imagem até você enviar outra.
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Arquivo: {fileName}
+                  </p>
+                </>
+              ) : (
                 <p>
-                  <strong>Este arquivo está em uso como {usageLabels}.</strong>
+                  Tem certeza que deseja excluir <strong>{fileName}</strong>? Esta ação não pode ser desfeita.
                 </p>
-                <p>
-                  Se continuar, a loja ficará sem {usageLabels.toLowerCase()} até você enviar outro arquivo.
-                </p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Arquivo: {fileName}
-                </p>
-              </>
-            ) : (
-              <p>
-                Tem certeza que deseja excluir <strong>{fileName}</strong>? Esta ação não pode ser desfeita.
-              </p>
-            )}
+              )}
+            </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
