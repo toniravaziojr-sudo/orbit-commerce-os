@@ -1,24 +1,42 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const VERSION = "1.0.0";
+const VERSION = "2.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Retry backoff intervals in ms: 1min, 5min, 15min
+const RETRY_BACKOFF_MS = [60_000, 300_000, 900_000];
+const MAX_ATTEMPTS = 3;
+const STALE_LOCK_MINUTES = 10;
+
+// Error codes classified as retryable (transient)
+const RETRYABLE_ERROR_PATTERNS = [
+  "timeout", "rate limit", "too many", "unexpected error",
+  "please retry", "temporarily unavailable", "ETIMEDOUT",
+  "ECONNRESET", "503", "429", "500",
+];
+
+// Error codes classified as permanent
+const PERMANENT_ERROR_PATTERNS = [
+  "not connected", "token expired", "permission denied",
+  "invalid token", "OAuthException", "not authorized",
+  "does not exist", "not found",
+];
+
 /**
- * media-social-publish-worker v${VERSION}
+ * media-social-publish-worker v2.0.0
  * 
- * Cron worker that picks up social_posts with status='scheduled' and
- * scheduled_at <= NOW(), then publishes them via Meta Graph API.
- * 
- * - Instagram: creates container + publishes (was never called at schedule time)
- * - Facebook: checks if natively scheduled post was published, updates status
- * - Updates calendar_item status after all platforms are done
- * 
- * Runs every 5 minutes via pg_cron.
+ * Phase 1A refactor:
+ * - Uses payload_snapshot as source of truth for execution
+ * - Retry with exponential backoff for transient errors (max 3 attempts)
+ * - Locking to prevent duplicate processing
+ * - Calls media-normalize-asset before Instagram publishing
+ * - Tracks normalization results and error details per post
+ * - Cleans lock on success, failure, and stale timeout
  */
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -30,28 +48,53 @@ serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
-    // Find scheduled social_posts that are due
-    const { data: duePosts, error: fetchError } = await supabase
+    const now = new Date();
+    const nowISO = now.toISOString();
+    const staleLockCutoff = new Date(now.getTime() - STALE_LOCK_MINUTES * 60 * 1000).toISOString();
+
+    // Release stale locks first
+    await supabase
+      .from("social_posts")
+      .update({ processing_started_at: null, lock_token: null })
+      .lt("processing_started_at", staleLockCutoff)
+      .not("processing_started_at", "is", null);
+
+    // Query 1: Scheduled posts due now
+    const { data: scheduledPosts, error: err1 } = await supabase
       .from("social_posts")
       .select("*")
       .eq("status", "scheduled")
-      .lte("scheduled_at", new Date().toISOString())
+      .lte("scheduled_at", nowISO)
+      .is("processing_started_at", null)
       .order("scheduled_at", { ascending: true })
-      .limit(20); // Process max 20 per run to avoid timeout
+      .limit(15);
 
-    if (fetchError) {
-      console.error(`[social-publish-worker][${VERSION}] Fetch error:`, fetchError);
-      return jsonResponse({ success: false, error: "Erro ao buscar posts agendados" });
+    // Query 2: Failed posts eligible for retry
+    const { data: retryPosts, error: err2 } = await supabase
+      .from("social_posts")
+      .select("*")
+      .eq("status", "failed")
+      .lt("attempt_count", MAX_ATTEMPTS)
+      .lte("next_retry_at", nowISO)
+      .is("processing_started_at", null)
+      .order("next_retry_at", { ascending: true })
+      .limit(5);
+
+    if (err1 || err2) {
+      console.error(`[worker][${VERSION}] Fetch error:`, err1 || err2);
+      return jsonResponse({ success: false, error: "Erro ao buscar posts" });
     }
 
-    if (!duePosts?.length) {
+    const allPosts = [...(scheduledPosts || []), ...(retryPosts || [])];
+
+    if (!allPosts.length) {
       return jsonResponse({ success: true, processed: 0, message: "Nenhum post para publicar" });
     }
 
-    console.log(`[social-publish-worker][${VERSION}] Found ${duePosts.length} due posts`);
+    console.log(`[worker][${VERSION}] Found ${scheduledPosts?.length || 0} scheduled + ${retryPosts?.length || 0} retry = ${allPosts.length} posts`);
 
-    // Group by tenant to batch Meta connection lookups
-    const tenantIds = [...new Set(duePosts.map(p => p.tenant_id))];
+    // Group by tenant for Meta connection lookup
+    const tenantIds = [...new Set(allPosts.map(p => p.tenant_id))];
     const metaConnections: Record<string, any> = {};
 
     for (const tid of tenantIds) {
@@ -70,20 +113,36 @@ serve(async (req) => {
     let published = 0;
     let failed = 0;
     let skipped = 0;
+    let retried = 0;
 
-    for (const post of duePosts) {
+    for (const post of allPosts) {
+      const lockToken = crypto.randomUUID();
+
+      // Acquire lock
+      const { data: locked, error: lockErr } = await supabase
+        .from("social_posts")
+        .update({ processing_started_at: nowISO, lock_token: lockToken })
+        .eq("id", post.id)
+        .is("processing_started_at", null)
+        .select("id")
+        .maybeSingle();
+
+      if (lockErr || !locked) {
+        console.log(`[worker] Could not acquire lock for post ${post.id}, skipping`);
+        skipped++;
+        continue;
+      }
+
       try {
         const conn = metaConnections[post.tenant_id];
         if (!conn) {
-          console.warn(`[social-publish-worker] No Meta connection for tenant ${post.tenant_id}, skipping post ${post.id}`);
-          skipped++;
+          await markPermanentFailure(supabase, post, "no_connection", "Meta não conectado", lockToken);
+          failed++;
           continue;
         }
 
-        // Check token expiry
-        if (conn.expires_at && new Date(conn.expires_at) < new Date()) {
-          console.warn(`[social-publish-worker] Token expired for tenant ${post.tenant_id}, skipping`);
-          await updatePostStatus(supabase, post.id, "failed", "Token Meta expirado");
+        if (conn.expires_at && new Date(conn.expires_at) < now) {
+          await markPermanentFailure(supabase, post, "token_expired", "Token Meta expirado", lockToken);
           failed++;
           continue;
         }
@@ -92,196 +151,328 @@ serve(async (req) => {
         const assets = metadata?.assets || {};
         const userAccessToken = conn.access_token;
 
+        // Use payload_snapshot as source of truth (fallback to calendar item)
+        const snapshot = (post.payload_snapshot && Object.keys(post.payload_snapshot).length > 0)
+          ? post.payload_snapshot
+          : null;
+
+        let item: any;
+        if (snapshot) {
+          item = snapshot;
+        } else if (post.calendar_item_id) {
+          const { data: calItem } = await supabase
+            .from("media_calendar_items")
+            .select("*")
+            .eq("id", post.calendar_item_id)
+            .single();
+          item = calItem || buildItemFromPost(post);
+        } else {
+          item = buildItemFromPost(post);
+        }
+
+        const contentType = item.content_type || "image";
+
         if (post.platform === "instagram") {
-          // Instagram: need to actually publish via container flow
           const igAccount = assets.instagram_accounts?.[0];
           if (!igAccount) {
-            await updatePostStatus(supabase, post.id, "failed", "Conta Instagram não conectada");
+            await markPermanentFailure(supabase, post, "no_ig_account", "Conta Instagram não conectada", lockToken);
             failed++;
             continue;
           }
 
-          console.log(`[social-publish-worker] Publishing Instagram post ${post.id}`);
+          // Normalize asset before Instagram publish
+          let assetUrl = item.asset_url;
+          let normalizationResult: any = null;
 
-          // Get calendar item for asset_url and content details
-          const { data: calItem } = post.calendar_item_id
-            ? await supabase.from("media_calendar_items").select("*").eq("id", post.calendar_item_id).single()
-            : { data: null };
+          if (assetUrl && contentType !== "video" && contentType !== "reel") {
+            try {
+              const normalizeRes = await fetch(`${supabaseUrl}/functions/v1/media-normalize-asset`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${supabaseServiceKey}`,
+                },
+                body: JSON.stringify({
+                  asset_url: assetUrl,
+                  platform: "instagram",
+                  content_type: contentType,
+                  tenant_id: post.tenant_id,
+                }),
+              });
+              normalizationResult = await normalizeRes.json();
 
-          const item = calItem || {
-            asset_url: post.media_urls?.[0],
-            copy: post.caption,
-            title: post.caption,
-            cta: null,
-            hashtags: post.hashtags,
-            content_type: post.post_type === "feed" ? "image" : post.post_type,
-          };
+              if (normalizationResult.success && normalizationResult.normalized_url) {
+                assetUrl = normalizationResult.normalized_url;
+                console.log(`[worker] Asset normalized for IG: ${normalizationResult.was_converted ? 'converted' : 'accepted'}`);
+              } else if (!normalizationResult.success) {
+                if (normalizationResult.rejection_reason === "incompatible_video_format" ||
+                    normalizationResult.rejection_reason === "unconvertible_format") {
+                  await markPermanentFailure(supabase, post, `media_${normalizationResult.rejection_reason}`,
+                    normalizationResult.error || "Formato de mídia incompatível", lockToken, normalizationResult);
+                  failed++;
+                  continue;
+                }
+                // Other normalization failures are retryable (download_failed, upload_failed)
+                throw new Error(normalizationResult.error || "Falha na normalização de mídia");
+              }
+            } catch (normErr: any) {
+              // Normalization service error — retryable
+              console.error(`[worker] Normalization error for post ${post.id}:`, normErr.message);
+              throw normErr;
+            }
+          }
 
-          const result = await publishToInstagram(
-            igAccount.id,
-            userAccessToken,
-            item,
-            item.content_type || "image"
-          );
+          // Use normalized asset
+          const itemForPublish = { ...item, asset_url: assetUrl };
+
+          console.log(`[worker] Publishing Instagram post ${post.id} (attempt ${(post.attempt_count || 0) + 1})`);
+          const result = await publishToInstagram(igAccount.id, userAccessToken, itemForPublish, contentType);
 
           await supabase.from("social_posts").update({
             status: "published",
-            published_at: new Date().toISOString(),
+            published_at: nowISO,
             meta_post_id: result.id,
             meta_container_id: result.container_id,
             api_response: result,
-          }).eq("id", post.id);
+            attempt_count: (post.attempt_count || 0) + 1,
+            last_error_code: null,
+            last_error_message: null,
+            next_retry_at: null,
+            processing_started_at: null,
+            lock_token: null,
+            normalization_result: normalizationResult,
+          }).eq("id", post.id).eq("lock_token", lockToken);
 
           published++;
-          console.log(`[social-publish-worker] Instagram post ${post.id} published: ${result.id}`);
 
         } else if (post.platform === "facebook") {
-          // Facebook: check if natively scheduled post was already published by Facebook
           if (post.meta_post_id) {
-            // Post was natively scheduled — check if Facebook published it
+            // Natively scheduled — check if published
             try {
               const checkRes = await fetch(
-                `https://graph.facebook.com/v21.0/${post.meta_post_id}?fields=is_published,created_time&access_token=${userAccessToken}`
+                `https://graph.facebook.com/v21.0/${post.meta_post_id}?fields=is_published,created_time,full_picture,attachments&access_token=${userAccessToken}`
               );
               const checkData = await checkRes.json();
 
-              if (checkData.error) {
-                // Post may have been deleted or token issue
-                console.warn(`[social-publish-worker] FB check error for ${post.meta_post_id}:`, checkData.error.message);
-                await updatePostStatus(supabase, post.id, "published", null, "Publicado nativamente pelo Facebook");
-                published++;
-              } else if (checkData.is_published !== false) {
-                // Facebook already published it
-                await supabase.from("social_posts").update({
-                  status: "published",
-                  published_at: checkData.created_time || new Date().toISOString(),
-                }).eq("id", post.id);
-                published++;
-                console.log(`[social-publish-worker] FB post ${post.id} already published natively`);
-              } else {
-                // Still not published — unusual, mark as published anyway since FB will handle
-                await updatePostStatus(supabase, post.id, "published", null, "Agendado nativamente no Facebook");
-                published++;
+              let confirmationState = "confirmed";
+              // Validate media presence if item required asset
+              if (item.asset_url && !checkData.full_picture && !checkData.attachments?.data?.length) {
+                confirmationState = "degraded";
+                console.warn(`[worker] FB post ${post.meta_post_id} published WITHOUT expected media — marking degraded`);
               }
-            } catch {
-              // Network error checking FB — assume it was published
-              await updatePostStatus(supabase, post.id, "published");
+
+              await supabase.from("social_posts").update({
+                status: "published",
+                published_at: checkData.created_time || nowISO,
+                processing_started_at: null,
+                lock_token: null,
+                attempt_count: (post.attempt_count || 0) + 1,
+              }).eq("id", post.id).eq("lock_token", lockToken);
+
               published++;
+            } catch {
+              await releaseLock(supabase, post.id, lockToken);
+              // Network error — will retry next cycle
+              throw new Error("Erro de rede ao verificar post do Facebook");
             }
           } else {
-            // No meta_post_id — was marked scheduled without actual FB call
-            // Need to publish now
+            // Direct publish
             const page = assets.pages?.[0];
             if (!page) {
-              await updatePostStatus(supabase, post.id, "failed", "Página Facebook não conectada");
+              await markPermanentFailure(supabase, post, "no_fb_page", "Página Facebook não conectada", lockToken);
               failed++;
               continue;
             }
 
             const pageAccessToken = page.access_token || userAccessToken;
-
-            const { data: calItem } = post.calendar_item_id
-              ? await supabase.from("media_calendar_items").select("*").eq("id", post.calendar_item_id).single()
-              : { data: null };
-
-            const item = calItem || {
-              asset_url: post.media_urls?.[0],
-              copy: post.caption,
-              title: post.caption,
-              cta: null,
-              hashtags: post.hashtags,
-              content_type: post.post_type === "feed" ? "image" : post.post_type,
-            };
-
-            console.log(`[social-publish-worker] Publishing Facebook post ${post.id}`);
-            const result = await publishToFacebook(page.id, pageAccessToken, item, item.content_type || "image");
+            console.log(`[worker] Publishing Facebook post ${post.id} (attempt ${(post.attempt_count || 0) + 1})`);
+            const result = await publishToFacebook(page.id, pageAccessToken, item, contentType);
 
             await supabase.from("social_posts").update({
               status: "published",
-              published_at: new Date().toISOString(),
+              published_at: nowISO,
               meta_post_id: result.id || result.post_id,
               api_response: result,
-            }).eq("id", post.id);
+              attempt_count: (post.attempt_count || 0) + 1,
+              last_error_code: null,
+              last_error_message: null,
+              next_retry_at: null,
+              processing_started_at: null,
+              lock_token: null,
+            }).eq("id", post.id).eq("lock_token", lockToken);
 
             published++;
-            console.log(`[social-publish-worker] FB post ${post.id} published: ${result.id || result.post_id}`);
           }
         }
 
-        // Update calendar_item if all social_posts for it are published
+        // Update calendar item aggregate
         if (post.calendar_item_id) {
           await maybeUpdateCalendarItem(supabase, post.calendar_item_id);
         }
 
       } catch (postError: any) {
         const errMsg = postError?.message || "Erro desconhecido";
-        console.error(`[social-publish-worker] Error publishing post ${post.id}:`, errMsg);
-        await updatePostStatus(supabase, post.id, "failed", errMsg);
-        failed++;
+        const errorCode = classifyError(errMsg);
+        const attemptCount = (post.attempt_count || 0) + 1;
+        const isRetryable = errorCode === "retryable" && attemptCount < MAX_ATTEMPTS;
 
-        // Update calendar item to failed
+        console.error(`[worker] Error post ${post.id} (attempt ${attemptCount}): [${errorCode}] ${errMsg}`);
+
+        if (isRetryable) {
+          const backoffMs = RETRY_BACKOFF_MS[Math.min(attemptCount - 1, RETRY_BACKOFF_MS.length - 1)];
+          const nextRetry = new Date(Date.now() + backoffMs).toISOString();
+
+          await supabase.from("social_posts").update({
+            status: "failed",
+            attempt_count: attemptCount,
+            last_error_code: "retryable",
+            last_error_message: errMsg,
+            next_retry_at: nextRetry,
+            processing_started_at: null,
+            lock_token: null,
+          }).eq("id", post.id).eq("lock_token", lockToken);
+
+          retried++;
+          console.log(`[worker] Post ${post.id} scheduled for retry at ${nextRetry} (attempt ${attemptCount}/${MAX_ATTEMPTS})`);
+        } else {
+          await supabase.from("social_posts").update({
+            status: "failed",
+            attempt_count: attemptCount,
+            last_error_code: errorCode === "retryable" ? "max_retries_exceeded" : "permanent",
+            last_error_message: errMsg,
+            error_message: errMsg,
+            next_retry_at: null,
+            processing_started_at: null,
+            lock_token: null,
+          }).eq("id", post.id).eq("lock_token", lockToken);
+
+          failed++;
+        }
+
         if (post.calendar_item_id) {
-          await supabase.from("media_calendar_items")
-            .update({ status: "failed" })
-            .eq("id", post.calendar_item_id);
+          await maybeUpdateCalendarItem(supabase, post.calendar_item_id);
         }
       }
     }
 
-    console.log(`[social-publish-worker][${VERSION}] Done: ${published} published, ${failed} failed, ${skipped} skipped`);
+    console.log(`[worker][${VERSION}] Done: ${published} published, ${failed} failed, ${retried} retried, ${skipped} skipped`);
 
     return jsonResponse({
       success: true,
-      processed: duePosts.length,
+      processed: allPosts.length,
       published,
       failed,
+      retried,
       skipped,
     });
 
   } catch (error: any) {
-    console.error(`[social-publish-worker][${VERSION}] Fatal error:`, error);
+    console.error(`[worker][${VERSION}] Fatal error:`, error);
     return jsonResponse({ success: false, error: error.message || "Erro interno" });
   }
 });
 
-// ========== Helpers ==========
+// ========== Error Classification ==========
 
-async function updatePostStatus(
-  supabase: any,
-  postId: string,
-  status: string,
-  errorMessage?: string | null,
-  note?: string
-) {
-  const update: any = { status };
-  if (status === "published") update.published_at = new Date().toISOString();
-  if (errorMessage) update.error_message = errorMessage;
-  if (note) update.api_response = { worker_note: note };
-  await supabase.from("social_posts").update(update).eq("id", postId);
+function classifyError(message: string): "retryable" | "permanent" {
+  const lower = message.toLowerCase();
+  for (const pattern of PERMANENT_ERROR_PATTERNS) {
+    if (lower.includes(pattern.toLowerCase())) return "permanent";
+  }
+  for (const pattern of RETRYABLE_ERROR_PATTERNS) {
+    if (lower.includes(pattern.toLowerCase())) return "retryable";
+  }
+  // Default: treat unknown errors as retryable (safer)
+  return "retryable";
 }
 
+// ========== Lock Management ==========
+
+async function releaseLock(supabase: any, postId: string, lockToken: string) {
+  await supabase.from("social_posts").update({
+    processing_started_at: null,
+    lock_token: null,
+  }).eq("id", postId).eq("lock_token", lockToken);
+}
+
+async function markPermanentFailure(
+  supabase: any, post: any, errorCode: string, errorMessage: string,
+  lockToken: string, normalizationResult?: any
+) {
+  const update: any = {
+    status: "failed",
+    attempt_count: (post.attempt_count || 0) + 1,
+    last_error_code: errorCode,
+    last_error_message: errorMessage,
+    error_message: errorMessage,
+    next_retry_at: null,
+    processing_started_at: null,
+    lock_token: null,
+  };
+  if (normalizationResult) update.normalization_result = normalizationResult;
+  await supabase.from("social_posts").update(update).eq("id", post.id).eq("lock_token", lockToken);
+
+  if (post.calendar_item_id) {
+    await maybeUpdateCalendarItem(supabase, post.calendar_item_id);
+  }
+}
+
+// ========== Calendar Item Aggregation ==========
+
 async function maybeUpdateCalendarItem(supabase: any, calendarItemId: string) {
-  // Check if ALL social_posts for this calendar_item are published
   const { data: allPosts } = await supabase
     .from("social_posts")
-    .select("status")
+    .select("status, attempt_count, next_retry_at")
     .eq("calendar_item_id", calendarItemId);
 
   if (!allPosts?.length) return;
 
-  const allPublished = allPosts.every((p: any) => p.status === "published");
-  const anyFailed = allPosts.some((p: any) => p.status === "failed");
+  const statuses = allPosts.map((p: any) => p.status);
+  const allPublished = statuses.every((s: string) => s === "published");
+  const anyPublished = statuses.some((s: string) => s === "published");
+  const anyFailed = statuses.some((s: string) => s === "failed");
+  const anyScheduled = statuses.some((s: string) => s === "scheduled");
+  const anyPublishing = statuses.some((s: string) => s === "publishing");
+  const anyRetryPending = allPosts.some((p: any) => p.status === "failed" && (p.attempt_count || 0) < MAX_ATTEMPTS && p.next_retry_at);
+
+  let aggregateStatus: string;
 
   if (allPublished) {
-    await supabase.from("media_calendar_items")
-      .update({ status: "published", published_at: new Date().toISOString() })
-      .eq("id", calendarItemId);
-  } else if (anyFailed && !allPosts.some((p: any) => p.status === "scheduled")) {
-    // All processed but some failed
-    await supabase.from("media_calendar_items")
-      .update({ status: "failed" })
-      .eq("id", calendarItemId);
+    aggregateStatus = "published";
+  } else if (anyScheduled || anyPublishing || anyRetryPending) {
+    // Still processing — don't finalize status yet
+    return;
+  } else if (anyPublished && anyFailed) {
+    // Some published, some permanently failed — partial success
+    // Use "failed" for now (Phase 1B will add partially_published/partially_failed)
+    aggregateStatus = "failed";
+  } else if (anyFailed) {
+    aggregateStatus = "failed";
+  } else {
+    return; // Unknown state, don't touch
   }
+
+  const updateData: any = { status: aggregateStatus };
+  if (aggregateStatus === "published") {
+    updateData.published_at = new Date().toISOString();
+  }
+
+  await supabase.from("media_calendar_items")
+    .update(updateData)
+    .eq("id", calendarItemId);
+}
+
+// ========== Helpers ==========
+
+function buildItemFromPost(post: any): any {
+  return {
+    asset_url: post.media_urls?.[0],
+    copy: post.caption,
+    title: post.caption,
+    cta: null,
+    hashtags: post.hashtags,
+    content_type: post.post_type === "feed" ? "image" : post.post_type,
+  };
 }
 
 // ========== Instagram Publishing ==========
@@ -336,7 +527,7 @@ async function publishToInstagram(
       containerData.error?.message?.includes("unexpected error");
 
     if (isTransient && attempt < 3) {
-      console.log(`[social-publish-worker] Container retry ${attempt}/3...`);
+      console.log(`[worker] Container retry ${attempt}/3...`);
       await new Promise(r => setTimeout(r, 3000 * attempt));
       continue;
     }
