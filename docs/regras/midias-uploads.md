@@ -539,10 +539,99 @@ Criativos gerados pela IA (edge function `creative-image-generate`) usam nomes d
 
 ---
 
+## Fase 1B — Status Agregados, Rastreabilidade e Ações Operacionais
+
+### Novos Status do Item Pai (media_item_status enum)
+
+| Status | Significado |
+|--------|-------------|
+| `partially_published` | Algumas redes publicaram, outras ainda pendentes/em retry |
+| `partially_failed` | Algumas redes publicaram, outras falharam permanentemente |
+| `retry_pending` | Há posts filhos aguardando nova tentativa automática |
+| `superseded` | Item foi substituído por versão mais recente |
+| `canceled` | Falha foi encerrada manualmente pelo operador |
+
+### Agregação Automática (DB Trigger)
+
+O status do item pai é calculado automaticamente por trigger (`trg_sync_calendar_item_status`) a cada mudança nos filhos (`social_posts`). Não é mais necessário calcular no worker.
+
+| Condição dos filhos ativos | Status resultante do pai |
+|---------------------------|--------------------------|
+| Todos publicados | `published` |
+| Algum agendado ou publicando | `scheduled` |
+| Algum em retry pendente | `retry_pending` |
+| Alguns publicados + alguns falhados | `partially_failed` |
+| Alguns publicados + alguns pendentes | `partially_published` |
+| Todos falhados | `failed` |
+
+### Novas Colunas — social_posts
+
+| Coluna | Tipo | Default | Propósito |
+|--------|------|---------|-----------|
+| `execution_log` | jsonb | `[]` | Histórico de tentativas com timestamp, resultado, erros |
+| `warning_flags` | jsonb | `[]` | Avisos (ex: "mídia ausente na plataforma após publicação") |
+| `superseded_by` | uuid (FK) | null | Referência ao post que substituiu este |
+| `superseded_at` | timestamptz | null | Quando foi marcado como substituído |
+
+### Nova Coluna — media_calendar_items
+
+| Coluna | Tipo | Default | Propósito |
+|--------|------|---------|-----------|
+| `platform_summary` | jsonb | `{}` | Resumo por plataforma (status, erro, tentativas) — preenchido pelo trigger |
+
+### Nova Edge Function — media-social-post-actions v1.0.0
+
+| Item | Valor |
+|------|-------|
+| **Arquivo** | `supabase/functions/media-social-post-actions/index.ts` |
+| **Versão** | 1.0.0 |
+| **Propósito** | Ações manuais operacionais sobre publicações por plataforma |
+
+**Ações disponíveis:**
+
+| Ação | Quando usar | O que faz |
+|------|-------------|-----------|
+| `retry_platform` | Post falhou e operador quer reenviar | Zera tentativas, re-agenda como `scheduled` |
+| `dismiss_failure` | Falha que não será corrigida | Marca como `canceled`, para de tentar |
+| `supersede` | Reagendamento manual | Marca antigo como `superseded`, preserva histórico |
+
+### Robô de Publicação — media-social-publish-worker v2.1.0
+
+| Mudança | Antes (v2.0.0) | Agora (v2.1.0) |
+|---------|----------------|----------------|
+| Rastreabilidade | Apenas `attempt_count` | `execution_log` com histórico completo por tentativa |
+| Avisos | Nenhum | `warning_flags` para degradação (ex: publicou sem mídia) |
+| Agregação do pai | Calculada no worker | Delegada ao DB trigger |
+
+### Componentes de Interface
+
+| Componente | Arquivo | Propósito |
+|------------|---------|-----------|
+| `PlatformStatusPanel` | `src/components/media/PlatformStatusPanel.tsx` | Mostra status por rede com ações de reenvio/encerramento |
+| `useSocialPosts` | `src/hooks/useSocialPosts.ts` | Hook para consultar posts filhos de um item |
+| `useSocialPostActions` | `src/hooks/useSocialPosts.ts` | Hook para executar ações operacionais |
+
+### Onde aparece na interface
+
+O painel de status por plataforma aparece na lista de publicações do dia (`DayPostsList`), abaixo de cada item que está agendado, publicado ou com erro. Mostra:
+- Ícone da rede (Instagram/Facebook)
+- Status individual (Publicado, Com Erro, Agendado, Aguardando retry)
+- Erro amigável traduzido
+- Botões "Reenviar" e "Encerrar" para posts com falha permanente
+- Registros anteriores (substituídos/encerrados) em seção colapsável
+
+---
+
 ## Histórico de Alterações
 
 | Data | Alteração |
 |------|-----------|
+| 2026-03-27 | **Fase 1B** — Novos status: partially_published, partially_failed, retry_pending, superseded, canceled |
+| 2026-03-27 | **Fase 1B** — DB trigger para agregação automática do status pai a partir dos filhos |
+| 2026-03-27 | **Fase 1B** — execution_log e warning_flags em social_posts para rastreabilidade |
+| 2026-03-27 | **Fase 1B** — Edge function media-social-post-actions para reenvio/encerramento manual |
+| 2026-03-27 | **Fase 1B** — PlatformStatusPanel na lista de publicações do dia |
+| 2026-03-27 | **Fase 1B** — Worker v2.1.0: grava execution_log, warning_flags, delega agregação ao trigger |
 | 2026-03-27 | **Fase 1A** — Adicionadas colunas de retry/locking/snapshot em social_posts e frozen_payload em media_calendar_items |
 | 2026-03-27 | **Fase 1A** — Nova edge function `media-normalize-asset` para validação de mídia antes do Instagram |
 | 2026-03-27 | **Fase 1A** — Worker v2.0.0: retry automático com backoff, locking, normalização, uso de payload_snapshot |
