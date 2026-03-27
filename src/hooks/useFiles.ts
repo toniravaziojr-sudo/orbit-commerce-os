@@ -22,7 +22,7 @@ export function useFiles(folderId: string | null = null) {
   // Ensure system folder exists when hook is used at root level
   useEffect(() => {
     if (currentTenant?.id && user?.id && folderId === null) {
-      ensureSystemFolder(currentTenant.id, user.id).then(() => {
+      _ensureSystemFolder(currentTenant.id, user.id).then(() => {
         queryClient.invalidateQueries({ queryKey: ['files', currentTenant.id, null] });
       });
     }
@@ -232,7 +232,7 @@ export function useFiles(folderId: string | null = null) {
   const deleteFile = useMutation({
     mutationFn: async (file: FileItem) => {
       if (!file.is_folder) {
-        const bucket = getBucketForFile(file);
+        const bucket = _getBucketForFile(file);
         const { error: storageError } = await supabase.storage
           .from(bucket)
           .remove([file.storage_path]);
@@ -318,39 +318,8 @@ export function useFiles(folderId: string | null = null) {
 
   const getFileUrl = async (file: FileItem): Promise<string | null> => {
     try {
-      const metadata = file.metadata as Record<string, unknown> | null;
-      
-      // 1. Check if there's a direct URL in metadata
-      const metadataUrl = metadata?.url as string | undefined;
-      if (metadataUrl) {
-        return metadataUrl;
-      }
-      
-      // 2. Use bucket + storage_path
-      const bucket = getBucketForFile(file);
-      
-      // For private buckets (tenant-files), always use signed URLs
-      // For public buckets (store-assets, media-assets), use public URL
-      const isPrivateBucket = bucket === 'tenant-files';
-      
-      if (isPrivateBucket) {
-        const { data: signedData, error } = await supabase.storage
-          .from(bucket)
-          .createSignedUrl(file.storage_path, 3600); // 1 hour expiry
-
-        if (error) {
-          console.error('Error getting signed URL:', error);
-          return null;
-        }
-        return signedData?.signedUrl || null;
-      }
-      
-      // Public bucket — use public URL
-      const { data: publicData } = supabase.storage
-        .from(bucket)
-        .getPublicUrl(file.storage_path);
-      
-      return publicData?.publicUrl || null;
+      const url = await _getFileUrl(file);
+      return url;
     } catch (err) {
       console.error('Error in getFileUrl:', err);
       toast.error('Erro ao obter URL do arquivo. Se persistir, contate o suporte.');
@@ -360,30 +329,7 @@ export function useFiles(folderId: string | null = null) {
 
   const downloadFile = async (file: FileItem) => {
     try {
-      const bucket = getBucketForFile(file);
-      
-      // Try to download directly from storage
-      const { data, error } = await supabase.storage
-        .from(bucket)
-        .download(file.storage_path);
-      
-      if (error) {
-        console.error('Storage download error:', error);
-        
-        // Fallback: try to fetch from URL
-        const url = await getFileUrl(file);
-        if (url) {
-          const response = await fetch(url);
-          if (!response.ok) throw new Error('Failed to fetch file');
-          const blob = await response.blob();
-          triggerDownload(blob, file.original_name);
-          return;
-        }
-        
-        throw new Error('Não foi possível baixar o arquivo');
-      }
-      
-      triggerDownload(data, file.original_name);
+      await downloadDriveFile(file);
     } catch (err) {
       console.error('Download error:', err);
       toast.error('Erro ao baixar arquivo. Se persistir, contate o suporte.');
@@ -391,31 +337,10 @@ export function useFiles(folderId: string | null = null) {
     }
   };
 
-  // Helper to trigger file download
-  const triggerDownload = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
   // Get system folder ID for default uploads
   const getSystemFolderId = async (): Promise<string | null> => {
-    if (!currentTenant?.id) return null;
-    
-    const { data } = await supabase
-      .from('files')
-      .select('id')
-      .eq('tenant_id', currentTenant.id)
-      .eq('is_system_folder', true)
-      .is('folder_id', null)
-      .single();
-    
-    return data?.id || null;
+    if (!currentTenant?.id || !user?.id) return null;
+    return _ensureSystemFolder(currentTenant.id, user.id);
   };
 
   return {
