@@ -3,32 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import type { FileItem } from '@/hooks/useFiles';
-
-export type DriveFileType = 'image' | 'video' | 'document' | 'all';
-
-export interface PathItem {
-  id: string | null;
-  name: string;
-}
-
-export interface UseDriveFilesOptions {
-  initialFolderId?: string | null;
-  fileType?: DriveFileType;
-  initialSearch?: string;
-}
-
-// Determine which bucket a file belongs to based on metadata or path
-function getBucketForFile(file: FileItem): string {
-  const metadata = file.metadata as Record<string, unknown> | null;
-  const source = metadata?.source as string | undefined;
-  const bucket = metadata?.bucket as string | undefined;
-  
-  if (bucket) return bucket;
-  if (source?.startsWith('storefront_') || file.storage_path.includes('tenants/')) {
-    return 'store-assets';
-  }
-  return 'tenant-files';
-}
+import { getFileUrl as _getFileUrl } from '@/lib/driveService';
 
 // Get MIME type patterns for filtering
 function getMimePatterns(fileType: DriveFileType): string[] {
