@@ -6,7 +6,6 @@
  * This ensures product images appear in the Drive's "Produtos" folder.
  */
 
-import { supabase } from '@/integrations/supabase/client';
 import { registerExternalFile, ensureFolderPath } from './driveService';
 
 /**
