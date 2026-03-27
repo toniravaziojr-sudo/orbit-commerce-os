@@ -122,6 +122,27 @@ A divisão reflete nas permissões:
 > | `fbc` expirado enviado ao CAPI | `localStorage` persistia `fbc` sem validade; ao cookie expirar (90d), valor velho era re-criado | Adicionada validação `isFbcExpired()` em `visitorIdentity.ts` — descarta valores >90 dias |
 > | Purchase sem par CAPI | `fetch()` cancelado pelo redirect pós-checkout para /obrigado | `sendServerEvent` usa `navigator.sendBeacon()` para Purchase, Lead e InitiateCheckout — sobrevive a navegação |
 > | sendBeacon sem headers | `sendBeacon` não permite headers customizados | `apikey` enviado via query string; edge function já opera com `verify_jwt=false` |
+>
+> #### Correções v8.21.1 — Março 2026
+>
+> | Problema | Causa | Fix |
+> |----------|-------|-----|
+> | `fbp` ausente em eventos mid-funnel | Apenas PageView/ViewContent/AddToCart aguardavam `_fbp` | `needsFbpWait = true` universal — todos os eventos CAPI aguardam até 1.5s pelo `_fbp` |
+>
+> #### Correções v8.22.0 — Março 2026
+>
+> | Problema | Causa | Fix |
+> |----------|-------|-----|
+> | Vendas duplicadas na Meta (5 vs 4) | Purchase disparava no Checkout E na página de Obrigado — dois disparos navegador+servidor para mesmo pedido | **Purchase removido do Checkout** — agora dispara APENAS na página de Obrigado |
+> | Purchase sem cidade/estado/CEP | ThankYou enviava apenas email/phone/name no userData | Adicionados `city`, `state`, `zip` do endereço de entrega ao userData do Purchase |
+> | IP "compartilhado" 74% PageView | Investigado: `cf-connecting-ip` captura IP real corretamente | **Não é bug** — é NAT do provedor de internet (vários clientes no mesmo IP público) |
+>
+> **Regra de disparo do Purchase (v8.22.0):**
+> - O evento Purchase é disparado **exclusivamente** na página de Obrigado (`ThankYouContent.tsx`)
+> - O Checkout (`CheckoutStepWizard.tsx`) **NÃO** dispara Purchase em nenhuma circunstância
+> - Para modo `all_orders`: dispara ao carregar a página de Obrigado (qualquer status)
+> - Para modo `paid_only`: dispara somente se `payment_status` é `approved` ou `paid`
+> - O robô do servidor (`process-events`) só dispara Purchase CAPI no modo `paid_only`
 
 ---
 
