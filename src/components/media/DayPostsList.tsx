@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Plus, Trash2, Edit2, Clock, Instagram, Facebook, Newspaper, Eye, Copy } from "lucide-react";
+import { Plus, Trash2, Edit2, Clock, Instagram, Facebook, Newspaper, Eye, Copy, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -17,6 +17,8 @@ import { MediaCalendarItem } from "@/hooks/useMediaCampaigns";
 import { getHolidayForDate } from "@/lib/brazilian-holidays";
 import { PublicationPreviewDialog } from "./PublicationPreviewDialog";
 import { PlatformStatusPanel } from "./PlatformStatusPanel";
+import { checkEditability } from "@/hooks/useCalendarItemActions";
+import { useSocialPostActions } from "@/hooks/useSocialPosts";
 
 // Limites por tipo
 const PUBLICATION_LIMITS = {
@@ -72,6 +74,7 @@ interface DayPostsListProps {
   onAddItem: (date: Date) => void;
   onDeleteItem: (id: string) => void;
   onDuplicateItem?: (item: MediaCalendarItem) => void;
+  onReplaceScheduled?: (item: MediaCalendarItem) => void;
 }
 
 // Helper para obter o tipo da publicação
@@ -123,7 +126,6 @@ const getChannelIcon = (item: MediaCalendarItem) => {
     return (
       <div className="flex items-center gap-1">
         {hasBoth ? (
-          // S bicolor - metade laranja, metade azul
           <span className="font-bold text-sm bg-gradient-to-r from-orange-500 to-blue-600 bg-clip-text text-transparent">S</span>
         ) : hasInstagram ? (
           <span className="font-bold text-sm text-orange-500">S</span>
@@ -141,7 +143,6 @@ const getChannelIcon = (item: MediaCalendarItem) => {
   return (
     <div className="flex items-center gap-1">
       {hasBoth ? (
-        // Ícones combinados para ambos
         <>
           <Instagram className="h-4 w-4 text-orange-500" />
           <Facebook className="h-4 w-4 text-blue-600" />
@@ -165,9 +166,11 @@ export function DayPostsList({
   onAddItem,
   onDeleteItem,
   onDuplicateItem,
+  onReplaceScheduled,
 }: DayPostsListProps) {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [previewItem, setPreviewItem] = useState<MediaCalendarItem | null>(null);
+  const { performAction } = useSocialPostActions();
   const holiday = getHolidayForDate(date);
   const counts = getCountsByType(items);
   const totalLimit = PUBLICATION_LIMITS.feed + PUBLICATION_LIMITS.stories + PUBLICATION_LIMITS.blog;
@@ -214,7 +217,10 @@ export function DayPostsList({
               </div>
             ) : (
               <>
-                {items.map((item, index) => (
+                {items.map((item, index) => {
+                  const editability = checkEditability(item);
+
+                  return (
                   <div
                     key={item.id}
                     className={cn(
@@ -223,8 +229,15 @@ export function DayPostsList({
                     )}
                     onClick={() => {
                       if (confirmDelete !== item.id) {
-                        onEditItem(item);
-                        onOpenChange(false);
+                        // For scheduled items, trigger the choice dialog instead of direct edit
+                        if (editability.requiresReplacement && onReplaceScheduled) {
+                          onReplaceScheduled(item);
+                        } else if (editability.isReadOnly) {
+                          setPreviewItem(item);
+                        } else {
+                          onEditItem(item);
+                          onOpenChange(false);
+                        }
                       }
                     }}
                   >
@@ -303,6 +316,7 @@ export function DayPostsList({
                       </div>
                     )}
 
+                    {/* Contextual actions based on editability */}
                     <div className="flex justify-end gap-1 mt-2 pt-2 border-t border-border/50" onClick={(e) => e.stopPropagation()}>
                       {confirmDelete === item.id ? (
                         <div className="flex gap-2">
@@ -325,6 +339,7 @@ export function DayPostsList({
                         </div>
                       ) : (
                         <>
+                          {/* View — always available */}
                           <Button
                             size="sm"
                             variant="ghost"
@@ -334,18 +349,54 @@ export function DayPostsList({
                             <Eye className="h-3.5 w-3.5" />
                             Ver
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 px-2 gap-1 text-xs"
-                            onClick={() => {
-                              onEditItem(item);
-                              onOpenChange(false);
-                            }}
-                          >
-                            <Edit2 className="h-3.5 w-3.5" />
-                            Editar
-                          </Button>
+
+                          {/* Edit — only for editable items */}
+                          {editability.canEdit && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 gap-1 text-xs"
+                              onClick={() => {
+                                onEditItem(item);
+                                onOpenChange(false);
+                              }}
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                              Editar
+                            </Button>
+                          )}
+
+                          {/* Replace scheduling — for scheduled items */}
+                          {editability.requiresReplacement && onReplaceScheduled && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 gap-1 text-xs text-primary"
+                              onClick={() => onReplaceScheduled(item)}
+                            >
+                              <RefreshCw className="h-3.5 w-3.5" />
+                              Substituir
+                            </Button>
+                          )}
+
+                          {/* Resend pending — for partially published/failed */}
+                          {["partially_published", "partially_failed"].includes(item.status) && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 gap-1 text-xs text-primary"
+                              onClick={() => {
+                                // Retry is handled via PlatformStatusPanel per-post
+                                // This is a convenience shortcut
+                                setPreviewItem(item);
+                              }}
+                            >
+                              <RefreshCw className="h-3.5 w-3.5" />
+                              Reenviar
+                            </Button>
+                          )}
+
+                          {/* Duplicate — always available */}
                           {onDuplicateItem && (
                             <Button
                               size="sm"
@@ -357,20 +408,25 @@ export function DayPostsList({
                               Duplicar
                             </Button>
                           )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 px-2 gap-1 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => setConfirmDelete(item.id)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            Excluir
-                          </Button>
+
+                          {/* Delete — only for deletable items */}
+                          {editability.canDelete && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 gap-1 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => setConfirmDelete(item.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Excluir
+                            </Button>
+                          )}
                         </>
                       )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </>
             )}
           </div>
@@ -409,9 +465,15 @@ export function DayPostsList({
         onOpenChange={(open) => !open && setPreviewItem(null)}
         item={previewItem}
         onEdit={(item) => {
-          setPreviewItem(null);
-          onEditItem(item);
-          onOpenChange(false);
+          const ed = checkEditability(item);
+          if (ed.requiresReplacement && onReplaceScheduled) {
+            setPreviewItem(null);
+            onReplaceScheduled(item);
+          } else if (!ed.isReadOnly) {
+            setPreviewItem(null);
+            onEditItem(item);
+            onOpenChange(false);
+          }
         }}
       />
     </>
