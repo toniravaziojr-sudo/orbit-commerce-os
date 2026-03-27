@@ -8934,6 +8934,7 @@ export type Database = {
           cta: string | null
           edited_at: string | null
           edited_by: string | null
+          frozen_payload: Json | null
           generation_prompt: string | null
           hashtags: string[] | null
           id: string
@@ -8964,6 +8965,7 @@ export type Database = {
           cta?: string | null
           edited_at?: string | null
           edited_by?: string | null
+          frozen_payload?: Json | null
           generation_prompt?: string | null
           hashtags?: string[] | null
           id?: string
@@ -8994,6 +8996,7 @@ export type Database = {
           cta?: string | null
           edited_at?: string | null
           edited_by?: string | null
+          frozen_payload?: Json | null
           generation_prompt?: string | null
           hashtags?: string[] | null
           id?: string
@@ -14586,6 +14589,7 @@ export type Database = {
       social_posts: {
         Row: {
           api_response: Json | null
+          attempt_count: number | null
           calendar_item_id: string | null
           caption: string | null
           created_at: string
@@ -14594,14 +14598,21 @@ export type Database = {
           hashtags: string[] | null
           id: string
           instagram_account_id: string | null
+          last_error_code: string | null
+          last_error_message: string | null
           link_url: string | null
+          lock_token: string | null
           media_urls: string[] | null
           meta_container_id: string | null
           meta_post_id: string | null
+          next_retry_at: string | null
+          normalization_result: Json | null
           page_id: string
           page_name: string | null
+          payload_snapshot: Json | null
           platform: string
           post_type: string
+          processing_started_at: string | null
           published_at: string | null
           scheduled_at: string | null
           status: string
@@ -14610,6 +14621,7 @@ export type Database = {
         }
         Insert: {
           api_response?: Json | null
+          attempt_count?: number | null
           calendar_item_id?: string | null
           caption?: string | null
           created_at?: string
@@ -14618,14 +14630,21 @@ export type Database = {
           hashtags?: string[] | null
           id?: string
           instagram_account_id?: string | null
+          last_error_code?: string | null
+          last_error_message?: string | null
           link_url?: string | null
+          lock_token?: string | null
           media_urls?: string[] | null
           meta_container_id?: string | null
           meta_post_id?: string | null
+          next_retry_at?: string | null
+          normalization_result?: Json | null
           page_id: string
           page_name?: string | null
+          payload_snapshot?: Json | null
           platform: string
           post_type: string
+          processing_started_at?: string | null
           published_at?: string | null
           scheduled_at?: string | null
           status?: string
@@ -14634,6 +14653,7 @@ export type Database = {
         }
         Update: {
           api_response?: Json | null
+          attempt_count?: number | null
           calendar_item_id?: string | null
           caption?: string | null
           created_at?: string
@@ -14642,14 +14662,21 @@ export type Database = {
           hashtags?: string[] | null
           id?: string
           instagram_account_id?: string | null
+          last_error_code?: string | null
+          last_error_message?: string | null
           link_url?: string | null
+          lock_token?: string | null
           media_urls?: string[] | null
           meta_container_id?: string | null
           meta_post_id?: string | null
+          next_retry_at?: string | null
+          normalization_result?: Json | null
           page_id?: string
           page_name?: string | null
+          payload_snapshot?: Json | null
           platform?: string
           post_type?: string
+          processing_started_at?: string | null
           published_at?: string | null
           scheduled_at?: string | null
           status?: string
