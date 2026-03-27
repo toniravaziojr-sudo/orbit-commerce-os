@@ -747,6 +747,7 @@ O `CampaignCalendar.tsx` foi reduzido de ~1020 linhas para ~40 linhas, servindo 
 | 2026-03-27 | **Fase 2** — Ações contextuais no DayPostsList por estado |
 | 2026-03-27 | Corrigido scroll interno do PublicationDialog (maxHeight inline + display flex forçado) e espaçamento do campo de prompt IA com resize desabilitado |
 | 2026-03-27 | **Fase 2** — Banners de contexto e modo somente leitura no PublicationDialog |
+| 2026-03-27 | Revertido `resize-none` do campo de prompt IA no PublicationDialog — campo voltou a permitir redimensionamento (igual ao campo de legenda/copy), mantendo apenas o espaçamento (`pb-3`) entre o campo e os botões de ação |
 | 2026-03-27 | **Fase 2** — Item parcialmente publicado = somente leitura total |
 | 2026-03-27 | **Fase 1A** — Adicionadas colunas de retry/locking/snapshot em social_posts e frozen_payload em media_calendar_items |
 | 2026-03-27 | **Fase 1A** — Nova edge function `media-normalize-asset` para validação de mídia antes do Instagram |
