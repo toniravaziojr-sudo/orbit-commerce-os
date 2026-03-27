@@ -149,14 +149,14 @@ export function UniversalImageUploader({
           )}
         </TabsList>
 
-        <TabsContent value="upload" className="mt-3">
+        <TabsContent value="upload" className="mt-2">
           <div
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onClick={() => !disabled && fileInputRef.current?.click()}
             className={cn(
-              'border-2 border-dashed rounded-lg p-6 text-center transition-colors',
+              'border-2 border-dashed rounded-lg p-4 text-center transition-colors',
               isDragging && 'border-primary bg-primary/5',
               !isDragging && !disabled && 'border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50 cursor-pointer',
               (isUploading || disabled) && 'pointer-events-none opacity-50'
@@ -175,15 +175,15 @@ export function UniversalImageUploader({
             />
 
             {isUploading ? (
-              <div className="py-2">
-                <Loader2 className="h-10 w-10 mx-auto animate-spin text-primary" />
-                <p className="text-sm text-muted-foreground mt-2">Enviando...</p>
+              <div className="py-1">
+                <Loader2 className="h-8 w-8 mx-auto animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground mt-1.5">Enviando...</p>
               </div>
             ) : (
-              <div className="py-2">
-                <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+              <div className="py-1">
+                <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                 <p className="text-sm text-muted-foreground">{placeholder}</p>
-                <p className="text-xs text-muted-foreground/70 mt-1">
+                <p className="text-xs text-muted-foreground/70 mt-0.5">
                   Arraste ou clique para selecionar • Máx {maxSize}MB
                 </p>
               </div>
