@@ -561,6 +561,7 @@ export function CampaignCalendar() {
     if (dayItems.length === 0) return "";
     const s = getStatusSummary(dayItems);
     if (s.failed > 0) return "border-red-500 dark:border-red-600";
+    if (s.partial > 0) return "border-amber-500 dark:border-amber-600";
     if (s.published > 0 && s.published === dayItems.length) return "border-green-500 dark:border-green-600";
     if (s.scheduled > 0) return "border-blue-500 dark:border-blue-600";
     if (s.published > 0) return "border-green-500 dark:border-green-600";
@@ -573,6 +574,7 @@ export function CampaignCalendar() {
     if (dayItems.length === 0) return "";
     const s = getStatusSummary(dayItems);
     if (s.failed > 0) return "bg-red-50 dark:bg-red-950/20";
+    if (s.partial > 0) return "bg-amber-50 dark:bg-amber-950/20";
     if (s.published > 0 && s.published === dayItems.length) return "bg-green-50 dark:bg-green-950/30";
     if (s.scheduled > 0) return "bg-blue-50 dark:bg-blue-950/20";
     if (s.published > 0) return "bg-green-50 dark:bg-green-950/30";
