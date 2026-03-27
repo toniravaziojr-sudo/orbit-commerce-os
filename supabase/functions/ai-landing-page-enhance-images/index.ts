@@ -111,7 +111,7 @@ async function uploadCreativeToStorage(
         tenant_id: tenantId, folder_id: driveFolderId, filename, original_name: filename,
         storage_path: filePath, mime_type: 'image/png', size_bytes: bytes.length,
         is_folder: false, is_system_folder: false, created_by: userId,
-        metadata: { source: "ai_landing_page_enhance", url: publicUrl, bucket: "store-assets", system_managed: true },
+        metadata: { source: "ai_creative_landing", url: publicUrl, bucket: "store-assets", system_managed: true },
       });
     }
     return publicUrl || null;
