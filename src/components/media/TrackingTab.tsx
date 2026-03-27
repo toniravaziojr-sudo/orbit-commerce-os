@@ -100,8 +100,18 @@ export function TrackingTab({
 
   const weekDayHeaders = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
+  const hasTrackingItems = stats.published + stats.scheduled + stats.failed + stats.partial > 0;
+
   return (
     <div className="space-y-4">
+      {!hasTrackingItems && !isLoading ? (
+        <EmptyState
+          icon={BarChart3}
+          title="Nenhuma publicação no acompanhamento"
+          description="Quando itens forem publicados ou agendados, você poderá acompanhar o status aqui."
+        />
+      ) : (
+        <>
       {/* Summary stats */}
       <div className="grid grid-cols-4 gap-3">
         {[
@@ -263,6 +273,8 @@ export function TrackingTab({
           </div>
         ))}
       </div>
+      </>
+      )}
     </div>
   );
 }

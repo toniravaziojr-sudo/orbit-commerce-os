@@ -58,9 +58,9 @@ const statusLabels: Record<string, string> = {
   published: "Publicado",
   failed: "Com Erros",
   skipped: "Ignorado",
-  partially_published: "Parcial ✓",
-  partially_failed: "Parcial ✗",
-  retry_pending: "Reenviando",
+  partially_published: "Publicação parcial",
+  partially_failed: "Falha parcial",
+  retry_pending: "Aguardando reenvio",
   superseded: "Substituído",
   canceled: "Encerrado",
 };
@@ -375,7 +375,7 @@ export function DayPostsList({
                               onClick={() => onReplaceScheduled(item)}
                             >
                               <RefreshCw className="h-3.5 w-3.5" />
-                              Substituir
+                              Substituir agendamento
                             </Button>
                           )}
 
