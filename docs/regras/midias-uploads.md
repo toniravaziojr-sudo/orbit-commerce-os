@@ -543,6 +543,10 @@ Criativos gerados pela IA (edge function `creative-image-generate`) usam nomes d
 
 | Data | Alteração |
 |------|-----------|
+| 2026-03-27 | **Fase 1A** — Adicionadas colunas de retry/locking/snapshot em social_posts e frozen_payload em media_calendar_items |
+| 2026-03-27 | **Fase 1A** — Nova edge function `media-normalize-asset` para validação de mídia antes do Instagram |
+| 2026-03-27 | **Fase 1A** — Worker v2.0.0: retry automático com backoff, locking, normalização, uso de payload_snapshot |
+| 2026-03-27 | **Fase 1A** — meta-publish-post v3.0.0: preflight por plataforma, snapshot congelado, frozen_payload no pai |
 | 2026-03-02 | Corrigido `getFileUrl` para usar `createSignedUrl` em buckets privados (`tenant-files`) — previews e downloads agora funcionam |
 | 2026-03-02 | Toasts de upload consolidados: uma única notificação para uploads em lote em vez de uma por arquivo |
 | 2026-02-19 | Nomes únicos para criativos (`{product}_{style}_{provider}_{timestamp}.png`) e ordenação do Drive por `created_at DESC` |
