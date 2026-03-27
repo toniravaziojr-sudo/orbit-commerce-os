@@ -622,16 +622,79 @@ O painel de status por plataforma aparece na lista de publicações do dia (`Day
 
 ---
 
+## Fase 2 — Regras de Edição, Substituição e Versionamento
+
+### Regras de Editabilidade por Estado
+
+| Estado | Pode editar | Pode excluir | Modo | Descrição |
+|--------|-------------|--------------|------|-----------|
+| draft, suggested, review, generating_asset, asset_review | ✅ | ✅ | Livre | Edição sem restrições |
+| approved | ✅ | ✅ | Livre (com tracking) | Se campo crítico mudar, volta para revisão |
+| scheduled | ❌ direto | ❌ | Substituição | Abre modal de decisão: substituir ou duplicar |
+| publishing, retry_pending | ❌ | ❌ | Somente leitura | Em processamento |
+| partially_published, partially_failed | ❌ | ❌ | Somente leitura total | Reenviar pendentes ou criar nova versão |
+| published | ❌ | ❌ | Somente leitura | Visualizar e duplicar apenas |
+| superseded, canceled, failed | ❌ | ❌ | Somente leitura | Histórico |
+
+### Campos Críticos (Tracking de Reaprovação)
+
+Ao editar item aprovado, mudanças em `copy`, `asset_url`, `target_platforms` ou `content_type` revertem status para `review`.
+
+### Substituição de Agendamento (Ordem Segura)
+
+1. Salva novos dados no item pai (sem apagar nada)
+2. Se sucesso → marca social_posts ativos como `superseded` via edge function
+3. Reseta status para `approved`
+4. Limpa `frozen_payload`
+5. Preserva `scheduled_time` original
+
+Se falhar em qualquer passo, o agendamento antigo permanece intacto.
+
+### Item Parcialmente Publicado = Somente Leitura Total
+
+O item original fica 100% somente leitura. Opções do usuário:
+- **Reenviar pendentes** — reenvia sem alterar conteúdo (via PlatformStatusPanel)
+- **Criar nova versão** — duplica como rascunho independente
+
+### Componentes da Fase 2
+
+| Componente | Arquivo | Propósito |
+|------------|---------|-----------|
+| `ScheduledEditChoiceDialog` | `src/components/media/ScheduledEditChoiceDialog.tsx` | Modal de decisão: substituir agendamento ou duplicar |
+| `useCalendarItemActions` | `src/hooks/useCalendarItemActions.ts` | Hook central: checkEditability, replaceScheduledItem, duplicateAsNewVersion |
+| `checkEditability` | `src/hooks/useCalendarItemActions.ts` | Função pura que retorna permissões por estado |
+| `hasCriticalFieldChanged` | `src/hooks/useCalendarItemActions.ts` | Detecta mudança em campos que exigem reaprovação |
+
+### Ações Contextuais na Lista do Dia (DayPostsList)
+
+Botões mudam conforme o estado do item:
+- Em construção/aprovado: Editar, Duplicar, Excluir
+- Agendado: Substituir, Duplicar, Ver
+- Publicando/retry: Ver, Duplicar
+- Parcial: Reenviar, Duplicar, Ver
+- Publicado/finalizado: Ver, Duplicar
+
+### Banners de Contexto no Editor (PublicationDialog)
+
+| Situação | Banner |
+|----------|--------|
+| Modo substituição | Aviso amarelo: "Ao salvar, o agendamento anterior será cancelado" |
+| Parcialmente publicado | Aviso com cadeado: "Somente leitura — reenvie pendentes ou duplique" |
+| Publicado | Aviso verde com cadeado: "Item publicado — use Duplicar" |
+
+---
+
 ## Histórico de Alterações
 
 | Data | Alteração |
 |------|-----------|
-| 2026-03-27 | **Fase 1B** — Novos status: partially_published, partially_failed, retry_pending, superseded, canceled |
-| 2026-03-27 | **Fase 1B** — DB trigger para agregação automática do status pai a partir dos filhos |
-| 2026-03-27 | **Fase 1B** — execution_log e warning_flags em social_posts para rastreabilidade |
-| 2026-03-27 | **Fase 1B** — Edge function media-social-post-actions para reenvio/encerramento manual |
-| 2026-03-27 | **Fase 1B** — PlatformStatusPanel na lista de publicações do dia |
-| 2026-03-27 | **Fase 1B** — Worker v2.1.0: grava execution_log, warning_flags, delega agregação ao trigger |
+| 2026-03-27 | **Fase 2** — Regras de editabilidade por estado (checkEditability) |
+| 2026-03-27 | **Fase 2** — Modal ScheduledEditChoiceDialog para itens agendados |
+| 2026-03-27 | **Fase 2** — Substituição segura de agendamento (replaceScheduledItem) |
+| 2026-03-27 | **Fase 2** — Tracking de campos críticos com reaprovação automática |
+| 2026-03-27 | **Fase 2** — Ações contextuais no DayPostsList por estado |
+| 2026-03-27 | **Fase 2** — Banners de contexto e modo somente leitura no PublicationDialog |
+| 2026-03-27 | **Fase 2** — Item parcialmente publicado = somente leitura total |
 | 2026-03-27 | **Fase 1A** — Adicionadas colunas de retry/locking/snapshot em social_posts e frozen_payload em media_calendar_items |
 | 2026-03-27 | **Fase 1A** — Nova edge function `media-normalize-asset` para validação de mídia antes do Instagram |
 | 2026-03-27 | **Fase 1A** — Worker v2.0.0: retry automático com backoff, locking, normalização, uso de payload_snapshot |
