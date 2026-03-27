@@ -144,6 +144,10 @@ export function CampaignCalendar() {
   const [generationProgress, setGenerationProgress] = useState<{ total: number; completed: number } | null>(null);
   const [strategyPromptOpen, setStrategyPromptOpen] = useState(false);
   const [strategyPrompt, setStrategyPrompt] = useState("");
+  // Phase 2: Scheduled edit choice dialog
+  const [scheduledChoiceItem, setScheduledChoiceItem] = useState<MediaCalendarItem | null>(null);
+  const [replaceMode, setReplaceMode] = useState(false);
+  const { duplicateAsNewVersion } = useCalendarItemActions(campaignId);
 
   // ========== MEMOS ==========
   const days = useMemo(() => {
@@ -920,12 +924,13 @@ export function CampaignCalendar() {
 
       {/* Dialogs */}
       <PublicationDialog
-        open={dialogOpen} onOpenChange={setDialogOpen}
+        open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setReplaceMode(false); }}
         date={selectedDate} campaignId={campaignId!}
         existingItems={currentDateItems} editItem={editItem}
         campaignStartDate={campaign?.start_date}
         campaignType={campaign?.target_channel === "blog" ? "blog" : campaign?.target_channel === "youtube" ? "youtube" : "social"}
         onBackToList={() => { if (selectedDate) { setDayListDate(selectedDate); setDayListOpen(true); } }}
+        replaceMode={replaceMode}
       />
 
       {dayListDate && (
@@ -934,8 +939,30 @@ export function CampaignCalendar() {
           date={dayListDate} items={dayListItems}
           onEditItem={handleEditItem} onAddItem={handleAddItem}
           onDeleteItem={handleDeleteItem} onDuplicateItem={handleDuplicateItem}
+          onReplaceScheduled={(item) => {
+            setDayListOpen(false);
+            setScheduledChoiceItem(item);
+          }}
         />
       )}
+
+      {/* Phase 2: Scheduled edit choice dialog */}
+      <ScheduledEditChoiceDialog
+        open={!!scheduledChoiceItem}
+        onOpenChange={(open) => { if (!open) setScheduledChoiceItem(null); }}
+        item={scheduledChoiceItem}
+        onReplace={(item) => {
+          setScheduledChoiceItem(null);
+          setSelectedDate(parseISO(item.scheduled_date));
+          setEditItem(item);
+          setReplaceMode(true);
+          setDialogOpen(true);
+        }}
+        onDuplicate={(item) => {
+          setScheduledChoiceItem(null);
+          duplicateAsNewVersion.mutate(item);
+        }}
+      />
 
       <ApprovalDialog
         open={approvalDialogOpen}
