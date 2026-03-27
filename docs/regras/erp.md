@@ -29,7 +29,19 @@ Módulo de gestão empresarial: fiscal (NF-e via Nuvem Fiscal), financeiro, e co
 | `src/pages/FiscalProductsConfig.tsx` | NCM/CFOP por produto |
 | `src/components/integrations/FiscalPlatformSettings.tsx` | Config global Nuvem Fiscal |
 
-### Edge Functions Fiscais
+### Atualização em Tempo Real (v8.22.0)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Hook / Realtime |
+| **Localização** | `src/hooks/useFiscal.ts` → `useFiscalRealtime()` |
+| **Contexto** | Usado em `FiscalInvoiceList.tsx` |
+| **Descrição** | Escuta mudanças na tabela `fiscal_invoices` via realtime e invalida automaticamente os dados da lista |
+| **Comportamento** | Ao receber INSERT/UPDATE/DELETE em `fiscal_invoices`, invalida queries `fiscal-invoices`, `fiscal-stats` e `fiscal-alerts` |
+| **Condições** | Tabela `fiscal_invoices` adicionada à publication `supabase_realtime` |
+| **Resultado** | O módulo fiscal atualiza automaticamente sem o usuário precisar recarregar a página |
+
+
 | Função | Descrição |
 |--------|-----------|
 | `fiscal-sync-nuvem-fiscal` | Sincroniza empresa + certificado na Nuvem Fiscal |

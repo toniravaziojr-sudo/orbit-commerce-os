@@ -123,6 +123,9 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
         email: order.customer_email,
         phone: order.customer_phone,
         name: order.customer_name,
+        city: order.shipping_city,
+        state: order.shipping_state,
+        zip: order.shipping_postal_code,
       },
     });
     
