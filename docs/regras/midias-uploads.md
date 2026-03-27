@@ -157,8 +157,35 @@ A partir da Fase 1B, após o upload, o sistema registra automaticamente no Drive
 | `src/lib/replaceSystemAsset.ts` | **[WRAPPER]** Compatibilidade — delega para driveService.replaceDriveAsset |
 | `src/lib/registerReviewMediaToDrive.ts` | **[WRAPPER]** Compatibilidade — delega para driveService |
 | `src/lib/ensureMediaMonthFolder.ts` | **[WRAPPER]** Compatibilidade — delega para driveService.ensureFolder |
+| `supabase/functions/drive-backfill/index.ts` | **Edge function** — backfill de assets antigos (store_settings, product_images, categories) |
+| `src/hooks/useDriveBackfill.ts` | Hook React para disparar o backfill de assets antigos |
 
 > **REGRA:** Novos módulos devem importar diretamente de `driveService.ts` (frontend) ou `drive-register.ts` (edge functions).
+
+---
+
+## Backfill de Assets Antigos (Fase 2)
+
+A edge function `drive-backfill` registra no Meu Drive os assets que já existiam antes da centralização.
+
+| Módulo | Campo(s) | Pasta no Drive | source |
+|--------|----------|---------------|--------|
+| store_settings | `logo_url`, `favicon_url` | Uploads do sistema/Branding | `storefront_logo`, `storefront_favicon` |
+| product_images | `url` | Produtos | `product_image` |
+| categories | `image_url`, `banner_desktop_url`, `banner_mobile_url` | Categorias | `category_image`, `category_banner` |
+
+**Regras do backfill:**
+- Idempotente: verifica duplicatas por `storage_path` antes de inserir
+- NÃO move, renomeia, apaga ou troca URLs de arquivos já salvos
+- NÃO altera bucket, path real ou vínculo atual dos módulos
+- Apenas cria registros na tabela `files` com `metadata.backfill = true`
+- Pagina product_images em lotes de 500 (até 5000)
+
+**Pendentes para fase posterior:**
+- Blocos da loja virtual (builder blocks com imagens inline)
+- Campanhas/publicações (media_publications)
+- Landing pages (ai_landing_pages com imagens geradas)
+- Criativos IA já gerados por engines antigas
 
 ---
 
