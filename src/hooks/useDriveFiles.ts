@@ -145,41 +145,10 @@ export function useDriveFiles(options: UseDriveFilesOptions = {}) {
     setCurrentFolderId(currentFolder?.folder_id ?? null);
   }, [currentFolderId, allFolders]);
 
-  // Get file URL (sync version that returns URL directly for display)
+  // Get file URL — delegates to driveService
   const getFileUrl = useCallback(async (file: FileItem): Promise<string | null> => {
     try {
-      const metadata = file.metadata as Record<string, unknown> | null;
-      
-      // 1. Check if there's a direct URL in metadata
-      const metadataUrl = metadata?.url as string | undefined;
-      if (metadataUrl) {
-        return metadataUrl;
-      }
-      
-      // 2. Use bucket + storage_path
-      const bucket = getBucketForFile(file);
-      
-      // For private buckets (tenant-files), always use signed URLs
-      const isPrivateBucket = bucket === 'tenant-files';
-      
-      if (isPrivateBucket) {
-        const { data: signedData, error } = await supabase.storage
-          .from(bucket)
-          .createSignedUrl(file.storage_path, 3600);
-
-        if (error) {
-          console.error('Error getting signed URL:', error);
-          return null;
-        }
-        return signedData?.signedUrl || null;
-      }
-      
-      // Public bucket — use public URL
-      const { data: publicData } = supabase.storage
-        .from(bucket)
-        .getPublicUrl(file.storage_path);
-      
-      return publicData?.publicUrl || null;
+      return await _getFileUrl(file);
     } catch (err) {
       console.error('Error in getFileUrl:', err);
       return null;
