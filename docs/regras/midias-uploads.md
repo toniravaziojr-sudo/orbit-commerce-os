@@ -684,10 +684,55 @@ Botões mudam conforme o estado do item:
 
 ---
 
+## Fase 3 — Reorganização da Experiência em 3 Abas
+
+### Estrutura de Abas
+
+| Aba | Propósito | Componente |
+|-----|-----------|------------|
+| **Planejamento** | Selecionar dias, gerar estratégia/copys/criativos, editar rascunhos | `PlanningTab.tsx` |
+| **Aprovação e Publicação** | Revisar, aprovar e publicar itens prontos (lista inline com checklist) | `ApprovalTab.tsx` |
+| **Acompanhamento** | Ver status de publicados/agendados/com erro, reenviar, duplicar | `TrackingTab.tsx` |
+
+### Componentes da Fase 3
+
+| Componente | Arquivo | Propósito |
+|------------|---------|-----------|
+| `CampaignTabs` | `src/components/media/CampaignTabs.tsx` | Orquestra as 3 abas, gerencia estado compartilhado (dialogs, seleção) |
+| `PlanningTab` | `src/components/media/PlanningTab.tsx` | Calendário + stepper de construção (passos 1-4), filtra itens em preparo |
+| `ApprovalTab` | `src/components/media/ApprovalTab.tsx` | Lista inline de aprovação + publicação, reutiliza handlers existentes |
+| `TrackingTab` | `src/components/media/TrackingTab.tsx` | Calendário somente leitura com status operacionais, cards de resumo |
+
+### Navegação entre Abas
+
+| De | Para | Gatilho |
+|----|------|---------|
+| Planejamento → Aprovação | Alerta verde "X itens prontos para aprovação" com botão "Ir para Aprovação" |
+| Aprovação → Planejamento | Botão "Editar" em cada item leva de volta ao editor no Planejamento |
+| Aprovação → Planejamento | Botão "Voltar ao Planejamento" quando lista vazia |
+| Acompanhamento → DayPostsList | Clique no dia abre lista com ações de ver/reenviar/duplicar |
+
+### CampaignCalendar Refatorado
+
+O `CampaignCalendar.tsx` foi reduzido de ~1020 linhas para ~40 linhas, servindo apenas como casca que renderiza `PageHeader` + `CampaignTabs`.
+
+### Filtros por Aba
+
+| Aba | Statuses visíveis no calendário |
+|-----|--------------------------------|
+| Planejamento | draft, suggested, review, generating_asset, asset_review, approved |
+| Acompanhamento | scheduled, publishing, published, failed, partially_published, partially_failed, retry_pending, superseded, canceled |
+
+---
+
 ## Histórico de Alterações
 
 | Data | Alteração |
 |------|-----------|
+| 2026-03-27 | **Fase 3** — Reorganização em 3 abas (CampaignTabs, PlanningTab, ApprovalTab, TrackingTab) |
+| 2026-03-27 | **Fase 3** — CampaignCalendar reduzido a casca de ~40 linhas |
+| 2026-03-27 | **Fase 3** — Aprovação transformada em lista inline com filtros (prontos/aprovados) |
+| 2026-03-27 | **Fase 3** — Navegação cruzada entre abas com atalhos contextuais |
 | 2026-03-27 | **Fase 2** — Regras de editabilidade por estado (checkEditability) |
 | 2026-03-27 | **Fase 2** — Modal ScheduledEditChoiceDialog para itens agendados |
 | 2026-03-27 | **Fase 2** — Substituição segura de agendamento (replaceScheduledItem) |
