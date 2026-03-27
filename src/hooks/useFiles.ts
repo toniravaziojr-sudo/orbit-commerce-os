@@ -3,7 +3,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { useEffect } from 'react';
-
+import {
+  getBucketForFile as _getBucketForFile,
+  getFileUrl as _getFileUrl,
+  downloadDriveFile,
+  ensureSystemFolder as _ensureSystemFolder,
+  invalidateDriveQueries,
+  type DriveFileItem,
+} from '@/lib/driveService';
 export interface FileItem {
   id: string;
   tenant_id: string;
