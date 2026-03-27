@@ -3,7 +3,20 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import type { FileItem } from '@/hooks/useFiles';
-import { getFileUrl as _getFileUrl } from '@/lib/driveService';
+import { getFileUrl as _getFileUrl, getBucketForFile } from '@/lib/driveService';
+
+export type DriveFileType = 'image' | 'video' | 'document' | 'all';
+
+export interface PathItem {
+  id: string | null;
+  name: string;
+}
+
+export interface UseDriveFilesOptions {
+  initialFolderId?: string | null;
+  fileType?: DriveFileType;
+  initialSearch?: string;
+}
 
 // Get MIME type patterns for filtering
 function getMimePatterns(fileType: DriveFileType): string[] {
