@@ -95,9 +95,17 @@ if (result?.publicUrl) {
 
 | Arquivo | Uso |
 |---------|-----|
-| `src/hooks/useSystemUpload.ts` | Hook React para uploads em componentes |
-| `src/lib/uploadAndRegisterToSystemDrive.ts` | Função utilitária para upload + registro |
-| `src/lib/registerFileToDrive.ts` | Funções auxiliares (ensureSystemFolderAndGetId, fileExistsInDrive) |
+| `src/lib/driveService.ts` | **Hub central** — upload, registro, URL, bucket, ensureFolder, download. Toda lógica de arquivos passa por aqui. |
+| `src/hooks/useSystemUpload.ts` | Hook React para uploads em componentes (wrapper sobre driveService) |
+| `src/hooks/useFiles.ts` | CRUD de arquivos/pastas do Drive (consome driveService para bucket/URL/download) |
+| `src/hooks/useDriveFiles.ts` | Navegação, busca e breadcrumbs do Drive (consome driveService para URL) |
+| `src/lib/uploadAndRegisterToSystemDrive.ts` | **[WRAPPER]** Compatibilidade — delega para driveService.uploadToDrive |
+| `src/lib/registerFileToDrive.ts` | **[WRAPPER]** Compatibilidade — delega para driveService.ensureSystemFolder/registerExternalFile |
+| `src/lib/replaceSystemAsset.ts` | **[WRAPPER]** Compatibilidade — delega para driveService.replaceDriveAsset |
+| `src/lib/registerReviewMediaToDrive.ts` | **[WRAPPER]** Compatibilidade — delega para driveService.ensureFolder/registerExternalFile |
+| `src/lib/ensureMediaMonthFolder.ts` | **[WRAPPER]** Compatibilidade — delega para driveService.ensureFolder |
+
+> **REGRA:** Novos módulos devem importar diretamente de `driveService.ts`. Os wrappers serão removidos em fase futura de limpeza.
 
 ---
 

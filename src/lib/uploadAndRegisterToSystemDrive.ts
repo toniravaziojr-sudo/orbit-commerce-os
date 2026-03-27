@@ -1,129 +1,51 @@
-import { supabase } from '@/integrations/supabase/client';
-import { ensureSystemFolderAndGetId, fileExistsInDrive } from './registerFileToDrive';
+/**
+ * uploadAndRegisterToSystemDrive.ts — WRAPPER DE COMPATIBILIDADE
+ *
+ * Delega para driveService.ts. Mantido para preservar importações existentes.
+ * Será removido em fase posterior de limpeza.
+ */
+
+import {
+  uploadToDrive,
+  registerExternalFile,
+  ensureSystemFolder,
+  fileExistsInDrive,
+  type UploadToDriveResult,
+} from './driveService';
 
 export interface SystemUploadOptions {
   tenantId: string;
   userId: string;
   file: File;
-  source: string; // e.g., 'storefront_logo', 'category_banner', 'product_image'
-  subPath?: string; // Optional subfolder within system folder path, e.g., 'branding', 'products'
-  customFilename?: string; // If you want to override the generated filename
-  folderId?: string; // Optional: specify a custom folder ID instead of system folder
+  source: string;
+  subPath?: string;
+  customFilename?: string;
+  folderId?: string;
 }
 
 export interface SystemUploadResult {
   publicUrl: string;
   storagePath: string;
   bucket: string;
-  fileId: string | null; // ID in files table
+  fileId: string | null;
 }
 
-/**
- * Canonical utility for uploading files to storage and registering them
- * in the Drive (files table) under "Uploads do sistema".
- * 
- * This should be used by ALL modules that upload assets.
- */
+/** @deprecated Use driveService.uploadToDrive */
 export async function uploadAndRegisterToSystemDrive(
   options: SystemUploadOptions
 ): Promise<SystemUploadResult | null> {
-  const { tenantId, userId, file, source, subPath, customFilename, folderId } = options;
-
-  // Use custom folder or fall back to system folder
-  let targetFolderId = folderId || null;
-  if (!targetFolderId) {
-    targetFolderId = await ensureSystemFolderAndGetId(tenantId, userId);
-    if (!targetFolderId) {
-      console.error('Could not get/create system folder');
-      return null;
-    }
-  }
-
-  // Generate UNIQUE storage path with UUID to avoid cache issues
-  const fileExt = file.name.split('.').pop()?.toLowerCase() || 'bin';
-  const timestamp = Date.now();
-  const uuid = crypto.randomUUID().slice(0, 8);
-  const filename = customFilename || `${timestamp}-${uuid}.${fileExt}`;
-  
-  const basePath = subPath 
-    ? `tenants/${tenantId}/${subPath}` 
-    : `tenants/${tenantId}/assets`;
-  const storagePath = `${basePath}/${filename}`;
-  const bucket = 'store-assets';
-
-  // Upload to storage - NEVER upsert, always use unique path
-  const { error: uploadError } = await supabase.storage
-    .from(bucket)
-    .upload(storagePath, file, { 
-      upsert: false,
-      cacheControl: '3600',
-    });
-
-  if (uploadError) {
-    console.error('Upload error:', uploadError);
-    return null;
-  }
-
-  // Get public URL
-  const { data: publicUrlData } = supabase.storage
-    .from(bucket)
-    .getPublicUrl(storagePath);
-
-  const publicUrl = publicUrlData?.publicUrl;
-  if (!publicUrl) {
-    console.error('Could not get public URL');
-    return null;
-  }
-
-  // Check if already registered (avoid duplicates)
-  const exists = await fileExistsInDrive(tenantId, storagePath);
-  if (exists) {
-    console.log('File already registered in Drive:', storagePath);
-    return { publicUrl, storagePath, bucket, fileId: null };
-  }
-
-  // Register in files table (Drive)
-  const { data: fileRecord, error: insertError } = await supabase
-    .from('files')
-    .insert({
-      tenant_id: tenantId,
-      folder_id: targetFolderId,
-      filename,
-      original_name: file.name,
-      storage_path: storagePath,
-      mime_type: file.type || null,
-      size_bytes: file.size || null,
-      is_folder: false,
-      is_system_folder: false,
-      created_by: userId,
-      metadata: {
-        source,
-        url: publicUrl,
-        bucket,
-        system_managed: true,
-      },
-    })
-    .select('id')
-    .single();
-
-  if (insertError) {
-    console.error('Error registering file to Drive:', insertError);
-    // Still return success since file was uploaded
-    return { publicUrl, storagePath, bucket, fileId: null };
-  }
-
-  return {
-    publicUrl,
-    storagePath,
-    bucket,
-    fileId: fileRecord?.id || null,
-  };
+  return uploadToDrive({
+    tenantId: options.tenantId,
+    userId: options.userId,
+    file: options.file,
+    source: options.source,
+    subPath: options.subPath,
+    customFilename: options.customFilename,
+    folderId: options.folderId,
+  });
 }
 
-/**
- * Helper to register an already-uploaded file to the system drive.
- * Useful for backfilling or reconciling existing assets.
- */
+/** @deprecated Use driveService.registerExternalFile */
 export async function registerExistingToSystemDrive(options: {
   tenantId: string;
   userId: string;
@@ -135,50 +57,15 @@ export async function registerExistingToSystemDrive(options: {
   size?: number;
   source: string;
 }): Promise<string | null> {
-  const { tenantId, userId, publicUrl, storagePath, bucket, originalName, mimeType, size, source } = options;
-
-  // Get or create the system folder
-  const systemFolderId = await ensureSystemFolderAndGetId(tenantId, userId);
-  if (!systemFolderId) {
-    console.error('Could not get/create system folder');
-    return null;
-  }
-
-  // Check if already registered
-  const exists = await fileExistsInDrive(tenantId, storagePath);
-  if (exists) {
-    console.log('File already registered in Drive:', storagePath);
-    return null;
-  }
-
-  // Register in files table
-  const { data: fileRecord, error: insertError } = await supabase
-    .from('files')
-    .insert({
-      tenant_id: tenantId,
-      folder_id: systemFolderId,
-      filename: originalName,
-      original_name: originalName,
-      storage_path: storagePath,
-      mime_type: mimeType || null,
-      size_bytes: size || null,
-      is_folder: false,
-      is_system_folder: false,
-      created_by: userId,
-      metadata: {
-        source,
-        url: publicUrl,
-        bucket,
-        system_managed: true,
-      },
-    })
-    .select('id')
-    .single();
-
-  if (insertError) {
-    console.error('Error registering file to Drive:', insertError);
-    return null;
-  }
-
-  return fileRecord?.id || null;
+  return registerExternalFile({
+    tenantId: options.tenantId,
+    userId: options.userId,
+    url: options.publicUrl,
+    storagePath: options.storagePath,
+    originalName: options.originalName,
+    mimeType: options.mimeType,
+    size: options.size,
+    source: options.source,
+    bucket: options.bucket,
+  });
 }

@@ -1,4 +1,18 @@
-import { supabase } from '@/integrations/supabase/client';
+/**
+ * registerFileToDrive.ts — WRAPPER DE COMPATIBILIDADE
+ *
+ * Todas as funções delegam para driveService.ts.
+ * Mantido apenas para não quebrar importações existentes.
+ * Será removido em fase posterior de limpeza.
+ */
+
+import {
+  ensureFolder as _ensureFolder,
+  ensureSystemFolder as _ensureSystemFolder,
+  fileExistsInDrive as _fileExistsInDrive,
+  registerExternalFile,
+  extractStoragePathFromUrl as _extractStoragePathFromUrl,
+} from './driveService';
 
 export interface RegisterFileOptions {
   tenantId: string;
@@ -8,141 +22,48 @@ export interface RegisterFileOptions {
   originalName: string;
   mimeType?: string;
   size?: number;
-  source: string; // e.g., 'storefront_logo', 'storefront_favicon', 'category_banner'
-  bucket?: string; // e.g., 'store-assets', 'tenant-files'
+  source: string;
+  bucket?: string;
 }
 
-const SYSTEM_FOLDER_NAME = 'Uploads do sistema';
-
-/**
- * Ensures the system folder exists and returns its ID
- */
+/** @deprecated Use driveService.ensureSystemFolder */
 export async function ensureSystemFolderAndGetId(tenantId: string, userId: string): Promise<string | null> {
-  // Check if system folder already exists
-  const { data: existing } = await supabase
-    .from('files')
-    .select('id')
-    .eq('tenant_id', tenantId)
-    .eq('is_system_folder', true)
-    .is('folder_id', null)
-    .single();
-
-  if (existing) return existing.id;
-
-  // Create system folder
-  const { data: created, error } = await supabase
-    .from('files')
-    .insert({
-      tenant_id: tenantId,
-      folder_id: null,
-      filename: SYSTEM_FOLDER_NAME,
-      original_name: SYSTEM_FOLDER_NAME,
-      storage_path: `${tenantId}/system/`,
-      is_folder: true,
-      is_system_folder: true,
-      created_by: userId,
-    })
-    .select('id')
-    .single();
-
-  if (error) {
-    console.error('Error creating system folder:', error);
-    return null;
-  }
-
-  return created?.id || null;
+  return _ensureSystemFolder(tenantId, userId);
 }
 
-/**
- * Checks if a file with the given storage_path already exists in the files table
- */
+/** @deprecated Use driveService.fileExistsInDrive */
 export async function fileExistsInDrive(tenantId: string, storagePath: string): Promise<boolean> {
-  const { data } = await supabase
-    .from('files')
-    .select('id')
-    .eq('tenant_id', tenantId)
-    .eq('storage_path', storagePath)
-    .single();
-
-  return !!data;
+  return _fileExistsInDrive(tenantId, storagePath);
 }
 
-/**
- * Registers an uploaded file to the Drive (files table) in the system folder.
- * Returns the file record ID or null if failed.
- */
+/** @deprecated Use driveService.registerExternalFile */
 export async function registerFileToDrive(options: RegisterFileOptions): Promise<string | null> {
-  const { tenantId, userId, url, storagePath, originalName, mimeType, size, source, bucket } = options;
-
-  // Get or create system folder
-  const systemFolderId = await ensureSystemFolderAndGetId(tenantId, userId);
-  if (!systemFolderId) {
-    console.error('Could not get/create system folder');
-    return null;
-  }
-
-  // Check if file already exists (avoid duplicates)
-  const exists = await fileExistsInDrive(tenantId, storagePath);
-  if (exists) {
-    console.log('File already registered in Drive:', storagePath);
-    return null; // Already exists, no need to register again
-  }
-
-  // Create file record with bucket info for proper operations
-  const { data, error } = await supabase
-    .from('files')
-    .insert({
-      tenant_id: tenantId,
-      folder_id: systemFolderId,
-      filename: originalName,
-      original_name: originalName,
-      storage_path: storagePath,
-      mime_type: mimeType || null,
-      size_bytes: size || null,
-      is_folder: false,
-      is_system_folder: false,
-      created_by: userId,
-      metadata: { 
-        source, 
-        url, 
-        bucket: bucket || 'store-assets' // Default to store-assets for storefront uploads
-      },
-    })
-    .select('id')
-    .single();
-
-  if (error) {
-    console.error('Error registering file to Drive:', error);
-    return null;
-  }
-
-  return data?.id || null;
+  return registerExternalFile({
+    tenantId: options.tenantId,
+    userId: options.userId,
+    url: options.url,
+    storagePath: options.storagePath,
+    originalName: options.originalName,
+    mimeType: options.mimeType,
+    size: options.size,
+    source: options.source,
+    bucket: options.bucket,
+  });
 }
 
-/**
- * Extracts storage path from a Supabase Storage public URL
- */
+/** @deprecated Use driveService.extractStoragePathFromUrl */
 export function extractStoragePathFromUrl(url: string, bucketName: string): string | null {
-  if (!url) return null;
-  
-  // Pattern: .../storage/v1/object/public/{bucketName}/{path}
-  const regex = new RegExp(`/storage/v1/object/public/${bucketName}/(.+)$`);
-  const match = url.match(regex);
-  
-  return match ? match[1] : null;
+  return _extractStoragePathFromUrl(url, bucketName);
 }
 
-/**
- * Backfills existing storefront assets (logo, favicon) to the Drive
- */
+/** @deprecated Use driveService.registerExternalFile + ensureSystemFolder */
 export async function backfillStorefrontAssets(
-  tenantId: string, 
-  userId: string, 
-  logoUrl: string | null, 
+  tenantId: string,
+  userId: string,
+  logoUrl: string | null,
   faviconUrl: string | null
 ): Promise<void> {
   const bucketName = 'store-assets';
-
   const assets = [
     { url: logoUrl, source: 'storefront_logo', name: 'logo' },
     { url: faviconUrl, source: 'storefront_favicon', name: 'favicon' },
@@ -150,25 +71,22 @@ export async function backfillStorefrontAssets(
 
   for (const asset of assets) {
     if (!asset.url) continue;
-
-    const storagePath = extractStoragePathFromUrl(asset.url, bucketName);
+    const storagePath = _extractStoragePathFromUrl(asset.url, bucketName);
     if (!storagePath) continue;
 
-    // Check if already registered
-    const exists = await fileExistsInDrive(tenantId, storagePath);
+    const exists = await _fileExistsInDrive(tenantId, storagePath);
     if (exists) continue;
 
-    // Extract filename from path
     const pathParts = storagePath.split('/');
     const filename = pathParts[pathParts.length - 1] || `${asset.name}.png`;
 
-    await registerFileToDrive({
+    await registerExternalFile({
       tenantId,
       userId,
       url: asset.url,
       storagePath,
       originalName: filename,
-      mimeType: 'image/png', // Assume PNG, could be improved
+      mimeType: 'image/png',
       source: asset.source,
     });
   }
