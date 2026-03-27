@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const VERSION = "2.4.0"; // Fix: use target_platforms to publish to both Instagram AND Facebook
+const VERSION = "3.0.0"; // Phase 1A: preflight + snapshot + frozen_payload
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,19 +9,13 @@ const corsHeaders = {
 };
 
 /**
- * Meta Publish Post v${VERSION}
+ * Meta Publish Post v3.0.0
  * 
- * Publica ou agenda conteúdo no Facebook Pages e Instagram via Graph API.
- * Suporta: Feed (imagem/vídeo/texto/link), Stories, Reels, Carousels.
- * Suporta agendamento futuro via scheduled_publish_time (Facebook) e cron (Instagram).
- * 
- * Fluxos:
- * - Facebook: POST /{page_id}/feed ou /{page_id}/photos ou /{page_id}/videos
- *   - Agendamento: published=false + scheduled_publish_time
- * - Instagram: POST /{ig_id}/media (container) → POST /{ig_id}/media_publish
- *   - Agendamento: Salva como 'scheduled' no social_posts, cron publica no horário
- * 
- * Contrato: HTTP 200 + { success: true/false }
+ * Phase 1A changes:
+ * - Per-platform preflight validation before scheduling/publishing
+ * - Frozen payload saved on media_calendar_items at schedule time
+ * - Payload snapshot saved per social_post for execution isolation
+ * - Editing the parent item after scheduling does NOT affect queued posts
  */
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -82,7 +76,7 @@ serve(async (req) => {
       return jsonResponse({ success: false, error: "Token Meta expirado. Reconecte em Integrações." });
     }
 
-    // Check scope packs include publicacao
+    // Check scope packs
     const scopePacks = (metaConn.metadata as any)?.scope_packs || [];
     if (!scopePacks.includes("publicacao")) {
       return jsonResponse({ 
@@ -110,7 +104,7 @@ serve(async (req) => {
       return jsonResponse({ success: false, error: "Nenhum item aprovado encontrado." });
     }
 
-    // Sort items by scheduled_date + scheduled_time (chronological order)
+    // Sort items chronologically
     const sortedItems = [...items].sort((a, b) => {
       const dateA = `${a.scheduled_date}T${a.scheduled_time || "10:00:00"}`;
       const dateB = `${b.scheduled_date}T${b.scheduled_time || "10:00:00"}`;
@@ -121,7 +115,8 @@ serve(async (req) => {
     let scheduled = 0;
     let failed = 0;
     const errors: string[] = [];
-    const STAGGER_INTERVAL_MS = 30_000; // 30 seconds between immediate publishes
+    const preflightErrors: { itemId: string; title: string; errors: string[] }[] = [];
+    const STAGGER_INTERVAL_MS = 30_000;
     let immediatePublishIndex = 0;
 
     console.log(`[meta-publish-post][${VERSION}] Processing ${sortedItems.length} items for tenant ${tenant_id}`);
@@ -132,32 +127,118 @@ serve(async (req) => {
         const targetPlatforms = (item.target_platforms as string[]) || [];
         const contentType = item.content_type || "image";
         
-        // Determine which platforms to publish to based on target_platforms array
-        // target_platforms contains entries like "feed_instagram", "feed_facebook", "story_instagram", "story_facebook"
         const shouldPublishInstagram = targetChannel === "instagram" || targetChannel === "all" ||
           targetPlatforms.some((p: string) => p.includes("instagram"));
         const shouldPublishFacebook = targetChannel === "facebook" || targetChannel === "all" ||
           targetPlatforms.some((p: string) => p.includes("facebook"));
         
-        // Build scheduled datetime from item
         const scheduledAt = buildScheduledAt(item.scheduled_date, item.scheduled_time);
         const now = new Date();
         const scheduledDate = scheduledAt ? new Date(scheduledAt) : now;
-        // Any item scheduled in the future (>2min buffer) should NOT be published immediately
         const isFutureSchedule = scheduledDate > new Date(now.getTime() + 2 * 60 * 1000);
-        // Facebook requires at least 10min in future for native scheduling
         const isFacebookSchedulable = scheduledDate > new Date(now.getTime() + 10 * 60 * 1000);
         
+        // ============ PER-PLATFORM PREFLIGHT ============
+        const itemPreflightErrors: string[] = [];
+
+        if (shouldPublishInstagram) {
+          const igAccount = assets.instagram_accounts?.[0];
+          if (!igAccount) {
+            itemPreflightErrors.push("Instagram: conta não conectada");
+          }
+          if (contentType !== "text" && !item.asset_url) {
+            itemPreflightErrors.push("Instagram: imagem ou vídeo obrigatório");
+          }
+          if (contentType === "story" && !item.asset_url) {
+            itemPreflightErrors.push("Instagram Story: mídia obrigatória");
+          }
+          // Validate schedule limit (6 months max for Facebook native, but IG uses cron so just validate date is valid)
+          if (isFutureSchedule && scheduledDate > new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000)) {
+            itemPreflightErrors.push("Instagram: agendamento máximo de 6 meses no futuro");
+          }
+        }
+
+        if (shouldPublishFacebook) {
+          const page = assets.pages?.[0];
+          if (!page) {
+            itemPreflightErrors.push("Facebook: página não conectada");
+          }
+          if (isFutureSchedule && scheduledDate > new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000)) {
+            itemPreflightErrors.push("Facebook: agendamento máximo de 6 meses no futuro");
+          }
+        }
+
+        if (!item.copy && !item.title && !item.asset_url) {
+          itemPreflightErrors.push("Conteúdo vazio: texto ou mídia obrigatório");
+        }
+
+        if (!item.scheduled_date) {
+          itemPreflightErrors.push("Data de publicação não definida");
+        }
+
+        // If preflight failed, skip this item
+        if (itemPreflightErrors.length > 0) {
+          preflightErrors.push({
+            itemId: item.id,
+            title: item.title || item.id,
+            errors: itemPreflightErrors,
+          });
+          failed++;
+          errors.push(`${item.title || item.id}: ${itemPreflightErrors.join("; ")}`);
+
+          // Save failed with preflight error
+          await supabase.from("social_posts").insert({
+            tenant_id,
+            calendar_item_id: item.id,
+            platform: shouldPublishInstagram ? "instagram" : "facebook",
+            post_type: mapContentType(contentType),
+            page_id: assets.pages[0]?.id || "",
+            caption: item.copy || item.title,
+            status: "failed",
+            error_message: `Preflight: ${itemPreflightErrors.join("; ")}`,
+            last_error_code: "preflight_failed",
+            last_error_message: itemPreflightErrors.join("; "),
+            api_response: { preflight_errors: itemPreflightErrors },
+            created_by: user.id,
+          });
+
+          await supabase.from("media_calendar_items")
+            .update({ status: "failed" })
+            .eq("id", item.id);
+          continue;
+        }
+
+        // ============ BUILD SNAPSHOT ============
+        const payloadSnapshot = {
+          copy: item.copy,
+          title: item.title,
+          asset_url: item.asset_url,
+          asset_thumbnail_url: item.asset_thumbnail_url,
+          hashtags: item.hashtags,
+          cta: item.cta,
+          content_type: contentType,
+          target_channel: targetChannel,
+          target_platforms: targetPlatforms,
+          scheduled_date: item.scheduled_date,
+          scheduled_time: item.scheduled_time,
+          link_url: item.link_url || null,
+          frozen_at: new Date().toISOString(),
+        };
+
+        // ============ SAVE FROZEN PAYLOAD ON PARENT ============
+        await supabase.from("media_calendar_items")
+          .update({ frozen_payload: payloadSnapshot })
+          .eq("id", item.id);
+
         const page = assets.pages[0];
         const pageAccessToken = page.access_token || userAccessToken;
         
-        let result: any = null;
         let finalStatus = "published";
 
-        // For past items, stagger with 30s interval to avoid API rate limits
+        // Stagger immediate publishes
         if (!isFutureSchedule && immediatePublishIndex > 0) {
           const waitMs = STAGGER_INTERVAL_MS * immediatePublishIndex;
-          console.log(`[meta-publish-post] Staggering item ${item.id}: waiting ${waitMs / 1000}s before publishing`);
+          console.log(`[meta-publish-post] Staggering item ${item.id}: waiting ${waitMs / 1000}s`);
           await new Promise(resolve => setTimeout(resolve, waitMs));
         }
 
@@ -171,54 +252,26 @@ serve(async (req) => {
               finalStatus = "scheduled";
               igResult = { scheduled: true, scheduled_at: scheduledAt };
             } else {
-              igResult = await publishToInstagram(
-                igAccount.id,
-                userAccessToken,
-                item,
-                contentType
-              );
+              igResult = await publishToInstagram(igAccount.id, userAccessToken, item, contentType);
               immediatePublishIndex++;
             }
-          } else {
-            console.warn(`[meta-publish-post] No Instagram account connected, skipping IG for item ${item.id}`);
           }
         }
         
         if (shouldPublishFacebook) {
           if (isFutureSchedule && isFacebookSchedulable) {
-            fbResult = await scheduleToFacebook(
-              page.id,
-              pageAccessToken,
-              item,
-              contentType,
-              scheduledAt!
-            );
+            fbResult = await scheduleToFacebook(page.id, pageAccessToken, item, contentType, scheduledAt!);
             finalStatus = "scheduled";
           } else if (isFutureSchedule && !isFacebookSchedulable) {
             finalStatus = "scheduled";
             fbResult = { scheduled: true, scheduled_at: scheduledAt, reason: "facebook_too_close_for_native" };
           } else {
-            fbResult = await publishToFacebook(
-              page.id,
-              pageAccessToken,
-              item,
-              contentType
-            );
+            fbResult = await publishToFacebook(page.id, pageAccessToken, item, contentType);
             if (!shouldPublishInstagram) immediatePublishIndex++;
           }
         }
 
-        // Combine results
-        result = {
-          instagram: igResult,
-          facebook: fbResult,
-          ...(igResult?.id ? { id: igResult.id } : {}),
-          ...(igResult?.container_id ? { container_id: igResult.container_id } : {}),
-          ...(fbResult?.id ? { fb_id: fbResult.id } : {}),
-          ...(fbResult?.post_id ? { fb_post_id: fbResult.post_id } : {}),
-        };
-
-        // Save Instagram social_post
+        // Save Instagram social_post with snapshot
         if (shouldPublishInstagram && igResult) {
           await supabase.from("social_posts").insert({
             tenant_id,
@@ -238,10 +291,11 @@ serve(async (req) => {
             published_at: finalStatus === "published" ? new Date().toISOString() : null,
             api_response: igResult,
             created_by: user.id,
+            payload_snapshot: payloadSnapshot,
           });
         }
 
-        // Save Facebook social_post
+        // Save Facebook social_post with snapshot
         if (shouldPublishFacebook && fbResult) {
           await supabase.from("social_posts").insert({
             tenant_id,
@@ -261,33 +315,30 @@ serve(async (req) => {
             published_at: finalStatus === "published" ? new Date().toISOString() : null,
             api_response: fbResult,
             created_by: user.id,
+            payload_snapshot: payloadSnapshot,
           });
         }
 
-        // Update calendar item status + published_at
+        // Update calendar item status
         const updateData: Record<string, any> = { status: finalStatus };
         if (finalStatus === "published") {
           updateData.published_at = new Date().toISOString();
         }
-        await supabase
-          .from("media_calendar_items")
+        await supabase.from("media_calendar_items")
           .update(updateData)
           .eq("id", item.id);
 
         if (finalStatus === "scheduled") {
           scheduled++;
-          console.log(`[meta-publish-post] Item ${item.id} scheduled for ${scheduledAt}`);
         } else {
           published++;
-          console.log(`[meta-publish-post] Item ${item.id} published immediately`);
         }
       } catch (itemError: any) {
         failed++;
         const errMsg = itemError?.message || "Erro desconhecido";
         errors.push(`Item ${item.title || item.id}: ${errMsg}`);
-        console.error(`[meta-publish-post] Error publishing item ${item.id}:`, errMsg);
+        console.error(`[meta-publish-post] Error item ${item.id}:`, errMsg);
 
-        // Save failed attempt
         await supabase.from("social_posts").insert({
           tenant_id,
           calendar_item_id: item.id,
@@ -297,13 +348,22 @@ serve(async (req) => {
           caption: item.copy || item.title,
           status: "failed",
           error_message: errMsg,
+          last_error_code: "publish_error",
+          last_error_message: errMsg,
           api_response: { error: errMsg },
           created_by: user.id,
+          payload_snapshot: {
+            copy: item.copy,
+            title: item.title,
+            asset_url: item.asset_url,
+            hashtags: item.hashtags,
+            cta: item.cta,
+            content_type: item.content_type,
+            frozen_at: new Date().toISOString(),
+          },
         });
 
-        // Update calendar item
-        await supabase
-          .from("media_calendar_items")
+        await supabase.from("media_calendar_items")
           .update({ status: "failed" })
           .eq("id", item.id);
       }
@@ -316,6 +376,7 @@ serve(async (req) => {
       failed,
       total: items.length,
       errors: errors.length > 0 ? errors : undefined,
+      preflight_errors: preflightErrors.length > 0 ? preflightErrors : undefined,
     });
 
   } catch (error: any) {
@@ -326,21 +387,12 @@ serve(async (req) => {
 
 // ===================== Scheduling Functions =====================
 
-/**
- * Build ISO datetime from scheduled_date + scheduled_time
- */
 function buildScheduledAt(date: string | null, time: string | null): string | null {
   if (!date) return null;
   const timeStr = time || "10:00:00";
-  // Assume timezone America/Sao_Paulo (UTC-3)
   return `${date}T${timeStr}-03:00`;
 }
 
-/**
- * Schedule a post to Facebook Page (native scheduling)
- * Uses published=false + scheduled_publish_time
- * scheduled_publish_time must be ≥10min in future and ≤6 months
- */
 async function scheduleToFacebook(
   pageId: string,
   pageAccessToken: string,
@@ -352,7 +404,6 @@ async function scheduleToFacebook(
   const scheduledTimestamp = Math.floor(new Date(scheduledAt).getTime() / 1000);
 
   if (contentType === "image" && item.asset_url) {
-    // Scheduled photo post
     const res = await fetch(`https://graph.facebook.com/v21.0/${pageId}/photos`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -387,7 +438,6 @@ async function scheduleToFacebook(
     return data;
   }
 
-  // Text/link scheduled post
   const body: any = {
     message: caption,
     published: false,
@@ -408,9 +458,6 @@ async function scheduleToFacebook(
 
 // ===================== Publishing Functions =====================
 
-/**
- * Publish to Facebook Page (immediate)
- */
 async function publishToFacebook(
   pageId: string,
   pageAccessToken: string,
@@ -421,7 +468,6 @@ async function publishToFacebook(
 
   if (contentType === "video" || contentType === "reel") {
     if (!item.asset_url) throw new Error("URL do vídeo é obrigatória");
-    
     const res = await fetch(`https://graph.facebook.com/v21.0/${pageId}/videos`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -451,7 +497,6 @@ async function publishToFacebook(
     return data;
   }
 
-  // Text/link post
   const body: any = {
     message: caption,
     access_token: pageAccessToken,
@@ -468,10 +513,6 @@ async function publishToFacebook(
   return data;
 }
 
-/**
- * Publish to Instagram via Container flow
- * Step 1: Create container → Step 2: Publish container
- */
 async function publishToInstagram(
   igAccountId: string,
   accessToken: string,
@@ -480,7 +521,6 @@ async function publishToInstagram(
 ): Promise<any> {
   const caption = buildCaption(item);
 
-  // Step 1: Create media container (with retry for transient errors)
   let containerBody: any = {
     caption,
     access_token: accessToken,
@@ -507,7 +547,6 @@ async function publishToInstagram(
     containerBody.image_url = item.asset_url;
   }
 
-  // Retry logic for container creation (transient Meta errors)
   let containerData: any = null;
   const maxRetries = 3;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -521,16 +560,15 @@ async function publishToInstagram(
     );
     containerData = await containerRes.json();
     
-    if (!containerData.error) break; // Success
+    if (!containerData.error) break;
     
-    // If it's a transient error and we have retries left, wait and retry
     const isTransient = containerData.error?.is_transient === true || 
       containerData.error?.message?.includes("unexpected error") ||
       containerData.error?.message?.includes("Please retry");
     
     if (isTransient && attempt < maxRetries) {
       console.log(`[meta-publish-post] Container transient error, retry ${attempt}/${maxRetries}...`);
-      await new Promise(resolve => setTimeout(resolve, 3000 * attempt)); // Backoff: 3s, 6s
+      await new Promise(resolve => setTimeout(resolve, 3000 * attempt));
       continue;
     }
     
@@ -540,10 +578,8 @@ async function publishToInstagram(
   const containerId = containerData.id;
   if (!containerId) throw new Error("Container ID não retornado");
 
-  // ALWAYS wait for container to be ready (images AND videos need this)
   await waitForContainerReady(containerId, accessToken);
 
-  // Step 2: Publish the container
   const publishRes = await fetch(
     `https://graph.facebook.com/v21.0/${igAccountId}/media_publish`,
     {
@@ -563,10 +599,6 @@ async function publishToInstagram(
   return { ...publishData, container_id: containerId };
 }
 
-/**
- * Wait for Instagram container to finish processing (images AND videos)
- * Images usually finish in 1-5s, videos can take up to 2-3min
- */
 async function waitForContainerReady(
   containerId: string,
   accessToken: string,
@@ -579,12 +611,9 @@ async function waitForContainerReady(
     );
     const statusData = await statusRes.json();
     
-    console.log(`[meta-publish-post] Container ${containerId} status: ${statusData.status_code} (attempt ${i + 1}/${maxAttempts})`);
-    
     if (statusData.status_code === "FINISHED") return;
     if (statusData.status_code === "ERROR") {
-      const errorDetail = statusData.status || "Processamento falhou no Instagram";
-      throw new Error(`Container processing error: ${errorDetail}`);
+      throw new Error(`Container processing error: ${statusData.status || "Processamento falhou no Instagram"}`);
     }
     
     await new Promise(resolve => setTimeout(resolve, intervalMs));
