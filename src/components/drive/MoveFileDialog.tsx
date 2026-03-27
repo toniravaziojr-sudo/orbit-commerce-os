@@ -194,6 +194,16 @@ export function MoveFileDialog({
           </div>
         )}
 
+        {/* Warning for in-use files */}
+        {isFileInUse && !isSystemItem && (
+          <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 rounded-md text-sm">
+            <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+            <span>
+              Este arquivo está em uso em {usageCount} {usageCount === 1 ? 'local' : 'locais'} do sistema. Mover não altera os vínculos, mas pode dificultar a organização.
+            </span>
+          </div>
+        )}
+
         {/* Folder list */}
         <ScrollArea className="h-[300px] border rounded-md p-2">
           <div className="space-y-1">
