@@ -459,6 +459,17 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
             .from('product-images')
             .getPublicUrl(fileName);
           imageUrl = publicUrl;
+
+          // Register in Drive (fire-and-forget)
+          if (currentTenant?.id && user?.id) {
+            registerProductImageToDrive({
+              tenantId: currentTenant.id,
+              userId: user.id,
+              publicUrl,
+              storagePath: fileName,
+              originalName: variant.image_file.name,
+            }).catch(() => {});
+          }
         }
       }
 
