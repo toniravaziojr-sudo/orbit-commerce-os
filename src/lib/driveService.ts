@@ -7,6 +7,7 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 
 // ─── Query keys (para cache invalidation unificada) ────────────────────────
 export const DRIVE_QUERY_KEYS = {
