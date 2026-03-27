@@ -11,70 +11,9 @@ import {
   invalidateDriveQueries,
   type DriveFileItem,
 } from '@/lib/driveService';
-export interface FileItem {
-  id: string;
-  tenant_id: string;
-  folder_id: string | null;
-  filename: string;
-  original_name: string;
-  storage_path: string;
-  mime_type: string | null;
-  size_bytes: number | null;
-  is_folder: boolean;
-  is_system_folder?: boolean;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-  metadata?: Record<string, unknown> | null;
-}
+export type FileItem = DriveFileItem;
 
 const SYSTEM_FOLDER_NAME = 'Uploads do sistema';
-
-// Determine which bucket a file belongs to based on metadata or path
-function getBucketForFile(file: FileItem): string {
-  const metadata = file.metadata as Record<string, unknown> | null;
-  const source = metadata?.source as string | undefined;
-  const bucket = metadata?.bucket as string | undefined;
-  
-  // Explicit bucket in metadata takes precedence
-  if (bucket) return bucket;
-  
-  // If it's a store asset (logo, favicon, etc.)
-  if (source?.startsWith('storefront_') || file.storage_path.includes('tenants/')) {
-    return 'store-assets';
-  }
-  
-  // Default: tenant-files
-  return 'tenant-files';
-}
-
-// Ensure system folder exists for a tenant
-async function ensureSystemFolder(tenantId: string, userId: string): Promise<void> {
-  // Check if system folder already exists
-  const { data: existing } = await supabase
-    .from('files')
-    .select('id')
-    .eq('tenant_id', tenantId)
-    .eq('is_system_folder', true)
-    .is('folder_id', null)
-    .single();
-
-  if (existing) return; // Already exists
-
-  // Create system folder
-  await supabase
-    .from('files')
-    .insert({
-      tenant_id: tenantId,
-      folder_id: null,
-      filename: SYSTEM_FOLDER_NAME,
-      original_name: SYSTEM_FOLDER_NAME,
-      storage_path: `${tenantId}/system/`,
-      is_folder: true,
-      is_system_folder: true,
-      created_by: userId,
-    });
-}
 
 export function useFiles(folderId: string | null = null) {
   const { currentTenant, user } = useAuth();
