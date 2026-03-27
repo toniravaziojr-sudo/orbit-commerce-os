@@ -138,6 +138,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
   const { categories } = useCategories();
   const { methods: availableShippingMethods } = useAvailableShippingMethods();
   const { toast } = useToast();
+  const { currentTenant, user } = useAuth();
   const isEditing = !!product;
   const [productImages, setProductImages] = useState<ProductImage[]>([]);
   
