@@ -42,5 +42,5 @@ export function addVersionToUrl(url: string | null, version?: number): string | 
 
 /** @deprecated Use driveService.removeVersionFromUrl */
 export function removeVersionFromUrl(url: string | null): string | null {
-  return _removeVersionFromUrl(url, version);
+  return _removeVersionFromUrl(url);
 }
