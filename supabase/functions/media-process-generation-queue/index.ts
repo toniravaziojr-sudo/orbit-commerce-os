@@ -527,11 +527,20 @@ serve(async (req) => {
     );
   }
 
-  if (openaiApiKey) {
-    console.log(`[media-process-generation-queue v${VERSION}] OpenAI API key available — real OpenAI enabled`);
+  // Fetch GEMINI_API_KEY from platform_credentials (priority 1)
+  const geminiApiKey = await getCredential(supabaseUrl, supabaseServiceKey, 'GEMINI_API_KEY');
+
+  if (geminiApiKey) {
+    console.log(`[media-process-generation-queue v${VERSION}] ✅ GEMINI_API_KEY found — Gemini Nativa enabled (priority 1)`);
   } else {
-    console.log(`[media-process-generation-queue v${VERSION}] No OPENAI_API_KEY — OpenAI provider will use Lovable fallback`);
+    console.log(`[media-process-generation-queue v${VERSION}] ⚠️ No GEMINI_API_KEY — Gemini Nativa disabled`);
   }
+  if (openaiApiKey) {
+    console.log(`[media-process-generation-queue v${VERSION}] ✅ OPENAI_API_KEY found — OpenAI enabled (priority 2)`);
+  } else {
+    console.log(`[media-process-generation-queue v${VERSION}] ⚠️ No OPENAI_API_KEY — OpenAI disabled`);
+  }
+  console.log(`[media-process-generation-queue v${VERSION}] Lovable Gateway always available (priority 3 — fallback)`);
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -654,10 +663,9 @@ BRIEFING DO CRIATIVO: ${generation.prompt_final}`;
 
         // Generate with both providers in parallel
         const providerPromises = enabledProviders.map(async (provider): Promise<ProviderResult> => {
-          const generateFn = provider === 'gemini' ? generateWithGemini : generateWithOpenAI;
           const result = provider === 'gemini' 
-            ? await generateFn(lovableApiKey, finalPrompt, referenceBase64)
-            : await generateWithOpenAI(lovableApiKey, openaiApiKey, finalPrompt, referenceBase64);
+            ? await generateWithGemini(lovableApiKey, geminiApiKey, finalPrompt, referenceBase64)
+            : await generateWithOpenAI(lovableApiKey, openaiApiKey, geminiApiKey, finalPrompt, referenceBase64);
 
           if (!result.imageBase64) {
             return {
