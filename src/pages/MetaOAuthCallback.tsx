@@ -56,6 +56,7 @@ export default function MetaOAuthCallback() {
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(null);
   const [selectedAssets, setSelectedAssets] = useState<SelectedAssets | null>(null);
   const [connectionData, setConnectionData] = useState<any>(null);
+  const [activeScopePacks, setActiveScopePacks] = useState<string[]>([]);
   const processedRef = useRef(false);
 
   const selectedPortfolio = businesses.find(b => b.id === selectedPortfolioId) || null;
@@ -238,6 +239,7 @@ export default function MetaOAuthCallback() {
         const bizList = data.connection.businesses as BusinessPortfolio[];
         setBusinesses(bizList);
         setThreadsProfile(data.connection.threads_profile || null);
+        setActiveScopePacks(data.connection.scopePacks || []);
         setConnectionData(data.connection);
 
         // Se só tem 1 portfólio, pular direto para seleção de ativos
