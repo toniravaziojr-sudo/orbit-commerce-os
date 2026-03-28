@@ -231,10 +231,47 @@ export function PlanningTab({
 
   const handleGenerateCopys = async () => {
     if (!currentTenant || !campaignId) return;
+
+    // Must have selected days
+    if (selectedDays.size === 0) {
+      toast.info("Selecione os dias no calendário antes de gerar copys");
+      setIsSelectMode(true);
+      return;
+    }
+
+    const selectedItems = getSelectedItems();
+    if (selectedItems.length === 0) {
+      toast.info("Nenhuma publicação nos dias selecionados. Gere a estratégia primeiro.");
+      return;
+    }
+
+    // Flow validation: items need strategy (title) before copy
+    const withoutStrategy = selectedItems.filter(i => !i.title || i.title.trim() === "");
+    if (withoutStrategy.length === selectedItems.length) {
+      toast.warning("Todas as publicações selecionadas estão sem estratégia. Gere a estratégia primeiro (passo 2) para ter melhores resultados.");
+      return;
+    }
+    if (withoutStrategy.length > 0) {
+      toast.warning(`${withoutStrategy.length} publicação(ões) sem estratégia serão ignoradas. Gere a estratégia primeiro para incluí-las.`);
+    }
+
+    // Check for regeneration: items that already have copy
+    const withExistingCopy = selectedItems.filter(i => i.copy && i.copy.trim() !== "");
+    if (withExistingCopy.length > 0) {
+      const confirmed = await confirm({
+        title: "Regenerar copys?",
+        description: `${withExistingCopy.length} publicação(ões) já possuem copy. Regenerar vai substituir as copys existentes. Se quiser manter os criativos alinhados, será necessário regenerá-los depois.`,
+        confirmLabel: "Sim, regenerar copys",
+        cancelLabel: "Cancelar",
+      });
+      if (!confirmed) return;
+    }
+
     setIsGeneratingCopys(true);
     try {
+      const targetDates = Array.from(selectedDays);
       const { data, error } = await supabase.functions.invoke("media-generate-copys", {
-        body: { campaign_id: campaignId, tenant_id: currentTenant.id },
+        body: { campaign_id: campaignId, tenant_id: currentTenant.id, target_dates: targetDates },
       });
       if (error) throw error;
       if (data?.success) { toast.success(data.message || "Copys geradas!"); await refetchItems(); }
