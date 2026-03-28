@@ -93,7 +93,7 @@ const PACK_AVAILABILITY: Record<string, PackAvailability> = {
   catalogo: "internal",
   threads: "internal",
   live_video: "internal",
-  pixel: "internal",
+  pixel: "public",
   insights: "internal",
 };
 
@@ -216,21 +216,6 @@ serve(async (req) => {
           code: "META_PACK_NOT_AVAILABLE",
           blockedPacks,
         }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Verificar se usuário tem acesso ao tenant
-    const { data: userRole, error: roleError } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .eq("tenant_id", tenantId)
-      .single();
-
-    if (roleError || !userRole || !["owner", "admin"].includes(userRole.role)) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Sem permissão para este tenant", code: "FORBIDDEN" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
