@@ -94,6 +94,7 @@ export function MetaPlatformSettings() {
             preview={secretsStatus?.previews?.META_CONFIG_ID}
             source={secretsStatus?.sources?.META_CONFIG_ID as 'db' | 'env' | null}
           />
+        </CardContent>
       </Card>
     </div>
   );
