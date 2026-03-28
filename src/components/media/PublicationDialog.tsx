@@ -1256,7 +1256,7 @@ export function PublicationDialog({
             <Form {...youtubeForm}>
               <form onSubmit={youtubeForm.handleSubmit(handleSubmitYoutube)} className="flex flex-col flex-1 min-h-0">
                 <fieldset disabled={isReadOnly} className="flex flex-col flex-1 min-h-0">
-                <div className="overflow-y-auto scrollbar-thin space-y-3 px-5 pb-2" style={{ maxHeight: 'calc(80vh - 130px)' }}>
+                <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-2">
                 <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 text-sm text-destructive flex items-center gap-2">
                   <Youtube className="h-4 w-4 flex-shrink-0" />
                   <span>Uploads para YouTube consomem créditos (16+ por vídeo). Certifique-se de ter saldo suficiente.</span>
