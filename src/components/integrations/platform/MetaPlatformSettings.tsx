@@ -11,6 +11,7 @@ export function MetaPlatformSettings() {
 
   const appIdConfigured = !!secretsStatus?.secrets?.META_APP_ID;
   const appSecretConfigured = !!secretsStatus?.secrets?.META_APP_SECRET;
+  const configIdConfigured = !!secretsStatus?.secrets?.META_CONFIG_ID;
   const allConfigured = appIdConfigured && appSecretConfigured;
 
   if (isLoading) {
