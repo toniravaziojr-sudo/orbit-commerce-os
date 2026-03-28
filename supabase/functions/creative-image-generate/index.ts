@@ -914,7 +914,7 @@ serve(async (req) => {
 
           // Generate with resilient pipeline (retry + fallback model)
           const providerPromises = enabledProviders.map(async (provider): Promise<ProviderResult> => {
-            const result = await resilientGenerate(lovableApiKey, openaiApiKey, variantPrompt, productBase64, provider);
+            const result = await resilientGenerate(lovableApiKey, openaiApiKey, geminiApiKey, variantPrompt, productBase64, provider);
             
             if (!result.imageBase64) {
               return {
