@@ -178,6 +178,7 @@ Especialista em **planejamento editorial**. Gera APENAS:
 - Tipo de conteúdo (image, video, carousel, story, reel)
 - Plataformas alvo
 - Flag `needs_product_image` (true/false)
+- **Horário estratégico de publicação (`scheduled_time`)** — baseado em pesquisas de engajamento por dia da semana e tipo de conteúdo
 
 **NÃO gera:** copy, legendas, CTAs, hashtags ou prompts de criativos (isso é responsabilidade da IA de Copys).
 **NÃO gera posts de Blog** — o módulo Mídias é EXCLUSIVO para redes sociais. Blog tem módulo dedicado (`/blog/campaigns`).
@@ -187,6 +188,9 @@ Considera:
 - Equilíbrio entre conteúdo educativo, promocional e engajamento
 - Distribuição entre stories e feed (Instagram/Facebook)
 - Tendências do nicho
+- **Horários de pico de engajamento por dia da semana** (dados Buffer/SocialPilot 2025-2026)
+- **Variação de horários entre Feed e Stories** (Feed em janelas de pico; Stories distribuídos ao longo do dia)
+- **Datas especiais** — publicação 1-2h antes do pico para captar tráfego antecipado
 
 Filtro de segurança: mesmo que a IA retorne items com `target_channel: "blog"`, eles são descartados automaticamente antes do insert.
 
@@ -668,8 +672,14 @@ POST /media-generate-suggestions
 }
 ```
 
-Gera APENAS: título, tema, content_type, target_platforms.
+Gera APENAS: título, tema, content_type, target_platforms, **scheduled_time** (horário estratégico).
 **NÃO gera copy, CTA ou hashtags.**
+
+**Horários Estratégicos:** A IA recebe um guia de horários de pico por dia da semana (baseado em dados de engajamento 2025-2026) e escolhe horários otimizados considerando:
+- Dia da semana (ex: Quarta 07:00-09:00 para Feed)
+- Tipo de conteúdo (Feed em janelas de pico; Stories distribuídos em intervalos de 2-3h)
+- Datas especiais/feriados (1-2h antes do pico)
+- O horário é validado via regex (`HH:MM` ou `HH:MM:SS`) antes de salvar; fallback para `default_time` da campanha se inválido
 
 ### `media-generate-copys` (IA Copywriter)
 
