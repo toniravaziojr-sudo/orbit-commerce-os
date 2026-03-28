@@ -1018,9 +1018,9 @@ export function PublicationDialog({
             {renderPlatformStatus()}
 
             <Form {...storyForm}>
-              <form onSubmit={storyForm.handleSubmit(handleSubmitStory)} className="flex flex-col flex-1 min-h-0">
-                <fieldset disabled={isReadOnly} className="flex flex-col flex-1 min-h-0">
-                <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-2">
+              <form onSubmit={storyForm.handleSubmit(handleSubmitStory)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <fieldset disabled={isReadOnly} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-2 min-h-0">
                 {/* Seletor de Canais */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Canais de publicação</label>
@@ -1168,9 +1168,9 @@ export function PublicationDialog({
             {renderPlatformStatus()}
 
             <Form {...blogForm}>
-              <form onSubmit={blogForm.handleSubmit(handleSubmitBlog)} className="flex flex-col flex-1 min-h-0">
-                <fieldset disabled={isReadOnly} className="flex flex-col flex-1 min-h-0">
-                <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-2">
+              <form onSubmit={blogForm.handleSubmit(handleSubmitBlog)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <fieldset disabled={isReadOnly} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-2 min-h-0">
                 <div className="bg-muted/50 rounded-lg p-3 text-sm text-muted-foreground">
                   📝 Artigos de Blog são apenas texto. Não há geração de imagem para este tipo de publicação.
                 </div>
@@ -1254,9 +1254,9 @@ export function PublicationDialog({
             {renderPlatformStatus()}
 
             <Form {...youtubeForm}>
-              <form onSubmit={youtubeForm.handleSubmit(handleSubmitYoutube)} className="flex flex-col flex-1 min-h-0">
-                <fieldset disabled={isReadOnly} className="flex flex-col flex-1 min-h-0">
-                <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-2">
+              <form onSubmit={youtubeForm.handleSubmit(handleSubmitYoutube)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <fieldset disabled={isReadOnly} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-2 min-h-0">
                 <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 text-sm text-destructive flex items-center gap-2">
                   <Youtube className="h-4 w-4 flex-shrink-0" />
                   <span>Uploads para YouTube consomem créditos (16+ por vídeo). Certifique-se de ter saldo suficiente.</span>
