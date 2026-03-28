@@ -769,6 +769,9 @@ export default function Files() {
                       <p className="text-sm text-muted-foreground">
                         {file.is_folder ? 'Pasta' : formatBytes(file.size_bytes)} •{' '}
                         {formatDistanceToNow(new Date(file.created_at), { addSuffix: true, locale: ptBR })}
+                        {isGlobalSearch && (
+                          <> • <FileParentPath file={file} allFolders={allFolders} /></>
+                        )}
                       </p>
                     </div>
                     {renderFileActions(file, isSystemFolder)}
