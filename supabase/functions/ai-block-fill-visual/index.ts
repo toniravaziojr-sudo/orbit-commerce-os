@@ -728,7 +728,7 @@ serve(async (req) => {
       console.log(`[ai-block-fill-visual] Banner:simplified generating ${requests.length} request(s)`);
 
       const results = await Promise.all(
-        requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey))
+        requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey, geminiApiKey))
       );
 
       const mergedVisual = adapter.mergeResults(results, adapterInput);
@@ -780,7 +780,7 @@ serve(async (req) => {
       console.log(`[ai-block-fill-visual] Image generating ${requests.length} request(s) via visual engine`);
 
       const results = await Promise.all(
-        requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey))
+        requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey, geminiApiKey))
       );
 
       Object.assign(generatedProps, adapter.mergeResults(results, adapterInput));
@@ -821,7 +821,7 @@ serve(async (req) => {
       console.log(`[ai-block-fill-visual] ContentColumns generating ${requests.length} request(s) via visual engine`);
 
       const results = await Promise.all(
-        requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey))
+        requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey, geminiApiKey))
       );
 
       Object.assign(generatedProps, adapter.mergeResults(results, adapterInput));
@@ -881,7 +881,7 @@ serve(async (req) => {
         console.log(`[ai-block-fill-visual] BannerProducts generating ${requests.length} request(s) via visual engine`);
 
         const results = await Promise.all(
-          requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey))
+          requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey, geminiApiKey))
         );
 
         Object.assign(generatedProps, adapter.mergeResults(results, adapterInput));
@@ -938,7 +938,7 @@ serve(async (req) => {
       console.log(`[ai-block-fill-visual] TextBanners generating ${requests.length} request(s) with ${requests[0]?.slots?.length || 0} slots`);
 
       const results = await Promise.all(
-        requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey))
+        requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey, geminiApiKey))
       );
 
       Object.assign(generatedProps, adapter.mergeResults(results, adapterInput));
@@ -990,7 +990,7 @@ serve(async (req) => {
       console.log(`[ai-block-fill-visual] ImageCarousel generating ${imageCount} images via visual engine`);
 
       const results = await Promise.all(
-        requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey))
+        requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey, geminiApiKey))
       );
 
       Object.assign(generatedProps, adapter.mergeResults(results, adapterInput));
@@ -1041,7 +1041,7 @@ serve(async (req) => {
       console.log(`[ai-block-fill-visual] ImageGallery generating ${imageCount} images via visual engine`);
 
       const results = await Promise.all(
-        requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey))
+        requests.map(r => generateForRequest(r, supabase, tenantId, lovableApiKey, openaiApiKey, geminiApiKey))
       );
 
       Object.assign(generatedProps, adapter.mergeResults(results, adapterInput));
