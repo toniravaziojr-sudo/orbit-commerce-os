@@ -62,7 +62,7 @@ export function ApprovalDialog({ open, onOpenChange, items, onApprove, isApprovi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px] max-h-[85vh] flex flex-col overflow-hidden p-0">
+      <DialogContent className="sm:max-w-[700px] max-h-[85vh] !flex !flex-col overflow-hidden p-0 gap-0">
         <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-2">
           <DialogTitle className="flex items-center gap-2">
             <Check className="h-5 w-5 text-green-600" />

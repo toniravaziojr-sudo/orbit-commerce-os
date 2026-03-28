@@ -138,7 +138,7 @@ export function PublicationPreviewDialog({
     <>
       {/* Main Preview Dialog */}
       <Dialog open={open && !imageZoomed} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-hidden !flex !flex-col gap-0">
           <DialogHeader className="flex-shrink-0">
             <div className="flex items-center justify-between">
               <DialogTitle className="flex items-center gap-2 flex-wrap">

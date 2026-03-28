@@ -243,7 +243,7 @@ export function CalendarItemDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[85vh] flex flex-col overflow-hidden p-0">
+      <DialogContent className="sm:max-w-[500px] max-h-[85vh] !flex !flex-col overflow-hidden p-0 gap-0">
         <DialogHeader className="flex-shrink-0 px-5 pt-4 pb-1">
           <DialogTitle className="text-base">{isEditing ? "Editar Item" : "Novo Item"}</DialogTitle>
           <DialogDescription className="capitalize text-xs">
