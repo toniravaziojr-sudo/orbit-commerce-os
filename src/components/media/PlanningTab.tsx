@@ -179,12 +179,34 @@ export function PlanningTab({
     else { onAddItem(date); }
   };
 
-  const handleOpenStrategyPrompt = () => {
+  // Helper: get items from selected days
+  const getSelectedItems = (): MediaCalendarItem[] => {
+    const result: MediaCalendarItem[] = [];
+    selectedDays.forEach(dk => {
+      (planningItemsByDate.get(dk) || []).forEach(i => result.push(i));
+    });
+    return result;
+  };
+
+  const handleOpenStrategyPrompt = async () => {
     if (!currentTenant || !campaignId) return;
     if (selectedDays.size === 0) {
       toast.info("Selecione os dias no calendário antes de gerar");
       setIsSelectMode(true);
       return;
+    }
+    // Check if selected days already have items with strategy (title)
+    const selectedItems = getSelectedItems();
+    const hasExistingStrategy = selectedItems.some(i => i.title && i.title.trim() !== "");
+    if (hasExistingStrategy) {
+      const confirmed = await confirm({
+        title: "Regenerar estratégia?",
+        description: "Os dias selecionados já possuem publicações com estratégia definida. Regenerar vai substituir as publicações existentes nesses dias, incluindo copys e criativos já gerados. Deseja continuar?",
+        confirmLabel: "Sim, regenerar",
+        cancelLabel: "Cancelar",
+        variant: "destructive",
+      });
+      if (!confirmed) return;
     }
     setStrategyPromptOpen(true);
   };
@@ -209,10 +231,47 @@ export function PlanningTab({
 
   const handleGenerateCopys = async () => {
     if (!currentTenant || !campaignId) return;
+
+    // Must have selected days
+    if (selectedDays.size === 0) {
+      toast.info("Selecione os dias no calendário antes de gerar copys");
+      setIsSelectMode(true);
+      return;
+    }
+
+    const selectedItems = getSelectedItems();
+    if (selectedItems.length === 0) {
+      toast.info("Nenhuma publicação nos dias selecionados. Gere a estratégia primeiro.");
+      return;
+    }
+
+    // Flow validation: items need strategy (title) before copy
+    const withoutStrategy = selectedItems.filter(i => !i.title || i.title.trim() === "");
+    if (withoutStrategy.length === selectedItems.length) {
+      toast.warning("Todas as publicações selecionadas estão sem estratégia. Gere a estratégia primeiro (passo 2) para ter melhores resultados.");
+      return;
+    }
+    if (withoutStrategy.length > 0) {
+      toast.warning(`${withoutStrategy.length} publicação(ões) sem estratégia serão ignoradas. Gere a estratégia primeiro para incluí-las.`);
+    }
+
+    // Check for regeneration: items that already have copy
+    const withExistingCopy = selectedItems.filter(i => i.copy && i.copy.trim() !== "");
+    if (withExistingCopy.length > 0) {
+      const confirmed = await confirm({
+        title: "Regenerar copys?",
+        description: `${withExistingCopy.length} publicação(ões) já possuem copy. Regenerar vai substituir as copys existentes. Se quiser manter os criativos alinhados, será necessário regenerá-los depois.`,
+        confirmLabel: "Sim, regenerar copys",
+        cancelLabel: "Cancelar",
+      });
+      if (!confirmed) return;
+    }
+
     setIsGeneratingCopys(true);
     try {
+      const targetDates = Array.from(selectedDays);
       const { data, error } = await supabase.functions.invoke("media-generate-copys", {
-        body: { campaign_id: campaignId, tenant_id: currentTenant.id },
+        body: { campaign_id: campaignId, tenant_id: currentTenant.id, target_dates: targetDates },
       });
       if (error) throw error;
       if (data?.success) { toast.success(data.message || "Copys geradas!"); await refetchItems(); }
@@ -222,11 +281,56 @@ export function PlanningTab({
   };
 
   const handleGenerateCreatives = async () => {
-    if (!items || !currentTenant) return;
-    const eligible = items.filter(i =>
-      ["draft", "suggested", "review"].includes(i.status) && i.copy && !i.asset_url && i.content_type !== "text"
-    );
+    if (!currentTenant) return;
+
+    // Must have selected days
+    if (selectedDays.size === 0) {
+      toast.info("Selecione os dias no calendário antes de gerar criativos");
+      setIsSelectMode(true);
+      return;
+    }
+
+    const selectedItems = getSelectedItems();
+    if (selectedItems.length === 0) {
+      toast.info("Nenhuma publicação nos dias selecionados. Gere a estratégia primeiro.");
+      return;
+    }
+
+    // Flow validation: items need copy before creative
+    const withoutCopy = selectedItems.filter(i => !i.copy || i.copy.trim() === "");
+    const textOnly = selectedItems.filter(i => i.content_type === "text");
+    const eligibleForCreative = selectedItems.filter(i => i.content_type !== "text");
+
+    if (eligibleForCreative.length === 0) {
+      toast.info("Nenhuma publicação elegível para criativo nos dias selecionados (apenas itens de texto).");
+      return;
+    }
+
+    const missingCopyForCreative = eligibleForCreative.filter(i => !i.copy || i.copy.trim() === "");
+    if (missingCopyForCreative.length === eligibleForCreative.length) {
+      toast.warning("Todas as publicações selecionadas estão sem copy. Gere as copys primeiro (passo 3) para ter criativos de melhor qualidade.");
+      return;
+    }
+    if (missingCopyForCreative.length > 0) {
+      toast.warning(`${missingCopyForCreative.length} publicação(ões) sem copy serão ignoradas. Gere as copys primeiro para incluí-las.`);
+    }
+
+    // Check for regeneration: items that already have creative
+    const withExistingCreative = eligibleForCreative.filter(i => i.asset_url);
+    if (withExistingCreative.length > 0) {
+      const confirmed = await confirm({
+        title: "Regenerar criativos?",
+        description: `${withExistingCreative.length} publicação(ões) já possuem criativo. Regenerar vai substituir os criativos existentes.`,
+        confirmLabel: "Sim, regenerar criativos",
+        cancelLabel: "Cancelar",
+      });
+      if (!confirmed) return;
+    }
+
+    // Filter eligible items (has copy, not text-only, in selected days)
+    const eligible = eligibleForCreative.filter(i => i.copy && i.copy.trim() !== "");
     if (eligible.length === 0) { toast.info("Nenhum item elegível para gerar criativo."); return; }
+
     setIsGeneratingAssets(true);
     setGenerationProgress({ total: eligible.length, completed: 0 });
     let successCount = 0;
@@ -262,22 +366,28 @@ export function PlanningTab({
 
   // Stepper config
   const getCurrentStep = (): number => {
-    if (isSelectMode) return 1;
-    if (!hasSuggestions && selectedDays.size === 0) return 1;
-    if (selectedDays.size > 0 && !hasSuggestions) return 1;
-    if (isGenerating) return 2;
+    if (isSelectMode && selectedDays.size === 0) return 1;
+    if (selectedDays.size > 0) {
+      if (isGenerating) return 2;
+      if (isGeneratingCopys) return 3;
+      if (isGeneratingAssets) return 4;
+      return 1; // selection active
+    }
+    if (!hasSuggestions) return 1;
     if (hasSuggestions && stats.needsCopy > 0) return 3;
     if (!isBlog && hasSuggestions && stats.needsCreative > 0) return 4;
     return 1;
   };
   const currentStep = getCurrentStep();
 
+  const buttonsActive = selectedDays.size > 0;
+
   const workflowSteps: StepConfig[] = [
     { number: 1, label: isSelectMode ? "Sair da Seleção" : "Selecionar Dias", icon: <MousePointer2 className="h-3.5 w-3.5" />, action: () => { if (isSelectMode) { setIsSelectMode(false); setSelectedDays(new Set()); } else { setIsSelectMode(true); } }, isActive: true, isLoading: false, isCurrent: currentStep === 1 },
-    { number: 2, label: isGenerating ? "Gerando..." : "Estratégia IA", icon: <Sparkles className="h-3.5 w-3.5" />, action: handleOpenStrategyPrompt, isActive: selectedDays.size > 0 || hasSuggestions === true, isLoading: isGenerating, isAI: true, isCurrent: currentStep === 2 },
-    { number: 3, label: isGeneratingCopys ? "Gerando..." : "Copys IA", icon: <PenTool className="h-3.5 w-3.5" />, action: handleGenerateCopys, isActive: hasSuggestions === true && stats.needsCopy > 0, isLoading: isGeneratingCopys, isAI: true, count: stats.needsCopy, isCurrent: currentStep === 3 },
+    { number: 2, label: isGenerating ? "Gerando..." : "Estratégia IA", icon: <Sparkles className="h-3.5 w-3.5" />, action: handleOpenStrategyPrompt, isActive: buttonsActive, isLoading: isGenerating, isAI: true, isCurrent: currentStep === 2 },
+    { number: 3, label: isGeneratingCopys ? "Gerando..." : "Copys IA", icon: <PenTool className="h-3.5 w-3.5" />, action: handleGenerateCopys, isActive: buttonsActive, isLoading: isGeneratingCopys, isAI: true, count: stats.needsCopy > 0 ? stats.needsCopy : undefined, isCurrent: currentStep === 3 },
     ...(!isBlog ? [{
-      number: 4, label: isGeneratingAssets ? "Gerando..." : "Criativos IA", icon: <Image className="h-3.5 w-3.5" />, action: handleGenerateCreatives, isActive: hasSuggestions === true && stats.needsCreative > 0, isLoading: isGeneratingAssets, isAI: true, count: stats.needsCreative, isCurrent: currentStep === 4,
+      number: 4, label: isGeneratingAssets ? "Gerando..." : "Criativos IA", icon: <Image className="h-3.5 w-3.5" />, action: handleGenerateCreatives, isActive: buttonsActive, isLoading: isGeneratingAssets, isAI: true, count: stats.needsCreative > 0 ? stats.needsCreative : undefined, isCurrent: currentStep === 4,
     } as StepConfig] : []),
   ];
 

@@ -20,7 +20,7 @@ serve(async (req) => {
   }
 
   try {
-    const { campaign_id, tenant_id } = await req.json();
+    const { campaign_id, tenant_id, target_dates } = await req.json();
 
     if (!campaign_id || !tenant_id) {
       return new Response(
@@ -50,14 +50,21 @@ serve(async (req) => {
       );
     }
 
-    // Get items that have title but no copy yet
-    const { data: items, error: itemsError } = await supabase
+    // Get items that have title — optionally filtered by target_dates
+    let query = supabase
       .from("media_calendar_items")
       .select("*")
       .eq("campaign_id", campaign_id)
-      .in("status", ["draft", "suggested"])
+      .in("status", ["draft", "suggested", "review"])
       .not("title", "is", null)
       .order("scheduled_date", { ascending: true });
+
+    if (target_dates && Array.isArray(target_dates) && target_dates.length > 0) {
+      query = query.in("scheduled_date", target_dates);
+      console.log(`[media-generate-copys] Filtering by ${target_dates.length} target dates`);
+    }
+
+    const { data: items, error: itemsError } = await query;
 
     if (itemsError) {
       console.error("Error fetching items:", itemsError);
