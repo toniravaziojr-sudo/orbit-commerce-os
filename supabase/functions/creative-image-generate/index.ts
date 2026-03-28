@@ -14,8 +14,10 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { tryNativeGemini } from "../_shared/native-gemini.ts";
+import { getCredential } from "../_shared/platform-credentials.ts";
 
-const VERSION = '5.2.0'; // Drive fallback before catalog: prioritize existing creatives from "Gestor de Tráfego IA"
+const VERSION = '6.0.0'; // Gemini Nativa priority: 1. Gemini Nativa → 2. OpenAI → 3. Lovable Gateway
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -416,72 +418,64 @@ async function generateWithLovableGateway(
   }
 }
 
-// ========== RESILIENT GENERATE (OpenAI real → Gemini Lovable → Lovable fallback) ==========
+// ========== RESILIENT GENERATE v6.0 (Gemini Nativa → OpenAI → Lovable Gateway) ==========
 
 async function resilientGenerate(
   lovableApiKey: string,
   openaiApiKey: string | null,
+  geminiApiKey: string | null,
   prompt: string,
   referenceImageBase64: string,
   provider: Provider,
 ): Promise<{ imageBase64: string | null; model: string; error?: string }> {
-  
-  if (provider === 'openai') {
-    // OPENAI PATH: Real OpenAI → Gemini Pro (Lovable) → Gemini Flash (Lovable)
-    
-    // Attempt 1: Real OpenAI gpt-image-1 (Chat Completions API)
-    if (openaiApiKey) {
-      const attempt1 = await generateWithRealOpenAI(openaiApiKey, prompt, referenceImageBase64);
-      if (attempt1.imageBase64) {
-        return { imageBase64: attempt1.imageBase64, model: 'gpt-image-1 (OpenAI)' };
-      }
-      console.warn(`[creative-image] Real OpenAI failed: ${attempt1.error}. Falling back to Lovable...`);
-    } else {
-      console.warn(`[creative-image] OPENAI_API_KEY not configured. Falling back to Lovable...`);
+
+  // ===== STEP 1: Gemini Nativa (PRIORIDADE MÁXIMA — para todos os providers) =====
+  if (geminiApiKey) {
+    console.log(`[creative-image] Step 1: Gemini Nativa (prioridade máxima)...`);
+    const nativeResult = await tryNativeGemini(geminiApiKey, prompt, referenceImageBase64, `creative-${provider}`);
+    if (nativeResult.imageBase64) {
+      console.log(`[creative-image] ✅ Gemini Nativa succeeded`);
+      return nativeResult;
     }
-
-    // Attempt 2: Lovable Gemini Pro (fallback)
-    const attempt2 = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.primary, prompt, referenceImageBase64);
-    if (attempt2.imageBase64) {
-      return { imageBase64: attempt2.imageBase64, model: `${LOVABLE_MODELS.primary} (Lovable fallback)` };
-    }
-
-    // Attempt 3: Lovable Gemini Flash (final fallback)
-    const attempt3 = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.fallback, prompt, referenceImageBase64);
-    if (attempt3.imageBase64) {
-      return { imageBase64: attempt3.imageBase64, model: `${LOVABLE_MODELS.fallback} (Lovable fallback)` };
-    }
-
-    return { imageBase64: null, model: 'gpt-image-1', error: `All attempts failed` };
-
+    console.warn(`[creative-image] Gemini Nativa failed: ${nativeResult.error}. Trying OpenAI...`);
   } else {
-    // GEMINI PATH: Gemini Pro (Lovable) → Gemini Flash (Lovable) → simplified prompt
-    
-    // Attempt 1: Gemini Pro via Lovable
-    const attempt1 = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.primary, prompt, referenceImageBase64);
-    if (attempt1.imageBase64) {
-      return { imageBase64: attempt1.imageBase64, model: LOVABLE_MODELS.primary };
-    }
-
-    console.warn(`[creative-image] Gemini Pro failed: ${attempt1.error}. Trying Flash...`);
-
-    // Attempt 2: Gemini Flash via Lovable
-    const attempt2 = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.fallback, prompt, referenceImageBase64);
-    if (attempt2.imageBase64) {
-      return { imageBase64: attempt2.imageBase64, model: LOVABLE_MODELS.fallback };
-    }
-
-    console.warn(`[creative-image] Gemini Flash failed: ${attempt2.error}. Trying simplified prompt...`);
-
-    // Attempt 3: Simplified prompt with Gemini Pro
-    const simplifiedPrompt = `Crie uma fotografia profissional do produto "${prompt.match(/"([^"]+)"/)?.[1] || 'produto'}" em fundo branco limpo. O produto deve ser IDÊNTICO à imagem de referência. Qualidade editorial.`;
-    const attempt3 = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.primary, simplifiedPrompt, referenceImageBase64);
-    if (attempt3.imageBase64) {
-      return { imageBase64: attempt3.imageBase64, model: `${LOVABLE_MODELS.primary} (simplified)` };
-    }
-
-    return { imageBase64: null, model: LOVABLE_MODELS.primary, error: `All 3 Gemini attempts failed` };
+    console.warn(`[creative-image] GEMINI_API_KEY not available. Skipping native Gemini.`);
   }
+
+  // ===== STEP 2: OpenAI Nativa =====
+  if (openaiApiKey) {
+    console.log(`[creative-image] Step 2: OpenAI Nativa (gpt-image-1)...`);
+    const openaiResult = await generateWithRealOpenAI(openaiApiKey, prompt, referenceImageBase64);
+    if (openaiResult.imageBase64) {
+      console.log(`[creative-image] ✅ OpenAI Nativa succeeded`);
+      return openaiResult;
+    }
+    console.warn(`[creative-image] OpenAI failed: ${openaiResult.error}. Falling back to Lovable Gateway...`);
+  } else {
+    console.warn(`[creative-image] OPENAI_API_KEY not available. Skipping OpenAI.`);
+  }
+
+  // ===== STEP 3: Lovable AI Gateway (ÚLTIMO RECURSO) =====
+  console.log(`[creative-image] Step 3: Lovable Gateway Pro (fallback)...`);
+  const attempt3 = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.primary, prompt, referenceImageBase64);
+  if (attempt3.imageBase64) {
+    return { imageBase64: attempt3.imageBase64, model: `${LOVABLE_MODELS.primary} (Lovable fallback)` };
+  }
+
+  console.warn(`[creative-image] Lovable Pro failed. Trying Flash...`);
+  const attempt4 = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.fallback, prompt, referenceImageBase64);
+  if (attempt4.imageBase64) {
+    return { imageBase64: attempt4.imageBase64, model: `${LOVABLE_MODELS.fallback} (Lovable fallback)` };
+  }
+
+  // Step 3c: Simplified prompt
+  const simplifiedPrompt = `Crie uma fotografia profissional do produto "${prompt.match(/"([^"]+)"/)?.[1] || 'produto'}" em fundo branco limpo. O produto deve ser IDÊNTICO à imagem de referência. Qualidade editorial.`;
+  const attempt5 = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.primary, simplifiedPrompt, referenceImageBase64);
+  if (attempt5.imageBase64) {
+    return { imageBase64: attempt5.imageBase64, model: `${LOVABLE_MODELS.primary} (simplified, Lovable fallback)` };
+  }
+
+  return { imageBase64: null, model: 'all-failed', error: 'All attempts failed (Gemini Nativa → OpenAI → Lovable Gateway)' };
 }
 
 // ========== REALISM SCORER ==========
@@ -672,11 +666,20 @@ serve(async (req) => {
       );
     }
 
-    if (openaiApiKey) {
-      console.log(`[creative-image-generate v${VERSION}] OpenAI API key available — real OpenAI generation enabled`);
+    // Fetch GEMINI_API_KEY from platform_credentials (priority 1)
+    const geminiApiKey = await getCredential(supabaseUrl, supabaseServiceKey, 'GEMINI_API_KEY');
+    
+    if (geminiApiKey) {
+      console.log(`[creative-image-generate v${VERSION}] ✅ GEMINI_API_KEY found — Gemini Nativa enabled (priority 1)`);
     } else {
-      console.log(`[creative-image-generate v${VERSION}] No OPENAI_API_KEY — OpenAI provider will fallback to Lovable`);
+      console.log(`[creative-image-generate v${VERSION}] ⚠️ No GEMINI_API_KEY — Gemini Nativa disabled`);
     }
+    if (openaiApiKey) {
+      console.log(`[creative-image-generate v${VERSION}] ✅ OPENAI_API_KEY found — OpenAI enabled (priority 2)`);
+    } else {
+      console.log(`[creative-image-generate v${VERSION}] ⚠️ No OPENAI_API_KEY — OpenAI disabled`);
+    }
+    console.log(`[creative-image-generate v${VERSION}] Lovable Gateway always available (priority 3 — fallback)`);
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -911,7 +914,7 @@ serve(async (req) => {
 
           // Generate with resilient pipeline (retry + fallback model)
           const providerPromises = enabledProviders.map(async (provider): Promise<ProviderResult> => {
-            const result = await resilientGenerate(lovableApiKey, openaiApiKey, variantPrompt, productBase64, provider);
+            const result = await resilientGenerate(lovableApiKey, openaiApiKey, geminiApiKey, variantPrompt, productBase64, provider);
             
             if (!result.imageBase64) {
               return {

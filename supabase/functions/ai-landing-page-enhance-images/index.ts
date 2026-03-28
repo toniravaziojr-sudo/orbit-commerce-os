@@ -8,8 +8,10 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
+import { generateWithNativeGemini } from "../_shared/native-gemini.ts";
+import { getCredential } from "../_shared/platform-credentials.ts";
 
-const VERSION = "2.1.0";
+const VERSION = "3.0.0"; // Gemini Nativa priority: 1. Gemini Nativa → 2. Lovable Gateway
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 // Timeout budget: Edge Functions have 150s limit, reserve margin for persistence + overhead
@@ -47,15 +49,26 @@ async function callImageModel(
   prompt: string,
   productBase64: string | null,
   styleReferences?: string[],
+  geminiApiKey?: string | null,
 ): Promise<string | null> {
+  // Step 1: Try native Gemini first (PRIORIDADE MÁXIMA)
+  if (geminiApiKey) {
+    console.log(`[AI-LP-Enhance] Trying Gemini Nativa first...`);
+    const nativeResult = await generateWithNativeGemini(geminiApiKey, prompt, productBase64);
+    if (nativeResult.imageBase64) {
+      console.log(`[AI-LP-Enhance] ✅ Gemini Nativa succeeded`);
+      return `data:image/png;base64,${nativeResult.imageBase64}`;
+    }
+    console.warn(`[AI-LP-Enhance] Gemini Nativa failed: ${nativeResult.error}. Falling back to Lovable Gateway...`);
+  }
+
+  // Step 2: Lovable Gateway (fallback)
   const content: any[] = [
     { type: 'text', text: prompt },
   ];
-  // Product image as STYLE REFERENCE only (for color/lighting matching, NOT to reproduce)
   if (productBase64) {
     content.push({ type: 'image_url', image_url: { url: 'data:image/png;base64,' + productBase64 } });
   }
-  // Additional style references from Drive (brand assets)
   if (styleReferences && styleReferences.length > 0) {
     for (const refB64 of styleReferences.slice(0, 2)) {
       content.push({ type: 'image_url', image_url: { url: 'data:image/png;base64,' + refB64 } });
@@ -401,6 +414,14 @@ serve(async (req) => {
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Fetch GEMINI_API_KEY from platform_credentials (priority 1)
+    const geminiApiKey = await getCredential(supabaseUrl, supabaseKey, 'GEMINI_API_KEY');
+    if (geminiApiKey) {
+      console.log(`[AI-LP-Enhance v${VERSION}] ✅ GEMINI_API_KEY found — Gemini Nativa enabled (priority 1)`);
+    } else {
+      console.log(`[AI-LP-Enhance v${VERSION}] ⚠️ No GEMINI_API_KEY — using Lovable Gateway only`);
+    }
+
     // 1. Fetch landing page + blocks/schema
     const { data: lp, error: lpError } = await supabase
       .from("ai_landing_pages")
@@ -615,11 +636,11 @@ serve(async (req) => {
       const schemaVariantSeed = schema?.variantSeed as number | undefined;
       const prompt = buildCompositionPrompt(product, storeName, spec, driveReferenceBase64s.length > 0, brandColors, schemaMood, schemaVariantSeed);
       
-      // Try pro model first, then flash — pass product image as primary reference
-      let imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', prompt, productBase64, driveReferenceBase64s.length > 0 ? driveReferenceBase64s : undefined);
+      // Try Gemini Nativa first, then Lovable Gateway Pro, then Flash
+      let imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', prompt, productBase64, driveReferenceBase64s.length > 0 ? driveReferenceBase64s : undefined, geminiApiKey);
       if (!imageDataUrl) {
         console.log(`[AI-LP-Enhance] Pro failed for ${spec.promptSuffix}, trying flash...`);
-        imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-2.5-flash-image', prompt, productBase64, driveReferenceBase64s.length > 0 ? driveReferenceBase64s : undefined);
+        imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-2.5-flash-image', prompt, productBase64, driveReferenceBase64s.length > 0 ? driveReferenceBase64s : undefined, null); // Don't retry native again
       }
 
       if (!imageDataUrl) {

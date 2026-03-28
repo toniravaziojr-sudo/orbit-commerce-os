@@ -11,8 +11,10 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { tryNativeGemini } from "../_shared/native-gemini.ts";
+import { getCredential } from "../_shared/platform-credentials.ts";
 
-const VERSION = '6.0.0';
+const VERSION = '7.0.0'; // Gemini Nativa priority: 1. Gemini Nativa → 2. OpenAI → 3. Lovable Gateway
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -169,16 +171,28 @@ async function downloadImageAsBase64(url: string): Promise<string | null> {
   }
 }
 
-// ========== GENERATE WITH GEMINI (Flash) ==========
+// ========== GENERATE WITH GEMINI NATIVA (Priority 1) → then Lovable Gateway ==========
 
 async function generateWithGemini(
-  apiKey: string,
+  lovableApiKey: string,
+  geminiApiKey: string | null,
   prompt: string,
   referenceImageBase64: string | null,
 ): Promise<{ imageBase64: string | null; model: string; error?: string }> {
+  // Step 1: Try native Gemini (API direta)
+  if (geminiApiKey) {
+    const nativeResult = await tryNativeGemini(geminiApiKey, prompt, referenceImageBase64, 'media-gemini');
+    if (nativeResult.imageBase64) {
+      console.log(`✅ Gemini Nativa succeeded for media generation`);
+      return nativeResult;
+    }
+    console.warn(`⚠️ Gemini Nativa failed: ${nativeResult.error}. Falling back to Lovable Gateway...`);
+  }
+
+  // Step 2: Lovable Gateway Flash (fallback)
   const model = "google/gemini-2.5-flash-image";
   try {
-    console.log(`🎨 Gemini Flash generation (ref: ${!!referenceImageBase64})...`);
+    console.log(`🎨 Gemini Flash via Lovable Gateway (fallback) (ref: ${!!referenceImageBase64})...`);
 
     const content: any[] = [{ type: "text", text: prompt }];
     if (referenceImageBase64) {
@@ -191,7 +205,7 @@ async function generateWithGemini(
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${lovableApiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -216,30 +230,40 @@ async function generateWithGemini(
     const base64Match = imageUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
     if (!base64Match) return { imageBase64: null, model, error: "Formato inválido Gemini" };
 
-    console.log("✅ Gemini Flash image generated");
-    return { imageBase64: base64Match[1], model };
+    console.log("✅ Gemini Flash (Lovable Gateway) image generated");
+    return { imageBase64: base64Match[1], model: `${model} (Lovable fallback)` };
   } catch (error) {
     console.error("❌ Gemini error:", error);
     return { imageBase64: null, model, error: String(error) };
   }
 }
 
-// ========== GENERATE WITH REAL OPENAI (gpt-image-1) ==========
+// ========== GENERATE WITH OPENAI (Priority 2) ==========
 
 async function generateWithOpenAI(
-  apiKey: string,
+  lovableApiKey: string,
   openaiApiKey: string | null,
+  geminiApiKey: string | null,
   prompt: string,
   referenceImageBase64: string | null,
 ): Promise<{ imageBase64: string | null; model: string; error?: string }> {
   
-  // Try Real OpenAI first via Chat Completions API (gpt-image-1)
+  // Step 1: Try native Gemini FIRST (even for "OpenAI" provider — it's always priority 1)
+  if (geminiApiKey) {
+    const nativeResult = await tryNativeGemini(geminiApiKey, prompt, referenceImageBase64, 'media-openai');
+    if (nativeResult.imageBase64) {
+      console.log(`✅ Gemini Nativa succeeded for OpenAI provider`);
+      return nativeResult;
+    }
+    console.warn(`⚠️ Gemini Nativa failed for OpenAI provider: ${nativeResult.error}`);
+  }
+
+  // Step 2: Try Real OpenAI via Chat Completions API (gpt-image-1)
   if (openaiApiKey) {
     const model = "gpt-image-1";
     try {
       console.log(`🎨 Real OpenAI ${model} via Chat Completions (ref: ${!!referenceImageBase64})...`);
 
-      // Build user content with optional reference image
       const userContent: any[] = [
         { type: 'text', text: prompt },
       ];
@@ -272,7 +296,6 @@ async function generateWithOpenAI(
         const data = await response.json();
         let b64: string | null = null;
         
-        // Extract from output_images
         const outputImages = data.choices?.[0]?.message?.output_images;
         if (outputImages && outputImages.length > 0) {
           const imgUrl = outputImages[0]?.url || outputImages[0];
@@ -283,7 +306,6 @@ async function generateWithOpenAI(
           }
         }
         
-        // Fallback: check content parts
         if (!b64) {
           const content = data.choices?.[0]?.message?.content;
           if (Array.isArray(content)) {
@@ -315,10 +337,10 @@ async function generateWithOpenAI(
     console.warn("⚠️ OPENAI_API_KEY not available, using Lovable Gateway fallback for OpenAI provider");
   }
 
-  // Fallback: Lovable Gateway with Gemini Pro
+  // Step 3: Lovable Gateway with Gemini Pro (ÚLTIMO RECURSO)
   const fallbackModel = "google/gemini-3-pro-image-preview";
   try {
-    console.log(`🎨 Lovable fallback (${fallbackModel}) for OpenAI provider...`);
+    console.log(`🎨 Lovable Gateway fallback (${fallbackModel})...`);
 
     const openaiPrompt = `${prompt}
 
@@ -339,7 +361,7 @@ ESTILO OPENAI:
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${lovableApiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -364,7 +386,7 @@ ESTILO OPENAI:
     const base64Match = imageUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
     if (!base64Match) return { imageBase64: null, model: fallbackModel, error: "Formato inválido Lovable" };
 
-    console.log("✅ Lovable fallback (Gemini Pro) image generated for OpenAI provider");
+    console.log("✅ Lovable fallback (Gemini Pro) image generated");
     return { imageBase64: base64Match[1], model: `${fallbackModel} (Lovable fallback)` };
   } catch (error) {
     console.error("❌ Lovable fallback error:", error);
@@ -505,11 +527,20 @@ serve(async (req) => {
     );
   }
 
-  if (openaiApiKey) {
-    console.log(`[media-process-generation-queue v${VERSION}] OpenAI API key available — real OpenAI enabled`);
+  // Fetch GEMINI_API_KEY from platform_credentials (priority 1)
+  const geminiApiKey = await getCredential(supabaseUrl, supabaseServiceKey, 'GEMINI_API_KEY');
+
+  if (geminiApiKey) {
+    console.log(`[media-process-generation-queue v${VERSION}] ✅ GEMINI_API_KEY found — Gemini Nativa enabled (priority 1)`);
   } else {
-    console.log(`[media-process-generation-queue v${VERSION}] No OPENAI_API_KEY — OpenAI provider will use Lovable fallback`);
+    console.log(`[media-process-generation-queue v${VERSION}] ⚠️ No GEMINI_API_KEY — Gemini Nativa disabled`);
   }
+  if (openaiApiKey) {
+    console.log(`[media-process-generation-queue v${VERSION}] ✅ OPENAI_API_KEY found — OpenAI enabled (priority 2)`);
+  } else {
+    console.log(`[media-process-generation-queue v${VERSION}] ⚠️ No OPENAI_API_KEY — OpenAI disabled`);
+  }
+  console.log(`[media-process-generation-queue v${VERSION}] Lovable Gateway always available (priority 3 — fallback)`);
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -632,10 +663,9 @@ BRIEFING DO CRIATIVO: ${generation.prompt_final}`;
 
         // Generate with both providers in parallel
         const providerPromises = enabledProviders.map(async (provider): Promise<ProviderResult> => {
-          const generateFn = provider === 'gemini' ? generateWithGemini : generateWithOpenAI;
           const result = provider === 'gemini' 
-            ? await generateFn(lovableApiKey, finalPrompt, referenceBase64)
-            : await generateWithOpenAI(lovableApiKey, openaiApiKey, finalPrompt, referenceBase64);
+            ? await generateWithGemini(lovableApiKey, geminiApiKey, finalPrompt, referenceBase64)
+            : await generateWithOpenAI(lovableApiKey, openaiApiKey, geminiApiKey, finalPrompt, referenceBase64);
 
           if (!result.imageBase64) {
             return {
