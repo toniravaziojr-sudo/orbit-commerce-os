@@ -1,4 +1,3 @@
-import { RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,7 +13,6 @@ import { DriveSearchToolbar } from "./DriveSearchToolbar";
 import type { DriveSearchFilters } from "./DriveSearchToolbar";
 
 interface DriveToolbarProps {
-  fileInputRef: RefObject<HTMLInputElement | null>;
   onUploadClick: () => void;
   viewMode: 'grid' | 'list';
   onViewModeToggle: () => void;
