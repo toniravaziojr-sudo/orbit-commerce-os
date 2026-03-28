@@ -8,8 +8,10 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
+import { generateWithNativeGemini } from "../_shared/native-gemini.ts";
+import { getCredential } from "../_shared/platform-credentials.ts";
 
-const VERSION = "2.1.0";
+const VERSION = "3.0.0"; // Gemini Nativa priority: 1. Gemini Nativa → 2. Lovable Gateway
 const LOVABLE_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 // Timeout budget: Edge Functions have 150s limit, reserve margin for persistence + overhead
@@ -47,15 +49,26 @@ async function callImageModel(
   prompt: string,
   productBase64: string | null,
   styleReferences?: string[],
+  geminiApiKey?: string | null,
 ): Promise<string | null> {
+  // Step 1: Try native Gemini first (PRIORIDADE MÁXIMA)
+  if (geminiApiKey) {
+    console.log(`[AI-LP-Enhance] Trying Gemini Nativa first...`);
+    const nativeResult = await generateWithNativeGemini(geminiApiKey, prompt, productBase64);
+    if (nativeResult.imageBase64) {
+      console.log(`[AI-LP-Enhance] ✅ Gemini Nativa succeeded`);
+      return `data:image/png;base64,${nativeResult.imageBase64}`;
+    }
+    console.warn(`[AI-LP-Enhance] Gemini Nativa failed: ${nativeResult.error}. Falling back to Lovable Gateway...`);
+  }
+
+  // Step 2: Lovable Gateway (fallback)
   const content: any[] = [
     { type: 'text', text: prompt },
   ];
-  // Product image as STYLE REFERENCE only (for color/lighting matching, NOT to reproduce)
   if (productBase64) {
     content.push({ type: 'image_url', image_url: { url: 'data:image/png;base64,' + productBase64 } });
   }
-  // Additional style references from Drive (brand assets)
   if (styleReferences && styleReferences.length > 0) {
     for (const refB64 of styleReferences.slice(0, 2)) {
       content.push({ type: 'image_url', image_url: { url: 'data:image/png;base64,' + refB64 } });
