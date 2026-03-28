@@ -107,11 +107,16 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber, showSoc
       if (!isPaid) return;
     }
     
+    // v8.23.0: Strip # from order_number to match server-side event_id format
+    // Server (process-events) uses cleanOrderNumber.replace(/^#/, '') → purchase_paid_141
+    // Browser must use the same format for deduplication to work
+    const cleanOrderNumber = order.order_number.replace(/^#/, '').trim();
+    
     trackPurchase({
-      order_id: order.order_number,
+      order_id: cleanOrderNumber,
       value: order.total,
       items: order.items.map((item: any) => ({
-        id: item.product_id,
+        id: item.product_id || item.id,
         sku: item.sku || item.product_sku,
         meta_retailer_id: item.meta_retailer_id,
         name: item.product_name,

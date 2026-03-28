@@ -1,5 +1,18 @@
 # Memory: infrastructure/marketing/meta-tracking-standards-v8-21
-Updated: 2026-03-27
+Updated: 2026-03-28
+
+## v8.23.0
+Correção crítica de 5 bugs no Purchase que causavam deduplicação quebrada, rejeição pela Meta e valores errados.
+
+1. **event_id sincronizado**: ThankYouContent agora faz `order_number.replace(/^#/, '')` antes de gerar o event_id. Browser e servidor passam a usar exatamente o mesmo `purchase_paid_XXX`, restaurando a deduplicação na Meta.
+
+2. **contents com campo `id`**: `get-order` agora retorna `product_id` nos items. O browser envia `contents: [{id: "...", quantity: N, item_price: X}]` corretamente. Antes, o campo `id` estava ausente e a Meta rejeitava com erro 2804008.
+
+3. **Server contents corrigido**: `process-events` não faz mais select de `meta_retailer_id` (coluna inexistente em `order_items`). Em vez disso, faz lookup na tabela `products` para resolver `meta_retailer_id`. Items deixaram de vir vazios.
+
+4. **Valor em REAIS, não centavos**: Removido `/100` no `process-events`. O banco armazena valores em REAIS (ex: 151.95), não centavos. O servidor estava enviando 1.52 em vez de 151.95.
+
+5. **content_ids não mais null**: Com `product_id` disponível via `get-order`, `resolveMetaContentId` resolve corretamente para o ID do produto.
 
 ## v8.22.0
 Correção crítica de deduplicação do Purchase e enriquecimento de parâmetros.
