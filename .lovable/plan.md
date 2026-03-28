@@ -1,127 +1,53 @@
 
-# Plano de Estabilização Definitiva — Meta Pixel + CAPI (Purchase)
-## Status: ✅ EXECUTADO — v8.23.0
 
----
+# Diagnóstico de Status por Seleção no Calendário de Conteúdo
 
-## BUGS ENCONTRADOS E CORRIGIDOS
+## Como funciona hoje
 
-### Bug 1 (CRÍTICO) — event_id desincronizado → deduplicação QUEBRADA
-- **Antes**: Browser enviava `purchase_paid_#141`, servidor enviava `purchase_paid_141`
-- **Causa**: ThankYouContent passava `order.order_number` (com `#`) direto
-- **Fix**: `ThankYouContent.tsx` agora faz `order.order_number.replace(/^#/, '').trim()` antes de enviar
-- **Arquivo**: `src/components/storefront/ThankYouContent.tsx`
+Quando você seleciona dias no calendário e clica em "Copys IA" ou "Criativos IA", o sistema valida na hora do clique e mostra toasts avisando se falta algo. Mas não há **nenhuma indicação visual prévia** do que está faltando nos cards selecionados — você só descobre quando tenta executar a ação.
 
-### Bug 2 (CRÍTICO) — Browser contents sem campo `id` → Meta rejeitava 100% dos Purchase browser
-- **Antes**: `get-order` não retornava `product_id`, então `contents` ia sem `id` → Meta erro 2804008
-- **Causa**: select de `order_items` não incluía `product_id`
-- **Fix**: Adicionado `product_id` ao select do `get-order`; atualizada interface `OrderDetails`
-- **Arquivos**: `supabase/functions/get-order/index.ts`, `src/hooks/useOrderDetails.ts`
+## O problema
 
-### Bug 3 (CRÍTICO) — Server contents VAZIO → Meta recebia Purchase sem dados de produto
-- **Antes**: `process-events` fazia select com `meta_retailer_id` que NÃO EXISTE na tabela `order_items`
-- **Causa**: Query falhava silenciosamente, `orderItems` era null → contents/content_ids vazios
-- **Fix**: Removido `meta_retailer_id` do select; adicionado lookup na tabela `products` para resolver IDs
-- **Arquivo**: `supabase/functions/process-events/index.ts`
+Você seleciona vários dias, clica para gerar criativos, e só aí descobre que metade dos cards ainda não tem copy. Isso gera frustração e idas e vindas desnecessárias. Não há visibilidade do "estado de prontidão" da seleção.
 
-### Bug 4 (CRÍTICO) — Valor do Purchase 100x MENOR no servidor
-- **Antes**: `process-events` fazia `(order.total || 0) / 100` → valor 1.52 em vez de 151.95
-- **Causa**: DB armazena valores em REAIS (não centavos), divisão era incorreta
-- **Fix**: Removido `/100` → `order.total || 0`
-- **Arquivo**: `supabase/functions/process-events/index.ts`
+## O que eu faria
 
-### Bug 5 (ALTO) — content_ids=[null] no browser
-- **Antes**: ThankYouContent usava `item.product_id` que era undefined (get-order não retornava)
-- **Fix**: Corrigido para `item.product_id || item.id` + get-order agora retorna product_id
+Adicionar um **painel de diagnóstico dinâmico** que aparece dentro da barra de seleção (abaixo dos botões "Limpar seleção" e "Excluir"), mostrando em tempo real o status dos cards selecionados:
 
----
+### 1. Resumo visual de prontidão (sempre visível na seleção)
 
-## PAYLOAD ANTES/DEPOIS
+Um bloco com ícones coloridos mostrando:
+- **✅ X prontos** (têm estratégia + copy + criativo)
+- **⚠️ X sem copy** (têm estratégia mas faltam copys)
+- **⚠️ X sem criativo** (têm copy mas faltam criativos)
+- **❌ X sem estratégia** (vazios, sem título)
 
-### Browser Purchase (via marketing-capi-track)
-**ANTES** (rejeitado pela Meta):
-```json
-{
-  "event_id": "purchase_paid_#141",
-  "custom_data": {
-    "content_ids": [null],
-    "contents": [{"item_price": 159.95, "quantity": 1}],
-    "value": 151.95,
-    "order_id": "#141"
-  }
-}
-```
-**DEPOIS** (esperado):
-```json
-{
-  "event_id": "purchase_paid_141",
-  "custom_data": {
-    "content_ids": ["6a48ca35-96b8-4987-86d0-48015b96b980"],
-    "contents": [{"id": "6a48ca35-96b8-4987-86d0-48015b96b980", "item_price": 159.95, "quantity": 1}],
-    "value": 151.95,
-    "order_id": "141"
-  }
-}
-```
+### 2. Alerta contextual inteligente (baseado na próxima ação)
 
-### Server Purchase (via process-events → sendCapiPurchase)
-**ANTES** (aceito mas com dados errados):
-```json
-{
-  "event_id": "purchase_paid_141",
-  "custom_data": {
-    "content_ids": [],
-    "contents": [],
-    "value": 1.5195,
-    "order_id": "141",
-    "num_items": 0
-  }
-}
-```
-**DEPOIS** (esperado):
-```json
-{
-  "event_id": "purchase_paid_141",
-  "custom_data": {
-    "content_ids": ["6a48ca35-96b8-4987-86d0-48015b96b980"],
-    "contents": [{"id": "6a48ca35-96b8-4987-86d0-48015b96b980", "item_price": 159.95, "quantity": 1}],
-    "value": 151.95,
-    "order_id": "141",
-    "num_items": 1
-  }
-}
-```
+Um aviso amarelo/laranja que muda conforme o que falta, exemplos:
+- Se clicar em "Copys IA" com cards sem estratégia: *"2 publicações do dia 3 e 5 ainda não têm estratégia e serão ignoradas na geração de copys"*
+- Se clicar em "Criativos IA" com cards sem copy: *"3 publicações dos dias 1, 3 e 19 ainda não têm copy. Gere as copys antes dos criativos."*
 
----
+### 3. Botões de ação desabilitados com tooltip
 
-## COMO TESTAR
+Em vez de permitir o clique e mostrar toast depois, os botões "Copys IA" e "Criativos IA" ficam **visualmente atenuados** quando nenhum card elegível existe na seleção, com tooltip explicando o motivo. Mas **não travam** quando há pelo menos 1 card elegível (para não bloquear regeneração parcial).
 
-1. Fazer um pedido real (PIX ou cartão) na loja do Respeite o Homem
-2. Aguardar aprovação do pagamento
-3. Verificar `marketing_events_log`:
-   ```sql
-   SELECT event_id, event_source, provider_status, event_data
-   FROM marketing_events_log
-   WHERE tenant_id = 'd1a4d0ed-...' AND event_name = 'Purchase'
-   ORDER BY created_at DESC LIMIT 5;
-   ```
-4. Confirmar:
-   - ✅ 2 registros com MESMO event_id (ex: `purchase_paid_142`)
-   - ✅ Ambos com `provider_status = 'sent'`
-   - ✅ `contents` com `id` preenchido em ambos
-   - ✅ `value` correto (em reais, ex: 151.95)
-5. No Meta Event Manager (24-48h):
-   - Purchase mostra "Navegador + Servidor" na mesma linha
-   - Contagem de eventos bate com pedidos reais
-   - Match Quality Score sobe para 8+/10
+## Resultado final
 
----
+O usuário vê instantaneamente o que falta em cada seleção, sem precisar clicar para descobrir. O fluxo de regeneração parcial continua funcionando normalmente — quem tem tudo pronto avança, quem não tem recebe o aviso visual.
 
-## ARQUIVOS ALTERADOS
+## Detalhes Técnicos
 
-| Arquivo | Mudança |
-|---------|---------|
-| `src/components/storefront/ThankYouContent.tsx` | Strip `#` do order_number; fallback `product_id \|\| id` |
-| `src/hooks/useOrderDetails.ts` | Adicionado `product_id` e `meta_retailer_id` na interface |
-| `supabase/functions/get-order/index.ts` | Adicionado `product_id` ao select de order_items |
-| `supabase/functions/process-events/index.ts` | Removido `meta_retailer_id` do select; lookup via products; removido `/100` |
+### Arquivo alterado
+- `src/components/media/PlanningTab.tsx`
+
+### Implementação
+1. Criar um `useMemo` `selectionDiagnostics` que analisa os items dos `selectedDays` e retorna contagens por status (sem estratégia, sem copy, sem criativo, prontos) + lista dos dias afetados.
+2. Renderizar um componente `SelectionDiagnostics` dentro do bloco `isSelectMode && selectedDays.size > 0`, entre os botões existentes e o calendário.
+3. Usar badges coloridos (verde/amarelo/vermelho) para cada categoria.
+4. Mostrar um `Alert` contextual com os dias específicos quando há inconsistência entre cards selecionados.
+5. No `WorkflowStepper`, adicionar lógica para atenuar visualmente steps impossíveis (opacity + tooltip), sem desabilitar completamente quando há pelo menos 1 item elegível.
+
+### Doc afetado
+- `docs/regras/campanhas.md` — Atualizar seção do Modo Seleção com o novo diagnóstico visual.
+
