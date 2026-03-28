@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { isProtectedFolder } from "./driveHelpers";
 import {
   DropdownMenu,
   DropdownMenuContent,
