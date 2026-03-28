@@ -19,6 +19,7 @@ import type {
 } from './visual-adapters/types.ts';
 
 import { buildFinalPrompt, buildCreativeBrief } from './creative-brief-builder.ts';
+import { tryNativeGemini } from './native-gemini.ts';
 
 // ===== CONSTANTS =====
 
@@ -220,6 +221,12 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
  *
  * Returns which model was used and whether fallback occurred.
  */
+/**
+ * HIERARQUIA OBRIGATÓRIA v6.0:
+ * 1. Gemini Nativa (API direta Google AI Studio) — usa GEMINI_API_KEY
+ * 2. OpenAI Nativa — usa OPENAI_API_KEY
+ * 3. Lovable AI Gateway (Pro → Flash → Simplified) — último recurso
+ */
 export async function resilientGenerate(
   lovableApiKey: string,
   openaiApiKey: string | null,
@@ -227,18 +234,36 @@ export async function resilientGenerate(
   referenceImageBase64: string | null,
   preferOpenAI: boolean = false,
   slotLabel: string = 'slot',
+  geminiApiKey: string | null = null,
 ): Promise<{ imageBase64: string | null; model: string; fallbackReason?: string; error?: string }> {
-  const PRO_TIMEOUT_MS = 70_000; // 70s per slot for pro model
+  const PRO_TIMEOUT_MS = 70_000;
 
-  // Step 0: Try OpenAI if preferred (complete mode)
-  if (preferOpenAI && openaiApiKey) {
-    const attempt0 = await generateWithRealOpenAI(openaiApiKey, prompt, referenceImageBase64);
-    if (attempt0.imageBase64) return { ...attempt0, fallbackReason: undefined };
-    console.warn(`[visual-engine] [${slotLabel}] OpenAI failed: ${attempt0.error}. Trying Pro...`);
+  // ===== STEP 1: Gemini Nativa (PRIORIDADE MÁXIMA) =====
+  if (geminiApiKey) {
+    const nativeResult = await tryNativeGemini(geminiApiKey, prompt, referenceImageBase64, slotLabel);
+    if (nativeResult.imageBase64) {
+      console.log(`[visual-engine] [${slotLabel}] ✅ Gemini Nativa succeeded`);
+      return { ...nativeResult, fallbackReason: undefined };
+    }
+    console.warn(`[visual-engine] [${slotLabel}] Gemini Nativa failed: ${nativeResult.error}. Trying OpenAI...`);
+  } else {
+    console.warn(`[visual-engine] [${slotLabel}] GEMINI_API_KEY not available. Skipping native Gemini.`);
   }
 
-  // Step 1: Pro model with timeout — QUALITY FIRST
-  console.log(`[visual-engine] [${slotLabel}] Step 1: ${LOVABLE_MODELS.primary} (timeout ${PRO_TIMEOUT_MS}ms)`);
+  // ===== STEP 2: OpenAI Nativa =====
+  if (openaiApiKey) {
+    const openaiResult = await generateWithRealOpenAI(openaiApiKey, prompt, referenceImageBase64);
+    if (openaiResult.imageBase64) {
+      console.log(`[visual-engine] [${slotLabel}] ✅ OpenAI Nativa succeeded`);
+      return { ...openaiResult, fallbackReason: geminiApiKey ? 'gemini_native_failed' : 'no_gemini_key' };
+    }
+    console.warn(`[visual-engine] [${slotLabel}] OpenAI failed: ${openaiResult.error}. Trying Lovable Gateway...`);
+  } else {
+    console.warn(`[visual-engine] [${slotLabel}] OPENAI_API_KEY not available. Skipping OpenAI.`);
+  }
+
+  // ===== STEP 3: Lovable AI Gateway (ÚLTIMO RECURSO) =====
+  console.log(`[visual-engine] [${slotLabel}] Step 3 (fallback): ${LOVABLE_MODELS.primary} via Lovable Gateway (timeout ${PRO_TIMEOUT_MS}ms)`);
   try {
     const proResult = await withTimeout(
       generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.primary, prompt, referenceImageBase64),
@@ -246,29 +271,29 @@ export async function resilientGenerate(
       `${slotLabel}:pro`,
     );
     if (proResult.imageBase64) {
-      console.log(`[visual-engine] [${slotLabel}] ✅ Pro model succeeded`);
-      return { imageBase64: proResult.imageBase64, model: LOVABLE_MODELS.primary };
+      console.log(`[visual-engine] [${slotLabel}] ✅ Lovable Gateway Pro succeeded (fallback)`);
+      return { imageBase64: proResult.imageBase64, model: `${LOVABLE_MODELS.primary} (Lovable fallback)`, fallbackReason: 'native_providers_failed' };
     }
-    console.warn(`[visual-engine] [${slotLabel}] Pro returned no image: ${proResult.error}`);
+    console.warn(`[visual-engine] [${slotLabel}] Lovable Pro returned no image: ${proResult.error}`);
   } catch (err: any) {
     const reason = err?.message === 'TIMEOUT' ? 'timeout' : 'error';
-    console.warn(`[visual-engine] [${slotLabel}] Pro failed (${reason}). Falling back to Flash...`);
+    console.warn(`[visual-engine] [${slotLabel}] Lovable Pro failed (${reason}). Trying Flash...`);
   }
 
-  // Step 2: Flash model with SAME prompt — no brief degradation
-  console.log(`[visual-engine] [${slotLabel}] Step 2: ${LOVABLE_MODELS.fast} (fallback, same brief)`);
+  // Step 3b: Flash model via Lovable
+  console.log(`[visual-engine] [${slotLabel}] Step 3b: ${LOVABLE_MODELS.fast} via Lovable Gateway`);
   const flashResult = await generateWithLovableGateway(lovableApiKey, LOVABLE_MODELS.fast, prompt, referenceImageBase64);
   if (flashResult.imageBase64) {
-    console.warn(`[visual-engine] [${slotLabel}] ⚠️ FALLBACK: Flash model used (same brief)`);
+    console.warn(`[visual-engine] [${slotLabel}] ⚠️ FALLBACK: Lovable Flash used`);
     return {
       imageBase64: flashResult.imageBase64,
-      model: LOVABLE_MODELS.fast,
-      fallbackReason: 'pro_timeout_or_error',
+      model: `${LOVABLE_MODELS.fast} (Lovable fallback)`,
+      fallbackReason: 'all_native_failed_lovable_flash',
     };
   }
 
-  // Step 3: Simplified prompt + Flash — LAST RESORT
-  console.warn(`[visual-engine] [${slotLabel}] Step 3: Simplified prompt (last resort)`);
+  // Step 3c: Simplified prompt — ABSOLUTE LAST RESORT
+  console.warn(`[visual-engine] [${slotLabel}] Step 3c: Simplified prompt (absolute last resort)`);
   const productName = prompt.match(/"([^"]+)"/)?.[1] || 'produto';
   const hasNoTextRule = prompt.includes('ZERO TEXT') || prompt.includes('ZERO TEXTO');
   const noTextSuffix = hasNoTextRule ? ' A imagem NÃO pode conter NENHUM texto, letra, número ou tipografia.' : '';
@@ -278,12 +303,12 @@ export async function resilientGenerate(
     console.warn(`[visual-engine] [${slotLabel}] ⚠️ FALLBACK: Simplified prompt used`);
     return {
       imageBase64: lastResort.imageBase64,
-      model: `${LOVABLE_MODELS.fast} (simplified)`,
+      model: `${LOVABLE_MODELS.fast} (simplified, Lovable fallback)`,
       fallbackReason: 'all_failed_simplified',
     };
   }
 
-  return { imageBase64: null, model: LOVABLE_MODELS.primary, error: 'All generation attempts failed' };
+  return { imageBase64: null, model: LOVABLE_MODELS.primary, error: 'All generation attempts failed (Gemini Nativa → OpenAI → Lovable Gateway)' };
 }
 
 // ===== QA SCORER =====
