@@ -414,6 +414,14 @@ serve(async (req) => {
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Fetch GEMINI_API_KEY from platform_credentials (priority 1)
+    const geminiApiKey = await getCredential(supabaseUrl, supabaseKey, 'GEMINI_API_KEY');
+    if (geminiApiKey) {
+      console.log(`[AI-LP-Enhance v${VERSION}] ✅ GEMINI_API_KEY found — Gemini Nativa enabled (priority 1)`);
+    } else {
+      console.log(`[AI-LP-Enhance v${VERSION}] ⚠️ No GEMINI_API_KEY — using Lovable Gateway only`);
+    }
+
     // 1. Fetch landing page + blocks/schema
     const { data: lp, error: lpError } = await supabase
       .from("ai_landing_pages")
