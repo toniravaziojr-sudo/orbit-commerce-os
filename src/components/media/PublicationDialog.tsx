@@ -623,7 +623,7 @@ export function PublicationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px] h-[85vh] max-h-[85vh] !flex !flex-col gap-0 overflow-hidden p-0">
+      <DialogContent className="sm:max-w-[480px] max-h-[85vh] !flex !flex-col gap-0 overflow-hidden p-0">
         {/* Step 1: Tipo de publicação */}
         {step === "type" && (
           <div className="p-5">
@@ -729,7 +729,7 @@ export function PublicationDialog({
 
         {/* Step 3: Detalhes - Feed */}
         {step === "details" && selectedType === "feed" && (
-          <>
+          <div className="flex flex-col h-[85vh] max-h-[85vh] overflow-hidden">
             {/* FIXED HEADER */}
             <DialogHeader className="flex-shrink-0 px-5 pt-4 pb-2">
               <DialogTitle className="text-base">
@@ -847,12 +847,12 @@ export function PublicationDialog({
                 {renderDetailFooter()}
               </form>
             </Form>
-          </>
+          </div>
         )}
 
         {/* Step 3: Detalhes - Stories */}
         {step === "details" && selectedType === "stories" && (
-          <>
+          <div className="flex flex-col h-[85vh] max-h-[85vh] overflow-hidden">
             {/* FIXED HEADER */}
             <DialogHeader className="flex-shrink-0 px-5 pt-4 pb-2">
               <DialogTitle className="text-base">
@@ -926,7 +926,7 @@ export function PublicationDialog({
                 {renderDetailFooter()}
               </form>
             </Form>
-          </>
+          </div>
         )}
       </DialogContent>
     </Dialog>
