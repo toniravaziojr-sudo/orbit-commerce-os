@@ -729,7 +729,7 @@ export function PublicationDialog({
 
         {/* Step 3: Detalhes - Feed */}
         {step === "details" && selectedType === "feed" && (
-          <>
+          <div className="flex flex-col h-[85vh] max-h-[85vh] overflow-hidden">
             {/* FIXED HEADER */}
             <DialogHeader className="flex-shrink-0 px-5 pt-4 pb-2">
               <DialogTitle className="text-base">
@@ -852,7 +852,7 @@ export function PublicationDialog({
 
         {/* Step 3: Detalhes - Stories */}
         {step === "details" && selectedType === "stories" && (
-          <>
+          </div>
             {/* FIXED HEADER */}
             <DialogHeader className="flex-shrink-0 px-5 pt-4 pb-2">
               <DialogTitle className="text-base">
