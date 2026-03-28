@@ -61,6 +61,15 @@ export default function MetaOAuthCallback() {
 
   const selectedPortfolio = businesses.find(b => b.id === selectedPortfolioId) || null;
 
+  // Helpers para filtrar seções por scope packs selecionados
+  const showPages = activeScopePacks.some(p => ["atendimento", "publicacao", "leads", "live_video", "insights"].includes(p));
+  const showInstagram = activeScopePacks.some(p => ["atendimento", "publicacao", "insights"].includes(p));
+  const showWhatsApp = activeScopePacks.includes("whatsapp");
+  const showAdAccounts = activeScopePacks.includes("ads");
+  const showPixels = activeScopePacks.some(p => ["ads", "pixel"].includes(p));
+  const showCatalog = activeScopePacks.includes("catalogo");
+  const showThreads = activeScopePacks.includes("threads") && !!threadsProfile;
+
   // === Single-select handlers ===
   const selectPage = (pageId: string) => {
     if (!selectedAssets || !selectedPortfolio) return;
