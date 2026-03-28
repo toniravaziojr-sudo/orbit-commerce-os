@@ -652,7 +652,7 @@ export default function Files() {
         )}
       >
         <CardContent className="p-4">
-          {isLoading ? (
+           {effectiveLoading ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
             </div>
@@ -660,11 +660,11 @@ export default function Files() {
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Upload className="h-12 w-12 text-muted-foreground/50 mb-4" />
               <h3 className="text-lg font-semibold mb-2">
-                {searchQuery ? 'Nenhum arquivo encontrado' : 'Nenhum arquivo'}
+                {isSearching ? 'Nenhum arquivo encontrado' : 'Nenhum arquivo'}
               </h3>
               <p className="text-sm text-muted-foreground max-w-md">
-                {searchQuery
-                  ? 'Tente buscar por outro termo'
+                {isSearching
+                  ? 'Tente buscar por outro termo ou ajuste os filtros'
                   : 'Arraste arquivos aqui ou clique em "Enviar" para começar'}
               </p>
             </div>
