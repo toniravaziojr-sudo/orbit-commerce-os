@@ -37,7 +37,7 @@ export function CampaignTabs({ campaignId, campaign }: CampaignTabsProps) {
   const [replaceMode, setReplaceMode] = useState(false);
   const [scheduledChoiceItem, setScheduledChoiceItem] = useState<MediaCalendarItem | null>(null);
 
-  const isBlog = campaign?.target_channel === "blog";
+  const isBlog = false;
 
   // Stats
   const stats = useMemo(() => {
@@ -221,7 +221,7 @@ export function CampaignTabs({ campaignId, campaign }: CampaignTabsProps) {
         existingItems={currentDateItems}
         editItem={editItem}
         campaignStartDate={campaign?.start_date}
-        campaignType={campaign?.target_channel === "blog" ? "blog" : campaign?.target_channel === "youtube" ? "youtube" : "social"}
+        campaignType="social"
         onBackToList={() => { if (selectedDate) { setDayListDate(selectedDate); setDayListOpen(true); } }}
         replaceMode={replaceMode}
       />
