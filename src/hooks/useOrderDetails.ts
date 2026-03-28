@@ -51,12 +51,14 @@ export interface OrderDetails {
   retry_token?: string;
   items: {
     id: string;
+    product_id?: string;
     product_name: string;
     product_image_url?: string;
     quantity: number;
     unit_price: number;
     total_price: number;
     sku: string;
+    meta_retailer_id?: string | null;
   }[];
   payment_instructions?: PaymentInstructions | null;
 }
