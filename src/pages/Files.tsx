@@ -424,14 +424,9 @@ export default function Files() {
         />
       )}
 
-      {/* File upload input bound to toolbar */}
+      {/* Hidden file input for main uploads - wired via DriveToolbar ref */}
       <input
-        ref={(el) => {
-          // Merge with fileInputRef
-          if (fileInputRef.current !== el) {
-            (fileInputRef as any).current = el;
-          }
-        }}
+        ref={fileInputRef}
         type="file"
         multiple
         className="hidden"
