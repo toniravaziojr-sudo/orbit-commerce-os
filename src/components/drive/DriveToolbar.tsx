@@ -49,12 +49,6 @@ export function DriveToolbar({
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex items-center gap-2">
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          className="hidden"
-        />
         <Button onClick={onUploadClick} size="sm">
           <Upload className="h-4 w-4 mr-2" />
           Enviar
