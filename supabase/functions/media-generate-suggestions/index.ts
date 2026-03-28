@@ -468,6 +468,7 @@ REGRA ABSOLUTA: Você é um ESTRATEGISTA. Você define APENAS tipos, quantidades
 Estrutura de cada item:
 {
   "scheduled_date": "YYYY-MM-DD",
+  "scheduled_time": "HH:MM:SS" (horário estratégico baseado no dia da semana e tipo de conteúdo — USE O GUIA DE HORÁRIOS),
   "content_type": ${contentTypes},
   "target_channel": "instagram" | "facebook",
   "title": "Título/tema do post ou artigo",
@@ -482,7 +483,9 @@ Estrutura de cada item:
 IMPORTANTE:
 - Os campos "copy", "cta", "hashtags" e "generation_prompt" DEVEM ser VAZIOS ("" ou []).
 - NÃO escreva legendas, CTAs, hashtags ou prompts de imagem.
-- Foque APENAS em: scheduled_date, content_type, target_channel, title, target_platforms, needs_product_image
+- O campo "scheduled_time" é OBRIGATÓRIO e deve variar conforme o dia da semana e tipo de conteúdo
+- NUNCA use o mesmo horário para todos os posts — distribua estrategicamente
+- Foque APENAS em: scheduled_date, scheduled_time, content_type, target_channel, title, target_platforms, needs_product_image
 - needs_product_image = true quando o post precisa mostrar um produto da loja
 - needs_product_image = false para dicas, artigos educativos, lifestyle, etc.
 - Para posts de FEED: target_platforms SEMPRE deve incluir ["instagram", "facebook"] (os mesmos posts vão para ambas redes)
