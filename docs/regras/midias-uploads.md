@@ -857,7 +857,10 @@ O `CampaignCalendar.tsx` foi reduzido de ~1020 linhas para ~40 linhas, servindo 
 | 2026-03-28 | **Busca universal + filtros** — Novo hook `useDriveSearch` com busca global no tenant inteiro, toggle escopo (tudo/esta pasta), filtros combináveis (tipo, origem, uso), ordenação (nome/data/tamanho asc/desc). Novos componentes: `DriveSearchToolbar`, `FileParentPath`. Toolbar antiga substituída. |
 | 2026-03-27 | **Fase 4** — Exclusão em lote segura com useConfirmDialog (substitui confirm() nativo) |
 | 2026-03-27 | **Fase 4** — Estados vazios orientativos nas 3 abas com EmptyState + atalhos contextuais |
-| 2026-03-27 | **Fase 4** — Resumo compacto no topo do painel do dia (DayPostsList) |
+| 2026-03-28 | **UI/UX Final** — Decomposição de Files.tsx: DriveToolbar, DriveBreadcrumbs, DriveFileGrid, DriveFileList, DriveFileContextMenu, DrivePreviewPanel, DriveEmptyState, DriveDialogs |
+| 2026-03-28 | **UI/UX Final** — Preview lateral com Sheet (substitui dialog solto), clique único no corpo do arquivo abre painel, sem conflitar com ações/drag/menus |
+| 2026-03-28 | **UI/UX Final** — Skeleton loading no grid, empty states contextuais (pasta vazia, busca sem resultado, Drive vazio), toast de mover com nome da pasta destino |
+| 2026-03-28 | **UI/UX Final** — Menu contextual via DropdownMenu com opção "Visualizar", breadcrumbs com botão voltar integrado, cards mais compactos |
 | 2026-03-27 | **Fase 4** — Microcopy melhorado: "Publicação parcial", "Falha parcial", "Aguardando reenvio", "Substituir agendamento" |
 | 2026-03-27 | **Fase 4** — Indicadores de atenção no calendário de Planejamento (dots âmbar/roxo/verde com prioridade) |
 | 2026-03-27 | **Fase 4** — Status parciais/superseded/canceled adicionados ao PublicationPreviewDialog |
