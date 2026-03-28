@@ -490,7 +490,7 @@ export function MetaUnifiedSettings() {
                             </Label>
                             {!isAvailable && (
                               <Badge variant="outline" className="text-xs">
-                                Em breve
+                                {info.blockedReason || "Em breve"}
                               </Badge>
                             )}
                           </div>
