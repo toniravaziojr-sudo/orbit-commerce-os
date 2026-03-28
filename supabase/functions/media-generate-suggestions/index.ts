@@ -324,6 +324,38 @@ serve(async (req) => {
     let targetPlatformsDefault: string[] = [];
 
     // ====================================
+    // OPTIMAL POSTING TIMES GUIDE (based on Buffer 2026 & SocialPilot 2026 research)
+    // ====================================
+    const postingTimesGuide = `
+## GUIA DE HORÁRIOS ESTRATÉGICOS (baseado em pesquisa com +50 milhões de posts):
+
+### POSTS DE FEED (Instagram + Facebook):
+- Segunda: 13:00, 14:00, 17:00, 18:00 (engajamento sobe no almoço e pós-trabalho)
+- Terça: 07:00, 09:00, 12:00 (manhã é forte, terça é um dos melhores dias)
+- Quarta: 07:00, 08:00, 09:00, 18:00 (MELHOR DIA da semana — manhã é pico)
+- Quinta: 07:00, 08:00, 09:00, 19:00 (manhã forte + pico noturno)
+- Sexta: 07:00, 08:00, 12:00 (postar cedo, engajamento cai à noite)
+- Sábado: 10:00, 11:00, 12:00, 18:00 (midday funciona melhor)
+- Domingo: 08:00, 12:00, 19:00 (audiência menor, mas horários específicos funcionam)
+
+### STORIES (Instagram/Facebook):
+- Segunda: 12:00, 13:00, 14:00
+- Terça: 08:00, 09:00, 10:00
+- Quarta: 11:00, 12:00, 13:00
+- Quinta: 12:00, 13:00, 14:00
+- Sexta: 16:00, 17:00, 18:00
+- Sábado: 10:00, 11:00, 12:00, 13:00
+- Domingo: 17:00, 18:00, 19:00
+
+### REGRAS DE HORÁRIO:
+- NUNCA agende tudo no mesmo horário — distribua ao longo do dia
+- Se há múltiplos stories no mesmo dia, espalhe em intervalos de 2-3 horas
+- Em datas comemorativas/feriados, poste 1-2 horas ANTES do horário de pico (as pessoas checam mais cedo)
+- Use horários redondos ou :30 (ex: 09:00, 09:30, 13:00, 13:30)
+- Formato obrigatório: "HH:MM:SS" (24h, com segundos)
+`;
+
+    // ====================================
     // STRATEGY-FOCUSED PROMPTS (sem copy completa)
     // ====================================
 
@@ -336,7 +368,10 @@ Sua tarefa é criar um calendário editorial ESTRATÉGICO para Facebook.
 2. NÃO escreva copys, legendas, CTAs, hashtags ou prompts de criativos — um copywriter fará isso depois
 3. Deixe os campos copy, cta, hashtags e generation_prompt VAZIOS
 4. Varie entre posts informativos, promocionais e de engajamento
-5. Considere datas comemorativas`;
+5. Considere datas comemorativas
+6. DEFINA UM HORÁRIO ESTRATÉGICO para cada post usando o guia de horários abaixo
+
+${postingTimesGuide}`;
       contentTypes = '"image" (post com imagem) ou "carousel" (carrossel de imagens)';
       targetPlatformsDefault = ["facebook"];
     } else if (targetChannel === "instagram") {
@@ -348,7 +383,10 @@ Sua tarefa é criar um calendário editorial ESTRATÉGICO para Instagram.
 2. NÃO escreva copys, legendas, CTAs, hashtags ou prompts de criativos — um copywriter fará isso depois
 3. Deixe os campos copy, cta, hashtags e generation_prompt VAZIOS
 4. Varie tipos de conteúdo (produto, lifestyle, educativo)
-5. Considere datas comemorativas`;
+5. Considere datas comemorativas
+6. DEFINA UM HORÁRIO ESTRATÉGICO para cada post usando o guia de horários abaixo
+
+${postingTimesGuide}`;
       contentTypes = '"image" (post 1:1) ou "carousel" (carrossel)';
       targetPlatformsDefault = ["instagram"];
     } else {
@@ -361,6 +399,9 @@ Sua tarefa é criar um calendário editorial ESTRATÉGICO para Facebook, Instagr
 2. NÃO escreva copys, legendas, CTAs, hashtags ou prompts de criativos — um copywriter fará isso depois
 3. Deixe os campos copy, cta, hashtags e generation_prompt VAZIOS
 4. Foque em PLANEJAMENTO: distribuição de conteúdo, equilíbrio entre canais, sazonalidade
+5. DEFINA UM HORÁRIO ESTRATÉGICO para cada post/story usando o guia de horários abaixo
+
+${postingTimesGuide}
 
 ## REGRAS DE FREQUÊNCIA (SEMPRE APLICAR, exceto se o cliente especificar diferente):
 
@@ -369,6 +410,7 @@ Sua tarefa é criar um calendário editorial ESTRATÉGICO para Facebook, Instagr
 - target_platforms: ["instagram"] ou ["facebook"] ou ambos
 - **PROIBIDO**: NÃO gere stories com enquetes, quiz, contagem regressiva ou stickers interativos
 - Foque em stories estáticos: imagens com texto, dicas rápidas, produtos em destaque
+- DISTRIBUA os stories ao longo do dia com horários DIFERENTES
 
 ### FEED (Instagram + Facebook SIMULTANEAMENTE):
 - Posts de feed a cada 2-3 dias OU 3 vezes por semana
@@ -426,6 +468,7 @@ REGRA ABSOLUTA: Você é um ESTRATEGISTA. Você define APENAS tipos, quantidades
 Estrutura de cada item:
 {
   "scheduled_date": "YYYY-MM-DD",
+  "scheduled_time": "HH:MM:SS" (horário estratégico baseado no dia da semana e tipo de conteúdo — USE O GUIA DE HORÁRIOS),
   "content_type": ${contentTypes},
   "target_channel": "instagram" | "facebook",
   "title": "Título/tema do post ou artigo",
@@ -440,7 +483,9 @@ Estrutura de cada item:
 IMPORTANTE:
 - Os campos "copy", "cta", "hashtags" e "generation_prompt" DEVEM ser VAZIOS ("" ou []).
 - NÃO escreva legendas, CTAs, hashtags ou prompts de imagem.
-- Foque APENAS em: scheduled_date, content_type, target_channel, title, target_platforms, needs_product_image
+- O campo "scheduled_time" é OBRIGATÓRIO e deve variar conforme o dia da semana e tipo de conteúdo
+- NUNCA use o mesmo horário para todos os posts — distribua estrategicamente
+- Foque APENAS em: scheduled_date, scheduled_time, content_type, target_channel, title, target_platforms, needs_product_image
 - needs_product_image = true quando o post precisa mostrar um produto da loja
 - needs_product_image = false para dicas, artigos educativos, lifestyle, etc.
 - Para posts de FEED: target_platforms SEMPRE deve incluir ["instagram", "facebook"] (os mesmos posts vão para ambas redes)
@@ -569,25 +614,37 @@ IMPORTANTE:
 
     console.log(`[media-generate-suggestions] ${suggestions.length} total, ${filteredSuggestions.length} after filtering blog items`);
 
-    const itemsToInsert = filteredSuggestions.map((s: any) => ({
-      tenant_id,
-      campaign_id,
-      scheduled_date: s.scheduled_date,
-      scheduled_time: defaultTime,
-      content_type: s.content_type || "image",
-      target_channel: s.target_channel || targetChannel,
-      title: s.title,
-      copy: null,
-      cta: null,
-      hashtags: [],
-      generation_prompt: null,
-      target_platforms: s.target_platforms || targetPlatformsDefault,
-      status: "suggested",
-      version: 1,
-      metadata: {
-        needs_product_image: s.needs_product_image ?? false,
-      },
-    }));
+    const itemsToInsert = filteredSuggestions.map((s: any) => {
+      // Use AI-suggested time, validate format, fallback to defaultTime
+      let scheduledTime = defaultTime;
+      if (s.scheduled_time && typeof s.scheduled_time === "string") {
+        const timeStr = s.scheduled_time.trim();
+        // Accept HH:MM or HH:MM:SS format
+        if (/^\d{2}:\d{2}(:\d{2})?$/.test(timeStr)) {
+          scheduledTime = timeStr.length === 5 ? `${timeStr}:00` : timeStr;
+        }
+      }
+
+      return {
+        tenant_id,
+        campaign_id,
+        scheduled_date: s.scheduled_date,
+        scheduled_time: scheduledTime,
+        content_type: s.content_type || "image",
+        target_channel: s.target_channel || targetChannel,
+        title: s.title,
+        copy: null,
+        cta: null,
+        hashtags: [],
+        generation_prompt: null,
+        target_platforms: s.target_platforms || targetPlatformsDefault,
+        status: "suggested",
+        version: 1,
+        metadata: {
+          needs_product_image: s.needs_product_image ?? false,
+        },
+      };
+    });
 
     const { data: insertedItems, error: insertError } = await supabase
       .from("media_calendar_items")
