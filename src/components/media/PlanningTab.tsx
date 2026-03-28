@@ -19,6 +19,7 @@ import { getHolidayForDate } from "@/lib/brazilian-holidays";
 import { useNavigate } from "react-router-dom";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SelectionDiagnostics, getDiagnostics } from "@/components/media/SelectionDiagnostics";
 
 interface PlanningTabProps {
   campaignId: string;
@@ -50,16 +51,19 @@ interface StepConfig {
   isAI?: boolean;
   count?: number;
   className?: string;
+  tooltip?: string | null;
 }
 
 function WorkflowStepper({ steps }: { steps: StepConfig[] }) {
   return (
-    <div className="flex items-center gap-1 overflow-x-auto pb-1">
-      {steps.map((step, index) => {
-        const showConnector = index < steps.length - 1;
-        const isCurrent = step.isCurrent || false;
-        return (
-          <div key={step.number} className="flex items-center gap-1 shrink-0">
+    <TooltipProvider delayDuration={200}>
+      <div className="flex items-center gap-1 overflow-x-auto pb-1">
+        {steps.map((step, index) => {
+          const showConnector = index < steps.length - 1;
+          const isCurrent = step.isCurrent || false;
+          const hasTooltip = !step.isActive && step.tooltip;
+
+          const button = (
             <Button
               variant={isCurrent ? "default" : "outline"}
               size="sm"
@@ -86,13 +90,30 @@ function WorkflowStepper({ steps }: { steps: StepConfig[] }) {
                 </Badge>
               )}
             </Button>
-            {showConnector && (
-              <ChevronRight className="h-3 w-3 text-muted-foreground/40 shrink-0" />
-            )}
-          </div>
-        );
-      })}
-    </div>
+          );
+
+          return (
+            <div key={step.number} className="flex items-center gap-1 shrink-0">
+              {hasTooltip ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={0}>{button}</span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-[220px] text-xs">
+                    {step.tooltip}
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                button
+              )}
+              {showConnector && (
+                <ChevronRight className="h-3 w-3 text-muted-foreground/40 shrink-0" />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </TooltipProvider>
   );
 }
 
@@ -382,12 +403,25 @@ export function PlanningTab({
 
   const buttonsActive = selectedDays.size > 0;
 
+  // Selection diagnostics for tooltips
+  const selectionDiag = useMemo(() => {
+    if (selectedDays.size === 0) return null;
+    return getDiagnostics(selectedDays, planningItemsByDate, isBlog);
+  }, [selectedDays, planningItemsByDate, isBlog]);
+
+  const copyTooltip = !buttonsActive ? "Selecione dias primeiro" : selectionDiag?.copyBlockReason || null;
+  const creativeTooltip = !buttonsActive ? "Selecione dias primeiro" : selectionDiag?.creativeBlockReason || null;
+
+  // Steps are active if days selected AND have eligible items
+  const copysActive = buttonsActive && (selectionDiag?.canGenerateCopys ?? false);
+  const creativesActive = buttonsActive && (selectionDiag?.canGenerateCreatives ?? false);
+
   const workflowSteps: StepConfig[] = [
     { number: 1, label: isSelectMode ? "Sair da Seleção" : "Selecionar Dias", icon: <MousePointer2 className="h-3.5 w-3.5" />, action: () => { if (isSelectMode) { setIsSelectMode(false); setSelectedDays(new Set()); } else { setIsSelectMode(true); } }, isActive: true, isLoading: false, isCurrent: currentStep === 1 },
-    { number: 2, label: isGenerating ? "Gerando..." : "Estratégia IA", icon: <Sparkles className="h-3.5 w-3.5" />, action: handleOpenStrategyPrompt, isActive: buttonsActive, isLoading: isGenerating, isAI: true, isCurrent: currentStep === 2 },
-    { number: 3, label: isGeneratingCopys ? "Gerando..." : "Copys IA", icon: <PenTool className="h-3.5 w-3.5" />, action: handleGenerateCopys, isActive: buttonsActive, isLoading: isGeneratingCopys, isAI: true, count: stats.needsCopy > 0 ? stats.needsCopy : undefined, isCurrent: currentStep === 3 },
+    { number: 2, label: isGenerating ? "Gerando..." : "Estratégia IA", icon: <Sparkles className="h-3.5 w-3.5" />, action: handleOpenStrategyPrompt, isActive: buttonsActive, isLoading: isGenerating, isAI: true, isCurrent: currentStep === 2, tooltip: !buttonsActive ? "Selecione dias primeiro" : null },
+    { number: 3, label: isGeneratingCopys ? "Gerando..." : "Copys IA", icon: <PenTool className="h-3.5 w-3.5" />, action: handleGenerateCopys, isActive: copysActive, isLoading: isGeneratingCopys, isAI: true, count: stats.needsCopy > 0 ? stats.needsCopy : undefined, isCurrent: currentStep === 3, tooltip: copyTooltip },
     ...(!isBlog ? [{
-      number: 4, label: isGeneratingAssets ? "Gerando..." : "Criativos IA", icon: <Image className="h-3.5 w-3.5" />, action: handleGenerateCreatives, isActive: buttonsActive, isLoading: isGeneratingAssets, isAI: true, count: stats.needsCreative > 0 ? stats.needsCreative : undefined, isCurrent: currentStep === 4,
+      number: 4, label: isGeneratingAssets ? "Gerando..." : "Criativos IA", icon: <Image className="h-3.5 w-3.5" />, action: handleGenerateCreatives, isActive: creativesActive, isLoading: isGeneratingAssets, isAI: true, count: stats.needsCreative > 0 ? stats.needsCreative : undefined, isCurrent: currentStep === 4, tooltip: creativeTooltip,
     } as StepConfig] : []),
   ];
 
@@ -467,6 +501,11 @@ export function PlanningTab({
                   </Button>
                 );
               })()}
+              <SelectionDiagnostics
+                selectedDays={selectedDays}
+                planningItemsByDate={planningItemsByDate}
+                isBlog={isBlog}
+              />
             </div>
           )}
         </CardContent>

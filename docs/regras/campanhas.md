@@ -168,7 +168,24 @@ Os botões seguem ordem sequencial e só ficam ativos quando o passo anterior es
 | 5 | Aprovar | Items com copy e/ou criativo prontos → abre `ApprovalDialog` com resumo visual |
 | 6 | Finalizar Campanha | Items aprovados |
 
-### IAs Especialistas
+#### Diagnóstico de Seleção (SelectionDiagnostics)
+
+Quando o usuário seleciona dias no calendário, um painel de diagnóstico aparece abaixo dos botões de ação, mostrando em tempo real:
+
+| Indicador | Cor | Significado |
+|-----------|-----|-------------|
+| ✅ X prontos | Verde (`success`) | Têm estratégia + copy + criativo |
+| ⚠️ X sem copy | Amarelo (`warning`) | Têm estratégia mas faltam copys |
+| ⚠️ X sem criativo | Amarelo (`warning`) | Têm copy mas faltam criativos |
+| ❌ X sem estratégia | Vermelho (`destructive`) | Sem título/estratégia definida |
+| X dias vazios | Cinza (`muted`) | Dias selecionados sem publicações |
+
+**Alertas contextuais**: Mensagens específicas informam quais dias estão com pendências e qual ação tomar (ex: "3 publicações dos dias 1, 3 e 19 sem copy — gere as copys antes dos criativos").
+
+**Botões inteligentes**: Os botões "Copys IA" e "Criativos IA" ficam visualmente atenuados (opacity + tooltip explicativo) quando nenhum card elegível existe na seleção. Não bloqueiam quando há pelo menos 1 item elegível (regeneração parcial funciona).
+
+**Arquivo**: `src/components/media/SelectionDiagnostics.tsx`
+
 
 #### IA de Estratégia (`media-generate-suggestions`)
 
