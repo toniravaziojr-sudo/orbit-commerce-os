@@ -179,12 +179,34 @@ export function PlanningTab({
     else { onAddItem(date); }
   };
 
-  const handleOpenStrategyPrompt = () => {
+  // Helper: get items from selected days
+  const getSelectedItems = (): MediaCalendarItem[] => {
+    const result: MediaCalendarItem[] = [];
+    selectedDays.forEach(dk => {
+      (planningItemsByDate.get(dk) || []).forEach(i => result.push(i));
+    });
+    return result;
+  };
+
+  const handleOpenStrategyPrompt = async () => {
     if (!currentTenant || !campaignId) return;
     if (selectedDays.size === 0) {
       toast.info("Selecione os dias no calendário antes de gerar");
       setIsSelectMode(true);
       return;
+    }
+    // Check if selected days already have items with strategy (title)
+    const selectedItems = getSelectedItems();
+    const hasExistingStrategy = selectedItems.some(i => i.title && i.title.trim() !== "");
+    if (hasExistingStrategy) {
+      const confirmed = await confirm({
+        title: "Regenerar estratégia?",
+        description: "Os dias selecionados já possuem publicações com estratégia definida. Regenerar vai substituir as publicações existentes nesses dias, incluindo copys e criativos já gerados. Deseja continuar?",
+        confirmLabel: "Sim, regenerar",
+        cancelLabel: "Cancelar",
+        variant: "destructive",
+      });
+      if (!confirmed) return;
     }
     setStrategyPromptOpen(true);
   };
