@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MediaCalendarItem, MediaCampaign } from "@/hooks/useMediaCampaigns";
@@ -248,7 +248,7 @@ export function ApprovalTab({
           )}
 
           {/* Items list */}
-          <ScrollArea className="max-h-[60vh]">
+          <div className="max-h-[60vh] overflow-y-auto pr-1">
             <div className="space-y-2">
               {displayItems.map((item) => {
                 const isSelected = selectedIds.has(item.id);
@@ -316,7 +316,7 @@ export function ApprovalTab({
                 );
               })}
             </div>
-          </ScrollArea>
+          </div>
         </>
       )}
     </div>

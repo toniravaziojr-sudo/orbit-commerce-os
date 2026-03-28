@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import {
   Dialog,
   DialogContent,
@@ -193,7 +193,7 @@ export function PublicationPreviewDialog({
             </div>
           </DialogHeader>
 
-          <ScrollArea className="flex-1 -mx-6 px-6">
+          <div className="flex-1 overflow-y-auto -mx-6 px-6">
             <div className="space-y-4 pb-4">
               {/* Image Preview */}
               {hasImage ? (
@@ -278,7 +278,7 @@ export function PublicationPreviewDialog({
                 </div>
               )}
             </div>
-          </ScrollArea>
+          </div>
 
           {/* Actions */}
           {onEdit && (
