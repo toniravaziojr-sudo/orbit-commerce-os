@@ -1,88 +1,28 @@
 import { useState, useCallback, useRef } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
-import {
-  Upload,
-  FolderPlus,
-  Search,
-  Grid,
-  List,
-  MoreVertical,
-  Download,
-  Trash2,
-  Link2,
-  Edit2,
-  Folder,
-  FileText,
-  Image,
-  FileVideo,
-  FileAudio,
-  File,
-  ChevronRight,
-  Home,
-  ArrowLeft,
-  Lock,
-  FolderInput,
-  FolderUp,
-  Globe,
-} from "lucide-react";
+import { Globe } from "lucide-react";
 import { useFiles, FileItem } from "@/hooks/useFiles";
 import { useFileUsageDetection } from "@/hooks/useFileUsageDetection";
 import { useStoreSettings } from "@/hooks/useStoreSettings";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { formatDistanceToNow } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import { DeleteFileDialog } from "@/components/drive/DeleteFileDialog";
 import { MoveFileDialog } from "@/components/drive/MoveFileDialog";
-import { FileUsageBadge } from "@/components/drive/FileUsageBadge";
-import { CurrentLocationHint } from "@/components/drive/CurrentLocationHint";
-import { FileThumbnail } from "@/components/drive/FileThumbnail";
-import { DriveSearchToolbar } from "@/components/drive/DriveSearchToolbar";
-import { FileParentPath } from "@/components/drive/FileParentPath";
 import { useDriveSearch } from "@/hooks/useDriveSearch";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 
-function formatBytes(bytes: number | null): string {
-  if (!bytes) return '-';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let i = 0;
-  let value = bytes;
-  while (value >= 1024 && i < units.length - 1) {
-    value /= 1024;
-    i++;
-  }
-  return `${value.toFixed(1)} ${units[i]}`;
-}
-
-function getFileIcon(file: FileItem) {
-  if (file.is_folder) return Folder;
-  const mime = file.mime_type || '';
-  if (mime.startsWith('image/')) return Image;
-  if (mime.startsWith('video/')) return FileVideo;
-  if (mime.startsWith('audio/')) return FileAudio;
-  if (mime.includes('pdf') || mime.includes('document') || mime.includes('text')) return FileText;
-  return File;
-}
+// Decomposed components
+import { DriveToolbar } from "@/components/drive/DriveToolbar";
+import { DriveBreadcrumbs } from "@/components/drive/DriveBreadcrumbs";
+import { DriveFileGrid } from "@/components/drive/DriveFileGrid";
+import { DriveFileList } from "@/components/drive/DriveFileList";
+import { DrivePreviewPanel } from "@/components/drive/DrivePreviewPanel";
+import { DriveEmptyState } from "@/components/drive/DriveEmptyState";
+import { RenameDialog, SubfolderDialog } from "@/components/drive/DriveDialogs";
+import { useContextMenu, type FileActions } from "@/components/drive/DriveFileContextMenu";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Files() {
   const { currentTenant } = useAuth();
@@ -97,28 +37,34 @@ export default function Files() {
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
   const [newFileName, setNewFileName] = useState('');
+
+  // Preview panel
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  
+
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<FileItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  
+
   // Move dialog state
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [fileToMove, setFileToMove] = useState<FileItem | null>(null);
-  
-  // New folder in specific location
+
+  // Subfolder dialog
   const [newSubfolderDialogOpen, setNewSubfolderDialogOpen] = useState(false);
   const [targetFolderForSubfolder, setTargetFolderForSubfolder] = useState<FileItem | null>(null);
   const [newSubfolderName, setNewSubfolderName] = useState('');
-  
-  // Upload to specific folder
+
+  // Upload refs
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const specificFolderInputRef = useRef<HTMLInputElement>(null);
   const [targetFolderForUpload, setTargetFolderForUpload] = useState<FileItem | null>(null);
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Drag state
+  const [draggedItem, setDraggedItem] = useState<FileItem | null>(null);
+
+  // Context menu
+  const { contextMenu, handleContextMenu, closeContextMenu } = useContextMenu();
 
   const {
     files,
@@ -136,13 +82,9 @@ export default function Files() {
     canMoveItem,
   } = useFiles(currentFolderId);
 
-  // Drag state for drag & drop file moving
-  const [draggedItem, setDraggedItem] = useState<FileItem | null>(null);
-
-  const { getFileUsage, isFileInUse, storeSettings } = useFileUsageDetection();
+  const { getFileUsage, isFileInUse } = useFileUsageDetection();
   const { upsertSettings } = useStoreSettings();
 
-  // Universal search + filters
   const {
     filters,
     updateFilters,
@@ -153,21 +95,20 @@ export default function Files() {
     applyFilters,
   } = useDriveSearch(currentFolderId, isFileInUse);
 
-  // Determine which file list to use and apply filters
   const sourceFiles = isGlobalSearch ? globalFiles : files;
   const filteredFiles = applyFilters(sourceFiles);
   const effectiveLoading = isGlobalSearch ? isGlobalLoading : isLoading;
+
+  // ---- Handlers ----
 
   const handleFileUpload = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>, targetFolderId?: string | null) => {
       const uploadedFiles = e.target.files;
       if (!uploadedFiles) return;
-
       const folderId = targetFolderId !== undefined ? targetFolderId : currentFolderId;
       const filesArray = Array.from(uploadedFiles);
       let successCount = 0;
       let errorCount = 0;
-
       for (const file of filesArray) {
         try {
           await uploadFile.mutateAsync({ file, folderId });
@@ -176,23 +117,14 @@ export default function Files() {
           errorCount++;
         }
       }
-
       if (successCount > 0) {
-        toast.success(successCount === 1
-          ? 'Arquivo enviado com sucesso!'
-          : `${successCount} arquivos enviados com sucesso!`
-        );
+        toast.success(successCount === 1 ? 'Arquivo enviado com sucesso!' : `${successCount} arquivos enviados com sucesso!`);
       }
       if (errorCount > 0) {
         toast.error(`${errorCount} arquivo(s) falharam no envio.`);
       }
-
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-      if (specificFolderInputRef.current) {
-        specificFolderInputRef.current.value = '';
-      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (specificFolderInputRef.current) specificFolderInputRef.current.value = '';
       setTargetFolderForUpload(null);
     },
     [currentFolderId, uploadFile]
@@ -202,12 +134,10 @@ export default function Files() {
     async (e: React.DragEvent) => {
       e.preventDefault();
       const droppedFiles = e.dataTransfer.files;
-      if (!droppedFiles) return;
-
+      if (!droppedFiles || droppedFiles.length === 0) return;
       const filesArray = Array.from(droppedFiles);
       let successCount = 0;
       let errorCount = 0;
-
       for (const file of filesArray) {
         try {
           await uploadFile.mutateAsync({ file, folderId: currentFolderId });
@@ -216,12 +146,8 @@ export default function Files() {
           errorCount++;
         }
       }
-
       if (successCount > 0) {
-        toast.success(successCount === 1
-          ? 'Arquivo enviado com sucesso!'
-          : `${successCount} arquivos enviados com sucesso!`
-        );
+        toast.success(successCount === 1 ? 'Arquivo enviado com sucesso!' : `${successCount} arquivos enviados com sucesso!`);
       }
       if (errorCount > 0) {
         toast.error(`${errorCount} arquivo(s) falharam no envio.`);
@@ -256,12 +182,14 @@ export default function Files() {
   const handleOpenFolder = (folder: FileItem) => {
     setCurrentFolderId(folder.id);
     setFolderPath([...folderPath, { id: folder.id, name: folder.original_name }]);
+    setPreviewFile(null);
   };
 
   const handleNavigateToPath = (pathIndex: number) => {
     const path = folderPath[pathIndex];
     setCurrentFolderId(path.id);
     setFolderPath(folderPath.slice(0, pathIndex + 1));
+    setPreviewFile(null);
   };
 
   const handleCopyLink = async (file: FileItem) => {
@@ -269,11 +197,11 @@ export default function Files() {
       const url = await getFileUrl(file);
       if (url) {
         await navigator.clipboard.writeText(url);
-        toast.success('Link copiado para a área de transferência!');
+        toast.success('Link copiado!');
       } else {
         toast.error('Não foi possível gerar o link');
       }
-    } catch (err) {
+    } catch {
       toast.error('Erro ao copiar link');
     }
   };
@@ -282,24 +210,17 @@ export default function Files() {
     try {
       await downloadFile(file);
       toast.success('Download iniciado!');
-    } catch (err) {
+    } catch {
       toast.error('Erro ao baixar arquivo');
     }
   };
 
-  const handlePreview = async (file: FileItem) => {
+  const handlePreviewClick = (file: FileItem) => {
     if (file.is_folder) {
       handleOpenFolder(file);
       return;
     }
-
-    if (file.mime_type?.startsWith('image/')) {
-      const url = await getFileUrl(file);
-      setPreviewUrl(url);
-      setPreviewFile(file);
-    } else {
-      handleDownload(file);
-    }
+    setPreviewFile(file);
   };
 
   const openRenameDialog = (file: FileItem) => {
@@ -331,35 +252,26 @@ export default function Files() {
 
   const handleConfirmDelete = async () => {
     if (!fileToDelete) return;
-
     setIsDeleting(true);
     try {
       const usages = getFileUsage(fileToDelete);
-
-      // If file is in use, unlink from store_settings first
       if (usages.length > 0) {
         const updates: Record<string, null> = {};
         for (const usage of usages) {
-          if (usage.type === 'logo') {
-            updates.logo_url = null;
-          }
-          if (usage.type === 'favicon') {
-            updates.favicon_url = null;
-          }
+          if (usage.type === 'logo') updates.logo_url = null;
+          if (usage.type === 'favicon') updates.favicon_url = null;
         }
-        await upsertSettings.mutateAsync(updates);
+        if (Object.keys(updates).length > 0) {
+          await upsertSettings.mutateAsync(updates);
+        }
       }
-
-      // Now delete the file
       await deleteFile.mutateAsync(fileToDelete);
-      
-      // Invalidate store settings to reflect changes
       queryClient.invalidateQueries({ queryKey: ['store-settings'] });
       queryClient.invalidateQueries({ queryKey: ['store-settings-urls'] });
-      
       setDeleteDialogOpen(false);
       setFileToDelete(null);
-    } catch (err) {
+      if (previewFile?.id === fileToDelete.id) setPreviewFile(null);
+    } catch {
       toast.error('Erro ao excluir arquivo');
     } finally {
       setIsDeleting(false);
@@ -368,30 +280,26 @@ export default function Files() {
 
   const handleConfirmMove = async (targetFolderId: string | null) => {
     if (!fileToMove) return;
-
     try {
       await moveFile.mutateAsync({ fileId: fileToMove.id, targetFolderId });
+      const targetFolder = allFolders.find(f => f.id === targetFolderId);
+      toast.success(`Movido para ${targetFolder?.original_name || 'Raiz'}`);
       setMoveDialogOpen(false);
       setFileToMove(null);
-    } catch (err) {
+    } catch {
       toast.error('Erro ao mover arquivo');
     }
   };
 
-  // Drag & Drop handlers for moving files
+  // Drag & drop handlers
   const handleDragStartItem = (e: React.DragEvent, item: FileItem) => {
-    if (item.is_system_folder) {
-      e.preventDefault();
-      return;
-    }
+    if (item.is_system_folder) { e.preventDefault(); return; }
     e.dataTransfer.setData('application/json', JSON.stringify({ id: item.id, isFolder: item.is_folder }));
     e.dataTransfer.effectAllowed = 'move';
     setDraggedItem(item);
   };
 
-  const handleDragEndItem = () => {
-    setDraggedItem(null);
-  };
+  const handleDragEndItem = () => setDraggedItem(null);
 
   const handleDragOverFolder = (e: React.DragEvent) => {
     e.preventDefault();
@@ -401,23 +309,16 @@ export default function Files() {
   const handleDropOnFolder = async (e: React.DragEvent, targetFolder: FileItem) => {
     e.preventDefault();
     e.stopPropagation();
-    
     const itemBeingDragged = draggedItem;
     setDraggedItem(null);
-    
     try {
       const data = e.dataTransfer.getData('application/json');
       if (!data) return;
-      
       const { id: itemId, isFolder } = JSON.parse(data);
-      
-      // Prevent dropping folder into itself
       if (isFolder && itemId === targetFolder.id) {
         toast.error('Não é possível mover uma pasta para dentro dela mesma');
         return;
       }
-      
-      // Validate move for system items
       if (itemBeingDragged) {
         const validation = canMoveItem(itemBeingDragged, targetFolder.id);
         if (!validation.allowed) {
@@ -425,7 +326,6 @@ export default function Files() {
           return;
         }
       }
-      
       await moveFile.mutateAsync({ fileId: itemId, targetFolderId: targetFolder.id });
     } catch (err) {
       console.error('Drop error:', err);
@@ -435,17 +335,12 @@ export default function Files() {
   const handleDropOnBreadcrumb = async (e: React.DragEvent, targetFolderId: string | null) => {
     e.preventDefault();
     e.stopPropagation();
-    
     const itemBeingDragged = draggedItem;
     setDraggedItem(null);
-    
     try {
       const data = e.dataTransfer.getData('application/json');
       if (!data) return;
-      
       const { id: itemId } = JSON.parse(data);
-      
-      // Validate move for system items (dropping on breadcrumb/root)
       if (itemBeingDragged) {
         const validation = canMoveItem(itemBeingDragged, targetFolderId);
         if (!validation.allowed) {
@@ -453,79 +348,31 @@ export default function Files() {
           return;
         }
       }
-      
       await moveFile.mutateAsync({ fileId: itemId, targetFolderId });
     } catch (err) {
       console.error('Drop error:', err);
     }
   };
 
-  const renderFileActions = (file: FileItem, isSystemFolder: boolean) => {
-    if (isSystemFolder) return null;
-
-    const usages = getFileUsage(file);
-
-    return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 opacity-0 group-hover:opacity-100"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <MoreVertical className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-          {!file.is_folder && (
-            <>
-              <DropdownMenuItem onClick={() => handleDownload(file)}>
-                <Download className="h-4 w-4 mr-2" />
-                Baixar
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleCopyLink(file)}>
-                <Link2 className="h-4 w-4 mr-2" />
-                Copiar link
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => openMoveDialog(file)}>
-                <FolderInput className="h-4 w-4 mr-2" />
-                Mover para...
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-            </>
-          )}
-          {file.is_folder && (
-            <>
-              <DropdownMenuItem onClick={() => handleUploadToFolder(file)}>
-                <Upload className="h-4 w-4 mr-2" />
-                Enviar aqui
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => openSubfolderDialog(file)}>
-                <FolderPlus className="h-4 w-4 mr-2" />
-                Nova subpasta
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-            </>
-          )}
-          <DropdownMenuItem onClick={() => openRenameDialog(file)}>
-            <Edit2 className="h-4 w-4 mr-2" />
-            Renomear
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => openDeleteDialog(file)}
-            className="text-destructive"
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Excluir
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    );
+  // File actions object for context menu / grid / list
+  const fileActions: FileActions = {
+    onDownload: handleDownload,
+    onCopyLink: handleCopyLink,
+    onRename: openRenameDialog,
+    onDelete: openDeleteDialog,
+    onMove: openMoveDialog,
+    onUploadToFolder: handleUploadToFolder,
+    onCreateSubfolder: openSubfolderDialog,
+    onPreview: handlePreviewClick,
   };
 
+  // Get preview file's parent folder name
+  const previewParentName = previewFile?.folder_id
+    ? allFolders.find(f => f.id === previewFile.folder_id)?.original_name || 'Raiz'
+    : 'Raiz';
+
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-4 animate-fade-in">
       <PageHeader
         title="Meu Drive"
         description="Gerencie seus arquivos e imagens"
@@ -541,65 +388,21 @@ export default function Files() {
       />
 
       {/* Toolbar */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex flex-col">
-          <div className="flex items-center gap-2">
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              className="hidden"
-              onChange={(e) => handleFileUpload(e)}
-            />
-            <Button onClick={() => fileInputRef.current?.click()}>
-              <Upload className="h-4 w-4 mr-2" />
-              Enviar
-            </Button>
-            <Dialog open={newFolderDialogOpen} onOpenChange={setNewFolderDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline">
-                  <FolderPlus className="h-4 w-4 mr-2" />
-                  Nova pasta
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Criar nova pasta</DialogTitle>
-                </DialogHeader>
-                <Input
-                  placeholder="Nome da pasta"
-                  value={newFolderName}
-                  onChange={(e) => setNewFolderName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleCreateFolder()}
-                />
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setNewFolderDialogOpen(false)}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={handleCreateFolder} disabled={createFolder.isPending}>
-                    Criar
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
-            >
-              {viewMode === 'grid' ? <List className="h-4 w-4" /> : <Grid className="h-4 w-4" />}
-            </Button>
-          </div>
-          {/* Location hint */}
-          {!isGlobalSearch && <CurrentLocationHint breadcrumb={folderPath} />}
-        </div>
-
-        <DriveSearchToolbar
-          filters={filters}
-          onFiltersChange={updateFilters}
-          isInFolder={currentFolderId !== null}
-        />
-      </div>
+      <DriveToolbar
+        fileInputRef={fileInputRef}
+        onUploadClick={() => fileInputRef.current?.click()}
+        viewMode={viewMode}
+        onViewModeToggle={() => setViewMode(v => v === 'grid' ? 'list' : 'grid')}
+        newFolderDialogOpen={newFolderDialogOpen}
+        onNewFolderDialogChange={setNewFolderDialogOpen}
+        newFolderName={newFolderName}
+        onNewFolderNameChange={setNewFolderName}
+        onCreateFolder={handleCreateFolder}
+        isCreatingFolder={createFolder.isPending}
+        filters={filters}
+        onFiltersChange={updateFilters}
+        isInFolder={currentFolderId !== null}
+      />
 
       {/* Global search indicator */}
       {isGlobalSearch && (
@@ -609,42 +412,38 @@ export default function Files() {
         </div>
       )}
 
-      {/* Breadcrumb with drop targets */}
-      <div className="flex items-center gap-1 text-sm">
-        {folderPath.map((path, index) => (
-          <div key={path.id || 'root'} className="flex items-center gap-1">
-            {index > 0 && <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-            <button
-              onClick={() => handleNavigateToPath(index)}
-              onDragOver={handleDragOverFolder}
-              onDrop={(e) => handleDropOnBreadcrumb(e, path.id)}
-              className={cn(
-                "px-2 py-1 rounded hover:bg-muted transition-colors",
-                index === folderPath.length - 1 && "font-medium",
-                draggedItem && "ring-2 ring-primary/50 ring-dashed"
-              )}
-            >
-              {index === 0 ? <Home className="h-4 w-4" /> : path.name}
-            </button>
-          </div>
-        ))}
-      </div>
-
-      {/* Back button */}
-      {currentFolderId && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => handleNavigateToPath(folderPath.length - 2)}
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Voltar
-        </Button>
+      {/* Breadcrumbs */}
+      {!isGlobalSearch && (
+        <DriveBreadcrumbs
+          folderPath={folderPath}
+          onNavigateToPath={handleNavigateToPath}
+          onDropOnBreadcrumb={handleDropOnBreadcrumb}
+          onDragOverFolder={handleDragOverFolder}
+          draggedItem={draggedItem}
+          currentFolderId={currentFolderId}
+        />
       )}
+
+      {/* File upload input bound to toolbar */}
+      <input
+        ref={(el) => {
+          // Merge with fileInputRef
+          if (fileInputRef.current !== el) {
+            (fileInputRef as any).current = el;
+          }
+        }}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(e) => handleFileUpload(e)}
+      />
 
       {/* Drop zone & Files */}
       <Card
-        onDragOver={(e) => e.preventDefault()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'copy';
+        }}
         onDrop={handleDrop}
         className={cn(
           "min-h-[400px] transition-colors",
@@ -652,202 +451,92 @@ export default function Files() {
         )}
       >
         <CardContent className="p-4">
-           {effectiveLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+          {effectiveLoading ? (
+            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div key={i} className="flex flex-col items-center p-3 rounded-lg border">
+                  <Skeleton className="w-full h-20 mb-2 rounded" />
+                  <Skeleton className="h-3 w-3/4 rounded" />
+                  <Skeleton className="h-2 w-1/2 mt-1 rounded" />
+                </div>
+              ))}
             </div>
           ) : filteredFiles.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Upload className="h-12 w-12 text-muted-foreground/50 mb-4" />
-              <h3 className="text-lg font-semibold mb-2">
-                {isSearching ? 'Nenhum arquivo encontrado' : 'Nenhum arquivo'}
-              </h3>
-              <p className="text-sm text-muted-foreground max-w-md">
-                {isSearching
-                  ? 'Tente buscar por outro termo ou ajuste os filtros'
-                  : 'Arraste arquivos aqui ou clique em "Enviar" para começar'}
-              </p>
-            </div>
+            <DriveEmptyState
+              isSearching={isSearching}
+              isRoot={currentFolderId === null}
+              onClearFilters={() => updateFilters({ searchQuery: '', fileType: 'all', origin: 'all', usage: 'all' })}
+              onUploadClick={() => fileInputRef.current?.click()}
+            />
           ) : viewMode === 'grid' ? (
-            <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-              {filteredFiles.map((file) => {
-                const isSystemFolder = file.is_system_folder === true;
-                const usages = getFileUsage(file);
-                const isDragging = draggedItem?.id === file.id;
-                const canBeDropTarget = file.is_folder && !isDragging && draggedItem?.id !== file.id;
-                const isImage = file.mime_type?.startsWith('image/') && !file.is_folder;
-                
-                return (
-                  <div
-                    key={file.id}
-                    draggable={!isSystemFolder}
-                    onDragStart={(e) => handleDragStartItem(e, file)}
-                    onDragEnd={handleDragEndItem}
-                    onDragOver={canBeDropTarget ? handleDragOverFolder : undefined}
-                    onDrop={canBeDropTarget ? (e) => handleDropOnFolder(e, file) : undefined}
-                    className={cn(
-                      "group relative flex flex-col items-center p-4 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-all",
-                      isDragging && "opacity-50 scale-95",
-                      canBeDropTarget && draggedItem && "ring-2 ring-primary ring-dashed bg-primary/5"
-                    )}
-                    onDoubleClick={() => handlePreview(file)}
-                  >
-                    {/* Badges row */}
-                    <div className="absolute top-1 left-1 flex flex-col gap-1 z-10">
-                      {isSystemFolder && (
-                        <Badge variant="secondary" className="text-xs">
-                          <Lock className="h-3 w-3 mr-1" />
-                          Sistema
-                        </Badge>
-                      )}
-                      {!file.is_folder && <FileUsageBadge usages={usages} className="text-xs" />}
-                    </div>
-                    
-                    {/* Actions */}
-                    <div className="absolute top-1 right-1 z-10">
-                      {renderFileActions(file, isSystemFolder)}
-                    </div>
-                    
-                    {/* Thumbnail or Icon */}
-                    {isImage ? (
-                      <FileThumbnail
-                        file={file}
-                        getFileUrl={getFileUrl}
-                        className="w-full h-20 mb-2 mt-4"
-                        iconClassName="h-12 w-12"
-                      />
-                    ) : (
-                      <FileThumbnail
-                        file={file}
-                        getFileUrl={getFileUrl}
-                        iconClassName="h-12 w-12 mb-2 mt-4"
-                      />
-                    )}
-                    
-                    <span className="text-sm font-medium text-center truncate w-full">
-                      {file.original_name}
-                    </span>
-                    {!file.is_folder && (
-                      <span className="text-xs text-muted-foreground">
-                        {formatBytes(file.size_bytes)}
-                      </span>
-                    )}
-                    {isGlobalSearch && (
-                      <FileParentPath file={file} allFolders={allFolders} />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <DriveFileGrid
+              files={filteredFiles}
+              allFolders={allFolders}
+              draggedItem={draggedItem}
+              isGlobalSearch={isGlobalSearch}
+              getFileUsage={getFileUsage}
+              getFileUrl={getFileUrl}
+              actions={fileActions}
+              onDragStart={handleDragStartItem}
+              onDragEnd={handleDragEndItem}
+              onDragOverFolder={handleDragOverFolder}
+              onDropOnFolder={handleDropOnFolder}
+              onOpenFolder={handleOpenFolder}
+              onContextMenu={handleContextMenu}
+              onPreviewClick={handlePreviewClick}
+            />
           ) : (
-            <div className="space-y-1">
-              {filteredFiles.map((file) => {
-                const Icon = getFileIcon(file);
-                const isSystemFolder = file.is_system_folder === true;
-                const usages = getFileUsage(file);
-                return (
-                  <div
-                    key={file.id}
-                    className="group flex items-center gap-4 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
-                    onDoubleClick={() => handlePreview(file)}
-                  >
-                    <Icon className={cn(
-                      "h-8 w-8 flex-shrink-0",
-                      file.is_folder ? "text-amber-500" : "text-muted-foreground"
-                    )} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-medium truncate">{file.original_name}</p>
-                        {isSystemFolder && (
-                          <Badge variant="secondary" className="text-xs">
-                            <Lock className="h-3 w-3 mr-1" />
-                            Sistema
-                          </Badge>
-                        )}
-                        {!file.is_folder && <FileUsageBadge usages={usages} className="text-xs" />}
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {file.is_folder ? 'Pasta' : formatBytes(file.size_bytes)} •{' '}
-                        {formatDistanceToNow(new Date(file.created_at), { addSuffix: true, locale: ptBR })}
-                        {isGlobalSearch && (
-                          <> • <FileParentPath file={file} allFolders={allFolders} /></>
-                        )}
-                      </p>
-                    </div>
-                    {renderFileActions(file, isSystemFolder)}
-                  </div>
-                );
-              })}
-            </div>
+            <DriveFileList
+              files={filteredFiles}
+              allFolders={allFolders}
+              isGlobalSearch={isGlobalSearch}
+              getFileUsage={getFileUsage}
+              getFileUrl={getFileUrl}
+              actions={fileActions}
+              onOpenFolder={handleOpenFolder}
+              onContextMenu={handleContextMenu}
+              onPreviewClick={handlePreviewClick}
+            />
           )}
         </CardContent>
       </Card>
 
+      {/* Preview Panel (Sheet lateral) */}
+      <DrivePreviewPanel
+        file={previewFile}
+        onClose={() => setPreviewFile(null)}
+        getFileUrl={getFileUrl}
+        usages={previewFile ? getFileUsage(previewFile) : []}
+        onDownload={handleDownload}
+        onCopyLink={handleCopyLink}
+        onRename={openRenameDialog}
+        onDelete={openDeleteDialog}
+        onMove={openMoveDialog}
+        parentFolderName={previewParentName}
+      />
+
       {/* Rename Dialog */}
-      <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Renomear</DialogTitle>
-          </DialogHeader>
-          <Input
-            placeholder="Novo nome"
-            value={newFileName}
-            onChange={(e) => setNewFileName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleRename()}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRenameDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleRename} disabled={renameFile.isPending}>
-              Renomear
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RenameDialog
+        open={renameDialogOpen}
+        onOpenChange={setRenameDialogOpen}
+        name={newFileName}
+        onNameChange={setNewFileName}
+        onConfirm={handleRename}
+        isPending={renameFile.isPending}
+      />
 
       {/* Subfolder Dialog */}
-      <Dialog open={newSubfolderDialogOpen} onOpenChange={setNewSubfolderDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Nova subpasta em "{targetFolderForSubfolder?.original_name}"</DialogTitle>
-          </DialogHeader>
-          <Input
-            placeholder="Nome da subpasta"
-            value={newSubfolderName}
-            onChange={(e) => setNewSubfolderName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleCreateSubfolder()}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNewSubfolderDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleCreateSubfolder} disabled={createFolder.isPending}>
-              Criar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <SubfolderDialog
+        open={newSubfolderDialogOpen}
+        onOpenChange={setNewSubfolderDialogOpen}
+        parentFolderName={targetFolderForSubfolder?.original_name || ''}
+        name={newSubfolderName}
+        onNameChange={setNewSubfolderName}
+        onConfirm={handleCreateSubfolder}
+        isPending={createFolder.isPending}
+      />
 
-      {/* Preview Dialog */}
-      <Dialog open={!!previewFile} onOpenChange={() => { setPreviewFile(null); setPreviewUrl(null); }}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>{previewFile?.original_name}</DialogTitle>
-          </DialogHeader>
-          {previewUrl && (
-            <div className="flex items-center justify-center">
-              <img
-                src={previewUrl}
-                alt={previewFile?.original_name}
-                className="max-h-[70vh] rounded-lg"
-              />
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Dialog */}
       <DeleteFileDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
@@ -857,7 +546,7 @@ export default function Files() {
         isPending={isDeleting}
       />
 
-      {/* Move File Dialog */}
+      {/* Move Dialog */}
       <MoveFileDialog
         open={moveDialogOpen}
         onOpenChange={setMoveDialogOpen}
