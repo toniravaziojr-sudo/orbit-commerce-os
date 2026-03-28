@@ -1,116 +1,139 @@
 
-
-# Analise Meta Pixel/CAPI — Problemas Identificados nos Prints
-
-## Resumo dos Achados
-
-Analisando os prints e o codigo, identifiquei **5 problemas corrigiveis** e **1 limitacao estrutural**.
+# Plano de Estabilização Definitiva — Meta Pixel + CAPI (Purchase)
+## Status: FASE 1 COMPLETA — Aguardando aprovação para execução
 
 ---
 
-## PROBLEMA 1 (CRITICO): Purchase server-side sem IP e User-Agent (25% cobertura)
+## DIAGNÓSTICO DA FASE 1 — Resultados Reais
 
-**Print**: Purchase mostra IP 25%, UA 25%, fbp 25%, external_id 25%
+### Configuração confirmada
+- **purchaseEventTiming = `paid_only`** (default do sistema, tenant não tem override)
+- O parse em `storeConfigTypes.ts` (linha 360) trata NULL como `paid_only`
+- Isso significa: Purchase browser só dispara quando `payment_status === 'approved'`
+- E o `process-events` dispara Purchase CAPI server-side via webhook de pagamento
 
-**Causa**: O `process-events` envia Purchase CAPI via `sendCapiPurchase` para pedidos `paid_only`, mas **nao inclui** `client_ip_address`, `client_user_agent`, `fbp`, `fbc` nem `external_id`. Esses dados nao sao armazenados em nenhum lugar acessivel pelo server-side.
+### Pedidos rastreados ponta a ponta
 
-Os 25% com IP/UA sao os Purchase enviados pelo browser (via `sendServerEvent` no `marketingTracker.ts`), onde o edge function extrai IP dos headers HTTP.
+| Pedido | Criado | Aprovado | events_inbox | process-events | marketing_events_log | Meta |
+|--------|--------|----------|-------------|----------------|---------------------|------|
+| #141 | 20:34 | 20:36 | ✅ processed | ✅ executou | ✅ `purchase_paid_141` sent + ❌ `purchase_paid_#141` failed (2x) | Parcial |
+| #139 | 15:37 | 15:41 | ✅ | ✅ | ✅ `purchase_paid_139` sent (2x) | OK |
+| #135 | 00:33 | 00:38 | ✅ | ✅ | ✅ `purchase_paid_135` sent + ❌ `purchase_paid_#135` failed | Parcial |
 
-**Correcao**: Salvar `client_ip`, `client_user_agent`, `fbp`, `fbc` e `visitor_id` na `checkout_sessions` no momento do checkout (browser-side), e ler esses dados no `process-events` quando disparar Purchase CAPI server-side.
+### checkout_sessions — Identidade
 
----
+| Pedido | visitor_id | fbp | fbc | client_ip | user_agent |
+|--------|-----------|-----|-----|-----------|------------|
+| #141 | ✅ v_ibh8u8mg4 | ✅ fb.2.177... | ❌ null | ✅ 181.189.11.75 | ✅ Chrome/146 Mobile |
+| #139 | ✅ v_dzewir21 | ✅ fb.2.177... | ❌ null | ✅ 138.122.121.226 | ✅ Chrome/146 Mobile |
+| #135 | ✅ v_d72so5o2 | ✅ fb.2.177... | ❌ null | ✅ 189.123.69.216 | ✅ Chrome/146 Mobile |
 
-## PROBLEMA 2 (ALTO): ViewContent e AddToCart com fbp e external_id quase zero
-
-**Print**: ViewContent fbp 0.95%, external_id 17.14%. AddToCart fbp 6.12%, external_id 22.45%.
-
-**Causa**: O tracker usa inicializacao deferida (`requestIdleCallback` / `setTimeout 2s`). Quando `trackViewContent` dispara, o `sendServerEvent` chama `getMetaIdentifiers()` que le o cookie `_fbp`. Mas o `_fbp` e criado pelo script Meta Pixel que **tambem carrega deferido**. Resultado: no momento do CAPI call, o cookie `_fbp` ainda nao existe.
-
-O `external_id` (`_sf_vid`) tambem tem baixa cobertura porque `getOrCreateVisitorId()` so e chamado dentro de `initialize()` do tracker, que tambem e deferido.
-
-**Correcao**: 
-- Criar o `_sf_vid` ANTES da inicializacao deferida (no MarketingTrackerProvider, sincrono)
-- Para `_fbp`: aguardar brevemente ou verificar antes de cada CAPI call se o cookie ja existe (o Pixel leva ~1-2s para criar)
-
----
-
-## PROBLEMA 3 (ALTO): IP compartilhado entre usuarios (57% dos PageView)
-
-**Print**: "Enderecos IP de clientes estao associados a varios usuarios — 57% dos eventos afetados"
-
-**Causa**: A edge function `marketing-capi-track` extrai IP dos headers. Os headers mais confiaveis (`cf-connecting-ip`) podem nao estar presentes em todos os ambientes. Se cair no `x-forwarded-for`, pode pegar o IP do load balancer/proxy ao inves do cliente real. Em ambientes sem Cloudflare na frente, o IP pode ser o do proprio Supabase edge runtime.
-
-**Correcao**: Enviar o IP real do cliente como parametro no body do request (browser sabe o IP via `RTCPeerConnection` ou simplesmente usar um servico de IP lookup), OU aceitar que esta e uma limitacao da arquitetura de edge functions onde nem sempre temos o IP real do visitante. A melhor alternativa e garantir que os outros parametros de identidade (fbp, fbc, external_id) estejam sempre presentes para compensar.
+**Resultado**: checkout_sessions está funcionando bem — `fbp`, `visitor_id`, IP e UA estão presentes. `fbc` null é esperado (tráfego orgânico/direto).
 
 ---
 
-## PROBLEMA 4 (MEDIO): IP do Pixel nao bate com IP do CAPI (50% dos PageView)
+## BUGS CRÍTICOS ENCONTRADOS
 
-**Print**: "Envie enderecos IP que correspondam aos enderecos IP do Pixel"
+### BUG 1 (CRÍTICO): event_id desincronizado — deduplicação QUEBRADA
 
-**Causa**: Relacionado ao Problema 3. O Pixel (browser) envia o IP real do usuario. A CAPI (edge function) envia o IP que chega nos headers do Supabase, que pode ser diferente (proxy/CDN). Isso causa mismatch.
+**O problema:**
+- **Browser** (ThankYouContent): passa `order.order_number` (`#141`) como `order_id` para `generateDeterministicPurchaseEventId`
+  - Resultado: `purchase_paid_#141`
+- **Server** (process-events): faz `cleanOrderNumber = orderNumber.replace(/^#/, '')` 
+  - Resultado: `purchase_paid_141`
 
-**Correcao**: Mesma do Problema 3 — melhorar identidade para que a Meta nao dependa tanto de IP para match.
+**Event IDs diferentes = Meta NÃO deduplica = contagem DOBRADA ou inconsistente.**
 
----
+Isso é a causa-raiz da discrepância Navegador vs Servidor no Event Manager.
 
-## PROBLEMA 5 (MEDIO): ViewContent/InitiateCheckout com baixa cobertura de Email/Phone
+**Correção**: No `ThankYouContent.tsx` (linha 111), limpar o `#` antes de passar para `trackPurchase`:
+```
+order_id: order.order_number.replace(/^#/, ''),
+```
+Ou alternativamente, na função `generateDeterministicPurchaseEventId`, sempre limpar o `#`.
 
-**Print**: ViewContent email 0.95%, phone 0.95%. InitiateCheckout nao mostra email/phone.
+### BUG 2 (CRÍTICO): Browser CAPI envia `contents` em formato inválido
 
-**Causa**: Esses eventos sao pre-checkout — o usuario ainda nao forneceu email/phone. Isso e esperado e nao e um bug. Porem, o sistema ja tem `_sf_am_em` e `_sf_am_ph` no localStorage (de checkouts anteriores do mesmo visitante). O `sendServerEvent` ja inclui esses dados stored, mas a cobertura e baixa porque poucos visitantes ja fizeram checkout antes.
+**O problema:**
+- O `marketing-capi-track` recebe os items do browser e monta `contents`, mas a Meta rejeita com:
+  > "O parâmetro de conteúdo inserido não contém uma lista de objetos JSON"
+- Todos os eventos `purchase_paid_#141` falharam com esse erro
+- O erro é `OAuthException code 100, subcode 2804008`
 
-**Correcao**: Nao ha muito a fazer para visitantes novos. Para visitantes recorrentes, o sistema ja envia. Isso e comportamento normal.
+**Impacto**: O Purchase browser-side CAPI NUNCA chega na Meta. Só o server-side (process-events) chega.
 
----
+**Correção**: Investigar como `marketing-capi-track` serializa `contents` e garantir que seja um array JSON válido `[{id, quantity, item_price}]`.
 
-## PROBLEMA 6 (BAIXO): "Baixa taxa de cobertura CAPI para ViewContent"
+### BUG 3 (ALTO): Purchase browser-side possivelmente enviando preços em centavos
 
-**Print**: Diagnostico principal
+**O problema:**
+- ThankYouContent passa `price: item.unit_price` — se `unit_price` está em centavos (inteiro), o valor vai incorreto para a Meta
+- Já no process-events, existe `price: (i.unit_price || 0) / 100` — conversão correta
 
-**Causa**: Consequencia dos Problemas 2 e 5. Com fbp/external_id faltando, a Meta nao consegue deduplicar os eventos CAPI com os do Pixel, resultando em "baixa cobertura" mesmo que os eventos estejam chegando.
-
-**Correcao**: Resolver Problema 2 resolve este automaticamente.
-
----
-
-## Plano de Correcao (4 itens acionaveis)
-
-### 1. Criar `_sf_vid` sincronamente (antes do defer)
-- Em `MarketingTrackerProvider`, chamar `getOrCreateVisitorId()` fora do `useEffect` deferido
-- Garante que external_id esta disponivel para qualquer CAPI call
-
-### 2. Adicionar retry de `_fbp` no `sendServerEvent`
-- Antes de enviar CAPI, verificar se `_fbp` ja existe
-- Se nao, agendar micro-delay (500ms) e tentar novamente
-- Para ViewContent/AddToCart que disparam logo apos page load
-
-### 3. Salvar identidade do cliente na `checkout_sessions`
-- Migration: adicionar colunas `client_ip`, `client_user_agent`, `visitor_id`, `fbp`, `fbc` na tabela `checkout_sessions`
-- No momento do checkout (browser), salvar esses dados via `checkout-session-complete` ou update da session
-- No `process-events`, ler esses dados e incluir no `sendCapiPurchase`
-
-### 4. Garantir forwarding de IP na edge function
-- Revisar cadeia de headers no `marketing-capi-track`
-- Adicionar log diagnostico permanente para monitorar qual header fornece o IP
+**Correção**: Verificar se ThankYouContent precisa dividir por 100 antes de enviar.
 
 ---
 
-## O que NAO precisa de correcao
+## ESTATÍSTICAS REAIS (últimos 7 dias)
 
-- **Lead 9.3/10** — esta excelente, sem acao necessaria
-- **Purchase server-side funcionando** — os prints mostram Servidor: 1-2 eventos, confirmando que o fix v8.20.0 da constraint do events_inbox resolveu o problema anterior
-- **Email/Phone no Purchase 100%** — perfeito, o PII do checkout esta sendo enviado corretamente
+| Fonte | Status | Total |
+|-------|--------|-------|
+| Server | sent | 34 |
+| Server | failed | 10 |
+| Browser | — | **0** |
+
+**Conclusão**: Não há NENHUM Purchase browser-side registrado na última semana. Os 10 failed são todos do browser-side CAPI (via marketing-capi-track) que falhou no formato de contents. Os 34 sent são todos do server-side (process-events → sendCapiPurchase).
 
 ---
 
-## Impacto Esperado
+## PLANO DE EXECUÇÃO ATUALIZADO
 
-| Evento | Score Atual | Esperado apos fix |
-|--------|-------------|-------------------|
-| PageView | 5.1 | 6-7 (IP limitado por arquitetura) |
-| ViewContent | 3.8 | 6-7 |
-| AddToCart | 4.9 | 6-7 |
-| InitiateCheckout | 5.1 | 6-7 |
-| Purchase | 6.1 | 8-9 |
+### P1 — Sincronizar event_id (Crítico)
+**Arquivo**: `src/components/storefront/ThankYouContent.tsx`
+- Limpar `#` do `order_number` antes de passar como `order_id` para `trackPurchase`
+- Resultado: browser e servidor usarão o mesmo `purchase_paid_141`
+- Isso restaura a deduplicação correta na Meta
 
+### P2 — Corrigir formato de contents no CAPI browser-side (Crítico)  
+**Arquivo**: `supabase/functions/marketing-capi-track/index.ts` (ou `_shared/meta-capi-sender.ts`)
+- Investigar e corrigir como `contents` é serializado para o Purchase
+- Garantir que chega como `[{"id":"X","quantity":1,"item_price":99.90}]`
+- Isso faz o Purchase browser-side VOLTAR a chegar na Meta
+
+### P3 — Corrigir preço em centavos no ThankYouContent (Alto)
+**Arquivo**: `src/components/storefront/ThankYouContent.tsx`
+- Verificar se `order.total` e `item.unit_price` estão em centavos
+- Se sim, dividir por 100 antes de enviar para o tracker
+
+### P4 — Retry no sendCapiPurchase server-side (Médio)
+**Arquivo**: `supabase/functions/_shared/meta-capi-sender.ts` ou `process-events/index.ts`
+- Adicionar 1-2 retentativas com backoff quando a Graph API falhar
+- Evita perda irreversível de Purchase por falha temporária
+
+### NÃO FAZER NESTA RODADA
+- ❌ Remover `marketing-send-meta` (limpeza pode esperar)
+- ❌ Alterar heartbeat de checkout_sessions (dados de identidade já estão OK)
+- ❌ Mexer em eventos de funil (ViewContent, AddToCart etc)
+
+---
+
+## CRITÉRIOS DE SUCESSO
+
+1. Browser e servidor usam o **mesmo event_id** (`purchase_paid_141`, sem `#`)
+2. Purchase browser-side CAPI chega na Meta sem erro de `contents`
+3. No Event Manager: Purchase mostra **Navegador: 1 + Servidor: 1** para cada pedido
+4. `marketing_events_log` mostra **0 failed** para Purchase nos próximos pedidos
+5. Match Quality Score do Purchase sobe para **8+/10**
+
+---
+
+## PROVA POR PEDIDO REAL
+
+Após as correções, fazer um pedido teste (PIX) e verificar:
+1. ✅ Pedido criado com `payment_status: pending`
+2. ✅ Pagamento aprovado → `payment_status: approved`
+3. ✅ `events_inbox` recebe `payment_status_changed`
+4. ✅ `process-events` dispara `sendCapiPurchase` com `event_id: purchase_paid_XXX`
+5. ✅ ThankYou page dispara Purchase browser com **mesmo** `event_id: purchase_paid_XXX`
+6. ✅ `marketing_events_log` mostra 2 entradas (browser + server), ambas `sent`
+7. ✅ Event Manager da Meta mostra evento deduplicado (Navegador + Servidor)
