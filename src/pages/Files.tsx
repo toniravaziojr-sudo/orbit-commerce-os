@@ -56,6 +56,9 @@ import { MoveFileDialog } from "@/components/drive/MoveFileDialog";
 import { FileUsageBadge } from "@/components/drive/FileUsageBadge";
 import { CurrentLocationHint } from "@/components/drive/CurrentLocationHint";
 import { FileThumbnail } from "@/components/drive/FileThumbnail";
+import { DriveSearchToolbar } from "@/components/drive/DriveSearchToolbar";
+import { FileParentPath } from "@/components/drive/FileParentPath";
+import { useDriveSearch } from "@/hooks/useDriveSearch";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 
