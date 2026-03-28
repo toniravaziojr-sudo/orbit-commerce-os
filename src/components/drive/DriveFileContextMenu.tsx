@@ -122,7 +122,7 @@ export function useContextMenu() {
   } | null>(null);
 
   const handleContextMenu = useCallback((e: React.MouseEvent, file: FileItem) => {
-    if (file.is_system_folder) return;
+    if (isProtectedFolder(file)) return;
     e.preventDefault();
     e.stopPropagation();
     setContextMenu({ file, x: e.clientX, y: e.clientY });

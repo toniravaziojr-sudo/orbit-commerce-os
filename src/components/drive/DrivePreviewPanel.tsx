@@ -84,7 +84,7 @@ export function DrivePreviewPanel({
     }
   }, [file?.id]);
 
-  const isSystemItem = file?.is_system_folder === true;
+  const isSystemItem = file ? isProtectedFolder(file) : false;
 
   return (
     <Sheet open={!!file} onOpenChange={(open) => !open && onClose()}>

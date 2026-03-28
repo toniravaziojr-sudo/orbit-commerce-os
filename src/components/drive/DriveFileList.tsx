@@ -48,7 +48,7 @@ export function DriveFileList({
   return (
     <div className="space-y-0.5">
       {files.map((file) => {
-        const isSystemFolder = file.is_system_folder === true;
+        const isSystemFolder = isProtectedFolder(file);
         const usages = getFileUsage(file);
         const isImage = file.mime_type?.startsWith('image/') && !file.is_folder;
 
