@@ -450,7 +450,6 @@ export function DayPostsList({
               </>
             )}
           </div>
-        </div>
 
         {/* Add button at bottom */}
         {items.length > 0 && canAddMore && (
