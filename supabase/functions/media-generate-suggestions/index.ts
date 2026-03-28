@@ -536,12 +536,24 @@ IMPORTANTE:
 
     // ====================================
     // DELETE EXISTING DRAFT/SUGGESTED ITEMS
+    // (only for the dates being generated, to preserve manual items on other days)
     // ====================================
-    await supabase
-      .from("media_calendar_items")
-      .delete()
-      .eq("campaign_id", campaign_id)
-      .in("status", ["draft", "suggested"]);
+    if (selectedDates && selectedDates.length > 0) {
+      // Only delete items on the specific dates being regenerated
+      await supabase
+        .from("media_calendar_items")
+        .delete()
+        .eq("campaign_id", campaign_id)
+        .in("status", ["draft", "suggested"])
+        .in("scheduled_date", validDates);
+    } else {
+      // Full regeneration: delete all draft/suggested items
+      await supabase
+        .from("media_calendar_items")
+        .delete()
+        .eq("campaign_id", campaign_id)
+        .in("status", ["draft", "suggested"]);
+    }
 
     // ====================================
     // INSERT NEW CALENDAR ITEMS
