@@ -543,6 +543,7 @@ export async function generateForRequest(
   tenantId: string,
   lovableApiKey: string,
   openaiApiKey: string | null,
+  geminiApiKey: string | null = null,
 ): Promise<VisualGenerationResult> {
   const startTime = Date.now();
   const assets: GeneratedAsset[] = [];
@@ -584,6 +585,7 @@ export async function generateForRequest(
       referenceBase64,
       preferOpenAI,
       slotLabel,
+      geminiApiKey,
     );
 
     // Log fallback audit trail
