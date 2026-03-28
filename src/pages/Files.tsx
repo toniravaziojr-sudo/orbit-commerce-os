@@ -92,7 +92,6 @@ export default function Files() {
     { id: null, name: 'Raiz' },
   ]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [searchQuery, setSearchQuery] = useState('');
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
@@ -143,9 +142,21 @@ export default function Files() {
   const { getFileUsage, isFileInUse, storeSettings } = useFileUsageDetection();
   const { upsertSettings } = useStoreSettings();
 
-  const filteredFiles = files.filter((file) =>
-    file.original_name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Universal search + filters
+  const {
+    filters,
+    updateFilters,
+    isSearching,
+    isGlobalSearch,
+    isGlobalLoading,
+    globalFiles,
+    applyFilters,
+  } = useDriveSearch(currentFolderId, isFileInUse);
+
+  // Determine which file list to use and apply filters
+  const sourceFiles = isGlobalSearch ? globalFiles : files;
+  const filteredFiles = applyFilters(sourceFiles);
+  const effectiveLoading = isGlobalSearch ? isGlobalLoading : isLoading;
 
   const handleFileUpload = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>, targetFolderId?: string | null) => {
