@@ -5,6 +5,7 @@ import { FileThumbnail } from "./FileThumbnail";
 import { FileUsageBadge } from "./FileUsageBadge";
 import { FileParentPath } from "./FileParentPath";
 import { DriveFileContextMenu, type FileActions } from "./DriveFileContextMenu";
+import { isProtectedFolder } from "./driveHelpers";
 import type { FileItem } from "@/hooks/useFiles";
 import type { FileUsage } from "@/hooks/useFileUsageDetection";
 
@@ -56,7 +57,7 @@ export function DriveFileGrid({
   return (
     <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
       {files.map((file) => {
-        const isSystemFolder = file.is_system_folder === true;
+        const isSystemFolder = isProtectedFolder(file);
         const usages = getFileUsage(file);
         const isDragging = draggedItem?.id === file.id;
         const canBeDropTarget = file.is_folder && !isDragging && draggedItem?.id !== file.id;

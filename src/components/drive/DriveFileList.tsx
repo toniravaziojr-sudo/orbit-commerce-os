@@ -5,6 +5,7 @@ import { FileThumbnail } from "./FileThumbnail";
 import { FileUsageBadge } from "./FileUsageBadge";
 import { FileParentPath } from "./FileParentPath";
 import { DriveFileContextMenu, type FileActions } from "./DriveFileContextMenu";
+import { isProtectedFolder } from "./driveHelpers";
 import type { FileItem } from "@/hooks/useFiles";
 import type { FileUsage } from "@/hooks/useFileUsageDetection";
 import { formatDistanceToNow } from "date-fns";
@@ -48,7 +49,7 @@ export function DriveFileList({
   return (
     <div className="space-y-0.5">
       {files.map((file) => {
-        const isSystemFolder = file.is_system_folder === true;
+        const isSystemFolder = isProtectedFolder(file);
         const usages = getFileUsage(file);
         const isImage = file.mime_type?.startsWith('image/') && !file.is_folder;
 

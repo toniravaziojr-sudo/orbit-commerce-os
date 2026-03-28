@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Download, Link2, Edit2, Trash2, FolderInput, X, FileText, FileVideo, FileAudio, File, Image as ImageIcon } from "lucide-react";
 import { FileUsageBadge } from "./FileUsageBadge";
 import type { FileItem } from "@/hooks/useFiles";
+import { isProtectedFolder } from "./driveHelpers";
 import type { FileUsage } from "@/hooks/useFileUsageDetection";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -84,7 +85,7 @@ export function DrivePreviewPanel({
     }
   }, [file?.id]);
 
-  const isSystemItem = file?.is_system_folder === true;
+  const isSystemItem = file ? isProtectedFolder(file) : false;
 
   return (
     <Sheet open={!!file} onOpenChange={(open) => !open && onClose()}>
