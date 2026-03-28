@@ -86,7 +86,14 @@ export function MetaPlatformSettings() {
             preview={secretsStatus?.previews?.META_APP_SECRET}
             source={secretsStatus?.sources?.META_APP_SECRET as 'db' | 'env' | null}
           />
-        </CardContent>
+          <CredentialEditor
+            credentialKey="META_CONFIG_ID"
+            label="Config ID (Facebook Login for Business)"
+            description="ID da configuração de login empresarial. Necessário para lojistas externos se conectarem. Encontre em: Meta for Developers → Login do Facebook para Empresas → Configuração."
+            isConfigured={configIdConfigured}
+            preview={secretsStatus?.previews?.META_CONFIG_ID}
+            source={secretsStatus?.sources?.META_CONFIG_ID as 'db' | 'env' | null}
+          />
       </Card>
     </div>
   );

@@ -221,9 +221,10 @@ serve(async (req) => {
     }
 
     // Buscar credenciais do app Meta (da tabela platform_credentials)
-    const [appId, apiVersion] = await Promise.all([
+    const [appId, apiVersion, configId] = await Promise.all([
       getCredential(supabaseUrl, supabaseServiceKey, "META_APP_ID"),
       getCredential(supabaseUrl, supabaseServiceKey, "META_GRAPH_API_VERSION"),
+      getCredential(supabaseUrl, supabaseServiceKey, "META_CONFIG_ID"),
     ]);
     
     if (!appId) {
