@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { usePlatformOperator } from "@/hooks/usePlatformOperator";
+import { META_PACK_AVAILABILITY, isPackAvailable, type MetaPackConfig } from "@/config/metaPackAvailability";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -45,80 +47,49 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+// Build SCOPE_PACK_INFO from central config + platform operator context
+// Icons are defined here since they are React elements (not serializable in config)
+const PACK_ICONS: Record<string, React.ReactNode> = {
+  whatsapp: <MessageCircle className="h-4 w-4" />,
+  atendimento: <MessageCircle className="h-4 w-4" />,
+  publicacao: <Megaphone className="h-4 w-4" />,
+  ads: <Megaphone className="h-4 w-4" />,
+  leads: <Users className="h-4 w-4" />,
+  catalogo: <ShoppingBag className="h-4 w-4" />,
+  threads: <AtSign className="h-4 w-4" />,
+  live_video: <Video className="h-4 w-4" />,
+  pixel: <Crosshair className="h-4 w-4" />,
+  insights: <BarChart3 className="h-4 w-4" />,
+};
+
 interface ScopePackInfo {
   label: string;
   description: string;
   icon: React.ReactNode;
   available: boolean;
+  blockedReason?: string;
 }
 
-const SCOPE_PACK_INFO: Record<MetaScopePack, ScopePackInfo> = {
-  whatsapp: {
-    label: "WhatsApp",
-    description: "WABA / Cloud API",
-    icon: <MessageCircle className="h-4 w-4" />,
-    available: true,
-  },
-  atendimento: {
-    label: "Atendimento",
-    description: "Messenger + Instagram DM + Comentários",
-    icon: <MessageCircle className="h-4 w-4" />,
-    available: true,
-  },
-  publicacao: {
-    label: "Publicação",
-    description: "Facebook + Instagram Posts, Stories, Reels",
-    icon: <Megaphone className="h-4 w-4" />,
-    available: true,
-  },
-  ads: {
-    label: "Anúncios",
-    description: "Campanhas e métricas",
-    icon: <Megaphone className="h-4 w-4" />,
-    available: true,
-  },
-  leads: {
-    label: "Leads",
-    description: "Lead Ads",
-    icon: <Users className="h-4 w-4" />,
-    available: true,
-  },
-  catalogo: {
-    label: "Catálogo",
-    description: "Produtos e Commerce Manager",
-    icon: <ShoppingBag className="h-4 w-4" />,
-    available: true,
-  },
-  threads: {
-    label: "Threads",
-    description: "Publicação e gestão no Threads",
-    icon: <AtSign className="h-4 w-4" />,
-    available: true,
-  },
-  live_video: {
-    label: "Lives",
-    description: "Transmissões ao vivo",
-    icon: <Video className="h-4 w-4" />,
-    available: true,
-  },
-  pixel: {
-    label: "Pixel + CAPI",
-    description: "Rastreamento e Conversions API",
-    icon: <Crosshair className="h-4 w-4" />,
-    available: true,
-  },
-  insights: {
-    label: "Insights",
-    description: "Métricas de páginas e perfis",
-    icon: <BarChart3 className="h-4 w-4" />,
-    available: true,
-  },
-};
+function buildScopePackInfo(isPlatformOp: boolean): Record<MetaScopePack, ScopePackInfo> {
+  const result: Partial<Record<MetaScopePack, ScopePackInfo>> = {};
+  for (const pack of META_PACK_AVAILABILITY) {
+    result[pack.id] = {
+      label: pack.label,
+      description: pack.description,
+      icon: PACK_ICONS[pack.id] || <Globe className="h-4 w-4" />,
+      available: isPackAvailable(pack.id, isPlatformOp),
+      blockedReason: pack.blockedReason,
+    };
+  }
+  return result as Record<MetaScopePack, ScopePackInfo>;
+}
 
 export function MetaUnifiedSettings() {
   const { currentTenant } = useAuth();
+  const { isPlatformOperator } = usePlatformOperator();
   const tenantId = currentTenant?.id;
   const queryClient = useQueryClient();
+  const SCOPE_PACK_INFO = buildScopePackInfo(isPlatformOperator);
   
   const { 
     isConnected, 
@@ -519,7 +490,7 @@ export function MetaUnifiedSettings() {
                             </Label>
                             {!isAvailable && (
                               <Badge variant="outline" className="text-xs">
-                                Em breve
+                                {info.blockedReason || "Em breve"}
                               </Badge>
                             )}
                           </div>

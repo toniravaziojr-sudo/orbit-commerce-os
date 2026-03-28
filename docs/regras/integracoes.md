@@ -747,6 +747,47 @@ A integração Meta usa **Scope Packs** para consentimento incremental. O tenant
 
 **Escopos base** (sempre incluídos): `public_profile`, `pages_show_list`
 
+### Disponibilidade dos Packs (Rollout)
+
+> **Adicionado em:** 2026-03-28  
+
+A disponibilidade de cada pack é controlada por uma **configuração central** que define se o pack está liberado para todos os tenants, apenas para operadores da plataforma (teste interno), ou indisponível.
+
+| Pack | Disponibilidade | Motivo |
+|------|----------------|--------|
+| `whatsapp` | **public** | Caso de uso aprovado na Meta |
+| `publicacao` | **public** | Caso de uso aprovado na Meta |
+| `atendimento` | internal | Aguardando aprovação Meta |
+| `ads` | internal | Aguardando aprovação Meta |
+| `leads` | internal | Aguardando aprovação Meta |
+| `catalogo` | internal | Aguardando aprovação Meta |
+| `threads` | internal | Aguardando aprovação Meta |
+| `live_video` | internal | Aguardando aprovação Meta |
+| `pixel` | internal | Aguardando aprovação Meta |
+| `insights` | internal | Aguardando aprovação Meta |
+
+**Níveis de disponibilidade:**
+- `public` — Liberado para todos os tenants (casos de uso aprovados na Meta)
+- `internal` — Visível e usável apenas por operadores da plataforma (teste/rollout)
+- `unavailable` — Bloqueado para todos
+
+**Arquivos fonte de verdade:**
+- **Frontend:** `src/config/metaPackAvailability.ts` — define config + helper `isPackAvailable()`
+- **Backend:** `supabase/functions/meta-oauth-start/index.ts` — constante `PACK_AVAILABILITY` (espelho)
+- ⚠️ **AMBOS devem estar SEMPRE sincronizados.** Divergência = bug.
+
+**Comportamento:**
+- **Frontend:** Packs não disponíveis aparecem com cadeado + "Disponível em breve", sem possibilidade de seleção
+- **Backend:** Se a requisição contiver pack não permitido, retorna erro explícito `META_PACK_NOT_AVAILABLE` com lista dos packs bloqueados. **NÃO filtra silenciosamente.**
+- **Operador da plataforma:** Camada secundária que desbloqueia packs `internal`. Verificado via `platform_admins` com `normalizeEmail()`.
+
+**Para liberar um novo pack:**
+1. Mudar `availability` de `"internal"` para `"public"` em `src/config/metaPackAvailability.ts`
+2. Mudar a mesma entrada em `PACK_AVAILABILITY` no `meta-oauth-start/index.ts`
+3. Atualizar esta tabela no doc
+4. Deploy da edge function
+5. Nenhum outro arquivo precisa ser alterado
+
 ### Consentimento Incremental
 
 ```text
