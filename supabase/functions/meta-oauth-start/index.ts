@@ -93,7 +93,7 @@ const PACK_AVAILABILITY: Record<string, PackAvailability> = {
   catalogo: "internal",
   threads: "internal",
   live_video: "internal",
-  pixel: "internal",
+  pixel: "public",
   insights: "internal",
 };
 
