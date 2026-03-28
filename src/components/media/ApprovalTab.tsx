@@ -58,7 +58,7 @@ export function ApprovalTab({
     return items.filter(i => {
       if (!["draft", "suggested", "review"].includes(i.status)) return false;
       if (!i.title) return false;
-      const isStory = i.content_type === "story" || i.content_type === "stories";
+      const isStory = i.content_type === "story";
       // Stories: exige apenas criativo (asset_url). Feed: exige copy + criativo.
       if (isStory) return !!i.asset_url;
       const hasCopy = i.copy && i.copy.trim() !== "";
