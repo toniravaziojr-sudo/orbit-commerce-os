@@ -450,7 +450,7 @@ export function DayPostsList({
               </>
             )}
           </div>
-        </ScrollArea>
+        </div>
 
         {/* Add button at bottom */}
         {items.length > 0 && canAddMore && (
