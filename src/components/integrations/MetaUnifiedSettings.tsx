@@ -86,8 +86,10 @@ function buildScopePackInfo(isPlatformOp: boolean): Record<MetaScopePack, ScopeP
 
 export function MetaUnifiedSettings() {
   const { currentTenant } = useAuth();
+  const { isPlatformOperator } = usePlatformOperator();
   const tenantId = currentTenant?.id;
   const queryClient = useQueryClient();
+  const SCOPE_PACK_INFO = buildScopePackInfo(isPlatformOperator);
   
   const { 
     isConnected, 
