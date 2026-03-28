@@ -76,6 +76,33 @@ const SCOPE_PACKS: Record<string, string[]> = {
   ],
 };
 
+// ============================================================================
+// PACK AVAILABILITY — Espelho da configuração central do frontend
+// Arquivo fonte: src/config/metaPackAvailability.ts
+// IMPORTANTE: Manter SEMPRE sincronizado com o frontend.
+// Para liberar um novo pack: mudar de "internal" para "public" aqui E no frontend.
+// ============================================================================
+type PackAvailability = "public" | "internal" | "unavailable";
+
+const PACK_AVAILABILITY: Record<string, PackAvailability> = {
+  whatsapp: "public",
+  publicacao: "public",
+  atendimento: "internal",
+  ads: "internal",
+  leads: "internal",
+  catalogo: "internal",
+  threads: "internal",
+  live_video: "internal",
+  pixel: "internal",
+  insights: "internal",
+};
+
+// Normaliza email para comparação segura (espelha src/lib/normalizeEmail.ts)
+function normalizeEmail(email: string | null | undefined): string {
+  if (!email) return "";
+  return email.trim().toLowerCase();
+}
+
 // Escopos base sempre incluídos (public_profile é sempre disponível)
 // NOTA: "email" requer que o usuário tenha email confirmado e pode falhar em dev mode
 const BASE_SCOPES = [
@@ -125,7 +152,7 @@ serve(async (req) => {
       );
     }
 
-    // Validar scope packs
+    // Validar scope packs (sintaxe válida)
     const validPacks = scopePacks.filter((pack: string) => SCOPE_PACKS[pack]);
     if (validPacks.length === 0) {
       return new Response(
@@ -134,6 +161,60 @@ serve(async (req) => {
           error: "Nenhum pacote de escopos válido", 
           code: "INVALID_SCOPES",
           availablePacks: Object.keys(SCOPE_PACKS)
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Verificar se usuário tem acesso ao tenant
+    const { data: userRole, error: roleError } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("tenant_id", tenantId)
+      .single();
+
+    if (roleError || !userRole || !["owner", "admin"].includes(userRole.role)) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Sem permissão para este tenant", code: "FORBIDDEN" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ================================================================
+    // VALIDAÇÃO DE DISPONIBILIDADE DOS PACKS
+    // Verifica se o usuário é platform admin (camada secundária)
+    // e se cada pack solicitado está disponível para este contexto.
+    // NÃO filtra silenciosamente — REJEITA com erro explícito.
+    // ================================================================
+    const userEmail = normalizeEmail(user.email);
+    const { data: platformAdmin } = await supabase
+      .from("platform_admins")
+      .select("id")
+      .eq("email", userEmail)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    const isPlatformAdmin = !!platformAdmin;
+
+    // Verificar cada pack contra a disponibilidade
+    const blockedPacks: string[] = [];
+    for (const pack of validPacks) {
+      const availability = PACK_AVAILABILITY[pack] || "unavailable";
+      if (availability === "public") continue;
+      if (availability === "internal" && isPlatformAdmin) continue;
+      // Pack não permitido para este contexto
+      blockedPacks.push(pack);
+    }
+
+    if (blockedPacks.length > 0) {
+      console.log(`[meta-oauth-start] Packs bloqueados para ${userEmail}: ${blockedPacks.join(", ")}`);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Algumas funcionalidades ainda não estão disponíveis para sua conta.",
+          code: "META_PACK_NOT_AVAILABLE",
+          blockedPacks,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
