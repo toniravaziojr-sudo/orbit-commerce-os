@@ -732,6 +732,9 @@ export default function Files() {
                         {formatBytes(file.size_bytes)}
                       </span>
                     )}
+                    {isGlobalSearch && (
+                      <FileParentPath file={file} allFolders={allFolders} />
+                    )}
                   </div>
                 );
               })}
