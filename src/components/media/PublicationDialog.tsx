@@ -704,7 +704,7 @@ export function PublicationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px] max-h-[85vh] flex flex-col !grid-none gap-0 overflow-hidden p-0">
+      <DialogContent className="sm:max-w-[480px] max-h-[85vh] !flex !flex-col gap-0 overflow-hidden p-0">
         {/* Step 1: Tipo de publicação - APENAS PARA REDES SOCIAIS */}
         {step === "type" && campaignType === "social" && (
           <div className="p-5">
