@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { MediaCalendarItem } from "@/hooks/useMediaCampaigns";
@@ -86,7 +86,7 @@ export function ApprovalDialog({ open, onOpenChange, items, onApprove, isApprovi
           </Badge>
         </div>
 
-        <ScrollArea className="flex-1 px-6">
+        <div className="flex-1 overflow-y-auto px-6">
           <div className="space-y-3 py-4">
             {items.map((item) => {
               const isSelected = selectedIds.has(item.id);
@@ -162,7 +162,7 @@ export function ApprovalDialog({ open, onOpenChange, items, onApprove, isApprovi
               );
             })}
           </div>
-        </ScrollArea>
+        </div>
 
         <DialogFooter className="flex-shrink-0 px-6 py-4 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>

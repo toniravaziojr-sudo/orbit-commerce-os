@@ -4,7 +4,7 @@ import { ptBR } from "date-fns/locale";
 import { Plus, Trash2, Edit2, Clock, Instagram, Facebook, Newspaper, Eye, Copy, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import {
   Dialog,
   DialogContent,
@@ -205,8 +205,7 @@ export function DayPostsList({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 overflow-y-auto pr-4">
-          <div className="space-y-2">
+        <div className="flex-1 overflow-y-auto pr-2 space-y-2">
             {/* Summary bar */}
             {items.length > 0 && (() => {
               const published = items.filter(i => i.status === "published").length;
@@ -451,7 +450,6 @@ export function DayPostsList({
               </>
             )}
           </div>
-        </ScrollArea>
 
         {/* Add button at bottom */}
         {items.length > 0 && canAddMore && (
