@@ -636,11 +636,11 @@ serve(async (req) => {
       const schemaVariantSeed = schema?.variantSeed as number | undefined;
       const prompt = buildCompositionPrompt(product, storeName, spec, driveReferenceBase64s.length > 0, brandColors, schemaMood, schemaVariantSeed);
       
-      // Try pro model first, then flash — pass product image as primary reference
-      let imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', prompt, productBase64, driveReferenceBase64s.length > 0 ? driveReferenceBase64s : undefined);
+      // Try Gemini Nativa first, then Lovable Gateway Pro, then Flash
+      let imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-3-pro-image-preview', prompt, productBase64, driveReferenceBase64s.length > 0 ? driveReferenceBase64s : undefined, geminiApiKey);
       if (!imageDataUrl) {
         console.log(`[AI-LP-Enhance] Pro failed for ${spec.promptSuffix}, trying flash...`);
-        imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-2.5-flash-image', prompt, productBase64, driveReferenceBase64s.length > 0 ? driveReferenceBase64s : undefined);
+        imageDataUrl = await callImageModel(lovableApiKey, 'google/gemini-2.5-flash-image', prompt, productBase64, driveReferenceBase64s.length > 0 ? driveReferenceBase64s : undefined, null); // Don't retry native again
       }
 
       if (!imageDataUrl) {
