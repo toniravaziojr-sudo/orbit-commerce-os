@@ -534,7 +534,7 @@ export function PublicationDialog({
 
   // Shared footer for detail forms
   const renderDetailFooter = () => (
-    <DialogFooter className="flex-shrink-0 gap-2 px-5 py-3 border-t">
+    <DialogFooter className="flex-shrink-0 gap-2 px-5 py-3 border-t bg-background z-10">
       {isEditing && editability?.canDelete && (
         <Button type="button" variant="destructive" onClick={handleDelete} className="mr-auto">
           Excluir
@@ -739,10 +739,10 @@ export function PublicationDialog({
             </DialogHeader>
 
             <Form {...feedForm}>
-              <form onSubmit={feedForm.handleSubmit(handleSubmitFeed)} className="flex flex-col flex-1 min-h-0">
-                <fieldset disabled={isReadOnly} className="flex flex-col flex-1 min-h-0">
+              <form onSubmit={feedForm.handleSubmit(handleSubmitFeed)} className="grid h-full min-h-0 grid-rows-[1fr_auto]">
+                <fieldset disabled={isReadOnly} className="min-h-0">
                   {/* SCROLLABLE BODY — contains banners + form fields */}
-                  <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-4 min-h-0">
+                  <div className="h-full overflow-y-auto overscroll-contain space-y-3 px-5 pb-6 min-h-0">
                     {renderStatusHeader()}
                     {renderContextBanner()}
                     {renderPlatformStatus()}
@@ -862,10 +862,10 @@ export function PublicationDialog({
             </DialogHeader>
 
             <Form {...storyForm}>
-              <form onSubmit={storyForm.handleSubmit(handleSubmitStory)} className="flex flex-col flex-1 min-h-0">
-                <fieldset disabled={isReadOnly} className="flex flex-col flex-1 min-h-0">
+              <form onSubmit={storyForm.handleSubmit(handleSubmitStory)} className="grid h-full min-h-0 grid-rows-[1fr_auto]">
+                <fieldset disabled={isReadOnly} className="min-h-0">
                   {/* SCROLLABLE BODY */}
-                  <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-4 min-h-0">
+                  <div className="h-full overflow-y-auto overscroll-contain space-y-3 px-5 pb-6 min-h-0">
                     {renderStatusHeader()}
                     {renderContextBanner()}
                     {renderPlatformStatus()}
