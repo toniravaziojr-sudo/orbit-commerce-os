@@ -42,6 +42,7 @@ import {
   Lock,
   FolderInput,
   FolderUp,
+  Globe,
 } from "lucide-react";
 import { useFiles, FileItem } from "@/hooks/useFiles";
 import { useFileUsageDetection } from "@/hooks/useFileUsageDetection";
@@ -55,6 +56,9 @@ import { MoveFileDialog } from "@/components/drive/MoveFileDialog";
 import { FileUsageBadge } from "@/components/drive/FileUsageBadge";
 import { CurrentLocationHint } from "@/components/drive/CurrentLocationHint";
 import { FileThumbnail } from "@/components/drive/FileThumbnail";
+import { DriveSearchToolbar } from "@/components/drive/DriveSearchToolbar";
+import { FileParentPath } from "@/components/drive/FileParentPath";
+import { useDriveSearch } from "@/hooks/useDriveSearch";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -88,7 +92,6 @@ export default function Files() {
     { id: null, name: 'Raiz' },
   ]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [searchQuery, setSearchQuery] = useState('');
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderDialogOpen, setNewFolderDialogOpen] = useState(false);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
@@ -139,9 +142,21 @@ export default function Files() {
   const { getFileUsage, isFileInUse, storeSettings } = useFileUsageDetection();
   const { upsertSettings } = useStoreSettings();
 
-  const filteredFiles = files.filter((file) =>
-    file.original_name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Universal search + filters
+  const {
+    filters,
+    updateFilters,
+    isSearching,
+    isGlobalSearch,
+    isGlobalLoading,
+    globalFiles,
+    applyFilters,
+  } = useDriveSearch(currentFolderId, isFileInUse);
+
+  // Determine which file list to use and apply filters
+  const sourceFiles = isGlobalSearch ? globalFiles : files;
+  const filteredFiles = applyFilters(sourceFiles);
+  const effectiveLoading = isGlobalSearch ? isGlobalLoading : isLoading;
 
   const handleFileUpload = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>, targetFolderId?: string | null) => {
@@ -526,7 +541,7 @@ export default function Files() {
       />
 
       {/* Toolbar */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex flex-col">
           <div className="flex items-center gap-2">
             <input
@@ -567,30 +582,32 @@ export default function Files() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+            >
+              {viewMode === 'grid' ? <List className="h-4 w-4" /> : <Grid className="h-4 w-4" />}
+            </Button>
           </div>
           {/* Location hint */}
-          <CurrentLocationHint breadcrumb={folderPath} />
+          {!isGlobalSearch && <CurrentLocationHint breadcrumb={folderPath} />}
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 sm:w-64">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar arquivos..."
-              className="pl-9"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
-          >
-            {viewMode === 'grid' ? <List className="h-4 w-4" /> : <Grid className="h-4 w-4" />}
-          </Button>
-        </div>
+        <DriveSearchToolbar
+          filters={filters}
+          onFiltersChange={updateFilters}
+          isInFolder={currentFolderId !== null}
+        />
       </div>
+
+      {/* Global search indicator */}
+      {isGlobalSearch && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
+          <Globe className="h-4 w-4" />
+          <span>Buscando em todo o Drive — {filteredFiles.filter(f => !f.is_folder).length} resultado(s)</span>
+        </div>
+      )}
 
       {/* Breadcrumb with drop targets */}
       <div className="flex items-center gap-1 text-sm">
@@ -635,7 +652,7 @@ export default function Files() {
         )}
       >
         <CardContent className="p-4">
-          {isLoading ? (
+           {effectiveLoading ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
             </div>
@@ -643,11 +660,11 @@ export default function Files() {
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Upload className="h-12 w-12 text-muted-foreground/50 mb-4" />
               <h3 className="text-lg font-semibold mb-2">
-                {searchQuery ? 'Nenhum arquivo encontrado' : 'Nenhum arquivo'}
+                {isSearching ? 'Nenhum arquivo encontrado' : 'Nenhum arquivo'}
               </h3>
               <p className="text-sm text-muted-foreground max-w-md">
-                {searchQuery
-                  ? 'Tente buscar por outro termo'
+                {isSearching
+                  ? 'Tente buscar por outro termo ou ajuste os filtros'
                   : 'Arraste arquivos aqui ou clique em "Enviar" para começar'}
               </p>
             </div>
@@ -715,6 +732,9 @@ export default function Files() {
                         {formatBytes(file.size_bytes)}
                       </span>
                     )}
+                    {isGlobalSearch && (
+                      <FileParentPath file={file} allFolders={allFolders} />
+                    )}
                   </div>
                 );
               })}
@@ -749,6 +769,9 @@ export default function Files() {
                       <p className="text-sm text-muted-foreground">
                         {file.is_folder ? 'Pasta' : formatBytes(file.size_bytes)} •{' '}
                         {formatDistanceToNow(new Date(file.created_at), { addSuffix: true, locale: ptBR })}
+                        {isGlobalSearch && (
+                          <> • <FileParentPath file={file} allFolders={allFolders} /></>
+                        )}
                       </p>
                     </div>
                     {renderFileActions(file, isSystemFolder)}
