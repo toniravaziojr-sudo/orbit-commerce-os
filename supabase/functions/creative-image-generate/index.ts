@@ -14,8 +14,10 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { tryNativeGemini } from "../_shared/native-gemini.ts";
+import { getCredential } from "../_shared/platform-credentials.ts";
 
-const VERSION = '5.2.0'; // Drive fallback before catalog: prioritize existing creatives from "Gestor de Tráfego IA"
+const VERSION = '6.0.0'; // Gemini Nativa priority: 1. Gemini Nativa → 2. OpenAI → 3. Lovable Gateway
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
