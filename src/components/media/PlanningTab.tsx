@@ -469,6 +469,13 @@ export function PlanningTab({
             </p>
           )}
 
+          {!isSelectMode && !hasSuggestions && (
+            <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1.5">
+              <CalendarDays className="h-3.5 w-3.5" />
+              Clique nos dias para criar publicações manualmente ou use <strong className="mx-0.5">Selecionar Dias</strong> para gerar com IA
+            </p>
+          )}
+
           {isSelectMode && selectedDays.size > 0 && (
             <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border/50">
               <Button variant="ghost" size="sm" onClick={() => { setSelectedDays(new Set()); setIsSelectMode(false); }}>
