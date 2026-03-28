@@ -42,6 +42,7 @@ import {
   Lock,
   FolderInput,
   FolderUp,
+  Globe,
 } from "lucide-react";
 import { useFiles, FileItem } from "@/hooks/useFiles";
 import { useFileUsageDetection } from "@/hooks/useFileUsageDetection";
