@@ -704,7 +704,7 @@ export function PublicationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px] max-h-[80vh] flex flex-col overflow-hidden p-0" style={{ display: 'flex', flexDirection: 'column' }}>
+      <DialogContent className="sm:max-w-[480px] max-h-[85vh] flex flex-col overflow-hidden p-0">
         {/* Step 1: Tipo de publicação - APENAS PARA REDES SOCIAIS */}
         {step === "type" && campaignType === "social" && (
           <div className="p-5">
@@ -825,7 +825,7 @@ export function PublicationDialog({
             <Form {...feedForm}>
               <form onSubmit={feedForm.handleSubmit(handleSubmitFeed)} className="flex flex-col flex-1 min-h-0">
                 <fieldset disabled={isReadOnly} className="flex flex-col flex-1 min-h-0">
-                <div className="overflow-y-auto scrollbar-thin space-y-3 px-5 pb-2" style={{ maxHeight: 'calc(80vh - 130px)' }}>
+                <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-2">
                 {/* Seletor de Canais - Múltipla seleção */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Canais de publicação</label>
@@ -1020,7 +1020,7 @@ export function PublicationDialog({
             <Form {...storyForm}>
               <form onSubmit={storyForm.handleSubmit(handleSubmitStory)} className="flex flex-col flex-1 min-h-0">
                 <fieldset disabled={isReadOnly} className="flex flex-col flex-1 min-h-0">
-                <div className="overflow-y-auto scrollbar-thin space-y-3 px-5 pb-2" style={{ maxHeight: 'calc(80vh - 130px)' }}>
+                <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-2">
                 {/* Seletor de Canais */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Canais de publicação</label>
@@ -1170,7 +1170,7 @@ export function PublicationDialog({
             <Form {...blogForm}>
               <form onSubmit={blogForm.handleSubmit(handleSubmitBlog)} className="flex flex-col flex-1 min-h-0">
                 <fieldset disabled={isReadOnly} className="flex flex-col flex-1 min-h-0">
-                <div className="overflow-y-auto scrollbar-thin space-y-3 px-5 pb-2" style={{ maxHeight: 'calc(80vh - 130px)' }}>
+                <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-2">
                 <div className="bg-muted/50 rounded-lg p-3 text-sm text-muted-foreground">
                   📝 Artigos de Blog são apenas texto. Não há geração de imagem para este tipo de publicação.
                 </div>
