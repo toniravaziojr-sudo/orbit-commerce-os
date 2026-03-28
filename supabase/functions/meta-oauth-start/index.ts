@@ -221,9 +221,10 @@ serve(async (req) => {
     }
 
     // Buscar credenciais do app Meta (da tabela platform_credentials)
-    const [appId, apiVersion] = await Promise.all([
+    const [appId, apiVersion, configId] = await Promise.all([
       getCredential(supabaseUrl, supabaseServiceKey, "META_APP_ID"),
       getCredential(supabaseUrl, supabaseServiceKey, "META_GRAPH_API_VERSION"),
+      getCredential(supabaseUrl, supabaseServiceKey, "META_CONFIG_ID"),
     ]);
     
     if (!appId) {
@@ -280,6 +281,7 @@ serve(async (req) => {
 
     // URL de autorização do Facebook/Meta
     // Docs: https://developers.facebook.com/docs/facebook-login/guides/advanced/manual-flow
+    // Para apps tipo Business: https://developers.facebook.com/docs/facebook-login/facebook-login-for-business
     const authUrl = new URL(`https://www.facebook.com/${graphVersion}/dialog/oauth`);
     authUrl.searchParams.set("client_id", appId);
     authUrl.searchParams.set("redirect_uri", redirectUri);
@@ -287,7 +289,16 @@ serve(async (req) => {
     authUrl.searchParams.set("scope", scopeString);
     authUrl.searchParams.set("response_type", "code");
 
-    console.log(`[meta-oauth-start] Gerando URL para tenant ${tenantId}, scopes: ${validPacks.join(", ")}`);
+    // Facebook Login for Business: config_id é obrigatório para apps do tipo Business
+    // Sem ele, usuários externos recebem "Recurso indisponível" no popup da Meta
+    if (configId) {
+      authUrl.searchParams.set("config_id", configId);
+      console.log(`[meta-oauth-start] Usando config_id para Facebook Login for Business`);
+    } else {
+      console.warn(`[meta-oauth-start] AVISO: META_CONFIG_ID não configurado — externos podem receber "Recurso indisponível"`);
+    }
+
+    console.log(`[meta-oauth-start] Gerando URL para tenant ${tenantId}, scopes: ${validPacks.join(", ")}, config_id: ${configId ? "sim" : "NÃO"}`);
 
     return new Response(
       JSON.stringify({
