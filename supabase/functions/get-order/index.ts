@@ -194,9 +194,10 @@ serve(async (req) => {
     }
 
     // Fetch order items
+    // v8.23.0: Include product_id for marketing tracking (meta content_id resolution)
     const { data: items, error: itemsError } = await supabase
       .from('order_items')
-      .select('id, product_name, product_image_url, quantity, unit_price, total_price, sku')
+      .select('id, product_id, product_name, product_image_url, quantity, unit_price, total_price, sku')
       .eq('order_id', order.id);
 
     if (itemsError) {

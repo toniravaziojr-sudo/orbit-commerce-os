@@ -82,17 +82,34 @@ async function handlePurchaseCapiForPaidOnly(
       return;
     }
 
+    // v8.23.0: Removed meta_retailer_id (doesn't exist on order_items table)
+    // Values are in REAIS (not cents), so no /100 division needed
     const { data: orderItems } = await supabase
       .from('order_items')
-      .select('product_id, product_name, sku, meta_retailer_id, unit_price, quantity')
+      .select('product_id, product_name, sku, unit_price, quantity')
       .eq('order_id', orderId);
+
+    // Try to get meta_retailer_id from products table for better catalog matching
+    const productIds = (orderItems || []).map((i: any) => i.product_id).filter(Boolean);
+    let productMetaMap: Record<string, string> = {};
+    if (productIds.length > 0) {
+      const { data: products } = await supabase
+        .from('products')
+        .select('id, meta_retailer_id')
+        .in('id', productIds);
+      if (products) {
+        for (const p of products) {
+          if (p.meta_retailer_id) productMetaMap[p.id] = p.meta_retailer_id;
+        }
+      }
+    }
 
     const items = (orderItems || []).map((i: any) => ({
       product_id: i.product_id || '',
       sku: i.sku || undefined,
-      meta_retailer_id: i.meta_retailer_id || null,
+      meta_retailer_id: productMetaMap[i.product_id] || null,
       name: i.product_name || '',
-      price: (i.unit_price || 0) / 100,
+      price: i.unit_price || 0,
       quantity: i.quantity || 1,
     }));
 
