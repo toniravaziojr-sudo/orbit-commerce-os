@@ -393,7 +393,7 @@ export default function MetaOAuthCallback() {
             </Alert>
 
             {/* Pages - single select */}
-            {selectedPortfolio.pages.length > 0 && (
+            {showPages && selectedPortfolio.pages.length > 0 && (
               <AssetGroup
                 icon={<Facebook className="h-4 w-4 text-blue-600" />}
                 title="Página do Facebook"
@@ -411,7 +411,7 @@ export default function MetaOAuthCallback() {
             )}
 
             {/* Instagram - single select */}
-            {selectedPortfolio.instagram_accounts.length > 0 && (
+            {showInstagram && selectedPortfolio.instagram_accounts.length > 0 && (
               <AssetGroup
                 icon={<Instagram className="h-4 w-4 text-pink-600" />}
                 title="Perfil do Instagram"
@@ -429,7 +429,7 @@ export default function MetaOAuthCallback() {
             )}
 
             {/* WhatsApp - single select WABA + single select phone */}
-            {selectedPortfolio.whatsapp_business_accounts.length > 0 && (
+            {showWhatsApp && selectedPortfolio.whatsapp_business_accounts.length > 0 && (
               <AssetGroup
                 icon={<MessageCircle className="h-4 w-4 text-green-600" />}
                 title="WhatsApp Business"
@@ -472,7 +472,7 @@ export default function MetaOAuthCallback() {
             )}
 
             {/* Ad Accounts - multi select */}
-            {selectedPortfolio.ad_accounts.length > 0 && (
+            {showAdAccounts && selectedPortfolio.ad_accounts.length > 0 && (
               <AssetGroup
                 icon={<Megaphone className="h-4 w-4 text-blue-600" />}
                 title="Contas de Anúncio"
@@ -492,7 +492,7 @@ export default function MetaOAuthCallback() {
             )}
 
             {/* Pixels - single select */}
-            {selectedPortfolio.pixels.length > 0 && (
+            {showPixels && selectedPortfolio.pixels.length > 0 && (
               <AssetGroup
                 icon={<Crosshair className="h-4 w-4 text-purple-600" />}
                 title="Pixel"
@@ -512,18 +512,20 @@ export default function MetaOAuthCallback() {
             )}
 
             {/* Catálogo - info */}
-            <AssetGroup
-              icon={<ShoppingBag className="h-4 w-4 text-orange-600" />}
-              title="Catálogo"
-              subtitle="Criação automática"
-            >
-              <p className="text-xs text-muted-foreground py-1">
-                Um novo catálogo será criado no Gerenciador de Comércio da Meta com todos os seus produtos ativos.
-              </p>
-            </AssetGroup>
+            {showCatalog && (
+              <AssetGroup
+                icon={<ShoppingBag className="h-4 w-4 text-orange-600" />}
+                title="Catálogo"
+                subtitle="Criação automática"
+              >
+                <p className="text-xs text-muted-foreground py-1">
+                  Um novo catálogo será criado no Gerenciador de Comércio da Meta com todos os seus produtos ativos.
+                </p>
+              </AssetGroup>
+            )}
 
             {/* Threads */}
-            {threadsProfile && (
+            {showThreads && (
               <AssetGroup
                 icon={<AtSign className="h-4 w-4" />}
                 title="Threads"
@@ -536,7 +538,7 @@ export default function MetaOAuthCallback() {
                     onCheckedChange={toggleThreads}
                   />
                   <Label htmlFor="threads" className="text-sm cursor-pointer">
-                    @{threadsProfile.username}
+                    @{threadsProfile!.username}
                   </Label>
                 </div>
               </AssetGroup>
