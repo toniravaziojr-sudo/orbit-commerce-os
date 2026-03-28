@@ -9,6 +9,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.1";
 import { aiChatCompletionJSON, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { generateForRequest, uploadToStorage } from "../_shared/visual-engine.ts";
+import { getCredential } from "../_shared/platform-credentials.ts";
 import { BannerAdapter } from "../_shared/visual-adapters/banner-adapter.ts";
 import { ImageAdapter } from "../_shared/visual-adapters/image-adapter.ts";
 import { ContentColumnsAdapter } from "../_shared/visual-adapters/content-columns-adapter.ts";
@@ -598,6 +599,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const storeCtx = await fetchStoreContext(supabase, tenantId);
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY") || null;
+    const geminiApiKey = await getCredential(supabaseUrl, supabaseServiceKey, 'GEMINI_API_KEY');
 
     // Extract outputMode and creativeStyle from collectedData or top-level
     // Banner stores in bannerMode; other blocks store in creativeStyle directly
