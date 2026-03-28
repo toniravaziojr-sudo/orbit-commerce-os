@@ -854,6 +854,7 @@ O `CampaignCalendar.tsx` foi reduzido de ~1020 linhas para ~40 linhas, servindo 
 
 | Data | Alteração |
 |------|-----------|
+| 2026-03-28 | **Busca universal + filtros** — Novo hook `useDriveSearch` com busca global no tenant inteiro, toggle escopo (tudo/esta pasta), filtros combináveis (tipo, origem, uso), ordenação (nome/data/tamanho asc/desc). Novos componentes: `DriveSearchToolbar`, `FileParentPath`. Toolbar antiga substituída. |
 | 2026-03-27 | **Fase 4** — Exclusão em lote segura com useConfirmDialog (substitui confirm() nativo) |
 | 2026-03-27 | **Fase 4** — Estados vazios orientativos nas 3 abas com EmptyState + atalhos contextuais |
 | 2026-03-27 | **Fase 4** — Resumo compacto no topo do painel do dia (DayPostsList) |
