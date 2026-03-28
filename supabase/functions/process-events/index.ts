@@ -138,7 +138,7 @@ async function handlePurchaseCapiForPaidOnly(
     const result = await sendCapiPurchase(supabase, event.tenant_id, {
       order_id: orderId,
       order_number: cleanOrderNumber,
-      value: (order.total || 0) / 100,
+      value: order.total || 0, // v8.23.0: DB stores REAIS, not cents — no /100 needed
       currency: 'BRL',
       items,
       customer: {
