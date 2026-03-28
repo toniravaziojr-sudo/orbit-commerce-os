@@ -541,7 +541,7 @@ export default function Files() {
       />
 
       {/* Toolbar */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex flex-col">
           <div className="flex items-center gap-2">
             <input
@@ -582,30 +582,32 @@ export default function Files() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+            >
+              {viewMode === 'grid' ? <List className="h-4 w-4" /> : <Grid className="h-4 w-4" />}
+            </Button>
           </div>
           {/* Location hint */}
-          <CurrentLocationHint breadcrumb={folderPath} />
+          {!isGlobalSearch && <CurrentLocationHint breadcrumb={folderPath} />}
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 sm:w-64">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar arquivos..."
-              className="pl-9"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
-          >
-            {viewMode === 'grid' ? <List className="h-4 w-4" /> : <Grid className="h-4 w-4" />}
-          </Button>
-        </div>
+        <DriveSearchToolbar
+          filters={filters}
+          onFiltersChange={updateFilters}
+          isInFolder={currentFolderId !== null}
+        />
       </div>
+
+      {/* Global search indicator */}
+      {isGlobalSearch && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-md px-3 py-2">
+          <Globe className="h-4 w-4" />
+          <span>Buscando em todo o Drive — {filteredFiles.filter(f => !f.is_folder).length} resultado(s)</span>
+        </div>
+      )}
 
       {/* Breadcrumb with drop targets */}
       <div className="flex items-center gap-1 text-sm">
