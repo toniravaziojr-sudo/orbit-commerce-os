@@ -91,8 +91,7 @@ export const META_PACK_AVAILABILITY: MetaPackConfig[] = [
     id: "pixel",
     label: "Pixel + CAPI",
     description: "Rastreamento e Conversions API",
-    availability: "internal",
-    blockedReason: "Disponível em breve",
+    availability: "public",
   },
   {
     id: "insights",
