@@ -623,7 +623,7 @@ export function PublicationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px] max-h-[85vh] !flex !flex-col gap-0 overflow-hidden p-0">
+      <DialogContent className="sm:max-w-[480px] h-[85vh] max-h-[85vh] !flex !flex-col gap-0 overflow-hidden p-0">
         {/* Step 1: Tipo de publicação */}
         {step === "type" && (
           <div className="p-5">
