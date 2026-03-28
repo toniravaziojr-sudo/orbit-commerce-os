@@ -926,7 +926,7 @@ export function PublicationDialog({
                 {renderDetailFooter()}
               </form>
             </Form>
-          </>
+          </div>
         )}
       </DialogContent>
     </Dialog>
