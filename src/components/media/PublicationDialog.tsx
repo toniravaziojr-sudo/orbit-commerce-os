@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Newspaper, Instagram, Facebook, Image, Check, Clock, Square, CheckSquare, Youtube, Video, Upload, X, Loader2, ExternalLink, Sparkles, AlertTriangle, Lock, RefreshCw, Info } from "lucide-react";
+import { Instagram, Facebook, Image, Check, Clock, Square, CheckSquare, Upload, X, Loader2, ExternalLink, Sparkles, AlertTriangle, Lock, RefreshCw, Info } from "lucide-react";
 import { UniversalImageUploader } from "@/components/ui/UniversalImageUploader";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,8 +35,8 @@ import { toast } from "sonner";
 import { checkEditability, hasCriticalFieldChanged, useCalendarItemActions, type EditMode } from "@/hooks/useCalendarItemActions";
 import { PlatformStatusPanel } from "./PlatformStatusPanel";
 
-export type PublicationType = "feed" | "stories" | "blog" | "youtube";
-export type ChannelType = "instagram" | "facebook" | "feed_instagram" | "feed_facebook" | "story_instagram" | "story_facebook" | "blog" | "youtube";
+export type PublicationType = "feed" | "stories";
+export type ChannelType = "instagram" | "facebook" | "feed_instagram" | "feed_facebook" | "story_instagram" | "story_facebook";
 
 interface PublicationDialogProps {
   open: boolean;
@@ -47,7 +47,7 @@ interface PublicationDialogProps {
   editItem?: MediaCalendarItem | null;
   onBackToList?: () => void;
   campaignStartDate?: string;
-  campaignType?: "blog" | "social" | "youtube";
+  campaignType?: "social";
   /** When true, the editor is in "replace scheduling" mode */
   replaceMode?: boolean;
 }
@@ -56,8 +56,6 @@ interface PublicationDialogProps {
 const PUBLICATION_LIMITS = {
   feed: 4,
   stories: 10,
-  blog: 2,
-  youtube: 3,
 };
 
 // Tipos para redes sociais (Feed/Stories)
@@ -65,14 +63,6 @@ const SOCIAL_PUBLICATION_TYPES = [
   { id: "feed" as PublicationType, label: "Feed", icon: Image, description: "Post para o feed" },
   { id: "stories" as PublicationType, label: "Stories", icon: Clock, description: "Story temporário" },
 ];
-
-const BLOG_PUBLICATION_TYPE = { 
-  id: "blog" as PublicationType, label: "Artigo", icon: Newspaper, description: "Post de blog" 
-};
-
-const YOUTUBE_PUBLICATION_TYPE = { 
-  id: "youtube" as PublicationType, label: "Vídeo YouTube", icon: Youtube, description: "Vídeo para o canal" 
-};
 
 const CHANNELS = [
   { id: "instagram" as ChannelType, label: "Instagram", icon: Instagram },
@@ -97,20 +87,6 @@ const feedFormSchema = z.object({
 
 const storyFormSchema = z.object({
   title: z.string().optional(),
-  scheduled_time: z.string().optional(),
-  generation_prompt: z.string().optional(),
-});
-
-const blogFormSchema = z.object({
-  title: z.string().optional(),
-  copy: z.string().optional(),
-  scheduled_time: z.string().optional(),
-});
-
-const youtubeFormSchema = z.object({
-  title: z.string().optional(),
-  copy: z.string().optional(),
-  tags: z.string().optional(),
   scheduled_time: z.string().optional(),
   generation_prompt: z.string().optional(),
 });
@@ -186,8 +162,6 @@ export function PublicationDialog({
     return {
       feed: existingItems.filter(i => i.content_type === "image" || i.content_type === "carousel").length,
       stories: existingItems.filter(i => i.content_type === "story").length,
-      blog: existingItems.filter(i => i.content_type === "text").length,
-      youtube: existingItems.filter(i => i.content_type === "video" && i.target_channel === "youtube").length,
     };
   }, [existingItems]);
 
@@ -211,36 +185,19 @@ export function PublicationDialog({
     },
   });
 
-  const blogForm = useForm({
-    resolver: zodResolver(blogFormSchema),
-    defaultValues: {
-      title: "", copy: "", scheduled_time: "10:00",
-    },
-  });
-
-  const youtubeForm = useForm({
-    resolver: zodResolver(youtubeFormSchema),
-    defaultValues: {
-      title: "", copy: "", tags: "", scheduled_time: "10:00", generation_prompt: "",
-    },
-  });
-
   // Reset ao abrir/fechar ou quando muda editItem
   useEffect(() => {
     if (open) {
       setUploadedAssetUrl(null);
       if (editItem) {
-        const type = editItem.content_type === "story" ? "stories" 
-          : editItem.content_type === "text" ? "blog" 
-          : (editItem.content_type === "video" && editItem.target_channel === "youtube") ? "youtube"
-          : "feed";
+        const type = editItem.content_type === "story" ? "stories" : "feed";
         setSelectedType(type);
         
         const platforms = editItem.target_platforms as string[] || [];
         const convertedChannels: ChannelType[] = [];
         
         platforms.forEach(p => {
-          if (p.includes("_") || p === "blog") {
+          if (p.includes("_")) {
             convertedChannels.push(p as ChannelType);
           } else {
             if (type === "stories") {
@@ -271,55 +228,24 @@ export function PublicationDialog({
             scheduled_time: editItem.scheduled_time?.slice(0, 5) || "10:00",
             generation_prompt: editItem.generation_prompt || "",
           });
-        } else if (type === "youtube") {
-          youtubeForm.reset({
-            title: editItem.title || "",
-            copy: editItem.copy || "",
-            tags: editItem.hashtags?.join(", ") || "",
-            scheduled_time: editItem.scheduled_time?.slice(0, 5) || "10:00",
-            generation_prompt: editItem.generation_prompt || "",
-          });
-        } else {
-          blogForm.reset({
-            title: editItem.title || "",
-            copy: editItem.copy || "",
-            scheduled_time: editItem.scheduled_time?.slice(0, 5) || "10:00",
-          });
         }
       } else {
-        if (campaignType === "blog") {
-          setStep("details");
-          setSelectedType("blog");
-          setSelectedChannels([]);
-        } else if (campaignType === "youtube") {
-          setStep("details");
-          setSelectedType("youtube");
-          setSelectedChannels(["youtube"]);
-        } else {
-          setStep("type");
-          setSelectedType(null);
-          setSelectedChannels([]);
-        }
+        setStep("type");
+        setSelectedType(null);
+        setSelectedChannels([]);
         feedForm.reset();
         storyForm.reset();
-        blogForm.reset();
-        youtubeForm.reset();
       }
     }
   }, [open, editItem, campaignType]);
 
   const handleTypeSelect = (type: PublicationType) => {
     if (!canCreate(type)) {
-      toast.error(`Limite de ${PUBLICATION_LIMITS[type]} ${type === "blog" ? "artigos" : type === "stories" ? "stories" : type === "youtube" ? "vídeos" : "posts"} por dia atingido`);
+      toast.error(`Limite de ${PUBLICATION_LIMITS[type]} ${type === "stories" ? "stories" : "posts"} por dia atingido`);
       return;
     }
     setSelectedType(type);
-    if (type === "blog" || type === "youtube") {
-      if (type === "youtube") setSelectedChannels(["youtube"]);
-      setStep("details");
-    } else {
-      setStep("channels");
-    }
+    setStep("channels");
   };
 
   const handleChannelToggle = (network: "instagram" | "facebook") => {
@@ -352,10 +278,6 @@ export function PublicationDialog({
     }
     
     if (step === "details") {
-      if (campaignType === "blog") {
-        onOpenChange(false);
-        return;
-      }
       setStep("channels");
     } else if (step === "channels") {
       setStep("type");
@@ -508,94 +430,6 @@ export function PublicationDialog({
     }
   };
 
-  const handleSubmitBlog = async (values: z.infer<typeof blogFormSchema>) => {
-    if (!date || !currentTenant) return;
-
-    const baseData: Record<string, unknown> = {
-      title: values.title,
-      copy: values.copy,
-      content_type: "text",
-      target_platforms: ["blog"],
-      target_channel: "blog",
-      status: "draft",
-      scheduled_time: values.scheduled_time ? `${values.scheduled_time}:00` : null,
-    };
-
-    if (isEditing && editItem) {
-      await handleSaveWithStateRules(baseData);
-    } else {
-      await createItem.mutateAsync({
-        tenant_id: currentTenant.id,
-        campaign_id: campaignId,
-        scheduled_date: format(date, "yyyy-MM-dd"),
-        ...baseData,
-        cta: null,
-        hashtags: [],
-        generation_prompt: null,
-        reference_urls: null,
-        asset_url: null,
-        asset_thumbnail_url: null,
-        asset_metadata: {},
-        blog_post_id: null,
-        published_blog_at: null,
-        published_at: null,
-        publish_results: {},
-        version: 1,
-        edited_by: user?.id || null,
-        edited_at: null,
-        metadata: {},
-      } as any);
-      onOpenChange(false);
-      onBackToList?.();
-    }
-  };
-
-  const handleSubmitYoutube = async (values: z.infer<typeof youtubeFormSchema>) => {
-    if (!date || !currentTenant) return;
-
-    const tags = values.tags
-      ? values.tags.split(",").map(t => t.trim()).filter(Boolean)
-      : [];
-
-    const baseData: Record<string, unknown> = {
-      title: values.title,
-      copy: values.copy,
-      hashtags: tags,
-      content_type: "video",
-      target_platforms: ["youtube"],
-      target_channel: "youtube",
-      status: "draft",
-      scheduled_time: values.scheduled_time ? `${values.scheduled_time}:00` : null,
-      generation_prompt: values.generation_prompt || null,
-    };
-
-    if (isEditing && editItem) {
-      await handleSaveWithStateRules(baseData);
-    } else {
-      await createItem.mutateAsync({
-        tenant_id: currentTenant.id,
-        campaign_id: campaignId,
-        scheduled_date: format(date, "yyyy-MM-dd"),
-        ...baseData,
-        cta: null,
-        reference_urls: null,
-        asset_url: null,
-        asset_thumbnail_url: null,
-        asset_metadata: {},
-        blog_post_id: null,
-        published_blog_at: null,
-        published_at: null,
-        publish_results: {},
-        version: 1,
-        edited_by: user?.id || null,
-        edited_at: null,
-        metadata: {},
-      } as any);
-      onOpenChange(false);
-      onBackToList?.();
-    }
-  };
-
   const handleDelete = async () => {
     if (!editItem) return;
     await deleteItem.mutateAsync(editItem.id);
@@ -615,7 +449,7 @@ export function PublicationDialog({
     // Replace mode banner
     if (isReplaceMode) {
       return (
-        <div className="mx-5 mt-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 flex items-start gap-2">
+        <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 flex items-start gap-2">
           <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
           <div>
             <p className="text-xs font-medium text-amber-800 dark:text-amber-200">Substituindo agendamento</p>
@@ -631,7 +465,7 @@ export function PublicationDialog({
     if (isReadOnly) {
       if (["partially_published", "partially_failed"].includes(status)) {
         return (
-          <div className="mx-5 mt-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 flex items-start gap-2">
+          <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 flex items-start gap-2">
             <Lock className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
             <div>
               <p className="text-xs font-medium text-amber-800 dark:text-amber-200">Publicação parcial — somente leitura</p>
@@ -644,7 +478,7 @@ export function PublicationDialog({
       }
       if (status === "published") {
         return (
-          <div className="mx-5 mt-3 p-3 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 flex items-start gap-2">
+          <div className="p-3 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 flex items-start gap-2">
             <Lock className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
             <div>
               <p className="text-xs font-medium text-green-800 dark:text-green-200">Item publicado — somente leitura</p>
@@ -656,7 +490,7 @@ export function PublicationDialog({
         );
       }
       return (
-        <div className="mx-5 mt-3 p-3 rounded-lg bg-muted border border-border flex items-start gap-2">
+        <div className="p-3 rounded-lg bg-muted border border-border flex items-start gap-2">
           <Lock className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
           <p className="text-xs text-muted-foreground">Este item está em modo somente leitura.</p>
         </div>
@@ -671,7 +505,7 @@ export function PublicationDialog({
     if (!isEditing || !editItem) return null;
 
     return (
-      <div className="flex items-center gap-2 mx-5 mt-2 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap">
         <Badge className={cn("text-[10px] h-5", statusBannerColors[editItem.status] || "bg-muted text-muted-foreground")}>
           {statusBannerLabels[editItem.status] || editItem.status}
         </Badge>
@@ -695,18 +529,103 @@ export function PublicationDialog({
     if (!isEditing || !editItem) return null;
     if (!["scheduled", "publishing", "published", "failed", "partially_published", "partially_failed", "retry_pending"].includes(editItem.status)) return null;
 
-    return (
-      <div className="mx-5 mt-2">
-        <PlatformStatusPanel calendarItemId={editItem.id} />
-      </div>
-    );
+    return <PlatformStatusPanel calendarItemId={editItem.id} />;
   };
+
+  // Shared footer for detail forms
+  const renderDetailFooter = () => (
+    <DialogFooter className="flex-shrink-0 gap-2 px-5 py-3 border-t">
+      {isEditing && editability?.canDelete && (
+        <Button type="button" variant="destructive" onClick={handleDelete} className="mr-auto">
+          Excluir
+        </Button>
+      )}
+      <Button type="button" variant="outline" onClick={handleBack}>
+        {isReadOnly ? "Fechar" : "Voltar"}
+      </Button>
+      {!isReadOnly && (
+        <Button type="submit" disabled={replaceScheduledItem.isPending}>
+          {replaceScheduledItem.isPending ? "Salvando..." : isReplaceMode ? "Substituir" : isEditing ? "Salvar" : "Criar"}
+        </Button>
+      )}
+    </DialogFooter>
+  );
+
+  // Channel selector shared component
+  const renderChannelSelector = (prefix: "feed_" | "story_") => (
+    <div className="space-y-2">
+      <label className="text-sm font-medium">Canais de publicação</label>
+      <div className="flex flex-wrap gap-2">
+        {ALL_CHANNELS.filter(c => c.id.startsWith(prefix)).map((channel) => {
+          const Icon = channel.icon;
+          const isSelected = selectedChannels.includes(channel.id);
+          const CheckIcon = isSelected ? CheckSquare : Square;
+          return (
+            <button
+              key={channel.id}
+              type="button"
+              onClick={() => {
+                if (isReadOnly) return;
+                setSelectedChannels(prev => 
+                  prev.includes(channel.id) 
+                    ? prev.filter(c => c !== channel.id)
+                    : [...prev, channel.id]
+                );
+              }}
+              className={cn(
+                "flex items-center gap-2 px-3 py-2 rounded-lg border transition-all",
+                "hover:border-primary hover:bg-primary/5",
+                isSelected && "border-primary bg-primary/10",
+                isReadOnly && "opacity-60 cursor-not-allowed"
+              )}
+            >
+              <CheckIcon className={cn("h-4 w-4", isSelected ? "text-primary" : "text-muted-foreground")} />
+              <Icon className={cn("h-4 w-4", isSelected ? "text-primary" : "text-muted-foreground")} />
+              <span className={cn("text-sm", isSelected && "text-primary")}>{channel.label.replace(/^(Feed|Story) /, "")}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  // Creative uploader shared component
+  const renderCreativeUploader = (source: string = "media_creative") => (
+    <>
+      {!isReadOnly && (
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Criativo <span className="text-muted-foreground font-normal">(opcional)</span></label>
+          <UniversalImageUploader
+            value={uploadedAssetUrl || (isEditing ? editItem?.asset_url || '' : '')}
+            onChange={(url) => setUploadedAssetUrl(url || null)}
+            source={source}
+            subPath="criativos"
+            accept="all"
+            aspectRatio="square"
+            placeholder="Enviar imagem ou vídeo"
+            showUrlTab={false}
+            disabled={isUploading}
+            maxSize={5}
+          />
+        </div>
+      )}
+
+      {isReadOnly && editItem?.asset_url && (
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Criativo</label>
+          <div className="rounded-lg border bg-muted/30 p-2">
+            <img src={editItem.asset_url} alt="" className="max-h-40 w-full object-contain rounded" />
+          </div>
+        </div>
+      )}
+    </>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[480px] max-h-[85vh] !flex !flex-col gap-0 overflow-hidden p-0">
-        {/* Step 1: Tipo de publicação - APENAS PARA REDES SOCIAIS */}
-        {step === "type" && campaignType === "social" && (
+        {/* Step 1: Tipo de publicação */}
+        {step === "type" && (
           <div className="p-5">
             <DialogHeader>
               <DialogTitle>Nova Publicação</DialogTitle>
@@ -811,193 +730,121 @@ export function PublicationDialog({
         {/* Step 3: Detalhes - Feed */}
         {step === "details" && selectedType === "feed" && (
           <>
-            <DialogHeader className="flex-shrink-0 px-5 pt-4 pb-1">
+            {/* FIXED HEADER */}
+            <DialogHeader className="flex-shrink-0 px-5 pt-4 pb-2">
               <DialogTitle className="text-base">
                 {isReadOnly ? "Visualizar" : isReplaceMode ? "Substituir" : isEditing ? "Editar" : "Criar"} Post do Feed
               </DialogTitle>
               <DialogDescription className="capitalize text-xs">{displayDate}</DialogDescription>
             </DialogHeader>
 
-            {renderStatusHeader()}
-            {renderContextBanner()}
-            {renderPlatformStatus()}
-
             <Form {...feedForm}>
-                <form onSubmit={feedForm.handleSubmit(handleSubmitFeed)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                <fieldset disabled={isReadOnly} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-2 min-h-0">
-                {/* Seletor de Canais - Múltipla seleção */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Canais de publicação</label>
-                  <div className="flex flex-wrap gap-2">
-                    {ALL_CHANNELS.filter(c => c.id.startsWith("feed_")).map((channel) => {
-                      const Icon = channel.icon;
-                      const isSelected = selectedChannels.includes(channel.id);
-                      const CheckIcon = isSelected ? CheckSquare : Square;
-                      return (
-                        <button
-                          key={channel.id}
-                          type="button"
-                          onClick={() => {
-                            if (isReadOnly) return;
-                            setSelectedChannels(prev => 
-                              prev.includes(channel.id) 
-                                ? prev.filter(c => c !== channel.id)
-                                : [...prev, channel.id]
-                            );
-                          }}
-                          className={cn(
-                            "flex items-center gap-2 px-3 py-2 rounded-lg border transition-all",
-                            "hover:border-primary hover:bg-primary/5",
-                            isSelected && "border-primary bg-primary/10",
-                            isReadOnly && "opacity-60 cursor-not-allowed"
-                          )}
-                        >
-                          <CheckIcon className={cn("h-4 w-4", isSelected ? "text-primary" : "text-muted-foreground")} />
-                          <Icon className={cn("h-4 w-4", isSelected ? "text-primary" : "text-muted-foreground")} />
-                          <span className={cn("text-sm", isSelected && "text-primary")}>{channel.label.replace("Feed ", "")}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+              <form onSubmit={feedForm.handleSubmit(handleSubmitFeed)} className="flex flex-col flex-1 min-h-0">
+                <fieldset disabled={isReadOnly} className="flex flex-col flex-1 min-h-0">
+                  {/* SCROLLABLE BODY — contains banners + form fields */}
+                  <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-4 min-h-0">
+                    {renderStatusHeader()}
+                    {renderContextBanner()}
+                    {renderPlatformStatus()}
 
-                <FormField
-                  control={feedForm.control}
-                  name="title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Título / Tema</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Ex: Lançamento de produto" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                    {renderChannelSelector("feed_")}
 
-                <FormField
-                  control={feedForm.control}
-                  name="copy"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Legenda / Copy <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Escreva a legenda do post ou adicione depois..." className="min-h-[60px]" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                    <FormField
+                      control={feedForm.control}
+                      name="title"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Título / Tema</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Ex: Lançamento de produto" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={feedForm.control}
-                    name="cta"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>CTA (opcional)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Link na bio!" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                    <FormField
+                      control={feedForm.control}
+                      name="copy"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Legenda / Copy <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
+                          <FormControl>
+                            <Textarea placeholder="Escreva a legenda do post ou adicione depois..." className="min-h-[60px]" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                  <FormField
-                    control={feedForm.control}
-                    name="scheduled_time"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Horário</FormLabel>
-                        <FormControl>
-                          <Input type="time" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={feedForm.control}
+                        name="cta"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>CTA (opcional)</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Link na bio!" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                <FormField
-                  control={feedForm.control}
-                  name="hashtags"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Hashtags</FormLabel>
-                      <FormControl>
-                        <Input placeholder="#marketing, #vendas" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Criativo */}
-                {!isReadOnly && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Criativo <span className="text-muted-foreground font-normal">(opcional)</span></label>
-                  <UniversalImageUploader
-                    value={uploadedAssetUrl || (isEditing ? editItem?.asset_url || '' : '')}
-                    onChange={(url) => setUploadedAssetUrl(url || null)}
-                    source="media_creative"
-                    subPath="criativos"
-                    accept="all"
-                    aspectRatio="square"
-                    placeholder="Enviar imagem ou vídeo"
-                    showUrlTab={false}
-                    disabled={isUploading}
-                    maxSize={5}
-                  />
-                </div>
-                )}
-
-                {isReadOnly && editItem?.asset_url && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Criativo</label>
-                    <div className="rounded-lg border bg-muted/30 p-2">
-                      <img src={editItem.asset_url} alt="" className="max-h-40 w-full object-contain rounded" />
+                      <FormField
+                        control={feedForm.control}
+                        name="scheduled_time"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Horário</FormLabel>
+                            <FormControl>
+                              <Input type="time" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
+
+                    <FormField
+                      control={feedForm.control}
+                      name="hashtags"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Hashtags</FormLabel>
+                          <FormControl>
+                            <Input placeholder="#marketing, #vendas" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {renderCreativeUploader("media_creative")}
+
+                    {/* Prompt para criativo IA */}
+                    <FormField
+                      control={feedForm.control}
+                      name="generation_prompt"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-1.5">
+                            <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+                            Prompt para Criativo IA (opcional)
+                          </FormLabel>
+                          <FormControl>
+                            <Textarea placeholder="Descreva como o criativo deve ser gerado pela IA..." className="min-h-[60px]" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
-                )}
-
-                {/* Prompt para criativo IA */}
-                <FormField
-                  control={feedForm.control}
-                  name="generation_prompt"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-1.5">
-                        <Sparkles className="h-3.5 w-3.5 text-violet-500" />
-                        Prompt para Criativo IA (opcional)
-                      </FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Descreva como o criativo deve ser gerado pela IA..." className="min-h-[60px]" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="pb-3" />
-                </div>
                 </fieldset>
-                <DialogFooter className="flex-shrink-0 gap-2 px-5 py-3 border-t">
-                  {isEditing && editability?.canDelete && (
-                    <Button type="button" variant="destructive" onClick={handleDelete} className="mr-auto">
-                      Excluir
-                    </Button>
-                  )}
-                  <Button type="button" variant="outline" onClick={handleBack}>
-                    {isReadOnly ? "Fechar" : "Voltar"}
-                  </Button>
-                  {!isReadOnly && (
-                    <Button type="submit" disabled={replaceScheduledItem.isPending}>
-                      {replaceScheduledItem.isPending ? "Salvando..." : isReplaceMode ? "Substituir" : isEditing ? "Salvar" : "Criar"}
-                    </Button>
-                  )}
-                </DialogFooter>
+
+                {/* FIXED FOOTER */}
+                {renderDetailFooter()}
               </form>
             </Form>
           </>
@@ -1006,351 +853,77 @@ export function PublicationDialog({
         {/* Step 3: Detalhes - Stories */}
         {step === "details" && selectedType === "stories" && (
           <>
-            <DialogHeader className="flex-shrink-0 px-5 pt-4 pb-1">
+            {/* FIXED HEADER */}
+            <DialogHeader className="flex-shrink-0 px-5 pt-4 pb-2">
               <DialogTitle className="text-base">
                 {isReadOnly ? "Visualizar" : isReplaceMode ? "Substituir" : isEditing ? "Editar" : "Criar"} Story
               </DialogTitle>
               <DialogDescription className="capitalize text-xs">{displayDate}</DialogDescription>
             </DialogHeader>
 
-            {renderStatusHeader()}
-            {renderContextBanner()}
-            {renderPlatformStatus()}
-
             <Form {...storyForm}>
-              <form onSubmit={storyForm.handleSubmit(handleSubmitStory)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                <fieldset disabled={isReadOnly} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-2 min-h-0">
-                {/* Seletor de Canais */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Canais de publicação</label>
-                  <div className="flex flex-wrap gap-2">
-                    {ALL_CHANNELS.filter(c => c.id.startsWith("story_")).map((channel) => {
-                      const Icon = channel.icon;
-                      const isSelected = selectedChannels.includes(channel.id);
-                      const CheckIcon = isSelected ? CheckSquare : Square;
-                      return (
-                        <button
-                          key={channel.id}
-                          type="button"
-                          onClick={() => {
-                            if (isReadOnly) return;
-                            setSelectedChannels(prev => 
-                              prev.includes(channel.id) 
-                                ? prev.filter(c => c !== channel.id)
-                                : [...prev, channel.id]
-                            );
-                          }}
-                          className={cn(
-                            "flex items-center gap-2 px-3 py-2 rounded-lg border transition-all",
-                            "hover:border-primary hover:bg-primary/5",
-                            isSelected && "border-primary bg-primary/10",
-                            isReadOnly && "opacity-60 cursor-not-allowed"
-                          )}
-                        >
-                          <CheckIcon className={cn("h-4 w-4", isSelected ? "text-primary" : "text-muted-foreground")} />
-                          <Icon className={cn("h-4 w-4", isSelected ? "text-primary" : "text-muted-foreground")} />
-                          <span className={cn("text-sm", isSelected && "text-primary")}>{channel.label.replace("Story ", "")}</span>
-                        </button>
-                      );
-                    })}
+              <form onSubmit={storyForm.handleSubmit(handleSubmitStory)} className="flex flex-col flex-1 min-h-0">
+                <fieldset disabled={isReadOnly} className="flex flex-col flex-1 min-h-0">
+                  {/* SCROLLABLE BODY */}
+                  <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-4 min-h-0">
+                    {renderStatusHeader()}
+                    {renderContextBanner()}
+                    {renderPlatformStatus()}
+
+                    {renderChannelSelector("story_")}
+
+                    <FormField
+                      control={storyForm.control}
+                      name="title"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Título / Tema</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Ex: Bastidores da produção" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={storyForm.control}
+                      name="scheduled_time"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Horário de publicação</FormLabel>
+                          <FormControl>
+                            <Input type="time" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {renderCreativeUploader("media_creative_story")}
+
+                    {/* Prompt para criativo IA */}
+                    <FormField
+                      control={storyForm.control}
+                      name="generation_prompt"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="flex items-center gap-1.5">
+                            <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+                            Prompt para Criativo IA (opcional)
+                          </FormLabel>
+                          <FormControl>
+                            <Textarea placeholder="Descreva como o criativo deve ser gerado pela IA..." className="min-h-[60px]" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
-                </div>
-
-                <FormField
-                  control={storyForm.control}
-                  name="title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Título / Tema</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Ex: Bastidores da produção" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={storyForm.control}
-                  name="scheduled_time"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Horário de publicação</FormLabel>
-                      <FormControl>
-                        <Input type="time" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Criativo */}
-                {!isReadOnly && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Criativo <span className="text-muted-foreground font-normal">(opcional)</span></label>
-                  <UniversalImageUploader
-                    value={uploadedAssetUrl || (isEditing ? editItem?.asset_url || '' : '')}
-                    onChange={(url) => setUploadedAssetUrl(url || null)}
-                    source="media_creative_story"
-                    subPath="criativos"
-                    accept="all"
-                    aspectRatio="square"
-                    placeholder="Enviar imagem ou vídeo do story"
-                    showUrlTab={false}
-                    disabled={isUploading}
-                  />
-                </div>
-                )}
-
-                {isReadOnly && editItem?.asset_url && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Criativo</label>
-                    <div className="rounded-lg border bg-muted/30 p-2">
-                      <img src={editItem.asset_url} alt="" className="max-h-40 w-full object-contain rounded" />
-                    </div>
-                  </div>
-                )}
-
-                {/* Prompt para criativo IA */}
-                <FormField
-                  control={storyForm.control}
-                  name="generation_prompt"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-1.5">
-                        <Sparkles className="h-3.5 w-3.5 text-violet-500" />
-                        Prompt para Criativo IA (opcional)
-                      </FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Descreva como o criativo deve ser gerado pela IA..." className="min-h-[60px]" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="pb-3" />
-                </div>
                 </fieldset>
-                <DialogFooter className="flex-shrink-0 gap-2 px-5 py-3 border-t">
-                  {isEditing && editability?.canDelete && (
-                    <Button type="button" variant="destructive" onClick={handleDelete} className="mr-auto">
-                      Excluir
-                    </Button>
-                  )}
-                  <Button type="button" variant="outline" onClick={handleBack}>
-                    {isReadOnly ? "Fechar" : "Voltar"}
-                  </Button>
-                  {!isReadOnly && (
-                    <Button type="submit" disabled={replaceScheduledItem.isPending}>
-                      {replaceScheduledItem.isPending ? "Salvando..." : isReplaceMode ? "Substituir" : isEditing ? "Salvar" : "Criar"}
-                    </Button>
-                  )}
-                </DialogFooter>
-              </form>
-            </Form>
-          </>
-        )}
 
-        {/* Step 3: Detalhes - Blog */}
-        {step === "details" && selectedType === "blog" && (
-          <>
-            <DialogHeader className="flex-shrink-0 px-5 pt-4 pb-1">
-              <DialogTitle className="text-base">
-                {isReadOnly ? "Visualizar" : isReplaceMode ? "Substituir" : isEditing ? "Editar" : "Criar"} Artigo do Blog
-              </DialogTitle>
-              <DialogDescription className="capitalize text-xs">{displayDate}</DialogDescription>
-            </DialogHeader>
-
-            {renderStatusHeader()}
-            {renderContextBanner()}
-            {renderPlatformStatus()}
-
-            <Form {...blogForm}>
-              <form onSubmit={blogForm.handleSubmit(handleSubmitBlog)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                <fieldset disabled={isReadOnly} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-2 min-h-0">
-                <div className="bg-muted/50 rounded-lg p-3 text-sm text-muted-foreground">
-                  📝 Artigos de Blog são apenas texto. Não há geração de imagem para este tipo de publicação.
-                </div>
-
-                <FormField
-                  control={blogForm.control}
-                  name="title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Título do Artigo</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Ex: 10 dicas para..." {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={blogForm.control}
-                  name="copy"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Conteúdo / Resumo</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Escreva o conteúdo ou resumo do artigo..." className="min-h-[150px]" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={blogForm.control}
-                  name="scheduled_time"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Horário de Publicação</FormLabel>
-                      <FormControl>
-                        <Input type="time" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                </div>
-                </fieldset>
-                <DialogFooter className="flex-shrink-0 gap-2 px-5 py-3 border-t">
-                  {isEditing && editability?.canDelete && (
-                    <Button type="button" variant="destructive" onClick={handleDelete} className="mr-auto">
-                      Excluir
-                    </Button>
-                  )}
-                  <Button type="button" variant="outline" onClick={handleBack}>
-                    {isReadOnly ? "Fechar" : "Voltar"}
-                  </Button>
-                  {!isReadOnly && (
-                    <Button type="submit" disabled={replaceScheduledItem.isPending}>
-                      {replaceScheduledItem.isPending ? "Salvando..." : isReplaceMode ? "Substituir" : isEditing ? "Salvar" : "Criar"}
-                    </Button>
-                  )}
-                </DialogFooter>
-              </form>
-            </Form>
-          </>
-        )}
-
-        {/* Step 3: Detalhes - YouTube */}
-        {step === "details" && selectedType === "youtube" && (
-          <>
-            <DialogHeader className="flex-shrink-0 px-5 pt-4 pb-1">
-              <DialogTitle className="text-base">
-                {isReadOnly ? "Visualizar" : isReplaceMode ? "Substituir" : isEditing ? "Editar" : "Criar"} Vídeo do YouTube
-              </DialogTitle>
-              <DialogDescription className="capitalize text-xs">{displayDate}</DialogDescription>
-            </DialogHeader>
-
-            {renderStatusHeader()}
-            {renderContextBanner()}
-            {renderPlatformStatus()}
-
-            <Form {...youtubeForm}>
-              <form onSubmit={youtubeForm.handleSubmit(handleSubmitYoutube)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                <fieldset disabled={isReadOnly} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-2 min-h-0">
-                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 text-sm text-destructive flex items-center gap-2">
-                  <Youtube className="h-4 w-4 flex-shrink-0" />
-                  <span>Uploads para YouTube consomem créditos (16+ por vídeo). Certifique-se de ter saldo suficiente.</span>
-                </div>
-
-                <FormField
-                  control={youtubeForm.control}
-                  name="title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Título do Vídeo</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Ex: Tutorial completo de..." maxLength={100} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={youtubeForm.control}
-                  name="copy"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Descrição</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Descrição completa do vídeo..." className="min-h-[100px]" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={youtubeForm.control}
-                    name="tags"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tags (separadas por vírgula)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="marketing, vendas, dicas" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={youtubeForm.control}
-                    name="scheduled_time"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Horário de Publicação</FormLabel>
-                        <FormControl>
-                          <Input type="time" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={youtubeForm.control}
-                  name="generation_prompt"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Notas / Roteiro (opcional)</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Notas sobre o vídeo, roteiro, etc..." className="min-h-[60px]" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                </div>
-                </fieldset>
-                <DialogFooter className="flex-shrink-0 gap-2 px-5 py-3 border-t">
-                  {isEditing && editability?.canDelete && (
-                    <Button type="button" variant="destructive" onClick={handleDelete} className="mr-auto">
-                      Excluir
-                    </Button>
-                  )}
-                  <Button type="button" variant="outline" onClick={handleBack}>
-                    {isReadOnly ? "Fechar" : "Voltar"}
-                  </Button>
-                  {!isReadOnly && (
-                    <Button type="submit" disabled={replaceScheduledItem.isPending}>
-                      {replaceScheduledItem.isPending ? "Salvando..." : isReplaceMode ? "Substituir" : isEditing ? "Salvar" : "Criar"}
-                    </Button>
-                  )}
-                </DialogFooter>
+                {/* FIXED FOOTER */}
+                {renderDetailFooter()}
               </form>
             </Form>
           </>
