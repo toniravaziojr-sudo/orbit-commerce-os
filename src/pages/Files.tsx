@@ -389,7 +389,6 @@ export default function Files() {
 
       {/* Toolbar */}
       <DriveToolbar
-        fileInputRef={fileInputRef}
         onUploadClick={() => fileInputRef.current?.click()}
         viewMode={viewMode}
         onViewModeToggle={() => setViewMode(v => v === 'grid' ? 'list' : 'grid')}

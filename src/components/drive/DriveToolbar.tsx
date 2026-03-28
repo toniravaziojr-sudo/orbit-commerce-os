@@ -30,7 +30,6 @@ interface DriveToolbarProps {
 }
 
 export function DriveToolbar({
-  fileInputRef,
   onUploadClick,
   viewMode,
   onViewModeToggle,
