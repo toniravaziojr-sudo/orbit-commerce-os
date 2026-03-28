@@ -823,9 +823,9 @@ export function PublicationDialog({
             {renderPlatformStatus()}
 
             <Form {...feedForm}>
-              <form onSubmit={feedForm.handleSubmit(handleSubmitFeed)} className="flex flex-col flex-1 min-h-0">
-                <fieldset disabled={isReadOnly} className="flex flex-col flex-1 min-h-0">
-                <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-2">
+                <form onSubmit={feedForm.handleSubmit(handleSubmitFeed)} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <fieldset disabled={isReadOnly} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                <div className="flex-1 overflow-y-auto space-y-3 px-5 pb-2 min-h-0">
                 {/* Seletor de Canais - Múltipla seleção */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Canais de publicação</label>
