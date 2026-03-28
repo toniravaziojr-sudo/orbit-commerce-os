@@ -614,25 +614,37 @@ IMPORTANTE:
 
     console.log(`[media-generate-suggestions] ${suggestions.length} total, ${filteredSuggestions.length} after filtering blog items`);
 
-    const itemsToInsert = filteredSuggestions.map((s: any) => ({
-      tenant_id,
-      campaign_id,
-      scheduled_date: s.scheduled_date,
-      scheduled_time: defaultTime,
-      content_type: s.content_type || "image",
-      target_channel: s.target_channel || targetChannel,
-      title: s.title,
-      copy: null,
-      cta: null,
-      hashtags: [],
-      generation_prompt: null,
-      target_platforms: s.target_platforms || targetPlatformsDefault,
-      status: "suggested",
-      version: 1,
-      metadata: {
-        needs_product_image: s.needs_product_image ?? false,
-      },
-    }));
+    const itemsToInsert = filteredSuggestions.map((s: any) => {
+      // Use AI-suggested time, validate format, fallback to defaultTime
+      let scheduledTime = defaultTime;
+      if (s.scheduled_time && typeof s.scheduled_time === "string") {
+        const timeStr = s.scheduled_time.trim();
+        // Accept HH:MM or HH:MM:SS format
+        if (/^\d{2}:\d{2}(:\d{2})?$/.test(timeStr)) {
+          scheduledTime = timeStr.length === 5 ? `${timeStr}:00` : timeStr;
+        }
+      }
+
+      return {
+        tenant_id,
+        campaign_id,
+        scheduled_date: s.scheduled_date,
+        scheduled_time: scheduledTime,
+        content_type: s.content_type || "image",
+        target_channel: s.target_channel || targetChannel,
+        title: s.title,
+        copy: null,
+        cta: null,
+        hashtags: [],
+        generation_prompt: null,
+        target_platforms: s.target_platforms || targetPlatformsDefault,
+        status: "suggested",
+        version: 1,
+        metadata: {
+          needs_product_image: s.needs_product_image ?? false,
+        },
+      };
+    });
 
     const { data: insertedItems, error: insertError } = await supabase
       .from("media_calendar_items")
