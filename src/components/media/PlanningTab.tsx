@@ -501,6 +501,11 @@ export function PlanningTab({
                   </Button>
                 );
               })()}
+              <SelectionDiagnostics
+                selectedDays={selectedDays}
+                planningItemsByDate={planningItemsByDate}
+                isBlog={isBlog}
+              />
             </div>
           )}
         </CardContent>
