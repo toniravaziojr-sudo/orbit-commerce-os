@@ -921,3 +921,4 @@ O `CampaignCalendar.tsx` foi reduzido de ~1020 linhas para ~40 linhas, servindo 
 | 2025-01-31 | Corrigido fluxo de substituição de logo/favicon para chamar onChange() após upload |
 | 2025-01-31 | Adicionada recomendação de tamanho (200x60px) na descrição do campo logo |
 | 2025-01-31 | Reset do input file após upload para permitir reenvio do mesmo arquivo |
+| 2026-03-28 | **Pastas protegidas** — Pastas padrão do sistema (com `metadata.system_managed === true`) agora seguem a mesma lógica de proteção da pasta do sistema (`is_system_folder`): não podem ser excluídas, renomeadas ou arrastadas. Helper `isProtectedFolder` criado em `src/components/drive/driveHelpers.ts` e aplicado em Grid, Lista, ContextMenu, PreviewPanel e Files.tsx. |
