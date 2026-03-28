@@ -220,21 +220,6 @@ serve(async (req) => {
       );
     }
 
-    // Verificar se usuário tem acesso ao tenant
-    const { data: userRole, error: roleError } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .eq("tenant_id", tenantId)
-      .single();
-
-    if (roleError || !userRole || !["owner", "admin"].includes(userRole.role)) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Sem permissão para este tenant", code: "FORBIDDEN" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     // Buscar credenciais do app Meta (da tabela platform_credentials)
     const [appId, apiVersion] = await Promise.all([
       getCredential(supabaseUrl, supabaseServiceKey, "META_APP_ID"),
