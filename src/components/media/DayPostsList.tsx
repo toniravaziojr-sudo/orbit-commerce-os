@@ -184,7 +184,7 @@ export function DayPostsList({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] flex flex-col overflow-hidden max-h-[90vh]">
+      <DialogContent className="sm:max-w-[600px] !flex !flex-col overflow-hidden max-h-[90vh] gap-0">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span className="capitalize">
