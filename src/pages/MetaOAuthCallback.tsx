@@ -56,9 +56,19 @@ export default function MetaOAuthCallback() {
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(null);
   const [selectedAssets, setSelectedAssets] = useState<SelectedAssets | null>(null);
   const [connectionData, setConnectionData] = useState<any>(null);
+  const [activeScopePacks, setActiveScopePacks] = useState<string[]>([]);
   const processedRef = useRef(false);
 
   const selectedPortfolio = businesses.find(b => b.id === selectedPortfolioId) || null;
+
+  // Helpers para filtrar seções por scope packs selecionados
+  const showPages = activeScopePacks.some(p => ["atendimento", "publicacao", "leads", "live_video", "insights"].includes(p));
+  const showInstagram = activeScopePacks.some(p => ["atendimento", "publicacao", "insights"].includes(p));
+  const showWhatsApp = activeScopePacks.includes("whatsapp");
+  const showAdAccounts = activeScopePacks.includes("ads");
+  const showPixels = activeScopePacks.some(p => ["ads", "pixel"].includes(p));
+  const showCatalog = activeScopePacks.includes("catalogo");
+  const showThreads = activeScopePacks.includes("threads") && !!threadsProfile;
 
   // === Single-select handlers ===
   const selectPage = (pageId: string) => {
@@ -238,6 +248,7 @@ export default function MetaOAuthCallback() {
         const bizList = data.connection.businesses as BusinessPortfolio[];
         setBusinesses(bizList);
         setThreadsProfile(data.connection.threads_profile || null);
+        setActiveScopePacks(data.connection.scopePacks || []);
         setConnectionData(data.connection);
 
         // Se só tem 1 portfólio, pular direto para seleção de ativos
@@ -382,7 +393,7 @@ export default function MetaOAuthCallback() {
             </Alert>
 
             {/* Pages - single select */}
-            {selectedPortfolio.pages.length > 0 && (
+            {showPages && selectedPortfolio.pages.length > 0 && (
               <AssetGroup
                 icon={<Facebook className="h-4 w-4 text-blue-600" />}
                 title="Página do Facebook"
@@ -400,7 +411,7 @@ export default function MetaOAuthCallback() {
             )}
 
             {/* Instagram - single select */}
-            {selectedPortfolio.instagram_accounts.length > 0 && (
+            {showInstagram && selectedPortfolio.instagram_accounts.length > 0 && (
               <AssetGroup
                 icon={<Instagram className="h-4 w-4 text-pink-600" />}
                 title="Perfil do Instagram"
@@ -418,7 +429,7 @@ export default function MetaOAuthCallback() {
             )}
 
             {/* WhatsApp - single select WABA + single select phone */}
-            {selectedPortfolio.whatsapp_business_accounts.length > 0 && (
+            {showWhatsApp && selectedPortfolio.whatsapp_business_accounts.length > 0 && (
               <AssetGroup
                 icon={<MessageCircle className="h-4 w-4 text-green-600" />}
                 title="WhatsApp Business"
@@ -461,7 +472,7 @@ export default function MetaOAuthCallback() {
             )}
 
             {/* Ad Accounts - multi select */}
-            {selectedPortfolio.ad_accounts.length > 0 && (
+            {showAdAccounts && selectedPortfolio.ad_accounts.length > 0 && (
               <AssetGroup
                 icon={<Megaphone className="h-4 w-4 text-blue-600" />}
                 title="Contas de Anúncio"
@@ -481,7 +492,7 @@ export default function MetaOAuthCallback() {
             )}
 
             {/* Pixels - single select */}
-            {selectedPortfolio.pixels.length > 0 && (
+            {showPixels && selectedPortfolio.pixels.length > 0 && (
               <AssetGroup
                 icon={<Crosshair className="h-4 w-4 text-purple-600" />}
                 title="Pixel"
@@ -501,18 +512,20 @@ export default function MetaOAuthCallback() {
             )}
 
             {/* Catálogo - info */}
-            <AssetGroup
-              icon={<ShoppingBag className="h-4 w-4 text-orange-600" />}
-              title="Catálogo"
-              subtitle="Criação automática"
-            >
-              <p className="text-xs text-muted-foreground py-1">
-                Um novo catálogo será criado no Gerenciador de Comércio da Meta com todos os seus produtos ativos.
-              </p>
-            </AssetGroup>
+            {showCatalog && (
+              <AssetGroup
+                icon={<ShoppingBag className="h-4 w-4 text-orange-600" />}
+                title="Catálogo"
+                subtitle="Criação automática"
+              >
+                <p className="text-xs text-muted-foreground py-1">
+                  Um novo catálogo será criado no Gerenciador de Comércio da Meta com todos os seus produtos ativos.
+                </p>
+              </AssetGroup>
+            )}
 
             {/* Threads */}
-            {threadsProfile && (
+            {showThreads && (
               <AssetGroup
                 icon={<AtSign className="h-4 w-4" />}
                 title="Threads"
@@ -525,7 +538,7 @@ export default function MetaOAuthCallback() {
                     onCheckedChange={toggleThreads}
                   />
                   <Label htmlFor="threads" className="text-sm cursor-pointer">
-                    @{threadsProfile.username}
+                    @{threadsProfile!.username}
                   </Label>
                 </div>
               </AssetGroup>

@@ -386,7 +386,7 @@ async function discoverBusinessPortfolios(accessToken: string, scopePacks: strin
       }
 
       // Buscar Ad Accounts do portfólio
-      if (scopePacks.includes("ads")) {
+      if (scopePacks.includes("ads") || scopePacks.includes("pixel")) {
         try {
           const adResp = await fetch(
             `https://graph.facebook.com/${graphVersion}/${biz.id}/owned_ad_accounts?fields=id,name&access_token=${accessToken}`
@@ -427,6 +427,13 @@ async function discoverBusinessPortfolios(accessToken: string, scopePacks: strin
           } catch (e) {
             console.warn(`[meta-oauth-callback] Erro pixels de ${acc.id}:`, e);
           }
+        }
+
+        // Se o pack é apenas "pixel" (sem "ads"), limpar ad_accounts do resultado 
+        // para não mostrar na seleção de ativos
+        if (scopePacks.includes("pixel") && !scopePacks.includes("ads")) {
+          // Manter ad_accounts internamente apenas para referência dos pixels
+          // mas não precisamos limpar aqui, o frontend filtrará
         }
       }
 
@@ -478,7 +485,7 @@ async function discoverPersonalAssets(accessToken: string, scopePacks: string[],
       }
     }
 
-    if (scopePacks.includes("ads")) {
+    if (scopePacks.includes("ads") || scopePacks.includes("pixel")) {
       try {
         const adResp = await fetch(
           `https://graph.facebook.com/${graphVersion}/me/adaccounts?fields=id,name&access_token=${accessToken}`

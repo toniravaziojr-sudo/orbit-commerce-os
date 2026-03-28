@@ -65,6 +65,15 @@ const SCOPE_PACKS: Record<string, string[]> = {
     "publish_video",
     "pages_manage_posts",
   ],
+  // Pixel + CAPI (precisa de ads_read para listar pixels das ad accounts)
+  pixel: [
+    "ads_read",
+  ],
+  // Insights (métricas de páginas e perfis)
+  insights: [
+    "pages_read_engagement",
+    "read_insights",
+  ],
 };
 
 // Escopos base sempre incluídos (public_profile é sempre disponível)
