@@ -19,6 +19,7 @@ import { getHolidayForDate } from "@/lib/brazilian-holidays";
 import { useNavigate } from "react-router-dom";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SelectionDiagnostics, getDiagnostics } from "@/components/media/SelectionDiagnostics";
 
 interface PlanningTabProps {
   campaignId: string;
@@ -50,16 +51,19 @@ interface StepConfig {
   isAI?: boolean;
   count?: number;
   className?: string;
+  tooltip?: string | null;
 }
 
 function WorkflowStepper({ steps }: { steps: StepConfig[] }) {
   return (
-    <div className="flex items-center gap-1 overflow-x-auto pb-1">
-      {steps.map((step, index) => {
-        const showConnector = index < steps.length - 1;
-        const isCurrent = step.isCurrent || false;
-        return (
-          <div key={step.number} className="flex items-center gap-1 shrink-0">
+    <TooltipProvider delayDuration={200}>
+      <div className="flex items-center gap-1 overflow-x-auto pb-1">
+        {steps.map((step, index) => {
+          const showConnector = index < steps.length - 1;
+          const isCurrent = step.isCurrent || false;
+          const hasTooltip = !step.isActive && step.tooltip;
+
+          const button = (
             <Button
               variant={isCurrent ? "default" : "outline"}
               size="sm"
@@ -86,13 +90,30 @@ function WorkflowStepper({ steps }: { steps: StepConfig[] }) {
                 </Badge>
               )}
             </Button>
-            {showConnector && (
-              <ChevronRight className="h-3 w-3 text-muted-foreground/40 shrink-0" />
-            )}
-          </div>
-        );
-      })}
-    </div>
+          );
+
+          return (
+            <div key={step.number} className="flex items-center gap-1 shrink-0">
+              {hasTooltip ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={0}>{button}</span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-[220px] text-xs">
+                    {step.tooltip}
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                button
+              )}
+              {showConnector && (
+                <ChevronRight className="h-3 w-3 text-muted-foreground/40 shrink-0" />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </TooltipProvider>
   );
 }
 
