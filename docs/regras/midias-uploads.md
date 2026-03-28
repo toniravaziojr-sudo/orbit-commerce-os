@@ -173,8 +173,34 @@ A partir da Fase 1B, após o upload, o sistema registra automaticamente no Drive
 | `FileUsageBadge` | `src/components/drive/FileUsageBadge.tsx` | Badge com tooltip |
 | `DeleteFileDialog` | `src/components/drive/DeleteFileDialog.tsx` | Alerta de exclusão com impacto |
 | `MoveFileDialog` | `src/components/drive/MoveFileDialog.tsx` | Aviso de arquivo em uso ao mover |
+| `DriveToolbar` | `src/components/drive/DriveToolbar.tsx` | Toolbar com upload, nova pasta, view toggle e busca/filtros |
+| `DriveBreadcrumbs` | `src/components/drive/DriveBreadcrumbs.tsx` | Breadcrumbs clicáveis com drop target e botão voltar |
+| `DriveFileGrid` | `src/components/drive/DriveFileGrid.tsx` | Grid de arquivos com thumbnails, badges, drag-and-drop |
+| `DriveFileList` | `src/components/drive/DriveFileList.tsx` | Lista de arquivos com thumbnails inline (32x32) |
+| `DriveFileContextMenu` | `src/components/drive/DriveFileContextMenu.tsx` | Menu de ações por arquivo/pasta (dropdown) + hook useContextMenu |
+| `DrivePreviewPanel` | `src/components/drive/DrivePreviewPanel.tsx` | Sheet lateral de detalhes: preview, metadados, ações rápidas, uso |
+| `DriveEmptyState` | `src/components/drive/DriveEmptyState.tsx` | Empty states contextuais (pasta vazia, busca, Drive vazio) |
+| `RenameDialog` / `SubfolderDialog` | `src/components/drive/DriveDialogs.tsx` | Dialogs de renomear e criar subpasta |
 
 **Decisão:** `media_library` não é banco do usuário; builder consome imagens do Meu Drive.
+
+### Interação do Preview Lateral
+
+| Regra | Descrição |
+|-------|-----------|
+| Clique único no corpo do item | Abre preview lateral (Sheet) para arquivos, navega para pastas |
+| Clique em botões de ação, menus | NÃO abre preview — ação do botão tem prioridade |
+| Drag-and-drop | NÃO abre preview — drag tem prioridade |
+| Pastas | Clique navega para dentro da pasta |
+| Sheet | Fecha ao clicar fora ou no X |
+
+### Files.tsx — Orquestrador
+
+Após a decomposição, `Files.tsx` (~560 linhas) é o orquestrador que:
+- Mantém estado (folder path, dialogs, drag, preview, search)
+- Define handlers (upload, create, rename, delete, move, drag-drop)
+- Compõe os componentes extraídos via props tipadas
+- NÃO contém renderização direta de itens de arquivo
 
 ---
 
