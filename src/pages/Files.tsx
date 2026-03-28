@@ -6,6 +6,7 @@ import { useFiles, FileItem } from "@/hooks/useFiles";
 import { useFileUsageDetection } from "@/hooks/useFileUsageDetection";
 import { useStoreSettings } from "@/hooks/useStoreSettings";
 import { cn } from "@/lib/utils";
+import { isProtectedFolder } from "@/components/drive/driveHelpers";
 import { toast } from "sonner";
 import { DeleteFileDialog } from "@/components/drive/DeleteFileDialog";
 import { MoveFileDialog } from "@/components/drive/MoveFileDialog";
@@ -230,6 +231,10 @@ export default function Files() {
   };
 
   const openDeleteDialog = (file: FileItem) => {
+    if (isProtectedFolder(file)) {
+      toast.error('Esta pasta é protegida e não pode ser excluída.');
+      return;
+    }
     setFileToDelete(file);
     setDeleteDialogOpen(true);
   };
@@ -293,7 +298,7 @@ export default function Files() {
 
   // Drag & drop handlers
   const handleDragStartItem = (e: React.DragEvent, item: FileItem) => {
-    if (item.is_system_folder) { e.preventDefault(); return; }
+    if (isProtectedFolder(item)) { e.preventDefault(); return; }
     e.dataTransfer.setData('application/json', JSON.stringify({ id: item.id, isFolder: item.is_folder }));
     e.dataTransfer.effectAllowed = 'move';
     setDraggedItem(item);
