@@ -367,3 +367,69 @@ export function DateRangeFilter({
     </Popover>
   );
 }
+
+const MONTH_NAMES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril',
+  'Maio', 'Junho', 'Julho', 'Agosto',
+  'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
+
+function MonthPickerGrid({
+  selectedMonth,
+  onSelectMonth,
+}: {
+  selectedMonth: Date;
+  onSelectMonth: (month: Date) => void;
+}) {
+  const [year, setYear] = useState(selectedMonth.getFullYear());
+  const currentMonth = selectedMonth.getMonth();
+  const currentYear = selectedMonth.getFullYear();
+
+  return (
+    <div className="rounded-md border p-4 min-w-[280px]">
+      <div className="flex items-center justify-between mb-4">
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-7 w-7"
+          onClick={() => setYear(y => y - 1)}
+        >
+          <span className="sr-only">Ano anterior</span>
+          ‹
+        </Button>
+        <span className="text-sm font-medium">{year}</span>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-7 w-7"
+          onClick={() => setYear(y => y + 1)}
+        >
+          <span className="sr-only">Próximo ano</span>
+          ›
+        </Button>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {MONTH_NAMES.map((name, index) => {
+          const isSelected = index === currentMonth && year === currentYear;
+          return (
+            <Button
+              key={name}
+              variant={isSelected ? 'default' : 'ghost'}
+              size="sm"
+              className={cn(
+                'h-9 text-xs',
+                isSelected && 'bg-primary text-primary-foreground'
+              )}
+              onClick={() => {
+                let d = new Date(year, index, 1);
+                onSelectMonth(d);
+              }}
+            >
+              {name}
+            </Button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
