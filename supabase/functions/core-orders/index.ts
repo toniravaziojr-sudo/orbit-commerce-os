@@ -968,5 +968,4 @@ Deno.serve(async (req) => {
     console.error('[core-orders] Error:', error);
     return errorResponse(error, corsHeaders, { module: 'orders' });
   }
-  }
 });
