@@ -88,7 +88,6 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     // If form_slug provided AND it's not a system form (popup/footer), fetch form config
-    // System forms (popup-*, footer_newsletter) use list_id directly from the request
     const isSystemForm = form_slug?.startsWith('popup-') || form_slug === 'footer_newsletter';
     
     if (form_slug && !isSystemForm) {
@@ -112,21 +111,7 @@ serve(async (req: Request): Promise<Response> => {
       tagsToAdd = form.tags_to_add || [];
     }
 
-    // Get the tag_id from the list if exists
-    let tagId: string | null = null;
-    if (effectiveListId) {
-      const { data: listData } = await supabase
-        .from("email_marketing_lists")
-        .select("id, tag_id")
-        .eq("id", effectiveListId)
-        .single();
-      
-      if (listData?.tag_id) {
-        tagId = listData.tag_id;
-      }
-    }
-
-    // Use the canonical sync function to upsert subscriber + customer + apply tag
+    // Use the canonical sync function (only passes p_list_id, NOT p_tag_id)
     const { data: syncResult, error: syncError } = await supabase.rpc(
       "sync_subscriber_to_customer_with_tag",
       {
@@ -137,7 +122,6 @@ serve(async (req: Request): Promise<Response> => {
         p_birth_date: fields.birth_date || null,
         p_source: source || (form_slug ? `form:${form_slug}` : "newsletter_form"),
         p_list_id: effectiveListId || null,
-        p_tag_id: tagId,
       }
     );
 
