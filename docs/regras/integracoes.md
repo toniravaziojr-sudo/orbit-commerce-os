@@ -2635,3 +2635,47 @@ O `TikTokShopPanel` é renderizado dentro do card "TikTok Shop" em `TikTokUnifie
 |--------|----------------|
 | `tiktok_content_videos` | `tiktok-content-publish` |
 | `tiktok_content_analytics` | `tiktok-content-analytics` |
+
+---
+
+## Registro de Número WhatsApp na Cloud API
+
+### Comportamento
+
+O botão "Registrar Número" (ou "Re-registrar número") aparece no card do WhatsApp dentro de **Integrações > Meta > Ativos conectados**.
+
+- **Status `pending_registration`**: Exibe alerta "⚠️ Ação necessária" com campo opcional para PIN de 6 dígitos (contas com 2FA ativo) e botão de registro.
+- **Status `connected`**: Exibe botão discreto "Re-registrar número" como fallback.
+
+### Edge Function: `meta-whatsapp-register-phone`
+
+Aceita `{ tenant_id, pin? }`. Se `pin` for fornecido, envia na chamada `POST /{phone-number-id}/register`. Se não, envia sem PIN (para contas sem 2FA).
+
+### Componentes Relacionados
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/components/integrations/MetaUnifiedSettings.tsx` | UI do registro com PIN opcional e badge "Ação necessária" |
+| `supabase/functions/meta-whatsapp-register-phone/index.ts` | Edge function de registro |
+
+---
+
+## Cards na Central de Execuções (Command Center)
+
+### IntegrationErrorsCard
+
+| Arquivo | `src/components/dashboard/IntegrationErrorsCard.tsx` |
+|---------|------|
+| **Descrição** | Card dedicado que verifica Meta (token expirado, erros), WhatsApp (registro pendente, erros) e Email (DNS não verificado). |
+| **Estado OK** | Exibe "Tudo funcionando" com ícone verde. |
+| **Estado com erro** | Lista cada integração com erro e badge "Erro", clicável para ir direto à aba de integrações correspondente. |
+| **Localização** | Central de Execuções, coluna lateral direita. |
+
+### ContentCalendarAlertsCard
+
+| Arquivo | `src/components/dashboard/ContentCalendarAlertsCard.tsx` |
+|---------|------|
+| **Descrição** | Card que consulta `social_posts` com status `failed` para exibir publicações que falharam. |
+| **Estado OK** | Exibe "Tudo em dia" com ícone verde. |
+| **Estado com erro** | Lista até 5 publicações que falharam, com plataforma, erro e tempo relativo. Clicável para ir ao calendário de conteúdo. |
+| **Localização** | Central de Execuções, coluna lateral direita. |
