@@ -17,8 +17,8 @@ import { BannerProductsAdapter } from "../_shared/visual-adapters/banner-product
 import { TextBannersAdapter } from "../_shared/visual-adapters/text-banners-adapter.ts";
 import { ImageCarouselAdapter } from "../_shared/visual-adapters/image-carousel-adapter.ts";
 import { ImageGalleryAdapter } from "../_shared/visual-adapters/image-gallery-adapter.ts";
-import type {
 import { errorResponse } from "../_shared/error-response.ts";
+import type {
   ProductContext,
   CategoryContext,
   StoreContext,
