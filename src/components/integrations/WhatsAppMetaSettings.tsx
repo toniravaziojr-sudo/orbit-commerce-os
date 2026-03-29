@@ -205,14 +205,6 @@ export function WhatsAppMetaSettings() {
       toast.error(error.message || "Erro ao registrar número");
     },
   });
-    onSuccess: () => {
-      toast.success("Número registrado com sucesso na Cloud API!");
-      queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
-    },
-    onError: (error: any) => {
-      toast.error(error.message || "Erro ao registrar número");
-    },
-  });
 
   // Send test message mutation
   const testMutation = useMutation({
