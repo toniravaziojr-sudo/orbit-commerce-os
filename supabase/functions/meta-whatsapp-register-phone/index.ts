@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { tenant_id } = await req.json();
+    const { tenant_id, pin } = await req.json();
     if (!tenant_id) {
       return new Response(JSON.stringify({ success: false, error: "tenant_id é obrigatório" }), {
         status: 200,
@@ -125,10 +125,11 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${config.access_token}`,
       },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        pin: "123456",
-      }),
+      body: JSON.stringify(
+        pin
+          ? { messaging_product: "whatsapp", pin: String(pin) }
+          : { messaging_product: "whatsapp" }
+      ),
     });
     const registerData = await registerResponse.json();
 
