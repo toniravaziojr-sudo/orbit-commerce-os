@@ -214,6 +214,8 @@ function DashboardContent() {
 
         {/* Attention Required */}
         <div className="space-y-6">
+          <IntegrationErrorsCard />
+          <ContentCalendarAlertsCard />
           <IntegrationAlerts />
           <StorefrontHealthCard />
           <Card>
