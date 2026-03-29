@@ -7,10 +7,15 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, subMonths, startOfDay, endOfDay, parse, isValid } from 'date-fns';
+import { format, parse, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-
-type PresetType = 'all_time' | 'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'select_month' | 'custom';
+import {
+  type DatePreset,
+  PRESET_OPTIONS,
+  getPresetDateRange,
+  detectPreset,
+  getPresetLabel,
+} from '@/lib/date-presets';
 
 interface DateFieldOption {
   value: string;
@@ -28,104 +33,6 @@ export interface DateRangeFilterProps {
   className?: string;
 }
 
-const presets: { value: PresetType; label: string }[] = [
-  { value: 'all_time', label: 'Todo o período' },
-  { value: 'today', label: 'Hoje' },
-  { value: 'yesterday', label: 'Ontem' },
-  { value: 'this_week', label: 'Esta semana' },
-  { value: 'last_week', label: 'Semana passada' },
-  { value: 'this_month', label: 'Este mês' },
-  { value: 'last_month', label: 'Mês passado' },
-  { value: 'select_month', label: 'Selecionar mês' },
-  { value: 'custom', label: 'Período customizado' },
-];
-
-function getPresetDates(preset: PresetType, selectedMonth?: Date): { start?: Date; end?: Date } {
-  const now = new Date();
-  
-  switch (preset) {
-    case 'all_time':
-      return { start: undefined, end: undefined };
-    case 'today':
-      return { start: startOfDay(now), end: endOfDay(now) };
-    case 'yesterday':
-      const yesterday = new Date(now);
-      yesterday.setDate(yesterday.getDate() - 1);
-      return { start: startOfDay(yesterday), end: endOfDay(yesterday) };
-    case 'this_week':
-      return { start: startOfWeek(now, { locale: ptBR }), end: endOfWeek(now, { locale: ptBR }) };
-    case 'last_week':
-      const lastWeek = subWeeks(now, 1);
-      return { start: startOfWeek(lastWeek, { locale: ptBR }), end: endOfWeek(lastWeek, { locale: ptBR }) };
-    case 'this_month':
-      return { start: startOfMonth(now), end: endOfMonth(now) };
-    case 'last_month':
-      const lastMonth = subMonths(now, 1);
-      return { start: startOfMonth(lastMonth), end: endOfMonth(lastMonth) };
-    case 'select_month':
-      if (selectedMonth) {
-        return { start: startOfMonth(selectedMonth), end: endOfMonth(selectedMonth) };
-      }
-      return { start: startOfMonth(now), end: endOfMonth(now) };
-    default:
-      return { start: now, end: now };
-  }
-}
-
-function detectPreset(start?: Date, end?: Date): PresetType | null {
-  // If no dates, it's "all_time"
-  if (!start && !end) return 'all_time';
-  if (!start || !end) return null;
-  
-  const now = new Date();
-  
-  // Check today
-  if (format(start, 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd') && 
-      format(end, 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd')) {
-    return 'today';
-  }
-  
-  // Check yesterday
-  const yesterdayDate = new Date(now);
-  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-  if (format(start, 'yyyy-MM-dd') === format(yesterdayDate, 'yyyy-MM-dd') && 
-      format(end, 'yyyy-MM-dd') === format(yesterdayDate, 'yyyy-MM-dd')) {
-    return 'yesterday';
-  }
-  
-  // Check this week
-  const thisWeekStart = startOfWeek(now, { locale: ptBR });
-  const thisWeekEnd = endOfWeek(now, { locale: ptBR });
-  if (format(start, 'yyyy-MM-dd') === format(thisWeekStart, 'yyyy-MM-dd') && 
-      format(end, 'yyyy-MM-dd') === format(thisWeekEnd, 'yyyy-MM-dd')) {
-    return 'this_week';
-  }
-  
-  // Check last week
-  const lastWeek = subWeeks(now, 1);
-  const lastWeekStart = startOfWeek(lastWeek, { locale: ptBR });
-  const lastWeekEnd = endOfWeek(lastWeek, { locale: ptBR });
-  if (format(start, 'yyyy-MM-dd') === format(lastWeekStart, 'yyyy-MM-dd') && 
-      format(end, 'yyyy-MM-dd') === format(lastWeekEnd, 'yyyy-MM-dd')) {
-    return 'last_week';
-  }
-  
-  // Check this month
-  if (format(start, 'yyyy-MM-dd') === format(startOfMonth(now), 'yyyy-MM-dd') && 
-      format(end, 'yyyy-MM-dd') === format(endOfMonth(now), 'yyyy-MM-dd')) {
-    return 'this_month';
-  }
-  
-  // Check last month
-  const lastMonth = subMonths(now, 1);
-  if (format(start, 'yyyy-MM-dd') === format(startOfMonth(lastMonth), 'yyyy-MM-dd') && 
-      format(end, 'yyyy-MM-dd') === format(endOfMonth(lastMonth), 'yyyy-MM-dd')) {
-    return 'last_month';
-  }
-  
-  return 'custom';
-}
-
 export function DateRangeFilter({
   startDate,
   endDate,
@@ -139,11 +46,11 @@ export function DateRangeFilter({
   const [isOpen, setIsOpen] = useState(false);
   const [localStartDate, setLocalStartDate] = useState<Date | undefined>(startDate);
   const [localEndDate, setLocalEndDate] = useState<Date | undefined>(endDate);
-  const [activePreset, setActivePreset] = useState<PresetType | null>(() => detectPreset(startDate, endDate));
+  const [activePreset, setActivePreset] = useState<DatePreset | null>(() => detectPreset(startDate, endDate));
   const [startInputValue, setStartInputValue] = useState(startDate ? format(startDate, 'dd/MM/yyyy') : '');
   const [endInputValue, setEndInputValue] = useState(endDate ? format(endDate, 'dd/MM/yyyy') : '');
   const [calendarMonth, setCalendarMonth] = useState<Date>(startDate || new Date());
-  
+
   // Sync local state when props change
   useEffect(() => {
     setLocalStartDate(startDate);
@@ -152,15 +59,15 @@ export function DateRangeFilter({
     setEndInputValue(endDate ? format(endDate, 'dd/MM/yyyy') : '');
     setActivePreset(detectPreset(startDate, endDate));
   }, [startDate, endDate]);
-  
+
   const hasFilter = startDate && endDate;
-  
-  const handlePresetClick = (preset: PresetType) => {
+
+  const handlePresetClick = (preset: DatePreset) => {
     if (preset === 'custom') {
       setActivePreset('custom');
       return;
     }
-    
+
     if (preset === 'all_time') {
       setActivePreset('all_time');
       setLocalStartDate(undefined);
@@ -169,38 +76,37 @@ export function DateRangeFilter({
       setEndInputValue('');
       return;
     }
-    
+
     if (preset === 'select_month') {
       setActivePreset('select_month');
-      // Use the calendar month for month selection
-      const { start, end } = getPresetDates('select_month', calendarMonth);
+      const { start, end } = getPresetDateRange('select_month', calendarMonth);
       setLocalStartDate(start);
       setLocalEndDate(end);
       setStartInputValue(start ? format(start, 'dd/MM/yyyy') : '');
       setEndInputValue(end ? format(end, 'dd/MM/yyyy') : '');
       return;
     }
-    
+
     setActivePreset(preset);
-    const { start, end } = getPresetDates(preset);
+    const { start, end } = getPresetDateRange(preset);
     setLocalStartDate(start);
     setLocalEndDate(end);
     setStartInputValue(start ? format(start, 'dd/MM/yyyy') : '');
     setEndInputValue(end ? format(end, 'dd/MM/yyyy') : '');
   };
-  
+
   const handleStartDateSelect = (date: Date | undefined) => {
     setLocalStartDate(date);
     setStartInputValue(date ? format(date, 'dd/MM/yyyy') : '');
     setActivePreset('custom');
   };
-  
+
   const handleEndDateSelect = (date: Date | undefined) => {
     setLocalEndDate(date);
     setEndInputValue(date ? format(date, 'dd/MM/yyyy') : '');
     setActivePreset('custom');
   };
-  
+
   const handleStartInputChange = (value: string) => {
     setStartInputValue(value);
     const parsed = parse(value, 'dd/MM/yyyy', new Date());
@@ -209,7 +115,7 @@ export function DateRangeFilter({
       setActivePreset('custom');
     }
   };
-  
+
   const handleEndInputChange = (value: string) => {
     setEndInputValue(value);
     const parsed = parse(value, 'dd/MM/yyyy', new Date());
@@ -218,12 +124,12 @@ export function DateRangeFilter({
       setActivePreset('custom');
     }
   };
-  
+
   const handleApply = () => {
     onChange(localStartDate, localEndDate);
     setIsOpen(false);
   };
-  
+
   const handleClear = () => {
     setLocalStartDate(undefined);
     setLocalEndDate(undefined);
@@ -233,9 +139,8 @@ export function DateRangeFilter({
     onChange(undefined, undefined);
     setIsOpen(false);
   };
-  
+
   const handleCancel = () => {
-    // Reset to original values
     setLocalStartDate(startDate);
     setLocalEndDate(endDate);
     setStartInputValue(startDate ? format(startDate, 'dd/MM/yyyy') : '');
@@ -243,23 +148,23 @@ export function DateRangeFilter({
     setActivePreset(detectPreset(startDate, endDate));
     setIsOpen(false);
   };
-  
+
   // Calculate next month for second calendar
   const nextMonth = new Date(calendarMonth);
   nextMonth.setMonth(nextMonth.getMonth() + 1);
-  
-  // Show preset name for named presets, date range for custom
+
+  // Display text
   const detectedPreset = detectPreset(startDate, endDate);
   const presetLabel = detectedPreset && detectedPreset !== 'custom' && detectedPreset !== 'select_month'
-    ? presets.find(p => p.value === detectedPreset)?.label
+    ? getPresetLabel(detectedPreset)
     : null;
-  
+
   const displayText = presetLabel
     ? `Período: ${presetLabel}`
     : hasFilter
       ? `Período: ${format(startDate!, 'dd/MM/yyyy')} até ${format(endDate!, 'dd/MM/yyyy')}`
       : `Período: Todo o período`;
-  
+
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
@@ -275,8 +180,8 @@ export function DateRangeFilter({
           <Calendar className="h-4 w-4" />
           <span className="truncate max-w-[250px]">{displayText}</span>
           {hasFilter && (
-            <X 
-              className="h-3 w-3 ml-1 opacity-70 hover:opacity-100" 
+            <X
+              className="h-3 w-3 ml-1 opacity-70 hover:opacity-100"
               onClick={(e) => {
                 e.stopPropagation();
                 handleClear();
@@ -302,7 +207,7 @@ export function DateRangeFilter({
               </SelectContent>
             </Select>
           )}
-          
+
           {/* Date Inputs */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -324,7 +229,7 @@ export function DateRangeFilter({
               />
             </div>
           </div>
-          
+
           {/* Calendars and Presets */}
           <div className="flex gap-4">
             {/* Two Calendars */}
@@ -374,26 +279,34 @@ export function DateRangeFilter({
                 }}
               />
             </div>
-            
+
             {/* Presets */}
-            <div className="flex flex-col gap-1 min-w-[140px]">
-              {presets.map((preset) => (
-                <Button
-                  key={preset.value}
-                  variant={activePreset === preset.value ? 'default' : 'ghost'}
-                  size="sm"
-                  className={cn(
-                    'justify-start h-8 text-sm',
-                    activePreset === preset.value && 'bg-primary text-primary-foreground'
-                  )}
-                  onClick={() => handlePresetClick(preset.value)}
-                >
-                  {preset.label}
-                </Button>
-              ))}
+            <div className="flex flex-col gap-1 min-w-[160px]">
+              {PRESET_OPTIONS.map((preset, index) => {
+                // Add separator before rolling group
+                const prevGroup = index > 0 ? PRESET_OPTIONS[index - 1].group : null;
+                const showSeparator = prevGroup && prevGroup !== preset.group;
+
+                return (
+                  <div key={preset.value}>
+                    {showSeparator && <div className="h-px bg-border my-1" />}
+                    <Button
+                      variant={activePreset === preset.value ? 'default' : 'ghost'}
+                      size="sm"
+                      className={cn(
+                        'justify-start h-8 text-sm w-full',
+                        activePreset === preset.value && 'bg-primary text-primary-foreground'
+                      )}
+                      onClick={() => handlePresetClick(preset.value)}
+                    >
+                      {preset.label}
+                    </Button>
+                  </div>
+                );
+              })}
             </div>
           </div>
-          
+
           {/* Actions */}
           <div className="flex justify-end gap-2 pt-2 border-t">
             <Button variant="outline" size="sm" onClick={handleCancel}>

@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { subDays, startOfDay, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { getComparisonLabel, getPresetDateRange } from "@/lib/date-presets";
 
 interface MetricCardProps {
   title: string;
@@ -53,6 +54,8 @@ export function SupportMetrics() {
       if (!currentTenant?.id) return null;
 
       const today = startOfDay(new Date());
+      const todayStart = today;
+      const todayEnd = new Date();
       const yesterday = subDays(today, 1);
       const weekAgo = subDays(today, 7);
 
@@ -173,7 +176,7 @@ export function SupportMetrics() {
             value: metrics.convTrend,
             isPositive: metrics.convTrend >= 0,
           } : undefined}
-          description="vs. ontem"
+          description={getComparisonLabel(startOfDay(new Date()), new Date())}
         />
         <MetricCard
           title="Em aberto"

@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { format, subDays, subMonths, startOfMonth, endOfMonth, startOfYear } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { getComparisonLabel } from "@/lib/date-presets";
 import {
   useSalesReport,
   useSalesByCoupon,
@@ -238,7 +239,7 @@ export default function Reports() {
           value={formatCurrency(summary?.total_revenue || 0)}
           icon={DollarSign}
           variant="primary"
-          trend={summary?.revenue_change ? { value: summary.revenue_change, label: "vs período anterior" } : undefined}
+          trend={summary?.revenue_change ? { value: summary.revenue_change, label: getComparisonLabel(dateRange.start, dateRange.end) } : undefined}
         />
         <StatCard
           title="Pedidos"
