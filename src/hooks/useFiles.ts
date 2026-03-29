@@ -225,7 +225,7 @@ export function useFiles(folderId: string | null = null) {
       queryClient.invalidateQueries({ queryKey: ['files-all-folders', currentTenant?.id] });
       toast.success('Pasta criada com sucesso!');
     },
-    showErrorToast(error, { module: 'arquivos', action: 'criar' });
+    onError: (error) => showErrorToast(error, { module: 'arquivos', action: 'criar' }),
   });
 
   const deleteFile = useMutation({

@@ -117,7 +117,7 @@ export function useAIBlockFill({
 
       if (error) {
         console.error('[useAIBlockFill] Edge function error:', error);
-        onError: (error) => showErrorToast(error, { module: 'IA', action: 'gerar conteúdo' }),
+        showErrorToast(error, { module: 'IA', action: 'gerar conteúdo' });
         return null;
       }
 
