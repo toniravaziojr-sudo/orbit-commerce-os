@@ -137,8 +137,9 @@ export function DateRangeFilter({
     setStartInputValue(value);
     const parsed = parse(value, 'dd/MM/yyyy', new Date());
     if (isValid(parsed)) {
-      setLocalStartDate(parsed);
+      setLocalStartDate(startOfDay(parsed));
       setActivePreset('custom');
+      setSelectionPhase('start');
     }
   };
 
@@ -146,8 +147,9 @@ export function DateRangeFilter({
     setEndInputValue(value);
     const parsed = parse(value, 'dd/MM/yyyy', new Date());
     if (isValid(parsed)) {
-      setLocalEndDate(parsed);
+      setLocalEndDate(endOfDay(parsed));
       setActivePreset('custom');
+      setSelectionPhase('start');
     }
   };
 
@@ -162,6 +164,7 @@ export function DateRangeFilter({
     setStartInputValue('');
     setEndInputValue('');
     setActivePreset(null);
+    setSelectionPhase('start');
     onChange(undefined, undefined);
     setIsOpen(false);
   };
