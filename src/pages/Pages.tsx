@@ -196,7 +196,10 @@ export default function Pages() {
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     const slugValidation = validateSlug(slug);
-    showErrorToast(error, { module: 'páginas', action: 'processar' });
+    if (!slugValidation.isValid) {
+      showErrorToast(new Error(slugValidation.error || 'Slug inválido'), { module: 'páginas', action: 'processar' });
+      return;
+    }
     // Check against ALL pages (institutional + AI + builder LPs) to avoid DB constraint violations
     const isDuplicate = allPages.some(p => p.slug === slug && (!editingPage || p.id !== editingPage.id));
     if (isDuplicate) { toast.error('Já existe uma página com este slug'); return; }
@@ -244,7 +247,7 @@ export default function Pages() {
     const slug = aiPageSlug || generateSlug(aiPageName);
     const slugValidation = validateSlug(slug);
     if (!slugValidation.isValid) {
-      showErrorToast(error, { module: 'páginas', action: 'processar' });
+      showErrorToast(new Error(slugValidation.error || 'Slug inválido'), { module: 'páginas', action: 'processar' });
       return;
     }
 

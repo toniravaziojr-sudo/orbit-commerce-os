@@ -28,11 +28,11 @@ export function FiscalPlatformSettings() {
           description: `Ambiente: ${data.environment === 'production' ? 'Produção' : 'Homologação'}`
         });
       } else {
-        showErrorToast(error, { module: 'integrações', action: 'processar' });
+        showErrorToast(new Error(data?.error || 'Falha ao validar conexão fiscal'), { module: 'integrações', action: 'processar' });
       }
       queryClient.invalidateQueries({ queryKey: ['platform-secrets-status'] });
     },
-    onError: (err) => showErrorToast(error, { module: 'integrações', action: 'testar' }),
+    onError: (error) => showErrorToast(error, { module: 'integrações', action: 'testar' }),
   });
 
   const isClientIdConfigured = secretStatus?.secrets?.NUVEM_FISCAL_CLIENT_ID || false;

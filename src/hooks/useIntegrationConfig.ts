@@ -166,7 +166,7 @@ export function useIntegrationConfig(type: 'payment' | 'shipping') {
       if (result.success) {
         toast.success(result.message);
       } else {
-        showErrorToast(error, { module: 'integrações', action: 'processar' });
+        showErrorToast(new Error(result.message || 'Falha ao testar conexão'), { module: 'integrações', action: 'processar' });
       }
 
       return result;
