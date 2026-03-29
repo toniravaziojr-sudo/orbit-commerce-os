@@ -250,7 +250,7 @@ export function useOrders(options?: {
     },
     onError: (error: Error) => {
       console.error('Erro ao criar pedido:', error);
-      toast.error(error.message || 'Erro ao criar pedido');
+      showSaveErrorToast('pedido', error);
     },
   });
 
@@ -274,7 +274,7 @@ export function useOrders(options?: {
     },
     onError: (error: Error) => {
       console.error('Erro ao atualizar status:', error);
-      toast.error(error.message || 'Erro ao atualizar status');
+      showSaveErrorToast('pedido', error);
     },
   });
 
@@ -298,7 +298,7 @@ export function useOrders(options?: {
     },
     onError: (error: Error) => {
       console.error('Erro ao remover pedido:', error);
-      toast.error(error.message || 'Erro ao remover pedido');
+      showDeleteErrorToast('pedido', error);
     },
   });
 
@@ -385,7 +385,7 @@ export function useOrderDetails(orderId: string | undefined) {
     },
     onError: (error: Error) => {
       console.error('Erro ao adicionar nota:', error);
-      toast.error(error.message || 'Erro ao adicionar nota');
+      showSaveErrorToast('nota do pedido', error);
     },
   });
 
@@ -423,7 +423,7 @@ export function useOrderDetails(orderId: string | undefined) {
     },
     onError: (error: Error) => {
       console.error('Erro ao atualizar código de rastreio:', error);
-      toast.error(error.message || 'Erro ao atualizar código de rastreio');
+      showSaveErrorToast('rastreio', error);
     },
   });
 
@@ -448,7 +448,7 @@ export function useOrderDetails(orderId: string | undefined) {
     },
     onError: (error: Error) => {
       console.error('Erro ao atualizar status de pagamento:', error);
-      toast.error(error.message || 'Erro ao atualizar status de pagamento');
+      showSaveErrorToast('pagamento', error);
     },
   });
 
@@ -481,7 +481,7 @@ export function useOrderDetails(orderId: string | undefined) {
     },
     onError: (error: Error) => {
       console.error('Erro ao atualizar endereço:', error);
-      toast.error(error.message || 'Erro ao atualizar endereço');
+      showSaveErrorToast('endereço do pedido', error);
     },
   });
 
@@ -514,7 +514,7 @@ export function useOrderDetails(orderId: string | undefined) {
     },
     onError: (error: Error) => {
       console.error('Erro ao atualizar status de envio:', error);
-      toast.error(error.message || 'Erro ao atualizar status de envio');
+      showSaveErrorToast('envio', error);
     },
   });
 
@@ -557,7 +557,7 @@ export function useCreateTestOrder() {
     },
     onError: (error: Error) => {
       console.error('Erro ao criar pedido de teste:', error);
-      toast.error(error.message || 'Erro ao criar pedido de teste');
+      showSaveErrorToast('pedido de teste', error);
     },
   });
 }
