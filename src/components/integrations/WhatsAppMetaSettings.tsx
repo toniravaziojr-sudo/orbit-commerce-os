@@ -42,6 +42,7 @@ interface MetaWhatsAppConfig {
   last_connected_at: string | null;
   last_error: string | null;
   token_expires_at: string | null;
+  is_enabled: boolean;
 }
 
 export function WhatsAppMetaSettings() {
@@ -194,6 +195,26 @@ export function WhatsAppMetaSettings() {
     },
   });
 
+  // Register phone number manually
+  const registerPhoneMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("meta-whatsapp-register-phone", {
+        body: { tenant_id: tenantId },
+      });
+      
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Número registrado com sucesso na Cloud API!");
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Erro ao registrar número");
+    },
+  });
+
   // Send test message mutation
   const testMutation = useMutation({
     mutationFn: async () => {
@@ -241,8 +262,86 @@ export function WhatsAppMetaSettings() {
 
   const isConnected = config?.connection_status === "connected";
   const isExpired = config?.connection_status === "token_expired";
+  const isPendingRegistration = config?.connection_status === "pending_registration";
 
-  // CONNECTED STATE
+  // PENDING REGISTRATION STATE
+  if (isPendingRegistration && config) {
+    return (
+      <div className="space-y-4">
+        <Card className="border-2 border-amber-200 dark:border-amber-900">
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/30">
+                  <AlertCircle className="h-7 w-7 text-amber-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    WhatsApp Cloud API
+                    <Badge variant="outline" className="border-amber-400 text-amber-700 dark:text-amber-400">
+                      Registro Pendente
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription>
+                    Número conectado, mas aguardando registro técnico na Meta
+                  </CardDescription>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            <Alert className="border-amber-300 bg-amber-50 dark:bg-amber-950/30">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800 dark:text-amber-200">
+                O número foi vinculado com sucesso, mas a etapa final de registro na Cloud API não foi concluída.
+                Clique no botão abaixo para registrar o número e ativá-lo para envio de mensagens.
+                {config.last_error && (
+                  <span className="block mt-2 text-xs opacity-80">Último erro: {config.last_error}</span>
+                )}
+              </AlertDescription>
+            </Alert>
+
+            <div className="grid gap-4 sm:grid-cols-2 p-4 rounded-lg bg-muted/50">
+              <div className="flex items-start gap-3">
+                <Phone className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Número</p>
+                  <p className="font-medium">{formatPhone(config.display_phone_number || config.phone_number)}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <Building2 className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Nome Verificado</p>
+                  <p className="font-medium">{config.verified_name || "—"}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 justify-center">
+              <Button
+                onClick={() => registerPhoneMutation.mutate()}
+                disabled={registerPhoneMutation.isPending}
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                {registerPhoneMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Zap className="h-4 w-4 mr-2" />
+                )}
+                Registrar Número na Cloud API
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => refetch()}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Atualizar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   if (isConnected && config) {
     return (
       <div className="space-y-4">
@@ -317,6 +416,19 @@ export function WhatsAppMetaSettings() {
               <Button variant="outline" size="sm" onClick={() => refetch()}>
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Atualizar Status
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => registerPhoneMutation.mutate()}
+                disabled={registerPhoneMutation.isPending}
+              >
+                {registerPhoneMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Zap className="h-4 w-4 mr-2" />
+                )}
+                Registrar Número
               </Button>
               <Button 
                 variant="ghost" 

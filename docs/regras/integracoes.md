@@ -141,6 +141,41 @@ A aba `domain-email` unifica duas seções:
 
 > **Z-API e Evolution API foram removidos do sistema em 2026-03-08.** Meta Cloud API é o único provider suportado.
 
+#### Fluxo de Onboarding (Embedded Signup)
+
+1. Usuário clica "Conectar com Meta Business" → `meta-whatsapp-onboarding-start` gera state token e URL
+2. Popup abre para Facebook → usuário autoriza e compartilha WABA + número
+3. Meta redireciona para callback → `meta-whatsapp-onboarding-callback` processa:
+   - Troca `code` por `access_token`
+   - Obtém WABA ID e Phone Number ID via Graph API
+   - Salva credenciais em `whatsapp_configs`
+   - **Registra automaticamente** o número na Cloud API via `POST /{phone-number-id}/register`
+   - Define `connection_status` como `"connected"` (sucesso) ou `"pending_registration"` (falha no registro)
+
+#### Registro Técnico do Número (OBRIGATÓRIO)
+
+Após o Embedded Signup, o número aparece no WhatsApp Manager da Meta mas fica com status **Pendente** até que seja registrado na Cloud API. Sem esse registro, mensagens **não podem ser enviadas nem recebidas**.
+
+| Etapa | Descrição |
+|-------|-----------|
+| Registro automático | Executado no callback após salvar credenciais |
+| Registro manual | Botão "Registrar Número" na UI (usa token salvo, NÃO requer novo OAuth) |
+| Edge Function | `meta-whatsapp-register-phone` — reutiliza `access_token` armazenado |
+| Idempotência | Pode ser chamado múltiplas vezes sem efeito colateral |
+
+**Status de conexão:**
+| Status | Significado |
+|--------|-------------|
+| `connected` | Número registrado e ativo na Cloud API |
+| `pending_registration` | Número vinculado mas registro técnico pendente |
+| `disconnected` | Desconectado pelo usuário |
+| `token_expired` | Token expirado, requer reconexão |
+
+**Botão "Registrar Número":**
+- Visível no estado `connected` (como contingência) e `pending_registration` (como ação principal)
+- Chama `meta-whatsapp-register-phone` que usa o `access_token` já salvo
+- NÃO requer novo OAuth — só precisa de novo auth se o token tiver expirado
+
 #### Modo Teste – WhatsApp Cloud API (Meta)
 
 Disponível em **Integrações → WhatsApp → Meta Oficial** (apenas platform admin).
