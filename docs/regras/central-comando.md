@@ -1,7 +1,7 @@
 # Central de Comando — Regras e Especificações
 
 > **Status:** ✅ Ready  
-> **Última atualização:** 2026-03-07  
+> **Última atualização:** 2026-03-29  
 > **Versão:** v1.0.0
 
 ---
@@ -41,7 +41,7 @@ A Central de Comando (`/command-center`) é a página inicial do sistema adminis
 ### Estrutura Visual (de cima para baixo)
 
 1. **PaymentMethodBanner** — Banner de aviso para plano básico sem cartão
-2. **DateRangeFilter** — Filtro de período (padrão: hoje)
+2. **DateRangeFilter** — Filtro de período padrão do sistema (ver `regras-gerais.md` § Padrão de Datas). Usa `date-presets.ts` como fonte de verdade. Presets: Hoje, Ontem, Últimos 7/30 dias, etc.
 3. **OrderLimitWarning** — Barra de progresso de limite de pedidos do plano
 4. **Stats Grid** — 4 StatCards (Vendas, Pedidos, Ticket Médio, Novos Clientes)
 5. **CommunicationsWidget** — Atendimentos, erros de notificação, emails não lidos
@@ -346,3 +346,4 @@ Componentes visuais usados por **3 chats** do sistema (Auxiliar de Comando, Chat
 6. **Ações Rápidas** — Botões sem onClick implementado (pendência futura — devem navegar para `/products/new`, `/orders/new`, `/customers?action=new`, etc.)
 7. **Feriados** — Usa `src/lib/brazilian-holidays.ts` para feriados nacionais BR
 8. **WhatsApp** — Agenda depende de integração WhatsApp conectada para envio de lembretes
+9. **Calendário Agenda** — Usa `MonthlyCalendar` (componente unificado — ver `regras-gerais.md` § MonthlyCalendar) com render prop para tarefas/lembretes
