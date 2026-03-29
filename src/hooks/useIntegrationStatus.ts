@@ -4,6 +4,7 @@ import { useOlistConnection } from "@/hooks/useOlistConnection";
 import { useMetaConnection } from "@/hooks/useMetaConnection";
 import { useFiscalSettings } from "@/hooks/useFiscal";
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
+import { useWhatsAppStatus } from "@/hooks/useWhatsAppStatus";
 
 export type IntegrationType = 
   | "mercadolivre" 
@@ -53,6 +54,9 @@ export function useIntegrationStatus() {
   // Redes Sociais (Meta - Facebook/Instagram)
   const { isConnected: metaConnected, isLoading: metaLoading } = useMetaConnection();
 
+  // WhatsApp
+  const { status: whatsappStatus, isLoading: whatsappLoading } = useWhatsAppStatus();
+
   // Fiscal
   const { settings: fiscalSettings, isLoading: fiscalLoading } = useFiscalSettings();
   const fiscalConfigured = !!fiscalSettings?.is_configured && !!fiscalSettings?.cnpj;
@@ -89,9 +93,9 @@ export function useIntegrationStatus() {
     },
     whatsapp: {
       name: "WhatsApp",
-      isConfigured: true,
-      isConnected: false, // TODO: Implementar verificação real
-      isLoading: false,
+      isConfigured: whatsappStatus.isConfigured,
+      isConnected: whatsappStatus.isConnected,
+      isLoading: whatsappLoading,
       redirectPath: "/integrations",
       buttonText: "Configurar WhatsApp",
     },
