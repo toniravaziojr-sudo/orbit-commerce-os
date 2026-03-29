@@ -41,7 +41,7 @@ A Central de Comando (`/command-center`) é a página inicial do sistema adminis
 ### Estrutura Visual (de cima para baixo)
 
 1. **PaymentMethodBanner** — Banner de aviso para plano básico sem cartão
-2. **DateRangeFilter** — Filtro de período padrão do sistema (ver `regras-gerais.md` § Padrão de Datas). Usa `date-presets.ts` como fonte de verdade. Presets: Hoje, Ontem, Últimos 7/30 dias, etc.
+2. **DateRangeFilter** — Filtro de período padrão do sistema (ver `regras-gerais.md` § Padrão de Datas). Usa `date-presets.ts` como fonte de verdade e `date-timezone.ts` para queries corretas no timezone de SP. Presets: Hoje, Ontem, Últimos 7/30 dias, etc. Semana inicia na segunda-feira.
 3. **OrderLimitWarning** — Barra de progresso de limite de pedidos do plano
 4. **Stats Grid** — 4 StatCards (Vendas, Pedidos, Ticket Médio, Novos Clientes)
 5. **CommunicationsWidget** — Atendimentos, erros de notificação, emails não lidos
