@@ -10,6 +10,7 @@ import { Loader2, FileDown, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { ProductSelector, type ProductWithFiscal } from './ProductSelector';
 

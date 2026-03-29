@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
+import { showErrorToast } from '@/lib/error-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { format, differenceInHours, parseISO } from 'date-fns';
