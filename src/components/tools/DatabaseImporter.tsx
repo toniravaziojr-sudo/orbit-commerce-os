@@ -149,7 +149,7 @@ export function DatabaseImporter() {
         toast.warning(`Importação concluída com ${totalErrors} erro(s): ${totalImported} registros importados`);
       }
     } catch (err: any) {
-      onError: (err) => showErrorToast(err, { module: 'ferramentas', action: 'processar' }),
+      showErrorToast(err, { module: 'ferramentas', action: 'processar' });
     } finally {
       setImporting(false);
     }

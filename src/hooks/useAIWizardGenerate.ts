@@ -200,7 +200,7 @@ export function useAIWizardGenerate({
       return merged;
     } catch (err) {
       console.error('[useAIWizardGenerate] Unexpected error:', err);
-      onError: (err) => showErrorToast(err, { module: 'IA', action: 'gerar conteúdo visual' }),
+      showErrorToast(err, { module: 'IA', action: 'gerar conteúdo visual' });
       return null;
     } finally {
       setIsGenerating(false);

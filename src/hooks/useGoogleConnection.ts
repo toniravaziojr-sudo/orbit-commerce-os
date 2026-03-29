@@ -120,7 +120,7 @@ export function useGoogleConnection() {
           if (event.data.success) {
             toast.success(`Google conectado! (${event.data.account || ""})`);
           } else {
-            onError: (err) => showErrorToast(err, { module: 'google', action: 'conectar' }),
+            showErrorToast(err, { module: 'google', action: 'conectar' });
           }
         }
       };

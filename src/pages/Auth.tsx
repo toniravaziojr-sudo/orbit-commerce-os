@@ -245,7 +245,7 @@ export default function Auth() {
         if (error.message.includes('User already registered')) {
           toast.error('Este email já está cadastrado. Tente fazer login.');
         } else {
-          onError: (err) => showErrorToast(err, { module: 'autenticação', action: 'processar' }),
+          showErrorToast(error, { module: 'autenticação', action: 'processar' });
         }
         return;
       }
@@ -335,7 +335,7 @@ export default function Auth() {
       const { error } = await resetPassword(data.email);
       
       if (error) {
-        onError: (err) => showErrorToast(err, { module: 'autenticação', action: 'processar' }),
+        showErrorToast(err, { module: 'autenticação', action: 'processar' });
         return;
       }
 

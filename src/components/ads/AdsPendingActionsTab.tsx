@@ -123,7 +123,7 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-sessions"] });
       toast.success("Feedback enviado! A IA está gerando um novo plano com seus ajustes...");
     } catch (err: any) {
-      onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'enviar' }),
+      showErrorToast(err, { module: 'anúncios', action: 'enviar' });
     } finally {
       setAdjustingId(null);
     }

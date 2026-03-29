@@ -28,7 +28,7 @@ export function LogisticsPlatformSettings() {
           description: `Token expira em ${data.expiresIn}s`
         });
       } else {
-        onError: (err) => showErrorToast(err, { module: 'integrações', action: 'conectar' }),
+        showErrorToast(err, { module: 'integrações', action: 'conectar' });
       }
       queryClient.invalidateQueries({ queryKey: ['platform-secrets-status'] });
     },

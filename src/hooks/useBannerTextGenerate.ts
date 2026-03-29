@@ -70,7 +70,7 @@ export function useBannerTextGenerate({ tenantId }: BannerTextGenerateParams) {
       };
     } catch (err) {
       console.error('[useBannerTextGenerate] Unexpected error:', err);
-      onError: (err) => showErrorToast(err, { module: 'IA', action: 'gerar textos do banner' }),
+      showErrorToast(err, { module: 'IA', action: 'gerar textos do banner' });
       return null;
     } finally {
       setIsGenerating(false);

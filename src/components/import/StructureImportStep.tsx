@@ -159,7 +159,7 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
       console.error('Error importing categories:', err);
       setErrors(e => [...e, `Categorias: ${err.message}`]);
       setProgress(p => ({ ...p, categories: 'error' }));
-      onError: (err) => showErrorToast(err, { module: 'importação', action: 'importar' }),
+      showErrorToast(err, { module: 'importação', action: 'importar' });
     } finally {
       setIsProcessing(false);
       setCurrentStep(null);
@@ -195,7 +195,7 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
       console.error('Error importing pages:', err);
       setErrors(e => [...e, `Páginas: ${err.message}`]);
       setProgress(p => ({ ...p, pages: 'error' }));
-      onError: (err) => showErrorToast(err, { module: 'importação', action: 'processar' }),
+      showErrorToast(err, { module: 'importação', action: 'processar' });
     } finally {
       setIsProcessing(false);
       setCurrentStep(null);
@@ -233,7 +233,7 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
       console.error('Error importing menus:', err);
       setErrors(e => [...e, `Menus: ${err.message}`]);
       setProgress(p => ({ ...p, menus: 'error' }));
-      onError: (err) => showErrorToast(err, { module: 'importação', action: 'processar' }),
+      showErrorToast(err, { module: 'importação', action: 'processar' });
     } finally {
       setIsProcessing(false);
       setCurrentStep(null);

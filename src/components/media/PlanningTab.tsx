@@ -246,7 +246,7 @@ export function PlanningTab({
         toast.success(data.message || "Estratégia gerada!");
         setSelectedDays(new Set()); setIsSelectMode(false); setStrategyPrompt("");
         await refetchItems();
-      onError: (err) => showErrorToast(err, { module: 'mídia', action: 'gerar' }),
+      showErrorToast(err, { module: 'mídia', action: 'gerar' });
     } catch { toast.error("Erro ao gerar estratégia"); }
     finally { setIsGenerating(false); }
   };
@@ -297,7 +297,7 @@ export function PlanningTab({
       });
       if (error) throw error;
       if (data?.success) { toast.success(data.message || "Copys geradas!"); await refetchItems(); }
-      onError: (err) => showErrorToast(err, { module: 'mídia', action: 'gerar' }),
+      showErrorToast(err, { module: 'mídia', action: 'gerar' });
     } catch { toast.error("Erro ao gerar copys"); }
     finally { setIsGeneratingCopys(false); }
   };

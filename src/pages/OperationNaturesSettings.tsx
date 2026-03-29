@@ -458,7 +458,7 @@ export default function OperationNaturesSettings() {
       loadNatures();
     } catch (error: any) {
       console.error('Error saving nature:', error);
-      onError: (err) => showErrorToast(err, { action: 'salvar' }),
+      showErrorToast(err, { action: 'salvar' });
     } finally {
       setIsSaving(false);
     }
@@ -480,7 +480,7 @@ export default function OperationNaturesSettings() {
       loadNatures();
     } catch (error: any) {
       console.error('Error deleting nature:', error);
-      onError: (err) => showErrorToast(err, { action: 'excluir' }),
+      showErrorToast(err, { action: 'excluir' });
     }
   };
 

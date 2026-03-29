@@ -150,7 +150,7 @@ export function WhatsAppMetaPlatformSettings() {
       } else {
         setTestResult({ success: false, message: data.error || "Erro desconhecido" });
         setTestChecklist((prev) => ({ ...prev, sendOk: false }));
-        onError: (err) => showErrorToast(err, { module: 'integrações', action: 'enviar' }),
+        showErrorToast(err, { module: 'integrações', action: 'enviar' });
       }
     },
     onError: (error: any) => {
