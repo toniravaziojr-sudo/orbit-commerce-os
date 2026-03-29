@@ -262,8 +262,8 @@ export function DateRangeFilter({
             <div className="flex gap-2">
               <CalendarComponent
                 mode="single"
-                selected={localStartDate}
-                onSelect={handleStartDateSelect}
+                selected={selectionPhase === 'end' ? localStartDate : localStartDate}
+                onSelect={handleCalendarDayClick}
                 month={calendarMonth}
                 onMonthChange={setCalendarMonth}
                 locale={ptBR}
@@ -273,6 +273,7 @@ export function DateRangeFilter({
                     from: localStartDate,
                     to: localEndDate,
                   } : undefined,
+                  rangeStart: localStartDate ? localStartDate : undefined,
                 }}
                 modifiersStyles={{
                   range: {
@@ -283,7 +284,7 @@ export function DateRangeFilter({
               <CalendarComponent
                 mode="single"
                 selected={localEndDate}
-                onSelect={handleEndDateSelect}
+                onSelect={handleCalendarDayClick}
                 month={nextMonth}
                 onMonthChange={(month) => {
                   const prev = new Date(month);
