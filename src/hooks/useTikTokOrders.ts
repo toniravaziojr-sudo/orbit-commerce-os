@@ -98,9 +98,7 @@ export function useTikTokOrders(filters?: OrderFilters) {
         toast.success(`${result.synced} pedido(s) sincronizado(s) do TikTok Shop`);
       }
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'sincronizar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'sincronizar' }),
   });
 
   // Buscar detalhes de um pedido
@@ -119,9 +117,7 @@ export function useTikTokOrders(filters?: OrderFilters) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tiktok-shop-orders'] });
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'carregar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'carregar' }),
   });
 
   return {

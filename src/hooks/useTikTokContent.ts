@@ -52,9 +52,7 @@ export function useTikTokContent() {
       queryClient.invalidateQueries({ queryKey: ['tiktok-content-videos'] });
       toast.success(`${data.synced} vídeos sincronizados`);
     },
-    onError: (err: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'sincronizar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'sincronizar' }),
   });
 
   // Sync analytics
@@ -71,9 +69,7 @@ export function useTikTokContent() {
       queryClient.invalidateQueries({ queryKey: ['tiktok-content-analytics'] });
       toast.success(`Analytics sincronizados para ${data.synced} vídeos`);
     },
-    onError: (err: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'sincronizar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'sincronizar' }),
   });
 
   // Init upload
@@ -89,9 +85,7 @@ export function useTikTokContent() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tiktok-content-videos'] });
     },
-    onError: (err: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'carregar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'carregar' }),
   });
 
   // Check status
@@ -123,9 +117,7 @@ export function useTikTokContent() {
       queryClient.invalidateQueries({ queryKey: ['tiktok-content-videos'] });
       toast.success('Vídeo removido');
     },
-    onError: (err: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'excluir' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'excluir' }),
   });
 
   // Sync all

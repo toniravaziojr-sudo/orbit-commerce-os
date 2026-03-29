@@ -109,9 +109,7 @@ export function useTikTokFulfillment(filters?: FulfillmentFilters) {
       queryClient.invalidateQueries({ queryKey: ['tiktok-shop-orders'] });
       toast.success('Rastreio enviado ao TikTok Shop com sucesso');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'enviar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'enviar' }),
   });
 
   return {

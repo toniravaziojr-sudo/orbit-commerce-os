@@ -125,9 +125,7 @@ export function useProductComponents(productId: string | undefined) {
       queryClient.invalidateQueries({ queryKey: ['product-components', productId] });
       toast.success('Componente adicionado');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'produtos', action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'produtos', action: 'processar' }),
   });
 
   const updateComponent = useMutation({
@@ -150,9 +148,7 @@ export function useProductComponents(productId: string | undefined) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-components', productId] });
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'produtos', action: 'salvar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'produtos', action: 'salvar' }),
   });
 
   const deleteComponent = useMutation({
@@ -168,9 +164,7 @@ export function useProductComponents(productId: string | undefined) {
       queryClient.invalidateQueries({ queryKey: ['product-components', productId] });
       toast.success('Componente removido');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'produtos', action: 'excluir' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'produtos', action: 'excluir' }),
   });
 
   const reorderComponents = useMutation({

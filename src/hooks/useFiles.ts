@@ -225,9 +225,7 @@ export function useFiles(folderId: string | null = null) {
       queryClient.invalidateQueries({ queryKey: ['files-all-folders', currentTenant?.id] });
       toast.success('Pasta criada com sucesso!');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'arquivos', action: 'criar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'arquivos', action: 'criar' }),
   });
 
   const deleteFile = useMutation({
@@ -252,9 +250,7 @@ export function useFiles(folderId: string | null = null) {
       queryClient.invalidateQueries({ queryKey: ['files', currentTenant?.id] });
       toast.success('Arquivo excluído com sucesso!');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'arquivos', action: 'excluir' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'arquivos', action: 'excluir' }),
   });
 
   const moveFile = useMutation({
@@ -290,9 +286,7 @@ export function useFiles(folderId: string | null = null) {
       queryClient.invalidateQueries({ queryKey: ['files-all-folders', currentTenant?.id] });
       toast.success('Arquivo movido com sucesso!');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'arquivos', action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'arquivos', action: 'processar' }),
   });
 
   const renameFile = useMutation({
@@ -312,9 +306,7 @@ export function useFiles(folderId: string | null = null) {
       queryClient.invalidateQueries({ queryKey: ['files-all-folders', currentTenant?.id] });
       toast.success('Arquivo renomeado com sucesso!');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'arquivos', action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'arquivos', action: 'processar' }),
   });
 
   const getFileUrl = async (file: FileItem): Promise<string | null> => {

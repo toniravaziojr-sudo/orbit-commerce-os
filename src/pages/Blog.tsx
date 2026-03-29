@@ -176,9 +176,7 @@ export default function Blog() {
       toast.success('Post criado com sucesso');
       navigate(`/blog/${newPost.id}/editor`);
     },
-    onError: (error: any) => {
-      onError: (err) => showErrorToast(err, { module: 'blog', action: 'criar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'blog', action: 'criar' }),
   });
 
   // Update post mutation
@@ -210,9 +208,7 @@ export default function Blog() {
       queryClient.invalidateQueries({ queryKey: ['blog-posts'] });
       toast.success('Post atualizado');
     },
-    onError: (error: any) => {
-      onError: (err) => showErrorToast(err, { module: 'blog', action: 'salvar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'blog', action: 'salvar' }),
   });
 
   // Delete post mutation
@@ -230,9 +226,7 @@ export default function Blog() {
       toast.success('Post excluído');
       setDeleteId(null);
     },
-    onError: (error: any) => {
-      onError: (err) => showErrorToast(err, { module: 'blog', action: 'excluir' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'blog', action: 'excluir' }),
   });
 
   const resetForm = () => {

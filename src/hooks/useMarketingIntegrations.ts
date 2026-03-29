@@ -118,9 +118,7 @@ export function useMarketingIntegrations() {
       queryClient.invalidateQueries({ queryKey: ['marketing-integrations'] });
       toast.success('Configuração salva com sucesso');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'salvar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'integrações', action: 'salvar' }),
   });
 
   return {

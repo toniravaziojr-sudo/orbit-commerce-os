@@ -86,9 +86,7 @@ export function useTikTokReturns(filters?: ReturnFilters) {
       queryClient.invalidateQueries({ queryKey: ['tiktok-shop-returns'] });
       toast.success(`${result?.synced || 0} devolução(ões) sincronizada(s)`);
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'sincronizar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'sincronizar' }),
   });
 
   // Approve return
@@ -108,9 +106,7 @@ export function useTikTokReturns(filters?: ReturnFilters) {
       queryClient.invalidateQueries({ queryKey: ['tiktok-shop-returns'] });
       toast.success('Devolução aprovada com sucesso');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'aprovar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'aprovar' }),
   });
 
   // Reject return
@@ -130,9 +126,7 @@ export function useTikTokReturns(filters?: ReturnFilters) {
       queryClient.invalidateQueries({ queryKey: ['tiktok-shop-returns'] });
       toast.success('Devolução rejeitada');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'processar' }),
   });
 
   return {

@@ -81,9 +81,7 @@ export function useProductBadges() {
       queryClient.invalidateQueries({ queryKey: ['product-badges', currentTenantId] });
       toast.success('Selo criado com sucesso');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'produtos', action: 'criar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'produtos', action: 'criar' }),
   });
 
   const updateBadge = useMutation({
@@ -109,9 +107,7 @@ export function useProductBadges() {
       queryClient.invalidateQueries({ queryKey: ['product-badges', currentTenantId] });
       toast.success('Selo atualizado');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'produtos', action: 'salvar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'produtos', action: 'salvar' }),
   });
 
   const deleteBadge = useMutation({
@@ -127,9 +123,7 @@ export function useProductBadges() {
       queryClient.invalidateQueries({ queryKey: ['product-badges', currentTenantId] });
       toast.success('Selo removido');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'produtos', action: 'excluir' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'produtos', action: 'excluir' }),
   });
 
   const toggleBadge = useMutation({
@@ -147,9 +141,7 @@ export function useProductBadges() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product-badges', currentTenantId] });
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'produtos', action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'produtos', action: 'processar' }),
   });
 
   return {
@@ -292,9 +284,7 @@ export function useBadgeAssignments(badgeId: string | undefined) {
       queryClient.invalidateQueries({ queryKey: ['product-badge-assignments'] });
       toast.success('Produtos atualizados');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'produtos', action: 'salvar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'produtos', action: 'salvar' }),
   });
 
   return {

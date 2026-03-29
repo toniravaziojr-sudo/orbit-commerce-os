@@ -193,9 +193,7 @@ export function MetaUnifiedSettings() {
       toast.success("Mensagem de teste enviada!");
       setTestPhone("");
     },
-    onError: (error: any) => {
-      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'enviar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'integrações', action: 'enviar' }),
   });
 
   // Step 1: Request SMS/Voice verification code
@@ -217,9 +215,7 @@ export function MetaUnifiedSettings() {
       }
       queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
     },
-    onError: (error: any) => {
-      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'integrações', action: 'processar' }),
   });
 
   // Step 2: Verify SMS/Voice code
@@ -238,9 +234,7 @@ export function MetaUnifiedSettings() {
       setRegistrationStep("code_verified");
       queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
     },
-    onError: (error: any) => {
-      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'verificar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'integrações', action: 'verificar' }),
   });
 
   // Step 3: Register phone number on Cloud API
@@ -264,9 +258,7 @@ export function MetaUnifiedSettings() {
       setRegistrationStep("idle");
       queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
     },
-    onError: (error: any) => {
-      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'registrar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'integrações', action: 'registrar' }),
   });
 
   // O isLoading fica true durante refetches/invalidações de query

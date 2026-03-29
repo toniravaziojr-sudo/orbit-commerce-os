@@ -101,9 +101,7 @@ export function usePurchases() {
       queryClient.invalidateQueries({ queryKey: ['purchases', tenantId] });
       toast.success('Pedido de compra criado com sucesso');
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'compras', action: 'criar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'compras', action: 'criar' }),
   });
 
   const updatePurchase = useMutation({
@@ -122,9 +120,7 @@ export function usePurchases() {
       queryClient.invalidateQueries({ queryKey: ['purchases', tenantId] });
       toast.success('Pedido de compra atualizado com sucesso');
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'compras', action: 'salvar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'compras', action: 'salvar' }),
   });
 
   const deletePurchase = useMutation({
@@ -140,9 +136,7 @@ export function usePurchases() {
       queryClient.invalidateQueries({ queryKey: ['purchases', tenantId] });
       toast.success('Pedido de compra removido com sucesso');
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'compras', action: 'excluir' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'compras', action: 'excluir' }),
   });
 
   // Stats

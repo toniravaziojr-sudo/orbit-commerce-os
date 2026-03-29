@@ -103,9 +103,7 @@ export function useAffiliateProgram() {
       queryClient.invalidateQueries({ queryKey: ['affiliate-program', tenantId] });
       toast.success('Programa de afiliados atualizado');
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'afiliados', action: 'salvar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'afiliados', action: 'salvar' }),
   });
 
   return { program, isLoading, upsertProgram };
@@ -148,9 +146,7 @@ export function useAffiliates() {
       queryClient.invalidateQueries({ queryKey: ['affiliates', tenantId] });
       toast.success('Afiliado criado com sucesso');
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'afiliados', action: 'criar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'afiliados', action: 'criar' }),
   });
 
   const updateAffiliate = useMutation({
@@ -169,9 +165,7 @@ export function useAffiliates() {
       queryClient.invalidateQueries({ queryKey: ['affiliates', tenantId] });
       toast.success('Afiliado atualizado');
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'afiliados', action: 'salvar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'afiliados', action: 'salvar' }),
   });
 
   const deleteAffiliate = useMutation({
@@ -187,9 +181,7 @@ export function useAffiliates() {
       queryClient.invalidateQueries({ queryKey: ['affiliates', tenantId] });
       toast.success('Afiliado removido');
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'afiliados', action: 'excluir' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'afiliados', action: 'excluir' }),
   });
 
   return { affiliates, isLoading, createAffiliate, updateAffiliate, deleteAffiliate };
@@ -236,9 +228,7 @@ export function useAffiliateLinks(affiliateId?: string) {
       queryClient.invalidateQueries({ queryKey: ['affiliate-links', tenantId] });
       toast.success('Link criado com sucesso');
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'afiliados', action: 'criar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'afiliados', action: 'criar' }),
   });
 
   return { links, isLoading, createLink };
@@ -285,9 +275,7 @@ export function useAffiliateConversions(affiliateId?: string) {
       queryClient.invalidateQueries({ queryKey: ['affiliate-conversions', tenantId] });
       toast.success('Status atualizado');
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'afiliados', action: 'salvar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'afiliados', action: 'salvar' }),
   });
 
   return { conversions, isLoading, updateConversionStatus };
@@ -379,9 +367,7 @@ export function useAffiliatePayouts(affiliateId?: string) {
       queryClient.invalidateQueries({ queryKey: ['affiliate-payouts', tenantId] });
       toast.success('Pagamento registrado');
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'afiliados', action: 'registrar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'afiliados', action: 'registrar' }),
   });
 
   const updatePayout = useMutation({
@@ -400,9 +386,7 @@ export function useAffiliatePayouts(affiliateId?: string) {
       queryClient.invalidateQueries({ queryKey: ['affiliate-payouts', tenantId] });
       toast.success('Pagamento atualizado');
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'afiliados', action: 'salvar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'afiliados', action: 'salvar' }),
   });
 
   return { payouts, isLoading, createPayout, updatePayout };

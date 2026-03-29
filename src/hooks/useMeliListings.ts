@@ -318,9 +318,7 @@ export function useMeliListings() {
       queryClient.invalidateQueries({ queryKey: ['meli-listings'] });
       toast.success(data.message || 'Sincronização concluída');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'mercado livre', action: 'sincronizar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'mercado livre', action: 'sincronizar' }),
   });
 
   return {

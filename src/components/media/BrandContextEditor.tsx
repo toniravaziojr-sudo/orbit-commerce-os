@@ -139,9 +139,7 @@ export function BrandContextEditor() {
       toast.success("Contexto de marca salvo");
       queryClient.invalidateQueries({ queryKey: ["brand-context"] });
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'mídia', action: 'salvar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'mídia', action: 'salvar' }),
   });
 
   // Upload packshot

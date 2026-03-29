@@ -54,9 +54,7 @@ export function usePurchaseSupplierTypes() {
       queryClient.invalidateQueries({ queryKey: ['purchase-supplier-types', tenantId] });
       toast.success('Tipo de fornecedor criado');
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'compras', action: 'criar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'compras', action: 'criar' }),
   });
 
   const deleteSupplierType = useMutation({
@@ -72,9 +70,7 @@ export function usePurchaseSupplierTypes() {
       queryClient.invalidateQueries({ queryKey: ['purchase-supplier-types', tenantId] });
       toast.success('Tipo de fornecedor removido');
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'compras', action: 'excluir' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'compras', action: 'excluir' }),
   });
 
   return {

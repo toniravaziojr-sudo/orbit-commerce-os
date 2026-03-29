@@ -354,9 +354,7 @@ export function useDeleteVideoJob() {
       queryClient.invalidateQueries({ queryKey: ['video-jobs'] });
       toast.success('Job excluído com sucesso');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'vídeo', action: 'excluir' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'vídeo', action: 'excluir' }),
   });
 }
 
@@ -412,9 +410,7 @@ export function useSelectBestCandidate() {
       queryClient.invalidateQueries({ queryKey: ['video-candidates'] });
       toast.success('Vídeo selecionado como principal');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'vídeo', action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'vídeo', action: 'processar' }),
   });
 }
 

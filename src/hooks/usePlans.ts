@@ -226,9 +226,7 @@ export function useActivateSubscription() {
         toast.info('Aguardando pagamento do Pix');
       }
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'planos', action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'planos', action: 'processar' }),
   });
 }
 

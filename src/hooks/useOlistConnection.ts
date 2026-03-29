@@ -98,9 +98,7 @@ export function useOlistConnection() {
         }
       }
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'olist', action: 'carregar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'olist', action: 'carregar' }),
   });
 
   const disconnectMutation = useMutation({
@@ -123,9 +121,7 @@ export function useOlistConnection() {
       toast.success("Conta Olist desconectada");
       queryClient.invalidateQueries({ queryKey: ["olist-connection-status"] });
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'olist', action: 'conectar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'olist', action: 'conectar' }),
   });
 
   const refreshTokenMutation = useMutation({
@@ -148,9 +144,7 @@ export function useOlistConnection() {
       toast.success("Token renovado com sucesso");
       queryClient.invalidateQueries({ queryKey: ["olist-connection-status"] });
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'olist', action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'olist', action: 'processar' }),
   });
 
   // Verificar se token está próximo de expirar

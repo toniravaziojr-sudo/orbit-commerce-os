@@ -145,9 +145,7 @@ export function GenerateReviewsDialog({ trigger }: GenerateReviewsDialogProps) {
       resetDialog();
       setOpen(false);
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'avaliações', action: 'salvar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'avaliações', action: 'salvar' }),
   });
 
   const renderStars = (rating: number) => (

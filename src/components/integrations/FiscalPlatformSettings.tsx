@@ -32,9 +32,7 @@ export function FiscalPlatformSettings() {
       }
       queryClient.invalidateQueries({ queryKey: ['platform-secrets-status'] });
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'testar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'integrações', action: 'testar' }),
   });
 
   const isClientIdConfigured = secretStatus?.secrets?.NUVEM_FISCAL_CLIENT_ID || false;

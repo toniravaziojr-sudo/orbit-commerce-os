@@ -102,9 +102,7 @@ export function useShopeeOrders({ status, page = 1, pageSize = 20 }: UseShopeeOr
       toast.success(`Sincronização concluída: ${data.synced} pedidos`);
       queryClient.invalidateQueries({ queryKey: ["shopee-orders"] });
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'shopee', action: 'sincronizar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'shopee', action: 'sincronizar' }),
   });
 
   return {

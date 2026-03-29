@@ -48,9 +48,7 @@ export function CredentialEditor({
       setIsEditing(false);
       queryClient.invalidateQueries({ queryKey: ['platform-secrets-status'] });
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'salvar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'integrações', action: 'salvar' }),
   });
 
   const handleSave = () => {

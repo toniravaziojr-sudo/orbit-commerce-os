@@ -76,9 +76,7 @@ export function ReviewForm({ productId, tenantId, onSuccess }: ReviewFormProps) 
       
       onSuccess?.();
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'loja', action: 'enviar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'loja', action: 'enviar' }),
   });
 
   const handleSubmit = (e: React.FormEvent) => {

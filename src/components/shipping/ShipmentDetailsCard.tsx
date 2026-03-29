@@ -125,9 +125,7 @@ export function ShipmentDetailsCard({ shipment, events, eventsLoading }: Shipmen
         toast.info('Etiqueta não disponível');
       }
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'logística', action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'logística', action: 'processar' }),
   });
 
   // Atualizar rastreamento
@@ -145,9 +143,7 @@ export function ShipmentDetailsCard({ shipment, events, eventsLoading }: Shipmen
       queryClient.invalidateQueries({ queryKey: ['admin-shipments'] });
       queryClient.invalidateQueries({ queryKey: ['shipment-events', shipment.id] });
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'logística', action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'logística', action: 'processar' }),
   });
 
   const handleCopyTracking = () => {

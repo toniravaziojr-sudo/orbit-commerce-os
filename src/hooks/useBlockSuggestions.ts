@@ -108,9 +108,7 @@ export function useBlockSuggestions(options: UseBlockSuggestionsOptions = {}) {
       queryClient.invalidateQueries({ queryKey: ['block-implementation-requests'] });
       toast.success('Status atualizado');
     },
-    onError: (error: any) => {
-      onError: (err) => showErrorToast(err, { action: 'salvar' }),
-    },
+    onError: (err) => showErrorToast(err, { action: 'salvar' }),
   });
 
   // Mark as implemented
@@ -152,9 +150,7 @@ export function useBlockSuggestions(options: UseBlockSuggestionsOptions = {}) {
       queryClient.invalidateQueries({ queryKey: ['block-implementation-requests'] });
       toast.success('Marcado como implementado');
     },
-    onError: (error: any) => {
-      onError: (err) => showErrorToast(err, { action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { action: 'processar' }),
   });
 
   // Map to existing block
@@ -184,9 +180,7 @@ export function useBlockSuggestions(options: UseBlockSuggestionsOptions = {}) {
       queryClient.invalidateQueries({ queryKey: ['block-implementation-requests'] });
       toast.success('Mapeado para bloco existente');
     },
-    onError: (error: any) => {
-      onError: (err) => showErrorToast(err, { action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { action: 'processar' }),
   });
 
   // Reject request
@@ -222,9 +216,7 @@ export function useBlockSuggestions(options: UseBlockSuggestionsOptions = {}) {
       queryClient.invalidateQueries({ queryKey: ['block-implementation-requests'] });
       toast.success('Solicitação rejeitada');
     },
-    onError: (error: any) => {
-      onError: (err) => showErrorToast(err, { action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { action: 'processar' }),
   });
 
   // Calculate counts by status

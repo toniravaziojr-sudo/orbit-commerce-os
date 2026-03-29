@@ -75,9 +75,7 @@ export function useMetaCatalog() {
       queryClient.invalidateQueries({ queryKey: ["meta-catalogs"] });
       queryClient.invalidateQueries({ queryKey: ["meta-connection-status"] });
     },
-    onError: (err: any) => {
-      onError: (err) => showErrorToast(err, { module: 'meta', action: 'criar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'meta', action: 'criar' }),
   });
 
   // Sync products to catalog
@@ -97,9 +95,7 @@ export function useMetaCatalog() {
       }
       queryClient.invalidateQueries({ queryKey: ["meta-catalog-items"] });
     },
-    onError: (err: any) => {
-      onError: (err) => showErrorToast(err, { module: 'meta', action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'meta', action: 'processar' }),
   });
 
   return {

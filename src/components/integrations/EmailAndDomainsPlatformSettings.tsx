@@ -108,9 +108,7 @@ export function EmailAndDomainsPlatformSettings() {
       }
       queryClient.invalidateQueries({ queryKey: ['platform-secrets-status'] });
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'testar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'integrações', action: 'testar' }),
   });
 
   useEffect(() => {
