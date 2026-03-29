@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const VERSION = "1.0.0";
 

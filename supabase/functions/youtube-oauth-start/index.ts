@@ -3,6 +3,7 @@
 // ==============================================
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -127,13 +128,6 @@ Deno.serve(async (req) => {
     );
 
   } catch (error) {
-    console.error("[youtube-oauth-start] Error:", error);
-    return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error instanceof Error ? error.message : "Erro interno" 
-      }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'youtube', action: 'oauth-start' });
   }
 });

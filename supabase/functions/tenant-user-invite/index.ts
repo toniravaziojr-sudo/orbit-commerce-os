@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -358,12 +359,8 @@ const handler = async (req: Request): Promise<Response> => {
       JSON.stringify({ success: true, message: "Convite enviado com sucesso" }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
-  } catch (error: any) {
-    console.error("[tenant-user-invite] Error:", error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
-    );
+  } catch (error) {
+    return errorResponse(error, corsHeaders, { module: 'tenant', action: 'user-invite' });
   }
 };
 

@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { NUVEMSHOP_PATTERNS } from '../_shared/platform-adapters/nuvemshop-adapter.ts';
+import { errorResponse } from "../_shared/error-response.ts";
 
 const VERSION = '2026-01-30.2130';
 

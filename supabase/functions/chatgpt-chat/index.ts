@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMemoryContext } from "../_shared/ai-memory.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const VERSION = "4.0.0"; // + AI Memory (long-term + conversation summaries)
 

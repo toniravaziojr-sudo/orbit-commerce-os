@@ -10,6 +10,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

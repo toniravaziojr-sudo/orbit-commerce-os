@@ -7,6 +7,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -173,12 +174,8 @@ serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error: any) {
-    console.error('[shipping-get-label] Error:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+  } catch (error) {
+    return errorResponse(error, corsHeaders, { module: 'shipping', action: 'get-label' });
   }
 });
 

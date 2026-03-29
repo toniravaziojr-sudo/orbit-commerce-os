@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const VERSION = "2.0.0";
 
@@ -178,14 +179,7 @@ serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error(`[media-video-generate v${VERSION}] Error:`, error);
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'media', action: 'video-generate' });
   }
 });
 

@@ -6,6 +6,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { resolveTenantFromHostname } from '../_shared/resolveTenant.ts';
+import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
 const VERSION = "v4.0.0"; // Unified resolve-domain + bootstrap

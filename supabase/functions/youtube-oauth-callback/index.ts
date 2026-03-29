@@ -5,6 +5,7 @@
 // ==============================================
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
 const VERSION = "v2.0.0"; // Phase 2: dual-write to google_connections

@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
 const VERSION = "v1.0.0"; // Google token refresh
@@ -143,10 +144,6 @@ Deno.serve(async (req) => {
     );
 
   } catch (error) {
-    console.error(`[google-token-refresh][${VERSION}] Error:`, error);
-    return new Response(
-      JSON.stringify({ success: false, error: error instanceof Error ? error.message : "Erro interno" }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'google', action: 'token-refresh' });
   }
 });

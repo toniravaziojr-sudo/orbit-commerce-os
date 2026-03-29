@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
 const VERSION = "v1.0.0"; // CRUD: create, sync, list, pause, activate keywords
