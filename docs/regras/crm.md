@@ -1,7 +1,7 @@
 # CRM (Notificações, Atendimento, Emails, Avaliações) — Regras e Especificações
 
 > **STATUS:** ✅ Ready (Emails, Notificações, Atendimento WhatsApp com IA via OpenAI, Avaliações)  
-> **Última atualização:** 2026-03-08
+> **Última atualização:** 2026-03-29
 
 ## Visão Geral
 
@@ -914,3 +914,13 @@ O sistema mascara automaticamente:
   data_retention_days: number,  // Retenção de dados (default: 365)
 }
 ```
+
+---
+
+## Componentes de Data Padronizados
+
+| Submódulo | Campo | Componente |
+|-----------|-------|------------|
+| Notificações | Filtro de período (NotificationsFilter) | `DateRangeFilter` |
+
+> Ver `regras-gerais.md` § Padrão de Datas para especificação completa.
