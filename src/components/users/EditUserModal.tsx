@@ -137,7 +137,7 @@ export function EditUserModal({ open, onOpenChange, member }: EditUserModalProps
     },
     onError: (error: any) => {
       console.error('Error updating user:', error);
-      onError: (err) => showErrorToast(err, { module: 'usuários', action: 'salvar' }),
+      showErrorToast(error, { module: 'usuários', action: 'salvar' });
     },
   });
 

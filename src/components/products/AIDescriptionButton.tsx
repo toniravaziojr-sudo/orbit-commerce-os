@@ -59,7 +59,7 @@ export function AIDescriptionButton({ type, productName, fullDescription, onGene
       if (error) throw new Error(error.message || 'Erro ao chamar IA');
 
       if (!data?.success) {
-        onError: (err) => showErrorToast(err, { module: 'produtos', action: 'gerar' }),
+        showErrorToast(error, { module: 'produtos', action: 'gerar' });
         return;
       }
 

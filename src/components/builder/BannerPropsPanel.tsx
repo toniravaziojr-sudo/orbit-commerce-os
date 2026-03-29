@@ -236,7 +236,7 @@ function SinglePanel({ props, onChange, onBatchChange, tenantId }: BannerPropsPa
         },
       });
       if (error || !data?.generatedProps) {
-        onError: (err) => showErrorToast(err, { module: 'editor', action: 'processar' }),
+        showErrorToast(error, { module: 'editor', action: 'processar' });
         if (onBatchChange) {
           onBatchChange({ _isRegenerating: undefined });
         } else {

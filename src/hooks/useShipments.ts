@@ -287,7 +287,7 @@ export function useIngestShipment() {
       queryClient.invalidateQueries({ queryKey: ['admin-shipments'] });
       toast.success(result.is_new ? 'Remessa criada!' : 'Remessa atualizada!');
     },
-    onError: (error: Error) => {
+    onError: (error) => {
       console.error('Erro ao processar remessa:', error);
       toast.error('Erro ao processar remessa');
     },
@@ -323,7 +323,7 @@ export function useCreateShipment() {
     },
     onError: (error: Error) => {
       console.error('Erro ao criar remessa:', error);
-      onError: (err) => showErrorToast(err, { action: 'criar' }),
+      showErrorToast(error, { action: 'criar' });
     },
   });
 }
@@ -361,9 +361,9 @@ export function usePrintLabel() {
         toast.info('Etiqueta não disponível');
       }
     },
-    onError: (error: Error) => {
+    onError: (error) => {
       console.error('Erro ao obter etiqueta:', error);
-      onError: (err) => showErrorToast(err, { action: 'processar' }),
+      showErrorToast(error, { action: 'processar' });
     },
   });
 }
@@ -387,9 +387,9 @@ export function useRefreshTracking() {
       queryClient.invalidateQueries({ queryKey: ['order-shipments'] });
       toast.success('Rastreamento atualizado');
     },
-    onError: (error: Error) => {
+    onError: (error) => {
       console.error('Erro ao atualizar rastreamento:', error);
-      onError: (err) => showErrorToast(err, { action: 'salvar' }),
+      showErrorToast(error, { action: 'salvar' });
     },
   });
 }
@@ -469,7 +469,7 @@ export function useRegisterManualShipment() {
     },
     onError: (error: Error) => {
       console.error('Erro ao registrar remessa:', error);
-      onError: (err) => showErrorToast(err, { action: 'registrar' }),
+      showErrorToast(error, { action: 'registrar' });
     },
   });
 }

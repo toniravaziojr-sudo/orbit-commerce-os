@@ -154,7 +154,7 @@ export function WhatsAppMetaPlatformSettings() {
     onError: (error: any) => {
       setTestResult({ success: false, message: error.message || "Erro de conexão" });
       setTestChecklist((prev) => ({ ...prev, sendOk: false }));
-      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'enviar' }),
+      showErrorToast(error, { module: 'integrações', action: 'enviar' });
     },
   });
 

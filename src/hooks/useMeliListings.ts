@@ -111,7 +111,7 @@ export function useMeliListings() {
       queryClient.invalidateQueries({ queryKey: ['meli-listings'] });
       toast.success('Anúncio preparado com sucesso!');
     },
-    onError: (error: Error) => {
+    onError: (error) => {
       toast.error('Erro ao criar anúncio');
     },
   });
@@ -295,7 +295,7 @@ export function useMeliListings() {
     },
     onError: (error: Error) => {
       queryClient.invalidateQueries({ queryKey: ['meli-listings'] });
-      onError: (err) => showErrorToast(err, { module: 'mercado livre', action: 'publicar' }),
+      showErrorToast(error, { module: 'mercado livre', action: 'publicar' });
     },
   });
 

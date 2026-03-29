@@ -111,8 +111,8 @@ export function GenerateReviewsDialog({ trigger }: GenerateReviewsDialogProps) {
       setGeneratedReviews(reviews);
       setStep('preview');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'avaliações', action: 'gerar' }),
+    onError: (error) => {
+      showErrorToast(error, { module: 'avaliações', action: 'gerar' });
       setStep('select');
     },
   });

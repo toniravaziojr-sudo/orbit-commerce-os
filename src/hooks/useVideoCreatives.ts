@@ -321,9 +321,9 @@ export function useCreateVideoJob() {
         description: `Job criado. Tempo estimado: ${data.estimated_duration_minutes || 3} minutos.`,
       });
     },
-    onError: (error: Error) => {
+    onError: (error) => {
       console.error('Error creating video job:', error);
-      onError: (err) => showErrorToast(err, { module: 'vídeo', action: 'processar' }),
+      showErrorToast(error, { module: 'vídeo', action: 'processar' });
     },
   });
 }

@@ -8,8 +8,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import type {
 import { showErrorToast } from '@/lib/error-toast';
+import type {
   CreativeJob,
   CreativeType,
   CreativeJobStatus,
@@ -231,9 +231,9 @@ export function useCreateCreativeJob() {
           : `Job criado com sucesso.`,
       });
     },
-    onError: (error: Error) => {
+    onError: (error) => {
       console.error('Error creating creative job:', error);
-      onError: (err) => showErrorToast(err, { action: 'processar' }),
+      showErrorToast(error, { action: 'processar' });
     },
   });
 }
