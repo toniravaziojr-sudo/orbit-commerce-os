@@ -176,38 +176,11 @@ export default function Reports() {
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-wrap items-center gap-4">
-            <Select value={periodPreset} onValueChange={setPeriodPreset}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Período" />
-              </SelectTrigger>
-              <SelectContent>
-                {PRESET_PERIODS.map((p) => (
-                  <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {periodPreset === 'custom' && (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <CalendarIcon className="h-4 w-4 mr-2" />
-                    {customStartDate ? format(customStartDate, "dd/MM/yyyy") : "Início"} - {customEndDate ? format(customEndDate, "dd/MM/yyyy") : "Fim"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="range"
-                    selected={{ from: customStartDate, to: customEndDate }}
-                    onSelect={(range) => {
-                      setCustomStartDate(range?.from);
-                      setCustomEndDate(range?.to);
-                    }}
-                    numberOfMonths={2}
-                  />
-                </PopoverContent>
-              </Popover>
-            )}
+            <DateRangeFilter
+              startDate={startDate}
+              endDate={endDate}
+              onChange={handleDateChange}
+            />
 
             <Select value={groupBy} onValueChange={(v) => setGroupBy(v as 'day' | 'week' | 'month')}>
               <SelectTrigger className="w-[140px]">
@@ -224,10 +197,6 @@ export default function Reports() {
               <RefreshCw className="h-4 w-4 mr-2" />
               Atualizar
             </Button>
-
-            <div className="ml-auto text-sm text-muted-foreground">
-              {format(dateRange.start, "dd/MM/yyyy", { locale: ptBR })} - {format(dateRange.end, "dd/MM/yyyy", { locale: ptBR })}
-            </div>
           </div>
         </CardContent>
       </Card>
