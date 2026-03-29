@@ -12,7 +12,7 @@ import {
   formatRelativeTime,
 } from "@/hooks/useDashboardMetrics";
 import { DateRangeFilter } from "@/components/ui/date-range-filter";
-import { startOfDay, endOfDay } from "date-fns";
+
 import { getComparisonLabel } from "@/lib/date-presets";
 import {
   ShoppingCart,
@@ -63,9 +63,9 @@ const DEMO_ATTENTION_ITEMS = [
 function DashboardContent() {
   const navigate = useNavigate();
   
-  // Date range state - defaults to today
-  const [startDate, setStartDate] = useState<Date | undefined>(startOfDay(new Date()));
-  const [endDate, setEndDate] = useState<Date | undefined>(endOfDay(new Date()));
+  // Date range state - defaults to undefined (all time / todo o período)
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   
   const { data: metrics, isLoading: metricsLoading, error: metricsError, refetch: refetchMetrics } = useDashboardMetrics(startDate, endDate);
   const { data: recentOrders, isLoading: ordersLoading } = useRecentOrders(4);

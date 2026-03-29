@@ -75,14 +75,23 @@ const EMPTY_METRICS: DashboardMetrics = {
 
 function computePeriods(startDate?: Date, endDate?: Date) {
   const now = new Date();
-  const periodStart = startDate ? startOfDay(startDate).toISOString() : startOfDay(now).toISOString();
-  const periodEnd = endDate ? endOfDay(endDate).toISOString() : endOfDay(now).toISOString();
 
-  const periodDuration = endDate && startDate
-    ? endDate.getTime() - startDate.getTime()
-    : 24 * 60 * 60 * 1000;
+  // "Todo o período": when both dates are undefined, query ALL data
+  const isAllTime = !startDate && !endDate;
+  const periodStart = isAllTime
+    ? '2000-01-01T00:00:00.000Z'
+    : startOfDay(startDate!).toISOString();
+  const periodEnd = isAllTime
+    ? endOfDay(now).toISOString()
+    : endOfDay(endDate!).toISOString();
 
-  const prevPeriodEnd = startDate ? new Date(startDate.getTime() - 1) : subDays(now, 1);
+  const periodDuration = isAllTime
+    ? now.getTime() - new Date('2000-01-01').getTime()
+    : (endDate!.getTime() - startDate!.getTime()) || 24 * 60 * 60 * 1000;
+
+  const prevPeriodEnd = isAllTime
+    ? new Date('1999-12-31T23:59:59.999Z')
+    : new Date(startDate!.getTime() - 1);
   const prevPeriodStart = new Date(prevPeriodEnd.getTime() - periodDuration);
 
   return {
