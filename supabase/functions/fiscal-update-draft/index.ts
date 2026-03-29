@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -218,10 +219,6 @@ Deno.serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('[fiscal-update-draft] Unexpected error:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: 'Erro interno do servidor' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'fiscal', action: 'update-draft' });
   }
 });

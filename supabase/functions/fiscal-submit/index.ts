@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sendNFe, type FocusNFeConfig } from "../_shared/focus-nfe-client.ts";
 import { buildNFePayload, generateNFeRef, mapFocusStatusToInternal } from "../_shared/focus-nfe-adapter.ts";
@@ -433,10 +434,7 @@ serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error('[fiscal-submit] Erro:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message || 'Erro interno do servidor' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'fiscal', action: 'submit' });
+  }
   }
 });

@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -111,8 +112,7 @@ export function CorrectInvoiceDialog({ open, onOpenChange, invoice, onSuccess }:
       loadExistingCCes();
       onSuccess?.();
     } catch (error: any) {
-      console.error('Error sending CC-e:', error);
-      toast.error(error.message || 'Erro ao enviar carta de correção');
+      showErrorToast(error, { module: 'fiscal', action: 'enviar carta de correção' });
     } finally {
       setIsLoading(false);
     }

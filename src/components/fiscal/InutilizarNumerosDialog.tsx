@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 interface InutilizarNumerosDialogProps {
   open: boolean;
@@ -60,8 +61,7 @@ export function InutilizarNumerosDialog({ open, onOpenChange, serie = 1, onSucce
       });
       onSuccess?.();
     } catch (error: any) {
-      console.error('Error inutilizing numbers:', error);
-      toast.error(error.message || 'Erro ao inutilizar numeração');
+      showErrorToast(error, { module: 'fiscal', action: 'inutilizar numeração' });
     } finally {
       setIsLoading(false);
     }

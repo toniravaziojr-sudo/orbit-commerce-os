@@ -5,6 +5,7 @@
 // =============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { unbundleKitItems } from "../_shared/kit-unbundler.ts";
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
@@ -330,7 +331,7 @@ async function processTenanDrafts(
 
     } catch (error) {
       console.error(`[fiscal-auto-create-drafts] Error processing order ${order.order_number}:`, error);
-      errors.push(`Pedido ${order.order_number}: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      errors.push(`Pedido ${order.order_number}: erro ao criar rascunho`);
     }
   }
 
@@ -453,11 +454,6 @@ serve(async (req) => {
     );
 
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('[fiscal-auto-create-drafts] Error:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'fiscal', action: 'auto-create-drafts' });
   }
 });

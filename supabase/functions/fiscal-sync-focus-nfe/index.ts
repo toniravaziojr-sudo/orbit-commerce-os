@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { syncEmpresa, getEmpresa, type FocusNFeConfig } from "../_shared/focus-nfe-client.ts";
 import { buildEmpresaPayload } from "../_shared/focus-nfe-adapter.ts";
@@ -200,10 +201,6 @@ serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error('[fiscal-sync-focus-nfe] Erro:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'fiscal', action: 'sync-focus-nfe' });
   }
 });

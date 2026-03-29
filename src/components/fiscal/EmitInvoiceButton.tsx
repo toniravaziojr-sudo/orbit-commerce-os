@@ -84,7 +84,7 @@ export function EmitInvoiceButton({ orderId, orderNumber }: EmitInvoiceButtonPro
         setStep('preview');
       }
     } catch (error: any) {
-      setValidationErrors([error.message || 'Erro ao validar pedido']);
+      setValidationErrors(['Erro ao validar pedido. Tente novamente.']);
     }
   };
 
@@ -103,7 +103,7 @@ export function EmitInvoiceButton({ orderId, orderNumber }: EmitInvoiceButtonPro
     } catch (error: any) {
       setEmitResult({
         status: 'error',
-        error: error.message || 'Erro ao emitir NF-e',
+        error: 'Erro ao emitir NF-e. Tente novamente.',
       });
       setStep('result');
     }

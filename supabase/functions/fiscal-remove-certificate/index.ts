@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -84,10 +85,6 @@ serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error("[fiscal-remove-certificate] Error:", error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message || "Erro interno" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'fiscal', action: 'remove-certificate' });
   }
 });

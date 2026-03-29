@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -169,10 +170,6 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('[fiscal-inutilizar] Unexpected error:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: 'Erro interno do servidor' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'fiscal', action: 'inutilizar' });
   }
 });

@@ -4,6 +4,7 @@
 // =============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 // deno-lint-ignore-file no-explicit-any
 import forge from "https://esm.sh/node-forge@1.3.1?bundle";
@@ -400,11 +401,6 @@ serve(async (req) => {
     );
 
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('[fiscal-upload-certificate] Error:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'fiscal', action: 'upload-certificate' });
   }
 });

@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { syncEmpresa, type NuvemFiscalConfig } from "../_shared/nuvem-fiscal-client.ts";
 import { buildEmpresaPayload, buildCertificadoPayload } from "../_shared/nuvem-fiscal-adapter.ts";
@@ -211,10 +212,6 @@ serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error('[fiscal-sync-nuvem-fiscal] Erro não tratado:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message || 'Erro interno' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'fiscal', action: 'sync-nuvem-fiscal' });
   }
 });

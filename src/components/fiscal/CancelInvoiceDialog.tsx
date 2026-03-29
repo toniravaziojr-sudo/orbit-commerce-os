@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 import { differenceInHours, parseISO } from 'date-fns';
 
 interface CancelInvoiceDialogProps {
@@ -58,8 +59,7 @@ export function CancelInvoiceDialog({ open, onOpenChange, invoice, onSuccess }: 
       setJustificativa('');
       onSuccess?.();
     } catch (error: any) {
-      console.error('Error canceling invoice:', error);
-      toast.error(error.message || 'Erro ao cancelar NF-e');
+      showErrorToast(error, { module: 'fiscal', action: 'cancelar NF-e' });
     } finally {
       setIsLoading(false);
     }

@@ -10,6 +10,7 @@ import { Loader2, FileDown, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { ProductSelector, type ProductWithFiscal } from './ProductSelector';
 
@@ -393,8 +394,7 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
       queryClient.invalidateQueries({ queryKey: ['fiscal-stats'] });
       onOpenChange(false);
     } catch (error: any) {
-      console.error('Error creating manual invoice:', error);
-      toast.error(error.message || 'Erro ao criar NF-e');
+      showErrorToast(error, { module: 'fiscal', action: 'criar NF-e' });
     } finally {
       setIsLoading(false);
     }
