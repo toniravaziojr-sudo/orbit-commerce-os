@@ -22,6 +22,32 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SelectionDiagnostics, getDiagnostics } from "@/components/media/SelectionDiagnostics";
 import { showErrorToast } from '@/lib/error-toast';
 
+/** Returns the status color class for a selected day based on its items' completeness */
+function getSelectedDayStatusClasses(dayItems: MediaCalendarItem[], isBlog: boolean): { bg: string; border: string; badge: string } {
+  if (dayItems.length === 0) {
+    return { bg: "bg-muted/40", border: "border-muted-foreground/40", badge: "bg-muted-foreground" };
+  }
+
+  // Check worst status: no strategy > no copy > no creative > ready
+  const hasNoStrategy = dayItems.some(i => !i.title || i.title.trim() === "");
+  const hasNoCopy = dayItems.some(i => i.title && i.title.trim() !== "" && (!i.copy || i.copy.trim() === ""));
+  const hasNoCreative = !isBlog && dayItems.some(i => 
+    i.copy && i.copy.trim() !== "" && !i.asset_url && i.content_type !== "text"
+  );
+
+  if (hasNoStrategy) {
+    return { bg: "bg-red-100/60 dark:bg-red-900/20", border: "border-red-400 dark:border-red-700", badge: "bg-red-500" };
+  }
+  if (hasNoCopy) {
+    return { bg: "bg-amber-100/60 dark:bg-amber-900/20", border: "border-amber-400 dark:border-amber-700", badge: "bg-amber-500" };
+  }
+  if (hasNoCreative) {
+    return { bg: "bg-orange-100/60 dark:bg-orange-900/20", border: "border-orange-400 dark:border-orange-700", badge: "bg-orange-500" };
+  }
+  // All ready
+  return { bg: "bg-green-100/60 dark:bg-green-900/20", border: "border-green-400 dark:border-green-700", badge: "bg-green-500" };
+}
+
 interface PlanningTabProps {
   campaignId: string;
   campaign: MediaCampaign;
