@@ -419,133 +419,150 @@ export function MetaUnifiedSettings() {
                         {/* Registration flow for non-connected status */}
                         {whatsappConfig.connection_status !== "connected" && (
                           <div className="mt-3 space-y-3">
-                            <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
-                              <AlertTriangle className="h-3.5 w-3.5" />
-                              Ação necessária — Ative seu número
-                            </div>
-
-                            {/* Step 1: Request verification code */}
-                            {(registrationStep === "idle" && whatsappConfig.connection_status !== "awaiting_verification") && (
-                              <div className="space-y-2 rounded-md bg-muted/50 p-2.5">
-                                <p className="text-xs font-medium">Passo 1: Solicitar código de verificação</p>
-                                <p className="text-xs text-muted-foreground">
-                                  Enviaremos um código por SMS para o número acima.
+                            
+                            {/* Case A: pending_registration + idle = Meta is reviewing, no action needed */}
+                            {whatsappConfig.connection_status === "pending_registration" && registrationStep === "idle" && (
+                              <div className="rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-2.5">
+                                <p className="text-xs text-blue-700 dark:text-blue-400">
+                                  ✅ Seu número está em análise pela Meta. Esse processo é automático e pode levar até 48h. Não é necessária nenhuma ação.
                                 </p>
-                                <div className="flex gap-2">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="flex-1 text-xs h-8 border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950"
-                                    onClick={() => requestCodeMutation.mutate("SMS")}
-                                    disabled={requestCodeMutation.isPending}
-                                  >
-                                    {requestCodeMutation.isPending ? (
-                                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                    ) : (
-                                      <Send className="h-3 w-3 mr-1" />
-                                    )}
-                                    Enviar por SMS
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="text-xs h-8"
-                                    onClick={() => requestCodeMutation.mutate("VOICE")}
-                                    disabled={requestCodeMutation.isPending}
-                                  >
-                                    <Phone className="h-3 w-3 mr-1" />
-                                    Voz
-                                  </Button>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Step 2: Enter verification code */}
-                            {(registrationStep === "code_sent" || whatsappConfig.connection_status === "awaiting_verification") && (
-                              <div className="space-y-2 rounded-md bg-muted/50 p-2.5">
-                                <p className="text-xs font-medium">Passo 2: Inserir código recebido</p>
-                                <p className="text-xs text-muted-foreground">
-                                  Digite o código de 6 dígitos que você recebeu no telefone.
-                                </p>
-                                <Input
-                                  placeholder="Código de 6 dígitos"
-                                  value={verificationCode}
-                                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                                  maxLength={6}
-                                  className="text-xs h-8"
-                                />
-                                <div className="flex gap-2">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="flex-1 text-xs h-8 border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950"
-                                    onClick={() => verifyCodeMutation.mutate(verificationCode)}
-                                    disabled={verifyCodeMutation.isPending || verificationCode.length !== 6}
-                                  >
-                                    {verifyCodeMutation.isPending ? (
-                                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                    ) : (
-                                      <CheckCircle className="h-3 w-3 mr-1" />
-                                    )}
-                                    Verificar código
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="text-xs h-8"
-                                    onClick={() => requestCodeMutation.mutate("SMS")}
-                                    disabled={requestCodeMutation.isPending}
-                                  >
-                                    <RefreshCw className="h-3 w-3 mr-1" />
-                                    Reenviar
-                                  </Button>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Step 3: Register with PIN */}
-                            {registrationStep === "code_verified" && (
-                              <div className="space-y-2 rounded-md bg-muted/50 p-2.5">
-                                <p className="text-xs font-medium">Passo 3: Definir PIN de segurança</p>
-                                <p className="text-xs text-muted-foreground">
-                                  Se a verificação em duas etapas já está ativa no WhatsApp Manager, use o PIN existente. Se NÃO está ativa, crie qualquer PIN de 6 dígitos — ele será definido automaticamente como seu PIN de segurança.
-                                </p>
-                                <Input
-                                  placeholder="PIN de 6 dígitos"
-                                  value={registerPin}
-                                  onChange={(e) => setRegisterPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                                  maxLength={6}
-                                  type="password"
-                                  className="text-xs h-8"
-                                />
                                 <Button
                                   size="sm"
-                                  variant="outline"
-                                  className="w-full text-xs h-8 border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950"
-                                  onClick={() => registerPhoneMutation.mutate(registerPin)}
-                                  disabled={registerPhoneMutation.isPending || registerPin.length !== 6}
+                                  variant="ghost"
+                                  className="mt-2 text-xs h-7 text-muted-foreground"
+                                  onClick={() => setRegistrationStep("code_sent")}
                                 >
-                                  {registerPhoneMutation.isPending ? (
-                                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                  ) : (
-                                    <Zap className="h-3 w-3 mr-1" />
-                                  )}
-                                  Finalizar registro
+                                  <RefreshCw className="h-3 w-3 mr-1" />
+                                  Tentar novamente manualmente
                                 </Button>
                               </div>
                             )}
 
-                            {whatsappConfig.last_error && whatsappConfig.connection_status !== "pending_registration" && (
-                              <p className="text-xs text-destructive">
-                                {sanitizeError(new Error(whatsappConfig.last_error)).userMessage}
-                              </p>
-                            )}
-                            {whatsappConfig.connection_status === "pending_registration" && registrationStep === "idle" && (
-                              <div className="rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-2.5 mt-1">
-                                <p className="text-xs text-blue-700 dark:text-blue-400">
-                                  ✅ Seu número está em análise pela Meta. Esse processo é automático e pode levar até 48h. Não é necessária nenhuma ação.
-                                </p>
-                              </div>
+                            {/* Case B: Active registration flow (user is going through steps) */}
+                            {!(whatsappConfig.connection_status === "pending_registration" && registrationStep === "idle") && (
+                              <>
+                                <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
+                                  <AlertTriangle className="h-3.5 w-3.5" />
+                                  Ação necessária — Ative seu número
+                                </div>
+
+                                {/* Step 1: Request verification code — only when idle and NOT awaiting_verification */}
+                                {registrationStep === "idle" && whatsappConfig.connection_status !== "awaiting_verification" && (
+                                  <div className="space-y-2 rounded-md bg-muted/50 p-2.5">
+                                    <p className="text-xs font-medium">Passo 1: Solicitar código de verificação</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      Enviaremos um código por SMS para o número acima.
+                                    </p>
+                                    <div className="flex gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="flex-1 text-xs h-8 border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950"
+                                        onClick={() => requestCodeMutation.mutate("SMS")}
+                                        disabled={requestCodeMutation.isPending}
+                                      >
+                                        {requestCodeMutation.isPending ? (
+                                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                        ) : (
+                                          <Send className="h-3 w-3 mr-1" />
+                                        )}
+                                        Enviar por SMS
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="text-xs h-8"
+                                        onClick={() => requestCodeMutation.mutate("VOICE")}
+                                        disabled={requestCodeMutation.isPending}
+                                      >
+                                        <Phone className="h-3 w-3 mr-1" />
+                                        Voz
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Step 2: Enter verification code */}
+                                {(registrationStep === "code_sent" || whatsappConfig.connection_status === "awaiting_verification") && (
+                                  <div className="space-y-2 rounded-md bg-muted/50 p-2.5">
+                                    <p className="text-xs font-medium">Passo 2: Inserir código recebido</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      Digite o código de 6 dígitos que você recebeu no telefone.
+                                    </p>
+                                    <Input
+                                      placeholder="Código de 6 dígitos"
+                                      value={verificationCode}
+                                      onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                                      maxLength={6}
+                                      className="text-xs h-8"
+                                    />
+                                    <div className="flex gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="flex-1 text-xs h-8 border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950"
+                                        onClick={() => verifyCodeMutation.mutate(verificationCode)}
+                                        disabled={verifyCodeMutation.isPending || verificationCode.length !== 6}
+                                      >
+                                        {verifyCodeMutation.isPending ? (
+                                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                        ) : (
+                                          <CheckCircle className="h-3 w-3 mr-1" />
+                                        )}
+                                        Verificar código
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="text-xs h-8"
+                                        onClick={() => requestCodeMutation.mutate("SMS")}
+                                        disabled={requestCodeMutation.isPending}
+                                      >
+                                        <RefreshCw className="h-3 w-3 mr-1" />
+                                        Reenviar
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Step 3: Register with PIN */}
+                                {registrationStep === "code_verified" && (
+                                  <div className="space-y-2 rounded-md bg-muted/50 p-2.5">
+                                    <p className="text-xs font-medium">Passo 3: Definir PIN de segurança</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      Se a verificação em duas etapas já está ativa no WhatsApp Manager, use o PIN existente. Se NÃO está ativa, crie qualquer PIN de 6 dígitos — ele será definido automaticamente como seu PIN de segurança.
+                                    </p>
+                                    <Input
+                                      placeholder="PIN de 6 dígitos"
+                                      value={registerPin}
+                                      onChange={(e) => setRegisterPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                                      maxLength={6}
+                                      type="password"
+                                      className="text-xs h-8"
+                                    />
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="w-full text-xs h-8 border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950"
+                                      onClick={() => registerPhoneMutation.mutate(registerPin)}
+                                      disabled={registerPhoneMutation.isPending || registerPin.length !== 6}
+                                    >
+                                      {registerPhoneMutation.isPending ? (
+                                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                      ) : (
+                                        <Zap className="h-3 w-3 mr-1" />
+                                      )}
+                                      Finalizar registro
+                                    </Button>
+                                  </div>
+                                )}
+
+                                {whatsappConfig.last_error && (
+                                  <p className="text-xs text-destructive">
+                                    {sanitizeError(new Error(whatsappConfig.last_error)).userMessage}
+                                  </p>
+                                )}
+                              </>
                             )}
                           </div>
                         )}
