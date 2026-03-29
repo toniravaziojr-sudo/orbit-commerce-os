@@ -281,18 +281,30 @@ Configurado em **Configurações do Tema > Popup Newsletter** no Builder visual.
 ## Triggers Automáticos
 
 ### trg_auto_tag_cliente_on_payment
-Quando `payment_status` de um pedido muda para `paid`:
-- Remove todas as tags do cliente
-- Adiciona tag "Cliente" (verde #10B981)
+Quando `payment_status` de um pedido muda para `approved`:
+- Adiciona tag "Cliente" (verde #10B981) via `ON CONFLICT DO NOTHING`
+- **NÃO remove** outras tags existentes (preserva tags de popup, leads, etc.)
 - Se a tag não existir, cria automaticamente
 
 ### trg_sync_subscriber_on_tag
 Quando um cliente recebe uma tag:
-- Para cada lista vinculada à tag, insere/atualiza subscriber
+- Para cada lista vinculada à tag, insere/atualiza subscriber (dedup por email)
+- **Também insere na `email_marketing_list_members`** (dedup por list_id + subscriber_id)
 
 ### trg_auto_sync_list_subscribers
 Quando uma lista é criada:
 - Sincroniza automaticamente todos os customers que já têm a tag
+- **Também insere na `email_marketing_list_members`** para cada subscriber
+
+### Deduplicação
+- **Regra fixa:** deduplicação de subscribers é feita EXCLUSIVAMENTE por `(tenant_id, email)`
+- Se o email já existe no tenant, apenas atualiza dados (nome, telefone, customer_id)
+- `email_marketing_list_members` tem constraint `UNIQUE(list_id, subscriber_id)` para evitar duplicatas na lista
+
+### marketing-form-submit (Edge Function)
+- Chama `sync_subscriber_to_customer_with_tag` com `p_list_id` (sem `p_tag_id`)
+- A função busca internamente a tag da lista para aplicar ao customer
+- Deduplicação por email garantida em todos os caminhos (popup, footer, chat, formulários)
 
 ---
 
