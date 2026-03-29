@@ -180,8 +180,7 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess }: EntryInvoi
       resetForm();
       onSuccess?.();
     } catch (error: any) {
-      console.error('Error creating entry invoice:', error);
-      toast.error(error.message || 'Erro ao criar NF-e de entrada');
+      showErrorToast(error, { module: 'fiscal', action: 'criar NF-e de entrada' });
     } finally {
       setIsLoading(false);
     }

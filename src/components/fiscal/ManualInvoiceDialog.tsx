@@ -393,8 +393,7 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
       queryClient.invalidateQueries({ queryKey: ['fiscal-stats'] });
       onOpenChange(false);
     } catch (error: any) {
-      console.error('Error creating manual invoice:', error);
-      toast.error(error.message || 'Erro ao criar NF-e');
+      showErrorToast(error, { module: 'fiscal', action: 'criar NF-e' });
     } finally {
       setIsLoading(false);
     }

@@ -60,8 +60,7 @@ export function InutilizarNumerosDialog({ open, onOpenChange, serie = 1, onSucce
       });
       onSuccess?.();
     } catch (error: any) {
-      console.error('Error inutilizing numbers:', error);
-      toast.error(error.message || 'Erro ao inutilizar numeração');
+      showErrorToast(error, { module: 'fiscal', action: 'inutilizar numeração' });
     } finally {
       setIsLoading(false);
     }
