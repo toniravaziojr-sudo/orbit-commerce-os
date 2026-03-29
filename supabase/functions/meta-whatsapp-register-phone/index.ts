@@ -165,11 +165,15 @@ Deno.serve(async (req) => {
       const errorMsg = registerData.error?.message || JSON.stringify(registerData);
       const errorCode = registerData.error?.code;
       const errorSubcode = registerData.error?.error_subcode;
+      const errorUserMsg = registerData.error?.error_user_msg;
+      const normalizedMetaError = `${errorMsg} ${errorUserMsg || ""}`.toLowerCase();
       
       // Build user-friendly error messages
-      let friendlyError = `Registro falhou: ${errorMsg}`;
-      if (errorSubcode === 2388001 || errorCode === 100) {
-        friendlyError = "PIN incorreto. Verifique o PIN de 6 dígitos e tente novamente.";
+      let friendlyError = "Não foi possível finalizar o registro agora. Tente novamente em instantes.";
+      if (errorSubcode === 2388001 || normalizedMetaError.includes("pin") || normalizedMetaError.includes("two factor")) {
+        friendlyError = "PIN inválido para este número. Use o PIN da verificação em duas etapas do WhatsApp Manager (não é a senha de login da Meta). Se não lembrar, redefina o PIN no WhatsApp Manager e tente novamente.";
+      } else if (errorCode === 100 || normalizedMetaError.includes("invalid parameter")) {
+        friendlyError = "Não foi possível finalizar o registro por uma validação da Meta. Confira se o número conectado está correto e tente novamente em 1 minuto.";
       } else if (errorSubcode === 136025) {
         friendlyError = "Número já registrado em outra conta. Desregistre o número da conta atual antes de registrar aqui.";
       }
