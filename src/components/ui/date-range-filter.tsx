@@ -261,59 +261,75 @@ export function DateRangeFilter({
 
           {/* Calendars and Presets */}
           <div className="flex gap-4">
-            {/* Two Calendars */}
+            {/* Calendar area — shows month picker grid or day calendars */}
             <div className="flex gap-2">
-              <CalendarComponent
-                mode="single"
-                selected={selectionPhase === 'end' ? localStartDate : localStartDate}
-                onSelect={handleCalendarDayClick}
-                month={calendarMonth}
-                onMonthChange={setCalendarMonth}
-                locale={ptBR}
-                className="rounded-md border pointer-events-auto"
-                modifiers={{
-                  range: localStartDate && localEndDate ? {
-                    from: localStartDate,
-                    to: localEndDate,
-                  } : undefined,
-                  rangeStart: localStartDate ? localStartDate : undefined,
-                }}
-                modifiersStyles={{
-                  range: {
-                    backgroundColor: 'hsl(var(--primary) / 0.1)',
-                  },
-                }}
-              />
-              <CalendarComponent
-                mode="single"
-                selected={localEndDate}
-                onSelect={handleCalendarDayClick}
-                month={nextMonth}
-                onMonthChange={(month) => {
-                  const prev = new Date(month);
-                  prev.setMonth(prev.getMonth() - 1);
-                  setCalendarMonth(prev);
-                }}
-                locale={ptBR}
-                className="rounded-md border pointer-events-auto"
-                modifiers={{
-                  range: localStartDate && localEndDate ? {
-                    from: localStartDate,
-                    to: localEndDate,
-                  } : undefined,
-                }}
-                modifiersStyles={{
-                  range: {
-                    backgroundColor: 'hsl(var(--primary) / 0.1)',
-                  },
-                }}
-              />
+              {activePreset === 'select_month' ? (
+                <MonthPickerGrid
+                  selectedMonth={calendarMonth}
+                  onSelectMonth={(month) => {
+                    setCalendarMonth(month);
+                    const start = startOfMonth(month);
+                    const end = endOfMonth(month);
+                    setLocalStartDate(start);
+                    setLocalEndDate(end);
+                    setStartInputValue(format(start, 'dd/MM/yyyy'));
+                    setEndInputValue(format(end, 'dd/MM/yyyy'));
+                  }}
+                />
+              ) : (
+                <>
+                  <CalendarComponent
+                    mode="single"
+                    selected={localStartDate}
+                    onSelect={handleCalendarDayClick}
+                    month={calendarMonth}
+                    onMonthChange={setCalendarMonth}
+                    locale={ptBR}
+                    className="rounded-md border pointer-events-auto"
+                    modifiers={{
+                      range: localStartDate && localEndDate ? {
+                        from: localStartDate,
+                        to: localEndDate,
+                      } : undefined,
+                      rangeStart: localStartDate ? localStartDate : undefined,
+                    }}
+                    modifiersStyles={{
+                      range: {
+                        backgroundColor: 'hsl(var(--primary) / 0.1)',
+                      },
+                    }}
+                  />
+                  <CalendarComponent
+                    mode="single"
+                    selected={localEndDate}
+                    onSelect={handleCalendarDayClick}
+                    month={nextMonth}
+                    onMonthChange={(month) => {
+                      const prev = new Date(month);
+                      prev.setMonth(prev.getMonth() - 1);
+                      setCalendarMonth(prev);
+                    }}
+                    locale={ptBR}
+                    className="rounded-md border pointer-events-auto"
+                    modifiers={{
+                      range: localStartDate && localEndDate ? {
+                        from: localStartDate,
+                        to: localEndDate,
+                      } : undefined,
+                    }}
+                    modifiersStyles={{
+                      range: {
+                        backgroundColor: 'hsl(var(--primary) / 0.1)',
+                      },
+                    }}
+                  />
+                </>
+              )}
             </div>
 
             {/* Presets */}
             <div className="flex flex-col gap-1 min-w-[160px]">
               {PRESET_OPTIONS.map((preset, index) => {
-                // Add separator before rolling group
                 const prevGroup = index > 0 ? PRESET_OPTIONS[index - 1].group : null;
                 const showSeparator = prevGroup && prevGroup !== preset.group;
 
