@@ -138,7 +138,6 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
       }
 
       const { periodStart, periodEnd, prevStart, prevEnd } = computePeriods(startDate, endDate, firstOrderDate);
-      const tid = currentTenant.id;
 
       // Use REST API for checkout_sessions funnel fields (not in generated types yet)
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
