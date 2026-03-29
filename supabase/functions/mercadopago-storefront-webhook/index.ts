@@ -8,6 +8,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { redactPayloadForLog } from "../_shared/redact-pii.ts";
 import { verifyMercadoPagoHmac, handleHmacResult } from "../_shared/webhook-hmac.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -322,7 +323,7 @@ serve(async (req) => {
     console.error(`[${requestId}] Webhook error after ${duration}ms:`, error);
 
     return new Response(JSON.stringify({
-      error: error.message || 'Unknown error',
+      error: "Erro interno" || 'Unknown error',
       request_id: requestId,
     }), {
       status: 500,

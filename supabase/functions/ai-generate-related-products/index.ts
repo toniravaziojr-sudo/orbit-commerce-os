@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { aiChatCompletionJSON } from "../_shared/ai-router.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const VERSION = "v1.0.0";
 
@@ -268,7 +269,7 @@ Gere os produtos relacionados usando a ferramenta set_related_products.`;
   } catch (error) {
     console.error(`[ai-generate-related] Erro:`, error);
     return new Response(
-      JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'Erro interno' }),
+      JSON.stringify({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

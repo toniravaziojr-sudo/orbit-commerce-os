@@ -15,6 +15,7 @@ import {
 } from "../_shared/marketing/engine-plan.ts";
 import type { ProductData, ReviewData } from "../_shared/landing-page-templates.ts";
 import { resolveLandingPageAssets } from "../_shared/landing-page-asset-resolver.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const VERSION = "5.4.0"; // HTML Libre Engine
 
@@ -506,10 +507,6 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error("[AI-LP-HTML] Error:", error);
-    return new Response(
-      JSON.stringify({ success: false, error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'ai', action: 'landing-page-generate-html' });
   }
 });

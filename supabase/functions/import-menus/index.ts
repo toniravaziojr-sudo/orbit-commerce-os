@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { NUVEMSHOP_PATTERNS } from '../_shared/platform-adapters/nuvemshop-adapter.ts';
+import { errorResponse } from "../_shared/error-response.ts";
 
 const VERSION = '2026-01-30.2130';
 
@@ -894,7 +895,7 @@ Deno.serve(async (req) => {
     console.error('[Menus] Unexpected error:', error);
     return jsonResponse({
       success: false,
-      error: error instanceof Error ? error.message : 'Erro interno'
+      error: error instanceof Error ? "Erro interno" : 'Erro interno'
     });
   }
 });

@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
 const VERSION = "v1.0.0"; // Asset management: create image/text assets, link to campaigns (PMax), sync, list
@@ -255,7 +256,7 @@ Deno.serve(async (req) => {
     return jsonRes({ success: false, error: `Ação desconhecida: ${action}` });
   } catch (error) {
     console.error(`[google-ads-assets][${traceId}] Error:`, error);
-    return jsonRes({ success: false, error: error.message || "Erro interno" });
+    return jsonRes({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." });
   }
 });
 

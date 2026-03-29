@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,7 +46,7 @@ async function sendEmailViaSendGrid(
     }
   } catch (error: any) {
     console.error("[process-scheduled-emails] SendGrid fetch error:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." };
   }
 }
 
@@ -245,11 +246,7 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({ success: true, stats }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error: any) {
-    console.error("[process-scheduled-emails] Error:", error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+  } catch (error) {
+    return errorResponse(error, corsHeaders, { module: 'system', action: 'process-scheduled-emails' });
   }
 });

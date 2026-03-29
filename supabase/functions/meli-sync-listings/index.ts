@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
 const VERSION = "2.0.0"; // Add cron mode: auto-sync all tenants without auth
@@ -87,9 +88,7 @@ serve(async (req) => {
     return jsonResponse(result);
 
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error(`[meli-sync-listings] Error:`, error);
-    return jsonResponse({ success: false, error: errorMessage });
+    return errorResponse(error, corsHeaders, { module: 'mercadolivre', action: 'sync-listings' });
   }
 });
 

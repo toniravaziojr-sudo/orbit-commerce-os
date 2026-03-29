@@ -18,6 +18,7 @@ import { TextBannersAdapter } from "../_shared/visual-adapters/text-banners-adap
 import { ImageCarouselAdapter } from "../_shared/visual-adapters/image-carousel-adapter.ts";
 import { ImageGalleryAdapter } from "../_shared/visual-adapters/image-gallery-adapter.ts";
 import type {
+import { errorResponse } from "../_shared/error-response.ts";
   ProductContext,
   CategoryContext,
   StoreContext,
@@ -1071,7 +1072,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: false,
-        error: error instanceof Error ? error.message : "Erro inesperado na geração",
+        error: error instanceof Error ? "Erro interno" : "Erro inesperado na geração",
       }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

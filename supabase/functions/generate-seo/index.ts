@@ -5,6 +5,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -177,7 +178,7 @@ Lembre-se: título máximo 60 caracteres, descrição máximo 160 caracteres.`;
   } catch (error) {
     console.error("[generate-seo] Error:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Erro ao gerar SEO" }),
+      JSON.stringify({ error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

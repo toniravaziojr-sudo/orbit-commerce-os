@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v1.0.0"; // Initial: sync, list, reply actions
@@ -217,7 +218,7 @@ async function handleList(supabase: any, tenantId: string, locationId?: string) 
   const { data, error } = await query;
 
   if (error) {
-    return jsonResponse({ success: false, error: error.message });
+    return jsonResponse({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." });
   }
 
   return jsonResponse({ success: true, data });

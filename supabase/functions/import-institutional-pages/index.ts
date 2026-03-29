@@ -10,6 +10,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -938,7 +939,7 @@ Deno.serve(async (req) => {
     console.error('[Pages] Error:', error);
     return jsonResponse({
       success: false,
-      error: error instanceof Error ? error.message : 'Erro interno',
+      error: error instanceof Error ? "Erro interno" : 'Erro interno',
       pages: [],
       skipped: [],
     });

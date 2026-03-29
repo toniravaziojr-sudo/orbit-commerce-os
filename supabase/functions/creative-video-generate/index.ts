@@ -16,6 +16,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getAIEndpoint, resetAIRouterCache } from "../_shared/ai-router.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const VERSION = "2.1.0"; // Use centralized ai-router (Gemini/OpenAI native priority)
 
@@ -171,11 +172,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error("[creative-video-generate] Error:", error);
-    return new Response(
-      JSON.stringify({ success: false, error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'creative', action: 'video-generate' });
   }
 });
 

@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { errorResponse } from "../_shared/error-response.ts";
 // deno-lint-ignore-file no-explicit-any
 const { Webhook } = await import("https://cdn.jsdelivr.net/npm/standardwebhooks@1.0.0/+esm") as any;
 
@@ -41,7 +42,7 @@ async function sendEmailViaSendGrid(
     }
   } catch (error: any) {
     console.error("[auth-email-hook] SendGrid fetch error:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." };
   }
 }
 

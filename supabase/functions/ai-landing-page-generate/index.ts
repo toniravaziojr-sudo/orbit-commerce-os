@@ -22,6 +22,7 @@ import {
 } from "../_shared/landing-page-templates.ts";
 import { getNicheImages, getNicheImage } from "../_shared/landing-page-stock-images.ts";
 import { resolveLandingPageAssets, type ResolvedAssets } from "../_shared/landing-page-asset-resolver.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const VERSION = "9.0.0"; // Engine V9.0: Premium Template Masters + Patch Adjustments
 
@@ -1596,10 +1597,6 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error("[AI-LP-Generate] Error:", error);
-    return new Response(
-      JSON.stringify({ success: false, error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'ai', action: 'landing-page-generate' });
   }
 });

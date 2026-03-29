@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -313,12 +314,8 @@ Deno.serve(async (req: Request) => {
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error: any) {
-    console.error("Unexpected error in system-email-domain-upsert:", error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message, details: error.stack }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+  } catch (error) {
+    return errorResponse(error, corsHeaders, { module: 'system', action: 'system-email-domain-upsert' });
   }
 });
 

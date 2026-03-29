@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMemoryContext } from "../_shared/ai-memory.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const VERSION = "4.0.0"; // + AI Memory (long-term + conversation summaries)
 
@@ -79,7 +80,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("ChatGPT chat error:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({ error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }),
       { 
         status: 500, 
         headers: { ...corsHeaders, "Content-Type": "application/json" } 

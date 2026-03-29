@@ -573,7 +573,7 @@ async function publishToInstagram(
       continue;
     }
     
-    throw new Error(`Container: ${containerData.error.message}`);
+    throw new Error("Erro interno. Se o problema persistir, entre em contato com o suporte.");
   }
 
   const containerId = containerData.id;
@@ -594,7 +594,7 @@ async function publishToInstagram(
   );
   const publishData = await publishRes.json();
   if (publishData.error) {
-    throw new Error(`Publish: ${publishData.error.message}`);
+    throw new Error("Erro interno. Se o problema persistir, entre em contato com o suporte.");
   }
 
   return { ...publishData, container_id: containerId };

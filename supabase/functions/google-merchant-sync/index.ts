@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
 const VERSION = "v1.0.0"; // Google Merchant Center sync
@@ -62,7 +63,7 @@ Deno.serve(async (req) => {
     }
   } catch (error) {
     console.error(`[google-merchant-sync][${VERSION}] Error:`, error);
-    return jsonResponse({ success: false, error: error instanceof Error ? error.message : "Erro interno" });
+    return jsonResponse({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." });
   }
 });
 

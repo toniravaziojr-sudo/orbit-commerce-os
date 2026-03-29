@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { errorResponse } from "../_shared/error-response.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -346,7 +347,7 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('[agenda-dispatch] Unexpected error:', error);
     return new Response(
-      JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'unknown' }),
+      JSON.stringify({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -407,7 +408,7 @@ async function sendWhatsAppMessage(
   const data = await response.json();
 
   if (data.error) {
-    return { success: false, error: data.error.message || `HTTP ${response.status}` };
+    return { success: false, error: data."Erro interno. Se o problema persistir, entre em contato com o suporte." || `HTTP ${response.status}` };
   }
 
   return { success: true };

@@ -7,6 +7,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -262,7 +263,7 @@ async function createCorreiosShipment(
 
   } catch (error: any) {
     console.error('[Correios] Error:', error);
-    return { success: false, error: error.message || 'Erro ao criar pré-postagem' };
+    return { success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." || 'Erro ao criar pré-postagem' };
   }
 }
 
@@ -446,7 +447,7 @@ async function createLoggiShipment(
 
   } catch (error: any) {
     console.error('[Loggi] Error:', error);
-    return { success: false, error: error.message || 'Erro ao criar remessa Loggi' };
+    return { success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." || 'Erro ao criar remessa Loggi' };
   }
 }
 
@@ -693,11 +694,7 @@ serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error: any) {
-    console.error('[shipping-create-shipment] Error:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+  } catch (error) {
+    return errorResponse(error, corsHeaders, { module: 'shipping', action: 'create-shipment' });
   }
 });

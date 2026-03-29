@@ -5,6 +5,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v2.0.0"; // Concurrent payment checks via Promise.allSettled per tenant
@@ -325,7 +326,7 @@ serve(async (req) => {
   } catch (error: any) {
     console.error('[reconcile-payments] Fatal error:', error);
     return new Response(JSON.stringify({
-      error: error.message,
+      error: "Erro interno",
       stats,
       duration_ms: Date.now() - startTime,
     }), {

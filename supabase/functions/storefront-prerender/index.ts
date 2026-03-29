@@ -17,6 +17,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const VERSION = "v1.2.0";
 
@@ -395,7 +396,7 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error('[storefront-prerender] Fatal error:', error);
-    return new Response(JSON.stringify({ error: error.message || 'Internal error' }), {
+    return new Response(JSON.stringify({ error: "Erro interno. Se o problema persistir, entre em contato com o suporte." || 'Internal error' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

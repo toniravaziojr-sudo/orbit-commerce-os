@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -51,7 +52,7 @@ async function sendEmailViaSendGrid(
     return { success: true, messageId };
   } catch (error: any) {
     console.error("[send-auth-email] SendGrid exception:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." };
   }
 }
 
@@ -351,7 +352,7 @@ const serve_handler = async (req: Request): Promise<Response> => {
     console.error("[send-auth-email] Error:", error);
 
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }

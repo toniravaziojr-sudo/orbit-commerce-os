@@ -4,9 +4,18 @@
 
 ---
 
-## 🛡️ TRATAMENTO DE ERROS PADRONIZADO (v1.0.0)
+## 🛡️ TRATAMENTO DE ERROS PADRONIZADO (v2.0.0 — Migração global concluída 2026-03-29)
 
 **REGRA CRÍTICA**: Toda edge function DEVE usar o helper `errorResponse` para erros de banco/operação.
+
+**Status da migração:** ✅ CONCLUÍDA — ~265 edge functions migradas
+- ✅ Core (products, orders, customers, checkout)
+- ✅ Meta/WhatsApp (~25 functions)
+- ✅ Fiscal (~20 functions)
+- ✅ Marketplaces (ML, Shopee, Olist — ~26 functions)
+- ✅ Google, TikTok, YouTube (~25 functions)
+- ✅ AI, Media, Ads, Shipping, Support, Billing (~100+ functions)
+- ⚠️ Pendente: `ads-chat` e `command-assistant-execute` (complexidade alta, tool results internos)
 
 ```typescript
 import { errorResponse } from '../_shared/error-response.ts';
@@ -28,9 +37,10 @@ catch (error) {
 {
   "success": false,
   "error": "Mensagem operacional em PT-BR (segura para o usuário)",
-  "code": "DUPLICATE_KEY | PERMISSION_DENIED | SESSION_EXPIRED | ...",
-  "category": "validation | permission | auth | network | technical",
-  "retryable": true/false
+  "code": "DUPLICATE_KEY",
+  "category": "validation",
+  "retryable": false,
+  "request_id": "uuid (quando disponível)"
 }
 ```
 
@@ -41,6 +51,7 @@ catch (error) {
 
 **Helpers disponíveis em `_shared/error-response.ts`:**
 - `errorResponse(error, corsHeaders, options?)` — envelope de erro sanitizado
+- `metaApiErrorResponse(metaError, corsHeaders, options?)` — erros da Graph API Meta
 - `validationError(message, corsHeaders)` — erro de validação com mensagem customizada
 - `successResponse(data, corsHeaders)` — envelope de sucesso
 

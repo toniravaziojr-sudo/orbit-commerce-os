@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v1.1.0"; // Processar 1 bucket por vez, paginação
@@ -182,7 +183,7 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error(`[storage-export][${VERSION}] Error:`, error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

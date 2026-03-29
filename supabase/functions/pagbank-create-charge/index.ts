@@ -7,6 +7,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { redactPayloadForLog } from "../_shared/redact-pii.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -429,7 +430,7 @@ serve(async (req) => {
     console.error('[PagBank] Error:', error);
     return new Response(JSON.stringify({ 
       success: false, 
-      error: error.message || 'Erro desconhecido'
+      error: "Erro interno" || 'Erro desconhecido'
     }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

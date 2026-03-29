@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v1.0.0"; // Fase 4: TikTok Content OAuth start
@@ -165,7 +166,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: false,
-        error: error instanceof Error ? error.message : "Erro interno",
+        error: error instanceof Error ? "Erro interno" : "Erro interno",
         code: "INTERNAL_ERROR",
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }

@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -569,7 +570,7 @@ serve(async (req) => {
         success: true,
         classification: createFallbackResult(),
         fallback: true,
-        error: error instanceof Error ? error.message : 'Erro desconhecido',
+        error: error instanceof Error ? "Erro interno" : 'Erro desconhecido',
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

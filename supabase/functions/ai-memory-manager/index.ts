@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
 const VERSION = "v1.1.0"; // Use centralized ai-router (Gemini/OpenAI native priority)
@@ -44,7 +45,7 @@ serve(async (req) => {
     }
   } catch (error: any) {
     console.error(`[ai-memory-manager][${VERSION}] Error:`, error);
-    return jsonResponse({ success: false, error: error.message || "Internal error" });
+    return jsonResponse({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." });
   }
 });
 
@@ -149,7 +150,7 @@ REGRAS:
   const { error } = await supabase.from("ai_memories").insert(inserts);
   if (error) {
     console.error(`[ai-memory-manager][${VERSION}] Insert error:`, error);
-    return jsonResponse({ success: false, error: error.message });
+    return jsonResponse({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." });
   }
 
   console.log(`[ai-memory-manager][${VERSION}] Extracted ${memories.length} memories for tenant ${tenantId}`);
@@ -230,7 +231,7 @@ async function summarizeConversation(
 
   if (error) {
     console.error(`[ai-memory-manager][${VERSION}] Summary insert error:`, error);
-    return jsonResponse({ success: false, error: error.message });
+    return jsonResponse({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." });
   }
 
   console.log(`[ai-memory-manager][${VERSION}] Conversation summarized for ${aiAgent}`);
@@ -249,7 +250,7 @@ async function saveMemory(supabase: any, tenantId: string, userId: string, aiAge
     content,
     importance: importance || 5,
   });
-  if (error) return jsonResponse({ success: false, error: error.message });
+  if (error) return jsonResponse({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." });
   return jsonResponse({ success: true });
 }
 
@@ -260,7 +261,7 @@ async function deleteMemory(supabase: any, tenantId: string, body: any) {
     .delete()
     .eq("id", memory_id)
     .eq("tenant_id", tenantId);
-  if (error) return jsonResponse({ success: false, error: error.message });
+  if (error) return jsonResponse({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." });
   return jsonResponse({ success: true });
 }
 

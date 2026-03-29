@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
 const VERSION = "v2.0.0"; // CRUD: create, update, pause, activate + sync + list
@@ -432,7 +433,7 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error(`[google-ads-campaigns][${traceId}] Error:`, error);
-    return new Response(JSON.stringify({ success: false, error: error.message || "Erro interno" }),
+    return new Response(JSON.stringify({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });

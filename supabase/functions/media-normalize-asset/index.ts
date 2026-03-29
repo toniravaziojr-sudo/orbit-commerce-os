@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const VERSION = "1.0.0";
 
@@ -249,7 +250,7 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error(`[media-normalize-asset][${VERSION}] Error:`, error);
-    return jsonResponse({ success: false, error: error.message || "Internal error" }, 500);
+    return jsonResponse({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }, 500);
   }
 });
 

@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
 const VERSION = "v1.48.0"; // Landing page tools: search + generate for campaigns
@@ -2511,7 +2512,7 @@ async function executeToolCall(
       
       if (error) {
         console.error(`[ads-autopilot-strategist][${VERSION}] search_landing_pages error:`, error);
-        return { status: "failed", data: { error: error.message } };
+        return { status: "failed", data: { error: "Erro interno. Se o problema persistir, entre em contato com o suporte." } };
       }
 
       // Also fetch store_pages (builder landing pages)

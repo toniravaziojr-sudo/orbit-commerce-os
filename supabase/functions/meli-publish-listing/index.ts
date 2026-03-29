@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
 const VERSION = "3.1.0"; // Fix warranty via attributes (WARRANTY_TYPE/WARRANTY_TIME), remove deprecated warranty field and non-modifiable package dimensions
@@ -336,7 +337,7 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error(`[meli-publish-listing] Error:`, error);
-    return jsonResponse({ success: false, error: error.message || "Erro interno" });
+    return errorResponse(error, corsHeaders, { module: 'mercadolivre', action: 'publish-listing' });
   }
 });
 

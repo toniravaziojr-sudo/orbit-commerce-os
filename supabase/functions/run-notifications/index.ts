@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v1.4.0"; // Template support for WhatsApp notifications
@@ -270,7 +271,7 @@ async function sendEmail(
     return { success: true, messageId };
   } catch (error: any) {
     console.error('[RunNotifications] Email send error:', error);
-    return { success: false, error: error.message || 'Unknown error sending email' };
+    return { success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." || 'Unknown error sending email' };
   }
 }
 
@@ -589,7 +590,7 @@ async function sendWhatsAppViaMetaTemplate(
         status: 'failed',
         error_message: sendResult.error.message,
       });
-      return { success: false, error: sendResult.error.message, response: sendResult };
+      return { success: false, error: sendResult."Erro interno. Se o problema persistir, entre em contato com o suporte.", response: sendResult };
     }
 
     const messageId = sendResult.messages?.[0]?.id;
@@ -615,7 +616,7 @@ async function sendWhatsAppViaMetaTemplate(
 
   } catch (error: any) {
     console.error(`[RunNotifications] Template send exception:`, error);
-    return { success: false, error: error.message, response: { channel: 'whatsapp', provider: 'meta', to: cleanPhone } };
+    return { success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte.", response: { channel: 'whatsapp', provider: 'meta', to: cleanPhone } };
   }
 }
 
@@ -685,7 +686,7 @@ async function sendWhatsAppViaMeta(
 
       return {
         success: false,
-        error: sendResult.error.message || 'Erro ao enviar via Meta WhatsApp',
+        error: sendResult."Erro interno" || 'Erro ao enviar via Meta WhatsApp',
         response: sendResult
       };
     }
@@ -722,7 +723,7 @@ async function sendWhatsAppViaMeta(
     console.error(`[RunNotifications] Meta WhatsApp exception:`, error);
     return {
       success: false,
-      error: error.message || 'Erro ao enviar via Meta WhatsApp',
+      error: "Erro interno" || 'Erro ao enviar via Meta WhatsApp',
       response: { channel: 'whatsapp', provider: 'meta', to: cleanPhone }
     };
   }

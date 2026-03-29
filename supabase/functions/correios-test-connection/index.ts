@@ -5,6 +5,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -137,7 +138,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error instanceof Error ? error.message : "Erro interno",
+        error: error instanceof Error ? "Erro interno" : "Erro interno",
         error_code: "INTERNAL_ERROR"
       }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -223,7 +224,7 @@ async function testApiCodeAuth(usuario: string, codigo_acesso: string, cartao_po
     return {
       success: false,
       auth_mode: 'api_code',
-      error: error instanceof Error ? error.message : "Erro desconhecido",
+      error: error instanceof Error ? "Erro interno" : "Erro desconhecido",
       error_code: "UNKNOWN_ERROR"
     };
   }
@@ -301,7 +302,7 @@ async function testOAuthAuth(usuario: string, senha: string, cartao_postagem: st
     return {
       success: false,
       auth_mode: 'oauth',
-      error: error instanceof Error ? error.message : "Erro desconhecido",
+      error: error instanceof Error ? "Erro interno" : "Erro desconhecido",
       error_code: "UNKNOWN_ERROR"
     };
   }
@@ -380,7 +381,7 @@ async function testTokenAuth(token: string): Promise<TestResult> {
     return {
       success: false,
       auth_mode: 'token',
-      error: error instanceof Error ? error.message : "Erro desconhecido",
+      error: error instanceof Error ? "Erro interno" : "Erro desconhecido",
       error_code: "UNKNOWN_ERROR"
     };
   }

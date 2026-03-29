@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const VERSION = "2.1.0"; // Phase 1B: execution_log, warning_flags, aggregate trigger
 
@@ -423,7 +424,7 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error(`[worker][${VERSION}] Fatal error:`, error);
-    return jsonResponse({ success: false, error: error.message || "Erro interno" });
+    return jsonResponse({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." });
   }
 });
 
@@ -549,7 +550,7 @@ async function publishToInstagram(
       continue;
     }
 
-    throw new Error(`Container: ${containerData.error.message}`);
+    throw new Error("Erro interno. Se o problema persistir, entre em contato com o suporte.");
   }
 
   const containerId = containerData.id;
@@ -583,7 +584,7 @@ async function publishToInstagram(
     }
   );
   const publishData = await publishRes.json();
-  if (publishData.error) throw new Error(`Publish: ${publishData.error.message}`);
+  if (publishData.error) throw new Error("Erro interno. Se o problema persistir, entre em contato com o suporte.");
 
   return { ...publishData, container_id: containerId };
 }

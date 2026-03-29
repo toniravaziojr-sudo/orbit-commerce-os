@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { errorResponse } from "../_shared/error-response.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -45,7 +46,7 @@ Deno.serve(async (req) => {
     if (error) {
       console.error(`[admin-delete-user] Error:`, error);
       return new Response(
-        JSON.stringify({ error: error.message }),
+        JSON.stringify({ error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v1.0.0"; // Fase 12 — TikTok Content Analytics
@@ -80,7 +81,7 @@ Deno.serve(async (req) => {
           .limit(body.limit || 100);
 
         if (error) {
-          return new Response(JSON.stringify({ success: false, error: error.message }), {
+          return new Response(JSON.stringify({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }), {
             status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
@@ -140,7 +141,7 @@ Deno.serve(async (req) => {
         }
 
         if (queryData.error?.code !== 'ok' && queryData.error?.code) {
-          return new Response(JSON.stringify({ success: false, error: queryData.error.message || 'TikTok API error' }), {
+          return new Response(JSON.stringify({ success: false, error: queryData."Erro interno. Se o problema persistir, entre em contato com o suporte." || 'TikTok API error' }), {
             status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
