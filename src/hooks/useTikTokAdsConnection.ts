@@ -119,9 +119,7 @@ export function useTikTokAdsConnection() {
         );
       }
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'conectar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'conectar' }),
   });
 
   // Desconectar
@@ -147,9 +145,7 @@ export function useTikTokAdsConnection() {
       queryClient.invalidateQueries({ queryKey: ['marketing-integrations'] });
       toast.success("TikTok Ads desconectado");
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'conectar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'conectar' }),
   });
 
   // Listener popup

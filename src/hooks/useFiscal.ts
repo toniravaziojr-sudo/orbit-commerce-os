@@ -190,9 +190,7 @@ export function useFiscalSettings() {
       queryClient.invalidateQueries({ queryKey: ['fiscal-settings'] });
       toast.success('Configurações fiscais salvas');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'fiscal', action: 'salvar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'fiscal', action: 'salvar' }),
   });
 
   const uploadCertificate = useMutation({
@@ -210,9 +208,7 @@ export function useFiscalSettings() {
       queryClient.invalidateQueries({ queryKey: ['fiscal-settings'] });
       toast.success('Certificado digital salvo com sucesso');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'fiscal', action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'fiscal', action: 'processar' }),
   });
 
   const removeCertificate = useMutation({
@@ -230,9 +226,7 @@ export function useFiscalSettings() {
       queryClient.invalidateQueries({ queryKey: ['fiscal-settings'] });
       toast.success('Certificado removido com sucesso');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'fiscal', action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'fiscal', action: 'processar' }),
   });
 
   return {
@@ -508,9 +502,7 @@ export function useSubmitInvoice() {
         toast.info('NF-e enviada! Aguardando autorização da SEFAZ...');
       }
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'fiscal', action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'fiscal', action: 'processar' }),
   });
 }
 

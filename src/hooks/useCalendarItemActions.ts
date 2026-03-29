@@ -211,9 +211,7 @@ export function useCalendarItemActions(campaignId: string | undefined) {
       invalidate();
       toast.success("Agendamento substituído! O item voltou para aprovado e pode ser reagendado.");
     },
-    onError: (error: any) => {
-      onError: (err) => showErrorToast(err, { module: 'calendário', action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'calendário', action: 'processar' }),
   });
 
   /**

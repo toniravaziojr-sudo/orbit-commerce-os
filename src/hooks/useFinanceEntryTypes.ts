@@ -58,9 +58,7 @@ export function useFinanceEntryTypes() {
       queryClient.invalidateQueries({ queryKey: ['finance-entry-types', tenantId] });
       toast.success('Tipo de lançamento criado');
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'financeiro', action: 'criar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'financeiro', action: 'criar' }),
   });
 
   const deleteFinanceEntryType = useMutation({
@@ -76,9 +74,7 @@ export function useFinanceEntryTypes() {
       queryClient.invalidateQueries({ queryKey: ['finance-entry-types', tenantId] });
       toast.success('Tipo de lançamento removido');
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'financeiro', action: 'excluir' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'financeiro', action: 'excluir' }),
   });
 
   return {

@@ -54,9 +54,7 @@ export function usePurchaseTypes() {
       queryClient.invalidateQueries({ queryKey: ['purchase-types', tenantId] });
       toast.success('Tipo de compra criado');
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'compras', action: 'criar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'compras', action: 'criar' }),
   });
 
   const deletePurchaseType = useMutation({
@@ -72,9 +70,7 @@ export function usePurchaseTypes() {
       queryClient.invalidateQueries({ queryKey: ['purchase-types', tenantId] });
       toast.success('Tipo de compra removido');
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'compras', action: 'excluir' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'compras', action: 'excluir' }),
   });
 
   return {

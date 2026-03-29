@@ -206,9 +206,7 @@ export default function EmailMarketingListDetail() {
       toast.success("Lista excluída com sucesso");
       navigate("/email-marketing");
     },
-    onError: (error: any) => {
-      onError: (err) => showErrorToast(err, { module: 'email', action: 'excluir' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'email', action: 'excluir' }),
   });
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);

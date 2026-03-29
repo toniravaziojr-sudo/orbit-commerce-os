@@ -145,9 +145,7 @@ export function useQuizzes() {
       queryClient.invalidateQueries({ queryKey: ["quizzes"] });
       toast.success("Quiz criado com sucesso");
     },
-    onError: (error: any) => {
-      onError: (err) => showErrorToast(err, { module: 'quiz', action: 'criar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'quiz', action: 'criar' }),
   });
 
   // Update quiz

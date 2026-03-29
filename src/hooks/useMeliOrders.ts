@@ -105,9 +105,7 @@ export function useMeliOrders({ status, page = 1, pageSize = 20 }: UseMeliOrders
       toast.success(`Sincronização concluída: ${data.synced} pedidos`);
       queryClient.invalidateQueries({ queryKey: ["meli-orders"] });
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'mercado livre', action: 'sincronizar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'mercado livre', action: 'sincronizar' }),
   });
 
   return {

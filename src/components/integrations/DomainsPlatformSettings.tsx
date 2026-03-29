@@ -34,9 +34,7 @@ export function DomainsPlatformSettings() {
       }
       queryClient.invalidateQueries({ queryKey: ['platform-secrets-status'] });
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'testar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'integrações', action: 'testar' }),
   });
 
   const isConfigured = secretStatus?.status === 'configured';

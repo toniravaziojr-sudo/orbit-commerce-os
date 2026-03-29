@@ -262,9 +262,7 @@ export function useGenerateImage() {
         queryKey: ["all-variants", variables.calendarItemId],
       });
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { action: 'gerar' }),
-    },
+    onError: (err) => showErrorToast(err, { action: 'gerar' }),
   });
 }
 
@@ -330,9 +328,7 @@ export function useGenerateVideo() {
         queryKey: ["all-variants", variables.calendarItemId],
       });
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { action: 'gerar' }),
-    },
+    onError: (err) => showErrorToast(err, { action: 'gerar' }),
   });
 }
 
@@ -360,9 +356,7 @@ export function useApproveVariant() {
       queryClient.invalidateQueries({ queryKey: ["asset-variants"] });
       queryClient.invalidateQueries({ queryKey: ["media-calendar-items"] });
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { action: 'aprovar' }),
-    },
+    onError: (err) => showErrorToast(err, { action: 'aprovar' }),
   });
 }
 
@@ -395,9 +389,7 @@ export function useRegenerateVariant() {
       queryClient.invalidateQueries({ queryKey: ["all-variants"] });
       queryClient.invalidateQueries({ queryKey: ["asset-generations"] });
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { action: 'processar' }),
   });
 }
 

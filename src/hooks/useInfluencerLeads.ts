@@ -67,9 +67,7 @@ export function useInfluencerLeads() {
       queryClient.invalidateQueries({ queryKey: ['influencer-leads', tenantId] });
       toast.success('Influencer adicionado com sucesso');
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'influenciadores', action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'influenciadores', action: 'processar' }),
   });
 
   const updateInfluencer = useMutation({
@@ -88,9 +86,7 @@ export function useInfluencerLeads() {
       queryClient.invalidateQueries({ queryKey: ['influencer-leads', tenantId] });
       toast.success('Influencer atualizado com sucesso');
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'influenciadores', action: 'salvar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'influenciadores', action: 'salvar' }),
   });
 
   const deleteInfluencer = useMutation({
@@ -106,9 +102,7 @@ export function useInfluencerLeads() {
       queryClient.invalidateQueries({ queryKey: ['influencer-leads', tenantId] });
       toast.success('Influencer removido com sucesso');
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'influenciadores', action: 'excluir' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'influenciadores', action: 'excluir' }),
   });
 
   return {

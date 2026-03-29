@@ -88,9 +88,7 @@ export function useShopeeConnection() {
         }
       }, 500);
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'shopee', action: 'conectar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'shopee', action: 'conectar' }),
   });
 
   const disconnectMutation = useMutation({
@@ -113,9 +111,7 @@ export function useShopeeConnection() {
       toast.success("Conta da Shopee desconectada");
       queryClient.invalidateQueries({ queryKey: ["shopee-connection-status"] });
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'shopee', action: 'conectar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'shopee', action: 'conectar' }),
   });
 
   return {

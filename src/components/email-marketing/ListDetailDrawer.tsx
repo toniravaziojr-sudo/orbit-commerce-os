@@ -86,9 +86,7 @@ export function ListDetailDrawer({ open, onOpenChange, list }: ListDetailDrawerP
       setDeleteDialogOpen(false);
       onOpenChange(false);
     },
-    onError: (error: any) => {
-      onError: (err) => showErrorToast(err, { module: 'email marketing', action: 'excluir' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'email marketing', action: 'excluir' }),
   });
 
   const filteredSubscribers = subscribers.filter((sub: any) =>

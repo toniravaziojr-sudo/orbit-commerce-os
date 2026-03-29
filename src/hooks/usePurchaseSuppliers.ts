@@ -60,9 +60,7 @@ export function usePurchaseSuppliers() {
       queryClient.invalidateQueries({ queryKey: ['purchase-suppliers', tenantId] });
       toast.success('Fornecedor cadastrado com sucesso');
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'compras', action: 'criar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'compras', action: 'criar' }),
   });
 
   const updateSupplier = useMutation({
@@ -81,9 +79,7 @@ export function usePurchaseSuppliers() {
       queryClient.invalidateQueries({ queryKey: ['purchase-suppliers', tenantId] });
       toast.success('Fornecedor atualizado com sucesso');
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'compras', action: 'salvar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'compras', action: 'salvar' }),
   });
 
   const deleteSupplier = useMutation({
@@ -99,9 +95,7 @@ export function usePurchaseSuppliers() {
       queryClient.invalidateQueries({ queryKey: ['purchase-suppliers', tenantId] });
       toast.success('Fornecedor removido com sucesso');
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'compras', action: 'excluir' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'compras', action: 'excluir' }),
   });
 
   return {

@@ -186,9 +186,7 @@ export function useAgendaTasks() {
       queryClient.invalidateQueries({ queryKey: ["agenda-reminders", tenantId] });
       toast.success("Tarefa criada com sucesso!");
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'agenda', action: 'criar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'agenda', action: 'criar' }),
   });
 
   // Update task mutation
@@ -254,9 +252,7 @@ export function useAgendaTasks() {
       queryClient.invalidateQueries({ queryKey: ["agenda-reminders", tenantId] });
       toast.success("Tarefa atualizada!");
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'agenda', action: 'salvar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'agenda', action: 'salvar' }),
   });
 
   // Delete task mutation
@@ -277,9 +273,7 @@ export function useAgendaTasks() {
       queryClient.invalidateQueries({ queryKey: ["agenda-reminders", tenantId] });
       toast.success("Tarefa excluída!");
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'agenda', action: 'excluir' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'agenda', action: 'excluir' }),
   });
 
   // Mark task complete

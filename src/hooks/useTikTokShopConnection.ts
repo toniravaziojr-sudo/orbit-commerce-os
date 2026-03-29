@@ -123,9 +123,7 @@ export function useTikTokShopConnection() {
         );
       }
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'conectar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'conectar' }),
   });
 
   // Desconectar
@@ -150,9 +148,7 @@ export function useTikTokShopConnection() {
       queryClient.invalidateQueries({ queryKey: ['tiktok-shop-connection'] });
       toast.success("TikTok Shop desconectado");
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'conectar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'conectar' }),
   });
 
   // Listener popup

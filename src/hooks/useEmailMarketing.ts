@@ -143,9 +143,7 @@ export function useEmailMarketing() {
       queryClient.invalidateQueries({ queryKey: ["email-marketing-subscribers"] });
       toast.success("Lista criada - subscribers sincronizados automaticamente!");
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'email', action: 'criar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'email', action: 'criar' }),
   });
 
   const createTemplate = useMutation({
@@ -157,9 +155,7 @@ export function useEmailMarketing() {
       queryClient.invalidateQueries({ queryKey: ["email-marketing-templates"] });
       toast.success("Template criado");
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'email', action: 'criar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'email', action: 'criar' }),
   });
 
   const createCampaign = useMutation({
@@ -171,9 +167,7 @@ export function useEmailMarketing() {
       queryClient.invalidateQueries({ queryKey: ["email-marketing-campaigns"] });
       toast.success("Campanha criada");
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'email', action: 'criar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'email', action: 'criar' }),
   });
 
   const createForm = useMutation({
@@ -185,9 +179,7 @@ export function useEmailMarketing() {
       queryClient.invalidateQueries({ queryKey: ["email-marketing-forms"] });
       toast.success("Formulário criado");
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'email', action: 'criar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'email', action: 'criar' }),
   });
 
   return {

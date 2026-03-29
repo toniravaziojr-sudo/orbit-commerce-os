@@ -125,9 +125,7 @@ export function CreateShipmentDialog({ open, onOpenChange }: CreateShipmentDialo
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       toast.success('Remessa criada com sucesso!');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'logística', action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'logística', action: 'processar' }),
   });
 
   // Registrar remessa manual (Frenet ou externa)
@@ -157,9 +155,7 @@ export function CreateShipmentDialog({ open, onOpenChange }: CreateShipmentDialo
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       toast.success('Remessa registrada com sucesso!');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'logística', action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'logística', action: 'processar' }),
   });
 
   const handleClose = () => {

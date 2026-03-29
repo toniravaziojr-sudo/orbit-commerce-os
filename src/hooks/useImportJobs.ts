@@ -93,9 +93,7 @@ export function useImportJobs() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['import-jobs', tenantId] });
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'importação', action: 'criar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'importação', action: 'criar' }),
   });
 
   const updateJobStatus = useMutation({
@@ -136,9 +134,7 @@ export function useImportJobs() {
       queryClient.invalidateQueries({ queryKey: ['import-jobs', tenantId] });
       toast.success('Job removido');
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'importação', action: 'excluir' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'importação', action: 'excluir' }),
   });
 
   const clearTenantData = useMutation({
@@ -170,9 +166,7 @@ export function useImportJobs() {
       const totalDeleted = Object.values(data.deleted as Record<string, number>).reduce((a, b) => a + b, 0);
       toast.success(`${totalDeleted} registros removidos com sucesso`);
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'importação', action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'importação', action: 'processar' }),
   });
 
   return {

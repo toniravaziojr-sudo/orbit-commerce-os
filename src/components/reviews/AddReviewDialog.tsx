@@ -107,9 +107,7 @@ export function AddReviewDialog({ trigger }: AddReviewDialogProps) {
       resetForm();
       setOpen(false);
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'avaliações', action: 'criar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'avaliações', action: 'criar' }),
   });
 
   return (

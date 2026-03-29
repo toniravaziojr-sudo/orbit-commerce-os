@@ -121,9 +121,7 @@ export default function TemplateBuilder() {
       queryClient.invalidateQueries({ queryKey: ['page-templates'] });
       toast.success('Template salvo com sucesso');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'templates', action: 'salvar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'templates', action: 'salvar' }),
   });
 
   // Helper to build menu item URL

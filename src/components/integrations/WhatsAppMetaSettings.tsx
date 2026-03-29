@@ -126,9 +126,7 @@ export function WhatsAppMetaSettings() {
         toast.info("Complete a conexão na janela do Facebook/Meta");
       }
     },
-    onError: (error: any) => {
-      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'integrações', action: 'processar' }),
   });
 
   // Save test credentials mutation (temporary for Meta approval)
@@ -166,9 +164,7 @@ export function WhatsAppMetaSettings() {
       setTestCredentials({ phoneNumberId: "", accessToken: "", wabaId: "", displayPhoneNumber: "" });
       queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
     },
-    onError: (error: any) => {
-      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'salvar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'integrações', action: 'salvar' }),
   });
 
   // Disconnect mutation
@@ -191,9 +187,7 @@ export function WhatsAppMetaSettings() {
       toast.success("WhatsApp desconectado");
       queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
     },
-    onError: (error: any) => {
-      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'conectar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'integrações', action: 'conectar' }),
   });
 
   // Register phone number manually — DISABLED: this component does not collect PIN.
@@ -202,9 +196,7 @@ export function WhatsAppMetaSettings() {
     mutationFn: async () => {
       throw new Error("Use a aba de Integrações Meta para finalizar o registro com PIN de segurança.");
     },
-    onError: (error: any) => {
-      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'registrar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'integrações', action: 'registrar' }),
   });
 
   // Send test message mutation
@@ -228,9 +220,7 @@ export function WhatsAppMetaSettings() {
       toast.success("Mensagem de teste enviada!");
       setTestPhone("");
     },
-    onError: (error: any) => {
-      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'enviar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'integrações', action: 'enviar' }),
   });
 
   const formatPhone = (phone: string | null) => {

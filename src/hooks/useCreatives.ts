@@ -295,9 +295,7 @@ export function useDeleteCreativeJob() {
       queryClient.invalidateQueries({ queryKey: ['creative-stats'] });
       toast.success('Criativo excluído com sucesso');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { action: 'excluir' }),
-    },
+    onError: (err) => showErrorToast(err, { action: 'excluir' }),
   });
 }
 
@@ -321,9 +319,7 @@ export function useRetryCreativeJob() {
       queryClient.invalidateQueries({ queryKey: ['creative-jobs'] });
       toast.success('Reprocessamento iniciado');
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { action: 'processar' }),
   });
 }
 

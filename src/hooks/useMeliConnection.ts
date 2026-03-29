@@ -109,9 +109,7 @@ export function useMeliConnection() {
         }
       }, 500);
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'mercado livre', action: 'conectar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'mercado livre', action: 'conectar' }),
   });
 
   // Mutation para desconectar
@@ -135,9 +133,7 @@ export function useMeliConnection() {
       toast.success("Conta do Mercado Livre desconectada");
       queryClient.invalidateQueries({ queryKey: ["meli-connection-status"] });
     },
-    onError: (error) => {
-      onError: (err) => showErrorToast(err, { module: 'mercado livre', action: 'conectar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'mercado livre', action: 'conectar' }),
   });
 
   return {

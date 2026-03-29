@@ -289,9 +289,7 @@ export default function Shipments() {
       queryClient.invalidateQueries({ queryKey: ['admin-shipments'] });
       queryClient.invalidateQueries({ queryKey: ['last-poll-info'] });
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { action: 'processar' }),
-    },
+    onError: (err) => showErrorToast(err, { action: 'processar' }),
     onSettled: () => {
       setIsPolling(false);
     },

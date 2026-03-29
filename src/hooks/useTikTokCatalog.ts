@@ -103,9 +103,7 @@ export function useTikTokCatalog() {
         toast.success(`${result.synced} produto(s) sincronizado(s) com TikTok Shop`);
       }
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'sincronizar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'sincronizar' }),
   });
 
   // Verificar status
@@ -125,9 +123,7 @@ export function useTikTokCatalog() {
       queryClient.invalidateQueries({ queryKey: ['tiktok-shop-catalog'] });
       toast.success(`${result.checked} verificado(s), ${result.updated} atualizado(s)`);
     },
-    onError: (error: Error) => {
-      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'verificar' }),
-    },
+    onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'verificar' }),
   });
 
   return {
