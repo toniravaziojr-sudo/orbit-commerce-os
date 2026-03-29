@@ -118,12 +118,13 @@ Deno.serve(async (req) => {
           // Route to tenant by phone_number_id
           let tenantId: string | null = null;
 
-          // First try: whatsapp_configs (production connections)
+          // First try: whatsapp_configs (production connections) — only active configs
           const { data: config } = await supabase
             .from("whatsapp_configs")
             .select("tenant_id")
             .eq("phone_number_id", phoneNumberId)
             .eq("provider", "meta")
+            .eq("is_enabled", true)
             .single();
 
           if (config) {
