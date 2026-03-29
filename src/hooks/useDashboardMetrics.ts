@@ -73,31 +73,7 @@ const EMPTY_METRICS: DashboardMetrics = {
   conversionRateToday: 0, conversionRateYesterday: 0,
 };
 
-const SAO_PAULO_TIMEZONE = 'America/Sao_Paulo';
-const SAO_PAULO_UTC_OFFSET = '-03:00';
-
-function getSaoPauloDateKey(date: Date) {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: SAO_PAULO_TIMEZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date);
-
-  const year = parts.find((part) => part.type === 'year')?.value;
-  const month = parts.find((part) => part.type === 'month')?.value;
-  const day = parts.find((part) => part.type === 'day')?.value;
-
-  return `${year}-${month}-${day}`;
-}
-
-function toSaoPauloStartIso(date: Date) {
-  return new Date(`${getSaoPauloDateKey(date)}T00:00:00.000${SAO_PAULO_UTC_OFFSET}`).toISOString();
-}
-
-function toSaoPauloEndIso(date: Date) {
-  return new Date(`${getSaoPauloDateKey(date)}T23:59:59.999${SAO_PAULO_UTC_OFFSET}`).toISOString();
-}
+import { toSaoPauloStartIso, toSaoPauloEndIso, getSaoPauloDateKey } from '@/lib/date-timezone';
 
 function computePeriods(startDate?: Date, endDate?: Date, firstOrderDate?: Date) {
   const now = new Date();

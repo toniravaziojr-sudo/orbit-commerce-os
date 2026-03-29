@@ -57,12 +57,14 @@ export function useAbandonedCheckouts(filters: AbandonedCheckoutsFilters = {}) {
         query = query.eq('recovery_status', filters.recoveryStatus);
       }
 
-      // Filter by date range
+      // Filter by date range — using São Paulo timezone
       if (filters.startDate) {
-        query = query.gte('created_at', filters.startDate.toISOString());
+        const { toSaoPauloStartIso } = await import('@/lib/date-timezone');
+        query = query.gte('created_at', toSaoPauloStartIso(filters.startDate));
       }
       if (filters.endDate) {
-        query = query.lte('created_at', filters.endDate.toISOString());
+        const { toSaoPauloEndIso } = await import('@/lib/date-timezone');
+        query = query.lte('created_at', toSaoPauloEndIso(filters.endDate));
       }
 
       // Filter by region (state)

@@ -196,14 +196,14 @@ export function useOrders(options?: {
         query = query.eq('shipping_status', shippingStatus as any);
       }
 
-      // Date filters
+      // Date filters — using São Paulo timezone
       if (startDate) {
-        query = query.gte(dateField, startDate.toISOString());
+        const { toSaoPauloStartIso } = await import('@/lib/date-timezone');
+        query = query.gte(dateField, toSaoPauloStartIso(startDate));
       }
       if (endDate) {
-        const endOfDay = new Date(endDate);
-        endOfDay.setHours(23, 59, 59, 999);
-        query = query.lte(dateField, endOfDay.toISOString());
+        const { toSaoPauloEndIso } = await import('@/lib/date-timezone');
+        query = query.lte(dateField, toSaoPauloEndIso(endDate));
       }
 
       // Apply pagination

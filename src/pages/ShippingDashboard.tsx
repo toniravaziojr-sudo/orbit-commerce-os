@@ -136,12 +136,12 @@ export default function ShippingDashboard() {
         .limit(500);
       
       if (startDate) {
-        query = query.gte('created_at', startDate.toISOString());
+        const { toSaoPauloStartIso } = await import('@/lib/date-timezone');
+        query = query.gte('created_at', toSaoPauloStartIso(startDate));
       }
       if (endDate) {
-        const endOfDay = new Date(endDate);
-        endOfDay.setHours(23, 59, 59, 999);
-        query = query.lte('created_at', endOfDay.toISOString());
+        const { toSaoPauloEndIso } = await import('@/lib/date-timezone');
+        query = query.lte('created_at', toSaoPauloEndIso(endDate));
       }
       
       const { data, error } = await query;

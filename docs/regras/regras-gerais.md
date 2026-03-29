@@ -540,10 +540,27 @@ Biblioteca central que define TODOS os cálculos de período do sistema.
 
 **Regras de cálculo:**
 - Timezone padrão: `America/Sao_Paulo` (preparado para tenant futuro)
-- Início sempre em `startOfDay` (00:00:00.000)
-- Fim sempre em `endOfDay` (23:59:59.999)
+- Início sempre em `startOfDay` (00:00:00.000) **no timezone de São Paulo**
+- Fim sempre em `endOfDay` (23:59:59.999) **no timezone de São Paulo**
 - "Esta semana" e "Este mês" vão até o fim de HOJE (não do período completo)
-- Semana começa no Domingo (padrão ptBR)
+- Semana começa na **Segunda-feira** (`weekStartsOn: 1`) — contexto brasileiro
+- Seleção de dia único: se o usuário clicar "Filtrar" com apenas data de início, o sistema define automaticamente o fim como o mesmo dia
+
+**Utilitário de Timezone: `src/lib/date-timezone.ts`**
+
+Arquivo central que converte datas para ISO strings no timezone de São Paulo. **Todas as queries ao banco com filtro de data DEVEM usar estas funções** em vez de `.toISOString()` direto ou `setHours()`:
+
+| Função | Descrição |
+|--------|-----------|
+| `toSaoPauloStartIso(date)` | Retorna ISO de 00:00:00.000 no horário de SP |
+| `toSaoPauloEndIso(date)` | Retorna ISO de 23:59:59.999 no horário de SP |
+| `getSaoPauloDateKey(date)` | Retorna `YYYY-MM-DD` conforme timezone de SP |
+
+**⚠️ Proibições:**
+- ❌ `date.toISOString()` direto em filtros de query (usa timezone do browser)
+- ❌ `setHours(23, 59, 59, 999)` para endOfDay (usa timezone do browser)
+- ❌ `startOfDay(date).toISOString()` do date-fns (usa timezone do browser)
+- ✅ `toSaoPauloStartIso(date)` e `toSaoPauloEndIso(date)` (sempre SP)
 
 **Presets disponíveis:** Todo o período, Hoje, Ontem, Esta semana, Semana passada, Este mês, Mês passado, Últimos 7 dias, Últimos 30 dias, Selecionar mês, Período customizado.
 

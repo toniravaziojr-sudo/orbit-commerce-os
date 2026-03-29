@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths, format, parseISO } from "date-fns";
+import { toSaoPauloStartIso, toSaoPauloEndIso } from "@/lib/date-timezone";
 
 export interface SalesReportData {
   date: string;
@@ -81,8 +82,8 @@ export function useSalesReport(filters: ReportFilters) {
         .from('orders')
         .select('id, total, subtotal, created_at, status')
         .eq('tenant_id', tenantId)
-        .gte('created_at', filters.startDate.toISOString())
-        .lte('created_at', filters.endDate.toISOString())
+        .gte('created_at', toSaoPauloStartIso(filters.startDate))
+        .lte('created_at', toSaoPauloEndIso(filters.endDate))
         .in('status', ['paid', 'processing', 'shipped', 'delivered']);
 
       if (error) throw error;
@@ -147,8 +148,8 @@ export function useSalesByCoupon(filters: ReportFilters) {
         .from('orders')
         .select('discount_code, total, discount_total')
         .eq('tenant_id', tenantId)
-        .gte('created_at', filters.startDate.toISOString())
-        .lte('created_at', filters.endDate.toISOString())
+        .gte('created_at', toSaoPauloStartIso(filters.startDate))
+        .lte('created_at', toSaoPauloEndIso(filters.endDate))
         .not('discount_code', 'is', null)
         .in('status', ['paid', 'processing', 'shipped', 'delivered']);
 
@@ -194,8 +195,8 @@ export function useSalesByChannel(filters: ReportFilters) {
         .from('orders')
         .select('marketplace_source, total')
         .eq('tenant_id', tenantId)
-        .gte('created_at', filters.startDate.toISOString())
-        .lte('created_at', filters.endDate.toISOString())
+        .gte('created_at', toSaoPauloStartIso(filters.startDate))
+        .lte('created_at', toSaoPauloEndIso(filters.endDate))
         .in('status', ['paid', 'processing', 'shipped', 'delivered']);
 
       if (error) throw error;
@@ -242,8 +243,8 @@ export function useSalesByProduct(filters: ReportFilters, limit = 20) {
         .from('orders')
         .select('id')
         .eq('tenant_id', tenantId)
-        .gte('created_at', filters.startDate.toISOString())
-        .lte('created_at', filters.endDate.toISOString())
+        .gte('created_at', toSaoPauloStartIso(filters.startDate))
+        .lte('created_at', toSaoPauloEndIso(filters.endDate))
         .in('status', ['paid', 'processing', 'shipped', 'delivered']);
 
       if (ordersError) throw ordersError;
@@ -300,8 +301,8 @@ export function useSalesByPaymentMethod(filters: ReportFilters) {
         .from('orders')
         .select('payment_method, total')
         .eq('tenant_id', tenantId)
-        .gte('created_at', filters.startDate.toISOString())
-        .lte('created_at', filters.endDate.toISOString())
+        .gte('created_at', toSaoPauloStartIso(filters.startDate))
+        .lte('created_at', toSaoPauloEndIso(filters.endDate))
         .in('status', ['paid', 'processing', 'shipped', 'delivered']);
 
       if (error) throw error;
@@ -347,8 +348,8 @@ export function useSalesByStatus(filters: ReportFilters) {
         .from('orders')
         .select('status, total')
         .eq('tenant_id', tenantId)
-        .gte('created_at', filters.startDate.toISOString())
-        .lte('created_at', filters.endDate.toISOString());
+        .gte('created_at', toSaoPauloStartIso(filters.startDate))
+        .lte('created_at', toSaoPauloEndIso(filters.endDate));
 
       if (error) throw error;
 
@@ -393,8 +394,8 @@ export function useSalesByRegion(filters: ReportFilters) {
         .from('orders')
         .select('shipping_state, shipping_city, total')
         .eq('tenant_id', tenantId)
-        .gte('created_at', filters.startDate.toISOString())
-        .lte('created_at', filters.endDate.toISOString())
+        .gte('created_at', toSaoPauloStartIso(filters.startDate))
+        .lte('created_at', toSaoPauloEndIso(filters.endDate))
         .in('status', ['paid', 'processing', 'shipped', 'delivered']);
 
       if (error) throw error;
@@ -445,8 +446,8 @@ export function useCustomerReport(filters: ReportFilters) {
         .from('customers')
         .select('id')
         .eq('tenant_id', tenantId)
-        .gte('created_at', filters.startDate.toISOString())
-        .lte('created_at', filters.endDate.toISOString());
+        .gte('created_at', toSaoPauloStartIso(filters.startDate))
+        .lte('created_at', toSaoPauloEndIso(filters.endDate));
 
       if (newError) throw newError;
 
@@ -455,8 +456,8 @@ export function useCustomerReport(filters: ReportFilters) {
         .from('orders')
         .select('customer_email')
         .eq('tenant_id', tenantId)
-        .gte('created_at', filters.startDate.toISOString())
-        .lte('created_at', filters.endDate.toISOString())
+        .gte('created_at', toSaoPauloStartIso(filters.startDate))
+        .lte('created_at', toSaoPauloEndIso(filters.endDate))
         .in('status', ['paid', 'processing', 'shipped', 'delivered']);
 
       if (ordersError) throw ordersError;
@@ -501,8 +502,8 @@ export function useReportSummary(filters: ReportFilters) {
         .from('orders')
         .select('id, total, status, created_at')
         .eq('tenant_id', tenantId)
-        .gte('created_at', filters.startDate.toISOString())
-        .lte('created_at', filters.endDate.toISOString());
+        .gte('created_at', toSaoPauloStartIso(filters.startDate))
+        .lte('created_at', toSaoPauloEndIso(filters.endDate));
 
       if (error) throw error;
 
