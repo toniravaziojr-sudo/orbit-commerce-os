@@ -172,6 +172,10 @@ export function ProductList({ onCreateProduct, onEditProduct }: ProductListProps
     );
   }
 
+  if (isError) {
+    return <QueryErrorState title="Erro ao carregar produtos" onRetry={refetch} />;
+  }
+
   // Status counts
   const statusCounts = products.reduce((acc, p) => {
     acc[p.status] = (acc[p.status] || 0) + 1;
