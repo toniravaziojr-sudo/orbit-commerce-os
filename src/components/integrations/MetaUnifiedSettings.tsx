@@ -46,6 +46,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Zap } from "lucide-react";
 
 // Build SCOPE_PACK_INFO from central config + platform operator context
 // Icons are defined here since they are React elements (not serializable in config)
@@ -193,7 +194,25 @@ export function MetaUnifiedSettings() {
     },
   });
 
-  // REGRA CRÍTICA: NUNCA mostrar loader de tela cheia após carga inicial
+  // Register phone number on Cloud API (manual fallback)
+  const registerPhoneMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("meta-whatsapp-register-phone", {
+        body: { tenant_id: tenantId },
+      });
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Número registrado com sucesso na Cloud API!");
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Erro ao registrar número");
+    },
+  });
+
   // O isLoading fica true durante refetches/invalidações de query
   // Uma vez que carregamos os dados, marcamos para NUNCA mais bloquear a UI
   useEffect(() => {
@@ -319,18 +338,66 @@ export function MetaUnifiedSettings() {
                     )}
                     {/* WhatsApp - mostrar número conectado do whatsapp_configs */}
                     {whatsappConfig?.phone_number && whatsappConfig.provider === "meta" && (
-                      <div className="rounded-lg border p-3">
+                      <div className={`rounded-lg border p-3 ${
+                        whatsappConfig.connection_status === "pending_registration" 
+                          ? "border-amber-300 dark:border-amber-700" 
+                          : ""
+                      }`}>
                         <div className="flex items-center gap-2 mb-2">
                           <MessageCircle className="h-4 w-4 text-green-600" />
                           <span className="text-sm font-medium">WhatsApp</span>
-                          <Badge variant="outline" className="ml-auto bg-green-50 text-green-700 border-green-200">
-                            <Phone className="h-3 w-3 mr-1" />
-                            Ativo
-                          </Badge>
+                          {whatsappConfig.connection_status === "pending_registration" ? (
+                            <Badge variant="outline" className="ml-auto border-amber-400 text-amber-700 dark:text-amber-400">
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              Registro Pendente
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="ml-auto bg-green-50 text-green-700 border-green-200">
+                              <Phone className="h-3 w-3 mr-1" />
+                              Ativo
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-xs text-muted-foreground">
                           +{whatsappConfig.display_phone_number || whatsappConfig.phone_number}
                         </p>
+                        {whatsappConfig.connection_status === "pending_registration" && (
+                          <div className="mt-2 space-y-2">
+                            <p className="text-xs text-amber-700 dark:text-amber-400">
+                              O número precisa ser registrado na Cloud API para enviar mensagens.
+                            </p>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="w-full border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950"
+                              onClick={() => registerPhoneMutation.mutate()}
+                              disabled={registerPhoneMutation.isPending}
+                            >
+                              {registerPhoneMutation.isPending ? (
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              ) : (
+                                <Zap className="h-3 w-3 mr-1" />
+                              )}
+                              Registrar Número
+                            </Button>
+                          </div>
+                        )}
+                        {whatsappConfig.connection_status === "connected" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="mt-2 w-full text-xs text-muted-foreground"
+                            onClick={() => registerPhoneMutation.mutate()}
+                            disabled={registerPhoneMutation.isPending}
+                          >
+                            {registerPhoneMutation.isPending ? (
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            ) : (
+                              <Zap className="h-3 w-3 mr-1" />
+                            )}
+                            Re-registrar número
+                          </Button>
+                        )}
                       </div>
                     )}
                     {connection.assets?.whatsapp_business_accounts && connection.assets.whatsapp_business_accounts.length > 0 && (
