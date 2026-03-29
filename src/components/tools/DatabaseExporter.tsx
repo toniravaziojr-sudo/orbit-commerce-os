@@ -51,7 +51,7 @@ export function DatabaseExporter() {
       setGroups(data.groups);
       toast.success(`${Object.keys(data.groups).length} grupos de tabelas disponíveis`);
     } catch (err: any) {
-      onError: (err) => showErrorToast(err, { module: 'ferramentas', action: 'processar' }),
+      showErrorToast(err, { module: 'ferramentas', action: 'processar' });
     } finally {
       setLoading(false);
     }
@@ -71,7 +71,7 @@ export function DatabaseExporter() {
       const data = await apiFetch(`action=export_group&group=${groupKey}`);
       setTableCounts(prev => ({ ...prev, [groupKey]: data.tables }));
     } catch (err: any) {
-      onError: (err) => showErrorToast(err, { module: 'ferramentas', action: 'processar' }),
+      showErrorToast(err, { module: 'ferramentas', action: 'processar' });
     } finally {
       setLoadingGroup(null);
     }
@@ -130,7 +130,7 @@ export function DatabaseExporter() {
       setExported(prev => new Set(prev).add(groupKey));
       toast.success(`Grupo "${groupKey}" exportado: ${exportPayload.total_rows} registros`);
     } catch (err: any) {
-      onError: (err) => showErrorToast(err, { module: 'ferramentas', action: 'processar' }),
+      showErrorToast(err, { module: 'ferramentas', action: 'processar' });
     } finally {
       setExporting(null);
       setProgress({ label: "", percent: 0 });

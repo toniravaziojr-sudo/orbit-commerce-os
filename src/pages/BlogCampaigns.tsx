@@ -143,7 +143,7 @@ export default function BlogCampaigns() {
       setIsDialogOpen(false);
       resetForm();
     } catch (error: any) {
-      onError: (err) => showErrorToast(err, { module: 'blog', action: 'salvar' }),
+      showErrorToast(err, { module: 'blog', action: 'salvar' });
     }
   };
 
@@ -155,7 +155,7 @@ export default function BlogCampaigns() {
       toast.success("Campanha excluída");
       setDeleteId(null);
     } catch (error: any) {
-      onError: (err) => showErrorToast(err, { module: 'blog', action: 'excluir' }),
+      showErrorToast(err, { module: 'blog', action: 'excluir' });
     }
   };
 

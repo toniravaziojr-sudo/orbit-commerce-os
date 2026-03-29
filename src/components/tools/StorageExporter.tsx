@@ -56,7 +56,7 @@ export function StorageExporter() {
       setBuckets(data.buckets || []);
       toast.success(`${data.buckets?.length || 0} buckets encontrados`);
     } catch (err: any) {
-      onError: (err) => showErrorToast(err, { module: 'ferramentas', action: 'carregar' }),
+      showErrorToast(err, { module: 'ferramentas', action: 'carregar' });
     } finally {
       setLoading(false);
     }
@@ -116,7 +116,7 @@ export function StorageExporter() {
       setExported(prev => new Set(prev).add(bucketId));
       toast.success(`${allFiles.length} arquivos exportados de "${bucketId}"`);
     } catch (err: any) {
-      onError: (err) => showErrorToast(err, { module: 'ferramentas', action: 'exportar' }),
+      showErrorToast(err, { module: 'ferramentas', action: 'exportar' });
     } finally {
       setExporting(null);
       setProgress({ current: 0, total: 0, label: "" });

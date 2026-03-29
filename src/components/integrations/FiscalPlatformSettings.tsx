@@ -28,7 +28,7 @@ export function FiscalPlatformSettings() {
           description: `Ambiente: ${data.environment === 'production' ? 'Produção' : 'Homologação'}`
         });
       } else {
-        onError: (err) => showErrorToast(err, { module: 'integrações', action: 'processar' }),
+        showErrorToast(err, { module: 'integrações', action: 'processar' });
       }
       queryClient.invalidateQueries({ queryKey: ['platform-secrets-status'] });
     },

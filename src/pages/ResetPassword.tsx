@@ -70,7 +70,7 @@ export default function ResetPassword() {
         } else if (error.message.includes('session')) {
           toast.error('Sessão expirada. Solicite um novo link de recuperação.');
         } else {
-          onError: (err) => showErrorToast(err, { action: 'processar' }),
+          showErrorToast(err, { action: 'processar' });
         }
         return;
       }

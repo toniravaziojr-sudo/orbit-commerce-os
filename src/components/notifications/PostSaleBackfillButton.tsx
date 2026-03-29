@@ -68,7 +68,7 @@ export function PostSaleBackfillButton({ disabled }: PostSaleBackfillButtonProps
           success: false,
           message: data.error || 'Erro ao iniciar backfill',
         });
-        onError: (err) => showErrorToast(err, { action: 'processar' }),
+        showErrorToast(err, { action: 'processar' });
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';

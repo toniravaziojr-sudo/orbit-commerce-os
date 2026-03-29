@@ -30,7 +30,7 @@ export function DomainsPlatformSettings() {
             : 'API Token válido'
         });
       } else {
-        onError: (err) => showErrorToast(err, { module: 'integrações', action: 'processar' }),
+        showErrorToast(err, { module: 'integrações', action: 'processar' });
       }
       queryClient.invalidateQueries({ queryKey: ['platform-secrets-status'] });
     },

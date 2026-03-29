@@ -137,7 +137,7 @@ export function useAIBlockFill({
       return merged;
     } catch (err) {
       console.error('[useAIBlockFill] Unexpected error:', err);
-      onError: (err) => showErrorToast(err, { module: 'IA', action: 'gerar conteúdo' }),
+      showErrorToast(err, { module: 'IA', action: 'gerar conteúdo' });
       return null;
     } finally {
       setIsLoading(false);

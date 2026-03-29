@@ -154,7 +154,7 @@ export function useMetaConnection() {
           if (event.data.success) {
             toast.success("Conta Meta conectada com sucesso!");
           } else if (event.data.error) {
-            onError: (err) => showErrorToast(err, { module: 'meta', action: 'processar' }),
+            showErrorToast(err, { module: 'meta', action: 'processar' });
           }
         }
       };

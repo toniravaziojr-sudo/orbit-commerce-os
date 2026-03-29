@@ -335,7 +335,7 @@ export default function Auth() {
       const { error } = await resetPassword(data.email);
       
       if (error) {
-        onError: (err) => showErrorToast(err, { module: 'autenticação', action: 'processar' }),
+        showErrorToast(err, { module: 'autenticação', action: 'processar' });
         return;
       }
 

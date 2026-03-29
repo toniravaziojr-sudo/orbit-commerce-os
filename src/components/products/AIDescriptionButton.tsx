@@ -71,7 +71,7 @@ export function AIDescriptionButton({ type, productName, fullDescription, onGene
       setMissingComponents([]);
     } catch (err: any) {
       console.error('[AIDescriptionButton] Error:', err);
-      onError: (err) => showErrorToast(err, { module: 'produtos', action: 'gerar' }),
+      showErrorToast(err, { module: 'produtos', action: 'gerar' });
     } finally {
       setIsGenerating(false);
     }

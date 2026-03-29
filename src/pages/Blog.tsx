@@ -265,7 +265,7 @@ export default function Blog() {
     const validation = validateSlug(slug);
     
     if (!validation.isValid) {
-      onError: (err) => showErrorToast(err, { module: 'blog', action: 'processar' }),
+      showErrorToast(err, { module: 'blog', action: 'processar' });
       return;
     }
     
@@ -348,7 +348,7 @@ export default function Blog() {
       setIsCampaignDialogOpen(false);
       resetCampaignForm();
     } catch (error: any) {
-      onError: (err) => showErrorToast(err, { module: 'blog', action: 'salvar' }),
+      showErrorToast(err, { module: 'blog', action: 'salvar' });
     }
   };
 
@@ -359,7 +359,7 @@ export default function Blog() {
       toast.success('Campanha excluída');
       setCampaignDeleteId(null);
     } catch (error: any) {
-      onError: (err) => showErrorToast(err, { module: 'blog', action: 'excluir' }),
+      showErrorToast(err, { module: 'blog', action: 'excluir' });
     }
   };
 
