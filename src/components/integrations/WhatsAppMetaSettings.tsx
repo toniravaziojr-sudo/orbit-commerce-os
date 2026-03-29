@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { sanitizeError } from "@/lib/error-sanitizer";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { 
   Loader2, 
@@ -279,7 +280,7 @@ export function WhatsAppMetaSettings() {
                 O número foi vinculado com sucesso, mas a etapa final de registro na Cloud API não foi concluída.
                 Clique no botão abaixo para registrar o número e ativá-lo para envio de mensagens.
                 {config.last_error && (
-                  <span className="block mt-2 text-xs opacity-80">Último erro: {config.last_error}</span>
+                  <span className="block mt-2 text-xs opacity-80">Último erro: {sanitizeError(new Error(config.last_error)).userMessage}</span>
                 )}
               </AlertDescription>
             </Alert>
@@ -522,10 +523,18 @@ export function WhatsAppMetaSettings() {
           )}
 
           {/* Error Message */}
-          {config?.last_error && (
+          {config?.last_error && config?.connection_status !== "pending_registration" && (
             <Alert variant="destructive">
               <XCircle className="h-4 w-4" />
-              <AlertDescription>{config.last_error}</AlertDescription>
+              <AlertDescription>{sanitizeError(new Error(config.last_error)).userMessage}</AlertDescription>
+            </Alert>
+          )}
+          {config?.connection_status === "pending_registration" && (
+            <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950/30">
+              <AlertCircle className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-800 dark:text-blue-200">
+                Seu número está em análise pela Meta. Esse processo é automático e pode levar até 48h. Não é necessária nenhuma ação.
+              </AlertDescription>
             </Alert>
           )}
 

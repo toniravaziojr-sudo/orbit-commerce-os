@@ -23,6 +23,8 @@ interface IntegrationError {
   error: string;
   navigateTo: string;
   variant: "warning" | "destructive";
+  badgeLabel?: string;
+  badgeVariant?: "destructive" | "outline";
 }
 
 /**
@@ -91,15 +93,19 @@ export function IntegrationErrorsCard() {
             error: "Código de verificação enviado — insira o código recebido por SMS",
             navigateTo: "/integrations?tab=social",
             variant: "warning",
+            badgeLabel: "Pendente",
+            badgeVariant: "outline",
           });
         } else if (waConfig.connection_status === "pending_registration") {
           found.push({
             id: "whatsapp-pending",
             icon: MessageCircle,
             name: "WhatsApp",
-            error: "Número pendente de registro — finalize a verificação",
+            error: "Aguardando aprovação da Meta — processo automático, pode levar até 48h",
             navigateTo: "/integrations?tab=social",
             variant: "warning",
+            badgeLabel: "Pendente",
+            badgeVariant: "outline",
           });
         } else if (waConfig.is_enabled && waConfig.connection_status !== "connected" && waConfig.last_error) {
           found.push({
@@ -196,7 +202,13 @@ export function IntegrationErrorsCard() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground flex items-center gap-2">
                       {err.name}
-                      <Badge variant="destructive" className="text-[10px] h-5">Erro</Badge>
+                      {err.badgeLabel ? (
+                        <Badge variant="outline" className="text-[10px] h-5 border-amber-400 text-amber-700 dark:text-amber-400">
+                          {err.badgeLabel}
+                        </Badge>
+                      ) : (
+                        <Badge variant="destructive" className="text-[10px] h-5">Erro</Badge>
+                      )}
                     </p>
                     <p className="text-xs text-muted-foreground line-clamp-1">{err.error}</p>
                   </div>
