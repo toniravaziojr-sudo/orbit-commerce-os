@@ -46,6 +46,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Zap } from "lucide-react";
 
 // Build SCOPE_PACK_INFO from central config + platform operator context
 // Icons are defined here since they are React elements (not serializable in config)
