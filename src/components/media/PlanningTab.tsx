@@ -458,7 +458,7 @@ export function PlanningTab({
     } as StepConfig] : []),
   ];
 
-  const weekDayHeaders = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  // Removed weekDayHeaders — now handled by MonthlyCalendar
 
   const getPublicationCounts = (dayItems: MediaCalendarItem[]) => {
     const counts = { feed_instagram: 0, feed_facebook: 0, story_instagram: 0, story_facebook: 0, blog: 0 };
