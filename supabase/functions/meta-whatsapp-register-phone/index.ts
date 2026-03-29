@@ -157,13 +157,23 @@ Deno.serve(async (req) => {
       });
     } else {
       const errorMsg = registerData.error?.message || JSON.stringify(registerData);
+      const errorSubcode = registerData.error?.error_subcode;
+      const userMsg = registerData.error?.error_user_msg;
+      
+      // Build a user-friendly error message
+      let friendlyError = `Registro falhou: ${errorMsg}`;
+      if (errorSubcode === 2388001) {
+        friendlyError = "Desative a verificação em duas etapas do WhatsApp Business antes de registrar o número. Vá em Configurações > Conta > Verificação em duas etapas no app WhatsApp Business e desative-a temporariamente.";
+      } else if (userMsg) {
+        friendlyError = userMsg;
+      }
       
       // Update with error
       await supabase
         .from("whatsapp_configs")
         .update({
           connection_status: "pending_registration",
-          last_error: `Registro falhou: ${errorMsg}`,
+          last_error: friendlyError,
           updated_at: new Date().toISOString(),
         })
         .eq("id", config.id);
