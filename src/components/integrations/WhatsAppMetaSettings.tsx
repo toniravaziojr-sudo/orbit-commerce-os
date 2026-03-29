@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { showErrorToast } from '@/lib/error-toast';
 
 interface MetaWhatsAppConfig {
   id: string;
@@ -126,7 +127,7 @@ export function WhatsAppMetaSettings() {
       }
     },
     onError: (error: any) => {
-      toast.error(error.message || "Erro ao iniciar conexão");
+      showErrorToast(toast, { module: 'integrações', action: 'processar' });
     },
   });
 
@@ -166,7 +167,7 @@ export function WhatsAppMetaSettings() {
       queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
     },
     onError: (error: any) => {
-      toast.error(error.message || "Erro ao salvar credenciais");
+      showErrorToast(toast, { module: 'integrações', action: 'salvar' });
     },
   });
 
@@ -191,7 +192,7 @@ export function WhatsAppMetaSettings() {
       queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
     },
     onError: (error: any) => {
-      toast.error(error.message || "Erro ao desconectar");
+      showErrorToast(toast, { module: 'integrações', action: 'conectar' });
     },
   });
 
@@ -202,7 +203,7 @@ export function WhatsAppMetaSettings() {
       throw new Error("Use a aba de Integrações Meta para finalizar o registro com PIN de segurança.");
     },
     onError: (error: any) => {
-      toast.error(error.message || "Erro ao registrar número");
+      showErrorToast(toast, { module: 'integrações', action: 'registrar' });
     },
   });
 
@@ -228,7 +229,7 @@ export function WhatsAppMetaSettings() {
       setTestPhone("");
     },
     onError: (error: any) => {
-      toast.error(error.message || "Erro ao enviar mensagem");
+      showErrorToast(toast, { module: 'integrações', action: 'enviar' });
     },
   });
 

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface ProductComponent {
   id: string;
@@ -125,7 +126,7 @@ export function useProductComponents(productId: string | undefined) {
       toast.success('Componente adicionado');
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao adicionar componente');
+      showErrorToast(toast, { module: 'produtos', action: 'processar' });
     },
   });
 
@@ -150,7 +151,7 @@ export function useProductComponents(productId: string | undefined) {
       queryClient.invalidateQueries({ queryKey: ['product-components', productId] });
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao atualizar componente');
+      showErrorToast(toast, { module: 'produtos', action: 'salvar' });
     },
   });
 
@@ -168,7 +169,7 @@ export function useProductComponents(productId: string | undefined) {
       toast.success('Componente removido');
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao remover componente');
+      showErrorToast(toast, { module: 'produtos', action: 'excluir' });
     },
   });
 

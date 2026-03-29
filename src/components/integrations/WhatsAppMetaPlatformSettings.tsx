@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { showErrorToast } from '@/lib/error-toast';
 
 interface MetaCredentials {
   META_APP_ID: string;
@@ -118,7 +119,7 @@ export function WhatsAppMetaPlatformSettings() {
       queryClient.invalidateQueries({ queryKey: ["meta-whatsapp-credentials"] });
     },
     onError: (error: any) => {
-      toast.error(error.message || "Erro ao salvar credenciais");
+      showErrorToast(toast, { module: 'integrações', action: 'salvar' });
     },
   });
 
@@ -149,13 +150,13 @@ export function WhatsAppMetaPlatformSettings() {
       } else {
         setTestResult({ success: false, message: data.error || "Erro desconhecido" });
         setTestChecklist((prev) => ({ ...prev, sendOk: false }));
-        toast.error(data.error || "Falha ao enviar mensagem de teste");
+        showErrorToast(toast, { module: 'integrações', action: 'enviar' });
       }
     },
     onError: (error: any) => {
       setTestResult({ success: false, message: error.message || "Erro de conexão" });
       setTestChecklist((prev) => ({ ...prev, sendOk: false }));
-      toast.error(error.message || "Erro ao enviar mensagem de teste");
+      showErrorToast(toast, { module: 'integrações', action: 'enviar' });
     },
   });
 
@@ -187,7 +188,7 @@ export function WhatsAppMetaPlatformSettings() {
       toast.success("Configuração de teste salva! Respostas do WhatsApp irão para o Atendimento.");
     },
     onError: (error: any) => {
-      toast.error(error.message || "Erro ao salvar configuração de teste");
+      showErrorToast(toast, { module: 'integrações', action: 'salvar' });
     },
   });
 

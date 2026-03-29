@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useMetaConnection } from "@/hooks/useMetaConnection";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 interface ThreadsPost {
   id: string;
@@ -65,7 +66,7 @@ export function useMetaThreads() {
       toast.success("Publicado no Threads!");
       queryClient.invalidateQueries({ queryKey: ["meta-threads-posts"] });
     },
-    onError: (err) => toast.error(err.message),
+    showErrorToast(toast, { module: 'meta', action: 'processar' });
   });
 
   // Insights de um post

@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import type { Json } from "@/integrations/supabase/types";
+import { showErrorToast } from '@/lib/error-toast';
 
 export type TaskStatus = 'pending' | 'completed' | 'cancelled';
 export type RecurrenceType = 'daily' | 'weekly' | 'monthly';
@@ -186,7 +187,7 @@ export function useAgendaTasks() {
       toast.success("Tarefa criada com sucesso!");
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao criar tarefa: ${error.message}`);
+      showErrorToast(toast, { module: 'agenda', action: 'criar' });
     },
   });
 
@@ -254,7 +255,7 @@ export function useAgendaTasks() {
       toast.success("Tarefa atualizada!");
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao atualizar tarefa: ${error.message}`);
+      showErrorToast(toast, { module: 'agenda', action: 'salvar' });
     },
   });
 
@@ -277,7 +278,7 @@ export function useAgendaTasks() {
       toast.success("Tarefa excluída!");
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao excluir tarefa: ${error.message}`);
+      showErrorToast(toast, { module: 'agenda', action: 'excluir' });
     },
   });
 

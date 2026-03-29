@@ -17,6 +17,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import {
+import { showErrorToast } from '@/lib/error-toast';
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -457,7 +458,7 @@ export default function OperationNaturesSettings() {
       loadNatures();
     } catch (error: any) {
       console.error('Error saving nature:', error);
-      toast.error(error.message || 'Erro ao salvar natureza');
+      showErrorToast(toast, { action: 'salvar' });
     } finally {
       setIsSaving(false);
     }
@@ -479,7 +480,7 @@ export default function OperationNaturesSettings() {
       loadNatures();
     } catch (error: any) {
       console.error('Error deleting nature:', error);
-      toast.error(error.message || 'Erro ao remover natureza');
+      showErrorToast(toast, { action: 'excluir' });
     }
   };
 

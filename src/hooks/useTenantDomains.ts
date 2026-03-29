@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { normalizeDomain, generateVerificationToken } from '@/lib/normalizeDomain';
 import { SAAS_CONFIG, getPlatformSubdomainUrl } from '@/lib/canonicalDomainService';
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface TenantDomain {
   id: string;
@@ -176,7 +177,7 @@ export function useTenantDomains() {
         toast.info('SSL sendo provisionado. Aguarde alguns minutos e verifique novamente.');
         return true;
       } else {
-        toast.error(data.error || 'Erro ao provisionar SSL');
+        showErrorToast(toast, { module: 'domínios', action: 'processar' });
         return false;
       }
     } catch (error) {
@@ -345,7 +346,7 @@ export function useTenantDomains() {
         toast.success('Domínio padrão ativado!');
         return true;
       } else {
-        toast.error(data.error || 'Erro ao provisionar domínio padrão');
+        showErrorToast(toast, { module: 'domínios', action: 'processar' });
         return false;
       }
     } catch (error) {

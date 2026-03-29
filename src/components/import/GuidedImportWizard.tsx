@@ -13,6 +13,7 @@ import { parseCSV, consolidateShopifyProducts, consolidateShopifyCustomers, cons
 import type { PlatformType } from '@/lib/import/types';
 import { useAuth } from '@/hooks/useAuth';
 import { detectPlatform as detectPlatformFromHtml } from '@/lib/import/detector';
+import { showErrorToast } from '@/lib/error-toast';
 
 interface GuidedImportWizardProps {
   onComplete?: () => void;
@@ -248,7 +249,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
     } catch (error: any) {
       console.error(`[handleFileImport] Error:`, error);
       setFileStepStatuses(prev => ({ ...prev, [stepId]: { status: 'error', errorMessage: error.message } }));
-      toast.error(`Erro: ${error.message}`);
+      showErrorToast(toast, { module: 'importação', action: 'processar' });
     }
   }, [currentTenant, analysisResult, importData]);
 

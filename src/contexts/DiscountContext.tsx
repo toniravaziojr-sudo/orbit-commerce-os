@@ -6,6 +6,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface AppliedDiscount {
   discount_id: string;
@@ -130,7 +131,7 @@ export function DiscountProvider({ children }: DiscountProviderProps) {
       const data = await response.json();
 
       if (!data.valid) {
-        toast.error(data.error || 'Cupom inválido');
+        showErrorToast(toast, { action: 'processar' });
         return false;
       }
 

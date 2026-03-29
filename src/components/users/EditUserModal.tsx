@@ -30,6 +30,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { Loader2, KeyRound } from 'lucide-react';
 import { MODULES, USER_TYPE_PRESETS } from '@/config/rbac-modules';
+import { showErrorToast } from '@/lib/error-toast';
 
 interface EditUserModalProps {
   open: boolean;
@@ -136,7 +137,7 @@ export function EditUserModal({ open, onOpenChange, member }: EditUserModalProps
     },
     onError: (error: any) => {
       console.error('Error updating user:', error);
-      toast.error(error.message || 'Erro ao atualizar usuário');
+      showErrorToast(toast, { module: 'usuários', action: 'salvar' });
     },
   });
 
@@ -158,7 +159,7 @@ export function EditUserModal({ open, onOpenChange, member }: EditUserModalProps
       toast.success(`Email de recuperação enviado para ${member.profiles.email}`);
     } catch (error: any) {
       console.error('Error sending reset email:', error);
-      toast.error(error.message || 'Erro ao enviar email de recuperação');
+      showErrorToast(toast, { module: 'usuários', action: 'enviar' });
     } finally {
       setIsResettingPassword(false);
     }

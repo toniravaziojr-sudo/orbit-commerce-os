@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 export type MetaScopePack = "atendimento" | "publicacao" | "ads" | "leads" | "catalogo" | "whatsapp" | "threads" | "live_video" | "pixel" | "insights";
 
@@ -153,7 +154,7 @@ export function useMetaConnection() {
           if (event.data.success) {
             toast.success("Conta Meta conectada com sucesso!");
           } else if (event.data.error) {
-            toast.error(event.data.error);
+            showErrorToast(toast, { module: 'meta', action: 'processar' });
           }
         }
       };
@@ -170,7 +171,7 @@ export function useMetaConnection() {
       }, 500);
     },
     onError: (error) => {
-      toast.error(error.message || "Erro ao conectar com Meta");
+      showErrorToast(toast, { module: 'meta', action: 'conectar' });
     },
   });
 
@@ -197,7 +198,7 @@ export function useMetaConnection() {
       queryClient.invalidateQueries({ queryKey: ["meta-connection-status"] });
     },
     onError: (error) => {
-      toast.error(error.message || "Erro ao desconectar");
+      showErrorToast(toast, { module: 'meta', action: 'conectar' });
     },
   });
 

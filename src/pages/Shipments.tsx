@@ -60,6 +60,7 @@ import { useNavigate } from 'react-router-dom';
 import { CreateShipmentDialog } from '@/components/shipping/CreateShipmentDialog';
 import { ShipmentDetailsCard } from '@/components/shipping/ShipmentDetailsCard';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
+import { showErrorToast } from '@/lib/error-toast';
 
 type DeliveryStatus = 
   | 'label_created' 
@@ -289,7 +290,7 @@ export default function Shipments() {
       queryClient.invalidateQueries({ queryKey: ['last-poll-info'] });
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao executar tracking: ${error.message}`);
+      showErrorToast(toast, { action: 'processar' });
     },
     onSettled: () => {
       setIsPolling(false);

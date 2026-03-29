@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 interface SessionStatus {
   id: string;
@@ -113,7 +114,7 @@ export default function StartPending() {
       
       if (!result.success) {
         if (result.code === 'RATE_LIMITED') {
-          toast.error(result.error);
+          showErrorToast(toast, { action: 'processar' });
         } else {
           throw new Error(result.error);
         }
@@ -124,7 +125,7 @@ export default function StartPending() {
       toast.success('Email reenviado com sucesso!');
     } catch (err: any) {
       console.error('Resend error:', err);
-      toast.error(err.message || 'Falha ao reenviar email');
+      showErrorToast(toast, { action: 'enviar' });
     } finally {
       setResending(false);
     }

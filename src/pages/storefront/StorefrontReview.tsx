@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 interface OrderItem {
   id: string;
@@ -156,7 +157,7 @@ export default function StorefrontReview() {
       });
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao enviar avaliação');
+      showErrorToast(toast, { module: 'loja', action: 'enviar' });
     },
   });
 

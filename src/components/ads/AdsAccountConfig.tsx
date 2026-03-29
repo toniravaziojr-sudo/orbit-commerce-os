@@ -28,6 +28,7 @@ import { getPromptTemplateForChannel } from "./adsPromptTemplates";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 interface AdAccount {
   id: string;
@@ -411,7 +412,7 @@ function AccountConfigCard({
                   toast.success(`Prompt gerado para ${data.data.store_name} (${data.data.products_count} produtos analisados)`);
                 }
               } catch (err: any) {
-                toast.error(err.message || "Erro ao gerar prompt");
+                showErrorToast(toast, { module: 'anúncios', action: 'gerar' });
               } finally {
                 setIsGeneratingPrompt(false);
               }

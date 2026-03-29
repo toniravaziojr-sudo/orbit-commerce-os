@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
 import type { PurchaseSupplier } from "./usePurchaseSuppliers";
+import { showErrorToast } from '@/lib/error-toast';
 
 // Re-export for backward compatibility
 export type Supplier = PurchaseSupplier;
@@ -101,7 +102,7 @@ export function usePurchases() {
       toast.success('Pedido de compra criado com sucesso');
     },
     onError: (error) => {
-      toast.error('Erro ao criar pedido de compra: ' + error.message);
+      showErrorToast(toast, { module: 'compras', action: 'criar' });
     },
   });
 
@@ -122,7 +123,7 @@ export function usePurchases() {
       toast.success('Pedido de compra atualizado com sucesso');
     },
     onError: (error) => {
-      toast.error('Erro ao atualizar pedido de compra: ' + error.message);
+      showErrorToast(toast, { module: 'compras', action: 'salvar' });
     },
   });
 
@@ -140,7 +141,7 @@ export function usePurchases() {
       toast.success('Pedido de compra removido com sucesso');
     },
     onError: (error) => {
-      toast.error('Erro ao remover pedido de compra: ' + error.message);
+      showErrorToast(toast, { module: 'compras', action: 'excluir' });
     },
   });
 

@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { Loader2, Mail, Lock, User, ArrowLeft, Building2 } from 'lucide-react';
 import { generateSlug } from '@/lib/slugPolicy';
 import { usePlanFromUrl, savePlanSelectionToStorage } from '@/hooks/usePlanFromUrl';
+import { showErrorToast } from '@/lib/error-toast';
 
 // Schemas de validação
 const loginSchema = z.object({
@@ -244,7 +245,7 @@ export default function Auth() {
         if (error.message.includes('User already registered')) {
           toast.error('Este email já está cadastrado. Tente fazer login.');
         } else {
-          toast.error(error.message);
+          showErrorToast(toast, { module: 'autenticação', action: 'processar' });
         }
         return;
       }
@@ -334,7 +335,7 @@ export default function Auth() {
       const { error } = await resetPassword(data.email);
       
       if (error) {
-        toast.error(error.message);
+        showErrorToast(toast, { module: 'autenticação', action: 'processar' });
         return;
       }
 

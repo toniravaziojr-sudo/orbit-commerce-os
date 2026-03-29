@@ -14,6 +14,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { toast } from 'sonner';
 import { Loader2, Sparkles } from 'lucide-react';
 import { validateSlugFormat, generateSlug } from '@/lib/slugPolicy';
+import { showErrorToast } from '@/lib/error-toast';
 
 const createStoreSchema = z.object({
   name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres').max(100, 'Nome muito longo'),
@@ -144,7 +145,7 @@ export default function CreateStore() {
       navigate('/');
     } catch (error: any) {
       console.error('Error creating store:', error);
-      toast.error(error.message || 'Erro ao criar loja. Tente novamente.');
+      showErrorToast(toast, { module: 'loja', action: 'criar' });
     } finally {
       setIsLoading(false);
     }

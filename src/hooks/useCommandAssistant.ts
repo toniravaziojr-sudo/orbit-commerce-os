@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { triggerMemoryExtraction } from "@/lib/triggerMemoryExtraction";
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface CommandMessage {
   id: string;
@@ -297,7 +298,7 @@ export function useCommandAssistant() {
         return;
       }
       console.error("Chat error:", error);
-      toast.error(error.message || "Erro ao enviar mensagem");
+      showErrorToast(toast, { module: 'assistente', action: 'enviar' });
     } finally {
       setIsStreaming(false);
       setStreamingContent("");
@@ -336,7 +337,7 @@ export function useCommandAssistant() {
       const data = await response.json();
 
       if (!data.success) {
-        toast.error(data.error || "Erro ao executar ação");
+        showErrorToast(toast, { module: 'assistente', action: 'processar' });
         return;
       }
 
@@ -478,7 +479,7 @@ export function useCommandAssistant() {
 
     } catch (error: any) {
       console.error("Execute action error:", error);
-      toast.error(error.message || "Erro ao executar ação");
+      showErrorToast(toast, { module: 'assistente', action: 'processar' });
     } finally {
       setExecutingActionId(null);
     }

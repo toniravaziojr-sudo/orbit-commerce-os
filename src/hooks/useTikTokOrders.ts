@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface TikTokShopOrder {
   id: string;
@@ -98,7 +99,7 @@ export function useTikTokOrders(filters?: OrderFilters) {
       }
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao sincronizar pedidos');
+      showErrorToast(toast, { module: 'tiktok', action: 'sincronizar' });
     },
   });
 
@@ -119,7 +120,7 @@ export function useTikTokOrders(filters?: OrderFilters) {
       queryClient.invalidateQueries({ queryKey: ['tiktok-shop-orders'] });
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao buscar detalhes do pedido');
+      showErrorToast(toast, { module: 'tiktok', action: 'carregar' });
     },
   });
 

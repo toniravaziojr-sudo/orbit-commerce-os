@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { CredentialEditor } from "./CredentialEditor";
 import { usePlatformIntegrationStatus } from "@/hooks/usePlatformSecretsStatus";
+import { showErrorToast } from '@/lib/error-toast';
 
 export function LogisticsPlatformSettings() {
   const queryClient = useQueryClient();
@@ -27,12 +28,12 @@ export function LogisticsPlatformSettings() {
           description: `Token expira em ${data.expiresIn}s`
         });
       } else {
-        toast.error('Falha na autenticação OAuth', { description: data.error });
+        showErrorToast(toast, { module: 'integrações', action: 'conectar' });
       }
       queryClient.invalidateQueries({ queryKey: ['platform-secrets-status'] });
     },
     onError: (error: Error) => {
-      toast.error('Erro ao testar conexão', { description: error.message });
+      showErrorToast(toast, { module: 'integrações', action: 'testar' });
     },
   });
 

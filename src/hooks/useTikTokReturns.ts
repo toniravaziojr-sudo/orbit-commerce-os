@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface TikTokShopReturn {
   id: string;
@@ -86,7 +87,7 @@ export function useTikTokReturns(filters?: ReturnFilters) {
       toast.success(`${result?.synced || 0} devolução(ões) sincronizada(s)`);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao sincronizar devoluções');
+      showErrorToast(toast, { module: 'tiktok', action: 'sincronizar' });
     },
   });
 
@@ -108,7 +109,7 @@ export function useTikTokReturns(filters?: ReturnFilters) {
       toast.success('Devolução aprovada com sucesso');
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao aprovar devolução');
+      showErrorToast(toast, { module: 'tiktok', action: 'aprovar' });
     },
   });
 
@@ -130,7 +131,7 @@ export function useTikTokReturns(filters?: ReturnFilters) {
       toast.success('Devolução rejeitada');
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao rejeitar devolução');
+      showErrorToast(toast, { module: 'tiktok', action: 'processar' });
     },
   });
 

@@ -21,6 +21,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useAvailableShippingMethods } from '@/hooks/useAvailableShippingMethods';
 import { useQueryClient } from '@tanstack/react-query';
+import { showErrorToast } from '@/lib/error-toast';
 
 export function DefaultFreeShippingMethodConfig() {
   const { currentTenant } = useAuth();
@@ -78,7 +79,7 @@ export function DefaultFreeShippingMethodConfig() {
       queryClient.invalidateQueries({ queryKey: ['store-config'] });
       toast.success('Método padrão de frete grátis salvo!');
     } catch (err: any) {
-      toast.error('Erro ao salvar: ' + err.message);
+      showErrorToast(toast, { module: 'logística', action: 'salvar' });
     } finally {
       setIsSaving(false);
     }

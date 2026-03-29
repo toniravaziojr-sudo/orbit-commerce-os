@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface SocialPostEntry {
   id: string;
@@ -80,7 +81,7 @@ export function useSocialPostActions() {
       toast.success(messages[variables.action] || "Ação concluída!");
     },
     onError: (error: any) => {
-      toast.error(error.message || "Erro ao executar ação");
+      showErrorToast(toast, { module: 'social', action: 'processar' });
     },
   });
 

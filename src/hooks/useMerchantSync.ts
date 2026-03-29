@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface MerchantProductSync {
   id: string;
@@ -58,7 +59,7 @@ export function useMerchantSync(merchantAccountId?: string) {
       toast.success(`Sincronizado: ${data.synced} produtos (${data.errors} erros)`);
       queryClient.invalidateQueries({ queryKey: ["merchant-summary"] });
     },
-    onError: (err) => toast.error(err.message),
+    showErrorToast(toast, { module: 'catálogo', action: 'processar' });
   });
 
   const checkStatusesMutation = useMutation({
@@ -76,7 +77,7 @@ export function useMerchantSync(merchantAccountId?: string) {
       toast.success(`Status atualizado para ${data.updated} produtos`);
       queryClient.invalidateQueries({ queryKey: ["merchant-summary"] });
     },
-    onError: (err) => toast.error(err.message),
+    showErrorToast(toast, { module: 'catálogo', action: 'processar' });
   });
 
   const deleteProductsMutation = useMutation({
@@ -94,7 +95,7 @@ export function useMerchantSync(merchantAccountId?: string) {
       toast.success(`${data.deleted} produtos removidos do Merchant Center`);
       queryClient.invalidateQueries({ queryKey: ["merchant-summary"] });
     },
-    onError: (err) => toast.error(err.message),
+    showErrorToast(toast, { module: 'catálogo', action: 'processar' });
   });
 
   return {

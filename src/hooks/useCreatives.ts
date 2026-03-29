@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import type {
+import { showErrorToast } from '@/lib/error-toast';
   CreativeJob,
   CreativeType,
   CreativeJobStatus,
@@ -232,7 +233,7 @@ export function useCreateCreativeJob() {
     },
     onError: (error: Error) => {
       console.error('Error creating creative job:', error);
-      toast.error(`Erro ao iniciar geração: ${error.message}`);
+      showErrorToast(toast, { action: 'processar' });
     },
   });
 }
@@ -295,7 +296,7 @@ export function useDeleteCreativeJob() {
       toast.success('Criativo excluído com sucesso');
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao excluir: ${error.message}`);
+      showErrorToast(toast, { action: 'excluir' });
     },
   });
 }
@@ -321,7 +322,7 @@ export function useRetryCreativeJob() {
       toast.success('Reprocessamento iniciado');
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao reprocessar: ${error.message}`);
+      showErrorToast(toast, { action: 'processar' });
     },
   });
 }

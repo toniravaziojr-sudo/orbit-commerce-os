@@ -15,6 +15,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ClipboardCheck, Sparkles, Wallet } from "lucide-react";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 interface AdsPendingActionsTabProps {
   scope: "global" | "account";
@@ -122,7 +123,7 @@ export function AdsPendingActionsTab({ scope, adAccountId, channel }: AdsPending
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-sessions"] });
       toast.success("Feedback enviado! A IA está gerando um novo plano com seus ajustes...");
     } catch (err: any) {
-      toast.error(err.message || "Erro ao enviar ajuste");
+      showErrorToast(toast, { module: 'anúncios', action: 'enviar' });
     } finally {
       setAdjustingId(null);
     }

@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import type { ChatMode } from "@/components/chatgpt";
 import { triggerMemoryExtraction } from "@/lib/triggerMemoryExtraction";
+import { showErrorToast } from '@/lib/error-toast';
 
 export type { ChatMode };
 
@@ -353,7 +354,7 @@ export function useChatGPT() {
         return;
       }
       console.error("ChatGPT error:", error);
-      toast.error(error.message || "Erro ao enviar mensagem");
+      showErrorToast(toast, { module: 'chat', action: 'enviar' });
     } finally {
       setIsStreaming(false);
       setStreamingContent("");

@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 interface TikTokShopProduct {
   id: string;
@@ -103,7 +104,7 @@ export function useTikTokCatalog() {
       }
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao sincronizar catálogo');
+      showErrorToast(toast, { module: 'tiktok', action: 'sincronizar' });
     },
   });
 
@@ -125,7 +126,7 @@ export function useTikTokCatalog() {
       toast.success(`${result.checked} verificado(s), ${result.updated} atualizado(s)`);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao verificar status');
+      showErrorToast(toast, { module: 'tiktok', action: 'verificar' });
     },
   });
 

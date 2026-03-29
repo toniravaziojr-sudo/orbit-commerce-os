@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface FinanceEntryType {
   id: string;
@@ -58,7 +59,7 @@ export function useFinanceEntryTypes() {
       toast.success('Tipo de lançamento criado');
     },
     onError: (error) => {
-      toast.error('Erro ao criar tipo: ' + error.message);
+      showErrorToast(toast, { module: 'financeiro', action: 'criar' });
     },
   });
 
@@ -76,7 +77,7 @@ export function useFinanceEntryTypes() {
       toast.success('Tipo de lançamento removido');
     },
     onError: (error) => {
-      toast.error('Erro ao remover tipo: ' + error.message);
+      showErrorToast(toast, { module: 'financeiro', action: 'excluir' });
     },
   });
 

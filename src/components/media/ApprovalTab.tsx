@@ -16,6 +16,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { showErrorToast } from '@/lib/error-toast';
 
 const platformIcons: Record<string, React.ReactNode> = {
   instagram: <Instagram className="h-3.5 w-3.5 text-pink-500" />,
@@ -139,7 +140,7 @@ export function ApprovalTab({
           if (data.scheduled > 0) parts.push(`${data.scheduled} agendado(s)`);
           if (parts.length > 0) toast.success(parts.join(", ") + "!");
           if (data.failed > 0) toast.error(`${data.failed} falharam`);
-        } else toast.error(data?.error || "Erro");
+        showErrorToast(toast, { module: 'mídia', action: 'processar' });
       }
       setSelectedIds(new Set());
       await refetchItems();

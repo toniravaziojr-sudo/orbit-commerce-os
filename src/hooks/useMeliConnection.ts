@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 interface MeliConnectionStatus {
   platformConfigured: boolean;
@@ -109,7 +110,7 @@ export function useMeliConnection() {
       }, 500);
     },
     onError: (error) => {
-      toast.error(error.message || "Erro ao conectar com Mercado Livre");
+      showErrorToast(toast, { module: 'mercado livre', action: 'conectar' });
     },
   });
 
@@ -135,7 +136,7 @@ export function useMeliConnection() {
       queryClient.invalidateQueries({ queryKey: ["meli-connection-status"] });
     },
     onError: (error) => {
-      toast.error(error.message || "Erro ao desconectar");
+      showErrorToast(toast, { module: 'mercado livre', action: 'conectar' });
     },
   });
 

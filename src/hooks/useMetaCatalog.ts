@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 interface CatalogItem {
   id: string;
@@ -75,7 +76,7 @@ export function useMetaCatalog() {
       queryClient.invalidateQueries({ queryKey: ["meta-connection-status"] });
     },
     onError: (err: any) => {
-      toast.error(err.message || "Erro ao criar catálogo");
+      showErrorToast(toast, { module: 'meta', action: 'criar' });
     },
   });
 
@@ -97,7 +98,7 @@ export function useMetaCatalog() {
       queryClient.invalidateQueries({ queryKey: ["meta-catalog-items"] });
     },
     onError: (err: any) => {
-      toast.error(err.message || "Erro na sincronização");
+      showErrorToast(toast, { module: 'meta', action: 'processar' });
     },
   });
 

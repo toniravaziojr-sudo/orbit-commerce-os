@@ -2,6 +2,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface AdsInsight {
   id: string;
@@ -53,7 +54,7 @@ export function useAdsInsights() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-insights"] });
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   const generateNow = useMutation({
@@ -69,7 +70,7 @@ export function useAdsInsights() {
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-insights"] });
       toast.success("Insights gerados com sucesso!");
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   return {

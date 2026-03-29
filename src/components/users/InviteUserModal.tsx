@@ -12,6 +12,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { toast } from 'sonner';
 import { MODULES, USER_TYPE_PRESETS } from '@/config/rbac-modules';
 import { Loader2 } from 'lucide-react';
+import { showErrorToast } from '@/lib/error-toast';
 
 interface InviteUserModalProps {
   open: boolean;
@@ -86,7 +87,7 @@ export function InviteUserModal({ open, onOpenChange }: InviteUserModalProps) {
       setPermissions({});
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Erro ao enviar convite');
+      showErrorToast(toast, { module: 'usuários', action: 'enviar' });
     },
   });
 

@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import type { Json } from '@/integrations/supabase/types';
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface PageTemplate {
   id: string;
@@ -128,7 +129,7 @@ export function usePageTemplates() {
       toast.success('Template criado com sucesso');
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao criar template: ${error.message}`);
+      showErrorToast(toast, { module: 'páginas', action: 'criar' });
     },
   });
 
@@ -152,7 +153,7 @@ export function usePageTemplates() {
       toast.success('Template atualizado');
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao atualizar template: ${error.message}`);
+      showErrorToast(toast, { module: 'páginas', action: 'salvar' });
     },
   });
 
@@ -170,7 +171,7 @@ export function usePageTemplates() {
       toast.success('Template excluído');
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao excluir template: ${error.message}`);
+      showErrorToast(toast, { module: 'páginas', action: 'excluir' });
     },
   });
 
@@ -201,7 +202,7 @@ export function usePageTemplates() {
       toast.success('Template duplicado');
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao duplicar template: ${error.message}`);
+      showErrorToast(toast, { module: 'páginas', action: 'duplicar' });
     },
   });
 
@@ -228,7 +229,7 @@ export function usePageTemplates() {
       toast.success('Template padrão definido');
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao definir template padrão: ${error.message}`);
+      showErrorToast(toast, { module: 'páginas', action: 'processar' });
     },
   });
 

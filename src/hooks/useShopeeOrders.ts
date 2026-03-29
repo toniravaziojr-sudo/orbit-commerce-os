@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface ShopeeOrder {
   id: string;
@@ -102,7 +103,7 @@ export function useShopeeOrders({ status, page = 1, pageSize = 20 }: UseShopeeOr
       queryClient.invalidateQueries({ queryKey: ["shopee-orders"] });
     },
     onError: (error) => {
-      toast.error(error.message || "Erro ao sincronizar pedidos");
+      showErrorToast(toast, { module: 'shopee', action: 'sincronizar' });
     },
   });
 

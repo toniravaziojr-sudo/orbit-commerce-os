@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface AutopilotConfig {
   id: string;
@@ -117,7 +118,7 @@ export function useAdsAutopilot() {
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-configs"] });
       toast.success("Configuração salva");
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   const toggleChannel = useMutation({
@@ -140,7 +141,7 @@ export function useAdsAutopilot() {
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-configs"] });
       toast.success(`${channel === "global" ? "Piloto Automático" : channel} ${enabled ? "ativado" : "desativado"}`);
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   // ============ ACTIONS ============
@@ -190,7 +191,7 @@ export function useAdsAutopilot() {
       const d = data?.data;
       toast.success(`Análise concluída: ${d?.actions?.executed || 0} ações executadas, ${d?.actions?.rejected || 0} rejeitadas`);
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   // ============ TRIGGER GUARDIAN ============
@@ -209,7 +210,7 @@ export function useAdsAutopilot() {
       const d = data?.data;
       toast.success(`Guardião: ${d?.actions?.executed || 0} ações executadas`);
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   // ============ TRIGGER STRATEGIST ============
@@ -229,7 +230,7 @@ export function useAdsAutopilot() {
       const d = data?.data;
       toast.success(`Estrategista: ${d?.actions?.executed || 0} ações executadas, ${d?.actions?.rejected || 0} rejeitadas`);
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   return {

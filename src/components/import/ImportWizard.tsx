@@ -15,6 +15,7 @@ import { getAdapter } from '@/lib/import/platforms';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { showErrorToast } from '@/lib/error-toast';
 
 interface ImportWizardProps {
   onComplete?: () => void;
@@ -81,7 +82,7 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
           }
         } catch (error: any) {
           console.error(`Error normalizing ${module}:`, error);
-          toast.error(`Erro ao normalizar ${module}: ${error.message}`);
+          showErrorToast(toast, { module: 'importação', action: 'processar' });
         }
       });
       
@@ -257,7 +258,7 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
       );
       toast.success(`Importação concluída! ${totalImported} itens importados.`);
     } catch (error: any) {
-      toast.error('Erro na importação: ' + error.message);
+      showErrorToast(toast, { module: 'importação', action: 'importar' });
       setStep('complete');
     } finally {
       setIsProcessing(false);

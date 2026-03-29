@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface TikTokShopConnectionStatus {
   isConnected: boolean;
@@ -123,7 +124,7 @@ export function useTikTokShopConnection() {
       }
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Erro ao conectar TikTok Shop");
+      showErrorToast(toast, { module: 'tiktok', action: 'conectar' });
     },
   });
 
@@ -150,7 +151,7 @@ export function useTikTokShopConnection() {
       toast.success("TikTok Shop desconectado");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Erro ao desconectar");
+      showErrorToast(toast, { module: 'tiktok', action: 'conectar' });
     },
   });
 

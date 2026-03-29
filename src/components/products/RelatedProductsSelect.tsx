@@ -18,6 +18,7 @@ import { X, Search, Link2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Label } from '@/components/ui/label';
+import { showErrorToast } from '@/lib/error-toast';
 
 interface RelatedProductsSelectProps {
   productId: string;
@@ -80,7 +81,7 @@ export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps)
       queryClient.invalidateQueries({ queryKey: ['related-products', productId] });
     } catch (err: any) {
       console.error('Auto-related error:', err);
-      toast.error(err.message || 'Erro ao atualizar');
+      showErrorToast(toast, { module: 'produtos', action: 'salvar' });
     } finally {
       setIsAutoGenerating(false);
     }

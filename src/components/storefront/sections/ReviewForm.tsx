@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { ReviewMediaUploader } from '@/components/reviews/ReviewMediaUploader';
+import { showErrorToast } from '@/lib/error-toast';
 
 interface ReviewFormProps {
   productId: string;
@@ -76,7 +77,7 @@ export function ReviewForm({ productId, tenantId, onSuccess }: ReviewFormProps) 
       onSuccess?.();
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao enviar avaliação');
+      showErrorToast(toast, { module: 'loja', action: 'enviar' });
     },
   });
 

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface AffiliateProgram {
   tenant_id: string;
@@ -103,7 +104,7 @@ export function useAffiliateProgram() {
       toast.success('Programa de afiliados atualizado');
     },
     onError: (error) => {
-      toast.error('Erro ao atualizar programa: ' + error.message);
+      showErrorToast(toast, { module: 'afiliados', action: 'salvar' });
     },
   });
 
@@ -148,7 +149,7 @@ export function useAffiliates() {
       toast.success('Afiliado criado com sucesso');
     },
     onError: (error) => {
-      toast.error('Erro ao criar afiliado: ' + error.message);
+      showErrorToast(toast, { module: 'afiliados', action: 'criar' });
     },
   });
 
@@ -169,7 +170,7 @@ export function useAffiliates() {
       toast.success('Afiliado atualizado');
     },
     onError: (error) => {
-      toast.error('Erro ao atualizar afiliado: ' + error.message);
+      showErrorToast(toast, { module: 'afiliados', action: 'salvar' });
     },
   });
 
@@ -187,7 +188,7 @@ export function useAffiliates() {
       toast.success('Afiliado removido');
     },
     onError: (error) => {
-      toast.error('Erro ao remover afiliado: ' + error.message);
+      showErrorToast(toast, { module: 'afiliados', action: 'excluir' });
     },
   });
 
@@ -236,7 +237,7 @@ export function useAffiliateLinks(affiliateId?: string) {
       toast.success('Link criado com sucesso');
     },
     onError: (error) => {
-      toast.error('Erro ao criar link: ' + error.message);
+      showErrorToast(toast, { module: 'afiliados', action: 'criar' });
     },
   });
 
@@ -285,7 +286,7 @@ export function useAffiliateConversions(affiliateId?: string) {
       toast.success('Status atualizado');
     },
     onError: (error) => {
-      toast.error('Erro ao atualizar: ' + error.message);
+      showErrorToast(toast, { module: 'afiliados', action: 'salvar' });
     },
   });
 
@@ -379,7 +380,7 @@ export function useAffiliatePayouts(affiliateId?: string) {
       toast.success('Pagamento registrado');
     },
     onError: (error) => {
-      toast.error('Erro ao registrar pagamento: ' + error.message);
+      showErrorToast(toast, { module: 'afiliados', action: 'registrar' });
     },
   });
 
@@ -400,7 +401,7 @@ export function useAffiliatePayouts(affiliateId?: string) {
       toast.success('Pagamento atualizado');
     },
     onError: (error) => {
-      toast.error('Erro ao atualizar: ' + error.message);
+      showErrorToast(toast, { module: 'afiliados', action: 'salvar' });
     },
   });
 

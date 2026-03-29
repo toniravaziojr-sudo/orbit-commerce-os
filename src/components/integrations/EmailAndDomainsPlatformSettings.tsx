@@ -28,6 +28,7 @@ import {
   Loader2
 } from "lucide-react";
 import {
+import { showErrorToast } from '@/lib/error-toast';
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -103,12 +104,12 @@ export function EmailAndDomainsPlatformSettings() {
             : 'API Token válido'
         });
       } else {
-        toast.error('Falha na conexão', { description: data.error });
+        showErrorToast(toast, { module: 'integrações', action: 'processar' });
       }
       queryClient.invalidateQueries({ queryKey: ['platform-secrets-status'] });
     },
     onError: (error: Error) => {
-      toast.error('Erro ao testar conexão', { description: error.message });
+      showErrorToast(toast, { module: 'integrações', action: 'testar' });
     },
   });
 
@@ -163,7 +164,7 @@ export function EmailAndDomainsPlatformSettings() {
       toast.success("Domínio configurado!", { description: "Configure os registros DNS abaixo." });
       await loadConfig();
     } catch (error: any) {
-      toast.error("Erro ao configurar domínio", { description: error.message });
+      showErrorToast(toast, { module: 'integrações', action: 'configurar' });
     } finally {
       setIsSaving(false);
     }
@@ -184,7 +185,7 @@ export function EmailAndDomainsPlatformSettings() {
       }
       await loadConfig();
     } catch (error: any) {
-      toast.error("Erro ao verificar domínio", { description: error.message });
+      showErrorToast(toast, { module: 'integrações', action: 'verificar' });
     } finally {
       setIsVerifying(false);
     }
@@ -220,7 +221,7 @@ export function EmailAndDomainsPlatformSettings() {
       toast.success("Configurações salvas!");
       await loadConfig();
     } catch (error: any) {
-      toast.error("Erro ao salvar", { description: error.message });
+      showErrorToast(toast, { module: 'integrações', action: 'salvar' });
     } finally {
       setIsSaving(false);
     }
@@ -258,11 +259,11 @@ export function EmailAndDomainsPlatformSettings() {
       if (data.success) {
         toast.success("Email de teste enviado!", { description: `Verifique a caixa de entrada de ${testEmail}` });
       } else {
-        toast.error("Falha ao enviar", { description: data.message || data.error });
+        showErrorToast(toast, { module: 'integrações', action: 'enviar' });
       }
       await loadConfig();
     } catch (error: any) {
-      toast.error("Erro ao enviar teste", { description: error.message });
+      showErrorToast(toast, { module: 'integrações', action: 'enviar' });
     } finally {
       setIsTesting(false);
     }
@@ -284,7 +285,7 @@ export function EmailAndDomainsPlatformSettings() {
       setReplyTo("");
       await loadConfig();
     } catch (error: any) {
-      toast.error("Erro ao resetar", { description: error.message });
+      showErrorToast(toast, { module: 'integrações', action: 'resetar' });
     } finally {
       setIsResetting(false);
     }

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 // =====================
 // Types
@@ -91,7 +92,7 @@ export function useGoogleAds() {
       toast.success(`${data.synced} campanhas sincronizadas`);
       queryClient.invalidateQueries({ queryKey: ["google-ads-campaigns"] });
     },
-    onError: (err: any) => toast.error(err.message || "Erro ao sincronizar campanhas"),
+    showErrorToast(toast, { module: 'anúncios', action: 'sincronizar' });
   });
 
   // --- Insights ---
@@ -122,7 +123,7 @@ export function useGoogleAds() {
       toast.success(`${data.synced} registros de insights sincronizados`);
       queryClient.invalidateQueries({ queryKey: ["google-ads-insights-summary"] });
     },
-    onError: (err: any) => toast.error(err.message || "Erro ao sincronizar insights"),
+    showErrorToast(toast, { module: 'anúncios', action: 'sincronizar' });
   });
 
   // --- Audiences ---
@@ -153,7 +154,7 @@ export function useGoogleAds() {
       toast.success(`${data.synced} audiências sincronizadas`);
       queryClient.invalidateQueries({ queryKey: ["google-ads-audiences"] });
     },
-    onError: (err: any) => toast.error(err.message || "Erro ao sincronizar audiências"),
+    showErrorToast(toast, { module: 'anúncios', action: 'sincronizar' });
   });
 
   // --- Sync All ---
@@ -172,7 +173,7 @@ export function useGoogleAds() {
       queryClient.invalidateQueries({ queryKey: ["google-ads-insights-summary"] });
       queryClient.invalidateQueries({ queryKey: ["google-ads-audiences"] });
     },
-    onError: (err: any) => toast.error(err.message || "Erro na sincronização"),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   return {

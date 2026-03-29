@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 export function useTikTokContent() {
   const { currentTenant } = useAuth();
@@ -52,7 +53,7 @@ export function useTikTokContent() {
       toast.success(`${data.synced} vídeos sincronizados`);
     },
     onError: (err: Error) => {
-      toast.error(`Erro ao sincronizar vídeos: ${err.message}`);
+      showErrorToast(toast, { module: 'tiktok', action: 'sincronizar' });
     },
   });
 
@@ -71,7 +72,7 @@ export function useTikTokContent() {
       toast.success(`Analytics sincronizados para ${data.synced} vídeos`);
     },
     onError: (err: Error) => {
-      toast.error(`Erro ao sincronizar analytics: ${err.message}`);
+      showErrorToast(toast, { module: 'tiktok', action: 'sincronizar' });
     },
   });
 
@@ -89,7 +90,7 @@ export function useTikTokContent() {
       queryClient.invalidateQueries({ queryKey: ['tiktok-content-videos'] });
     },
     onError: (err: Error) => {
-      toast.error(`Erro ao iniciar upload: ${err.message}`);
+      showErrorToast(toast, { module: 'tiktok', action: 'carregar' });
     },
   });
 
@@ -123,7 +124,7 @@ export function useTikTokContent() {
       toast.success('Vídeo removido');
     },
     onError: (err: Error) => {
-      toast.error(`Erro ao remover: ${err.message}`);
+      showErrorToast(toast, { module: 'tiktok', action: 'excluir' });
     },
   });
 

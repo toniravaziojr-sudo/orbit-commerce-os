@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface TikTokAdCampaign {
   id: string;
@@ -94,7 +95,7 @@ export function useTikTokAds() {
       queryClient.invalidateQueries({ queryKey: ["tiktok-ads-campaigns"] });
       toast.success(`${data.data?.synced || 0} campanhas sincronizadas`);
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   const createCampaign = useMutation({
@@ -104,7 +105,7 @@ export function useTikTokAds() {
       queryClient.invalidateQueries({ queryKey: ["tiktok-ads-campaigns"] });
       toast.success("Campanha criada no TikTok");
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   const updateCampaign = useMutation({
@@ -114,7 +115,7 @@ export function useTikTokAds() {
       queryClient.invalidateQueries({ queryKey: ["tiktok-ads-campaigns"] });
       toast.success("Campanha atualizada");
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   const deleteCampaign = useMutation({
@@ -124,7 +125,7 @@ export function useTikTokAds() {
       queryClient.invalidateQueries({ queryKey: ["tiktok-ads-campaigns"] });
       toast.success("Campanha removida");
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   // ============ INSIGHTS ============
@@ -149,7 +150,7 @@ export function useTikTokAds() {
       queryClient.invalidateQueries({ queryKey: ["tiktok-ads-insights"] });
       toast.success(`${data.data?.synced || 0} métricas sincronizadas`);
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   // ============ SYNC ALL ============
@@ -165,7 +166,7 @@ export function useTikTokAds() {
       queryClient.invalidateQueries({ queryKey: ["tiktok-ads-insights"] });
       toast.success("Dados sincronizados com o TikTok Ads");
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   return {

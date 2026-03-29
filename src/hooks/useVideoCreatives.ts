@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 // ============================================================
 // TYPES
@@ -322,7 +323,7 @@ export function useCreateVideoJob() {
     },
     onError: (error: Error) => {
       console.error('Error creating video job:', error);
-      toast.error(`Erro ao iniciar geração: ${error.message}`);
+      showErrorToast(toast, { module: 'vídeo', action: 'processar' });
     },
   });
 }
@@ -354,7 +355,7 @@ export function useDeleteVideoJob() {
       toast.success('Job excluído com sucesso');
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao excluir: ${error.message}`);
+      showErrorToast(toast, { module: 'vídeo', action: 'excluir' });
     },
   });
 }
@@ -412,7 +413,7 @@ export function useSelectBestCandidate() {
       toast.success('Vídeo selecionado como principal');
     },
     onError: (error: Error) => {
-      toast.error(`Erro: ${error.message}`);
+      showErrorToast(toast, { module: 'vídeo', action: 'processar' });
     },
   });
 }

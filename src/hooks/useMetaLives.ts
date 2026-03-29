@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 interface LiveStream {
   id: string;
@@ -59,7 +60,7 @@ export function useMetaLives() {
       toast.success("Transmissão criada!");
       queryClient.invalidateQueries({ queryKey: ["meta-live-streams"] });
     },
-    onError: (err) => toast.error(err.message),
+    showErrorToast(toast, { module: 'meta', action: 'processar' });
   });
 
   // Go live
@@ -75,7 +76,7 @@ export function useMetaLives() {
       toast.success("Transmissão ao vivo iniciada!");
       queryClient.invalidateQueries({ queryKey: ["meta-live-streams"] });
     },
-    onError: (err) => toast.error(err.message),
+    showErrorToast(toast, { module: 'meta', action: 'processar' });
   });
 
   // End live
@@ -91,7 +92,7 @@ export function useMetaLives() {
       toast.success("Transmissão encerrada");
       queryClient.invalidateQueries({ queryKey: ["meta-live-streams"] });
     },
-    onError: (err) => toast.error(err.message),
+    showErrorToast(toast, { module: 'meta', action: 'processar' });
   });
 
   // Check status

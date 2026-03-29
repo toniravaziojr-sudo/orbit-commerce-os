@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface PurchaseSupplier {
   id: string;
@@ -60,7 +61,7 @@ export function usePurchaseSuppliers() {
       toast.success('Fornecedor cadastrado com sucesso');
     },
     onError: (error) => {
-      toast.error('Erro ao cadastrar fornecedor: ' + error.message);
+      showErrorToast(toast, { module: 'compras', action: 'criar' });
     },
   });
 
@@ -81,7 +82,7 @@ export function usePurchaseSuppliers() {
       toast.success('Fornecedor atualizado com sucesso');
     },
     onError: (error) => {
-      toast.error('Erro ao atualizar fornecedor: ' + error.message);
+      showErrorToast(toast, { module: 'compras', action: 'salvar' });
     },
   });
 
@@ -99,7 +100,7 @@ export function usePurchaseSuppliers() {
       toast.success('Fornecedor removido com sucesso');
     },
     onError: (error) => {
-      toast.error('Erro ao remover fornecedor: ' + error.message);
+      showErrorToast(toast, { module: 'compras', action: 'excluir' });
     },
   });
 

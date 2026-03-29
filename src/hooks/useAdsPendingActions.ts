@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface PendingAction {
   id: string;
@@ -72,7 +73,7 @@ export function useAdsPendingActions(channelFilter?: string) {
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-actions"] });
       toast.success("Ação aprovada e enviada para execução");
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   const rejectAction = useMutation({
@@ -88,7 +89,7 @@ export function useAdsPendingActions(channelFilter?: string) {
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-actions"] });
       toast.success("Ação rejeitada");
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   return {

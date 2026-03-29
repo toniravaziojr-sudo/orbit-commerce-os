@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface ImportJob {
   id: string;
@@ -93,7 +94,7 @@ export function useImportJobs() {
       queryClient.invalidateQueries({ queryKey: ['import-jobs', tenantId] });
     },
     onError: (error) => {
-      toast.error('Erro ao criar job de importação: ' + error.message);
+      showErrorToast(toast, { module: 'importação', action: 'criar' });
     },
   });
 
@@ -136,7 +137,7 @@ export function useImportJobs() {
       toast.success('Job removido');
     },
     onError: (error) => {
-      toast.error('Erro ao remover job: ' + error.message);
+      showErrorToast(toast, { module: 'importação', action: 'excluir' });
     },
   });
 
@@ -170,7 +171,7 @@ export function useImportJobs() {
       toast.success(`${totalDeleted} registros removidos com sucesso`);
     },
     onError: (error) => {
-      toast.error('Erro ao limpar dados: ' + error.message);
+      showErrorToast(toast, { module: 'importação', action: 'processar' });
     },
   });
 

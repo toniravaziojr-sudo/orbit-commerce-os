@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Upload, Database, Loader2, CheckCircle2, AlertCircle, FileJson } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { showErrorToast } from '@/lib/error-toast';
 
 interface ImportResult {
   table: string;
@@ -148,7 +149,7 @@ export function DatabaseImporter() {
         toast.warning(`Importação concluída com ${totalErrors} erro(s): ${totalImported} registros importados`);
       }
     } catch (err: any) {
-      toast.error(err.message);
+      showErrorToast(toast, { module: 'ferramentas', action: 'processar' });
     } finally {
       setImporting(false);
     }

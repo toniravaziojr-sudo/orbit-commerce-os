@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 // Tipos legados (baseado em orders)
 export interface Shipment {
@@ -322,7 +323,7 @@ export function useCreateShipment() {
     },
     onError: (error: Error) => {
       console.error('Erro ao criar remessa:', error);
-      toast.error(error.message || 'Erro ao criar remessa');
+      showErrorToast(toast, { action: 'criar' });
     },
   });
 }
@@ -362,7 +363,7 @@ export function usePrintLabel() {
     },
     onError: (error: Error) => {
       console.error('Erro ao obter etiqueta:', error);
-      toast.error(error.message || 'Erro ao obter etiqueta');
+      showErrorToast(toast, { action: 'processar' });
     },
   });
 }
@@ -388,7 +389,7 @@ export function useRefreshTracking() {
     },
     onError: (error: Error) => {
       console.error('Erro ao atualizar rastreamento:', error);
-      toast.error(error.message || 'Erro ao atualizar rastreamento');
+      showErrorToast(toast, { action: 'salvar' });
     },
   });
 }
@@ -468,7 +469,7 @@ export function useRegisterManualShipment() {
     },
     onError: (error: Error) => {
       console.error('Erro ao registrar remessa:', error);
-      toast.error(error.message || 'Erro ao registrar remessa');
+      showErrorToast(toast, { action: 'registrar' });
     },
   });
 }

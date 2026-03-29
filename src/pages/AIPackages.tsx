@@ -15,6 +15,7 @@ import { CreditLedgerTable } from "@/components/ai-packages/CreditLedgerTable";
 import { AIPricingTable } from "@/components/ai-packages/AIPricingTable";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 export default function AIPackages() {
   const { isPlatformOperator } = usePlatformOperator();
@@ -63,7 +64,7 @@ export default function AIPackages() {
       }
     } catch (error) {
       console.error('Purchase error:', error);
-      toast.error(error instanceof Error ? error.message : "Erro ao processar compra");
+      showErrorToast(toast, { action: 'processar' });
     } finally {
       setPurchasingId(null);
     }

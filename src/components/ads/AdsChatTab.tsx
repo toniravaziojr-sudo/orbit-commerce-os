@@ -19,6 +19,7 @@ import { ChatMessageBubble, ChatTypingIndicator, ChatEmptyState, ChatConversatio
 import { AdsPendingActionsTab } from "@/components/ads/AdsPendingActionsTab";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { showErrorToast } from '@/lib/error-toast';
 
 interface AdsChatTabProps {
   scope: "global" | "account";
@@ -107,7 +108,7 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
     try {
       await sendMessage(msg, atts.length > 0 ? atts : undefined);
     } catch (err: any) {
-      toast.error(err.message || "Erro ao enviar mensagem");
+      showErrorToast(toast, { module: 'anúncios', action: 'enviar' });
     }
   };
 

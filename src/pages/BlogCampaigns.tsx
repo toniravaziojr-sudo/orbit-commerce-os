@@ -46,6 +46,7 @@ import { format, addMonths, startOfMonth, endOfMonth, startOfDay } from "date-fn
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useMediaCampaigns, MediaCampaign } from "@/hooks/useMediaCampaigns";
+import { showErrorToast } from '@/lib/error-toast';
 
 // Generate available months for campaign selection
 const getAvailableMonths = () => {
@@ -142,7 +143,7 @@ export default function BlogCampaigns() {
       setIsDialogOpen(false);
       resetForm();
     } catch (error: any) {
-      toast.error(error.message || "Erro ao salvar campanha");
+      showErrorToast(toast, { module: 'blog', action: 'salvar' });
     }
   };
 
@@ -154,7 +155,7 @@ export default function BlogCampaigns() {
       toast.success("Campanha excluída");
       setDeleteId(null);
     } catch (error: any) {
-      toast.error(error.message || "Erro ao excluir campanha");
+      showErrorToast(toast, { module: 'blog', action: 'excluir' });
     }
   };
 

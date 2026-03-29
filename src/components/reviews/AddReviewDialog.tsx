@@ -17,6 +17,7 @@ import { Star, Plus, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { ReviewMediaUploader } from './ReviewMediaUploader';
+import { showErrorToast } from '@/lib/error-toast';
 
 interface AddReviewDialogProps {
   trigger?: React.ReactNode;
@@ -107,7 +108,7 @@ export function AddReviewDialog({ trigger }: AddReviewDialogProps) {
       setOpen(false);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao criar avaliação');
+      showErrorToast(toast, { module: 'avaliações', action: 'criar' });
     },
   });
 
