@@ -173,12 +173,16 @@ export default function Notifications() {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <div>
+                <div className="space-y-1">
                   <CardTitle>Regras de Automação</CardTitle>
                   <CardDescription>Configure regras para enviar notificações automáticas via WhatsApp e E-mail</CardDescription>
                 </div>
                 {isAdminOrOwner && (
                   <div className="flex items-center gap-2">
+                    <Button onClick={handleCreateRule}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Nova regra
+                    </Button>
                     <PostSaleBackfillButton />
                     <ReplayEventsButton />
                   </div>
