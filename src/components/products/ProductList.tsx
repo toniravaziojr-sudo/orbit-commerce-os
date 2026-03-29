@@ -22,6 +22,7 @@ import {
 import { Plus, Search, MoreHorizontal, Pencil, Trash2, Package, Copy, ImageIcon, Eye } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
+import { QueryErrorState } from '@/components/ui/query-error-state';
 import { DeleteProductDialog } from './DeleteProductDialog';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -44,7 +45,7 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
 };
 
 export function ProductList({ onCreateProduct, onEditProduct }: ProductListProps) {
-  const { products, isLoading, deleteProduct, createProduct } = useProducts();
+  const { products, isLoading, isError, refetch, deleteProduct, createProduct } = useProducts();
   const { currentTenant } = useAuth();
   const { primaryOrigin } = usePrimaryPublicHost(currentTenant?.id, currentTenant?.slug);
   const [search, setSearch] = useState('');
@@ -169,6 +170,10 @@ export function ProductList({ onCreateProduct, onEditProduct }: ProductListProps
         </div>
       </div>
     );
+  }
+
+  if (isError) {
+    return <QueryErrorState title="Erro ao carregar produtos" onRetry={refetch} />;
   }
 
   // Status counts

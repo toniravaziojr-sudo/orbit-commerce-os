@@ -5,6 +5,7 @@
 // =============================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { errorResponse } from '../_shared/error-response.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -274,10 +275,8 @@ Deno.serve(async (req) => {
           .single();
 
         if (insertError) {
-          return new Response(
-            JSON.stringify({ success: false, error: insertError.message, code: 'INSERT_FAILED' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          return errorResponse(insertError, corsHeaders, { module: 'products', action: 'create' });
+        }
         }
 
         await createAuditLog(supabase, {
@@ -384,10 +383,8 @@ Deno.serve(async (req) => {
           .single();
 
         if (updateError) {
-          return new Response(
-            JSON.stringify({ success: false, error: updateError.message, code: 'UPDATE_FAILED' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          return errorResponse(updateError, corsHeaders, { module: 'products', action: 'update' });
+        }
         }
 
         await createAuditLog(supabase, {
@@ -521,10 +518,8 @@ Deno.serve(async (req) => {
           .eq('tenant_id', tenantId);
 
         if (deleteError) {
-          return new Response(
-            JSON.stringify({ success: false, error: deleteError.message, code: 'DELETE_FAILED' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          return errorResponse(deleteError, corsHeaders, { module: 'products', action: 'delete' });
+        }
         }
 
         await createAuditLog(supabase, {
@@ -600,10 +595,8 @@ Deno.serve(async (req) => {
           .single();
 
         if (insertError) {
-          return new Response(
-            JSON.stringify({ success: false, error: insertError.message, code: 'INSERT_FAILED' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          return errorResponse(insertError, corsHeaders, { module: 'products', action: 'add_image' });
+        }
         }
 
         return new Response(
@@ -715,9 +708,8 @@ Deno.serve(async (req) => {
     }
   } catch (error: any) {
     console.error('[core-products] Error:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message || 'Internal error', code: 'INTERNAL_ERROR' }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    return errorResponse(error, corsHeaders, { module: 'products' });
+  }
     );
   }
 });

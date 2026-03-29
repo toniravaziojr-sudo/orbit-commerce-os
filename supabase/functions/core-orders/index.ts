@@ -5,6 +5,7 @@
 // =============================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { errorResponse } from '../_shared/error-response.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -256,10 +257,7 @@ Deno.serve(async (req) => {
           .single();
 
         if (orderError) {
-          return new Response(
-            JSON.stringify({ success: false, error: orderError.message, code: 'CREATE_ERROR' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          return errorResponse(orderError, corsHeaders, { module: 'orders', action: 'create' });
         }
 
         // Create order items
@@ -283,10 +281,7 @@ Deno.serve(async (req) => {
         if (itemsError) {
           // Rollback order
           await supabase.from('orders').delete().eq('id', order.id);
-          return new Response(
-            JSON.stringify({ success: false, error: itemsError.message, code: 'ITEMS_ERROR' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          return errorResponse(itemsError, corsHeaders, { module: 'orders', action: 'create_items' });
         }
 
         // Create history entry
@@ -368,10 +363,7 @@ Deno.serve(async (req) => {
           .eq('id', order_id);
 
         if (deleteError) {
-          return new Response(
-            JSON.stringify({ success: false, error: deleteError.message, code: 'DELETE_ERROR' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          return errorResponse(deleteError, corsHeaders, { module: 'orders', action: 'delete' });
         }
 
         // Audit log
@@ -440,10 +432,7 @@ Deno.serve(async (req) => {
           .eq('id', order_id);
 
         if (updateError) {
-          return new Response(
-            JSON.stringify({ success: false, error: updateError.message, code: 'UPDATE_FAILED' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          return errorResponse(updateError, corsHeaders, { module: 'orders', action: 'add_note' });
         }
 
         // Add history
@@ -510,10 +499,7 @@ Deno.serve(async (req) => {
           .eq('id', order_id);
 
         if (updateError) {
-          return new Response(
-            JSON.stringify({ success: false, error: updateError.message, code: 'UPDATE_FAILED' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          return errorResponse(updateError, corsHeaders, { module: 'orders', action: 'update_tracking' });
         }
 
         // Add history
@@ -599,10 +585,7 @@ Deno.serve(async (req) => {
           .eq('id', order_id);
 
         if (updateError) {
-          return new Response(
-            JSON.stringify({ success: false, error: updateError.message, code: 'UPDATE_FAILED' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          return errorResponse(updateError, corsHeaders, { module: 'orders', action: 'update_address' });
         }
 
         // Add history
@@ -695,10 +678,7 @@ Deno.serve(async (req) => {
           .eq('id', order_id);
 
         if (updateError) {
-          return new Response(
-            JSON.stringify({ success: false, error: updateError.message, code: 'UPDATE_FAILED' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          return errorResponse(updateError, corsHeaders, { module: 'orders', action: 'set_status' });
         }
 
         // Create order history entry
@@ -783,10 +763,7 @@ Deno.serve(async (req) => {
           .eq('id', order_id);
 
         if (updateError) {
-          return new Response(
-            JSON.stringify({ success: false, error: updateError.message, code: 'UPDATE_FAILED' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          return errorResponse(updateError, corsHeaders, { module: 'orders', action: 'set_payment_status' });
         }
 
         await supabase.from('order_history').insert({
@@ -871,10 +848,7 @@ Deno.serve(async (req) => {
           .eq('id', order_id);
 
         if (updateError) {
-          return new Response(
-            JSON.stringify({ success: false, error: updateError.message, code: 'UPDATE_FAILED' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          return errorResponse(updateError, corsHeaders, { module: 'orders', action: 'set_shipping_status' });
         }
 
         await supabase.from('order_history').insert({
@@ -961,10 +935,8 @@ Deno.serve(async (req) => {
           .eq('id', order_id);
 
         if (updateError) {
-          return new Response(
-            JSON.stringify({ success: false, error: updateError.message, code: 'UPDATE_FAILED' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          return errorResponse(updateError, corsHeaders, { module: 'orders', action: 'update_order' });
+        }
         }
 
         await createAuditLog(supabase, {
@@ -994,9 +966,7 @@ Deno.serve(async (req) => {
     }
   } catch (error: any) {
     console.error('[core-orders] Error:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message || 'Internal error', code: 'INTERNAL_ERROR' }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'orders' });
+  }
   }
 });

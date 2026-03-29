@@ -1,15 +1,15 @@
 import { toast } from 'sonner';
+import { sanitizeError, type ErrorCategory } from './error-sanitizer';
+import { logError } from './error-logger';
 
 /**
  * Utilitário centralizado de toast de erro para o Comando Central.
  * 
- * Categoriza erros automaticamente e exibe toasts com mensagens claras:
- * - Erro de permissão (403/RLS) → "Você não tem permissão"
- * - Erro técnico (500/rede/timeout) → "Erro interno. Contate o suporte."
- * - Erro de validação/ação do usuário → Mensagem customizada
+ * Usa error-sanitizer para NUNCA exibir mensagens técnicas ao usuário.
+ * Usa error-logger para registrar detalhes técnicos no console.
+ * 
+ * @version 2.0.0 — Integrado com sanitizer + logger
  */
-
-type ErrorCategory = 'permission' | 'technical' | 'validation' | 'network';
 
 interface ErrorToastOptions {
   /** Mensagem customizada (sobrescreve a automática) */
@@ -22,39 +22,29 @@ interface ErrorToastOptions {
   action?: string;
   /** Se deve mostrar link de suporte */
   showSupport?: boolean;
+  /** Tenant ID para logging */
+  tenantId?: string;
 }
 
-function categorizeError(error: unknown): ErrorCategory {
-  if (!error) return 'technical';
-
-  const message = error instanceof Error ? error.message : String(error);
-  const lowerMessage = message.toLowerCase();
-
-  // Verificar código de status se disponível
-  const statusCode = (error as any)?.status || (error as any)?.code || (error as any)?.statusCode;
-
-  if (statusCode === 403 || statusCode === '403' || lowerMessage.includes('permission') || lowerMessage.includes('rls') || lowerMessage.includes('policy') || lowerMessage.includes('not authorized') || lowerMessage.includes('permissão')) {
-    return 'permission';
+function getContextualMessage(
+  category: ErrorCategory,
+  userMessage: string,
+  options: ErrorToastOptions
+): string {
+  // Se o sanitizer retornou uma mensagem específica (não genérica), usar ela
+  if (userMessage && !userMessage.includes('Erro inesperado')) {
+    return userMessage;
   }
 
-  if (lowerMessage.includes('network') || lowerMessage.includes('fetch') || lowerMessage.includes('econnrefused') || lowerMessage.includes('failed to fetch') || lowerMessage.includes('net::') || lowerMessage.includes('timeout') || lowerMessage.includes('aborted')) {
-    return 'network';
-  }
-
-  if (lowerMessage.includes('duplicate') || lowerMessage.includes('unique') || lowerMessage.includes('violates') || lowerMessage.includes('required') || lowerMessage.includes('invalid') || lowerMessage.includes('obrigatório') || lowerMessage.includes('inválido')) {
-    return 'validation';
-  }
-
-  return 'technical';
-}
-
-function getDefaultMessage(category: ErrorCategory, options: ErrorToastOptions): string {
+  // Fallback contextualizado por módulo/ação
   const actionLabel = options.action || 'processar';
   const moduleLabel = options.module ? ` ${options.module}` : '';
 
   switch (category) {
     case 'permission':
       return `Você não tem permissão para ${actionLabel}${moduleLabel}.`;
+    case 'auth':
+      return 'Sua sessão expirou. Faça login novamente.';
     case 'network':
       return `Falha de conexão ao ${actionLabel}${moduleLabel}. Verifique sua internet e tente novamente.`;
     case 'validation':
@@ -66,7 +56,7 @@ function getDefaultMessage(category: ErrorCategory, options: ErrorToastOptions):
 }
 
 /**
- * Exibe um toast de erro categorizado automaticamente.
+ * Exibe um toast de erro seguro e categorizado.
  * 
  * @example
  * // Erro genérico
@@ -79,17 +69,24 @@ function getDefaultMessage(category: ErrorCategory, options: ErrorToastOptions):
  * showErrorToast(error, { message: 'Não foi possível duplicar o produto.' });
  */
 export function showErrorToast(error: unknown, options: ErrorToastOptions = {}) {
-  const category = categorizeError(error);
-  const message = options.message || getDefaultMessage(category, options);
+  // 1. Log estruturado (detalhes técnicos — nunca vai para o toast)
+  const sanitized = logError(error, {
+    module: options.module,
+    action: options.action,
+    tenantId: options.tenantId,
+  });
 
-  // Log para debug (sempre)
-  console.error(`[ErrorToast][${category}]`, error);
+  // 2. Mensagem segura para o usuário
+  const message = options.message || getContextualMessage(sanitized.category, sanitized.userMessage, options);
 
+  // 3. Toast
   toast.error(message, {
-    description: options.description || (options.showSupport !== false && category === 'technical'
-      ? 'Se o problema persistir, entre em contato com o suporte.'
-      : undefined),
-    duration: category === 'technical' ? 6000 : 4000,
+    description: options.description || (
+      options.showSupport !== false && sanitized.category === 'technical'
+        ? 'Se o problema persistir, entre em contato com o suporte.'
+        : undefined
+    ),
+    duration: sanitized.category === 'technical' ? 6000 : 4000,
   });
 }
 
