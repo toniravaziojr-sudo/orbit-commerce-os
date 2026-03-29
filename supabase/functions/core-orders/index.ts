@@ -935,10 +935,8 @@ Deno.serve(async (req) => {
           .eq('id', order_id);
 
         if (updateError) {
-          return new Response(
-            JSON.stringify({ success: false, error: updateError.message, code: 'UPDATE_FAILED' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          return errorResponse(updateError, corsHeaders, { module: 'orders', action: 'update_order' });
+        }
         }
 
         await createAuditLog(supabase, {
