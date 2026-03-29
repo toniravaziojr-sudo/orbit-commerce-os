@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -117,11 +118,6 @@ Deno.serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Erro interno";
-    console.error("[olist-connection-status] Erro:", error);
-    return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'olist', action: 'connection-status' });
   }
 });
