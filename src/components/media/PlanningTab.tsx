@@ -22,6 +22,32 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SelectionDiagnostics, getDiagnostics } from "@/components/media/SelectionDiagnostics";
 import { showErrorToast } from '@/lib/error-toast';
 
+/** Returns the status color class for a selected day based on its items' completeness */
+function getSelectedDayStatusClasses(dayItems: MediaCalendarItem[], isBlog: boolean): { bg: string; border: string; badge: string } {
+  if (dayItems.length === 0) {
+    return { bg: "bg-muted/40", border: "border-muted-foreground/40", badge: "bg-muted-foreground" };
+  }
+
+  // Check worst status: no strategy > no copy > no creative > ready
+  const hasNoStrategy = dayItems.some(i => !i.title || i.title.trim() === "");
+  const hasNoCopy = dayItems.some(i => i.title && i.title.trim() !== "" && (!i.copy || i.copy.trim() === ""));
+  const hasNoCreative = !isBlog && dayItems.some(i => 
+    i.copy && i.copy.trim() !== "" && !i.asset_url && i.content_type !== "text"
+  );
+
+  if (hasNoStrategy) {
+    return { bg: "bg-red-100/60 dark:bg-red-900/20", border: "border-red-400 dark:border-red-700", badge: "bg-red-500" };
+  }
+  if (hasNoCopy) {
+    return { bg: "bg-amber-100/60 dark:bg-amber-900/20", border: "border-amber-400 dark:border-amber-700", badge: "bg-amber-500" };
+  }
+  if (hasNoCreative) {
+    return { bg: "bg-orange-100/60 dark:bg-orange-900/20", border: "border-orange-400 dark:border-orange-700", badge: "bg-orange-500" };
+  }
+  // All ready
+  return { bg: "bg-green-100/60 dark:bg-green-900/20", border: "border-green-400 dark:border-green-700", badge: "bg-green-500" };
+}
+
 interface PlanningTabProps {
   campaignId: string;
   campaign: MediaCampaign;
@@ -587,31 +613,32 @@ export function PlanningTab({
                   const allDayItems = itemsByDate.get(dateKey) || [];
                   const inPeriod = isInCampaignPeriod(date);
                   const holiday = getHolidayForDate(date);
-                  const isSelected = selectedDays.has(dateKey);
-                  const hasContent = dayItems.length > 0;
-                  const counts = getPublicationCounts(dayItems);
+                   const isSelected = selectedDays.has(dateKey);
+                   const hasContent = dayItems.length > 0;
+                   const counts = getPublicationCounts(dayItems);
+                   const statusClasses = isSelected ? getSelectedDayStatusClasses(dayItems, isBlog) : null;
 
-                  return (
-                    <div
-                      key={dateKey}
-                      onClick={() => inPeriod && handleDayClick(date, allDayItems)}
-                      className={cn(
-                        "min-h-[90px] p-1 rounded-md border-2 transition-all relative",
-                        inPeriod ? "cursor-pointer hover:shadow-md" : "bg-muted/30 border-transparent",
-                        isSelected && "bg-primary/20 border-primary border-dashed",
-                        hasContent && inPeriod && !isSelected && "border-muted-foreground/30 bg-muted/50",
-                        !isSelected && !hasContent && inPeriod && "bg-background border-border",
-                        holiday && inPeriod && "ring-2 ring-red-400/50",
-                        isSelectMode && inPeriod && "cursor-cell"
-                      )}
-                    >
-                      <div className={cn(
-                        "text-xs font-medium p-1 flex items-center gap-1",
-                        !inPeriod && "text-muted-foreground/50",
-                        (isSelected || hasContent) && "text-primary font-semibold"
-                      )}>
-                        {format(date, "d")}
-                        {isSelected && !hasContent && <Check className="h-3 w-3 text-primary" />}
+                   return (
+                     <div
+                       key={dateKey}
+                       onClick={() => inPeriod && handleDayClick(date, allDayItems)}
+                       className={cn(
+                         "min-h-[90px] p-1 rounded-md border-2 transition-all relative",
+                         inPeriod ? "cursor-pointer hover:shadow-md" : "bg-muted/30 border-transparent",
+                         isSelected && statusClasses && `${statusClasses.bg} ${statusClasses.border} border-dashed`,
+                         hasContent && inPeriod && !isSelected && "border-muted-foreground/30 bg-muted/50",
+                         !isSelected && !hasContent && inPeriod && "bg-background border-border",
+                         holiday && inPeriod && "ring-2 ring-red-400/50",
+                         isSelectMode && inPeriod && "cursor-cell"
+                       )}
+                     >
+                       <div className={cn(
+                         "text-xs font-medium p-1 flex items-center gap-1",
+                         !inPeriod && "text-muted-foreground/50",
+                         (isSelected || hasContent) && "text-foreground font-semibold"
+                       )}>
+                         {format(date, "d")}
+                         {isSelected && !hasContent && <Check className="h-3 w-3 text-muted-foreground" />}
                         {holiday && (
                           <Tooltip>
                             <TooltipTrigger asChild><span className="cursor-help">{holiday.emoji}</span></TooltipTrigger>
@@ -705,11 +732,11 @@ export function PlanningTab({
                           {isSelectMode ? "Selecionar" : "Adicionar"}
                         </div>
                       )}
-                      {isSelectMode && isSelected && (
-                        <div className="absolute top-1 right-1">
-                          <Badge variant="default" className="text-[9px] px-1 py-0 h-4 bg-primary">✓</Badge>
-                        </div>
-                      )}
+                       {isSelectMode && isSelected && (
+                         <div className="absolute top-1 right-1">
+                           <Badge variant="default" className={cn("text-[9px] px-1 py-0 h-4 text-white", statusClasses?.badge || "bg-primary")}>✓</Badge>
+                         </div>
+                       )}
                     </div>
                   );
                 })}
