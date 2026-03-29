@@ -4,7 +4,7 @@
 // =============================================
 
 import { useState } from "react";
-import { format, parse } from 'date-fns';
+import { parse } from 'date-fns';
 import { DatePickerField } from '@/components/ui/date-picker-field';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
@@ -51,7 +51,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { format as fnsFormat } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 interface Announcement {
