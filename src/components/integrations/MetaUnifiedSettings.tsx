@@ -537,10 +537,7 @@ export function MetaUnifiedSettings() {
 
                             {whatsappConfig.last_error && whatsappConfig.connection_status !== "pending_registration" && (
                               <p className="text-xs text-destructive">
-                                {(() => {
-                                  const { sanitizeError } = require("@/lib/error-sanitizer");
-                                  return sanitizeError(new Error(whatsappConfig.last_error)).userMessage;
-                                })()}
+                                {sanitizeError(new Error(whatsappConfig.last_error)).userMessage}
                               </p>
                             )}
                             {whatsappConfig.connection_status === "pending_registration" && registrationStep === "idle" && (
