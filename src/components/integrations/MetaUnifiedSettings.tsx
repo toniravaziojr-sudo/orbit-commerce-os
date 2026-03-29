@@ -197,19 +197,62 @@ export function MetaUnifiedSettings() {
     },
   });
 
-  // Register phone number on Cloud API (manual fallback)
+  // Step 1: Request SMS/Voice verification code
+  const requestCodeMutation = useMutation({
+    mutationFn: async (codeMethod: "SMS" | "VOICE") => {
+      const { data, error } = await supabase.functions.invoke("meta-whatsapp-request-code", {
+        body: { tenant_id: tenantId, code_method: codeMethod },
+      });
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(data.message || "Código enviado!");
+      setRegistrationStep("code_sent");
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Erro ao solicitar código");
+    },
+  });
+
+  // Step 2: Verify SMS/Voice code
+  const verifyCodeMutation = useMutation({
+    mutationFn: async (code: string) => {
+      const { data, error } = await supabase.functions.invoke("meta-whatsapp-verify-code", {
+        body: { tenant_id: tenantId, code },
+      });
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(data.message || "Código verificado!");
+      setVerificationCode("");
+      setRegistrationStep("code_verified");
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Erro ao verificar código");
+    },
+  });
+
+  // Step 3: Register phone number on Cloud API
   const registerPhoneMutation = useMutation({
-    mutationFn: async (pin?: string) => {
+    mutationFn: async (pin: string) => {
+      if (!pin || pin.length !== 6) throw new Error("PIN de 6 dígitos é obrigatório");
       const { data, error } = await supabase.functions.invoke("meta-whatsapp-register-phone", {
-        body: { tenant_id: tenantId, ...(pin ? { pin } : {}) },
+        body: { tenant_id: tenantId, pin },
       });
       if (error) throw error;
       if (!data.success) throw new Error(data.error);
       return data;
     },
     onSuccess: () => {
-      toast.success("Número registrado com sucesso na Cloud API!");
+      toast.success("Número registrado com sucesso!");
       setRegisterPin("");
+      setRegistrationStep("idle");
       queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
     },
     onError: (error: any) => {
