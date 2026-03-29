@@ -5,6 +5,7 @@
 // =============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { unbundleKitItems } from "../_shared/kit-unbundler.ts";
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";

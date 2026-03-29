@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { emitirNFe, type NuvemFiscalConfig } from "../_shared/nuvem-fiscal-client.ts";
 import { buildNFePayload, parseNFeResponse } from "../_shared/nuvem-fiscal-adapter.ts";
