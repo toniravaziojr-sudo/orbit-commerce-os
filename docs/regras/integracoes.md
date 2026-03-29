@@ -799,6 +799,42 @@ A integração Meta usa **Scope Packs** para consentimento incremental. O tenant
 
 **Escopos base** (sempre incluídos): `public_profile`, `pages_show_list`
 
+### Facebook Login for Business (Config ID)
+
+> **Adicionado em:** 2026-03-29
+
+Para que **lojistas externos** (não-admin da plataforma) consigam conectar suas contas Meta, o sistema usa o **Facebook Login for Business** em vez do Login do Facebook padrão.
+
+**Como funciona:**
+1. No painel Meta for Developers → Login do Facebook para Empresas → cria-se uma **Configuração**
+2. Essa configuração define quais permissões aprovadas serão pedidas ao lojista
+3. O sistema salva o **Configuration ID** na credencial `META_CONFIG_ID` (via tela de Integrações da Plataforma)
+4. Na hora de gerar a URL de autorização, o `meta-oauth-start` usa esse ID
+
+**⚠️ REGRA CRÍTICA: `config_id` e `scope` são MUTUAMENTE EXCLUSIVOS**
+
+Segundo a documentação oficial da Meta, ao usar `config_id` na URL de autorização, o parâmetro `scope` **NÃO deve ser enviado**. Enviar ambos causa o erro **"Recurso indisponível"** para usuários externos.
+
+**Comportamento no `meta-oauth-start`:**
+```text
+SE config_id está configurado:
+  → URL usa APENAS config_id (sem scope)
+  → Permissões são geridas no painel Meta
+SE config_id NÃO está configurado:
+  → URL usa scope (lista de permissões por pack)
+  → Fallback para o fluxo antigo
+```
+
+**Credencial:** `META_CONFIG_ID` — configurada na tela de Integrações da Plataforma (tab Meta)
+
+**Permissões que devem estar na configuração do Login for Business:**
+- `email`, `public_profile`
+- `pages_manage_posts`, `pages_show_list`, `pages_read_engagement`
+- `instagram_content_publish`, `instagram_basic`
+- `business_management`
+- `whatsapp_business_management`, `whatsapp_business_messaging`
+- (adicionar mais conforme novas permissões forem aprovadas no App Review)
+
 ### Disponibilidade dos Packs (Rollout)
 
 > **Adicionado em:** 2026-03-28  
