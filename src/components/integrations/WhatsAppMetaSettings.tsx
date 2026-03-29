@@ -42,6 +42,7 @@ interface MetaWhatsAppConfig {
   last_connected_at: string | null;
   last_error: string | null;
   token_expires_at: string | null;
+  is_enabled: boolean;
 }
 
 export function WhatsAppMetaSettings() {

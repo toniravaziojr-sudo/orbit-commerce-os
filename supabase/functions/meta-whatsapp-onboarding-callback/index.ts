@@ -269,7 +269,10 @@ Deno.serve(async (req) => {
       const registerUrl = `https://graph.facebook.com/${graphApiVersion}/${phoneNumberId}/register`;
       const registerResponse = await fetch(registerUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           messaging_product: "whatsapp",
           pin: "123456", // 6-digit PIN required by Meta
