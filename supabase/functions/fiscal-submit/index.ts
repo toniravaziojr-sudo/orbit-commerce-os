@@ -433,10 +433,7 @@ serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error('[fiscal-submit] Erro:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message || 'Erro interno do servidor' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'fiscal', action: 'submit' });
+  }
   }
 });

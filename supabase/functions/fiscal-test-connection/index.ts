@@ -105,11 +105,6 @@ serve(async (req) => {
     );
 
   } catch (err: unknown) {
-    const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
-    console.error('[fiscal-test-connection] Error:', err);
-    return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return errorResponse(err, corsHeaders, { module: 'fiscal', action: 'test-connection' });
   }
 });

@@ -217,10 +217,6 @@ serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error('[fiscal-get-status] Erro:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'fiscal', action: 'get-status' });
   }
 });

@@ -211,10 +211,6 @@ serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error('[fiscal-sync-nuvem-fiscal] Erro não tratado:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message || 'Erro interno' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'fiscal', action: 'sync-nuvem-fiscal' });
   }
 });

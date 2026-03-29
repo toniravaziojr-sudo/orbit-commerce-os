@@ -84,10 +84,6 @@ serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error("[fiscal-remove-certificate] Error:", error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message || "Erro interno" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'fiscal', action: 'remove-certificate' });
   }
 });
