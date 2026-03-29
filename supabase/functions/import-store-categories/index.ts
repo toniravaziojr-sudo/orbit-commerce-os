@@ -933,7 +933,7 @@ Deno.serve(async (req) => {
     console.error('[Categories] Unexpected error:', error);
     return jsonResponse({
       success: false,
-      error: error instanceof Error ? error.message : 'Erro interno',
+      error: error instanceof Error ? "Erro interno" : 'Erro interno',
       code: 'INTERNAL_ERROR'
     });
   }

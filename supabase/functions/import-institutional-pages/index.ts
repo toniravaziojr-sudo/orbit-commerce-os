@@ -939,7 +939,7 @@ Deno.serve(async (req) => {
     console.error('[Pages] Error:', error);
     return jsonResponse({
       success: false,
-      error: error instanceof Error ? error.message : 'Erro interno',
+      error: error instanceof Error ? "Erro interno" : 'Erro interno',
       pages: [],
       skipped: [],
     });

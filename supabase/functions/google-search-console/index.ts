@@ -257,7 +257,7 @@ async function handleList(
   if (error) {
     console.error('[google-search-console] List error:', error);
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
+      JSON.stringify({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -291,7 +291,7 @@ async function handleSummary(
 
   if (error) {
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
+      JSON.stringify({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

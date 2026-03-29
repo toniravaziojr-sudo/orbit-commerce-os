@@ -570,7 +570,7 @@ serve(async (req) => {
         success: true,
         classification: createFallbackResult(),
         fallback: true,
-        error: error instanceof Error ? error.message : 'Erro desconhecido',
+        error: error instanceof Error ? "Erro interno" : 'Erro desconhecido',
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

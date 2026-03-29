@@ -197,7 +197,7 @@ LEMBRETE FINAL: Certifique-se de que TODOS os nomes sigam a regra de gênero esp
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error instanceof Error ? error.message : 'Erro desconhecido' 
+        error: error instanceof Error ? "Erro interno" : 'Erro desconhecido' 
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

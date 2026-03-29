@@ -186,7 +186,7 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error(`[google-oauth-start][${VERSION}] Error:`, error);
     return new Response(
-      JSON.stringify({ success: false, error: error instanceof Error ? error.message : "Erro interno", code: "INTERNAL_ERROR" }),
+      JSON.stringify({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte.", code: "INTERNAL_ERROR" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

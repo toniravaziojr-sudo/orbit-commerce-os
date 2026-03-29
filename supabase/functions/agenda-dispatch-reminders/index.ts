@@ -408,7 +408,7 @@ async function sendWhatsAppMessage(
   const data = await response.json();
 
   if (data.error) {
-    return { success: false, error: data.error.message || `HTTP ${response.status}` };
+    return { success: false, error: data."Erro interno. Se o problema persistir, entre em contato com o suporte." || `HTTP ${response.status}` };
   }
 
   return { success: true };

@@ -383,7 +383,7 @@ serve(async (req) => {
     console.error(`[${requestId}] Webhook error after ${duration}ms:`, error);
     
     return new Response(JSON.stringify({ 
-      error: error.message || 'Unknown error',
+      error: "Erro interno" || 'Unknown error',
       request_id: requestId,
       duration_ms: duration,
     }), {

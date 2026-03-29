@@ -330,7 +330,7 @@ async function callSubFunction(
       return { ok: false, error: `${response.status} - ${errorText}` };
     }
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    return { ok: false, error: error instanceof Error ? "Erro interno. Se o problema persistir, entre em contato com o suporte." : String(error) };
   }
 }
 

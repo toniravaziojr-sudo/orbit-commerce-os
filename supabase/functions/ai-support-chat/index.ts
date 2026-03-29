@@ -1132,7 +1132,7 @@ Responda de forma empática dizendo que não possui essa informação e que vai 
   } catch (error) {
     console.error("[ai-support-chat] Error:", error);
     return new Response(
-      JSON.stringify({ success: false, error: error instanceof Error ? error.message : "Unknown error", code: "INTERNAL_ERROR" }),
+      JSON.stringify({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte.", code: "INTERNAL_ERROR" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

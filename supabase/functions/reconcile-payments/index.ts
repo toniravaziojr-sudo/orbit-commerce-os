@@ -326,7 +326,7 @@ serve(async (req) => {
   } catch (error: any) {
     console.error('[reconcile-payments] Fatal error:', error);
     return new Response(JSON.stringify({
-      error: error.message,
+      error: "Erro interno",
       stats,
       duration_ms: Date.now() - startTime,
     }), {

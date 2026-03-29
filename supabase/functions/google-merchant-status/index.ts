@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
     }
   } catch (error) {
     console.error(`[google-merchant-status][${VERSION}] Error:`, error);
-    return jsonResponse({ success: false, error: error instanceof Error ? error.message : "Erro interno" });
+    return jsonResponse({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." });
   }
 });
 
@@ -58,7 +58,7 @@ async function getSummary(supabase: any, tenantId: string, merchantAccountId?: s
 
   const { data, error } = await query;
   if (error) {
-    return jsonResponse({ success: false, error: error.message });
+    return jsonResponse({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." });
   }
 
   const summary = {

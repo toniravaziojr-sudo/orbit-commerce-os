@@ -565,7 +565,7 @@ serve(async (req) => {
     console.error('Integration config error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message || 'Unknown error',
+      error: "Erro interno" || 'Unknown error',
     }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

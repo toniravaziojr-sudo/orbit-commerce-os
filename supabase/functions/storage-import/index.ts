@@ -182,7 +182,7 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error(`[storage-import][${VERSION}] Error:`, error);
-    return new Response(JSON.stringify({ success: false, error: error.message }), {
+    return new Response(JSON.stringify({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

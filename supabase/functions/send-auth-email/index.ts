@@ -52,7 +52,7 @@ async function sendEmailViaSendGrid(
     return { success: true, messageId };
   } catch (error: any) {
     console.error("[send-auth-email] SendGrid exception:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." };
   }
 }
 
@@ -352,7 +352,7 @@ const serve_handler = async (req: Request): Promise<Response> => {
     console.error("[send-auth-email] Error:", error);
 
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }

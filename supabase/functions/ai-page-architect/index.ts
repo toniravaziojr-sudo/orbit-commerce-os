@@ -230,7 +230,7 @@ Escolha os blocos mais adequados e retorne na ordem correta.`;
   } catch (error) {
     console.error("ai-page-architect error:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Erro interno" }),
+      JSON.stringify({ error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

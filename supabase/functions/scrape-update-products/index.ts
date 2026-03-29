@@ -229,7 +229,7 @@ Deno.serve(async (req) => {
         } catch (e) {
           const error = e as Error;
           console.error(`Error processing ${existing.name}:`, error);
-          results.errors.push(`${existing.name}: ${error.message}`);
+          results.errors.push("Erro interno. Se o problema persistir, entre em contato com o suporte.");
         }
       } else {
         console.log(`No match found for scraped product: ${scraped.name} (${scraped.slug})`);
@@ -252,7 +252,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+        error: error instanceof Error ? "Erro interno" : 'Unknown error' 
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

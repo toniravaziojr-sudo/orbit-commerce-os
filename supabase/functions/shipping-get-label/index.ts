@@ -312,7 +312,7 @@ async function getCorreiosLabel(
 
   } catch (error: any) {
     console.error('[Correios] Label error:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." };
   }
 }
 
@@ -451,6 +451,6 @@ async function getLoggiLabel(
 
   } catch (error: any) {
     console.error('[Loggi] Label error:', error);
-    return { success: false, error: error.message || 'Erro ao obter etiqueta Loggi.' };
+    return { success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." || 'Erro ao obter etiqueta Loggi.' };
   }
 }

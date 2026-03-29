@@ -206,7 +206,7 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error(`[google-oauth-callback][${VERSION}] Error:`, error);
-    return redirectWithResult(appUrl, false, error instanceof Error ? error.message : "Erro interno");
+    return redirectWithResult(appUrl, false, error instanceof Error ? "Erro interno. Se o problema persistir, entre em contato com o suporte." : "Erro interno");
   }
 });
 

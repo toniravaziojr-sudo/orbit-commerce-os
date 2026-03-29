@@ -46,7 +46,7 @@ async function sendEmailViaSendGrid(
     }
   } catch (error: any) {
     console.error("[process-scheduled-emails] SendGrid fetch error:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." };
   }
 }
 

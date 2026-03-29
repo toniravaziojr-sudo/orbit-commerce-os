@@ -130,7 +130,7 @@ serve(async (req) => {
       if (error) {
         console.error('[platform-credentials-update] Error deleting:', error);
         return new Response(
-          JSON.stringify({ success: false, error: error.message }),
+          JSON.stringify({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -160,7 +160,7 @@ serve(async (req) => {
       if (error) {
         console.error('[platform-credentials-update] Error clearing:', error);
         return new Response(
-          JSON.stringify({ success: false, error: error.message }),
+          JSON.stringify({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -191,7 +191,7 @@ serve(async (req) => {
     if (error) {
       console.error('[platform-credentials-update] Error updating:', error);
       return new Response(
-        JSON.stringify({ success: false, error: error.message }),
+        JSON.stringify({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

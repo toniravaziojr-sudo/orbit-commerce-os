@@ -433,7 +433,7 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error(`[google-ads-campaigns][${traceId}] Error:`, error);
-    return new Response(JSON.stringify({ success: false, error: error.message || "Erro interno" }),
+    return new Response(JSON.stringify({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });

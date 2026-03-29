@@ -410,7 +410,7 @@ serve(async (req) => {
     console.error('[MercadoPago] Error creating charge:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message || 'Erro desconhecido',
+      error: "Erro interno" || 'Erro desconhecido',
     }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

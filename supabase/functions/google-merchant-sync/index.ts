@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
     }
   } catch (error) {
     console.error(`[google-merchant-sync][${VERSION}] Error:`, error);
-    return jsonResponse({ success: false, error: error instanceof Error ? error.message : "Erro interno" });
+    return jsonResponse({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." });
   }
 });
 

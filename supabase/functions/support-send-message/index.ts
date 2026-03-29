@@ -47,7 +47,7 @@ async function sendEmailViaSendGrid(
     return { success: true, messageId };
   } catch (error: any) {
     console.error("[support-send-message] SendGrid exception:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." };
   }
 }
 
@@ -303,7 +303,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Send message error:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({ error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

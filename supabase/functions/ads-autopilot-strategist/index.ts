@@ -2512,7 +2512,7 @@ async function executeToolCall(
       
       if (error) {
         console.error(`[ads-autopilot-strategist][${VERSION}] search_landing_pages error:`, error);
-        return { status: "failed", data: { error: error.message } };
+        return { status: "failed", data: { error: "Erro interno. Se o problema persistir, entre em contato com o suporte." } };
       }
 
       // Also fetch store_pages (builder landing pages)

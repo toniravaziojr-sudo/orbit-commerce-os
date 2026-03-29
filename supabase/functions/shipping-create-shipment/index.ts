@@ -263,7 +263,7 @@ async function createCorreiosShipment(
 
   } catch (error: any) {
     console.error('[Correios] Error:', error);
-    return { success: false, error: error.message || 'Erro ao criar pré-postagem' };
+    return { success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." || 'Erro ao criar pré-postagem' };
   }
 }
 
@@ -447,7 +447,7 @@ async function createLoggiShipment(
 
   } catch (error: any) {
     console.error('[Loggi] Error:', error);
-    return { success: false, error: error.message || 'Erro ao criar remessa Loggi' };
+    return { success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." || 'Erro ao criar remessa Loggi' };
   }
 }
 

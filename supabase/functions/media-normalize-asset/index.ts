@@ -250,7 +250,7 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error(`[media-normalize-asset][${VERSION}] Error:`, error);
-    return jsonResponse({ success: false, error: error.message || "Internal error" }, 500);
+    return jsonResponse({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }, 500);
   }
 });
 

@@ -179,7 +179,7 @@ serve(async (req) => {
     console.error('[affiliate-track-click] Error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message || 'Unknown error',
+      error: "Erro interno" || 'Unknown error',
       code: 'UNKNOWN_ERROR'
     }), {
       status: 200,

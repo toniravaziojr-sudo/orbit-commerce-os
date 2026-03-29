@@ -266,7 +266,7 @@ serve(async (req) => {
     console.error(`[${requestId}] Webhook error:`, error);
     return new Response(JSON.stringify({ 
       received: true, 
-      error: error.message,
+      error: "Erro interno",
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

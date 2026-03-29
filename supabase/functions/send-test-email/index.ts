@@ -46,7 +46,7 @@ async function sendEmailViaSendGrid(
     return { success: true, messageId };
   } catch (error: any) {
     console.error("[send-test-email] SendGrid exception:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." };
   }
 }
 

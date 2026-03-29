@@ -384,7 +384,7 @@ serve(async (req) => {
     console.error("[media-generate-video] Error:", error);
     return new Response(JSON.stringify({ 
       success: false, 
-      error: error instanceof Error ? error.message : "Erro interno" 
+      error: error instanceof Error ? "Erro interno" : "Erro interno" 
     }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

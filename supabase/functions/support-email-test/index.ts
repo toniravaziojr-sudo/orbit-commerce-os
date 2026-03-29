@@ -114,7 +114,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Support email test error:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({ error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

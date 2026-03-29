@@ -243,7 +243,7 @@ Deno.serve(async (req) => {
     return jsonRes({ success: false, error: `Ação desconhecida: ${action}` });
   } catch (error) {
     console.error(`[google-ads-ads][${traceId}] Error:`, error);
-    return jsonRes({ success: false, error: error.message || "Erro interno" });
+    return jsonRes({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." });
   }
 });
 

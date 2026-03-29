@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
         
         if (error) {
           console.warn(`Error deleting from ${table}:`, error.message);
-          errors.push(`${table}: ${error.message}`);
+          errors.push("Erro interno. Se o problema persistir, entre em contato com o suporte.");
           return 0;
         }
         
@@ -324,7 +324,7 @@ Deno.serve(async (req) => {
       
       if (error) {
         console.warn('Error deleting store_pages:', error.message);
-        errors.push(`store_pages: ${error.message}`);
+        errors.push("Erro interno. Se o problema persistir, entre em contato com o suporte.");
       } else {
         deleted['store_pages_force'] = count || 0;
       }
@@ -365,7 +365,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: false,
-        error: error instanceof Error ? error.message : 'Erro ao limpar dados',
+        error: error instanceof Error ? "Erro interno" : 'Erro ao limpar dados',
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

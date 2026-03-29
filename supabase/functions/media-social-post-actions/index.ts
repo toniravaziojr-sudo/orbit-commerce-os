@@ -150,7 +150,7 @@ serve(async (req) => {
     }
   } catch (error: any) {
     console.error("[media-social-post-actions] Error:", error);
-    return jsonResponse({ success: false, error: error.message || "Erro interno" }, 500);
+    return jsonResponse({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }, 500);
   }
 });
 
