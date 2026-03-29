@@ -209,7 +209,11 @@ export function MetaUnifiedSettings() {
     },
     onSuccess: (data) => {
       toast.success(data.message || "Código enviado!");
-      setRegistrationStep("code_sent");
+      if (data.already_verified) {
+        setRegistrationStep("code_verified");
+      } else {
+        setRegistrationStep("code_sent");
+      }
       queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
     },
     onError: (error: any) => {
@@ -502,7 +506,7 @@ export function MetaUnifiedSettings() {
                             )}
 
                             {/* Step 3: Register with PIN */}
-                            {(registrationStep === "code_verified" || whatsappConfig.connection_status === "pending_registration") && registrationStep !== "code_sent" && whatsappConfig.connection_status !== "awaiting_verification" && (
+                            {registrationStep === "code_verified" && (
                               <div className="space-y-2 rounded-md bg-muted/50 p-2.5">
                                 <p className="text-xs font-medium">Passo 3: Definir PIN de segurança</p>
                                 <p className="text-xs text-muted-foreground">
