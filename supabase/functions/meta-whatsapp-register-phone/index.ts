@@ -182,7 +182,7 @@ Deno.serve(async (req) => {
 
       return new Response(JSON.stringify({
         success: false,
-        error: `Falha ao registrar número: ${errorMsg}`,
+        error: friendlyError,
       }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
