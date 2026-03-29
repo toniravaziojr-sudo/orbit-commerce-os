@@ -265,15 +265,6 @@ export function RulesListV2({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end">
-
-        {canEdit && (
-          <Button onClick={onCreate}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nova regra
-          </Button>
-        )}
-      </div>
 
       <Tabs defaultValue="payment" className="space-y-4">
         <TabsList className={`grid w-full ${isPlatformTenant ? 'grid-cols-3' : 'grid-cols-4'}`}>
