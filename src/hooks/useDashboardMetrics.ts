@@ -117,7 +117,27 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
     queryFn: async (): Promise<DashboardMetrics> => {
       if (!currentTenant?.id) return EMPTY_METRICS;
 
-      const { periodStart, periodEnd, prevStart, prevEnd } = computePeriods(startDate, endDate);
+      const tid = currentTenant.id;
+      const isAllTime = !startDate && !endDate;
+
+      // For "Todo o período": fetch first confirmed order date as baseline
+      let firstOrderDate: Date | undefined;
+      if (isAllTime) {
+        const { data: firstOrder } = await supabase
+          .from('orders')
+          .select('created_at')
+          .eq('tenant_id', tid)
+          .not('payment_gateway_id', 'is', null)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .single();
+        
+        if (firstOrder?.created_at) {
+          firstOrderDate = new Date(firstOrder.created_at);
+        }
+      }
+
+      const { periodStart, periodEnd, prevStart, prevEnd } = computePeriods(startDate, endDate, firstOrderDate);
       const tid = currentTenant.id;
 
       // Use REST API for checkout_sessions funnel fields (not in generated types yet)
