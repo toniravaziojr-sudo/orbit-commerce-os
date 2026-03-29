@@ -331,7 +331,7 @@ async function processTenanDrafts(
 
     } catch (error) {
       console.error(`[fiscal-auto-create-drafts] Error processing order ${order.order_number}:`, error);
-      errors.push(`Pedido ${order.order_number}: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      errors.push(`Pedido ${order.order_number}: erro ao criar rascunho`);
     }
   }
 

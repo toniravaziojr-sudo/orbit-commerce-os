@@ -45,7 +45,7 @@ async function sendEmailViaSendGrid(
     return { success: false, error: `SendGrid error: ${response.status}` };
   } catch (error) {
     console.error("[fiscal-send-nfe-email] SendGrid exception:", error);
-    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+    return { success: false, error: "Erro ao enviar e-mail" };
   }
 }
 
