@@ -1,8 +1,7 @@
 import { useState, useMemo } from "react";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWithinInterval, parseISO } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { format, startOfMonth, isWithinInterval, parseISO } from "date-fns";
 import { MonthlyCalendar, DayHeader, type DayCellInfo } from "@/components/ui/monthly-calendar";
-import { ChevronLeft, ChevronRight, Plus, Sparkles, Image, Check, Loader2, MousePointer2, Trash2, LayoutGrid, FileText, PenTool, AlertCircle, ArrowRight, CalendarDays } from "lucide-react";
+import { ChevronRight, Plus, Sparkles, Image, Check, Loader2, MousePointer2, Trash2, LayoutGrid, FileText, PenTool, AlertCircle, ArrowRight, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +15,7 @@ import { MediaCalendarItem, MediaCampaign } from "@/hooks/useMediaCampaigns";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { getHolidayForDate } from "@/lib/brazilian-holidays";
+// Holiday detection now handled by MonthlyCalendar
 import { useNavigate } from "react-router-dom";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 import { EmptyState } from "@/components/ui/empty-state";
