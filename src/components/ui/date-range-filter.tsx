@@ -301,10 +301,21 @@ export function DateRangeFilter({
                         to: localEndDate,
                       } : undefined,
                       rangeStart: localStartDate ? localStartDate : undefined,
+                      rangeEnd: localEndDate ? localEndDate : undefined,
                     }}
                     modifiersStyles={{
                       range: {
                         backgroundColor: 'hsl(var(--primary) / 0.1)',
+                      },
+                      rangeStart: {
+                        backgroundColor: 'hsl(var(--primary))',
+                        color: 'hsl(var(--primary-foreground))',
+                        borderRadius: '6px',
+                      },
+                      rangeEnd: {
+                        backgroundColor: 'hsl(var(--primary))',
+                        color: 'hsl(var(--primary-foreground))',
+                        borderRadius: '6px',
                       },
                     }}
                   />
@@ -325,10 +336,22 @@ export function DateRangeFilter({
                         from: localStartDate,
                         to: localEndDate,
                       } : undefined,
+                      rangeStart: localStartDate ? localStartDate : undefined,
+                      rangeEnd: localEndDate ? localEndDate : undefined,
                     }}
                     modifiersStyles={{
                       range: {
                         backgroundColor: 'hsl(var(--primary) / 0.1)',
+                      },
+                      rangeStart: {
+                        backgroundColor: 'hsl(var(--primary))',
+                        color: 'hsl(var(--primary-foreground))',
+                        borderRadius: '6px',
+                      },
+                      rangeEnd: {
+                        backgroundColor: 'hsl(var(--primary))',
+                        color: 'hsl(var(--primary-foreground))',
+                        borderRadius: '6px',
                       },
                     }}
                   />
