@@ -88,10 +88,22 @@ criar/editar regra com WhatsApp → whatsapp-submit-template (auto) → Meta API
 |--------|-------|-----|---------------|
 | `none` | — | — | Regra sem template (canal email only) |
 | `pending` | "Aguardando Meta (até 24h)" | Amarelo | Disparos bloqueados |
-| `approved` | "Template aprovado" | Verde | Disparos ativos via template |
-| `rejected` | "Template rejeitado" | Vermelho | Disparos bloqueados, usuário deve editar |
+| `approved` | "Template aprovado em DD/MM às HH:mm" | Verde | Disparos ativos via template. Data vem de `whatsapp_template_submissions.approved_at` |
+| `rejected` | "Template rejeitado em DD/MM às HH:mm" | Vermelho | Disparos bloqueados, usuário deve editar. Data vem de `whatsapp_template_submissions.rejected_at` |
 | `error` | "Erro no envio" | Laranja | Erro ao submeter, retry ao salvar |
 | `not_found` | "Template não encontrado" | Laranja | Template sumiu da Meta |
+
+#### Link "Ver na Meta"
+- Exibido ao lado do badge quando há status de template (qualquer status exceto `none`)
+- URL: `https://business.facebook.com/latest/whatsapp_manager/message_templates`
+- A Meta redireciona automaticamente para a conta do lojista logado
+- Abre em nova aba (`target="_blank"`)
+
+#### Campos de Data no Hook
+| Campo | Origem | Descrição |
+|-------|--------|-----------|
+| `meta_template_approved_at` | `whatsapp_template_submissions.approved_at` | Data/hora de aprovação do template pela Meta |
+| `meta_template_rejected_at` | `whatsapp_template_submissions.rejected_at` | Data/hora de rejeição do template pela Meta |
 
 #### Conversão de Variáveis
 As variáveis amigáveis (`{{customer_first_name}}`) são convertidas para o formato Meta (`{{1}}`) automaticamente:
