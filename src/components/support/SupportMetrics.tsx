@@ -176,7 +176,7 @@ export function SupportMetrics() {
             value: metrics.convTrend,
             isPositive: metrics.convTrend >= 0,
           } : undefined}
-          description={getComparisonLabel(todayStart, todayEnd)}
+          description={getComparisonLabel(startOfDay(new Date()), new Date())}
         />
         <MetricCard
           title="Em aberto"
