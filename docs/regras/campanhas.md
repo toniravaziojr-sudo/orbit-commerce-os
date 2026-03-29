@@ -537,14 +537,14 @@ O Facebook exige mínimo de **10 minutos** para agendamento nativo via API. Para
 
 ## Calendário Visual
 
+O calendário editorial usa `MonthlyCalendar` (componente unificado — ver `regras-gerais.md` § MonthlyCalendar) como base para a grade mensal. Os componentes `PlanningTab` e `TrackingTab` injetam conteúdo específico via render prop `renderDayContent`.
+
 ```tsx
-<CampaignCalendar campaignId={id}>
-  // Grid mensal com indicadores visuais de status
-  // Bordas e fundos coloridos por status dominante
-  // Dots de contagem por status com tooltips
-  // Legenda de cores no rodapé
-  // Click para ver/editar items do dia (DayPostsList)
-</CampaignCalendar>
+<MonthlyCalendar
+  month={currentMonth}
+  onMonthChange={setCurrentMonth}
+  renderDayContent={(day) => <PlanningDayContent day={day} items={...} />}
+/>
 ```
 
 ### DayPostsList (Dialog de Items do Dia)
