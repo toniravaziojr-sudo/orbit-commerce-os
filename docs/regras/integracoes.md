@@ -172,9 +172,11 @@ Após o Embedded Signup, o número aparece no WhatsApp Manager da Meta mas fica 
 | `token_expired` | Token expirado, requer reconexão |
 
 **Botão "Registrar Número":**
-- Visível no estado `connected` (como contingência) e `pending_registration` (como ação principal)
+- Localização: `Integrações → Meta → Ativos conectados → card WhatsApp` (componente `MetaUnifiedSettings.tsx`)
+- Visível no estado `connected` (como "Re-registrar número", contingência) e `pending_registration` (como ação principal com destaque amber)
 - Chama `meta-whatsapp-register-phone` que usa o `access_token` já salvo
 - NÃO requer novo OAuth — só precisa de novo auth se o token tiver expirado
+- NÃO existe tela separada de Integrações > WhatsApp — tudo fica dentro da aba Meta
 
 #### Modo Teste – WhatsApp Cloud API (Meta)
 
