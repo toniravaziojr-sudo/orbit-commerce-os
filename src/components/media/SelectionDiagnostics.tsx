@@ -158,83 +158,39 @@ export function SelectionDiagnostics({
 
   if (totalSelected === 0) return null;
 
-  // Build contextual warnings
-  const warnings: { icon: React.ReactNode; text: string; variant: "warning" | "destructive" }[] = [];
-
-  if (noStrategy.length > 0 && diagnostics.noStrategyDays.length > 0) {
-    warnings.push({
-      icon: <XCircle className="h-3.5 w-3.5" />,
-      text: `${noStrategy.length} publicação(ões) sem estratégia (${formatDayList(diagnostics.noStrategyDays)}) — serão ignoradas na geração de copys e criativos.`,
-      variant: "destructive",
-    });
-  }
-
-  if (missingCopy.length > 0 && diagnostics.missingCopyDays.length > 0) {
-    warnings.push({
-      icon: <FileText className="h-3.5 w-3.5" />,
-      text: `${missingCopy.length} publicação(ões) sem copy (${formatDayList(diagnostics.missingCopyDays)}) — gere as copys antes dos criativos.`,
-      variant: "warning",
-    });
-  }
-
-  if (!isBlog && missingCreative.length > 0 && diagnostics.missingCreativeDays.length > 0) {
-    warnings.push({
-      icon: <Image className="h-3.5 w-3.5" />,
-      text: `${missingCreative.length} publicação(ões) sem criativo (${formatDayList(diagnostics.missingCreativeDays)}).`,
-      variant: "warning",
-    });
-  }
-
   return (
-    <div className="mt-3 pt-3 border-t border-border/50 space-y-2">
-      {/* Status badges row */}
+    <div className="mt-3 pt-3 border-t border-border/50">
       <div className="flex flex-wrap items-center gap-2">
         {ready.length > 0 && (
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-success bg-success/10 rounded-full px-2 py-0.5">
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/30 rounded-full px-2.5 py-1">
             <CheckCircle2 className="h-3 w-3" />
             {ready.length} pronto{ready.length !== 1 ? "s" : ""}
           </span>
         )}
         {missingCopy.length > 0 && (
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-warning bg-warning/10 rounded-full px-2 py-0.5">
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 rounded-full px-2.5 py-1">
             <FileText className="h-3 w-3" />
             {missingCopy.length} sem copy
           </span>
         )}
         {!isBlog && missingCreative.length > 0 && (
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-warning bg-warning/10 rounded-full px-2 py-0.5">
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-orange-700 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30 rounded-full px-2.5 py-1">
             <Image className="h-3 w-3" />
             {missingCreative.length} sem criativo
           </span>
         )}
         {noStrategy.length > 0 && (
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-destructive bg-destructive/10 rounded-full px-2 py-0.5">
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/30 rounded-full px-2.5 py-1">
             <XCircle className="h-3 w-3" />
             {noStrategy.length} sem estratégia
           </span>
         )}
         {emptyDays.length > 0 && (
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground bg-muted rounded-full px-2 py-0.5">
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground bg-muted rounded-full px-2.5 py-1">
             {emptyDays.length} dia{emptyDays.length !== 1 ? "s" : ""} vazio{emptyDays.length !== 1 ? "s" : ""}
           </span>
         )}
       </div>
-
-      {/* Contextual warnings */}
-      {warnings.map((w, i) => (
-        <div
-          key={i}
-          className={cn(
-            "flex items-start gap-2 text-xs rounded-md px-2.5 py-1.5",
-            w.variant === "destructive"
-              ? "bg-destructive/10 text-destructive"
-              : "bg-warning/10 text-warning"
-          )}
-        >
-          <span className="mt-0.5 shrink-0">{w.icon}</span>
-          <span>{w.text}</span>
-        </div>
-      ))}
     </div>
   );
 }
