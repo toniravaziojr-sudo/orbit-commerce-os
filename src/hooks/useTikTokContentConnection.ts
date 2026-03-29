@@ -105,7 +105,7 @@ export function useTikTokContentConnection() {
       });
 
       if (error || !data?.success) {
-        onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'processar' }),
+        showErrorToast(error, { module: 'tiktok', action: 'processar' });
         return;
       }
 

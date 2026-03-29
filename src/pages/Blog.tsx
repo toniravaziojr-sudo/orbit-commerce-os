@@ -176,7 +176,7 @@ export default function Blog() {
       toast.success('Post criado com sucesso');
       navigate(`/blog/${newPost.id}/editor`);
     },
-    onError: (err) => showErrorToast(err, { module: 'blog', action: 'criar' }),
+    onError: (err) => showErrorToast(error, { module: 'blog', action: 'criar' }),
   });
 
   // Update post mutation
@@ -208,7 +208,7 @@ export default function Blog() {
       queryClient.invalidateQueries({ queryKey: ['blog-posts'] });
       toast.success('Post atualizado');
     },
-    onError: (err) => showErrorToast(err, { module: 'blog', action: 'salvar' }),
+    onError: (err) => showErrorToast(error, { module: 'blog', action: 'salvar' }),
   });
 
   // Delete post mutation
@@ -226,7 +226,7 @@ export default function Blog() {
       toast.success('Post excluído');
       setDeleteId(null);
     },
-    onError: (err) => showErrorToast(err, { module: 'blog', action: 'excluir' }),
+    onError: (err) => showErrorToast(error, { module: 'blog', action: 'excluir' }),
   });
 
   const resetForm = () => {
@@ -259,7 +259,7 @@ export default function Blog() {
     const validation = validateSlug(slug);
     
     if (!validation.isValid) {
-      showErrorToast(err, { module: 'blog', action: 'processar' });
+      showErrorToast(error, { module: 'blog', action: 'processar' });
       return;
     }
     
@@ -342,7 +342,7 @@ export default function Blog() {
       setIsCampaignDialogOpen(false);
       resetCampaignForm();
     } catch (error: any) {
-      showErrorToast(err, { module: 'blog', action: 'salvar' });
+      showErrorToast(error, { module: 'blog', action: 'salvar' });
     }
   };
 
@@ -353,7 +353,7 @@ export default function Blog() {
       toast.success('Campanha excluída');
       setCampaignDeleteId(null);
     } catch (error: any) {
-      showErrorToast(err, { module: 'blog', action: 'excluir' });
+      showErrorToast(error, { module: 'blog', action: 'excluir' });
     }
   };
 

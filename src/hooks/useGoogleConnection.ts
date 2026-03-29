@@ -120,7 +120,7 @@ export function useGoogleConnection() {
           if (event.data.success) {
             toast.success(`Google conectado! (${event.data.account || ""})`);
           } else {
-            showErrorToast(err, { module: 'google', action: 'conectar' });
+            showErrorToast(error, { module: 'google', action: 'conectar' });
           }
         }
       };
@@ -134,7 +134,7 @@ export function useGoogleConnection() {
         }
       }, 500);
     },
-    onError: (err) => showErrorToast(err, { module: 'google', action: 'conectar' }),
+    onError: (err) => showErrorToast(error, { module: 'google', action: 'conectar' }),
   });
 
   const disconnectMutation = useMutation({
@@ -152,7 +152,7 @@ export function useGoogleConnection() {
       toast.success("Google desconectado");
       queryClient.invalidateQueries({ queryKey: ["google-connection-status"] });
     },
-    onError: (err) => showErrorToast(err, { module: 'google', action: 'conectar' }),
+    onError: (err) => showErrorToast(error, { module: 'google', action: 'conectar' }),
   });
 
   return {

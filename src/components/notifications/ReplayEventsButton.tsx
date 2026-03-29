@@ -66,7 +66,7 @@ export function ReplayEventsButton({ disabled }: ReplayEventsButtonProps) {
           success: false,
           message: data.error || 'Erro ao reprocessar eventos',
         });
-        showErrorToast(err, { action: 'processar' });
+        showErrorToast(error, { action: 'processar' });
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';

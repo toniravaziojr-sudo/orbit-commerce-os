@@ -145,7 +145,7 @@ export default function CreateStore() {
       navigate('/');
     } catch (error: any) {
       console.error('Error creating store:', error);
-      showErrorToast(err, { module: 'loja', action: 'criar' });
+      showErrorToast(error, { module: 'loja', action: 'criar' });
     } finally {
       setIsLoading(false);
     }

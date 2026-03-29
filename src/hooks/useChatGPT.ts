@@ -354,7 +354,7 @@ export function useChatGPT() {
         return;
       }
       console.error("ChatGPT error:", error);
-      showErrorToast(err, { module: 'chat', action: 'enviar' });
+      showErrorToast(error, { module: 'chat', action: 'enviar' });
     } finally {
       setIsStreaming(false);
       setStreamingContent("");

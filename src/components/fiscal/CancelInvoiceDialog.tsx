@@ -58,8 +58,8 @@ export function CancelInvoiceDialog({ open, onOpenChange, invoice, onSuccess }: 
       onOpenChange(false);
       setJustificativa('');
       onSuccess?.();
-    } catch (error: any) {
-      onError: (error) => showErrorToast(error, { module: 'fiscal', action: 'cancelar NF-e' }),
+    } catch (error) {
+      showErrorToast(error, { module: 'fiscal', action: 'cancelar NF-e' });
     } finally {
       setIsLoading(false);
     }

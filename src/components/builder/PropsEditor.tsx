@@ -306,7 +306,7 @@ export function PropsEditor({
                     });
 
                     if (error || !data?.success || !data?.generatedProps) {
-                      showErrorToast(err, { module: 'editor', action: 'processar' });
+                      showErrorToast(error, { module: 'editor', action: 'processar' });
                       // Remove loading state
                       onChange({ ...props, _isRegenerating: undefined });
                       return;

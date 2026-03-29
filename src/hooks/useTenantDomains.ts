@@ -177,7 +177,7 @@ export function useTenantDomains() {
         toast.info('SSL sendo provisionado. Aguarde alguns minutos e verifique novamente.');
         return true;
       } else {
-        showErrorToast(err, { module: 'domínios', action: 'processar' });
+        showErrorToast(error, { module: 'domínios', action: 'processar' });
         return false;
       }
     } catch (error) {
@@ -346,7 +346,7 @@ export function useTenantDomains() {
         toast.success('Domínio padrão ativado!');
         return true;
       } else {
-        showErrorToast(err, { module: 'domínios', action: 'processar' });
+        showErrorToast(error, { module: 'domínios', action: 'processar' });
         return false;
       }
     } catch (error) {

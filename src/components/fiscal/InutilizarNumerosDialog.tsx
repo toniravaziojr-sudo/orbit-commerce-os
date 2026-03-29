@@ -60,8 +60,8 @@ export function InutilizarNumerosDialog({ open, onOpenChange, serie = 1, onSucce
         justificativa: '',
       });
       onSuccess?.();
-    } catch (error: any) {
-      onError: (error) => showErrorToast(error, { module: 'fiscal', action: 'inutilizar numeração' }),
+    } catch (error) {
+      showErrorToast(error, { module: 'fiscal', action: 'inutilizar numeração' });
     } finally {
       setIsLoading(false);
     }

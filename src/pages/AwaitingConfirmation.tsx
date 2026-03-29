@@ -32,7 +32,7 @@ export default function AwaitingConfirmation() {
       });
 
       if (error) {
-        onError: (err) => showErrorToast(err, { action: 'enviar' }),
+        showErrorToast(error, { action: 'enviar' });
         return;
       }
 

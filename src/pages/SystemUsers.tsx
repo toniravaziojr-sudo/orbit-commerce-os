@@ -220,7 +220,7 @@ export default function SystemUsers() {
     },
     onError: (error: any) => {
       console.error('Error resending invite:', error);
-      onError: (err) => showErrorToast(err, { module: 'usuários', action: 'enviar' }),
+      showErrorToast(error, { module: 'usuários', action: 'enviar' });
     },
   });
 

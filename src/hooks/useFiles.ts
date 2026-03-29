@@ -193,7 +193,7 @@ export function useFiles(folderId: string | null = null) {
       queryClient.invalidateQueries({ queryKey: ['files', currentTenant?.id] });
       // Toast handled by caller (Files.tsx) to consolidate multiple uploads
     },
-    onError: (error: Error) => {
+    onError: (error) => {
       // Error toast handled by caller for batch upload consolidation
       console.error('Upload error:', error.message);
     },
@@ -225,7 +225,7 @@ export function useFiles(folderId: string | null = null) {
       queryClient.invalidateQueries({ queryKey: ['files-all-folders', currentTenant?.id] });
       toast.success('Pasta criada com sucesso!');
     },
-    onError: (err) => showErrorToast(err, { module: 'arquivos', action: 'criar' }),
+    onError: (error) => showErrorToast(error, { module: 'arquivos', action: 'criar' }),
   });
 
   const deleteFile = useMutation({

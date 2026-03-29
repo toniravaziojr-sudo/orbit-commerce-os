@@ -111,8 +111,8 @@ export function CorrectInvoiceDialog({ open, onOpenChange, invoice, onSuccess }:
       setCorrecao('');
       loadExistingCCes();
       onSuccess?.();
-    } catch (error: any) {
-      onError: (error) => showErrorToast(error, { module: 'fiscal', action: 'enviar carta de correção' }),
+    } catch (error) {
+      showErrorToast(error, { module: 'fiscal', action: 'enviar carta de correção' });
     } finally {
       setIsLoading(false);
     }
