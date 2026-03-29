@@ -405,6 +405,11 @@ export function MetaUnifiedSettings() {
                               <AlertTriangle className="h-3 w-3 mr-1" />
                               Aguardando código
                             </Badge>
+                          ) : whatsappConfig.connection_status === "pending_registration" && registrationStep === "idle" ? (
+                            <Badge variant="outline" className="ml-auto border-blue-400 text-blue-700 dark:text-blue-400">
+                              <Loader2 className="h-3 w-3 mr-1" />
+                              Em Análise
+                            </Badge>
                           ) : (
                             <Badge variant="outline" className="ml-auto border-amber-400 text-amber-700 dark:text-amber-400">
                               <AlertTriangle className="h-3 w-3 mr-1" />
