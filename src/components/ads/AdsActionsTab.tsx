@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { ActionDetailDialog } from "./ActionDetailDialog";
 import { AdsStartupProgress } from "./AdsStartupProgress";
 import {
+import { showErrorToast } from '@/lib/error-toast';
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -166,7 +167,7 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
       toast.success("Ação revertida com sucesso! A campanha foi reativada.");
       setProcessingId(null);
     },
-    onError: (err: Error) => { toast.error("Erro ao reverter: " + err.message); setProcessingId(null); },
+    showErrorToast(toast, { module: 'anúncios', action: 'reverter' });
   });
 
   if (isLoading) {

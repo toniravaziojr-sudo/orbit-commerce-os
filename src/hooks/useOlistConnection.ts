@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 interface OlistConnectionStatus {
   platformConfigured: boolean;
@@ -98,7 +99,7 @@ export function useOlistConnection() {
       }
     },
     onError: (error) => {
-      toast.error(error.message || "Erro ao conectar com Olist");
+      showErrorToast(toast, { module: 'olist', action: 'carregar' });
     },
   });
 
@@ -123,7 +124,7 @@ export function useOlistConnection() {
       queryClient.invalidateQueries({ queryKey: ["olist-connection-status"] });
     },
     onError: (error) => {
-      toast.error(error.message || "Erro ao desconectar");
+      showErrorToast(toast, { module: 'olist', action: 'conectar' });
     },
   });
 
@@ -148,7 +149,7 @@ export function useOlistConnection() {
       queryClient.invalidateQueries({ queryKey: ["olist-connection-status"] });
     },
     onError: (error) => {
-      toast.error(error.message || "Erro ao renovar token");
+      showErrorToast(toast, { module: 'olist', action: 'processar' });
     },
   });
 

@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 export type BlockRequestStatus = 'pending' | 'in_progress' | 'implemented' | 'rejected' | 'mapped';
 
@@ -108,7 +109,7 @@ export function useBlockSuggestions(options: UseBlockSuggestionsOptions = {}) {
       toast.success('Status atualizado');
     },
     onError: (error: any) => {
-      toast.error(`Erro ao atualizar: ${error.message}`);
+      showErrorToast(toast, { action: 'salvar' });
     },
   });
 
@@ -152,7 +153,7 @@ export function useBlockSuggestions(options: UseBlockSuggestionsOptions = {}) {
       toast.success('Marcado como implementado');
     },
     onError: (error: any) => {
-      toast.error(`Erro: ${error.message}`);
+      showErrorToast(toast, { action: 'processar' });
     },
   });
 
@@ -184,7 +185,7 @@ export function useBlockSuggestions(options: UseBlockSuggestionsOptions = {}) {
       toast.success('Mapeado para bloco existente');
     },
     onError: (error: any) => {
-      toast.error(`Erro: ${error.message}`);
+      showErrorToast(toast, { action: 'processar' });
     },
   });
 
@@ -222,7 +223,7 @@ export function useBlockSuggestions(options: UseBlockSuggestionsOptions = {}) {
       toast.success('Solicitação rejeitada');
     },
     onError: (error: any) => {
-      toast.error(`Erro: ${error.message}`);
+      showErrorToast(toast, { action: 'processar' });
     },
   });
 

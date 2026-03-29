@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface PurchaseSupplierType {
   id: string;
@@ -54,7 +55,7 @@ export function usePurchaseSupplierTypes() {
       toast.success('Tipo de fornecedor criado');
     },
     onError: (error) => {
-      toast.error('Erro ao criar tipo: ' + error.message);
+      showErrorToast(toast, { module: 'compras', action: 'criar' });
     },
   });
 
@@ -72,7 +73,7 @@ export function usePurchaseSupplierTypes() {
       toast.success('Tipo de fornecedor removido');
     },
     onError: (error) => {
-      toast.error('Erro ao remover tipo: ' + error.message);
+      showErrorToast(toast, { module: 'compras', action: 'excluir' });
     },
   });
 

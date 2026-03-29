@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 export function useEmailMarketing() {
   const { currentTenant } = useAuth();
@@ -143,7 +144,7 @@ export function useEmailMarketing() {
       toast.success("Lista criada - subscribers sincronizados automaticamente!");
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao criar lista: ${error.message}`);
+      showErrorToast(toast, { module: 'email', action: 'criar' });
     },
   });
 
@@ -157,7 +158,7 @@ export function useEmailMarketing() {
       toast.success("Template criado");
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao criar template: ${error.message}`);
+      showErrorToast(toast, { module: 'email', action: 'criar' });
     },
   });
 
@@ -171,7 +172,7 @@ export function useEmailMarketing() {
       toast.success("Campanha criada");
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao criar campanha: ${error.message}`);
+      showErrorToast(toast, { module: 'email', action: 'criar' });
     },
   });
 
@@ -185,7 +186,7 @@ export function useEmailMarketing() {
       toast.success("Formulário criado");
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao criar formulário: ${error.message}`);
+      showErrorToast(toast, { module: 'email', action: 'criar' });
     },
   });
 

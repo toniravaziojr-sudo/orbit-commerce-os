@@ -14,6 +14,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 interface PostSaleBackfillButtonProps {
   disabled?: boolean;
@@ -67,7 +68,7 @@ export function PostSaleBackfillButton({ disabled }: PostSaleBackfillButtonProps
           success: false,
           message: data.error || 'Erro ao iniciar backfill',
         });
-        toast.error(data.error || 'Erro ao iniciar backfill');
+        showErrorToast(toast, { action: 'processar' });
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';

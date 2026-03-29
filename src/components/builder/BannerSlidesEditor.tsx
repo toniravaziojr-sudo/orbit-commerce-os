@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 import { getSlideWizardContract } from '@/lib/builder/aiWizardRegistry';
 import { AIFillWizardDialog } from './ai-wizard/AIFillWizardDialog';
 import { useBannerTextGenerate } from '@/hooks/useBannerTextGenerate';
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface BannerSlide {
   id: string;
@@ -167,7 +168,7 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId, onRegenera
       });
 
       if (error || !data?.success || !data?.generatedProps) {
-        toast.error('Erro ao regenerar slide', { description: data?.error || 'Tente novamente' });
+        showErrorToast(toast, { module: 'editor', action: 'processar' });
         return;
       }
 

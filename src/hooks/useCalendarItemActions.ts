@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { MediaCalendarItem } from "@/hooks/useMediaCampaigns";
+import { showErrorToast } from '@/lib/error-toast';
 
 // =============================================
 // PHASE 2 — Editing Rules, Scheduling Replacement, Versioning
@@ -211,7 +212,7 @@ export function useCalendarItemActions(campaignId: string | undefined) {
       toast.success("Agendamento substituído! O item voltou para aprovado e pode ser reagendado.");
     },
     onError: (error: any) => {
-      toast.error(error.message || "Erro ao substituir agendamento");
+      showErrorToast(toast, { module: 'calendário', action: 'processar' });
     },
   });
 

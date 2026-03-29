@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 // Types
 export interface CreditPackage {
@@ -230,7 +231,7 @@ export function useCreditOperations() {
     },
     onError: (error) => {
       console.error('Error reserving credits:', error);
-      toast.error(error.message || 'Erro ao reservar créditos');
+      showErrorToast(toast, { module: 'créditos', action: 'processar' });
     },
   });
 

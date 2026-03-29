@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 import { useBannerTextGenerate } from '@/hooks/useBannerTextGenerate';
 import { getWizardContract } from '@/lib/builder/aiWizardRegistry';
 import { AIFillWizardDialog } from './ai-wizard/AIFillWizardDialog';
+import { showErrorToast } from '@/lib/error-toast';
 
 interface BannerPropsPanelProps {
   props: Record<string, unknown>;
@@ -235,7 +236,7 @@ function SinglePanel({ props, onChange, onBatchChange, tenantId }: BannerPropsPa
         },
       });
       if (error || !data?.generatedProps) {
-        toast.error('Erro ao regenerar', { description: data?.error || 'Tente novamente' });
+        showErrorToast(toast, { module: 'editor', action: 'processar' });
         if (onBatchChange) {
           onBatchChange({ _isRegenerating: undefined });
         } else {

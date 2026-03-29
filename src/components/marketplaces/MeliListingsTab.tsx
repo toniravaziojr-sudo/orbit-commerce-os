@@ -33,6 +33,7 @@ import { MeliListingCreator } from "@/components/marketplaces/MeliListingCreator
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; color?: string }> = {
   draft: { label: "Rascunho", variant: "outline" },
@@ -319,7 +320,7 @@ export function MeliListingsTab() {
           body: { tenantId: currentTenant.id, action, offset, limit, listingIds },
         });
         if (error || !data?.success) {
-          toast.error(data?.error || "Erro na operação em massa");
+          showErrorToast(toast, { module: 'mercado livre', action: 'processar' });
           break;
         }
         totalProcessed += data.processed || 0;

@@ -16,6 +16,7 @@ import { Sparkles, Loader2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
+import { showErrorToast } from '@/lib/error-toast';
 
 interface GenerateReviewsDialogProps {
   trigger?: React.ReactNode;
@@ -111,7 +112,7 @@ export function GenerateReviewsDialog({ trigger }: GenerateReviewsDialogProps) {
       setStep('preview');
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao gerar avaliações');
+      showErrorToast(toast, { module: 'avaliações', action: 'gerar' });
       setStep('select');
     },
   });
@@ -145,7 +146,7 @@ export function GenerateReviewsDialog({ trigger }: GenerateReviewsDialogProps) {
       setOpen(false);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao salvar avaliações');
+      showErrorToast(toast, { module: 'avaliações', action: 'salvar' });
     },
   });
 

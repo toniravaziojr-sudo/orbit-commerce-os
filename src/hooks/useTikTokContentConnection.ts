@@ -8,6 +8,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 interface TikTokContentStatus {
   isConnected: boolean;
@@ -104,7 +105,7 @@ export function useTikTokContentConnection() {
       });
 
       if (error || !data?.success) {
-        toast.error(data?.error || error?.message || 'Erro ao iniciar conexão');
+        showErrorToast(toast, { module: 'tiktok', action: 'processar' });
         return;
       }
 

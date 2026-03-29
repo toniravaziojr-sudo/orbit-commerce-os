@@ -48,6 +48,7 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { showErrorToast } from '@/lib/error-toast';
 
 const PAGE_SIZE = 50;
 
@@ -206,7 +207,7 @@ export default function EmailMarketingListDetail() {
       navigate("/email-marketing");
     },
     onError: (error: any) => {
-      toast.error("Erro ao excluir: " + error.message);
+      showErrorToast(toast, { module: 'email', action: 'excluir' });
     },
   });
 

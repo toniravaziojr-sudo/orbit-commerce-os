@@ -10,6 +10,7 @@ import { cachePurge } from '@/lib/storefrontCachePurge';
 import { triggerPrerenderWithRetry } from '@/lib/prerenderRetry';
 import type { BlockNode } from '@/lib/builder/types';
 import type { Json } from '@/integrations/supabase/types';
+import { showErrorToast } from '@/lib/error-toast';
 
 type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'account' | 'account_orders' | 'account_order_detail';
 
@@ -69,7 +70,7 @@ export function useTemplateSetSave() {
       queryClient.invalidateQueries({ queryKey: ['template-sets'] });
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao salvar: ${error.message}`);
+      showErrorToast(toast, { module: 'templates', action: 'salvar' });
     },
   });
 
@@ -183,7 +184,7 @@ export function useTemplateSetSave() {
       toast.success('Template publicado com sucesso!');
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao publicar: ${error.message}`);
+      showErrorToast(toast, { module: 'templates', action: 'publicar' });
     },
   });
 

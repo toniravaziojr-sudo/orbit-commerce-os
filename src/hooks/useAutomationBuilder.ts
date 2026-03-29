@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEmailMarketing } from "@/hooks/useEmailMarketing";
 import { toast } from "sonner";
 import type { Node, Edge } from "@xyflow/react";
+import { showErrorToast } from '@/lib/error-toast';
 
 export type AutomationNodeType =
   | "trigger"
@@ -274,7 +275,7 @@ export function useAutomationBuilder(flowId?: string) {
         }
       } catch (err: any) {
         console.error("Save flow error:", err);
-        toast.error(err.message || "Erro ao salvar automação");
+        showErrorToast(toast, { module: 'automação', action: 'salvar' });
       } finally {
         setIsSaving(false);
       }

@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface AccountConfig {
   id: string;
@@ -80,7 +81,7 @@ export function useAdsAccountConfigs() {
       queryClient.invalidateQueries({ queryKey: ["ads-account-configs"] });
       toast.success("Configuração da conta salva");
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   const toggleAI = useMutation({
@@ -126,7 +127,7 @@ export function useAdsAccountConfigs() {
         }, 1500);
       }
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   const toggleKillSwitch = useMutation({
@@ -151,7 +152,7 @@ export function useAdsAccountConfigs() {
       queryClient.invalidateQueries({ queryKey: ["ads-account-configs"] });
       toast.success(enabled ? "Kill Switch ATIVADO — IA parada" : "Kill Switch desativado");
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   return {

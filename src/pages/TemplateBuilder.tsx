@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { buildMenuItemUrl as buildMenuUrl } from '@/lib/publicUrls';
+import { showErrorToast } from '@/lib/error-toast';
 
 export default function TemplateBuilder() {
   const { templateId } = useParams();
@@ -121,7 +122,7 @@ export default function TemplateBuilder() {
       toast.success('Template salvo com sucesso');
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao salvar: ${error.message}`);
+      showErrorToast(toast, { module: 'templates', action: 'salvar' });
     },
   });
 

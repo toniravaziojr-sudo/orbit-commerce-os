@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 // ============================================
 // Hook: useMetaAds
@@ -147,7 +148,7 @@ export function useMetaAds() {
       queryClient.invalidateQueries({ queryKey: ["meta-ads-campaigns"] });
       toast.success(`${data.data?.synced || 0} campanhas sincronizadas`);
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   const createCampaign = useMutation({
@@ -157,7 +158,7 @@ export function useMetaAds() {
       queryClient.invalidateQueries({ queryKey: ["meta-ads-campaigns"] });
       toast.success("Campanha criada");
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   const updateCampaign = useMutation({
@@ -167,7 +168,7 @@ export function useMetaAds() {
       queryClient.invalidateQueries({ queryKey: ["meta-ads-campaigns"] });
       toast.success("Campanha atualizada");
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   const deleteCampaign = useMutation({
@@ -177,7 +178,7 @@ export function useMetaAds() {
       queryClient.invalidateQueries({ queryKey: ["meta-ads-campaigns"] });
       toast.success("Campanha arquivada");
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   // ============ AD SETS ============
@@ -201,7 +202,7 @@ export function useMetaAds() {
       queryClient.invalidateQueries({ queryKey: ["meta-ads-adsets"] });
       toast.success(`${data.data?.synced || 0} conjuntos sincronizados`);
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   const updateAdset = useMutation({
@@ -211,7 +212,7 @@ export function useMetaAds() {
       queryClient.invalidateQueries({ queryKey: ["meta-ads-adsets"] });
       toast.success("Conjunto atualizado");
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   // ============ INDIVIDUAL ADS ============
@@ -235,7 +236,7 @@ export function useMetaAds() {
       queryClient.invalidateQueries({ queryKey: ["meta-ads-ads"] });
       toast.success(`${data.data?.synced || 0} anúncios sincronizados`);
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   const updateAd = useMutation({
@@ -245,7 +246,7 @@ export function useMetaAds() {
       queryClient.invalidateQueries({ queryKey: ["meta-ads-ads"] });
       toast.success("Anúncio atualizado");
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   // ============ ACCOUNT BALANCE ============
@@ -281,7 +282,7 @@ export function useMetaAds() {
       queryClient.invalidateQueries({ queryKey: ["meta-ads-insights"] });
       toast.success(`${data.data?.synced || 0} métricas sincronizadas`);
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   // ============ AUDIENCES ============
@@ -304,7 +305,7 @@ export function useMetaAds() {
       queryClient.invalidateQueries({ queryKey: ["meta-ads-audiences"] });
       toast.success(`${data.data?.synced || 0} públicos sincronizados`);
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   // ============ CREATIVES ============
@@ -327,7 +328,7 @@ export function useMetaAds() {
       queryClient.invalidateQueries({ queryKey: ["meta-ads-creatives"] });
       toast.success(`${data.data?.synced || 0} criativos sincronizados`);
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   // ============ SYNC ALL ============
@@ -351,7 +352,7 @@ export function useMetaAds() {
       queryClient.invalidateQueries({ queryKey: ["meta-ads-ads"] });
       toast.success("Dados sincronizados com a Meta");
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   const refreshBalance = useCallback(() => {

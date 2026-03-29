@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface InfluencerLead {
   id: string;
@@ -67,7 +68,7 @@ export function useInfluencerLeads() {
       toast.success('Influencer adicionado com sucesso');
     },
     onError: (error) => {
-      toast.error('Erro ao adicionar influencer: ' + error.message);
+      showErrorToast(toast, { module: 'influenciadores', action: 'processar' });
     },
   });
 
@@ -88,7 +89,7 @@ export function useInfluencerLeads() {
       toast.success('Influencer atualizado com sucesso');
     },
     onError: (error) => {
-      toast.error('Erro ao atualizar influencer: ' + error.message);
+      showErrorToast(toast, { module: 'influenciadores', action: 'salvar' });
     },
   });
 
@@ -106,7 +107,7 @@ export function useInfluencerLeads() {
       toast.success('Influencer removido com sucesso');
     },
     onError: (error) => {
-      toast.error('Erro ao remover influencer: ' + error.message);
+      showErrorToast(toast, { module: 'influenciadores', action: 'excluir' });
     },
   });
 

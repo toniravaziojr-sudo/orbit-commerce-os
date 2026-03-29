@@ -31,6 +31,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ElementType }> = {
   draft: { label: 'Pronta para Emitir', variant: 'secondary', icon: FileText },
@@ -364,7 +365,7 @@ export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
       refetch();
     } catch (error: any) {
       console.error('Error duplicating invoice:', error);
-      toast.error(error.message || 'Erro ao duplicar NF-e');
+      showErrorToast(toast, { module: 'fiscal', action: 'duplicar' });
     }
   };
 

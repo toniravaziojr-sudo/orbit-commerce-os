@@ -23,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 interface CreateShipmentDialogProps {
   open: boolean;
@@ -125,7 +126,7 @@ export function CreateShipmentDialog({ open, onOpenChange }: CreateShipmentDialo
       toast.success('Remessa criada com sucesso!');
     },
     onError: (error: Error) => {
-      toast.error(error.message);
+      showErrorToast(toast, { module: 'logística', action: 'processar' });
     },
   });
 
@@ -157,7 +158,7 @@ export function CreateShipmentDialog({ open, onOpenChange }: CreateShipmentDialo
       toast.success('Remessa registrada com sucesso!');
     },
     onError: (error: Error) => {
-      toast.error(error.message);
+      showErrorToast(toast, { module: 'logística', action: 'processar' });
     },
   });
 

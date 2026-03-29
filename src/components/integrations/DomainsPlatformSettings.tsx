@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { CredentialEditor } from "./CredentialEditor";
 import { usePlatformIntegrationStatus } from "@/hooks/usePlatformSecretsStatus";
+import { showErrorToast } from '@/lib/error-toast';
 
 export function DomainsPlatformSettings() {
   const queryClient = useQueryClient();
@@ -29,12 +30,12 @@ export function DomainsPlatformSettings() {
             : 'API Token válido'
         });
       } else {
-        toast.error('Falha na conexão', { description: data.error });
+        showErrorToast(toast, { module: 'integrações', action: 'processar' });
       }
       queryClient.invalidateQueries({ queryKey: ['platform-secrets-status'] });
     },
     onError: (error: Error) => {
-      toast.error('Erro ao testar conexão', { description: error.message });
+      showErrorToast(toast, { module: 'integrações', action: 'testar' });
     },
   });
 

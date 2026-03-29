@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
+import { showErrorToast } from '@/lib/error-toast';
 
 export default function AddPaymentMethod() {
   const navigate = useNavigate();
@@ -105,7 +106,7 @@ export default function AddPaymentMethod() {
       }, 2000);
     } catch (error: any) {
       console.error('Error adding payment method:', error);
-      toast.error(error.message || 'Erro ao cadastrar cartão. Tente novamente.');
+      showErrorToast(toast, { action: 'criar' });
     } finally {
       setLoading(false);
     }

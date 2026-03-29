@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Sparkles, Globe, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 interface ImportPageWithAIDialogProps {
   open: boolean;
@@ -103,7 +104,7 @@ export function ImportPageWithAIDialog({
       console.error('Import error:', err);
       setStatus('error');
       setErrorMessage(err.message || 'Erro desconhecido');
-      toast.error(`Erro: ${err.message}`);
+      showErrorToast(toast, { module: 'importação', action: 'processar' });
     }
   };
 

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 export type GoogleScopePack = "youtube" | "ads" | "merchant" | "analytics" | "search_console" | "business" | "tag_manager";
 
@@ -119,7 +120,7 @@ export function useGoogleConnection() {
           if (event.data.success) {
             toast.success(`Google conectado! (${event.data.account || ""})`);
           } else {
-            toast.error(event.data.error || "Erro ao conectar");
+            showErrorToast(toast, { module: 'google', action: 'conectar' });
           }
         }
       };
@@ -134,7 +135,7 @@ export function useGoogleConnection() {
       }, 500);
     },
     onError: (error) => {
-      toast.error(error.message || "Erro ao conectar com Google");
+      showErrorToast(toast, { module: 'google', action: 'conectar' });
     },
   });
 
@@ -154,7 +155,7 @@ export function useGoogleConnection() {
       queryClient.invalidateQueries({ queryKey: ["google-connection-status"] });
     },
     onError: (error) => {
-      toast.error(error.message || "Erro ao desconectar");
+      showErrorToast(toast, { module: 'google', action: 'conectar' });
     },
   });
 

@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 // =============================================
 // Types
@@ -284,7 +285,7 @@ export function useCreateMediaVideoJob() {
     },
     onError: (error) => {
       console.error("Erro ao criar job de vídeo:", error);
-      toast.error(error instanceof Error ? error.message : "Erro ao criar job de vídeo");
+      showErrorToast(toast, { module: 'mídia', action: 'criar' });
     },
   });
 }

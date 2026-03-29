@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { Loader2, ArrowLeft, RefreshCw } from 'lucide-react';
+import { showErrorToast } from '@/lib/error-toast';
 
 export default function AwaitingConfirmation() {
   const navigate = useNavigate();
@@ -31,7 +32,7 @@ export default function AwaitingConfirmation() {
       });
 
       if (error) {
-        toast.error(error.message || 'Erro ao reenviar email');
+        showErrorToast(toast, { action: 'enviar' });
         return;
       }
 

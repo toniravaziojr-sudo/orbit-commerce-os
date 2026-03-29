@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface MeliListing {
   id: string;
@@ -294,7 +295,7 @@ export function useMeliListings() {
     },
     onError: (error: Error) => {
       queryClient.invalidateQueries({ queryKey: ['meli-listings'] });
-      toast.error(error.message || 'Erro ao publicar anúncio');
+      showErrorToast(toast, { module: 'mercado livre', action: 'publicar' });
     },
   });
 
@@ -318,7 +319,7 @@ export function useMeliListings() {
       toast.success(data.message || 'Sincronização concluída');
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao sincronizar anúncios');
+      showErrorToast(toast, { module: 'mercado livre', action: 'sincronizar' });
     },
   });
 

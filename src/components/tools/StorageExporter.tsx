@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Download, FolderOpen, Loader2, CheckCircle2, HardDrive } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { showErrorToast } from '@/lib/error-toast';
 
 interface BucketInfo {
   id: string;
@@ -55,7 +56,7 @@ export function StorageExporter() {
       setBuckets(data.buckets || []);
       toast.success(`${data.buckets?.length || 0} buckets encontrados`);
     } catch (err: any) {
-      toast.error(err.message || "Erro ao listar buckets");
+      showErrorToast(toast, { module: 'ferramentas', action: 'carregar' });
     } finally {
       setLoading(false);
     }
@@ -115,7 +116,7 @@ export function StorageExporter() {
       setExported(prev => new Set(prev).add(bucketId));
       toast.success(`${allFiles.length} arquivos exportados de "${bucketId}"`);
     } catch (err: any) {
-      toast.error(err.message || "Erro ao exportar bucket");
+      showErrorToast(toast, { module: 'ferramentas', action: 'exportar' });
     } finally {
       setExporting(null);
       setProgress({ current: 0, total: 0, label: "" });

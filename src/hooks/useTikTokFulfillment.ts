@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface TikTokShopFulfillment {
   id: string;
@@ -109,7 +110,7 @@ export function useTikTokFulfillment(filters?: FulfillmentFilters) {
       toast.success('Rastreio enviado ao TikTok Shop com sucesso');
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao enviar fulfillment');
+      showErrorToast(toast, { module: 'tiktok', action: 'enviar' });
     },
   });
 

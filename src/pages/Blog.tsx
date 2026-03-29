@@ -32,6 +32,7 @@ import type { Json } from '@/integrations/supabase/types';
 import { GenerateSeoButton } from '@/components/seo/GenerateSeoButton';
 import { cn } from '@/lib/utils';
 import { useMediaCampaigns, MediaCampaign } from '@/hooks/useMediaCampaigns';
+import { showErrorToast } from '@/lib/error-toast';
 
 interface BlogPost {
   id: string;
@@ -176,7 +177,7 @@ export default function Blog() {
       navigate(`/blog/${newPost.id}/editor`);
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Erro ao criar post');
+      showErrorToast(toast, { module: 'blog', action: 'criar' });
     },
   });
 
@@ -210,7 +211,7 @@ export default function Blog() {
       toast.success('Post atualizado');
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Erro ao atualizar');
+      showErrorToast(toast, { module: 'blog', action: 'salvar' });
     },
   });
 
@@ -230,7 +231,7 @@ export default function Blog() {
       setDeleteId(null);
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Erro ao excluir');
+      showErrorToast(toast, { module: 'blog', action: 'excluir' });
     },
   });
 
@@ -264,7 +265,7 @@ export default function Blog() {
     const validation = validateSlug(slug);
     
     if (!validation.isValid) {
-      toast.error(validation.error || 'Slug inválido');
+      showErrorToast(toast, { module: 'blog', action: 'processar' });
       return;
     }
     
@@ -347,7 +348,7 @@ export default function Blog() {
       setIsCampaignDialogOpen(false);
       resetCampaignForm();
     } catch (error: any) {
-      toast.error(error.message || 'Erro ao salvar campanha');
+      showErrorToast(toast, { module: 'blog', action: 'salvar' });
     }
   };
 
@@ -358,7 +359,7 @@ export default function Blog() {
       toast.success('Campanha excluída');
       setCampaignDeleteId(null);
     } catch (error: any) {
-      toast.error(error.message || 'Erro ao excluir campanha');
+      showErrorToast(toast, { module: 'blog', action: 'excluir' });
     }
   };
 

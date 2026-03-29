@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Upload, HardDrive, Loader2, CheckCircle2, AlertCircle, FileJson } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { showErrorToast } from '@/lib/error-toast';
 
 interface FileEntry {
   bucket: string;
@@ -122,7 +123,7 @@ export function StorageImporter() {
         toast.warning(`${imported} importado(s), ${failed} falha(s)`);
       }
     } catch (err: any) {
-      toast.error(err.message);
+      showErrorToast(toast, { module: 'ferramentas', action: 'processar' });
     } finally {
       setImporting(false);
     }

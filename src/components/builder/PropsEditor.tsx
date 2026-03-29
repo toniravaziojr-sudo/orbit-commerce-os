@@ -37,6 +37,7 @@ import { useAIBlockFill } from '@/hooks/useAIBlockFill';
 import { getWizardContract } from '@/lib/builder/aiWizardRegistry';
 import { AIFillWizardDialog } from './ai-wizard/AIFillWizardDialog';
 import { Sparkles, Loader2, RefreshCw } from 'lucide-react';
+import { showErrorToast } from '@/lib/error-toast';
 
 interface PropsEditorProps {
   definition: BlockDefinition;
@@ -305,7 +306,7 @@ export function PropsEditor({
                     });
 
                     if (error || !data?.success || !data?.generatedProps) {
-                      toast.error('Erro ao regenerar', { description: data?.error || 'Tente novamente' });
+                      showErrorToast(toast, { module: 'editor', action: 'processar' });
                       // Remove loading state
                       onChange({ ...props, _isRegenerating: undefined });
                       return;

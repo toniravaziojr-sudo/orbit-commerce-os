@@ -20,6 +20,7 @@ import { useNavigate } from "react-router-dom";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SelectionDiagnostics, getDiagnostics } from "@/components/media/SelectionDiagnostics";
+import { showErrorToast } from '@/lib/error-toast';
 
 interface PlanningTabProps {
   campaignId: string;
@@ -245,7 +246,7 @@ export function PlanningTab({
         toast.success(data.message || "Estratégia gerada!");
         setSelectedDays(new Set()); setIsSelectMode(false); setStrategyPrompt("");
         await refetchItems();
-      } else toast.error(data?.error || "Erro ao gerar estratégia");
+      showErrorToast(toast, { module: 'mídia', action: 'gerar' });
     } catch { toast.error("Erro ao gerar estratégia"); }
     finally { setIsGenerating(false); }
   };
@@ -296,7 +297,7 @@ export function PlanningTab({
       });
       if (error) throw error;
       if (data?.success) { toast.success(data.message || "Copys geradas!"); await refetchItems(); }
-      else toast.error(data?.error || "Erro ao gerar copys");
+      showErrorToast(toast, { module: 'mídia', action: 'gerar' });
     } catch { toast.error("Erro ao gerar copys"); }
     finally { setIsGeneratingCopys(false); }
   };

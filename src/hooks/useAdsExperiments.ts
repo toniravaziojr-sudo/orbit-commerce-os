@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface AdsExperiment {
   id: string;
@@ -61,7 +62,7 @@ export function useAdsExperiments() {
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-experiments"] });
       toast.success("Experimento criado");
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   const updateExperiment = useMutation({
@@ -76,7 +77,7 @@ export function useAdsExperiments() {
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-experiments"] });
       toast.success("Experimento atualizado");
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   const cancelExperiment = useMutation({
@@ -91,7 +92,7 @@ export function useAdsExperiments() {
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-experiments"] });
       toast.success("Experimento cancelado");
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   const runExperiments = useMutation({
@@ -107,7 +108,7 @@ export function useAdsExperiments() {
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-experiments"] });
       toast.success("Experimentos avaliados com sucesso!");
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   const getActiveExperiments = (channel?: string, accountId?: string) => {

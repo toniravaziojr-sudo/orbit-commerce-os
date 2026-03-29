@@ -4,6 +4,7 @@ import { useEmailMarketing } from "@/hooks/useEmailMarketing";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface CampaignConfig {
   name: string;
@@ -144,7 +145,7 @@ export function useEmailCampaignBuilder() {
       navigate("/email-marketing");
     } catch (err: any) {
       console.error("Campaign send error:", err);
-      toast.error(err.message || "Erro ao enviar campanha");
+      showErrorToast(toast, { module: 'email', action: 'enviar' });
     } finally {
       setIsSending(false);
     }

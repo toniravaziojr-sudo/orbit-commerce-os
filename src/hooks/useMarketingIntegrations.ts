@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface MarketingIntegration {
   id: string;
@@ -118,7 +119,7 @@ export function useMarketingIntegrations() {
       toast.success('Configuração salva com sucesso');
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao salvar: ${error.message}`);
+      showErrorToast(toast, { module: 'integrações', action: 'salvar' });
     },
   });
 

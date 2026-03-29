@@ -21,6 +21,7 @@ import { Separator } from '@/components/ui/separator';
 import { ShipmentTimeline } from './ShipmentTimeline';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 type DeliveryStatus = 
   | 'label_created' 
@@ -125,7 +126,7 @@ export function ShipmentDetailsCard({ shipment, events, eventsLoading }: Shipmen
       }
     },
     onError: (error: Error) => {
-      toast.error(error.message);
+      showErrorToast(toast, { module: 'logística', action: 'processar' });
     },
   });
 
@@ -145,7 +146,7 @@ export function ShipmentDetailsCard({ shipment, events, eventsLoading }: Shipmen
       queryClient.invalidateQueries({ queryKey: ['shipment-events', shipment.id] });
     },
     onError: (error: Error) => {
-      toast.error(error.message);
+      showErrorToast(toast, { module: 'logística', action: 'processar' });
     },
   });
 

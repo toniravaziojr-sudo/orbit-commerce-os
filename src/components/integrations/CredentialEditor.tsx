@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, AlertCircle, Loader2, Save, Eye, EyeOff, Database, Server } from "lucide-react";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 interface CredentialEditorProps {
   credentialKey: string;
@@ -48,7 +49,7 @@ export function CredentialEditor({
       queryClient.invalidateQueries({ queryKey: ['platform-secrets-status'] });
     },
     onError: (error: Error) => {
-      toast.error('Erro ao salvar', { description: error.message });
+      showErrorToast(toast, { module: 'integrações', action: 'salvar' });
     },
   });
 

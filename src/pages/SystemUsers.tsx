@@ -55,6 +55,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { InviteUserModal } from '@/components/users/InviteUserModal';
 import { EditUserModal } from '@/components/users/EditUserModal';
+import { showErrorToast } from '@/lib/error-toast';
 
 const USER_TYPE_CONFIG: Record<string, { label: string; icon: typeof Crown; color: string }> = {
   owner: { label: 'Proprietário', icon: Crown, color: 'bg-amber-100 text-amber-800' },
@@ -219,7 +220,7 @@ export default function SystemUsers() {
     },
     onError: (error: any) => {
       console.error('Error resending invite:', error);
-      toast.error(error.message || 'Erro ao reenviar convite');
+      showErrorToast(toast, { module: 'usuários', action: 'enviar' });
     },
   });
 

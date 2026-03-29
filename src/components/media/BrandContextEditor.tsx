@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { 
+import { showErrorToast } from '@/lib/error-toast';
   Loader2, 
   Save, 
   Upload, 
@@ -139,7 +140,7 @@ export function BrandContextEditor() {
       queryClient.invalidateQueries({ queryKey: ["brand-context"] });
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Erro ao salvar");
+      showErrorToast(toast, { module: 'mídia', action: 'salvar' });
     },
   });
 

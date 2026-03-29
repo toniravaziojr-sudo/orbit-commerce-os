@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 export type BadgeShape = 'square' | 'rectangular' | 'circular' | 'pill';
 export type BadgePosition = 'left' | 'center' | 'right';
@@ -81,7 +82,7 @@ export function useProductBadges() {
       toast.success('Selo criado com sucesso');
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao criar selo');
+      showErrorToast(toast, { module: 'produtos', action: 'criar' });
     },
   });
 
@@ -109,7 +110,7 @@ export function useProductBadges() {
       toast.success('Selo atualizado');
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao atualizar selo');
+      showErrorToast(toast, { module: 'produtos', action: 'salvar' });
     },
   });
 
@@ -127,7 +128,7 @@ export function useProductBadges() {
       toast.success('Selo removido');
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao remover selo');
+      showErrorToast(toast, { module: 'produtos', action: 'excluir' });
     },
   });
 
@@ -147,7 +148,7 @@ export function useProductBadges() {
       queryClient.invalidateQueries({ queryKey: ['product-badges', currentTenantId] });
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao alterar status');
+      showErrorToast(toast, { module: 'produtos', action: 'processar' });
     },
   });
 
@@ -292,7 +293,7 @@ export function useBadgeAssignments(badgeId: string | undefined) {
       toast.success('Produtos atualizados');
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao atualizar produtos');
+      showErrorToast(toast, { module: 'produtos', action: 'salvar' });
     },
   });
 

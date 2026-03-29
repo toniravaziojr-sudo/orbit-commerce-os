@@ -14,6 +14,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 interface ReplayEventsButtonProps {
   disabled?: boolean;
@@ -65,7 +66,7 @@ export function ReplayEventsButton({ disabled }: ReplayEventsButtonProps) {
           success: false,
           message: data.error || 'Erro ao reprocessar eventos',
         });
-        toast.error(data.error || 'Erro ao reprocessar eventos');
+        showErrorToast(toast, { action: 'processar' });
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';

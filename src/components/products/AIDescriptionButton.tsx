@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
+import { showErrorToast } from '@/lib/error-toast';
 
 interface AIDescriptionButtonProps {
   type: 'short_description' | 'full_description';
@@ -58,7 +59,7 @@ export function AIDescriptionButton({ type, productName, fullDescription, onGene
       if (error) throw new Error(error.message || 'Erro ao chamar IA');
 
       if (!data?.success) {
-        toast.error(data?.error || 'Erro ao gerar descrição');
+        showErrorToast(toast, { module: 'produtos', action: 'gerar' });
         return;
       }
 
@@ -70,7 +71,7 @@ export function AIDescriptionButton({ type, productName, fullDescription, onGene
       setMissingComponents([]);
     } catch (err: any) {
       console.error('[AIDescriptionButton] Error:', err);
-      toast.error(err.message || 'Erro ao gerar descrição');
+      showErrorToast(toast, { module: 'produtos', action: 'gerar' });
     } finally {
       setIsGenerating(false);
     }

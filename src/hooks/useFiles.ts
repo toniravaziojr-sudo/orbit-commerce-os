@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { useEffect } from 'react';
 import {
+import { showErrorToast } from '@/lib/error-toast';
   getBucketForFile as _getBucketForFile,
   getFileUrl as _getFileUrl,
   downloadDriveFile,
@@ -225,7 +226,7 @@ export function useFiles(folderId: string | null = null) {
       toast.success('Pasta criada com sucesso!');
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao criar pasta: ${error.message}`);
+      showErrorToast(toast, { module: 'arquivos', action: 'criar' });
     },
   });
 
@@ -252,7 +253,7 @@ export function useFiles(folderId: string | null = null) {
       toast.success('Arquivo excluído com sucesso!');
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao excluir arquivo: ${error.message}`);
+      showErrorToast(toast, { module: 'arquivos', action: 'excluir' });
     },
   });
 
@@ -290,7 +291,7 @@ export function useFiles(folderId: string | null = null) {
       toast.success('Arquivo movido com sucesso!');
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Erro ao mover arquivo');
+      showErrorToast(toast, { module: 'arquivos', action: 'processar' });
     },
   });
 
@@ -312,7 +313,7 @@ export function useFiles(folderId: string | null = null) {
       toast.success('Arquivo renomeado com sucesso!');
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao renomear: ${error.message}`);
+      showErrorToast(toast, { module: 'arquivos', action: 'processar' });
     },
   });
 

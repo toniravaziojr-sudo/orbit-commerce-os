@@ -33,6 +33,7 @@ import { GenerateSeoButton } from '@/components/seo/GenerateSeoButton';
 import { ImportPageWithAIDialog } from '@/components/import/ImportPageWithAIDialog';
 import { LandingPagePreviewDialog } from '@/components/landing-pages/LandingPagePreviewDialog';
 import { Wand2, Loader2 } from 'lucide-react';
+import { showErrorToast } from '@/lib/error-toast';
 
 // =============================================
 // UNIFIED PAGE ITEM TYPE
@@ -195,7 +196,7 @@ export default function Pages() {
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     const slugValidation = validateSlug(slug);
-    if (!slugValidation.isValid) { toast.error(slugValidation.error || 'Slug inválido'); return; }
+    showErrorToast(toast, { module: 'páginas', action: 'processar' });
     // Check against ALL pages (institutional + AI + builder LPs) to avoid DB constraint violations
     const isDuplicate = allPages.some(p => p.slug === slug && (!editingPage || p.id !== editingPage.id));
     if (isDuplicate) { toast.error('Já existe uma página com este slug'); return; }
@@ -243,7 +244,7 @@ export default function Pages() {
     const slug = aiPageSlug || generateSlug(aiPageName);
     const slugValidation = validateSlug(slug);
     if (!slugValidation.isValid) {
-      toast.error(slugValidation.error || 'Slug inválido');
+      showErrorToast(toast, { module: 'páginas', action: 'processar' });
       return;
     }
 
@@ -323,7 +324,7 @@ export default function Pages() {
       navigate(`/pages/${newPage.id}/builder`);
     } catch (error: any) {
       console.error('Error creating AI architect page:', error);
-      toast.error(error?.message || 'Erro ao gerar página com IA');
+      showErrorToast(toast, { module: 'páginas', action: 'gerar' });
     } finally {
       setIsGeneratingAI(false);
     }
@@ -354,7 +355,7 @@ export default function Pages() {
       queryClient.invalidateQueries({ queryKey: ['store-pages'] });
     } catch (error: any) {
       console.error('Error generating essential pages:', error);
-      toast.error(error?.message || 'Erro ao gerar páginas essenciais');
+      showErrorToast(toast, { module: 'páginas', action: 'gerar' });
     } finally {
       setIsGeneratingEssential(false);
     }

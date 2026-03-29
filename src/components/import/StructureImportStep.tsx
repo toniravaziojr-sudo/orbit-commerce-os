@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2, Loader2, FolderTree, FileText, Menu, Arrow
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { showErrorToast } from '@/lib/error-toast';
 
 // Types for the structure import
 export type ImportStepStatus = 'pending' | 'processing' | 'completed' | 'skipped' | 'error';
@@ -158,7 +159,7 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
       console.error('Error importing categories:', err);
       setErrors(e => [...e, `Categorias: ${err.message}`]);
       setProgress(p => ({ ...p, categories: 'error' }));
-      toast.error(`Erro ao importar categorias: ${err.message}`);
+      showErrorToast(toast, { module: 'importação', action: 'importar' });
     } finally {
       setIsProcessing(false);
       setCurrentStep(null);
@@ -194,7 +195,7 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
       console.error('Error importing pages:', err);
       setErrors(e => [...e, `Páginas: ${err.message}`]);
       setProgress(p => ({ ...p, pages: 'error' }));
-      toast.error(`Erro: ${err.message}`);
+      showErrorToast(toast, { module: 'importação', action: 'processar' });
     } finally {
       setIsProcessing(false);
       setCurrentStep(null);
@@ -232,7 +233,7 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
       console.error('Error importing menus:', err);
       setErrors(e => [...e, `Menus: ${err.message}`]);
       setProgress(p => ({ ...p, menus: 'error' }));
-      toast.error(`Erro: ${err.message}`);
+      showErrorToast(toast, { module: 'importação', action: 'processar' });
     } finally {
       setIsProcessing(false);
       setCurrentStep(null);

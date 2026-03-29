@@ -47,6 +47,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Zap } from "lucide-react";
+import { showErrorToast } from '@/lib/error-toast';
 
 // Build SCOPE_PACK_INFO from central config + platform operator context
 // Icons are defined here since they are React elements (not serializable in config)
@@ -193,7 +194,7 @@ export function MetaUnifiedSettings() {
       setTestPhone("");
     },
     onError: (error: any) => {
-      toast.error(error.message || "Erro ao enviar mensagem");
+      showErrorToast(toast, { module: 'integrações', action: 'enviar' });
     },
   });
 
@@ -217,7 +218,7 @@ export function MetaUnifiedSettings() {
       queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
     },
     onError: (error: any) => {
-      toast.error(error.message || "Erro ao solicitar código");
+      showErrorToast(toast, { module: 'integrações', action: 'processar' });
     },
   });
 
@@ -238,7 +239,7 @@ export function MetaUnifiedSettings() {
       queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
     },
     onError: (error: any) => {
-      toast.error(error.message || "Erro ao verificar código");
+      showErrorToast(toast, { module: 'integrações', action: 'verificar' });
     },
   });
 
@@ -264,7 +265,7 @@ export function MetaUnifiedSettings() {
       queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
     },
     onError: (error: any) => {
-      toast.error(error.message || "Erro ao registrar número");
+      showErrorToast(toast, { module: 'integrações', action: 'registrar' });
     },
   });
 

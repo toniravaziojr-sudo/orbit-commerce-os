@@ -25,6 +25,7 @@ import { Loader2, Users, Mail, Trash2, Search, Tag, AlertTriangle } from "lucide
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { showErrorToast } from '@/lib/error-toast';
 
 interface ListDetailDrawerProps {
   open: boolean;
@@ -86,7 +87,7 @@ export function ListDetailDrawer({ open, onOpenChange, list }: ListDetailDrawerP
       onOpenChange(false);
     },
     onError: (error: any) => {
-      toast.error("Erro ao excluir lista: " + error.message);
+      showErrorToast(toast, { module: 'email marketing', action: 'excluir' });
     },
   });
 

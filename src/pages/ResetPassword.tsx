@@ -12,6 +12,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { toast } from 'sonner';
 import { Loader2, Lock, CheckCircle, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { showErrorToast } from '@/lib/error-toast';
 
 const resetPasswordSchema = z.object({
   password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
@@ -69,7 +70,7 @@ export default function ResetPassword() {
         } else if (error.message.includes('session')) {
           toast.error('Sessão expirada. Solicite um novo link de recuperação.');
         } else {
-          toast.error(error.message);
+          showErrorToast(toast, { action: 'processar' });
         }
         return;
       }

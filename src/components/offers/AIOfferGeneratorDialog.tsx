@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Sparkles, Loader2, ArrowRight, Check, AlertCircle } from 'lucide-react';
+import { showErrorToast } from '@/lib/error-toast';
 
 type AIOfferType = OfferType | 'buy_together';
 
@@ -124,7 +125,7 @@ export function AIOfferGeneratorDialog({ open, onOpenChange, type }: AIOfferGene
       }
     } catch (err: any) {
       console.error('Erro ao gerar ofertas:', err);
-      toast.error(err.message || 'Erro ao gerar sugestões com IA');
+      showErrorToast(toast, { module: 'ofertas', action: 'gerar' });
     } finally {
       setIsGenerating(false);
     }

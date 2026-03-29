@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import type { AutopilotAction } from "@/hooks/useAdsAutopilot";
 import { ActionApprovalCard, OrphanAdsetGroupCard, type RejectMode } from "./ActionApprovalCard";
 import type { PendingAction } from "@/hooks/useAdsPendingActions";
+import { showErrorToast } from '@/lib/error-toast';
 
 interface AdsPendingApprovalTabProps {
   channelFilter?: string;
@@ -105,7 +106,7 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
       queryClient.invalidateQueries({ queryKey: ["ads-pending-actions"] });
       toast.success("Ação aprovada e executada com sucesso");
     },
-    onError: (err: Error) => toast.error("Erro ao aprovar: " + err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'aprovar' });
   });
 
   const rejectAction = useMutation({
@@ -122,7 +123,7 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
       queryClient.invalidateQueries({ queryKey: ["ads-pending-actions"] });
       toast.success("Ação rejeitada");
     },
-    onError: (err: Error) => toast.error(err.message),
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   const adjustAction = useMutation({
@@ -172,7 +173,7 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
       setAdjustingId(null);
       toast.success("Feedback enviado! A IA está gerando um novo plano com seus ajustes...");
     },
-    onError: (err: Error) => { setAdjustingId(null); toast.error(err.message); },
+    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
   });
 
   if (isLoading) {

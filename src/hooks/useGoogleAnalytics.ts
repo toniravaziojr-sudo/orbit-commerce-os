@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 // =====================
 // Types
@@ -104,7 +105,7 @@ export function useGoogleAnalytics(propertyId?: string) {
       queryClient.invalidateQueries({ queryKey: ["ga4-summary"] });
       queryClient.invalidateQueries({ queryKey: ["ga4-reports"] });
     },
-    onError: (err: any) => toast.error(err.message || "Erro ao sincronizar GA4"),
+    showErrorToast(toast, { module: 'google', action: 'sincronizar' });
   });
 
   return {

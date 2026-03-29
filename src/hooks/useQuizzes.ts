@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface QuizQuestionOption {
   value: string;
@@ -145,7 +146,7 @@ export function useQuizzes() {
       toast.success("Quiz criado com sucesso");
     },
     onError: (error: any) => {
-      toast.error(error.message || "Erro ao criar quiz");
+      showErrorToast(toast, { module: 'quiz', action: 'criar' });
     },
   });
 

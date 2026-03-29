@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface FinanceEntry {
   id: string;
@@ -83,7 +84,7 @@ export function useFinanceEntries() {
       toast.success('Lançamento criado com sucesso');
     },
     onError: (error) => {
-      toast.error('Erro ao criar lançamento: ' + error.message);
+      showErrorToast(toast, { module: 'financeiro', action: 'criar' });
     },
   });
 
@@ -104,7 +105,7 @@ export function useFinanceEntries() {
       toast.success('Lançamento atualizado com sucesso');
     },
     onError: (error) => {
-      toast.error('Erro ao atualizar lançamento: ' + error.message);
+      showErrorToast(toast, { module: 'financeiro', action: 'salvar' });
     },
   });
 
@@ -122,7 +123,7 @@ export function useFinanceEntries() {
       toast.success('Lançamento removido com sucesso');
     },
     onError: (error) => {
-      toast.error('Erro ao remover lançamento: ' + error.message);
+      showErrorToast(toast, { module: 'financeiro', action: 'excluir' });
     },
   });
 

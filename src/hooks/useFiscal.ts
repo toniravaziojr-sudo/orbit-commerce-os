@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 // Types
 export interface FiscalSettings {
@@ -190,7 +191,7 @@ export function useFiscalSettings() {
       toast.success('Configurações fiscais salvas');
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao salvar: ${error.message}`);
+      showErrorToast(toast, { module: 'fiscal', action: 'salvar' });
     },
   });
 
@@ -210,7 +211,7 @@ export function useFiscalSettings() {
       toast.success('Certificado digital salvo com sucesso');
     },
     onError: (error: Error) => {
-      toast.error(`Erro: ${error.message}`);
+      showErrorToast(toast, { module: 'fiscal', action: 'processar' });
     },
   });
 
@@ -230,7 +231,7 @@ export function useFiscalSettings() {
       toast.success('Certificado removido com sucesso');
     },
     onError: (error: Error) => {
-      toast.error(`Erro: ${error.message}`);
+      showErrorToast(toast, { module: 'fiscal', action: 'processar' });
     },
   });
 
@@ -508,7 +509,7 @@ export function useSubmitInvoice() {
       }
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao emitir: ${error.message}`);
+      showErrorToast(toast, { module: 'fiscal', action: 'processar' });
     },
   });
 }

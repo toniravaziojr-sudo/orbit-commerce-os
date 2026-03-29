@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { showErrorToast } from '@/lib/error-toast';
 
 interface ShopeeConnectionStatus {
   platformConfigured: boolean;
@@ -88,7 +89,7 @@ export function useShopeeConnection() {
       }, 500);
     },
     onError: (error) => {
-      toast.error(error.message || "Erro ao conectar com Shopee");
+      showErrorToast(toast, { module: 'shopee', action: 'conectar' });
     },
   });
 
@@ -113,7 +114,7 @@ export function useShopeeConnection() {
       queryClient.invalidateQueries({ queryKey: ["shopee-connection-status"] });
     },
     onError: (error) => {
-      toast.error(error.message || "Erro ao desconectar");
+      showErrorToast(toast, { module: 'shopee', action: 'conectar' });
     },
   });
 

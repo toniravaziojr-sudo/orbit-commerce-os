@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useEffect } from "react";
+import { showErrorToast } from '@/lib/error-toast';
 
 export interface AssetGeneration {
   id: string;
@@ -262,7 +263,7 @@ export function useGenerateImage() {
       });
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Erro ao gerar imagem");
+      showErrorToast(toast, { action: 'gerar' });
     },
   });
 }
@@ -330,7 +331,7 @@ export function useGenerateVideo() {
       });
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Erro ao gerar vídeo");
+      showErrorToast(toast, { action: 'gerar' });
     },
   });
 }
@@ -360,7 +361,7 @@ export function useApproveVariant() {
       queryClient.invalidateQueries({ queryKey: ["media-calendar-items"] });
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Erro ao aprovar");
+      showErrorToast(toast, { action: 'aprovar' });
     },
   });
 }
@@ -395,7 +396,7 @@ export function useRegenerateVariant() {
       queryClient.invalidateQueries({ queryKey: ["asset-generations"] });
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Erro ao regenerar");
+      showErrorToast(toast, { action: 'processar' });
     },
   });
 }

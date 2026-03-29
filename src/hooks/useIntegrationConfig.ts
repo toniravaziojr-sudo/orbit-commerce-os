@@ -7,6 +7,7 @@ import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 interface ProviderConfig {
   id: string;
@@ -127,7 +128,7 @@ export function useIntegrationConfig(type: 'payment' | 'shipping') {
       await loadProviders(); // Reload to get masked values
     } catch (error: any) {
       console.error('Error saving provider:', error);
-      toast.error(error.message || 'Erro ao salvar configurações');
+      showErrorToast(toast, { module: 'integrações', action: 'salvar' });
     } finally {
       setIsLoading(false);
     }
@@ -165,7 +166,7 @@ export function useIntegrationConfig(type: 'payment' | 'shipping') {
       if (result.success) {
         toast.success(result.message);
       } else {
-        toast.error(result.message);
+        showErrorToast(toast, { module: 'integrações', action: 'processar' });
       }
 
       return result;
@@ -173,7 +174,7 @@ export function useIntegrationConfig(type: 'payment' | 'shipping') {
       console.error('Error testing connection:', error);
       const result = { success: false, message: error.message || 'Erro ao testar conexão' };
       setTestResults(prev => ({ ...prev, [provider]: result }));
-      toast.error(result.message);
+      showErrorToast(toast, { module: 'integrações', action: 'processar' });
       return result;
     }
   }, [currentTenant?.id, type]);
