@@ -141,6 +141,23 @@ Deno.serve(async (req) => {
 
     console.log(`[meta-whatsapp-register-phone][${traceId}] Register response:`, JSON.stringify(registerData));
 
+    // Build raw diagnostic object for every attempt
+    const metaDiagnostic = {
+      http_status: registerResponse.status,
+      error_message: registerData.error?.message || null,
+      error_code: registerData.error?.code || null,
+      error_subcode: registerData.error?.error_subcode || null,
+      fbtrace_id: registerData.error?.fbtrace_id || null,
+      error_user_msg: registerData.error?.error_user_msg || null,
+      raw_success: registerData.success,
+      timestamp: new Date().toISOString(),
+      trace_id: traceId,
+      endpoint_called: registerUrl,
+      phone_number_id_used: config.phone_number_id,
+    };
+
+    console.log(`[meta-whatsapp-register-phone][${traceId}] Meta diagnostic:`, JSON.stringify(metaDiagnostic));
+
     if (registerData.success === true) {
       // Update status to connected
       await supabase
@@ -157,6 +174,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({
         success: true,
         message: "Número registrado com sucesso na Cloud API!",
+        meta_diagnostic: metaDiagnostic,
       }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -166,24 +184,30 @@ Deno.serve(async (req) => {
       const errorCode = registerData.error?.code;
       const errorSubcode = registerData.error?.error_subcode;
       const errorUserMsg = registerData.error?.error_user_msg;
-      const normalizedMetaError = `${errorMsg} ${errorUserMsg || ""}`.toLowerCase();
       
-      // Build user-friendly error messages
+      // Precise error normalization — do NOT lump everything as "PIN inválido"
       let friendlyError = "Não foi possível finalizar o registro agora. Tente novamente em instantes.";
-      if (errorSubcode === 2388001 || normalizedMetaError.includes("pin") || normalizedMetaError.includes("two factor")) {
-        friendlyError = "PIN inválido para este número. Use o PIN da verificação em duas etapas do WhatsApp Manager (não é a senha de login da Meta). Se não lembrar, redefina o PIN no WhatsApp Manager e tente novamente.";
-      } else if (errorCode === 100 || normalizedMetaError.includes("invalid parameter")) {
-        friendlyError = "Não foi possível finalizar o registro por uma validação da Meta. Confira se o número conectado está correto e tente novamente em 1 minuto.";
+      
+      if (errorSubcode === 2388001) {
+        // This specific subcode = actual wrong PIN
+        friendlyError = "PIN inválido para este número. Se a verificação em duas etapas está ativa, use o PIN configurado. Se não está ativa, defina qualquer PIN de 6 dígitos.";
       } else if (errorSubcode === 136025) {
         friendlyError = "Número já registrado em outra conta. Desregistre o número da conta atual antes de registrar aqui.";
+      } else if (errorCode === 100) {
+        friendlyError = `A Meta rejeitou um parâmetro da requisição. Detalhe: ${errorMsg}`;
+      } else if (errorMsg) {
+        friendlyError = `Erro da Meta: ${errorMsg}${errorUserMsg ? ` — ${errorUserMsg}` : ""}`;
       }
+      
+      // Save friendly error + raw diagnostic in last_error for debugging
+      const diagnosticSummary = `${friendlyError} [code=${errorCode}, subcode=${errorSubcode}, fbtrace=${metaDiagnostic.fbtrace_id}]`;
       
       // Update with error
       await supabase
         .from("whatsapp_configs")
         .update({
           connection_status: "pending_registration",
-          last_error: friendlyError,
+          last_error: diagnosticSummary,
           updated_at: new Date().toISOString(),
         })
         .eq("id", config.id);
@@ -193,6 +217,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({
         success: false,
         error: friendlyError,
+        meta_diagnostic: metaDiagnostic,
       }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

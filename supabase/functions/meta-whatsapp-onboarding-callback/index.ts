@@ -220,7 +220,7 @@ Deno.serve(async (req) => {
           display_phone_number: displayPhoneNumber,
           verified_name: verifiedName,
           phone_number: displayPhoneNumber,
-          connection_status: "connected",
+          connection_status: "pending_registration",
           last_connected_at: new Date().toISOString(),
           last_error: null,
           is_enabled: true,
@@ -247,9 +247,9 @@ Deno.serve(async (req) => {
           display_phone_number: displayPhoneNumber,
           verified_name: verifiedName,
           phone_number: displayPhoneNumber,
-          connection_status: "connected",
-          last_connected_at: new Date().toISOString(),
-          is_enabled: true,
+           connection_status: "pending_registration",
+           last_connected_at: new Date().toISOString(),
+           is_enabled: true,
         });
 
       if (insertError) {
