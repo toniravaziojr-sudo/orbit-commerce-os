@@ -13,6 +13,7 @@ import {
 } from "@/hooks/useDashboardMetrics";
 import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { startOfDay, endOfDay } from "date-fns";
+import { getComparisonLabel } from "@/lib/date-presets";
 import {
   ShoppingCart,
   Package,
@@ -99,17 +100,8 @@ function DashboardContent() {
     returned: "Devolvido",
   };
 
-  // Dynamic trend label based on date range
-  const getTrendLabel = () => {
-    if (!startDate || !endDate) return "vs. período anterior";
-    const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-    if (days <= 1) return "vs. ontem";
-    if (days <= 7) return "vs. semana anterior";
-    if (days <= 31) return "vs. mês anterior";
-    return "vs. período anterior";
-  };
-
-  const trendLabel = getTrendLabel();
+  // Dynamic trend label based on date range - centralized
+  const trendLabel = getComparisonLabel(startDate, endDate);
 
   return (
     <div className="space-y-8 animate-fade-in">
