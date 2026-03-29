@@ -6,8 +6,8 @@ const corsHeaders = {
 };
 
 /**
- * Manually register (or re-register) a WhatsApp phone number on Meta Cloud API.
- * Uses the stored access_token — does NOT require a new OAuth flow.
+ * Register (or re-register) a WhatsApp phone number on Meta Cloud API.
+ * Step 3 of the registration flow. Requires a 6-digit PIN.
  */
 Deno.serve(async (req) => {
   const traceId = crypto.randomUUID().substring(0, 8);
@@ -58,6 +58,14 @@ Deno.serve(async (req) => {
       });
     }
 
+    // PIN is mandatory
+    if (!pin || !/^\d{6}$/.test(String(pin))) {
+      return new Response(JSON.stringify({ success: false, error: "PIN de 6 dígitos é obrigatório para registrar o número." }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Verify user belongs to tenant with admin/owner role
@@ -97,7 +105,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check token expiration
     if (config.token_expires_at && new Date(config.token_expires_at) < new Date()) {
       return new Response(JSON.stringify({ success: false, error: "Token expirado. Reconecte sua conta Meta." }), {
         status: 200,
@@ -125,11 +132,10 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${config.access_token}`,
       },
-      body: JSON.stringify(
-        pin
-          ? { messaging_product: "whatsapp", pin: String(pin) }
-          : { messaging_product: "whatsapp" }
-      ),
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        pin: String(pin),
+      }),
     });
     const registerData = await registerResponse.json();
 
@@ -157,15 +163,15 @@ Deno.serve(async (req) => {
       });
     } else {
       const errorMsg = registerData.error?.message || JSON.stringify(registerData);
+      const errorCode = registerData.error?.code;
       const errorSubcode = registerData.error?.error_subcode;
-      const userMsg = registerData.error?.error_user_msg;
       
-      // Build a user-friendly error message
+      // Build user-friendly error messages
       let friendlyError = `Registro falhou: ${errorMsg}`;
-      if (errorSubcode === 2388001) {
-        friendlyError = "Desative a verificação em duas etapas do WhatsApp Business antes de registrar o número. Vá em Configurações > Conta > Verificação em duas etapas no app WhatsApp Business e desative-a temporariamente.";
-      } else if (userMsg) {
-        friendlyError = userMsg;
+      if (errorSubcode === 2388001 || errorCode === 100) {
+        friendlyError = "PIN incorreto. Verifique o PIN de 6 dígitos e tente novamente.";
+      } else if (errorSubcode === 136025) {
+        friendlyError = "Número já registrado em outra conta. Desregistre o número da conta atual antes de registrar aqui.";
       }
       
       // Update with error
