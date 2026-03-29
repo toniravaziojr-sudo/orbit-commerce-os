@@ -101,12 +101,12 @@ Dashboard de monitoramento e recuperação de checkouts abandonados. O sistema r
 
 ## Filtros da Listagem
 
-| Filtro | Opções |
-|--------|--------|
-| **Busca** | Por nome, email ou telefone |
-| **Status** | Todos, Ativo, Abandonado, Convertido, Recuperado |
-| **Região** | Estado/UF do cliente |
-| **Período** | Data inicial e final |
+| Filtro | Opções | Componente |
+|--------|--------|------------|
+| **Busca** | Por nome, email ou telefone | `Input` com ícone Search |
+| **Status** | Todos, Ativo, Abandonado, Convertido, Recuperado | `Select` |
+| **Região** | Estado/UF do cliente | `Select` |
+| **Período** | Data inicial e final | `DateRangeFilter` (padrão do sistema — ver `regras-gerais.md`) |
 
 ---
 
