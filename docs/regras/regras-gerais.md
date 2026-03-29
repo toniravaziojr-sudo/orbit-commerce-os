@@ -522,15 +522,34 @@ if (!confirmed) return;
 
 ---
 
-## 📅 DateRangeFilter — Componente Padrão de Seleção de Datas
+## 📅 Padrão de Datas, Períodos e Calendários
 
-> **REGRA OBRIGATÓRIA** — Aplica-se a TODOS os módulos que filtram dados por período.
+> **REGRA OBRIGATÓRIA** — Aplica-se a TODOS os módulos do sistema. Última atualização: 2026-03-29.
 
-### Componente Canônico
+### 1. Fonte de Verdade: `src/lib/date-presets.ts`
 
-`src/components/ui/date-range-filter.tsx` — **DateRangeFilter**
+Biblioteca central que define TODOS os cálculos de período do sistema.
 
-### Uso Obrigatório
+| Função | Descrição |
+|--------|-----------|
+| `getPresetDateRange(preset)` | Calcula start/end para qualquer preset |
+| `detectPreset(start, end)` | Detecta qual preset corresponde a um par de datas |
+| `getPreviousPeriod(start, end)` | Calcula período anterior equivalente para comparação |
+| `getComparisonLabel(start, end)` | Retorna texto comparativo (ex: "vs. ontem", "vs. 7 dias anteriores") |
+| `getPresetLabel(preset)` | Retorna label legível do preset |
+
+**Regras de cálculo:**
+- Timezone padrão: `America/Sao_Paulo` (preparado para tenant futuro)
+- Início sempre em `startOfDay` (00:00:00.000)
+- Fim sempre em `endOfDay` (23:59:59.999)
+- "Esta semana" e "Este mês" vão até o fim de HOJE (não do período completo)
+- Semana começa no Domingo (padrão ptBR)
+
+**Presets disponíveis:** Todo o período, Hoje, Ontem, Esta semana, Semana passada, Este mês, Mês passado, Últimos 7 dias, Últimos 30 dias, Selecionar mês, Período customizado.
+
+### 2. DateRangeFilter — Filtro de Período
+
+`src/components/ui/date-range-filter.tsx`
 
 **Todo filtro de período de datas no sistema DEVE usar o componente `DateRangeFilter`.**
 
@@ -547,24 +566,109 @@ import { DateRangeFilter } from "@/components/ui/date-range-filter";
 />
 ```
 
-### Funcionalidades Incluídas
-
 | Feature | Descrição |
 |---------|-----------|
 | **Calendário duplo** | Dois meses lado a lado para seleção visual |
 | **Inputs de data** | Campos editáveis DD/MM/AAAA para início e fim |
-| **Presets** | Todo o período, Hoje, Ontem, Esta semana, Semana passada, Este mês, Mês passado, Selecionar mês, Período customizado |
-| **Ícone** | `CalendarIcon` do lucide-react |
-| **Label inteligente** | Presets nomeados (Hoje, Ontem, Esta semana, etc.) exibem o **nome** no botão (ex: "Período: Hoje"). Períodos customizados ou seleção de mês exibem datas (ex: "Período: 01/03/2026 até 31/03/2026"). |
+| **Presets** | Todos os presets de `date-presets.ts` com separadores por grupo |
+| **Sincronização preset↔manual** | Seleção manual no calendário ativa "Período customizado" automaticamente; clicar em preset substitui a seleção manual |
+| **Label inteligente** | Presets nomeados exibem o nome no botão; customizados exibem datas |
+| **Props opcionais** | `dateFieldOptions`, `selectedDateField`, `onDateFieldChange` para seleção de campo de data |
+
+**Telas que usam:** Central de Comando, Pedidos, Relatórios, Checkouts Abandonados, Notificações, Logística (Dashboard e Envios), Compras, Financeiro, Anúncios (Overview e Campanhas).
+
+### 3. DatePickerField — Seletor de Data Única
+
+`src/components/ui/date-picker-field.tsx`
+
+**Todo campo de data em formulários DEVE usar `DatePickerField` em vez de `<input type="date">`.**
+
+```tsx
+import { DatePickerField } from "@/components/ui/date-picker-field";
+
+<DatePickerField
+  label="Data de nascimento"
+  value={birthDate}
+  onChange={setBirthDate}
+  clearable
+/>
+```
+
+| Feature | Descrição |
+|---------|-----------|
+| **Popover + Calendar** | Seletor visual baseado em Shadcn |
+| **Input manual** | Campo editável DD/MM/AAAA com parsing via date-fns |
+| **Locale ptBR** | Calendário em português |
+| **Props** | `minDate`, `maxDate`, `clearable`, `disabled` |
+
+**Telas que usam:** CustomerForm, InvoiceEditor, PurchaseFormDialog, FinanceEntryFormDialog, PlatformAnnouncements, CustomerDetail, Newsletter blocks.
+
+### 4. DateTimePickerField — Seletor de Data e Hora
+
+`src/components/ui/datetime-picker-field.tsx`
+
+**Todo campo de data+hora em formulários DEVE usar `DateTimePickerField` em vez de `<input type="datetime-local">`.**
+
+```tsx
+import { DateTimePickerField } from "@/components/ui/datetime-picker-field";
+
+<DateTimePickerField
+  label="Início da promoção"
+  value={promoStart}
+  onChange={setPromoStart}
+  clearable
+/>
+```
+
+| Feature | Descrição |
+|---------|-----------|
+| **Popover + Calendar + Time** | Data visual + input de hora HH:mm |
+| **Apply/Cancel** | Alterações só são confirmadas ao clicar "Aplicar" |
+| **Locale ptBR** | Calendário em português |
+| **Props** | `minDate`, `maxDate`, `clearable`, `disabled` |
+
+**Telas que usam:** ProductForm (promoção), DiscountFormDialog (validade), PropsEditor (builder), StepReview (email marketing).
+
+### 5. MonthlyCalendar — Calendário Mensal Unificado
+
+`src/components/ui/monthly-calendar.tsx`
+
+**Todo calendário mensal tipo grade DEVE usar `MonthlyCalendar` como base.**
+
+```tsx
+import { MonthlyCalendar, DayHeader } from "@/components/ui/monthly-calendar";
+
+<MonthlyCalendar
+  month={currentMonth}
+  onMonthChange={setCurrentMonth}
+  renderDayContent={(day) => <MyDayContent day={day} />}
+  isLoading={isLoading}
+/>
+```
+
+| Feature | Descrição |
+|---------|-----------|
+| **Grade 7 colunas** | Dom-Sáb com cabeçalhos em ptBR |
+| **Navegação mensal** | Botões anterior/próximo mês |
+| **Feriados** | Detecção automática via `getHolidayForDate` com emoji e tooltip |
+| **Skeletons** | Estado de carregamento padronizado |
+| **DayHeader** | Sub-componente para renderizar número do dia + feriado |
+| **renderDayContent** | Render prop para conteúdo específico de cada modo |
+
+**Telas que usam:** Planejamento de Conteúdo (PlanningTab), Acompanhamento de Publicações (TrackingTab), Agenda (AgendaCalendar).
 
 ### Proibições
 
 | ❌ Proibido | ✅ Correto |
 |-------------|------------|
-| Criar calendário customizado com `Calendar` + `Popover` | Usar `DateRangeFilter` |
-| Criar constantes `DATE_PRESETS` locais | Usar presets nativos do componente |
-| Implementar lógica própria de seleção de range | Usar `onChange(start, end)` do componente |
-| Usar `react-day-picker` diretamente para filtros | Usar `DateRangeFilter` que encapsula o picker |
+| `<input type="date">` | `<DatePickerField>` |
+| `<input type="datetime-local">` | `<DateTimePickerField>` |
+| Criar calendário customizado com `Calendar` + `Popover` para filtros | Usar `DateRangeFilter` |
+| Criar constantes `DATE_PRESETS` ou `PRESET_PERIODS` locais | Usar `date-presets.ts` |
+| Implementar lógica própria de seleção de range para filtros | Usar `DateRangeFilter` |
+| Usar `react-day-picker` diretamente para filtros de período | Usar `DateRangeFilter` |
+| Implementar grade mensal com `eachDayOfInterval` manual | Usar `MonthlyCalendar` |
+| Calcular "período anterior" manualmente | Usar `getPreviousPeriod` de `date-presets.ts` |
 
 ---
 
