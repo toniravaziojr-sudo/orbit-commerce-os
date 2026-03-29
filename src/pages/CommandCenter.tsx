@@ -140,6 +140,12 @@ function DashboardContent() {
       {/* Ads Alerts Widget */}
       <AdsAlertsWidget />
 
+      {/* Integration Errors Widget */}
+      <IntegrationErrorsCard />
+
+      {/* Content Calendar Alerts Widget */}
+      <ContentCalendarAlertsCard />
+
       {/* Fiscal Alerts Widget */}
       <FiscalAlertsWidget />
 
@@ -214,8 +220,6 @@ function DashboardContent() {
 
         {/* Attention Required */}
         <div className="space-y-6">
-          <IntegrationErrorsCard />
-          <ContentCalendarAlertsCard />
           <IntegrationAlerts />
           <StorefrontHealthCard />
           <Card>

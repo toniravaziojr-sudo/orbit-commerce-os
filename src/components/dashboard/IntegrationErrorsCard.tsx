@@ -7,13 +7,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Plug,
-  CheckCircle,
+  CheckCircle2,
   AlertTriangle,
   ArrowRight,
   MessageCircle,
   Facebook,
   Mail,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface IntegrationError {
   id: string;
@@ -21,11 +22,12 @@ interface IntegrationError {
   name: string;
   error: string;
   navigateTo: string;
+  variant: "warning" | "destructive";
 }
 
 /**
- * Dedicated card for the Command Center that shows integration health.
- * "Tudo funcionando" when no errors, otherwise lists each broken integration.
+ * Full-width card for Command Center showing integration health.
+ * Matches the visual pattern of CommunicationsWidget / AdsAlertsWidget.
  */
 export function IntegrationErrorsCard() {
   const { currentTenant, profile } = useAuth();
@@ -44,14 +46,15 @@ export function IntegrationErrorsCard() {
     try {
       // 1. Meta connection — expired or with error
       const { data: metaConn } = await supabase
-        .from("meta_connections" as any)
-        .select("is_active, token_expires_at, last_error, connection_status")
+        .from("marketplace_connections" as any)
+        .select("is_active, expires_at, last_error, external_username")
         .eq("tenant_id", tenantId)
+        .eq("marketplace", "meta")
         .maybeSingle();
 
       if (metaConn) {
         const m = metaConn as any;
-        const isExpired = m.token_expires_at ? new Date(m.token_expires_at) < new Date() : false;
+        const isExpired = m.expires_at ? new Date(m.expires_at) < new Date() : false;
 
         if (isExpired) {
           found.push({
@@ -60,14 +63,16 @@ export function IntegrationErrorsCard() {
             name: "Meta",
             error: "Token expirado — reconecte sua conta",
             navigateTo: "/integrations?tab=social",
+            variant: "destructive",
           });
         } else if (m.last_error && m.is_active) {
           found.push({
             id: "meta-error",
             icon: Facebook,
             name: "Meta",
-            error: m.last_error.length > 60 ? m.last_error.substring(0, 60) + "..." : m.last_error,
+            error: m.last_error.length > 80 ? m.last_error.substring(0, 80) + "..." : m.last_error,
             navigateTo: "/integrations?tab=social",
+            variant: "warning",
           });
         }
       }
@@ -85,14 +90,16 @@ export function IntegrationErrorsCard() {
             name: "WhatsApp",
             error: "Número pendente de registro na Cloud API",
             navigateTo: "/integrations?tab=social",
+            variant: "warning",
           });
         } else if (waConfig.is_enabled && waConfig.connection_status !== "connected" && waConfig.last_error) {
           found.push({
             id: "whatsapp-error",
             icon: MessageCircle,
             name: "WhatsApp",
-            error: waConfig.last_error.length > 60 ? waConfig.last_error.substring(0, 60) + "..." : waConfig.last_error,
+            error: waConfig.last_error.length > 80 ? waConfig.last_error.substring(0, 80) + "..." : waConfig.last_error,
             navigateTo: "/integrations?tab=social",
+            variant: "destructive",
           });
         }
       }
@@ -110,9 +117,10 @@ export function IntegrationErrorsCard() {
           icon: Mail,
           name: "Email",
           error: emailData.last_verify_error
-            ? emailData.last_verify_error.substring(0, 60) + (emailData.last_verify_error.length > 60 ? "..." : "")
+            ? emailData.last_verify_error.substring(0, 80) + (emailData.last_verify_error.length > 80 ? "..." : "")
             : "DNS pendente de verificação",
           navigateTo: "/integrations?tab=domain-email",
+          variant: "warning",
         });
       }
     } catch (e) {
@@ -129,52 +137,66 @@ export function IntegrationErrorsCard() {
 
   if (isLoading) return null;
 
+  const iconColors = {
+    warning: "text-warning bg-warning/10",
+    destructive: "text-destructive bg-destructive/10",
+    success: "text-green-600 bg-green-500/10",
+  };
+
   return (
     <Card>
-      <CardHeader className="pb-2">
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-lg font-semibold flex items-center gap-2">
-          <Plug className="h-5 w-5 text-muted-foreground" />
+          <Plug className="h-5 w-5 text-primary" />
           Integrações
         </CardTitle>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1.5 text-primary"
+          onClick={() => navigate("/integrations")}
+        >
+          Ver tudo
+          <ArrowRight className="h-4 w-4" />
+        </Button>
       </CardHeader>
       <CardContent>
-        {errors.length === 0 ? (
-          <div className="flex items-center gap-2 rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30 p-4">
-            <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0" />
-            <span className="text-sm font-medium text-green-700 dark:text-green-300">
-              Tudo funcionando
-            </span>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {errors.map((err) => {
+        <div className="space-y-3">
+          {errors.length === 0 ? (
+            <div className="flex items-start gap-3 rounded-lg border border-border/50 bg-muted/30 p-3">
+              <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg flex-shrink-0", iconColors.success)}>
+                <CheckCircle2 className="h-4 w-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground">Tudo funcionando</p>
+                <p className="text-xs text-muted-foreground">Todas as integrações estão ativas e sem erros</p>
+              </div>
+            </div>
+          ) : (
+            errors.map((err) => {
               const Icon = err.icon;
               return (
                 <div
                   key={err.id}
-                  className="flex items-center gap-3 rounded-lg border border-destructive/20 bg-destructive/5 p-3 cursor-pointer hover:bg-destructive/10 transition-colors"
+                  className="flex items-start gap-3 rounded-lg border border-border/50 bg-muted/30 p-3 transition-colors hover:bg-muted/50 cursor-pointer"
                   onClick={() => navigate(err.navigateTo)}
                 >
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-destructive/10">
-                    <Icon className="h-4 w-4 text-destructive" />
+                  <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg flex-shrink-0", iconColors[err.variant])}>
+                    <Icon className="h-4 w-4" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground flex items-center gap-2">
                       {err.name}
-                      <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
-                        Erro
-                      </Badge>
+                      <Badge variant="destructive" className="text-[10px] h-5">Erro</Badge>
                     </p>
-                    <p className="text-xs text-muted-foreground line-clamp-1">
-                      {err.error}
-                    </p>
+                    <p className="text-xs text-muted-foreground line-clamp-1">{err.error}</p>
                   </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1" />
                 </div>
               );
-            })}
-          </div>
-        )}
+            })
+          )}
+        </div>
       </CardContent>
     </Card>
   );

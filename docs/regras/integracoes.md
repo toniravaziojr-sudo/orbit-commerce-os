@@ -2651,6 +2651,10 @@ O botão "Registrar Número" (ou "Re-registrar número") aparece no card do What
 
 Aceita `{ tenant_id, pin? }`. Se `pin` for fornecido, envia na chamada `POST /{phone-number-id}/register`. Se não, envia sem PIN (para contas sem 2FA).
 
+**Tratamento de erros especiais:**
+- **Subcode 2388001** (2FA ativo): Exibe mensagem amigável orientando o usuário a desativar a verificação em duas etapas no app WhatsApp Business antes de registrar.
+- **Outros erros**: Exibe a mensagem do Meta (`error_user_msg`) quando disponível, ou a mensagem genérica.
+
 ### Componentes Relacionados
 
 | Arquivo | Descrição |
@@ -2666,16 +2670,18 @@ Aceita `{ tenant_id, pin? }`. Se `pin` for fornecido, envia na chamada `POST /{p
 
 | Arquivo | `src/components/dashboard/IntegrationErrorsCard.tsx` |
 |---------|------|
-| **Descrição** | Card dedicado que verifica Meta (token expirado, erros), WhatsApp (registro pendente, erros) e Email (DNS não verificado). |
-| **Estado OK** | Exibe "Tudo funcionando" com ícone verde. |
+| **Descrição** | Card full-width que verifica Meta (token expirado, erros), WhatsApp (registro pendente, erros) e Email (DNS não verificado). |
+| **Estado OK** | Exibe "Tudo funcionando" com ícone verde no padrão visual do AdsAlertsWidget. |
 | **Estado com erro** | Lista cada integração com erro e badge "Erro", clicável para ir direto à aba de integrações correspondente. |
-| **Localização** | Central de Execuções, coluna lateral direita. |
+| **Localização** | Central de Execuções, full-width entre AdsAlertsWidget e ContentCalendarAlertsCard. |
+| **Visual** | Segue o mesmo padrão de cards como Comunicações e Gestor de Tráfego (header com título + botão "Ver tudo", items com ícone/título/descrição). |
 
 ### ContentCalendarAlertsCard
 
 | Arquivo | `src/components/dashboard/ContentCalendarAlertsCard.tsx` |
 |---------|------|
-| **Descrição** | Card que consulta `social_posts` com status `failed` para exibir publicações que falharam. |
-| **Estado OK** | Exibe "Tudo em dia" com ícone verde. |
+| **Descrição** | Card full-width que consulta `social_posts` com status `failed` para exibir publicações que falharam. |
+| **Estado OK** | Exibe "Tudo em dia" com ícone verde no padrão visual do AdsAlertsWidget. |
 | **Estado com erro** | Lista até 5 publicações que falharam, com plataforma, erro e tempo relativo. Clicável para ir ao calendário de conteúdo. |
-| **Localização** | Central de Execuções, coluna lateral direita. |
+| **Localização** | Central de Execuções, full-width entre IntegrationErrorsCard e FiscalAlertsWidget. |
+| **Visual** | Segue o mesmo padrão de cards como Comunicações e Gestor de Tráfego. |
