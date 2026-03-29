@@ -170,21 +170,37 @@ Os botões seguem ordem sequencial e só ficam ativos quando o passo anterior es
 
 #### Diagnóstico de Seleção (SelectionDiagnostics)
 
-Quando o usuário seleciona dias no calendário, um painel de diagnóstico aparece abaixo dos botões de ação, mostrando em tempo real:
+Quando o usuário seleciona dias no calendário, dois feedbacks visuais são exibidos:
 
-| Indicador | Cor | Significado |
-|-----------|-----|-------------|
-| ✅ X prontos | Verde (`success`) | Têm estratégia + copy + criativo |
-| ⚠️ X sem copy | Amarelo (`warning`) | Têm estratégia mas faltam copys |
-| ⚠️ X sem criativo | Amarelo (`warning`) | Têm copy mas faltam criativos |
-| ❌ X sem estratégia | Vermelho (`destructive`) | Sem título/estratégia definida |
-| X dias vazios | Cinza (`muted`) | Dias selecionados sem publicações |
+**1. Linha de contadores (abaixo dos botões de ação)**
 
-**Alertas contextuais**: Mensagens específicas informam quais dias estão com pendências e qual ação tomar (ex: "3 publicações dos dias 1, 3 e 19 sem copy — gere as copys antes dos criativos").
+Uma linha compacta de badges coloridos mostra o resumo da seleção:
+
+| Badge | Cor | Significado |
+|-------|-----|-------------|
+| ✅ X prontos | Verde | Têm estratégia + copy + criativo |
+| 📝 X sem copy | Âmbar/Amarelo | Têm estratégia mas faltam copys |
+| 🖼 X sem criativo | Laranja | Têm copy mas faltam criativos |
+| ❌ X sem estratégia | Vermelho | Sem título/estratégia definida |
+| X dias vazios | Cinza | Dias selecionados sem publicações |
+
+**2. Coloração dos cards do calendário (somente quando selecionados)**
+
+Os cards dos dias selecionados mudam de cor conforme o status dos itens contidos, seguindo hierarquia de criticidade:
+
+| Cor do card | Condição (prioridade) |
+|-------------|----------------------|
+| 🔴 Vermelho | Algum item sem estratégia (sem título) |
+| 🟡 Amarelo | Algum item sem copy |
+| 🟠 Laranja | Algum item sem criativo (exceto posts de texto) |
+| 🟢 Verde | Todos os itens 100% prontos |
+| ⚪ Cinza | Dia selecionado mas vazio (sem itens) |
+
+Cards não selecionados mantêm a aparência padrão (sem coloração de status).
 
 **Botões inteligentes**: Os botões "Copys IA" e "Criativos IA" ficam visualmente atenuados (opacity + tooltip explicativo) quando nenhum card elegível existe na seleção. Não bloqueiam quando há pelo menos 1 item elegível (regeneração parcial funciona).
 
-**Arquivo**: `src/components/media/SelectionDiagnostics.tsx`
+**Arquivos**: `src/components/media/SelectionDiagnostics.tsx`, `src/components/media/PlanningTab.tsx`
 
 
 #### IA de Estratégia (`media-generate-suggestions`)
