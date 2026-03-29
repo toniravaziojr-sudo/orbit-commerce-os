@@ -12,7 +12,7 @@ import {
   formatRelativeTime,
 } from "@/hooks/useDashboardMetrics";
 import { DateRangeFilter } from "@/components/ui/date-range-filter";
-import { startOfDay, endOfDay } from "date-fns";
+
 import { getComparisonLabel } from "@/lib/date-presets";
 import {
   ShoppingCart,
