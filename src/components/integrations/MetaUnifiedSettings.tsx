@@ -534,8 +534,20 @@ export function MetaUnifiedSettings() {
                               </div>
                             )}
 
-                            {whatsappConfig.last_error && (
-                              <p className="text-xs text-destructive">{whatsappConfig.last_error}</p>
+                            {whatsappConfig.last_error && whatsappConfig.connection_status !== "pending_registration" && (
+                              <p className="text-xs text-destructive">
+                                {(() => {
+                                  const { sanitizeError } = require("@/lib/error-sanitizer");
+                                  return sanitizeError(new Error(whatsappConfig.last_error)).userMessage;
+                                })()}
+                              </p>
+                            )}
+                            {whatsappConfig.connection_status === "pending_registration" && registrationStep === "idle" && (
+                              <div className="rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-2.5 mt-1">
+                                <p className="text-xs text-blue-700 dark:text-blue-400">
+                                  ✅ Seu número está em análise pela Meta. Esse processo é automático e pode levar até 48h. Não é necessária nenhuma ação.
+                                </p>
+                              </div>
                             )}
                           </div>
                         )}
