@@ -260,19 +260,7 @@ Deno.serve(async (req) => {
 
     console.log(`[meta-whatsapp-onboarding-callback][${traceId}] Config saved successfully`);
 
-    // Phone number saved — registration requires user interaction (SMS code + PIN).
-    // Set status to pending_registration so the UI guides the user through the steps.
-    await supabase
-      .from("whatsapp_configs")
-      .update({
-        connection_status: "pending_registration",
-        last_error: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("tenant_id", tenantId)
-      .eq("provider", "meta");
-
-    console.log(`[meta-whatsapp-onboarding-callback][${traceId}] Status set to pending_registration — user needs to complete SMS verification + registration`);
+    console.log(`[meta-whatsapp-onboarding-callback][${traceId}] Config saved as pending_registration — user needs to complete SMS verification + registration`);
 
     // If GET request (redirect from Meta), redirect to frontend
     if (req.method === "GET") {
