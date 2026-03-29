@@ -260,6 +260,51 @@ Deno.serve(async (req) => {
 
     console.log(`[meta-whatsapp-onboarding-callback][${traceId}] Config saved successfully`);
 
+    // Register the phone number on Cloud API (required to activate it)
+    let registerSuccess = false;
+    let registerError: string | null = null;
+    try {
+      console.log(`[meta-whatsapp-onboarding-callback][${traceId}] Registering phone number ${phoneNumberId} on Cloud API...`);
+      
+      const registerUrl = `https://graph.facebook.com/${graphApiVersion}/${phoneNumberId}/register`;
+      const registerResponse = await fetch(registerUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          pin: "123456", // 6-digit PIN required by Meta
+        }),
+      });
+      const registerData = await registerResponse.json();
+      
+      console.log(`[meta-whatsapp-onboarding-callback][${traceId}] Register response:`, JSON.stringify(registerData));
+
+      if (registerData.success === true) {
+        registerSuccess = true;
+        console.log(`[meta-whatsapp-onboarding-callback][${traceId}] Phone number registered successfully!`);
+      } else {
+        registerError = registerData.error?.message || JSON.stringify(registerData);
+        console.error(`[meta-whatsapp-onboarding-callback][${traceId}] Register failed:`, registerError);
+      }
+    } catch (regErr) {
+      registerError = regErr instanceof Error ? regErr.message : String(regErr);
+      console.error(`[meta-whatsapp-onboarding-callback][${traceId}] Register exception:`, registerError);
+    }
+
+    // Update connection status based on register result
+    const finalStatus = registerSuccess ? "connected" : "pending_registration";
+    await supabase
+      .from("whatsapp_configs")
+      .update({
+        connection_status: finalStatus,
+        last_error: registerSuccess ? null : `Registro pendente: ${registerError}`,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("tenant_id", tenantId)
+      .eq("provider", "meta");
+
+    console.log(`[meta-whatsapp-onboarding-callback][${traceId}] Final status: ${finalStatus}`);
+
     // If GET request (redirect from Meta), redirect to frontend
     if (req.method === "GET") {
       const frontendUrl = "https://app.comandocentral.com.br";
