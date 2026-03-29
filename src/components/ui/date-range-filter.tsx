@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Calendar, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { format, parse, isValid, isSameDay, startOfDay, endOfDay } from 'date-fns';
+import { format, parse, isValid, isSameDay, startOfDay, endOfDay, startOfMonth, endOfMonth, setMonth, setYear } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   type DatePreset,
