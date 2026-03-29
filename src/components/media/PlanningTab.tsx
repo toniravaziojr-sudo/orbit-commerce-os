@@ -244,10 +244,16 @@ export function PlanningTab({
       if (error) throw error;
       if (data?.success) {
         toast.success(data.message || "Estratégia gerada!");
-        setSelectedDays(new Set()); setIsSelectMode(false); setStrategyPrompt("");
+        setSelectedDays(new Set());
+        setIsSelectMode(false);
+        setStrategyPrompt("");
         await refetchItems();
-    } catch { toast.error("Erro ao gerar estratégia"); }
-    finally { setIsGenerating(false); }
+      }
+    } catch {
+      toast.error("Erro ao gerar estratégia");
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleGenerateCopys = async () => {
