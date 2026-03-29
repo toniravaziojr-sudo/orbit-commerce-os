@@ -573,11 +573,11 @@ import { DateRangeFilter } from "@/components/ui/date-range-filter";
 | **Inputs de data** | Campos editáveis DD/MM/AAAA para início e fim |
 | **Presets** | Todos os presets de `date-presets.ts` com separadores por grupo |
 | **Sincronização preset↔manual** | Seleção manual no calendário ativa "Período customizado" automaticamente; clicar em preset substitui a seleção manual |
-| **"Todo o período"** | Quando selecionado, envia `undefined` para start/end. O hook de dados deve consultar TODOS os registros sem filtro de data |
+| **"Todo o período"** | Quando selecionado, envia `undefined` para start/end. O hook de dados busca a data do primeiro pedido confirmado pelo gateway como ponto de partida |
 | **Label inteligente** | Presets nomeados exibem o nome no botão; customizados exibem datas |
 | **Props opcionais** | `dateFieldOptions`, `selectedDateField`, `onDateFieldChange` para seleção de campo de data |
 
-**Regra crítica para hooks de dados:** Quando `startDate` e `endDate` são `undefined` ("Todo o período"), a query NÃO deve usar fallback para hoje. Deve buscar todos os registros sem filtro de data.
+**Regra crítica — "Todo o período":** Quando `startDate` e `endDate` são `undefined`, o hook `useDashboardMetrics` busca o `MIN(created_at)` dos pedidos confirmados pelo gateway (`payment_gateway_id IS NOT NULL`) como data-base. Isso garante que investimentos em anúncios, visitantes e demais métricas comecem do mesmo marco temporal dos pedidos reais, evitando distorção entre faturamento e investimento. Se não existir nenhum pedido, usa fallback de 90 dias atrás.
 
 **Telas que usam:** Central de Comando, Pedidos, Relatórios, Checkouts Abandonados, Notificações, Logística (Dashboard e Envios), Compras, Financeiro, Anúncios (Overview e Campanhas).
 

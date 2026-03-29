@@ -73,25 +73,32 @@ const EMPTY_METRICS: DashboardMetrics = {
   conversionRateToday: 0, conversionRateYesterday: 0,
 };
 
-function computePeriods(startDate?: Date, endDate?: Date) {
+function computePeriods(startDate?: Date, endDate?: Date, firstOrderDate?: Date) {
   const now = new Date();
 
-  // "Todo o período": when both dates are undefined, query ALL data
+  // "Todo o período": use first confirmed order date as start (not arbitrary 2000-01-01)
   const isAllTime = !startDate && !endDate;
-  const periodStart = isAllTime
-    ? '2000-01-01T00:00:00.000Z'
-    : startOfDay(startDate!).toISOString();
-  const periodEnd = isAllTime
-    ? endOfDay(now).toISOString()
-    : endOfDay(endDate!).toISOString();
+  
+  let periodStart: string;
+  let periodEnd: string;
 
-  const periodDuration = isAllTime
-    ? now.getTime() - new Date('2000-01-01').getTime()
-    : (endDate!.getTime() - startDate!.getTime()) || 24 * 60 * 60 * 1000;
+  if (isAllTime) {
+    // Use first confirmed order or fallback to 90 days ago
+    const baseDate = firstOrderDate || subDays(now, 90);
+    periodStart = startOfDay(baseDate).toISOString();
+    periodEnd = endOfDay(now).toISOString();
+  } else {
+    periodStart = startOfDay(startDate!).toISOString();
+    periodEnd = endOfDay(endDate!).toISOString();
+  }
 
-  const prevPeriodEnd = isAllTime
-    ? new Date('1999-12-31T23:59:59.999Z')
-    : new Date(startDate!.getTime() - 1);
+  const startMs = isAllTime
+    ? (firstOrderDate || subDays(now, 90)).getTime()
+    : startDate!.getTime();
+  const endMs = isAllTime ? now.getTime() : endDate!.getTime();
+  const periodDuration = (endMs - startMs) || 24 * 60 * 60 * 1000;
+
+  const prevPeriodEnd = new Date(startMs - 1);
   const prevPeriodStart = new Date(prevPeriodEnd.getTime() - periodDuration);
 
   return {
@@ -110,8 +117,27 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
     queryFn: async (): Promise<DashboardMetrics> => {
       if (!currentTenant?.id) return EMPTY_METRICS;
 
-      const { periodStart, periodEnd, prevStart, prevEnd } = computePeriods(startDate, endDate);
       const tid = currentTenant.id;
+      const isAllTime = !startDate && !endDate;
+
+      // For "Todo o período": fetch first confirmed order date as baseline
+      let firstOrderDate: Date | undefined;
+      if (isAllTime) {
+        const { data: firstOrder } = await supabase
+          .from('orders')
+          .select('created_at')
+          .eq('tenant_id', tid)
+          .not('payment_gateway_id', 'is', null)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .single();
+        
+        if (firstOrder?.created_at) {
+          firstOrderDate = new Date(firstOrder.created_at);
+        }
+      }
+
+      const { periodStart, periodEnd, prevStart, prevEnd } = computePeriods(startDate, endDate, firstOrderDate);
 
       // Use REST API for checkout_sessions funnel fields (not in generated types yet)
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
