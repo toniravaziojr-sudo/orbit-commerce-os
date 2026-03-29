@@ -74,10 +74,12 @@ export function useCheckoutSessions(filters: CheckoutSessionsFilters = {}) {
       // Se 'all', não adiciona filtro de status
 
       if (filters.startDate) {
-        params.set('started_at', `gte.${filters.startDate.toISOString()}`);
+        const { toSaoPauloStartIso } = await import('@/lib/date-timezone');
+        params.set('started_at', `gte.${toSaoPauloStartIso(filters.startDate)}`);
       }
       if (filters.endDate) {
-        params.set('started_at', `lte.${filters.endDate.toISOString()}`);
+        const { toSaoPauloEndIso } = await import('@/lib/date-timezone');
+        params.set('started_at', `lte.${toSaoPauloEndIso(filters.endDate)}`);
       }
       if (filters.region && filters.region !== 'all') {
         params.set('region', `eq.${filters.region}`);

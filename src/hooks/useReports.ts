@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, subMonths, format, parseISO } from "date-fns";
+import { toSaoPauloStartIso, toSaoPauloEndIso } from "@/lib/date-timezone";
 
 export interface SalesReportData {
   date: string;
