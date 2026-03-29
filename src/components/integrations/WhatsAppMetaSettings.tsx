@@ -417,6 +417,19 @@ export function WhatsAppMetaSettings() {
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Atualizar Status
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => registerPhoneMutation.mutate()}
+                disabled={registerPhoneMutation.isPending}
+              >
+                {registerPhoneMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Zap className="h-4 w-4 mr-2" />
+                )}
+                Registrar Número
+              </Button>
               <Button 
                 variant="ghost" 
                 size="sm"
