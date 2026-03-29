@@ -265,10 +265,8 @@ export function RulesListV2({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Configure regras para enviar notificações automáticas via WhatsApp e E-mail
-        </p>
+      <div className="flex items-center justify-end">
+
         {canEdit && (
           <Button onClick={onCreate}>
             <Plus className="h-4 w-4 mr-2" />
