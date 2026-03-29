@@ -213,14 +213,14 @@ export default function Shipments() {
         query = query.or(`tracking_code.ilike.%${search}%,order.order_number.ilike.%${search}%`);
       }
       
-      // Date filters
+      // Date filters — using São Paulo timezone
       if (startDate) {
-        query = query.gte('created_at', startDate.toISOString());
+        const { toSaoPauloStartIso } = await import('@/lib/date-timezone');
+        query = query.gte('created_at', toSaoPauloStartIso(startDate));
       }
       if (endDate) {
-        const endOfDay = new Date(endDate);
-        endOfDay.setHours(23, 59, 59, 999);
-        query = query.lte('created_at', endOfDay.toISOString());
+        const { toSaoPauloEndIso } = await import('@/lib/date-timezone');
+        query = query.lte('created_at', toSaoPauloEndIso(endDate));
       }
       
       const { data, error } = await query;
