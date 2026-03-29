@@ -187,7 +187,7 @@ export function useAgendaTasks() {
       toast.success("Tarefa criada com sucesso!");
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'agenda', action: 'criar' });
+      onError: (err) => showErrorToast(err, { module: 'agenda', action: 'criar' }),
     },
   });
 
@@ -255,7 +255,7 @@ export function useAgendaTasks() {
       toast.success("Tarefa atualizada!");
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'agenda', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'agenda', action: 'salvar' }),
     },
   });
 
@@ -278,7 +278,7 @@ export function useAgendaTasks() {
       toast.success("Tarefa excluída!");
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'agenda', action: 'excluir' });
+      onError: (err) => showErrorToast(err, { module: 'agenda', action: 'excluir' }),
     },
   });
 

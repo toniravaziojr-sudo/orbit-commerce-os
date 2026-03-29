@@ -127,7 +127,7 @@ export function WhatsAppMetaSettings() {
       }
     },
     onError: (error: any) => {
-      showErrorToast(toast, { module: 'integrações', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'processar' }),
     },
   });
 
@@ -167,7 +167,7 @@ export function WhatsAppMetaSettings() {
       queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
     },
     onError: (error: any) => {
-      showErrorToast(toast, { module: 'integrações', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'salvar' }),
     },
   });
 
@@ -192,7 +192,7 @@ export function WhatsAppMetaSettings() {
       queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
     },
     onError: (error: any) => {
-      showErrorToast(toast, { module: 'integrações', action: 'conectar' });
+      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'conectar' }),
     },
   });
 
@@ -203,7 +203,7 @@ export function WhatsAppMetaSettings() {
       throw new Error("Use a aba de Integrações Meta para finalizar o registro com PIN de segurança.");
     },
     onError: (error: any) => {
-      showErrorToast(toast, { module: 'integrações', action: 'registrar' });
+      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'registrar' }),
     },
   });
 
@@ -229,7 +229,7 @@ export function WhatsAppMetaSettings() {
       setTestPhone("");
     },
     onError: (error: any) => {
-      showErrorToast(toast, { module: 'integrações', action: 'enviar' });
+      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'enviar' }),
     },
   });
 

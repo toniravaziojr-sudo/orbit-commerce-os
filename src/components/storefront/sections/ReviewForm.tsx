@@ -77,7 +77,7 @@ export function ReviewForm({ productId, tenantId, onSuccess }: ReviewFormProps) 
       onSuccess?.();
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'loja', action: 'enviar' });
+      onError: (err) => showErrorToast(err, { module: 'loja', action: 'enviar' }),
     },
   });
 

@@ -137,7 +137,7 @@ export function EditUserModal({ open, onOpenChange, member }: EditUserModalProps
     },
     onError: (error: any) => {
       console.error('Error updating user:', error);
-      showErrorToast(toast, { module: 'usuários', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'usuários', action: 'salvar' }),
     },
   });
 
@@ -159,7 +159,7 @@ export function EditUserModal({ open, onOpenChange, member }: EditUserModalProps
       toast.success(`Email de recuperação enviado para ${member.profiles.email}`);
     } catch (error: any) {
       console.error('Error sending reset email:', error);
-      showErrorToast(toast, { module: 'usuários', action: 'enviar' });
+      onError: (err) => showErrorToast(err, { module: 'usuários', action: 'enviar' }),
     } finally {
       setIsResettingPassword(false);
     }

@@ -87,7 +87,7 @@ export function InviteUserModal({ open, onOpenChange }: InviteUserModalProps) {
       setPermissions({});
     },
     onError: (error: any) => {
-      showErrorToast(toast, { module: 'usuários', action: 'enviar' });
+      onError: (err) => showErrorToast(err, { module: 'usuários', action: 'enviar' }),
     },
   });
 

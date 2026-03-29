@@ -64,7 +64,7 @@ export default function AIPackages() {
       }
     } catch (error) {
       console.error('Purchase error:', error);
-      showErrorToast(toast, { action: 'processar' });
+      onError: (err) => showErrorToast(err, { action: 'processar' }),
     } finally {
       setPurchasingId(null);
     }

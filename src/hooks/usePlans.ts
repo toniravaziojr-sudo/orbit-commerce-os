@@ -227,7 +227,7 @@ export function useActivateSubscription() {
       }
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'planos', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'planos', action: 'processar' }),
     },
   });
 }

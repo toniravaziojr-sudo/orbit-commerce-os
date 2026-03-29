@@ -110,7 +110,7 @@ export function useMeliConnection() {
       }, 500);
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'mercado livre', action: 'conectar' });
+      onError: (err) => showErrorToast(err, { module: 'mercado livre', action: 'conectar' }),
     },
   });
 
@@ -136,7 +136,7 @@ export function useMeliConnection() {
       queryClient.invalidateQueries({ queryKey: ["meli-connection-status"] });
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'mercado livre', action: 'conectar' });
+      onError: (err) => showErrorToast(err, { module: 'mercado livre', action: 'conectar' }),
     },
   });
 

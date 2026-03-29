@@ -82,7 +82,7 @@ export function useProductBadges() {
       toast.success('Selo criado com sucesso');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'produtos', action: 'criar' });
+      onError: (err) => showErrorToast(err, { module: 'produtos', action: 'criar' }),
     },
   });
 
@@ -110,7 +110,7 @@ export function useProductBadges() {
       toast.success('Selo atualizado');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'produtos', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'produtos', action: 'salvar' }),
     },
   });
 
@@ -128,7 +128,7 @@ export function useProductBadges() {
       toast.success('Selo removido');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'produtos', action: 'excluir' });
+      onError: (err) => showErrorToast(err, { module: 'produtos', action: 'excluir' }),
     },
   });
 
@@ -148,7 +148,7 @@ export function useProductBadges() {
       queryClient.invalidateQueries({ queryKey: ['product-badges', currentTenantId] });
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'produtos', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'produtos', action: 'processar' }),
     },
   });
 
@@ -293,7 +293,7 @@ export function useBadgeAssignments(badgeId: string | undefined) {
       toast.success('Produtos atualizados');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'produtos', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'produtos', action: 'salvar' }),
     },
   });
 

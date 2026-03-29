@@ -140,7 +140,7 @@ export function BrandContextEditor() {
       queryClient.invalidateQueries({ queryKey: ["brand-context"] });
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'mídia', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'mídia', action: 'salvar' }),
     },
   });
 

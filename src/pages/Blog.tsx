@@ -177,7 +177,7 @@ export default function Blog() {
       navigate(`/blog/${newPost.id}/editor`);
     },
     onError: (error: any) => {
-      showErrorToast(toast, { module: 'blog', action: 'criar' });
+      onError: (err) => showErrorToast(err, { module: 'blog', action: 'criar' }),
     },
   });
 
@@ -211,7 +211,7 @@ export default function Blog() {
       toast.success('Post atualizado');
     },
     onError: (error: any) => {
-      showErrorToast(toast, { module: 'blog', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'blog', action: 'salvar' }),
     },
   });
 
@@ -231,7 +231,7 @@ export default function Blog() {
       setDeleteId(null);
     },
     onError: (error: any) => {
-      showErrorToast(toast, { module: 'blog', action: 'excluir' });
+      onError: (err) => showErrorToast(err, { module: 'blog', action: 'excluir' }),
     },
   });
 
@@ -265,7 +265,7 @@ export default function Blog() {
     const validation = validateSlug(slug);
     
     if (!validation.isValid) {
-      showErrorToast(toast, { module: 'blog', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'blog', action: 'processar' }),
       return;
     }
     
@@ -348,7 +348,7 @@ export default function Blog() {
       setIsCampaignDialogOpen(false);
       resetCampaignForm();
     } catch (error: any) {
-      showErrorToast(toast, { module: 'blog', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'blog', action: 'salvar' }),
     }
   };
 
@@ -359,7 +359,7 @@ export default function Blog() {
       toast.success('Campanha excluída');
       setCampaignDeleteId(null);
     } catch (error: any) {
-      showErrorToast(toast, { module: 'blog', action: 'excluir' });
+      onError: (err) => showErrorToast(err, { module: 'blog', action: 'excluir' }),
     }
   };
 

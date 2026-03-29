@@ -126,7 +126,7 @@ export function CreateShipmentDialog({ open, onOpenChange }: CreateShipmentDialo
       toast.success('Remessa criada com sucesso!');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'logística', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'logística', action: 'processar' }),
     },
   });
 
@@ -158,7 +158,7 @@ export function CreateShipmentDialog({ open, onOpenChange }: CreateShipmentDialo
       toast.success('Remessa registrada com sucesso!');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'logística', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'logística', action: 'processar' }),
     },
   });
 

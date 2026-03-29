@@ -89,7 +89,7 @@ export function useShopeeConnection() {
       }, 500);
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'shopee', action: 'conectar' });
+      onError: (err) => showErrorToast(err, { module: 'shopee', action: 'conectar' }),
     },
   });
 
@@ -114,7 +114,7 @@ export function useShopeeConnection() {
       queryClient.invalidateQueries({ queryKey: ["shopee-connection-status"] });
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'shopee', action: 'conectar' });
+      onError: (err) => showErrorToast(err, { module: 'shopee', action: 'conectar' }),
     },
   });
 

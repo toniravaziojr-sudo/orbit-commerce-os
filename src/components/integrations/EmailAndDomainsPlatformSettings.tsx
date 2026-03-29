@@ -104,12 +104,12 @@ export function EmailAndDomainsPlatformSettings() {
             : 'API Token válido'
         });
       } else {
-        showErrorToast(toast, { module: 'integrações', action: 'processar' });
+        onError: (err) => showErrorToast(err, { module: 'integrações', action: 'processar' }),
       }
       queryClient.invalidateQueries({ queryKey: ['platform-secrets-status'] });
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'integrações', action: 'testar' });
+      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'testar' }),
     },
   });
 
@@ -164,7 +164,7 @@ export function EmailAndDomainsPlatformSettings() {
       toast.success("Domínio configurado!", { description: "Configure os registros DNS abaixo." });
       await loadConfig();
     } catch (error: any) {
-      showErrorToast(toast, { module: 'integrações', action: 'configurar' });
+      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'configurar' }),
     } finally {
       setIsSaving(false);
     }
@@ -185,7 +185,7 @@ export function EmailAndDomainsPlatformSettings() {
       }
       await loadConfig();
     } catch (error: any) {
-      showErrorToast(toast, { module: 'integrações', action: 'verificar' });
+      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'verificar' }),
     } finally {
       setIsVerifying(false);
     }
@@ -221,7 +221,7 @@ export function EmailAndDomainsPlatformSettings() {
       toast.success("Configurações salvas!");
       await loadConfig();
     } catch (error: any) {
-      showErrorToast(toast, { module: 'integrações', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'salvar' }),
     } finally {
       setIsSaving(false);
     }
@@ -259,11 +259,11 @@ export function EmailAndDomainsPlatformSettings() {
       if (data.success) {
         toast.success("Email de teste enviado!", { description: `Verifique a caixa de entrada de ${testEmail}` });
       } else {
-        showErrorToast(toast, { module: 'integrações', action: 'enviar' });
+        onError: (err) => showErrorToast(err, { module: 'integrações', action: 'enviar' }),
       }
       await loadConfig();
     } catch (error: any) {
-      showErrorToast(toast, { module: 'integrações', action: 'enviar' });
+      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'enviar' }),
     } finally {
       setIsTesting(false);
     }
@@ -285,7 +285,7 @@ export function EmailAndDomainsPlatformSettings() {
       setReplyTo("");
       await loadConfig();
     } catch (error: any) {
-      showErrorToast(toast, { module: 'integrações', action: 'resetar' });
+      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'resetar' }),
     } finally {
       setIsResetting(false);
     }

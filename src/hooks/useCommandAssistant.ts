@@ -298,7 +298,7 @@ export function useCommandAssistant() {
         return;
       }
       console.error("Chat error:", error);
-      showErrorToast(toast, { module: 'assistente', action: 'enviar' });
+      onError: (err) => showErrorToast(err, { module: 'assistente', action: 'enviar' }),
     } finally {
       setIsStreaming(false);
       setStreamingContent("");
@@ -337,7 +337,7 @@ export function useCommandAssistant() {
       const data = await response.json();
 
       if (!data.success) {
-        showErrorToast(toast, { module: 'assistente', action: 'processar' });
+        onError: (err) => showErrorToast(err, { module: 'assistente', action: 'processar' }),
         return;
       }
 
@@ -479,7 +479,7 @@ export function useCommandAssistant() {
 
     } catch (error: any) {
       console.error("Execute action error:", error);
-      showErrorToast(toast, { module: 'assistente', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'assistente', action: 'processar' }),
     } finally {
       setExecutingActionId(null);
     }

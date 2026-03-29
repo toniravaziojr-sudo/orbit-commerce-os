@@ -81,7 +81,7 @@ export function useAdsAccountConfigs() {
       queryClient.invalidateQueries({ queryKey: ["ads-account-configs"] });
       toast.success("Configuração da conta salva");
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'processar' }),
   });
 
   const toggleAI = useMutation({
@@ -127,7 +127,7 @@ export function useAdsAccountConfigs() {
         }, 1500);
       }
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'processar' }),
   });
 
   const toggleKillSwitch = useMutation({
@@ -152,7 +152,7 @@ export function useAdsAccountConfigs() {
       queryClient.invalidateQueries({ queryKey: ["ads-account-configs"] });
       toast.success(enabled ? "Kill Switch ATIVADO — IA parada" : "Kill Switch desativado");
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'processar' }),
   });
 
   return {

@@ -110,7 +110,7 @@ export function useTikTokFulfillment(filters?: FulfillmentFilters) {
       toast.success('Rastreio enviado ao TikTok Shop com sucesso');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'tiktok', action: 'enviar' });
+      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'enviar' }),
     },
   });
 

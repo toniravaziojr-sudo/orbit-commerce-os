@@ -285,7 +285,7 @@ export function useCreateMediaVideoJob() {
     },
     onError: (error) => {
       console.error("Erro ao criar job de vídeo:", error);
-      showErrorToast(toast, { module: 'mídia', action: 'criar' });
+      onError: (err) => showErrorToast(err, { module: 'mídia', action: 'criar' }),
     },
   });
 }

@@ -117,7 +117,7 @@ export function useAIBlockFill({
 
       if (error) {
         console.error('[useAIBlockFill] Edge function error:', error);
-        showErrorToast(error, { module: 'IA', action: 'gerar conteúdo' });
+        onError: (error) => showErrorToast(error, { module: 'IA', action: 'gerar conteúdo' }),
         return null;
       }
 
@@ -137,7 +137,7 @@ export function useAIBlockFill({
       return merged;
     } catch (err) {
       console.error('[useAIBlockFill] Unexpected error:', err);
-      showErrorToast(err, { module: 'IA', action: 'gerar conteúdo' });
+      onError: (err) => showErrorToast(err, { module: 'IA', action: 'gerar conteúdo' }),
       return null;
     } finally {
       setIsLoading(false);

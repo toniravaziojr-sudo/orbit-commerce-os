@@ -144,7 +144,7 @@ export function useEmailMarketing() {
       toast.success("Lista criada - subscribers sincronizados automaticamente!");
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'email', action: 'criar' });
+      onError: (err) => showErrorToast(err, { module: 'email', action: 'criar' }),
     },
   });
 
@@ -158,7 +158,7 @@ export function useEmailMarketing() {
       toast.success("Template criado");
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'email', action: 'criar' });
+      onError: (err) => showErrorToast(err, { module: 'email', action: 'criar' }),
     },
   });
 
@@ -172,7 +172,7 @@ export function useEmailMarketing() {
       toast.success("Campanha criada");
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'email', action: 'criar' });
+      onError: (err) => showErrorToast(err, { module: 'email', action: 'criar' }),
     },
   });
 
@@ -186,7 +186,7 @@ export function useEmailMarketing() {
       toast.success("Formulário criado");
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'email', action: 'criar' });
+      onError: (err) => showErrorToast(err, { module: 'email', action: 'criar' }),
     },
   });
 

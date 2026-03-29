@@ -99,7 +99,7 @@ export function useTikTokOrders(filters?: OrderFilters) {
       }
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'tiktok', action: 'sincronizar' });
+      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'sincronizar' }),
     },
   });
 
@@ -120,7 +120,7 @@ export function useTikTokOrders(filters?: OrderFilters) {
       queryClient.invalidateQueries({ queryKey: ['tiktok-shop-orders'] });
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'tiktok', action: 'carregar' });
+      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'carregar' }),
     },
   });
 

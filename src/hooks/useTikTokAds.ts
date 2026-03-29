@@ -95,7 +95,7 @@ export function useTikTokAds() {
       queryClient.invalidateQueries({ queryKey: ["tiktok-ads-campaigns"] });
       toast.success(`${data.data?.synced || 0} campanhas sincronizadas`);
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'processar' }),
   });
 
   const createCampaign = useMutation({
@@ -105,7 +105,7 @@ export function useTikTokAds() {
       queryClient.invalidateQueries({ queryKey: ["tiktok-ads-campaigns"] });
       toast.success("Campanha criada no TikTok");
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'processar' }),
   });
 
   const updateCampaign = useMutation({
@@ -115,7 +115,7 @@ export function useTikTokAds() {
       queryClient.invalidateQueries({ queryKey: ["tiktok-ads-campaigns"] });
       toast.success("Campanha atualizada");
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'processar' }),
   });
 
   const deleteCampaign = useMutation({
@@ -125,7 +125,7 @@ export function useTikTokAds() {
       queryClient.invalidateQueries({ queryKey: ["tiktok-ads-campaigns"] });
       toast.success("Campanha removida");
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'processar' }),
   });
 
   // ============ INSIGHTS ============
@@ -150,7 +150,7 @@ export function useTikTokAds() {
       queryClient.invalidateQueries({ queryKey: ["tiktok-ads-insights"] });
       toast.success(`${data.data?.synced || 0} métricas sincronizadas`);
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'processar' }),
   });
 
   // ============ SYNC ALL ============
@@ -166,7 +166,7 @@ export function useTikTokAds() {
       queryClient.invalidateQueries({ queryKey: ["tiktok-ads-insights"] });
       toast.success("Dados sincronizados com o TikTok Ads");
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'processar' }),
   });
 
   return {

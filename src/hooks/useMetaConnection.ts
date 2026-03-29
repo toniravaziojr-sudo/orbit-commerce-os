@@ -154,7 +154,7 @@ export function useMetaConnection() {
           if (event.data.success) {
             toast.success("Conta Meta conectada com sucesso!");
           } else if (event.data.error) {
-            showErrorToast(toast, { module: 'meta', action: 'processar' });
+            onError: (err) => showErrorToast(err, { module: 'meta', action: 'processar' }),
           }
         }
       };
@@ -171,7 +171,7 @@ export function useMetaConnection() {
       }, 500);
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'meta', action: 'conectar' });
+      onError: (err) => showErrorToast(err, { module: 'meta', action: 'conectar' }),
     },
   });
 
@@ -198,7 +198,7 @@ export function useMetaConnection() {
       queryClient.invalidateQueries({ queryKey: ["meta-connection-status"] });
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'meta', action: 'conectar' });
+      onError: (err) => showErrorToast(err, { module: 'meta', action: 'conectar' }),
     },
   });
 

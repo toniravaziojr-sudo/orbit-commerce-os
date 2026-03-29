@@ -231,7 +231,7 @@ export function useCreditOperations() {
     },
     onError: (error) => {
       console.error('Error reserving credits:', error);
-      showErrorToast(toast, { module: 'créditos', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'créditos', action: 'processar' }),
     },
   });
 

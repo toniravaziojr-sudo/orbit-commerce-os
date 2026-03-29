@@ -68,7 +68,7 @@ export function useInfluencerLeads() {
       toast.success('Influencer adicionado com sucesso');
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'influenciadores', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'influenciadores', action: 'processar' }),
     },
   });
 
@@ -89,7 +89,7 @@ export function useInfluencerLeads() {
       toast.success('Influencer atualizado com sucesso');
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'influenciadores', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'influenciadores', action: 'salvar' }),
     },
   });
 
@@ -107,7 +107,7 @@ export function useInfluencerLeads() {
       toast.success('Influencer removido com sucesso');
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'influenciadores', action: 'excluir' });
+      onError: (err) => showErrorToast(err, { module: 'influenciadores', action: 'excluir' }),
     },
   });
 

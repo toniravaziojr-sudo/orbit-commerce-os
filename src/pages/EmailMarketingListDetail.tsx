@@ -207,7 +207,7 @@ export default function EmailMarketingListDetail() {
       navigate("/email-marketing");
     },
     onError: (error: any) => {
-      showErrorToast(toast, { module: 'email', action: 'excluir' });
+      onError: (err) => showErrorToast(err, { module: 'email', action: 'excluir' }),
     },
   });
 

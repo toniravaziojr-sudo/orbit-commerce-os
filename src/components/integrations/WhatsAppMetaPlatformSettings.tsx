@@ -119,7 +119,7 @@ export function WhatsAppMetaPlatformSettings() {
       queryClient.invalidateQueries({ queryKey: ["meta-whatsapp-credentials"] });
     },
     onError: (error: any) => {
-      showErrorToast(toast, { module: 'integrações', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'salvar' }),
     },
   });
 
@@ -150,13 +150,13 @@ export function WhatsAppMetaPlatformSettings() {
       } else {
         setTestResult({ success: false, message: data.error || "Erro desconhecido" });
         setTestChecklist((prev) => ({ ...prev, sendOk: false }));
-        showErrorToast(toast, { module: 'integrações', action: 'enviar' });
+        onError: (err) => showErrorToast(err, { module: 'integrações', action: 'enviar' }),
       }
     },
     onError: (error: any) => {
       setTestResult({ success: false, message: error.message || "Erro de conexão" });
       setTestChecklist((prev) => ({ ...prev, sendOk: false }));
-      showErrorToast(toast, { module: 'integrações', action: 'enviar' });
+      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'enviar' }),
     },
   });
 
@@ -188,7 +188,7 @@ export function WhatsAppMetaPlatformSettings() {
       toast.success("Configuração de teste salva! Respostas do WhatsApp irão para o Atendimento.");
     },
     onError: (error: any) => {
-      showErrorToast(toast, { module: 'integrações', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'salvar' }),
     },
   });
 

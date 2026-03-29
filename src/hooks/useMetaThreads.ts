@@ -66,7 +66,7 @@ export function useMetaThreads() {
       toast.success("Publicado no Threads!");
       queryClient.invalidateQueries({ queryKey: ["meta-threads-posts"] });
     },
-    showErrorToast(toast, { module: 'meta', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'meta', action: 'processar' }),
   });
 
   // Insights de um post

@@ -124,7 +124,7 @@ export function useTikTokShopConnection() {
       }
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'tiktok', action: 'conectar' });
+      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'conectar' }),
     },
   });
 
@@ -151,7 +151,7 @@ export function useTikTokShopConnection() {
       toast.success("TikTok Shop desconectado");
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'tiktok', action: 'conectar' });
+      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'conectar' }),
     },
   });
 

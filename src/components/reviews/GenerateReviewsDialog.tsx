@@ -112,7 +112,7 @@ export function GenerateReviewsDialog({ trigger }: GenerateReviewsDialogProps) {
       setStep('preview');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'avaliações', action: 'gerar' });
+      onError: (err) => showErrorToast(err, { module: 'avaliações', action: 'gerar' }),
       setStep('select');
     },
   });
@@ -146,7 +146,7 @@ export function GenerateReviewsDialog({ trigger }: GenerateReviewsDialogProps) {
       setOpen(false);
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'avaliações', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'avaliações', action: 'salvar' }),
     },
   });
 

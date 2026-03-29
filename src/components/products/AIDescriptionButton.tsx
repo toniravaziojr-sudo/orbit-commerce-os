@@ -59,7 +59,7 @@ export function AIDescriptionButton({ type, productName, fullDescription, onGene
       if (error) throw new Error(error.message || 'Erro ao chamar IA');
 
       if (!data?.success) {
-        showErrorToast(toast, { module: 'produtos', action: 'gerar' });
+        onError: (err) => showErrorToast(err, { module: 'produtos', action: 'gerar' }),
         return;
       }
 
@@ -71,7 +71,7 @@ export function AIDescriptionButton({ type, productName, fullDescription, onGene
       setMissingComponents([]);
     } catch (err: any) {
       console.error('[AIDescriptionButton] Error:', err);
-      showErrorToast(toast, { module: 'produtos', action: 'gerar' });
+      onError: (err) => showErrorToast(err, { module: 'produtos', action: 'gerar' }),
     } finally {
       setIsGenerating(false);
     }

@@ -79,7 +79,7 @@ export function DefaultFreeShippingMethodConfig() {
       queryClient.invalidateQueries({ queryKey: ['store-config'] });
       toast.success('Método padrão de frete grátis salvo!');
     } catch (err: any) {
-      showErrorToast(toast, { module: 'logística', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'logística', action: 'salvar' }),
     } finally {
       setIsSaving(false);
     }

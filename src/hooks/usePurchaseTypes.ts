@@ -55,7 +55,7 @@ export function usePurchaseTypes() {
       toast.success('Tipo de compra criado');
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'compras', action: 'criar' });
+      onError: (err) => showErrorToast(err, { module: 'compras', action: 'criar' }),
     },
   });
 
@@ -73,7 +73,7 @@ export function usePurchaseTypes() {
       toast.success('Tipo de compra removido');
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'compras', action: 'excluir' });
+      onError: (err) => showErrorToast(err, { module: 'compras', action: 'excluir' }),
     },
   });
 

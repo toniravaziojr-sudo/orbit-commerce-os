@@ -365,7 +365,7 @@ export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
       refetch();
     } catch (error: any) {
       console.error('Error duplicating invoice:', error);
-      showErrorToast(toast, { module: 'fiscal', action: 'duplicar' });
+      onError: (err) => showErrorToast(err, { module: 'fiscal', action: 'duplicar' }),
     }
   };
 

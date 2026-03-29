@@ -126,7 +126,7 @@ export function ShipmentDetailsCard({ shipment, events, eventsLoading }: Shipmen
       }
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'logística', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'logística', action: 'processar' }),
     },
   });
 
@@ -146,7 +146,7 @@ export function ShipmentDetailsCard({ shipment, events, eventsLoading }: Shipmen
       queryClient.invalidateQueries({ queryKey: ['shipment-events', shipment.id] });
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'logística', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'logística', action: 'processar' }),
     },
   });
 

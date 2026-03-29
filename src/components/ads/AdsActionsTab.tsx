@@ -167,7 +167,7 @@ export function AdsActionsTab({ actions, isLoading, channelFilter }: AdsActionsT
       toast.success("Ação revertida com sucesso! A campanha foi reativada.");
       setProcessingId(null);
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'reverter' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'reverter' }),
   });
 
   if (isLoading) {

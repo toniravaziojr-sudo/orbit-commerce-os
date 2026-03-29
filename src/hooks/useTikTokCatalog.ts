@@ -104,7 +104,7 @@ export function useTikTokCatalog() {
       }
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'tiktok', action: 'sincronizar' });
+      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'sincronizar' }),
     },
   });
 
@@ -126,7 +126,7 @@ export function useTikTokCatalog() {
       toast.success(`${result.checked} verificado(s), ${result.updated} atualizado(s)`);
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'tiktok', action: 'verificar' });
+      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'verificar' }),
     },
   });
 

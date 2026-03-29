@@ -196,7 +196,7 @@ export default function Pages() {
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     const slugValidation = validateSlug(slug);
-    showErrorToast(toast, { module: 'páginas', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'páginas', action: 'processar' }),
     // Check against ALL pages (institutional + AI + builder LPs) to avoid DB constraint violations
     const isDuplicate = allPages.some(p => p.slug === slug && (!editingPage || p.id !== editingPage.id));
     if (isDuplicate) { toast.error('Já existe uma página com este slug'); return; }
@@ -244,7 +244,7 @@ export default function Pages() {
     const slug = aiPageSlug || generateSlug(aiPageName);
     const slugValidation = validateSlug(slug);
     if (!slugValidation.isValid) {
-      showErrorToast(toast, { module: 'páginas', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'páginas', action: 'processar' }),
       return;
     }
 
@@ -324,7 +324,7 @@ export default function Pages() {
       navigate(`/pages/${newPage.id}/builder`);
     } catch (error: any) {
       console.error('Error creating AI architect page:', error);
-      showErrorToast(toast, { module: 'páginas', action: 'gerar' });
+      onError: (err) => showErrorToast(err, { module: 'páginas', action: 'gerar' }),
     } finally {
       setIsGeneratingAI(false);
     }
@@ -355,7 +355,7 @@ export default function Pages() {
       queryClient.invalidateQueries({ queryKey: ['store-pages'] });
     } catch (error: any) {
       console.error('Error generating essential pages:', error);
-      showErrorToast(toast, { module: 'páginas', action: 'gerar' });
+      onError: (err) => showErrorToast(err, { module: 'páginas', action: 'gerar' }),
     } finally {
       setIsGeneratingEssential(false);
     }

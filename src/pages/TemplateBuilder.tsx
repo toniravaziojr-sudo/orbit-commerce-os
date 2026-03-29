@@ -122,7 +122,7 @@ export default function TemplateBuilder() {
       toast.success('Template salvo com sucesso');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'templates', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'templates', action: 'salvar' }),
     },
   });
 

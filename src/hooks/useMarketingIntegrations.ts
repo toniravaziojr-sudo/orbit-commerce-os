@@ -119,7 +119,7 @@ export function useMarketingIntegrations() {
       toast.success('Configuração salva com sucesso');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'integrações', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'salvar' }),
     },
   });
 

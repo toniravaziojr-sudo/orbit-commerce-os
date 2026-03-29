@@ -73,7 +73,7 @@ export function useAdsPendingActions(channelFilter?: string) {
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-actions"] });
       toast.success("Ação aprovada e enviada para execução");
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'processar' }),
   });
 
   const rejectAction = useMutation({
@@ -89,7 +89,7 @@ export function useAdsPendingActions(channelFilter?: string) {
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-actions"] });
       toast.success("Ação rejeitada");
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'processar' }),
   });
 
   return {

@@ -87,7 +87,7 @@ export function ListDetailDrawer({ open, onOpenChange, list }: ListDetailDrawerP
       onOpenChange(false);
     },
     onError: (error: any) => {
-      showErrorToast(toast, { module: 'email marketing', action: 'excluir' });
+      onError: (err) => showErrorToast(err, { module: 'email marketing', action: 'excluir' }),
     },
   });
 
