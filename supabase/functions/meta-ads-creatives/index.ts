@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { errorResponse, metaApiErrorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v1.0.0"; // Initial: Creatives sync + list
@@ -71,10 +72,7 @@ Deno.serve(async (req) => {
       const result = await res.json();
 
       if (result.error) {
-        return new Response(
-          JSON.stringify({ success: false, error: result.error.message }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return metaApiErrorResponse(result.error, corsHeaders, { module: 'ads-creatives' });
       }
 
       let synced = 0;
@@ -129,9 +127,6 @@ Deno.serve(async (req) => {
     );
   } catch (error) {
     console.error(`[meta-ads-creatives][${traceId}] Error:`, error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message || "Erro interno" }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'ads-creatives' });
   }
 });
