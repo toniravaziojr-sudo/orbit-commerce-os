@@ -1,15 +1,12 @@
 import { useState, useMemo } from "react";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWithinInterval, parseISO } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Loader2, LayoutGrid, FileText, BarChart3 } from "lucide-react";
+import { format, startOfMonth, parseISO, isWithinInterval } from "date-fns";
+import { Loader2, LayoutGrid, FileText, BarChart3 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { MediaCalendarItem, MediaCampaign } from "@/hooks/useMediaCampaigns";
-import { getHolidayForDate } from "@/lib/brazilian-holidays";
+import { MonthlyCalendar, DayHeader, type DayCellInfo } from "@/components/ui/monthly-calendar";
 
 interface TrackingTabProps {
   campaignId: string;
@@ -23,7 +20,6 @@ interface TrackingTabProps {
   onReplaceScheduled: (item: MediaCalendarItem) => void;
 }
 
-// Operational statuses to show in tracking
 const TRACKING_STATUSES = ["scheduled", "publishing", "published", "failed", "partially_published", "partially_failed", "retry_pending", "superseded", "canceled"];
 
 export function TrackingTab({
@@ -35,8 +31,6 @@ export function TrackingTab({
     return startOfMonth(new Date());
   });
 
-  const days = useMemo(() => eachDayOfInterval({ start: startOfMonth(currentMonth), end: endOfMonth(currentMonth) }), [currentMonth]);
-
   const campaignInterval = useMemo(() => {
     if (!campaign) return null;
     return { start: parseISO(campaign.start_date), end: parseISO(campaign.end_date) };
@@ -44,7 +38,6 @@ export function TrackingTab({
 
   const isInCampaignPeriod = (date: Date) => campaignInterval ? isWithinInterval(date, campaignInterval) : false;
 
-  // Only tracking items
   const trackingItemsByDate = useMemo(() => {
     const map = new Map<string, MediaCalendarItem[]>();
     items?.filter(i => TRACKING_STATUSES.includes(i.status)).forEach((item) => {
@@ -54,7 +47,6 @@ export function TrackingTab({
     return map;
   }, [items]);
 
-  // Summary stats
   const stats = useMemo(() => {
     if (!items) return { published: 0, scheduled: 0, failed: 0, partial: 0 };
     const tracking = items.filter(i => TRACKING_STATUSES.includes(i.status));
@@ -99,20 +91,20 @@ export function TrackingTab({
     return "";
   };
 
-  const weekDayHeaders = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-
   const hasTrackingItems = stats.published + stats.scheduled + stats.failed + stats.partial > 0;
+
+  if (!hasTrackingItems && !isLoading) {
+    return (
+      <EmptyState
+        icon={BarChart3}
+        title="Nenhuma publicação no acompanhamento"
+        description="Quando itens forem publicados ou agendados, você poderá acompanhar o status aqui."
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
-      {!hasTrackingItems && !isLoading ? (
-        <EmptyState
-          icon={BarChart3}
-          title="Nenhuma publicação no acompanhamento"
-          description="Quando itens forem publicados ou agendados, você poderá acompanhar o status aqui."
-        />
-      ) : (
-        <>
       {/* Summary stats */}
       <div className="grid grid-cols-4 gap-3">
         {[
@@ -133,131 +125,96 @@ export function TrackingTab({
         ))}
       </div>
 
-      {/* Calendar Grid - read only */}
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg capitalize">
-              {format(currentMonth, "MMMM yyyy", { locale: ptBR })}
-            </CardTitle>
-            <div className="flex gap-1">
-              <Button variant="outline" size="icon" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="icon" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
+      <MonthlyCalendar
+        currentMonth={currentMonth}
+        onMonthChange={setCurrentMonth}
+        isLoading={isLoading}
+        cellMinHeight="90px"
+        loadingElement={
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <TooltipProvider>
-              <div className="grid grid-cols-7 gap-1">
-                {weekDayHeaders.map((day) => (
-                  <div key={day} className="p-2 text-center text-xs font-medium text-muted-foreground">{day}</div>
-                ))}
-                {Array.from({ length: days[0].getDay() }).map((_, i) => (
-                  <div key={`empty-${i}`} className="min-h-[90px] bg-muted/30 rounded-md" />
-                ))}
-                {days.map((date) => {
-                  const dateKey = format(date, "yyyy-MM-dd");
-                  const dayItems = trackingItemsByDate.get(dateKey) || [];
-                  const inPeriod = isInCampaignPeriod(date);
-                  const holiday = getHolidayForDate(date);
-                  const hasContent = dayItems.length > 0;
-                  const statusSummary = hasContent ? getStatusSummary(dayItems) : null;
-                  const borderColor = getDayBorderColor(dayItems);
-                  const bgColor = getDayBg(dayItems);
+        }
+        renderCell={(info) => {
+          const dayItems = trackingItemsByDate.get(info.dateKey) || [];
+          const inPeriod = isInCampaignPeriod(info.date);
+          const hasContent = dayItems.length > 0;
+          const statusSummary = hasContent ? getStatusSummary(dayItems) : null;
+          const borderColor = getDayBorderColor(dayItems);
+          const bgColor = getDayBg(dayItems);
 
-                  return (
-                    <div
-                      key={dateKey}
-                      onClick={() => inPeriod && hasContent && onOpenDayList(date)}
-                      className={cn(
-                        "min-h-[90px] p-1 rounded-md border-2 transition-all relative",
-                        inPeriod && hasContent ? "cursor-pointer hover:shadow-md" : "",
-                        inPeriod ? "" : "bg-muted/30 border-transparent",
-                        hasContent && inPeriod && borderColor,
-                        hasContent && inPeriod && bgColor,
-                        !hasContent && inPeriod && "bg-background border-border",
-                        holiday && inPeriod && "ring-2 ring-red-400/50"
-                      )}
-                    >
-                      <div className={cn(
-                        "text-xs font-medium p-1 flex items-center gap-1",
-                        !inPeriod && "text-muted-foreground/50",
-                        hasContent && "font-semibold"
-                      )}>
-                        {format(date, "d")}
-                        {holiday && (
-                          <Tooltip>
-                            <TooltipTrigger asChild><span className="cursor-help">{holiday.emoji}</span></TooltipTrigger>
-                            <TooltipContent><p className="font-medium">{holiday.name}</p></TooltipContent>
-                          </Tooltip>
-                        )}
-                      </div>
+          return (
+            <div
+              onClick={() => inPeriod && hasContent && onOpenDayList(info.date)}
+              className={cn(
+                "h-full p-1 rounded-md border-2 transition-all relative",
+                inPeriod && hasContent ? "cursor-pointer hover:shadow-md" : "",
+                inPeriod ? "" : "bg-muted/30 border-transparent",
+                hasContent && inPeriod && borderColor,
+                hasContent && inPeriod && bgColor,
+                !hasContent && inPeriod && "bg-background border-border",
+                info.holiday && inPeriod && "ring-2 ring-red-400/50"
+              )}
+            >
+              <DayHeader
+                date={info.date}
+                holiday={info.holiday}
+                isToday={info.isToday}
+                className={!inPeriod ? "text-muted-foreground/50" : hasContent ? "font-semibold" : undefined}
+              />
 
-                      {statusSummary && (
-                        <div className="flex items-center gap-1 px-1 flex-wrap mt-1">
-                          {statusSummary.published > 0 && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div className="flex items-center gap-0.5">
-                                  <div className="w-2 h-2 rounded-full bg-green-500" />
-                                  <span className="text-[9px] font-medium text-green-700 dark:text-green-400">{statusSummary.published}</span>
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent><p>{statusSummary.published} publicado(s)</p></TooltipContent>
-                            </Tooltip>
-                          )}
-                          {statusSummary.scheduled > 0 && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div className="flex items-center gap-0.5">
-                                  <div className="w-2 h-2 rounded-full bg-blue-500" />
-                                  <span className="text-[9px] font-medium text-blue-700 dark:text-blue-400">{statusSummary.scheduled}</span>
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent><p>{statusSummary.scheduled} agendado(s)</p></TooltipContent>
-                            </Tooltip>
-                          )}
-                          {statusSummary.failed > 0 && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div className="flex items-center gap-0.5">
-                                  <div className="w-2 h-2 rounded-full bg-red-500" />
-                                  <span className="text-[9px] font-medium text-red-700 dark:text-red-400">{statusSummary.failed}</span>
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent><p>{statusSummary.failed} com erro(s)</p></TooltipContent>
-                            </Tooltip>
-                          )}
-                          {statusSummary.partial > 0 && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div className="flex items-center gap-0.5">
-                                  <div className="w-2 h-2 rounded-full bg-amber-500" />
-                                  <span className="text-[9px] font-medium text-amber-700 dark:text-amber-400">{statusSummary.partial}</span>
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent><p>{statusSummary.partial} parcial(is)</p></TooltipContent>
-                            </Tooltip>
-                          )}
+              {statusSummary && (
+                <div className="flex items-center gap-1 px-1 flex-wrap mt-1">
+                  {statusSummary.published > 0 && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center gap-0.5">
+                          <div className="w-2 h-2 rounded-full bg-green-500" />
+                          <span className="text-[9px] font-medium text-green-700 dark:text-green-400">{statusSummary.published}</span>
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </TooltipProvider>
-          )}
-        </CardContent>
-      </Card>
+                      </TooltipTrigger>
+                      <TooltipContent><p>{statusSummary.published} publicado(s)</p></TooltipContent>
+                    </Tooltip>
+                  )}
+                  {statusSummary.scheduled > 0 && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center gap-0.5">
+                          <div className="w-2 h-2 rounded-full bg-blue-500" />
+                          <span className="text-[9px] font-medium text-blue-700 dark:text-blue-400">{statusSummary.scheduled}</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent><p>{statusSummary.scheduled} agendado(s)</p></TooltipContent>
+                    </Tooltip>
+                  )}
+                  {statusSummary.failed > 0 && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center gap-0.5">
+                          <div className="w-2 h-2 rounded-full bg-red-500" />
+                          <span className="text-[9px] font-medium text-red-700 dark:text-red-400">{statusSummary.failed}</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent><p>{statusSummary.failed} com erro(s)</p></TooltipContent>
+                    </Tooltip>
+                  )}
+                  {statusSummary.partial > 0 && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center gap-0.5">
+                          <div className="w-2 h-2 rounded-full bg-amber-500" />
+                          <span className="text-[9px] font-medium text-amber-700 dark:text-amber-400">{statusSummary.partial}</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent><p>{statusSummary.partial} parcial(is)</p></TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        }}
+      />
 
       {/* Legend */}
       <div className="flex flex-wrap gap-3 items-center">
@@ -274,8 +231,6 @@ export function TrackingTab({
           </div>
         ))}
       </div>
-      </>
-      )}
     </div>
   );
 }
