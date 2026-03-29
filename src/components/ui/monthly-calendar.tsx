@@ -21,10 +21,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { getHolidayForDate, type Holiday } from "@/lib/brazilian-holidays";
+import { getHolidayForDate, type BrazilianHoliday } from "@/lib/brazilian-holidays";
 
-// Re-export for convenience
-export type { Holiday };
+export type Holiday = BrazilianHoliday;
 
 export interface DayCellInfo {
   date: Date;
