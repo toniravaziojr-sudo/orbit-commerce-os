@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Filter, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,14 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import type { NotificationsFilter as FilterType, NotificationStatus } from "@/hooks/useNotifications";
 
 interface NotificationsFilterProps {
@@ -40,7 +33,6 @@ const channelOptions = [
 
 export function NotificationsFilterComponent({ filter, onFilterChange }: NotificationsFilterProps) {
   const [search, setSearch] = useState(filter.search || '');
-  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,19 +55,16 @@ export function NotificationsFilterComponent({ filter, onFilterChange }: Notific
     }
   };
 
-  const handleDateSelect = (range: { from: Date | undefined; to?: Date | undefined } | undefined) => {
-    if (!range) return;
-    setDateRange({ from: range.from, to: range.to });
+  const handleDateRangeChange = (start?: Date, end?: Date) => {
     onFilterChange({
       ...filter,
-      startDate: range.from?.toISOString(),
-      endDate: range.to?.toISOString(),
+      startDate: start?.toISOString(),
+      endDate: end?.toISOString(),
     });
   };
 
   const clearFilters = () => {
     setSearch('');
-    setDateRange({ from: undefined, to: undefined });
     onFilterChange({});
   };
 
@@ -125,31 +114,11 @@ export function NotificationsFilterComponent({ filter, onFilterChange }: Notific
         </SelectContent>
       </Select>
 
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className="gap-2">
-            <Filter className="h-4 w-4" />
-            {dateRange.from ? (
-              dateRange.to ? (
-                `${format(dateRange.from, "dd/MM")} - ${format(dateRange.to, "dd/MM")}`
-              ) : (
-                format(dateRange.from, "dd/MM/yyyy")
-              )
-            ) : (
-              "Período"
-            )}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          <Calendar
-            mode="range"
-            selected={dateRange}
-            onSelect={handleDateSelect}
-            locale={ptBR}
-            numberOfMonths={2}
-          />
-        </PopoverContent>
-      </Popover>
+      <DateRangeFilter
+        startDate={filter.startDate ? new Date(filter.startDate) : undefined}
+        endDate={filter.endDate ? new Date(filter.endDate) : undefined}
+        onChange={handleDateRangeChange}
+      />
 
       {hasActiveFilters && (
         <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1">

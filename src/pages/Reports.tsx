@@ -5,8 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatCard } from "@/components/ui/stat-card";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   BarChart3, 
@@ -16,7 +15,6 @@ import {
   MapPin, 
   Users, 
   Tag,
-  CalendarIcon,
   RefreshCw,
   ShoppingCart,
   DollarSign,
@@ -24,7 +22,7 @@ import {
   Store,
   Download
 } from "lucide-react";
-import { format, subDays, subMonths, startOfMonth, endOfMonth, startOfYear } from "date-fns";
+import { format, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { getComparisonLabel } from "@/lib/date-presets";
 import {
@@ -58,53 +56,25 @@ import {
 
 const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
-const PRESET_PERIODS = [
-  { label: 'Hoje', value: 'today' },
-  { label: 'Últimos 7 dias', value: '7days' },
-  { label: 'Últimos 30 dias', value: '30days' },
-  { label: 'Este mês', value: 'thisMonth' },
-  { label: 'Mês passado', value: 'lastMonth' },
-  { label: 'Este ano', value: 'thisYear' },
-  { label: 'Personalizado', value: 'custom' },
-];
-
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }
 
 export default function Reports() {
   const [activeTab, setActiveTab] = useState("overview");
-  const [periodPreset, setPeriodPreset] = useState("30days");
   const [groupBy, setGroupBy] = useState<'day' | 'week' | 'month'>('day');
-  const [customStartDate, setCustomStartDate] = useState<Date | undefined>();
-  const [customEndDate, setCustomEndDate] = useState<Date | undefined>();
+  const [startDate, setStartDate] = useState<Date | undefined>(() => subDays(new Date(), 29));
+  const [endDate, setEndDate] = useState<Date | undefined>(() => new Date());
 
-  // Calculate date range based on preset
-  const dateRange = useMemo(() => {
-    const now = new Date();
-    switch (periodPreset) {
-      case 'today':
-        return { start: new Date(now.setHours(0, 0, 0, 0)), end: new Date() };
-      case '7days':
-        return { start: subDays(now, 7), end: new Date() };
-      case '30days':
-        return { start: subDays(now, 30), end: new Date() };
-      case 'thisMonth':
-        return { start: startOfMonth(now), end: new Date() };
-      case 'lastMonth':
-        const lastMonth = subMonths(now, 1);
-        return { start: startOfMonth(lastMonth), end: endOfMonth(lastMonth) };
-      case 'thisYear':
-        return { start: startOfYear(now), end: new Date() };
-      case 'custom':
-        return { 
-          start: customStartDate || subDays(now, 30), 
-          end: customEndDate || new Date() 
-        };
-      default:
-        return { start: subDays(now, 30), end: new Date() };
-    }
-  }, [periodPreset, customStartDate, customEndDate]);
+  const handleDateChange = (start?: Date, end?: Date) => {
+    setStartDate(start);
+    setEndDate(end);
+  };
+
+  const dateRange = useMemo(() => ({
+    start: startDate || subDays(new Date(), 29),
+    end: endDate || new Date(),
+  }), [startDate, endDate]);
 
   const filters: ReportFilters = {
     startDate: dateRange.start,
@@ -176,38 +146,11 @@ export default function Reports() {
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-wrap items-center gap-4">
-            <Select value={periodPreset} onValueChange={setPeriodPreset}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Período" />
-              </SelectTrigger>
-              <SelectContent>
-                {PRESET_PERIODS.map((p) => (
-                  <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {periodPreset === 'custom' && (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <CalendarIcon className="h-4 w-4 mr-2" />
-                    {customStartDate ? format(customStartDate, "dd/MM/yyyy") : "Início"} - {customEndDate ? format(customEndDate, "dd/MM/yyyy") : "Fim"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="range"
-                    selected={{ from: customStartDate, to: customEndDate }}
-                    onSelect={(range) => {
-                      setCustomStartDate(range?.from);
-                      setCustomEndDate(range?.to);
-                    }}
-                    numberOfMonths={2}
-                  />
-                </PopoverContent>
-              </Popover>
-            )}
+            <DateRangeFilter
+              startDate={startDate}
+              endDate={endDate}
+              onChange={handleDateChange}
+            />
 
             <Select value={groupBy} onValueChange={(v) => setGroupBy(v as 'day' | 'week' | 'month')}>
               <SelectTrigger className="w-[140px]">
@@ -224,10 +167,6 @@ export default function Reports() {
               <RefreshCw className="h-4 w-4 mr-2" />
               Atualizar
             </Button>
-
-            <div className="ml-auto text-sm text-muted-foreground">
-              {format(dateRange.start, "dd/MM/yyyy", { locale: ptBR })} - {format(dateRange.end, "dd/MM/yyyy", { locale: ptBR })}
-            </div>
           </div>
         </CardContent>
       </Card>

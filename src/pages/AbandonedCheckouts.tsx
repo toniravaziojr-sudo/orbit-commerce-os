@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Search, Filter, Calendar, MapPin, ShoppingCart, Eye, X, RefreshCw } from 'lucide-react';
+import { Search, Filter, MapPin, ShoppingCart, Eye, X, RefreshCw } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -27,8 +27,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCheckoutSessions, useCheckoutSessionsStats, CheckoutSession } from '@/hooks/useCheckoutSessions';
 import { StatCard } from '@/components/ui/stat-card';
@@ -200,25 +199,14 @@ export default function AbandonedCheckouts() {
           </SelectContent>
         </Select>
 
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="w-[140px]">
-              <Calendar className="h-4 w-4 mr-2" />
-              {startDate ? format(startDate, 'dd/MM') : 'Período'}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <CalendarComponent
-              mode="range"
-              selected={{ from: startDate, to: endDate }}
-              onSelect={(range) => {
-                setStartDate(range?.from);
-                setEndDate(range?.to);
-              }}
-              locale={ptBR}
-            />
-          </PopoverContent>
-        </Popover>
+        <DateRangeFilter
+          startDate={startDate}
+          endDate={endDate}
+          onChange={(start, end) => {
+            setStartDate(start);
+            setEndDate(end);
+          }}
+        />
 
         {hasActiveFilters && (
           <Button variant="ghost" size="icon" onClick={clearFilters}>
