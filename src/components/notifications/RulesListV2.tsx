@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Loader2, Clock, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Loader2, Clock, CheckCircle2, XCircle, AlertTriangle, ExternalLink } from "lucide-react";
+import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -137,28 +138,57 @@ export function RulesListV2({
               </Badge>
               {/* WhatsApp Template Status */}
               {rule.channels.includes('whatsapp') && rule.meta_template_status && rule.meta_template_status !== 'none' && (
-                <Badge 
-                  variant="outline" 
-                  className={
-                    rule.meta_template_status === 'approved' 
-                      ? 'border-green-500 text-green-600 bg-green-500/10' 
-                      : rule.meta_template_status === 'rejected' 
-                        ? 'border-destructive text-destructive bg-destructive/10'
-                        : rule.meta_template_status === 'pending'
-                          ? 'border-yellow-500 text-yellow-600 bg-yellow-500/10'
-                          : 'border-orange-500 text-orange-600 bg-orange-500/10'
-                  }
-                >
-                  {rule.meta_template_status === 'approved' && <CheckCircle2 className="h-3 w-3 mr-1" />}
-                  {rule.meta_template_status === 'rejected' && <XCircle className="h-3 w-3 mr-1" />}
-                  {rule.meta_template_status === 'pending' && <Clock className="h-3 w-3 mr-1" />}
-                  {rule.meta_template_status === 'error' && <AlertTriangle className="h-3 w-3 mr-1" />}
-                  {rule.meta_template_status === 'approved' && 'Template aprovado'}
-                  {rule.meta_template_status === 'pending' && 'Aguardando Meta (até 24h)'}
-                  {rule.meta_template_status === 'rejected' && 'Template rejeitado'}
-                  {rule.meta_template_status === 'error' && 'Erro no envio'}
-                  {rule.meta_template_status === 'not_found' && 'Template não encontrado'}
-                </Badge>
+                <>
+                  <Badge 
+                    variant="outline" 
+                    className={
+                      rule.meta_template_status === 'approved' 
+                        ? 'border-green-500 text-green-600 bg-green-500/10' 
+                        : rule.meta_template_status === 'rejected' 
+                          ? 'border-destructive text-destructive bg-destructive/10'
+                          : rule.meta_template_status === 'pending'
+                            ? 'border-yellow-500 text-yellow-600 bg-yellow-500/10'
+                            : 'border-orange-500 text-orange-600 bg-orange-500/10'
+                    }
+                  >
+                    {rule.meta_template_status === 'approved' && <CheckCircle2 className="h-3 w-3 mr-1" />}
+                    {rule.meta_template_status === 'rejected' && <XCircle className="h-3 w-3 mr-1" />}
+                    {rule.meta_template_status === 'pending' && <Clock className="h-3 w-3 mr-1" />}
+                    {rule.meta_template_status === 'error' && <AlertTriangle className="h-3 w-3 mr-1" />}
+                    {rule.meta_template_status === 'approved' && (
+                      <>
+                        Template aprovado
+                        {rule.meta_template_approved_at && (
+                          <span className="ml-1 opacity-80">
+                            em {format(new Date(rule.meta_template_approved_at), "dd/MM 'às' HH:mm")}
+                          </span>
+                        )}
+                      </>
+                    )}
+                    {rule.meta_template_status === 'pending' && 'Aguardando Meta (até 24h)'}
+                    {rule.meta_template_status === 'rejected' && (
+                      <>
+                        Template rejeitado
+                        {rule.meta_template_rejected_at && (
+                          <span className="ml-1 opacity-80">
+                            em {format(new Date(rule.meta_template_rejected_at), "dd/MM 'às' HH:mm")}
+                          </span>
+                        )}
+                      </>
+                    )}
+                    {rule.meta_template_status === 'error' && 'Erro no envio'}
+                    {rule.meta_template_status === 'not_found' && 'Template não encontrado'}
+                  </Badge>
+                  <a
+                    href="https://business.facebook.com/latest/whatsapp_manager/message_templates"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Ver na Meta
+                  </a>
+                </>
               )}
             </div>
           </div>
