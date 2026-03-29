@@ -968,9 +968,7 @@ Deno.serve(async (req) => {
     }
   } catch (error: any) {
     console.error('[core-orders] Error:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message || 'Internal error', code: 'INTERNAL_ERROR' }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'orders' });
+  }
   }
 });

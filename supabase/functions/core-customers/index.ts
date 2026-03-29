@@ -5,6 +5,7 @@
 // =============================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { errorResponse } from '../_shared/error-response.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -230,10 +231,7 @@ Deno.serve(async (req) => {
           .single();
 
         if (insertError) {
-          return new Response(
-            JSON.stringify({ success: false, error: insertError.message, code: 'INSERT_FAILED' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          return errorResponse(insertError, corsHeaders, { module: 'customers', action: 'create' });
         }
 
         await createAuditLog(supabase, {
@@ -317,10 +315,7 @@ Deno.serve(async (req) => {
           .single();
 
         if (updateError) {
-          return new Response(
-            JSON.stringify({ success: false, error: updateError.message, code: 'UPDATE_FAILED' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          return errorResponse(updateError, corsHeaders, { module: 'customers', action: 'update' });
         }
 
         await createAuditLog(supabase, {
@@ -440,10 +435,7 @@ Deno.serve(async (req) => {
           .eq('tenant_id', tenantId);
 
         if (deleteError) {
-          return new Response(
-            JSON.stringify({ success: false, error: deleteError.message, code: 'DELETE_FAILED' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          return errorResponse(deleteError, corsHeaders, { module: 'customers', action: 'delete' });
         }
 
         await createAuditLog(supabase, {
@@ -533,10 +525,7 @@ Deno.serve(async (req) => {
           .single();
 
         if (insertError) {
-          return new Response(
-            JSON.stringify({ success: false, error: insertError.message, code: 'INSERT_FAILED' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          return errorResponse(insertError, corsHeaders, { module: 'customers', action: 'add_address' });
         }
 
         await createAuditLog(supabase, {
@@ -631,10 +620,7 @@ Deno.serve(async (req) => {
           .single();
 
         if (insertError) {
-          return new Response(
-            JSON.stringify({ success: false, error: insertError.message, code: 'INSERT_FAILED' }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+          return errorResponse(insertError, corsHeaders, { module: 'customers', action: 'add_note' });
         }
 
         return new Response(
@@ -651,9 +637,8 @@ Deno.serve(async (req) => {
     }
   } catch (error: any) {
     console.error('[core-customers] Error:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message || 'Internal error', code: 'INTERNAL_ERROR' }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    return errorResponse(error, corsHeaders, { module: 'customers' });
+  }
     );
   }
 });
