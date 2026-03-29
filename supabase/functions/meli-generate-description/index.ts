@@ -389,13 +389,6 @@ Retorne APENAS o título completo, sem aspas e sem explicações.`;
     );
 
   } catch (error) {
-    console.error(`[meli-generate-description] Error:`, error);
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: error instanceof Error ? error.message : "Erro interno",
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'mercadolivre', action: 'generate-description' });
   }
 });

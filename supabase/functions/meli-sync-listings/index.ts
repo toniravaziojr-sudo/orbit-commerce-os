@@ -88,8 +88,6 @@ serve(async (req) => {
     return jsonResponse(result);
 
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error(`[meli-sync-listings] Error:`, error);
     return errorResponse(error, corsHeaders, { module: 'mercadolivre', action: 'sync-listings' });
   }
 });
