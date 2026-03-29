@@ -389,7 +389,17 @@ cliente@email.com,João Silva,11999999999,12345678900,active
 
 ---
 
-## 13. Pendências
+## 13. Componentes de Data Padronizados
+
+| Campo | Componente | Tela |
+|-------|------------|------|
+| `birth_date` | `DatePickerField` | CustomerForm, CustomerDetail |
+
+> Ver `regras-gerais.md` § Padrão de Datas para especificação completa.
+
+---
+
+## 14. Pendências
 
 - [ ] Exportação de clientes (CSV/Excel)
 - [ ] Merge de clientes duplicados

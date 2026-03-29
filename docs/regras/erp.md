@@ -461,3 +461,17 @@ Módulo centralizado usado por **todas** as 3 funções de criação fiscal.
 | **Edge Functions afetadas** | fiscal-emit, fiscal-submit, fiscal-cancel, fiscal-webhook, fiscal-get-status, fiscal-create-draft, fiscal-create-manual, fiscal-validate-order, fiscal-settings, fiscal-upload-certificate, fiscal-send-nfe-email, fiscal-auto-create-drafts, fiscal-sync-focus-nfe, fiscal-sync-nuvem-fiscal, fiscal-test-connection, fiscal-check-status, fiscal-remove-certificate, fiscal-cce, fiscal-inutilizar, fiscal-update-draft |
 | **Componentes afetados** | CancelInvoiceDialog, EmitInvoiceButton, CorrectInvoiceDialog, InutilizarNumerosDialog, ManualInvoiceDialog, EntryInvoiceDialog |
 | **Afeta** | Módulo Fiscal inteiro — nenhum erro técnico vaza mais para o usuário |
+
+---
+
+## Componentes de Data Padronizados
+
+| Submódulo | Campo | Componente |
+|-----------|-------|------------|
+| Fiscal | Data da NF-e (InvoiceEditor) | `DatePickerField` |
+| Financeiro | Data de lançamento (FinanceEntryFormDialog) | `DatePickerField` |
+| Financeiro | Filtro de período (Finance) | `DateRangeFilter` |
+| Compras | Data do pedido (PurchaseFormDialog) | `DatePickerField` |
+| Compras | Filtro de período (Purchases) | `DateRangeFilter` |
+
+> Ver `regras-gerais.md` § Padrão de Datas para especificação completa.

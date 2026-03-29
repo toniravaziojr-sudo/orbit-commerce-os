@@ -189,6 +189,17 @@ O assistente de IA pode criar cupons via tool `createDiscount` na edge function 
 
 ---
 
+## Componentes de Data Padronizados
+
+| Campo | Componente | Descrição |
+|-------|------------|-----------|
+| `starts_at` | `DateTimePickerField` | Início da validade do cupom |
+| `ends_at` | `DateTimePickerField` | Fim da validade do cupom |
+
+> Ver `regras-gerais.md` § Padrão de Datas para especificação completa.
+
+---
+
 ## Regras de Negócio
 
 | Regra | Descrição |

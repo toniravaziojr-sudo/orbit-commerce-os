@@ -422,7 +422,7 @@ graph TD
 | Elemento | Comportamento |
 |----------|---------------|
 | Busca | Por número, nome ou email do cliente |
-| Filtros | Status, pagamento, envio, período, data, **🆕 1ª Venda** |
+| Filtros | Status, pagamento, envio, **🆕 1ª Venda**. Período via `DateRangeFilter` padrão (ver `regras-gerais.md`) |
 | Estatísticas | Cards com pendentes, em separação, enviados |
 | Origem | Badge indicando Loja própria ou Marketplace (size="sm") |
 | **1ª Venda** | Badge compacta "1ª" exibida ao lado do valor total quando `is_first_sale = true` |
