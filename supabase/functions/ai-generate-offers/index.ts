@@ -303,7 +303,7 @@ Gere sugestões de ofertas do tipo "${type}" usando a ferramenta generate_offer_
   } catch (error) {
     console.error(`[ai-generate-offers] Erro:`, error);
     return new Response(
-      JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'Erro interno' }),
+      JSON.stringify({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

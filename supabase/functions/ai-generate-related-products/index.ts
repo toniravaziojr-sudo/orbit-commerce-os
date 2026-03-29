@@ -269,7 +269,7 @@ Gere os produtos relacionados usando a ferramenta set_related_products.`;
   } catch (error) {
     console.error(`[ai-generate-related] Erro:`, error);
     return new Response(
-      JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'Erro interno' }),
+      JSON.stringify({ success: false, error: "Erro interno. Se o problema persistir, entre em contato com o suporte." }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
