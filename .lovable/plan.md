@@ -1,53 +1,68 @@
+📋 CHECKLIST DE CONFORMIDADE:
 
+- ✅ Doc lido: `docs/regras/integracoes.md` (já lido nesta sessão e revalidado agora)
+- ✅ Proposta no formato correto (Como funciona hoje / O problema / O que eu faria / Resultado final)
+- ✅ Aguardando confirmação do usuário
 
-# Diagnóstico de Status por Seleção no Calendário de Conteúdo
+**Como funciona hoje:**
+Hoje o sistema tenta concluir o registro do número de forma incompleta/inconsistente:
+1) Em um fluxo, tenta registrar automaticamente com PIN fixo (`123456`).
+2) No botão manual, o PIN pode ir vazio.
+3) Quando falha, a mensagem ainda orienta desativar 2 etapas.
+4) O erro atual visto no banco é: `Invalid parameter phone_number_id`.
 
-## Como funciona hoje
+**O problema:**
+O fluxo está misturando etapas diferentes de validação do número:
+- O código que chega por SMS é da validação do número.
+- O PIN de 6 dígitos é da segurança da conta (2 etapas).
+Sem separar essas etapas, o registro quebra e gera erro confuso para o cliente.
 
-Quando você seleciona dias no calendário e clica em "Copys IA" ou "Criativos IA", o sistema valida na hora do clique e mostra toasts avisando se falta algo. Mas não há **nenhuma indicação visual prévia** do que está faltando nos cards selecionados — você só descobre quando tenta executar a ação.
+**O que eu faria:**
+1) **Corrigir o fluxo para 3 etapas reais no app (sem pedir para desativar segurança):**
+   - Etapa A: solicitar código por SMS/voz.
+   - Etapa B: validar esse código.
+   - Etapa C: registrar o número para uso oficial.
+2) **Ajustar a experiência na tela Meta:**
+   - “Ação necessária” com passo a passo simples.
+   - Campo “Código recebido por SMS”.
+   - Campo “PIN de segurança (6 dígitos)” com texto claro (criar novo ou usar o já existente).
+3) **Remover comportamentos incorretos atuais:**
+   - eliminar PIN fixo.
+   - impedir tentativa de registro sem PIN válido.
+   - trocar mensagem de erro para orientação correta (sem mandar desligar 2 etapas).
+4) **Melhorar os status e avisos:**
+   - diferenciar “aguardando validação por SMS” de “aguardando registro final”.
+   - no card “Integrações com erro”, mostrar mensagem objetiva e ação direta para concluir.
+5) **Atualizar documentação de regras do módulo de integrações** com o novo fluxo oficial.
 
-## O problema
+**Resultado final:**
+O cliente conclui a ativação sem reduzir segurança da conta, com etapas claras (SMS + confirmação), e o número conecta de forma previsível.
 
-Você seleciona vários dias, clica para gerar criativos, e só aí descobre que metade dos cards ainda não tem copy. Isso gera frustração e idas e vindas desnecessárias. Não há visibilidade do "estado de prontidão" da seleção.
+---
 
-## O que eu faria
+### Detalhes técnicos (implementação)
 
-Adicionar um **painel de diagnóstico dinâmico** que aparece dentro da barra de seleção (abaixo dos botões "Limpar seleção" e "Excluir"), mostrando em tempo real o status dos cards selecionados:
+- **Fluxo backend a ajustar**
+  - `supabase/functions/meta-whatsapp-onboarding-callback/index.ts`
+    - remover tentativa automática com PIN fixo.
+  - `supabase/functions/meta-whatsapp-register-phone/index.ts`
+    - validar entrada obrigatória de PIN no registro final.
+    - mapear erros de negócio com mensagens corretas.
+  - criar ações/funções para:
+    - solicitar código (SMS/voz),
+    - validar código,
+    - então registrar número.
 
-### 1. Resumo visual de prontidão (sempre visível na seleção)
+- **UI a ajustar**
+  - `src/components/integrations/MetaUnifiedSettings.tsx`
+    - transformar botão atual em mini fluxo guiado.
+    - separar claramente “código SMS” vs “PIN de segurança”.
+    - manter badge “Ação necessária”.
 
-Um bloco com ícones coloridos mostrando:
-- **✅ X prontos** (têm estratégia + copy + criativo)
-- **⚠️ X sem copy** (têm estratégia mas faltam copys)
-- **⚠️ X sem criativo** (têm copy mas faltam criativos)
-- **❌ X sem estratégia** (vazios, sem título)
+- **Monitoramento**
+  - `src/components/dashboard/IntegrationErrorsCard.tsx`
+    - mostrar estado/erro correto de validação vs registro.
 
-### 2. Alerta contextual inteligente (baseado na próxima ação)
-
-Um aviso amarelo/laranja que muda conforme o que falta, exemplos:
-- Se clicar em "Copys IA" com cards sem estratégia: *"2 publicações do dia 3 e 5 ainda não têm estratégia e serão ignoradas na geração de copys"*
-- Se clicar em "Criativos IA" com cards sem copy: *"3 publicações dos dias 1, 3 e 19 ainda não têm copy. Gere as copys antes dos criativos."*
-
-### 3. Botões de ação desabilitados com tooltip
-
-Em vez de permitir o clique e mostrar toast depois, os botões "Copys IA" e "Criativos IA" ficam **visualmente atenuados** quando nenhum card elegível existe na seleção, com tooltip explicando o motivo. Mas **não travam** quando há pelo menos 1 card elegível (para não bloquear regeneração parcial).
-
-## Resultado final
-
-O usuário vê instantaneamente o que falta em cada seleção, sem precisar clicar para descobrir. O fluxo de regeneração parcial continua funcionando normalmente — quem tem tudo pronto avança, quem não tem recebe o aviso visual.
-
-## Detalhes Técnicos
-
-### Arquivo alterado
-- `src/components/media/PlanningTab.tsx`
-
-### Implementação
-1. Criar um `useMemo` `selectionDiagnostics` que analisa os items dos `selectedDays` e retorna contagens por status (sem estratégia, sem copy, sem criativo, prontos) + lista dos dias afetados.
-2. Renderizar um componente `SelectionDiagnostics` dentro do bloco `isSelectMode && selectedDays.size > 0`, entre os botões existentes e o calendário.
-3. Usar badges coloridos (verde/amarelo/vermelho) para cada categoria.
-4. Mostrar um `Alert` contextual com os dias específicos quando há inconsistência entre cards selecionados.
-5. No `WorkflowStepper`, adicionar lógica para atenuar visualmente steps impossíveis (opacity + tooltip), sem desabilitar completamente quando há pelo menos 1 item elegível.
-
-### Doc afetado
-- `docs/regras/campanhas.md` — Atualizar seção do Modo Seleção com o novo diagnóstico visual.
-
+- **Docs**
+  - `docs/regras/integracoes.md`
+    - substituir regra antiga de 2FA por fluxo oficial de verificação + registro.
