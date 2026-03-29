@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { format, startOfMonth, isWithinInterval, parseISO } from "date-fns";
-import { MonthlyCalendar, DayHeader, type DayCellInfo } from "@/components/ui/monthly-calendar";
+import { MonthlyCalendar, DayHeader } from "@/components/ui/monthly-calendar";
 import { ChevronRight, Plus, Sparkles, Image, Check, Loader2, MousePointer2, Trash2, LayoutGrid, FileText, PenTool, AlertCircle, ArrowRight, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
