@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { startOfDay, subDays, endOfDay } from 'date-fns';
+import { subDays } from 'date-fns';
 
 export interface DashboardMetrics {
   salesToday: number;
@@ -73,39 +73,58 @@ const EMPTY_METRICS: DashboardMetrics = {
   conversionRateToday: 0, conversionRateYesterday: 0,
 };
 
+const SAO_PAULO_TIMEZONE = 'America/Sao_Paulo';
+const SAO_PAULO_UTC_OFFSET = '-03:00';
+
+function getSaoPauloDateKey(date: Date) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: SAO_PAULO_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+
+  return `${year}-${month}-${day}`;
+}
+
+function toSaoPauloStartIso(date: Date) {
+  return new Date(`${getSaoPauloDateKey(date)}T00:00:00.000${SAO_PAULO_UTC_OFFSET}`).toISOString();
+}
+
+function toSaoPauloEndIso(date: Date) {
+  return new Date(`${getSaoPauloDateKey(date)}T23:59:59.999${SAO_PAULO_UTC_OFFSET}`).toISOString();
+}
+
 function computePeriods(startDate?: Date, endDate?: Date, firstOrderDate?: Date) {
   const now = new Date();
-
-  // "Todo o período": use first confirmed order date as start (not arbitrary 2000-01-01)
   const isAllTime = !startDate && !endDate;
-  
-  let periodStart: string;
-  let periodEnd: string;
 
-  if (isAllTime) {
-    // Use first confirmed order or fallback to 90 days ago
-    const baseDate = firstOrderDate || subDays(now, 90);
-    periodStart = startOfDay(baseDate).toISOString();
-    periodEnd = endOfDay(now).toISOString();
-  } else {
-    periodStart = startOfDay(startDate!).toISOString();
-    periodEnd = endOfDay(endDate!).toISOString();
-  }
+  const currentStartBaseDate = isAllTime ? (firstOrderDate || subDays(now, 90)) : startDate!;
+  const currentEndBaseDate = isAllTime ? now : endDate!;
 
-  const startMs = isAllTime
-    ? (firstOrderDate || subDays(now, 90)).getTime()
-    : startDate!.getTime();
-  const endMs = isAllTime ? now.getTime() : endDate!.getTime();
+  const periodStart = toSaoPauloStartIso(currentStartBaseDate);
+  const periodEnd = toSaoPauloEndIso(currentEndBaseDate);
+
+  const startMs = new Date(periodStart).getTime();
+  const endMs = new Date(periodEnd).getTime();
   const periodDuration = (endMs - startMs) || 24 * 60 * 60 * 1000;
 
-  const prevPeriodEnd = new Date(startMs - 1);
-  const prevPeriodStart = new Date(prevPeriodEnd.getTime() - periodDuration);
+  const prevPeriodEndDate = new Date(startMs - 1);
+  const prevPeriodStartDate = new Date(prevPeriodEndDate.getTime() - periodDuration);
 
   return {
     periodStart,
     periodEnd,
-    prevStart: startOfDay(prevPeriodStart).toISOString(),
-    prevEnd: endOfDay(prevPeriodEnd).toISOString(),
+    prevStart: toSaoPauloStartIso(prevPeriodStartDate),
+    prevEnd: toSaoPauloEndIso(prevPeriodEndDate),
+    periodStartDate: getSaoPauloDateKey(currentStartBaseDate),
+    periodEndDate: getSaoPauloDateKey(currentEndBaseDate),
+    prevStartDate: getSaoPauloDateKey(prevPeriodStartDate),
+    prevEndDate: getSaoPauloDateKey(prevPeriodEndDate),
   };
 }
 
@@ -131,13 +150,22 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
           .order('created_at', { ascending: true })
           .limit(1)
           .single();
-        
+
         if (firstOrder?.created_at) {
           firstOrderDate = new Date(firstOrder.created_at);
         }
       }
 
-      const { periodStart, periodEnd, prevStart, prevEnd } = computePeriods(startDate, endDate, firstOrderDate);
+      const {
+        periodStart,
+        periodEnd,
+        prevStart,
+        prevEnd,
+        periodStartDate,
+        periodEndDate,
+        prevStartDate,
+        prevEndDate,
+      } = computePeriods(startDate, endDate, firstOrderDate);
 
       // Use REST API for checkout_sessions funnel fields (not in generated types yet)
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -167,14 +195,14 @@ export function useDashboardMetrics(startDate?: Date, endDate?: Date) {
         supabase.from('checkout_sessions').select('id, status, recovered_at, customer_email, customer_phone, order_id').eq('tenant_id', tid).gte('created_at', periodStart).lte('created_at', periodEnd),
         supabase.from('checkout_sessions').select('id, status, order_id').eq('tenant_id', tid).gte('created_at', prevStart).lte('created_at', prevEnd),
         // Ad spend - Meta
-        supabase.from('meta_ad_insights').select('spend_cents').eq('tenant_id', tid).gte('date_start', periodStart.slice(0, 10)).lte('date_start', periodEnd.slice(0, 10)),
-        supabase.from('meta_ad_insights').select('spend_cents').eq('tenant_id', tid).gte('date_start', prevStart.slice(0, 10)).lte('date_start', prevEnd.slice(0, 10)),
+        supabase.from('meta_ad_insights').select('spend_cents').eq('tenant_id', tid).gte('date_start', periodStartDate).lte('date_start', periodEndDate),
+        supabase.from('meta_ad_insights').select('spend_cents').eq('tenant_id', tid).gte('date_start', prevStartDate).lte('date_start', prevEndDate),
         // Ad spend - Google (cost_micros = micros, /1_000_000 to get currency)
-        supabase.from('google_ad_insights').select('cost_micros').eq('tenant_id', tid).gte('date', periodStart.slice(0, 10)).lte('date', periodEnd.slice(0, 10)),
-        supabase.from('google_ad_insights').select('cost_micros').eq('tenant_id', tid).gte('date', prevStart.slice(0, 10)).lte('date', prevEnd.slice(0, 10)),
+        supabase.from('google_ad_insights').select('cost_micros').eq('tenant_id', tid).gte('date', periodStartDate).lte('date', periodEndDate),
+        supabase.from('google_ad_insights').select('cost_micros').eq('tenant_id', tid).gte('date', prevStartDate).lte('date', prevEndDate),
         // Ad spend - TikTok
-        supabase.from('tiktok_ad_insights').select('spend_cents').eq('tenant_id', tid).gte('date_start', periodStart.slice(0, 10)).lte('date_start', periodEnd.slice(0, 10)),
-        supabase.from('tiktok_ad_insights').select('spend_cents').eq('tenant_id', tid).gte('date_start', prevStart.slice(0, 10)).lte('date_start', prevEnd.slice(0, 10)),
+        supabase.from('tiktok_ad_insights').select('spend_cents').eq('tenant_id', tid).gte('date_start', periodStartDate).lte('date_start', periodEndDate),
+        supabase.from('tiktok_ad_insights').select('spend_cents').eq('tenant_id', tid).gte('date_start', prevStartDate).lte('date_start', prevEndDate),
       ]);
 
       // Fetch funnel step counts via REST API (new columns not in types yet)
