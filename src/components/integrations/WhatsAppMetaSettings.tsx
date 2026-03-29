@@ -195,6 +195,26 @@ export function WhatsAppMetaSettings() {
     },
   });
 
+  // Register phone number manually
+  const registerPhoneMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("meta-whatsapp-register-phone", {
+        body: { tenant_id: tenantId },
+      });
+      
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Número registrado com sucesso na Cloud API!");
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Erro ao registrar número");
+    },
+  });
+
   // Send test message mutation
   const testMutation = useMutation({
     mutationFn: async () => {
