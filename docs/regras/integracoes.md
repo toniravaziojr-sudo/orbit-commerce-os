@@ -174,6 +174,7 @@ O registro é feito em 3 etapas guiadas na UI:
 - O sistema deve exibir a mensagem real retornada pela Meta (`error_user_msg` ou `error.message`)
 - Campos brutos salvos no `last_error`: mensagem amigável + `[code=X, subcode=Y, fbtrace=Z]`
 - O `meta_diagnostic` completo é retornado ao frontend para depuração
+- **Exibição ao usuário:** O `last_error` é sempre processado por `sanitizeError()` antes de exibição — nunca raw. Quando status é `pending_registration`, o erro é **ocultado** da UI.
 
 **Status de conexão:**
 | Status | Significado |
@@ -2662,7 +2663,9 @@ O registro do número WhatsApp na Cloud API é feito em **3 etapas guiadas** no 
 2. **Verificar código:** Campo para inserir o código de 6 dígitos recebido.
 3. **Registrar com PIN:** Campo para PIN de 6 dígitos (criado pelo usuário ou reutilizado).
 
-- **Status `pending_registration`**: Exibe alerta "⚠️ Ação necessária — Ative seu número" com o fluxo de 3 passos.
+- **Status `pending_registration`**: 
+  - Se o fluxo de SMS/PIN está em andamento: exibe alerta "⚠️ Ação necessária — Ative seu número" com o fluxo de 3 passos.
+  - Se o fluxo já foi concluído (registrationStep idle): exibe caixa informativa azul "Seu número está em análise pela Meta. Esse processo é automático e pode levar até 48h. Não é necessária nenhuma ação." O erro técnico anterior é ocultado.
 - **Status `awaiting_verification`**: Exibe passo 2 (inserir código recebido por SMS).
 - **Status `connected`**: Exibe botão discreto "Re-registrar número" que reinicia o fluxo.
 
@@ -2675,6 +2678,8 @@ O registro do número WhatsApp na Cloud API é feito em **3 etapas guiadas** no 
 | `meta-whatsapp-register-phone` | `{ tenant_id, pin }` | Registra número com PIN obrigatório de 6 dígitos |
 
 **Tratamento de erros:**
+- Todos os `last_error` do WhatsApp são sanitizados via `sanitizeError()` de `@/lib/error-sanitizer.ts` antes de exibição ao usuário — **NUNCA** exibir mensagem técnica bruta da Meta.
+- Quando status é `pending_registration`, o `last_error` é **ocultado** da UI (o número está em análise normal da Meta).
 - **PIN incorreto** (subcode 2388001 ou code 100): Mensagem clara "PIN incorreto"
 - **Número já registrado** (subcode 136025): Orientação para desregistrar da outra conta
 - **NUNCA** orientar desativar verificação em duas etapas
@@ -2698,7 +2703,8 @@ O registro do número WhatsApp na Cloud API é feito em **3 etapas guiadas** no 
 |---------|------|
 | **Descrição** | Card full-width que verifica Meta (token expirado, erros), WhatsApp (registro pendente, erros) e Email (DNS não verificado). |
 | **Estado OK** | Exibe "Tudo funcionando" com ícone verde no padrão visual do AdsAlertsWidget. |
-| **Estado com erro** | Lista cada integração com erro e badge "Erro", clicável para ir direto à aba de integrações correspondente. |
+| **Estado com erro real** | Lista integração com badge **"Erro"** (vermelho), clicável para ir direto à aba correspondente. |
+| **Estado pendente (WhatsApp)** | Para status `pending_registration` ou `awaiting_verification`, exibe badge **"Pendente"** (amarelo/outline) em vez de "Erro". Mensagens: `awaiting_verification` → "Código de verificação enviado — insira o código recebido por SMS"; `pending_registration` → "Aguardando aprovação da Meta — processo automático, pode levar até 48h". |
 | **Localização** | Central de Execuções, full-width entre AdsAlertsWidget e ContentCalendarAlertsCard. |
 | **Visual** | Segue o mesmo padrão de cards como Comunicações e Gestor de Tráfego (header com título + botão "Ver tudo", items com ícone/título/descrição). |
 
