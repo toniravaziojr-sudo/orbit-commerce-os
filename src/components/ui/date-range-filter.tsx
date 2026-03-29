@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Calendar, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { format, parse, isValid, isSameDay, startOfDay, endOfDay } from 'date-fns';
+import { format, parse, isValid, isSameDay, startOfDay, endOfDay, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   type DatePreset,
@@ -261,59 +261,75 @@ export function DateRangeFilter({
 
           {/* Calendars and Presets */}
           <div className="flex gap-4">
-            {/* Two Calendars */}
+            {/* Calendar area — shows month picker grid or day calendars */}
             <div className="flex gap-2">
-              <CalendarComponent
-                mode="single"
-                selected={selectionPhase === 'end' ? localStartDate : localStartDate}
-                onSelect={handleCalendarDayClick}
-                month={calendarMonth}
-                onMonthChange={setCalendarMonth}
-                locale={ptBR}
-                className="rounded-md border pointer-events-auto"
-                modifiers={{
-                  range: localStartDate && localEndDate ? {
-                    from: localStartDate,
-                    to: localEndDate,
-                  } : undefined,
-                  rangeStart: localStartDate ? localStartDate : undefined,
-                }}
-                modifiersStyles={{
-                  range: {
-                    backgroundColor: 'hsl(var(--primary) / 0.1)',
-                  },
-                }}
-              />
-              <CalendarComponent
-                mode="single"
-                selected={localEndDate}
-                onSelect={handleCalendarDayClick}
-                month={nextMonth}
-                onMonthChange={(month) => {
-                  const prev = new Date(month);
-                  prev.setMonth(prev.getMonth() - 1);
-                  setCalendarMonth(prev);
-                }}
-                locale={ptBR}
-                className="rounded-md border pointer-events-auto"
-                modifiers={{
-                  range: localStartDate && localEndDate ? {
-                    from: localStartDate,
-                    to: localEndDate,
-                  } : undefined,
-                }}
-                modifiersStyles={{
-                  range: {
-                    backgroundColor: 'hsl(var(--primary) / 0.1)',
-                  },
-                }}
-              />
+              {activePreset === 'select_month' ? (
+                <MonthPickerGrid
+                  selectedMonth={calendarMonth}
+                  onSelectMonth={(month) => {
+                    setCalendarMonth(month);
+                    const start = startOfMonth(month);
+                    const end = endOfMonth(month);
+                    setLocalStartDate(start);
+                    setLocalEndDate(end);
+                    setStartInputValue(format(start, 'dd/MM/yyyy'));
+                    setEndInputValue(format(end, 'dd/MM/yyyy'));
+                  }}
+                />
+              ) : (
+                <>
+                  <CalendarComponent
+                    mode="single"
+                    selected={localStartDate}
+                    onSelect={handleCalendarDayClick}
+                    month={calendarMonth}
+                    onMonthChange={setCalendarMonth}
+                    locale={ptBR}
+                    className="rounded-md border pointer-events-auto"
+                    modifiers={{
+                      range: localStartDate && localEndDate ? {
+                        from: localStartDate,
+                        to: localEndDate,
+                      } : undefined,
+                      rangeStart: localStartDate ? localStartDate : undefined,
+                    }}
+                    modifiersStyles={{
+                      range: {
+                        backgroundColor: 'hsl(var(--primary) / 0.1)',
+                      },
+                    }}
+                  />
+                  <CalendarComponent
+                    mode="single"
+                    selected={localEndDate}
+                    onSelect={handleCalendarDayClick}
+                    month={nextMonth}
+                    onMonthChange={(month) => {
+                      const prev = new Date(month);
+                      prev.setMonth(prev.getMonth() - 1);
+                      setCalendarMonth(prev);
+                    }}
+                    locale={ptBR}
+                    className="rounded-md border pointer-events-auto"
+                    modifiers={{
+                      range: localStartDate && localEndDate ? {
+                        from: localStartDate,
+                        to: localEndDate,
+                      } : undefined,
+                    }}
+                    modifiersStyles={{
+                      range: {
+                        backgroundColor: 'hsl(var(--primary) / 0.1)',
+                      },
+                    }}
+                  />
+                </>
+              )}
             </div>
 
             {/* Presets */}
             <div className="flex flex-col gap-1 min-w-[160px]">
               {PRESET_OPTIONS.map((preset, index) => {
-                // Add separator before rolling group
                 const prevGroup = index > 0 ? PRESET_OPTIONS[index - 1].group : null;
                 const showSeparator = prevGroup && prevGroup !== preset.group;
 
@@ -349,5 +365,71 @@ export function DateRangeFilter({
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+const MONTH_NAMES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril',
+  'Maio', 'Junho', 'Julho', 'Agosto',
+  'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
+
+function MonthPickerGrid({
+  selectedMonth,
+  onSelectMonth,
+}: {
+  selectedMonth: Date;
+  onSelectMonth: (month: Date) => void;
+}) {
+  const [year, setYear] = useState(selectedMonth.getFullYear());
+  const currentMonth = selectedMonth.getMonth();
+  const currentYear = selectedMonth.getFullYear();
+
+  return (
+    <div className="rounded-md border p-4 min-w-[280px]">
+      <div className="flex items-center justify-between mb-4">
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-7 w-7"
+          onClick={() => setYear(y => y - 1)}
+        >
+          <span className="sr-only">Ano anterior</span>
+          ‹
+        </Button>
+        <span className="text-sm font-medium">{year}</span>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-7 w-7"
+          onClick={() => setYear(y => y + 1)}
+        >
+          <span className="sr-only">Próximo ano</span>
+          ›
+        </Button>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {MONTH_NAMES.map((name, index) => {
+          const isSelected = index === currentMonth && year === currentYear;
+          return (
+            <Button
+              key={name}
+              variant={isSelected ? 'default' : 'ghost'}
+              size="sm"
+              className={cn(
+                'h-9 text-xs',
+                isSelected && 'bg-primary text-primary-foreground'
+              )}
+              onClick={() => {
+                let d = new Date(year, index, 1);
+                onSelectMonth(d);
+              }}
+            >
+              {name}
+            </Button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
