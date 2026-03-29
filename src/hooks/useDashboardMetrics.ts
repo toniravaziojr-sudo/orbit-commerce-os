@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { startOfDay, subDays, endOfDay, format } from 'date-fns';
+import { subDays, format } from 'date-fns';
 
 export interface DashboardMetrics {
   salesToday: number;
@@ -73,39 +73,58 @@ const EMPTY_METRICS: DashboardMetrics = {
   conversionRateToday: 0, conversionRateYesterday: 0,
 };
 
+const SAO_PAULO_TIMEZONE = 'America/Sao_Paulo';
+const SAO_PAULO_UTC_OFFSET = '-03:00';
+
+function getSaoPauloDateKey(date: Date) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: SAO_PAULO_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+
+  return `${year}-${month}-${day}`;
+}
+
+function toSaoPauloStartIso(date: Date) {
+  return new Date(`${getSaoPauloDateKey(date)}T00:00:00.000${SAO_PAULO_UTC_OFFSET}`).toISOString();
+}
+
+function toSaoPauloEndIso(date: Date) {
+  return new Date(`${getSaoPauloDateKey(date)}T23:59:59.999${SAO_PAULO_UTC_OFFSET}`).toISOString();
+}
+
 function computePeriods(startDate?: Date, endDate?: Date, firstOrderDate?: Date) {
   const now = new Date();
   const isAllTime = !startDate && !endDate;
 
-  const currentStartDate = isAllTime
-    ? startOfDay(firstOrderDate || subDays(now, 90))
-    : startOfDay(startDate!);
+  const currentStartBaseDate = isAllTime ? (firstOrderDate || subDays(now, 90)) : startDate!;
+  const currentEndBaseDate = isAllTime ? now : endDate!;
 
-  const currentEndDate = isAllTime
-    ? endOfDay(now)
-    : endOfDay(endDate!);
+  const periodStart = toSaoPauloStartIso(currentStartBaseDate);
+  const periodEnd = toSaoPauloEndIso(currentEndBaseDate);
 
-  const periodStart = currentStartDate.toISOString();
-  const periodEnd = currentEndDate.toISOString();
-
-  const startMs = currentStartDate.getTime();
-  const endMs = currentEndDate.getTime();
+  const startMs = new Date(periodStart).getTime();
+  const endMs = new Date(periodEnd).getTime();
   const periodDuration = (endMs - startMs) || 24 * 60 * 60 * 1000;
 
-  const prevPeriodEnd = new Date(startMs - 1);
-  const prevPeriodStart = new Date(prevPeriodEnd.getTime() - periodDuration);
-  const prevStartDate = startOfDay(prevPeriodStart);
-  const prevEndDate = endOfDay(prevPeriodEnd);
+  const prevPeriodEndDate = new Date(startMs - 1);
+  const prevPeriodStartDate = new Date(prevPeriodEndDate.getTime() - periodDuration);
 
   return {
     periodStart,
     periodEnd,
-    prevStart: prevStartDate.toISOString(),
-    prevEnd: prevEndDate.toISOString(),
-    periodStartDate: format(currentStartDate, 'yyyy-MM-dd'),
-    periodEndDate: format(currentEndDate, 'yyyy-MM-dd'),
-    prevStartDate: format(prevStartDate, 'yyyy-MM-dd'),
-    prevEndDate: format(prevEndDate, 'yyyy-MM-dd'),
+    prevStart: toSaoPauloStartIso(prevPeriodStartDate),
+    prevEnd: toSaoPauloEndIso(prevPeriodEndDate),
+    periodStartDate: getSaoPauloDateKey(currentStartBaseDate),
+    periodEndDate: getSaoPauloDateKey(currentEndBaseDate),
+    prevStartDate: getSaoPauloDateKey(prevPeriodStartDate),
+    prevEndDate: getSaoPauloDateKey(prevPeriodEndDate),
   };
 }
 
