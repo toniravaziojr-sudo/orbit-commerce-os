@@ -277,7 +277,6 @@ Deno.serve(async (req) => {
         if (insertError) {
           return errorResponse(insertError, corsHeaders, { module: 'products', action: 'create' });
         }
-        }
 
         await createAuditLog(supabase, {
           tenant_id: tenantId,
@@ -384,7 +383,6 @@ Deno.serve(async (req) => {
 
         if (updateError) {
           return errorResponse(updateError, corsHeaders, { module: 'products', action: 'update' });
-        }
         }
 
         await createAuditLog(supabase, {
@@ -520,7 +518,6 @@ Deno.serve(async (req) => {
         if (deleteError) {
           return errorResponse(deleteError, corsHeaders, { module: 'products', action: 'delete' });
         }
-        }
 
         await createAuditLog(supabase, {
           tenant_id: tenantId,
@@ -596,7 +593,6 @@ Deno.serve(async (req) => {
 
         if (insertError) {
           return errorResponse(insertError, corsHeaders, { module: 'products', action: 'add_image' });
-        }
         }
 
         return new Response(
@@ -709,7 +705,5 @@ Deno.serve(async (req) => {
   } catch (error: any) {
     console.error('[core-products] Error:', error);
     return errorResponse(error, corsHeaders, { module: 'products' });
-  }
-    );
   }
 });

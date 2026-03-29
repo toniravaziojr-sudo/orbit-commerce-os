@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
         }
 
         if (queryData.error?.code !== 'ok' && queryData.error?.code) {
-          return new Response(JSON.stringify({ success: false, error: queryData."Erro interno. Se o problema persistir, entre em contato com o suporte." || 'TikTok API error' }), {
+          return new Response(JSON.stringify({ success: false, error: queryData.error?.message || 'TikTok API error' }), {
             status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }

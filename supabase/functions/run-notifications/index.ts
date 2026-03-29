@@ -590,7 +590,7 @@ async function sendWhatsAppViaMetaTemplate(
         status: 'failed',
         error_message: sendResult.error.message,
       });
-      return { success: false, error: sendResult."Erro interno. Se o problema persistir, entre em contato com o suporte.", response: sendResult };
+      return { success: false, error: sendResult.error?.message || 'Erro ao enviar template via WhatsApp', response: sendResult };
     }
 
     const messageId = sendResult.messages?.[0]?.id;
@@ -686,7 +686,7 @@ async function sendWhatsAppViaMeta(
 
       return {
         success: false,
-        error: sendResult."Erro interno" || 'Erro ao enviar via Meta WhatsApp',
+        error: sendResult.error?.message || 'Erro ao enviar via Meta WhatsApp',
         response: sendResult
       };
     }
