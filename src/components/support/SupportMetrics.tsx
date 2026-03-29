@@ -54,8 +54,10 @@ export function SupportMetrics() {
       if (!currentTenant?.id) return null;
 
       const today = startOfDay(new Date());
-      const { start: todayStart, end: todayEnd } = getPresetDateRange('today');
+      const todayStart = today;
+      const todayEnd = new Date();
       const yesterday = subDays(today, 1);
+      const weekAgo = subDays(today, 7);
 
       // Get today's conversations
       const { data: todayConvs } = await supabase
