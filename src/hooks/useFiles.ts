@@ -3,8 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { useEffect } from 'react';
-import {
 import { showErrorToast } from '@/lib/error-toast';
+import {
   getBucketForFile as _getBucketForFile,
   getFileUrl as _getFileUrl,
   downloadDriveFile,
