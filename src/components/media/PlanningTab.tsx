@@ -169,7 +169,7 @@ export function PlanningTab({
   const isBlog = campaign?.target_channel === "blog";
   const hasSuggestions = items && items.length > 0;
 
-  const days = useMemo(() => eachDayOfInterval({ start: startOfMonth(currentMonth), end: endOfMonth(currentMonth) }), [currentMonth]);
+  // days grid now handled by MonthlyCalendar
 
   const campaignInterval = useMemo(() => {
     if (!campaign) return null;
