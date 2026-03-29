@@ -6,12 +6,12 @@ const corsHeaders = {
 };
 
 /**
- * Register (or re-register) a WhatsApp phone number on Meta Cloud API.
- * Step 3 of the registration flow. Requires a 6-digit PIN.
+ * Verify the SMS/voice code received for a WhatsApp phone number.
+ * Step 2 of the registration flow.
  */
 Deno.serve(async (req) => {
   const traceId = crypto.randomUUID().substring(0, 8);
-  console.log(`[meta-whatsapp-register-phone][${traceId}] Request received`);
+  console.log(`[meta-whatsapp-verify-code][${traceId}] Request received`);
 
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { tenant_id, pin } = await req.json();
+    const { tenant_id, code } = await req.json();
     if (!tenant_id) {
       return new Response(JSON.stringify({ success: false, error: "tenant_id é obrigatório" }), {
         status: 200,
@@ -58,9 +58,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // PIN is mandatory
-    if (!pin || !/^\d{6}$/.test(String(pin))) {
-      return new Response(JSON.stringify({ success: false, error: "PIN de 6 dígitos é obrigatório para registrar o número." }), {
+    if (!code || !/^\d{6}$/.test(String(code))) {
+      return new Response(JSON.stringify({ success: false, error: "Código de verificação deve ter 6 dígitos" }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -83,23 +82,23 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get WhatsApp config for this tenant
+    // Get WhatsApp config
     const { data: config, error: configError } = await supabase
       .from("whatsapp_configs")
-      .select("id, phone_number_id, waba_id, access_token, token_expires_at")
+      .select("id, phone_number_id, access_token, token_expires_at")
       .eq("tenant_id", tenant_id)
       .eq("provider", "meta")
       .single();
 
     if (configError || !config) {
-      return new Response(JSON.stringify({ success: false, error: "Configuração WhatsApp não encontrada. Conecte primeiro." }), {
+      return new Response(JSON.stringify({ success: false, error: "Configuração WhatsApp não encontrada." }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     if (!config.access_token) {
-      return new Response(JSON.stringify({ success: false, error: "Token de acesso não disponível. Reconecte sua conta." }), {
+      return new Response(JSON.stringify({ success: false, error: "Token de acesso não disponível." }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -122,73 +121,49 @@ Deno.serve(async (req) => {
 
     const graphApiVersion = credentials?.credential_value || "v21.0";
 
-    // Register the phone number on Cloud API
-    console.log(`[meta-whatsapp-register-phone][${traceId}] Registering phone ${config.phone_number_id}...`);
-    
-    const registerUrl = `https://graph.facebook.com/${graphApiVersion}/${config.phone_number_id}/register`;
-    const registerResponse = await fetch(registerUrl, {
+    // Verify the code
+    console.log(`[meta-whatsapp-verify-code][${traceId}] Verifying code for phone ${config.phone_number_id}...`);
+
+    const verifyUrl = `https://graph.facebook.com/${graphApiVersion}/${config.phone_number_id}/verify_code`;
+    const response = await fetch(verifyUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${config.access_token}`,
       },
       body: JSON.stringify({
-        messaging_product: "whatsapp",
-        pin: String(pin),
+        code: String(code),
       }),
     });
-    const registerData = await registerResponse.json();
+    const responseData = await response.json();
 
-    console.log(`[meta-whatsapp-register-phone][${traceId}] Register response:`, JSON.stringify(registerData));
+    console.log(`[meta-whatsapp-verify-code][${traceId}] Response:`, JSON.stringify(responseData));
 
-    if (registerData.success === true) {
-      // Update status to connected
+    if (responseData.success === true) {
+      // Update status to pending_registration (code verified, now needs register call)
       await supabase
         .from("whatsapp_configs")
         .update({
-          connection_status: "connected",
+          connection_status: "pending_registration",
           last_error: null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", config.id);
 
-      console.log(`[meta-whatsapp-register-phone][${traceId}] Phone registered successfully!`);
-
       return new Response(JSON.stringify({
         success: true,
-        message: "Número registrado com sucesso na Cloud API!",
+        message: "Código verificado com sucesso! Agora finalize o registro do número.",
       }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     } else {
-      const errorMsg = registerData.error?.message || JSON.stringify(registerData);
-      const errorCode = registerData.error?.code;
-      const errorSubcode = registerData.error?.error_subcode;
-      
-      // Build user-friendly error messages
-      let friendlyError = `Registro falhou: ${errorMsg}`;
-      if (errorSubcode === 2388001 || errorCode === 100) {
-        friendlyError = "PIN incorreto. Verifique o PIN de 6 dígitos e tente novamente.";
-      } else if (errorSubcode === 136025) {
-        friendlyError = "Número já registrado em outra conta. Desregistre o número da conta atual antes de registrar aqui.";
-      }
-      
-      // Update with error
-      await supabase
-        .from("whatsapp_configs")
-        .update({
-          connection_status: "pending_registration",
-          last_error: friendlyError,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", config.id);
-
-      console.error(`[meta-whatsapp-register-phone][${traceId}] Register failed:`, errorMsg);
+      const errorMsg = responseData.error?.message || JSON.stringify(responseData);
+      console.error(`[meta-whatsapp-verify-code][${traceId}] Failed:`, errorMsg);
 
       return new Response(JSON.stringify({
         success: false,
-        error: friendlyError,
+        error: `Código inválido ou expirado. Tente novamente.`,
       }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -196,7 +171,7 @@ Deno.serve(async (req) => {
     }
 
   } catch (error) {
-    console.error(`[meta-whatsapp-register-phone][${traceId}] Error:`, error);
+    console.error(`[meta-whatsapp-verify-code][${traceId}] Error:`, error);
     return new Response(JSON.stringify({ success: false, error: "Erro interno do servidor" }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

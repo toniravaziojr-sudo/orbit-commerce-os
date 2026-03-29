@@ -149,33 +149,41 @@ A aba `domain-email` unifica duas seções:
    - Troca `code` por `access_token`
    - Obtém WABA ID e Phone Number ID via Graph API
    - Salva credenciais em `whatsapp_configs`
-   - **Registra automaticamente** o número na Cloud API via `POST /{phone-number-id}/register`
-   - Define `connection_status` como `"connected"` (sucesso) ou `"pending_registration"` (falha no registro)
+   - Define `connection_status` como `"pending_registration"` (registro requer interação do usuário)
 
-#### Registro Técnico do Número (OBRIGATÓRIO)
+#### Registro Técnico do Número (OBRIGATÓRIO — 3 etapas)
 
 Após o Embedded Signup, o número aparece no WhatsApp Manager da Meta mas fica com status **Pendente** até que seja registrado na Cloud API. Sem esse registro, mensagens **não podem ser enviadas nem recebidas**.
 
-| Etapa | Descrição |
-|-------|-----------|
-| Registro automático | Executado no callback após salvar credenciais |
-| Registro manual | Botão "Registrar Número" na UI (usa token salvo, NÃO requer novo OAuth) |
-| Edge Function | `meta-whatsapp-register-phone` — reutiliza `access_token` armazenado |
-| Idempotência | Pode ser chamado múltiplas vezes sem efeito colateral |
+O registro é feito em 3 etapas guiadas na UI:
+
+| Etapa | Edge Function | Descrição |
+|-------|---------------|-----------|
+| 1. Solicitar código | `meta-whatsapp-request-code` | Envia código de verificação por SMS ou voz para o número |
+| 2. Verificar código | `meta-whatsapp-verify-code` | Valida o código de 6 dígitos recebido pelo usuário |
+| 3. Registrar número | `meta-whatsapp-register-phone` | Registra o número na Cloud API com PIN obrigatório de 6 dígitos |
+
+**PIN de segurança (Passo 3):**
+- É um PIN de 6 dígitos que o usuário **cria** (primeira vez) ou **reutiliza** (reconexão)
+- Protege a conta WhatsApp Business (verificação em duas etapas)
+- **NUNCA** orientar o usuário a desativar verificação em duas etapas
+- **NUNCA** usar PIN fixo/hardcoded
 
 **Status de conexão:**
 | Status | Significado |
 |--------|-------------|
 | `connected` | Número registrado e ativo na Cloud API |
-| `pending_registration` | Número vinculado mas registro técnico pendente |
+| `awaiting_verification` | Código SMS/voz solicitado, aguardando inserção |
+| `pending_registration` | Código verificado, aguardando registro com PIN |
 | `disconnected` | Desconectado pelo usuário |
 | `token_expired` | Token expirado, requer reconexão |
 
-**Botão "Registrar Número":**
-- Localização: `Integrações → Meta → Ativos conectados → card WhatsApp` (componente `MetaUnifiedSettings.tsx`)
-- Visível no estado `connected` (como "Re-registrar número", contingência) e `pending_registration` (como ação principal com destaque amber)
-- Chama `meta-whatsapp-register-phone` que usa o `access_token` já salvo
-- NÃO requer novo OAuth — só precisa de novo auth se o token tiver expirado
+**Fluxo na UI (MetaUnifiedSettings.tsx):**
+- Localização: `Integrações → Meta → Ativos conectados → card WhatsApp`
+- Passo 1: Botões "Enviar por SMS" / "Voz" (estado `pending_registration` sem código enviado)
+- Passo 2: Campo "Código de 6 dígitos" + botão "Verificar" (estado `awaiting_verification`)
+- Passo 3: Campo "PIN de 6 dígitos" + botão "Finalizar registro" (código verificado)
+- Estado `connected`: Botão discreto "Re-registrar número" reinicia o fluxo
 - NÃO existe tela separada de Integrações > WhatsApp — tudo fica dentro da aba Meta
 
 #### Modo Teste – WhatsApp Cloud API (Meta)
@@ -2642,25 +2650,37 @@ O `TikTokShopPanel` é renderizado dentro do card "TikTok Shop" em `TikTokUnifie
 
 ### Comportamento
 
-O botão "Registrar Número" (ou "Re-registrar número") aparece no card do WhatsApp dentro de **Integrações > Meta > Ativos conectados**.
+O registro do número WhatsApp na Cloud API é feito em **3 etapas guiadas** no card WhatsApp dentro de **Integrações > Meta > Ativos conectados**:
 
-- **Status `pending_registration`**: Exibe alerta "⚠️ Ação necessária" com campo opcional para PIN de 6 dígitos (contas com 2FA ativo) e botão de registro.
-- **Status `connected`**: Exibe botão discreto "Re-registrar número" como fallback.
+1. **Solicitar código (SMS/Voz):** Botões para enviar código de verificação ao número.
+2. **Verificar código:** Campo para inserir o código de 6 dígitos recebido.
+3. **Registrar com PIN:** Campo para PIN de 6 dígitos (criado pelo usuário ou reutilizado).
 
-### Edge Function: `meta-whatsapp-register-phone`
+- **Status `pending_registration`**: Exibe alerta "⚠️ Ação necessária — Ative seu número" com o fluxo de 3 passos.
+- **Status `awaiting_verification`**: Exibe passo 2 (inserir código recebido por SMS).
+- **Status `connected`**: Exibe botão discreto "Re-registrar número" que reinicia o fluxo.
 
-Aceita `{ tenant_id, pin? }`. Se `pin` for fornecido, envia na chamada `POST /{phone-number-id}/register`. Se não, envia sem PIN (para contas sem 2FA).
+### Edge Functions
 
-**Tratamento de erros especiais:**
-- **Subcode 2388001** (2FA ativo): Exibe mensagem amigável orientando o usuário a desativar a verificação em duas etapas no app WhatsApp Business antes de registrar.
-- **Outros erros**: Exibe a mensagem do Meta (`error_user_msg`) quando disponível, ou a mensagem genérica.
+| Função | Parâmetros | Descrição |
+|--------|-----------|-----------|
+| `meta-whatsapp-request-code` | `{ tenant_id, code_method? }` | Solicita código por SMS ou voz (`code_method`: `"SMS"` ou `"VOICE"`) |
+| `meta-whatsapp-verify-code` | `{ tenant_id, code }` | Verifica código de 6 dígitos |
+| `meta-whatsapp-register-phone` | `{ tenant_id, pin }` | Registra número com PIN obrigatório de 6 dígitos |
+
+**Tratamento de erros:**
+- **PIN incorreto** (subcode 2388001 ou code 100): Mensagem clara "PIN incorreto"
+- **Número já registrado** (subcode 136025): Orientação para desregistrar da outra conta
+- **NUNCA** orientar desativar verificação em duas etapas
 
 ### Componentes Relacionados
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `src/components/integrations/MetaUnifiedSettings.tsx` | UI do registro com PIN opcional e badge "Ação necessária" |
-| `supabase/functions/meta-whatsapp-register-phone/index.ts` | Edge function de registro |
+| `src/components/integrations/MetaUnifiedSettings.tsx` | UI com fluxo guiado de 3 passos e badge "Ação necessária" |
+| `supabase/functions/meta-whatsapp-request-code/index.ts` | Edge function de solicitação de código |
+| `supabase/functions/meta-whatsapp-verify-code/index.ts` | Edge function de verificação de código |
+| `supabase/functions/meta-whatsapp-register-phone/index.ts` | Edge function de registro com PIN obrigatório |
 
 ---
 

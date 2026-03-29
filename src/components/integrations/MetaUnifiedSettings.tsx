@@ -107,6 +107,8 @@ export function MetaUnifiedSettings() {
   const [selectedPacks, setSelectedPacks] = useState<MetaScopePack[]>(["whatsapp"]);
   const [testPhone, setTestPhone] = useState("");
   const [registerPin, setRegisterPin] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [registrationStep, setRegistrationStep] = useState<"idle" | "code_sent" | "code_verified">("idle");
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
   // Fetch existing WhatsApp config to pre-populate test mode fields
@@ -195,19 +197,62 @@ export function MetaUnifiedSettings() {
     },
   });
 
-  // Register phone number on Cloud API (manual fallback)
+  // Step 1: Request SMS/Voice verification code
+  const requestCodeMutation = useMutation({
+    mutationFn: async (codeMethod: "SMS" | "VOICE") => {
+      const { data, error } = await supabase.functions.invoke("meta-whatsapp-request-code", {
+        body: { tenant_id: tenantId, code_method: codeMethod },
+      });
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(data.message || "Código enviado!");
+      setRegistrationStep("code_sent");
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Erro ao solicitar código");
+    },
+  });
+
+  // Step 2: Verify SMS/Voice code
+  const verifyCodeMutation = useMutation({
+    mutationFn: async (code: string) => {
+      const { data, error } = await supabase.functions.invoke("meta-whatsapp-verify-code", {
+        body: { tenant_id: tenantId, code },
+      });
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(data.message || "Código verificado!");
+      setVerificationCode("");
+      setRegistrationStep("code_verified");
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Erro ao verificar código");
+    },
+  });
+
+  // Step 3: Register phone number on Cloud API
   const registerPhoneMutation = useMutation({
-    mutationFn: async (pin?: string) => {
+    mutationFn: async (pin: string) => {
+      if (!pin || pin.length !== 6) throw new Error("PIN de 6 dígitos é obrigatório");
       const { data, error } = await supabase.functions.invoke("meta-whatsapp-register-phone", {
-        body: { tenant_id: tenantId, ...(pin ? { pin } : {}) },
+        body: { tenant_id: tenantId, pin },
       });
       if (error) throw error;
       if (!data.success) throw new Error(data.error);
       return data;
     },
     onSuccess: () => {
-      toast.success("Número registrado com sucesso na Cloud API!");
+      toast.success("Número registrado com sucesso!");
       setRegisterPin("");
+      setRegistrationStep("idle");
       queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
     },
     onError: (error: any) => {
@@ -341,73 +386,168 @@ export function MetaUnifiedSettings() {
                     {/* WhatsApp - mostrar número conectado do whatsapp_configs */}
                     {whatsappConfig?.phone_number && whatsappConfig.provider === "meta" && (
                       <div className={`rounded-lg border p-3 ${
-                        whatsappConfig.connection_status === "pending_registration" 
+                        whatsappConfig.connection_status !== "connected" 
                           ? "border-amber-300 dark:border-amber-700" 
                           : ""
                       }`}>
                         <div className="flex items-center gap-2 mb-2">
                           <MessageCircle className="h-4 w-4 text-green-600" />
                           <span className="text-sm font-medium">WhatsApp</span>
-                          {whatsappConfig.connection_status === "pending_registration" ? (
-                            <Badge variant="outline" className="ml-auto border-amber-400 text-amber-700 dark:text-amber-400">
-                              <AlertTriangle className="h-3 w-3 mr-1" />
-                              Registro Pendente
-                            </Badge>
-                          ) : (
+                          {whatsappConfig.connection_status === "connected" ? (
                             <Badge variant="outline" className="ml-auto bg-green-50 text-green-700 border-green-200">
                               <Phone className="h-3 w-3 mr-1" />
                               Ativo
+                            </Badge>
+                          ) : whatsappConfig.connection_status === "awaiting_verification" ? (
+                            <Badge variant="outline" className="ml-auto border-amber-400 text-amber-700 dark:text-amber-400">
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              Aguardando código
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="ml-auto border-amber-400 text-amber-700 dark:text-amber-400">
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              Registro Pendente
                             </Badge>
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground">
                           +{whatsappConfig.display_phone_number || whatsappConfig.phone_number}
                         </p>
-                        {whatsappConfig.connection_status === "pending_registration" && (
-                          <div className="mt-2 space-y-2">
+
+                        {/* Registration flow for non-connected status */}
+                        {whatsappConfig.connection_status !== "connected" && (
+                          <div className="mt-3 space-y-3">
                             <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
                               <AlertTriangle className="h-3.5 w-3.5" />
-                              Ação necessária
+                              Ação necessária — Ative seu número
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                              O número precisa ser registrado na Cloud API para enviar mensagens.
-                            </p>
-                            <Input
-                              placeholder="PIN de 6 dígitos (se 2FA ativo)"
-                              value={registerPin}
-                              onChange={(e) => setRegisterPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                              maxLength={6}
-                              className="text-xs h-8"
-                            />
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="w-full border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950"
-                              onClick={() => registerPhoneMutation.mutate(registerPin || undefined)}
-                              disabled={registerPhoneMutation.isPending}
-                            >
-                              {registerPhoneMutation.isPending ? (
-                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                              ) : (
-                                <Zap className="h-3 w-3 mr-1" />
-                              )}
-                              Registrar Número
-                            </Button>
+
+                            {/* Step 1: Request verification code */}
+                            {(registrationStep === "idle" && whatsappConfig.connection_status !== "awaiting_verification") && (
+                              <div className="space-y-2 rounded-md bg-muted/50 p-2.5">
+                                <p className="text-xs font-medium">Passo 1: Solicitar código de verificação</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Enviaremos um código por SMS para o número acima.
+                                </p>
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="flex-1 text-xs h-8 border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950"
+                                    onClick={() => requestCodeMutation.mutate("SMS")}
+                                    disabled={requestCodeMutation.isPending}
+                                  >
+                                    {requestCodeMutation.isPending ? (
+                                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                    ) : (
+                                      <Send className="h-3 w-3 mr-1" />
+                                    )}
+                                    Enviar por SMS
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-xs h-8"
+                                    onClick={() => requestCodeMutation.mutate("VOICE")}
+                                    disabled={requestCodeMutation.isPending}
+                                  >
+                                    <Phone className="h-3 w-3 mr-1" />
+                                    Voz
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Step 2: Enter verification code */}
+                            {(registrationStep === "code_sent" || whatsappConfig.connection_status === "awaiting_verification") && (
+                              <div className="space-y-2 rounded-md bg-muted/50 p-2.5">
+                                <p className="text-xs font-medium">Passo 2: Inserir código recebido</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Digite o código de 6 dígitos que você recebeu no telefone.
+                                </p>
+                                <Input
+                                  placeholder="Código de 6 dígitos"
+                                  value={verificationCode}
+                                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                                  maxLength={6}
+                                  className="text-xs h-8"
+                                />
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="flex-1 text-xs h-8 border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950"
+                                    onClick={() => verifyCodeMutation.mutate(verificationCode)}
+                                    disabled={verifyCodeMutation.isPending || verificationCode.length !== 6}
+                                  >
+                                    {verifyCodeMutation.isPending ? (
+                                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                    ) : (
+                                      <CheckCircle className="h-3 w-3 mr-1" />
+                                    )}
+                                    Verificar código
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-xs h-8"
+                                    onClick={() => requestCodeMutation.mutate("SMS")}
+                                    disabled={requestCodeMutation.isPending}
+                                  >
+                                    <RefreshCw className="h-3 w-3 mr-1" />
+                                    Reenviar
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Step 3: Register with PIN */}
+                            {(registrationStep === "code_verified" || whatsappConfig.connection_status === "pending_registration") && registrationStep !== "code_sent" && whatsappConfig.connection_status !== "awaiting_verification" && (
+                              <div className="space-y-2 rounded-md bg-muted/50 p-2.5">
+                                <p className="text-xs font-medium">Passo 3: Definir PIN de segurança</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Crie um PIN de 6 dígitos para proteger sua conta. Se já tiver um PIN configurado anteriormente, use o mesmo.
+                                </p>
+                                <Input
+                                  placeholder="PIN de 6 dígitos"
+                                  value={registerPin}
+                                  onChange={(e) => setRegisterPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                                  maxLength={6}
+                                  type="password"
+                                  className="text-xs h-8"
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="w-full text-xs h-8 border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950"
+                                  onClick={() => registerPhoneMutation.mutate(registerPin)}
+                                  disabled={registerPhoneMutation.isPending || registerPin.length !== 6}
+                                >
+                                  {registerPhoneMutation.isPending ? (
+                                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                  ) : (
+                                    <Zap className="h-3 w-3 mr-1" />
+                                  )}
+                                  Finalizar registro
+                                </Button>
+                              </div>
+                            )}
+
+                            {whatsappConfig.last_error && (
+                              <p className="text-xs text-destructive">{whatsappConfig.last_error}</p>
+                            )}
                           </div>
                         )}
+
+                        {/* Re-register option for connected status */}
                         {whatsappConfig.connection_status === "connected" && (
                           <Button
                             size="sm"
                             variant="ghost"
                             className="mt-2 w-full text-xs text-muted-foreground"
-                            onClick={() => registerPhoneMutation.mutate(undefined)}
-                            disabled={registerPhoneMutation.isPending}
+                            onClick={() => setRegistrationStep("idle")}
                           >
-                            {registerPhoneMutation.isPending ? (
-                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                            ) : (
-                              <Zap className="h-3 w-3 mr-1" />
-                            )}
+                            <RefreshCw className="h-3 w-3 mr-1" />
                             Re-registrar número
                           </Button>
                         )}

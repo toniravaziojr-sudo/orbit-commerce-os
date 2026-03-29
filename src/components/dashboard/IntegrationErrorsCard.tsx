@@ -83,12 +83,21 @@ export function IntegrationErrorsCard() {
 
       const waConfig = Array.isArray(waData) && waData.length > 0 ? waData[0] : null;
       if (waConfig) {
-        if (waConfig.connection_status === "pending_registration") {
+        if (waConfig.connection_status === "awaiting_verification") {
+          found.push({
+            id: "whatsapp-awaiting",
+            icon: MessageCircle,
+            name: "WhatsApp",
+            error: "Código de verificação enviado — insira o código recebido por SMS",
+            navigateTo: "/integrations?tab=social",
+            variant: "warning",
+          });
+        } else if (waConfig.connection_status === "pending_registration") {
           found.push({
             id: "whatsapp-pending",
             icon: MessageCircle,
             name: "WhatsApp",
-            error: "Número pendente de registro na Cloud API",
+            error: "Número pendente de registro — finalize a verificação",
             navigateTo: "/integrations?tab=social",
             variant: "warning",
           });
