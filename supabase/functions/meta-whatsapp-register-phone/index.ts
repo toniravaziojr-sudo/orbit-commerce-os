@@ -186,17 +186,22 @@ Deno.serve(async (req) => {
       const errorUserMsg = registerData.error?.error_user_msg;
       
       // Precise error normalization — do NOT lump everything as "PIN inválido"
-      let friendlyError = "Não foi possível finalizar o registro agora. Tente novamente em instantes.";
+      let friendlyError: string;
       
-      if (errorSubcode === 2388001) {
-        // This specific subcode = actual wrong PIN
-        friendlyError = "PIN inválido para este número. Se a verificação em duas etapas está ativa, use o PIN configurado. Se não está ativa, defina qualquer PIN de 6 dígitos.";
+      if (errorSubcode === 2388001 && errorCode === 100) {
+        // subcode 2388001 + code 100 = Meta rejected the register call.
+        // This can mean: wrong PIN, 2FA state mismatch, number not ready, or parameter issue.
+        // Show the REAL Meta message instead of assuming "wrong PIN".
+        const metaUserMsg = errorUserMsg || errorMsg || "Parâmetro inválido";
+        friendlyError = `A Meta rejeitou o registro do número. Motivo informado pela Meta: "${metaUserMsg}"`;
       } else if (errorSubcode === 136025) {
         friendlyError = "Número já registrado em outra conta. Desregistre o número da conta atual antes de registrar aqui.";
       } else if (errorCode === 100) {
-        friendlyError = `A Meta rejeitou um parâmetro da requisição. Detalhe: ${errorMsg}`;
+        friendlyError = `A Meta rejeitou um parâmetro da requisição. Detalhe: ${errorMsg}${errorUserMsg ? ` — ${errorUserMsg}` : ""}`;
       } else if (errorMsg) {
         friendlyError = `Erro da Meta: ${errorMsg}${errorUserMsg ? ` — ${errorUserMsg}` : ""}`;
+      } else {
+        friendlyError = "Não foi possível finalizar o registro agora. Tente novamente em instantes.";
       }
       
       // Save friendly error + raw diagnostic in last_error for debugging

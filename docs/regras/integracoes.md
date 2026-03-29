@@ -169,6 +169,12 @@ O registro é feito em 3 etapas guiadas na UI:
 - **NUNCA** orientar o usuário a desativar verificação em duas etapas
 - **NUNCA** usar PIN fixo/hardcoded
 
+**Normalização de erros (Passo 3):**
+- O subcódigo `2388001` da Meta NÃO deve ser tratado automaticamente como "PIN inválido"
+- O sistema deve exibir a mensagem real retornada pela Meta (`error_user_msg` ou `error.message`)
+- Campos brutos salvos no `last_error`: mensagem amigável + `[code=X, subcode=Y, fbtrace=Z]`
+- O `meta_diagnostic` completo é retornado ao frontend para depuração
+
 **Status de conexão:**
 | Status | Significado |
 |--------|-------------|
