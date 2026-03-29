@@ -732,11 +732,11 @@ export function PlanningTab({
                           {isSelectMode ? "Selecionar" : "Adicionar"}
                         </div>
                       )}
-                      {isSelectMode && isSelected && (
-                        <div className="absolute top-1 right-1">
-                          <Badge variant="default" className="text-[9px] px-1 py-0 h-4 bg-primary">✓</Badge>
-                        </div>
-                      )}
+                       {isSelectMode && isSelected && (
+                         <div className="absolute top-1 right-1">
+                           <Badge variant="default" className={cn("text-[9px] px-1 py-0 h-4 text-white", statusClasses?.badge || "bg-primary")}>✓</Badge>
+                         </div>
+                       )}
                     </div>
                   );
                 })}
