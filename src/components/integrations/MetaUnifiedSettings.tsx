@@ -197,9 +197,9 @@ export function MetaUnifiedSettings() {
 
   // Register phone number on Cloud API (manual fallback)
   const registerPhoneMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (pin?: string) => {
       const { data, error } = await supabase.functions.invoke("meta-whatsapp-register-phone", {
-        body: { tenant_id: tenantId },
+        body: { tenant_id: tenantId, ...(pin ? { pin } : {}) },
       });
       if (error) throw error;
       if (!data.success) throw new Error(data.error);
@@ -207,6 +207,7 @@ export function MetaUnifiedSettings() {
     },
     onSuccess: () => {
       toast.success("Número registrado com sucesso na Cloud API!");
+      setRegisterPin("");
       queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
     },
     onError: (error: any) => {
