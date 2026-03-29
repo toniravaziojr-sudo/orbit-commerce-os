@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { QueryErrorState } from "@/components/ui/query-error-state";
 import { Bell, Zap, Plus } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
