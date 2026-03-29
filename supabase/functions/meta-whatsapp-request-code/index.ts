@@ -155,11 +155,36 @@ Deno.serve(async (req) => {
       });
     } else {
       const errorMsg = responseData.error?.message || JSON.stringify(responseData);
-      console.error(`[meta-whatsapp-request-code][${traceId}] Failed:`, errorMsg);
+      const errorSubcode = responseData.error?.error_subcode;
+      const errorUserMsg = responseData.error?.error_user_msg;
+      console.error(`[meta-whatsapp-request-code][${traceId}] Failed:`, errorMsg, `subcode: ${errorSubcode}`);
+
+      // Phone already verified — skip to registration step
+      if (errorSubcode === 2388366) {
+        console.log(`[meta-whatsapp-request-code][${traceId}] Phone already verified, skipping to registration`);
+        
+        await supabase
+          .from("whatsapp_configs")
+          .update({
+            connection_status: "pending_registration",
+            last_error: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", config.id);
+
+        return new Response(JSON.stringify({
+          success: true,
+          already_verified: true,
+          message: "Número já verificado! Prossiga com o PIN para finalizar o registro.",
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
       return new Response(JSON.stringify({
         success: false,
-        error: `Falha ao solicitar código: ${errorMsg}`,
+        error: errorUserMsg || `Falha ao solicitar código: ${errorMsg}`,
       }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
