@@ -639,6 +639,4 @@ Deno.serve(async (req) => {
     console.error('[core-customers] Error:', error);
     return errorResponse(error, corsHeaders, { module: 'customers' });
   }
-    );
-  }
 });
