@@ -937,7 +937,6 @@ Deno.serve(async (req) => {
         if (updateError) {
           return errorResponse(updateError, corsHeaders, { module: 'orders', action: 'update_order' });
         }
-        }
 
         await createAuditLog(supabase, {
           tenant_id: tenantId,
@@ -967,6 +966,5 @@ Deno.serve(async (req) => {
   } catch (error: any) {
     console.error('[core-orders] Error:', error);
     return errorResponse(error, corsHeaders, { module: 'orders' });
-  }
   }
 });
