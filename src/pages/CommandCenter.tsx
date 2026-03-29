@@ -29,6 +29,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StorefrontHealthCard } from "@/components/health/StorefrontHealthCard";
 import { IntegrationAlerts } from "@/components/dashboard/IntegrationAlerts";
+import { IntegrationErrorsCard } from "@/components/dashboard/IntegrationErrorsCard";
+import { ContentCalendarAlertsCard } from "@/components/dashboard/ContentCalendarAlertsCard";
 import { CommunicationsWidget } from "@/components/dashboard/CommunicationsWidget";
 import { FiscalAlertsWidget } from "@/components/dashboard/FiscalAlertsWidget";
 import { OrderLimitWarning } from "@/components/billing/OrderLimitWarning";
