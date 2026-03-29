@@ -2,6 +2,13 @@
 
 > **REGRAS FIXAS** — Aplicáveis a TODAS as edge functions do projeto.
 
+### ✅ Estabilidade de Publicação (2026-03-29)
+
+Após correções de regressão em lote, ficou obrigatório validar antes de publicar:
+- Não deixar fechamentos extras de bloco (`}`) no final de fluxos de ação
+- Não usar acesso inválido a campos de erro
+- Garantir parsing limpo de todas as funções antes do deploy geral
+
 ---
 
 ## 🛡️ TRATAMENTO DE ERROS PADRONIZADO (v2.0.0 — Migração global concluída 2026-03-29)
