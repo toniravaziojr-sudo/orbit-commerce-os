@@ -194,7 +194,25 @@ export function MetaUnifiedSettings() {
     },
   });
 
-  // REGRA CRÍTICA: NUNCA mostrar loader de tela cheia após carga inicial
+  // Register phone number on Cloud API (manual fallback)
+  const registerPhoneMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("meta-whatsapp-register-phone", {
+        body: { tenant_id: tenantId },
+      });
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Número registrado com sucesso na Cloud API!");
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Erro ao registrar número");
+    },
+  });
+
   // O isLoading fica true durante refetches/invalidações de query
   // Uma vez que carregamos os dados, marcamos para NUNCA mais bloquear a UI
   useEffect(() => {
