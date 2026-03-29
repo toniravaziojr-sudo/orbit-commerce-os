@@ -4,6 +4,48 @@
 
 ---
 
+## 🛡️ TRATAMENTO DE ERROS PADRONIZADO (v1.0.0)
+
+**REGRA CRÍTICA**: Toda edge function DEVE usar o helper `errorResponse` para erros de banco/operação.
+
+```typescript
+import { errorResponse } from '../_shared/error-response.ts';
+
+// Em vez de: JSON.stringify({ error: insertError.message })
+// Usar:
+if (insertError) {
+  return errorResponse(insertError, corsHeaders, { module: 'products', action: 'create' });
+}
+
+// Catch genérico:
+catch (error) {
+  return errorResponse(error, corsHeaders, { module: 'products' });
+}
+```
+
+**Contrato de resposta de erro:**
+```json
+{
+  "success": false,
+  "error": "Mensagem operacional em PT-BR (segura para o usuário)",
+  "code": "DUPLICATE_KEY | PERMISSION_DENIED | SESSION_EXPIRED | ...",
+  "category": "validation | permission | auth | network | technical",
+  "retryable": true/false
+}
+```
+
+**Política de tradução:**
+- ✅ Traduzir: erros de validação, duplicidade, permissão, sessão, rede
+- ⚠️ Genérico: erros internos → "Erro interno. Se persistir, contate o suporte."
+- 🚫 NUNCA vazar: nomes de tabela, coluna, SQL, stack trace, IDs internos
+
+**Helpers disponíveis em `_shared/error-response.ts`:**
+- `errorResponse(error, corsHeaders, options?)` — envelope de erro sanitizado
+- `validationError(message, corsHeaders)` — erro de validação com mensagem customizada
+- `successResponse(data, corsHeaders)` — envelope de sucesso
+
+---
+
 ## ⚠️ VERSIONAMENTO OBRIGATÓRIO (Anti-Regressão)
 
 **REGRA CRÍTICA**: Toda edge function DEVE ter uma constante de versão no topo do arquivo.
