@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { errorResponse, metaApiErrorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v1.0.0"; // Fase 6 — Publicação no Threads
@@ -73,10 +74,7 @@ Deno.serve(async (req) => {
 
       if (data.error) {
         console.error(`[meta-threads-publish][${VERSION}] List error:`, data.error);
-        return new Response(
-          JSON.stringify({ success: false, error: data.error.message }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return metaApiErrorResponse(data.error, corsHeaders, { module: 'threads-publish' });
       }
 
       return new Response(
@@ -134,10 +132,7 @@ Deno.serve(async (req) => {
 
     if (createData.error) {
       console.error(`[meta-threads-publish][${VERSION}] Container error:`, createData.error);
-      return new Response(
-        JSON.stringify({ success: false, error: createData.error.message }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return metaApiErrorResponse(createData.error, corsHeaders, { module: 'threads-publish' });
     }
 
     const containerId = createData.id;
@@ -188,10 +183,7 @@ Deno.serve(async (req) => {
 
     if (publishData.error) {
       console.error(`[meta-threads-publish][${VERSION}] Publish error:`, publishData.error);
-      return new Response(
-        JSON.stringify({ success: false, error: publishData.error.message }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return metaApiErrorResponse(publishData.error, corsHeaders, { module: 'threads-publish' });
     }
 
     console.log(`[meta-threads-publish][${VERSION}] Published: ${publishData.id}`);
@@ -203,9 +195,6 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error(`[meta-threads-publish][${VERSION}] Error:`, error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'threads-publish', action: 'publish' });
   }
 });

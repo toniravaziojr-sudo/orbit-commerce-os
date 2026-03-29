@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { metaApiErrorResponse } from "../_shared/error-response.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -123,13 +124,7 @@ Deno.serve(async (req) => {
 
     if (tokenData.error) {
       console.error(`[meta-whatsapp-onboarding-callback][${traceId}] Token exchange error:`, tokenData.error);
-      return new Response(JSON.stringify({ 
-        success: false, 
-        error: tokenData.error.message || "Erro ao obter token de acesso" 
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return metaApiErrorResponse(tokenData.error, corsHeaders, { module: 'whatsapp-onboarding' });
     }
 
     const accessToken = tokenData.access_token;

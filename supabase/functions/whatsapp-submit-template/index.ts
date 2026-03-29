@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { errorResponse, metaApiErrorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
 const VERSION = "v1.0.0";
@@ -233,14 +234,7 @@ Deno.serve(async (req) => {
         .update({ meta_template_status: "error" })
         .eq("id", rule_id);
 
-      return new Response(JSON.stringify({
-        success: false,
-        error: submitResult.error.message || "Erro ao enviar template para Meta",
-        meta_error: submitResult.error,
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return metaApiErrorResponse(submitResult.error, corsHeaders, { module: 'whatsapp-submit-template' });
     }
 
     const metaTemplateId = submitResult.id;
@@ -282,9 +276,6 @@ Deno.serve(async (req) => {
 
   } catch (error: any) {
     console.error(`[whatsapp-submit-template] Error:`, error);
-    return new Response(JSON.stringify({ success: false, error: error.message || "Erro interno" }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return errorResponse(error, corsHeaders, { module: 'whatsapp-submit-template' });
   }
 });
