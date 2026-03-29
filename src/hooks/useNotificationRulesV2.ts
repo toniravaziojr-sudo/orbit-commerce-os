@@ -63,6 +63,8 @@ export interface NotificationRuleV2 {
   dedupe_scope: 'order' | 'customer' | 'cart' | 'none' | null;
   meta_template_name: string | null;
   meta_template_status: string | null;
+  meta_template_approved_at: string | null;
+  meta_template_rejected_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -155,31 +157,56 @@ export function useNotificationRulesV2() {
 
       if (error) throw error;
 
-      const typedRules: NotificationRuleV2[] = (data || []).map(row => ({
-        id: row.id,
-        tenant_id: row.tenant_id,
-        name: row.name,
-        description: row.description,
-        is_enabled: row.is_enabled,
-        rule_type: (row.rule_type as RuleType) || 'payment',
-        trigger_condition: row.trigger_condition as TriggerCondition,
-        trigger_event_type: row.trigger_event_type,
-        channels: (row.channels as NotificationChannel[]) || ['email'],
-        whatsapp_message: row.whatsapp_message as string | null,
-        email_subject: row.email_subject as string | null,
-        email_body: row.email_body as string | null,
-        delay_seconds: row.delay_seconds ?? 0,
-        delay_unit: (row.delay_unit as DelayUnit) || 'minutes',
-        product_scope: (row.product_scope as 'all' | 'specific') || 'all',
-        product_ids: row.product_ids as string[] | null,
-        attachments: (row.attachments as unknown as RuleAttachment[]) || [],
-        priority: row.priority,
-        dedupe_scope: row.dedupe_scope as NotificationRuleV2['dedupe_scope'],
-        meta_template_name: (row as any).meta_template_name as string | null,
-        meta_template_status: (row as any).meta_template_status as string | null,
-        created_at: row.created_at,
-        updated_at: row.updated_at,
-      }));
+      // Fetch template submission dates for rules with WhatsApp templates
+      const ruleIds = (data || []).map(r => r.id);
+      let submissionMap = new Map<string, { approved_at: string | null; rejected_at: string | null }>();
+      
+      if (ruleIds.length > 0) {
+        const { data: submissions } = await supabase
+          .from('whatsapp_template_submissions')
+          .select('rule_id, approved_at, rejected_at')
+          .in('rule_id', ruleIds);
+        
+        if (submissions) {
+          for (const sub of submissions) {
+            submissionMap.set(sub.rule_id, {
+              approved_at: sub.approved_at,
+              rejected_at: sub.rejected_at,
+            });
+          }
+        }
+      }
+
+      const typedRules: NotificationRuleV2[] = (data || []).map(row => {
+        const submission = submissionMap.get(row.id);
+        return {
+          id: row.id,
+          tenant_id: row.tenant_id,
+          name: row.name,
+          description: row.description,
+          is_enabled: row.is_enabled,
+          rule_type: (row.rule_type as RuleType) || 'payment',
+          trigger_condition: row.trigger_condition as TriggerCondition,
+          trigger_event_type: row.trigger_event_type,
+          channels: (row.channels as NotificationChannel[]) || ['email'],
+          whatsapp_message: row.whatsapp_message as string | null,
+          email_subject: row.email_subject as string | null,
+          email_body: row.email_body as string | null,
+          delay_seconds: row.delay_seconds ?? 0,
+          delay_unit: (row.delay_unit as DelayUnit) || 'minutes',
+          product_scope: (row.product_scope as 'all' | 'specific') || 'all',
+          product_ids: row.product_ids as string[] | null,
+          attachments: (row.attachments as unknown as RuleAttachment[]) || [],
+          priority: row.priority,
+          dedupe_scope: row.dedupe_scope as NotificationRuleV2['dedupe_scope'],
+          meta_template_name: (row as any).meta_template_name as string | null,
+          meta_template_status: (row as any).meta_template_status as string | null,
+          meta_template_approved_at: submission?.approved_at || null,
+          meta_template_rejected_at: submission?.rejected_at || null,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+        };
+      });
 
       setRules(typedRules);
     } catch (err) {
