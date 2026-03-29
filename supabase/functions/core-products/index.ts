@@ -518,7 +518,6 @@ Deno.serve(async (req) => {
         if (deleteError) {
           return errorResponse(deleteError, corsHeaders, { module: 'products', action: 'delete' });
         }
-        }
 
         await createAuditLog(supabase, {
           tenant_id: tenantId,
