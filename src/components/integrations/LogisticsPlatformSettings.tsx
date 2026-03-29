@@ -28,12 +28,12 @@ export function LogisticsPlatformSettings() {
           description: `Token expira em ${data.expiresIn}s`
         });
       } else {
-        showErrorToast(toast, { module: 'integrações', action: 'conectar' });
+        onError: (err) => showErrorToast(err, { module: 'integrações', action: 'conectar' }),
       }
       queryClient.invalidateQueries({ queryKey: ['platform-secrets-status'] });
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'integrações', action: 'testar' });
+      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'testar' }),
     },
   });
 

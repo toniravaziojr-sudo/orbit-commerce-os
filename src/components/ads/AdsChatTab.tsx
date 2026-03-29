@@ -108,7 +108,7 @@ export function AdsChatTab({ scope, adAccountId, channel }: AdsChatTabProps) {
     try {
       await sendMessage(msg, atts.length > 0 ? atts : undefined);
     } catch (err: any) {
-      showErrorToast(toast, { module: 'anúncios', action: 'enviar' });
+      onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'enviar' }),
     }
   };
 

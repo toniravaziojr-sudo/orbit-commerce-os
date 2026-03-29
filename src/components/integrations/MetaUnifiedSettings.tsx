@@ -194,7 +194,7 @@ export function MetaUnifiedSettings() {
       setTestPhone("");
     },
     onError: (error: any) => {
-      showErrorToast(toast, { module: 'integrações', action: 'enviar' });
+      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'enviar' }),
     },
   });
 
@@ -218,7 +218,7 @@ export function MetaUnifiedSettings() {
       queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
     },
     onError: (error: any) => {
-      showErrorToast(toast, { module: 'integrações', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'processar' }),
     },
   });
 
@@ -239,7 +239,7 @@ export function MetaUnifiedSettings() {
       queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
     },
     onError: (error: any) => {
-      showErrorToast(toast, { module: 'integrações', action: 'verificar' });
+      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'verificar' }),
     },
   });
 
@@ -265,7 +265,7 @@ export function MetaUnifiedSettings() {
       queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
     },
     onError: (error: any) => {
-      showErrorToast(toast, { module: 'integrações', action: 'registrar' });
+      onError: (err) => showErrorToast(err, { module: 'integrações', action: 'registrar' }),
     },
   });
 

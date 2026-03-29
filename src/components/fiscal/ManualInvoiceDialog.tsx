@@ -394,7 +394,7 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
       queryClient.invalidateQueries({ queryKey: ['fiscal-stats'] });
       onOpenChange(false);
     } catch (error: any) {
-      showErrorToast(error, { module: 'fiscal', action: 'criar NF-e' });
+      onError: (error) => showErrorToast(error, { module: 'fiscal', action: 'criar NF-e' }),
     } finally {
       setIsLoading(false);
     }

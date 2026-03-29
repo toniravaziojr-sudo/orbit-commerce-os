@@ -54,7 +54,7 @@ export function useAdsInsights() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-insights"] });
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'processar' }),
   });
 
   const generateNow = useMutation({
@@ -70,7 +70,7 @@ export function useAdsInsights() {
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-insights"] });
       toast.success("Insights gerados com sucesso!");
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'processar' }),
   });
 
   return {

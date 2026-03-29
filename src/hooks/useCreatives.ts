@@ -233,7 +233,7 @@ export function useCreateCreativeJob() {
     },
     onError: (error: Error) => {
       console.error('Error creating creative job:', error);
-      showErrorToast(toast, { action: 'processar' });
+      onError: (err) => showErrorToast(err, { action: 'processar' }),
     },
   });
 }
@@ -296,7 +296,7 @@ export function useDeleteCreativeJob() {
       toast.success('Criativo excluído com sucesso');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { action: 'excluir' });
+      onError: (err) => showErrorToast(err, { action: 'excluir' }),
     },
   });
 }
@@ -322,7 +322,7 @@ export function useRetryCreativeJob() {
       toast.success('Reprocessamento iniciado');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { action: 'processar' });
+      onError: (err) => showErrorToast(err, { action: 'processar' }),
     },
   });
 }

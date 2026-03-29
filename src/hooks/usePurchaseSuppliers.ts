@@ -61,7 +61,7 @@ export function usePurchaseSuppliers() {
       toast.success('Fornecedor cadastrado com sucesso');
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'compras', action: 'criar' });
+      onError: (err) => showErrorToast(err, { module: 'compras', action: 'criar' }),
     },
   });
 
@@ -82,7 +82,7 @@ export function usePurchaseSuppliers() {
       toast.success('Fornecedor atualizado com sucesso');
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'compras', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'compras', action: 'salvar' }),
     },
   });
 
@@ -100,7 +100,7 @@ export function usePurchaseSuppliers() {
       toast.success('Fornecedor removido com sucesso');
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'compras', action: 'excluir' });
+      onError: (err) => showErrorToast(err, { module: 'compras', action: 'excluir' }),
     },
   });
 

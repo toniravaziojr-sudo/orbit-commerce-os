@@ -109,7 +109,7 @@ export function useBlockSuggestions(options: UseBlockSuggestionsOptions = {}) {
       toast.success('Status atualizado');
     },
     onError: (error: any) => {
-      showErrorToast(toast, { action: 'salvar' });
+      onError: (err) => showErrorToast(err, { action: 'salvar' }),
     },
   });
 
@@ -153,7 +153,7 @@ export function useBlockSuggestions(options: UseBlockSuggestionsOptions = {}) {
       toast.success('Marcado como implementado');
     },
     onError: (error: any) => {
-      showErrorToast(toast, { action: 'processar' });
+      onError: (err) => showErrorToast(err, { action: 'processar' }),
     },
   });
 
@@ -185,7 +185,7 @@ export function useBlockSuggestions(options: UseBlockSuggestionsOptions = {}) {
       toast.success('Mapeado para bloco existente');
     },
     onError: (error: any) => {
-      showErrorToast(toast, { action: 'processar' });
+      onError: (err) => showErrorToast(err, { action: 'processar' }),
     },
   });
 
@@ -223,7 +223,7 @@ export function useBlockSuggestions(options: UseBlockSuggestionsOptions = {}) {
       toast.success('Solicitação rejeitada');
     },
     onError: (error: any) => {
-      showErrorToast(toast, { action: 'processar' });
+      onError: (err) => showErrorToast(err, { action: 'processar' }),
     },
   });
 

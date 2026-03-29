@@ -104,7 +104,7 @@ export function useAffiliateProgram() {
       toast.success('Programa de afiliados atualizado');
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'afiliados', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'afiliados', action: 'salvar' }),
     },
   });
 
@@ -149,7 +149,7 @@ export function useAffiliates() {
       toast.success('Afiliado criado com sucesso');
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'afiliados', action: 'criar' });
+      onError: (err) => showErrorToast(err, { module: 'afiliados', action: 'criar' }),
     },
   });
 
@@ -170,7 +170,7 @@ export function useAffiliates() {
       toast.success('Afiliado atualizado');
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'afiliados', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'afiliados', action: 'salvar' }),
     },
   });
 
@@ -188,7 +188,7 @@ export function useAffiliates() {
       toast.success('Afiliado removido');
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'afiliados', action: 'excluir' });
+      onError: (err) => showErrorToast(err, { module: 'afiliados', action: 'excluir' }),
     },
   });
 
@@ -237,7 +237,7 @@ export function useAffiliateLinks(affiliateId?: string) {
       toast.success('Link criado com sucesso');
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'afiliados', action: 'criar' });
+      onError: (err) => showErrorToast(err, { module: 'afiliados', action: 'criar' }),
     },
   });
 
@@ -286,7 +286,7 @@ export function useAffiliateConversions(affiliateId?: string) {
       toast.success('Status atualizado');
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'afiliados', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'afiliados', action: 'salvar' }),
     },
   });
 
@@ -380,7 +380,7 @@ export function useAffiliatePayouts(affiliateId?: string) {
       toast.success('Pagamento registrado');
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'afiliados', action: 'registrar' });
+      onError: (err) => showErrorToast(err, { module: 'afiliados', action: 'registrar' }),
     },
   });
 
@@ -401,7 +401,7 @@ export function useAffiliatePayouts(affiliateId?: string) {
       toast.success('Pagamento atualizado');
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'afiliados', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'afiliados', action: 'salvar' }),
     },
   });
 

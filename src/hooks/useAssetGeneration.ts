@@ -263,7 +263,7 @@ export function useGenerateImage() {
       });
     },
     onError: (error) => {
-      showErrorToast(toast, { action: 'gerar' });
+      onError: (err) => showErrorToast(err, { action: 'gerar' }),
     },
   });
 }
@@ -331,7 +331,7 @@ export function useGenerateVideo() {
       });
     },
     onError: (error) => {
-      showErrorToast(toast, { action: 'gerar' });
+      onError: (err) => showErrorToast(err, { action: 'gerar' }),
     },
   });
 }
@@ -361,7 +361,7 @@ export function useApproveVariant() {
       queryClient.invalidateQueries({ queryKey: ["media-calendar-items"] });
     },
     onError: (error) => {
-      showErrorToast(toast, { action: 'aprovar' });
+      onError: (err) => showErrorToast(err, { action: 'aprovar' }),
     },
   });
 }
@@ -396,7 +396,7 @@ export function useRegenerateVariant() {
       queryClient.invalidateQueries({ queryKey: ["asset-generations"] });
     },
     onError: (error) => {
-      showErrorToast(toast, { action: 'processar' });
+      onError: (err) => showErrorToast(err, { action: 'processar' }),
     },
   });
 }

@@ -103,7 +103,7 @@ export function useShopeeOrders({ status, page = 1, pageSize = 20 }: UseShopeeOr
       queryClient.invalidateQueries({ queryKey: ["shopee-orders"] });
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'shopee', action: 'sincronizar' });
+      onError: (err) => showErrorToast(err, { module: 'shopee', action: 'sincronizar' }),
     },
   });
 

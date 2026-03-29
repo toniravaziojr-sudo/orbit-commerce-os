@@ -105,7 +105,7 @@ export function useGoogleAnalytics(propertyId?: string) {
       queryClient.invalidateQueries({ queryKey: ["ga4-summary"] });
       queryClient.invalidateQueries({ queryKey: ["ga4-reports"] });
     },
-    showErrorToast(toast, { module: 'google', action: 'sincronizar' });
+    onError: (err) => showErrorToast(err, { module: 'google', action: 'sincronizar' }),
   });
 
   return {

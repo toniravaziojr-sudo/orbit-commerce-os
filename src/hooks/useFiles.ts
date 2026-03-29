@@ -3,8 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { useEffect } from 'react';
-import {
 import { showErrorToast } from '@/lib/error-toast';
+import {
   getBucketForFile as _getBucketForFile,
   getFileUrl as _getFileUrl,
   downloadDriveFile,
@@ -226,7 +226,7 @@ export function useFiles(folderId: string | null = null) {
       toast.success('Pasta criada com sucesso!');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'arquivos', action: 'criar' });
+      onError: (err) => showErrorToast(err, { module: 'arquivos', action: 'criar' }),
     },
   });
 
@@ -253,7 +253,7 @@ export function useFiles(folderId: string | null = null) {
       toast.success('Arquivo excluído com sucesso!');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'arquivos', action: 'excluir' });
+      onError: (err) => showErrorToast(err, { module: 'arquivos', action: 'excluir' }),
     },
   });
 
@@ -291,7 +291,7 @@ export function useFiles(folderId: string | null = null) {
       toast.success('Arquivo movido com sucesso!');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'arquivos', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'arquivos', action: 'processar' }),
     },
   });
 
@@ -313,7 +313,7 @@ export function useFiles(folderId: string | null = null) {
       toast.success('Arquivo renomeado com sucesso!');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'arquivos', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'arquivos', action: 'processar' }),
     },
   });
 

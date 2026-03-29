@@ -53,7 +53,7 @@ export function useTikTokContent() {
       toast.success(`${data.synced} vídeos sincronizados`);
     },
     onError: (err: Error) => {
-      showErrorToast(toast, { module: 'tiktok', action: 'sincronizar' });
+      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'sincronizar' }),
     },
   });
 
@@ -72,7 +72,7 @@ export function useTikTokContent() {
       toast.success(`Analytics sincronizados para ${data.synced} vídeos`);
     },
     onError: (err: Error) => {
-      showErrorToast(toast, { module: 'tiktok', action: 'sincronizar' });
+      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'sincronizar' }),
     },
   });
 
@@ -90,7 +90,7 @@ export function useTikTokContent() {
       queryClient.invalidateQueries({ queryKey: ['tiktok-content-videos'] });
     },
     onError: (err: Error) => {
-      showErrorToast(toast, { module: 'tiktok', action: 'carregar' });
+      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'carregar' }),
     },
   });
 
@@ -124,7 +124,7 @@ export function useTikTokContent() {
       toast.success('Vídeo removido');
     },
     onError: (err: Error) => {
-      showErrorToast(toast, { module: 'tiktok', action: 'excluir' });
+      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'excluir' }),
     },
   });
 

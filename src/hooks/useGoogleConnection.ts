@@ -120,7 +120,7 @@ export function useGoogleConnection() {
           if (event.data.success) {
             toast.success(`Google conectado! (${event.data.account || ""})`);
           } else {
-            showErrorToast(toast, { module: 'google', action: 'conectar' });
+            onError: (err) => showErrorToast(err, { module: 'google', action: 'conectar' }),
           }
         }
       };
@@ -135,7 +135,7 @@ export function useGoogleConnection() {
       }, 500);
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'google', action: 'conectar' });
+      onError: (err) => showErrorToast(err, { module: 'google', action: 'conectar' }),
     },
   });
 
@@ -155,7 +155,7 @@ export function useGoogleConnection() {
       queryClient.invalidateQueries({ queryKey: ["google-connection-status"] });
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'google', action: 'conectar' });
+      onError: (err) => showErrorToast(err, { module: 'google', action: 'conectar' }),
     },
   });
 

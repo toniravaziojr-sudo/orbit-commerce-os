@@ -81,7 +81,7 @@ export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps)
       queryClient.invalidateQueries({ queryKey: ['related-products', productId] });
     } catch (err: any) {
       console.error('Auto-related error:', err);
-      showErrorToast(toast, { module: 'produtos', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'produtos', action: 'salvar' }),
     } finally {
       setIsAutoGenerating(false);
     }

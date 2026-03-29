@@ -125,7 +125,7 @@ export function AIOfferGeneratorDialog({ open, onOpenChange, type }: AIOfferGene
       }
     } catch (err: any) {
       console.error('Erro ao gerar ofertas:', err);
-      showErrorToast(toast, { module: 'ofertas', action: 'gerar' });
+      onError: (err) => showErrorToast(err, { module: 'ofertas', action: 'gerar' }),
     } finally {
       setIsGenerating(false);
     }

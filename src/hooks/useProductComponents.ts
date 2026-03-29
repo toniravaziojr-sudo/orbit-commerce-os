@@ -126,7 +126,7 @@ export function useProductComponents(productId: string | undefined) {
       toast.success('Componente adicionado');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'produtos', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'produtos', action: 'processar' }),
     },
   });
 
@@ -151,7 +151,7 @@ export function useProductComponents(productId: string | undefined) {
       queryClient.invalidateQueries({ queryKey: ['product-components', productId] });
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'produtos', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'produtos', action: 'salvar' }),
     },
   });
 
@@ -169,7 +169,7 @@ export function useProductComponents(productId: string | undefined) {
       toast.success('Componente removido');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'produtos', action: 'excluir' });
+      onError: (err) => showErrorToast(err, { module: 'produtos', action: 'excluir' }),
     },
   });
 

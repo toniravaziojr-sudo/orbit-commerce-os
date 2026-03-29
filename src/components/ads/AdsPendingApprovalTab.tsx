@@ -106,7 +106,7 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
       queryClient.invalidateQueries({ queryKey: ["ads-pending-actions"] });
       toast.success("Ação aprovada e executada com sucesso");
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'aprovar' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'aprovar' }),
   });
 
   const rejectAction = useMutation({
@@ -123,7 +123,7 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
       queryClient.invalidateQueries({ queryKey: ["ads-pending-actions"] });
       toast.success("Ação rejeitada");
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'processar' }),
   });
 
   const adjustAction = useMutation({
@@ -173,7 +173,7 @@ export function AdsPendingApprovalTab({ channelFilter, pollInterval = 15000 }: A
       setAdjustingId(null);
       toast.success("Feedback enviado! A IA está gerando um novo plano com seus ajustes...");
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'processar' }),
   });
 
   if (isLoading) {

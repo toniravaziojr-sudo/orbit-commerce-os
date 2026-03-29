@@ -59,7 +59,7 @@ export function useMerchantSync(merchantAccountId?: string) {
       toast.success(`Sincronizado: ${data.synced} produtos (${data.errors} erros)`);
       queryClient.invalidateQueries({ queryKey: ["merchant-summary"] });
     },
-    showErrorToast(toast, { module: 'catálogo', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'catálogo', action: 'processar' }),
   });
 
   const checkStatusesMutation = useMutation({
@@ -77,7 +77,7 @@ export function useMerchantSync(merchantAccountId?: string) {
       toast.success(`Status atualizado para ${data.updated} produtos`);
       queryClient.invalidateQueries({ queryKey: ["merchant-summary"] });
     },
-    showErrorToast(toast, { module: 'catálogo', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'catálogo', action: 'processar' }),
   });
 
   const deleteProductsMutation = useMutation({
@@ -95,7 +95,7 @@ export function useMerchantSync(merchantAccountId?: string) {
       toast.success(`${data.deleted} produtos removidos do Merchant Center`);
       queryClient.invalidateQueries({ queryKey: ["merchant-summary"] });
     },
-    showErrorToast(toast, { module: 'catálogo', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'catálogo', action: 'processar' }),
   });
 
   return {

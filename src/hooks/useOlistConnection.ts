@@ -99,7 +99,7 @@ export function useOlistConnection() {
       }
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'olist', action: 'carregar' });
+      onError: (err) => showErrorToast(err, { module: 'olist', action: 'carregar' }),
     },
   });
 
@@ -124,7 +124,7 @@ export function useOlistConnection() {
       queryClient.invalidateQueries({ queryKey: ["olist-connection-status"] });
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'olist', action: 'conectar' });
+      onError: (err) => showErrorToast(err, { module: 'olist', action: 'conectar' }),
     },
   });
 
@@ -149,7 +149,7 @@ export function useOlistConnection() {
       queryClient.invalidateQueries({ queryKey: ["olist-connection-status"] });
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'olist', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'olist', action: 'processar' }),
     },
   });
 

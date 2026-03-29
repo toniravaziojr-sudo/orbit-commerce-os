@@ -323,7 +323,7 @@ export function useCreateShipment() {
     },
     onError: (error: Error) => {
       console.error('Erro ao criar remessa:', error);
-      showErrorToast(toast, { action: 'criar' });
+      onError: (err) => showErrorToast(err, { action: 'criar' }),
     },
   });
 }
@@ -363,7 +363,7 @@ export function usePrintLabel() {
     },
     onError: (error: Error) => {
       console.error('Erro ao obter etiqueta:', error);
-      showErrorToast(toast, { action: 'processar' });
+      onError: (err) => showErrorToast(err, { action: 'processar' }),
     },
   });
 }
@@ -389,7 +389,7 @@ export function useRefreshTracking() {
     },
     onError: (error: Error) => {
       console.error('Erro ao atualizar rastreamento:', error);
-      showErrorToast(toast, { action: 'salvar' });
+      onError: (err) => showErrorToast(err, { action: 'salvar' }),
     },
   });
 }
@@ -469,7 +469,7 @@ export function useRegisterManualShipment() {
     },
     onError: (error: Error) => {
       console.error('Erro ao registrar remessa:', error);
-      showErrorToast(toast, { action: 'registrar' });
+      onError: (err) => showErrorToast(err, { action: 'registrar' }),
     },
   });
 }

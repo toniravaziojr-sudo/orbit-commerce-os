@@ -92,7 +92,7 @@ export function useGoogleAds() {
       toast.success(`${data.synced} campanhas sincronizadas`);
       queryClient.invalidateQueries({ queryKey: ["google-ads-campaigns"] });
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'sincronizar' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'sincronizar' }),
   });
 
   // --- Insights ---
@@ -123,7 +123,7 @@ export function useGoogleAds() {
       toast.success(`${data.synced} registros de insights sincronizados`);
       queryClient.invalidateQueries({ queryKey: ["google-ads-insights-summary"] });
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'sincronizar' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'sincronizar' }),
   });
 
   // --- Audiences ---
@@ -154,7 +154,7 @@ export function useGoogleAds() {
       toast.success(`${data.synced} audiências sincronizadas`);
       queryClient.invalidateQueries({ queryKey: ["google-ads-audiences"] });
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'sincronizar' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'sincronizar' }),
   });
 
   // --- Sync All ---
@@ -173,7 +173,7 @@ export function useGoogleAds() {
       queryClient.invalidateQueries({ queryKey: ["google-ads-insights-summary"] });
       queryClient.invalidateQueries({ queryKey: ["google-ads-audiences"] });
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'processar' }),
   });
 
   return {

@@ -82,7 +82,7 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
           }
         } catch (error: any) {
           console.error(`Error normalizing ${module}:`, error);
-          showErrorToast(toast, { module: 'importação', action: 'processar' });
+          onError: (err) => showErrorToast(err, { module: 'importação', action: 'processar' }),
         }
       });
       
@@ -258,7 +258,7 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
       );
       toast.success(`Importação concluída! ${totalImported} itens importados.`);
     } catch (error: any) {
-      showErrorToast(toast, { module: 'importação', action: 'importar' });
+      onError: (err) => showErrorToast(err, { module: 'importação', action: 'importar' }),
       setStep('complete');
     } finally {
       setIsProcessing(false);

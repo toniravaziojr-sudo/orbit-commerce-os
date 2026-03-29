@@ -87,7 +87,7 @@ export function useTikTokReturns(filters?: ReturnFilters) {
       toast.success(`${result?.synced || 0} devolução(ões) sincronizada(s)`);
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'tiktok', action: 'sincronizar' });
+      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'sincronizar' }),
     },
   });
 
@@ -109,7 +109,7 @@ export function useTikTokReturns(filters?: ReturnFilters) {
       toast.success('Devolução aprovada com sucesso');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'tiktok', action: 'aprovar' });
+      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'aprovar' }),
     },
   });
 
@@ -131,7 +131,7 @@ export function useTikTokReturns(filters?: ReturnFilters) {
       toast.success('Devolução rejeitada');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'tiktok', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'tiktok', action: 'processar' }),
     },
   });
 

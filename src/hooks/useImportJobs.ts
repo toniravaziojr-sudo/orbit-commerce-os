@@ -94,7 +94,7 @@ export function useImportJobs() {
       queryClient.invalidateQueries({ queryKey: ['import-jobs', tenantId] });
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'importação', action: 'criar' });
+      onError: (err) => showErrorToast(err, { module: 'importação', action: 'criar' }),
     },
   });
 
@@ -137,7 +137,7 @@ export function useImportJobs() {
       toast.success('Job removido');
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'importação', action: 'excluir' });
+      onError: (err) => showErrorToast(err, { module: 'importação', action: 'excluir' }),
     },
   });
 
@@ -171,7 +171,7 @@ export function useImportJobs() {
       toast.success(`${totalDeleted} registros removidos com sucesso`);
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'importação', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'importação', action: 'processar' }),
     },
   });
 

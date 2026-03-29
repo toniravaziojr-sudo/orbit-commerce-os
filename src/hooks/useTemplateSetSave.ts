@@ -70,7 +70,7 @@ export function useTemplateSetSave() {
       queryClient.invalidateQueries({ queryKey: ['template-sets'] });
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'templates', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'templates', action: 'salvar' }),
     },
   });
 
@@ -184,7 +184,7 @@ export function useTemplateSetSave() {
       toast.success('Template publicado com sucesso!');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'templates', action: 'publicar' });
+      onError: (err) => showErrorToast(err, { module: 'templates', action: 'publicar' }),
     },
   });
 

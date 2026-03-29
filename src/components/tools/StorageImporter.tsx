@@ -123,7 +123,7 @@ export function StorageImporter() {
         toast.warning(`${imported} importado(s), ${failed} falha(s)`);
       }
     } catch (err: any) {
-      showErrorToast(toast, { module: 'ferramentas', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'ferramentas', action: 'processar' }),
     } finally {
       setImporting(false);
     }

@@ -181,7 +181,7 @@ export function EntryInvoiceDialog({ open, onOpenChange, onSuccess }: EntryInvoi
       resetForm();
       onSuccess?.();
     } catch (error: any) {
-      showErrorToast(error, { module: 'fiscal', action: 'criar NF-e de entrada' });
+      onError: (error) => showErrorToast(error, { module: 'fiscal', action: 'criar NF-e de entrada' }),
     } finally {
       setIsLoading(false);
     }

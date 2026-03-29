@@ -275,7 +275,7 @@ export function useAutomationBuilder(flowId?: string) {
         }
       } catch (err: any) {
         console.error("Save flow error:", err);
-        showErrorToast(toast, { module: 'automação', action: 'salvar' });
+        onError: (err) => showErrorToast(err, { module: 'automação', action: 'salvar' }),
       } finally {
         setIsSaving(false);
       }

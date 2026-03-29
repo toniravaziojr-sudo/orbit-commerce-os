@@ -76,7 +76,7 @@ export function useMetaCatalog() {
       queryClient.invalidateQueries({ queryKey: ["meta-connection-status"] });
     },
     onError: (err: any) => {
-      showErrorToast(toast, { module: 'meta', action: 'criar' });
+      onError: (err) => showErrorToast(err, { module: 'meta', action: 'criar' }),
     },
   });
 
@@ -98,7 +98,7 @@ export function useMetaCatalog() {
       queryClient.invalidateQueries({ queryKey: ["meta-catalog-items"] });
     },
     onError: (err: any) => {
-      showErrorToast(toast, { module: 'meta', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'meta', action: 'processar' }),
     },
   });
 

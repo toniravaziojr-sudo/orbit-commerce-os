@@ -129,7 +129,7 @@ export function usePageTemplates() {
       toast.success('Template criado com sucesso');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'páginas', action: 'criar' });
+      onError: (err) => showErrorToast(err, { module: 'páginas', action: 'criar' }),
     },
   });
 
@@ -153,7 +153,7 @@ export function usePageTemplates() {
       toast.success('Template atualizado');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'páginas', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'páginas', action: 'salvar' }),
     },
   });
 
@@ -171,7 +171,7 @@ export function usePageTemplates() {
       toast.success('Template excluído');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'páginas', action: 'excluir' });
+      onError: (err) => showErrorToast(err, { module: 'páginas', action: 'excluir' }),
     },
   });
 
@@ -202,7 +202,7 @@ export function usePageTemplates() {
       toast.success('Template duplicado');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'páginas', action: 'duplicar' });
+      onError: (err) => showErrorToast(err, { module: 'páginas', action: 'duplicar' }),
     },
   });
 
@@ -229,7 +229,7 @@ export function usePageTemplates() {
       toast.success('Template padrão definido');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'páginas', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'páginas', action: 'processar' }),
     },
   });
 

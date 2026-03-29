@@ -84,7 +84,7 @@ export function useFinanceEntries() {
       toast.success('Lançamento criado com sucesso');
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'financeiro', action: 'criar' });
+      onError: (err) => showErrorToast(err, { module: 'financeiro', action: 'criar' }),
     },
   });
 
@@ -105,7 +105,7 @@ export function useFinanceEntries() {
       toast.success('Lançamento atualizado com sucesso');
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'financeiro', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'financeiro', action: 'salvar' }),
     },
   });
 
@@ -123,7 +123,7 @@ export function useFinanceEntries() {
       toast.success('Lançamento removido com sucesso');
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'financeiro', action: 'excluir' });
+      onError: (err) => showErrorToast(err, { module: 'financeiro', action: 'excluir' }),
     },
   });
 

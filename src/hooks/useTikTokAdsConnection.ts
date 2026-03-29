@@ -120,7 +120,7 @@ export function useTikTokAdsConnection() {
       }
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'anúncios', action: 'conectar' });
+      onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'conectar' }),
     },
   });
 
@@ -148,7 +148,7 @@ export function useTikTokAdsConnection() {
       toast.success("TikTok Ads desconectado");
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'anúncios', action: 'conectar' });
+      onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'conectar' }),
     },
   });
 

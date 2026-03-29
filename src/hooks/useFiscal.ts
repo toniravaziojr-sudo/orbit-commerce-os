@@ -191,7 +191,7 @@ export function useFiscalSettings() {
       toast.success('Configurações fiscais salvas');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'fiscal', action: 'salvar' });
+      onError: (err) => showErrorToast(err, { module: 'fiscal', action: 'salvar' }),
     },
   });
 
@@ -211,7 +211,7 @@ export function useFiscalSettings() {
       toast.success('Certificado digital salvo com sucesso');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'fiscal', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'fiscal', action: 'processar' }),
     },
   });
 
@@ -231,7 +231,7 @@ export function useFiscalSettings() {
       toast.success('Certificado removido com sucesso');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'fiscal', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'fiscal', action: 'processar' }),
     },
   });
 
@@ -509,7 +509,7 @@ export function useSubmitInvoice() {
       }
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'fiscal', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'fiscal', action: 'processar' }),
     },
   });
 }

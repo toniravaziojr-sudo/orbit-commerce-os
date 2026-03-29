@@ -106,7 +106,7 @@ export function useMeliOrders({ status, page = 1, pageSize = 20 }: UseMeliOrders
       queryClient.invalidateQueries({ queryKey: ["meli-orders"] });
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'mercado livre', action: 'sincronizar' });
+      onError: (err) => showErrorToast(err, { module: 'mercado livre', action: 'sincronizar' }),
     },
   });
 

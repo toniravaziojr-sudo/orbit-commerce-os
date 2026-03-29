@@ -323,7 +323,7 @@ export function useCreateVideoJob() {
     },
     onError: (error: Error) => {
       console.error('Error creating video job:', error);
-      showErrorToast(toast, { module: 'vídeo', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'vídeo', action: 'processar' }),
     },
   });
 }
@@ -355,7 +355,7 @@ export function useDeleteVideoJob() {
       toast.success('Job excluído com sucesso');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'vídeo', action: 'excluir' });
+      onError: (err) => showErrorToast(err, { module: 'vídeo', action: 'excluir' }),
     },
   });
 }
@@ -413,7 +413,7 @@ export function useSelectBestCandidate() {
       toast.success('Vídeo selecionado como principal');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'vídeo', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'vídeo', action: 'processar' }),
     },
   });
 }

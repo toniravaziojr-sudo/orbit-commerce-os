@@ -61,7 +61,7 @@ export function InutilizarNumerosDialog({ open, onOpenChange, serie = 1, onSucce
       });
       onSuccess?.();
     } catch (error: any) {
-      showErrorToast(error, { module: 'fiscal', action: 'inutilizar numeração' });
+      onError: (error) => showErrorToast(error, { module: 'fiscal', action: 'inutilizar numeração' }),
     } finally {
       setIsLoading(false);
     }

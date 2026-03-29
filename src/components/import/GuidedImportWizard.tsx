@@ -249,7 +249,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
     } catch (error: any) {
       console.error(`[handleFileImport] Error:`, error);
       setFileStepStatuses(prev => ({ ...prev, [stepId]: { status: 'error', errorMessage: error.message } }));
-      showErrorToast(toast, { module: 'importação', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'importação', action: 'processar' }),
     }
   }, [currentTenant, analysisResult, importData]);
 

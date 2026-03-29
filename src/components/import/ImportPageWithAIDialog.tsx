@@ -104,7 +104,7 @@ export function ImportPageWithAIDialog({
       console.error('Import error:', err);
       setStatus('error');
       setErrorMessage(err.message || 'Erro desconhecido');
-      showErrorToast(toast, { module: 'importação', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'importação', action: 'processar' }),
     }
   };
 

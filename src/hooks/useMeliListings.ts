@@ -295,7 +295,7 @@ export function useMeliListings() {
     },
     onError: (error: Error) => {
       queryClient.invalidateQueries({ queryKey: ['meli-listings'] });
-      showErrorToast(toast, { module: 'mercado livre', action: 'publicar' });
+      onError: (err) => showErrorToast(err, { module: 'mercado livre', action: 'publicar' }),
     },
   });
 
@@ -319,7 +319,7 @@ export function useMeliListings() {
       toast.success(data.message || 'Sincronização concluída');
     },
     onError: (error: Error) => {
-      showErrorToast(toast, { module: 'mercado livre', action: 'sincronizar' });
+      onError: (err) => showErrorToast(err, { module: 'mercado livre', action: 'sincronizar' }),
     },
   });
 

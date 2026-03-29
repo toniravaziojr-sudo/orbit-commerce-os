@@ -168,7 +168,7 @@ export function BannerSlidesEditor({ slides = [], onChange, tenantId, onRegenera
       });
 
       if (error || !data?.success || !data?.generatedProps) {
-        showErrorToast(toast, { module: 'editor', action: 'processar' });
+        onError: (err) => showErrorToast(err, { module: 'editor', action: 'processar' }),
         return;
       }
 

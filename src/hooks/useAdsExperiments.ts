@@ -62,7 +62,7 @@ export function useAdsExperiments() {
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-experiments"] });
       toast.success("Experimento criado");
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'processar' }),
   });
 
   const updateExperiment = useMutation({
@@ -77,7 +77,7 @@ export function useAdsExperiments() {
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-experiments"] });
       toast.success("Experimento atualizado");
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'processar' }),
   });
 
   const cancelExperiment = useMutation({
@@ -92,7 +92,7 @@ export function useAdsExperiments() {
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-experiments"] });
       toast.success("Experimento cancelado");
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'processar' }),
   });
 
   const runExperiments = useMutation({
@@ -108,7 +108,7 @@ export function useAdsExperiments() {
       queryClient.invalidateQueries({ queryKey: ["ads-autopilot-experiments"] });
       toast.success("Experimentos avaliados com sucesso!");
     },
-    showErrorToast(toast, { module: 'anúncios', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'processar' }),
   });
 
   const getActiveExperiments = (channel?: string, accountId?: string) => {

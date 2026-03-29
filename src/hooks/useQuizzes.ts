@@ -146,7 +146,7 @@ export function useQuizzes() {
       toast.success("Quiz criado com sucesso");
     },
     onError: (error: any) => {
-      showErrorToast(toast, { module: 'quiz', action: 'criar' });
+      onError: (err) => showErrorToast(err, { module: 'quiz', action: 'criar' }),
     },
   });
 

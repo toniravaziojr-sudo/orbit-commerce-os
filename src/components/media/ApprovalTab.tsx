@@ -140,7 +140,7 @@ export function ApprovalTab({
           if (data.scheduled > 0) parts.push(`${data.scheduled} agendado(s)`);
           if (parts.length > 0) toast.success(parts.join(", ") + "!");
           if (data.failed > 0) toast.error(`${data.failed} falharam`);
-        showErrorToast(toast, { module: 'mídia', action: 'processar' });
+        onError: (err) => showErrorToast(err, { module: 'mídia', action: 'processar' }),
       }
       setSelectedIds(new Set());
       await refetchItems();

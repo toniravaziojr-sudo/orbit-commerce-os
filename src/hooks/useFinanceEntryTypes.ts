@@ -59,7 +59,7 @@ export function useFinanceEntryTypes() {
       toast.success('Tipo de lançamento criado');
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'financeiro', action: 'criar' });
+      onError: (err) => showErrorToast(err, { module: 'financeiro', action: 'criar' }),
     },
   });
 
@@ -77,7 +77,7 @@ export function useFinanceEntryTypes() {
       toast.success('Tipo de lançamento removido');
     },
     onError: (error) => {
-      showErrorToast(toast, { module: 'financeiro', action: 'excluir' });
+      onError: (err) => showErrorToast(err, { module: 'financeiro', action: 'excluir' }),
     },
   });
 

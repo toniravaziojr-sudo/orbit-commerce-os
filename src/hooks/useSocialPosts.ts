@@ -81,7 +81,7 @@ export function useSocialPostActions() {
       toast.success(messages[variables.action] || "Ação concluída!");
     },
     onError: (error: any) => {
-      showErrorToast(toast, { module: 'social', action: 'processar' });
+      onError: (err) => showErrorToast(err, { module: 'social', action: 'processar' }),
     },
   });
 

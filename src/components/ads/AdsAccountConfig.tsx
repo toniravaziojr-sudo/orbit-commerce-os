@@ -412,7 +412,7 @@ function AccountConfigCard({
                   toast.success(`Prompt gerado para ${data.data.store_name} (${data.data.products_count} produtos analisados)`);
                 }
               } catch (err: any) {
-                showErrorToast(toast, { module: 'anúncios', action: 'gerar' });
+                onError: (err) => showErrorToast(err, { module: 'anúncios', action: 'gerar' }),
               } finally {
                 setIsGeneratingPrompt(false);
               }

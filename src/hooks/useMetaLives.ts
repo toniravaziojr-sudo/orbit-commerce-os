@@ -60,7 +60,7 @@ export function useMetaLives() {
       toast.success("Transmissão criada!");
       queryClient.invalidateQueries({ queryKey: ["meta-live-streams"] });
     },
-    showErrorToast(toast, { module: 'meta', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'meta', action: 'processar' }),
   });
 
   // Go live
@@ -76,7 +76,7 @@ export function useMetaLives() {
       toast.success("Transmissão ao vivo iniciada!");
       queryClient.invalidateQueries({ queryKey: ["meta-live-streams"] });
     },
-    showErrorToast(toast, { module: 'meta', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'meta', action: 'processar' }),
   });
 
   // End live
@@ -92,7 +92,7 @@ export function useMetaLives() {
       toast.success("Transmissão encerrada");
       queryClient.invalidateQueries({ queryKey: ["meta-live-streams"] });
     },
-    showErrorToast(toast, { module: 'meta', action: 'processar' });
+    onError: (err) => showErrorToast(err, { module: 'meta', action: 'processar' }),
   });
 
   // Check status

@@ -145,7 +145,7 @@ export function useEmailCampaignBuilder() {
       navigate("/email-marketing");
     } catch (err: any) {
       console.error("Campaign send error:", err);
-      showErrorToast(toast, { module: 'email', action: 'enviar' });
+      onError: (err) => showErrorToast(err, { module: 'email', action: 'enviar' }),
     } finally {
       setIsSending(false);
     }
