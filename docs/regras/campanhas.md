@@ -771,3 +771,5 @@ Usa técnicas AIDA, PAS e storytelling.
 - [x] DayPostsList com layout `max-h-[90vh]` e scroll interno
 - [x] Finalizar Campanha com stagger de 30s para items passados
 - [ ] Publicação automática (worker/cron)
+- [x] Diagnóstico de seleção simplificado (contadores coloridos em linha única)
+- [x] Coloração dinâmica dos cards selecionados por status (verde/amarelo/laranja/vermelho/cinza)
