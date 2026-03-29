@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
+import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v1.0.0"; // Meta token refresh - renova long-lived tokens antes de expirar
@@ -78,10 +79,7 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error(`[meta-token-refresh][${VERSION}] Error:`, error);
-    return new Response(
-      JSON.stringify({ success: false, error: error instanceof Error ? error.message : "Erro interno" }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'meta-token-refresh' });
   }
 });
 

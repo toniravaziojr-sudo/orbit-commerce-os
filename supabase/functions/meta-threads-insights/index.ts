@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { errorResponse, metaApiErrorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v1.0.0"; // Fase 6 — Insights de posts do Threads
@@ -73,10 +74,7 @@ Deno.serve(async (req) => {
 
       if (data.error) {
         console.error(`[meta-threads-insights][${VERSION}] Post insights error:`, data.error);
-        return new Response(
-          JSON.stringify({ success: false, error: data.error.message }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return metaApiErrorResponse(data.error, corsHeaders, { module: 'threads-insights' });
       }
 
       // Normalizar resposta
@@ -104,10 +102,7 @@ Deno.serve(async (req) => {
 
       if (data.error) {
         console.error(`[meta-threads-insights][${VERSION}] Profile insights error:`, data.error);
-        return new Response(
-          JSON.stringify({ success: false, error: data.error.message }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return metaApiErrorResponse(data.error, corsHeaders, { module: 'threads-insights' });
       }
 
       const insights: Record<string, any> = {};
@@ -132,9 +127,6 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error(`[meta-threads-insights][${VERSION}] Error:`, error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'threads-insights' });
   }
 });

@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { errorResponse, metaApiErrorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v2.1.0"; // Reconciliation: delete local ads not found on Meta after sync
@@ -227,10 +228,7 @@ Deno.serve(async (req) => {
       const result = await graphApi(meta_ad_id, conn.access_token, "POST", metaUpdates);
 
       if (result.error) {
-        return new Response(
-          JSON.stringify({ success: false, error: result.error.message, code: "GRAPH_API_ERROR" }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return metaApiErrorResponse(result.error, corsHeaders, { module: 'ads-ads' });
       }
 
       // Update local
@@ -290,10 +288,7 @@ Deno.serve(async (req) => {
 
       if (result.error) {
         console.error(`[meta-ads-ads][${traceId}] Create error:`, result.error);
-        return new Response(
-          JSON.stringify({ success: false, error: result.error.message, code: "GRAPH_API_ERROR", details: result.error }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return metaApiErrorResponse(result.error, corsHeaders, { module: 'ads-ads' });
       }
 
       // Get local adset FK
@@ -339,9 +334,6 @@ Deno.serve(async (req) => {
     );
   } catch (error) {
     console.error(`[meta-ads-ads][${traceId}] Error:`, error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message || "Erro interno" }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'ads-ads' });
   }
 });

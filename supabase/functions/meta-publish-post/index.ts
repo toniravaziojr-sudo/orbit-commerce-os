@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const VERSION = "3.0.0"; // Phase 1A: preflight + snapshot + frozen_payload
 
@@ -381,7 +382,7 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error("[meta-publish-post] Error:", error);
-    return jsonResponse({ success: false, error: error.message || "Erro interno" });
+    return errorResponse(error, corsHeaders, { module: 'meta-publish-post', action: 'publish' });
   }
 });
 

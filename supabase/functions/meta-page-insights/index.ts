@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { errorResponse, metaApiErrorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v1.0.0"; // Fase 9 — Page Insights
@@ -108,10 +109,7 @@ Deno.serve(async (req) => {
 
         if (data.error) {
           console.error(`[meta-page-insights][${VERSION}] Graph API error:`, data.error);
-          return new Response(
-            JSON.stringify({ success: false, error: data.error.message, code: "GRAPH_API_ERROR" }),
-            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          return metaApiErrorResponse(data.error, corsHeaders, { module: 'page-insights' });
         }
 
         return new Response(
@@ -132,10 +130,7 @@ Deno.serve(async (req) => {
 
         if (data.error) {
           console.error(`[meta-page-insights][${VERSION}] Demographics error:`, data.error);
-          return new Response(
-            JSON.stringify({ success: false, error: data.error.message, code: "GRAPH_API_ERROR" }),
-            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          return metaApiErrorResponse(data.error, corsHeaders, { module: 'page-insights' });
         }
 
         return new Response(
@@ -169,10 +164,7 @@ Deno.serve(async (req) => {
 
         if (data.error) {
           console.error(`[meta-page-insights][${VERSION}] IG Insights error:`, data.error);
-          return new Response(
-            JSON.stringify({ success: false, error: data.error.message, code: "GRAPH_API_ERROR" }),
-            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          return metaApiErrorResponse(data.error, corsHeaders, { module: 'page-insights' });
         }
 
         return new Response(
@@ -202,10 +194,7 @@ Deno.serve(async (req) => {
 
         if (data.error) {
           console.error(`[meta-page-insights][${VERSION}] IG Demographics error:`, data.error);
-          return new Response(
-            JSON.stringify({ success: false, error: data.error.message, code: "GRAPH_API_ERROR" }),
-            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          return metaApiErrorResponse(data.error, corsHeaders, { module: 'page-insights' });
         }
 
         return new Response(
@@ -236,9 +225,6 @@ Deno.serve(async (req) => {
     }
   } catch (err) {
     console.error(`[meta-page-insights][${VERSION}] Error:`, err);
-    return new Response(
-      JSON.stringify({ success: false, error: err.message || "Erro interno" }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return errorResponse(err, corsHeaders, { module: 'page-insights' });
   }
 });

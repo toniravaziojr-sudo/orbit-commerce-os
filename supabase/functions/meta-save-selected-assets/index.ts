@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { errorResponse } from "../_shared/error-response.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -241,10 +242,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error("[meta-save-selected-assets] Erro:", error);
-    return new Response(
-      JSON.stringify({ success: false, error: error instanceof Error ? error.message : "Erro interno" }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'meta-save-assets' });
   }
 });
 
@@ -356,7 +354,7 @@ async function createOrReuseCatalog(
 
   } catch (error) {
     console.error("[meta-save-selected-assets] Erro ao criar/reutilizar catálogo:", error);
-    return { success: false, error: error instanceof Error ? error.message : "Erro interno" };
+    return { success: false, error: "Erro ao configurar catálogo. Tente novamente." };
   }
 }
 

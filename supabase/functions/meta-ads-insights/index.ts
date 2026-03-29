@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v1.7.0"; // Fix: upsert per-chunk + campaign cache to avoid 150s timeout
@@ -378,9 +379,6 @@ Deno.serve(async (req) => {
     );
   } catch (error) {
     console.error(`[meta-ads-insights][${traceId}] Error:`, error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message || "Erro interno" }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return errorResponse(error, corsHeaders, { module: 'ads-insights' });
   }
 });

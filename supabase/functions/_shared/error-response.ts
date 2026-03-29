@@ -197,3 +197,84 @@ export function successResponse(
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 }
+
+// ── Meta Graph API specific errors ─────────────────────────────────
+
+const META_ERROR_MAP: Record<number, string> = {
+  4: 'Limite de requisições da Meta atingido. Aguarde alguns minutos.',
+  10: 'Permissão negada pela Meta. Verifique as permissões do aplicativo.',
+  100: 'Parâmetro inválido na Meta. Verifique a configuração.',
+  190: 'Token da Meta expirado ou revogado. Reconecte sua conta.',
+  200: 'Permissão da Meta insuficiente. Reconecte com as permissões necessárias.',
+  368: 'Bloqueio temporário da Meta por uso excessivo. Aguarde.',
+  803: 'Recurso não encontrado na Meta. Verifique se ainda existe.',
+};
+
+const META_SUBCODE_MAP: Record<number, string> = {
+  458: 'Token de usuário expirado. Reconecte sua conta Meta.',
+  459: 'Sessão Meta inválida. Reconecte sua conta.',
+  460: 'Senha Meta alterada. Reconecte sua conta.',
+  463: 'Token expirado. Reconecte sua conta Meta.',
+  467: 'Token inválido. Reconecte sua conta Meta.',
+  2388001: 'A Meta rejeitou a requisição. Verifique os parâmetros.',
+  2388023: 'Este recurso já existe na Meta.',
+  2388366: 'Número já verificado na Meta.',
+  136025: 'Número registrado em outra conta. Desregistre primeiro.',
+};
+
+/**
+ * Sanitiza erro da Graph API da Meta e retorna Response padronizado.
+ * 
+ * @example
+ * const result = await graphApi(...);
+ * if (result.error) {
+ *   return metaApiErrorResponse(result.error, corsHeaders, { module: 'ads' });
+ * }
+ */
+export function metaApiErrorResponse(
+  metaError: { message?: string; code?: number; error_subcode?: number; fbtrace_id?: string; type?: string },
+  corsHeaders: Record<string, string>,
+  options?: { module?: string; requestId?: string }
+): Response {
+  const rawMsg = metaError?.message || 'Erro desconhecido da Meta';
+
+  // Log completo no servidor
+  console.error(`[MetaApiError]${options?.module ? `[${options.module}]` : ''}`, {
+    message: rawMsg,
+    code: metaError?.code,
+    subcode: metaError?.error_subcode,
+    fbtrace_id: metaError?.fbtrace_id,
+    type: metaError?.type,
+  });
+
+  // Resolve mensagem: subcode > code > pattern > fallback
+  let userMessage: string;
+  let techCode: string;
+
+  if (metaError?.error_subcode && META_SUBCODE_MAP[metaError.error_subcode]) {
+    userMessage = META_SUBCODE_MAP[metaError.error_subcode];
+    techCode = `META_SUBCODE_${metaError.error_subcode}`;
+  } else if (metaError?.code && META_ERROR_MAP[metaError.code]) {
+    userMessage = META_ERROR_MAP[metaError.code];
+    techCode = `META_CODE_${metaError.code}`;
+  } else {
+    // Pattern match on message
+    const result = sanitize(new Error(rawMsg));
+    userMessage = result.message;
+    techCode = result.code;
+  }
+
+  const body = {
+    success: false as const,
+    error: userMessage,
+    code: techCode,
+    category: 'technical' as ErrorCategory,
+    retryable: metaError?.code === 4 || metaError?.code === 368,
+    ...(options?.requestId && { request_id: options.requestId }),
+  };
+
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}

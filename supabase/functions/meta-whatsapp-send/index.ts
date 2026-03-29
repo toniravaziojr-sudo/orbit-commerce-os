@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-
+import { errorResponse, metaApiErrorResponse } from "../_shared/error-response.ts";
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v1.1.0"; // Fixed column names for whatsapp_messages
 // ===========================================================
@@ -179,13 +179,7 @@ Deno.serve(async (req) => {
         error_message: sendResult.error.message,
       });
 
-      return new Response(JSON.stringify({ 
-        success: false, 
-        error: sendResult.error.message || "Erro ao enviar mensagem" 
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return metaApiErrorResponse(sendResult.error, corsHeaders, { module: 'whatsapp-send' });
     }
 
     const messageId = sendResult.messages?.[0]?.id;
@@ -215,9 +209,6 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error(`[meta-whatsapp-send][${traceId}] Error:`, error);
-    return new Response(JSON.stringify({ success: false, error: "Erro interno do servidor" }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return errorResponse(error, corsHeaders, { module: 'whatsapp-send', action: 'send' });
   }
 });

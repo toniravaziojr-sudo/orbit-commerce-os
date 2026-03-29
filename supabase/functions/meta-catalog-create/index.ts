@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { metaApiErrorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v1.0.0"; // Initial: create Meta Commerce catalog
@@ -148,10 +149,7 @@ Deno.serve(async (req) => {
 
       if (createData.error) {
         console.error(`[meta-catalog-create] Error creating catalog:`, createData.error);
-        return new Response(
-          JSON.stringify({ success: false, error: createData.error.message || "Erro ao criar catálogo" }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return metaApiErrorResponse(createData.error, corsHeaders, { module: 'meta-catalog-create' });
       }
 
       const newCatalog = { id: createData.id, name };
