@@ -154,7 +154,16 @@ export function DateRangeFilter({
   };
 
   const handleApply = () => {
-    onChange(localStartDate, localEndDate);
+    // Bug fix: if user selected start but not end, treat as single-day selection
+    const finalStart = localStartDate;
+    const finalEnd = localEndDate || (localStartDate ? endOfDay(localStartDate) : undefined);
+    
+    if (finalEnd && !localEndDate) {
+      setLocalEndDate(finalEnd);
+      setEndInputValue(format(finalEnd, 'dd/MM/yyyy'));
+    }
+    
+    onChange(finalStart, finalEnd);
     setIsOpen(false);
   };
 

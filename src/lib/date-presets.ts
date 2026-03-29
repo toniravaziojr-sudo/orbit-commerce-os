@@ -89,17 +89,17 @@ export function getPresetDateRange(
     }
 
     case 'this_week':
-      // Início da semana até o fim de HOJE
+      // Início da semana (segunda-feira) até o fim de HOJE
       return {
-        start: startOfWeek(now, { locale: ptBR }),
+        start: startOfWeek(now, { weekStartsOn: 1 }),
         end: endOfDay(now),
       };
 
     case 'last_week': {
       const lastWeek = subWeeks(now, 1);
       return {
-        start: startOfWeek(lastWeek, { locale: ptBR }),
-        end: endOfWeek(lastWeek, { locale: ptBR }),
+        start: startOfWeek(lastWeek, { weekStartsOn: 1 }),
+        end: endOfWeek(lastWeek, { weekStartsOn: 1 }),
       };
     }
 
@@ -168,14 +168,14 @@ export function detectPreset(start?: Date, end?: Date): DatePreset | null {
   if (startStr === fmt(yesterday) && endStr === fmt(yesterday)) return 'yesterday';
 
   // this_week (até hoje)
-  const thisWeekStart = startOfWeek(now, { locale: ptBR });
+  const thisWeekStart = startOfWeek(now, { weekStartsOn: 1 });
   if (startStr === fmt(thisWeekStart) && endStr === fmt(now)) return 'this_week';
 
   // last_week
   const lastWeek = subWeeks(now, 1);
   if (
-    startStr === fmt(startOfWeek(lastWeek, { locale: ptBR })) &&
-    endStr === fmt(endOfWeek(lastWeek, { locale: ptBR }))
+    startStr === fmt(startOfWeek(lastWeek, { weekStartsOn: 1 })) &&
+    endStr === fmt(endOfWeek(lastWeek, { weekStartsOn: 1 }))
   ) return 'last_week';
 
   // this_month (até hoje)
