@@ -337,7 +337,7 @@ export function useCommandAssistant() {
       const data = await response.json();
 
       if (!data.success) {
-        showErrorToast(error, { module: 'assistente', action: 'processar' });
+        showErrorToast(new Error(data?.error || data?.message || 'Falha ao executar ação'), { module: 'assistente', action: 'processar' });
         return;
       }
 

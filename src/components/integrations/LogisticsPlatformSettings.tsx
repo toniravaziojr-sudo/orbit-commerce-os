@@ -28,11 +28,11 @@ export function LogisticsPlatformSettings() {
           description: `Token expira em ${data.expiresIn}s`
         });
       } else {
-        showErrorToast(error, { module: 'integrações', action: 'conectar' });
+        showErrorToast(new Error(data?.error || 'Falha ao validar conexão logística'), { module: 'integrações', action: 'conectar' });
       }
       queryClient.invalidateQueries({ queryKey: ['platform-secrets-status'] });
     },
-    onError: (err) => showErrorToast(error, { module: 'integrações', action: 'testar' }),
+    onError: (error) => showErrorToast(error, { module: 'integrações', action: 'testar' }),
   });
 
   const isConfigured = secretStatus?.status === 'configured';

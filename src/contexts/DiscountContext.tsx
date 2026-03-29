@@ -131,7 +131,7 @@ export function DiscountProvider({ children }: DiscountProviderProps) {
       const data = await response.json();
 
       if (!data.valid) {
-        showErrorToast(error, { action: 'processar' });
+        showErrorToast(new Error(data?.error || 'Cupom inválido'), { action: 'processar' });
         return false;
       }
 

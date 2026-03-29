@@ -176,7 +176,7 @@ export default function Blog() {
       toast.success('Post criado com sucesso');
       navigate(`/blog/${newPost.id}/editor`);
     },
-    onError: (err) => showErrorToast(error, { module: 'blog', action: 'criar' }),
+    onError: (error) => showErrorToast(error, { module: 'blog', action: 'criar' }),
   });
 
   // Update post mutation
@@ -208,7 +208,7 @@ export default function Blog() {
       queryClient.invalidateQueries({ queryKey: ['blog-posts'] });
       toast.success('Post atualizado');
     },
-    onError: (err) => showErrorToast(error, { module: 'blog', action: 'salvar' }),
+    onError: (error) => showErrorToast(error, { module: 'blog', action: 'salvar' }),
   });
 
   // Delete post mutation
@@ -226,7 +226,7 @@ export default function Blog() {
       toast.success('Post excluído');
       setDeleteId(null);
     },
-    onError: (err) => showErrorToast(error, { module: 'blog', action: 'excluir' }),
+    onError: (error) => showErrorToast(error, { module: 'blog', action: 'excluir' }),
   });
 
   const resetForm = () => {
@@ -259,7 +259,7 @@ export default function Blog() {
     const validation = validateSlug(slug);
     
     if (!validation.isValid) {
-      showErrorToast(error, { module: 'blog', action: 'processar' });
+      showErrorToast(new Error(validation.error || 'Slug inválido'), { module: 'blog', action: 'processar' });
       return;
     }
     

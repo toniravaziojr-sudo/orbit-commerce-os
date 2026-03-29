@@ -104,11 +104,11 @@ export function EmailAndDomainsPlatformSettings() {
             : 'API Token válido'
         });
       } else {
-        showErrorToast(error, { module: 'integrações', action: 'processar' });
+        showErrorToast(new Error(data?.error || 'Falha ao validar conexão Cloudflare'), { module: 'integrações', action: 'processar' });
       }
       queryClient.invalidateQueries({ queryKey: ['platform-secrets-status'] });
     },
-    onError: (err) => showErrorToast(error, { module: 'integrações', action: 'testar' }),
+    onError: (error) => showErrorToast(error, { module: 'integrações', action: 'testar' }),
   });
 
   useEffect(() => {
@@ -257,7 +257,7 @@ export function EmailAndDomainsPlatformSettings() {
       if (data.success) {
         toast.success("Email de teste enviado!", { description: `Verifique a caixa de entrada de ${testEmail}` });
       } else {
-        showErrorToast(error, { module: 'integrações', action: 'enviar' });
+        showErrorToast(new Error(data?.error || 'Falha ao enviar email de teste'), { module: 'integrações', action: 'enviar' });
       }
       await loadConfig();
     } catch (error: any) {

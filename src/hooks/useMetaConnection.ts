@@ -154,7 +154,7 @@ export function useMetaConnection() {
           if (event.data.success) {
             toast.success("Conta Meta conectada com sucesso!");
           } else if (event.data.error) {
-            showErrorToast(error, { module: 'meta', action: 'processar' });
+            showErrorToast(new Error(event.data.error || 'Falha ao conectar Meta'), { module: 'meta', action: 'processar' });
           }
         }
       };
@@ -170,7 +170,7 @@ export function useMetaConnection() {
         }
       }, 500);
     },
-    onError: (err) => showErrorToast(error, { module: 'meta', action: 'conectar' }),
+    onError: (error) => showErrorToast(error, { module: 'meta', action: 'conectar' }),
   });
 
   // Mutation para desconectar
@@ -195,7 +195,7 @@ export function useMetaConnection() {
       toast.success("Conta Meta desconectada");
       queryClient.invalidateQueries({ queryKey: ["meta-connection-status"] });
     },
-    onError: (err) => showErrorToast(error, { module: 'meta', action: 'conectar' }),
+    onError: (error) => showErrorToast(error, { module: 'meta', action: 'conectar' }),
   });
 
   return {
