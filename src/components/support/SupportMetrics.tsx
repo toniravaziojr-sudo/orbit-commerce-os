@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { subDays, startOfDay, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { getComparisonLabel, getPresetDateRange } from "@/lib/date-presets";
 
 interface MetricCardProps {
   title: string;
