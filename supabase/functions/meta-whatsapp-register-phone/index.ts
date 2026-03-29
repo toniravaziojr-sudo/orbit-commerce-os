@@ -122,8 +122,33 @@ Deno.serve(async (req) => {
 
     const graphApiVersion = credentials?.credential_value || "v21.0";
 
-    // Register the phone number on Cloud API
-    console.log(`[meta-whatsapp-register-phone][${traceId}] Registering phone ${config.phone_number_id}...`);
+    // Step 1: Deregister the phone number first to clear residual state (2FA/registration)
+    console.log(`[meta-whatsapp-register-phone][${traceId}] Step 1: Deregistering phone ${config.phone_number_id} to clear residual state...`);
+    
+    const deregisterUrl = `https://graph.facebook.com/${graphApiVersion}/${config.phone_number_id}/deregister`;
+    const deregisterResponse = await fetch(deregisterUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${config.access_token}`,
+      },
+      body: JSON.stringify({ messaging_product: "whatsapp" }),
+    });
+    const deregisterData = await deregisterResponse.json();
+    
+    const deregisterDiagnostic = {
+      http_status: deregisterResponse.status,
+      success: deregisterData.success === true,
+      error_message: deregisterData.error?.message || null,
+      error_code: deregisterData.error?.code || null,
+      error_subcode: deregisterData.error?.error_subcode || null,
+      fbtrace_id: deregisterData.error?.fbtrace_id || null,
+    };
+    
+    console.log(`[meta-whatsapp-register-phone][${traceId}] Deregister result:`, JSON.stringify(deregisterDiagnostic));
+
+    // Step 2: Register the phone number on Cloud API
+    console.log(`[meta-whatsapp-register-phone][${traceId}] Step 2: Registering phone ${config.phone_number_id}...`);
     
     const registerUrl = `https://graph.facebook.com/${graphApiVersion}/${config.phone_number_id}/register`;
     const registerResponse = await fetch(registerUrl, {
@@ -143,13 +168,16 @@ Deno.serve(async (req) => {
 
     // Build raw diagnostic object for every attempt
     const metaDiagnostic = {
-      http_status: registerResponse.status,
-      error_message: registerData.error?.message || null,
-      error_code: registerData.error?.code || null,
-      error_subcode: registerData.error?.error_subcode || null,
-      fbtrace_id: registerData.error?.fbtrace_id || null,
-      error_user_msg: registerData.error?.error_user_msg || null,
-      raw_success: registerData.success,
+      deregister: deregisterDiagnostic,
+      register: {
+        http_status: registerResponse.status,
+        error_message: registerData.error?.message || null,
+        error_code: registerData.error?.code || null,
+        error_subcode: registerData.error?.error_subcode || null,
+        fbtrace_id: registerData.error?.fbtrace_id || null,
+        error_user_msg: registerData.error?.error_user_msg || null,
+        raw_success: registerData.success,
+      },
       timestamp: new Date().toISOString(),
       trace_id: traceId,
       endpoint_called: registerUrl,
