@@ -510,7 +510,7 @@ export function MetaUnifiedSettings() {
                               <div className="space-y-2 rounded-md bg-muted/50 p-2.5">
                                 <p className="text-xs font-medium">Passo 3: Definir PIN de segurança</p>
                                 <p className="text-xs text-muted-foreground">
-                                  Crie um PIN de 6 dígitos para proteger sua conta. Se já tiver um PIN configurado anteriormente, use o mesmo.
+                                  Use o PIN da verificação em duas etapas do WhatsApp Manager (não é a senha de login da Meta). Se não lembrar, redefina o PIN no painel da Meta e tente novamente.
                                 </p>
                                 <Input
                                   placeholder="PIN de 6 dígitos"
