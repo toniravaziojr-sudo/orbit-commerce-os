@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Calendar, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { format, parse, isValid } from 'date-fns';
+import { format, parse, isValid, isSameDay, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   type DatePreset,
@@ -50,6 +50,8 @@ export function DateRangeFilter({
   const [startInputValue, setStartInputValue] = useState(startDate ? format(startDate, 'dd/MM/yyyy') : '');
   const [endInputValue, setEndInputValue] = useState(endDate ? format(endDate, 'dd/MM/yyyy') : '');
   const [calendarMonth, setCalendarMonth] = useState<Date>(startDate || new Date());
+  // Selection phase: 'start' = next click sets start date, 'end' = next click sets end date
+  const [selectionPhase, setSelectionPhase] = useState<'start' | 'end'>('start');
 
   // Sync local state when props change
   useEffect(() => {
@@ -63,6 +65,9 @@ export function DateRangeFilter({
   const hasFilter = startDate && endDate;
 
   const handlePresetClick = (preset: DatePreset) => {
+    // Reset selection phase when picking a preset
+    setSelectionPhase('start');
+
     if (preset === 'custom') {
       setActivePreset('custom');
       return;
@@ -95,16 +100,37 @@ export function DateRangeFilter({
     setEndInputValue(end ? format(end, 'dd/MM/yyyy') : '');
   };
 
-  const handleStartDateSelect = (date: Date | undefined) => {
-    setLocalStartDate(date);
-    setStartInputValue(date ? format(date, 'dd/MM/yyyy') : '');
-    setActivePreset('custom');
-  };
+  // Unified calendar click handler — works for both left and right calendars
+  const handleCalendarDayClick = (date: Date | undefined) => {
+    if (!date) return;
 
-  const handleEndDateSelect = (date: Date | undefined) => {
-    setLocalEndDate(date);
-    setEndInputValue(date ? format(date, 'dd/MM/yyyy') : '');
     setActivePreset('custom');
+
+    if (selectionPhase === 'start') {
+      // First click: set start, clear end, move to 'end' phase
+      const dayStart = startOfDay(date);
+      setLocalStartDate(dayStart);
+      setLocalEndDate(undefined);
+      setStartInputValue(format(dayStart, 'dd/MM/yyyy'));
+      setEndInputValue('');
+      setSelectionPhase('end');
+    } else {
+      // Second click: set end date
+      const dayEnd = endOfDay(date);
+      
+      // If same day as start or before start → select single day
+      if (localStartDate && (isSameDay(date, localStartDate) || date < localStartDate)) {
+        const singleDay = startOfDay(date);
+        setLocalStartDate(singleDay);
+        setLocalEndDate(endOfDay(date));
+        setStartInputValue(format(singleDay, 'dd/MM/yyyy'));
+        setEndInputValue(format(date, 'dd/MM/yyyy'));
+      } else {
+        setLocalEndDate(dayEnd);
+        setEndInputValue(format(date, 'dd/MM/yyyy'));
+      }
+      setSelectionPhase('start');
+    }
   };
 
   const handleStartInputChange = (value: string) => {
