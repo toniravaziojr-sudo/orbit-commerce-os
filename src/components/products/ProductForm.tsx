@@ -1181,10 +1181,10 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                         <FormItem>
                           <FormLabel>Início da Promoção</FormLabel>
                           <FormControl>
-                            <Input
-                              {...field}
-                              type="datetime-local"
-                              value={field.value ?? ''}
+                            <DateTimePickerField
+                              value={field.value ? new Date(field.value) : undefined}
+                              onChange={(date) => field.onChange(date ? date.toISOString() : null)}
+                              placeholder="Selecione data e hora"
                             />
                           </FormControl>
                           <FormMessage />
@@ -1199,10 +1199,10 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                         <FormItem>
                           <FormLabel>Fim da Promoção</FormLabel>
                           <FormControl>
-                            <Input
-                              {...field}
-                              type="datetime-local"
-                              value={field.value ?? ''}
+                            <DateTimePickerField
+                              value={field.value ? new Date(field.value) : undefined}
+                              onChange={(date) => field.onChange(date ? date.toISOString() : null)}
+                              placeholder="Selecione data e hora"
                             />
                           </FormControl>
                           <FormMessage />

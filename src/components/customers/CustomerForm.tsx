@@ -564,7 +564,12 @@ export function CustomerForm({
                             <FormItem>
                               <FormLabel>Data de nascimento</FormLabel>
                               <FormControl>
-                                <Input type="date" {...field} value={field.value ?? ''} />
+                                <DatePickerField
+                                  value={field.value ? parse(field.value, 'yyyy-MM-dd', new Date()) : undefined}
+                                  onChange={(date) => field.onChange(date ? format(date, 'yyyy-MM-dd') : '')}
+                                  placeholder="Selecione a data"
+                                  maxDate={new Date()}
+                                />
                               </FormControl>
                               <FormMessage />
                             </FormItem>

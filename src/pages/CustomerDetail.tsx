@@ -450,10 +450,11 @@ export default function CustomerDetail() {
                   </div>
                   <div className="space-y-2">
                     <Label>Data de nascimento</Label>
-                    <Input 
-                      type="date"
-                      value={editData.birth_date ?? ''} 
-                      onChange={(e) => setEditData({...editData, birth_date: e.target.value})}
+                    <DatePickerField
+                      value={editData.birth_date ? parse(editData.birth_date, 'yyyy-MM-dd', new Date()) : undefined}
+                      onChange={(date) => setEditData({...editData, birth_date: date ? format(date, 'yyyy-MM-dd') : ''})}
+                      placeholder="Selecione a data"
+                      maxDate={new Date()}
                     />
                   </div>
                 </>
@@ -709,10 +710,11 @@ export default function CustomerDetail() {
                 )}
                 <div className="space-y-2">
                   <Label>Data de nascimento</Label>
-                  <Input 
-                    type="date"
-                    value={editData.birth_date ?? ''} 
-                    onChange={(e) => setEditData({...editData, birth_date: e.target.value})}
+                  <DatePickerField
+                    value={editData.birth_date ? parse(editData.birth_date, 'yyyy-MM-dd', new Date()) : undefined}
+                    onChange={(date) => setEditData({...editData, birth_date: date ? format(date, 'yyyy-MM-dd') : ''})}
+                    placeholder="Selecione a data"
+                    maxDate={new Date()}
                   />
                 </div>
                 <div className="space-y-2">

@@ -426,11 +426,10 @@ export function DiscountFormDialog({ open, onOpenChange, discount }: DiscountFor
                   <FormItem>
                     <FormLabel>Data de início (opcional)</FormLabel>
                     <FormControl>
-                      <Input
-                        type="datetime-local"
-                        {...field}
-                        value={field.value || ""}
-                        onChange={(e) => field.onChange(e.target.value || null)}
+                      <DateTimePickerField
+                        value={field.value ? new Date(field.value) : undefined}
+                        onChange={(date) => field.onChange(date ? date.toISOString() : null)}
+                        placeholder="Selecione data e hora"
                       />
                     </FormControl>
                     <FormMessage />
@@ -445,11 +444,10 @@ export function DiscountFormDialog({ open, onOpenChange, discount }: DiscountFor
                   <FormItem>
                     <FormLabel>Data de expiração (opcional)</FormLabel>
                     <FormControl>
-                      <Input
-                        type="datetime-local"
-                        {...field}
-                        value={field.value || ""}
-                        onChange={(e) => field.onChange(e.target.value || null)}
+                      <DateTimePickerField
+                        value={field.value ? new Date(field.value) : undefined}
+                        onChange={(date) => field.onChange(date ? date.toISOString() : null)}
+                        placeholder="Selecione data e hora"
                       />
                     </FormControl>
                     <FormMessage />

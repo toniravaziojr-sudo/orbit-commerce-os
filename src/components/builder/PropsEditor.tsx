@@ -751,10 +751,10 @@ function PropField({ name, schema, value, onChange, blockType, allProps }: PropF
 
         return (
           <div className="space-y-1.5">
-            <Input
-              type="datetime-local"
-              value={toDatetimeLocal((value as string) || '')}
-              onChange={(e) => onChange(fromDatetimeLocal(e.target.value))}
+            <DateTimePickerField
+              value={value ? new Date(value as string) : undefined}
+              onChange={(date) => onChange(date ? date.toISOString() : '')}
+              placeholder="Selecione data e hora"
               className="h-8 text-xs"
             />
             {schema.helpText && (
