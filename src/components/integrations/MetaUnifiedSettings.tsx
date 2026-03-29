@@ -107,6 +107,9 @@ export function MetaUnifiedSettings() {
   const [selectedPacks, setSelectedPacks] = useState<MetaScopePack[]>(["whatsapp"]);
   const [testPhone, setTestPhone] = useState("");
   const [registerPin, setRegisterPin] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [registrationStep, setRegistrationStep] = useState<"idle" | "code_sent" | "code_verified">("idle");
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
   // Fetch existing WhatsApp config to pre-populate test mode fields
