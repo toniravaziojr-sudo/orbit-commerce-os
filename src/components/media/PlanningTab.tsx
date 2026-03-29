@@ -613,31 +613,32 @@ export function PlanningTab({
                   const allDayItems = itemsByDate.get(dateKey) || [];
                   const inPeriod = isInCampaignPeriod(date);
                   const holiday = getHolidayForDate(date);
-                  const isSelected = selectedDays.has(dateKey);
-                  const hasContent = dayItems.length > 0;
-                  const counts = getPublicationCounts(dayItems);
+                   const isSelected = selectedDays.has(dateKey);
+                   const hasContent = dayItems.length > 0;
+                   const counts = getPublicationCounts(dayItems);
+                   const statusClasses = isSelected ? getSelectedDayStatusClasses(dayItems, isBlog) : null;
 
-                  return (
-                    <div
-                      key={dateKey}
-                      onClick={() => inPeriod && handleDayClick(date, allDayItems)}
-                      className={cn(
-                        "min-h-[90px] p-1 rounded-md border-2 transition-all relative",
-                        inPeriod ? "cursor-pointer hover:shadow-md" : "bg-muted/30 border-transparent",
-                        isSelected && "bg-primary/20 border-primary border-dashed",
-                        hasContent && inPeriod && !isSelected && "border-muted-foreground/30 bg-muted/50",
-                        !isSelected && !hasContent && inPeriod && "bg-background border-border",
-                        holiday && inPeriod && "ring-2 ring-red-400/50",
-                        isSelectMode && inPeriod && "cursor-cell"
-                      )}
-                    >
-                      <div className={cn(
-                        "text-xs font-medium p-1 flex items-center gap-1",
-                        !inPeriod && "text-muted-foreground/50",
-                        (isSelected || hasContent) && "text-primary font-semibold"
-                      )}>
-                        {format(date, "d")}
-                        {isSelected && !hasContent && <Check className="h-3 w-3 text-primary" />}
+                   return (
+                     <div
+                       key={dateKey}
+                       onClick={() => inPeriod && handleDayClick(date, allDayItems)}
+                       className={cn(
+                         "min-h-[90px] p-1 rounded-md border-2 transition-all relative",
+                         inPeriod ? "cursor-pointer hover:shadow-md" : "bg-muted/30 border-transparent",
+                         isSelected && statusClasses && `${statusClasses.bg} ${statusClasses.border} border-dashed`,
+                         hasContent && inPeriod && !isSelected && "border-muted-foreground/30 bg-muted/50",
+                         !isSelected && !hasContent && inPeriod && "bg-background border-border",
+                         holiday && inPeriod && "ring-2 ring-red-400/50",
+                         isSelectMode && inPeriod && "cursor-cell"
+                       )}
+                     >
+                       <div className={cn(
+                         "text-xs font-medium p-1 flex items-center gap-1",
+                         !inPeriod && "text-muted-foreground/50",
+                         (isSelected || hasContent) && "text-foreground font-semibold"
+                       )}>
+                         {format(date, "d")}
+                         {isSelected && !hasContent && <Check className="h-3 w-3 text-muted-foreground" />}
                         {holiday && (
                           <Tooltip>
                             <TooltipTrigger asChild><span className="cursor-help">{holiday.emoji}</span></TooltipTrigger>
