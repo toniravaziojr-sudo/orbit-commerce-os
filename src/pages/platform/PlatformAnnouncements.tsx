@@ -51,7 +51,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { format } from "date-fns";
+import { format as fnsFormat } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 interface Announcement {
