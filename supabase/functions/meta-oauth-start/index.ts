@@ -288,16 +288,19 @@ serve(async (req) => {
     authUrl.searchParams.set("client_id", appId);
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("state", stateHash);
-    authUrl.searchParams.set("scope", scopeString);
     authUrl.searchParams.set("response_type", "code");
 
-    // Facebook Login for Business: config_id é obrigatório para apps do tipo Business
-    // Sem ele, usuários externos recebem "Recurso indisponível" no popup da Meta
+    // Facebook Login for Business: config_id e scope são MUTUAMENTE EXCLUSIVOS
+    // Docs: https://developers.facebook.com/docs/facebook-login/facebook-login-for-business
+    // Com config_id → permissões são controladas pela configuração no painel Meta
+    // Sem config_id → scope é enviado diretamente (fallback para admins da plataforma)
     if (configId) {
       authUrl.searchParams.set("config_id", configId);
-      console.log(`[meta-oauth-start] Usando config_id para Facebook Login for Business`);
+      // NÃO enviar scope — controlado pela configuração no painel Meta
+      console.log(`[meta-oauth-start] Usando config_id (scope omitido — controlado pela config Meta)`);
     } else {
-      console.warn(`[meta-oauth-start] AVISO: META_CONFIG_ID não configurado — externos podem receber "Recurso indisponível"`);
+      authUrl.searchParams.set("scope", scopeString);
+      console.warn(`[meta-oauth-start] AVISO: META_CONFIG_ID não configurado — usando scope direto, externos podem receber "Recurso indisponível"`);
     }
 
     console.log(`[meta-oauth-start] Gerando URL para tenant ${tenantId}, scopes: ${validPacks.join(", ")}, config_id: ${configId ? "sim" : "NÃO"}`);
