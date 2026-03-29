@@ -131,7 +131,7 @@ export function DiscountProvider({ children }: DiscountProviderProps) {
       const data = await response.json();
 
       if (!data.valid) {
-        showErrorToast(err, { action: 'processar' });
+        showErrorToast(error, { action: 'processar' });
         return false;
       }
 

@@ -114,7 +114,7 @@ export default function StartPending() {
       
       if (!result.success) {
         if (result.code === 'RATE_LIMITED') {
-          showErrorToast(err, { action: 'processar' });
+          showErrorToast(error, { action: 'processar' });
         } else {
           throw new Error(result.error);
         }
@@ -125,7 +125,7 @@ export default function StartPending() {
       toast.success('Email reenviado com sucesso!');
     } catch (err: any) {
       console.error('Resend error:', err);
-      showErrorToast(err, { action: 'enviar' });
+      showErrorToast(error, { action: 'enviar' });
     } finally {
       setResending(false);
     }

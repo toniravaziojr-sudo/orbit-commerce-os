@@ -30,11 +30,11 @@ export function DomainsPlatformSettings() {
             : 'API Token válido'
         });
       } else {
-        showErrorToast(err, { module: 'integrações', action: 'processar' });
+        showErrorToast(error, { module: 'integrações', action: 'processar' });
       }
       queryClient.invalidateQueries({ queryKey: ['platform-secrets-status'] });
     },
-    onError: (err) => showErrorToast(err, { module: 'integrações', action: 'testar' }),
+    onError: (err) => showErrorToast(error, { module: 'integrações', action: 'testar' }),
   });
 
   const isConfigured = secretStatus?.status === 'configured';

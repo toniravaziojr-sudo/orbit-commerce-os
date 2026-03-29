@@ -320,7 +320,7 @@ export function MeliListingsTab() {
           body: { tenantId: currentTenant.id, action, offset, limit, listingIds },
         });
         if (error || !data?.success) {
-          showErrorToast(err, { module: 'mercado livre', action: 'processar' });
+          showErrorToast(error, { module: 'mercado livre', action: 'processar' });
           break;
         }
         totalProcessed += data.processed || 0;

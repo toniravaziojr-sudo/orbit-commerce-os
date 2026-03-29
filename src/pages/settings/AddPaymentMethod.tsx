@@ -106,7 +106,7 @@ export default function AddPaymentMethod() {
       }, 2000);
     } catch (error: any) {
       console.error('Error adding payment method:', error);
-      showErrorToast(err, { action: 'criar' });
+      showErrorToast(error, { action: 'criar' });
     } finally {
       setLoading(false);
     }

@@ -302,7 +302,7 @@ export function PlanningTab({
       });
       if (error) throw error;
       if (data?.success) { toast.success(data.message || "Copys geradas!"); await refetchItems(); }
-      showErrorToast(err, { module: 'mídia', action: 'gerar' });
+      showErrorToast(error, { module: 'mídia', action: 'gerar' });
     } catch { toast.error("Erro ao gerar copys"); }
     finally { setIsGeneratingCopys(false); }
   };

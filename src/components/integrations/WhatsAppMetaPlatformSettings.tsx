@@ -118,7 +118,7 @@ export function WhatsAppMetaPlatformSettings() {
       toast.success("Credenciais salvas com sucesso!");
       queryClient.invalidateQueries({ queryKey: ["meta-whatsapp-credentials"] });
     },
-    onError: (err) => showErrorToast(err, { module: 'integrações', action: 'salvar' }),
+    onError: (err) => showErrorToast(error, { module: 'integrações', action: 'salvar' }),
   });
 
   // Test send mutation - token is NOT persisted
@@ -148,7 +148,7 @@ export function WhatsAppMetaPlatformSettings() {
       } else {
         setTestResult({ success: false, message: data.error || "Erro desconhecido" });
         setTestChecklist((prev) => ({ ...prev, sendOk: false }));
-        showErrorToast(err, { module: 'integrações', action: 'enviar' });
+        showErrorToast(error, { module: 'integrações', action: 'enviar' });
       }
     },
     onError: (error: any) => {
@@ -185,7 +185,7 @@ export function WhatsAppMetaPlatformSettings() {
       setTestConfigSaved(true);
       toast.success("Configuração de teste salva! Respostas do WhatsApp irão para o Atendimento.");
     },
-    onError: (err) => showErrorToast(err, { module: 'integrações', action: 'salvar' }),
+    onError: (err) => showErrorToast(error, { module: 'integrações', action: 'salvar' }),
   });
 
   const generateVerifyToken = () => {
