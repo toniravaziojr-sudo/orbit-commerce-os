@@ -499,7 +499,18 @@ Todas as descrições completas geradas por IA seguem esta estrutura obrigatóri
 
 ---
 
-## 13. Pendências
+## 13. Componentes de Data Padronizados
+
+| Campo | Componente | Descrição |
+|-------|------------|-----------|
+| `promotion_start_date` | `DateTimePickerField` | Início da promoção temporizada |
+| `promotion_end_date` | `DateTimePickerField` | Fim da promoção temporizada |
+
+> Ver `regras-gerais.md` § Padrão de Datas para especificação completa.
+
+---
+
+## 14. Pendências
 
 - [ ] Exportação em massa (CSV/Excel)
 - [ ] Histórico de alterações do produto
