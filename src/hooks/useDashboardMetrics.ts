@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { subDays, format } from 'date-fns';
+import { subDays } from 'date-fns';
 
 export interface DashboardMetrics {
   salesToday: number;
