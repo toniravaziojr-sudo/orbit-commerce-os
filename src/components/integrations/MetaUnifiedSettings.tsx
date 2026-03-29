@@ -250,6 +250,10 @@ export function MetaUnifiedSettings() {
         body: { tenant_id: tenantId, pin },
       });
       if (error) throw error;
+      // Log raw Meta diagnostic for debugging
+      if (data?.meta_diagnostic) {
+        console.log("[register-phone] Meta diagnostic:", JSON.stringify(data.meta_diagnostic, null, 2));
+      }
       if (!data.success) throw new Error(data.error);
       return data;
     },

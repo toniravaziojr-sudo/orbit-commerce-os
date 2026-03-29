@@ -195,20 +195,11 @@ export function WhatsAppMetaSettings() {
     },
   });
 
-  // Register phone number manually
+  // Register phone number manually — DISABLED: this component does not collect PIN.
+  // The correct registration flow is in MetaUnifiedSettings.tsx which collects the PIN.
   const registerPhoneMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("meta-whatsapp-register-phone", {
-        body: { tenant_id: tenantId },
-      });
-      
-      if (error) throw error;
-      if (!data.success) throw new Error(data.error);
-      return data;
-    },
-    onSuccess: () => {
-      toast.success("Número registrado com sucesso na Cloud API!");
-      queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
+      throw new Error("Use a aba de Integrações Meta para finalizar o registro com PIN de segurança.");
     },
     onError: (error: any) => {
       toast.error(error.message || "Erro ao registrar número");
