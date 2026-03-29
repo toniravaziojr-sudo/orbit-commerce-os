@@ -436,5 +436,4 @@ serve(async (req) => {
   } catch (error: any) {
     return errorResponse(error, corsHeaders, { module: 'fiscal', action: 'submit' });
   }
-  }
 });

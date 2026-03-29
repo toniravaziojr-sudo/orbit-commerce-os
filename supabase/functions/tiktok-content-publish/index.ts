@@ -127,7 +127,7 @@ Deno.serve(async (req) => {
 
         if (videosData.error?.code !== 'ok' && videosData.error?.code) {
           console.error(`[tiktok-content-publish] TikTok API error:`, videosData.error);
-          return new Response(JSON.stringify({ success: false, error: videosData."Erro interno. Se o problema persistir, entre em contato com o suporte." || 'TikTok API error' }), {
+          return new Response(JSON.stringify({ success: false, error: videosData.error?.message || 'TikTok API error' }), {
             status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
@@ -216,7 +216,7 @@ Deno.serve(async (req) => {
         }
 
         if (initData.error?.code !== 'ok' && initData.error?.code) {
-          return new Response(JSON.stringify({ success: false, error: initData."Erro interno. Se o problema persistir, entre em contato com o suporte." || 'Init upload failed' }), {
+          return new Response(JSON.stringify({ success: false, error: initData.error?.message || 'Init upload failed' }), {
             status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }

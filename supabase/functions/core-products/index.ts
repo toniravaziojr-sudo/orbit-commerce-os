@@ -597,7 +597,6 @@ Deno.serve(async (req) => {
         if (insertError) {
           return errorResponse(insertError, corsHeaders, { module: 'products', action: 'add_image' });
         }
-        }
 
         return new Response(
           JSON.stringify({ success: true, data: newImage }),
@@ -709,7 +708,5 @@ Deno.serve(async (req) => {
   } catch (error: any) {
     console.error('[core-products] Error:', error);
     return errorResponse(error, corsHeaders, { module: 'products' });
-  }
-    );
   }
 });

@@ -212,5 +212,4 @@ Deno.serve(async (req) => {
     console.error(`[whatsapp-check-templates] Error:`, error);
     return errorResponse(error, corsHeaders, { module: 'whatsapp-templates', action: 'check' });
   }
-  }
 });
