@@ -277,7 +277,6 @@ Deno.serve(async (req) => {
         if (insertError) {
           return errorResponse(insertError, corsHeaders, { module: 'products', action: 'create' });
         }
-        }
 
         await createAuditLog(supabase, {
           tenant_id: tenantId,
