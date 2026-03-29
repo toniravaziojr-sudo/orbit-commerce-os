@@ -168,13 +168,16 @@ Deno.serve(async (req) => {
 
     // Build raw diagnostic object for every attempt
     const metaDiagnostic = {
-      http_status: registerResponse.status,
-      error_message: registerData.error?.message || null,
-      error_code: registerData.error?.code || null,
-      error_subcode: registerData.error?.error_subcode || null,
-      fbtrace_id: registerData.error?.fbtrace_id || null,
-      error_user_msg: registerData.error?.error_user_msg || null,
-      raw_success: registerData.success,
+      deregister: deregisterDiagnostic,
+      register: {
+        http_status: registerResponse.status,
+        error_message: registerData.error?.message || null,
+        error_code: registerData.error?.code || null,
+        error_subcode: registerData.error?.error_subcode || null,
+        fbtrace_id: registerData.error?.fbtrace_id || null,
+        error_user_msg: registerData.error?.error_user_msg || null,
+        raw_success: registerData.success,
+      },
       timestamp: new Date().toISOString(),
       trace_id: traceId,
       endpoint_called: registerUrl,
