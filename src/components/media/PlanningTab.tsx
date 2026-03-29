@@ -578,174 +578,144 @@ export function PlanningTab({
       )}
 
       {/* Calendar Grid */}
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg capitalize">
-              {format(currentMonth, "MMMM yyyy", { locale: ptBR })}
-            </CardTitle>
-            <div className="flex gap-1">
-              <Button variant="outline" size="icon" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="icon" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
+      <MonthlyCalendar
+        currentMonth={currentMonth}
+        onMonthChange={setCurrentMonth}
+        isLoading={isLoading}
+        cellMinHeight="90px"
+        loadingElement={
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <TooltipProvider>
-              <div className="grid grid-cols-7 gap-1">
-                {weekDayHeaders.map((day) => (
-                  <div key={day} className="p-2 text-center text-xs font-medium text-muted-foreground">{day}</div>
-                ))}
-                {Array.from({ length: days[0].getDay() }).map((_, i) => (
-                  <div key={`empty-${i}`} className="min-h-[90px] bg-muted/30 rounded-md" />
-                ))}
-                {days.map((date) => {
-                  const dateKey = format(date, "yyyy-MM-dd");
-                  const dayItems = planningItemsByDate.get(dateKey) || [];
-                  const allDayItems = itemsByDate.get(dateKey) || [];
-                  const inPeriod = isInCampaignPeriod(date);
-                  const holiday = getHolidayForDate(date);
-                   const isSelected = selectedDays.has(dateKey);
-                   const hasContent = dayItems.length > 0;
-                   const counts = getPublicationCounts(dayItems);
-                   const statusClasses = isSelected ? getSelectedDayStatusClasses(dayItems, isBlog) : null;
+        }
+        renderCell={(info) => {
+          const dayItems = planningItemsByDate.get(info.dateKey) || [];
+          const allDayItems = itemsByDate.get(info.dateKey) || [];
+          const inPeriod = isInCampaignPeriod(info.date);
+          const isSelected = selectedDays.has(info.dateKey);
+          const hasContent = dayItems.length > 0;
+          const counts = getPublicationCounts(dayItems);
+          const statusClasses = isSelected ? getSelectedDayStatusClasses(dayItems, isBlog) : null;
 
-                   return (
-                     <div
-                       key={dateKey}
-                       onClick={() => inPeriod && handleDayClick(date, allDayItems)}
-                       className={cn(
-                         "min-h-[90px] p-1 rounded-md border-2 transition-all relative",
-                         inPeriod ? "cursor-pointer hover:shadow-md" : "bg-muted/30 border-transparent",
-                         isSelected && statusClasses && `${statusClasses.bg} ${statusClasses.border} border-dashed`,
-                         hasContent && inPeriod && !isSelected && "border-muted-foreground/30 bg-muted/50",
-                         !isSelected && !hasContent && inPeriod && "bg-background border-border",
-                         holiday && inPeriod && "ring-2 ring-red-400/50",
-                         isSelectMode && inPeriod && "cursor-cell"
-                       )}
-                     >
-                       <div className={cn(
-                         "text-xs font-medium p-1 flex items-center gap-1",
-                         !inPeriod && "text-muted-foreground/50",
-                         (isSelected || hasContent) && "text-foreground font-semibold"
-                       )}>
-                         {format(date, "d")}
-                         {isSelected && !hasContent && <Check className="h-3 w-3 text-muted-foreground" />}
-                        {holiday && (
-                          <Tooltip>
-                            <TooltipTrigger asChild><span className="cursor-help">{holiday.emoji}</span></TooltipTrigger>
-                            <TooltipContent><p className="font-medium">{holiday.name}</p></TooltipContent>
-                          </Tooltip>
-                        )}
+          return (
+            <div
+              onClick={() => inPeriod && handleDayClick(info.date, allDayItems)}
+              className={cn(
+                "h-full p-1 rounded-md border-2 transition-all relative",
+                inPeriod ? "cursor-pointer hover:shadow-md" : "bg-muted/30 border-transparent",
+                isSelected && statusClasses && `${statusClasses.bg} ${statusClasses.border} border-dashed`,
+                hasContent && inPeriod && !isSelected && "border-muted-foreground/30 bg-muted/50",
+                !isSelected && !hasContent && inPeriod && "bg-background border-border",
+                info.holiday && inPeriod && "ring-2 ring-red-400/50",
+                isSelectMode && inPeriod && "cursor-cell"
+              )}
+            >
+              <DayHeader
+                date={info.date}
+                holiday={info.holiday}
+                isToday={info.isToday}
+                className={cn(
+                  !inPeriod && "text-muted-foreground/50",
+                  (isSelected || hasContent) && "text-foreground font-semibold"
+                )}
+              >
+                {isSelected && !hasContent && <Check className="h-3 w-3 text-muted-foreground" />}
+              </DayHeader>
+              {hasContent && (
+                <div className="space-y-1 mt-0.5">
+                  <div className="flex items-center gap-1.5 px-1">
+                    {(counts.feed_instagram > 0 || counts.feed_facebook > 0) && (
+                      <div className="relative">
+                        <div className={cn(
+                          "w-5 h-5 rounded flex items-center justify-center text-white text-[9px] font-bold",
+                          counts.feed_instagram > 0 && counts.feed_facebook > 0
+                            ? "bg-gradient-to-r from-orange-500 to-blue-500"
+                            : counts.feed_instagram > 0 ? "bg-orange-500" : "bg-blue-500"
+                        )}>
+                          <LayoutGrid className="w-3 h-3" />
+                        </div>
+                        <span className="absolute -top-1 -right-1 bg-foreground text-background text-[8px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center">
+                          {counts.feed_instagram + counts.feed_facebook}
+                        </span>
                       </div>
-                      {hasContent && (
-                        <div className="space-y-1 mt-0.5">
-                          <div className="flex items-center gap-1.5 px-1">
-                            {(counts.feed_instagram > 0 || counts.feed_facebook > 0) && (
-                              <div className="relative">
-                                <div className={cn(
-                                  "w-5 h-5 rounded flex items-center justify-center text-white text-[9px] font-bold",
-                                  counts.feed_instagram > 0 && counts.feed_facebook > 0
-                                    ? "bg-gradient-to-r from-orange-500 to-blue-500"
-                                    : counts.feed_instagram > 0 ? "bg-orange-500" : "bg-blue-500"
-                                )}>
-                                  <LayoutGrid className="w-3 h-3" />
-                                </div>
-                                <span className="absolute -top-1 -right-1 bg-foreground text-background text-[8px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center">
-                                  {counts.feed_instagram + counts.feed_facebook}
-                                </span>
-                              </div>
-                            )}
-                            {(counts.story_instagram > 0 || counts.story_facebook > 0) && (
-                              <div className="relative">
-                                <div className={cn(
-                                  "w-5 h-5 rounded flex items-center justify-center text-white text-[10px] font-bold",
-                                  counts.story_instagram > 0 && counts.story_facebook > 0
-                                    ? "bg-gradient-to-r from-orange-500 to-blue-500"
-                                    : counts.story_instagram > 0 ? "bg-orange-500" : "bg-blue-500"
-                                )}>S</div>
-                                <span className="absolute -top-1 -right-1 bg-foreground text-background text-[8px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center">
-                                  {counts.story_instagram + counts.story_facebook}
-                                </span>
-                              </div>
-                            )}
-                            {counts.blog > 0 && (
-                              <div className="relative">
-                                <div className="w-5 h-5 rounded bg-emerald-500 flex items-center justify-center text-white">
-                                  <FileText className="w-3 h-3" />
-                                </div>
-                                <span className="absolute -top-1 -right-1 bg-foreground text-background text-[8px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center">
-                                  {counts.blog}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                          {/* Attention dots — priority: amber (no copy) > purple (no creative) > green (complete) */}
-                          <div className="flex items-center gap-1 px-1">
-                            {(() => {
-                              const missingCopy = dayItems.some(i => !i.copy || i.copy.trim() === "");
-                              const missingCreative = dayItems.some(i => i.copy && i.copy.trim() !== "" && !i.asset_url && i.content_type !== "text");
-                              const allComplete = !missingCopy && !missingCreative;
-                              return (
-                                <>
-                                  {missingCopy && (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-                                      </TooltipTrigger>
-                                      <TooltipContent><p>Item(ns) sem copy</p></TooltipContent>
-                                    </Tooltip>
-                                  )}
-                                  {missingCreative && (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <div className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
-                                      </TooltipTrigger>
-                                      <TooltipContent><p>Item(ns) sem criativo</p></TooltipContent>
-                                    </Tooltip>
-                                  )}
-                                  {allComplete && (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-                                      </TooltipTrigger>
-                                      <TooltipContent><p>Tudo preenchido</p></TooltipContent>
-                                    </Tooltip>
-                                  )}
-                                </>
-                              );
-                            })()}
-                          </div>
+                    )}
+                    {(counts.story_instagram > 0 || counts.story_facebook > 0) && (
+                      <div className="relative">
+                        <div className={cn(
+                          "w-5 h-5 rounded flex items-center justify-center text-white text-[10px] font-bold",
+                          counts.story_instagram > 0 && counts.story_facebook > 0
+                            ? "bg-gradient-to-r from-orange-500 to-blue-500"
+                            : counts.story_instagram > 0 ? "bg-orange-500" : "bg-blue-500"
+                        )}>S</div>
+                        <span className="absolute -top-1 -right-1 bg-foreground text-background text-[8px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center">
+                          {counts.story_instagram + counts.story_facebook}
+                        </span>
+                      </div>
+                    )}
+                    {counts.blog > 0 && (
+                      <div className="relative">
+                        <div className="w-5 h-5 rounded bg-emerald-500 flex items-center justify-center text-white">
+                          <FileText className="w-3 h-3" />
                         </div>
-                      )}
-                      {!hasContent && inPeriod && !isSelected && (
-                        <div className="text-xs text-muted-foreground/50 px-1 flex items-center gap-1 mt-2">
-                          <Plus className="h-3 w-3" />
-                          {isSelectMode ? "Selecionar" : "Adicionar"}
-                        </div>
-                      )}
-                       {isSelectMode && isSelected && (
-                         <div className="absolute top-1 right-1">
-                           <Badge variant="default" className={cn("text-[9px] px-1 py-0 h-4 text-white", statusClasses?.badge || "bg-primary")}>✓</Badge>
-                         </div>
-                       )}
-                    </div>
-                  );
-                })}
-              </div>
-            </TooltipProvider>
-          )}
-        </CardContent>
-      </Card>
+                        <span className="absolute -top-1 -right-1 bg-foreground text-background text-[8px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center">
+                          {counts.blog}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  {/* Attention dots */}
+                  <div className="flex items-center gap-1 px-1">
+                    {(() => {
+                      const missingCopy = dayItems.some(i => !i.copy || i.copy.trim() === "");
+                      const missingCreative = dayItems.some(i => i.copy && i.copy.trim() !== "" && !i.asset_url && i.content_type !== "text");
+                      const allComplete = !missingCopy && !missingCreative;
+                      return (
+                        <>
+                          {missingCopy && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                              </TooltipTrigger>
+                              <TooltipContent><p>Item(ns) sem copy</p></TooltipContent>
+                            </Tooltip>
+                          )}
+                          {missingCreative && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
+                              </TooltipTrigger>
+                              <TooltipContent><p>Item(ns) sem criativo</p></TooltipContent>
+                            </Tooltip>
+                          )}
+                          {allComplete && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                              </TooltipTrigger>
+                              <TooltipContent><p>Tudo preenchido</p></TooltipContent>
+                            </Tooltip>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+              {!hasContent && inPeriod && !isSelected && (
+                <div className="text-xs text-muted-foreground/50 px-1 flex items-center gap-1 mt-2">
+                  <Plus className="h-3 w-3" />
+                  {isSelectMode ? "Selecionar" : "Adicionar"}
+                </div>
+              )}
+              {isSelectMode && isSelected && (
+                <div className="absolute top-1 right-1">
+                  <Badge variant="default" className={cn("text-[9px] px-1 py-0 h-4 text-white", statusClasses?.badge || "bg-primary")}>✓</Badge>
+                </div>
+              )}
+            </div>
+          );
+        }}
+      />
 
       {/* Generation progress */}
       {generationProgress && (
