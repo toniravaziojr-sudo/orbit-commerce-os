@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DateTimePickerField } from '@/components/ui/datetime-picker-field';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -107,10 +108,11 @@ export function StepReview({ config, content, html, onSend, isSending }: StepRev
           {mode === "schedule" && (
             <div className="space-y-2 max-w-xs">
               <Label>Data e hora de envio</Label>
-              <Input
-                type="datetime-local"
-                value={scheduleDate}
-                onChange={e => setScheduleDate(e.target.value)}
+              <DateTimePickerField
+                value={scheduleDate ? new Date(scheduleDate) : undefined}
+                onChange={(date) => setScheduleDate(date ? date.toISOString() : '')}
+                placeholder="Selecione data e hora"
+                minDate={new Date()}
               />
             </div>
           )}

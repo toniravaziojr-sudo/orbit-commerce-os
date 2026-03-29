@@ -6,6 +6,7 @@ import { BlockDefinition, BlockPropsSchema } from '@/lib/builder/types';
 import { getRequiredBlockInfo } from '@/lib/builder/pageContracts';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
+import { DateTimePickerField } from '@/components/ui/datetime-picker-field';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
@@ -751,10 +752,10 @@ function PropField({ name, schema, value, onChange, blockType, allProps }: PropF
 
         return (
           <div className="space-y-1.5">
-            <Input
-              type="datetime-local"
-              value={toDatetimeLocal((value as string) || '')}
-              onChange={(e) => onChange(fromDatetimeLocal(e.target.value))}
+            <DateTimePickerField
+              value={value ? new Date(value as string) : undefined}
+              onChange={(date) => onChange(date ? date.toISOString() : '')}
+              placeholder="Selecione data e hora"
               className="h-8 text-xs"
             />
             {schema.helpText && (

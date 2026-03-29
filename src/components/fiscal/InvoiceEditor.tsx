@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { format, parse } from 'date-fns';
+import { DatePickerField } from '@/components/ui/date-picker-field';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { FileText, User, Package, MapPin, Calculator, Truck, Save, Send, Trash2, X, Loader2, AlertCircle, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -544,18 +546,18 @@ export function InvoiceEditor({
                 </div>
                 <div className="space-y-2">
                   <Label>Data de Emissão</Label>
-                  <Input
-                    type="date"
-                    value={data.data_emissao?.split('T')[0] || ''}
-                    onChange={(e) => updateField('data_emissao', e.target.value)}
+                  <DatePickerField
+                    value={data.data_emissao ? parse(data.data_emissao.split('T')[0], 'yyyy-MM-dd', new Date()) : undefined}
+                    onChange={(date) => updateField('data_emissao', date ? format(date, 'yyyy-MM-dd') : '')}
+                    placeholder="Selecione a data"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>Data de Saída</Label>
-                  <Input
-                    type="date"
-                    value={data.data_saida?.split('T')[0] || ''}
-                    onChange={(e) => updateField('data_saida', e.target.value)}
+                  <DatePickerField
+                    value={data.data_saida ? parse(data.data_saida.split('T')[0], 'yyyy-MM-dd', new Date()) : undefined}
+                    onChange={(date) => updateField('data_saida', date ? format(date, 'yyyy-MM-dd') : '')}
+                    placeholder="Selecione a data"
                   />
                 </div>
                 <div className="space-y-2 sm:col-span-2">

@@ -4,6 +4,8 @@
 // =============================================
 
 import React, { useState, useEffect } from 'react';
+import { format, parse } from 'date-fns';
+import { DatePickerField } from '@/components/ui/date-picker-field';
 import { X, Mail, Send, Loader2, CheckCircle, User, Phone, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -487,11 +489,12 @@ export function NewsletterPopupBlock({
                 <Calendar className="w-4 h-4" />
                 Data de Nascimento {birthDateRequired && <span className="text-destructive">*</span>}
               </Label>
-              <Input
-                type="date"
-                value={formData.birthDate}
-                onChange={(e) => setFormData(prev => ({ ...prev, birthDate: e.target.value }))}
-                required={birthDateRequired}
+              <DatePickerField
+                value={formData.birthDate ? parse(formData.birthDate, 'yyyy-MM-dd', new Date()) : undefined}
+                onChange={(date) => setFormData(prev => ({ ...prev, birthDate: date ? format(date, 'yyyy-MM-dd') : '' }))}
+                placeholder="Selecione a data"
+                maxDate={new Date()}
+                clearable={!birthDateRequired}
               />
             </div>
           )}

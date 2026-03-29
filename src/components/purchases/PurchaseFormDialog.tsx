@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { format, parse } from 'date-fns';
+import { DatePickerField } from '@/components/ui/date-picker-field';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -247,7 +249,11 @@ export function PurchaseFormDialog({
                   <FormItem>
                     <FormLabel>Previsão de Entrega</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} />
+                      <DatePickerField
+                        value={field.value ? parse(field.value, 'yyyy-MM-dd', new Date()) : undefined}
+                        onChange={(date) => field.onChange(date ? format(date, 'yyyy-MM-dd') : '')}
+                        placeholder="Selecione a data"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -261,7 +267,11 @@ export function PurchaseFormDialog({
                   <FormItem>
                     <FormLabel>Data de Entrega Real</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} />
+                      <DatePickerField
+                        value={field.value ? parse(field.value, 'yyyy-MM-dd', new Date()) : undefined}
+                        onChange={(date) => field.onChange(date ? format(date, 'yyyy-MM-dd') : '')}
+                        placeholder="Selecione a data"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

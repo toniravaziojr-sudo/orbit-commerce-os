@@ -4,6 +4,8 @@
 // =============================================
 
 import { useState } from "react";
+import { parse } from 'date-fns';
+import { DatePickerField } from '@/components/ui/date-picker-field';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   Plus, 
@@ -404,20 +406,19 @@ export default function PlatformAnnouncements() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="starts_at">Data Início (opcional)</Label>
-                <Input
-                  id="starts_at"
-                  type="date"
-                  value={formData.starts_at}
-                  onChange={(e) => setFormData({ ...formData, starts_at: e.target.value })}
+                <DatePickerField
+                  value={formData.starts_at ? parse(formData.starts_at, 'yyyy-MM-dd', new Date()) : undefined}
+                  onChange={(date) => setFormData({ ...formData, starts_at: date ? format(date, 'yyyy-MM-dd') : '' })}
+                  placeholder="Selecione a data"
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="ends_at">Data Fim (opcional)</Label>
-                <Input
-                  id="ends_at"
-                  type="date"
-                  value={formData.ends_at}
-                  onChange={(e) => setFormData({ ...formData, ends_at: e.target.value })}
+                <DatePickerField
+                  value={formData.ends_at ? parse(formData.ends_at, 'yyyy-MM-dd', new Date()) : undefined}
+                  onChange={(date) => setFormData({ ...formData, ends_at: date ? format(date, 'yyyy-MM-dd') : '' })}
+                  placeholder="Selecione a data"
+                  minDate={formData.starts_at ? parse(formData.starts_at, 'yyyy-MM-dd', new Date()) : undefined}
                 />
               </div>
             </div>

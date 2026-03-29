@@ -1,4 +1,6 @@
 import { useForm } from 'react-hook-form';
+import { format, parse } from 'date-fns';
+import { DatePickerField } from '@/components/ui/date-picker-field';
 import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -564,7 +566,12 @@ export function CustomerForm({
                             <FormItem>
                               <FormLabel>Data de nascimento</FormLabel>
                               <FormControl>
-                                <Input type="date" {...field} value={field.value ?? ''} />
+                                <DatePickerField
+                                  value={field.value ? parse(field.value, 'yyyy-MM-dd', new Date()) : undefined}
+                                  onChange={(date) => field.onChange(date ? format(date, 'yyyy-MM-dd') : '')}
+                                  placeholder="Selecione a data"
+                                  maxDate={new Date()}
+                                />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
