@@ -447,3 +447,17 @@ Módulo centralizado usado por **todas** as 3 funções de criação fiscal.
 | **Descrição** | A function filtrava apenas `status = 'paid'`, mas o novo fluxo fiscal-operacional usa `ready_to_invoice` como status pós-pagamento. Pedidos aprovados não apareciam em "Prontas para Emitir". |
 | **Correção** | Alterado para `.eq('payment_status', 'approved').in('status', ['paid', 'ready_to_invoice'])` — garante compatibilidade com fluxo legado e novo. |
 | **Afeta** | Módulo Fiscal → aba "Prontas para Emitir", botão "Gerar Rascunhos" |
+
+---
+
+### Padronização de erros — Lote Fiscal (v8.25.0 — 2026-03-29)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Padronização de Infraestrutura |
+| **Localização** | Todas as 20 edge functions `fiscal-*` + 8 componentes frontend fiscais |
+| **Contexto** | Iniciativa global de sanitização de erros para evitar vazamento de dados técnicos |
+| **Descrição** | Substituído `error.message` por `errorResponse()` (contrato padronizado) em todas as edge functions fiscais. No frontend, substituído `toast.error(error.message)` por `showErrorToast()` com sanitização automática. |
+| **Edge Functions afetadas** | fiscal-emit, fiscal-submit, fiscal-cancel, fiscal-webhook, fiscal-get-status, fiscal-create-draft, fiscal-create-manual, fiscal-validate-order, fiscal-settings, fiscal-upload-certificate, fiscal-send-nfe-email, fiscal-auto-create-drafts, fiscal-sync-focus-nfe, fiscal-sync-nuvem-fiscal, fiscal-test-connection, fiscal-check-status, fiscal-remove-certificate, fiscal-cce, fiscal-inutilizar, fiscal-update-draft |
+| **Componentes afetados** | CancelInvoiceDialog, EmitInvoiceButton, CorrectInvoiceDialog, InutilizarNumerosDialog, ManualInvoiceDialog, EntryInvoiceDialog |
+| **Afeta** | Módulo Fiscal inteiro — nenhum erro técnico vaza mais para o usuário |
