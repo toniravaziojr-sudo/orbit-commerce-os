@@ -209,7 +209,11 @@ export function MetaUnifiedSettings() {
     },
     onSuccess: (data) => {
       toast.success(data.message || "Código enviado!");
-      setRegistrationStep("code_sent");
+      if (data.already_verified) {
+        setRegistrationStep("code_verified");
+      } else {
+        setRegistrationStep("code_sent");
+      }
       queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
     },
     onError: (error: any) => {
