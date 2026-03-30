@@ -142,7 +142,26 @@ A divisão reflete nas permissões:
 > - O Checkout (`CheckoutStepWizard.tsx`) **NÃO** dispara Purchase em nenhuma circunstância
 > - Para modo `all_orders`: dispara ao carregar a página de Obrigado (qualquer status)
 > - Para modo `paid_only`: dispara somente se `payment_status` é `approved` ou `paid`
-> - O robô do servidor (`process-events`) só dispara Purchase CAPI no modo `paid_only`
+ > - O robô do servidor (`process-events`) só dispara Purchase CAPI no modo `paid_only`
+>
+> #### Correções v8.23.0 — Março 2026
+>
+> | Problema | Causa | Fix |
+> |----------|-------|-----|
+> | Deduplicação quebrada no Purchase | ThankYou não removia `#` do número do pedido → `event_id` diferente entre browser e servidor | `order_number.replace(/^#/, '')` antes de gerar `event_id` — deduplicação restaurada |
+> | Meta rejeitava Purchase (erro 2804008) | Campo `id` ausente no array `contents` enviado ao CAPI | `get-order` agora retorna `product_id` nos items → `contents: [{id, quantity, item_price}]` correto |
+> | Items vazios no servidor | `process-events` tentava selecionar `meta_retailer_id` direto de `order_items` (coluna inexistente) | Lookup na tabela `products` para resolver `meta_retailer_id` |
+> | Valor subnotificado (1.52 vs 151.95) | Divisão por 100 no `process-events` — banco armazena em Reais, não centavos | Removido `/100` |
+> | `content_ids` null | `product_id` não disponível no retorno de `get-order` | Com `product_id` disponível, `resolveMetaContentId` resolve corretamente |
+>
+> #### Correções v8.24.0 — Março 2026
+>
+> | Problema | Causa | Fix |
+> |----------|-------|-----|
+> | IP mismatch ~60% dos PageView | Servidor enviava IPv6 enquanto Pixel do browser reporta IPv4 | `marketing-capi-track` agora coleta IPs de todos os headers e **prioriza IPv4** (dotted-quad) |
+> | `fbp`/`fbc`/`visitor_id` ausentes na sessão | Cookies do Pixel ainda não existiam no momento do `checkout-session-start` | Heartbeat agora envia `visitor_id`, `fbp` e `fbc` a cada batida; servidor faz **backfill** apenas se campos estiverem vazios |
+>
+> **Impacto esperado v8.24.0:** Score de PageView deve subir de 5.3 para ~7+ e ViewContent de 4.5 para ~6+ nos diagnósticos da Meta.
 
 ---
 
