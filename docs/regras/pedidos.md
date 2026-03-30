@@ -1,7 +1,7 @@
 # Módulo: Pedidos (Admin)
 
 > **Status**: ✅ Funcional e Protegido  
-> **Última atualização**: 2026-03-10
+> **Última atualização**: 2026-03-30
 
 ---
 
@@ -455,12 +455,15 @@ const cfg = ORDER_STATUS_CONFIG[order.status as OrderStatus] || ORDER_STATUS_CON
 
 Sem normalização, pedidos com status legado exibem badges errados (ex: pedido pago aparece como "Aguardando confirmação").
 
-### 6.1.1 Flag "1ª Venda" (v2026-02-16)
+### 6.1.1 Flag "1ª Venda" (v2026-03-30 — Arquitetura V2)
 
-- **Lógica:** Um pedido é marcado como "1ª venda" quando o `customer.total_orders <= 1` (cliente novo ou com apenas aquele pedido).
-- **Implementação:** O hook `useOrders.ts` faz JOIN com `customers(total_orders)` e calcula `is_first_sale` no frontend.
-- **UI:** Badge verde compacta `"1ª venda"` renderizada em `OrderList.tsx` ao lado da coluna de valor total.
-- **Filtro:** Botão toggle `"🆕 1ª Venda"` na página `Orders.tsx` filtra apenas pedidos de clientes novos.
+- **Lógica:** O campo `orders.is_first_sale` (boolean, imutável) é definido como `true` no momento da criação do pedido, quando o email normalizado do cliente ainda não existia na tabela `customers` do tenant. Uma vez gravado, nunca muda.
+- **Implementação:** O flag é gravado diretamente no INSERT do pedido por todos os writers: `checkout-create-order`, `core-orders`, `import-batch` e `admin-create-test-order`. O hook `useOrders.ts` consome `order.is_first_sale` diretamente do banco — sem cálculo no frontend.
+- **UI:** Badge verde compacta `"1ª"` renderizada em `OrderList.tsx` ao lado da coluna de valor total quando `is_first_sale = true`.
+- **Filtro:** Botão toggle `"🆕 1ª Venda"` na página `Orders.tsx` filtra apenas pedidos com `is_first_sale = true`.
+- **Desacoplamento:** O campo `customers.total_orders` NÃO é usado para a tarja. Ele permanece como contador legado de todas as tentativas (dívida técnica separada).
+- **Ghost orders:** Podem receber `is_first_sale = true`, mas como são invisíveis no admin (filtro `payment_gateway_id`), a tarja não aparece.
+- **Importação:** Pedidos importados recebem `is_first_sale = false` por padrão.
 
 ### 6.2 Detalhes do Pedido
 
