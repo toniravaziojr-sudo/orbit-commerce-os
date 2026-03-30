@@ -155,16 +155,7 @@ export function MetaUnifiedSettings() {
     }
   }, [refetch]);
 
-  // Only allow toggling available packs
-  const togglePack = (pack: MetaScopePack) => {
-    if (!SCOPE_PACK_INFO[pack].available) return;
-    
-    setSelectedPacks(prev => 
-      prev.includes(pack) 
-        ? prev.filter(p => p !== pack)
-        : [...prev, pack]
-    );
-  };
+  // V4: togglePack removido — escopos controlados pelo perfil
 
   const handleConnect = () => {
     connect();
