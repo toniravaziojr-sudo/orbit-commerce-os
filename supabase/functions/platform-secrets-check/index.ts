@@ -380,21 +380,18 @@ serve(async (req) => {
           META_APP_SECRET: metaAppSecret.exists,
           META_GRAPH_API_VERSION: metaGraphApiVersion.exists,
           META_WEBHOOK_VERIFY_TOKEN: metaWebhookVerifyToken.exists,
-          META_CONFIG_ID: metaConfigId.exists,
         },
         previews: {
           META_APP_ID: metaAppId.preview || '',
           META_APP_SECRET: metaAppSecret.preview || '',
           META_GRAPH_API_VERSION: metaGraphApiVersion.preview || '',
           META_WEBHOOK_VERIFY_TOKEN: metaWebhookVerifyToken.preview || '',
-          META_CONFIG_ID: metaConfigId.preview || '',
         },
         sources: {
           META_APP_ID: metaAppId.source || '',
           META_APP_SECRET: metaAppSecret.source || '',
           META_GRAPH_API_VERSION: metaGraphApiVersion.source || '',
           META_WEBHOOK_VERIFY_TOKEN: metaWebhookVerifyToken.source || '',
-          META_CONFIG_ID: metaConfigId.source || '',
         },
       },
       google_platform: {
