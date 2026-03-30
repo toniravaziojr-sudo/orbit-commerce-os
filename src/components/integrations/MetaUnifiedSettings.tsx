@@ -662,17 +662,16 @@ export function MetaUnifiedSettings() {
 
               <Separator />
 
-              {/* Consentimento incremental — adicionar permissões */}
-              <IncrementalConsentSection
-                currentPacks={connection.scopePacks}
-                allPacks={SCOPE_PACK_INFO}
-                onAddPacks={(newPacks) => {
-                  // Unir packs atuais + novos e disparar re-auth
-                  const allPacks = [...new Set([...connection.scopePacks, ...newPacks])];
-                  connect(allPacks);
-                }}
-                isConnecting={isConnecting}
-              />
+              {/* V4: Reconectar (re-auth com perfil automático) */}
+              <Button
+                variant="outline"
+                onClick={() => connect()}
+                disabled={isConnecting}
+                className="gap-2"
+              >
+                {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Reconectar Meta
+              </Button>
 
               <div className="flex gap-3">
                 <Button
