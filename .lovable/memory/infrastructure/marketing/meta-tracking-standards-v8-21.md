@@ -1,5 +1,14 @@
 # Memory: infrastructure/marketing/meta-tracking-standards-v8-21
-Updated: 2026-03-28
+Updated: 2026-03-30
+
+## v8.24.0
+Correção de IP mismatch nos diagnósticos Meta e backfill de cookies de tracking via heartbeat.
+
+1. **IPv4 priorizado no CAPI**: `marketing-capi-track` agora coleta todos os IPs dos headers e prioriza endereços IPv4 (dotted-quad). Isso alinha o IP enviado ao servidor com o que o Pixel do browser reporta, resolvendo os erros de "IP mismatch" nos diagnósticos da Meta (~60% dos PageView afetados).
+
+2. **Backfill de fbp/fbc/visitor_id via heartbeat**: O cliente (`checkoutSession.ts`) agora envia `visitor_id`, `fbp` e `fbc` em cada heartbeat. O servidor (`checkout-session-heartbeat`) faz backfill desses campos na sessão APENAS se estiverem vazios, evitando sobrescrita. Isso resolve o gap onde cookies do Pixel ainda não existiam no momento do `checkout-session-start`.
+
+3. **Impacto esperado**: Score de PageView deve subir de 5.3 para ~7+ e ViewContent de 4.5 para ~6+ nos diagnósticos da Meta, pois a principal causa de penalização era a discrepância de IP.
 
 ## v8.23.0
 Correção crítica de 5 bugs no Purchase que causavam deduplicação quebrada, rejeição pela Meta e valores errados.
