@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { showErrorToast } from '@/lib/error-toast';
 
+// V4: MetaScopePack mantido apenas para compatibilidade de leitura legada
 export type MetaScopePack = "atendimento" | "publicacao" | "ads" | "leads" | "catalogo" | "whatsapp" | "threads" | "live_video" | "pixel" | "insights";
 
 interface MetaAssets {
@@ -29,7 +30,8 @@ interface MetaConnectionStatus {
     lastSyncAt: string | null;
     lastError: string | null;
     expiresAt: string;
-    scopePacks: MetaScopePack[];
+    authProfile: string;
+    scopePacks: MetaScopePack[]; // Legado — mantido para compatibilidade de UI
     assets: MetaAssets;
   } | null;
 }
@@ -46,10 +48,7 @@ export function useMetaConnection() {
         throw new Error("Tenant não selecionado");
       }
 
-      // Verificar se a plataforma está configurada (META_APP_ID existe)
-      // Para isso, vamos tentar buscar a conexão e ver o que retorna
-      
-      // Buscar conexão do tenant
+      // Buscar conexão do tenant (legado — compatibilidade temporária)
       const { data: connection, error } = await supabase
         .from("marketplace_connections")
         .select("*")
@@ -61,21 +60,20 @@ export function useMetaConnection() {
         throw error;
       }
 
-      // Verificar se expirou
       const isExpired = connection?.expires_at 
         ? new Date(connection.expires_at) < new Date() 
         : false;
 
-      // Extrair metadata
       const metadata = connection?.metadata as {
         connected_by?: string;
         connected_at?: string;
         scope_packs?: MetaScopePack[];
+        auth_profile_key?: string;
+        grant_id?: string;
         assets?: MetaAssets;
         pending_asset_selection?: boolean;
       } | null;
 
-      // Conexão só é considerada ativa se não estiver pendente de seleção de ativos
       const isPendingAssetSelection = metadata?.pending_asset_selection === true;
 
       return {
@@ -90,6 +88,7 @@ export function useMetaConnection() {
           lastSyncAt: connection.last_sync_at,
           lastError: connection.last_error,
           expiresAt: connection.expires_at || "",
+          authProfile: metadata?.auth_profile_key || "meta_auth_external",
           scopePacks: metadata?.scope_packs || [],
           assets: metadata?.assets || {
             pages: [],
@@ -104,12 +103,12 @@ export function useMetaConnection() {
       };
     },
     enabled: !!currentTenant?.id,
-    staleTime: 30000, // 30 segundos
+    staleTime: 30000,
   });
 
-  // Mutation para iniciar OAuth
+  // V4: Mutation para iniciar OAuth — sem scope packs
   const connectMutation = useMutation({
-    mutationFn: async (scopePacks: MetaScopePack[] = ["atendimento"]) => {
+    mutationFn: async () => {
       if (!currentTenant?.id || !session?.access_token) {
         throw new Error("Tenant não selecionado");
       }
@@ -117,7 +116,6 @@ export function useMetaConnection() {
       const { data, error } = await supabase.functions.invoke("meta-oauth-start", {
         body: { 
           tenantId: currentTenant.id,
-          scopePacks,
           returnPath: "/integrations",
         },
       });
@@ -129,10 +127,8 @@ export function useMetaConnection() {
       return data;
     },
     onSuccess: (data) => {
-      // Marcar que OAuth está em progresso (protege contra loaders durante o fluxo)
       sessionStorage.setItem('oauth_in_progress', 'true');
       
-      // Abrir popup para OAuth
       const width = 600;
       const height = 700;
       const left = window.screenX + (window.outerWidth - width) / 2;
@@ -144,11 +140,9 @@ export function useMetaConnection() {
         `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes`
       );
 
-      // Escutar mensagem do popup (quando o OAuth terminar)
       const handleMessage = (event: MessageEvent) => {
         if (event.data?.type === "meta:connected") {
           window.removeEventListener("message", handleMessage);
-          // Invalidar query para atualizar status
           queryClient.invalidateQueries({ queryKey: ["meta-connection-status"] });
           
           if (event.data.success) {
@@ -160,12 +154,10 @@ export function useMetaConnection() {
       };
       window.addEventListener("message", handleMessage);
 
-      // Fallback: verificar periodicamente se o popup fechou (caso postMessage falhe)
       const checkPopup = setInterval(() => {
         if (popup?.closed) {
           clearInterval(checkPopup);
           window.removeEventListener("message", handleMessage);
-          // Invalidar query para atualizar status
           queryClient.invalidateQueries({ queryKey: ["meta-connection-status"] });
         }
       }, 500);
@@ -180,7 +172,7 @@ export function useMetaConnection() {
         throw new Error("Tenant não selecionado");
       }
 
-      // Simplesmente desativar a conexão
+      // Desativar na tabela legada
       const { error } = await supabase
         .from("marketplace_connections")
         .update({ is_active: false })
@@ -190,6 +182,8 @@ export function useMetaConnection() {
       if (error) {
         throw error;
       }
+
+      // TODO V4: Também revogar grant ativo em tenant_meta_auth_grants
     },
     onSuccess: () => {
       toast.success("Conta Meta desconectada");
@@ -212,7 +206,7 @@ export function useMetaConnection() {
     isPendingAssetSelection: statusQuery.data?.isPendingAssetSelection ?? false,
     connection: statusQuery.data?.connection ?? null,
 
-    // Actions
+    // Actions — V4: connect() não recebe mais scope packs
     connect: connectMutation.mutate,
     disconnect: disconnectMutation.mutate,
     isConnecting: connectMutation.isPending,

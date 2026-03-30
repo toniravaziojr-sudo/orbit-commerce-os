@@ -9,10 +9,15 @@ const corsHeaders = {
 };
 
 /**
- * Meta OAuth Callback
+ * Meta OAuth Callback — V4
  * 
  * Recebe o code do Meta via POST (do frontend), valida state (anti-CSRF), 
- * troca por tokens, descobre portfólios empresariais e assets agrupados por portfólio.
+ * troca por tokens, cria grant V4 (criptografado) e descobre portfólios.
+ * 
+ * V4 Changes:
+ * - Cria grant em tenant_meta_auth_grants com tokens criptografados
+ * - Chama supersede_meta_grant para substituir grant anterior
+ * - Mantém marketplace_connections como COMPATIBILIDADE TEMPORÁRIA
  * 
  * Contrato:
  * - Erro de negócio = HTTP 200 + { success: false, error, code }
@@ -64,8 +69,11 @@ serve(async (req) => {
       .update({ used_at: new Date().toISOString() })
       .eq("id", stateRecord.id);
 
-    const { tenant_id, user_id, scope_packs, return_path } = stateRecord;
-    console.log(`[meta-oauth-callback] Processando para tenant ${tenant_id}`);
+    const { tenant_id, user_id, auth_profile_key, return_path } = stateRecord;
+    // V4: auth_profile_key vem do state (definido no start)
+    const profileKey = auth_profile_key || "meta_auth_external";
+    
+    console.log(`[meta-oauth-callback] Processando para tenant ${tenant_id}, profile=${profileKey}`);
 
     // Buscar credenciais do app Meta
     const appId = await getCredential(supabaseUrl, supabaseServiceKey, "META_APP_ID");
@@ -133,8 +141,93 @@ serve(async (req) => {
 
     const expiresAt = new Date(Date.now() + (expiresIn * 1000)).toISOString();
 
+    // Buscar escopos concedidos (debug_token ou do perfil)
+    let grantedScopes: string[] = [];
+    try {
+      const debugUrl = `https://graph.facebook.com/${graphVersion}/debug_token?input_token=${accessToken}&access_token=${appId}|${appSecret}`;
+      const debugResp = await fetch(debugUrl);
+      if (debugResp.ok) {
+        const debugData = await debugResp.json();
+        grantedScopes = debugData.data?.scopes || [];
+      }
+    } catch (e) {
+      console.warn("[meta-oauth-callback] Erro ao obter scopes via debug_token:", e);
+    }
+
+    // ================================================================
+    // V4: CRIAR GRANT NO MODELO NOVO (tenant_meta_auth_grants)
+    // Tokens criptografados via save_meta_grant_token
+    // ================================================================
+
+    // 1. Criar registro do grant
+    const { data: newGrant, error: grantError } = await supabase
+      .from("tenant_meta_auth_grants")
+      .insert({
+        tenant_id: tenant_id,
+        auth_profile_key: profileKey,
+        status: "active",
+        meta_user_id: metaUserId,
+        meta_user_name: metaUserName,
+        granted_scopes: grantedScopes,
+        granted_at: new Date().toISOString(),
+        granted_by: user_id,
+        token_expires_at: expiresAt,
+      })
+      .select("id")
+      .single();
+
+    if (grantError) {
+      console.error("[meta-oauth-callback] Erro ao criar grant V4:", grantError);
+      return new Response(
+        JSON.stringify({ success: false, error: "Erro ao salvar autorização", code: "GRANT_CREATE_FAILED" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const grantId = newGrant.id;
+    console.log(`[meta-oauth-callback] Grant V4 criado: ${grantId}`);
+
+    // 2. Salvar tokens criptografados via helper
+    const encryptionKey = Deno.env.get("META_TOKEN_ENCRYPTION_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    
+    const { error: saveTokenError } = await supabase.rpc("save_meta_grant_token", {
+      p_grant_id: grantId,
+      p_access_token: accessToken,
+      p_refresh_token: null,
+      p_encryption_key: encryptionKey,
+      p_expires_at: expiresAt,
+    });
+
+    if (saveTokenError) {
+      console.error("[meta-oauth-callback] Erro ao criptografar tokens:", saveTokenError);
+      // Grant já foi criado mas sem tokens — marcar como erro
+      await supabase
+        .from("tenant_meta_auth_grants")
+        .update({ status: "revoked", last_error: "Falha ao criptografar tokens" })
+        .eq("id", grantId);
+      return new Response(
+        JSON.stringify({ success: false, error: "Erro ao proteger tokens de acesso", code: "TOKEN_ENCRYPT_FAILED" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // 3. Superseder grant anterior (V4: 1 grant ativo por tenant)
+    const { data: supersededCount } = await supabase.rpc("supersede_meta_grant", {
+      p_tenant_id: tenant_id,
+      p_new_grant_id: grantId,
+    });
+
+    if (supersededCount && supersededCount > 0) {
+      console.log(`[meta-oauth-callback] ${supersededCount} grant(s) anterior(es) superseded`);
+    }
+
+    // ================================================================
+    // COMPATIBILIDADE TEMPORÁRIA: marketplace_connections
+    // Mantido para não quebrar consumidores legados.
+    // Será removido quando todos consumidores migrarem para V4.
+    // ================================================================
+    
     // Verificar se já existe conexão com ativos selecionados (reconexão)
-    let mergedScopePacks = [...scope_packs];
     const { data: existingConnection } = await supabase
       .from("marketplace_connections")
       .select("metadata")
@@ -151,17 +244,13 @@ serve(async (req) => {
       [key: string]: unknown;
     } | null;
 
-    if (existingMeta?.scope_packs) {
-      mergedScopePacks = [...new Set([...existingMeta.scope_packs, ...scope_packs])];
-    }
-
-    // Sempre descobrir portfólios e permitir (re)seleção de ativos
-    // Na reconexão, preservamos metadata de catálogo para reuso no meta-save-selected-assets
     const isReconnection = !!(existingMeta && existingMeta.assets && existingMeta.pending_asset_selection !== true);
     console.log(`[meta-oauth-callback] ${isReconnection ? 'RECONEXÃO' : 'Primeira conexão'} para tenant ${tenant_id} — descobrindo portfólios`);
-    const discovery = await discoverBusinessPortfolios(accessToken, scope_packs, graphVersion);
+    
+    // Descobrir portfólios (usando escopos do perfil, não mais scope packs)
+    const discovery = await discoverBusinessPortfolios(accessToken, grantedScopes, graphVersion);
 
-    // Salvar conexão com status pendente de seleção de ativos
+    // [LEGADO — TEMPORÁRIO] Upsert em marketplace_connections
     const { error: upsertError } = await supabase
       .from("marketplace_connections")
       .upsert({
@@ -173,18 +262,19 @@ serve(async (req) => {
         refresh_token: null,
         token_type: "Bearer",
         expires_at: expiresAt,
-        scopes: mergedScopePacks,
+        scopes: grantedScopes,
         is_active: true,
         last_error: null,
         metadata: {
-          // Preservar metadados de catálogo na reconexão para reuso
           ...(isReconnection ? {
             meta_catalog_id: existingMeta?.meta_catalog_id,
             meta_catalog_created_by_system: existingMeta?.meta_catalog_created_by_system,
           } : {}),
           connected_by: user_id,
           connected_at: new Date().toISOString(),
-          scope_packs: mergedScopePacks,
+          scope_packs: [], // V4: não usa mais scope packs
+          auth_profile_key: profileKey,
+          grant_id: grantId, // Referência cruzada para o grant V4
           businesses: discovery.businesses,
           pending_asset_selection: true,
         },
@@ -193,45 +283,25 @@ serve(async (req) => {
       });
 
     if (upsertError) {
-      console.error("[meta-oauth-callback] Erro ao salvar conexão:", upsertError);
-      return new Response(
-        JSON.stringify({ success: false, error: "Erro ao salvar a conexão", code: "SAVE_FAILED" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      console.error("[meta-oauth-callback] Erro ao salvar conexão legada:", upsertError);
+      // Não falhar — o grant V4 já foi criado com sucesso
     }
 
-    console.log(`[meta-oauth-callback] Conexão Meta salva com sucesso para tenant ${tenant_id} — aguardando seleção de portfólio e ativos`);
-
-    // Buscar threads profile (não pertence a portfólio)
-    let threadsProfile: { id: string; username: string } | null = null;
-    if (scope_packs.includes("threads")) {
-      try {
-        const threadsResponse = await fetch(
-          `https://graph.threads.net/v1.0/me?fields=id,username&access_token=${accessToken}`
-        );
-        if (threadsResponse.ok) {
-          const threadsData = await threadsResponse.json();
-          if (threadsData.id) {
-            threadsProfile = { id: threadsData.id, username: threadsData.username || threadsData.id };
-          }
-        }
-      } catch (e) {
-        console.warn("[meta-oauth-callback] Erro ao buscar Threads profile:", e);
-      }
-    }
+    console.log(`[meta-oauth-callback] Conexão Meta salva para tenant ${tenant_id} — grant V4: ${grantId}, legado: ${upsertError ? 'ERRO' : 'OK'}`);
 
     return new Response(
       JSON.stringify({
         success: true,
         requiresAssetSelection: true,
         returnPath: return_path || "/integrations",
+        grantId, // V4: retorna o ID do grant para o frontend
+        authProfile: profileKey,
         connection: {
           externalUserId: metaUserId,
           externalUsername: metaUserName,
           expiresAt,
-          scopePacks: scope_packs,
+          grantedScopes,
           businesses: discovery.businesses,
-          threads_profile: threadsProfile,
         },
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -242,6 +312,10 @@ serve(async (req) => {
     return errorResponse(error, corsHeaders, { module: 'meta-oauth-callback' });
   }
 });
+
+// ================================================================
+// DISCOVERY HELPERS
+// ================================================================
 
 interface BusinessPortfolio {
   id: string;
@@ -255,21 +329,20 @@ interface BusinessPortfolio {
 
 /**
  * Descobrir portfólios empresariais e seus assets agrupados.
- * Cada portfólio contém apenas os ativos que pertencem a ele.
+ * V4: Usa granted_scopes para decidir quais assets buscar.
  */
-async function discoverBusinessPortfolios(accessToken: string, scopePacks: string[], graphVersion: string) {
+async function discoverBusinessPortfolios(accessToken: string, grantedScopes: string[], graphVersion: string) {
   const businesses: BusinessPortfolio[] = [];
+  const hasScope = (s: string) => grantedScopes.includes(s);
 
   try {
-    // 1. Buscar portfólios empresariais (businesses)
     const businessResponse = await fetch(
       `https://graph.facebook.com/${graphVersion}/me/businesses?fields=id,name&access_token=${accessToken}`
     );
 
     if (!businessResponse.ok) {
       console.warn("[meta-oauth-callback] Não foi possível buscar businesses");
-      // Fallback: criar portfólio "pessoal" com assets do /me
-      const fallback = await discoverPersonalAssets(accessToken, scopePacks, graphVersion);
+      const fallback = await discoverPersonalAssets(accessToken, grantedScopes, graphVersion);
       businesses.push(fallback);
       return { businesses };
     }
@@ -277,13 +350,11 @@ async function discoverBusinessPortfolios(accessToken: string, scopePacks: strin
     const businessData = await businessResponse.json();
     
     if (!businessData.data || businessData.data.length === 0) {
-      // Sem portfólios: usar assets pessoais
-      const fallback = await discoverPersonalAssets(accessToken, scopePacks, graphVersion);
+      const fallback = await discoverPersonalAssets(accessToken, grantedScopes, graphVersion);
       businesses.push(fallback);
       return { businesses };
     }
 
-    // 2. Para cada portfólio, buscar seus assets
     for (const biz of businessData.data) {
       const portfolio: BusinessPortfolio = {
         id: biz.id,
@@ -310,8 +381,7 @@ async function discoverBusinessPortfolios(accessToken: string, scopePacks: strin
                 access_token: page.access_token,
               });
 
-              // IG Business conectado à página
-              if (page.instagram_business_account) {
+              if (page.instagram_business_account && hasScope("instagram_basic")) {
                 try {
                   const igResp = await fetch(
                     `https://graph.facebook.com/${graphVersion}/${page.instagram_business_account.id}?fields=id,username&access_token=${accessToken}`
@@ -336,7 +406,7 @@ async function discoverBusinessPortfolios(accessToken: string, scopePacks: strin
       }
 
       // Buscar WABAs do portfólio + phone numbers
-      if (scopePacks.includes("whatsapp")) {
+      if (hasScope("whatsapp_business_management")) {
         try {
           const wabaResp = await fetch(
             `https://graph.facebook.com/${graphVersion}/${biz.id}/owned_whatsapp_business_accounts?access_token=${accessToken}`
@@ -380,7 +450,7 @@ async function discoverBusinessPortfolios(accessToken: string, scopePacks: strin
       }
 
       // Buscar Ad Accounts do portfólio
-      if (scopePacks.includes("ads") || scopePacks.includes("pixel")) {
+      if (hasScope("ads_management") || hasScope("ads_read")) {
         try {
           const adResp = await fetch(
             `https://graph.facebook.com/${graphVersion}/${biz.id}/owned_ad_accounts?fields=id,name&access_token=${accessToken}`
@@ -422,13 +492,6 @@ async function discoverBusinessPortfolios(accessToken: string, scopePacks: strin
             console.warn(`[meta-oauth-callback] Erro pixels de ${acc.id}:`, e);
           }
         }
-
-        // Se o pack é apenas "pixel" (sem "ads"), limpar ad_accounts do resultado 
-        // para não mostrar na seleção de ativos
-        if (scopePacks.includes("pixel") && !scopePacks.includes("ads")) {
-          // Manter ad_accounts internamente apenas para referência dos pixels
-          // mas não precisamos limpar aqui, o frontend filtrará
-        }
       }
 
       businesses.push(portfolio);
@@ -444,7 +507,7 @@ async function discoverBusinessPortfolios(accessToken: string, scopePacks: strin
 /**
  * Fallback: quando não há portfólios empresariais, buscar assets pessoais do /me
  */
-async function discoverPersonalAssets(accessToken: string, scopePacks: string[], graphVersion: string): Promise<BusinessPortfolio> {
+async function discoverPersonalAssets(accessToken: string, grantedScopes: string[], graphVersion: string): Promise<BusinessPortfolio> {
   const portfolio: BusinessPortfolio = {
     id: "personal",
     name: "Conta Pessoal",
@@ -454,6 +517,7 @@ async function discoverPersonalAssets(accessToken: string, scopePacks: string[],
     ad_accounts: [],
     pixels: [],
   };
+  const hasScope = (s: string) => grantedScopes.includes(s);
 
   try {
     const pagesResp = await fetch(
@@ -464,7 +528,7 @@ async function discoverPersonalAssets(accessToken: string, scopePacks: string[],
       if (pagesData.data) {
         for (const page of pagesData.data) {
           portfolio.pages.push({ id: page.id, name: page.name, access_token: page.access_token });
-          if (page.instagram_business_account) {
+          if (page.instagram_business_account && hasScope("instagram_basic")) {
             try {
               const igResp = await fetch(
                 `https://graph.facebook.com/${graphVersion}/${page.instagram_business_account.id}?fields=id,username&access_token=${accessToken}`
@@ -479,7 +543,7 @@ async function discoverPersonalAssets(accessToken: string, scopePacks: string[],
       }
     }
 
-    if (scopePacks.includes("ads") || scopePacks.includes("pixel")) {
+    if (hasScope("ads_management") || hasScope("ads_read")) {
       try {
         const adResp = await fetch(
           `https://graph.facebook.com/${graphVersion}/me/adaccounts?fields=id,name&access_token=${accessToken}`
