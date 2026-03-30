@@ -56,13 +56,6 @@ export function useMetaIntegrations() {
     queryFn: async () => {
       if (!tenantId) return null;
 
-      const { data, error } = await supabase.functions.invoke("meta-integrations-manage", {
-        method: "GET",
-        body: undefined,
-        headers: { "Content-Type": "application/json" },
-      });
-
-      // GET via query params — we need to use fetch directly
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const session = (await supabase.auth.getSession()).data.session;
       
