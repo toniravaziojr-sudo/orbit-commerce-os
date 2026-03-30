@@ -95,6 +95,7 @@ Deno.serve(async (req) => {
         shipping_postal_code: '01310-100',
         shipping_country: 'BR',
         internal_notes: '[PEDIDO TESTE] Criado para validar tracking automático. Pode ser removido após teste.',
+        is_first_sale: false,
       })
       .select()
       .single();
