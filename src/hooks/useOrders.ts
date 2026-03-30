@@ -215,14 +215,8 @@ export function useOrders(options?: {
 
       if (error) throw error;
 
-      // Map orders and compute is_first_sale
-      const orders = (data || []).map((row: any) => {
-        const { customers, ...orderData } = row;
-        const customerTotalOrders = customers?.total_orders ?? null;
-        // First sale = customer has no prior record (null customer_id) or total_orders <= 1
-        const isFirstSale = !orderData.customer_id || customerTotalOrders === null || customerTotalOrders <= 1;
-        return { ...orderData, is_first_sale: isFirstSale } as Order;
-      });
+      // Use persistent is_first_sale flag from database (immutable, set at creation)
+      const orders = (data || []) as Order[];
 
       // Client-side filter for first sale only
       const filtered = firstSaleOnly ? orders.filter(o => o.is_first_sale) : orders;
