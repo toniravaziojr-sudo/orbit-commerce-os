@@ -106,7 +106,7 @@ serve(async (req) => {
     const metaAppSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'META_APP_SECRET');
     const metaGraphApiVersion = await checkCredential(supabaseUrl, supabaseServiceKey, 'META_GRAPH_API_VERSION');
     const metaWebhookVerifyToken = await checkCredential(supabaseUrl, supabaseServiceKey, 'META_WEBHOOK_VERIFY_TOKEN');
-    const metaConfigId = await checkCredential(supabaseUrl, supabaseServiceKey, 'META_CONFIG_ID');
+    // META_CONFIG_ID removido na V4 — config_id agora vive em meta_auth_profiles
     const lateApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'LATE_API_KEY');
     const meliAppId = await checkCredential(supabaseUrl, supabaseServiceKey, 'MELI_APP_ID');
     const meliClientSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'MELI_CLIENT_SECRET');
@@ -380,21 +380,18 @@ serve(async (req) => {
           META_APP_SECRET: metaAppSecret.exists,
           META_GRAPH_API_VERSION: metaGraphApiVersion.exists,
           META_WEBHOOK_VERIFY_TOKEN: metaWebhookVerifyToken.exists,
-          META_CONFIG_ID: metaConfigId.exists,
         },
         previews: {
           META_APP_ID: metaAppId.preview || '',
           META_APP_SECRET: metaAppSecret.preview || '',
           META_GRAPH_API_VERSION: metaGraphApiVersion.preview || '',
           META_WEBHOOK_VERIFY_TOKEN: metaWebhookVerifyToken.preview || '',
-          META_CONFIG_ID: metaConfigId.preview || '',
         },
         sources: {
           META_APP_ID: metaAppId.source || '',
           META_APP_SECRET: metaAppSecret.source || '',
           META_GRAPH_API_VERSION: metaGraphApiVersion.source || '',
           META_WEBHOOK_VERIFY_TOKEN: metaWebhookVerifyToken.source || '',
-          META_CONFIG_ID: metaConfigId.source || '',
         },
       },
       google_platform: {

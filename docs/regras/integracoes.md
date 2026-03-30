@@ -805,27 +805,29 @@ A integração Meta usa **Scope Packs** para consentimento incremental. O tenant
 
 Para que **lojistas externos** (não-admin da plataforma) consigam conectar suas contas Meta, o sistema usa o **Facebook Login for Business** em vez do Login do Facebook padrão.
 
-**Como funciona:**
-1. No painel Meta for Developers → Login do Facebook para Empresas → cria-se uma **Configuração**
-2. Essa configuração define quais permissões aprovadas serão pedidas ao lojista
-3. O sistema salva o **Configuration ID** na credencial `META_CONFIG_ID` (via tela de Integrações da Plataforma)
-4. Na hora de gerar a URL de autorização, o `meta-oauth-start` usa esse ID
+**Como funciona (V4):**
+1. No painel Meta for Developers → Login do Facebook para Empresas → cria-se uma **Configuração** (pode haver 2: uma para escopos completos, outra para escopos aprovados)
+2. Cada configuração define quais permissões serão pedidas ao lojista
+3. O sistema salva o **Configuration ID** no campo `config_id` da tabela `meta_auth_profiles` (perfil `meta_auth_full` ou `meta_auth_external`)
+4. Na hora de gerar a URL de autorização, o `meta-oauth-start` escolhe o perfil com base no tipo de tenant e usa o `config_id` correspondente
+
+> **⚠️ V4:** O campo antigo `META_CONFIG_ID` em `platform_credentials` foi descontinuado. O `config_id` agora é gerido por perfil em `meta_auth_profiles`, editável na aba Meta → Perfis de Autenticação.
 
 **⚠️ REGRA CRÍTICA: `config_id` e `scope` são MUTUAMENTE EXCLUSIVOS**
 
 Segundo a documentação oficial da Meta, ao usar `config_id` na URL de autorização, o parâmetro `scope` **NÃO deve ser enviado**. Enviar ambos causa o erro **"Recurso indisponível"** para usuários externos.
 
-**Comportamento no `meta-oauth-start`:**
+**Comportamento no `meta-oauth-start` (V4):**
 ```text
-SE config_id está configurado:
+SE perfil tem config_id preenchido:
   → URL usa APENAS config_id (sem scope)
   → Permissões são geridas no painel Meta
-SE config_id NÃO está configurado:
-  → URL usa scope (lista de permissões por pack)
-  → Fallback para o fluxo antigo
+SE perfil NÃO tem config_id:
+  → URL usa scope da lista effective_scopes do perfil
+  → Modo desenvolvimento / fallback
 ```
 
-**Credencial:** `META_CONFIG_ID` — configurada na tela de Integrações da Plataforma (tab Meta)
+**Gestão:** Aba Meta → Perfis de Autenticação → editar Config ID de cada perfil
 
 **Permissões que devem estar na configuração do Login for Business:**
 - `email`, `public_profile`
@@ -2849,3 +2851,41 @@ O modelo legado (`marketplace_connections` com `marketplace='meta'`) continua fu
 
 **Migration:**
 - `meta_oauth_states.auth_profile_key` (TEXT, nullable) adicionada para passar perfil do start → callback
+
+### Fase 3 — Painel Admin dos 2 Config IDs (✅ Concluída)
+
+**Objetivo:** Alinhar a UI admin de plataforma com a arquitetura V4, gerenciando os 2 config_ids diretamente em `meta_auth_profiles`.
+
+**Edge Function criada:**
+- `meta-auth-profiles-admin` — GET lista perfis; POST atualiza config_id de um perfil. Acesso restrito a `is_platform_admin()`.
+
+**Hook criado:**
+- `useMetaAuthProfiles` — query/mutation para ler e atualizar config_id dos perfis via edge function.
+
+**UI refatorada (`MetaPlatformSettings.tsx`):**
+- App ID e App Secret continuam em `platform_credentials` (credenciais globais do app)
+- Removido campo antigo `META_CONFIG_ID` — não existe mais no painel
+- Adicionada seção "Perfis de Autenticação" com 2 cards:
+  - `meta_auth_full` (tenants especiais + admin) — cor roxa
+  - `meta_auth_external` (demais tenants) — cor azul
+- Cada card exibe: Config ID editável, status (Pronto/Não configurado), escopos em modo leitura (expansível)
+- Edição grava direto em `meta_auth_profiles` (não mais em `platform_credentials`)
+
+**Limpeza de resíduo (`META_CONFIG_ID`):**
+- Removido de `platform-credentials-update` (lista `EDITABLE_CREDENTIALS`)
+- Removido de `platform-secrets-check` (check + response object)
+- Removido da UI (`MetaPlatformSettings.tsx`)
+
+**Arquivos alterados:**
+| Arquivo | Ação |
+|---------|------|
+| `supabase/functions/meta-auth-profiles-admin/index.ts` | Criado |
+| `src/hooks/useMetaAuthProfiles.ts` | Criado |
+| `src/components/integrations/platform/MetaPlatformSettings.tsx` | Refatorado |
+| `supabase/functions/platform-credentials-update/index.ts` | Removido META_CONFIG_ID |
+| `supabase/functions/platform-secrets-check/index.ts` | Removido META_CONFIG_ID |
+
+**Riscos/impactos:**
+- Nenhuma migration necessária (V4 já tem a coluna `config_id` em `meta_auth_profiles`)
+- Se o valor antigo de `META_CONFIG_ID` em `platform_credentials` ainda existir no banco, ficará inerte (não é mais lido por nenhum consumidor)
+- `meta-oauth-start` já busca config_id de `meta_auth_profiles` desde a Fase 2
