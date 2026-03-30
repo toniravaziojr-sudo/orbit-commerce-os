@@ -167,10 +167,7 @@ export function MetaUnifiedSettings() {
   };
 
   const handleConnect = () => {
-    if (selectedPacks.length === 0) {
-      return;
-    }
-    connect(selectedPacks);
+    connect();
   };
 
   // Test message mutation
