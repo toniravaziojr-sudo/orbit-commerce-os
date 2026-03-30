@@ -10436,6 +10436,86 @@ export type Database = {
           },
         ]
       }
+      meta_auth_profile_mappings: {
+        Row: {
+          auth_profile_id: string
+          canonical_key: string
+          created_at: string
+          display_label: string | null
+          id: string
+          integration_ids: string[]
+          is_active: boolean
+        }
+        Insert: {
+          auth_profile_id: string
+          canonical_key: string
+          created_at?: string
+          display_label?: string | null
+          id?: string
+          integration_ids?: string[]
+          is_active?: boolean
+        }
+        Update: {
+          auth_profile_id?: string
+          canonical_key?: string
+          created_at?: string
+          display_label?: string | null
+          id?: string
+          integration_ids?: string[]
+          is_active?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_auth_profile_mappings_auth_profile_id_fkey"
+            columns: ["auth_profile_id"]
+            isOneToOne: false
+            referencedRelation: "meta_auth_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meta_auth_profiles: {
+        Row: {
+          base_scopes: string[]
+          config_id: string | null
+          created_at: string
+          description: string | null
+          display_name: string
+          effective_scopes: string[]
+          id: string
+          is_active: boolean
+          primary_scopes: string[]
+          profile_key: string
+          updated_at: string
+        }
+        Insert: {
+          base_scopes?: string[]
+          config_id?: string | null
+          created_at?: string
+          description?: string | null
+          display_name: string
+          effective_scopes?: string[]
+          id?: string
+          is_active?: boolean
+          primary_scopes?: string[]
+          profile_key: string
+          updated_at?: string
+        }
+        Update: {
+          base_scopes?: string[]
+          config_id?: string | null
+          created_at?: string
+          description?: string | null
+          display_name?: string
+          effective_scopes?: string[]
+          id?: string
+          is_active?: boolean
+          primary_scopes?: string[]
+          profile_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       meta_catalog_items: {
         Row: {
           catalog_id: string
@@ -16586,6 +16666,144 @@ export type Database = {
           },
         ]
       }
+      tenant_meta_auth_grants: {
+        Row: {
+          access_token_encrypted: string | null
+          auth_profile_key: string
+          created_at: string
+          granted_at: string
+          granted_by: string | null
+          granted_scopes: string[] | null
+          id: string
+          last_error: string | null
+          last_validated_at: string | null
+          meta_user_id: string | null
+          meta_user_name: string | null
+          refresh_token_encrypted: string | null
+          revoked_at: string | null
+          status: string
+          superseded_at: string | null
+          superseded_by: string | null
+          tenant_id: string
+          token_expires_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token_encrypted?: string | null
+          auth_profile_key: string
+          created_at?: string
+          granted_at?: string
+          granted_by?: string | null
+          granted_scopes?: string[] | null
+          id?: string
+          last_error?: string | null
+          last_validated_at?: string | null
+          meta_user_id?: string | null
+          meta_user_name?: string | null
+          refresh_token_encrypted?: string | null
+          revoked_at?: string | null
+          status?: string
+          superseded_at?: string | null
+          superseded_by?: string | null
+          tenant_id: string
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token_encrypted?: string | null
+          auth_profile_key?: string
+          created_at?: string
+          granted_at?: string
+          granted_by?: string | null
+          granted_scopes?: string[] | null
+          id?: string
+          last_error?: string | null
+          last_validated_at?: string | null
+          meta_user_id?: string | null
+          meta_user_name?: string | null
+          refresh_token_encrypted?: string | null
+          revoked_at?: string | null
+          status?: string
+          superseded_at?: string | null
+          superseded_by?: string | null
+          tenant_id?: string
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_meta_auth_grants_auth_profile_key_fkey"
+            columns: ["auth_profile_key"]
+            isOneToOne: false
+            referencedRelation: "meta_auth_profiles"
+            referencedColumns: ["profile_key"]
+          },
+          {
+            foreignKeyName: "tenant_meta_auth_grants_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_meta_integrations: {
+        Row: {
+          auth_grant_id: string | null
+          created_at: string
+          id: string
+          integration_id: string
+          last_error: string | null
+          last_sync_at: string | null
+          metadata: Json | null
+          selected_assets: Json | null
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          auth_grant_id?: string | null
+          created_at?: string
+          id?: string
+          integration_id: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          metadata?: Json | null
+          selected_assets?: Json | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          auth_grant_id?: string | null
+          created_at?: string
+          id?: string
+          integration_id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          metadata?: Json | null
+          selected_assets?: Json | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_meta_integrations_auth_grant_id_fkey"
+            columns: ["auth_grant_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_meta_auth_grants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_meta_integrations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_monthly_usage: {
         Row: {
           ai_audio_duration_seconds: number | null
@@ -18819,6 +19037,13 @@ export type Database = {
         }[]
       }
       get_list_member_count: { Args: { p_list_id: string }; Returns: number }
+      get_meta_grant_token: {
+        Args: { p_encryption_key: string; p_grant_id: string }
+        Returns: {
+          access_token: string
+          refresh_token: string
+        }[]
+      }
       get_public_marketing_config: {
         Args: { p_tenant_id: string }
         Returns: {
@@ -18949,6 +19174,16 @@ export type Database = {
           success: boolean
         }[]
       }
+      save_meta_grant_token: {
+        Args: {
+          p_access_token: string
+          p_encryption_key: string
+          p_expires_at?: string
+          p_grant_id: string
+          p_refresh_token: string
+        }
+        Returns: undefined
+      }
       search_knowledge_base: {
         Args: {
           p_query_embedding: string
@@ -18984,6 +19219,14 @@ export type Database = {
           status: string
           stock_quantity: number
         }[]
+      }
+      supersede_meta_grant: {
+        Args: {
+          p_auth_profile_key: string
+          p_new_grant_id: string
+          p_tenant_id: string
+        }
+        Returns: number
       }
       sync_list_subscribers_from_tag: {
         Args: { p_list_id: string }
