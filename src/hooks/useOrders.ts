@@ -173,10 +173,9 @@ export function useOrders(options?: {
     queryFn: async () => {
       if (!currentTenant?.id) return { data: [], count: 0 };
       
-      // Use join to get customer total_orders for first sale detection
       let query = supabase
         .from('orders')
-        .select('*, customers(total_orders)', { count: 'exact' })
+        .select('*', { count: 'exact' })
         .eq('tenant_id', currentTenant.id)
         // Ghost Order Rule: orders without gateway confirmation are NOT real orders.
         // The webhook now guarantees payment_gateway_id is always set for real orders.

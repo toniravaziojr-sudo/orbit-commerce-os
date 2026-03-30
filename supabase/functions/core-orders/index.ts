@@ -267,6 +267,7 @@ Deno.serve(async (req) => {
             status: 'pending',
             payment_status: 'awaiting_payment',
             shipping_status: 'awaiting_shipment',
+            is_first_sale: isFirstSale,
           })
           .select()
           .single();
