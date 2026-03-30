@@ -501,6 +501,8 @@ serve(async (req) => {
         retry_from_order_id: payload.retry_from_order_id || null,
         // Idempotency key
         checkout_attempt_id: payload.checkout_attempt_id || null,
+        // Immutable flag: true only when customer was created in this checkout (new email)
+        is_first_sale: !existingCustomer,
       })
       .select('id')
       .single();
