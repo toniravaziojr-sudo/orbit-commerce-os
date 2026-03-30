@@ -731,8 +731,8 @@ export function MetaUnifiedSettings() {
   );
 }
 
-// Componente para consentimento incremental
-function IncrementalConsentSection({
+// V4: IncrementalConsentSection removida — escopos controlados pelo perfil automático
+
   currentPacks,
   allPacks,
   onAddPacks,
