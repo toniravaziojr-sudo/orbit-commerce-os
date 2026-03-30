@@ -11681,6 +11681,7 @@ export type Database = {
           installment_value: number | null
           installments: number | null
           internal_notes: string | null
+          is_first_sale: boolean | null
           marketplace_data: Json | null
           marketplace_order_id: string | null
           marketplace_source: string | null
@@ -11760,6 +11761,7 @@ export type Database = {
           installment_value?: number | null
           installments?: number | null
           internal_notes?: string | null
+          is_first_sale?: boolean | null
           marketplace_data?: Json | null
           marketplace_order_id?: string | null
           marketplace_source?: string | null
@@ -11839,6 +11841,7 @@ export type Database = {
           installment_value?: number | null
           installments?: number | null
           internal_notes?: string | null
+          is_first_sale?: boolean | null
           marketplace_data?: Json | null
           marketplace_order_id?: string | null
           marketplace_source?: string | null
