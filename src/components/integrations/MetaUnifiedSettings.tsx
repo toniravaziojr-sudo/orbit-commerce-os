@@ -699,60 +699,6 @@ export function MetaUnifiedSettings() {
             </>
           ) : (
             <>
-              {/* Seleção de pacotes de escopos */}
-              <div className="space-y-3">
-                <Label>Selecione as permissões que deseja conectar:</Label>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {(Object.keys(SCOPE_PACK_INFO) as MetaScopePack[]).map((pack) => {
-                    const info = SCOPE_PACK_INFO[pack];
-                    const isAvailable = info.available;
-                    
-                    return (
-                      <div
-                        key={pack}
-                        className={`flex items-start gap-3 rounded-lg border p-3 transition-colors ${
-                          !isAvailable 
-                            ? "opacity-60 cursor-not-allowed bg-muted/30"
-                            : selectedPacks.includes(pack) 
-                              ? "border-primary bg-primary/5 cursor-pointer" 
-                              : "hover:border-muted-foreground/50 cursor-pointer"
-                        }`}
-                        onClick={() => togglePack(pack)}
-                      >
-                        {isAvailable ? (
-                          <Checkbox
-                            id={`pack-${pack}`}
-                            checked={selectedPacks.includes(pack)}
-                            onCheckedChange={() => togglePack(pack)}
-                          />
-                        ) : (
-                          <Lock className="h-4 w-4 mt-0.5 text-muted-foreground" />
-                        )}
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            {info.icon}
-                            <Label 
-                              htmlFor={`pack-${pack}`} 
-                              className={`font-medium ${!isAvailable ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                            >
-                              {info.label}
-                            </Label>
-                            {!isAvailable && (
-                              <Badge variant="outline" className="text-xs">
-                                {info.blockedReason || "Em breve"}
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {info.description}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
               {isExpired && (
                 <Alert>
                   <AlertTriangle className="h-4 w-4" />
@@ -762,9 +708,14 @@ export function MetaUnifiedSettings() {
                 </Alert>
               )}
 
+              <p className="text-sm text-muted-foreground">
+                Ao conectar, o sistema solicitará as permissões adequadas para o seu tipo de conta automaticamente.
+                Após a conexão, você poderá ativar funcionalidades individuais nos painéis específicos.
+              </p>
+
               <Button
                 onClick={handleConnect}
-                disabled={isConnecting || selectedPacks.length === 0}
+                disabled={isConnecting}
                 className="gap-2"
               >
                 {isConnecting ? (
