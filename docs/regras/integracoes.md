@@ -805,27 +805,29 @@ A integração Meta usa **Scope Packs** para consentimento incremental. O tenant
 
 Para que **lojistas externos** (não-admin da plataforma) consigam conectar suas contas Meta, o sistema usa o **Facebook Login for Business** em vez do Login do Facebook padrão.
 
-**Como funciona:**
-1. No painel Meta for Developers → Login do Facebook para Empresas → cria-se uma **Configuração**
-2. Essa configuração define quais permissões aprovadas serão pedidas ao lojista
-3. O sistema salva o **Configuration ID** na credencial `META_CONFIG_ID` (via tela de Integrações da Plataforma)
-4. Na hora de gerar a URL de autorização, o `meta-oauth-start` usa esse ID
+**Como funciona (V4):**
+1. No painel Meta for Developers → Login do Facebook para Empresas → cria-se uma **Configuração** (pode haver 2: uma para escopos completos, outra para escopos aprovados)
+2. Cada configuração define quais permissões serão pedidas ao lojista
+3. O sistema salva o **Configuration ID** no campo `config_id` da tabela `meta_auth_profiles` (perfil `meta_auth_full` ou `meta_auth_external`)
+4. Na hora de gerar a URL de autorização, o `meta-oauth-start` escolhe o perfil com base no tipo de tenant e usa o `config_id` correspondente
+
+> **⚠️ V4:** O campo antigo `META_CONFIG_ID` em `platform_credentials` foi descontinuado. O `config_id` agora é gerido por perfil em `meta_auth_profiles`, editável na aba Meta → Perfis de Autenticação.
 
 **⚠️ REGRA CRÍTICA: `config_id` e `scope` são MUTUAMENTE EXCLUSIVOS**
 
 Segundo a documentação oficial da Meta, ao usar `config_id` na URL de autorização, o parâmetro `scope` **NÃO deve ser enviado**. Enviar ambos causa o erro **"Recurso indisponível"** para usuários externos.
 
-**Comportamento no `meta-oauth-start`:**
+**Comportamento no `meta-oauth-start` (V4):**
 ```text
-SE config_id está configurado:
+SE perfil tem config_id preenchido:
   → URL usa APENAS config_id (sem scope)
   → Permissões são geridas no painel Meta
-SE config_id NÃO está configurado:
-  → URL usa scope (lista de permissões por pack)
-  → Fallback para o fluxo antigo
+SE perfil NÃO tem config_id:
+  → URL usa scope da lista effective_scopes do perfil
+  → Modo desenvolvimento / fallback
 ```
 
-**Credencial:** `META_CONFIG_ID` — configurada na tela de Integrações da Plataforma (tab Meta)
+**Gestão:** Aba Meta → Perfis de Autenticação → editar Config ID de cada perfil
 
 **Permissões que devem estar na configuração do Login for Business:**
 - `email`, `public_profile`
