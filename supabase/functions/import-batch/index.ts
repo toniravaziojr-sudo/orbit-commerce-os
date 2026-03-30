@@ -1145,6 +1145,8 @@ async function importOrdersBatch(supabase: any, tenantId: string, jobId: string,
       cancelled_at: order.cancelled_at || null,
       cancellation_reason: order.cancellation_reason || null,
       created_at: order.created_at || new Date().toISOString(),
+      // Imported orders: customer already existed (imported or pre-existing) → never first sale
+      is_first_sale: false,
     };
 
     orderInserts.push(orderData);

@@ -89,11 +89,12 @@ interface Customer {
   bounced_at: string | null;
   
   // === Métricas (calculadas) ===
-  total_orders: number | null;
+  total_orders: number | null;     // Incrementado a cada INSERT em orders (inclui ghost orders — dívida técnica)
   total_spent: number | null;
   average_ticket: number | null;
   first_order_at: string | null;
   last_order_at: string | null;
+  // NOTA: A tarja "1ª compra" NÃO usa total_orders. Usa orders.is_first_sale (flag imutável).
   
   // === Fidelidade ===
   loyalty_points: number | null;

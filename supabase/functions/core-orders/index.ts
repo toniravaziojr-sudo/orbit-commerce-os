@@ -225,6 +225,21 @@ Deno.serve(async (req) => {
           sum + ((item.discount_amount || 0) * item.quantity), 0);
         const total = subtotal - discountTotal;
 
+        // Determine is_first_sale: check if customer already existed before this order
+        const normalizedEmail = customer_email.toLowerCase().trim();
+        let isFirstSale = false;
+        if (normalizedEmail) {
+          const { data: existingCust } = await supabase
+            .from('customers')
+            .select('id')
+            .eq('tenant_id', tenantId)
+            .eq('email', normalizedEmail)
+            .maybeSingle();
+          // If no customer exists yet for this email, it's a first sale
+          // Note: admin-created orders with a pre-existing customer_id mean customer already exists
+          isFirstSale = !existingCust && !customer_id;
+        }
+
         // Create order
         const { data: order, error: orderError } = await supabase
           .from('orders')
@@ -233,7 +248,7 @@ Deno.serve(async (req) => {
             order_number: orderNumber,
             customer_id,
             customer_name,
-            customer_email: customer_email.toLowerCase().trim(),
+            customer_email: normalizedEmail,
             customer_phone,
             customer_cpf,
             payment_method,
@@ -252,6 +267,7 @@ Deno.serve(async (req) => {
             status: 'pending',
             payment_status: 'awaiting_payment',
             shipping_status: 'awaiting_shipment',
+            is_first_sale: isFirstSale,
           })
           .select()
           .single();
