@@ -10436,44 +10436,6 @@ export type Database = {
           },
         ]
       }
-      meta_auth_profile_mappings: {
-        Row: {
-          auth_profile_id: string
-          canonical_key: string
-          created_at: string
-          display_label: string | null
-          id: string
-          integration_ids: string[]
-          is_active: boolean
-        }
-        Insert: {
-          auth_profile_id: string
-          canonical_key: string
-          created_at?: string
-          display_label?: string | null
-          id?: string
-          integration_ids?: string[]
-          is_active?: boolean
-        }
-        Update: {
-          auth_profile_id?: string
-          canonical_key?: string
-          created_at?: string
-          display_label?: string | null
-          id?: string
-          integration_ids?: string[]
-          is_active?: boolean
-        }
-        Relationships: [
-          {
-            foreignKeyName: "meta_auth_profile_mappings_auth_profile_id_fkey"
-            columns: ["auth_profile_id"]
-            isOneToOne: false
-            referencedRelation: "meta_auth_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       meta_auth_profiles: {
         Row: {
           base_scopes: string[]
@@ -19221,11 +19183,7 @@ export type Database = {
         }[]
       }
       supersede_meta_grant: {
-        Args: {
-          p_auth_profile_key: string
-          p_new_grant_id: string
-          p_tenant_id: string
-        }
+        Args: { p_new_grant_id: string; p_tenant_id: string }
         Returns: number
       }
       sync_list_subscribers_from_tag: {

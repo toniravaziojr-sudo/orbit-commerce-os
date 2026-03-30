@@ -2756,59 +2756,72 @@ O registro do número WhatsApp na Cloud API é feito em **3 etapas guiadas** no 
 
 ---
 
-## Modelo Meta v3.2 — Arquitetura de 4 Camadas
+## Modelo Meta V4 — 2 Config IDs + Auth Único + Toggles
 
-> **STATUS:** ✅ Fase 1 concluída (infraestrutura de dados)
+> **STATUS:** ✅ Fase 1 + 1.1 concluídas (infraestrutura + limpeza)
+
+### Conceito
+
+O tenant faz **1 único auth** (botão "Conectar Meta"). O sistema decide internamente qual config_id usar com base no tipo de tenant. Após o auth, funcionalidades são controladas por **toggles** na UI.
+
+### Auth Profiles (2 fixos)
+
+| Profile Key | Quem usa | Descrição |
+|---|---|---|
+| `meta_auth_full` | Tenants especiais + admin | Todos os escopos disponíveis |
+| `meta_auth_external` | Demais tenants | Apenas escopos aprovados no App Review |
 
 ### Tabelas do Modelo
 
 | Tabela | Descrição | RLS |
-|--------|-----------|-----|
-| `meta_auth_profiles` | Catálogo de perfis de autenticação (config_id + escopos) | Leitura: authenticated / Escrita: platform_admin |
-| `meta_auth_profile_mappings` | Mapeia seleções da UI (canonical_key) → auth_profile | Leitura: authenticated / Escrita: platform_admin |
+|---|---|---|
+| `meta_auth_profiles` | Catálogo com 2 perfis fixos (config_id + escopos) | Leitura: authenticated / Escrita: platform_admin |
 | `tenant_meta_auth_grants` | Tokens criptografados (pgcrypto) por tenant | Membros do tenant |
-| `tenant_meta_integrations` | Estado operacional de cada integração atômica | Membros do tenant |
+| `tenant_meta_integrations` | Estado operacional de cada toggle/integração | Membros do tenant |
+
+> **Removida na V4:** `meta_auth_profile_mappings` (não há mais resolução dinâmica de combos)
 
 ### Constraints Críticos
 
 - `tenant_meta_integrations`: UNIQUE (tenant_id, integration_id)
-- `tenant_meta_auth_grants`: Partial unique index — máx 1 grant active por (tenant_id, auth_profile_key)
+- `tenant_meta_auth_grants`: Partial unique index — **máx 1 grant active por tenant_id**
 - Tokens: criptografados via `pgp_sym_encrypt` / `pgp_sym_decrypt` (pgcrypto)
-
-### Perfis de Autenticação (11 perfis)
-
-| profile_key | Escopos Efetivos | Inclui business_management? |
-|-------------|------------------|-----------------------------|
-| auth_publicacoes | public_profile, pages_show_list, pages_manage_posts, pages_read_engagement, instagram_basic, instagram_content_publish | ❌ |
-| auth_mensagens | public_profile, pages_show_list, pages_messaging, pages_manage_metadata, instagram_basic, instagram_manage_messages | ❌ |
-| auth_comentarios | public_profile, pages_show_list, pages_manage_engagement, pages_read_engagement, instagram_basic, instagram_manage_comments | ❌ |
-| auth_pixel_capi | public_profile, ads_management, ads_read, business_management | ✅ |
-| auth_catalogos | public_profile, catalog_management, business_management | ✅ |
-| auth_leads | public_profile, pages_show_list, pages_manage_ads, pages_read_engagement, leads_retrieval | ❌ |
-| auth_anuncios | public_profile, ads_management, ads_read, business_management | ✅ |
-| auth_whatsapp_notificacoes | public_profile, whatsapp_business_management, whatsapp_business_messaging, business_management | ✅ |
-| auth_whatsapp_atendimento | public_profile, whatsapp_business_management, whatsapp_business_messaging, business_management | ✅ |
-| auth_lives | public_profile, pages_show_list, pages_manage_posts, pages_read_engagement, instagram_basic, instagram_content_publish, publish_video | ❌ |
-| auth_threads | public_profile, threads_basic, threads_content_publish, threads_manage_replies | ❌ |
 
 ### Funções Helper (SECURITY DEFINER)
 
 | Função | Descrição |
-|--------|-----------|
+|---|---|
 | `get_meta_grant_token(grant_id, key)` | Descriptografa e retorna access_token e refresh_token |
 | `save_meta_grant_token(grant_id, token, refresh, key, expires)` | Criptografa e salva tokens |
-| `supersede_meta_grant(tenant_id, profile_key, new_grant_id)` | Marca grant antigo como superseded e redireciona integrações |
+| `supersede_meta_grant(tenant_id, new_grant_id)` | V4: Supersede o grant ativo do tenant e redireciona todas as integrações |
 
 ### Ciclo de Vida dos Grants
 
 | Status | Significado |
-|--------|-------------|
+|---|---|
 | active | Token válido e em uso |
 | expired | Token expirado (precisa renovar) |
 | revoked | Revogado pelo usuário ou admin |
-| superseded | Substituído por novo grant do mesmo perfil |
+| superseded | Substituído por novo grant |
 | orphaned | Sem integrações ativas vinculadas |
+
+### Toggles (funcionalidades pós-auth)
+
+Cada toggle ativo = 1 registro em `tenant_meta_integrations`. Disponibilidade determinada por 3 camadas:
+
+1. **Auth capability** — o tipo de auth do tenant suporta os escopos necessários?
+2. **Plano/feature** — o plano do tenant libera essa funcionalidade?
+3. **Estado operacional** — ativo, inativo, pendente de configuração, expirado etc.
+
+| Grupo | Toggles |
+|---|---|
+| WhatsApp | Notificações, Atendimento |
+| Instagram | Publicações, Direct, Comentários |
+| Facebook | Publicações, Messenger, Comentários, Lives |
+| Marketing/Conversão | Pixel Facebook, API de Conversões, Leads, Anúncios |
+| Commerce/Dados | Catálogos, Insights |
+| Outros | Threads (auth separado) |
 
 ### Compatibilidade Legada
 
-O modelo legado (`marketplace_connections` com `marketplace='meta'`) continua funcionando nesta fase. A migração dos consumidores será feita na Fase 2 com helper `getMetaTokenForIntegration` que busca no modelo novo com fallback para o legado.
+O modelo legado (`marketplace_connections` com `marketplace='meta'`) continua funcionando nesta fase. A migração dos consumidores será feita com helper `getMetaTokenForIntegration` que busca no modelo novo com fallback para o legado.
