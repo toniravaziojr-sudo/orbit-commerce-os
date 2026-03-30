@@ -2889,3 +2889,63 @@ O modelo legado (`marketplace_connections` com `marketplace='meta'`) continua fu
 - Nenhuma migration necessária (V4 já tem a coluna `config_id` em `meta_auth_profiles`)
 - Se o valor antigo de `META_CONFIG_ID` em `platform_credentials` ainda existir no banco, ficará inerte (não é mais lido por nenhum consumidor)
 - `meta-oauth-start` já busca config_id de `meta_auth_profiles` desde a Fase 2
+
+### Fase 4 — UI de Toggles do Tenant (✅ Concluída)
+
+**Objetivo:** Substituir a UI monolítica de `MetaUnifiedSettings` por um painel organizado com toggles agrupados por categoria, usando `tenant_meta_integrations` como fonte de verdade.
+
+**Catálogo de Integrações (`src/config/metaIntegrationCatalog.ts`):**
+
+| Grupo | Integrações |
+|---|---|
+| WhatsApp | `whatsapp_notificacoes`, `whatsapp_atendimento` |
+| Instagram | `instagram_publicacoes`, `instagram_direct`, `instagram_comentarios` |
+| Facebook | `facebook_publicacoes`, `facebook_messenger`, `facebook_lives` |
+| Marketing & Conversão | `pixel_capi`, `leads`, `anuncios` |
+| Commerce & Dados | `catalogos`, `catalogo_insights` |
+| Outros | `threads` (auth separado) |
+
+Cada integração define: `requiredScopes` (escopos Meta necessários), `featureKey` (gating por plano), `separateAuth` (se usa auth próprio), `hasConfigSection` + `configSectionKey` (seção de configuração expandível).
+
+**Edge Function criada:**
+- `meta-integrations-manage` — GET lista integrações + grant ativo; POST ativa/desativa integração vinculando ao grant existente. Não faz auth. Acesso validado via `user_has_tenant_access`.
+
+**Hook criado:**
+- `useMetaIntegrations` — lê estado de `tenant_meta_integrations`, computa 3 camadas de estado (auth capability, plano, operacional), fornece `toggle()` para ativar/desativar.
+
+**UI refatorada:**
+- `MetaUnifiedSettings.tsx` — reescrito: card de conexão (compacto) + cards por grupo com toggles individuais
+- Cada toggle mostra estado visual claro:
+  - ✅ Ativo (switch ligado)
+  - 🔒 Sem permissão (auth capability — escopos ausentes)
+  - 👑 Plano superior (feature key bloqueada pelo plano)
+  - 🛡️ Sem conexão (grant inexistente)
+- Threads: listado no grupo "Outros" com badge "Auth separado" — switch desabilitado
+
+**Seções legadas absorvidas como expansões dos toggles:**
+| Toggle | Config Section | Componente |
+|---|---|---|
+| `whatsapp_notificacoes` | Registro do número (3 passos) | `MetaWhatsAppRegistrationSection` |
+| `pixel_capi` | Pixel principal + adicionais + CAPI | `MetaPixelCapiSection` |
+| `catalogos` | Feeds de produto (URLs) | `MetaProductFeedsSection` |
+
+**Arquivos criados:**
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/config/metaIntegrationCatalog.ts` | Catálogo com 15 integrações atômicas |
+| `supabase/functions/meta-integrations-manage/index.ts` | Edge function GET/POST |
+| `src/hooks/useMetaIntegrations.ts` | Hook com 3 camadas de validação |
+| `src/components/integrations/meta/MetaPixelCapiSection.tsx` | Seção Pixel/CAPI extraída |
+| `src/components/integrations/meta/MetaProductFeedsSection.tsx` | Seção Product Feeds extraída |
+| `src/components/integrations/meta/MetaWhatsAppRegistrationSection.tsx` | Seção WhatsApp registro extraída |
+
+**Arquivos alterados:**
+| Arquivo | Ação |
+|---------|------|
+| `src/components/integrations/MetaUnifiedSettings.tsx` | Reescrito — de 1054 linhas para ~340 linhas (UI de toggles) |
+
+**Riscos/impactos:**
+- Nenhuma migration necessária — `tenant_meta_integrations` já existe com as colunas corretas
+- A tabela legada `marketplace_connections` continua sendo lida pelo `useMetaConnection` para status de conexão — migração completa pendente
+- Feature keys estão todas como `null` (sem restrição de plano) — adicionar conforme regras de billing forem definidas
+- `metaPackAvailability.ts` continua existindo para compatibilidade, mas não é mais usado pela UI principal
