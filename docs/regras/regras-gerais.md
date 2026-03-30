@@ -1099,6 +1099,21 @@ Checkout abandonado é classificado como "com erro" quando:
 
 ---
 
+## Popovers e Calendários — Padrão de Visibilidade
+
+| Regra | Descrição |
+|-------|-----------|
+| **Componente base** | `src/components/ui/popover.tsx` — `PopoverContent` |
+| **Altura máxima** | `max-h-[var(--radix-popover-content-available-height)]` — limita o popover à altura disponível na viewport |
+| **Rolagem interna** | `overflow-y-auto` — se o conteúdo exceder a altura disponível, ativa scroll interno |
+| **Colisão** | `collisionPadding={16}` — margem de segurança de 16px contra bordas da viewport |
+| **Reposicionamento** | O Radix UI faz "flip" automático (abre para cima se não cabe embaixo) |
+| **Proibição** | Proibido usar `pb-64` ou padding gigante no layout para "forçar espaço" — a solução é sempre no popover |
+| **Afeta** | Todos os calendários do sistema: `DateRangeFilter`, `DatePickerField`, `DateTimePickerField`, e qualquer outro componente que use `PopoverContent` |
+| **Range styling** | Extremos da seleção (início/fim) usam fundo sólido `bg-primary`; dias intermediários usam `primary/0.1` |
+
+---
+
 ## Responsividade Mobile — Padrão Admin
 
 | Padrão | Regra | Aplicação |
