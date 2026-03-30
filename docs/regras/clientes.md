@@ -210,11 +210,23 @@ As métricas do cliente são atualizadas automaticamente após cada pedido:
 
 | Campo | Cálculo |
 |-------|---------|
-| `total_orders` | COUNT(orders) |
+| `total_orders` | COUNT(orders) — inclui ghost orders (dívida técnica) |
 | `total_spent` | SUM(orders.total) |
 | `average_ticket` | total_spent / total_orders |
 | `first_order_at` | MIN(orders.created_at) |
 | `last_order_at` | MAX(orders.created_at) |
+
+> **⚠️ IMPORTANTE:** `total_orders` NÃO é usado para determinar "1ª compra". A tarja usa exclusivamente `orders.is_first_sale` (flag imutável gravado no momento da criação do pedido).
+
+### 4.4 Promoção Automática para "Cliente" (Trigger de Banco)
+
+Quando um pedido tem `payment_status = 'approved'` (no INSERT ou UPDATE), o trigger `trg_auto_tag_cliente_on_payment` executa automaticamente:
+
+1. **Cria o cliente** em `customers` se o email normalizado ainda não existir no tenant
+2. **Atribui a tag "Cliente"** (cria a tag se não existir) via `customer_tag_assignments`
+3. **Adiciona à lista de email marketing** como subscriber ativo (se não estiver já)
+
+O trigger é idempotente: executar múltiplas vezes para o mesmo pedido não gera duplicatas.
 
 ### 4.4 Tiers de Fidelidade
 
