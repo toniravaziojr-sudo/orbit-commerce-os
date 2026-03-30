@@ -9,107 +9,25 @@ const corsHeaders = {
 };
 
 /**
- * Meta OAuth Start
+ * Meta OAuth Start — V4
  * 
  * Gera a URL de autorização para o cliente conectar sua conta Meta.
- * Suporta pacotes de escopos por feature (Atendimento, Publicação, Ads, etc.)
+ * O perfil de auth (meta_auth_full ou meta_auth_external) é escolhido
+ * automaticamente com base no tipo do tenant (especial/admin vs padrão).
+ * 
+ * V4: Não usa mais scope packs selecionados pelo frontend.
+ * Os escopos são controlados pelo config_id do perfil no painel Meta.
  * 
  * Contrato:
  * - Erro de negócio = HTTP 200 + { success: false, error, code? }
  * - Sucesso = HTTP 200 + { success: true, authUrl, state }
  */
 
-// Pacotes de escopos por feature
-// NOTA: Escopos avançados (instagram_manage_messages, etc.) requerem App Review da Meta.
-// Para modo desenvolvimento, usamos apenas escopos que funcionam sem aprovação.
-const SCOPE_PACKS: Record<string, string[]> = {
-  // Atendimento (Messenger + Instagram DM + Comentários)
-  atendimento: [
-    "pages_messaging",
-    "instagram_manage_messages",
-    "pages_manage_engagement",
-    "pages_read_user_content",
-    "pages_read_engagement",
-  ],
-  // Publicação/Agendamento (Facebook + Instagram)
-  publicacao: [
-    "pages_manage_posts",
-    "pages_read_engagement",
-    "instagram_basic",
-    "instagram_content_publish",
-  ],
-  // Ads/Insights (campanhas e métricas)
-  ads: [
-    "ads_management",
-    "ads_read",
-    "pages_manage_ads",
-    "leads_retrieval",
-  ],
-  // Leads (Lead Ads)
-  leads: [
-    "leads_retrieval",
-    "pages_manage_ads",
-  ],
-  // Catálogo/Commerce Manager
-  catalogo: [
-    "catalog_management",
-  ],
-  // WhatsApp (WABA/Cloud API)
-  whatsapp: [
-    "whatsapp_business_management",
-    "whatsapp_business_messaging",
-  ],
-  // Threads — usa OAuth separado via threads.net, NÃO incluir no fluxo Facebook
-  // threads: [ ... ] — desabilitado aqui, será tratado em endpoint dedicado
-  // Live Video (transmissões ao vivo)
-  live_video: [
-    "publish_video",
-    "pages_manage_posts",
-  ],
-  // Pixel + CAPI (precisa de ads_read para listar pixels das ad accounts)
-  pixel: [
-    "ads_read",
-  ],
-  // Insights (métricas de páginas e perfis)
-  insights: [
-    "pages_read_engagement",
-    "read_insights",
-  ],
-};
-
-// ============================================================================
-// PACK AVAILABILITY — Espelho da configuração central do frontend
-// Arquivo fonte: src/config/metaPackAvailability.ts
-// IMPORTANTE: Manter SEMPRE sincronizado com o frontend.
-// Para liberar um novo pack: mudar de "internal" para "public" aqui E no frontend.
-// ============================================================================
-type PackAvailability = "public" | "internal" | "unavailable";
-
-const PACK_AVAILABILITY: Record<string, PackAvailability> = {
-  whatsapp: "public",
-  publicacao: "public",
-  atendimento: "internal",
-  ads: "internal",
-  leads: "internal",
-  catalogo: "internal",
-  threads: "internal",
-  live_video: "internal",
-  pixel: "public",
-  insights: "internal",
-};
-
-// Normaliza email para comparação segura (espelha src/lib/normalizeEmail.ts)
+// Normaliza email para comparação segura
 function normalizeEmail(email: string | null | undefined): string {
   if (!email) return "";
   return email.trim().toLowerCase();
 }
-
-// Escopos base sempre incluídos (public_profile é sempre disponível)
-// NOTA: "email" requer que o usuário tenha email confirmado e pode falhar em dev mode
-const BASE_SCOPES = [
-  "public_profile",
-  "pages_show_list",
-];
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -144,25 +62,11 @@ serve(async (req) => {
 
     // Obter parâmetros do body
     const body = await req.json();
-    const { tenantId, scopePacks = ["atendimento"], returnPath = "/integrations" } = body;
+    const { tenantId, returnPath = "/integrations" } = body;
 
     if (!tenantId) {
       return new Response(
         JSON.stringify({ success: false, error: "tenant_id é obrigatório", code: "MISSING_TENANT" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Validar scope packs (sintaxe válida)
-    const validPacks = scopePacks.filter((pack: string) => SCOPE_PACKS[pack]);
-    if (validPacks.length === 0) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: "Nenhum pacote de escopos válido", 
-          code: "INVALID_SCOPES",
-          availablePacks: Object.keys(SCOPE_PACKS)
-        }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -183,11 +87,19 @@ serve(async (req) => {
     }
 
     // ================================================================
-    // VALIDAÇÃO DE DISPONIBILIDADE DOS PACKS
-    // Verifica se o usuário é platform admin (camada secundária)
-    // e se cada pack solicitado está disponível para este contexto.
-    // NÃO filtra silenciosamente — REJEITA com erro explícito.
+    // V4: DETERMINAR PERFIL DE AUTH AUTOMATICAMENTE
+    // Tenant especial ou platform admin → meta_auth_full
+    // Demais tenants → meta_auth_external
     // ================================================================
+    
+    // Verificar se tenant é especial
+    const { data: tenantData } = await supabase
+      .from("tenants")
+      .select("is_special")
+      .eq("id", tenantId)
+      .single();
+
+    // Verificar se usuário é platform admin
     const userEmail = normalizeEmail(user.email);
     const { data: platformAdmin } = await supabase
       .from("platform_admins")
@@ -196,37 +108,34 @@ serve(async (req) => {
       .eq("is_active", true)
       .maybeSingle();
 
-    const isPlatformAdmin = !!platformAdmin;
+    const isSpecialOrAdmin = !!(tenantData?.is_special) || !!platformAdmin;
+    const authProfileKey = isSpecialOrAdmin ? "meta_auth_full" : "meta_auth_external";
 
-    // Verificar cada pack contra a disponibilidade
-    const blockedPacks: string[] = [];
-    for (const pack of validPacks) {
-      const availability = PACK_AVAILABILITY[pack] || "unavailable";
-      if (availability === "public") continue;
-      if (availability === "internal" && isPlatformAdmin) continue;
-      // Pack não permitido para este contexto
-      blockedPacks.push(pack);
-    }
+    console.log(`[meta-oauth-start] Tenant ${tenantId}: is_special=${tenantData?.is_special}, isPlatformAdmin=${!!platformAdmin} → profile=${authProfileKey}`);
 
-    if (blockedPacks.length > 0) {
-      console.log(`[meta-oauth-start] Packs bloqueados para ${userEmail}: ${blockedPacks.join(", ")}`);
+    // Buscar config_id do perfil na tabela meta_auth_profiles
+    const { data: authProfile, error: profileError } = await supabase
+      .from("meta_auth_profiles")
+      .select("config_id, effective_scopes")
+      .eq("profile_key", authProfileKey)
+      .eq("is_active", true)
+      .single();
+
+    if (profileError || !authProfile) {
+      console.error("[meta-oauth-start] Perfil de auth não encontrado:", authProfileKey, profileError);
       return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Algumas funcionalidades ainda não estão disponíveis para sua conta.",
-          code: "META_PACK_NOT_AVAILABLE",
-          blockedPacks,
+        JSON.stringify({ 
+          success: false, 
+          error: "Configuração de autenticação não encontrada. Contate o administrador.",
+          code: "AUTH_PROFILE_NOT_FOUND"
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Buscar credenciais do app Meta (da tabela platform_credentials)
-    const [appId, apiVersion, configId] = await Promise.all([
-      getCredential(supabaseUrl, supabaseServiceKey, "META_APP_ID"),
-      getCredential(supabaseUrl, supabaseServiceKey, "META_GRAPH_API_VERSION"),
-      getCredential(supabaseUrl, supabaseServiceKey, "META_CONFIG_ID"),
-    ]);
+    // Buscar credenciais do app Meta
+    const appId = await getCredential(supabaseUrl, supabaseServiceKey, "META_APP_ID");
+    const apiVersion = await getCredential(supabaseUrl, supabaseServiceKey, "META_GRAPH_API_VERSION");
     
     if (!appId) {
       return new Response(
@@ -241,29 +150,20 @@ serve(async (req) => {
 
     const graphVersion = apiVersion || "v21.0";
 
-    // Construir escopos combinados (sem duplicatas)
-    const allScopes = new Set([...BASE_SCOPES]);
-    for (const pack of validPacks) {
-      for (const scope of SCOPE_PACKS[pack]) {
-        allScopes.add(scope);
-      }
-    }
-    const scopeString = Array.from(allScopes).join(",");
-
-    console.log(`[meta-oauth-start] Escopos solicitados: ${scopeString}`);
-
     // Gerar state seguro com hash
     const stateNonce = crypto.randomUUID();
     const stateHash = await generateStateHash(stateNonce, tenantId);
 
     // Salvar state no banco para validação posterior (anti-CSRF)
+    // V4: inclui auth_profile_key para o callback saber qual perfil usar
     const { error: stateError } = await supabase
       .from("meta_oauth_states")
       .insert({
         tenant_id: tenantId,
         user_id: user.id,
         state_hash: stateHash,
-        scope_packs: validPacks,
+        scope_packs: [], // V4: escopos vêm do perfil, não de packs
+        auth_profile_key: authProfileKey,
         return_path: returnPath,
         expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 min
       });
@@ -276,40 +176,38 @@ serve(async (req) => {
       );
     }
 
-    // Construir redirect URI (callback vai para rota do APP - melhor prática para SaaS)
+    // Construir redirect URI
     const appBaseUrl = Deno.env.get("APP_URL") || "https://app.comandocentral.com.br";
     const redirectUri = `${appBaseUrl}/integrations/meta/callback`;
 
     // URL de autorização do Facebook/Meta
-    // Docs: https://developers.facebook.com/docs/facebook-login/guides/advanced/manual-flow
-    // Para apps tipo Business: https://developers.facebook.com/docs/facebook-login/facebook-login-for-business
     const authUrl = new URL(`https://www.facebook.com/${graphVersion}/dialog/oauth`);
     authUrl.searchParams.set("client_id", appId);
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("state", stateHash);
     authUrl.searchParams.set("response_type", "code");
 
-    // Facebook Login for Business: config_id e scope são MUTUAMENTE EXCLUSIVOS
-    // Docs: https://developers.facebook.com/docs/facebook-login/facebook-login-for-business
-    // Com config_id → permissões são controladas pela configuração no painel Meta
-    // Sem config_id → scope é enviado diretamente (fallback para admins da plataforma)
-    if (configId) {
-      authUrl.searchParams.set("config_id", configId);
-      // NÃO enviar scope — controlado pela configuração no painel Meta
-      console.log(`[meta-oauth-start] Usando config_id (scope omitido — controlado pela config Meta)`);
+    // V4: config_id vem do perfil no banco (meta_auth_profiles.config_id)
+    // Se o perfil tem config_id → usar (Facebook Login for Business)
+    // Senão → fallback para escopos diretos (modo desenvolvimento)
+    if (authProfile.config_id) {
+      authUrl.searchParams.set("config_id", authProfile.config_id);
+      console.log(`[meta-oauth-start] Usando config_id do perfil ${authProfileKey}`);
     } else {
+      // Fallback: enviar escopos do perfil diretamente
+      const scopeString = (authProfile.effective_scopes || []).join(",");
       authUrl.searchParams.set("scope", scopeString);
-      console.warn(`[meta-oauth-start] AVISO: META_CONFIG_ID não configurado — usando scope direto, externos podem receber "Recurso indisponível"`);
+      console.warn(`[meta-oauth-start] Perfil ${authProfileKey} sem config_id — usando scope direto: ${scopeString}`);
     }
 
-    console.log(`[meta-oauth-start] Gerando URL para tenant ${tenantId}, scopes: ${validPacks.join(", ")}, config_id: ${configId ? "sim" : "NÃO"}`);
+    console.log(`[meta-oauth-start] URL gerada para tenant ${tenantId}, profile=${authProfileKey}, config_id=${authProfile.config_id ? "sim" : "NÃO"}`);
 
     return new Response(
       JSON.stringify({
         success: true,
         authUrl: authUrl.toString(),
         state: stateHash,
-        requestedScopes: Array.from(allScopes),
+        authProfile: authProfileKey,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

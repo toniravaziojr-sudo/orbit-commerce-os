@@ -106,7 +106,7 @@ export function MetaUnifiedSettings() {
     refetch,
   } = useMetaConnection();
 
-  const [selectedPacks, setSelectedPacks] = useState<MetaScopePack[]>(["whatsapp"]);
+  // V4: selectedPacks removido — perfil automático
   const [testPhone, setTestPhone] = useState("");
   const [registerPin, setRegisterPin] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
@@ -155,22 +155,10 @@ export function MetaUnifiedSettings() {
     }
   }, [refetch]);
 
-  // Only allow toggling available packs
-  const togglePack = (pack: MetaScopePack) => {
-    if (!SCOPE_PACK_INFO[pack].available) return;
-    
-    setSelectedPacks(prev => 
-      prev.includes(pack) 
-        ? prev.filter(p => p !== pack)
-        : [...prev, pack]
-    );
-  };
+  // V4: togglePack removido — escopos controlados pelo perfil
 
   const handleConnect = () => {
-    if (selectedPacks.length === 0) {
-      return;
-    }
-    connect(selectedPacks);
+    connect();
   };
 
   // Test message mutation
@@ -665,17 +653,16 @@ export function MetaUnifiedSettings() {
 
               <Separator />
 
-              {/* Consentimento incremental — adicionar permissões */}
-              <IncrementalConsentSection
-                currentPacks={connection.scopePacks}
-                allPacks={SCOPE_PACK_INFO}
-                onAddPacks={(newPacks) => {
-                  // Unir packs atuais + novos e disparar re-auth
-                  const allPacks = [...new Set([...connection.scopePacks, ...newPacks])];
-                  connect(allPacks);
-                }}
-                isConnecting={isConnecting}
-              />
+              {/* V4: Reconectar (re-auth com perfil automático) */}
+              <Button
+                variant="outline"
+                onClick={() => connect()}
+                disabled={isConnecting}
+                className="gap-2"
+              >
+                {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Reconectar Meta
+              </Button>
 
               <div className="flex gap-3">
                 <Button
@@ -703,60 +690,6 @@ export function MetaUnifiedSettings() {
             </>
           ) : (
             <>
-              {/* Seleção de pacotes de escopos */}
-              <div className="space-y-3">
-                <Label>Selecione as permissões que deseja conectar:</Label>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {(Object.keys(SCOPE_PACK_INFO) as MetaScopePack[]).map((pack) => {
-                    const info = SCOPE_PACK_INFO[pack];
-                    const isAvailable = info.available;
-                    
-                    return (
-                      <div
-                        key={pack}
-                        className={`flex items-start gap-3 rounded-lg border p-3 transition-colors ${
-                          !isAvailable 
-                            ? "opacity-60 cursor-not-allowed bg-muted/30"
-                            : selectedPacks.includes(pack) 
-                              ? "border-primary bg-primary/5 cursor-pointer" 
-                              : "hover:border-muted-foreground/50 cursor-pointer"
-                        }`}
-                        onClick={() => togglePack(pack)}
-                      >
-                        {isAvailable ? (
-                          <Checkbox
-                            id={`pack-${pack}`}
-                            checked={selectedPacks.includes(pack)}
-                            onCheckedChange={() => togglePack(pack)}
-                          />
-                        ) : (
-                          <Lock className="h-4 w-4 mt-0.5 text-muted-foreground" />
-                        )}
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            {info.icon}
-                            <Label 
-                              htmlFor={`pack-${pack}`} 
-                              className={`font-medium ${!isAvailable ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                            >
-                              {info.label}
-                            </Label>
-                            {!isAvailable && (
-                              <Badge variant="outline" className="text-xs">
-                                {info.blockedReason || "Em breve"}
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {info.description}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
               {isExpired && (
                 <Alert>
                   <AlertTriangle className="h-4 w-4" />
@@ -766,9 +699,14 @@ export function MetaUnifiedSettings() {
                 </Alert>
               )}
 
+              <p className="text-sm text-muted-foreground">
+                Ao conectar, o sistema solicitará as permissões adequadas para o seu tipo de conta automaticamente.
+                Após a conexão, você poderá ativar funcionalidades individuais nos painéis específicos.
+              </p>
+
               <Button
                 onClick={handleConnect}
-                disabled={isConnecting || selectedPacks.length === 0}
+                disabled={isConnecting}
                 className="gap-2"
               >
                 {isConnecting ? (
@@ -793,105 +731,8 @@ export function MetaUnifiedSettings() {
   );
 }
 
-// Componente para consentimento incremental
-function IncrementalConsentSection({
-  currentPacks,
-  allPacks,
-  onAddPacks,
-  isConnecting,
-}: {
-  currentPacks: MetaScopePack[];
-  allPacks: Record<MetaScopePack, ScopePackInfo>;
-  onAddPacks: (packs: MetaScopePack[]) => void;
-  isConnecting: boolean;
-}) {
-  const [showSelector, setShowSelector] = useState(false);
-  const [newPacks, setNewPacks] = useState<MetaScopePack[]>([]);
+// V4: IncrementalConsentSection removida — escopos controlados pelo perfil automático
 
-  const missingPacks = (Object.keys(allPacks) as MetaScopePack[]).filter(
-    (pack) => !currentPacks.includes(pack) && allPacks[pack].available
-  );
-
-  if (missingPacks.length === 0) return null;
-
-  const toggleNewPack = (pack: MetaScopePack) => {
-    setNewPacks((prev) =>
-      prev.includes(pack) ? prev.filter((p) => p !== pack) : [...prev, pack]
-    );
-  };
-
-  if (!showSelector) {
-    return (
-      <Button
-        variant="outline"
-        onClick={() => setShowSelector(true)}
-        className="gap-2"
-      >
-        <Plus className="h-4 w-4" />
-        Adicionar permissões
-      </Button>
-    );
-  }
-
-  return (
-    <div className="space-y-3 rounded-lg border p-4">
-      <Label className="text-sm font-medium">Selecione permissões adicionais:</Label>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {missingPacks.map((pack) => {
-          const info = allPacks[pack];
-          return (
-            <div
-              key={pack}
-              className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
-                newPacks.includes(pack)
-                  ? "border-primary bg-primary/5"
-                  : "hover:border-muted-foreground/50"
-              }`}
-              onClick={() => toggleNewPack(pack)}
-            >
-              <Checkbox
-                checked={newPacks.includes(pack)}
-                onCheckedChange={() => toggleNewPack(pack)}
-              />
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  {info.icon}
-                  <span className="text-sm font-medium">{info.label}</span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-0.5">{info.description}</p>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      <div className="flex gap-2">
-        <Button
-          size="sm"
-          onClick={() => {
-            onAddPacks(newPacks);
-            setShowSelector(false);
-            setNewPacks([]);
-          }}
-          disabled={newPacks.length === 0 || isConnecting}
-          className="gap-2"
-        >
-          {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-          Autorizar
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => {
-            setShowSelector(false);
-            setNewPacks([]);
-          }}
-        >
-          Cancelar
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 // Seção de Pixel & CAPI integrada ao Hub Meta
 function MetaPixelCapiSection() {

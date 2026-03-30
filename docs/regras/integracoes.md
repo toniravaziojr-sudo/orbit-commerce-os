@@ -2824,4 +2824,28 @@ Cada toggle ativo = 1 registro em `tenant_meta_integrations`. Disponibilidade de
 
 ### Compatibilidade Legada
 
-O modelo legado (`marketplace_connections` com `marketplace='meta'`) continua funcionando nesta fase. A migração dos consumidores será feita com helper `getMetaTokenForIntegration` que busca no modelo novo com fallback para o legado.
+O modelo legado (`marketplace_connections` com `marketplace='meta'`) continua funcionando nesta fase como **compatibilidade temporária**. O callback grava simultaneamente no grant V4 (fonte de verdade) e na tabela legada (para consumidores não migrados). A migração dos consumidores será feita com helper `getMetaTokenForIntegration` que busca no modelo novo com fallback para o legado.
+
+### Fase 2 — Edge Functions OAuth (✅ Concluída)
+
+**`meta-oauth-start`:**
+- Não usa mais scope packs selecionados pelo frontend
+- Determina perfil automaticamente: `is_special=true` ou platform admin → `meta_auth_full`; demais → `meta_auth_external`
+- Busca `config_id` do perfil em `meta_auth_profiles` (não mais de `platform_credentials`)
+- Persiste `auth_profile_key` em `meta_oauth_states` para o callback
+
+**`meta-oauth-callback`:**
+- Cria grant em `tenant_meta_auth_grants` com tokens criptografados via `save_meta_grant_token`
+- Chama `supersede_meta_grant(tenant_id, new_grant_id)` — semântica V4 de 1 grant ativo por tenant
+- Obtém `granted_scopes` via `debug_token` da Meta
+- Usa `granted_scopes` (não mais scope packs) para decidir quais assets buscar na discovery
+- Mantém upsert em `marketplace_connections` como **compatibilidade temporária** (não é fonte de verdade)
+- Retorna `grantId` e `authProfile` no response
+
+**Frontend:**
+- `useMetaConnection.ts`: `connect()` não recebe mais scope packs
+- `MetaConnectionSettings.tsx`: Botão único "Conectar Meta" sem seleção de packs
+- `MetaUnifiedSettings.tsx`: Removida `IncrementalConsentSection` e seleção de packs
+
+**Migration:**
+- `meta_oauth_states.auth_profile_key` (TEXT, nullable) adicionada para passar perfil do start → callback
