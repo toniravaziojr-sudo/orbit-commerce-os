@@ -10614,6 +10614,7 @@ export type Database = {
       }
       meta_oauth_states: {
         Row: {
+          auth_profile_key: string | null
           created_at: string
           expires_at: string
           id: string
@@ -10625,6 +10626,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          auth_profile_key?: string | null
           created_at?: string
           expires_at?: string
           id?: string
@@ -10636,6 +10638,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          auth_profile_key?: string | null
           created_at?: string
           expires_at?: string
           id?: string
