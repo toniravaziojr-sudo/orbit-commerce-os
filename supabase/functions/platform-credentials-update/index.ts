@@ -37,7 +37,7 @@ const EDITABLE_CREDENTIALS = [
   // Meta (Facebook/Instagram/WhatsApp)
   'META_APP_ID',
   'META_APP_SECRET',
-  'META_CONFIG_ID',
+  // META_CONFIG_ID removido na V4 — config_id agora vive em meta_auth_profiles
   // Fal.AI (Geração de Imagens e Vídeos)
   'FAL_API_KEY',
   // Google Gemini (Geração de Imagens Nativa)

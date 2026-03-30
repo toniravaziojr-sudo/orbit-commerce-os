@@ -106,7 +106,7 @@ serve(async (req) => {
     const metaAppSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'META_APP_SECRET');
     const metaGraphApiVersion = await checkCredential(supabaseUrl, supabaseServiceKey, 'META_GRAPH_API_VERSION');
     const metaWebhookVerifyToken = await checkCredential(supabaseUrl, supabaseServiceKey, 'META_WEBHOOK_VERIFY_TOKEN');
-    const metaConfigId = await checkCredential(supabaseUrl, supabaseServiceKey, 'META_CONFIG_ID');
+    // META_CONFIG_ID removido na V4 — config_id agora vive em meta_auth_profiles
     const lateApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'LATE_API_KEY');
     const meliAppId = await checkCredential(supabaseUrl, supabaseServiceKey, 'MELI_APP_ID');
     const meliClientSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'MELI_CLIENT_SECRET');
