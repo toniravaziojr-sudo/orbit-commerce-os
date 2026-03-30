@@ -125,31 +125,31 @@ serve(async (req) => {
       });
     }
 
-    // Get client IP - prefer headers that preserve the real client IP (including IPv6)
-    // Priority chain: most specific → most generic
-    // 1. cf-connecting-ip: Cloudflare sets this to the REAL visitor IP (most reliable)
-    // 2. true-client-ip: Some CDNs (Akamai, Cloudflare Enterprise) set this
-    // 3. x-real-ip: Nginx/reverse proxies set this to the original client IP
-    // 4. x-forwarded-for: Standard proxy header, first entry = original client
-    // 5. x-envoy-external-address: Used by Envoy-based proxies (GCP, some k8s)
-    const clientIp = req.headers.get('cf-connecting-ip')
-      || req.headers.get('true-client-ip')
-      || req.headers.get('x-real-ip')
-      || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-      || req.headers.get('x-envoy-external-address')
-      || null;
+    // Get client IP - prioritize IPv4 to align with browser-side Meta Pixel detection
+    // Meta Pixel reports IPv4; if server sends IPv6, diagnostics show "IP mismatch"
+    // Strategy: collect all candidate IPs, prefer IPv4 over IPv6
+    const ipCandidates: string[] = [];
+    for (const header of ['cf-connecting-ip', 'true-client-ip', 'x-real-ip', 'x-envoy-external-address']) {
+      const val = req.headers.get(header);
+      if (val) ipCandidates.push(val.trim());
+    }
+    const xff = req.headers.get('x-forwarded-for');
+    if (xff) {
+      for (const entry of xff.split(',')) {
+        const trimmed = entry.trim();
+        if (trimmed) ipCandidates.push(trimmed);
+      }
+    }
+    // IPv4 regex: simple check for dotted-quad format
+    const isIPv4 = (ip: string) => /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip);
+    // Prefer first IPv4 found; fallback to first available (IPv6)
+    const clientIp = ipCandidates.find(isIPv4) || ipCandidates[0] || null;
     const clientUserAgent = req.headers.get('user-agent') || null;
 
-    // Diagnostic log: track which header provided the IP (helps debug shared IP issues)
+    // Diagnostic log: track IP selection (helps debug mismatch issues)
     if (payload.event_name === 'PageView') {
-      const ipSource = req.headers.get('cf-connecting-ip') ? 'cf-connecting-ip'
-        : req.headers.get('true-client-ip') ? 'true-client-ip'
-        : req.headers.get('x-real-ip') ? 'x-real-ip'
-        : req.headers.get('x-forwarded-for') ? 'x-forwarded-for'
-        : req.headers.get('x-envoy-external-address') ? 'x-envoy-external-address'
-        : 'none';
-      const xff = req.headers.get('x-forwarded-for');
-      console.log(`[marketing-capi-track] PageView IP diagnostic: source=${ipSource}, ip=${clientIp?.substring(0, 12)}..., xff_entries=${xff ? xff.split(',').length : 0}, ua=${clientUserAgent?.substring(0, 50)}`);
+      const hasIpv4 = ipCandidates.some(isIPv4);
+      console.log(`[marketing-capi-track] PageView IP diagnostic: selected=${clientIp?.substring(0, 15)}, ipv4_found=${hasIpv4}, candidates=${ipCandidates.length}, ua=${clientUserAgent?.substring(0, 50)}`);
     }
 
     // Split name into first/last

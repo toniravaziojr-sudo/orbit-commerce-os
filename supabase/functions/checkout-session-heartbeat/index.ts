@@ -89,6 +89,10 @@ serve(async (req) => {
       total_estimated,
       items_snapshot,
       step,
+      // v8.24.0: tracking identity for backfill
+      visitor_id,
+      fbp,
+      fbc,
     } = body as Record<string, any>;
 
     if (!session_id) {
@@ -183,6 +187,24 @@ serve(async (req) => {
     if (region) updateData.region = region;
     if (total_estimated !== undefined) updateData.total_estimated = total_estimated;
     if (items_snapshot) updateData.items_snapshot = items_snapshot;
+
+    // v8.24.0: Backfill tracking identity if missing in session
+    // These cookies may not exist at checkout-session-start but become available later
+    if (visitor_id || fbp || fbc) {
+      // Only backfill fields that are currently null/empty in the session
+      const { data: currentSession } = await supabase
+        .from('checkout_sessions')
+        .select('visitor_id, fbp, fbc')
+        .eq('id', session_id)
+        .eq('tenant_id', tenantId)
+        .single();
+
+      if (currentSession) {
+        if (visitor_id && !currentSession.visitor_id) updateData.visitor_id = visitor_id;
+        if (fbp && !currentSession.fbp) updateData.fbp = fbp;
+        if (fbc && !currentSession.fbc) updateData.fbc = fbc;
+      }
+    }
     
     // Track funnel step timestamps
     if (step && !wasAbandoned) {
