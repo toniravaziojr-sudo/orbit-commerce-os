@@ -182,6 +182,17 @@ export async function heartbeatCheckoutSession(params: CheckoutSessionParams): P
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 
+  // v8.24.0: Capture tracking identity for backfill on heartbeat
+  let visitorId: string | undefined;
+  let fbp: string | undefined;
+  let fbc: string | undefined;
+  try {
+    const { getVisitorId, getFbp, getFbc } = await import('@/lib/visitorIdentity');
+    visitorId = getVisitorId() || undefined;
+    fbp = getFbp() || undefined;
+    fbc = getFbc() || undefined;
+  } catch {}
+
   try {
     await fetch(`${supabaseUrl}/functions/v1/checkout-session-heartbeat`, {
       method: 'POST',
@@ -197,6 +208,10 @@ export async function heartbeatCheckoutSession(params: CheckoutSessionParams): P
         items_snapshot: params.cartItems,
         step: params.step,
         store_host: window.location.host,
+        // v8.24.0: Include tracking identity for backfill
+        visitor_id: visitorId,
+        fbp,
+        fbc,
       }),
     });
   } catch (error) {
