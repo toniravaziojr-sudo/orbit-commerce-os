@@ -106,7 +106,7 @@ export function MetaUnifiedSettings() {
     refetch,
   } = useMetaConnection();
 
-  const [selectedPacks, setSelectedPacks] = useState<MetaScopePack[]>(["whatsapp"]);
+  // V4: selectedPacks removido — perfil automático
   const [testPhone, setTestPhone] = useState("");
   const [registerPin, setRegisterPin] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
