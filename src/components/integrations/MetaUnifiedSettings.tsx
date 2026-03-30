@@ -1,15 +1,11 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { usePlatformOperator } from "@/hooks/usePlatformOperator";
-import { META_PACK_AVAILABILITY, isPackAvailable, type MetaPackConfig } from "@/config/metaPackAvailability";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { 
   Loader2, 
   Link2, 
@@ -18,123 +14,92 @@ import {
   Instagram, 
   MessageCircle,
   Megaphone,
-  Users,
-  ShoppingBag,
   AlertTriangle,
   CheckCircle,
   RefreshCw,
   Lock,
+  ChevronDown,
+  ChevronRight,
+  Bell,
+  Image,
   Send,
-  Phone,
-  AtSign,
+  MessageSquare,
+  FileText,
+  MessagesSquare,
   Video,
-  Plus,
-  BarChart3,
   Crosshair,
-  Globe,
-  Server,
-  ExternalLink,
-  Copy,
-  Rss,
-  Chrome,
+  Users,
+  ShoppingBag,
+  BarChart3,
+  AtSign,
+  Info,
+  Crown,
+  ShieldAlert,
 } from "lucide-react";
-import { useMetaConnection, MetaScopePack } from "@/hooks/useMetaConnection";
-import { useMarketingIntegrations, MarketingIntegration } from "@/hooks/useMarketingIntegrations";
+import { useMetaConnection } from "@/hooks/useMetaConnection";
+import { useMetaIntegrations, type MetaIntegrationState, type ActiveGrantInfo } from "@/hooks/useMetaIntegrations";
+import { META_INTEGRATION_GROUPS, type MetaIntegrationGroup } from "@/config/metaIntegrationCatalog";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { supabase } from "@/integrations/supabase/client";
-import { sanitizeError } from "@/lib/error-sanitizer";
-import { useAuth } from "@/hooks/useAuth";
-import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { Zap } from "lucide-react";
-import { showErrorToast } from '@/lib/error-toast';
+import { cn } from "@/lib/utils";
 
-// Build SCOPE_PACK_INFO from central config + platform operator context
-// Icons are defined here since they are React elements (not serializable in config)
-const PACK_ICONS: Record<string, React.ReactNode> = {
-  whatsapp: <MessageCircle className="h-4 w-4" />,
-  atendimento: <MessageCircle className="h-4 w-4" />,
-  publicacao: <Megaphone className="h-4 w-4" />,
-  ads: <Megaphone className="h-4 w-4" />,
-  leads: <Users className="h-4 w-4" />,
-  catalogo: <ShoppingBag className="h-4 w-4" />,
-  threads: <AtSign className="h-4 w-4" />,
-  live_video: <Video className="h-4 w-4" />,
-  pixel: <Crosshair className="h-4 w-4" />,
-  insights: <BarChart3 className="h-4 w-4" />,
+// Import legacy config sections
+import { MetaPixelCapiSection } from "./meta/MetaPixelCapiSection";
+import { MetaProductFeedsSection } from "./meta/MetaProductFeedsSection";
+import { MetaWhatsAppRegistrationSection } from "./meta/MetaWhatsAppRegistrationSection";
+
+// Icon map for catalog integration icons
+const ICON_MAP: Record<string, React.ReactNode> = {
+  Bell: <Bell className="h-4 w-4" />,
+  MessageCircle: <MessageCircle className="h-4 w-4" />,
+  Image: <Image className="h-4 w-4" />,
+  Send: <Send className="h-4 w-4" />,
+  MessageSquare: <MessageSquare className="h-4 w-4" />,
+  FileText: <FileText className="h-4 w-4" />,
+  MessagesSquare: <MessagesSquare className="h-4 w-4" />,
+  Video: <Video className="h-4 w-4" />,
+  Crosshair: <Crosshair className="h-4 w-4" />,
+  Users: <Users className="h-4 w-4" />,
+  Megaphone: <Megaphone className="h-4 w-4" />,
+  ShoppingBag: <ShoppingBag className="h-4 w-4" />,
+  BarChart3: <BarChart3 className="h-4 w-4" />,
+  AtSign: <AtSign className="h-4 w-4" />,
 };
 
-interface ScopePackInfo {
-  label: string;
-  description: string;
-  icon: React.ReactNode;
-  available: boolean;
-  blockedReason?: string;
-}
-
-function buildScopePackInfo(isPlatformOp: boolean): Record<MetaScopePack, ScopePackInfo> {
-  const result: Partial<Record<MetaScopePack, ScopePackInfo>> = {};
-  for (const pack of META_PACK_AVAILABILITY) {
-    result[pack.id] = {
-      label: pack.label,
-      description: pack.description,
-      icon: PACK_ICONS[pack.id] || <Globe className="h-4 w-4" />,
-      available: isPackAvailable(pack.id, isPlatformOp),
-      blockedReason: pack.blockedReason,
-    };
-  }
-  return result as Record<MetaScopePack, ScopePackInfo>;
-}
+const GROUP_ICONS: Record<MetaIntegrationGroup, React.ReactNode> = {
+  whatsapp: <MessageCircle className="h-5 w-5 text-green-600" />,
+  instagram: <Instagram className="h-5 w-5 text-pink-600" />,
+  facebook: <Facebook className="h-5 w-5 text-blue-600" />,
+  marketing: <Crosshair className="h-5 w-5 text-orange-600" />,
+  commerce: <ShoppingBag className="h-5 w-5 text-purple-600" />,
+  outros: <AtSign className="h-5 w-5 text-foreground" />,
+};
 
 export function MetaUnifiedSettings() {
-  const { currentTenant } = useAuth();
-  const { isPlatformOperator } = usePlatformOperator();
-  const tenantId = currentTenant?.id;
-  const queryClient = useQueryClient();
-  const SCOPE_PACK_INFO = buildScopePackInfo(isPlatformOperator);
-  
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+
   const { 
     isConnected, 
     isExpired,
     connection,
-    isLoading, 
+    isLoading: connectionLoading, 
     connect, 
     disconnect,
     isConnecting,
     isDisconnecting,
-    refetch,
+    refetch: refetchConnection,
   } = useMetaConnection();
 
-  // V4: selectedPacks removido — perfil automático
-  const [testPhone, setTestPhone] = useState("");
-  const [registerPin, setRegisterPin] = useState("");
-  const [verificationCode, setVerificationCode] = useState("");
-  const [registrationStep, setRegistrationStep] = useState<"idle" | "code_sent" | "code_verified">("idle");
-  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
-
-  // Fetch existing WhatsApp config to pre-populate test mode fields
-  const { data: whatsappConfig } = useQuery({
-    queryKey: ["whatsapp-meta-config", tenantId],
-    queryFn: async () => {
-      if (!tenantId) return null;
-      
-      const { data, error } = await supabase
-        .from("whatsapp_configs")
-        .select("*")
-        .eq("tenant_id", tenantId)
-        .eq("provider", "meta")
-        .maybeSingle();
-      
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!tenantId,
-  });
+  const {
+    integrationStates,
+    grant,
+    isLoading: integrationsLoading,
+    toggle,
+    isToggling,
+    togglingId,
+  } = useMetaIntegrations();
 
   // URL params for OAuth callback
-
-  // Check URL params for OAuth callback (both meta_connected and whatsapp_connected for backwards compatibility)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const metaConnected = params.get("meta_connected");
@@ -143,123 +108,24 @@ export function MetaUnifiedSettings() {
     const whatsappError = params.get("whatsapp_error");
     
     if (metaConnected === "true" || whatsappConnected === "true") {
-      toast.success("Conta Meta conectada com sucesso!");
-      refetch();
+      import("sonner").then(({ toast }) => toast.success("Conta Meta conectada com sucesso!"));
+      refetchConnection();
       window.history.replaceState({}, "", window.location.pathname);
-    } else if (metaError) {
-      toast.error(`Erro ao conectar: ${decodeURIComponent(metaError)}`);
-      window.history.replaceState({}, "", window.location.pathname);
-    } else if (whatsappError) {
-      toast.error(`Erro ao conectar: ${decodeURIComponent(whatsappError)}`);
+    } else if (metaError || whatsappError) {
+      const error = metaError || whatsappError;
+      import("sonner").then(({ toast }) => toast.error(`Erro ao conectar: ${decodeURIComponent(error!)}`));
       window.history.replaceState({}, "", window.location.pathname);
     }
-  }, [refetch]);
+  }, [refetchConnection]);
 
-  // V4: togglePack removido — escopos controlados pelo perfil
+  const isLoading = connectionLoading || integrationsLoading;
 
-  const handleConnect = () => {
-    connect();
-  };
-
-  // Test message mutation
-  const testMutation = useMutation({
-    mutationFn: async () => {
-      if (!testPhone.trim()) throw new Error("Informe um número de telefone");
-      
-      const { data, error } = await supabase.functions.invoke("meta-whatsapp-send", {
-        body: {
-          tenant_id: tenantId,
-          phone: testPhone,
-          message: "Mensagem de teste via WhatsApp Oficial!",
-        },
-      });
-      
-      if (error) throw error;
-      if (!data.success) throw new Error(data.error);
-      return data;
-    },
-    onSuccess: () => {
-      toast.success("Mensagem de teste enviada!");
-      setTestPhone("");
-    },
-    onError: (err) => showErrorToast(err, { module: 'integrações', action: 'enviar' }),
-  });
-
-  // Step 1: Request SMS/Voice verification code
-  const requestCodeMutation = useMutation({
-    mutationFn: async (codeMethod: "SMS" | "VOICE") => {
-      const { data, error } = await supabase.functions.invoke("meta-whatsapp-request-code", {
-        body: { tenant_id: tenantId, code_method: codeMethod },
-      });
-      if (error) throw error;
-      if (!data.success) throw new Error(data.error);
-      return data;
-    },
-    onSuccess: (data) => {
-      toast.success(data.message || "Código enviado!");
-      if (data.already_verified) {
-        setRegistrationStep("code_verified");
-      } else {
-        setRegistrationStep("code_sent");
-      }
-      queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
-    },
-    onError: (err) => showErrorToast(err, { module: 'integrações', action: 'processar' }),
-  });
-
-  // Step 2: Verify SMS/Voice code
-  const verifyCodeMutation = useMutation({
-    mutationFn: async (code: string) => {
-      const { data, error } = await supabase.functions.invoke("meta-whatsapp-verify-code", {
-        body: { tenant_id: tenantId, code },
-      });
-      if (error) throw error;
-      if (!data.success) throw new Error(data.error);
-      return data;
-    },
-    onSuccess: (data) => {
-      toast.success(data.message || "Código verificado!");
-      setVerificationCode("");
-      setRegistrationStep("code_verified");
-      queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
-    },
-    onError: (err) => showErrorToast(err, { module: 'integrações', action: 'verificar' }),
-  });
-
-  // Step 3: Register phone number on Cloud API
-  const registerPhoneMutation = useMutation({
-    mutationFn: async (pin: string) => {
-      if (!pin || pin.length !== 6) throw new Error("PIN de 6 dígitos é obrigatório");
-      const { data, error } = await supabase.functions.invoke("meta-whatsapp-register-phone", {
-        body: { tenant_id: tenantId, pin },
-      });
-      if (error) throw error;
-      // Log raw Meta diagnostic for debugging
-      if (data?.meta_diagnostic) {
-        console.log("[register-phone] Meta diagnostic:", JSON.stringify(data.meta_diagnostic, null, 2));
-      }
-      if (!data.success) throw new Error(data.error);
-      return data;
-    },
-    onSuccess: () => {
-      toast.success("Número registrado com sucesso!");
-      setRegisterPin("");
-      setRegistrationStep("idle");
-      queryClient.invalidateQueries({ queryKey: ["whatsapp-meta-config", tenantId] });
-    },
-    onError: (err) => showErrorToast(err, { module: 'integrações', action: 'registrar' }),
-  });
-
-  // O isLoading fica true durante refetches/invalidações de query
-  // Uma vez que carregamos os dados, marcamos para NUNCA mais bloquear a UI
   useEffect(() => {
     if (!isLoading && !initialLoadComplete) {
       setInitialLoadComplete(true);
     }
   }, [isLoading, initialLoadComplete]);
   
-  // Só mostra loader na primeiríssima carga, antes de ter qualquer dado
-  // APÓS isso, NUNCA mais bloqueia a tela - isso é regra do sistema
   if (isLoading && !initialLoadComplete && !isConnecting) {
     return (
       <Card>
@@ -270,8 +136,17 @@ export function MetaUnifiedSettings() {
     );
   }
 
+  // Group integration states by group
+  const groupedStates: Record<MetaIntegrationGroup, MetaIntegrationState[]> = {
+    whatsapp: [], instagram: [], facebook: [], marketing: [], commerce: [], outros: [],
+  };
+  for (const state of integrationStates) {
+    groupedStates[state.def.group].push(state);
+  }
+
   return (
     <div className="space-y-4">
+      {/* Header Card — Connection Status */}
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
@@ -300,390 +175,58 @@ export function MetaUnifiedSettings() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-4">
           {isConnected && connection ? (
             <>
-              {/* Status da conexão */}
-              <div className="rounded-lg border p-4 space-y-3">
+              {/* Connection info */}
+              <div className="rounded-lg border p-4 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Conta conectada</span>
-                  <span className="font-medium">{connection.externalUsername || connection.externalUserId}</span>
+                  <span className="text-sm text-muted-foreground">Conta</span>
+                  <span className="font-medium text-sm">{grant?.metaUserName || connection.externalUsername || connection.externalUserId}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Perfil</span>
+                  <Badge variant="outline" className="text-xs">
+                    {grant?.authProfile === "meta_auth_full" ? "Acesso completo" : "Escopos aprovados"}
+                  </Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Conectado há</span>
-                  <span className="text-sm">
+                  <span className="text-xs text-muted-foreground">
                     {formatDistanceToNow(new Date(connection.connectedAt), { locale: ptBR, addSuffix: true })}
                   </span>
                 </div>
                 {connection.expiresAt && (
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Expira em</span>
-                    <span className="text-sm">
+                    <span className="text-xs text-muted-foreground">
                       {formatDistanceToNow(new Date(connection.expiresAt), { locale: ptBR, addSuffix: true })}
                     </span>
                   </div>
                 )}
-                {connection.scopePacks.length > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Permissões</span>
-                    <div className="flex gap-1 flex-wrap justify-end">
-                      {connection.scopePacks.map((pack) => (
-                        <Badge key={pack} variant="secondary" className="text-xs">
-                          {SCOPE_PACK_INFO[pack]?.label || pack}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
-
-              {/* Assets descobertos */}
-              {(connection.assets || whatsappConfig) && (
-                <div className="space-y-3">
-                  <h4 className="text-sm font-medium">Ativos conectados</h4>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {connection.assets?.pages && connection.assets.pages.length > 0 && (
-                      <div className="rounded-lg border p-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Facebook className="h-4 w-4 text-blue-600" />
-                          <span className="text-sm font-medium">Páginas</span>
-                          <Badge variant="outline" className="ml-auto">{connection.assets.pages.length}</Badge>
-                        </div>
-                        <ul className="text-xs text-muted-foreground space-y-1">
-                          {connection.assets.pages.slice(0, 3).map((page) => (
-                            <li key={page.id}>{page.name}</li>
-                          ))}
-                          {connection.assets.pages.length > 3 && (
-                            <li>+{connection.assets.pages.length - 3} mais</li>
-                          )}
-                        </ul>
-                      </div>
-                    )}
-                    {connection.assets?.instagram_accounts && connection.assets.instagram_accounts.length > 0 && (
-                      <div className="rounded-lg border p-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Instagram className="h-4 w-4 text-pink-600" />
-                          <span className="text-sm font-medium">Instagram</span>
-                          <Badge variant="outline" className="ml-auto">{connection.assets.instagram_accounts.length}</Badge>
-                        </div>
-                        <ul className="text-xs text-muted-foreground space-y-1">
-                          {connection.assets.instagram_accounts.map((ig) => (
-                            <li key={ig.id}>@{ig.username}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {/* WhatsApp - mostrar número conectado do whatsapp_configs */}
-                    {whatsappConfig?.phone_number && whatsappConfig.provider === "meta" && (
-                      <div className={`rounded-lg border p-3 ${
-                        whatsappConfig.connection_status !== "connected" 
-                          ? "border-amber-300 dark:border-amber-700" 
-                          : ""
-                      }`}>
-                        <div className="flex items-center gap-2 mb-2">
-                          <MessageCircle className="h-4 w-4 text-green-600" />
-                          <span className="text-sm font-medium">WhatsApp</span>
-                          {whatsappConfig.connection_status === "connected" ? (
-                            <Badge variant="outline" className="ml-auto bg-green-50 text-green-700 border-green-200">
-                              <Phone className="h-3 w-3 mr-1" />
-                              Ativo
-                            </Badge>
-                          ) : whatsappConfig.connection_status === "awaiting_verification" ? (
-                            <Badge variant="outline" className="ml-auto border-amber-400 text-amber-700 dark:text-amber-400">
-                              <AlertTriangle className="h-3 w-3 mr-1" />
-                              Aguardando código
-                            </Badge>
-                          ) : whatsappConfig.connection_status === "pending_registration" && registrationStep === "idle" ? (
-                            <Badge variant="outline" className="ml-auto border-blue-400 text-blue-700 dark:text-blue-400">
-                              <Loader2 className="h-3 w-3 mr-1" />
-                              Em Análise
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="ml-auto border-amber-400 text-amber-700 dark:text-amber-400">
-                              <AlertTriangle className="h-3 w-3 mr-1" />
-                              Registro Pendente
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          +{whatsappConfig.display_phone_number || whatsappConfig.phone_number}
-                        </p>
-
-                        {/* Registration flow for non-connected status */}
-                        {whatsappConfig.connection_status !== "connected" && (
-                          <div className="mt-3 space-y-3">
-                            
-                            {/* Case A: pending_registration + idle = Meta is reviewing, no action needed */}
-                            {whatsappConfig.connection_status === "pending_registration" && registrationStep === "idle" && (
-                              <div className="rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-2.5">
-                                <p className="text-xs text-blue-700 dark:text-blue-400">
-                                  ✅ Seu número está em análise pela Meta. Esse processo é automático e pode levar até 48h. Não é necessária nenhuma ação.
-                                </p>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="mt-2 text-xs h-7 text-muted-foreground"
-                                  onClick={() => setRegistrationStep("code_sent")}
-                                >
-                                  <RefreshCw className="h-3 w-3 mr-1" />
-                                  Tentar novamente manualmente
-                                </Button>
-                              </div>
-                            )}
-
-                            {/* Case B: Active registration flow (user is going through steps) */}
-                            {!(whatsappConfig.connection_status === "pending_registration" && registrationStep === "idle") && (
-                              <>
-                                <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
-                                  <AlertTriangle className="h-3.5 w-3.5" />
-                                  Ação necessária — Ative seu número
-                                </div>
-
-                                {/* Step 1: Request verification code — only when idle and NOT awaiting_verification */}
-                                {registrationStep === "idle" && whatsappConfig.connection_status !== "awaiting_verification" && (
-                                  <div className="space-y-2 rounded-md bg-muted/50 p-2.5">
-                                    <p className="text-xs font-medium">Passo 1: Solicitar código de verificação</p>
-                                    <p className="text-xs text-muted-foreground">
-                                      Enviaremos um código por SMS para o número acima.
-                                    </p>
-                                    <div className="flex gap-2">
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="flex-1 text-xs h-8 border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950"
-                                        onClick={() => requestCodeMutation.mutate("SMS")}
-                                        disabled={requestCodeMutation.isPending}
-                                      >
-                                        {requestCodeMutation.isPending ? (
-                                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                        ) : (
-                                          <Send className="h-3 w-3 mr-1" />
-                                        )}
-                                        Enviar por SMS
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="text-xs h-8"
-                                        onClick={() => requestCodeMutation.mutate("VOICE")}
-                                        disabled={requestCodeMutation.isPending}
-                                      >
-                                        <Phone className="h-3 w-3 mr-1" />
-                                        Voz
-                                      </Button>
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Step 2: Enter verification code */}
-                                {(registrationStep === "code_sent" || whatsappConfig.connection_status === "awaiting_verification") && (
-                                  <div className="space-y-2 rounded-md bg-muted/50 p-2.5">
-                                    <p className="text-xs font-medium">Passo 2: Inserir código recebido</p>
-                                    <p className="text-xs text-muted-foreground">
-                                      Digite o código de 6 dígitos que você recebeu no telefone.
-                                    </p>
-                                    <Input
-                                      placeholder="Código de 6 dígitos"
-                                      value={verificationCode}
-                                      onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                                      maxLength={6}
-                                      className="text-xs h-8"
-                                    />
-                                    <div className="flex gap-2">
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="flex-1 text-xs h-8 border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950"
-                                        onClick={() => verifyCodeMutation.mutate(verificationCode)}
-                                        disabled={verifyCodeMutation.isPending || verificationCode.length !== 6}
-                                      >
-                                        {verifyCodeMutation.isPending ? (
-                                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                        ) : (
-                                          <CheckCircle className="h-3 w-3 mr-1" />
-                                        )}
-                                        Verificar código
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="text-xs h-8"
-                                        onClick={() => requestCodeMutation.mutate("SMS")}
-                                        disabled={requestCodeMutation.isPending}
-                                      >
-                                        <RefreshCw className="h-3 w-3 mr-1" />
-                                        Reenviar
-                                      </Button>
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Step 3: Register with PIN */}
-                                {registrationStep === "code_verified" && (
-                                  <div className="space-y-2 rounded-md bg-muted/50 p-2.5">
-                                    <p className="text-xs font-medium">Passo 3: Definir PIN de segurança</p>
-                                    <p className="text-xs text-muted-foreground">
-                                      Se a verificação em duas etapas já está ativa no WhatsApp Manager, use o PIN existente. Se NÃO está ativa, crie qualquer PIN de 6 dígitos — ele será definido automaticamente como seu PIN de segurança.
-                                    </p>
-                                    <Input
-                                      placeholder="PIN de 6 dígitos"
-                                      value={registerPin}
-                                      onChange={(e) => setRegisterPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                                      maxLength={6}
-                                      type="password"
-                                      className="text-xs h-8"
-                                    />
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="w-full text-xs h-8 border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950"
-                                      onClick={() => registerPhoneMutation.mutate(registerPin)}
-                                      disabled={registerPhoneMutation.isPending || registerPin.length !== 6}
-                                    >
-                                      {registerPhoneMutation.isPending ? (
-                                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                      ) : (
-                                        <Zap className="h-3 w-3 mr-1" />
-                                      )}
-                                      Finalizar registro
-                                    </Button>
-                                  </div>
-                                )}
-
-                                {whatsappConfig.last_error && (
-                                  <p className="text-xs text-destructive">
-                                    {sanitizeError(new Error(whatsappConfig.last_error)).userMessage}
-                                  </p>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Re-register option for connected status */}
-                        {whatsappConfig.connection_status === "connected" && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="mt-2 w-full text-xs text-muted-foreground"
-                            onClick={() => setRegistrationStep("idle")}
-                          >
-                            <RefreshCw className="h-3 w-3 mr-1" />
-                            Re-registrar número
-                          </Button>
-                        )}
-                      </div>
-                    )}
-                    {connection.assets?.whatsapp_business_accounts && connection.assets.whatsapp_business_accounts.length > 0 && (
-                      <div className="rounded-lg border p-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <MessageCircle className="h-4 w-4 text-green-600" />
-                          <span className="text-sm font-medium">WhatsApp Business</span>
-                          <Badge variant="outline" className="ml-auto">{connection.assets.whatsapp_business_accounts.length}</Badge>
-                        </div>
-                        <ul className="text-xs text-muted-foreground space-y-1">
-                          {connection.assets.whatsapp_business_accounts.map((waba) => (
-                            <li key={waba.id}>{waba.name}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {connection.assets?.ad_accounts && connection.assets.ad_accounts.length > 0 && (
-                      <div className="rounded-lg border p-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Megaphone className="h-4 w-4 text-blue-600" />
-                          <span className="text-sm font-medium">Contas de Anúncio</span>
-                          <Badge variant="outline" className="ml-auto">{connection.assets.ad_accounts.length}</Badge>
-                        </div>
-                        <ul className="text-xs text-muted-foreground space-y-1">
-                          {connection.assets.ad_accounts.map((acc) => (
-                            <li key={acc.id}>{acc.name}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {connection.assets?.catalogs && connection.assets.catalogs.length > 0 && (
-                      <div className="rounded-lg border p-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <ShoppingBag className="h-4 w-4 text-orange-600" />
-                          <span className="text-sm font-medium">Catálogos</span>
-                          <Badge variant="outline" className="ml-auto">{connection.assets.catalogs.length}</Badge>
-                        </div>
-                        <ul className="text-xs text-muted-foreground space-y-1">
-                          {connection.assets.catalogs.map((cat) => (
-                            <li key={cat.id}>{cat.name}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {connection.assets?.threads_profile && (
-                      <div className="rounded-lg border p-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <AtSign className="h-4 w-4 text-foreground" />
-                          <span className="text-sm font-medium">Threads</span>
-                          <Badge variant="outline" className="ml-auto bg-green-50 text-green-700 border-green-200">
-                            Ativo
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          @{connection.assets.threads_profile.username}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
 
               {connection.lastError && (
                 <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>
+                  <AlertDescription className="text-xs">
                     Último erro: {connection.lastError}
                   </AlertDescription>
                 </Alert>
               )}
 
-              <Separator />
-
-              {/* Pixel & CAPI Configuration */}
-              <MetaPixelCapiSection />
-
-              {/* Product Feeds / Catalogs */}
-              <MetaProductFeedsSection />
-
-              <Separator />
-
-              {/* V4: Reconectar (re-auth com perfil automático) */}
-              <Button
-                variant="outline"
-                onClick={() => connect()}
-                disabled={isConnecting}
-                className="gap-2"
-              >
-                {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                Reconectar Meta
-              </Button>
-
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => refetch()}
-                  className="gap-2"
-                >
-                  <RefreshCw className="h-4 w-4" />
+              {/* Actions */}
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => connect()} disabled={isConnecting} className="gap-1.5">
+                  {isConnecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                  Reconectar
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => refetchConnection()} className="gap-1.5">
+                  <RefreshCw className="h-3.5 w-3.5" />
                   Atualizar
                 </Button>
-                <Button
-                  variant="destructive"
-                  onClick={() => disconnect()}
-                  disabled={isDisconnecting}
-                  className="gap-2"
-                >
-                  {isDisconnecting ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Unlink className="h-4 w-4" />
-                  )}
+                <Button variant="destructive" size="sm" onClick={() => disconnect()} disabled={isDisconnecting} className="gap-1.5">
+                  {isDisconnecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Unlink className="h-3.5 w-3.5" />}
                   Desconectar
                 </Button>
               </div>
@@ -701,354 +244,251 @@ export function MetaUnifiedSettings() {
 
               <p className="text-sm text-muted-foreground">
                 Ao conectar, o sistema solicitará as permissões adequadas para o seu tipo de conta automaticamente.
-                Após a conexão, você poderá ativar funcionalidades individuais nos painéis específicos.
+                Após a conexão, ative as funcionalidades que deseja usar nos painéis abaixo.
               </p>
 
-              <Button
-                onClick={handleConnect}
-                disabled={isConnecting}
-                className="gap-2"
-              >
-                {isConnecting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Link2 className="h-4 w-4" />
-                )}
+              <Button onClick={() => connect()} disabled={isConnecting} className="gap-2">
+                {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
                 Conectar Meta
               </Button>
 
               <p className="text-xs text-muted-foreground">
-                Você será redirecionado para o Facebook para autorizar o acesso. 
-                Seus dados são armazenados de forma segura e isolada.
+                Você será redirecionado para o Facebook para autorizar o acesso.
               </p>
             </>
           )}
         </CardContent>
       </Card>
 
-      {/* Test mode removed - Meta approved WhatsApp scopes */}
+      {/* Integration Groups — Toggles */}
+      {META_INTEGRATION_GROUPS.map((group) => {
+        const states = groupedStates[group.id];
+        if (!states || states.length === 0) return null;
+
+        const activeCount = states.filter((s) => s.isActive).length;
+
+        return (
+          <MetaIntegrationGroupCard
+            key={group.id}
+            groupId={group.id}
+            label={group.label}
+            description={group.description}
+            icon={GROUP_ICONS[group.id]}
+            states={states}
+            activeCount={activeCount}
+            onToggle={toggle}
+            isToggling={isToggling}
+            togglingId={togglingId}
+            isConnected={isConnected}
+            grant={grant}
+          />
+        );
+      })}
     </div>
   );
 }
 
-// V4: IncrementalConsentSection removida — escopos controlados pelo perfil automático
+// === Group Card ===
 
+interface MetaIntegrationGroupCardProps {
+  groupId: MetaIntegrationGroup;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+  states: MetaIntegrationState[];
+  activeCount: number;
+  onToggle: (args: { integrationId: string; action: "activate" | "deactivate" }) => void;
+  isToggling: boolean;
+  togglingId: string | null;
+  isConnected: boolean;
+  grant: ActiveGrantInfo | null;
+}
 
-// Seção de Pixel & CAPI integrada ao Hub Meta
-function MetaPixelCapiSection() {
-  const { config, isLoading, upsertConfig } = useMarketingIntegrations();
-  const { isConnected, connection } = useMetaConnection();
-  
-  const [metaAccessToken, setMetaAccessToken] = useState('');
-  const [metaTokenConfigured, setMetaTokenConfigured] = useState(false);
-  const [additionalPixels, setAdditionalPixels] = useState<string[]>([]);
-  const [newPixelId, setNewPixelId] = useState('');
-  const [showManualCapi, setShowManualCapi] = useState(false);
-
-  // Primary pixel from OAuth connection
-  const primaryPixelId = config?.meta_pixel_id || '';
-  const primaryPixelName = connection?.assets?.pixels?.find(p => p.id === primaryPixelId)?.name || '';
-  
-  // CAPI is auto-configured if connected + pixel exists + token configured
-  const isCapiAutoConfigured = isConnected && primaryPixelId && metaTokenConfigured;
-
-  useEffect(() => {
-    if (config) {
-      setMetaTokenConfigured(!!(config as any).meta_access_token);
-      setAdditionalPixels(config.meta_additional_pixel_ids || []);
-    }
-  }, [config]);
-
-  const handleAddPixel = () => {
-    const trimmed = newPixelId.trim();
-    if (!trimmed || additionalPixels.includes(trimmed) || trimmed === primaryPixelId) return;
-    setAdditionalPixels([...additionalPixels, trimmed]);
-    setNewPixelId('');
-  };
-
-  const handleRemovePixel = (pixelId: string) => {
-    setAdditionalPixels(additionalPixels.filter(p => p !== pixelId));
-  };
-
-  const handleSave = async () => {
-    const updates: Partial<MarketingIntegration> = {
-      meta_additional_pixel_ids: additionalPixels.length > 0 ? additionalPixels : null,
-    };
-    if (metaAccessToken) {
-      (updates as any).meta_access_token = metaAccessToken;
-      updates.meta_capi_enabled = true;
-    }
-    await upsertConfig.mutateAsync(updates);
-    setMetaAccessToken('');
-    setShowManualCapi(false);
-  };
-
-  if (isLoading) return null;
-
-  const isActive = config?.meta_enabled && primaryPixelId;
-
+function MetaIntegrationGroupCard({
+  groupId,
+  label,
+  description,
+  icon,
+  states,
+  activeCount,
+  onToggle,
+  isToggling,
+  togglingId,
+  isConnected,
+  grant,
+}: MetaIntegrationGroupCardProps) {
   return (
-    <div className="space-y-4">
-      <h4 className="text-sm font-medium flex items-center gap-2">
-        <Crosshair className="h-4 w-4" />
-        Pixel & Conversions API
-        {isActive && (
-          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">
-            <CheckCircle className="h-3 w-3 mr-1" /> Ativo
-          </Badge>
-        )}
-      </h4>
-      
-      <div className="rounded-lg border p-4 space-y-4">
-        {/* Primary Pixel (auto-synced) */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <Globe className="h-3.5 w-3.5" />
-            Client-side (Pixel)
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted">
+            {icon}
           </div>
-          
-          <div className="space-y-1.5">
-            <Label className="text-sm">Pixel Principal</Label>
-            {primaryPixelId ? (
-              <div className="flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2">
-                <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-mono">{primaryPixelId}</p>
-                  {primaryPixelName && (
-                    <p className="text-xs text-muted-foreground">{primaryPixelName}</p>
-                  )}
-                </div>
-                <Badge variant="secondary" className="text-xs shrink-0">Automático</Badge>
-              </div>
-            ) : (
-              <Alert>
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription className="text-xs">
-                  Nenhum pixel conectado. Conecte sua conta Meta acima e selecione um Pixel nos ativos.
-                </AlertDescription>
-              </Alert>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Instalado automaticamente na loja via conexão Meta.
-            </p>
-          </div>
-
-          {/* Additional Pixels */}
-          <div className="space-y-2 pt-1">
-            <Label className="text-sm">Pixels Adicionais (opcional)</Label>
-            <p className="text-xs text-muted-foreground">
-              Adicione outros Pixel IDs para disparar eventos em múltiplos pixels simultaneamente.
-            </p>
-            
-            {additionalPixels.length > 0 && (
-              <div className="space-y-1.5">
-                {additionalPixels.map((pixelId) => (
-                  <div key={pixelId} className="flex items-center gap-2 rounded-md border px-3 py-1.5">
-                    <span className="text-sm font-mono flex-1">{pixelId}</span>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                      onClick={() => handleRemovePixel(pixelId)}
-                    >
-                      ×
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <Input 
-                placeholder="ID do pixel adicional" 
-                value={newPixelId} 
-                onChange={(e) => setNewPixelId(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleAddPixel()}
-                className="flex-1"
-              />
-              <Button variant="outline" size="sm" onClick={handleAddPixel} disabled={!newPixelId.trim()}>
-                <Plus className="h-4 w-4 mr-1" /> Adicionar
-              </Button>
-            </div>
+          <div className="flex-1">
+            <CardTitle className="text-base flex items-center gap-2">
+              {label}
+              {activeCount > 0 && (
+                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800">
+                  {activeCount} ativo{activeCount > 1 ? "s" : ""}
+                </Badge>
+              )}
+            </CardTitle>
+            <CardDescription className="text-xs">{description}</CardDescription>
           </div>
         </div>
+      </CardHeader>
+      <CardContent className="space-y-1 pt-0">
+        {states.map((state, idx) => (
+          <MetaIntegrationToggleRow
+            key={state.def.id}
+            state={state}
+            onToggle={onToggle}
+            isToggling={isToggling && togglingId === state.def.id}
+            isConnected={isConnected}
+            grant={grant}
+            isLast={idx === states.length - 1}
+          />
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
 
-        <Separator />
+// === Toggle Row ===
 
-        {/* Server-side (CAPI) */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <Server className="h-3.5 w-3.5" />
-            Server-side (Conversions API)
+interface MetaIntegrationToggleRowProps {
+  state: MetaIntegrationState;
+  onToggle: (args: { integrationId: string; action: "activate" | "deactivate" }) => void;
+  isToggling: boolean;
+  isConnected: boolean;
+  grant: ActiveGrantInfo | null;
+  isLast: boolean;
+}
+
+function MetaIntegrationToggleRow({
+  state,
+  onToggle,
+  isToggling,
+  isConnected,
+  grant,
+  isLast,
+}: MetaIntegrationToggleRowProps) {
+  const [configOpen, setConfigOpen] = useState(false);
+  const { def, isActive, canActivate, blockReason, layerStatus } = state;
+
+  const handleToggle = () => {
+    if (isToggling) return;
+    if (def.separateAuth) {
+      // Threads has separate auth — for now just show info
+      return;
+    }
+    onToggle({
+      integrationId: def.id,
+      action: isActive ? "deactivate" : "activate",
+    });
+  };
+
+  const icon = ICON_MAP[def.icon] || <Info className="h-4 w-4" />;
+
+  const statusBadge = (() => {
+    if (def.separateAuth) {
+      return (
+        <Badge variant="outline" className="text-[10px] gap-1">
+          <Lock className="h-2.5 w-2.5" />
+          Auth separado
+        </Badge>
+      );
+    }
+    if (!isConnected) {
+      return (
+        <Badge variant="outline" className="text-[10px] text-muted-foreground gap-1">
+          <ShieldAlert className="h-2.5 w-2.5" />
+          Sem conexão
+        </Badge>
+      );
+    }
+    if (layerStatus === "blocked_auth") {
+      return (
+        <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300 gap-1">
+          <Lock className="h-2.5 w-2.5" />
+          Sem permissão
+        </Badge>
+      );
+    }
+    if (layerStatus === "blocked_plan") {
+      return (
+        <Badge variant="outline" className="text-[10px] text-purple-600 border-purple-300 gap-1">
+          <Crown className="h-2.5 w-2.5" />
+          Plano superior
+        </Badge>
+      );
+    }
+    return null;
+  })();
+
+  const hasConfig = def.hasConfigSection && isActive;
+
+  return (
+    <div className={cn("py-2", !isLast && "border-b border-border/50")}>
+      <div className="flex items-center gap-3">
+        <div className="text-muted-foreground">{icon}</div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">{def.label}</span>
+            {statusBadge}
           </div>
-          
-          {isCapiAutoConfigured ? (
-            <>
-              <div className="flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2">
-                <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Conversions API ativa</p>
-                  <p className="text-xs text-muted-foreground">
-                    Token sincronizado automaticamente da conexão Meta (long-lived, ~60 dias).
-                  </p>
-                </div>
-                <Badge variant="secondary" className="text-xs shrink-0">Automático</Badge>
-              </div>
-              
-              <button 
-                className="text-xs text-muted-foreground hover:text-foreground underline"
-                onClick={() => setShowManualCapi(!showManualCapi)}
-              >
-                {showManualCapi ? 'Ocultar opção manual' : 'Usar token manual (avançado)'}
-              </button>
-
-              {showManualCapi && (
-                <div className="space-y-2 pl-2 border-l-2 border-muted">
-                  <p className="text-xs text-muted-foreground">
-                    Use um token manual apenas se precisar de um token de sistema (System User Token) permanente, 
-                    que não expira. O token automático da conexão dura ~60 dias.
-                  </p>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="meta-access-token" className="text-sm flex items-center gap-2">
-                      <Lock className="h-3 w-3" />
-                      Token Manual (substitui o automático)
-                    </Label>
-                    <Input 
-                      id="meta-access-token" 
-                      type="password" 
-                      placeholder="Cole o System User Token aqui"
-                      value={metaAccessToken} 
-                      onChange={(e) => setMetaAccessToken(e.target.value)} 
-                    />
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-sm">Conversions API</Label>
-                  <p className="text-xs text-muted-foreground">Melhora atribuição e reduz perda por bloqueadores de anúncios</p>
-                </div>
-                {metaTokenConfigured ? (
-                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">
-                    <CheckCircle className="h-3 w-3 mr-1" /> Configurado
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="text-xs">Não configurado</Badge>
-                )}
-              </div>
-              
-              {isConnected && primaryPixelId && !metaTokenConfigured ? (
-                <Alert className="bg-amber-50/50 border-amber-200">
-                  <AlertTriangle className="h-4 w-4 text-amber-600" />
-                  <AlertDescription className="text-xs text-amber-800">
-                    Reconecte sua conta Meta para ativar a CAPI automaticamente. 
-                    Ou insira um token manual abaixo.
-                  </AlertDescription>
-                </Alert>
-              ) : !isConnected ? (
-                <Alert>
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription className="text-xs">
-                    Conecte sua conta Meta acima para ativar Pixel e CAPI automaticamente.
-                  </AlertDescription>
-                </Alert>
-              ) : null}
-
-              <Alert className="bg-blue-50/50 border-blue-200">
-                <AlertDescription className="text-xs space-y-2">
-                  <p className="font-medium text-blue-900">Como gerar um Access Token manual:</p>
-                  <ol className="list-decimal list-inside space-y-1 text-blue-800">
-                    <li>Acesse o <a href="https://business.facebook.com/events_manager" target="_blank" rel="noopener noreferrer" className="underline font-medium">Gerenciador de Eventos</a></li>
-                    <li>Selecione seu Pixel → aba <strong>Configurações</strong></li>
-                    <li>Role até <strong>"Conversions API"</strong></li>
-                    <li>Clique em <strong>"Gerar token de acesso"</strong></li>
-                    <li>Copie o token e cole abaixo</li>
-                  </ol>
-                  <p className="text-blue-700 italic">Este token é permanente e específico do Pixel.</p>
-                </AlertDescription>
-              </Alert>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="meta-access-token-fallback" className="text-sm flex items-center gap-2">
-                  <Lock className="h-3 w-3" />
-                  Access Token
-                </Label>
-                <Input 
-                  id="meta-access-token-fallback" 
-                  type="password" 
-                  placeholder={metaTokenConfigured ? '••••••••••••' : 'Cole seu access token aqui'} 
-                  value={metaAccessToken} 
-                  onChange={(e) => setMetaAccessToken(e.target.value)} 
-                />
-                <p className="text-xs text-muted-foreground">Token nunca é exibido após salvo.</p>
-              </div>
-            </>
+          <p className="text-xs text-muted-foreground truncate">{def.description}</p>
+          {blockReason && !isActive && (
+            <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">{blockReason}</p>
           )}
         </div>
-
-        <Button size="sm" onClick={handleSave} disabled={upsertConfig.isPending}>
-          {upsertConfig.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-          Salvar Configurações
-        </Button>
+        <div className="flex items-center gap-2">
+          {isToggling ? (
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          ) : (
+            <Switch
+              checked={isActive}
+              onCheckedChange={handleToggle}
+              disabled={!canActivate && !isActive}
+              aria-label={`${isActive ? "Desativar" : "Ativar"} ${def.label}`}
+            />
+          )}
+          {hasConfig && (
+            <button
+              onClick={() => setConfigOpen(!configOpen)}
+              className="text-muted-foreground hover:text-foreground transition-colors p-1"
+            >
+              {configOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Expandable config section */}
+      {hasConfig && configOpen && (
+        <div className="mt-3 ml-7 pl-3 border-l-2 border-muted">
+          <IntegrationConfigSection configKey={def.configSectionKey!} />
+        </div>
+      )}
     </div>
   );
 }
 
-// Seção de Product Feeds / Catálogos
-function MetaProductFeedsSection() {
-  const { currentTenant } = useAuth();
+// === Config Sections (absorb legacy) ===
 
-  const getFeedUrl = (format: 'google' | 'meta') => {
-    if (!currentTenant?.slug) return '';
-    const baseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/marketing-feed`;
-    return `${baseUrl}?tenant=${currentTenant.slug}&format=${format}`;
-  };
-
-  const copyUrl = (format: 'google' | 'meta') => {
-    navigator.clipboard.writeText(getFeedUrl(format));
-    toast.success('URL copiada!');
-  };
-
-  return (
-    <div className="space-y-4">
-      <h4 className="text-sm font-medium flex items-center gap-2">
-        <Rss className="h-4 w-4" />
-        Catálogos de Produtos
-      </h4>
-      
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border p-3 space-y-2">
-          <div className="flex items-center gap-2">
-            <Facebook className="h-4 w-4 text-blue-600" />
-            <span className="text-sm font-medium">Meta Catalog (CSV)</span>
-          </div>
-          <div className="flex gap-1.5">
-            <Input value={getFeedUrl('meta')} readOnly className="font-mono text-xs h-8" />
-            <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => copyUrl('meta')}>
-              <Copy className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-        <div className="rounded-lg border p-3 space-y-2">
-          <div className="flex items-center gap-2">
-            <Chrome className="h-4 w-4 text-yellow-500" />
-            <span className="text-sm font-medium">Google Merchant (XML)</span>
-          </div>
-          <div className="flex gap-1.5">
-            <Input value={getFeedUrl('google')} readOnly className="font-mono text-xs h-8" />
-            <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => copyUrl('google')}>
-              <Copy className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Feeds atualizados automaticamente. Use essas URLs nas plataformas de anúncios.
-      </p>
-    </div>
-  );
+function IntegrationConfigSection({ configKey }: { configKey: string }) {
+  switch (configKey) {
+    case "whatsapp_registration":
+      return <MetaWhatsAppRegistrationSection />;
+    case "pixel_capi":
+      return <MetaPixelCapiSection />;
+    case "product_feeds":
+      return <MetaProductFeedsSection />;
+    default:
+      return (
+        <p className="text-xs text-muted-foreground py-2">
+          Configuração em breve.
+        </p>
+      );
+  }
 }
