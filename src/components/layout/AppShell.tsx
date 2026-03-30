@@ -18,7 +18,7 @@ export function AppShell() {
           <AppSidebar />
           <div className="flex flex-1 flex-col overflow-hidden min-w-0">
             <AppHeader />
-            <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 md:p-6 scrollbar-thin">
+            <main className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 md:p-6 pb-64 scrollbar-thin">
               <div className="mx-auto max-w-[1600px]">
                 <PermissionGuard>
                   <Outlet />
