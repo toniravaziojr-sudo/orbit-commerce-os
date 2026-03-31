@@ -155,6 +155,15 @@ serve(async (req) => {
           continue;
         }
 
+        // Validate that the corresponding publishing integration is active
+        const activeIntegrations = tenantActiveIntegrations[post.tenant_id] || new Set();
+        const requiredIntegration = post.platform === "instagram" ? "instagram_publicacoes" : "facebook_publicacoes";
+        if (!activeIntegrations.has(requiredIntegration)) {
+          await markPermanentFailure(supabase, post, "integration_inactive", `Integração ${post.platform} não está ativa`, lockToken);
+          failed++;
+          continue;
+        }
+
         const metadata = conn.metadata as any;
         const assets = metadata?.assets || {};
         const userAccessToken = conn.access_token;
