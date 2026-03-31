@@ -3023,6 +3023,30 @@ Cada integração define: `requiredScopes` (escopos Meta necessários), `feature
 - Não depende mais de ter integrações/toggles ativos
 - Toggles são ativados separadamente após a conexão
 
+### Fase 4.3 — Isolamento de Integrações por Grant (✅ Concluída)
+
+**Objetivo:** Garantir que um novo auth Meta resulte em toggles todos desligados (clean slate), sem herdar integrações de conexões anteriores.
+
+**Problema resolvido:**
+- Quando o mesmo usuário Facebook reconectava em um tenant (ou outro tenant com mesmo FB), integrações ativas de grants anteriores permaneciam visíveis e ativas, causando toggles pré-ativados com ativos já selecionados.
+
+**Causa raiz:**
+1. A função `supersede_meta_grant` marcava grants anteriores como superseded mas **não desativava** as integrações vinculadas a eles
+2. O endpoint GET de `meta-integrations-manage` buscava integrações por `tenant_id` sem filtrar por `auth_grant_id`, retornando registros de grants antigos
+
+**Correções aplicadas:**
+
+| Arquivo | Ação |
+|---------|------|
+| `supabase/functions/meta-oauth-callback/index.ts` | Após `supersede_meta_grant`, desativa todas as integrações de grants anteriores (`status: inactive` para `auth_grant_id != novo grant`) |
+| `supabase/functions/meta-integrations-manage/index.ts` | GET agora filtra integrações pelo `auth_grant_id` do grant ativo, ignorando registros órfãos de conexões antigas |
+
+**Regra de negócio:**
+- Novo auth = tela limpa (todos toggles desligados)
+- Mesmo usuário Facebook em diferentes tenants = integrações independentes
+- Reconexão no mesmo tenant = reset das integrações anteriores
+- Integrações antigas ficam no banco com `status: inactive` para histórico
+
 ### Fase 5 — Migração dos Consumidores para Helper Centralizado (✅ Concluída)
 
 **Objetivo:** Padronizar todos os consumidores de tokens Meta para usar um helper centralizado (`getMetaConnectionForTenant`) que prioriza o modelo V4 (`tenant_meta_auth_grants`) com fallback automático para `marketplace_connections`.
