@@ -266,7 +266,7 @@ export const META_INTEGRATION_CATALOG: MetaIntegrationDef[] = [
     featureKey: null,
     hasConfigSection: true,
     configSectionKey: 'product_feeds',
-    assetType: 'none',
+    assetType: 'catalog',
     assetLabel: 'Catálogo',
   },
   {
