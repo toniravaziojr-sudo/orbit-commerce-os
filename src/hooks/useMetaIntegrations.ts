@@ -102,15 +102,16 @@ export function useMetaIntegrations() {
       const dbStatus = dbRow?.status ?? null;
 
       // Layer 1: Auth capability
+      // Special/unlimited tenants bypass scope checks when they have an active grant
       const grantedScopes = grant?.grantedScopes ?? [];
       const missingScopes = def.requiredScopes.filter(
         (s) => !grantedScopes.includes(s)
       );
-      const authCapable = grant !== null && missingScopes.length === 0;
+      const authCapable = grant !== null && (isUnlimited || missingScopes.length === 0);
       const authBlockReason =
         !grant
           ? "Conecte sua conta Meta primeiro"
-          : missingScopes.length > 0
+          : !isUnlimited && missingScopes.length > 0
           ? `Permissões ausentes: ${missingScopes.join(", ")}`
           : null;
 
