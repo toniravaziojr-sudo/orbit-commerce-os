@@ -56,7 +56,9 @@ export interface DiscoveredAssets {
 
 export function useMetaIntegrations() {
   const { currentTenant } = useAuth();
-  const { canAccess, isUnlimited } = useTenantAccess();
+  const { canAccess, isUnlimited, isPlatform } = useTenantAccess();
+  // Platform tenants and unlimited tenants bypass all scope restrictions
+  const bypassScopeValidation = isUnlimited || isPlatform;
   const queryClient = useQueryClient();
   const tenantId = currentTenant?.id;
 
