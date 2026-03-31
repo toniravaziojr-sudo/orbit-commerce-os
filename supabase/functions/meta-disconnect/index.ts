@@ -2,12 +2,12 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.0.0"; // Phase 7: V4 disconnect — revoke grant, deactivate integrations, best-effort remote revocation
+const VERSION = "v1.1.0"; // Fix: two-client pattern for proper tenant access validation
 // ===================
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 /**
@@ -25,7 +25,7 @@ const corsHeaders = {
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response("ok", { headers: corsHeaders });
   }
 
   const traceId = crypto.randomUUID().substring(0, 8);
@@ -33,6 +33,9 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+
+  // Service role client — for actual operations (bypasses RLS)
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
@@ -45,6 +48,7 @@ Deno.serve(async (req) => {
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) {
+      console.warn(`[meta-disconnect][${VERSION}][${traceId}] Auth failed:`, authError?.message);
       return jsonResponse({ success: false, error: "Sessão inválida", code: "INVALID_SESSION" });
     }
 
@@ -55,12 +59,18 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: false, error: "tenant_id obrigatório", code: "MISSING_TENANT" });
     }
 
-    // Verify user has access to tenant
-    const { data: hasAccess } = await supabase.rpc("user_has_tenant_access", {
+    // User-context client — for tenant access check (uses auth.uid() inside RPC)
+    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const { data: hasAccess, error: accessError } = await userClient.rpc("user_has_tenant_access", {
       p_tenant_id: tenant_id,
     });
 
-    if (!hasAccess) {
+    console.log(`[meta-disconnect][${VERSION}][${traceId}] Access check: hasAccess=${hasAccess}, error=${accessError?.message || 'none'}, user=${user.id}, tenant=${tenant_id}`);
+
+    if (accessError || !hasAccess) {
       return jsonResponse({ success: false, error: "Sem acesso ao tenant", code: "FORBIDDEN" });
     }
 
