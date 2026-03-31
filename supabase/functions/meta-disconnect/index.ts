@@ -1,9 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
+import { revalidateStorefrontAfterTrackingChange } from "../_shared/storefront-revalidation.ts";
 
-// ===== VERSION =====
-const VERSION = "v3.0.0"; // Full cleanup: correct status, prerender trigger, grant guard
-// ===================
+const VERSION = "v3.1.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,18 +10,9 @@ const corsHeaders = {
 };
 
 /**
- * Meta Disconnect — V3
- * 
- * Desconecta a conta Meta de um tenant com limpeza completa:
- * 1. Revoga grant ativo em tenant_meta_auth_grants
- * 2. Best-effort: revoga permissões na API Meta (DELETE /me/permissions)
- * 3. Desativa TODAS as integrações em tenant_meta_integrations (status → "disconnected")
- * 4. Desativa WhatsApp configs vinculados à Meta
- * 5. Limpa Pixel/CAPI de marketing_integrations
- * 6. Dispara re-prerender da loja para remover scripts de tracking do HTML publicado
- * 
- * Body: { tenant_id: string }
- * Contrato: HTTP 200 + { success: true/false }
+ * Meta Disconnect — V3.1
+ *
+ * Desconecta a conta Meta de um tenant com limpeza completa e revalidação imediata da loja.
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -36,11 +26,9 @@ Deno.serve(async (req) => {
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-  // Service role client — for actual operations (bypasses RLS)
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
-    // ── Auth ──
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return jsonResponse({ success: false, error: "Não autorizado", code: "UNAUTHORIZED" });
@@ -60,7 +48,6 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: false, error: "tenant_id obrigatório", code: "MISSING_TENANT" });
     }
 
-    // User-context client — for tenant access check
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -78,9 +65,6 @@ Deno.serve(async (req) => {
 
     const results: Record<string, any> = {};
 
-    // ══════════════════════════════════════════
-    // Step 1: Find and revoke active V4 grant
-    // ══════════════════════════════════════════
     const { data: activeGrant } = await supabase
       .from("tenant_meta_auth_grants")
       .select("id, meta_user_id")
@@ -91,7 +75,6 @@ Deno.serve(async (req) => {
     let remoteRevocationResult = "skipped";
 
     if (activeGrant) {
-      // Best-effort remote revocation BEFORE revoking locally
       try {
         const encryptionKey = Deno.env.get("META_TOKEN_ENCRYPTION_KEY") || supabaseServiceKey;
         const { data: tokenData } = await supabase.rpc("get_meta_grant_token", {
@@ -110,7 +93,6 @@ Deno.serve(async (req) => {
             remoteRevocationResult = revokeData.success ? "success" : `failed: ${JSON.stringify(revokeData)}`;
           } catch (remoteErr) {
             remoteRevocationResult = `error: ${(remoteErr as Error).message}`;
-            // Best-effort: do NOT throw
           }
         }
       } catch (tokenErr) {
@@ -118,7 +100,6 @@ Deno.serve(async (req) => {
       }
       console.log(`[meta-disconnect][${VERSION}][${traceId}] Remote revocation: ${remoteRevocationResult}`);
 
-      // Revoke the grant locally
       const { error: revokeError } = await supabase
         .from("tenant_meta_auth_grants")
         .update({
@@ -139,13 +120,9 @@ Deno.serve(async (req) => {
       console.log(`[meta-disconnect][${VERSION}][${traceId}] No active grant found`);
     }
 
-    // ══════════════════════════════════════════
-    // Step 2: Deactivate ALL tenant_meta_integrations
-    // FIX: Use "disconnected" (check constraint allows: pending, active, disconnected, error)
-    // ══════════════════════════════════════════
     const { data: deactivated, error: integError } = await supabase
       .from("tenant_meta_integrations")
-      .update({ 
+      .update({
         status: "disconnected",
         updated_at: new Date().toISOString(),
       })
@@ -155,15 +132,11 @@ Deno.serve(async (req) => {
 
     if (integError) {
       console.error(`[meta-disconnect][${VERSION}][${traceId}] CRITICAL: Failed to deactivate integrations:`, integError.message);
-      // This is critical — if integrations stay active, the system thinks assets are connected
       results.integrations_error = integError.message;
     }
     results.integrations_deactivated = deactivated?.length || 0;
     console.log(`[meta-disconnect][${VERSION}][${traceId}] Deactivated ${results.integrations_deactivated} integrations`);
 
-    // ══════════════════════════════════════════
-    // Step 3: Deactivate WhatsApp configs linked to Meta
-    // ══════════════════════════════════════════
     const { error: whatsappError } = await supabase
       .from("whatsapp_configs")
       .update({
@@ -180,9 +153,6 @@ Deno.serve(async (req) => {
     }
     results.whatsapp_cleaned = !whatsappError;
 
-    // ══════════════════════════════════════════
-    // Step 4: Clear Meta Pixel/CAPI from marketing_integrations
-    // ══════════════════════════════════════════
     const { error: pixelClearError } = await supabase
       .from("marketing_integrations")
       .update({
@@ -201,32 +171,23 @@ Deno.serve(async (req) => {
     }
     results.pixel_cleared = !pixelClearError;
 
-    // ══════════════════════════════════════════
-    // Step 5: Trigger storefront re-prerender
-    // This ensures the live store HTML no longer contains pixel/tracking scripts
-    // ══════════════════════════════════════════
     try {
-      const prerenderRes = await fetch(`${supabaseUrl}/functions/v1/storefront-prerender`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${supabaseServiceKey}`,
-        },
-        body: JSON.stringify({
-          tenant_id,
-          trigger_type: "meta_disconnect",
-        }),
+      results.storefront_revalidation = await revalidateStorefrontAfterTrackingChange({
+        supabase,
+        supabaseUrl,
+        supabaseServiceKey,
+        tenantId: tenant_id,
+        reason: "meta-disconnect",
       });
-
-      const prerenderStatus = prerenderRes.status;
-      // Consume body to avoid resource leak
-      const prerenderBody = await prerenderRes.text();
-      results.prerender_triggered = prerenderStatus >= 200 && prerenderStatus < 300;
-      console.log(`[meta-disconnect][${VERSION}][${traceId}] Prerender triggered: status=${prerenderStatus}`);
-    } catch (prerenderErr) {
-      results.prerender_triggered = false;
-      console.warn(`[meta-disconnect][${VERSION}][${traceId}] Prerender trigger failed (best-effort):`, (prerenderErr as Error).message);
-      // Best-effort: store is eventually consistent via normal prerender cycles
+    } catch (revalidationErr) {
+      console.warn(`[meta-disconnect][${VERSION}][${traceId}] Storefront revalidation failed:`, (revalidationErr as Error).message);
+      results.storefront_revalidation = {
+        staleCount: 0,
+        cachePurged: false,
+        prerenderTriggered: false,
+        purgeStatus: null,
+        prerenderStatus: null,
+      };
     }
 
     console.log(`[meta-disconnect][${VERSION}][${traceId}] Disconnect complete.`, JSON.stringify(results));
@@ -236,7 +197,6 @@ Deno.serve(async (req) => {
       ...results,
       remote_revocation: remoteRevocationResult,
     });
-
   } catch (error) {
     console.error(`[meta-disconnect][${VERSION}][${traceId}] Error:`, error);
     return errorResponse(error, corsHeaders, { module: "meta-disconnect" });
