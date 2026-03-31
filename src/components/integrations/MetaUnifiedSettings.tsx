@@ -43,8 +43,9 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
-// Import legacy config sections
-import { MetaPixelCapiSection } from "./meta/MetaPixelCapiSection";
+// Import config sections
+import { MetaPixelSection } from "./meta/MetaPixelSection";
+import { MetaConversionsApiSection } from "./meta/MetaConversionsApiSection";
 import { MetaProductFeedsSection } from "./meta/MetaProductFeedsSection";
 import { MetaWhatsAppRegistrationSection } from "./meta/MetaWhatsAppRegistrationSection";
 
