@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.1.0"; // Fix: two-client pattern for proper tenant access validation
+const VERSION = "v2.0.0"; // Lote B: Legacy marketplace_connections removed
 // ===================
 
 const corsHeaders = {
@@ -16,8 +16,7 @@ const corsHeaders = {
  * Desconecta a conta Meta de um tenant:
  * 1. Marca grant ativo como "revoked" em tenant_meta_auth_grants
  * 2. Desativa todas as integrações em tenant_meta_integrations
- * 3. Desativa marketplace_connections (compatibilidade legada)
- * 4. Best-effort: revoga permissões na API Meta (DELETE /me/permissions)
+ * 3. Best-effort: revoga permissões na API Meta (DELETE /me/permissions)
  *    → Falha remota NUNCA bloqueia a desconexão local
  * 
  * Body: { tenant_id: string }
@@ -150,21 +149,7 @@ Deno.serve(async (req) => {
       console.log(`[meta-disconnect][${VERSION}][${traceId}] Deactivated ${deactivated?.length || 0} integrations`);
     }
 
-    // ── Step 3: Deactivate legacy marketplace_connections (compatibility) ──
-    const { error: legacyError } = await supabase
-      .from("marketplace_connections")
-      .update({
-        is_active: false,
-        last_error: "Desconectado pelo usuário (V4)",
-      })
-      .eq("tenant_id", tenant_id)
-      .eq("marketplace", "meta");
-
-    if (legacyError) {
-      console.warn(`[meta-disconnect][${VERSION}][${traceId}] Legacy deactivation failed:`, legacyError);
-    }
-
-    // ── Step 4: Deactivate WhatsApp configs linked to Meta ──
+    // ── Step 3: Deactivate WhatsApp configs linked to Meta ──
     await supabase
       .from("whatsapp_configs")
       .update({

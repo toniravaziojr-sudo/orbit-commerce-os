@@ -30,17 +30,11 @@ Deno.serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    // 1. Find all tenants with active Meta grants (V4) + legacy fallback
+    // 1. Find all tenants with active Meta grants (V4)
     const { data: v4MetaTenants } = await supabase
       .from("tenant_meta_auth_grants")
       .select("tenant_id")
       .eq("status", "active");
-
-    const { data: legacyMetaTenants } = await supabase
-      .from("marketplace_connections")
-      .select("tenant_id")
-      .eq("marketplace", "meta")
-      .eq("is_active", true);
 
     // 2. Find all tenants with active Google Ads connections
     const { data: googleTenants } = await supabase
@@ -55,10 +49,9 @@ Deno.serve(async (req) => {
       .eq("is_active", true)
       .eq("connection_status", "connected");
 
-    // Deduplicate tenant IDs (V4 + legacy combined)
+    // Collect Meta tenant IDs (V4 only)
     const metaIdSet = new Set<string>();
     for (const t of v4MetaTenants || []) metaIdSet.add(t.tenant_id);
-    for (const t of legacyMetaTenants || []) metaIdSet.add(t.tenant_id);
     const metaIds = [...metaIdSet];
     const googleIds = [...new Set((googleTenants || []).map((t) => t.tenant_id))];
     const tiktokIds = [...new Set((tiktokTenants || []).map((t) => t.tenant_id))];

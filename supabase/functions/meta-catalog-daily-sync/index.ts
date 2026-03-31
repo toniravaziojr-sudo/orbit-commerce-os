@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { getMetaConnectionForTenant, getIntegrationAssets } from "../_shared/meta-connection.ts";
 
 // ===== VERSION =====
-const VERSION = "v2.0.0"; // Phase 7: V4-first — iterate grants + legacy fallback for tenant discovery
+const VERSION = "v3.0.0"; // Lote B: Legacy marketplace_connections removed
 // ===================
 
 const corsHeaders = {
@@ -11,11 +11,10 @@ const corsHeaders = {
 };
 
 /**
- * Meta Catalog Daily Sync — V4 + Legacy
+ * Meta Catalog Daily Sync — V4 Only (Lote B)
  * 
  * Executa diariamente via cron.
  * V4: Busca tenants com grants ativos e integração de catálogo ativa
- * Legacy fallback: marketplace_connections para tenants não migrados
  */
 Deno.serve(async (req) => {
   console.log(`[meta-catalog-daily-sync][${VERSION}] Request received`);
@@ -63,33 +62,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── Legacy fallback: marketplace_connections ──
-    let legacyQuery = supabase
-      .from("marketplace_connections")
-      .select("tenant_id, access_token, expires_at, metadata")
-      .eq("marketplace", "meta")
-      .eq("is_active", true);
-
-    if (targetTenantId) {
-      legacyQuery = legacyQuery.eq("tenant_id", targetTenantId);
-    }
-
-    const { data: legacyConnections } = await legacyQuery;
-
-    for (const conn of legacyConnections || []) {
-      if (seenTenants.has(conn.tenant_id)) continue; // Already found via V4
-      
-      const catalogId = (conn.metadata as any)?.meta_catalog_id;
-      if (!catalogId) continue;
-
-      // Skip expired tokens
-      if (conn.expires_at && new Date(conn.expires_at) < new Date()) continue;
-
-      tenantsToSync.push({ tenantId: conn.tenant_id, catalogId, source: "legacy" });
-      seenTenants.add(conn.tenant_id);
-    }
-
-    console.log(`[meta-catalog-daily-sync][${VERSION}] Found ${tenantsToSync.length} tenants to sync (V4: ${tenantsToSync.filter(t => t.source === "v4").length}, Legacy: ${tenantsToSync.filter(t => t.source === "legacy").length})`);
+    console.log(`[meta-catalog-daily-sync][${VERSION}] Found ${tenantsToSync.length} tenants to sync`);
 
     const results: any[] = [];
 

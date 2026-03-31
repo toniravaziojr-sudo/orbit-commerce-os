@@ -107,8 +107,7 @@ Deno.serve(async (req) => {
  * findTenantByIgUserIdV4
  * 
  * Resolves tenant_id + page_id from an Instagram User ID.
- * V4: Searches tenant_meta_integrations.selected_assets first
- * Legacy fallback: marketplace_connections
+ * V4: Searches tenant_meta_integrations.selected_assets
  */
 async function findTenantByIgUserIdV4(
   supabase: any,
@@ -130,23 +129,6 @@ async function findTenantByIgUserIdV4(
       const match = igAccounts.find((ig: any) => ig.id === igUserId);
       if (match) {
         return { tenantId: integ.tenant_id, pageId: match.page_id || "" };
-      }
-    }
-  }
-
-  // Legacy fallback
-  const { data: connections } = await supabase
-    .from("marketplace_connections")
-    .select("tenant_id, metadata")
-    .eq("marketplace", "meta")
-    .eq("is_active", true);
-
-  if (connections) {
-    for (const conn of connections) {
-      const igAccounts = conn.metadata?.assets?.instagram_accounts || [];
-      const match = igAccounts.find((ig: any) => ig.id === igUserId);
-      if (match) {
-        return { tenantId: conn.tenant_id, pageId: match.page_id || "" };
       }
     }
   }

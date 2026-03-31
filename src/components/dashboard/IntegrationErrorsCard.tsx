@@ -46,17 +46,18 @@ export function IntegrationErrorsCard() {
     const found: IntegrationError[] = [];
 
     try {
-      // 1. Meta connection — expired or with error
-      const { data: metaConn } = await supabase
-        .from("marketplace_connections" as any)
-        .select("is_active, expires_at, last_error, external_username")
+      // 1. Meta connection — V4: check grant status
+      const { data: metaGrant } = await supabase
+        .from("tenant_meta_auth_grants")
+        .select("status, token_expires_at, last_error, meta_user_name")
         .eq("tenant_id", tenantId)
-        .eq("marketplace", "meta")
+        .eq("status", "active")
+        .order("granted_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
 
-      if (metaConn) {
-        const m = metaConn as any;
-        const isExpired = m.expires_at ? new Date(m.expires_at) < new Date() : false;
+      if (metaGrant) {
+        const isExpired = metaGrant.token_expires_at ? new Date(metaGrant.token_expires_at) < new Date() : false;
 
         if (isExpired) {
           found.push({
@@ -67,12 +68,12 @@ export function IntegrationErrorsCard() {
             navigateTo: "/integrations?tab=social",
             variant: "destructive",
           });
-        } else if (m.last_error && m.is_active) {
+        } else if (metaGrant.last_error) {
           found.push({
             id: "meta-error",
             icon: Facebook,
             name: "Meta",
-            error: m.last_error.length > 80 ? m.last_error.substring(0, 80) + "..." : m.last_error,
+            error: metaGrant.last_error.length > 80 ? metaGrant.last_error.substring(0, 80) + "..." : metaGrant.last_error,
             navigateTo: "/integrations?tab=social",
             variant: "warning",
           });

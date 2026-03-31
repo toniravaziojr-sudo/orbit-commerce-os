@@ -7,16 +7,15 @@ const corsHeaders = {
 };
 
 // ===== VERSION =====
-const VERSION = "v2.0.0"; // Phase 7: Also revoke V4 grant on deauthorize
+const VERSION = "v3.0.0"; // Lote B: Legacy marketplace_connections removed
 // ===================
 
 /**
- * Meta Deauthorize Callback — V4 + Legacy
+ * Meta Deauthorize Callback — V4 Only (Lote B)
  * 
  * Recebe webhook do Meta quando usuário remove permissões do app.
  * Valida assinatura HMAC e desativa:
  * - V4: grants em tenant_meta_auth_grants + integrações
- * - Legacy: marketplace_connections (compatibilidade)
  */
 Deno.serve(async (req) => {
   const traceId = crypto.randomUUID().substring(0, 8);
@@ -126,46 +125,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── Legacy: Deactivate marketplace_connections ──
-    const { data: connections } = await supabase
-      .from("marketplace_connections")
-      .select("id, tenant_id")
-      .eq("marketplace", "meta")
-      .eq("external_user_id", userId)
-      .eq("is_active", true);
-
-    if (connections && connections.length > 0) {
-      console.log(`[meta-deauthorize-callback][${VERSION}][${traceId}] Deactivating ${connections.length} legacy connection(s)`);
-
-      await supabase
-        .from("marketplace_connections")
-        .update({
-          is_active: false,
-          last_error: "Usuário revogou permissões no Meta",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("marketplace", "meta")
-        .eq("external_user_id", userId);
-
-      // WhatsApp configs for legacy tenants (if not already handled by V4)
-      const v4TenantIds = new Set((grants || []).map(g => g.tenant_id));
-      for (const conn of connections) {
-        if (!v4TenantIds.has(conn.tenant_id)) {
-          await supabase
-            .from("whatsapp_configs")
-            .update({
-              is_enabled: false,
-              connection_status: "disconnected",
-              last_error: "Usuário revogou permissões no Meta",
-              updated_at: new Date().toISOString(),
-            })
-            .eq("tenant_id", conn.tenant_id)
-            .eq("provider", "meta");
-        }
-      }
-    }
-
-    console.log(`[meta-deauthorize-callback][${VERSION}][${traceId}] Deauthorize complete. V4 grants: ${grants?.length || 0}, Legacy: ${connections?.length || 0}`);
+    console.log(`[meta-deauthorize-callback][${VERSION}][${traceId}] Deauthorize complete. V4 grants: ${grants?.length || 0}`);
 
     const confirmationCode = crypto.randomUUID();
     const statusUrl = `https://app.comandocentral.com.br/integrations/meta/deletion-status?code=${confirmationCode}`;

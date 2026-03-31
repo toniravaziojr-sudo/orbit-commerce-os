@@ -9,7 +9,7 @@ const corsHeaders = {
 };
 
 /**
- * Meta OAuth Callback — V4
+ * Meta OAuth Callback — V4 (Lote B: Legacy removed)
  * 
  * Recebe o code do Meta via POST (do frontend), valida state (anti-CSRF), 
  * troca por tokens, cria grant V4 (criptografado) e descobre portfólios.
@@ -17,8 +17,7 @@ const corsHeaders = {
  * V4 Changes:
  * - Cria grant em tenant_meta_auth_grants com tokens criptografados
  * - Chama supersede_meta_grant para substituir grant anterior
- * - Mantém marketplace_connections como COMPATIBILIDADE TEMPORÁRIA
- * 
+ *
  * Contrato:
  * - Erro de negócio = HTTP 200 + { success: false, error, code }
  * - Sucesso = HTTP 200 + { success: true, ... }
@@ -235,72 +234,7 @@ serve(async (req) => {
       console.log(`[meta-oauth-callback] discovered_assets saved in grant ${grantId} (${discovery.businesses.length} portfolios)`);
     }
 
-    // ================================================================
-    // COMPATIBILIDADE TEMPORÁRIA: marketplace_connections
-    // Mantido para não quebrar consumidores legados.
-    // Será removido quando todos consumidores migrarem para V4.
-    // ================================================================
-    
-    // Verificar se já existe conexão com ativos selecionados (reconexão)
-    const { data: existingConnection } = await supabase
-      .from("marketplace_connections")
-      .select("metadata")
-      .eq("tenant_id", tenant_id)
-      .eq("marketplace", "meta")
-      .maybeSingle();
-
-    const existingMeta = existingConnection?.metadata as {
-      scope_packs?: string[];
-      assets?: Record<string, unknown>;
-      pending_asset_selection?: boolean;
-      meta_catalog_id?: string;
-      meta_catalog_created_by_system?: boolean;
-      [key: string]: unknown;
-    } | null;
-
-    const isReconnection = !!(existingMeta && existingMeta.assets && existingMeta.pending_asset_selection !== true);
-    console.log(`[meta-oauth-callback] ${isReconnection ? 'RECONEXÃO' : 'Primeira conexão'} para tenant ${tenant_id}`);
-    
-    // Discovery already done above (saved in grant.discovered_assets)
-
-    // [LEGADO — TEMPORÁRIO] Upsert em marketplace_connections
-    const { error: upsertError } = await supabase
-      .from("marketplace_connections")
-      .upsert({
-        tenant_id: tenant_id,
-        marketplace: "meta",
-        external_user_id: metaUserId,
-        external_username: metaUserName,
-        access_token: accessToken,
-        refresh_token: null,
-        token_type: "Bearer",
-        expires_at: expiresAt,
-        scopes: grantedScopes,
-        is_active: true,
-        last_error: null,
-        metadata: {
-          ...(isReconnection ? {
-            meta_catalog_id: existingMeta?.meta_catalog_id,
-            meta_catalog_created_by_system: existingMeta?.meta_catalog_created_by_system,
-          } : {}),
-          connected_by: user_id,
-          connected_at: new Date().toISOString(),
-          scope_packs: [], // V4: não usa mais scope packs
-          auth_profile_key: profileKey,
-          grant_id: grantId, // Referência cruzada para o grant V4
-          businesses: discovery.businesses,
-          pending_asset_selection: true,
-        },
-      }, {
-        onConflict: "tenant_id,marketplace",
-      });
-
-    if (upsertError) {
-      console.error("[meta-oauth-callback] Erro ao salvar conexão legada:", upsertError);
-      // Não falhar — o grant V4 já foi criado com sucesso
-    }
-
-    console.log(`[meta-oauth-callback] Conexão Meta salva para tenant ${tenant_id} — grant V4: ${grantId}, legado: ${upsertError ? 'ERRO' : 'OK'}`);
+    console.log(`[meta-oauth-callback] Conexão Meta salva para tenant ${tenant_id} — grant V4: ${grantId}`);
 
     return new Response(
       JSON.stringify({

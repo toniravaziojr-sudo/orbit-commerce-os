@@ -3,7 +3,7 @@ import { metaApiErrorResponse } from "../_shared/error-response.ts";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.1.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
+const VERSION = "v2.0.0"; // Lote B: V4 only, legacy removed
 // ===========================================================
 
 const corsHeaders = {
@@ -36,25 +36,18 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get Meta connection
-    const connection = await getMetaConnectionForTenant(supabase, tenantId);
+    // Get Meta connection (V4 only)
+    const metaConn = await getMetaConnectionForTenant(supabase, tenantId);
 
-    if (connError || !connection) {
+    if (!metaConn) {
       return new Response(
         JSON.stringify({ success: false, error: "Meta não conectada", code: "NOT_CONNECTED" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    if (connection.expires_at && new Date(connection.expires_at) < new Date()) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Token Meta expirado", code: "TOKEN_EXPIRED" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const accessToken = connection.access_token;
-    const metadata = connection.metadata as any;
+    const accessToken = metaConn.access_token;
+    const metadata = metaConn.metadata as any;
 
     if (action === "list") {
       // List existing catalogs from the business
@@ -87,13 +80,18 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Update assets in connection
-      if (allCatalogs.length > 0) {
-        const updatedAssets = { ...metadata?.assets, catalogs: allCatalogs };
+      // Update catalog info in V4 integration (if exists)
+      if (allCatalogs.length > 0 && metaConn.grant_id) {
         await supabase
-          .from("marketplace_connections")
-          .update({ metadata: { ...metadata, assets: updatedAssets } })
-          .eq("id", connection.id);
+          .from("tenant_meta_integrations")
+          .upsert({
+            tenant_id: tenantId,
+            integration_id: "catalogo_meta",
+            auth_grant_id: metaConn.grant_id,
+            status: "active",
+            selected_assets: { catalogs: allCatalogs, catalog_id: allCatalogs[0]?.id },
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "tenant_id,integration_id" });
       }
 
       return new Response(
@@ -150,16 +148,28 @@ Deno.serve(async (req) => {
       const newCatalog = { id: createData.id, name };
       console.log(`[meta-catalog-create] Catalog created: ${newCatalog.id}`);
 
-      // Update assets with new catalog
-      const existingCatalogs = metadata?.assets?.catalogs || [];
-      const updatedAssets = {
-        ...metadata?.assets,
-        catalogs: [...existingCatalogs, newCatalog],
-      };
-      await supabase
-        .from("marketplace_connections")
-        .update({ metadata: { ...metadata, assets: updatedAssets } })
-        .eq("id", connection.id);
+      // Update V4 integration with new catalog
+      if (metaConn.grant_id) {
+        const { data: existingInteg } = await supabase
+          .from("tenant_meta_integrations")
+          .select("selected_assets")
+          .eq("tenant_id", tenantId)
+          .eq("integration_id", "catalogo_meta")
+          .maybeSingle();
+
+        const currentAssets = existingInteg?.selected_assets || {};
+        const existingCats = currentAssets.catalogs || [];
+        await supabase
+          .from("tenant_meta_integrations")
+          .upsert({
+            tenant_id: tenantId,
+            integration_id: "catalogo_meta",
+            auth_grant_id: metaConn.grant_id,
+            status: "active",
+            selected_assets: { ...currentAssets, catalogs: [...existingCats, newCatalog], catalog_id: newCatalog.id },
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "tenant_id,integration_id" });
+      }
 
       return new Response(
         JSON.stringify({ success: true, data: { catalog: newCatalog } }),

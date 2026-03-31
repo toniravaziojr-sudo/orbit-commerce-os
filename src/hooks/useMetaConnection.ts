@@ -4,7 +4,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { showErrorToast } from '@/lib/error-toast';
 
-// V4: MetaScopePack mantido apenas para compatibilidade de leitura legada
 export type MetaScopePack = "atendimento" | "publicacao" | "ads" | "leads" | "catalogo" | "whatsapp" | "threads" | "live_video" | "pixel" | "insights";
 
 interface MetaAssets {
@@ -31,7 +30,7 @@ interface MetaConnectionStatus {
     lastError: string | null;
     expiresAt: string;
     authProfile: string;
-    scopePacks: MetaScopePack[]; // Legado — mantido para compatibilidade de UI
+    scopePacks: MetaScopePack[];
     assets: MetaAssets;
   } | null;
 }
@@ -40,7 +39,7 @@ export function useMetaConnection() {
   const { currentTenant, session } = useAuth();
   const queryClient = useQueryClient();
 
-  // Query para status da conexão
+  // V4: Query status from tenant_meta_auth_grants + tenant_meta_integrations
   const statusQuery = useQuery({
     queryKey: ["meta-connection-status", currentTenant?.id],
     queryFn: async (): Promise<MetaConnectionStatus> => {
@@ -48,58 +47,101 @@ export function useMetaConnection() {
         throw new Error("Tenant não selecionado");
       }
 
-      // Buscar conexão do tenant (legado — compatibilidade temporária)
-      const { data: connection, error } = await supabase
-        .from("marketplace_connections")
-        .select("*")
+      // V4: Check active grant
+      const { data: grant, error: grantError } = await supabase
+        .from("tenant_meta_auth_grants")
+        .select("id, status, meta_user_id, meta_user_name, granted_scopes, granted_at, token_expires_at, last_error, last_validated_at, discovered_assets")
         .eq("tenant_id", currentTenant.id)
-        .eq("marketplace", "meta")
+        .eq("status", "active")
+        .order("granted_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
 
-      if (error && error.code !== "PGRST116") {
-        throw error;
+      if (grantError && grantError.code !== "PGRST116") {
+        throw grantError;
       }
 
-      const isExpired = connection?.expires_at 
-        ? new Date(connection.expires_at) < new Date() 
+      if (!grant) {
+        return {
+          platformConfigured: true,
+          isConnected: false,
+          isExpired: false,
+          isPendingAssetSelection: false,
+          connection: null,
+        };
+      }
+
+      const isExpired = grant.token_expires_at
+        ? new Date(grant.token_expires_at) < new Date()
         : false;
 
-      const metadata = connection?.metadata as {
-        connected_by?: string;
-        connected_at?: string;
-        scope_packs?: MetaScopePack[];
-        auth_profile_key?: string;
-        grant_id?: string;
-        assets?: MetaAssets;
-        pending_asset_selection?: boolean;
-      } | null;
+      // Check if asset selection is pending (no integrations active yet)
+      const { data: integrations } = await supabase
+        .from("tenant_meta_integrations")
+        .select("integration_id, selected_assets, status")
+        .eq("tenant_id", currentTenant.id)
+        .eq("auth_grant_id", grant.id)
+        .eq("status", "active");
 
-      const isPendingAssetSelection = metadata?.pending_asset_selection === true;
+      const hasActiveIntegrations = (integrations?.length || 0) > 0;
+
+      // Build assets from discovered_assets + integrations
+      const discovered = grant.discovered_assets as any || {};
+      const businesses = discovered.businesses || [];
+      const allPages: MetaAssets["pages"] = [];
+      const allAdAccounts: MetaAssets["ad_accounts"] = [];
+      const allIgAccounts: MetaAssets["instagram_accounts"] = [];
+      const allWabas: MetaAssets["whatsapp_business_accounts"] = [];
+      const allPixels: MetaAssets["pixels"] = [];
+      const allCatalogs: MetaAssets["catalogs"] = [];
+      let threadsProfile: MetaAssets["threads_profile"] = null;
+
+      for (const biz of businesses) {
+        if (biz.pages) allPages.push(...biz.pages);
+        if (biz.ad_accounts) allAdAccounts.push(...biz.ad_accounts);
+        if (biz.instagram_accounts) allIgAccounts.push(...biz.instagram_accounts);
+        if (biz.whatsapp_business_accounts) allWabas.push(...biz.whatsapp_business_accounts);
+        if (biz.pixels) allPixels.push(...biz.pixels);
+      }
+
+      // Enrich from integrations' selected_assets
+      for (const integ of integrations || []) {
+        const assets = integ.selected_assets as any;
+        if (!assets) continue;
+        if (assets.catalogs) {
+          for (const cat of assets.catalogs) {
+            if (!allCatalogs.some(c => c.id === cat.id)) allCatalogs.push(cat);
+          }
+        }
+        if (assets.threads_profile) threadsProfile = assets.threads_profile;
+      }
+
+      const isPendingAssetSelection = !hasActiveIntegrations && !isExpired;
 
       return {
         platformConfigured: true,
-        isConnected: !!connection && connection.is_active && !isExpired && !isPendingAssetSelection,
+        isConnected: !!grant && !isExpired && hasActiveIntegrations,
         isExpired,
         isPendingAssetSelection,
-        connection: connection ? {
-          externalUserId: connection.external_user_id,
-          externalUsername: connection.external_username || "",
-          connectedAt: metadata?.connected_at || connection.created_at,
-          lastSyncAt: connection.last_sync_at,
-          lastError: connection.last_error,
-          expiresAt: connection.expires_at || "",
-          authProfile: metadata?.auth_profile_key || "meta_auth_external",
-          scopePacks: metadata?.scope_packs || [],
-          assets: metadata?.assets || {
-            pages: [],
-            instagram_accounts: [],
-            whatsapp_business_accounts: [],
-            ad_accounts: [],
-            pixels: [],
-            catalogs: [],
-            threads_profile: null,
+        connection: {
+          externalUserId: grant.meta_user_id || "",
+          externalUsername: grant.meta_user_name || "",
+          connectedAt: grant.granted_at,
+          lastSyncAt: grant.last_validated_at,
+          lastError: grant.last_error,
+          expiresAt: grant.token_expires_at || "",
+          authProfile: "v4_grant",
+          scopePacks: [],
+          assets: {
+            pages: allPages,
+            instagram_accounts: allIgAccounts,
+            whatsapp_business_accounts: allWabas,
+            ad_accounts: allAdAccounts,
+            pixels: allPixels,
+            catalogs: allCatalogs,
+            threads_profile: threadsProfile,
           },
-        } : null,
+        },
       };
     },
     enabled: !!currentTenant?.id,

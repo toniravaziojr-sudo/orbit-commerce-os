@@ -4,7 +4,7 @@ import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.0.0"; // Phase 7: V4-first — refresh grant tokens + legacy fallback
+const VERSION = "v3.0.0"; // Lote B: Legacy marketplace_connections removed
 // ===========================================================
 
 const corsHeaders = {
@@ -13,11 +13,10 @@ const corsHeaders = {
 };
 
 /**
- * Meta Token Refresh — V4 + Legacy
+ * Meta Token Refresh — V4 Only (Lote B)
  * 
  * Renova tokens long-lived da Meta antes da expiração (~60 dias).
  * V4: Renova token no grant (re-criptografa via RPC)
- * Legacy: Mantém renovação em marketplace_connections para tenants não migrados
  * 
  * Modos de operação:
  * 1. POST { tenantId } → Renova token de um tenant específico
@@ -142,9 +141,6 @@ async function refreshTenantToken(
 
       console.log(`[meta-token-refresh][${VERSION}] V4 grant token refreshed for tenant ${tenantId}`);
 
-      // Also sync to legacy for compatibility
-      await syncToLegacy(supabase, tenantId, exchangeResult.accessToken, exchangeResult.expiresAt);
-
       // Sync CAPI token
       await supabase
         .from("marketing_integrations")
@@ -155,59 +151,7 @@ async function refreshTenantToken(
     }
   }
 
-  // ── Legacy fallback ──
-  const { data: conn } = await supabase
-    .from("marketplace_connections")
-    .select("id, access_token, expires_at, metadata, tenant_id")
-    .eq("tenant_id", tenantId)
-    .eq("marketplace", "meta")
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (!conn?.access_token) {
-    return { success: false, error: "Nenhuma conexão Meta encontrada", source: "none" };
-  }
-
-  // Check validity
-  if (conn.expires_at) {
-    const expiresAt = new Date(conn.expires_at);
-    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
-    if (expiresAt.getTime() - Date.now() > sevenDaysMs) {
-      return { success: true, source: "legacy", already_valid: true };
-    }
-  }
-
-  const exchangeResult = await exchangeToken(conn.access_token, appId, appSecret, apiVersion);
-
-  if (!exchangeResult.success) {
-    if (exchangeResult.isExpiredOrRevoked) {
-      await supabase.from("marketplace_connections")
-        .update({ is_active: false, last_error: `Token expirado/revogado: ${exchangeResult.error}` })
-        .eq("id", conn.id);
-    }
-    return { success: false, error: exchangeResult.error, source: "legacy" };
-  }
-
-  await supabase.from("marketplace_connections")
-    .update({
-      access_token: exchangeResult.accessToken,
-      expires_at: exchangeResult.expiresAt,
-      last_error: null,
-      metadata: {
-        ...(conn.metadata || {}),
-        last_token_refresh: new Date().toISOString(),
-        token_refresh_count: ((conn.metadata as any)?.token_refresh_count || 0) + 1,
-      },
-    })
-    .eq("id", conn.id);
-
-  // Sync CAPI
-  await supabase.from("marketing_integrations")
-    .update({ meta_access_token: exchangeResult.accessToken })
-    .eq("tenant_id", tenantId);
-
-  console.log(`[meta-token-refresh][${VERSION}] Legacy token refreshed for tenant ${tenantId}`);
-  return { success: true, source: "legacy" };
+  return { success: false, error: "Nenhum grant V4 ativo encontrado", source: "none" };
 }
 
 async function exchangeToken(
@@ -248,17 +192,7 @@ async function exchangeToken(
   return { success: true, accessToken: tokenData.access_token, expiresAt: newExpiresAt };
 }
 
-async function syncToLegacy(supabase: any, tenantId: string, newToken: string, newExpiresAt: string) {
-  try {
-    await supabase.from("marketplace_connections")
-      .update({ access_token: newToken, expires_at: newExpiresAt, last_error: null })
-      .eq("tenant_id", tenantId)
-      .eq("marketplace", "meta")
-      .eq("is_active", true);
-  } catch (err) {
-    console.warn(`[meta-token-refresh] Legacy sync failed (non-blocking):`, (err as Error).message);
-  }
-}
+
 
 async function refreshAllExpiring(
   supabase: any,
@@ -276,20 +210,11 @@ async function refreshAllExpiring(
     .eq("status", "active")
     .lt("token_expires_at", sevenDaysFromNow);
 
-  // Legacy: Find connections expiring soon
-  const { data: expiringLegacy } = await supabase
-    .from("marketplace_connections")
-    .select("tenant_id")
-    .eq("marketplace", "meta")
-    .eq("is_active", true)
-    .lt("expires_at", sevenDaysFromNow);
-
-  // Deduplicate tenant IDs
+  // Collect tenant IDs from V4 grants
   const allTenantIds = new Set<string>();
   for (const g of expiringGrants || []) allTenantIds.add(g.tenant_id);
-  for (const c of expiringLegacy || []) allTenantIds.add(c.tenant_id);
 
-  console.log(`[meta-token-refresh][${VERSION}] Batch: ${allTenantIds.size} tenants to refresh (${expiringGrants?.length || 0} V4, ${expiringLegacy?.length || 0} legacy)`);
+  console.log(`[meta-token-refresh][${VERSION}] Batch: ${allTenantIds.size} tenants to refresh`);
 
   const results = { refreshed: 0, failed: 0, skipped: 0, errors: [] as string[] };
 
