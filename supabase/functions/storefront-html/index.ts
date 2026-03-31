@@ -2080,6 +2080,18 @@ serve(async (req) => {
     const newsletterPopup = baseResults.newsletterPopup;
     const freeShippingRulesData = baseResults.freeShippingRules || [];
 
+    // ── Meta Grant Guard ──
+    // If no active Meta grant exists, forcefully disable Meta pixel/CAPI
+    // regardless of what marketing_integrations says.
+    // This prevents orphaned pixel scripts from rendering after a Meta disconnect.
+    if (marketingConfig && !metaGrantActive) {
+      marketingConfig = {
+        ...marketingConfig,
+        meta_enabled: false,
+        meta_pixel_id: null,
+      };
+    }
+
     // Derive benefit config for edge cart drawer
     const benefitConfig = storeSettings?.benefit_config || null;
     let benefitThreshold = 0;
