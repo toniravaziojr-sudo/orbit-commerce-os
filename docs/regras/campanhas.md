@@ -1,7 +1,7 @@
 # Campanhas (Criador de Campanhas) — Regras e Especificações
 
 > **Status:** 🟩 Atualizado  
-> **Última atualização:** 2026-02-13
+> **Última atualização:** 2026-03-31
 
 ---
 
