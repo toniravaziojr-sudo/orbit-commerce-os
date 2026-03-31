@@ -221,6 +221,20 @@ serve(async (req) => {
       console.log(`[meta-oauth-callback] ${supersededCount} grant(s) anterior(es) superseded`);
     }
 
+    // 4. Phase 6: Save discovered_assets in the grant (raw discovery from OAuth)
+    const discovery = await discoverBusinessPortfolios(accessToken, grantedScopes, graphVersion);
+
+    const { error: discoveryError } = await supabase
+      .from("tenant_meta_auth_grants")
+      .update({ discovered_assets: { businesses: discovery.businesses } })
+      .eq("id", grantId);
+
+    if (discoveryError) {
+      console.warn("[meta-oauth-callback] Erro ao salvar discovered_assets no grant:", discoveryError.message);
+    } else {
+      console.log(`[meta-oauth-callback] discovered_assets saved in grant ${grantId} (${discovery.businesses.length} portfolios)`);
+    }
+
     // ================================================================
     // COMPATIBILIDADE TEMPORÁRIA: marketplace_connections
     // Mantido para não quebrar consumidores legados.
