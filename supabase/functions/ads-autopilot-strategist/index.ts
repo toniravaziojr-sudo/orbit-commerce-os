@@ -2204,7 +2204,7 @@ async function executeToolCall(
           subtype: "LOOKALIKE",
           origin_audience_id: args.source_audience_id,
           lookalike_spec: JSON.stringify({ type: "similarity", ratio: safeRatio, country: safeCountry }),
-          access_token: metaConn.data.access_token,
+          access_token: metaConn.access_token,
         }),
       });
       const lalResult = await lalRes.json();
