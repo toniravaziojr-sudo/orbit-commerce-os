@@ -2507,13 +2507,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                         selectedAssetId = aiAsset.id;
 
                         try {
-                          const { data: metaConnForCreative } = await supabase
-                            .from("marketplace_connections")
-                            .select("access_token, metadata")
-                            .eq("tenant_id", tenant_id)
-                            .eq("marketplace", "meta")
-                            .eq("is_active", true)
-                            .maybeSingle();
+                          const metaConnForCreative = await getMetaConnectionForTenant(supabase, tenant_id);
 
                           if (metaConnForCreative?.access_token) {
                             const accountIdClean = acctConfig.ad_account_id.replace("act_", "");
