@@ -652,7 +652,7 @@ export default function MetaOAuthCallback() {
 
             <div className="flex gap-3 pt-2">
               <Button onClick={handleConfirmSelection} className="flex-1">
-                Confirmar e ativar integrações
+                {flowMode === "flb_review" ? "Confirmar e concluir" : "Confirmar e ativar integrações"}
               </Button>
               <Button variant="outline" onClick={handleClose}>
                 Cancelar
