@@ -192,17 +192,7 @@ async function exchangeToken(
   return { success: true, accessToken: tokenData.access_token, expiresAt: newExpiresAt };
 }
 
-async function syncToLegacy(supabase: any, tenantId: string, newToken: string, newExpiresAt: string) {
-  try {
-    await supabase.from("marketplace_connections")
-      .update({ access_token: newToken, expires_at: newExpiresAt, last_error: null })
-      .eq("tenant_id", tenantId)
-      .eq("marketplace", "meta")
-      .eq("is_active", true);
-  } catch (err) {
-    console.warn(`[meta-token-refresh] Legacy sync failed (non-blocking):`, (err as Error).message);
-  }
-}
+
 
 async function refreshAllExpiring(
   supabase: any,
