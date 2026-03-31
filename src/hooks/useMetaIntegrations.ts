@@ -168,7 +168,7 @@ export function useMetaIntegrations() {
         selectedAssets,
       };
     });
-  }, [dbIntegrations, grant, canAccess, isUnlimited]);
+  }, [dbIntegrations, grant, canAccess, bypassScopeValidation]);
 
   // Toggle mutation (activate/deactivate)
   const toggleMutation = useMutation({
