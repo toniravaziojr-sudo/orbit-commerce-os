@@ -1,7 +1,10 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+// NOTE: meta-catalog-daily-sync is a batch job iterating ALL tenants.
+// It still reads from marketplace_connections directly for the multi-tenant query.
+// Will be migrated to iterate tenant_meta_auth_grants in a future phase.
 
 // ===== VERSION =====
-const VERSION = "v1.0.0"; // Daily auto-sync of all tenants' catalogs
+const VERSION = "v1.1.0"; // Phase 5: Documented as pending batch migration
 // ===================
 
 const corsHeaders = {

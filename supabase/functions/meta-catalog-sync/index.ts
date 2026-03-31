@@ -1,7 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 // ===== VERSION =====
-const VERSION = "v6.0.0"; // Added: meta_retailer_id support (external ID per channel), tombstone check, delete old poisoned IDs
+const VERSION = "v6.1.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
 // ===================
 
 const corsHeaders = {
