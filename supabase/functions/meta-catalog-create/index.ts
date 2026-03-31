@@ -148,16 +148,28 @@ Deno.serve(async (req) => {
       const newCatalog = { id: createData.id, name };
       console.log(`[meta-catalog-create] Catalog created: ${newCatalog.id}`);
 
-      // Update assets with new catalog
-      const existingCatalogs = metadata?.assets?.catalogs || [];
-      const updatedAssets = {
-        ...metadata?.assets,
-        catalogs: [...existingCatalogs, newCatalog],
-      };
-      await supabase
-        .from("marketplace_connections")
-        .update({ metadata: { ...metadata, assets: updatedAssets } })
-        .eq("id", connection.id);
+      // Update V4 integration with new catalog
+      if (metaConn.grant_id) {
+        const { data: existingInteg } = await supabase
+          .from("tenant_meta_integrations")
+          .select("selected_assets")
+          .eq("tenant_id", tenantId)
+          .eq("integration_id", "catalogo_meta")
+          .maybeSingle();
+
+        const currentAssets = existingInteg?.selected_assets || {};
+        const existingCats = currentAssets.catalogs || [];
+        await supabase
+          .from("tenant_meta_integrations")
+          .upsert({
+            tenant_id: tenantId,
+            integration_id: "catalogo_meta",
+            auth_grant_id: metaConn.grant_id,
+            status: "active",
+            selected_assets: { ...currentAssets, catalogs: [...existingCats, newCatalog], catalog_id: newCatalog.id },
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "tenant_id,integration_id" });
+      }
 
       return new Response(
         JSON.stringify({ success: true, data: { catalog: newCatalog } }),
