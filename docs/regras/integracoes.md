@@ -2933,7 +2933,7 @@ Cada integração define: `requiredScopes` (escopos Meta necessários), `feature
 > **⚠️ DÍVIDA TÉCNICA:** A RPC `user_has_tenant_access` aceita `_user_id` como parâmetro mas usa `auth.uid()` internamente, ignorando o parâmetro. Deve ser alinhada para evitar ambiguidade.
 
 **Hook criado:**
-- `useMetaIntegrations` — lê estado de `tenant_meta_integrations`, computa 3 camadas de estado (auth capability, plano, operacional), fornece `toggle()` para ativar/desativar.
+- `useMetaIntegrations` — lê estado de `tenant_meta_integrations`, computa 3 camadas de estado (auth capability, plano, operacional), fornece `toggle()` para ativar/desativar. **IMPORTANTE:** o `useMemo` que calcula os estados DEVE incluir `isUnlimited` no array de dependências para que tenants especiais tenham toggles desbloqueados imediatamente.
 
 **UI refatorada:**
 - `MetaUnifiedSettings.tsx` — reescrito: card de conexão (compacto) + cards por grupo com toggles individuais
