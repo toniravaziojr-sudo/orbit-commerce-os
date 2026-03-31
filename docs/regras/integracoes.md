@@ -2990,6 +2990,39 @@ Cada integração define: `requiredScopes` (escopos Meta necessários), `feature
 - Feature keys estão todas como `null` (sem restrição de plano) — adicionar conforme regras de billing forem definidas
 - `metaPackAvailability.ts` continua existindo para compatibilidade, mas não é mais usado pela UI principal
 
+### Fase 4.2 — Eliminação da Seleção de Ativos no Callback (✅ Concluída)
+
+**Objetivo:** Remover completamente o fluxo de seleção de portfólio/ativos que era exibido após o retorno do OAuth da Meta. A seleção de ativos operacionais agora ocorre exclusivamente nos toggles individuais.
+
+**Mudança de comportamento:**
+- **ANTES:** OAuth Meta → telas nativas da Meta (permissões) → callback do sistema → seleção de portfólio → seleção de ativos → salvar via `meta-save-selected-assets` → redirecionar
+- **DEPOIS:** OAuth Meta → telas nativas da Meta (permissões) → callback do sistema → `discovered_assets` salvos automaticamente pelo backend → redirecionar direto para `/integrations`
+
+**O que é da Meta (não controlamos):**
+- Telas de consentimento de permissões (páginas, Instagram, WhatsApp, empresas) são nativas do Facebook e sempre aparecem quando escopos correspondentes são solicitados
+- Não é possível pré-selecionar "aceitar todos" por código
+
+**O que foi removido (nosso):**
+- Etapa "Selecione o Portfólio Empresarial" no callback
+- Etapa "Confirme seus ativos" / "Conta conectada!" no callback
+- Fluxo `resume=1` para retomar seleção pendente
+- Conceito `isPendingAssetSelection` no hook e na UI
+- Chamada a `meta-save-selected-assets` no callback
+- Componente `AssetGroup` auxiliar
+- Estados `select_portfolio`, `select_assets`, `saving` no callback
+
+**Arquivos alterados:**
+| Arquivo | Ação |
+|---------|------|
+| `src/pages/MetaOAuthCallback.tsx` | Reescrito — de ~746 linhas para ~120 linhas (apenas loading/success/error) |
+| `src/hooks/useMetaConnection.ts` | Removido `isPendingAssetSelection`, removido fluxo `resume=1`, `isConnected` agora = grant existe + não expirado (independente de ter toggles ativos) |
+| `src/components/integrations/MetaUnifiedSettings.tsx` | Removido alerta e botão de "Escolher ativos" pendentes |
+
+**Nova definição de `isConnected`:**
+- Grant V4 ativo + token não expirado = conectado
+- Não depende mais de ter integrações/toggles ativos
+- Toggles são ativados separadamente após a conexão
+
 ### Fase 5 — Migração dos Consumidores para Helper Centralizado (✅ Concluída)
 
 **Objetivo:** Padronizar todos os consumidores de tokens Meta para usar um helper centralizado (`getMetaConnectionForTenant`) que prioriza o modelo V4 (`tenant_meta_auth_grants`) com fallback automático para `marketplace_connections`.
