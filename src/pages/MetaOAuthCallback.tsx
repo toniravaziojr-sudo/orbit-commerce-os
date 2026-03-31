@@ -316,14 +316,22 @@ export default function MetaOAuthCallback() {
         return;
       }
 
-      if (data.requiresAssetSelection && data.connection?.businesses) {
+      // Fluxo FLB (config_id presente): Facebook já fez a seleção de ativos
+      // → auto-salvar o primeiro portfólio com seus ativos e ir direto para sucesso
+      if (!data.requiresAssetSelection) {
+        console.log("[MetaOAuthCallback] FLB flow — auto-saving discovered assets");
+        await autoSaveDiscoveredAssets(data.connection?.businesses || []);
+        return;
+      }
+
+      // Fluxo sem config_id: precisa seleção interna
+      if (data.connection?.businesses) {
         const bizList = data.connection.businesses as BusinessPortfolio[];
         setBusinesses(bizList);
         setThreadsProfile(data.connection.threads_profile || null);
         setActiveScopePacks(data.connection.scopePacks || []);
         setConnectionData(data.connection);
 
-        // Se só tem 1 portfólio, pular direto para seleção de ativos
         if (bizList.length === 1) {
           handleSelectPortfolio(bizList[0].id);
         } else {
@@ -339,6 +347,69 @@ export default function MetaOAuthCallback() {
       setStep("error");
       setErrorMessage("Erro inesperado. Tente novamente.");
       notifyParentAndClose(false, "Erro inesperado.");
+    }
+  }
+
+  /**
+   * Auto-save para fluxo FLB: persiste o primeiro portfólio e seus ativos
+   * sem mostrar tela de seleção (Facebook já fez a seleção).
+   */
+  async function autoSaveDiscoveredAssets(businesses: BusinessPortfolio[]) {
+    setStep("saving");
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Não autenticado");
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("current_tenant_id")
+        .eq("id", user.id)
+        .single();
+
+      if (!profile?.current_tenant_id) throw new Error("Tenant não encontrado");
+
+      // Usar o primeiro portfólio (FLB retorna apenas o que o usuário selecionou)
+      const portfolio = businesses[0];
+      if (!portfolio) throw new Error("Nenhum ativo descoberto");
+
+      const firstWaba = portfolio.whatsapp_business_accounts?.[0];
+      const firstPhone = firstWaba?.phone_numbers?.[0];
+
+      const selectedAssets: SelectedAssets = {
+        business_id: portfolio.id,
+        business_name: portfolio.name,
+        pages: portfolio.pages.length > 0 ? [portfolio.pages[0]] : [],
+        instagram_accounts: portfolio.instagram_accounts.length > 0 ? [portfolio.instagram_accounts[0]] : [],
+        whatsapp_business_accounts: firstWaba ? [{ id: firstWaba.id, name: firstWaba.name }] : [],
+        ad_accounts: [...(portfolio.ad_accounts || [])],
+        pixels: portfolio.pixels?.length > 0 ? [portfolio.pixels[0]] : [],
+        catalogs: [],
+        threads_profile: null,
+        selected_phone_number: firstPhone && firstWaba ? {
+          id: firstPhone.id,
+          display_phone_number: firstPhone.display_phone_number,
+          verified_name: firstPhone.verified_name,
+          waba_id: firstWaba.id,
+        } : null,
+      };
+
+      const { data, error } = await supabase.functions.invoke("meta-save-selected-assets", {
+        body: {
+          tenantId: profile.current_tenant_id,
+          selectedAssets,
+        },
+      });
+
+      if (error || !data?.success) {
+        throw new Error(data?.error || "Erro ao salvar seleção");
+      }
+
+      setStep("success");
+      notifyParentAndClose(true);
+    } catch (err: any) {
+      setStep("error");
+      setErrorMessage(err.message || "Erro ao salvar ativos");
+      notifyParentAndClose(false, err.message);
     }
   }
 
