@@ -165,31 +165,27 @@ export function useMetaConnection() {
     onError: (error) => showErrorToast(error, { module: 'meta', action: 'conectar' }),
   });
 
-  // Mutation para desconectar
+  // V4 Mutation para desconectar via edge function
   const disconnectMutation = useMutation({
     mutationFn: async () => {
       if (!currentTenant?.id) {
         throw new Error("Tenant não selecionado");
       }
 
-      // Desativar na tabela legada
-      const { error } = await supabase
-        .from("marketplace_connections")
-        .update({ is_active: false })
-        .eq("tenant_id", currentTenant.id)
-        .eq("marketplace", "meta");
+      const { data, error } = await supabase.functions.invoke("meta-disconnect", {
+        body: { tenant_id: currentTenant.id },
+      });
 
-      if (error) {
-        throw error;
-      }
-
-      // TODO V4: Também revogar grant ativo em tenant_meta_auth_grants
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Erro ao desconectar");
+      return data;
     },
     onSuccess: () => {
       toast.success("Conta Meta desconectada");
       queryClient.invalidateQueries({ queryKey: ["meta-connection-status"] });
+      queryClient.invalidateQueries({ queryKey: ["meta-integrations"] });
     },
-    onError: (error) => showErrorToast(error, { module: 'meta', action: 'conectar' }),
+    onError: (error) => showErrorToast(error, { module: 'meta', action: 'desconectar' }),
   });
 
   return {
