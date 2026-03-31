@@ -67,10 +67,7 @@ serve(async (req) => {
       return jsonResponse({ success: false, error: "Meta não conectado. Conecte sua conta em Integrações." });
     }
 
-    // Check token expiry
-    if (metaConn.expires_at && new Date(metaConn.expires_at) < new Date()) {
-      return jsonResponse({ success: false, error: "Token Meta expirado. Reconecte em Integrações." });
-    }
+    // Token expiry is handled by the helper (V4 checks grant status, legacy checks expires_at)
 
     // Check scope packs
     const scopePacks = (metaConn.metadata as any)?.scope_packs || [];
