@@ -489,7 +489,10 @@ export default function MetaOAuthCallback() {
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                Selecione <strong>1 ativo de cada tipo</strong>. Um catálogo será criado automaticamente na Meta com os produtos da sua loja.
+                {flowMode === "flb_review"
+                  ? <>Revise e confirme os ativos pré-selecionados. Ajuste se necessário antes de concluir.</>
+                  : <>Selecione <strong>1 ativo de cada tipo</strong>. Um catálogo será criado automaticamente na Meta com os produtos da sua loja.</>
+                }
               </AlertDescription>
             </Alert>
 
