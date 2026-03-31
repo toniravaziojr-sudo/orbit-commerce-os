@@ -482,8 +482,10 @@ function IntegrationConfigSection({ configKey }: { configKey: string }) {
   switch (configKey) {
     case "whatsapp_registration":
       return <MetaWhatsAppRegistrationSection />;
-    case "pixel_capi":
-      return <MetaPixelCapiSection />;
+    case "pixel_facebook":
+      return <MetaPixelSection />;
+    case "conversions_api":
+      return <MetaConversionsApiSection />;
     case "product_feeds":
       return <MetaProductFeedsSection />;
     default:
