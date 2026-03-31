@@ -2819,7 +2819,13 @@ Cada toggle ativo = 1 registro em `tenant_meta_integrations`. Disponibilidade de
 
 O Pixel Facebook é **vinculado à conexão Meta**:
 - **Conexão:** O Pixel ID é salvo em `marketing_integrations.meta_pixel_id` quando configurado via toggle.
-- **Desconexão:** Ao desconectar a conta Meta (`meta-disconnect`), o sistema limpa automaticamente o `meta_pixel_id`, desativa `meta_enabled` e `meta_capi_enabled`, e remove pixels adicionais. Isso garante que não existam pixels órfãos na loja.
+- **Desconexão (v3.0.0):** Ao desconectar a conta Meta (`meta-disconnect`), o sistema executa limpeza completa e robusta:
+  1. Revoga grant ativo em `tenant_meta_auth_grants`
+  2. Marca TODAS as integrações como `disconnected` em `tenant_meta_integrations` (bug fix: era `inactive` que violava check constraint)
+  3. Desativa WhatsApp configs vinculados à Meta
+  4. Limpa `meta_pixel_id`, `meta_enabled`, `meta_capi_enabled` e `meta_additional_pixel_ids` em `marketing_integrations`
+  5. **Dispara re-prerender automático** da loja para remover scripts de tracking do HTML publicado
+- **Guard de Integridade (storefront-html):** O renderizador HTML verifica se existe um `tenant_meta_auth_grants` ativo antes de injetar qualquer script Meta. Sem grant ativo → zero scripts Meta no HTML, independentemente do estado de `marketing_integrations`.
 - **Reconexão:** Ao reconectar com outra conta/pixel, o novo ID substitui o anterior automaticamente.
 
 ### Popup OAuth
