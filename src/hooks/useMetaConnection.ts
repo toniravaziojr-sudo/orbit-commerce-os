@@ -39,6 +39,63 @@ export function useMetaConnection() {
   const { currentTenant, session } = useAuth();
   const queryClient = useQueryClient();
 
+  const openPopupFlow = (url: string, markOauthInProgress = true) => {
+    if (markOauthInProgress) {
+      sessionStorage.setItem('oauth_in_progress', 'true');
+    }
+
+    const width = Math.max(720, Math.min(860, window.screen.availWidth - 32));
+    const height = Math.max(900, Math.min(1100, window.screen.availHeight - 24));
+    const left = Math.max(0, window.screenX + (window.outerWidth - width) / 2);
+    const top = Math.max(0, window.screenY + (window.outerHeight - height) / 2);
+
+    const popup = window.open(
+      url,
+      "meta_oauth",
+      `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes,resizable=yes`
+    );
+
+    popup?.focus();
+
+    const enforcePopupSize = () => {
+      if (!popup || popup.closed) return;
+      try {
+        popup.resizeTo(width, height);
+        popup.moveTo(left, top);
+        popup.focus();
+      } catch {
+        // Alguns navegadores/OS ignoram resize programático.
+      }
+    };
+
+    setTimeout(enforcePopupSize, 250);
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "meta:connected") {
+        window.removeEventListener("message", handleMessage);
+        queryClient.invalidateQueries({ queryKey: ["meta-connection-status"] });
+        queryClient.invalidateQueries({ queryKey: ["meta-integrations"] });
+
+        if (event.data.success) {
+          toast.success("Conta Meta conectada com sucesso!");
+        } else if (event.data.error) {
+          showErrorToast(new Error(event.data.error || 'Falha ao conectar Meta'), { module: 'meta', action: 'processar' });
+        }
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+
+    const checkPopup = setInterval(() => {
+      if (popup?.closed) {
+        clearInterval(checkPopup);
+        window.removeEventListener("message", handleMessage);
+        queryClient.invalidateQueries({ queryKey: ["meta-connection-status"] });
+        queryClient.invalidateQueries({ queryKey: ["meta-integrations"] });
+      }
+    }, 500);
+  };
+
   // V4: Query status from tenant_meta_auth_grants + tenant_meta_integrations
   const statusQuery = useQuery({
     queryKey: ["meta-connection-status", currentTenant?.id],
@@ -151,8 +208,19 @@ export function useMetaConnection() {
   // V4: Mutation para iniciar OAuth — sem scope packs
   const connectMutation = useMutation({
     mutationFn: async () => {
-      if (!currentTenant?.id || !session?.access_token) {
+      if (!currentTenant?.id) {
         throw new Error("Tenant não selecionado");
+      }
+
+      if (statusQuery.data?.isPendingAssetSelection) {
+        return {
+          authUrl: `${window.location.origin}/integrations/meta/callback?resume=1&tenantId=${currentTenant.id}`,
+          isResume: true,
+        };
+      }
+
+      if (!session?.access_token) {
+        throw new Error("Sessão inválida");
       }
 
       const { data, error } = await supabase.functions.invoke("meta-oauth-start", {
@@ -166,58 +234,13 @@ export function useMetaConnection() {
         throw new Error(data?.error || error?.message || "Erro ao iniciar conexão");
       }
 
-      return data;
+      return {
+        ...data,
+        isResume: false,
+      };
     },
     onSuccess: (data) => {
-      sessionStorage.setItem('oauth_in_progress', 'true');
-      
-      const width = Math.max(720, Math.min(860, window.screen.availWidth - 32));
-      const height = Math.max(900, Math.min(1100, window.screen.availHeight - 24));
-      const left = Math.max(0, window.screenX + (window.outerWidth - width) / 2);
-      const top = Math.max(0, window.screenY + (window.outerHeight - height) / 2);
-      
-      const popup = window.open(
-        data.authUrl,
-        "meta_oauth",
-        `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes,resizable=yes`
-      );
-
-      popup?.focus();
-
-      const enforcePopupSize = () => {
-        if (!popup || popup.closed) return;
-        try {
-          popup.resizeTo(width, height);
-          popup.moveTo(left, top);
-          popup.focus();
-        } catch {
-          // Alguns navegadores/OS ignoram resize programático.
-        }
-      };
-
-      setTimeout(enforcePopupSize, 250);
-
-      const handleMessage = (event: MessageEvent) => {
-        if (event.data?.type === "meta:connected") {
-          window.removeEventListener("message", handleMessage);
-          queryClient.invalidateQueries({ queryKey: ["meta-connection-status"] });
-          
-          if (event.data.success) {
-            toast.success("Conta Meta conectada com sucesso!");
-          } else if (event.data.error) {
-            showErrorToast(new Error(event.data.error || 'Falha ao conectar Meta'), { module: 'meta', action: 'processar' });
-          }
-        }
-      };
-      window.addEventListener("message", handleMessage);
-
-      const checkPopup = setInterval(() => {
-        if (popup?.closed) {
-          clearInterval(checkPopup);
-          window.removeEventListener("message", handleMessage);
-          queryClient.invalidateQueries({ queryKey: ["meta-connection-status"] });
-        }
-      }, 500);
+      openPopupFlow(data.authUrl, !data.isResume);
     },
     onError: (error) => showErrorToast(error, { module: 'meta', action: 'conectar' }),
   });

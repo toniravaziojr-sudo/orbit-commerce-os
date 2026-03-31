@@ -84,6 +84,7 @@ export function MetaUnifiedSettings() {
   const { 
     isConnected, 
     isExpired,
+    isPendingAssetSelection,
     connection,
     isLoading: connectionLoading, 
     connect, 
@@ -97,6 +98,7 @@ export function MetaUnifiedSettings() {
     integrationStates,
     grant,
     isLoading: integrationsLoading,
+    refetch: refetchIntegrations,
     toggle,
     isToggling,
     togglingId,
@@ -113,13 +115,14 @@ export function MetaUnifiedSettings() {
     if (metaConnected === "true" || whatsappConnected === "true") {
       import("sonner").then(({ toast }) => toast.success("Conta Meta conectada com sucesso!"));
       refetchConnection();
+      refetchIntegrations();
       window.history.replaceState({}, "", window.location.pathname);
     } else if (metaError || whatsappError) {
       const error = metaError || whatsappError;
       import("sonner").then(({ toast }) => toast.error(`Erro ao conectar: ${decodeURIComponent(error!)}`));
       window.history.replaceState({}, "", window.location.pathname);
     }
-  }, [refetchConnection]);
+  }, [refetchConnection, refetchIntegrations]);
 
   const isLoading = connectionLoading || integrationsLoading;
 
@@ -236,6 +239,15 @@ export function MetaUnifiedSettings() {
             </>
           ) : (
             <>
+              {isPendingAssetSelection && (
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    Sua conta já foi autorizada. Falta apenas escolher os ativos que deseja usar para concluir a conexão.
+                  </AlertDescription>
+                </Alert>
+              )}
+
               {isExpired && (
                 <Alert>
                   <AlertTriangle className="h-4 w-4" />
@@ -252,11 +264,13 @@ export function MetaUnifiedSettings() {
 
               <Button onClick={() => connect()} disabled={isConnecting} className="gap-2">
                 {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
-                Conectar Meta
+                {isPendingAssetSelection ? "Escolher ativos" : "Conectar Meta"}
               </Button>
 
               <p className="text-xs text-muted-foreground">
-                Você será redirecionado para o Facebook para autorizar o acesso.
+                {isPendingAssetSelection
+                  ? "Você continuará da etapa pendente de seleção de ativos."
+                  : "Você será redirecionado para o Facebook para autorizar o acesso."}
               </p>
             </>
           )}
