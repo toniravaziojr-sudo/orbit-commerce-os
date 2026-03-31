@@ -210,20 +210,11 @@ async function refreshAllExpiring(
     .eq("status", "active")
     .lt("token_expires_at", sevenDaysFromNow);
 
-  // Legacy: Find connections expiring soon
-  const { data: expiringLegacy } = await supabase
-    .from("marketplace_connections")
-    .select("tenant_id")
-    .eq("marketplace", "meta")
-    .eq("is_active", true)
-    .lt("expires_at", sevenDaysFromNow);
-
-  // Deduplicate tenant IDs
+  // Collect tenant IDs from V4 grants
   const allTenantIds = new Set<string>();
   for (const g of expiringGrants || []) allTenantIds.add(g.tenant_id);
-  for (const c of expiringLegacy || []) allTenantIds.add(c.tenant_id);
 
-  console.log(`[meta-token-refresh][${VERSION}] Batch: ${allTenantIds.size} tenants to refresh (${expiringGrants?.length || 0} V4, ${expiringLegacy?.length || 0} legacy)`);
+  console.log(`[meta-token-refresh][${VERSION}] Batch: ${allTenantIds.size} tenants to refresh`);
 
   const results = { refreshed: 0, failed: 0, skipped: 0, errors: [] as string[] };
 

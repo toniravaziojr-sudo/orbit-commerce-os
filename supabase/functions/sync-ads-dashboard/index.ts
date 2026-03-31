@@ -55,10 +55,9 @@ Deno.serve(async (req) => {
       .eq("is_active", true)
       .eq("connection_status", "connected");
 
-    // Deduplicate tenant IDs (V4 + legacy combined)
+    // Collect Meta tenant IDs (V4 only)
     const metaIdSet = new Set<string>();
     for (const t of v4MetaTenants || []) metaIdSet.add(t.tenant_id);
-    for (const t of legacyMetaTenants || []) metaIdSet.add(t.tenant_id);
     const metaIds = [...metaIdSet];
     const googleIds = [...new Set((googleTenants || []).map((t) => t.tenant_id))];
     const tiktokIds = [...new Set((tiktokTenants || []).map((t) => t.tenant_id))];

@@ -86,40 +86,7 @@ serve(async (req) => {
     }
     const oauthAccessToken = metaConn.access_token;
 
-    // Also get legacy metadata for catalog_id preservation
-    const { data: legacyConnection } = await supabase
-      .from("marketplace_connections")
-      .select("metadata")
-      .eq("tenant_id", tenantId)
-      .eq("marketplace", "meta")
-      .maybeSingle();
-
-    const metadata = (legacyConnection?.metadata || {}) as Record<string, unknown>;
-
-    // Atualizar metadata com ativos selecionados e remover flag de pendência
-    const updatedMetadata = {
-      ...metadata,
-      assets: selectedAssets,
-      pending_asset_selection: false,
-      asset_selection_completed_at: new Date().toISOString(),
-      asset_selection_by: user.id,
-    };
-
-    const { error: updateError } = await supabase
-      .from("marketplace_connections")
-      .update({ metadata: updatedMetadata })
-      .eq("tenant_id", tenantId)
-      .eq("marketplace", "meta");
-
-    if (updateError) {
-      console.error("[meta-save-selected-assets] Erro ao atualizar:", updateError);
-      return new Response(
-        JSON.stringify({ success: false, error: "Erro ao salvar seleção" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // ========== Phase 6: Save selected_assets in tenant_meta_integrations (V4) ==========
+    // ========== V4: Save selected_assets in tenant_meta_integrations ==========
 
     // Get active grant for this tenant to link integrations
     const { data: activeGrant } = await supabase
