@@ -3311,3 +3311,15 @@ Ao ativar um toggle de integração Meta, o sistema agora exibe um seletor inlin
 // ad_account
 { "ad_account": { "id": "...", "name": "..." }, "business": { "id": "...", "name": "..." } }
 ```
+
+### Regra de Bypass de Escopos (v4.4.1)
+
+> **Adicionado:** 2026-03-31
+
+Tenants do tipo `platform` E tenants `isUnlimited` (plan=unlimited ou is_special=true) ignoram as validações de:
+- Camada 0 (aprovação pública de escopos Meta)
+- Camada 1 (escopos no grant)
+
+Isso garante que admin e parceiros especiais possam ativar TODAS as funcionalidades, independente do status de aprovação pública dos escopos na Meta.
+
+Implementação: `useMetaIntegrations.ts` usa `bypassScopeValidation = isUnlimited || isPlatform`.

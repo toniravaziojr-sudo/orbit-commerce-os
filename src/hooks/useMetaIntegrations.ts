@@ -56,7 +56,9 @@ export interface DiscoveredAssets {
 
 export function useMetaIntegrations() {
   const { currentTenant } = useAuth();
-  const { canAccess, isUnlimited } = useTenantAccess();
+  const { canAccess, isUnlimited, isPlatform } = useTenantAccess();
+  // Platform tenants and unlimited tenants bypass all scope restrictions
+  const bypassScopeValidation = isUnlimited || isPlatform;
   const queryClient = useQueryClient();
   const tenantId = currentTenant?.id;
 
@@ -111,21 +113,21 @@ export function useMetaIntegrations() {
       const dbStatus = dbRow?.status ?? null;
       const selectedAssets = dbRow?.selected_assets ?? null;
 
-      // Layer 0: Public approval
+      // Layer 0: Public approval — unlimited/platform tenants bypass this check
       const scopesApprovedForPublic = def.requiredScopes.length === 0 || 
         def.requiredScopes.every((s) => META_APPROVED_PUBLIC_SCOPES.includes(s));
-      const publiclyAvailable = isUnlimited || scopesApprovedForPublic;
+      const publiclyAvailable = bypassScopeValidation || scopesApprovedForPublic;
 
       // Layer 1: Auth capability
       const grantedScopes = grant?.grantedScopes ?? [];
       const missingScopes = def.requiredScopes.filter(
         (s) => !grantedScopes.includes(s)
       );
-      const authCapable = grant !== null && (isUnlimited || missingScopes.length === 0);
+      const authCapable = grant !== null && (bypassScopeValidation || missingScopes.length === 0);
       const authBlockReason =
         !grant
           ? "Conecte sua conta Meta primeiro"
-          : !isUnlimited && missingScopes.length > 0
+          : !bypassScopeValidation && missingScopes.length > 0
           ? `Permissões ausentes: ${missingScopes.join(", ")}`
           : null;
 
@@ -166,7 +168,7 @@ export function useMetaIntegrations() {
         selectedAssets,
       };
     });
-  }, [dbIntegrations, grant, canAccess, isUnlimited]);
+  }, [dbIntegrations, grant, canAccess, bypassScopeValidation]);
 
   // Toggle mutation (activate/deactivate)
   const toggleMutation = useMutation({
