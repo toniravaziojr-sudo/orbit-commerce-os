@@ -2940,13 +2940,22 @@ Cada integração define: `requiredScopes` (escopos Meta necessários), `feature
 > **⚠️ DÍVIDA TÉCNICA:** A RPC `user_has_tenant_access` aceita `_user_id` como parâmetro mas usa `auth.uid()` internamente, ignorando o parâmetro. Deve ser alinhada para evitar ambiguidade.
 
 **Hook criado:**
-- `useMetaIntegrations` — lê estado de `tenant_meta_integrations`, computa 3 camadas de estado (auth capability, plano, operacional), fornece `toggle()` para ativar/desativar. **IMPORTANTE:** o `useMemo` que calcula os estados DEVE incluir `isUnlimited` no array de dependências para que tenants especiais tenham toggles desbloqueados imediatamente.
+- `useMetaIntegrations` — lê estado de `tenant_meta_integrations`, computa 4 camadas de estado (aprovação pública, auth capability, plano, operacional), fornece `toggle()` para ativar/desativar. **IMPORTANTE:** o `useMemo` que calcula os estados DEVE incluir `isUnlimited` no array de dependências para que tenants especiais tenham toggles desbloqueados imediatamente.
+
+**Controle de Escopos Aprovados (V4.1):**
+- Constante `META_APPROVED_PUBLIC_SCOPES` em `metaIntegrationCatalog.ts` define quais escopos estão aprovados pela Meta para uso público
+- Tenants normais: só veem toggles cujos `requiredScopes` estão todos na lista de aprovados; demais mostram "Em breve — aguardando aprovação"
+- Tenants especiais (`isUnlimited`): ignoram essa validação, todos os toggles disponíveis
+- Perfil `meta_auth_external` (tenants normais): **sem config_id**, usa escopos diretos alinhados com `META_APPROVED_PUBLIC_SCOPES`
+- Perfil `meta_auth_full` (especiais): **sem config_id**, todos os escopos
+- Pixel Facebook e API de Conversões: `requiredScopes: []` — não dependem de escopo OAuth (configuração manual por token/ID)
 
 **UI refatorada:**
 - `MetaUnifiedSettings.tsx` — reescrito: card de conexão (compacto) + cards por grupo com toggles individuais
-- **Visibilidade condicional:** Os cards de toggles (WhatsApp, Instagram, Facebook, Marketing, Commerce, Outros) são exibidos **somente quando a conta Meta está conectada** (`isConnected`). Antes da conexão, apenas o card "Conectar Meta" é visível.
+- **Visibilidade condicional:** Os cards de toggles são exibidos **somente quando a conta Meta está conectada** (`isConnected`).
 - Cada toggle mostra estado visual claro:
   - ✅ Ativo (switch ligado)
+  - ⏳ Em breve (escopo não aprovado pela Meta para uso público)
   - 🔒 Sem permissão (auth capability — escopos ausentes)
   - 👑 Plano superior (feature key bloqueada pelo plano)
   - 🛡️ Sem conexão (grant inexistente)
