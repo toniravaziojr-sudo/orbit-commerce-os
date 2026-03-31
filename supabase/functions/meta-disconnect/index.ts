@@ -161,6 +161,26 @@ Deno.serve(async (req) => {
       .eq("tenant_id", tenant_id)
       .eq("provider", "meta");
 
+    // ── Step 4: Clear Meta Pixel from marketing_integrations ──
+    const { error: pixelClearError } = await supabase
+      .from("marketing_integrations")
+      .update({
+        meta_pixel_id: null,
+        meta_enabled: false,
+        meta_capi_enabled: false,
+        meta_status: "disconnected",
+        meta_last_error: "Conta Meta desconectada",
+        meta_additional_pixel_ids: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("tenant_id", tenant_id);
+
+    if (pixelClearError) {
+      console.warn(`[meta-disconnect][${VERSION}][${traceId}] Failed to clear pixel:`, pixelClearError);
+    } else {
+      console.log(`[meta-disconnect][${VERSION}][${traceId}] Pixel cleared from marketing_integrations`);
+    }
+
     console.log(`[meta-disconnect][${VERSION}][${traceId}] Disconnect complete. Grant revoked: ${grantRevoked}, Remote: ${remoteRevocationResult}, Integrations deactivated: ${deactivated?.length || 0}`);
 
     return jsonResponse({
