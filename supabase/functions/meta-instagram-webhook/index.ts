@@ -131,17 +131,12 @@ async function findTenantByIgUserId(
 
 /**
  * Get Page Access Token (needed for IG DM API via linked page)
+ * Uses centralized helper (V4 with legacy fallback)
  */
 async function getPageAccessToken(supabase: any, tenantId: string, pageId: string): Promise<string | null> {
-  const { data: conn } = await supabase
-    .from("marketplace_connections")
-    .select("metadata")
-    .eq("tenant_id", tenantId)
-    .eq("marketplace", "meta")
-    .single();
-
-  if (!conn?.metadata?.assets?.pages) return null;
-  const page = conn.metadata.assets.pages.find((p: any) => p.id === pageId);
+  const metaConn = await getMetaConnectionForTenant(supabase, tenantId);
+  if (!metaConn?.metadata?.assets?.pages) return null;
+  const page = (metaConn.metadata.assets as any).pages.find((p: any) => p.id === pageId);
   return page?.access_token || null;
 }
 

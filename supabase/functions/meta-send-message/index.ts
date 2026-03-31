@@ -59,21 +59,17 @@ Deno.serve(async (req) => {
 
     console.log(`[meta-send-message][${traceId}] tenant=${tenant_id} channel=${channel} recipient=${recipient_id}`);
 
-    // Get Meta connection for tenant
-    const { data: conn } = await supabase
-      .from("marketplace_connections")
-      .select("metadata, access_token")
-      .eq("tenant_id", tenant_id)
-      .eq("marketplace", "meta")
-      .eq("is_active", true)
-      .single();
+    // Get Meta connection for tenant (V4 helper with legacy fallback)
+    const metaConn = await getMetaConnectionForTenant(supabase, tenant_id, traceId);
 
-    if (!conn) {
+    if (!metaConn) {
       return new Response(
         JSON.stringify({ success: false, error: "Meta não conectado para este tenant" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const conn = { metadata: metaConn.metadata, access_token: metaConn.access_token };
 
     // Determine which page to use
     let resolvedPageId = page_id;
