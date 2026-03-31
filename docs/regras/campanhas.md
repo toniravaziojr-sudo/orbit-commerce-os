@@ -749,6 +749,26 @@ Usa técnicas AIDA, PAS e storytelling.
 | Marcar item como `published` antes do horário | Item agendado para futuro deve ficar `scheduled` (Azul) até publicação efetiva |
 | Publicar apenas no Instagram quando Facebook está selecionado | Avaliar `target_channel` + `target_platforms` para publicar em AMBAS plataformas |
 | Criar apenas 1 registro `social_posts` para multi-plataforma | Criar registro separado para CADA plataforma (Instagram e Facebook) |
+| Excluir campanha sem cancelar social_posts | Ao excluir campanha, cancelar todos os social_posts pendentes ANTES do CASCADE |
+| Publicar sem verificar toggle de integração ativo | Worker DEVE validar que a integração (facebook_publicacoes/instagram_publicacoes) está ativa em tenant_meta_integrations |
+
+---
+
+## Regras de Integridade — Exclusão e Publicação
+
+### Exclusão de Campanha
+Ao excluir uma campanha, o sistema executa em sequência:
+1. Busca todos os `calendar_item_ids` vinculados à campanha
+2. Atualiza `social_posts` com status `scheduled` ou `draft` para `cancelled`
+3. Só então deleta a campanha (CASCADE remove calendar_items; social_posts ficam com `calendar_item_id = NULL` mas já cancelados)
+
+> **Motivo:** A FK `social_posts.calendar_item_id` usa `ON DELETE SET NULL`, então sem o passo 2 os posts ficariam órfãos e o worker continuaria tentando publicá-los.
+
+### Validação de Integração no Worker
+O `media-social-publish-worker` valida ANTES de cada publicação:
+1. Consulta `tenant_meta_integrations` filtrando por `tenant_id`, `status = 'active'` e `integration_id` correspondente (`facebook_publicacoes` ou `instagram_publicacoes`)
+2. Se a integração não estiver ativa, marca o post com falha permanente (`integration_inactive`)
+3. Isso impede publicações quando o lojista desativou o toggle ou desconectou a Meta
 
 ---
 
@@ -770,6 +790,8 @@ Usa técnicas AIDA, PAS e storytelling.
 - [x] Indicadores visuais de status no calendário (cores, dots, legenda)
 - [x] DayPostsList com layout `max-h-[90vh]` e scroll interno
 - [x] Finalizar Campanha com stagger de 30s para items passados
+- [x] Cancelamento automático de social_posts ao excluir campanha (anti-órfãos)
+- [x] Validação de integração ativa no worker antes de publicar
 - [ ] Publicação automática (worker/cron)
 - [x] Diagnóstico de seleção simplificado (contadores coloridos em linha única)
 - [x] Coloração dinâmica dos cards selecionados por status (verde/amarelo/laranja/vermelho/cinza)
