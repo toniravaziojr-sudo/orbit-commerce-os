@@ -102,6 +102,8 @@ export function MetaUnifiedSettings() {
     toggle,
     isToggling,
     togglingId,
+    saveAssets,
+    isSavingAssets,
   } = useMetaIntegrations();
 
   // URL params for OAuth callback
