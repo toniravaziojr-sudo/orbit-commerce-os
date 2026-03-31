@@ -45,6 +45,7 @@ interface SelectedAssets {
 }
 
 type FlowStep = "loading" | "select_portfolio" | "select_assets" | "saving" | "success" | "error";
+type FlowMode = "full_selection" | "flb_review";
 
 export default function MetaOAuthCallback() {
   const [searchParams] = useSearchParams();
