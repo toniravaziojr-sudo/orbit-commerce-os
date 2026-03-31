@@ -4,7 +4,7 @@ import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.0.0"; // Phase 7: V4-first — refresh grant tokens + legacy fallback
+const VERSION = "v3.0.0"; // Lote B: Legacy marketplace_connections removed
 // ===========================================================
 
 const corsHeaders = {
