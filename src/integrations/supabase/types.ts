@@ -17105,6 +17105,65 @@ export type Database = {
         }
         Relationships: []
       }
+      threads_connections: {
+        Row: {
+          access_token_encrypted: string | null
+          connected_at: string
+          connected_by: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          is_active: boolean
+          last_error: string | null
+          profile_picture_url: string | null
+          tenant_id: string
+          threads_user_id: string | null
+          token_expires_at: string | null
+          updated_at: string
+          username: string | null
+        }
+        Insert: {
+          access_token_encrypted?: string | null
+          connected_at?: string
+          connected_by?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          is_active?: boolean
+          last_error?: string | null
+          profile_picture_url?: string | null
+          tenant_id: string
+          threads_user_id?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          username?: string | null
+        }
+        Update: {
+          access_token_encrypted?: string | null
+          connected_at?: string
+          connected_by?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          is_active?: boolean
+          last_error?: string | null
+          profile_picture_url?: string | null
+          tenant_id?: string
+          threads_user_id?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "threads_connections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tiktok_ad_campaigns: {
         Row: {
           advertiser_id: string
