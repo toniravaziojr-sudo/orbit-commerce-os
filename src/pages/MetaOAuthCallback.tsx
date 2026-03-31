@@ -417,9 +417,13 @@ export default function MetaOAuthCallback() {
             <div className="mx-auto mb-2">
               <Building2 className="h-10 w-10 text-blue-500" />
             </div>
-            <CardTitle className="text-lg">Selecione o Portfólio Empresarial</CardTitle>
+            <CardTitle className="text-lg">
+              {flowMode === "flb_review" ? "Confirme o Portfólio" : "Selecione o Portfólio Empresarial"}
+            </CardTitle>
             <CardDescription>
-              Escolha o portfólio cujos ativos você deseja integrar ao sistema. Os ativos exibidos serão apenas os deste portfólio.
+              {flowMode === "flb_review"
+                ? "Confirme qual portfólio empresarial será usado na integração."
+                : "Escolha o portfólio cujos ativos você deseja integrar ao sistema. Os ativos exibidos serão apenas os deste portfólio."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
