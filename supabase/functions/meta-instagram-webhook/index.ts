@@ -1,7 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.0.0"; // Initial: Instagram DMs + comments
+const VERSION = "v1.1.0"; // Phase 5 Lote 2: Use centralized meta-connection helper for page token reads
 // ===========================================================
 
 const corsHeaders = {
