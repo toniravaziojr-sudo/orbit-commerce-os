@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 // ===== VERSION =====
-const VERSION = "v2.0.0"; // Phase 7: Also revoke V4 grant on deauthorize
+const VERSION = "v3.0.0"; // Lote B: Legacy marketplace_connections removed
 // ===================
 
 /**
