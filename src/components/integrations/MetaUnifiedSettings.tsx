@@ -84,7 +84,6 @@ export function MetaUnifiedSettings() {
   const { 
     isConnected, 
     isExpired,
-    isPendingAssetSelection,
     connection,
     isLoading: connectionLoading, 
     connect, 
@@ -239,15 +238,6 @@ export function MetaUnifiedSettings() {
             </>
           ) : (
             <>
-              {isPendingAssetSelection && (
-                <Alert>
-                  <Info className="h-4 w-4" />
-                  <AlertDescription>
-                    Sua conta já foi autorizada. Falta apenas escolher os ativos que deseja usar para concluir a conexão.
-                  </AlertDescription>
-                </Alert>
-              )}
-
               {isExpired && (
                 <Alert>
                   <AlertTriangle className="h-4 w-4" />
@@ -264,13 +254,11 @@ export function MetaUnifiedSettings() {
 
               <Button onClick={() => connect()} disabled={isConnecting} className="gap-2">
                 {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
-                {isPendingAssetSelection ? "Escolher ativos" : "Conectar Meta"}
+                Conectar Meta
               </Button>
 
               <p className="text-xs text-muted-foreground">
-                {isPendingAssetSelection
-                  ? "Você continuará da etapa pendente de seleção de ativos."
-                  : "Você será redirecionado para o Facebook para autorizar o acesso."}
+                Você será redirecionado para o Facebook para autorizar o acesso.
               </p>
             </>
           )}
