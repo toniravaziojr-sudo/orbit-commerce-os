@@ -523,6 +523,7 @@ async function discoverPersonalAssets(accessToken: string, grantedScopes: string
         }
       } catch {}
 
+      const seenPixelIds = new Set<string>();
       for (const acc of portfolio.ad_accounts) {
         try {
           const pixResp = await fetch(
@@ -532,7 +533,10 @@ async function discoverPersonalAssets(accessToken: string, grantedScopes: string
             const pixData = await pixResp.json();
             if (pixData.data) {
               for (const pixel of pixData.data) {
-                portfolio.pixels.push({ id: pixel.id, name: pixel.name || `Pixel ${pixel.id}`, ad_account_id: acc.id });
+                if (!seenPixelIds.has(pixel.id)) {
+                  seenPixelIds.add(pixel.id);
+                  portfolio.pixels.push({ id: pixel.id, name: pixel.name || `Pixel ${pixel.id}`, ad_account_id: acc.id });
+                }
               }
             }
           }
