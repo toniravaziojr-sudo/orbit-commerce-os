@@ -431,7 +431,8 @@ async function discoverBusinessPortfolios(accessToken: string, grantedScopes: st
           console.warn(`[meta-oauth-callback] Erro ad accounts do portfólio ${biz.id}:`, e);
         }
 
-        // Buscar Pixels de cada Ad Account
+        // Buscar Pixels de cada Ad Account (com deduplicação por pixel_id)
+        const seenPixelIds = new Set<string>();
         for (const acc of portfolio.ad_accounts) {
           try {
             const pixResp = await fetch(
@@ -441,11 +442,14 @@ async function discoverBusinessPortfolios(accessToken: string, grantedScopes: st
               const pixData = await pixResp.json();
               if (pixData.data) {
                 for (const pixel of pixData.data) {
-                  portfolio.pixels.push({
-                    id: pixel.id,
-                    name: pixel.name || `Pixel ${pixel.id}`,
-                    ad_account_id: acc.id,
-                  });
+                  if (!seenPixelIds.has(pixel.id)) {
+                    seenPixelIds.add(pixel.id);
+                    portfolio.pixels.push({
+                      id: pixel.id,
+                      name: pixel.name || `Pixel ${pixel.id}`,
+                      ad_account_id: acc.id,
+                    });
+                  }
                 }
               }
             }
