@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMetaConnectionForTenant, findTenantByPageIdV4 } from "../_shared/meta-connection.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.1.0"; // Fase 5 Lote 3 — getPageAccessToken via helper central
+const VERSION = "v2.0.0"; // Phase 6: findTenantByPageId V4-first + discovered_assets
 // ===========================================================
 
 const corsHeaders = {
