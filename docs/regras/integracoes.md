@@ -2860,7 +2860,7 @@ O modelo legado (`marketplace_connections` com `marketplace='meta'`) continua fu
 - Obtém `granted_scopes` via `debug_token` da Meta
 - Usa `granted_scopes` (não mais scope packs) para decidir quais assets buscar na discovery
 - **Fluxo condicional por perfil (config_id):**
-  - Se perfil tem `config_id` (FLB — `meta_auth_external`): retorna `requiresAssetSelection: false` → frontend auto-salva ativos descobertos sem tela de re-seleção
+  - Se perfil tem `config_id` (FLB — `meta_auth_external`): retorna `requiresAssetSelection: false` → frontend abre **revisão confirmatória pré-preenchida** (NÃO auto-save cego)
   - Se perfil NÃO tem `config_id` (`meta_auth_full`): retorna `requiresAssetSelection: true` → frontend exibe tela de seleção interna de ativos
 - **Deduplicação de pixels**: Pixels são deduplicados por `pixel.id` real durante a discovery, evitando duplicação quando o mesmo pixel aparece em múltiplas ad accounts
 - Retorna `grantId` e `authProfile` no response
@@ -2869,9 +2869,10 @@ O modelo legado (`marketplace_connections` com `marketplace='meta'`) continua fu
 - `useMetaConnection.ts`: `connect()` não recebe mais scope packs
 - `MetaConnectionSettings.tsx`: Botão único "Conectar Meta" sem seleção de packs
 - `MetaUnifiedSettings.tsx`: Removida `IncrementalConsentSection` e seleção de packs
-- **Fluxo FLB (requiresAssetSelection=false):** Quando o callback retorna sem necessidade de seleção, o frontend executa `autoSaveDiscoveredAssets()` — persiste o primeiro portfólio descoberto com seus ativos via `meta-save-selected-assets` e vai direto para "Tudo configurado!"
-- **Fluxo sem config_id (requiresAssetSelection=true):** Mantém seleção interna de portfólio → ativos → confirmar
+- **Fluxo FLB (requiresAssetSelection=false):** O frontend usa `flowMode="flb_review"` para abrir revisão confirmatória pré-preenchida. Textos contextuais: "Confirme seus ativos" / "Confirmar e concluir". Se 1 portfólio → pula direto para revisão de ativos. Se múltiplos → mostra seleção de portfólio com texto "Confirme o Portfólio". **PROIBIDO auto-save sem confirmação do usuário.**
+- **Fluxo sem config_id (requiresAssetSelection=true):** Mantém seleção interna de portfólio → ativos → confirmar com `flowMode="full_selection"`
 - **Texto "Ativando integrações..."** substituído por "Salvando configurações..." para não sugerir autoativação prematura
+- **`autoSaveDiscoveredAssets` REMOVIDO** — função eliminada por risco de persistir ativos incorretos (Graph API retorna todos os acessíveis, não só os selecionados no FLB)
 
 **Migration:**
 - `meta_oauth_states.auth_profile_key` (TEXT, nullable) adicionada para passar perfil do start → callback

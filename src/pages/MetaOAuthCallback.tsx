@@ -45,6 +45,7 @@ interface SelectedAssets {
 }
 
 type FlowStep = "loading" | "select_portfolio" | "select_assets" | "saving" | "success" | "error";
+type FlowMode = "full_selection" | "flb_review";
 
 export default function MetaOAuthCallback() {
   const [searchParams] = useSearchParams();
@@ -57,6 +58,7 @@ export default function MetaOAuthCallback() {
   const [selectedAssets, setSelectedAssets] = useState<SelectedAssets | null>(null);
   const [connectionData, setConnectionData] = useState<any>(null);
   const [activeScopePacks, setActiveScopePacks] = useState<string[]>([]);
+  const [flowMode, setFlowMode] = useState<FlowMode>("full_selection");
   const processedRef = useRef(false);
 
   const selectedPortfolio = businesses.find(b => b.id === selectedPortfolioId) || null;
@@ -317,10 +319,21 @@ export default function MetaOAuthCallback() {
       }
 
       // Fluxo FLB (config_id presente): Facebook já fez a seleção de ativos
-      // → auto-salvar o primeiro portfólio com seus ativos e ir direto para sucesso
-      if (!data.requiresAssetSelection) {
-        console.log("[MetaOAuthCallback] FLB flow — auto-saving discovered assets");
-        await autoSaveDiscoveredAssets(data.connection?.businesses || []);
+      // → mostrar revisão confirmatória pré-preenchida (sem auto-save cego)
+      if (!data.requiresAssetSelection && data.connection?.businesses) {
+        console.log("[MetaOAuthCallback] FLB flow — opening confirmatory review");
+        const bizList = data.connection.businesses as BusinessPortfolio[];
+        setBusinesses(bizList);
+        setThreadsProfile(data.connection.threads_profile || null);
+        setActiveScopePacks(data.connection.scopePacks || []);
+        setConnectionData(data.connection);
+        setFlowMode("flb_review");
+
+        if (bizList.length === 1) {
+          handleSelectPortfolio(bizList[0].id);
+        } else {
+          setStep("select_portfolio");
+        }
         return;
       }
 
@@ -350,68 +363,7 @@ export default function MetaOAuthCallback() {
     }
   }
 
-  /**
-   * Auto-save para fluxo FLB: persiste o primeiro portfólio e seus ativos
-   * sem mostrar tela de seleção (Facebook já fez a seleção).
-   */
-  async function autoSaveDiscoveredAssets(businesses: BusinessPortfolio[]) {
-    setStep("saving");
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Não autenticado");
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("current_tenant_id")
-        .eq("id", user.id)
-        .single();
-
-      if (!profile?.current_tenant_id) throw new Error("Tenant não encontrado");
-
-      // Usar o primeiro portfólio (FLB retorna apenas o que o usuário selecionou)
-      const portfolio = businesses[0];
-      if (!portfolio) throw new Error("Nenhum ativo descoberto");
-
-      const firstWaba = portfolio.whatsapp_business_accounts?.[0];
-      const firstPhone = firstWaba?.phone_numbers?.[0];
-
-      const selectedAssets: SelectedAssets = {
-        business_id: portfolio.id,
-        business_name: portfolio.name,
-        pages: portfolio.pages.length > 0 ? [portfolio.pages[0]] : [],
-        instagram_accounts: portfolio.instagram_accounts.length > 0 ? [portfolio.instagram_accounts[0]] : [],
-        whatsapp_business_accounts: firstWaba ? [{ id: firstWaba.id, name: firstWaba.name }] : [],
-        ad_accounts: [...(portfolio.ad_accounts || [])],
-        pixels: portfolio.pixels?.length > 0 ? [portfolio.pixels[0]] : [],
-        catalogs: [],
-        threads_profile: null,
-        selected_phone_number: firstPhone && firstWaba ? {
-          id: firstPhone.id,
-          display_phone_number: firstPhone.display_phone_number,
-          verified_name: firstPhone.verified_name,
-          waba_id: firstWaba.id,
-        } : null,
-      };
-
-      const { data, error } = await supabase.functions.invoke("meta-save-selected-assets", {
-        body: {
-          tenantId: profile.current_tenant_id,
-          selectedAssets,
-        },
-      });
-
-      if (error || !data?.success) {
-        throw new Error(data?.error || "Erro ao salvar seleção");
-      }
-
-      setStep("success");
-      notifyParentAndClose(true);
-    } catch (err: any) {
-      setStep("error");
-      setErrorMessage(err.message || "Erro ao salvar ativos");
-      notifyParentAndClose(false, err.message);
-    }
-  }
+  // autoSaveDiscoveredAssets removido — FLB usa revisão confirmatória pré-preenchida
 
   async function handleConfirmSelection() {
     if (!selectedAssets) return;
@@ -465,9 +417,13 @@ export default function MetaOAuthCallback() {
             <div className="mx-auto mb-2">
               <Building2 className="h-10 w-10 text-blue-500" />
             </div>
-            <CardTitle className="text-lg">Selecione o Portfólio Empresarial</CardTitle>
+            <CardTitle className="text-lg">
+              {flowMode === "flb_review" ? "Confirme o Portfólio" : "Selecione o Portfólio Empresarial"}
+            </CardTitle>
             <CardDescription>
-              Escolha o portfólio cujos ativos você deseja integrar ao sistema. Os ativos exibidos serão apenas os deste portfólio.
+              {flowMode === "flb_review"
+                ? "Confirme qual portfólio empresarial será usado na integração."
+                : "Escolha o portfólio cujos ativos você deseja integrar ao sistema. Os ativos exibidos serão apenas os deste portfólio."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -517,7 +473,9 @@ export default function MetaOAuthCallback() {
             <div className="mx-auto mb-2">
               <CheckCircle className="h-10 w-10 text-green-500" />
             </div>
-            <CardTitle className="text-lg">Conta conectada!</CardTitle>
+            <CardTitle className="text-lg">
+              {flowMode === "flb_review" ? "Confirme seus ativos" : "Conta conectada!"}
+            </CardTitle>
             <CardDescription>
               Portfólio: <span className="font-semibold">{selectedPortfolio.name}</span>
               {businesses.length > 1 && (
@@ -531,7 +489,10 @@ export default function MetaOAuthCallback() {
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription className="text-xs">
-                Selecione <strong>1 ativo de cada tipo</strong>. Um catálogo será criado automaticamente na Meta com os produtos da sua loja.
+                {flowMode === "flb_review"
+                  ? <>Revise e confirme os ativos pré-selecionados. Ajuste se necessário antes de concluir.</>
+                  : <>Selecione <strong>1 ativo de cada tipo</strong>. Um catálogo será criado automaticamente na Meta com os produtos da sua loja.</>
+                }
               </AlertDescription>
             </Alert>
 
@@ -691,7 +652,7 @@ export default function MetaOAuthCallback() {
 
             <div className="flex gap-3 pt-2">
               <Button onClick={handleConfirmSelection} className="flex-1">
-                Confirmar e ativar integrações
+                {flowMode === "flb_review" ? "Confirmar e concluir" : "Confirmar e ativar integrações"}
               </Button>
               <Button variant="outline" onClick={handleClose}>
                 Cancelar
