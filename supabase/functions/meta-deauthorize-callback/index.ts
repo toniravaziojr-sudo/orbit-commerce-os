@@ -11,12 +11,11 @@ const VERSION = "v3.0.0"; // Lote B: Legacy marketplace_connections removed
 // ===================
 
 /**
- * Meta Deauthorize Callback — V4 + Legacy
+ * Meta Deauthorize Callback — V4 Only (Lote B)
  * 
  * Recebe webhook do Meta quando usuário remove permissões do app.
  * Valida assinatura HMAC e desativa:
  * - V4: grants em tenant_meta_auth_grants + integrações
- * - Legacy: marketplace_connections (compatibilidade)
  */
 Deno.serve(async (req) => {
   const traceId = crypto.randomUUID().substring(0, 8);
