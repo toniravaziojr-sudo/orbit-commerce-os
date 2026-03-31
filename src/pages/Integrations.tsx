@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PaymentGatewaySettings } from "@/components/payments/PaymentGatewaySettings";
 import { MetaUnifiedSettings } from "@/components/integrations/MetaUnifiedSettings";
+import { ThreadsConnectCard } from "@/components/integrations/ThreadsConnectCard";
 import { YouTubeSettings } from "@/components/integrations/YouTubeSettings";
 import { MarketplacesIntegrationTab } from "@/components/integrations/MarketplacesIntegrationTab";
 import { DomainAndEmailSettings } from "@/components/integrations/DomainAndEmailSettings";
@@ -171,6 +172,7 @@ export default function Integrations() {
 
         <TabsContent value="social" className="space-y-6">
           <MetaUnifiedSettings />
+          <ThreadsConnectCard />
         </TabsContent>
 
         {showYouTube && (

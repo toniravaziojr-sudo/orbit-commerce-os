@@ -135,6 +135,7 @@ const MetaOAuthCallback = lazy(() => import("@/pages/MetaOAuthCallback"));
 const MeliOAuthCallback = lazy(() => import("@/pages/MeliOAuthCallback"));
 const YouTubeCallback = lazy(() => import("@/pages/integrations/YouTubeCallback"));
 const TikTokOAuthCallback = lazy(() => import("@/pages/TikTokOAuthCallback"));
+const ThreadsOAuthCallback = lazy(() => import("@/pages/ThreadsOAuthCallback"));
 const Marketplaces = lazy(() => import("@/pages/Marketplaces"));
 const MercadoLivre = lazy(() => import("@/pages/marketplaces/MercadoLivre"));
 const Shopee = lazy(() => import("@/pages/marketplaces/Shopee"));
@@ -242,6 +243,8 @@ const App = () => {
               <Route path="/complete-signup" element={<CompleteSignup />} />
               {/* Meta OAuth callback - handles Meta connection result */}
               <Route path="/integrations/meta/callback" element={<MetaOAuthCallback />} />
+              {/* Threads OAuth callback - separate OAuth via threads.net */}
+              <Route path="/integrations/threads/callback" element={<ThreadsOAuthCallback />} />
               {/* Mercado Livre OAuth callback - forwards to edge function */}
               <Route path="/integrations/meli/callback" element={<MeliOAuthCallback />} />
               {/* YouTube OAuth callback - handles YouTube connection result */}

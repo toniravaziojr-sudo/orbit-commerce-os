@@ -32,10 +32,7 @@ export const META_APPROVED_PUBLIC_SCOPES: string[] = [
   'whatsapp_business_management',
   'whatsapp_business_messaging',
   'read_insights',
-  'threads_basic',
-  'threads_content_publish',
-  'threads_manage_insights',
-  'threads_manage_replies',
+  // Threads usa OAuth separado (threads.net) — escopos NÃO vão no Facebook OAuth
 ];
 
 /**
@@ -286,16 +283,8 @@ export const META_INTEGRATION_CATALOG: MetaIntegrationDef[] = [
   },
 
   // === Outros ===
-  {
-    id: 'threads',
-    label: 'Threads',
-    description: 'Publicar e gerenciar conteúdo no Threads',
-    group: 'outros',
-    icon: 'AtSign',
-    requiredScopes: ['threads_basic', 'threads_content_publish'],
-    featureKey: null,
-    assetType: 'none',
-  },
+  // Threads removido do catálogo Meta — possui OAuth próprio separado (threads.net)
+  // Gerenciado por useThreadsConnection + ThreadsConnectCard
 ];
 
 /**

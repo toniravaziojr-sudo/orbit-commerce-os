@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useMetaConnection } from "@/hooks/useMetaConnection";
+import { useThreadsConnection } from "@/hooks/useThreadsConnection";
 import { toast } from "sonner";
 import { showErrorToast } from '@/lib/error-toast';
 
@@ -33,11 +33,14 @@ interface PublishParams {
 
 export function useMetaThreads() {
   const { currentTenant } = useAuth();
-  const { isConnected, connection } = useMetaConnection();
+  const { isConnected: threadsConnected, connection: threadsConnection } = useThreadsConnection();
   const queryClient = useQueryClient();
 
-  const hasThreads = isConnected && connection?.scopePacks?.includes("threads");
-  const threadsProfile = connection?.assets?.threads_profile;
+  const hasThreads = threadsConnected;
+  const threadsProfile = threadsConnection ? {
+    username: threadsConnection.username,
+    displayName: threadsConnection.displayName,
+  } : null;
 
   // Lista posts recentes
   const postsQuery = useQuery({
