@@ -172,6 +172,7 @@ export default function Integrations() {
 
         <TabsContent value="social" className="space-y-6">
           <MetaUnifiedSettings />
+          <ThreadsConnectCard />
         </TabsContent>
 
         {showYouTube && (
