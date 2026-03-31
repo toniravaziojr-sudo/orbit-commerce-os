@@ -2824,7 +2824,7 @@ O Pixel Facebook é **vinculado à conexão Meta**:
 
 ### Popup OAuth
 
-A janela popup do fluxo OAuth da Meta utiliza obrigatoriamente **900px de altura** (`window.open`) para garantir que todo o conteúdo e botões de seleção de ativos fiquem visíveis.
+A janela popup do fluxo OAuth da Meta abre de forma **adaptável ao espaço disponível**, priorizando altura ampla (900px+ quando a tela permitir), largura ampliada e tentativa de redimensionamento automático para evitar cortes na etapa inicial de seleção de páginas e ativos do Facebook.
 
 | Grupo | Toggles |
 |---|---|

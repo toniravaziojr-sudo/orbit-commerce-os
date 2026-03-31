@@ -171,16 +171,31 @@ export function useMetaConnection() {
     onSuccess: (data) => {
       sessionStorage.setItem('oauth_in_progress', 'true');
       
-      const width = 600;
-      const height = 900;
-      const left = window.screenX + (window.outerWidth - width) / 2;
-      const top = window.screenY + (window.outerHeight - height) / 2;
+      const width = Math.max(720, Math.min(860, window.screen.availWidth - 32));
+      const height = Math.max(900, Math.min(1100, window.screen.availHeight - 24));
+      const left = Math.max(0, window.screenX + (window.outerWidth - width) / 2);
+      const top = Math.max(0, window.screenY + (window.outerHeight - height) / 2);
       
       const popup = window.open(
         data.authUrl,
         "meta_oauth",
-        `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes`
+        `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes,resizable=yes`
       );
+
+      popup?.focus();
+
+      const enforcePopupSize = () => {
+        if (!popup || popup.closed) return;
+        try {
+          popup.resizeTo(width, height);
+          popup.moveTo(left, top);
+          popup.focus();
+        } catch {
+          // Alguns navegadores/OS ignoram resize programático.
+        }
+      };
+
+      setTimeout(enforcePopupSize, 250);
 
       const handleMessage = (event: MessageEvent) => {
         if (event.data?.type === "meta:connected") {
