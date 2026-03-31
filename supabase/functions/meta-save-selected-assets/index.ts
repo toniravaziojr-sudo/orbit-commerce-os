@@ -197,38 +197,36 @@ serve(async (req) => {
     // Usa o business_id do portfólio selecionado pelo usuário
     if (oauthAccessToken) {
       try {
-        // Verificar se já existe catálogo criado pelo nosso sistema
-        const existingCatalogId = (metadata as any)?.meta_catalog_id || null;
+        // Check existing catalog from V4 integration
+        const { data: existingCatInteg } = await supabase
+          .from("tenant_meta_integrations")
+          .select("selected_assets")
+          .eq("tenant_id", tenantId)
+          .eq("integration_id", "catalogo_meta")
+          .maybeSingle();
+        
+        const existingCatalogId = existingCatInteg?.selected_assets?.catalog_id || null;
         const selectedBusinessId = selectedAssets.business_id || null;
 
         const catalogResult = await createOrReuseCatalog(
           supabase, tenantId, oauthAccessToken, selectedBusinessId, existingCatalogId
         );
         activationResults.catalog = catalogResult.success ? "active" : "error";
-        if (catalogResult.catalogId) {
-          // Salvar o catalogId nos assets da conexão
-          const { error: catUpdateError } = await supabase
-            .from("marketplace_connections")
-            .update({
-              metadata: {
-                ...updatedMetadata,
-                assets: {
-                  ...selectedAssets,
-                  catalogs: [{ id: catalogResult.catalogId, name: catalogResult.catalogName || "Catálogo da Loja" }],
-                },
-                meta_catalog_id: catalogResult.catalogId,
-                meta_catalog_created_by_system: true,
-                meta_catalog_created_at: catalogResult.isReused
-                  ? (metadata as any)?.meta_catalog_created_at || new Date().toISOString()
-                  : new Date().toISOString(),
+        if (catalogResult.catalogId && activeGrant) {
+          // Save catalog in V4 integration
+          await supabase
+            .from("tenant_meta_integrations")
+            .upsert({
+              tenant_id: tenantId,
+              integration_id: "catalogo_meta",
+              auth_grant_id: activeGrant.id,
+              status: "active",
+              selected_assets: {
+                catalog_id: catalogResult.catalogId,
+                catalogs: [{ id: catalogResult.catalogId, name: catalogResult.catalogName || "Catálogo da Loja" }],
               },
-            })
-            .eq("tenant_id", tenantId)
-            .eq("marketplace", "meta");
-
-          if (catUpdateError) {
-            console.warn("[meta-save-selected-assets] Erro ao salvar catalogId na metadata:", catUpdateError);
-          }
+              updated_at: new Date().toISOString(),
+            }, { onConflict: "tenant_id,integration_id" });
         }
       } catch (catEx) {
         console.warn("[meta-save-selected-assets] Exceção ao criar catálogo:", catEx);
