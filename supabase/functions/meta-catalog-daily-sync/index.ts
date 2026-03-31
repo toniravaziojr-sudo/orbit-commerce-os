@@ -11,11 +11,10 @@ const corsHeaders = {
 };
 
 /**
- * Meta Catalog Daily Sync — V4 + Legacy
+ * Meta Catalog Daily Sync — V4 Only (Lote B)
  * 
  * Executa diariamente via cron.
  * V4: Busca tenants com grants ativos e integração de catálogo ativa
- * Legacy fallback: marketplace_connections para tenants não migrados
  */
 Deno.serve(async (req) => {
   console.log(`[meta-catalog-daily-sync][${VERSION}] Request received`);
