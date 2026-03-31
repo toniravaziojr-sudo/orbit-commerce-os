@@ -710,8 +710,8 @@ export default function MetaOAuthCallback() {
         <Card className="w-full max-w-md text-center">
           <CardContent className="pt-8 pb-8 space-y-2">
             <Loader2 className="h-12 w-12 text-primary animate-spin mx-auto mb-4" />
-            <p className="text-muted-foreground">Ativando integrações...</p>
-            <p className="text-xs text-muted-foreground">Configurando WhatsApp, Pixel, CAPI e Catálogo</p>
+            <p className="text-muted-foreground">Salvando configurações...</p>
+            <p className="text-xs text-muted-foreground">Persistindo ativos selecionados</p>
           </CardContent>
         </Card>
       </div>
