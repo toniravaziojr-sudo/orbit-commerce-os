@@ -60,14 +60,8 @@ serve(async (req) => {
       return jsonResponse({ success: false, error: "Sem acesso ao tenant" });
     }
 
-    // Get Meta connection
-    const { data: metaConn } = await supabase
-      .from("marketplace_connections")
-      .select("*")
-      .eq("tenant_id", tenant_id)
-      .eq("marketplace", "meta")
-      .eq("is_active", true)
-      .single();
+    // Get Meta connection via centralized helper (V4 + legacy fallback)
+    const metaConn = await getMetaConnectionForTenant(supabase, tenant_id);
 
     if (!metaConn?.access_token) {
       return jsonResponse({ success: false, error: "Meta não conectado. Conecte sua conta em Integrações." });
