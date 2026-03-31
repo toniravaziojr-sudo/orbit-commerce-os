@@ -148,7 +148,7 @@ export function useMetaIntegrations() {
         blockReason,
       };
     });
-  }, [dbIntegrations, grant, canAccess]);
+  }, [dbIntegrations, grant, canAccess, isUnlimited]);
 
   // Toggle mutation
   const toggleMutation = useMutation({
