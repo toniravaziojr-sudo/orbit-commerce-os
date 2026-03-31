@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
+import { getMetaConnectionForTenant, findTenantByPageIdV4 } from "../_shared/meta-connection.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v2.0.0"; // Phase 6: findTenantByPageId V4-first + discovered_assets
