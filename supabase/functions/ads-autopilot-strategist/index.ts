@@ -2191,15 +2191,9 @@ async function executeToolCall(
         return { status: "executed", data: { lookalike_audience_id: existingMatch.meta_audience_id, deduplicated: true, existing_name: existingMatch.name } };
       }
 
-      const metaConn = await supabase
-        .from("marketplace_connections")
-        .select("access_token")
-        .eq("tenant_id", tenantId)
-        .eq("marketplace", "meta")
-        .eq("is_active", true)
-        .maybeSingle();
+      const metaConn = await getMetaConnectionForTenant(supabase, tenantId);
 
-      if (!metaConn?.data?.access_token) throw new Error("Meta não conectada");
+      if (!metaConn?.access_token) throw new Error("Meta não conectada");
 
       const accountId = config.ad_account_id.replace("act_", "");
       const lalRes = await fetch(`https://graph.facebook.com/v21.0/act_${accountId}/customaudiences`, {
