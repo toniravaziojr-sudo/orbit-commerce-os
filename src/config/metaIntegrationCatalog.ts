@@ -136,6 +136,15 @@ export const META_INTEGRATION_CATALOG: MetaIntegrationDef[] = [
     requiredScopes: ['publish_video'],
     featureKey: null,
   },
+  {
+    id: 'facebook_comentarios',
+    label: 'Comentários',
+    description: 'Gerenciar comentários nas publicações do Facebook',
+    group: 'facebook',
+    icon: 'MessageSquare',
+    requiredScopes: ['pages_manage_engagement', 'pages_read_engagement'],
+    featureKey: null,
+  },
 
   // === Marketing & Conversão ===
   {
