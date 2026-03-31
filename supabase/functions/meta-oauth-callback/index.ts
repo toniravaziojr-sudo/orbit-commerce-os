@@ -218,6 +218,19 @@ serve(async (req) => {
 
     if (supersededCount && supersededCount > 0) {
       console.log(`[meta-oauth-callback] ${supersededCount} grant(s) anterior(es) superseded`);
+
+      // V4.2: Deactivate ALL integrations from previous grants — new connection = clean slate
+      const { error: deactivateError } = await supabase
+        .from("tenant_meta_integrations")
+        .update({ status: "inactive", updated_at: new Date().toISOString() })
+        .eq("tenant_id", tenant_id)
+        .neq("auth_grant_id", grantId);
+
+      if (deactivateError) {
+        console.warn(`[meta-oauth-callback] Erro ao desativar integrações antigas:`, deactivateError.message);
+      } else {
+        console.log(`[meta-oauth-callback] Integrações de grants anteriores desativadas para tenant ${tenant_id}`);
+      }
     }
 
     // 4. Phase 6: Save discovered_assets in the grant (raw discovery from OAuth)
