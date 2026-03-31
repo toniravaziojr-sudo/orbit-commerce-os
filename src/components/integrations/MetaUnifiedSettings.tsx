@@ -289,6 +289,8 @@ export function MetaUnifiedSettings() {
             togglingId={togglingId}
             isConnected={isConnected}
             grant={grant}
+            saveAssets={saveAssets}
+            isSavingAssets={isSavingAssets}
           />
         );
       })}
