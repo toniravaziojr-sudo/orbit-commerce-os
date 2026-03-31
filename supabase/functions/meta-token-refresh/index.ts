@@ -141,9 +141,6 @@ async function refreshTenantToken(
 
       console.log(`[meta-token-refresh][${VERSION}] V4 grant token refreshed for tenant ${tenantId}`);
 
-      // Also sync to legacy for compatibility
-      await syncToLegacy(supabase, tenantId, exchangeResult.accessToken, exchangeResult.expiresAt);
-
       // Sync CAPI token
       await supabase
         .from("marketing_integrations")
@@ -154,59 +151,7 @@ async function refreshTenantToken(
     }
   }
 
-  // ── Legacy fallback ──
-  const { data: conn } = await supabase
-    .from("marketplace_connections")
-    .select("id, access_token, expires_at, metadata, tenant_id")
-    .eq("tenant_id", tenantId)
-    .eq("marketplace", "meta")
-    .eq("is_active", true)
-    .maybeSingle();
-
-  if (!conn?.access_token) {
-    return { success: false, error: "Nenhuma conexão Meta encontrada", source: "none" };
-  }
-
-  // Check validity
-  if (conn.expires_at) {
-    const expiresAt = new Date(conn.expires_at);
-    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
-    if (expiresAt.getTime() - Date.now() > sevenDaysMs) {
-      return { success: true, source: "legacy", already_valid: true };
-    }
-  }
-
-  const exchangeResult = await exchangeToken(conn.access_token, appId, appSecret, apiVersion);
-
-  if (!exchangeResult.success) {
-    if (exchangeResult.isExpiredOrRevoked) {
-      await supabase.from("marketplace_connections")
-        .update({ is_active: false, last_error: `Token expirado/revogado: ${exchangeResult.error}` })
-        .eq("id", conn.id);
-    }
-    return { success: false, error: exchangeResult.error, source: "legacy" };
-  }
-
-  await supabase.from("marketplace_connections")
-    .update({
-      access_token: exchangeResult.accessToken,
-      expires_at: exchangeResult.expiresAt,
-      last_error: null,
-      metadata: {
-        ...(conn.metadata || {}),
-        last_token_refresh: new Date().toISOString(),
-        token_refresh_count: ((conn.metadata as any)?.token_refresh_count || 0) + 1,
-      },
-    })
-    .eq("id", conn.id);
-
-  // Sync CAPI
-  await supabase.from("marketing_integrations")
-    .update({ meta_access_token: exchangeResult.accessToken })
-    .eq("tenant_id", tenantId);
-
-  console.log(`[meta-token-refresh][${VERSION}] Legacy token refreshed for tenant ${tenantId}`);
-  return { success: true, source: "legacy" };
+  return { success: false, error: "Nenhum grant V4 ativo encontrado", source: "none" };
 }
 
 async function exchangeToken(
