@@ -35,6 +35,7 @@ import {
   Info,
   Crown,
   ShieldAlert,
+  Server,
 } from "lucide-react";
 import { useMetaConnection } from "@/hooks/useMetaConnection";
 import { useMetaIntegrations, type MetaIntegrationState, type ActiveGrantInfo } from "@/hooks/useMetaIntegrations";
