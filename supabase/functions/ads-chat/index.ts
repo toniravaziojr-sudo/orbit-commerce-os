@@ -2,9 +2,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.37.0"; // Fix: busca no Drive agora conta criativos por nome + metadata.product_id (sem subcontagem)
+const VERSION = "v5.38.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)

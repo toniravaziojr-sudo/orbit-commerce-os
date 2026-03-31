@@ -1,9 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 // ===== VERSION =====
-const VERSION = "v6.12.0"; // Fix: contagem de criativos no Drive agora considera metadata.product_id + busca sem acento
+const VERSION = "v6.13.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
 // ====================
 
 const AI_TIMEOUT_MS = 90000;
