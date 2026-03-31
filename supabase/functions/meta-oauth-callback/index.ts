@@ -221,6 +221,20 @@ serve(async (req) => {
       console.log(`[meta-oauth-callback] ${supersededCount} grant(s) anterior(es) superseded`);
     }
 
+    // 4. Phase 6: Save discovered_assets in the grant (raw discovery from OAuth)
+    const discovery = await discoverBusinessPortfolios(accessToken, grantedScopes, graphVersion);
+
+    const { error: discoveryError } = await supabase
+      .from("tenant_meta_auth_grants")
+      .update({ discovered_assets: { businesses: discovery.businesses } })
+      .eq("id", grantId);
+
+    if (discoveryError) {
+      console.warn("[meta-oauth-callback] Erro ao salvar discovered_assets no grant:", discoveryError.message);
+    } else {
+      console.log(`[meta-oauth-callback] discovered_assets saved in grant ${grantId} (${discovery.businesses.length} portfolios)`);
+    }
+
     // ================================================================
     // COMPATIBILIDADE TEMPORÁRIA: marketplace_connections
     // Mantido para não quebrar consumidores legados.
@@ -245,10 +259,9 @@ serve(async (req) => {
     } | null;
 
     const isReconnection = !!(existingMeta && existingMeta.assets && existingMeta.pending_asset_selection !== true);
-    console.log(`[meta-oauth-callback] ${isReconnection ? 'RECONEXÃO' : 'Primeira conexão'} para tenant ${tenant_id} — descobrindo portfólios`);
+    console.log(`[meta-oauth-callback] ${isReconnection ? 'RECONEXÃO' : 'Primeira conexão'} para tenant ${tenant_id}`);
     
-    // Descobrir portfólios (usando escopos do perfil, não mais scope packs)
-    const discovery = await discoverBusinessPortfolios(accessToken, grantedScopes, graphVersion);
+    // Discovery already done above (saved in grant.discovered_assets)
 
     // [LEGADO — TEMPORÁRIO] Upsert em marketplace_connections
     const { error: upsertError } = await supabase

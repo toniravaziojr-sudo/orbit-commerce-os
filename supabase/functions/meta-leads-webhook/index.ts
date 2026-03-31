@@ -1,8 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
+import { getMetaConnectionForTenant, findTenantByPageIdV4 } from "../_shared/meta-connection.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.1.0"; // Fase 5 Lote 3 — getPageAccessToken via helper central
+const VERSION = "v2.0.0"; // Phase 6: findTenantByPageId V4-first + discovered_assets
 // ===========================================================
 
 const corsHeaders = {
@@ -147,26 +147,13 @@ Deno.serve(async (req) => {
 
 /**
  * Find tenant by Facebook Page ID
+ * Phase 6: V4-first via tenant_meta_integrations, then legacy fallback
  */
 async function findTenantByPageId(
   supabase: any,
   pageId: string
 ): Promise<string | null> {
-  const { data: connections } = await supabase
-    .from("marketplace_connections")
-    .select("tenant_id, metadata")
-    .eq("marketplace", "meta")
-    .eq("is_active", true);
-
-  if (!connections) return null;
-
-  for (const conn of connections) {
-    const pages = conn.metadata?.assets?.pages || [];
-    if (pages.some((p: any) => p.id === pageId)) {
-      return conn.tenant_id;
-    }
-  }
-  return null;
+  return findTenantByPageIdV4(supabase, pageId);
 }
 
 /**

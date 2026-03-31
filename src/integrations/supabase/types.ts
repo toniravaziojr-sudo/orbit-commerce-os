@@ -16636,6 +16636,7 @@ export type Database = {
           access_token_encrypted: string | null
           auth_profile_key: string
           created_at: string
+          discovered_assets: Json
           granted_at: string
           granted_by: string | null
           granted_scopes: string[] | null
@@ -16657,6 +16658,7 @@ export type Database = {
           access_token_encrypted?: string | null
           auth_profile_key: string
           created_at?: string
+          discovered_assets?: Json
           granted_at?: string
           granted_by?: string | null
           granted_scopes?: string[] | null
@@ -16678,6 +16680,7 @@ export type Database = {
           access_token_encrypted?: string | null
           auth_profile_key?: string
           created_at?: string
+          discovered_assets?: Json
           granted_at?: string
           granted_by?: string | null
           granted_scopes?: string[] | null

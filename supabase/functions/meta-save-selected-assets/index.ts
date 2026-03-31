@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -75,23 +76,25 @@ serve(async (req) => {
       );
     }
 
-    // Buscar conexão existente (inclui access_token para CAPI)
-    const { data: connection, error: connError } = await supabase
-      .from("marketplace_connections")
-      .select("metadata, access_token")
-      .eq("tenant_id", tenantId)
-      .eq("marketplace", "meta")
-      .single();
-
-    if (connError || !connection) {
+    // Phase 6: Use centralized helper for token retrieval (V4-first)
+    const metaConn = await getMetaConnectionForTenant(supabase, tenantId, "save-assets");
+    if (!metaConn) {
       return new Response(
         JSON.stringify({ success: false, error: "Conexão Meta não encontrada" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    const oauthAccessToken = metaConn.access_token;
 
-    const metadata = connection.metadata as Record<string, unknown>;
-    const oauthAccessToken = connection.access_token || null;
+    // Also get legacy metadata for catalog_id preservation
+    const { data: legacyConnection } = await supabase
+      .from("marketplace_connections")
+      .select("metadata")
+      .eq("tenant_id", tenantId)
+      .eq("marketplace", "meta")
+      .maybeSingle();
+
+    const metadata = (legacyConnection?.metadata || {}) as Record<string, unknown>;
 
     // Atualizar metadata com ativos selecionados e remover flag de pendência
     const updatedMetadata = {
@@ -114,6 +117,41 @@ serve(async (req) => {
         JSON.stringify({ success: false, error: "Erro ao salvar seleção" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // ========== Phase 6: Save selected_assets in tenant_meta_integrations (V4) ==========
+
+    // Get active grant for this tenant to link integrations
+    const { data: activeGrant } = await supabase
+      .from("tenant_meta_auth_grants")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("status", "active")
+      .order("granted_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (activeGrant) {
+      const integrationMappings = buildIntegrationMappings(selectedAssets);
+      for (const mapping of integrationMappings) {
+        const { error: upsertIntError } = await supabase
+          .from("tenant_meta_integrations")
+          .upsert({
+            tenant_id: tenantId,
+            integration_id: mapping.integrationId,
+            auth_grant_id: activeGrant.id,
+            status: "active",
+            selected_assets: mapping.assets,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "tenant_id,integration_id" });
+
+        if (upsertIntError) {
+          console.warn(`[meta-save-selected-assets] Erro ao salvar integração ${mapping.integrationId}:`, upsertIntError.message);
+        }
+      }
+      console.log(`[meta-save-selected-assets] ${integrationMappings.length} integrações V4 atualizadas`);
+    } else {
+      console.warn("[meta-save-selected-assets] Nenhum grant V4 ativo encontrado, integrações V4 não atualizadas");
     }
 
     // ========== AUTO-ATIVAÇÕES ==========
@@ -499,4 +537,47 @@ async function syncProductsToCatalog(
   } catch (error) {
     console.error("[meta-save-selected-assets] Erro ao sincronizar produtos:", error);
   }
+}
+
+/**
+ * Build integration mappings from user-selected assets.
+ * Maps each asset type to its corresponding integration_id in tenant_meta_integrations.
+ */
+function buildIntegrationMappings(selectedAssets: any): Array<{ integrationId: string; assets: Record<string, any> }> {
+  const mappings: Array<{ integrationId: string; assets: Record<string, any> }> = [];
+
+  // Pages → facebook_publicacoes, facebook_messenger, facebook_comentarios, facebook_lives
+  if (selectedAssets.pages?.length > 0) {
+    const pageAssets = { pages: selectedAssets.pages };
+    mappings.push({ integrationId: "facebook_publicacoes", assets: pageAssets });
+    mappings.push({ integrationId: "facebook_messenger", assets: pageAssets });
+    mappings.push({ integrationId: "facebook_comentarios", assets: pageAssets });
+    mappings.push({ integrationId: "facebook_lives", assets: pageAssets });
+    mappings.push({ integrationId: "facebook_lead_ads", assets: pageAssets });
+  }
+
+  // Instagram accounts → instagram_publicacoes, instagram_comentarios
+  if (selectedAssets.instagram_accounts?.length > 0) {
+    const igAssets = {
+      instagram_accounts: selectedAssets.instagram_accounts,
+      pages: selectedAssets.pages, // IG needs linked pages for API calls
+    };
+    mappings.push({ integrationId: "instagram_publicacoes", assets: igAssets });
+    mappings.push({ integrationId: "instagram_comentarios", assets: igAssets });
+  }
+
+  // Ad accounts + Pixels → anuncios, pixel_facebook
+  if (selectedAssets.ad_accounts?.length > 0) {
+    mappings.push({ integrationId: "anuncios", assets: { ad_accounts: selectedAssets.ad_accounts } });
+  }
+  if (selectedAssets.pixels?.length > 0) {
+    mappings.push({ integrationId: "pixel_facebook", assets: { pixels: selectedAssets.pixels } });
+  }
+
+  // Catalogs → catalogo_meta
+  if (selectedAssets.catalogs?.length > 0) {
+    mappings.push({ integrationId: "catalogo_meta", assets: { catalogs: selectedAssets.catalogs } });
+  }
+
+  return mappings;
 }
