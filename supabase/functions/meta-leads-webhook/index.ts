@@ -17,7 +17,7 @@ const corsHeaders = {
  * Handles leadgen events from Meta Lead Ads.
  * Flow: Lead received → upsert customer → auto-tag "Lead Ads" → notify tenant
  *
- * Routing: Uses Page ID → marketplace_connections → tenant_id
+ * Routing: Uses Page ID → tenant_meta_integrations → tenant_id
  */
 Deno.serve(async (req) => {
   const traceId = crypto.randomUUID().substring(0, 8);

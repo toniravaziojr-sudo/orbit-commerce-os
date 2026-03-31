@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
       for (const entry of payload.entry || []) {
         const pageId = entry.id;
 
-        // Route to tenant by Page ID (stored in marketplace_connections metadata.assets.pages)
+        // Route to tenant by Page ID (V4: tenant_meta_integrations.selected_assets)
         const tenantId = await findTenantByPageId(supabase, pageId);
         if (!tenantId) {
           console.warn(`[meta-page-webhook][${traceId}] No tenant for page ${pageId}`);

@@ -107,8 +107,7 @@ Deno.serve(async (req) => {
  * findTenantByIgUserIdV4
  * 
  * Resolves tenant_id + page_id from an Instagram User ID.
- * V4: Searches tenant_meta_integrations.selected_assets first
- * Legacy fallback: marketplace_connections
+ * V4: Searches tenant_meta_integrations.selected_assets
  */
 async function findTenantByIgUserIdV4(
   supabase: any,
