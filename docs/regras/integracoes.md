@@ -2901,7 +2901,7 @@ O modelo legado (`marketplace_connections` com `marketplace='meta'`) continua fu
 | WhatsApp | `whatsapp_notificacoes`, `whatsapp_atendimento` |
 | Instagram | `instagram_publicacoes`, `instagram_direct`, `instagram_comentarios` |
 | Facebook | `facebook_publicacoes`, `facebook_messenger`, `facebook_lives` |
-| Marketing & Conversão | `pixel_capi`, `leads`, `anuncios` |
+| Marketing & Conversão | `pixel_facebook`, `conversions_api`, `leads`, `anuncios` |
 | Commerce & Dados | `catalogos`, `catalogo_insights` |
 | Outros | `threads` (auth separado) |
 
