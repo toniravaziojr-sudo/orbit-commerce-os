@@ -47,7 +47,7 @@ export interface ActiveGrantInfo {
 
 export function useMetaIntegrations() {
   const { currentTenant } = useAuth();
-  const { canAccess } = useTenantAccess();
+  const { canAccess, isUnlimited } = useTenantAccess();
   const queryClient = useQueryClient();
   const tenantId = currentTenant?.id;
 
