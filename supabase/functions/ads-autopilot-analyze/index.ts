@@ -3040,7 +3040,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                         ratio: safeRatio,
                         country: safeCountry,
                       }),
-                      access_token: metaConn.data.access_token,
+                      access_token: metaConn.access_token,
                     };
 
                     const lalRes = await fetch(`https://graph.facebook.com/v21.0/act_${accountId}/customaudiences`, {
