@@ -2919,6 +2919,7 @@ Cada integração define: `requiredScopes` (escopos Meta necessários), `feature
 
 **UI refatorada:**
 - `MetaUnifiedSettings.tsx` — reescrito: card de conexão (compacto) + cards por grupo com toggles individuais
+- **Visibilidade condicional:** Os cards de toggles (WhatsApp, Instagram, Facebook, Marketing, Commerce, Outros) são exibidos **somente quando a conta Meta está conectada** (`isConnected`). Antes da conexão, apenas o card "Conectar Meta" é visível.
 - Cada toggle mostra estado visual claro:
   - ✅ Ativo (switch ligado)
   - 🔒 Sem permissão (auth capability — escopos ausentes)
