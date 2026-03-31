@@ -33,11 +33,14 @@ interface PublishParams {
 
 export function useMetaThreads() {
   const { currentTenant } = useAuth();
-  const { isConnected, connection } = useMetaConnection();
+  const { isConnected: threadsConnected, connection: threadsConnection } = useThreadsConnection();
   const queryClient = useQueryClient();
 
-  const hasThreads = isConnected && connection?.scopePacks?.includes("threads");
-  const threadsProfile = connection?.assets?.threads_profile;
+  const hasThreads = threadsConnected;
+  const threadsProfile = threadsConnection ? {
+    username: threadsConnection.username,
+    displayName: threadsConnection.displayName,
+  } : null;
 
   // Lista posts recentes
   const postsQuery = useQuery({
