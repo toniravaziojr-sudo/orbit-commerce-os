@@ -119,6 +119,41 @@ serve(async (req) => {
       );
     }
 
+    // ========== Phase 6: Save selected_assets in tenant_meta_integrations (V4) ==========
+
+    // Get active grant for this tenant to link integrations
+    const { data: activeGrant } = await supabase
+      .from("tenant_meta_auth_grants")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("status", "active")
+      .order("granted_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (activeGrant) {
+      const integrationMappings = buildIntegrationMappings(selectedAssets);
+      for (const mapping of integrationMappings) {
+        const { error: upsertIntError } = await supabase
+          .from("tenant_meta_integrations")
+          .upsert({
+            tenant_id: tenantId,
+            integration_id: mapping.integrationId,
+            auth_grant_id: activeGrant.id,
+            status: "active",
+            selected_assets: mapping.assets,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "tenant_id,integration_id" });
+
+        if (upsertIntError) {
+          console.warn(`[meta-save-selected-assets] Erro ao salvar integração ${mapping.integrationId}:`, upsertIntError.message);
+        }
+      }
+      console.log(`[meta-save-selected-assets] ${integrationMappings.length} integrações V4 atualizadas`);
+    } else {
+      console.warn("[meta-save-selected-assets] Nenhum grant V4 ativo encontrado, integrações V4 não atualizadas");
+    }
+
     // ========== AUTO-ATIVAÇÕES ==========
 
     const activationResults: Record<string, string> = {};
