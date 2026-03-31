@@ -1,8 +1,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse, metaApiErrorResponse } from "../_shared/error-response.ts";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.0.0"; // Fase 9 — Page Insights
+const VERSION = "v1.1.0"; // Fase 5 Lote 3 — migração para helper central
 // ===========================================================
 
 const corsHeaders = {
@@ -51,37 +52,23 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Buscar conexão Meta do tenant
+    // Buscar conexão Meta via helper central (V4 + fallback legado)
     const adminClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const { data: connection, error: connError } = await adminClient
-      .from("marketplace_connections")
-      .select("*")
-      .eq("tenant_id", tenantId)
-      .eq("marketplace", "meta")
-      .eq("is_active", true)
-      .maybeSingle();
-
-    if (connError || !connection) {
+    const metaConn = await getMetaConnectionForTenant(adminClient, tenantId, `page-insights`);
+    if (!metaConn) {
       return new Response(
         JSON.stringify({ success: false, error: "Conexão Meta não encontrada", code: "NO_CONNECTION" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const accessToken = connection.access_token;
-    const metadata = connection.metadata as {
-      assets?: {
-        pages?: Array<{ id: string; name: string; access_token?: string }>;
-        instagram_accounts?: Array<{ id: string; username: string; page_id: string }>;
-      };
-    } | null;
-
-    const pages = metadata?.assets?.pages || [];
-    const igAccounts = metadata?.assets?.instagram_accounts || [];
+    const accessToken = metaConn.access_token;
+    const pages = metaConn.metadata?.assets?.pages || [];
+    const igAccounts = (metaConn.metadata?.assets as any)?.instagram_accounts || [];
 
     if (pages.length === 0) {
       return new Response(
@@ -90,7 +77,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const apiVersion = connection.api_version || "v21.0";
+    const apiVersion = "v21.0";
 
     switch (action) {
       case "page_overview": {

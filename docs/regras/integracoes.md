@@ -2994,10 +2994,23 @@ Cada integração define: `requiredScopes` (escopos Meta necessários), `feature
 - `meta-whatsapp-webhook/index.ts` — sem uso de `marketplace_connections`, usa identificação por `whatsapp_configs`. Fora do escopo.
 - `findTenantByPageId` / `findTenantByIgUserId` — funções de reverse-lookup que escaneiam TODAS as conexões ativas para encontrar o tenant dono de um page/IG account. Não podem usar o helper (que exige tenant_id). Mantidas no modelo legado.
 
-**Lote 3 — Secundário (pendente):**
-- Lives, Page Insights, Leads Webhook, Threads Publish, Threads Insights
+**Lote 3 — Secundário (Lives, Insights, Leads, Threads) ✅ Concluído**
+
+| Arquivo | Versão | Status |
+|---------|--------|--------|
+| `meta-live-create/index.ts` | v1.1.0 | ✅ Migrado — leitura de page token via helper centralizado |
+| `meta-live-manage/index.ts` | v1.1.0 | ✅ Migrado — leitura de page token via helper centralizado |
+| `meta-page-insights/index.ts` | v1.1.0 | ✅ Migrado — leitura de token + metadata (pages, IG accounts) via helper |
+| `meta-leads-webhook/index.ts` | v1.1.0 | ✅ Parcial — `getPageAccessToken` via helper; `findTenantByPageId` permanece legacy (scan multi-tenant) |
+| `meta-threads-insights/index.ts` | v1.1.0 | ✅ Migrado — exceção: Threads usa auth separado mas token/metadata lidos pelo mesmo helper |
+| `meta-threads-publish/index.ts` | v1.1.0 | ✅ Migrado — exceção: Threads usa auth separado mas token/metadata lidos pelo mesmo helper |
+
+**Exceções documentadas no Lote 3:**
+- `findTenantByPageId` em `meta-leads-webhook` — reverse-lookup sem tenant_id, permanece legacy (mesmo padrão do Lote 2)
+- Threads (insights + publish) — marcados explicitamente como exceção: usam autenticação Threads separada, mas leitura de token/metadata passa pelo helper central para consistência
 
 **Regras desta fase:**
 1. ❌ Fallback legacy NÃO foi removido — mantido no helper para transição segura
 2. ✅ Apenas leitura de token migrada — writes em `marketplace_connections` (metadata updates) permanecem
 3. ✅ Build TypeScript verificado — sem erros
+4. ✅ Todos os 3 lotes concluídos — Fase 5 completa

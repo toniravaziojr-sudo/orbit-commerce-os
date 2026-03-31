@@ -1,7 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.0.0"; // Initial: Lead Ads webhook → customers + tag + notification
+const VERSION = "v1.1.0"; // Fase 5 Lote 3 — getPageAccessToken via helper central
 // ===========================================================
 
 const corsHeaders = {
@@ -170,21 +171,16 @@ async function findTenantByPageId(
 
 /**
  * Get Page Access Token for a specific page
+ * Usa helper central (V4 + fallback legado)
  */
 async function getPageAccessToken(
   supabase: any,
   tenantId: string,
   pageId: string
 ): Promise<string | null> {
-  const { data: conn } = await supabase
-    .from("marketplace_connections")
-    .select("metadata")
-    .eq("tenant_id", tenantId)
-    .eq("marketplace", "meta")
-    .single();
-
-  if (!conn?.metadata?.assets?.pages) return null;
-  const page = conn.metadata.assets.pages.find((p: any) => p.id === pageId);
+  const metaConn = await getMetaConnectionForTenant(supabase, tenantId, `leads-webhook`);
+  if (!metaConn?.metadata?.assets?.pages) return null;
+  const page = metaConn.metadata.assets.pages.find((p: any) => p.id === pageId);
   return page?.access_token || null;
 }
 

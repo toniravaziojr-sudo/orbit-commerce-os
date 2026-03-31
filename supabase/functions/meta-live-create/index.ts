@@ -2,10 +2,10 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 import { errorResponse } from "../_shared/error-response.ts";
-import { getCredential } from "../_shared/platform-credentials.ts";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.0.0"; // Initial release — criar e agendar lives
+const VERSION = "v1.1.0"; // Fase 5 Lote 3 — migração para helper central
 // ===========================================================
 
 const corsHeaders = {
@@ -109,24 +109,16 @@ serve(async (req) => {
         );
       }
 
-      // Buscar page access token
-      const { data: connection } = await supabase
-        .from("marketplace_connections")
-        .select("metadata")
-        .eq("tenant_id", tenantId)
-        .eq("marketplace", "meta")
-        .eq("is_active", true)
-        .single();
-
-      if (!connection) {
+      // Buscar conexão Meta via helper central (V4 + fallback legado)
+      const metaConn = await getMetaConnectionForTenant(supabase, tenantId, `live-create`);
+      if (!metaConn) {
         return new Response(
           JSON.stringify({ success: false, error: "Conta Meta não conectada", code: "NOT_CONNECTED" }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      const metadata = connection.metadata as any;
-      const page = metadata?.assets?.pages?.find((p: any) => p.id === pageId);
+      const page = metaConn.metadata?.assets?.pages?.find((p: any) => p.id === pageId);
       if (!page?.access_token) {
         return new Response(
           JSON.stringify({ success: false, error: "Página sem access token", code: "NO_PAGE_TOKEN" }),

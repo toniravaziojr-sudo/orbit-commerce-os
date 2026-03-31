@@ -1,8 +1,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse, metaApiErrorResponse } from "../_shared/error-response.ts";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.0.0"; // Fase 6 — Insights de posts do Threads
+const VERSION = "v1.1.0"; // Fase 5 Lote 3 — migração para helper central (exceção: Threads auth separado)
 // ===========================================================
 
 const corsHeaders = {
@@ -35,25 +36,18 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Buscar conexão Meta do tenant
-    const { data: connection, error: connError } = await supabaseAdmin
-      .from("marketplace_connections")
-      .select("*")
-      .eq("tenant_id", tenantId)
-      .eq("marketplace", "meta")
-      .eq("is_active", true)
-      .maybeSingle();
-
-    if (connError || !connection) {
+    // Buscar conexão Meta via helper central (V4 + fallback legado)
+    // NOTA: Threads usa auth separado mas token/metadata são lidos do mesmo modelo
+    const metaConn = await getMetaConnectionForTenant(supabaseAdmin, tenantId, `threads-insights`);
+    if (!metaConn) {
       return new Response(
         JSON.stringify({ success: false, error: "Conta Meta não conectada" }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const accessToken = connection.access_token;
-    const metadata = connection.metadata as any;
-    const threadsProfile = metadata?.assets?.threads_profile;
+    const accessToken = metaConn.access_token;
+    const threadsProfile = (metaConn.metadata?.assets as any)?.threads_profile;
 
     if (!threadsProfile?.id) {
       return new Response(
