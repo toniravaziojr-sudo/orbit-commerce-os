@@ -259,10 +259,9 @@ serve(async (req) => {
     } | null;
 
     const isReconnection = !!(existingMeta && existingMeta.assets && existingMeta.pending_asset_selection !== true);
-    console.log(`[meta-oauth-callback] ${isReconnection ? 'RECONEXÃO' : 'Primeira conexão'} para tenant ${tenant_id} — descobrindo portfólios`);
+    console.log(`[meta-oauth-callback] ${isReconnection ? 'RECONEXÃO' : 'Primeira conexão'} para tenant ${tenant_id}`);
     
-    // Descobrir portfólios (usando escopos do perfil, não mais scope packs)
-    const discovery = await discoverBusinessPortfolios(accessToken, grantedScopes, graphVersion);
+    // Discovery already done above (saved in grant.discovered_assets)
 
     // [LEGADO — TEMPORÁRIO] Upsert em marketplace_connections
     const { error: upsertError } = await supabase
