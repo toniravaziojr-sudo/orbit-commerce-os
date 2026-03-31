@@ -563,10 +563,7 @@ async function orchestratePerformance(
   adAccountId: string | undefined, sendProgress: any, ctx: FactualContext,
 ): Promise<FactualContext> {
   await sendProgress?.("Verificando conexão Meta");
-  const { data: conn } = await supabase
-    .from("marketplace_connections")
-    .select("access_token, metadata")
-    .eq("tenant_id", tenantId).eq("marketplace", "meta").eq("is_active", true).maybeSingle();
+  const conn = await getMetaConnectionForTenant(supabase, tenantId);
 
   if (!conn?.access_token) {
     await sendProgress?.("Buscando campanhas no cache");
@@ -744,10 +741,7 @@ async function orchestrateTargeting(
   const adsetsToFetch = activeAdsets.length > 0 ? activeAdsets : adsets.slice(0, 20);
   const adsetIds = adsetsToFetch.map((a: any) => a.meta_adset_id).slice(0, 20);
 
-  const { data: conn } = await supabase
-    .from("marketplace_connections")
-    .select("access_token")
-    .eq("tenant_id", tenantId).eq("marketplace", "meta").eq("is_active", true).maybeSingle();
+  const conn = await getMetaConnectionForTenant(supabase, tenantId);
 
   if (conn?.access_token && adsetIds.length > 0) {
     await sendProgress?.(`Buscando targeting de ${adsetIds.length} conjuntos na Meta API`);

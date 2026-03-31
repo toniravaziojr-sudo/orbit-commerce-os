@@ -3832,7 +3832,7 @@ async function createMetaCampaign(supabase: any, tenantId: string, args: any, ch
     if (!product) product = products?.[0];
     if (!product) return JSON.stringify({ success: false, error: "Produto não encontrado no catálogo." });
 
-    const { data: conn } = await supabase.from("marketplace_connections").select("access_token, metadata").eq("tenant_id", tenantId).eq("marketplace", "meta").eq("is_active", true).maybeSingle();
+    const conn = await getMetaConnectionForTenant(supabase, tenantId);
     if (!conn) return JSON.stringify({ success: false, error: "Meta não conectada." });
 
     const adAccounts = conn.metadata?.assets?.ad_accounts || [];
