@@ -139,15 +139,26 @@ export const META_INTEGRATION_CATALOG: MetaIntegrationDef[] = [
 
   // === Marketing & Conversão ===
   {
-    id: 'pixel_capi',
-    label: 'Pixel + CAPI',
-    description: 'Rastreamento de conversões e Conversions API',
+    id: 'pixel_facebook',
+    label: 'Pixel Facebook',
+    description: 'Conexão e configuração do pixel de rastreamento client-side',
     group: 'marketing',
     icon: 'Crosshair',
     requiredScopes: ['ads_management'],
     featureKey: null,
     hasConfigSection: true,
-    configSectionKey: 'pixel_capi',
+    configSectionKey: 'pixel_facebook',
+  },
+  {
+    id: 'conversions_api',
+    label: 'API de Conversões',
+    description: 'Envio server-side de eventos via Conversions API (CAPI)',
+    group: 'marketing',
+    icon: 'Server',
+    requiredScopes: ['ads_management'],
+    featureKey: null,
+    hasConfigSection: true,
+    configSectionKey: 'conversions_api',
   },
   {
     id: 'leads',

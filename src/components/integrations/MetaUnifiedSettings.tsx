@@ -35,6 +35,7 @@ import {
   Info,
   Crown,
   ShieldAlert,
+  Server,
 } from "lucide-react";
 import { useMetaConnection } from "@/hooks/useMetaConnection";
 import { useMetaIntegrations, type MetaIntegrationState, type ActiveGrantInfo } from "@/hooks/useMetaIntegrations";
@@ -43,8 +44,9 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
-// Import legacy config sections
-import { MetaPixelCapiSection } from "./meta/MetaPixelCapiSection";
+// Import config sections
+import { MetaPixelSection } from "./meta/MetaPixelSection";
+import { MetaConversionsApiSection } from "./meta/MetaConversionsApiSection";
 import { MetaProductFeedsSection } from "./meta/MetaProductFeedsSection";
 import { MetaWhatsAppRegistrationSection } from "./meta/MetaWhatsAppRegistrationSection";
 
@@ -59,6 +61,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   MessagesSquare: <MessagesSquare className="h-4 w-4" />,
   Video: <Video className="h-4 w-4" />,
   Crosshair: <Crosshair className="h-4 w-4" />,
+  Server: <Server className="h-4 w-4" />,
   Users: <Users className="h-4 w-4" />,
   Megaphone: <Megaphone className="h-4 w-4" />,
   ShoppingBag: <ShoppingBag className="h-4 w-4" />,
@@ -480,8 +483,10 @@ function IntegrationConfigSection({ configKey }: { configKey: string }) {
   switch (configKey) {
     case "whatsapp_registration":
       return <MetaWhatsAppRegistrationSection />;
-    case "pixel_capi":
-      return <MetaPixelCapiSection />;
+    case "pixel_facebook":
+      return <MetaPixelSection />;
+    case "conversions_api":
+      return <MetaConversionsApiSection />;
     case "product_feeds":
       return <MetaProductFeedsSection />;
     default:
