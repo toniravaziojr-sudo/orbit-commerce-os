@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { showErrorToast } from "@/lib/error-toast";
 import {
   META_INTEGRATION_CATALOG,
+  META_APPROVED_PUBLIC_SCOPES,
   type MetaIntegrationDef,
 } from "@/config/metaIntegrationCatalog";
 
