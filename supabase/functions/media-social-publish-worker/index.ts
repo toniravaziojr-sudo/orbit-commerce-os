@@ -1,8 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 
-const VERSION = "2.1.0"; // Phase 1B: execution_log, warning_flags, aggregate trigger
+const VERSION = "3.0.0"; // Phase 7: Use centralized meta-connection helper instead of direct marketplace_connections
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
