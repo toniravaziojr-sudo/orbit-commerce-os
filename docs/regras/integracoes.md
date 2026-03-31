@@ -2951,7 +2951,7 @@ Cada integração define: `requiredScopes` (escopos Meta necessários), `feature
 - Feature keys estão todas como `null` (sem restrição de plano) — adicionar conforme regras de billing forem definidas
 - `metaPackAvailability.ts` continua existindo para compatibilidade, mas não é mais usado pela UI principal
 
-### Fase 5 — Migração dos Consumidores para Helper Centralizado (🔄 Em andamento)
+### Fase 5 — Migração dos Consumidores para Helper Centralizado (✅ Concluída)
 
 **Objetivo:** Padronizar todos os consumidores de tokens Meta para usar um helper centralizado (`getMetaConnectionForTenant`) que prioriza o modelo V4 (`tenant_meta_auth_grants`) com fallback automático para `marketplace_connections`.
 
