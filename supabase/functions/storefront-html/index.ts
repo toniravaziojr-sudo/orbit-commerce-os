@@ -2075,7 +2075,8 @@ serve(async (req) => {
     const globalLayout = baseResults.globalLayout;
     const footerMenusRaw = baseResults.footerMenus || [];
     const publishedPages = baseResults.publishedPages || [];
-    const marketingConfig = baseResults.marketingConfig;
+    let marketingConfig = baseResults.marketingConfig;
+    const metaGrantActive = baseResults.metaGrantActive;
     const newsletterPopup = baseResults.newsletterPopup;
     const freeShippingRulesData = baseResults.freeShippingRules || [];
 
