@@ -2928,7 +2928,7 @@ O modelo legado (`marketplace_connections` com `marketplace='meta'`) continua fu
 | Facebook | `facebook_publicacoes`, `facebook_messenger`, `facebook_comentarios`, `facebook_lives` |
 | Marketing & Conversão | `pixel_facebook`, `conversions_api`, `leads`, `anuncios` |
 | Commerce & Dados | `catalogos`, `catalogo_insights` |
-| Outros | `threads` (auth separado) |
+| Outros | `threads` |
 
 Cada integração define: `requiredScopes` (escopos Meta necessários), `featureKey` (gating por plano), `separateAuth` (se usa auth próprio), `hasConfigSection` + `configSectionKey` (seção de configuração expandível). O toggle `facebook_comentarios` requer os escopos `pages_manage_engagement`, `pages_read_engagement` e `pages_read_user_content` (este último é dependência obrigatória de `pages_manage_engagement` conforme documentação oficial da Meta).
 
