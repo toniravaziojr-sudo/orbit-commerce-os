@@ -290,7 +290,6 @@ export const META_INTEGRATION_CATALOG: MetaIntegrationDef[] = [
     icon: 'AtSign',
     requiredScopes: ['threads_basic', 'threads_content_publish'],
     featureKey: null,
-    separateAuth: true,
     assetType: 'none',
   },
 ];
