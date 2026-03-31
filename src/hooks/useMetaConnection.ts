@@ -74,6 +74,7 @@ export function useMetaConnection() {
       if (event.data?.type === "meta:connected") {
         window.removeEventListener("message", handleMessage);
         queryClient.invalidateQueries({ queryKey: ["meta-connection-status"] });
+        queryClient.invalidateQueries({ queryKey: ["meta-integrations"] });
 
         if (event.data.success) {
           toast.success("Conta Meta conectada com sucesso!");
@@ -90,6 +91,7 @@ export function useMetaConnection() {
         clearInterval(checkPopup);
         window.removeEventListener("message", handleMessage);
         queryClient.invalidateQueries({ queryKey: ["meta-connection-status"] });
+        queryClient.invalidateQueries({ queryKey: ["meta-integrations"] });
       }
     }, 500);
   };

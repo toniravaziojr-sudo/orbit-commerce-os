@@ -199,6 +199,7 @@ export default function MetaOAuthCallback() {
 
     const code = searchParams.get("code");
     const state = searchParams.get("state");
+    const resume = searchParams.get("resume");
     const error = searchParams.get("error");
     const errorDescription = searchParams.get("error_description");
     const successParam = searchParams.get("success");
@@ -224,11 +225,82 @@ export default function MetaOAuthCallback() {
       return;
     }
 
+    if (resume === "1") {
+      processedRef.current = true;
+      resumePendingSelection();
+      return;
+    }
+
     processedRef.current = true;
     setStep("error");
     setErrorMessage("Acesso inválido.");
     notifyParentAndClose(false, "Acesso inválido.");
   }, [searchParams]);
+
+  async function resumePendingSelection() {
+    try {
+      const tenantIdFromUrl = searchParams.get("tenantId");
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("Sessão expirada. Entre novamente para concluir a conexão.");
+      }
+
+      let tenantId = tenantIdFromUrl;
+
+      if (!tenantId) {
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("current_tenant_id")
+          .eq("id", user.id)
+          .single();
+
+        if (profileError || !profile?.current_tenant_id) {
+          throw new Error("Tenant não encontrado para concluir a conexão.");
+        }
+
+        tenantId = profile.current_tenant_id;
+      }
+
+      const { data: grant, error: grantError } = await supabase
+        .from("tenant_meta_auth_grants")
+        .select("id, discovered_assets, meta_user_id, meta_user_name, token_expires_at, granted_scopes")
+        .eq("tenant_id", tenantId)
+        .eq("status", "active")
+        .order("granted_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (grantError || !grant) {
+        throw new Error("Nenhuma conexão pendente encontrada para concluir.");
+      }
+
+      const businessList = ((grant.discovered_assets as any)?.businesses || []) as BusinessPortfolio[];
+
+      if (businessList.length === 0) {
+        throw new Error("Nenhum ativo foi encontrado para seleção.");
+      }
+
+      setBusinesses(businessList);
+      setThreadsProfile(null);
+      setConnectionData({
+        externalUserId: grant.meta_user_id,
+        externalUsername: grant.meta_user_name,
+        expiresAt: grant.token_expires_at,
+        grantedScopes: grant.granted_scopes || [],
+        businesses: businessList,
+      });
+
+      if (businessList.length === 1) {
+        handleSelectPortfolio(businessList[0].id);
+      } else {
+        setStep("select_portfolio");
+      }
+    } catch (err: any) {
+      setStep("error");
+      setErrorMessage(err.message || "Erro ao retomar seleção de ativos.");
+    }
+  }
 
   async function processOAuthCallback(code: string, state: string) {
     try {
