@@ -307,11 +307,13 @@ interface MetaIntegrationGroupCardProps {
   icon: React.ReactNode;
   states: MetaIntegrationState[];
   activeCount: number;
-  onToggle: (args: { integrationId: string; action: "activate" | "deactivate" }) => void;
+  onToggle: (args: { integrationId: string; action: "activate" | "deactivate"; selectedAssets?: any }) => void;
   isToggling: boolean;
   togglingId: string | null;
   isConnected: boolean;
   grant: ActiveGrantInfo | null;
+  saveAssets: (args: { integrationId: string; selectedAssets: any }) => void;
+  isSavingAssets: boolean;
 }
 
 function MetaIntegrationGroupCard({
@@ -326,6 +328,8 @@ function MetaIntegrationGroupCard({
   togglingId,
   isConnected,
   grant,
+  saveAssets,
+  isSavingAssets,
 }: MetaIntegrationGroupCardProps) {
   return (
     <Card>
@@ -357,6 +361,8 @@ function MetaIntegrationGroupCard({
             isConnected={isConnected}
             grant={grant}
             isLast={idx === states.length - 1}
+            saveAssets={saveAssets}
+            isSavingAssets={isSavingAssets}
           />
         ))}
       </CardContent>
@@ -368,11 +374,13 @@ function MetaIntegrationGroupCard({
 
 interface MetaIntegrationToggleRowProps {
   state: MetaIntegrationState;
-  onToggle: (args: { integrationId: string; action: "activate" | "deactivate" }) => void;
+  onToggle: (args: { integrationId: string; action: "activate" | "deactivate"; selectedAssets?: any }) => void;
   isToggling: boolean;
   isConnected: boolean;
   grant: ActiveGrantInfo | null;
   isLast: boolean;
+  saveAssets: (args: { integrationId: string; selectedAssets: any }) => void;
+  isSavingAssets: boolean;
 }
 
 function MetaIntegrationToggleRow({
@@ -382,20 +390,51 @@ function MetaIntegrationToggleRow({
   isConnected,
   grant,
   isLast,
+  saveAssets,
+  isSavingAssets,
 }: MetaIntegrationToggleRowProps) {
   const [configOpen, setConfigOpen] = useState(false);
-  const { def, isActive, canActivate, blockReason, layerStatus } = state;
+  const [selectorOpen, setSelectorOpen] = useState(false);
+  const { def, isActive, canActivate, blockReason, layerStatus, selectedAssets } = state;
+
+  const needsAssetSelection = def.assetType !== "none" && def.assetType !== "catalog";
+  const hasSelectedAsset = selectedAssets && Object.keys(selectedAssets).length > 0;
 
   const handleToggle = () => {
-    if (isToggling) return;
-    if (def.separateAuth) {
-      // Threads has separate auth — for now just show info
-      return;
+    if (isToggling || isSavingAssets) return;
+    if (def.separateAuth) return;
+
+    if (isActive) {
+      // Deactivate — straightforward
+      onToggle({ integrationId: def.id, action: "deactivate" });
+      setSelectorOpen(false);
+    } else {
+      // Activate — open asset selector if needed
+      if (needsAssetSelection) {
+        setSelectorOpen(true);
+      } else {
+        onToggle({ integrationId: def.id, action: "activate" });
+      }
     }
-    onToggle({
-      integrationId: def.id,
-      action: isActive ? "deactivate" : "activate",
-    });
+  };
+
+  const handleAssetConfirm = (assets: any) => {
+    onToggle({ integrationId: def.id, action: "activate", selectedAssets: assets });
+    setSelectorOpen(false);
+  };
+
+  const handleAssetEdit = () => {
+    setSelectorOpen(true);
+  };
+
+  const handleAssetRemove = () => {
+    onToggle({ integrationId: def.id, action: "deactivate" });
+    setSelectorOpen(false);
+  };
+
+  const handleAssetUpdate = (assets: any) => {
+    saveAssets({ integrationId: def.id, selectedAssets: assets });
+    setSelectorOpen(false);
   };
 
   const icon = ICON_MAP[def.icon] || <Info className="h-4 w-4" />;
@@ -473,6 +512,28 @@ function MetaIntegrationToggleRow({
           )}
         </div>
       </div>
+
+      {/* Show linked asset info when active */}
+      {isActive && hasSelectedAsset && !selectorOpen && (
+        <MetaAssetDisplay
+          assetType={def.assetType}
+          selectedAssets={selectedAssets}
+          onEdit={handleAssetEdit}
+          onRemove={handleAssetRemove}
+        />
+      )}
+
+      {/* Asset selector — shown when activating or editing */}
+      {selectorOpen && (
+        <MetaAssetSelector
+          assetType={def.assetType}
+          assetLabel={def.assetLabel}
+          discoveredAssets={grant?.discoveredAssets || null}
+          onConfirm={isActive ? handleAssetUpdate : handleAssetConfirm}
+          onCancel={() => setSelectorOpen(false)}
+          isLoading={isToggling || isSavingAssets}
+        />
+      )}
 
       {/* Expandable config section */}
       {hasConfig && configOpen && (
