@@ -43,6 +43,7 @@ import { META_INTEGRATION_GROUPS, type MetaIntegrationGroup } from "@/config/met
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { MetaAssetSelector, MetaAssetDisplay } from "./meta/MetaAssetSelector";
 
 // Import config sections
 import { MetaPixelSection } from "./meta/MetaPixelSection";
