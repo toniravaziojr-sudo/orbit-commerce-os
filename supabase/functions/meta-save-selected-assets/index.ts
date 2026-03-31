@@ -538,3 +538,46 @@ async function syncProductsToCatalog(
     console.error("[meta-save-selected-assets] Erro ao sincronizar produtos:", error);
   }
 }
+
+/**
+ * Build integration mappings from user-selected assets.
+ * Maps each asset type to its corresponding integration_id in tenant_meta_integrations.
+ */
+function buildIntegrationMappings(selectedAssets: any): Array<{ integrationId: string; assets: Record<string, any> }> {
+  const mappings: Array<{ integrationId: string; assets: Record<string, any> }> = [];
+
+  // Pages → facebook_publicacoes, facebook_messenger, facebook_comentarios, facebook_lives
+  if (selectedAssets.pages?.length > 0) {
+    const pageAssets = { pages: selectedAssets.pages };
+    mappings.push({ integrationId: "facebook_publicacoes", assets: pageAssets });
+    mappings.push({ integrationId: "facebook_messenger", assets: pageAssets });
+    mappings.push({ integrationId: "facebook_comentarios", assets: pageAssets });
+    mappings.push({ integrationId: "facebook_lives", assets: pageAssets });
+    mappings.push({ integrationId: "facebook_lead_ads", assets: pageAssets });
+  }
+
+  // Instagram accounts → instagram_publicacoes, instagram_comentarios
+  if (selectedAssets.instagram_accounts?.length > 0) {
+    const igAssets = {
+      instagram_accounts: selectedAssets.instagram_accounts,
+      pages: selectedAssets.pages, // IG needs linked pages for API calls
+    };
+    mappings.push({ integrationId: "instagram_publicacoes", assets: igAssets });
+    mappings.push({ integrationId: "instagram_comentarios", assets: igAssets });
+  }
+
+  // Ad accounts + Pixels → anuncios, pixel_facebook
+  if (selectedAssets.ad_accounts?.length > 0) {
+    mappings.push({ integrationId: "anuncios", assets: { ad_accounts: selectedAssets.ad_accounts } });
+  }
+  if (selectedAssets.pixels?.length > 0) {
+    mappings.push({ integrationId: "pixel_facebook", assets: { pixels: selectedAssets.pixels } });
+  }
+
+  // Catalogs → catalogo_meta
+  if (selectedAssets.catalogs?.length > 0) {
+    mappings.push({ integrationId: "catalogo_meta", assets: { catalogs: selectedAssets.catalogs } });
+  }
+
+  return mappings;
+}
