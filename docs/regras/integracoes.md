@@ -2859,7 +2859,10 @@ O modelo legado (`marketplace_connections` com `marketplace='meta'`) continua fu
 - Chama `supersede_meta_grant(tenant_id, new_grant_id)` — semântica V4 de 1 grant ativo por tenant
 - Obtém `granted_scopes` via `debug_token` da Meta
 - Usa `granted_scopes` (não mais scope packs) para decidir quais assets buscar na discovery
-- Mantém upsert em `marketplace_connections` como **compatibilidade temporária** (não é fonte de verdade)
+- **Fluxo condicional por perfil (config_id):**
+  - Se perfil tem `config_id` (FLB — `meta_auth_external`): retorna `requiresAssetSelection: false` → frontend auto-salva ativos descobertos sem tela de re-seleção
+  - Se perfil NÃO tem `config_id` (`meta_auth_full`): retorna `requiresAssetSelection: true` → frontend exibe tela de seleção interna de ativos
+- **Deduplicação de pixels**: Pixels são deduplicados por `pixel.id` real durante a discovery, evitando duplicação quando o mesmo pixel aparece em múltiplas ad accounts
 - Retorna `grantId` e `authProfile` no response
 
 **Frontend:**
