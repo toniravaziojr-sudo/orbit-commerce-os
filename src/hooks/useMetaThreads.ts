@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useMetaConnection } from "@/hooks/useMetaConnection";
+import { useThreadsConnection } from "@/hooks/useThreadsConnection";
 import { toast } from "sonner";
 import { showErrorToast } from '@/lib/error-toast';
 
