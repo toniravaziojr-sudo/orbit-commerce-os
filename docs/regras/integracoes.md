@@ -2908,7 +2908,11 @@ O modelo legado (`marketplace_connections` com `marketplace='meta'`) continua fu
 Cada integração define: `requiredScopes` (escopos Meta necessários), `featureKey` (gating por plano), `separateAuth` (se usa auth próprio), `hasConfigSection` + `configSectionKey` (seção de configuração expandível).
 
 **Edge Function criada:**
-- `meta-integrations-manage` — GET lista integrações + grant ativo; POST ativa/desativa integração vinculando ao grant existente. Não faz auth. Acesso validado via `user_has_tenant_access`.
+- `meta-integrations-manage` — GET lista integrações + grant ativo; POST ativa/desativa integração vinculando ao grant existente. Não faz auth. Acesso validado via `user_has_tenant_access` usando `userClient` (JWT do usuário) para que `auth.uid()` funcione corretamente na RPC.
+
+> **⚠️ BUGFIX APLICADO:** A chamada RPC `user_has_tenant_access` DEVE usar `userClient` (criado com o JWT do usuário), NÃO `adminClient` (service role). O `adminClient` faz `auth.uid()` retornar `NULL`, causando erro "FORBIDDEN" mesmo para usuários autorizados. O `adminClient` é usado apenas para operações privilegiadas APÓS a validação de acesso.
+>
+> **⚠️ DÍVIDA TÉCNICA:** A RPC `user_has_tenant_access` aceita `_user_id` como parâmetro mas usa `auth.uid()` internamente, ignorando o parâmetro. Deve ser alinhada para evitar ambiguidade.
 
 **Hook criado:**
 - `useMetaIntegrations` — lê estado de `tenant_meta_integrations`, computa 3 camadas de estado (auth capability, plano, operacional), fornece `toggle()` para ativar/desativar.
