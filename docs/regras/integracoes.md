@@ -2826,6 +2826,13 @@ O Pixel Facebook é **vinculado à conexão Meta**:
 
 A janela popup do fluxo OAuth da Meta abre de forma **adaptável ao espaço disponível**, priorizando altura ampla (900px+ quando a tela permitir), largura ampliada e tentativa de redimensionamento automático para evitar cortes na etapa inicial de seleção de páginas e ativos do Facebook.
 
+### Fluxo de Seleção de Ativos
+
+- O usuário conclui a autorização no Facebook e depois escolhe no sistema: **portfólio empresarial → ativos a conectar → finalizar**.
+- A etapa final dentro do sistema deve sempre exibir os ativos descobertos para o portfólio escolhido (páginas, Instagram, WhatsApp, anúncios, pixel e catálogo quando disponíveis).
+- Após finalizar, as funcionalidades compatíveis ficam liberadas automaticamente no painel Meta, sem exibir bloqueio falso de permissão para tenants em modo liberado.
+- O vínculo salvo após a seleção usa os mesmos identificadores exibidos no painel Meta, sem aliases paralelos para as mesmas funcionalidades.
+
 | Grupo | Toggles |
 |---|---|
 | WhatsApp | Notificações, Atendimento |

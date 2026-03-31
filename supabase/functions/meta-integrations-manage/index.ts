@@ -54,8 +54,7 @@ Deno.serve(async (req) => {
 
       // Verify tenant access — use userClient so auth.uid() works inside the RPC
       const { data: hasAccess } = await userClient.rpc("user_has_tenant_access", {
-        _tenant_id: tenantId,
-        _user_id: user.id,
+        p_tenant_id: tenantId,
       });
       if (!hasAccess) {
         return new Response(
@@ -118,8 +117,7 @@ Deno.serve(async (req) => {
 
       // Verify tenant access — use userClient so auth.uid() works inside the RPC
       const { data: hasAccess } = await userClient.rpc("user_has_tenant_access", {
-        _tenant_id: tenant_id,
-        _user_id: user.id,
+        p_tenant_id: tenant_id,
       });
       if (!hasAccess) {
         return new Response(

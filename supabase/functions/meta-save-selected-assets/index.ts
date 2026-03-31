@@ -131,16 +131,10 @@ serve(async (req) => {
       tenant_id: tenantId,
       meta_enabled: !!pixelId,
       meta_status: pixelId ? 'active' : 'inactive',
+      meta_pixel_id: pixelId,
+      meta_access_token: oauthAccessToken && pixelId ? oauthAccessToken : null,
+      meta_capi_enabled: !!(oauthAccessToken && pixelId),
     };
-
-    if (pixelId) {
-      upsertData.meta_pixel_id = pixelId;
-    }
-
-    if (oauthAccessToken && pixelId) {
-      upsertData.meta_access_token = oauthAccessToken;
-      upsertData.meta_capi_enabled = true;
-    }
 
     const { error: miError } = await supabase
       .from("marketing_integrations")
@@ -218,7 +212,7 @@ serve(async (req) => {
             .from("tenant_meta_integrations")
             .upsert({
               tenant_id: tenantId,
-              integration_id: "catalogo_meta",
+                integration_id: "catalogos",
               auth_grant_id: activeGrant.id,
               status: "active",
               selected_assets: {
@@ -511,37 +505,54 @@ async function syncProductsToCatalog(
 function buildIntegrationMappings(selectedAssets: any): Array<{ integrationId: string; assets: Record<string, any> }> {
   const mappings: Array<{ integrationId: string; assets: Record<string, any> }> = [];
 
-  // Pages → facebook_publicacoes, facebook_messenger, facebook_comentarios, facebook_lives
+  // Pages → Facebook core + leads
   if (selectedAssets.pages?.length > 0) {
     const pageAssets = { pages: selectedAssets.pages };
     mappings.push({ integrationId: "facebook_publicacoes", assets: pageAssets });
     mappings.push({ integrationId: "facebook_messenger", assets: pageAssets });
-    mappings.push({ integrationId: "facebook_comentarios", assets: pageAssets });
     mappings.push({ integrationId: "facebook_lives", assets: pageAssets });
-    mappings.push({ integrationId: "facebook_lead_ads", assets: pageAssets });
+    mappings.push({ integrationId: "leads", assets: pageAssets });
   }
 
-  // Instagram accounts → instagram_publicacoes, instagram_comentarios
+  // Instagram accounts → publicação, comentários e direct
   if (selectedAssets.instagram_accounts?.length > 0) {
     const igAssets = {
       instagram_accounts: selectedAssets.instagram_accounts,
       pages: selectedAssets.pages, // IG needs linked pages for API calls
     };
     mappings.push({ integrationId: "instagram_publicacoes", assets: igAssets });
+    mappings.push({ integrationId: "instagram_direct", assets: igAssets });
     mappings.push({ integrationId: "instagram_comentarios", assets: igAssets });
   }
 
-  // Ad accounts + Pixels → anuncios, pixel_facebook
+  // WhatsApp → notificações e atendimento
+  if (selectedAssets.whatsapp_business_accounts?.length > 0 || selectedAssets.selected_phone_number) {
+    const whatsappAssets = {
+      whatsapp_business_accounts: selectedAssets.whatsapp_business_accounts || [],
+      selected_phone_number: selectedAssets.selected_phone_number || null,
+    };
+    mappings.push({ integrationId: "whatsapp_notificacoes", assets: whatsappAssets });
+    mappings.push({ integrationId: "whatsapp_atendimento", assets: whatsappAssets });
+  }
+
+  // Ad accounts + Pixels → anúncios, pixel e CAPI
   if (selectedAssets.ad_accounts?.length > 0) {
     mappings.push({ integrationId: "anuncios", assets: { ad_accounts: selectedAssets.ad_accounts } });
   }
   if (selectedAssets.pixels?.length > 0) {
-    mappings.push({ integrationId: "pixel_facebook", assets: { pixels: selectedAssets.pixels } });
+    const pixelAssets = { pixels: selectedAssets.pixels };
+    mappings.push({ integrationId: "pixel_facebook", assets: pixelAssets });
+    mappings.push({ integrationId: "conversions_api", assets: pixelAssets });
   }
 
-  // Catalogs → catalogo_meta
+  // Catalogs → catálogo visível na UI
   if (selectedAssets.catalogs?.length > 0) {
-    mappings.push({ integrationId: "catalogo_meta", assets: { catalogs: selectedAssets.catalogs } });
+    mappings.push({ integrationId: "catalogos", assets: { catalogs: selectedAssets.catalogs } });
+  }
+
+  // Threads
+  if (selectedAssets.threads_profile) {
+    mappings.push({ integrationId: "threads", assets: { threads_profile: selectedAssets.threads_profile } });
   }
 
   return mappings;
