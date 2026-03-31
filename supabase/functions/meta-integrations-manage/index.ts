@@ -116,8 +116,8 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Verify tenant access
-      const { data: hasAccess } = await adminClient.rpc("user_has_tenant_access", {
+      // Verify tenant access — use userClient so auth.uid() works inside the RPC
+      const { data: hasAccess } = await userClient.rpc("user_has_tenant_access", {
         _tenant_id: tenant_id,
         _user_id: user.id,
       });
