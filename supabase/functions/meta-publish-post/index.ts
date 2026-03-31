@@ -1,8 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
-const VERSION = "3.0.0"; // Phase 1A: preflight + snapshot + frozen_payload
+const VERSION = "3.1.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -59,23 +60,14 @@ serve(async (req) => {
       return jsonResponse({ success: false, error: "Sem acesso ao tenant" });
     }
 
-    // Get Meta connection
-    const { data: metaConn } = await supabase
-      .from("marketplace_connections")
-      .select("*")
-      .eq("tenant_id", tenant_id)
-      .eq("marketplace", "meta")
-      .eq("is_active", true)
-      .single();
+    // Get Meta connection via centralized helper (V4 + legacy fallback)
+    const metaConn = await getMetaConnectionForTenant(supabase, tenant_id);
 
     if (!metaConn?.access_token) {
       return jsonResponse({ success: false, error: "Meta não conectado. Conecte sua conta em Integrações." });
     }
 
-    // Check token expiry
-    if (metaConn.expires_at && new Date(metaConn.expires_at) < new Date()) {
-      return jsonResponse({ success: false, error: "Token Meta expirado. Reconecte em Integrações." });
-    }
+    // Token expiry is handled by the helper (V4 checks grant status, legacy checks expires_at)
 
     // Check scope packs
     const scopePacks = (metaConn.metadata as any)?.scope_packs || [];

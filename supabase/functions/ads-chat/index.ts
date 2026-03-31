@@ -2,9 +2,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.37.0"; // Fix: busca no Drive agora conta criativos por nome + metadata.product_id (sem subcontagem)
+const VERSION = "v5.38.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
 // ===========================================================
 
 const AI_TIMEOUT_MS = 90000; // 90s per AI round (was 45s)
@@ -1289,13 +1290,7 @@ async function getCampaignPerformance(supabase: any, tenantId: string, adAccount
 
 // --- Helper: Fetch campaign LIST directly from Meta Graph API (source of truth for names) ---
 async function fetchMetaCampaignsLive(supabase: any, tenantId: string, adAccountId?: string, statusFilter?: string): Promise<any[]> {
-  const { data: conn } = await supabase
-    .from("marketplace_connections")
-    .select("access_token, metadata")
-    .eq("tenant_id", tenantId)
-    .eq("marketplace", "meta")
-    .eq("is_active", true)
-    .maybeSingle();
+  const conn = await getMetaConnectionForTenant(supabase, tenantId);
 
   if (!conn?.access_token) return [];
 
@@ -1348,13 +1343,7 @@ async function fetchMetaCampaignsLive(supabase: any, tenantId: string, adAccount
 
 // --- Helper: Fetch insights directly from Meta Graph API (with pagination + lifetime support) ---
 async function fetchMetaInsightsLive(supabase: any, tenantId: string, adAccountId?: string, sinceDate?: string, level: string = "campaign", useLifetime: boolean = false) {
-  const { data: conn } = await supabase
-    .from("marketplace_connections")
-    .select("access_token, metadata")
-    .eq("tenant_id", tenantId)
-    .eq("marketplace", "meta")
-    .eq("is_active", true)
-    .maybeSingle();
+  const conn = await getMetaConnectionForTenant(supabase, tenantId);
 
   if (!conn?.access_token) return [];
 
@@ -1816,13 +1805,7 @@ async function toggleEntityStatus(supabase: any, tenantId: string, args: any, ch
   const { entity_type, entity_id, new_status } = args;
 
   // Get Meta connection
-  const { data: conn } = await supabase
-    .from("marketplace_connections")
-    .select("access_token")
-    .eq("tenant_id", tenantId)
-    .eq("marketplace", "meta")
-    .eq("is_active", true)
-    .maybeSingle();
+  const conn = await getMetaConnectionForTenant(supabase, tenantId);
 
   if (!conn) return JSON.stringify({ success: false, error: "Meta não conectada" });
 
@@ -1881,13 +1864,7 @@ async function toggleEntityStatus(supabase: any, tenantId: string, args: any, ch
 async function updateBudget(supabase: any, tenantId: string, args: any, chatSessionId?: string) {
   const { entity_type, entity_id, new_daily_budget_cents } = args;
 
-  const { data: conn } = await supabase
-    .from("marketplace_connections")
-    .select("access_token")
-    .eq("tenant_id", tenantId)
-    .eq("marketplace", "meta")
-    .eq("is_active", true)
-    .maybeSingle();
+  const conn = await getMetaConnectionForTenant(supabase, tenantId);
 
   if (!conn) return JSON.stringify({ success: false, error: "Meta não conectada" });
 
@@ -1952,13 +1929,7 @@ async function duplicateCampaign(supabase: any, tenantId: string, args: any, cha
   if (!source) return JSON.stringify({ success: false, error: "Campanha original não encontrada." });
 
   // Get Meta connection
-  const { data: conn } = await supabase
-    .from("marketplace_connections")
-    .select("access_token, metadata")
-    .eq("tenant_id", tenantId)
-    .eq("marketplace", "meta")
-    .eq("is_active", true)
-    .maybeSingle();
+  const conn = await getMetaConnectionForTenant(supabase, tenantId);
 
   if (!conn) return JSON.stringify({ success: false, error: "Meta não conectada." });
 
@@ -2124,13 +2095,7 @@ async function duplicateCampaign(supabase: any, tenantId: string, args: any, cha
 async function updateAdsetTargeting(supabase: any, tenantId: string, args: any, chatSessionId?: string) {
   const { adset_id, age_min, age_max, genders, geo_locations, interests } = args;
 
-  const { data: conn } = await supabase
-    .from("marketplace_connections")
-    .select("access_token")
-    .eq("tenant_id", tenantId)
-    .eq("marketplace", "meta")
-    .eq("is_active", true)
-    .maybeSingle();
+  const conn = await getMetaConnectionForTenant(supabase, tenantId);
 
   if (!conn) return JSON.stringify({ success: false, error: "Meta não conectada." });
 
@@ -2184,13 +2149,7 @@ async function updateAdsetTargeting(supabase: any, tenantId: string, args: any, 
 async function createCustomAudience(supabase: any, tenantId: string, args: any, chatSessionId?: string) {
   const { name, description, source, subtype, retention_days, rule } = args;
 
-  const { data: conn } = await supabase
-    .from("marketplace_connections")
-    .select("access_token, metadata")
-    .eq("tenant_id", tenantId)
-    .eq("marketplace", "meta")
-    .eq("is_active", true)
-    .maybeSingle();
+  const conn = await getMetaConnectionForTenant(supabase, tenantId);
 
   if (!conn) return JSON.stringify({ success: false, error: "Meta não conectada." });
 
@@ -2270,13 +2229,7 @@ async function createCustomAudience(supabase: any, tenantId: string, args: any, 
 async function createLookalikeAudience(supabase: any, tenantId: string, args: any, chatSessionId?: string) {
   const { source_audience_id, country, ratio } = args;
 
-  const { data: conn } = await supabase
-    .from("marketplace_connections")
-    .select("access_token, metadata")
-    .eq("tenant_id", tenantId)
-    .eq("marketplace", "meta")
-    .eq("is_active", true)
-    .maybeSingle();
+  const conn = await getMetaConnectionForTenant(supabase, tenantId);
 
   if (!conn) return JSON.stringify({ success: false, error: "Meta não conectada." });
 
@@ -2772,13 +2725,7 @@ async function getMetaAdsets(supabase: any, tenantId: string, adAccountId?: stri
 
 // --- Live fetch adsets from Meta Graph API with FULL targeting + sync to DB cache ---
 async function fetchMetaAdsetsLive(supabase: any, tenantId: string, adAccountId?: string, statusFilter?: string, campaignId?: string) {
-  const { data: conn } = await supabase
-    .from("marketplace_connections")
-    .select("access_token, metadata")
-    .eq("tenant_id", tenantId)
-    .eq("marketplace", "meta")
-    .eq("is_active", true)
-    .maybeSingle();
+  const conn = await getMetaConnectionForTenant(supabase, tenantId);
 
   if (!conn?.access_token) return JSON.stringify({ error: "Meta não conectada" });
 
@@ -2893,13 +2840,7 @@ async function getAdsetTargeting(supabase: any, tenantId: string, adsetIds: stri
     console.log(`[ads-chat][${VERSION}] getAdsetTargeting: truncated to 20 IDs`);
   }
 
-  const { data: conn } = await supabase
-    .from("marketplace_connections")
-    .select("access_token, metadata")
-    .eq("tenant_id", tenantId)
-    .eq("marketplace", "meta")
-    .eq("is_active", true)
-    .maybeSingle();
+  const conn = await getMetaConnectionForTenant(supabase, tenantId);
 
   if (!conn?.access_token) return JSON.stringify({ error: "Meta não conectada" });
 
@@ -3892,7 +3833,7 @@ async function createMetaCampaign(supabase: any, tenantId: string, args: any, ch
     if (!product) product = products?.[0];
     if (!product) return JSON.stringify({ success: false, error: "Produto não encontrado no catálogo." });
 
-    const { data: conn } = await supabase.from("marketplace_connections").select("access_token, metadata").eq("tenant_id", tenantId).eq("marketplace", "meta").eq("is_active", true).maybeSingle();
+    const conn = await getMetaConnectionForTenant(supabase, tenantId);
     if (!conn) return JSON.stringify({ success: false, error: "Meta não conectada." });
 
     const adAccounts = conn.metadata?.assets?.ad_accounts || [];

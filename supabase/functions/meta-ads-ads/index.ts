@@ -1,8 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { errorResponse, metaApiErrorResponse } from "../_shared/error-response.ts";
+import { getMetaConnectionForTenant, type MetaConnection } from "../_shared/meta-connection.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.1.0"; // Reconciliation: delete local ads not found on Meta after sync
+const VERSION = "v2.2.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
 // ===========================================================
 
 const corsHeaders = {
@@ -13,24 +14,8 @@ const corsHeaders = {
 
 const GRAPH_API_VERSION = "v21.0";
 
-interface MetaConnection {
-  access_token: string;
-  metadata: {
-    assets?: {
-      ad_accounts?: Array<{ id: string; name: string }>;
-    };
-  };
-}
-
-async function getMetaConnection(supabase: any, tenantId: string): Promise<MetaConnection | null> {
-  const { data } = await supabase
-    .from("marketplace_connections")
-    .select("access_token, metadata")
-    .eq("tenant_id", tenantId)
-    .eq("marketplace", "meta")
-    .eq("is_active", true)
-    .maybeSingle();
-  return data;
+async function getMetaConnection(supabase: any, tenantId: string, traceId?: string): Promise<MetaConnection | null> {
+  return getMetaConnectionForTenant(supabase, tenantId, traceId);
 }
 
 async function graphApi(pathOrUrl: string, token: string, method = "GET", body?: any) {

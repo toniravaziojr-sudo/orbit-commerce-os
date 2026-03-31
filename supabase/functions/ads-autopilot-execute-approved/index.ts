@@ -1,7 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 // ===== VERSION =====
-const VERSION = "v3.0.0"; // Propagate full campaign/adset params from action_data (placements, optimization, billing, bid_strategy, destination_url, conversion_event, geo_locations, excluded_audiences)
+const VERSION = "v3.1.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -386,14 +387,7 @@ Deno.serve(async (req) => {
         if (!bestAsset) bestAsset = (readyAssets || [])[0];
 
         if (bestAsset) {
-          // Get Meta connection for API calls
-          const { data: metaConn } = await supabase
-            .from("marketplace_connections")
-            .select("access_token, metadata")
-            .eq("tenant_id", tenant_id)
-            .eq("marketplace", "meta")
-            .eq("is_active", true)
-            .maybeSingle();
+          const metaConn = await getMetaConnectionForTenant(supabase, tenant_id);
 
           if (metaConn?.access_token) {
             const accountIdClean = adAccountId.replace("act_", "");

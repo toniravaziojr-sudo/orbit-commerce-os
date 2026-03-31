@@ -1,9 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.48.0"; // Landing page tools: search + generate for campaigns
+const VERSION = "v1.49.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
 // ===================
 
 const corsHeaders = {
@@ -2190,15 +2191,9 @@ async function executeToolCall(
         return { status: "executed", data: { lookalike_audience_id: existingMatch.meta_audience_id, deduplicated: true, existing_name: existingMatch.name } };
       }
 
-      const metaConn = await supabase
-        .from("marketplace_connections")
-        .select("access_token")
-        .eq("tenant_id", tenantId)
-        .eq("marketplace", "meta")
-        .eq("is_active", true)
-        .maybeSingle();
+      const metaConn = await getMetaConnectionForTenant(supabase, tenantId);
 
-      if (!metaConn?.data?.access_token) throw new Error("Meta não conectada");
+      if (!metaConn?.access_token) throw new Error("Meta não conectada");
 
       const accountId = config.ad_account_id.replace("act_", "");
       const lalRes = await fetch(`https://graph.facebook.com/v21.0/act_${accountId}/customaudiences`, {
@@ -2209,7 +2204,7 @@ async function executeToolCall(
           subtype: "LOOKALIKE",
           origin_audience_id: args.source_audience_id,
           lookalike_spec: JSON.stringify({ type: "similarity", ratio: safeRatio, country: safeCountry }),
-          access_token: metaConn.data.access_token,
+          access_token: metaConn.access_token,
         }),
       });
       const lalResult = await lalRes.json();

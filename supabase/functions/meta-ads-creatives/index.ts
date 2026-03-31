@@ -1,8 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { errorResponse, metaApiErrorResponse } from "../_shared/error-response.ts";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.0.0"; // Initial: Creatives sync + list
+const VERSION = "v1.1.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
 // ===========================================================
 
 const corsHeaders = {
@@ -42,13 +43,7 @@ Deno.serve(async (req) => {
     // SYNC — Pull creatives from Meta
     // ========================
     if (action === "sync") {
-      const { data: conn } = await supabase
-        .from("marketplace_connections")
-        .select("access_token, metadata")
-        .eq("tenant_id", tenantId)
-        .eq("marketplace", "meta")
-        .eq("is_active", true)
-        .maybeSingle();
+      const conn = await getMetaConnectionForTenant(supabase, tenantId, traceId);
 
       if (!conn) {
         return new Response(

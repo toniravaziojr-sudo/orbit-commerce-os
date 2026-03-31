@@ -1,9 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.14.0"; // Use ai-router for native AI priority
+const VERSION = "v5.15.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
 // ===========================================================
 
 const corsHeaders = {
@@ -205,14 +206,8 @@ async function preCheckIntegrations(supabase: any, tenantId: string, channels: s
 
   for (const channel of uniqueChannels) {
     if (channel === "meta") {
-      const { data } = await supabase
-        .from("marketplace_connections")
-        .select("id")
-        .eq("tenant_id", tenantId)
-        .eq("marketplace", "meta")
-        .eq("is_active", true)
-        .maybeSingle();
-      status.meta = data
+      const metaConnResult = await getMetaConnectionForTenant(supabase, tenantId);
+      status.meta = metaConnResult
         ? { connected: true }
         : { connected: false, reason: "Meta não conectada. Vá em Integrações para conectar." };
     }
@@ -604,13 +599,7 @@ async function collectContext(supabase: any, tenantId: string, enabledChannels: 
       for (const account of allAccountIds) {
         try {
           const accountId = account.replace("act_", "");
-          const { data: metaConn } = await supabase
-            .from("marketplace_connections")
-            .select("access_token")
-            .eq("tenant_id", tenantId)
-            .eq("marketplace", "meta")
-            .eq("is_active", true)
-            .maybeSingle();
+          const metaConn = await getMetaConnectionForTenant(supabase, tenantId);
           
           if (metaConn?.access_token) {
             // Fetch BOTH custom audiences AND saved audiences with pagination
@@ -2518,13 +2507,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                         selectedAssetId = aiAsset.id;
 
                         try {
-                          const { data: metaConnForCreative } = await supabase
-                            .from("marketplace_connections")
-                            .select("access_token, metadata")
-                            .eq("tenant_id", tenant_id)
-                            .eq("marketplace", "meta")
-                            .eq("is_active", true)
-                            .maybeSingle();
+                          const metaConnForCreative = await getMetaConnectionForTenant(supabase, tenant_id);
 
                           if (metaConnForCreative?.access_token) {
                             const accountIdClean = acctConfig.ad_account_id.replace("act_", "");
@@ -2760,13 +2743,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                       // === v5.11.0: Graph API validation ===
                       if (newMetaAdId) {
                         try {
-                          const { data: metaConnValidation } = await supabase
-                            .from("marketplace_connections")
-                            .select("access_token")
-                            .eq("tenant_id", tenant_id)
-                            .eq("marketplace", "meta")
-                            .eq("is_active", true)
-                            .maybeSingle();
+                          const metaConnValidation = await getMetaConnectionForTenant(supabase, tenant_id);
 
                           if (metaConnValidation?.access_token) {
                             const validationRes = await fetch(
@@ -3049,15 +3026,9 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                       existing_name: existingMatch.name,
                     };
                   } else {
-                    const metaConn = await supabase
-                      .from("marketplace_connections")
-                      .select("access_token")
-                      .eq("tenant_id", tenant_id)
-                      .eq("marketplace", "meta")
-                      .eq("is_active", true)
-                      .maybeSingle();
+                    const metaConn = await getMetaConnectionForTenant(supabase, tenant_id);
 
-                    if (!metaConn?.data?.access_token) throw new Error("Meta não conectada");
+                    if (!metaConn?.access_token) throw new Error("Meta não conectada");
 
                     const accountId = acctConfig.ad_account_id.replace("act_", "");
                     const lalBody = {
@@ -3069,7 +3040,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                         ratio: safeRatio,
                         country: safeCountry,
                       }),
-                      access_token: metaConn.data.access_token,
+                      access_token: metaConn.access_token,
                     };
 
                     const lalRes = await fetch(`https://graph.facebook.com/v21.0/act_${accountId}/customaudiences`, {

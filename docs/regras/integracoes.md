@@ -2950,3 +2950,44 @@ Cada integração define: `requiredScopes` (escopos Meta necessários), `feature
 - A tabela legada `marketplace_connections` continua sendo lida pelo `useMetaConnection` para status de conexão — migração completa pendente
 - Feature keys estão todas como `null` (sem restrição de plano) — adicionar conforme regras de billing forem definidas
 - `metaPackAvailability.ts` continua existindo para compatibilidade, mas não é mais usado pela UI principal
+
+### Fase 5 — Migração dos Consumidores para Helper Centralizado (🔄 Em andamento)
+
+**Objetivo:** Padronizar todos os consumidores de tokens Meta para usar um helper centralizado (`getMetaConnectionForTenant`) que prioriza o modelo V4 (`tenant_meta_auth_grants`) com fallback automático para `marketplace_connections`.
+
+**Helper criado:**
+| Arquivo | Descrição |
+|---------|-----------|
+| `supabase/functions/_shared/meta-connection.ts` | Helper centralizado V4 + fallback legacy. Retorna `MetaConnection` com `access_token`, `metadata`, `source` e `grant_id` |
+
+**Lote 1 — Core (Ads + Pixel/CAPI + Publicações + Catálogos) ✅ Concluído**
+
+| Arquivo | Versão | Status |
+|---------|--------|--------|
+| `meta-ads-campaigns/index.ts` | v1.5.0 | ✅ Migrado — usa `getMetaConnection` → `getMetaConnectionForTenant` |
+| `meta-ads-adsets/index.ts` | v2.3.0 | ✅ Migrado |
+| `meta-ads-ads/index.ts` | v2.2.0 | ✅ Migrado |
+| `meta-ads-creatives/index.ts` | v1.1.0 | ✅ Migrado |
+| `meta-ads-audiences/index.ts` | v1.1.0 | ✅ Migrado |
+| `meta-ads-insights/index.ts` | v1.8.0 | ✅ Migrado |
+| `meta-publish-post/index.ts` | v3.1.0 | ✅ Migrado |
+| `ads-autopilot-analyze/index.ts` | v5.15.0 | ✅ Migrado (5 queries inline substituídas) |
+| `ads-autopilot-execute-approved/index.ts` | v3.1.0 | ✅ Migrado |
+| `ads-autopilot-strategist/index.ts` | v1.49.0 | ✅ Migrado |
+| `ads-chat/index.ts` | v5.38.0 | ✅ Migrado (11 queries substituídas) |
+| `ads-chat-v2/index.ts` | v6.13.0 | ✅ Migrado (2 queries substituídas) |
+| `meta-catalog-create/index.ts` | v1.1.0 | ✅ Migrado (reads). 2 writes em `marketplace_connections` mantidos (atualização de metadata) |
+| `meta-catalog-sync/index.ts` | v6.1.0 | ✅ Migrado |
+| `meta-catalog-test-id/index.ts` | ✅ Migrado |
+| `meta-catalog-daily-sync/index.ts` | v1.1.0 | ⚠️ Parcial — batch job multi-tenant, lê direto de `marketplace_connections`. Documentado como exceção. |
+
+**Lote 2 — Messaging (pendente):**
+- WhatsApp, Instagram Direct, Messenger
+
+**Lote 3 — Secundário (pendente):**
+- Comentários, Leads, Page Webhook
+
+**Regras desta fase:**
+1. ❌ Fallback legacy NÃO foi removido — mantido no helper para transição segura
+2. ✅ Apenas leitura de token migrada — writes em `marketplace_connections` (metadata updates) permanecem
+3. ✅ Build TypeScript verificado — sem erros

@@ -1,9 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getMemoryContext } from "../_shared/ai-memory.ts";
 import { getAIEndpoint, resetAIRouterCache, type AIEndpoint } from "../_shared/ai-router.ts";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 // ===== VERSION =====
-const VERSION = "v6.12.0"; // Fix: contagem de criativos no Drive agora considera metadata.product_id + busca sem acento
+const VERSION = "v6.13.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
 // ====================
 
 const AI_TIMEOUT_MS = 90000;
@@ -563,10 +564,7 @@ async function orchestratePerformance(
   adAccountId: string | undefined, sendProgress: any, ctx: FactualContext,
 ): Promise<FactualContext> {
   await sendProgress?.("Verificando conexão Meta");
-  const { data: conn } = await supabase
-    .from("marketplace_connections")
-    .select("access_token, metadata")
-    .eq("tenant_id", tenantId).eq("marketplace", "meta").eq("is_active", true).maybeSingle();
+  const conn = await getMetaConnectionForTenant(supabase, tenantId);
 
   if (!conn?.access_token) {
     await sendProgress?.("Buscando campanhas no cache");
@@ -744,10 +742,7 @@ async function orchestrateTargeting(
   const adsetsToFetch = activeAdsets.length > 0 ? activeAdsets : adsets.slice(0, 20);
   const adsetIds = adsetsToFetch.map((a: any) => a.meta_adset_id).slice(0, 20);
 
-  const { data: conn } = await supabase
-    .from("marketplace_connections")
-    .select("access_token")
-    .eq("tenant_id", tenantId).eq("marketplace", "meta").eq("is_active", true).maybeSingle();
+  const conn = await getMetaConnectionForTenant(supabase, tenantId);
 
   if (conn?.access_token && adsetIds.length > 0) {
     await sendProgress?.(`Buscando targeting de ${adsetIds.length} conjuntos na Meta API`);

@@ -1,8 +1,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { metaApiErrorResponse } from "../_shared/error-response.ts";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.0.0"; // Initial: create Meta Commerce catalog
+const VERSION = "v1.1.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
 // ===========================================================
 
 const corsHeaders = {
@@ -36,13 +37,7 @@ Deno.serve(async (req) => {
     }
 
     // Get Meta connection
-    const { data: connection, error: connError } = await supabase
-      .from("marketplace_connections")
-      .select("*")
-      .eq("tenant_id", tenantId)
-      .eq("marketplace", "meta")
-      .eq("is_active", true)
-      .maybeSingle();
+    const connection = await getMetaConnectionForTenant(supabase, tenantId);
 
     if (connError || !connection) {
       return new Response(
