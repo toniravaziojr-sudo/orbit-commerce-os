@@ -263,8 +263,8 @@ export function MetaUnifiedSettings() {
         </CardContent>
       </Card>
 
-      {/* Integration Groups — Toggles */}
-      {META_INTEGRATION_GROUPS.map((group) => {
+      {/* Integration Groups — Toggles (only shown when connected) */}
+      {isConnected && META_INTEGRATION_GROUPS.map((group) => {
         const states = groupedStates[group.id];
         if (!states || states.length === 0) return null;
 
