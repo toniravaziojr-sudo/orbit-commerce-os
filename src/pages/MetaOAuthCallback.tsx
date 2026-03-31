@@ -58,6 +58,7 @@ export default function MetaOAuthCallback() {
   const [selectedAssets, setSelectedAssets] = useState<SelectedAssets | null>(null);
   const [connectionData, setConnectionData] = useState<any>(null);
   const [activeScopePacks, setActiveScopePacks] = useState<string[]>([]);
+  const [flowMode, setFlowMode] = useState<FlowMode>("full_selection");
   const processedRef = useRef(false);
 
   const selectedPortfolio = businesses.find(b => b.id === selectedPortfolioId) || null;
