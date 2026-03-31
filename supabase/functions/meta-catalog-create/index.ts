@@ -36,13 +36,7 @@ Deno.serve(async (req) => {
     }
 
     // Get Meta connection
-    const { data: connection, error: connError } = await supabase
-      .from("marketplace_connections")
-      .select("*")
-      .eq("tenant_id", tenantId)
-      .eq("marketplace", "meta")
-      .eq("is_active", true)
-      .maybeSingle();
+    const connection = await getMetaConnectionForTenant(supabase, tenantId);
 
     if (connError || !connection) {
       return new Response(

@@ -23,13 +23,7 @@ Deno.serve(async (req) => {
     const { tenantId, catalogId, testId = "0042_TEST" } = body;
 
     // Get connection
-    const { data: conn } = await supabase
-      .from("marketplace_connections")
-      .select("access_token")
-      .eq("tenant_id", tenantId)
-      .eq("marketplace", "meta")
-      .eq("is_active", true)
-      .maybeSingle();
+    const conn = await getMetaConnectionForTenant(supabase, tenantId);
 
     if (!conn) {
       return new Response(JSON.stringify({ success: false, error: "No connection" }), {
