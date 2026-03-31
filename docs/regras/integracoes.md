@@ -2865,10 +2865,13 @@ O modelo legado (`marketplace_connections` com `marketplace='meta'`) continua fu
 - **Deduplicação de pixels**: Pixels são deduplicados por `pixel.id` real durante a discovery, evitando duplicação quando o mesmo pixel aparece em múltiplas ad accounts
 - Retorna `grantId` e `authProfile` no response
 
-**Frontend:**
+**Frontend (`MetaOAuthCallback.tsx`):**
 - `useMetaConnection.ts`: `connect()` não recebe mais scope packs
 - `MetaConnectionSettings.tsx`: Botão único "Conectar Meta" sem seleção de packs
 - `MetaUnifiedSettings.tsx`: Removida `IncrementalConsentSection` e seleção de packs
+- **Fluxo FLB (requiresAssetSelection=false):** Quando o callback retorna sem necessidade de seleção, o frontend executa `autoSaveDiscoveredAssets()` — persiste o primeiro portfólio descoberto com seus ativos via `meta-save-selected-assets` e vai direto para "Tudo configurado!"
+- **Fluxo sem config_id (requiresAssetSelection=true):** Mantém seleção interna de portfólio → ativos → confirmar
+- **Texto "Ativando integrações..."** substituído por "Salvando configurações..." para não sugerir autoativação prematura
 
 **Migration:**
 - `meta_oauth_states.auth_profile_key` (TEXT, nullable) adicionada para passar perfil do start → callback
