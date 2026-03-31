@@ -135,6 +135,7 @@ const MetaOAuthCallback = lazy(() => import("@/pages/MetaOAuthCallback"));
 const MeliOAuthCallback = lazy(() => import("@/pages/MeliOAuthCallback"));
 const YouTubeCallback = lazy(() => import("@/pages/integrations/YouTubeCallback"));
 const TikTokOAuthCallback = lazy(() => import("@/pages/TikTokOAuthCallback"));
+const ThreadsOAuthCallback = lazy(() => import("@/pages/ThreadsOAuthCallback"));
 const Marketplaces = lazy(() => import("@/pages/Marketplaces"));
 const MercadoLivre = lazy(() => import("@/pages/marketplaces/MercadoLivre"));
 const Shopee = lazy(() => import("@/pages/marketplaces/Shopee"));
