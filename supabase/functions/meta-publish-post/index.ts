@@ -1,8 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
-const VERSION = "3.0.0"; // Phase 1A: preflight + snapshot + frozen_payload
+const VERSION = "3.1.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
