@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { getMetaConnectionForTenant, getIntegrationAssets } from "../_shared/meta-connection.ts";
 
 // ===== VERSION =====
-const VERSION = "v2.0.0"; // Phase 7: V4-first — iterate grants + legacy fallback for tenant discovery
+const VERSION = "v3.0.0"; // Lote B: Legacy marketplace_connections removed
 // ===================
 
 const corsHeaders = {
