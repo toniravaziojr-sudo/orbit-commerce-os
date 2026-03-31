@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,8 @@ interface MetaAssetSelectorProps {
   onConfirm: (selectedAssets: any) => void;
   onCancel: () => void;
   isLoading?: boolean;
+  /** Enable multi-select mode (used for ad_account) */
+  multiSelect?: boolean;
 }
 
 interface FlatAsset {
@@ -35,6 +38,7 @@ export function MetaAssetSelector({
   onConfirm,
   onCancel,
   isLoading,
+  multiSelect = false,
 }: MetaAssetSelectorProps) {
   const businesses = discoveredAssets?.businesses ?? [];
   
@@ -136,6 +140,7 @@ export function MetaAssetSelector({
   }, [businesses, assetType]);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // Catalog-specific selector
   if (assetType === "catalog") {
@@ -181,6 +186,78 @@ export function MetaAssetSelector({
     );
   }
 
+  // Multi-select mode (for ad_accounts)
+  if (multiSelect) {
+    const handleToggleMulti = (id: string) => {
+      setSelectedIds(prev => 
+        prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+      );
+    };
+
+    const handleConfirmMulti = () => {
+      const selected = flatAssets.filter(a => selectedIds.includes(a.id));
+      if (selected.length === 0) return;
+      const payload = buildMultiAssetPayload(assetType, selected);
+      onConfirm(payload);
+    };
+
+    return (
+      <div className="mt-2 ml-7 pl-3 border-l-2 border-primary/30 py-2 space-y-3">
+        <p className="text-xs font-medium text-foreground">
+          Selecione {assetLabel ? `as ${assetLabel.toLowerCase()}s` : "os ativos"} (múltipla seleção):
+        </p>
+        
+        <div className="space-y-1">
+          {flatAssets.map((asset) => {
+            const assetIcon = getAssetIcon(assetType);
+            const isChecked = selectedIds.includes(asset.id);
+            return (
+              <div
+                key={asset.id}
+                className={cn(
+                  "flex items-center gap-3 rounded-md border px-3 py-2 cursor-pointer transition-colors",
+                  isChecked
+                    ? "border-primary bg-primary/5" 
+                    : "border-border hover:bg-muted/50"
+                )}
+                onClick={() => handleToggleMulti(asset.id)}
+              >
+                <Checkbox 
+                  checked={isChecked} 
+                  onCheckedChange={() => handleToggleMulti(asset.id)}
+                  id={asset.id} 
+                />
+                <div className="text-muted-foreground">{assetIcon}</div>
+                <Label htmlFor={asset.id} className="flex-1 cursor-pointer">
+                  <span className="text-sm font-medium">{asset.label}</span>
+                  {asset.sublabel && (
+                    <span className="text-xs text-muted-foreground block">{asset.sublabel}</span>
+                  )}
+                </Label>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex gap-2">
+          <Button 
+            size="sm" 
+            variant="default" 
+            onClick={handleConfirmMulti} 
+            disabled={selectedIds.length === 0 || isLoading}
+          >
+            {isLoading && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+            Confirmar ({selectedIds.length})
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onCancel} disabled={isLoading}>
+            Cancelar
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Single-select mode (default)
   const selectedAsset = flatAssets.find(a => a.id === selectedId);
 
   const handleConfirm = () => {
@@ -405,6 +482,19 @@ function buildAssetPayload(assetType: MetaAssetType, asset: FlatAsset): any {
   }
 }
 
+function buildMultiAssetPayload(assetType: MetaAssetType, assets: FlatAsset[]): any {
+  switch (assetType) {
+    case "ad_account":
+      return {
+        ad_accounts: assets.map(a => ({ id: a.raw.id, name: a.raw.name, business_id: a.businessId, business_name: a.businessName })),
+      };
+    default:
+      // Fallback to first asset for other types
+      if (assets.length > 0) return buildAssetPayload(assetType, assets[0]);
+      return {};
+  }
+}
+
 /**
  * Display component for showing which asset is currently linked
  */
@@ -420,6 +510,31 @@ export function MetaAssetDisplay({
   onRemove: () => void;
 }) {
   if (!selectedAssets || assetType === "none") return null;
+
+  // Multi-asset display (ad_accounts array)
+  if (assetType === "ad_account" && selectedAssets.ad_accounts && Array.isArray(selectedAssets.ad_accounts)) {
+    return (
+      <div className="mt-1.5 ml-7 space-y-1">
+        {selectedAssets.ad_accounts.map((acc: any, idx: number) => (
+          <div key={acc.id || idx} className="flex items-center gap-2">
+            <div className="text-muted-foreground"><Megaphone className="h-4 w-4" /></div>
+            <span className="text-xs text-foreground font-medium">{acc.name || acc.id}</span>
+            {acc.business_name && (
+              <span className="text-xs text-muted-foreground">({acc.business_name})</span>
+            )}
+          </div>
+        ))}
+        <div className="flex gap-1">
+          <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={onEdit}>
+            Alterar
+          </Button>
+          <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-destructive hover:text-destructive" onClick={onRemove}>
+            Remover
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   const { label, sublabel } = getAssetDisplayInfo(assetType, selectedAssets);
   if (!label) return null;

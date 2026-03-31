@@ -532,6 +532,7 @@ function MetaIntegrationToggleRow({
           onConfirm={isActive ? handleAssetUpdate : handleAssetConfirm}
           onCancel={() => setSelectorOpen(false)}
           isLoading={isToggling || isSavingAssets}
+          multiSelect={def.assetType === "ad_account"}
         />
       )}
 

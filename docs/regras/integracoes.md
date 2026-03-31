@@ -2928,9 +2928,9 @@ O modelo legado (`marketplace_connections` com `marketplace='meta'`) continua fu
 | Facebook | `facebook_publicacoes`, `facebook_messenger`, `facebook_comentarios`, `facebook_lives` |
 | Marketing & Conversão | `pixel_facebook`, `conversions_api`, `leads`, `anuncios` |
 | Commerce & Dados | `catalogos`, `catalogo_insights` |
-| Outros | `threads` (auth separado) |
+| Outros | `threads` |
 
-Cada integração define: `requiredScopes` (escopos Meta necessários), `featureKey` (gating por plano), `separateAuth` (se usa auth próprio), `hasConfigSection` + `configSectionKey` (seção de configuração expandível). O toggle `facebook_comentarios` requer os escopos `pages_manage_engagement`, `pages_read_engagement` e `pages_read_user_content` (este último é dependência obrigatória de `pages_manage_engagement` conforme documentação oficial da Meta).
+Cada integração define: `requiredScopes` (escopos Meta necessários), `featureKey` (gating por plano), `hasConfigSection` + `configSectionKey` (seção de configuração expandível). O toggle `facebook_comentarios` requer os escopos `pages_manage_engagement`, `pages_read_engagement` e `pages_read_user_content` (este último é dependência obrigatória de `pages_manage_engagement` conforme documentação oficial da Meta).
 
 **Edge Function criada:**
 - `meta-integrations-manage` — GET lista integrações + grant ativo; POST ativa/desativa integração vinculando ao grant existente. Não faz auth. Acesso validado via `user_has_tenant_access` usando `userClient` (JWT do usuário) para que `auth.uid()` funcione corretamente na RPC.
@@ -3344,3 +3344,29 @@ O `MetaAssetSelector` agora suporta `assetType: 'catalog'` com fluxo especializa
 2. Permite criar novo catálogo inline (nome → `meta-catalog-create` com action=create)
 3. Persiste em `selected_assets` no formato `{ catalog: { id, name } }`
 4. `getAssetDisplayInfo` exibe o nome do catálogo vinculado
+
+### Threads no Auth Unificado (v4.4.3)
+
+> **Adicionado:** 2026-03-31
+
+O Threads não utiliza mais `separateAuth: true`. Os escopos `threads_basic`, `threads_content_publish`, `threads_manage_insights` e `threads_manage_replies` foram adicionados aos perfis de autenticação Meta (`meta_auth_full` e `meta_auth_external`) e à lista `META_APPROVED_PUBLIC_SCOPES`. Isso permite que o Threads seja autorizado no fluxo OAuth unificado — basta reconectar a conta Meta para que os escopos do Threads sejam concedidos automaticamente.
+
+### Multi-Select para Contas de Anúncio (v4.4.3)
+
+> **Adicionado:** 2026-03-31
+
+O `MetaAssetSelector` agora suporta seleção múltipla via prop `multiSelect`. Utilizado para `assetType: 'ad_account'`:
+1. Em vez de `RadioGroup`, exibe `Checkbox` para cada conta de anúncio
+2. O payload é salvo como `{ ad_accounts: [{ id, name, business_id, business_name }] }` (array)
+3. O `MetaAssetDisplay` detecta o formato array e exibe todas as contas vinculadas
+4. Permite que o Gestor de Tráfego gerencie múltiplas contas simultaneamente
+
+### Pixel Secundário via Seleção de Ativos (v4.4.3)
+
+> **Adicionado:** 2026-03-31
+
+O `MetaPixelSection` não utiliza mais campo de texto livre para pixels adicionais. Agora utiliza a lista de pixels descobertos (`discovered_assets`) para permitir a seleção:
+1. Lista pixels disponíveis na conta Meta (excluindo o principal e já adicionados)
+2. Seleção via `RadioGroup` inline com nome e conta empresarial
+3. Persiste os IDs em `marketing_integrations.meta_additional_pixel_ids` (array de strings)
+4. Eventos de tracking (Pixel + CAPI) são disparados para todos os pixels configurados
