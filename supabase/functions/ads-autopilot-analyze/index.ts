@@ -2743,13 +2743,7 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                       // === v5.11.0: Graph API validation ===
                       if (newMetaAdId) {
                         try {
-                          const { data: metaConnValidation } = await supabase
-                            .from("marketplace_connections")
-                            .select("access_token")
-                            .eq("tenant_id", tenant_id)
-                            .eq("marketplace", "meta")
-                            .eq("is_active", true)
-                            .maybeSingle();
+                          const metaConnValidation = await getMetaConnectionForTenant(supabase, tenant_id);
 
                           if (metaConnValidation?.access_token) {
                             const validationRes = await fetch(
