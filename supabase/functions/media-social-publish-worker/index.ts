@@ -95,20 +95,19 @@ serve(async (req) => {
 
     console.log(`[worker][${VERSION}] Found ${scheduledPosts?.length || 0} scheduled + ${retryPosts?.length || 0} retry = ${allPosts.length} posts`);
 
-    // Group by tenant for Meta connection lookup
+    // Group by tenant for Meta connection lookup (V4 helper)
     const tenantIds = [...new Set(allPosts.map(p => p.tenant_id))];
     const metaConnections: Record<string, any> = {};
 
     for (const tid of tenantIds) {
-      const { data: conn } = await supabase
-        .from("marketplace_connections")
-        .select("*")
-        .eq("tenant_id", tid)
-        .eq("marketplace", "meta")
-        .eq("is_active", true)
-        .maybeSingle();
-      if (conn?.access_token) {
-        metaConnections[tid] = conn;
+      const metaConn = await getMetaConnectionForTenant(supabase, tid);
+      if (metaConn) {
+        metaConnections[tid] = {
+          access_token: metaConn.access_token,
+          metadata: metaConn.metadata,
+          expires_at: null, // V4 handles expiration via grant status
+          source: metaConn.source,
+        };
       }
     }
 
