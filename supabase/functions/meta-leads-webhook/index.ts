@@ -1,7 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.0.0"; // Initial: Lead Ads webhook → customers + tag + notification
+const VERSION = "v1.1.0"; // Fase 5 Lote 3 — getPageAccessToken via helper central
 // ===========================================================
 
 const corsHeaders = {
