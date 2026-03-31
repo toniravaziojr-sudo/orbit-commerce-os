@@ -102,6 +102,12 @@ export function useMetaIntegrations() {
       const isActive = dbRow?.status === "active";
       const dbStatus = dbRow?.status ?? null;
 
+      // Layer 0: Public approval — are the required scopes approved by Meta for public use?
+      // Special/unlimited tenants bypass this check entirely
+      const scopesApprovedForPublic = def.requiredScopes.length === 0 || 
+        def.requiredScopes.every((s) => META_APPROVED_PUBLIC_SCOPES.includes(s));
+      const publiclyAvailable = isUnlimited || scopesApprovedForPublic;
+
       // Layer 1: Auth capability
       // Special/unlimited tenants bypass scope checks when they have an active grant
       const grantedScopes = grant?.grantedScopes ?? [];
@@ -126,7 +132,10 @@ export function useMetaIntegrations() {
       let layerStatus: IntegrationLayerStatus = "available";
       let blockReason: string | null = null;
 
-      if (!authCapable) {
+      if (!publiclyAvailable) {
+        layerStatus = "blocked_config";
+        blockReason = "Em breve — aguardando aprovação de permissões pela Meta";
+      } else if (!authCapable) {
         layerStatus = "blocked_auth";
         blockReason = authBlockReason;
       } else if (!planAllowed) {
@@ -134,7 +143,7 @@ export function useMetaIntegrations() {
         blockReason = planBlockReason;
       }
 
-      const canActivate = authCapable && planAllowed;
+      const canActivate = publiclyAvailable && authCapable && planAllowed;
 
       return {
         def,
