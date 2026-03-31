@@ -63,11 +63,25 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Fetch integrations
-      const { data: integrations, error: intError } = await adminClient
+      // Fetch active grant first to filter integrations by current grant
+      const { data: currentGrant } = await adminClient
+        .from("tenant_meta_auth_grants")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("status", "active")
+        .maybeSingle();
+
+      // Only return integrations linked to the active grant (prevents stale data from old connections)
+      let integrationsQuery = adminClient
         .from("tenant_meta_integrations")
         .select("*")
         .eq("tenant_id", tenantId);
+
+      if (currentGrant) {
+        integrationsQuery = integrationsQuery.eq("auth_grant_id", currentGrant.id);
+      }
+
+      const { data: integrations, error: intError } = await integrationsQuery;
 
       if (intError) throw intError;
 
