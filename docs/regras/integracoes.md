@@ -3197,7 +3197,7 @@ Cada integração define: `requiredScopes` (escopos Meta necessários), `feature
 
 | Arquivo | Versão | Descrição |
 |---------|--------|-----------|
-| `meta-disconnect/index.ts` | v1.0.0 | Revoga grant V4, desativa integrações, desativa legado, best-effort revogação remota na Meta. Revogação remota NUNCA bloqueia desconexão local. |
+| `meta-disconnect/index.ts` | v3.0.0 | Revoga grant V4, desativa integrações (status=disconnected), limpa pixel/CAPI, desativa WhatsApp Meta, dispara re-prerender da loja. Best-effort revogação remota na Meta. |
 
 **Etapa 2 — Consumidores residuais migrados ✅**
 
