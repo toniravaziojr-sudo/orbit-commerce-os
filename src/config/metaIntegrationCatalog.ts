@@ -283,16 +283,8 @@ export const META_INTEGRATION_CATALOG: MetaIntegrationDef[] = [
   },
 
   // === Outros ===
-  {
-    id: 'threads',
-    label: 'Threads',
-    description: 'Publicar e gerenciar conteúdo no Threads',
-    group: 'outros',
-    icon: 'AtSign',
-    requiredScopes: ['threads_basic', 'threads_content_publish'],
-    featureKey: null,
-    assetType: 'none',
-  },
+  // Threads removido do catálogo Meta — possui OAuth próprio separado (threads.net)
+  // Gerenciado por useThreadsConnection + ThreadsConnectCard
 ];
 
 /**
