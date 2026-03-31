@@ -319,10 +319,21 @@ export default function MetaOAuthCallback() {
       }
 
       // Fluxo FLB (config_id presente): Facebook já fez a seleção de ativos
-      // → auto-salvar o primeiro portfólio com seus ativos e ir direto para sucesso
-      if (!data.requiresAssetSelection) {
-        console.log("[MetaOAuthCallback] FLB flow — auto-saving discovered assets");
-        await autoSaveDiscoveredAssets(data.connection?.businesses || []);
+      // → mostrar revisão confirmatória pré-preenchida (sem auto-save cego)
+      if (!data.requiresAssetSelection && data.connection?.businesses) {
+        console.log("[MetaOAuthCallback] FLB flow — opening confirmatory review");
+        const bizList = data.connection.businesses as BusinessPortfolio[];
+        setBusinesses(bizList);
+        setThreadsProfile(data.connection.threads_profile || null);
+        setActiveScopePacks(data.connection.scopePacks || []);
+        setConnectionData(data.connection);
+        setFlowMode("flb_review");
+
+        if (bizList.length === 1) {
+          handleSelectPortfolio(bizList[0].id);
+        } else {
+          setStep("select_portfolio");
+        }
         return;
       }
 
