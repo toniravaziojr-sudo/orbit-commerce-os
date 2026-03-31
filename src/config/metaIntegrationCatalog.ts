@@ -1,5 +1,5 @@
 /**
- * META INTEGRATION CATALOG — V4.1
+ * META INTEGRATION CATALOG — V4.4
  * 
  * Fonte de verdade para as integrações atômicas Meta.
  * Cada toggle ativo = 1 registro em `tenant_meta_integrations`.
@@ -34,6 +34,19 @@ export const META_APPROVED_PUBLIC_SCOPES: string[] = [
   'read_insights',
 ];
 
+/**
+ * Tipos de ativo que uma integração pode requerer.
+ * Usado pelo MetaAssetSelector para filtrar discovered_assets.
+ */
+export type MetaAssetType = 
+  | 'page'
+  | 'instagram_account'
+  | 'waba_phone'
+  | 'pixel'
+  | 'ad_account'
+  | 'catalog'
+  | 'none';
+
 export interface MetaIntegrationDef {
   /** Unique ID — matches integration_id in tenant_meta_integrations */
   id: string;
@@ -55,6 +68,10 @@ export interface MetaIntegrationDef {
   hasConfigSection?: boolean;
   /** Component key for legacy config section to embed */
   configSectionKey?: string;
+  /** Type of Meta asset this integration requires for activation */
+  assetType: MetaAssetType;
+  /** Human-readable label for the asset selector */
+  assetLabel?: string;
 }
 
 export type MetaIntegrationGroup = 
@@ -92,6 +109,8 @@ export const META_INTEGRATION_CATALOG: MetaIntegrationDef[] = [
     featureKey: null,
     hasConfigSection: true,
     configSectionKey: 'whatsapp_registration',
+    assetType: 'waba_phone',
+    assetLabel: 'Número de WhatsApp',
   },
   {
     id: 'whatsapp_atendimento',
@@ -101,6 +120,8 @@ export const META_INTEGRATION_CATALOG: MetaIntegrationDef[] = [
     icon: 'MessageCircle',
     requiredScopes: ['whatsapp_business_messaging', 'whatsapp_business_management'],
     featureKey: null,
+    assetType: 'waba_phone',
+    assetLabel: 'Número de WhatsApp',
   },
 
   // === Instagram ===
@@ -112,6 +133,8 @@ export const META_INTEGRATION_CATALOG: MetaIntegrationDef[] = [
     icon: 'Image',
     requiredScopes: ['instagram_basic', 'instagram_content_publish'],
     featureKey: null,
+    assetType: 'instagram_account',
+    assetLabel: 'Conta Instagram',
   },
   {
     id: 'instagram_direct',
@@ -121,6 +144,8 @@ export const META_INTEGRATION_CATALOG: MetaIntegrationDef[] = [
     icon: 'Send',
     requiredScopes: ['instagram_manage_messages'],
     featureKey: null,
+    assetType: 'instagram_account',
+    assetLabel: 'Conta Instagram',
   },
   {
     id: 'instagram_comentarios',
@@ -130,6 +155,8 @@ export const META_INTEGRATION_CATALOG: MetaIntegrationDef[] = [
     icon: 'MessageSquare',
     requiredScopes: ['instagram_manage_comments'],
     featureKey: null,
+    assetType: 'instagram_account',
+    assetLabel: 'Conta Instagram',
   },
 
   // === Facebook ===
@@ -141,6 +168,8 @@ export const META_INTEGRATION_CATALOG: MetaIntegrationDef[] = [
     icon: 'FileText',
     requiredScopes: ['pages_manage_posts', 'pages_read_engagement'],
     featureKey: null,
+    assetType: 'page',
+    assetLabel: 'Página do Facebook',
   },
   {
     id: 'facebook_messenger',
@@ -150,6 +179,8 @@ export const META_INTEGRATION_CATALOG: MetaIntegrationDef[] = [
     icon: 'MessagesSquare',
     requiredScopes: ['pages_messaging'],
     featureKey: null,
+    assetType: 'page',
+    assetLabel: 'Página do Facebook',
   },
   {
     id: 'facebook_lives',
@@ -159,6 +190,8 @@ export const META_INTEGRATION_CATALOG: MetaIntegrationDef[] = [
     icon: 'Video',
     requiredScopes: ['publish_video'],
     featureKey: null,
+    assetType: 'page',
+    assetLabel: 'Página do Facebook',
   },
   {
     id: 'facebook_comentarios',
@@ -168,6 +201,8 @@ export const META_INTEGRATION_CATALOG: MetaIntegrationDef[] = [
     icon: 'MessageSquare',
     requiredScopes: ['pages_manage_engagement', 'pages_read_engagement', 'pages_read_user_content'],
     featureKey: null,
+    assetType: 'page',
+    assetLabel: 'Página do Facebook',
   },
 
   // === Marketing & Conversão ===
@@ -181,6 +216,8 @@ export const META_INTEGRATION_CATALOG: MetaIntegrationDef[] = [
     featureKey: null,
     hasConfigSection: true,
     configSectionKey: 'pixel_facebook',
+    assetType: 'pixel',
+    assetLabel: 'Pixel',
   },
   {
     id: 'conversions_api',
@@ -192,6 +229,8 @@ export const META_INTEGRATION_CATALOG: MetaIntegrationDef[] = [
     featureKey: null,
     hasConfigSection: true,
     configSectionKey: 'conversions_api',
+    assetType: 'pixel',
+    assetLabel: 'Pixel',
   },
   {
     id: 'leads',
@@ -201,6 +240,8 @@ export const META_INTEGRATION_CATALOG: MetaIntegrationDef[] = [
     icon: 'Users',
     requiredScopes: ['leads_retrieval', 'pages_manage_ads'],
     featureKey: null,
+    assetType: 'page',
+    assetLabel: 'Página do Facebook',
   },
   {
     id: 'anuncios',
@@ -210,6 +251,8 @@ export const META_INTEGRATION_CATALOG: MetaIntegrationDef[] = [
     icon: 'Megaphone',
     requiredScopes: ['ads_management', 'ads_read'],
     featureKey: null,
+    assetType: 'ad_account',
+    assetLabel: 'Conta de Anúncio',
   },
 
   // === Commerce & Dados ===
@@ -223,6 +266,8 @@ export const META_INTEGRATION_CATALOG: MetaIntegrationDef[] = [
     featureKey: null,
     hasConfigSection: true,
     configSectionKey: 'product_feeds',
+    assetType: 'none',
+    assetLabel: 'Catálogo',
   },
   {
     id: 'catalogo_insights',
@@ -232,6 +277,8 @@ export const META_INTEGRATION_CATALOG: MetaIntegrationDef[] = [
     icon: 'BarChart3',
     requiredScopes: ['read_insights', 'pages_read_engagement'],
     featureKey: null,
+    assetType: 'page',
+    assetLabel: 'Página',
   },
 
   // === Outros ===
@@ -244,6 +291,7 @@ export const META_INTEGRATION_CATALOG: MetaIntegrationDef[] = [
     requiredScopes: ['threads_basic', 'threads_content_publish'],
     featureKey: null,
     separateAuth: true,
+    assetType: 'none',
   },
 ];
 

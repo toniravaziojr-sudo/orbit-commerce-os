@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Verify tenant access — use userClient so auth.uid() works inside the RPC
+      // Verify tenant access
       const { data: hasAccess } = await userClient.rpc("user_has_tenant_access", {
         p_tenant_id: tenantId,
       });
@@ -63,15 +63,15 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Fetch active grant (used for filtering integrations + auth capability info)
+      // Fetch active grant — now includes discovered_assets
       const { data: activeGrant } = await adminClient
         .from("tenant_meta_auth_grants")
-        .select("id, granted_scopes, status, token_expires_at, auth_profile_key, meta_user_name")
+        .select("id, granted_scopes, status, token_expires_at, auth_profile_key, meta_user_name, discovered_assets")
         .eq("tenant_id", tenantId)
         .eq("status", "active")
         .maybeSingle();
 
-      // Only return integrations linked to the active grant (prevents stale data from old connections)
+      // Only return integrations linked to the active grant
       let integrationsQuery = adminClient
         .from("tenant_meta_integrations")
         .select("*")
@@ -96,16 +96,17 @@ Deno.serve(async (req) => {
             tokenExpiresAt: activeGrant.token_expires_at,
             authProfile: activeGrant.auth_profile_key,
             metaUserName: activeGrant.meta_user_name,
+            discoveredAssets: activeGrant.discovered_assets || null,
           } : null,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // POST — activate or deactivate an integration
+    // POST — activate, deactivate, or save_assets
     if (method === "POST") {
       const body = await req.json();
-      const { tenant_id, integration_id, action } = body;
+      const { tenant_id, integration_id, action, selected_assets } = body;
 
       if (!tenant_id || !integration_id || !action) {
         return new Response(
@@ -114,14 +115,14 @@ Deno.serve(async (req) => {
         );
       }
 
-      if (!["activate", "deactivate"].includes(action)) {
+      if (!["activate", "deactivate", "save_assets"].includes(action)) {
         return new Response(
-          JSON.stringify({ success: false, code: "INVALID_ACTION", message: "action deve ser 'activate' ou 'deactivate'" }),
+          JSON.stringify({ success: false, code: "INVALID_ACTION", message: "action deve ser 'activate', 'deactivate' ou 'save_assets'" }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // Verify tenant access — use userClient so auth.uid() works inside the RPC
+      // Verify tenant access
       const { data: hasAccess } = await userClient.rpc("user_has_tenant_access", {
         p_tenant_id: tenant_id,
       });
@@ -136,7 +137,7 @@ Deno.serve(async (req) => {
         // Get active grant
         const { data: activeGrant } = await adminClient
           .from("tenant_meta_auth_grants")
-          .select("id, granted_scopes")
+          .select("id, granted_scopes, discovered_assets")
           .eq("tenant_id", tenant_id)
           .eq("status", "active")
           .maybeSingle();
@@ -148,23 +149,62 @@ Deno.serve(async (req) => {
           );
         }
 
-        // Upsert integration — link to active grant
+        // Upsert integration — include selected_assets if provided
+        const upsertData: Record<string, unknown> = {
+          tenant_id,
+          integration_id,
+          auth_grant_id: activeGrant.id,
+          status: "active",
+          updated_at: new Date().toISOString(),
+        };
+
+        if (selected_assets) {
+          upsertData.selected_assets = selected_assets;
+        }
+
         const { data: integration, error: upsertError } = await adminClient
           .from("tenant_meta_integrations")
-          .upsert(
-            {
-              tenant_id,
-              integration_id,
-              auth_grant_id: activeGrant.id,
-              status: "active",
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "tenant_id,integration_id" }
-          )
+          .upsert(upsertData, { onConflict: "tenant_id,integration_id" })
           .select()
           .single();
 
         if (upsertError) throw upsertError;
+
+        // Execute side-effects if selected_assets provided
+        if (selected_assets) {
+          await executeSideEffects(adminClient, tenant_id, integration_id, selected_assets);
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, integration }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (action === "save_assets") {
+        if (!selected_assets) {
+          return new Response(
+            JSON.stringify({ success: false, code: "MISSING_PARAM", message: "selected_assets é obrigatório para save_assets" }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Update selected_assets on existing integration
+        const { data: integration, error: updateError } = await adminClient
+          .from("tenant_meta_integrations")
+          .update({ 
+            selected_assets, 
+            updated_at: new Date().toISOString() 
+          })
+          .eq("tenant_id", tenant_id)
+          .eq("integration_id", integration_id)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
+
+        // Execute side-effects
+        await executeSideEffects(adminClient, tenant_id, integration_id, selected_assets);
 
         return new Response(
           JSON.stringify({ success: true, integration }),
@@ -175,13 +215,19 @@ Deno.serve(async (req) => {
       if (action === "deactivate") {
         const { data: integration, error: updateError } = await adminClient
           .from("tenant_meta_integrations")
-          .update({ status: "inactive", updated_at: new Date().toISOString() })
+          .update({ 
+            status: "inactive", 
+            updated_at: new Date().toISOString() 
+          })
           .eq("tenant_id", tenant_id)
           .eq("integration_id", integration_id)
           .select()
           .single();
 
         if (updateError && updateError.code !== "PGRST116") throw updateError;
+
+        // Clean up side-effects on deactivation
+        await cleanupSideEffects(adminClient, tenant_id, integration_id);
 
         return new Response(
           JSON.stringify({ success: true, integration: integration || null }),
@@ -202,3 +248,104 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+/**
+ * Execute side-effects when assets are saved for an integration.
+ */
+async function executeSideEffects(
+  adminClient: any,
+  tenantId: string,
+  integrationId: string,
+  selectedAssets: any
+) {
+  try {
+    // WhatsApp integrations → upsert whatsapp_configs
+    if (integrationId.startsWith("whatsapp_") && selectedAssets.phone) {
+      const phone = selectedAssets.phone;
+      await adminClient
+        .from("whatsapp_configs")
+        .upsert({
+          tenant_id: tenantId,
+          provider: "meta",
+          phone_number_id: phone.id,
+          phone_number: phone.display_phone_number || null,
+          display_phone_number: phone.display_phone_number || null,
+          verified_name: phone.verified_name || null,
+          waba_id: phone.waba_id,
+          connection_status: "connected",
+          is_enabled: true,
+          last_connected_at: new Date().toISOString(),
+          last_error: null,
+        }, { onConflict: "tenant_id,provider" });
+      
+      console.log(`[meta-integrations-manage] WhatsApp side-effect: phone ${phone.display_phone_number} configured`);
+    }
+
+    // Pixel Facebook → upsert marketing_integrations
+    if (integrationId === "pixel_facebook" && selectedAssets.pixel) {
+      const pixel = selectedAssets.pixel;
+      await adminClient
+        .from("marketing_integrations")
+        .upsert({
+          tenant_id: tenantId,
+          meta_pixel_id: pixel.id,
+          meta_enabled: true,
+          meta_status: "active",
+        }, { onConflict: "tenant_id" });
+      
+      console.log(`[meta-integrations-manage] Pixel side-effect: ${pixel.id} configured`);
+    }
+
+    // Conversions API → enable CAPI
+    if (integrationId === "conversions_api" && selectedAssets.pixel) {
+      const pixel = selectedAssets.pixel;
+      await adminClient
+        .from("marketing_integrations")
+        .upsert({
+          tenant_id: tenantId,
+          meta_pixel_id: pixel.id,
+          meta_enabled: true,
+          meta_capi_enabled: true,
+          meta_status: "active",
+        }, { onConflict: "tenant_id" });
+      
+      console.log(`[meta-integrations-manage] CAPI side-effect: ${pixel.id} configured`);
+    }
+  } catch (err) {
+    console.warn(`[meta-integrations-manage] Side-effect error for ${integrationId}:`, err);
+  }
+}
+
+/**
+ * Clean up side-effects when an integration is deactivated.
+ */
+async function cleanupSideEffects(
+  adminClient: any,
+  tenantId: string,
+  integrationId: string
+) {
+  try {
+    // Pixel deactivation → clear pixel from marketing_integrations
+    if (integrationId === "pixel_facebook") {
+      await adminClient
+        .from("marketing_integrations")
+        .update({
+          meta_enabled: false,
+          meta_status: "inactive",
+        })
+        .eq("tenant_id", tenantId);
+    }
+
+    // CAPI deactivation → disable CAPI
+    if (integrationId === "conversions_api") {
+      await adminClient
+        .from("marketing_integrations")
+        .update({
+          meta_capi_enabled: false,
+        })
+        .eq("tenant_id", tenantId);
+    }
+  } catch (err) {
+    console.warn(`[meta-integrations-manage] Cleanup error for ${integrationId}:`, err);
+  }
+}

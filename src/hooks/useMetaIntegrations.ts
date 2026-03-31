@@ -15,26 +15,18 @@ import {
 export type IntegrationLayerStatus = "available" | "blocked_auth" | "blocked_plan" | "blocked_config";
 
 export interface MetaIntegrationState {
-  /** Integration definition from catalog */
   def: MetaIntegrationDef;
-  /** Whether integration is operationally active (has row with status=active) */
   isActive: boolean;
-  /** Current DB status */
   dbStatus: string | null;
-  /** Auth capability — grant has required scopes? */
   authCapable: boolean;
-  /** Reason auth is blocked (missing scopes) */
   authBlockReason: string | null;
-  /** Plan allows this feature? */
   planAllowed: boolean;
-  /** Plan block reason */
   planBlockReason: string | null;
-  /** Overall computed status for UI */
   layerStatus: IntegrationLayerStatus;
-  /** Can the user toggle this integration on? */
   canActivate: boolean;
-  /** Human-readable reason why it can't be activated */
   blockReason: string | null;
+  /** Currently selected assets for this integration */
+  selectedAssets: any | null;
 }
 
 export interface ActiveGrantInfo {
@@ -44,6 +36,22 @@ export interface ActiveGrantInfo {
   tokenExpiresAt: string | null;
   authProfile: string;
   metaUserName: string | null;
+  discoveredAssets: DiscoveredAssets | null;
+}
+
+/** Structure of discovered_assets from the Meta OAuth callback */
+export interface DiscoveredBusiness {
+  id: string;
+  name: string;
+  pages: Array<{ id: string; name: string; access_token?: string }>;
+  instagram_accounts: Array<{ id: string; username?: string; page_id?: string }>;
+  whatsapp_business_accounts: Array<{ id: string; name: string; phone_numbers?: Array<{ id: string; display_phone_number?: string; verified_name?: string }> }>;
+  ad_accounts: Array<{ id: string; name: string }>;
+  pixels: Array<{ id: string; name: string; ad_account_id?: string }>;
+}
+
+export interface DiscoveredAssets {
+  businesses: DiscoveredBusiness[];
 }
 
 export function useMetaIntegrations() {
@@ -101,15 +109,14 @@ export function useMetaIntegrations() {
       const dbRow = dbIntegrations.find((i) => i.integration_id === def.id);
       const isActive = dbRow?.status === "active";
       const dbStatus = dbRow?.status ?? null;
+      const selectedAssets = dbRow?.selected_assets ?? null;
 
-      // Layer 0: Public approval — are the required scopes approved by Meta for public use?
-      // Special/unlimited tenants bypass this check entirely
+      // Layer 0: Public approval
       const scopesApprovedForPublic = def.requiredScopes.length === 0 || 
         def.requiredScopes.every((s) => META_APPROVED_PUBLIC_SCOPES.includes(s));
       const publiclyAvailable = isUnlimited || scopesApprovedForPublic;
 
       // Layer 1: Auth capability
-      // Special/unlimited tenants bypass scope checks when they have an active grant
       const grantedScopes = grant?.grantedScopes ?? [];
       const missingScopes = def.requiredScopes.filter(
         (s) => !grantedScopes.includes(s)
@@ -156,18 +163,21 @@ export function useMetaIntegrations() {
         layerStatus,
         canActivate,
         blockReason,
+        selectedAssets,
       };
     });
   }, [dbIntegrations, grant, canAccess, isUnlimited]);
 
-  // Toggle mutation
+  // Toggle mutation (activate/deactivate)
   const toggleMutation = useMutation({
     mutationFn: async ({
       integrationId,
       action,
+      selectedAssets,
     }: {
       integrationId: string;
       action: "activate" | "deactivate";
+      selectedAssets?: any;
     }) => {
       if (!tenantId) throw new Error("Tenant não selecionado");
 
@@ -178,6 +188,7 @@ export function useMetaIntegrations() {
             tenant_id: tenantId,
             integration_id: integrationId,
             action,
+            selected_assets: selectedAssets || undefined,
           },
         }
       );
@@ -201,6 +212,41 @@ export function useMetaIntegrations() {
       showErrorToast(error, { module: "meta", action: "gerenciar" }),
   });
 
+  // Save assets mutation (update assets on existing active integration)
+  const saveAssetsMutation = useMutation({
+    mutationFn: async ({
+      integrationId,
+      selectedAssets,
+    }: {
+      integrationId: string;
+      selectedAssets: any;
+    }) => {
+      if (!tenantId) throw new Error("Tenant não selecionado");
+
+      const { data, error } = await supabase.functions.invoke(
+        "meta-integrations-manage",
+        {
+          body: {
+            tenant_id: tenantId,
+            integration_id: integrationId,
+            action: "save_assets",
+            selected_assets: selectedAssets,
+          },
+        }
+      );
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.message || "Erro ao salvar ativos");
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("Ativo atualizado com sucesso");
+      queryClient.invalidateQueries({ queryKey: ["meta-integrations"] });
+    },
+    onError: (error) =>
+      showErrorToast(error, { module: "meta", action: "salvar ativos" }),
+  });
+
   return {
     integrationStates,
     grant,
@@ -209,5 +255,7 @@ export function useMetaIntegrations() {
     toggle: toggleMutation.mutate,
     isToggling: toggleMutation.isPending,
     togglingId: toggleMutation.variables?.integrationId ?? null,
+    saveAssets: saveAssetsMutation.mutate,
+    isSavingAssets: saveAssetsMutation.isPending,
   };
 }
