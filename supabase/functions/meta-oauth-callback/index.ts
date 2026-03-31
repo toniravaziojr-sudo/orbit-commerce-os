@@ -9,7 +9,7 @@ const corsHeaders = {
 };
 
 /**
- * Meta OAuth Callback — V4
+ * Meta OAuth Callback — V4 (Lote B: Legacy removed)
  * 
  * Recebe o code do Meta via POST (do frontend), valida state (anti-CSRF), 
  * troca por tokens, cria grant V4 (criptografado) e descobre portfólios.
@@ -17,8 +17,7 @@ const corsHeaders = {
  * V4 Changes:
  * - Cria grant em tenant_meta_auth_grants com tokens criptografados
  * - Chama supersede_meta_grant para substituir grant anterior
- * - Mantém marketplace_connections como COMPATIBILIDADE TEMPORÁRIA
- * 
+ *
  * Contrato:
  * - Erro de negócio = HTTP 200 + { success: false, error, code }
  * - Sucesso = HTTP 200 + { success: true, ... }
