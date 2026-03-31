@@ -16,8 +16,7 @@ const corsHeaders = {
  * Desconecta a conta Meta de um tenant:
  * 1. Marca grant ativo como "revoked" em tenant_meta_auth_grants
  * 2. Desativa todas as integrações em tenant_meta_integrations
- * 3. Desativa marketplace_connections (compatibilidade legada)
- * 4. Best-effort: revoga permissões na API Meta (DELETE /me/permissions)
+ * 3. Best-effort: revoga permissões na API Meta (DELETE /me/permissions)
  *    → Falha remota NUNCA bloqueia a desconexão local
  * 
  * Body: { tenant_id: string }
