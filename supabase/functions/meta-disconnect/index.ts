@@ -149,21 +149,7 @@ Deno.serve(async (req) => {
       console.log(`[meta-disconnect][${VERSION}][${traceId}] Deactivated ${deactivated?.length || 0} integrations`);
     }
 
-    // ── Step 3: Deactivate legacy marketplace_connections (compatibility) ──
-    const { error: legacyError } = await supabase
-      .from("marketplace_connections")
-      .update({
-        is_active: false,
-        last_error: "Desconectado pelo usuário (V4)",
-      })
-      .eq("tenant_id", tenant_id)
-      .eq("marketplace", "meta");
-
-    if (legacyError) {
-      console.warn(`[meta-disconnect][${VERSION}][${traceId}] Legacy deactivation failed:`, legacyError);
-    }
-
-    // ── Step 4: Deactivate WhatsApp configs linked to Meta ──
+    // ── Step 3: Deactivate WhatsApp configs linked to Meta ──
     await supabase
       .from("whatsapp_configs")
       .update({
