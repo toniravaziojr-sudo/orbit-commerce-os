@@ -1,0 +1,4 @@
+# Memory: auth/meta/threads-unified-integration-v4-4-3
+Updated: now
+
+A integração com o Threads foi SEPARADA do fluxo OAuth principal da Meta (a partir de v4.5). O Threads utiliza um endpoint de autorização completamente independente (`https://threads.net/oauth/authorize`) e armazena tokens em sua própria tabela (`threads_connections`). Os escopos `threads_*` foram removidos dos perfis `meta_auth_profiles` (tanto `meta_auth_full` quanto `meta_auth_external`) e do `META_APPROVED_PUBLIC_SCOPES`. O fluxo é gerenciado pelas Edge Functions `threads-oauth-start` e `threads-oauth-callback`, com UI via `ThreadsConnectCard` (exibido apenas quando a Meta está conectada). O hook `useThreadsConnection` gerencia o estado da conexão de forma independente. O hook `useMetaThreads` agora consome `useThreadsConnection` em vez de `useMetaConnection`.
