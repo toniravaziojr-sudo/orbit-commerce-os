@@ -234,14 +234,28 @@ serve(async (req) => {
       console.log(`[meta-oauth-callback] discovered_assets saved in grant ${grantId} (${discovery.businesses.length} portfolios)`);
     }
 
+    // 5. Determinar se precisa de seleção interna de ativos
+    // Se o perfil tem config_id (FLB), o Facebook já fez a seleção → pular seleção interna
+    // Se o perfil NÃO tem config_id (escopos diretos), precisa seleção interna
+    const { data: authProfileData } = await supabase
+      .from("meta_auth_profiles")
+      .select("config_id")
+      .eq("profile_key", profileKey)
+      .single();
+
+    const hasConfigId = !!authProfileData?.config_id;
+    const requiresAssetSelection = !hasConfigId;
+
+    console.log(`[meta-oauth-callback] profile=${profileKey}, config_id=${authProfileData?.config_id || 'NULL'}, requiresAssetSelection=${requiresAssetSelection}`);
+
     console.log(`[meta-oauth-callback] Conexão Meta salva para tenant ${tenant_id} — grant V4: ${grantId}`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        requiresAssetSelection: true,
+        requiresAssetSelection,
         returnPath: return_path || "/integrations",
-        grantId, // V4: retorna o ID do grant para o frontend
+        grantId,
         authProfile: profileKey,
         connection: {
           externalUserId: metaUserId,
