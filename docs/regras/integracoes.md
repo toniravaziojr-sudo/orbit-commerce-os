@@ -2926,7 +2926,8 @@ Cada integração define: `requiredScopes` (escopos Meta necessários), `feature
 | Toggle | Config Section | Componente |
 |---|---|---|
 | `whatsapp_notificacoes` | Registro do número (3 passos) | `MetaWhatsAppRegistrationSection` |
-| `pixel_capi` | Pixel principal + adicionais + CAPI | `MetaPixelCapiSection` |
+| `pixel_facebook` | Pixel principal + pixels adicionais | `MetaPixelSection` |
+| `conversions_api` | Token CAPI + configuração server-side | `MetaConversionsApiSection` |
 | `catalogos` | Feeds de produto (URLs) | `MetaProductFeedsSection` |
 
 **Arquivos criados:**
