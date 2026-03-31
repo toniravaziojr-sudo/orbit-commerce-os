@@ -599,13 +599,7 @@ async function collectContext(supabase: any, tenantId: string, enabledChannels: 
       for (const account of allAccountIds) {
         try {
           const accountId = account.replace("act_", "");
-          const { data: metaConn } = await supabase
-            .from("marketplace_connections")
-            .select("access_token")
-            .eq("tenant_id", tenantId)
-            .eq("marketplace", "meta")
-            .eq("is_active", true)
-            .maybeSingle();
+          const metaConn = await getMetaConnectionForTenant(supabase, tenantId);
           
           if (metaConn?.access_token) {
             // Fetch BOTH custom audiences AND saved audiences with pagination
