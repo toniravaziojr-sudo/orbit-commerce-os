@@ -18,7 +18,7 @@ const corsHeaders = {
  * - Messenger messages (field: "messages")
  * - Facebook Page comments (field: "feed")
  * 
- * Routing: Uses Page ID → marketplace_connections → tenant_id
+ * Routing: Uses Page ID → tenant_meta_integrations → tenant_id
  */
 Deno.serve(async (req) => {
   const traceId = crypto.randomUUID().substring(0, 8);
