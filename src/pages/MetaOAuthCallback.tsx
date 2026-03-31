@@ -363,68 +363,7 @@ export default function MetaOAuthCallback() {
     }
   }
 
-  /**
-   * Auto-save para fluxo FLB: persiste o primeiro portfólio e seus ativos
-   * sem mostrar tela de seleção (Facebook já fez a seleção).
-   */
-  async function autoSaveDiscoveredAssets(businesses: BusinessPortfolio[]) {
-    setStep("saving");
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Não autenticado");
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("current_tenant_id")
-        .eq("id", user.id)
-        .single();
-
-      if (!profile?.current_tenant_id) throw new Error("Tenant não encontrado");
-
-      // Usar o primeiro portfólio (FLB retorna apenas o que o usuário selecionou)
-      const portfolio = businesses[0];
-      if (!portfolio) throw new Error("Nenhum ativo descoberto");
-
-      const firstWaba = portfolio.whatsapp_business_accounts?.[0];
-      const firstPhone = firstWaba?.phone_numbers?.[0];
-
-      const selectedAssets: SelectedAssets = {
-        business_id: portfolio.id,
-        business_name: portfolio.name,
-        pages: portfolio.pages.length > 0 ? [portfolio.pages[0]] : [],
-        instagram_accounts: portfolio.instagram_accounts.length > 0 ? [portfolio.instagram_accounts[0]] : [],
-        whatsapp_business_accounts: firstWaba ? [{ id: firstWaba.id, name: firstWaba.name }] : [],
-        ad_accounts: [...(portfolio.ad_accounts || [])],
-        pixels: portfolio.pixels?.length > 0 ? [portfolio.pixels[0]] : [],
-        catalogs: [],
-        threads_profile: null,
-        selected_phone_number: firstPhone && firstWaba ? {
-          id: firstPhone.id,
-          display_phone_number: firstPhone.display_phone_number,
-          verified_name: firstPhone.verified_name,
-          waba_id: firstWaba.id,
-        } : null,
-      };
-
-      const { data, error } = await supabase.functions.invoke("meta-save-selected-assets", {
-        body: {
-          tenantId: profile.current_tenant_id,
-          selectedAssets,
-        },
-      });
-
-      if (error || !data?.success) {
-        throw new Error(data?.error || "Erro ao salvar seleção");
-      }
-
-      setStep("success");
-      notifyParentAndClose(true);
-    } catch (err: any) {
-      setStep("error");
-      setErrorMessage(err.message || "Erro ao salvar ativos");
-      notifyParentAndClose(false, err.message);
-    }
-  }
+  // autoSaveDiscoveredAssets removido — FLB usa revisão confirmatória pré-preenchida
 
   async function handleConfirmSelection() {
     if (!selectedAssets) return;
