@@ -1,9 +1,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiChatCompletion, resetAIRouterCache } from "../_shared/ai-router.ts";
 import { errorResponse } from "../_shared/error-response.ts";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v5.14.0"; // Use ai-router for native AI priority
+const VERSION = "v5.15.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
 // ===========================================================
 
 const corsHeaders = {
