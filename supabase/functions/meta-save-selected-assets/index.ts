@@ -76,23 +76,25 @@ serve(async (req) => {
       );
     }
 
-    // Buscar conexão existente (inclui access_token para CAPI)
-    const { data: connection, error: connError } = await supabase
-      .from("marketplace_connections")
-      .select("metadata, access_token")
-      .eq("tenant_id", tenantId)
-      .eq("marketplace", "meta")
-      .single();
-
-    if (connError || !connection) {
+    // Phase 6: Use centralized helper for token retrieval (V4-first)
+    const metaConn = await getMetaConnectionForTenant(supabase, tenantId, "save-assets");
+    if (!metaConn) {
       return new Response(
         JSON.stringify({ success: false, error: "Conexão Meta não encontrada" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    const oauthAccessToken = metaConn.access_token;
 
-    const metadata = connection.metadata as Record<string, unknown>;
-    const oauthAccessToken = connection.access_token || null;
+    // Also get legacy metadata for catalog_id preservation
+    const { data: legacyConnection } = await supabase
+      .from("marketplace_connections")
+      .select("metadata")
+      .eq("tenant_id", tenantId)
+      .eq("marketplace", "meta")
+      .maybeSingle();
+
+    const metadata = (legacyConnection?.metadata || {}) as Record<string, unknown>;
 
     // Atualizar metadata com ativos selecionados e remover flag de pendência
     const updatedMetadata = {

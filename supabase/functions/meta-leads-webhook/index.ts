@@ -147,26 +147,13 @@ Deno.serve(async (req) => {
 
 /**
  * Find tenant by Facebook Page ID
+ * Phase 6: V4-first via tenant_meta_integrations, then legacy fallback
  */
 async function findTenantByPageId(
   supabase: any,
   pageId: string
 ): Promise<string | null> {
-  const { data: connections } = await supabase
-    .from("marketplace_connections")
-    .select("tenant_id, metadata")
-    .eq("marketplace", "meta")
-    .eq("is_active", true);
-
-  if (!connections) return null;
-
-  for (const conn of connections) {
-    const pages = conn.metadata?.assets?.pages || [];
-    if (pages.some((p: any) => p.id === pageId)) {
-      return conn.tenant_id;
-    }
-  }
-  return null;
+  return findTenantByPageIdV4(supabase, pageId);
 }
 
 /**
