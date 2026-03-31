@@ -32,6 +32,10 @@ export const META_APPROVED_PUBLIC_SCOPES: string[] = [
   'whatsapp_business_management',
   'whatsapp_business_messaging',
   'read_insights',
+  'threads_basic',
+  'threads_content_publish',
+  'threads_manage_insights',
+  'threads_manage_replies',
 ];
 
 /**
