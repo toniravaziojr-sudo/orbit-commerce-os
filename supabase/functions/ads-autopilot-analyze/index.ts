@@ -206,14 +206,8 @@ async function preCheckIntegrations(supabase: any, tenantId: string, channels: s
 
   for (const channel of uniqueChannels) {
     if (channel === "meta") {
-      const { data } = await supabase
-        .from("marketplace_connections")
-        .select("id")
-        .eq("tenant_id", tenantId)
-        .eq("marketplace", "meta")
-        .eq("is_active", true)
-        .maybeSingle();
-      status.meta = data
+      const metaConnResult = await getMetaConnectionForTenant(supabase, tenantId);
+      status.meta = metaConnResult
         ? { connected: true }
         : { connected: false, reason: "Meta não conectada. Vá em Integrações para conectar." };
     }
