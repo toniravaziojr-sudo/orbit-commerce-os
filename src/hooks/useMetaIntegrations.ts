@@ -113,10 +113,10 @@ export function useMetaIntegrations() {
       const dbStatus = dbRow?.status ?? null;
       const selectedAssets = dbRow?.selected_assets ?? null;
 
-      // Layer 0: Public approval
+      // Layer 0: Public approval — unlimited/platform tenants bypass this check
       const scopesApprovedForPublic = def.requiredScopes.length === 0 || 
         def.requiredScopes.every((s) => META_APPROVED_PUBLIC_SCOPES.includes(s));
-      const publiclyAvailable = isUnlimited || scopesApprovedForPublic;
+      const publiclyAvailable = bypassScopeValidation || scopesApprovedForPublic;
 
       // Layer 1: Auth capability
       const grantedScopes = grant?.grantedScopes ?? [];
