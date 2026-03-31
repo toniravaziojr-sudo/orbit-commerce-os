@@ -10,6 +10,7 @@ import {
   type MetaIntegrationDef,
 } from "@/config/metaIntegrationCatalog";
 
+
 export type IntegrationLayerStatus = "available" | "blocked_auth" | "blocked_plan" | "blocked_config";
 
 export interface MetaIntegrationState {
@@ -46,7 +47,7 @@ export interface ActiveGrantInfo {
 
 export function useMetaIntegrations() {
   const { currentTenant } = useAuth();
-  const { canAccess } = useTenantAccess();
+  const { canAccess, isUnlimited } = useTenantAccess();
   const queryClient = useQueryClient();
   const tenantId = currentTenant?.id;
 
@@ -101,15 +102,16 @@ export function useMetaIntegrations() {
       const dbStatus = dbRow?.status ?? null;
 
       // Layer 1: Auth capability
+      // Special/unlimited tenants bypass scope checks when they have an active grant
       const grantedScopes = grant?.grantedScopes ?? [];
       const missingScopes = def.requiredScopes.filter(
         (s) => !grantedScopes.includes(s)
       );
-      const authCapable = grant !== null && missingScopes.length === 0;
+      const authCapable = grant !== null && (isUnlimited || missingScopes.length === 0);
       const authBlockReason =
         !grant
           ? "Conecte sua conta Meta primeiro"
-          : missingScopes.length > 0
+          : !isUnlimited && missingScopes.length > 0
           ? `Permissões ausentes: ${missingScopes.join(", ")}`
           : null;
 

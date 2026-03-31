@@ -2811,9 +2811,20 @@ O tenant faz **1 único auth** (botão "Conectar Meta"). O sistema decide intern
 
 Cada toggle ativo = 1 registro em `tenant_meta_integrations`. Disponibilidade determinada por 3 camadas:
 
-1. **Auth capability** — o tipo de auth do tenant suporta os escopos necessários?
+1. **Auth capability** — o tipo de auth do tenant suporta os escopos necessários? **Tenants especiais/unlimited bypessam a verificação de escopos** (precisam apenas de grant ativo).
 2. **Plano/feature** — o plano do tenant libera essa funcionalidade?
 3. **Estado operacional** — ativo, inativo, pendente de configuração, expirado etc.
+
+### Ciclo de Vida do Pixel
+
+O Pixel Facebook é **vinculado à conexão Meta**:
+- **Conexão:** O Pixel ID é salvo em `marketing_integrations.meta_pixel_id` quando configurado via toggle.
+- **Desconexão:** Ao desconectar a conta Meta (`meta-disconnect`), o sistema limpa automaticamente o `meta_pixel_id`, desativa `meta_enabled` e `meta_capi_enabled`, e remove pixels adicionais. Isso garante que não existam pixels órfãos na loja.
+- **Reconexão:** Ao reconectar com outra conta/pixel, o novo ID substitui o anterior automaticamente.
+
+### Popup OAuth
+
+A janela popup do fluxo OAuth da Meta utiliza obrigatoriamente **900px de altura** (`window.open`) para garantir que todo o conteúdo e botões de seleção de ativos fiquem visíveis.
 
 | Grupo | Toggles |
 |---|---|
