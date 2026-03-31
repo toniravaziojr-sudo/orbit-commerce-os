@@ -2981,11 +2981,21 @@ Cada integração define: `requiredScopes` (escopos Meta necessários), `feature
 | `meta-catalog-test-id/index.ts` | ✅ Migrado |
 | `meta-catalog-daily-sync/index.ts` | v1.1.0 | ⚠️ Parcial — batch job multi-tenant, lê direto de `marketplace_connections`. Documentado como exceção. |
 
-**Lote 2 — Messaging (pendente):**
-- WhatsApp, Instagram Direct, Messenger
+**Lote 2 — Messaging (WhatsApp, Instagram Direct, Messenger) ✅ Concluído**
+
+| Arquivo | Versão | Status |
+|---------|--------|--------|
+| `meta-send-message/index.ts` | v1.1.0 | ✅ Migrado — leitura de token/metadata via helper centralizado |
+| `meta-instagram-webhook/index.ts` | v1.1.0 | ✅ Parcial — `getPageAccessToken` via helper; `findTenantByIgUserId` permanece legacy (scan multi-tenant) |
+| `meta-page-webhook/index.ts` | v1.1.0 | ✅ Parcial — `getPageAccessToken` via helper; `findTenantByPageId` permanece legacy (scan multi-tenant) |
+
+**Exceções documentadas no Lote 2:**
+- `meta-whatsapp-send/index.ts` — usa tabela `whatsapp_configs` (fluxo de auth separado da Cloud API), NÃO usa `marketplace_connections`. Fora do escopo desta migração.
+- `meta-whatsapp-webhook/index.ts` — sem uso de `marketplace_connections`, usa identificação por `whatsapp_configs`. Fora do escopo.
+- `findTenantByPageId` / `findTenantByIgUserId` — funções de reverse-lookup que escaneiam TODAS as conexões ativas para encontrar o tenant dono de um page/IG account. Não podem usar o helper (que exige tenant_id). Mantidas no modelo legado.
 
 **Lote 3 — Secundário (pendente):**
-- Comentários, Leads, Page Webhook
+- Lives, Page Insights, Leads Webhook, Threads Publish, Threads Insights
 
 **Regras desta fase:**
 1. ❌ Fallback legacy NÃO foi removido — mantido no helper para transição segura

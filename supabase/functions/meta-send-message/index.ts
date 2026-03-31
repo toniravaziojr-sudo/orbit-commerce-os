@@ -1,8 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { errorResponse, metaApiErrorResponse } from "../_shared/error-response.ts";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.0.0"; // Initial: Unified Messenger + Instagram DM send
+const VERSION = "v1.1.0"; // Phase 5 Lote 2: Use centralized meta-connection helper
 // ===========================================================
 
 const corsHeaders = {
@@ -58,21 +59,17 @@ Deno.serve(async (req) => {
 
     console.log(`[meta-send-message][${traceId}] tenant=${tenant_id} channel=${channel} recipient=${recipient_id}`);
 
-    // Get Meta connection for tenant
-    const { data: conn } = await supabase
-      .from("marketplace_connections")
-      .select("metadata, access_token")
-      .eq("tenant_id", tenant_id)
-      .eq("marketplace", "meta")
-      .eq("is_active", true)
-      .single();
+    // Get Meta connection for tenant (V4 helper with legacy fallback)
+    const metaConn = await getMetaConnectionForTenant(supabase, tenant_id, traceId);
 
-    if (!conn) {
+    if (!metaConn) {
       return new Response(
         JSON.stringify({ success: false, error: "Meta não conectado para este tenant" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const conn = { metadata: metaConn.metadata, access_token: metaConn.access_token };
 
     // Determine which page to use
     let resolvedPageId = page_id;
