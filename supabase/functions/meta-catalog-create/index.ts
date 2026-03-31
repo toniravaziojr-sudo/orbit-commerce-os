@@ -36,25 +36,18 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get Meta connection
-    const connection = await getMetaConnectionForTenant(supabase, tenantId);
+    // Get Meta connection (V4 only)
+    const metaConn = await getMetaConnectionForTenant(supabase, tenantId);
 
-    if (connError || !connection) {
+    if (!metaConn) {
       return new Response(
         JSON.stringify({ success: false, error: "Meta não conectada", code: "NOT_CONNECTED" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    if (connection.expires_at && new Date(connection.expires_at) < new Date()) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Token Meta expirado", code: "TOKEN_EXPIRED" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const accessToken = connection.access_token;
-    const metadata = connection.metadata as any;
+    const accessToken = metaConn.access_token;
+    const metadata = metaConn.metadata as any;
 
     if (action === "list") {
       // List existing catalogs from the business
