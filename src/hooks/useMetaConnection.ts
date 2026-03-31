@@ -21,7 +21,6 @@ interface MetaConnectionStatus {
   platformConfigured: boolean;
   isConnected: boolean;
   isExpired: boolean;
-  isPendingAssetSelection: boolean;
   connection: {
     externalUserId: string;
     externalUsername: string;
@@ -123,7 +122,6 @@ export function useMetaConnection() {
           platformConfigured: true,
           isConnected: false,
           isExpired: false,
-          isPendingAssetSelection: false,
           connection: null,
         };
       }
@@ -140,7 +138,8 @@ export function useMetaConnection() {
         .eq("auth_grant_id", grant.id)
         .eq("status", "active");
 
-      const hasActiveIntegrations = (integrations?.length || 0) > 0;
+      // hasActiveIntegrations is no longer used to determine connection status
+      // Connection = grant exists + not expired. Integrations are toggled separately.
 
       // Build assets from discovered_assets + integrations
       const discovered = grant.discovered_assets as any || {};
@@ -173,13 +172,10 @@ export function useMetaConnection() {
         if (assets.threads_profile) threadsProfile = assets.threads_profile;
       }
 
-      const isPendingAssetSelection = !hasActiveIntegrations && !isExpired;
-
       return {
         platformConfigured: true,
-        isConnected: !!grant && !isExpired && hasActiveIntegrations,
+        isConnected: !!grant && !isExpired,
         isExpired,
-        isPendingAssetSelection,
         connection: {
           externalUserId: grant.meta_user_id || "",
           externalUsername: grant.meta_user_name || "",
@@ -212,13 +208,6 @@ export function useMetaConnection() {
         throw new Error("Tenant não selecionado");
       }
 
-      if (statusQuery.data?.isPendingAssetSelection) {
-        return {
-          authUrl: `${window.location.origin}/integrations/meta/callback?resume=1&tenantId=${currentTenant.id}`,
-          isResume: true,
-        };
-      }
-
       if (!session?.access_token) {
         throw new Error("Sessão inválida");
       }
@@ -236,11 +225,10 @@ export function useMetaConnection() {
 
       return {
         ...data,
-        isResume: false,
       };
     },
     onSuccess: (data) => {
-      openPopupFlow(data.authUrl, !data.isResume);
+      openPopupFlow(data.authUrl);
     },
     onError: (error) => showErrorToast(error, { module: 'meta', action: 'conectar' }),
   });
@@ -279,7 +267,6 @@ export function useMetaConnection() {
     platformConfigured: statusQuery.data?.platformConfigured ?? false,
     isConnected: statusQuery.data?.isConnected ?? false,
     isExpired: statusQuery.data?.isExpired ?? false,
-    isPendingAssetSelection: statusQuery.data?.isPendingAssetSelection ?? false,
     connection: statusQuery.data?.connection ?? null,
 
     // Actions — V4: connect() não recebe mais scope packs
