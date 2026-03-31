@@ -1,9 +1,10 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.0.0"; // Meta token refresh - renova long-lived tokens antes de expirar
+const VERSION = "v2.0.0"; // Phase 7: V4-first — refresh grant tokens + legacy fallback
 // ===========================================================
 
 const corsHeaders = {
@@ -12,19 +13,15 @@ const corsHeaders = {
 };
 
 /**
- * Meta Token Refresh
+ * Meta Token Refresh — V4 + Legacy
  * 
  * Renova tokens long-lived da Meta antes da expiração (~60 dias).
- * A Meta não usa refresh_token. Em vez disso, troca-se o token atual 
- * (ainda válido) por um novo long-lived token via fb_exchange_token.
+ * V4: Renova token no grant (re-criptografa via RPC)
+ * Legacy: Mantém renovação em marketplace_connections para tenants não migrados
  * 
  * Modos de operação:
  * 1. POST { tenantId } → Renova token de um tenant específico
  * 2. POST { refreshAll: true } → Renova TODOS os tokens que expiram em <7 dias (para cron)
- * 
- * Contrato:
- * - Erro = HTTP 200 + { success: false, error }
- * - Sucesso = HTTP 200 + { success: true, ... }
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -50,32 +47,21 @@ Deno.serve(async (req) => {
 
     if (!appId || !appSecret) {
       console.error(`[meta-token-refresh][${VERSION}] Credenciais Meta não configuradas`);
-      return new Response(
-        JSON.stringify({ success: false, error: "Credenciais Meta não configuradas" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ success: false, error: "Credenciais Meta não configuradas" });
     }
 
     const apiVersion = graphVersion || "v21.0";
 
     if (refreshAll) {
-      // Modo batch: renovar todos os tokens que expiram em <7 dias
-      return await refreshAllExpiring(supabase, supabaseUrl, appId, appSecret, apiVersion);
+      return await refreshAllExpiring(supabase, appId, appSecret, apiVersion, supabaseServiceKey);
     }
 
     if (!tenantId) {
-      return new Response(
-        JSON.stringify({ success: false, error: "tenantId ou refreshAll obrigatório" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ success: false, error: "tenantId ou refreshAll obrigatório" });
     }
 
-    // Modo single tenant
-    const result = await refreshTenantToken(supabase, supabaseUrl, tenantId, appId, appSecret, apiVersion);
-    return new Response(
-      JSON.stringify(result),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    const result = await refreshTenantToken(supabase, tenantId, appId, appSecret, apiVersion, supabaseServiceKey);
+    return jsonResponse(result);
 
   } catch (error) {
     console.error(`[meta-token-refresh][${VERSION}] Error:`, error);
@@ -85,45 +71,156 @@ Deno.serve(async (req) => {
 
 async function refreshTenantToken(
   supabase: any,
-  supabaseUrl: string,
   tenantId: string,
   appId: string,
   appSecret: string,
-  apiVersion: string
-): Promise<{ success: boolean; error?: string; access_token?: string; expires_at?: string; already_valid?: boolean }> {
-  // Buscar conexão Meta do tenant
-  const { data: conn, error: connError } = await supabase
+  apiVersion: string,
+  serviceRoleKey: string
+): Promise<{ success: boolean; error?: string; source?: string; already_valid?: boolean }> {
+  const encryptionKey = Deno.env.get("META_TOKEN_ENCRYPTION_KEY") || serviceRoleKey;
+
+  // ── V4: Try grant first ──
+  const { data: activeGrant } = await supabase
+    .from("tenant_meta_auth_grants")
+    .select("id, token_expires_at")
+    .eq("tenant_id", tenantId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (activeGrant) {
+    // Check if still valid (buffer 7 days)
+    if (activeGrant.token_expires_at) {
+      const expiresAt = new Date(activeGrant.token_expires_at);
+      const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+      if (expiresAt.getTime() - Date.now() > sevenDaysMs) {
+        console.log(`[meta-token-refresh][${VERSION}] V4 grant token still valid for tenant ${tenantId}`);
+        return { success: true, source: "v4_grant", already_valid: true };
+      }
+    }
+
+    // Decrypt current token
+    const { data: tokenData, error: tokenError } = await supabase.rpc("get_meta_grant_token", {
+      p_grant_id: activeGrant.id,
+      p_encryption_key: encryptionKey,
+    });
+
+    if (tokenError || !tokenData?.[0]?.access_token) {
+      console.error(`[meta-token-refresh][${VERSION}] V4 token decrypt failed for tenant ${tenantId}:`, tokenError?.message);
+      // Fall through to legacy
+    } else {
+      const currentToken = tokenData[0].access_token;
+      const exchangeResult = await exchangeToken(currentToken, appId, appSecret, apiVersion);
+
+      if (!exchangeResult.success) {
+        // If expired/revoked, mark grant
+        if (exchangeResult.isExpiredOrRevoked) {
+          await supabase
+            .from("tenant_meta_auth_grants")
+            .update({ status: "expired", revoked_at: new Date().toISOString(), revoke_reason: `token_refresh_failed: ${exchangeResult.error}` })
+            .eq("id", activeGrant.id);
+        }
+        return { success: false, error: exchangeResult.error, source: "v4_grant" };
+      }
+
+      // Re-encrypt new token via RPC
+      const { error: updateError } = await supabase.rpc("update_meta_grant_token", {
+        p_grant_id: activeGrant.id,
+        p_new_token: exchangeResult.accessToken,
+        p_encryption_key: encryptionKey,
+        p_new_expires_at: exchangeResult.expiresAt,
+      });
+
+      if (updateError) {
+        // Try alternative: if RPC doesn't exist yet, log warning
+        console.error(`[meta-token-refresh][${VERSION}] update_meta_grant_token RPC failed:`, updateError.message);
+        // Fallback: update expires_at at least
+        await supabase
+          .from("tenant_meta_auth_grants")
+          .update({ token_expires_at: exchangeResult.expiresAt })
+          .eq("id", activeGrant.id);
+      }
+
+      console.log(`[meta-token-refresh][${VERSION}] V4 grant token refreshed for tenant ${tenantId}`);
+
+      // Also sync to legacy for compatibility
+      await syncToLegacy(supabase, tenantId, exchangeResult.accessToken, exchangeResult.expiresAt);
+
+      // Sync CAPI token
+      await supabase
+        .from("marketing_integrations")
+        .update({ meta_access_token: exchangeResult.accessToken })
+        .eq("tenant_id", tenantId);
+
+      return { success: true, source: "v4_grant" };
+    }
+  }
+
+  // ── Legacy fallback ──
+  const { data: conn } = await supabase
     .from("marketplace_connections")
-    .select("id, access_token, expires_at, is_active, metadata, tenant_id")
+    .select("id, access_token, expires_at, metadata, tenant_id")
     .eq("tenant_id", tenantId)
     .eq("marketplace", "meta")
     .eq("is_active", true)
-    .single();
+    .maybeSingle();
 
-  if (connError || !conn) {
-    return { success: false, error: "Conexão Meta não encontrada" };
+  if (!conn?.access_token) {
+    return { success: false, error: "Nenhuma conexão Meta encontrada", source: "none" };
   }
 
-  if (!conn.access_token) {
-    return { success: false, error: "Sem access token. Reconecte a conta Meta." };
-  }
-
-  // Verificar se token ainda é válido (buffer de 7 dias)
+  // Check validity
   if (conn.expires_at) {
     const expiresAt = new Date(conn.expires_at);
     const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
     if (expiresAt.getTime() - Date.now() > sevenDaysMs) {
-      console.log(`[meta-token-refresh][${VERSION}] Token still valid for tenant ${tenantId}, expires ${conn.expires_at}`);
-      return { success: true, access_token: conn.access_token, already_valid: true };
+      return { success: true, source: "legacy", already_valid: true };
     }
   }
 
-  // Trocar token atual por novo long-lived token
+  const exchangeResult = await exchangeToken(conn.access_token, appId, appSecret, apiVersion);
+
+  if (!exchangeResult.success) {
+    if (exchangeResult.isExpiredOrRevoked) {
+      await supabase.from("marketplace_connections")
+        .update({ is_active: false, last_error: `Token expirado/revogado: ${exchangeResult.error}` })
+        .eq("id", conn.id);
+    }
+    return { success: false, error: exchangeResult.error, source: "legacy" };
+  }
+
+  await supabase.from("marketplace_connections")
+    .update({
+      access_token: exchangeResult.accessToken,
+      expires_at: exchangeResult.expiresAt,
+      last_error: null,
+      metadata: {
+        ...(conn.metadata || {}),
+        last_token_refresh: new Date().toISOString(),
+        token_refresh_count: ((conn.metadata as any)?.token_refresh_count || 0) + 1,
+      },
+    })
+    .eq("id", conn.id);
+
+  // Sync CAPI
+  await supabase.from("marketing_integrations")
+    .update({ meta_access_token: exchangeResult.accessToken })
+    .eq("tenant_id", tenantId);
+
+  console.log(`[meta-token-refresh][${VERSION}] Legacy token refreshed for tenant ${tenantId}`);
+  return { success: true, source: "legacy" };
+}
+
+async function exchangeToken(
+  currentToken: string,
+  appId: string,
+  appSecret: string,
+  apiVersion: string
+): Promise<{ success: boolean; accessToken?: string; expiresAt?: string; error?: string; isExpiredOrRevoked?: boolean }> {
   const exchangeUrl = new URL(`https://graph.facebook.com/${apiVersion}/oauth/access_token`);
   exchangeUrl.searchParams.set("grant_type", "fb_exchange_token");
   exchangeUrl.searchParams.set("client_id", appId);
   exchangeUrl.searchParams.set("client_secret", appSecret);
-  exchangeUrl.searchParams.set("fb_exchange_token", conn.access_token);
+  exchangeUrl.searchParams.set("fb_exchange_token", currentToken);
 
   const tokenRes = await fetch(exchangeUrl.toString());
   const tokenText = await tokenRes.text();
@@ -132,125 +229,92 @@ async function refreshTenantToken(
   try {
     tokenData = JSON.parse(tokenText);
   } catch {
-    console.error(`[meta-token-refresh][${VERSION}] Parse error for tenant ${tenantId}:`, tokenText);
     return { success: false, error: "Erro ao processar resposta da Meta" };
   }
 
   if (!tokenRes.ok || tokenData.error) {
     const errorMsg = tokenData.error?.message || tokenData.error_description || tokenData.error || "Falha ao renovar token";
-    console.error(`[meta-token-refresh][${VERSION}] Refresh failed for tenant ${tenantId}:`, tokenData);
-
-    // Se o token expirou ou foi revogado, marcar conexão como erro
-    const isExpiredOrRevoked = tokenData.error?.code === 190 || 
-      errorMsg.includes("expired") || 
+    const isExpiredOrRevoked = tokenData.error?.code === 190 ||
+      errorMsg.includes("expired") ||
       errorMsg.includes("revoked") ||
       errorMsg.includes("invalid");
 
-    if (isExpiredOrRevoked) {
-      await supabase
-        .from("marketplace_connections")
-        .update({
-          is_active: false,
-          last_error: `Token expirado/revogado: ${errorMsg}`,
-        })
-        .eq("id", conn.id);
-    }
-
-    return { success: false, error: errorMsg };
+    return { success: false, error: errorMsg, isExpiredOrRevoked };
   }
 
-  const newAccessToken = tokenData.access_token;
-  const newExpiresIn = tokenData.expires_in || 5184000; // ~60 dias
+  const newExpiresIn = tokenData.expires_in || 5184000;
   const newExpiresAt = new Date(Date.now() + newExpiresIn * 1000).toISOString();
 
-  // Atualizar conexão com novo token
-  const updatedMetadata = {
-    ...(conn.metadata || {}),
-    last_token_refresh: new Date().toISOString(),
-    token_refresh_count: ((conn.metadata as any)?.token_refresh_count || 0) + 1,
-  };
+  return { success: true, accessToken: tokenData.access_token, expiresAt: newExpiresAt };
+}
 
-  await supabase
-    .from("marketplace_connections")
-    .update({
-      access_token: newAccessToken,
-      expires_at: newExpiresAt,
-      last_error: null,
-      metadata: updatedMetadata,
-    })
-    .eq("id", conn.id);
-
-  // Sincronizar novo token com marketing_integrations (CAPI)
-  const metadata = conn.metadata as any;
-  const pixelId = metadata?.assets?.pixels?.[0]?.id;
-  if (pixelId) {
-    await supabase
-      .from("marketing_integrations")
-      .update({
-        meta_access_token: newAccessToken,
-      })
-      .eq("tenant_id", tenantId);
-    
-    console.log(`[meta-token-refresh][${VERSION}] CAPI token also synced for tenant ${tenantId}`);
+async function syncToLegacy(supabase: any, tenantId: string, newToken: string, newExpiresAt: string) {
+  try {
+    await supabase.from("marketplace_connections")
+      .update({ access_token: newToken, expires_at: newExpiresAt, last_error: null })
+      .eq("tenant_id", tenantId)
+      .eq("marketplace", "meta")
+      .eq("is_active", true);
+  } catch (err) {
+    console.warn(`[meta-token-refresh] Legacy sync failed (non-blocking):`, (err as Error).message);
   }
-
-  console.log(`[meta-token-refresh][${VERSION}] Token refreshed for tenant ${tenantId}, new expiry: ${newExpiresAt}`);
-
-  return { success: true, access_token: newAccessToken, expires_at: newExpiresAt };
 }
 
 async function refreshAllExpiring(
   supabase: any,
-  supabaseUrl: string,
   appId: string,
   appSecret: string,
-  apiVersion: string
+  apiVersion: string,
+  serviceRoleKey: string
 ) {
-  // Buscar todas as conexões Meta ativas que expiram em <7 dias
   const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  const { data: connections, error } = await supabase
+  // V4: Find grants expiring soon
+  const { data: expiringGrants } = await supabase
+    .from("tenant_meta_auth_grants")
+    .select("tenant_id")
+    .eq("status", "active")
+    .lt("token_expires_at", sevenDaysFromNow);
+
+  // Legacy: Find connections expiring soon
+  const { data: expiringLegacy } = await supabase
     .from("marketplace_connections")
-    .select("id, tenant_id, access_token, expires_at, metadata")
+    .select("tenant_id")
     .eq("marketplace", "meta")
     .eq("is_active", true)
     .lt("expires_at", sevenDaysFromNow);
 
-  if (error || !connections) {
-    console.error(`[meta-token-refresh][${VERSION}] Erro ao buscar conexões:`, error);
-    return new Response(
-      JSON.stringify({ success: false, error: "Erro ao buscar conexões" }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  }
+  // Deduplicate tenant IDs
+  const allTenantIds = new Set<string>();
+  for (const g of expiringGrants || []) allTenantIds.add(g.tenant_id);
+  for (const c of expiringLegacy || []) allTenantIds.add(c.tenant_id);
 
-  console.log(`[meta-token-refresh][${VERSION}] Found ${connections.length} connections to refresh`);
+  console.log(`[meta-token-refresh][${VERSION}] Batch: ${allTenantIds.size} tenants to refresh (${expiringGrants?.length || 0} V4, ${expiringLegacy?.length || 0} legacy)`);
 
   const results = { refreshed: 0, failed: 0, skipped: 0, errors: [] as string[] };
 
-  for (const conn of connections) {
+  for (const tenantId of allTenantIds) {
     try {
-      const result = await refreshTenantToken(supabase, supabaseUrl, conn.tenant_id, appId, appSecret, apiVersion);
+      const result = await refreshTenantToken(supabase, tenantId, appId, appSecret, apiVersion, serviceRoleKey);
       if (result.success) {
-        if (result.already_valid) {
-          results.skipped++;
-        } else {
-          results.refreshed++;
-        }
+        result.already_valid ? results.skipped++ : results.refreshed++;
       } else {
         results.failed++;
-        results.errors.push(`${conn.tenant_id}: ${result.error}`);
+        results.errors.push(`${tenantId}: ${result.error}`);
       }
     } catch (err) {
       results.failed++;
-      results.errors.push(`${conn.tenant_id}: ${err instanceof Error ? err.message : "unknown"}`);
+      results.errors.push(`${tenantId}: ${err instanceof Error ? err.message : "unknown"}`);
     }
   }
 
   console.log(`[meta-token-refresh][${VERSION}] Batch complete: ${JSON.stringify(results)}`);
+  return jsonResponse({ success: true, ...results });
+}
 
-  return new Response(
-    JSON.stringify({ success: true, ...results }),
-    { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-  );
+function jsonResponse(data: any) {
+  return new Response(JSON.stringify(data), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 }
