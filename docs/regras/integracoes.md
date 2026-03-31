@@ -1393,16 +1393,51 @@ Sincronização Diária Automática (cron):
 
 ---
 
-## Meta — Threads (Fase 6)
+## Meta — Threads (Fase 6) — OAuth Separado (v4.5)
 
 > **STATUS:** ✅ Ready  
-> **Adicionado em:** 2026-02-14
+> **Adicionado em:** 2026-02-14  
+> **Atualizado em:** 2026-03-31 — OAuth separado do fluxo Facebook
 
 ### Visão Geral
 
 Publicação de conteúdo e consulta de métricas no Threads (Meta) via Threads API v21.0.
 
-### Edge Functions
+**⚠️ IMPORTANTE:** O Threads utiliza um fluxo OAuth **completamente independente** do Facebook/Instagram. A autorização é feita via `https://threads.net/oauth/authorize` (não via `facebook.com/v21.0/dialog/oauth`). Os escopos `threads_*` foram **removidos** dos perfis `meta_auth_profiles` e do `META_APPROVED_PUBLIC_SCOPES` para evitar o erro "Invalid Scopes" no OAuth do Facebook.
+
+### Arquitetura de Conexão
+
+| Componente | Descrição |
+|------------|-----------|
+| **Tabela** | `threads_connections` — armazena tokens e dados do perfil Threads por tenant |
+| **Edge Function (start)** | `threads-oauth-start` — gera URL de autorização para `threads.net/oauth/authorize` |
+| **Edge Function (callback)** | `threads-oauth-callback` — troca code por token, salva na tabela |
+| **Hook** | `useThreadsConnection` — gerencia estado de conexão (conectar, desconectar, status) |
+| **UI** | `ThreadsConnectCard` — card separado na aba Social, visível apenas com Meta conectada |
+| **Callback Page** | `/integrations/threads/callback` — página que recebe o retorno do OAuth |
+
+### Pré-requisito
+
+O botão "Conectar Threads" só aparece quando a Meta já está conectada (necessário para ter o App ID configurado).
+
+### Tabela `threads_connections`
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `id` | uuid | PK |
+| `tenant_id` | uuid | FK para tenants (unique) |
+| `threads_user_id` | text | ID do usuário no Threads |
+| `username` | text | @username |
+| `display_name` | text | Nome de exibição |
+| `profile_picture_url` | text | URL da foto de perfil |
+| `access_token` | text | Token de acesso (encriptado) |
+| `token_expires_at` | timestamptz | Expiração do token |
+| `is_active` | boolean | Se a conexão está ativa |
+| `last_error` | text | Último erro registrado |
+| `connected_at` | timestamptz | Data da conexão |
+| `created_at` / `updated_at` | timestamptz | Timestamps padrão |
+
+### Edge Functions de Publicação
 
 | Function | Ações | Descrição |
 |----------|-------|-----------|
@@ -1454,20 +1489,23 @@ Para vídeos, a Threads API usa um fluxo assíncrono:
 | `quotes` | Citações no período |
 | `followers_count` | Total de seguidores |
 
-### Hook Frontend
+### Hooks Frontend
 
 | Hook | Descrição |
 |------|-----------|
-| `useMetaThreads` | Queries: `posts`, `profileInsights`. Mutation: `publish` |
+| `useThreadsConnection` | Gerencia conexão OAuth independente (conectar, desconectar, status, refetch) |
+| `useMetaThreads` | Queries: `posts`, `profileInsights`. Mutation: `publish`. Consome `useThreadsConnection` |
 
-### Escopos Necessários
+### Escopos Necessários (OAuth Threads separado)
 
-Pack `threads` requer:
-- `threads_content_publish`
-- `threads_manage_replies`
-- `threads_manage_insights`
+Solicitados via `threads.net/oauth/authorize`:
 - `threads_basic`
+- `threads_content_publish`
+- `threads_manage_insights`
+- `threads_manage_replies`
 - `threads_read_replies`
+
+**⚠️ Estes escopos NÃO devem ser incluídos no OAuth do Facebook (`meta_auth_profiles` / `META_APPROVED_PUBLIC_SCOPES`).**
 
 ### Endpoints da API Utilizados
 
