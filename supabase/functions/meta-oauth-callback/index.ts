@@ -234,14 +234,28 @@ serve(async (req) => {
       console.log(`[meta-oauth-callback] discovered_assets saved in grant ${grantId} (${discovery.businesses.length} portfolios)`);
     }
 
+    // 5. Determinar se precisa de seleção interna de ativos
+    // Se o perfil tem config_id (FLB), o Facebook já fez a seleção → pular seleção interna
+    // Se o perfil NÃO tem config_id (escopos diretos), precisa seleção interna
+    const { data: authProfileData } = await supabase
+      .from("meta_auth_profiles")
+      .select("config_id")
+      .eq("profile_key", profileKey)
+      .single();
+
+    const hasConfigId = !!authProfileData?.config_id;
+    const requiresAssetSelection = !hasConfigId;
+
+    console.log(`[meta-oauth-callback] profile=${profileKey}, config_id=${authProfileData?.config_id || 'NULL'}, requiresAssetSelection=${requiresAssetSelection}`);
+
     console.log(`[meta-oauth-callback] Conexão Meta salva para tenant ${tenant_id} — grant V4: ${grantId}`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        requiresAssetSelection: true,
+        requiresAssetSelection,
         returnPath: return_path || "/integrations",
-        grantId, // V4: retorna o ID do grant para o frontend
+        grantId,
         authProfile: profileKey,
         connection: {
           externalUserId: metaUserId,
@@ -417,7 +431,8 @@ async function discoverBusinessPortfolios(accessToken: string, grantedScopes: st
           console.warn(`[meta-oauth-callback] Erro ad accounts do portfólio ${biz.id}:`, e);
         }
 
-        // Buscar Pixels de cada Ad Account
+        // Buscar Pixels de cada Ad Account (com deduplicação por pixel_id)
+        const seenPixelIds = new Set<string>();
         for (const acc of portfolio.ad_accounts) {
           try {
             const pixResp = await fetch(
@@ -427,11 +442,14 @@ async function discoverBusinessPortfolios(accessToken: string, grantedScopes: st
               const pixData = await pixResp.json();
               if (pixData.data) {
                 for (const pixel of pixData.data) {
-                  portfolio.pixels.push({
-                    id: pixel.id,
-                    name: pixel.name || `Pixel ${pixel.id}`,
-                    ad_account_id: acc.id,
-                  });
+                  if (!seenPixelIds.has(pixel.id)) {
+                    seenPixelIds.add(pixel.id);
+                    portfolio.pixels.push({
+                      id: pixel.id,
+                      name: pixel.name || `Pixel ${pixel.id}`,
+                      ad_account_id: acc.id,
+                    });
+                  }
                 }
               }
             }
@@ -505,6 +523,7 @@ async function discoverPersonalAssets(accessToken: string, grantedScopes: string
         }
       } catch {}
 
+      const seenPixelIds = new Set<string>();
       for (const acc of portfolio.ad_accounts) {
         try {
           const pixResp = await fetch(
@@ -514,7 +533,10 @@ async function discoverPersonalAssets(accessToken: string, grantedScopes: string
             const pixData = await pixResp.json();
             if (pixData.data) {
               for (const pixel of pixData.data) {
-                portfolio.pixels.push({ id: pixel.id, name: pixel.name || `Pixel ${pixel.id}`, ad_account_id: acc.id });
+                if (!seenPixelIds.has(pixel.id)) {
+                  seenPixelIds.add(pixel.id);
+                  portfolio.pixels.push({ id: pixel.id, name: pixel.name || `Pixel ${pixel.id}`, ad_account_id: acc.id });
+                }
               }
             }
           }
