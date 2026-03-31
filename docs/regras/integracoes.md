@@ -2918,12 +2918,12 @@ O modelo legado (`marketplace_connections` com `marketplace='meta'`) continua fu
 |---|---|
 | WhatsApp | `whatsapp_notificacoes`, `whatsapp_atendimento` |
 | Instagram | `instagram_publicacoes`, `instagram_direct`, `instagram_comentarios` |
-| Facebook | `facebook_publicacoes`, `facebook_messenger`, `facebook_lives` |
+| Facebook | `facebook_publicacoes`, `facebook_messenger`, `facebook_comentarios`, `facebook_lives` |
 | Marketing & Conversão | `pixel_facebook`, `conversions_api`, `leads`, `anuncios` |
 | Commerce & Dados | `catalogos`, `catalogo_insights` |
 | Outros | `threads` (auth separado) |
 
-Cada integração define: `requiredScopes` (escopos Meta necessários), `featureKey` (gating por plano), `separateAuth` (se usa auth próprio), `hasConfigSection` + `configSectionKey` (seção de configuração expandível).
+Cada integração define: `requiredScopes` (escopos Meta necessários), `featureKey` (gating por plano), `separateAuth` (se usa auth próprio), `hasConfigSection` + `configSectionKey` (seção de configuração expandível). O toggle `facebook_comentarios` requer os escopos `pages_manage_engagement`, `pages_read_engagement` e `pages_read_user_content` (este último é dependência obrigatória de `pages_manage_engagement` conforme documentação oficial da Meta).
 
 **Edge Function criada:**
 - `meta-integrations-manage` — GET lista integrações + grant ativo; POST ativa/desativa integração vinculando ao grant existente. Não faz auth. Acesso validado via `user_has_tenant_access` usando `userClient` (JWT do usuário) para que `auth.uid()` funcione corretamente na RPC.
@@ -2933,7 +2933,7 @@ Cada integração define: `requiredScopes` (escopos Meta necessários), `feature
 > **⚠️ DÍVIDA TÉCNICA:** A RPC `user_has_tenant_access` aceita `_user_id` como parâmetro mas usa `auth.uid()` internamente, ignorando o parâmetro. Deve ser alinhada para evitar ambiguidade.
 
 **Hook criado:**
-- `useMetaIntegrations` — lê estado de `tenant_meta_integrations`, computa 3 camadas de estado (auth capability, plano, operacional), fornece `toggle()` para ativar/desativar.
+- `useMetaIntegrations` — lê estado de `tenant_meta_integrations`, computa 3 camadas de estado (auth capability, plano, operacional), fornece `toggle()` para ativar/desativar. **IMPORTANTE:** o `useMemo` que calcula os estados DEVE incluir `isUnlimited` no array de dependências para que tenants especiais tenham toggles desbloqueados imediatamente.
 
 **UI refatorada:**
 - `MetaUnifiedSettings.tsx` — reescrito: card de conexão (compacto) + cards por grupo com toggles individuais
