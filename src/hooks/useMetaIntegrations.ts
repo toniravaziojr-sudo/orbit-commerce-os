@@ -10,6 +10,7 @@ import {
   type MetaIntegrationDef,
 } from "@/config/metaIntegrationCatalog";
 
+
 export type IntegrationLayerStatus = "available" | "blocked_auth" | "blocked_plan" | "blocked_config";
 
 export interface MetaIntegrationState {
