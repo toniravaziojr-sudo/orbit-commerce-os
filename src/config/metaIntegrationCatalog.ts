@@ -1,14 +1,38 @@
 /**
- * META INTEGRATION CATALOG — V4
+ * META INTEGRATION CATALOG — V4.1
  * 
  * Fonte de verdade para as integrações atômicas Meta.
  * Cada toggle ativo = 1 registro em `tenant_meta_integrations`.
  * 
- * Disponibilidade por 3 camadas:
- * 1. Auth capability — escopos do grant suportam?
- * 2. Plano/feature — plano do tenant libera?
- * 3. Estado operacional — ativo, inativo, pendente etc.
+ * Disponibilidade por 4 camadas:
+ * 1. Aprovação pública — escopo aprovado pela Meta para uso público?
+ * 2. Auth capability — escopos do grant suportam?
+ * 3. Plano/feature — plano do tenant libera?
+ * 4. Estado operacional — ativo, inativo, pendente etc.
+ * 
+ * Tenants especiais (isUnlimited) ignoram camada 1 e 2.
  */
+
+/**
+ * Escopos aprovados pela Meta para uso público (App Review aprovado).
+ * Tenants normais só podem solicitar esses escopos no OAuth.
+ * Tenants especiais/admin podem solicitar TODOS os escopos.
+ * 
+ * Atualizar esta lista conforme novos escopos forem aprovados pela Meta.
+ */
+export const META_APPROVED_PUBLIC_SCOPES: string[] = [
+  'public_profile',
+  'pages_show_list',
+  'pages_read_engagement',
+  'pages_manage_metadata',
+  'pages_manage_posts',
+  'instagram_basic',
+  'instagram_content_publish',
+  'instagram_manage_comments',
+  'whatsapp_business_management',
+  'whatsapp_business_messaging',
+  'read_insights',
+];
 
 export interface MetaIntegrationDef {
   /** Unique ID — matches integration_id in tenant_meta_integrations */
