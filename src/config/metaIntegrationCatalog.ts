@@ -142,7 +142,7 @@ export const META_INTEGRATION_CATALOG: MetaIntegrationDef[] = [
     description: 'Gerenciar comentários nas publicações do Facebook',
     group: 'facebook',
     icon: 'MessageSquare',
-    requiredScopes: ['pages_manage_engagement', 'pages_read_engagement'],
+    requiredScopes: ['pages_manage_engagement', 'pages_read_engagement', 'pages_read_user_content'],
     featureKey: null,
   },
 
