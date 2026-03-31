@@ -3080,3 +3080,69 @@ Cada integração define: `requiredScopes` (escopos Meta necessários), `feature
 4. ✅ Idempotência: upsert com `onConflict` em `tenant_meta_integrations`
 5. ✅ Build TypeScript verificado — sem erros
 6. ❌ Fallback legacy NÃO foi removido — fica para Fase 7 (limpeza final)
+
+---
+
+### Fase 7 — Lote A: Disconnect V4 + Consumidores Residuais (100%)
+
+**Objetivo:** Migrar todos os consumidores residuais que acessavam `marketplace_connections` diretamente para o modelo V4, e criar o fluxo de disconnect V4.
+
+**Migration:**
+- `update_meta_grant_token` RPC: re-criptografa tokens após renovação
+- `revoked_at` + `revoke_reason` em `tenant_meta_auth_grants`
+
+**Etapa 1 — meta-disconnect (edge function nova) ✅**
+
+| Arquivo | Versão | Descrição |
+|---------|--------|-----------|
+| `meta-disconnect/index.ts` | v1.0.0 | Revoga grant V4, desativa integrações, desativa legado, best-effort revogação remota na Meta. Revogação remota NUNCA bloqueia desconexão local. |
+
+**Etapa 2 — Consumidores residuais migrados ✅**
+
+| Arquivo | Versão | Mudança |
+|---------|--------|---------|
+| `meta-token-refresh/index.ts` | v2.0.0 | V4-first: renova token no grant (re-criptografa via `update_meta_grant_token` RPC), fallback para legado |
+| `meta-deauthorize-callback/index.ts` | v2.0.0 | Revoga grants V4 por `meta_user_id` + desativa integrações + legado |
+| `media-social-publish-worker/index.ts` | v3.0.0 | Usa `getMetaConnectionForTenant` em vez de query direta em `marketplace_connections` |
+| `sync-ads-dashboard/index.ts` | v2.0.0 | Lista tenants de `tenant_meta_auth_grants` + legado (dedup) |
+| `meta-catalog-daily-sync/index.ts` | v2.0.0 | V4-first: busca tenants com integração `catalogo_meta` ativa, fallback legado |
+| `meta-instagram-webhook/index.ts` | v2.0.0 | `findTenantByIgUserIdV4`: busca em `tenant_meta_integrations` (IG bearing integrations), fallback legado |
+
+**Frontend ✅**
+| Arquivo | Mudança |
+|---------|---------|
+| `useMetaConnection.ts` | Disconnect agora chama `meta-disconnect` edge function em vez de update direto em `marketplace_connections` |
+
+**Regras desta fase:**
+1. ✅ Revogação remota na Meta = best effort (falha não bloqueia desconexão local)
+2. ✅ Todos os consumidores residuais migrados para V4-first com fallback legado
+3. ✅ `update_meta_grant_token` RPC criado para renovação segura de tokens
+4. ✅ Fallback legado MANTIDO em todos os consumidores (será removido no Lote B)
+
+**⚠️ GATE OBRIGATÓRIO — Antes do Lote B:**
+Antes de remover fallback legado, executar verificação:
+```sql
+-- Contar tenants com conexão Meta legada ativa e SEM grant V4 ativo
+SELECT mc.tenant_id, t.name
+FROM marketplace_connections mc
+JOIN tenants t ON t.id = mc.tenant_id
+WHERE mc.marketplace = 'meta'
+  AND mc.is_active = true
+  AND NOT EXISTS (
+    SELECT 1 FROM tenant_meta_auth_grants g
+    WHERE g.tenant_id = mc.tenant_id
+      AND g.status = 'active'
+  );
+```
+**Se retornar qualquer linha → NÃO remover fallback. Forçar reconexão desses tenants primeiro.**
+
+### Fase 7 — Lote B: Remoção de Fallback + Frontend V4 (pendente)
+
+**Pré-requisito:** Gate acima deve retornar zero linhas.
+
+Etapas planejadas:
+1. Remover fallback legado do helper `_shared/meta-connection.ts` (v3.0.0)
+2. Remover writes legados em `meta-oauth-callback` e `meta-save-selected-assets`
+3. Frontend: ler status de `tenant_meta_auth_grants` + `tenant_meta_integrations` em `useMetaConnection.ts`
+4. Consolidar doc final
+5. Marcar `marketplace_connections` como não mais usado para Meta

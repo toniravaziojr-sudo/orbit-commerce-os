@@ -1,8 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 import { errorResponse } from "../_shared/error-response.ts";
 
-const VERSION = "2.1.0"; // Phase 1B: execution_log, warning_flags, aggregate trigger
+const VERSION = "3.0.0"; // Phase 7: Use centralized meta-connection helper instead of direct marketplace_connections
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -94,20 +95,19 @@ serve(async (req) => {
 
     console.log(`[worker][${VERSION}] Found ${scheduledPosts?.length || 0} scheduled + ${retryPosts?.length || 0} retry = ${allPosts.length} posts`);
 
-    // Group by tenant for Meta connection lookup
+    // Group by tenant for Meta connection lookup (V4 helper)
     const tenantIds = [...new Set(allPosts.map(p => p.tenant_id))];
     const metaConnections: Record<string, any> = {};
 
     for (const tid of tenantIds) {
-      const { data: conn } = await supabase
-        .from("marketplace_connections")
-        .select("*")
-        .eq("tenant_id", tid)
-        .eq("marketplace", "meta")
-        .eq("is_active", true)
-        .maybeSingle();
-      if (conn?.access_token) {
-        metaConnections[tid] = conn;
+      const metaConn = await getMetaConnectionForTenant(supabase, tid);
+      if (metaConn) {
+        metaConnections[tid] = {
+          access_token: metaConn.access_token,
+          metadata: metaConn.metadata,
+          expires_at: null, // V4 handles expiration via grant status
+          source: metaConn.source,
+        };
       }
     }
 
@@ -138,12 +138,6 @@ serve(async (req) => {
         const conn = metaConnections[post.tenant_id];
         if (!conn) {
           await markPermanentFailure(supabase, post, "no_connection", "Meta não conectado", lockToken);
-          failed++;
-          continue;
-        }
-
-        if (conn.expires_at && new Date(conn.expires_at) < now) {
-          await markPermanentFailure(supabase, post, "token_expired", "Token Meta expirado", lockToken);
           failed++;
           continue;
         }

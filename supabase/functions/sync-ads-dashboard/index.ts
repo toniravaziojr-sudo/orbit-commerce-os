@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.1.0"; // Fix: use last_7d instead of today to catch attribution delays
+const VERSION = "v2.0.0"; // Phase 7: V4-first — list Meta tenants from tenant_meta_auth_grants
 // ===========================================================
 
 const corsHeaders = {
@@ -30,8 +30,13 @@ Deno.serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    // 1. Find all tenants with active Meta connections that have ad accounts
-    const { data: metaTenants } = await supabase
+    // 1. Find all tenants with active Meta grants (V4) + legacy fallback
+    const { data: v4MetaTenants } = await supabase
+      .from("tenant_meta_auth_grants")
+      .select("tenant_id")
+      .eq("status", "active");
+
+    const { data: legacyMetaTenants } = await supabase
       .from("marketplace_connections")
       .select("tenant_id")
       .eq("marketplace", "meta")
@@ -50,8 +55,11 @@ Deno.serve(async (req) => {
       .eq("is_active", true)
       .eq("connection_status", "connected");
 
-    // Deduplicate tenant IDs
-    const metaIds = [...new Set((metaTenants || []).map((t) => t.tenant_id))];
+    // Deduplicate tenant IDs (V4 + legacy combined)
+    const metaIdSet = new Set<string>();
+    for (const t of v4MetaTenants || []) metaIdSet.add(t.tenant_id);
+    for (const t of legacyMetaTenants || []) metaIdSet.add(t.tenant_id);
+    const metaIds = [...metaIdSet];
     const googleIds = [...new Set((googleTenants || []).map((t) => t.tenant_id))];
     const tiktokIds = [...new Set((tiktokTenants || []).map((t) => t.tenant_id))];
 

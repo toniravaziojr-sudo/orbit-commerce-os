@@ -1,8 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
+import { getMetaConnectionForTenant, findTenantByPageIdV4, PAGE_BEARING_INTEGRATIONS } from "../_shared/meta-connection.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v1.1.0"; // Phase 5 Lote 2: Use centralized meta-connection helper for page token reads
+const VERSION = "v2.0.0"; // Phase 7: V4-first tenant resolution + helper for token/assets
 // ===========================================================
 
 const corsHeaders = {
@@ -11,14 +11,15 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
 };
 
+// Integration IDs that may contain instagram_accounts in selected_assets
+const IG_BEARING_INTEGRATIONS = [
+  "instagram_publicacoes",
+  "instagram_comentarios",
+  "instagram_direct",
+] as const;
+
 /**
- * Meta Instagram Webhook
- * 
- * Handles:
- * - Instagram DMs (field: "messages")
- * - Instagram comments (field: "comments")
- * 
- * Routing: Uses IG User ID → marketplace_connections → tenant_id
+ * Meta Instagram Webhook — V4 + Legacy fallback
  */
 Deno.serve(async (req) => {
   const traceId = crypto.randomUUID().substring(0, 8);
@@ -66,8 +67,8 @@ Deno.serve(async (req) => {
       for (const entry of payload.entry || []) {
         const igUserId = entry.id;
 
-        // Route to tenant
-        const tenantData = await findTenantByIgUserId(supabase, igUserId);
+        // V4-first tenant resolution
+        const tenantData = await findTenantByIgUserIdV4(supabase, igUserId);
         if (!tenantData) {
           console.warn(`[meta-instagram-webhook][${traceId}] No tenant for IG user ${igUserId}`);
           continue;
@@ -75,7 +76,6 @@ Deno.serve(async (req) => {
 
         const { tenantId, pageId } = tenantData;
 
-        // Instagram DMs (messaging field)
         if (entry.messaging) {
           for (const event of entry.messaging) {
             if (event.message) {
@@ -84,7 +84,6 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Instagram comments (changes field)
         if (entry.changes) {
           for (const change of entry.changes) {
             if (change.field === "comments") {
@@ -105,27 +104,53 @@ Deno.serve(async (req) => {
 });
 
 /**
- * Find tenant and linked page by Instagram User ID
+ * findTenantByIgUserIdV4
+ * 
+ * Resolves tenant_id + page_id from an Instagram User ID.
+ * V4: Searches tenant_meta_integrations.selected_assets first
+ * Legacy fallback: marketplace_connections
  */
-async function findTenantByIgUserId(
+async function findTenantByIgUserIdV4(
   supabase: any,
   igUserId: string
 ): Promise<{ tenantId: string; pageId: string } | null> {
+  // V4: Search in tenant_meta_integrations
+  const { data: integrations } = await supabase
+    .from("tenant_meta_integrations")
+    .select("tenant_id, integration_id, selected_assets")
+    .in("integration_id", IG_BEARING_INTEGRATIONS as unknown as string[])
+    .eq("status", "active");
+
+  if (integrations) {
+    for (const integ of integrations) {
+      const assets = integ.selected_assets;
+      if (!assets) continue;
+
+      const igAccounts = assets.instagram_accounts || [];
+      const match = igAccounts.find((ig: any) => ig.id === igUserId);
+      if (match) {
+        return { tenantId: integ.tenant_id, pageId: match.page_id || "" };
+      }
+    }
+  }
+
+  // Legacy fallback
   const { data: connections } = await supabase
     .from("marketplace_connections")
     .select("tenant_id, metadata")
     .eq("marketplace", "meta")
     .eq("is_active", true);
 
-  if (!connections) return null;
-
-  for (const conn of connections) {
-    const igAccounts = conn.metadata?.assets?.instagram_accounts || [];
-    const match = igAccounts.find((ig: any) => ig.id === igUserId);
-    if (match) {
-      return { tenantId: conn.tenant_id, pageId: match.page_id };
+  if (connections) {
+    for (const conn of connections) {
+      const igAccounts = conn.metadata?.assets?.instagram_accounts || [];
+      const match = igAccounts.find((ig: any) => ig.id === igUserId);
+      if (match) {
+        return { tenantId: conn.tenant_id, pageId: match.page_id || "" };
+      }
     }
   }
+
   return null;
 }
 
@@ -156,7 +181,6 @@ async function handleInstagramDM(
   const messageId = event.message?.mid;
   const attachments = event.message?.attachments || [];
 
-  // Ignore messages sent by the IG account itself (echo)
   if (!senderId || senderId === igUserId) return;
 
   let content = messageText;
@@ -170,7 +194,6 @@ async function handleInstagramDM(
 
   console.log(`[meta-instagram-webhook][${traceId}] IG DM from ${senderId}: ${content.substring(0, 100)}`);
 
-  // Get sender username
   let senderName = senderId;
   try {
     const pageToken = await getPageAccessToken(supabase, tenantId, pageId);
@@ -183,11 +206,10 @@ async function handleInstagramDM(
         senderName = profile.username || profile.name || senderId;
       }
     }
-  } catch (e) {
+  } catch {
     console.warn(`[meta-instagram-webhook][${traceId}] Could not fetch IG sender profile`);
   }
 
-  // Find or create conversation
   const externalConvId = `ig_dm_${senderId}_${igUserId}`;
 
   const { data: existingConv } = await supabase
@@ -229,7 +251,6 @@ async function handleInstagramDM(
     conversationId = newConv.id;
   }
 
-  // Insert message
   await supabase.from("messages").insert({
     conversation_id: conversationId,
     tenant_id: tenantId,
@@ -245,13 +266,11 @@ async function handleInstagramDM(
     external_message_id: messageId,
   });
 
-  // Update conversation
   await supabase
     .from("conversations")
     .update({ last_message_at: new Date().toISOString(), status: "new" })
     .eq("id", conversationId);
 
-  // Trigger AI
   await triggerAiIfEnabled(supabase, traceId, tenantId, conversationId, "instagram_dm");
 }
 
@@ -267,17 +286,13 @@ async function handleInstagramComment(
 ) {
   const { id: commentId, text, from, media } = value;
   if (!text || !from) return;
-
-  // Ignore comments from the IG account itself
   if (from.id === igUserId) return;
 
   const senderName = from.username || from.id;
   const mediaId = media?.id;
-  const content = text;
 
-  console.log(`[meta-instagram-webhook][${traceId}] IG comment from ${senderName}: ${content.substring(0, 100)}`);
+  console.log(`[meta-instagram-webhook][${traceId}] IG comment from ${senderName}: ${text.substring(0, 100)}`);
 
-  // Group comments by media post
   const externalConvId = `ig_comment_${mediaId || commentId}`;
 
   const { data: existingConv } = await supabase
@@ -299,7 +314,7 @@ async function handleInstagramComment(
       .from("conversations")
       .insert({
         tenant_id: tenantId,
-        channel_type: "instagram_dm", // Uses instagram_dm channel for IG interactions
+        channel_type: "instagram_dm",
         customer_name: senderName,
         external_conversation_id: externalConvId,
         external_thread_id: mediaId || commentId,
@@ -325,7 +340,7 @@ async function handleInstagramComment(
     direction: "inbound",
     sender_type: "customer",
     sender_name: senderName,
-    content,
+    content: text,
     content_type: "text",
     delivery_status: "delivered",
     is_ai_generated: false,
@@ -341,9 +356,6 @@ async function handleInstagramComment(
     .eq("id", conversationId);
 }
 
-/**
- * Trigger AI support if enabled
- */
 async function triggerAiIfEnabled(
   supabase: any,
   traceId: string,

@@ -16646,6 +16646,7 @@ export type Database = {
           meta_user_id: string | null
           meta_user_name: string | null
           refresh_token_encrypted: string | null
+          revoke_reason: string | null
           revoked_at: string | null
           status: string
           superseded_at: string | null
@@ -16668,6 +16669,7 @@ export type Database = {
           meta_user_id?: string | null
           meta_user_name?: string | null
           refresh_token_encrypted?: string | null
+          revoke_reason?: string | null
           revoked_at?: string | null
           status?: string
           superseded_at?: string | null
@@ -16690,6 +16692,7 @@ export type Database = {
           meta_user_id?: string | null
           meta_user_name?: string | null
           refresh_token_encrypted?: string | null
+          revoke_reason?: string | null
           revoked_at?: string | null
           status?: string
           superseded_at?: string | null
@@ -19259,6 +19262,15 @@ export type Database = {
             }
             Returns: undefined
           }
+      update_meta_grant_token: {
+        Args: {
+          p_encryption_key: string
+          p_grant_id: string
+          p_new_expires_at: string
+          p_new_token: string
+        }
+        Returns: undefined
+      }
       user_belongs_to_tenant: {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean
