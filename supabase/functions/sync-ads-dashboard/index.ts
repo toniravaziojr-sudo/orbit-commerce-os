@@ -30,8 +30,13 @@ Deno.serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    // 1. Find all tenants with active Meta connections that have ad accounts
-    const { data: metaTenants } = await supabase
+    // 1. Find all tenants with active Meta grants (V4) + legacy fallback
+    const { data: v4MetaTenants } = await supabase
+      .from("tenant_meta_auth_grants")
+      .select("tenant_id")
+      .eq("status", "active");
+
+    const { data: legacyMetaTenants } = await supabase
       .from("marketplace_connections")
       .select("tenant_id")
       .eq("marketplace", "meta")
