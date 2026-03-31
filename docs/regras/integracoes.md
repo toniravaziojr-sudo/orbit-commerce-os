@@ -3014,3 +3014,69 @@ Cada integração define: `requiredScopes` (escopos Meta necessários), `feature
 2. ✅ Apenas leitura de token migrada — writes em `marketplace_connections` (metadata updates) permanecem
 3. ✅ Build TypeScript verificado — sem erros
 4. ✅ Todos os 3 lotes concluídos — Fase 5 completa
+
+### Fase 6 — Tornar o V4 autossuficiente (✅ Concluída)
+
+**Objetivo:** Fazer o modelo V4 funcionar sem depender de `marketplace_connections` para metadata/assets. Separar claramente estado de auth (grant) e estado funcional (integrations).
+
+**Princípio de separação:**
+
+| Tabela | Responsabilidade |
+|--------|-----------------|
+| `tenant_meta_auth_grants` | Estado do AUTH: token criptografado, escopos, `discovered_assets` (o que a Meta devolveu no OAuth) |
+| `tenant_meta_integrations` | Estado FUNCIONAL: status ativo/inativo por feature, `selected_assets` (o que o usuário escolheu usar) |
+
+**Migration aplicada:**
+- `ALTER TABLE tenant_meta_auth_grants ADD COLUMN discovered_assets JSONB DEFAULT '{}'`
+
+**Frente A — discovered_assets no grant ✅**
+
+| Arquivo | Versão | Mudança |
+|---------|--------|---------|
+| `meta-oauth-callback/index.ts` | — | Salva `discovered_assets` (portfolios brutos) no grant V4 durante OAuth |
+
+**Frente B — meta-save-selected-assets migrado para V4 ✅**
+
+| Arquivo | Mudança |
+|---------|---------|
+| `meta-save-selected-assets/index.ts` | Token via `getMetaConnectionForTenant` (V4-first). Assets salvos em `tenant_meta_integrations.selected_assets` por integração. Write legado em `marketplace_connections` mantido. |
+
+**Mapeamento de assets para integrações (buildIntegrationMappings):**
+
+| Asset selecionado | Integrações ativadas |
+|-------------------|---------------------|
+| `pages` | `facebook_publicacoes`, `facebook_messenger`, `facebook_comentarios`, `facebook_lives`, `facebook_lead_ads` |
+| `instagram_accounts` | `instagram_publicacoes`, `instagram_comentarios` |
+| `ad_accounts` | `anuncios` |
+| `pixels` | `pixel_facebook` |
+| `catalogs` | `catalogo_meta` |
+
+**Frente C — Helper V4-first em metadata ✅**
+
+| Arquivo | Versão | Mudança |
+|---------|--------|---------|
+| `_shared/meta-connection.ts` | v2.0.0 | V4-first: busca `discovered_assets` do grant antes de `marketplace_connections`. Novo `getIntegrationAssets()` para assets operacionais. Novo `findTenantByPageIdV4()` centralizado. |
+
+**Frente D — findTenantByPageId migrado para V4 ✅**
+
+| Arquivo | Versão | Mudança |
+|---------|--------|---------|
+| `meta-page-webhook/index.ts` | v2.0.0 | `findTenantByPageId` agora usa `findTenantByPageIdV4` (busca em `tenant_meta_integrations` primeiro, fallback legado) |
+| `meta-leads-webhook/index.ts` | v2.0.0 | Idem — `findTenantByPageId` migrado para V4-first |
+
+**Integrações buscadas por `findTenantByPageIdV4`:**
+- `facebook_publicacoes`
+- `facebook_messenger`
+- `facebook_comentarios`
+- `facebook_lives`
+- `instagram_publicacoes`
+- `instagram_comentarios`
+- `facebook_lead_ads`
+
+**Regras desta fase:**
+1. ✅ `discovered_assets` = metadata bruta do OAuth (grant). `selected_assets` = escolha funcional do usuário (integration)
+2. ✅ Helper V4-first: busca metadata do grant quando disponível, fallback para legado
+3. ✅ Writes legados em `marketplace_connections` MANTIDOS para compatibilidade temporária
+4. ✅ Idempotência: upsert com `onConflict` em `tenant_meta_integrations`
+5. ✅ Build TypeScript verificado — sem erros
+6. ❌ Fallback legacy NÃO foi removido — fica para Fase 7 (limpeza final)
