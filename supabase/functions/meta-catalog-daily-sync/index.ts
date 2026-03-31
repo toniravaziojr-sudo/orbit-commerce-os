@@ -1,10 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-// NOTE: meta-catalog-daily-sync is a batch job iterating ALL tenants.
-// It still reads from marketplace_connections directly for the multi-tenant query.
-// Will be migrated to iterate tenant_meta_auth_grants in a future phase.
+import { getMetaConnectionForTenant, getIntegrationAssets } from "../_shared/meta-connection.ts";
 
 // ===== VERSION =====
-const VERSION = "v1.1.0"; // Phase 5: Documented as pending batch migration
+const VERSION = "v2.0.0"; // Phase 7: V4-first — iterate grants + legacy fallback for tenant discovery
 // ===================
 
 const corsHeaders = {
@@ -13,12 +11,11 @@ const corsHeaders = {
 };
 
 /**
- * Meta Catalog Daily Sync
+ * Meta Catalog Daily Sync — V4 + Legacy
  * 
- * Executa diariamente via cron (pg_cron ou external scheduler).
- * Para cada tenant com catálogo Meta ativo, sincroniza todos os produtos ativos.
- * 
- * Pode ser chamado manualmente com { tenantId } para sync de um tenant específico.
+ * Executa diariamente via cron.
+ * V4: Busca tenants com grants ativos e integração de catálogo ativa
+ * Legacy fallback: marketplace_connections para tenants não migrados
  */
 Deno.serve(async (req) => {
   console.log(`[meta-catalog-daily-sync][${VERSION}] Request received`);
@@ -41,80 +38,94 @@ Deno.serve(async (req) => {
       // No body = sync all tenants
     }
 
-    // Find all active Meta connections with catalog
-    let query = supabase
+    // Collect tenants to sync from V4 + legacy
+    const tenantsToSync: Array<{ tenantId: string; catalogId: string; source: string }> = [];
+    const seenTenants = new Set<string>();
+
+    // ── V4: Find tenants with active catalog integration ──
+    let v4Query = supabase
+      .from("tenant_meta_integrations")
+      .select("tenant_id, selected_assets, auth_grant_id")
+      .eq("integration_id", "catalogo_meta")
+      .eq("status", "active");
+
+    if (targetTenantId) {
+      v4Query = v4Query.eq("tenant_id", targetTenantId);
+    }
+
+    const { data: v4Integrations } = await v4Query;
+
+    for (const integ of v4Integrations || []) {
+      const catalogId = integ.selected_assets?.catalog_id || integ.selected_assets?.catalogs?.[0]?.id;
+      if (catalogId) {
+        tenantsToSync.push({ tenantId: integ.tenant_id, catalogId, source: "v4" });
+        seenTenants.add(integ.tenant_id);
+      }
+    }
+
+    // ── Legacy fallback: marketplace_connections ──
+    let legacyQuery = supabase
       .from("marketplace_connections")
       .select("tenant_id, access_token, expires_at, metadata")
       .eq("marketplace", "meta")
       .eq("is_active", true);
 
     if (targetTenantId) {
-      query = query.eq("tenant_id", targetTenantId);
+      legacyQuery = legacyQuery.eq("tenant_id", targetTenantId);
     }
 
-    const { data: connections, error: connError } = await query;
+    const { data: legacyConnections } = await legacyQuery;
 
-    if (connError || !connections) {
-      console.error("[meta-catalog-daily-sync] Error fetching connections:", connError);
-      return new Response(
-        JSON.stringify({ success: false, error: "Erro ao buscar conexões" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    for (const conn of legacyConnections || []) {
+      if (seenTenants.has(conn.tenant_id)) continue; // Already found via V4
+      
+      const catalogId = (conn.metadata as any)?.meta_catalog_id;
+      if (!catalogId) continue;
+
+      // Skip expired tokens
+      if (conn.expires_at && new Date(conn.expires_at) < new Date()) continue;
+
+      tenantsToSync.push({ tenantId: conn.tenant_id, catalogId, source: "legacy" });
+      seenTenants.add(conn.tenant_id);
     }
+
+    console.log(`[meta-catalog-daily-sync][${VERSION}] Found ${tenantsToSync.length} tenants to sync (V4: ${tenantsToSync.filter(t => t.source === "v4").length}, Legacy: ${tenantsToSync.filter(t => t.source === "legacy").length})`);
 
     const results: any[] = [];
 
-    for (const conn of connections) {
-      const catalogId = (conn.metadata as any)?.meta_catalog_id;
-      
-      if (!catalogId) {
-        console.log(`[meta-catalog-daily-sync] Tenant ${conn.tenant_id}: no catalog, skipping`);
-        results.push({ tenantId: conn.tenant_id, status: "skipped", reason: "no_catalog" });
-        continue;
-      }
-
-      // Check token expiry
-      if (conn.expires_at && new Date(conn.expires_at) < new Date()) {
-        console.warn(`[meta-catalog-daily-sync] Tenant ${conn.tenant_id}: token expired, skipping`);
-        results.push({ tenantId: conn.tenant_id, status: "skipped", reason: "token_expired" });
-        continue;
-      }
-
+    for (const { tenantId, catalogId, source } of tenantsToSync) {
       try {
-        // Call meta-catalog-sync for this tenant
         const syncResponse = await fetch(`${supabaseUrl}/functions/v1/meta-catalog-sync`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${supabaseServiceKey}`,
           },
-          body: JSON.stringify({
-            tenantId: conn.tenant_id,
-            catalogId,
-          }),
+          body: JSON.stringify({ tenantId, catalogId }),
         });
 
         const syncResult = await syncResponse.json();
-        console.log(`[meta-catalog-daily-sync] Tenant ${conn.tenant_id}: synced=${syncResult?.data?.synced || 0}, failed=${syncResult?.data?.failed || 0}`);
+        console.log(`[meta-catalog-daily-sync] Tenant ${tenantId} (${source}): synced=${syncResult?.data?.synced || 0}, failed=${syncResult?.data?.failed || 0}`);
         
         results.push({
-          tenantId: conn.tenant_id,
+          tenantId,
+          source,
           status: syncResult.success ? "synced" : "error",
           synced: syncResult?.data?.synced || 0,
           failed: syncResult?.data?.failed || 0,
           error: syncResult?.error || null,
         });
       } catch (syncErr) {
-        console.error(`[meta-catalog-daily-sync] Tenant ${conn.tenant_id} sync exception:`, syncErr);
-        results.push({ tenantId: conn.tenant_id, status: "error", error: String(syncErr) });
+        console.error(`[meta-catalog-daily-sync] Tenant ${tenantId} sync exception:`, syncErr);
+        results.push({ tenantId, source, status: "error", error: String(syncErr) });
       }
     }
 
     const totalSynced = results.filter(r => r.status === "synced").length;
-    console.log(`[meta-catalog-daily-sync] Complete: ${totalSynced}/${connections.length} tenants synced`);
+    console.log(`[meta-catalog-daily-sync][${VERSION}] Complete: ${totalSynced}/${tenantsToSync.length} tenants synced`);
 
     return new Response(
-      JSON.stringify({ success: true, data: { total: connections.length, results } }),
+      JSON.stringify({ success: true, data: { total: tenantsToSync.length, results } }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
