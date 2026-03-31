@@ -114,7 +114,7 @@ export function WhatsAppMetaSettings() {
     onSuccess: (data) => {
       if (data.embedded_signup_url) {
         const width = 700;
-        const height = 700;
+        const height = 900;
         const left = (window.screen.width - width) / 2;
         const top = (window.screen.height - height) / 2;
         
