@@ -1,7 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 // ===== VERSION =====
-const VERSION = "v3.0.0"; // Propagate full campaign/adset params from action_data (placements, optimization, billing, bid_strategy, destination_url, conversion_event, geo_locations, excluded_audiences)
+const VERSION = "v3.1.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
