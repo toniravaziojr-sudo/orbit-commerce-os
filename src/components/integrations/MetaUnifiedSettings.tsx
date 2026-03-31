@@ -397,7 +397,7 @@ function MetaIntegrationToggleRow({
   const [selectorOpen, setSelectorOpen] = useState(false);
   const { def, isActive, canActivate, blockReason, layerStatus, selectedAssets } = state;
 
-  const needsAssetSelection = def.assetType !== "none" && def.assetType !== "catalog";
+  const needsAssetSelection = def.assetType !== "none";
   const hasSelectedAsset = selectedAssets && Object.keys(selectedAssets).length > 0;
 
   const handleToggle = () => {

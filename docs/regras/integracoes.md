@@ -3323,3 +3323,24 @@ Tenants do tipo `platform` E tenants `isUnlimited` (plan=unlimited ou is_special
 Isso garante que admin e parceiros especiais possam ativar TODAS as funcionalidades, independente do status de aprovação pública dos escopos na Meta.
 
 Implementação: `useMetaIntegrations.ts` usa `bypassScopeValidation = isUnlimited || isPlatform`.
+
+### Remoção do Formato Legado de selected_assets (v4.4.2)
+
+> **Adicionado:** 2026-03-31
+
+O formato legado de `selected_assets` (baseado em arrays, ex: `pages: [...]`, `instagram_accounts: [...]`) foi **removido**. O sistema agora suporta apenas o formato v4.4 (objetos singulares, ex: `page: { id, name }`).
+
+Consequências:
+- Integrações com formato antigo não exibem ativo vinculado na UI
+- Tenant "Respeite o Homem" teve integrações resetadas para `disconnected` — necessário reconectar via fluxo inline
+- Nenhuma lógica de normalização/compatibilidade é mantida
+
+### Seleção de Catálogo (v4.4.2)
+
+> **Adicionado:** 2026-03-31
+
+O `MetaAssetSelector` agora suporta `assetType: 'catalog'` com fluxo especializado:
+1. Lista catálogos existentes via `useMetaCatalog` (que chama a Edge Function `meta-catalog-create` com action=list)
+2. Permite criar novo catálogo inline (nome → `meta-catalog-create` com action=create)
+3. Persiste em `selected_assets` no formato `{ catalog: { id, name } }`
+4. `getAssetDisplayInfo` exibe o nome do catálogo vinculado

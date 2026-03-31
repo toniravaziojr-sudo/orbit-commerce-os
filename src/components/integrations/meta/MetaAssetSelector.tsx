@@ -3,10 +3,12 @@ import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ChevronRight, Building2, Phone, Globe, Instagram, Crosshair, Megaphone } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Loader2, ChevronRight, Building2, Phone, Globe, Instagram, Crosshair, Megaphone, ShoppingBag, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MetaAssetType } from "@/config/metaIntegrationCatalog";
 import type { DiscoveredAssets, DiscoveredBusiness } from "@/hooks/useMetaIntegrations";
+import { useMetaCatalog } from "@/hooks/useMetaCatalog";
 
 interface MetaAssetSelectorProps {
   assetType: MetaAssetType;
@@ -73,7 +75,6 @@ export function MetaAssetSelector({
           for (const waba of biz.whatsapp_business_accounts || []) {
             const phones = waba.phone_numbers || [];
             if (phones.length === 0) {
-              // WABA without phone numbers — show as option with note
               assets.push({
                 id: `${biz.id}:${waba.id}:no_phone`,
                 label: waba.name || `WABA ${waba.id}`,
@@ -136,8 +137,18 @@ export function MetaAssetSelector({
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  if (assetType === "none" || assetType === "catalog") {
-    // No asset selection needed — auto-confirm
+  // Catalog-specific selector
+  if (assetType === "catalog") {
+    return (
+      <CatalogSelector
+        onConfirm={onConfirm}
+        onCancel={onCancel}
+        isLoading={isLoading}
+      />
+    );
+  }
+
+  if (assetType === "none") {
     return (
       <div className="mt-2 ml-7 pl-3 border-l-2 border-primary/30 py-2">
         <p className="text-xs text-muted-foreground mb-2">
@@ -174,8 +185,6 @@ export function MetaAssetSelector({
 
   const handleConfirm = () => {
     if (!selectedAsset) return;
-    
-    // Build the selected_assets payload based on asset type
     const payload = buildAssetPayload(assetType, selectedAsset);
     onConfirm(payload);
   };
@@ -230,6 +239,127 @@ export function MetaAssetSelector({
   );
 }
 
+// === Catalog Selector ===
+
+function CatalogSelector({
+  onConfirm,
+  onCancel,
+  isLoading: parentLoading,
+}: {
+  onConfirm: (assets: any) => void;
+  onCancel: () => void;
+  isLoading?: boolean;
+}) {
+  const { catalogs, isLoadingCatalogs, createCatalog, isCreating } = useMetaCatalog();
+  const [selectedCatalogId, setSelectedCatalogId] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newCatalogName, setNewCatalogName] = useState("");
+
+  const loading = parentLoading || isLoadingCatalogs;
+
+  const handleConfirm = () => {
+    const catalog = catalogs.find(c => c.id === selectedCatalogId);
+    if (!catalog) return;
+    onConfirm({ catalog: { id: catalog.id, name: catalog.name } });
+  };
+
+  const handleCreate = () => {
+    if (!newCatalogName.trim()) return;
+    createCatalog(newCatalogName.trim(), {
+      onSuccess: (catalog: any) => {
+        onConfirm({ catalog: { id: catalog.id, name: catalog.name } });
+      },
+    } as any);
+  };
+
+  if (loading) {
+    return (
+      <div className="mt-2 ml-7 pl-3 border-l-2 border-primary/30 py-3 flex items-center gap-2">
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        <span className="text-xs text-muted-foreground">Carregando catálogos...</span>
+      </div>
+    );
+  }
+
+  if (showCreate) {
+    return (
+      <div className="mt-2 ml-7 pl-3 border-l-2 border-primary/30 py-2 space-y-3">
+        <p className="text-xs font-medium text-foreground">Criar novo catálogo:</p>
+        <Input
+          placeholder="Nome do catálogo"
+          value={newCatalogName}
+          onChange={(e) => setNewCatalogName(e.target.value)}
+          className="h-8 text-sm"
+          autoFocus
+        />
+        <div className="flex gap-2">
+          <Button size="sm" variant="default" onClick={handleCreate} disabled={!newCatalogName.trim() || isCreating}>
+            {isCreating && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+            Criar e vincular
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setShowCreate(false)} disabled={isCreating}>
+            Voltar
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 ml-7 pl-3 border-l-2 border-primary/30 py-2 space-y-3">
+      <p className="text-xs font-medium text-foreground">
+        Selecione o catálogo:
+      </p>
+
+      {catalogs.length > 0 ? (
+        <RadioGroup value={selectedCatalogId || ""} onValueChange={setSelectedCatalogId} className="space-y-1">
+          {catalogs.map((cat) => (
+            <div
+              key={cat.id}
+              className={cn(
+                "flex items-center gap-3 rounded-md border px-3 py-2 cursor-pointer transition-colors",
+                selectedCatalogId === cat.id
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:bg-muted/50"
+              )}
+              onClick={() => setSelectedCatalogId(cat.id)}
+            >
+              <RadioGroupItem value={cat.id} id={`cat-${cat.id}`} />
+              <div className="text-muted-foreground"><ShoppingBag className="h-4 w-4" /></div>
+              <Label htmlFor={`cat-${cat.id}`} className="flex-1 cursor-pointer">
+                <span className="text-sm font-medium">{cat.name}</span>
+                {cat.product_count !== undefined && (
+                  <span className="text-xs text-muted-foreground block">{cat.product_count} produto(s)</span>
+                )}
+              </Label>
+            </div>
+          ))}
+        </RadioGroup>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Nenhum catálogo encontrado na sua conta Meta.
+        </p>
+      )}
+
+      <div className="flex gap-2 flex-wrap">
+        {catalogs.length > 0 && (
+          <Button size="sm" variant="default" onClick={handleConfirm} disabled={!selectedCatalogId || parentLoading}>
+            {parentLoading && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+            Confirmar
+          </Button>
+        )}
+        <Button size="sm" variant="outline" onClick={() => setShowCreate(true)} className="gap-1">
+          <Plus className="h-3 w-3" />
+          Criar catálogo
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onCancel}>
+          Cancelar
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function getAssetIcon(assetType: MetaAssetType) {
   switch (assetType) {
     case "page": return <Globe className="h-4 w-4" />;
@@ -237,6 +367,7 @@ function getAssetIcon(assetType: MetaAssetType) {
     case "waba_phone": return <Phone className="h-4 w-4" />;
     case "pixel": return <Crosshair className="h-4 w-4" />;
     case "ad_account": return <Megaphone className="h-4 w-4" />;
+    case "catalog": return <ShoppingBag className="h-4 w-4" />;
     default: return <Building2 className="h-4 w-4" />;
   }
 }
@@ -332,6 +463,8 @@ function getAssetDisplayInfo(assetType: MetaAssetType, assets: any): { label: st
       return { label: assets.pixel?.name || null, sublabel: assets.business?.name || null };
     case "ad_account":
       return { label: assets.ad_account?.name || null, sublabel: assets.business?.name || null };
+    case "catalog":
+      return { label: assets.catalog?.name || null, sublabel: null };
     default:
       return { label: null, sublabel: null };
   }
