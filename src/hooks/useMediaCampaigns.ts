@@ -174,6 +174,23 @@ export function useMediaCampaigns() {
 
   const deleteCampaign = useMutation({
     mutationFn: async (id: string) => {
+      // 1. Buscar calendar_item_ids da campanha antes de deletar
+      const { data: calendarItems } = await supabase
+        .from("media_calendar_items")
+        .select("id")
+        .eq("campaign_id", id);
+
+      // 2. Cancelar social_posts vinculados aos calendar items (antes do CASCADE removê-los)
+      if (calendarItems && calendarItems.length > 0) {
+        const itemIds = calendarItems.map(ci => ci.id);
+        await supabase
+          .from("social_posts")
+          .update({ status: "cancelled" as any, updated_at: new Date().toISOString() })
+          .in("calendar_item_id", itemIds)
+          .in("status", ["scheduled", "draft"] as any[]);
+      }
+
+      // 3. Deletar a campanha (CASCADE remove calendar_items, social_posts ficam com calendar_item_id=NULL mas já cancelados)
       const { error } = await supabase
         .from("media_campaigns")
         .delete()

@@ -98,6 +98,7 @@ serve(async (req) => {
     // Group by tenant for Meta connection lookup (V4 helper)
     const tenantIds = [...new Set(allPosts.map(p => p.tenant_id))];
     const metaConnections: Record<string, any> = {};
+    const tenantActiveIntegrations: Record<string, Set<string>> = {};
 
     for (const tid of tenantIds) {
       const metaConn = await getMetaConnectionForTenant(supabase, tid);
@@ -109,6 +110,18 @@ serve(async (req) => {
           source: metaConn.source,
         };
       }
+
+      // Check which publishing integrations are active for this tenant
+      const { data: activeIntegrations } = await supabase
+        .from("tenant_meta_integrations")
+        .select("integration_id")
+        .eq("tenant_id", tid)
+        .eq("status", "active")
+        .in("integration_id", ["facebook_publicacoes", "instagram_publicacoes"]);
+
+      tenantActiveIntegrations[tid] = new Set(
+        (activeIntegrations || []).map(i => i.integration_id)
+      );
     }
 
     let published = 0;
