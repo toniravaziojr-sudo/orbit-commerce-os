@@ -142,12 +142,6 @@ serve(async (req) => {
           continue;
         }
 
-        if (conn.expires_at && new Date(conn.expires_at) < now) {
-          await markPermanentFailure(supabase, post, "token_expired", "Token Meta expirado", lockToken);
-          failed++;
-          continue;
-        }
-
         const metadata = conn.metadata as any;
         const assets = metadata?.assets || {};
         const userAccessToken = conn.access_token;
