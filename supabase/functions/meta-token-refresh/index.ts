@@ -13,11 +13,10 @@ const corsHeaders = {
 };
 
 /**
- * Meta Token Refresh — V4 + Legacy
+ * Meta Token Refresh — V4 Only (Lote B)
  * 
  * Renova tokens long-lived da Meta antes da expiração (~60 dias).
  * V4: Renova token no grant (re-criptografa via RPC)
- * Legacy: Mantém renovação em marketplace_connections para tenants não migrados
  * 
  * Modos de operação:
  * 1. POST { tenantId } → Renova token de um tenant específico
