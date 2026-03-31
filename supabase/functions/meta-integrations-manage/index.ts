@@ -1,4 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { revalidateStorefrontAfterTrackingChange } from "../_shared/storefront-revalidation.ts";
+
+const VERSION = "v1.1.0";
+const TRACKING_INTEGRATION_IDS = new Set(["pixel_facebook", "conversions_api"]);
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,12 +11,13 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
+  console.log(`[meta-integrations-manage][${VERSION}] Request received`);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Auth
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
       return new Response(
@@ -25,7 +30,6 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseAnon = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Validate user
     const userClient = createClient(supabaseUrl, supabaseAnon, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -38,10 +42,8 @@ Deno.serve(async (req) => {
     }
 
     const adminClient = createClient(supabaseUrl, supabaseServiceKey);
-
     const method = req.method;
 
-    // GET — list integrations for tenant
     if (method === "GET") {
       const url = new URL(req.url);
       const tenantId = url.searchParams.get("tenant_id");
@@ -52,7 +54,6 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Verify tenant access
       const { data: hasAccess } = await userClient.rpc("user_has_tenant_access", {
         p_tenant_id: tenantId,
       });
@@ -63,7 +64,6 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Fetch active grant — now includes discovered_assets
       const { data: activeGrant } = await adminClient
         .from("tenant_meta_auth_grants")
         .select("id, granted_scopes, status, token_expires_at, auth_profile_key, meta_user_name, discovered_assets")
@@ -71,7 +71,6 @@ Deno.serve(async (req) => {
         .eq("status", "active")
         .maybeSingle();
 
-      // Only return integrations linked to the active grant
       let integrationsQuery = adminClient
         .from("tenant_meta_integrations")
         .select("*")
@@ -82,7 +81,6 @@ Deno.serve(async (req) => {
       }
 
       const { data: integrations, error: intError } = await integrationsQuery;
-
       if (intError) throw intError;
 
       return new Response(
@@ -103,7 +101,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // POST — activate, deactivate, or save_assets
     if (method === "POST") {
       const body = await req.json();
       const { tenant_id, integration_id, action, selected_assets } = body;
@@ -122,7 +119,6 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Verify tenant access
       const { data: hasAccess } = await userClient.rpc("user_has_tenant_access", {
         p_tenant_id: tenant_id,
       });
@@ -134,7 +130,6 @@ Deno.serve(async (req) => {
       }
 
       if (action === "activate") {
-        // Get active grant
         const { data: activeGrant } = await adminClient
           .from("tenant_meta_auth_grants")
           .select("id, granted_scopes, discovered_assets")
@@ -149,7 +144,6 @@ Deno.serve(async (req) => {
           );
         }
 
-        // Upsert integration — include selected_assets if provided
         const upsertData: Record<string, unknown> = {
           tenant_id,
           integration_id,
@@ -170,13 +164,21 @@ Deno.serve(async (req) => {
 
         if (upsertError) throw upsertError;
 
-        // Execute side-effects if selected_assets provided
         if (selected_assets) {
           await executeSideEffects(adminClient, tenant_id, integration_id, selected_assets);
         }
 
+        const storefrontSync = await maybeRevalidateStorefront({
+          adminClient,
+          supabaseUrl,
+          supabaseServiceKey,
+          tenantId: tenant_id,
+          integrationId: integration_id,
+          action,
+        });
+
         return new Response(
-          JSON.stringify({ success: true, integration }),
+          JSON.stringify({ success: true, integration, storefrontSync }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -189,12 +191,11 @@ Deno.serve(async (req) => {
           );
         }
 
-        // Update selected_assets on existing integration
         const { data: integration, error: updateError } = await adminClient
           .from("tenant_meta_integrations")
-          .update({ 
-            selected_assets, 
-            updated_at: new Date().toISOString() 
+          .update({
+            selected_assets,
+            updated_at: new Date().toISOString(),
           })
           .eq("tenant_id", tenant_id)
           .eq("integration_id", integration_id)
@@ -203,11 +204,19 @@ Deno.serve(async (req) => {
 
         if (updateError) throw updateError;
 
-        // Execute side-effects
         await executeSideEffects(adminClient, tenant_id, integration_id, selected_assets);
 
+        const storefrontSync = await maybeRevalidateStorefront({
+          adminClient,
+          supabaseUrl,
+          supabaseServiceKey,
+          tenantId: tenant_id,
+          integrationId: integration_id,
+          action,
+        });
+
         return new Response(
-          JSON.stringify({ success: true, integration }),
+          JSON.stringify({ success: true, integration, storefrontSync }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -215,9 +224,9 @@ Deno.serve(async (req) => {
       if (action === "deactivate") {
         const { data: integration, error: updateError } = await adminClient
           .from("tenant_meta_integrations")
-          .update({ 
-            status: "inactive", 
-            updated_at: new Date().toISOString() 
+          .update({
+            status: "inactive",
+            updated_at: new Date().toISOString(),
           })
           .eq("tenant_id", tenant_id)
           .eq("integration_id", integration_id)
@@ -226,11 +235,19 @@ Deno.serve(async (req) => {
 
         if (updateError && updateError.code !== "PGRST116") throw updateError;
 
-        // Clean up side-effects on deactivation
         await cleanupSideEffects(adminClient, tenant_id, integration_id);
 
+        const storefrontSync = await maybeRevalidateStorefront({
+          adminClient,
+          supabaseUrl,
+          supabaseServiceKey,
+          tenantId: tenant_id,
+          integrationId: integration_id,
+          action,
+        });
+
         return new Response(
-          JSON.stringify({ success: true, integration: integration || null }),
+          JSON.stringify({ success: true, integration: integration || null, storefrontSync }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -241,7 +258,7 @@ Deno.serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("[meta-integrations-manage] Error:", error);
+    console.error(`[meta-integrations-manage][${VERSION}] Error:`, error);
     return new Response(
       JSON.stringify({ success: false, code: "INTERNAL_ERROR", message: "Erro interno ao gerenciar integração" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -249,17 +266,47 @@ Deno.serve(async (req) => {
   }
 });
 
-/**
- * Execute side-effects when assets are saved for an integration.
- */
+async function maybeRevalidateStorefront(params: {
+  adminClient: any;
+  supabaseUrl: string;
+  supabaseServiceKey: string;
+  tenantId: string;
+  integrationId: string;
+  action: string;
+}) {
+  const { adminClient, supabaseUrl, supabaseServiceKey, tenantId, integrationId, action } = params;
+
+  if (!TRACKING_INTEGRATION_IDS.has(integrationId)) {
+    return null;
+  }
+
+  try {
+    return await revalidateStorefrontAfterTrackingChange({
+      supabase: adminClient,
+      supabaseUrl,
+      supabaseServiceKey,
+      tenantId,
+      reason: `meta-integrations-manage:${action}:${integrationId}`,
+    });
+  } catch (error) {
+    console.warn(`[meta-integrations-manage][${VERSION}] Storefront revalidation failed:`, (error as Error).message);
+    return {
+      staleCount: 0,
+      cachePurged: false,
+      prerenderTriggered: false,
+      purgeStatus: null,
+      prerenderStatus: null,
+    };
+  }
+}
+
 async function executeSideEffects(
   adminClient: any,
   tenantId: string,
   integrationId: string,
-  selectedAssets: any
+  selectedAssets: any,
 ) {
   try {
-    // WhatsApp integrations → upsert whatsapp_configs
     if (integrationId.startsWith("whatsapp_") && selectedAssets.phone) {
       const phone = selectedAssets.phone;
       await adminClient
@@ -277,11 +324,10 @@ async function executeSideEffects(
           last_connected_at: new Date().toISOString(),
           last_error: null,
         }, { onConflict: "tenant_id,provider" });
-      
+
       console.log(`[meta-integrations-manage] WhatsApp side-effect: phone ${phone.display_phone_number} configured`);
     }
 
-    // Pixel Facebook → upsert marketing_integrations
     if (integrationId === "pixel_facebook" && selectedAssets.pixel) {
       const pixel = selectedAssets.pixel;
       await adminClient
@@ -291,12 +337,12 @@ async function executeSideEffects(
           meta_pixel_id: pixel.id,
           meta_enabled: true,
           meta_status: "active",
+          updated_at: new Date().toISOString(),
         }, { onConflict: "tenant_id" });
-      
+
       console.log(`[meta-integrations-manage] Pixel side-effect: ${pixel.id} configured`);
     }
 
-    // Conversions API → enable CAPI
     if (integrationId === "conversions_api" && selectedAssets.pixel) {
       const pixel = selectedAssets.pixel;
       await adminClient
@@ -307,8 +353,9 @@ async function executeSideEffects(
           meta_enabled: true,
           meta_capi_enabled: true,
           meta_status: "active",
+          updated_at: new Date().toISOString(),
         }, { onConflict: "tenant_id" });
-      
+
       console.log(`[meta-integrations-manage] CAPI side-effect: ${pixel.id} configured`);
     }
   } catch (err) {
@@ -316,32 +363,29 @@ async function executeSideEffects(
   }
 }
 
-/**
- * Clean up side-effects when an integration is deactivated.
- */
 async function cleanupSideEffects(
   adminClient: any,
   tenantId: string,
-  integrationId: string
+  integrationId: string,
 ) {
   try {
-    // Pixel deactivation → clear pixel from marketing_integrations
     if (integrationId === "pixel_facebook") {
       await adminClient
         .from("marketing_integrations")
         .update({
           meta_enabled: false,
           meta_status: "inactive",
+          updated_at: new Date().toISOString(),
         })
         .eq("tenant_id", tenantId);
     }
 
-    // CAPI deactivation → disable CAPI
     if (integrationId === "conversions_api") {
       await adminClient
         .from("marketing_integrations")
         .update({
           meta_capi_enabled: false,
+          updated_at: new Date().toISOString(),
         })
         .eq("tenant_id", tenantId);
     }

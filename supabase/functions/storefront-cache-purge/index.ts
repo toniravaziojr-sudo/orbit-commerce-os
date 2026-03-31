@@ -1,13 +1,12 @@
 // ============================================
 // STOREFRONT CACHE PURGE
-// v1.0.0: Purge Cloudflare edge cache for storefront-html
-// Called by admin after saving products, templates, settings
+// v1.1.0: allow service-role/internal calls for automatic storefront revalidation
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const VERSION = "v1.0.0";
+const VERSION = "v1.1.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,9 +15,7 @@ const corsHeaders = {
 
 interface PurgeRequest {
   tenant_id: string;
-  // What changed — determines which URLs to purge
   resource_type: 'product' | 'category' | 'template' | 'settings' | 'menu' | 'full';
-  // Optional: specific slug for targeted purge
   resource_slug?: string;
 }
 
@@ -35,7 +32,6 @@ serve(async (req) => {
     const cloudflareApiToken = Deno.env.get('CLOUDFLARE_API_TOKEN');
     const cloudflareZoneId = Deno.env.get('CLOUDFLARE_ZONE_ID');
 
-    // Validate auth
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -44,15 +40,22 @@ serve(async (req) => {
       });
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Invalid token' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+    const isServiceRole = token === supabaseServiceKey;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    let userId: string | null = null;
+    if (!isServiceRole) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: 'Invalid token' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      userId = user.id;
     }
 
     const body: PurgeRequest = await req.json();
@@ -65,30 +68,29 @@ serve(async (req) => {
       });
     }
 
-    // Verify user has access to tenant
-    const { data: role } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .eq('tenant_id', tenant_id)
-      .single();
+    if (!isServiceRole && userId) {
+      const { data: role } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .eq('tenant_id', tenant_id)
+        .single();
 
-    if (!role) {
-      return new Response(JSON.stringify({ error: 'No access to tenant' }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      if (!role) {
+        return new Response(JSON.stringify({ error: 'No access to tenant' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
     }
 
-    // Get all active domains for this tenant
     const { data: domains } = await supabase
       .from('tenant_domains')
       .select('domain')
       .eq('tenant_id', tenant_id)
-      .eq('status', 'verified')
+      .in('status', ['verified', 'active'])
       .eq('ssl_status', 'active');
 
-    // Also get tenant slug for platform subdomain
     const { data: tenant } = await supabase
       .from('tenants')
       .select('slug')
@@ -104,8 +106,8 @@ serve(async (req) => {
     }
 
     if (hosts.length === 0) {
-      return new Response(JSON.stringify({ 
-        success: true, 
+      return new Response(JSON.stringify({
+        success: true,
         message: 'No active domains to purge',
         purged_urls: 0,
       }), {
@@ -114,7 +116,6 @@ serve(async (req) => {
       });
     }
 
-    // Build URLs to purge based on resource type
     const urlsToPurge: string[] = [];
 
     for (const host of hosts) {
@@ -122,7 +123,6 @@ serve(async (req) => {
 
       switch (resource_type) {
         case 'product':
-          // Purge specific product page + home (may show featured products)
           if (resource_slug) {
             urlsToPurge.push(`${base}/produto/${resource_slug}`);
           }
@@ -130,7 +130,6 @@ serve(async (req) => {
           break;
 
         case 'category':
-          // Purge specific category + home
           if (resource_slug) {
             urlsToPurge.push(`${base}/categoria/${resource_slug}`);
           }
@@ -140,22 +139,14 @@ serve(async (req) => {
         case 'template':
         case 'settings':
         case 'menu':
-          // These affect all pages — purge everything for this host
-          urlsToPurge.push(`${base}/`);
-          // Also purge with trailing variants
-          break;
-
         case 'full':
-          // Nuclear option: purge everything
           urlsToPurge.push(`${base}/`);
           break;
       }
     }
 
-    // Remove duplicates
     const uniqueUrls = [...new Set(urlsToPurge)];
 
-    // If no Cloudflare credentials, just log
     if (!cloudflareApiToken || !cloudflareZoneId) {
       console.log(`[storefront-cache-purge] No Cloudflare credentials. Would purge: ${uniqueUrls.join(', ')}`);
       return new Response(JSON.stringify({
@@ -168,18 +159,13 @@ serve(async (req) => {
       });
     }
 
-    // For template/settings/menu/full — use prefix-based purge (purge all pages for hosts)
     const shouldPurgeAll = ['template', 'settings', 'menu', 'full'].includes(resource_type);
 
     let purgeResult;
     if (shouldPurgeAll) {
-      // Purge by host prefix — purges all cached URLs for these hosts
-      // Cloudflare API: purge_cache with prefixes
-      // IMPORTANT: Cloudflare prefix purge does NOT accept URI schemes (https://)
-      // Only hostname + path prefix is allowed
       const prefixes = hosts.map(h => `${h}/`);
       console.log(`[storefront-cache-purge] Purging by prefix (no scheme): ${prefixes.join(', ')}`);
-      
+
       purgeResult = await fetch(
         `https://api.cloudflare.com/client/v4/zones/${cloudflareZoneId}/purge_cache`,
         {
@@ -192,7 +178,6 @@ serve(async (req) => {
         }
       );
     } else {
-      // Purge specific URLs
       purgeResult = await fetch(
         `https://api.cloudflare.com/client/v4/zones/${cloudflareZoneId}/purge_cache`,
         {
@@ -207,11 +192,10 @@ serve(async (req) => {
     }
 
     const purgeData = await purgeResult.json();
-    
+
     if (!purgeData.success) {
       console.error('[storefront-cache-purge] Cloudflare purge failed:', purgeData.errors);
-      
-      // Fallback: try purging individual files if prefix purge failed
+
       if (shouldPurgeAll && uniqueUrls.length > 0) {
         const fallbackResult = await fetch(
           `https://api.cloudflare.com/client/v4/zones/${cloudflareZoneId}/purge_cache`,
@@ -225,7 +209,7 @@ serve(async (req) => {
           }
         );
         const fallbackData = await fallbackResult.json();
-        
+
         return new Response(JSON.stringify({
           success: fallbackData.success,
           message: fallbackData.success ? 'Cache purged (fallback to file-based)' : 'Purge failed',
@@ -258,6 +242,7 @@ serve(async (req) => {
       resource_type,
       hosts,
       method: shouldPurgeAll ? 'prefix' : 'files',
+      caller: isServiceRole ? 'service_role' : 'user',
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
