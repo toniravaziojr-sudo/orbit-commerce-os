@@ -3026,15 +3026,9 @@ ${JSON.stringify(context.orderStats)}${context.lowStockProducts.length > 0 ? `\n
                       existing_name: existingMatch.name,
                     };
                   } else {
-                    const metaConn = await supabase
-                      .from("marketplace_connections")
-                      .select("access_token")
-                      .eq("tenant_id", tenant_id)
-                      .eq("marketplace", "meta")
-                      .eq("is_active", true)
-                      .maybeSingle();
+                    const metaConn = await getMetaConnectionForTenant(supabase, tenant_id);
 
-                    if (!metaConn?.data?.access_token) throw new Error("Meta não conectada");
+                    if (!metaConn?.access_token) throw new Error("Meta não conectada");
 
                     const accountId = acctConfig.ad_account_id.replace("act_", "");
                     const lalBody = {
