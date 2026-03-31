@@ -123,11 +123,11 @@ export function useMetaIntegrations() {
       const missingScopes = def.requiredScopes.filter(
         (s) => !grantedScopes.includes(s)
       );
-      const authCapable = grant !== null && (isUnlimited || missingScopes.length === 0);
+      const authCapable = grant !== null && (bypassScopeValidation || missingScopes.length === 0);
       const authBlockReason =
         !grant
           ? "Conecte sua conta Meta primeiro"
-          : !isUnlimited && missingScopes.length > 0
+          : !bypassScopeValidation && missingScopes.length > 0
           ? `Permissões ausentes: ${missingScopes.join(", ")}`
           : null;
 
