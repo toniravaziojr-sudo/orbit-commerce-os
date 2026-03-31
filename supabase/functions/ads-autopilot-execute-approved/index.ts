@@ -387,14 +387,7 @@ Deno.serve(async (req) => {
         if (!bestAsset) bestAsset = (readyAssets || [])[0];
 
         if (bestAsset) {
-          // Get Meta connection for API calls
-          const { data: metaConn } = await supabase
-            .from("marketplace_connections")
-            .select("access_token, metadata")
-            .eq("tenant_id", tenant_id)
-            .eq("marketplace", "meta")
-            .eq("is_active", true)
-            .maybeSingle();
+          const metaConn = await getMetaConnectionForTenant(supabase, tenant_id);
 
           if (metaConn?.access_token) {
             const accountIdClean = adAccountId.replace("act_", "");
