@@ -243,6 +243,8 @@ const App = () => {
               <Route path="/complete-signup" element={<CompleteSignup />} />
               {/* Meta OAuth callback - handles Meta connection result */}
               <Route path="/integrations/meta/callback" element={<MetaOAuthCallback />} />
+              {/* Threads OAuth callback - separate OAuth via threads.net */}
+              <Route path="/integrations/threads/callback" element={<ThreadsOAuthCallback />} />
               {/* Mercado Livre OAuth callback - forwards to edge function */}
               <Route path="/integrations/meli/callback" element={<MeliOAuthCallback />} />
               {/* YouTube OAuth callback - handles YouTube connection result */}
