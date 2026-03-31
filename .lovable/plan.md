@@ -1,68 +1,42 @@
-📋 CHECKLIST DE CONFORMIDADE:
+# Plano: Diferenciação de Escopos Meta por Tipo de Tenant
 
-- ✅ Doc lido: `docs/regras/integracoes.md` (já lido nesta sessão e revalidado agora)
-- ✅ Proposta no formato correto (Como funciona hoje / O problema / O que eu faria / Resultado final)
-- ✅ Aguardando confirmação do usuário
+**Status:** ✅ Implementado
 
-**Como funciona hoje:**
-Hoje o sistema tenta concluir o registro do número de forma incompleta/inconsistente:
-1) Em um fluxo, tenta registrar automaticamente com PIN fixo (`123456`).
-2) No botão manual, o PIN pode ir vazio.
-3) Quando falha, a mensagem ainda orienta desativar 2 etapas.
-4) O erro atual visto no banco é: `Invalid parameter phone_number_id`.
+## O que foi feito
 
-**O problema:**
-O fluxo está misturando etapas diferentes de validação do número:
-- O código que chega por SMS é da validação do número.
-- O PIN de 6 dígitos é da segurança da conta (2 etapas).
-Sem separar essas etapas, o registro quebra e gera erro confuso para o cliente.
+### 1. Banco de dados
+- Removido `config_id` do perfil `meta_auth_external` (tenants normais)
+- Ambos os perfis agora usam escopos diretos na URL OAuth (sem Facebook Login for Business)
+- `meta_auth_external`: apenas escopos aprovados pela Meta para uso público
+- `meta_auth_full`: todos os escopos (para tenants especiais/admin)
 
-**O que eu faria:**
-1) **Corrigir o fluxo para 3 etapas reais no app (sem pedir para desativar segurança):**
-   - Etapa A: solicitar código por SMS/voz.
-   - Etapa B: validar esse código.
-   - Etapa C: registrar o número para uso oficial.
-2) **Ajustar a experiência na tela Meta:**
-   - “Ação necessária” com passo a passo simples.
-   - Campo “Código recebido por SMS”.
-   - Campo “PIN de segurança (6 dígitos)” com texto claro (criar novo ou usar o já existente).
-3) **Remover comportamentos incorretos atuais:**
-   - eliminar PIN fixo.
-   - impedir tentativa de registro sem PIN válido.
-   - trocar mensagem de erro para orientação correta (sem mandar desligar 2 etapas).
-4) **Melhorar os status e avisos:**
-   - diferenciar “aguardando validação por SMS” de “aguardando registro final”.
-   - no card “Integrações com erro”, mostrar mensagem objetiva e ação direta para concluir.
-5) **Atualizar documentação de regras do módulo de integrações** com o novo fluxo oficial.
+### 2. Catálogo de integrações (`metaIntegrationCatalog.ts`)
+- Adicionada constante `META_APPROVED_PUBLIC_SCOPES` com a lista de escopos aprovados
+- Fonte de verdade centralizada — atualizar conforme novos escopos forem aprovados
 
-**Resultado final:**
-O cliente conclui a ativação sem reduzir segurança da conta, com etapas claras (SMS + confirmação), e o número conecta de forma previsível.
+### 3. Hook `useMetaIntegrations`
+- Nova camada de validação (Layer 0): verifica se os escopos da integração estão aprovados publicamente
+- Tenants normais: toggles com escopos não aprovados mostram "Em breve — aguardando aprovação"
+- Tenants especiais (`isUnlimited`): ignoram essa camada, todos os toggles disponíveis
 
----
+### Escopos aprovados atualmente
+- `public_profile`, `pages_show_list`, `pages_read_engagement`, `pages_manage_metadata`
+- `pages_manage_posts`, `instagram_basic`, `instagram_content_publish`, `instagram_manage_comments`
+- `whatsapp_business_management`, `whatsapp_business_messaging`, `read_insights`
 
-### Detalhes técnicos (implementação)
+### Integrações disponíveis para tenants normais
+- ✅ WhatsApp (Notificações, Atendimento)
+- ✅ Instagram (Publicações, Comentários)
+- ✅ Facebook (Publicações)
+- ✅ Insights
+- ✅ Pixel/CAPI (sem escopo necessário ou via ads_management para especiais)
 
-- **Fluxo backend a ajustar**
-  - `supabase/functions/meta-whatsapp-onboarding-callback/index.ts`
-    - remover tentativa automática com PIN fixo.
-  - `supabase/functions/meta-whatsapp-register-phone/index.ts`
-    - validar entrada obrigatória de PIN no registro final.
-    - mapear erros de negócio com mensagens corretas.
-  - criar ações/funções para:
-    - solicitar código (SMS/voz),
-    - validar código,
-    - então registrar número.
-
-- **UI a ajustar**
-  - `src/components/integrations/MetaUnifiedSettings.tsx`
-    - transformar botão atual em mini fluxo guiado.
-    - separar claramente “código SMS” vs “PIN de segurança”.
-    - manter badge “Ação necessária”.
-
-- **Monitoramento**
-  - `src/components/dashboard/IntegrationErrorsCard.tsx`
-    - mostrar estado/erro correto de validação vs registro.
-
-- **Docs**
-  - `docs/regras/integracoes.md`
-    - substituir regra antiga de 2FA por fluxo oficial de verificação + registro.
+### Integrações bloqueadas para tenants normais (aguardando aprovação)
+- ❌ Instagram Direct (`instagram_manage_messages`)
+- ❌ Facebook Messenger (`pages_messaging`)
+- ❌ Facebook Lives (`publish_video`)
+- ❌ Facebook Comentários (`pages_manage_engagement`, `pages_read_user_content`)
+- ❌ Lead Ads (`leads_retrieval`, `pages_manage_ads`)
+- ❌ Anúncios (`ads_management`, `ads_read`)
+- ❌ Catálogos (`catalog_management`)
+- ❌ Threads (`threads_basic`, `threads_content_publish`)
