@@ -473,7 +473,9 @@ export default function MetaOAuthCallback() {
             <div className="mx-auto mb-2">
               <CheckCircle className="h-10 w-10 text-green-500" />
             </div>
-            <CardTitle className="text-lg">Conta conectada!</CardTitle>
+            <CardTitle className="text-lg">
+              {flowMode === "flb_review" ? "Confirme seus ativos" : "Conta conectada!"}
+            </CardTitle>
             <CardDescription>
               Portfólio: <span className="font-semibold">{selectedPortfolio.name}</span>
               {businesses.length > 1 && (
