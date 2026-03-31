@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION =====
-const VERSION = "v2.0.0"; // Lote B: Legacy marketplace_connections removed
+const VERSION = "v3.0.0"; // Full cleanup: correct status, prerender trigger, grant guard
 // ===================
 
 const corsHeaders = {
@@ -11,13 +11,15 @@ const corsHeaders = {
 };
 
 /**
- * Meta Disconnect — V4
+ * Meta Disconnect — V3
  * 
- * Desconecta a conta Meta de um tenant:
- * 1. Marca grant ativo como "revoked" em tenant_meta_auth_grants
- * 2. Desativa todas as integrações em tenant_meta_integrations
- * 3. Best-effort: revoga permissões na API Meta (DELETE /me/permissions)
- *    → Falha remota NUNCA bloqueia a desconexão local
+ * Desconecta a conta Meta de um tenant com limpeza completa:
+ * 1. Revoga grant ativo em tenant_meta_auth_grants
+ * 2. Best-effort: revoga permissões na API Meta (DELETE /me/permissions)
+ * 3. Desativa TODAS as integrações em tenant_meta_integrations (status → "disconnected")
+ * 4. Desativa WhatsApp configs vinculados à Meta
+ * 5. Limpa Pixel/CAPI de marketing_integrations
+ * 6. Dispara re-prerender da loja para remover scripts de tracking do HTML publicado
  * 
  * Body: { tenant_id: string }
  * Contrato: HTTP 200 + { success: true/false }
@@ -38,7 +40,7 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
-    // Validate auth
+    // ── Auth ──
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return jsonResponse({ success: false, error: "Não autorizado", code: "UNAUTHORIZED" });
@@ -58,7 +60,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: false, error: "tenant_id obrigatório", code: "MISSING_TENANT" });
     }
 
-    // User-context client — for tenant access check (uses auth.uid() inside RPC)
+    // User-context client — for tenant access check
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -67,15 +69,18 @@ Deno.serve(async (req) => {
       p_tenant_id: tenant_id,
     });
 
-    console.log(`[meta-disconnect][${VERSION}][${traceId}] Access check: hasAccess=${hasAccess}, error=${accessError?.message || 'none'}, user=${user.id}, tenant=${tenant_id}`);
-
     if (accessError || !hasAccess) {
+      console.warn(`[meta-disconnect][${VERSION}][${traceId}] Access denied for user ${user.id}`);
       return jsonResponse({ success: false, error: "Sem acesso ao tenant", code: "FORBIDDEN" });
     }
 
     console.log(`[meta-disconnect][${VERSION}][${traceId}] Disconnecting tenant ${tenant_id}`);
 
-    // ── Step 1: Find and revoke active V4 grant ──
+    const results: Record<string, any> = {};
+
+    // ══════════════════════════════════════════
+    // Step 1: Find and revoke active V4 grant
+    // ══════════════════════════════════════════
     const { data: activeGrant } = await supabase
       .from("tenant_meta_auth_grants")
       .select("id, meta_user_id")
@@ -83,12 +88,10 @@ Deno.serve(async (req) => {
       .eq("status", "active")
       .maybeSingle();
 
-    let grantRevoked = false;
     let remoteRevocationResult = "skipped";
 
     if (activeGrant) {
-      // Try best-effort remote revocation BEFORE revoking locally
-      // (we need the token to call Meta API)
+      // Best-effort remote revocation BEFORE revoking locally
       try {
         const encryptionKey = Deno.env.get("META_TOKEN_ENCRYPTION_KEY") || supabaseServiceKey;
         const { data: tokenData } = await supabase.rpc("get_meta_grant_token", {
@@ -105,19 +108,17 @@ Deno.serve(async (req) => {
             );
             const revokeData = await revokeRes.json();
             remoteRevocationResult = revokeData.success ? "success" : `failed: ${JSON.stringify(revokeData)}`;
-            console.log(`[meta-disconnect][${VERSION}][${traceId}] Remote revocation: ${remoteRevocationResult}`);
           } catch (remoteErr) {
             remoteRevocationResult = `error: ${(remoteErr as Error).message}`;
-            console.warn(`[meta-disconnect][${VERSION}][${traceId}] Remote revocation failed (best-effort):`, remoteErr);
-            // Best-effort: do NOT throw — continue with local disconnect
+            // Best-effort: do NOT throw
           }
         }
       } catch (tokenErr) {
         remoteRevocationResult = `token_error: ${(tokenErr as Error).message}`;
-        console.warn(`[meta-disconnect][${VERSION}][${traceId}] Could not decrypt token for remote revocation`);
       }
+      console.log(`[meta-disconnect][${VERSION}][${traceId}] Remote revocation: ${remoteRevocationResult}`);
 
-      // Revoke the grant locally (this always executes regardless of remote result)
+      // Revoke the grant locally
       const { error: revokeError } = await supabase
         .from("tenant_meta_auth_grants")
         .update({
@@ -127,30 +128,43 @@ Deno.serve(async (req) => {
         })
         .eq("id", activeGrant.id);
 
+      results.grant_revoked = !revokeError;
       if (revokeError) {
         console.error(`[meta-disconnect][${VERSION}][${traceId}] Failed to revoke grant:`, revokeError);
       } else {
-        grantRevoked = true;
         console.log(`[meta-disconnect][${VERSION}][${traceId}] Grant ${activeGrant.id} revoked`);
       }
+    } else {
+      results.grant_revoked = false;
+      console.log(`[meta-disconnect][${VERSION}][${traceId}] No active grant found`);
     }
 
-    // ── Step 2: Deactivate all tenant_meta_integrations ──
+    // ══════════════════════════════════════════
+    // Step 2: Deactivate ALL tenant_meta_integrations
+    // FIX: Use "disconnected" (check constraint allows: pending, active, disconnected, error)
+    // ══════════════════════════════════════════
     const { data: deactivated, error: integError } = await supabase
       .from("tenant_meta_integrations")
-      .update({ status: "inactive" })
+      .update({ 
+        status: "disconnected",
+        updated_at: new Date().toISOString(),
+      })
       .eq("tenant_id", tenant_id)
       .eq("status", "active")
       .select("integration_id");
 
     if (integError) {
-      console.error(`[meta-disconnect][${VERSION}][${traceId}] Failed to deactivate integrations:`, integError);
-    } else {
-      console.log(`[meta-disconnect][${VERSION}][${traceId}] Deactivated ${deactivated?.length || 0} integrations`);
+      console.error(`[meta-disconnect][${VERSION}][${traceId}] CRITICAL: Failed to deactivate integrations:`, integError.message);
+      // This is critical — if integrations stay active, the system thinks assets are connected
+      results.integrations_error = integError.message;
     }
+    results.integrations_deactivated = deactivated?.length || 0;
+    console.log(`[meta-disconnect][${VERSION}][${traceId}] Deactivated ${results.integrations_deactivated} integrations`);
 
-    // ── Step 3: Deactivate WhatsApp configs linked to Meta ──
-    await supabase
+    // ══════════════════════════════════════════
+    // Step 3: Deactivate WhatsApp configs linked to Meta
+    // ══════════════════════════════════════════
+    const { error: whatsappError } = await supabase
       .from("whatsapp_configs")
       .update({
         is_enabled: false,
@@ -161,7 +175,14 @@ Deno.serve(async (req) => {
       .eq("tenant_id", tenant_id)
       .eq("provider", "meta");
 
-    // ── Step 4: Clear Meta Pixel from marketing_integrations ──
+    if (whatsappError) {
+      console.warn(`[meta-disconnect][${VERSION}][${traceId}] WhatsApp cleanup error:`, whatsappError.message);
+    }
+    results.whatsapp_cleaned = !whatsappError;
+
+    // ══════════════════════════════════════════
+    // Step 4: Clear Meta Pixel/CAPI from marketing_integrations
+    // ══════════════════════════════════════════
     const { error: pixelClearError } = await supabase
       .from("marketing_integrations")
       .update({
@@ -176,17 +197,43 @@ Deno.serve(async (req) => {
       .eq("tenant_id", tenant_id);
 
     if (pixelClearError) {
-      console.warn(`[meta-disconnect][${VERSION}][${traceId}] Failed to clear pixel:`, pixelClearError);
-    } else {
-      console.log(`[meta-disconnect][${VERSION}][${traceId}] Pixel cleared from marketing_integrations`);
+      console.warn(`[meta-disconnect][${VERSION}][${traceId}] Pixel cleanup error:`, pixelClearError.message);
+    }
+    results.pixel_cleared = !pixelClearError;
+
+    // ══════════════════════════════════════════
+    // Step 5: Trigger storefront re-prerender
+    // This ensures the live store HTML no longer contains pixel/tracking scripts
+    // ══════════════════════════════════════════
+    try {
+      const prerenderRes = await fetch(`${supabaseUrl}/functions/v1/storefront-prerender`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({
+          tenant_id,
+          trigger_type: "meta_disconnect",
+        }),
+      });
+
+      const prerenderStatus = prerenderRes.status;
+      // Consume body to avoid resource leak
+      const prerenderBody = await prerenderRes.text();
+      results.prerender_triggered = prerenderStatus >= 200 && prerenderStatus < 300;
+      console.log(`[meta-disconnect][${VERSION}][${traceId}] Prerender triggered: status=${prerenderStatus}`);
+    } catch (prerenderErr) {
+      results.prerender_triggered = false;
+      console.warn(`[meta-disconnect][${VERSION}][${traceId}] Prerender trigger failed (best-effort):`, (prerenderErr as Error).message);
+      // Best-effort: store is eventually consistent via normal prerender cycles
     }
 
-    console.log(`[meta-disconnect][${VERSION}][${traceId}] Disconnect complete. Grant revoked: ${grantRevoked}, Remote: ${remoteRevocationResult}, Integrations deactivated: ${deactivated?.length || 0}`);
+    console.log(`[meta-disconnect][${VERSION}][${traceId}] Disconnect complete.`, JSON.stringify(results));
 
     return jsonResponse({
       success: true,
-      grant_revoked: grantRevoked,
-      integrations_deactivated: deactivated?.length || 0,
+      ...results,
       remote_revocation: remoteRevocationResult,
     });
 
