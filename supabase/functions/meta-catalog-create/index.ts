@@ -80,13 +80,18 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Update assets in connection
-      if (allCatalogs.length > 0) {
-        const updatedAssets = { ...metadata?.assets, catalogs: allCatalogs };
+      // Update catalog info in V4 integration (if exists)
+      if (allCatalogs.length > 0 && metaConn.grant_id) {
         await supabase
-          .from("marketplace_connections")
-          .update({ metadata: { ...metadata, assets: updatedAssets } })
-          .eq("id", connection.id);
+          .from("tenant_meta_integrations")
+          .upsert({
+            tenant_id: tenantId,
+            integration_id: "catalogo_meta",
+            auth_grant_id: metaConn.grant_id,
+            status: "active",
+            selected_assets: { catalogs: allCatalogs, catalog_id: allCatalogs[0]?.id },
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "tenant_id,integration_id" });
       }
 
       return new Response(
