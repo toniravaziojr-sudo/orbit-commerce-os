@@ -3242,3 +3242,72 @@ Etapas planejadas:
 3. Frontend: ler status de `tenant_meta_auth_grants` + `tenant_meta_integrations` em `useMetaConnection.ts`
 4. Consolidar doc final
 5. Marcar `marketplace_connections` como não mais usado para Meta
+
+---
+
+## Fase 4.4 — Fluxo de Seleção de Ativos Meta nos Toggles
+
+> **STATUS:** ✅ Implementado | **Data:** 2026-03-31
+
+### Resumo
+
+Ao ativar um toggle de integração Meta, o sistema agora exibe um seletor inline de ativos (conta empresarial → ativo específico). O toggle só fica ativo após a seleção. Quando ativo, mostra o ativo vinculado com opções de alterar ou remover.
+
+### Componentes
+
+| Tipo | Localização | Descrição |
+|------|-------------|-----------|
+| Componente | `src/components/integrations/meta/MetaAssetSelector.tsx` | Seletor inline 2 passos + display de ativo vinculado |
+| Catálogo | `src/config/metaIntegrationCatalog.ts` | Campo `assetType` e `assetLabel` por integração |
+| Hook | `src/hooks/useMetaIntegrations.ts` | Expõe `discoveredAssets` via grant + mutation `saveAssets` |
+| Edge Function | `supabase/functions/meta-integrations-manage/index.ts` | GET retorna `discovered_assets`, POST aceita `selected_assets`, action `save_assets` com side-effects |
+
+### Mapeamento: Toggle → Tipo de Ativo (`assetType`)
+
+| Toggle | assetType | Asset selecionado |
+|--------|-----------|-------------------|
+| whatsapp_notificacoes / whatsapp_atendimento | `waba_phone` | WABA → Número |
+| instagram_publicacoes / instagram_direct / instagram_comentarios | `instagram_account` | Conta Instagram |
+| facebook_publicacoes / facebook_messenger / facebook_lives / facebook_comentarios | `page` | Página Facebook |
+| pixel_facebook / conversions_api | `pixel` | Pixel |
+| leads / catalogo_insights | `page` | Página Facebook |
+| anuncios | `ad_account` | Conta de Anúncio |
+| catalogos | `none` | Auto-configurado |
+| threads | `none` | Auth separado |
+
+### Side-Effects (Backend)
+
+| Integração | Side-effect executado |
+|-----------|----------------------|
+| whatsapp_* | Upsert `whatsapp_configs` com phone_number_id, waba_id |
+| pixel_facebook | Upsert `marketing_integrations.meta_pixel_id` + `meta_enabled` |
+| conversions_api | Upsert `marketing_integrations.meta_capi_enabled` |
+
+### Fluxo
+
+1. Usuário liga toggle → seletor inline aparece com ativos da conta Meta
+2. Usuário escolhe ativo (ex: página, número, pixel)
+3. Clica "Confirmar" → `activate` + `selected_assets` enviados ao backend
+4. Backend salva integração + executa side-effects
+5. Toggle mostra ativo vinculado com botões "Alterar" e "Remover"
+6. "Alterar" reabre seletor → `save_assets` atualiza ativo
+7. "Remover" desativa integração + limpa side-effects
+
+### Payload `selected_assets` por tipo
+
+```json
+// page
+{ "page": { "id": "...", "name": "..." }, "business": { "id": "...", "name": "..." } }
+
+// instagram_account
+{ "instagram": { "id": "...", "username": "..." }, "page": { "id": "...", "name": "..." }, "business": { "id": "...", "name": "..." } }
+
+// waba_phone
+{ "phone": { "id": "...", "display_phone_number": "...", "verified_name": "...", "waba_id": "..." }, "business": { "id": "...", "name": "..." } }
+
+// pixel
+{ "pixel": { "id": "...", "name": "..." }, "business": { "id": "...", "name": "..." } }
+
+// ad_account
+{ "ad_account": { "id": "...", "name": "..." }, "business": { "id": "...", "name": "..." } }
+```
