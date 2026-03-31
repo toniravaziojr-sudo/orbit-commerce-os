@@ -43,13 +43,7 @@ Deno.serve(async (req) => {
     // SYNC — Pull creatives from Meta
     // ========================
     if (action === "sync") {
-      const { data: conn } = await supabase
-        .from("marketplace_connections")
-        .select("access_token, metadata")
-        .eq("tenant_id", tenantId)
-        .eq("marketplace", "meta")
-        .eq("is_active", true)
-        .maybeSingle();
+      const conn = await getMetaConnectionForTenant(supabase, tenantId, traceId);
 
       if (!conn) {
         return new Response(
