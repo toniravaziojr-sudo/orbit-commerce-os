@@ -109,24 +109,16 @@ serve(async (req) => {
         );
       }
 
-      // Buscar page access token
-      const { data: connection } = await supabase
-        .from("marketplace_connections")
-        .select("metadata")
-        .eq("tenant_id", tenantId)
-        .eq("marketplace", "meta")
-        .eq("is_active", true)
-        .single();
-
-      if (!connection) {
+      // Buscar conexão Meta via helper central (V4 + fallback legado)
+      const metaConn = await getMetaConnectionForTenant(supabase, tenantId, `live-create`);
+      if (!metaConn) {
         return new Response(
           JSON.stringify({ success: false, error: "Conta Meta não conectada", code: "NOT_CONNECTED" }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      const metadata = connection.metadata as any;
-      const page = metadata?.assets?.pages?.find((p: any) => p.id === pageId);
+      const page = metaConn.metadata?.assets?.pages?.find((p: any) => p.id === pageId);
       if (!page?.access_token) {
         return new Response(
           JSON.stringify({ success: false, error: "Página sem access token", code: "NO_PAGE_TOKEN" }),

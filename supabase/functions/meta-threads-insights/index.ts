@@ -36,25 +36,18 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Buscar conexão Meta do tenant
-    const { data: connection, error: connError } = await supabaseAdmin
-      .from("marketplace_connections")
-      .select("*")
-      .eq("tenant_id", tenantId)
-      .eq("marketplace", "meta")
-      .eq("is_active", true)
-      .maybeSingle();
-
-    if (connError || !connection) {
+    // Buscar conexão Meta via helper central (V4 + fallback legado)
+    // NOTA: Threads usa auth separado mas token/metadata são lidos do mesmo modelo
+    const metaConn = await getMetaConnectionForTenant(supabaseAdmin, tenantId, `threads-insights`);
+    if (!metaConn) {
       return new Response(
         JSON.stringify({ success: false, error: "Conta Meta não conectada" }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const accessToken = connection.access_token;
-    const metadata = connection.metadata as any;
-    const threadsProfile = metadata?.assets?.threads_profile;
+    const accessToken = metaConn.access_token;
+    const threadsProfile = (metaConn.metadata?.assets as any)?.threads_profile;
 
     if (!threadsProfile?.id) {
       return new Response(

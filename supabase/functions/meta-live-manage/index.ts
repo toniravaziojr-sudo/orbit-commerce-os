@@ -94,17 +94,9 @@ serve(async (req) => {
       );
     }
 
-    // Buscar page token
-    const { data: connection } = await supabase
-      .from("marketplace_connections")
-      .select("metadata")
-      .eq("tenant_id", tenantId)
-      .eq("marketplace", "meta")
-      .eq("is_active", true)
-      .single();
-
-    const metadata = connection?.metadata as any;
-    const page = metadata?.assets?.pages?.find((p: any) => p.id === stream.page_id);
+    // Buscar conexão Meta via helper central (V4 + fallback legado)
+    const metaConn = await getMetaConnectionForTenant(supabase, tenantId, `live-manage`);
+    const page = metaConn?.metadata?.assets?.pages?.find((p: any) => p.id === stream.page_id);
     if (!page?.access_token) {
       return new Response(
         JSON.stringify({ success: false, error: "Página sem token", code: "NO_TOKEN" }),
