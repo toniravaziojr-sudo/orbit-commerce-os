@@ -928,6 +928,14 @@ Deno.serve(async (req) => {
 
     return jsonResponse({
       success: true,
+      results: {
+        created: stats.created,
+        updated: stats.updated,
+        unchanged: 0,
+        skipped: stats.skipped,
+        errors: stats.failed,
+        itemErrors: [],
+      },
       stats,
       message: `Importação concluída: ${stats.created} criadas, ${stats.updated} atualizadas, ${stats.productsLinked} produtos vinculados`
     });

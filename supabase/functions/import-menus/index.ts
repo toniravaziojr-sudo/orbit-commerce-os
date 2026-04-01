@@ -887,6 +887,14 @@ Deno.serve(async (req) => {
 
     return jsonResponse({
       success: true,
+      results: {
+        created: totalItems,
+        updated: 0,
+        unchanged: 0,
+        skipped: 0,
+        errors: 0,
+        itemErrors: [],
+      },
       stats,
       totalItems,
       message: `Importação concluída: ${stats.header} itens no header, ${stats.footer1} no footer 1, ${stats.footer2} no footer 2`
