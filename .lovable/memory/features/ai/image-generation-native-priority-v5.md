@@ -9,7 +9,7 @@ Updated: now
 - Chamada direta à API `generativelanguage.googleapis.com/v1beta`
 - **NÃO** passa pelo Lovable AI Gateway
 - Usa `GEMINI_API_KEY` obtida via `getCredential()` da tabela `platform_credentials`
-- Modelo: `gemini-2.0-flash-exp` com `responseModalities: ['TEXT', 'IMAGE']`
+- Modelo: `gemini-2.5-flash-image` com `responseModalities: ['TEXT', 'IMAGE']`
 - Módulo compartilhado: `supabase/functions/_shared/native-gemini.ts`
 
 ### 2. OpenAI Nativa
