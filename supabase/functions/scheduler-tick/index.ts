@@ -579,6 +579,22 @@ serve(async (req) => {
           const error = socialPublishResult.status === 'rejected' ? socialPublishResult.reason : socialPublishResult.value.error;
           console.error(`[scheduler-tick] media-social-publish-worker error:`, error);
         }
+
+        // Process email-marketing-list-sync result (hourly)
+        if (emailListSyncResult) {
+          if (emailListSyncResult.status === 'fulfilled' && emailListSyncResult.value.ok) {
+            const data = emailListSyncResult.value.data;
+            console.log(`[scheduler-tick] email-marketing-list-sync result:`, data);
+            passStats.email_list_sync.lists_synced = data.synced_lists ?? 0;
+            passStats.email_list_sync.subscribers_synced = data.total_synced ?? 0;
+            aggregatedTotals.email_lists_synced += passStats.email_list_sync.lists_synced;
+            aggregatedTotals.email_subscribers_synced += passStats.email_list_sync.subscribers_synced;
+          } else {
+            const error = emailListSyncResult.status === 'rejected' ? emailListSyncResult.reason : emailListSyncResult.value.error;
+            console.error(`[scheduler-tick] email-marketing-list-sync error:`, error);
+            passStats.email_list_sync.errors = 1;
+          }
+        }
       }
 
       allPassStats.push(passStats);
