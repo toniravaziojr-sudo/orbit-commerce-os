@@ -19,6 +19,7 @@ import { useOrders, type Order, type OrderStatus } from '@/hooks/useOrders';
 import { normalizeOrderStatus } from '@/types/orderStatus';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { FeatureGate } from '@/components/layout/FeatureGate';
+import { FileImportDialog } from '@/components/import/FileImportDialog';
 
 const PAGE_SIZE = 50;
 
