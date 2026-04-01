@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { revalidateStorefrontAfterTrackingChange } from "../_shared/storefront-revalidation.ts";
 
-const VERSION = "v1.1.0";
+const VERSION = "v1.2.0";
 const TRACKING_INTEGRATION_IDS = new Set(["pixel_facebook", "conversions_api"]);
 
 const corsHeaders = {
@@ -225,7 +225,7 @@ Deno.serve(async (req) => {
         const { data: integration, error: updateError } = await adminClient
           .from("tenant_meta_integrations")
           .update({
-            status: "inactive",
+            status: "disconnected",
             updated_at: new Date().toISOString(),
           })
           .eq("tenant_id", tenant_id)

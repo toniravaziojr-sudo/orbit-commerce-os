@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 // ===== VERSION =====
-const VERSION = "v3.0.0"; // Lote B: Legacy marketplace_connections removed
+const VERSION = "v3.1.0"; // Corrige desligamento para status compatível com tenant_meta_integrations
 // ===================
 
 /**
@@ -104,10 +104,10 @@ Deno.serve(async (req) => {
           })
           .eq("id", grant.id);
 
-        // Deactivate integrations for this tenant
+        // Disconnect integrations for this tenant
         await supabase
           .from("tenant_meta_integrations")
-          .update({ status: "inactive" })
+          .update({ status: "disconnected", updated_at: new Date().toISOString() })
           .eq("tenant_id", grant.tenant_id)
           .eq("status", "active");
 
