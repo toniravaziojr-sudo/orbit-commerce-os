@@ -10,6 +10,7 @@ type View = 'list' | 'create' | 'edit';
 export default function Products() {
   const [view, setView] = useState<View>('list');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   // ... keep existing code (handlers)
   const handleCreateProduct = () => {
