@@ -493,7 +493,10 @@ function MetaIntegrationToggleRow({
         </div>
         <div className="flex items-center gap-2">
           {isToggling ? (
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <span className="text-xs text-muted-foreground animate-pulse">Aguarde...</span>
+            </div>
           ) : (
             <Switch
               checked={isActive}
