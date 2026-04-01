@@ -111,9 +111,9 @@ serve(async (req: Request): Promise<Response> => {
       tagsToAdd = form.tags_to_add || [];
     }
 
-    // Use the canonical sync function (only passes p_list_id, NOT p_tag_id)
+    // Use upsert_subscriber_only — leads/forms NEVER create customers
     const { data: syncResult, error: syncError } = await supabase.rpc(
-      "sync_subscriber_to_customer_with_tag",
+      "upsert_subscriber_only",
       {
         p_tenant_id: tenant_id,
         p_email: email,

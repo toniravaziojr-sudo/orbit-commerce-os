@@ -19003,6 +19003,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      ensure_customer_tag: {
+        Args: {
+          p_customer_id: string
+          p_tag_name?: string
+          p_tenant_id: string
+        }
+        Returns: undefined
+      }
       generate_billing_checkout_token: {
         Args: { p_session_id: string }
         Returns: string
@@ -19333,6 +19341,21 @@ export type Database = {
           p_new_token: string
         }
         Returns: undefined
+      }
+      upsert_subscriber_only: {
+        Args: {
+          p_birth_date?: string
+          p_email: string
+          p_list_id?: string
+          p_name?: string
+          p_phone?: string
+          p_source?: string
+          p_tenant_id: string
+        }
+        Returns: {
+          is_new_subscriber: boolean
+          subscriber_id: string
+        }[]
       }
       user_belongs_to_tenant: {
         Args: { _tenant_id: string; _user_id: string }

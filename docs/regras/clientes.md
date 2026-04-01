@@ -206,10 +206,64 @@ graph TD
     C -->|Sim| D[Retorna erro DUPLICATE_EMAIL]
     C -->|Não| E[coreCustomersApi.create]
     E --> F[Cria registro]
-    F --> G[Invalida cache]
+    F --> G[ensure_customer_tag → tag 'Cliente']
+    G --> H[Invalida cache]
 ```
 
-### 4.3 Métricas Automáticas
+> **✅ Regra (01/04/2026):** A criação manual de clientes via `core-customers` atribui automaticamente a tag sistêmica "Cliente" usando `ensure_customer_tag`, sem depender de listas de email marketing.
+
+### 4.3 Contrato Lead ≠ Customer (CRÍTICO)
+
+```
+REGRAS FUNDAMENTAIS:
+1. Lead NÃO cria customer automaticamente
+   - Formulários, popups, chat usam upsert_subscriber_only() → só cria subscriber
+   - Se já existir customer com mesmo email, vincula (customer_id no subscriber)
+   - Se NÃO existir customer → NÃO cria
+
+2. Customer é criado APENAS por:
+   - Checkout (pedido criado)
+   - Criação manual (admin)
+   - Importação (CSV)
+
+3. Tag "Cliente" é atribuída por:
+   - trg_auto_tag_cliente_on_payment → pedido aprovado (trigger direto, sem depender de lista)
+   - core-customers → criação manual (via ensure_customer_tag)
+   - import-customers → importação (via customer_tag_assignments direto)
+
+4. Customer sem email:
+   - É customer válido (tags, métricas funcionam via customer_id)
+   - NÃO cria subscriber/list_member (email obrigatório para marketing)
+   - Trigger trg_recalc_customer_on_order ignora silenciosamente (customer_email vazio)
+```
+
+### 4.4 Funções de Banco — Contrato de Responsabilidades
+
+| Função | Responsabilidade | O que NÃO faz |
+|--------|-----------------|---------------|
+| `upsert_subscriber_only` | Cria/atualiza subscriber, adiciona em lista, vincula a customer existente | NÃO cria customer |
+| `sync_subscriber_to_customer_with_tag` | [LEGADO] Cria subscriber E customer | **Uso restrito** — NÃO usar em formulários/leads |
+| `ensure_customer_tag` | Atribui tag sistêmica a customer por ID | NÃO cria customer nem subscriber |
+| `recalc_customer_metrics` | Recalcula métricas de compra | NÃO atribui tags |
+| `auto_tag_cliente_on_payment_approved` | Atribui tag "Cliente" quando pagamento aprovado | NÃO depende de lista de marketing |
+
+### 4.5 Triggers Ativos na Tabela `orders`
+
+| Trigger | Função | Quando dispara | O que faz |
+|---------|--------|----------------|-----------|
+| `trg_auto_tag_cliente_on_payment` | `auto_tag_cliente_on_payment_approved()` | INSERT/UPDATE de payment_status | Se `approved`: atribui tag "Cliente" via customer_id (sem lista) |
+| `trg_recalc_customer_metrics_on_order` | `trg_recalc_customer_on_order()` | INSERT/UPDATE | Se `approved`: recalcula métricas + sincroniza subscriber (sem criar customer) |
+
+> **⚠️ Trigger removido (01/04/2026):** `trigger_update_customer_first_order` foi removido por inflacionar `total_orders` em todo INSERT independente de status de pagamento. `recalc_customer_metrics` é a fonte canônica de métricas.
+
+### 4.6 Nomes Canônicos
+
+| Conceito | Nome no banco | Chave de busca |
+|----------|--------------|----------------|
+| Tag sistêmica | `Cliente` (singular) | `customer_tags.name = 'Cliente'` |
+| Lista de marketing | `Clientes` (plural) | `email_marketing_lists.tag_id` → tag "Cliente" |
+
+### 4.7 Métricas Automáticas
 
 As métricas do cliente são atualizadas automaticamente após cada pedido:
 
@@ -223,23 +277,7 @@ As métricas do cliente são atualizadas automaticamente após cada pedido:
 
 > **⚠️ IMPORTANTE:** `total_orders` NÃO é usado para determinar "1ª compra". A tarja usa exclusivamente `orders.is_first_sale` (flag imutável gravado no momento da criação do pedido).
 
-> **Trigger:** `trg_recalc_customer_metrics_on_order` — dispara no INSERT ou UPDATE na tabela `orders`. Quando `payment_status = 'approved'` (e era diferente antes, ou é um INSERT novo), chama a function `recalc_customer_metrics(tenant_id, customer_email)` que recalcula todas as métricas e o tier automaticamente, e `sync_subscriber_to_customer_with_tag` para sincronizar com email marketing.
->
-> **Correções aplicadas (01/04/2026):**
-> - Trigger expandido para disparar em `INSERT OR UPDATE` (antes era apenas UPDATE, pedidos criados já com pagamento aprovado não disparavam o recálculo)
-> - Função `sync_subscriber_to_customer_with_tag` corrigida: referências ambíguas à coluna `customer_id` resolvidas com aliases de tabela
-
-### 4.4 Promoção Automática para "Cliente" (Trigger de Banco)
-
-Quando um pedido tem `payment_status = 'approved'` (no INSERT ou UPDATE), o trigger `trg_recalc_customer_metrics_on_order` executa automaticamente:
-
-1. **Recalcula métricas** do cliente (total_orders, total_spent, average_ticket, datas)
-2. **Recalcula o tier** de fidelidade baseado nos critérios abaixo
-3. **Adiciona à lista de email marketing** como subscriber ativo (via `sync_subscriber_to_customer_with_tag`)
-
-O trigger é idempotente: executar múltiplas vezes para o mesmo pedido não gera duplicatas.
-
-### 4.5 Tiers de Fidelidade (Progressão Automática)
+### 4.8 Tiers de Fidelidade (Progressão Automática)
 
 | Tier | Critério |
 |------|----------|
@@ -248,7 +286,7 @@ O trigger é idempotente: executar múltiplas vezes para o mesmo pedido não ger
 | Gold | 15+ pedidos OU R$5.000+ gastos |
 | Platinum | 30+ pedidos OU R$15.000+ gastos |
 
-> **✅ Implementado**: A progressão é calculada automaticamente pelo trigger `trg_recalc_customer_metrics_on_order` sempre que um pedido é aprovado. Backfill executado em 01/04/2026.
+> **✅ Implementado**: A progressão é calculada automaticamente pelo trigger `trg_recalc_customer_metrics_on_order` sempre que um pedido é aprovado.
 
 ---
 
