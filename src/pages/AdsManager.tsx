@@ -1,4 +1,7 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Bot, BarChart3, Settings2, Lightbulb, MessageCircle, Hourglass } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { AdsChatTab } from "@/components/ads/AdsChatTab";
