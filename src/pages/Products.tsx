@@ -44,6 +44,7 @@ export default function Products() {
           <ProductList
             onCreateProduct={handleCreateProduct}
             onEditProduct={handleEditProduct}
+            onImport={() => setImportOpen(true)}
           />
         </>
       )}
@@ -55,6 +56,12 @@ export default function Products() {
           onSuccess={handleSuccess}
         />
       )}
+
+      <FileImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        module="products"
+      />
     </div>
   );
 }
