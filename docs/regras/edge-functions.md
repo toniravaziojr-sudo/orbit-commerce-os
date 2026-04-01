@@ -3445,3 +3445,37 @@ RETRY CARTÃO (THANK YOU)
 │   └── Nova cobrança legítima (chave diferente da inicial)
 └── retryLockRef = false
 ```
+
+---
+
+## Meta Tracking — Token Sync e CAPI (v1.3.0)
+
+> **Adicionado:** 2026-04-01
+
+### `meta-integrations-manage/index.ts` (v1.3.0)
+
+- **Ação `deactivate`:** Usa `status: "disconnected"` (NUNCA `inactive` — viola check constraint)
+- **Ação `activate` (pixel/CAPI):** Busca token do grant V4 ativo e sincroniza para `marketing_integrations.meta_access_token`
+- **Side-effects de limpeza:** `cleanupSideEffects` usa `disconnected` consistentemente
+
+### `marketing-send-meta/index.ts` — Fallback de Token
+
+Quando `marketing_integrations.meta_access_token` está vazio ou inválido:
+1. Busca token fresco via `getMetaConnectionForTenant(supabase, tenantId)`
+2. Se encontrado, usa para o envio atual
+3. Em background, sincroniza o token de volta para `marketing_integrations` (upsert)
+4. Previne falhas em cascata após reconexões ou trocas de senha
+
+### `_shared/meta-capi-sender.ts` — `getMetaCapiConfig`
+
+- Aceita parâmetro opcional `fallbackToken` para uso quando `meta_access_token` do banco está vazio
+- Prioridade: `marketing_integrations.meta_access_token` > `fallbackToken` > erro
+
+### Regra de Status `tenant_meta_integrations`
+
+| Status válido | Uso |
+|---------------|-----|
+| `active` | Integração ativada e operacional |
+| `disconnected` | Integração desativada pelo usuário ou por limpeza |
+
+> ⚠️ `inactive` **NÃO É** um status válido. Usar causa erro de constraint no banco.
