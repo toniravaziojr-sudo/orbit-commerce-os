@@ -29,6 +29,7 @@ import { AdsGlobalSettingsTab } from "@/components/ads/AdsGlobalSettingsTab";
 import { AdsPendingApprovalTab } from "@/components/ads/AdsPendingApprovalTab";
 
 export default function AdsManager() {
+  const { currentTenant } = useAuth();
   const meta = useMetaAds();
   const tiktok = useTikTokAds();
   const google = useGoogleAds();
@@ -39,7 +40,25 @@ export default function AdsManager() {
   const adsInsights = useAdsInsights();
   const accountConfigs = useAdsAccountConfigs();
 
-  const [activeMainTab, setActiveMainTab] = useState("overview");
+  // Fetch only the ad accounts explicitly selected in the anuncios integration
+  const { data: metaSelectedAdAccounts } = useQuery({
+    queryKey: ["meta-ads-selected-accounts", currentTenant?.id],
+    queryFn: async () => {
+      if (!currentTenant?.id) return [];
+      const { data } = await supabase
+        .from("tenant_meta_integrations")
+        .select("selected_assets")
+        .eq("tenant_id", currentTenant.id)
+        .eq("integration_id", "anuncios")
+        .eq("status", "active")
+        .maybeSingle();
+      const assets = data?.selected_assets as any;
+      if (!assets?.ad_accounts || !Array.isArray(assets.ad_accounts)) return [];
+      return assets.ad_accounts.map((a: any) => ({ id: a.id, name: a.name || a.id }));
+    },
+    enabled: !!currentTenant?.id,
+    staleTime: 30000,
+  });
   const [activeChannel, setActiveChannel] = useState("meta");
   const [activeSubTab, setActiveSubTab] = useState("campaigns");
   const [openAIConfigAccountId, setOpenAIConfigAccountId] = useState<string | null>(null);
