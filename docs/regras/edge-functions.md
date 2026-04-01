@@ -9,6 +9,9 @@
 - `meta-publish-post` deve retornar erro de negócio explícito quando a publicação não estiver habilitada.
 - A validação de publicação deve considerar as integrações ativas de Facebook/Instagram do tenant.
 - O helper compartilhado da Meta deve expor também os perfis do Instagram descobertos, para evitar falso bloqueio no agendamento.
+- Qualquer horário futuro deve ser tratado como agendamento real, sem janela de tolerância de minutos que transforme o envio em publicação imediata.
+- O atraso entre envios imediatos deve ser curto e não pode bloquear o fluxo de agendamento futuro.
+- O despachante automático principal deve acionar também o worker de publicação social para executar os itens agendados no horário salvo.
 
 Após correções de regressão em lote, ficou obrigatório validar antes de publicar:
 - Não deixar fechamentos extras de bloco (`}`) no final de fluxos de ação

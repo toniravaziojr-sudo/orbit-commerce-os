@@ -117,8 +117,9 @@ O calendário editorial suporta **dois fluxos paralelos** que podem ser combinad
    5. "Aprovar" → marca items como aprovados
    │
    6. "Finalizar Campanha" → agenda TODOS os items aprovados:
-      - Items com data/hora futura → agendados (Meta nativa ou worker)
-      - Items com data/hora já passada → publicados imediatamente com intervalo de 30s entre cada
+      - Qualquer item com data/hora futura → entra como agendado
+      - Itens com data/hora já passada → publicados imediatamente
+      - Publicações imediatas usam intervalo curto apenas para evitar limite externo; agendamentos futuros não esperam em fila dentro da requisição
 ```
 
 > **IMPORTANTE:** Os fluxos podem ser combinados. Ex: criar estratégia com IA, mas escrever copys manualmente e subir criativos próprios.
