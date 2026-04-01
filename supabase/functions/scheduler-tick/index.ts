@@ -289,8 +289,9 @@ interface TickStats {
   reconcile_payments: ReconcilePaymentsStats;
   tracking_poll: TrackingPollStats;
   scheduled_emails: ScheduledEmailsStats;
-  creative_poll: CreativePollStats;
-}
+    creative_poll: CreativePollStats;
+    email_list_sync: EmailListSyncStats;
+  }
 
 interface AggregatedStats {
   tick_started_at: string;
