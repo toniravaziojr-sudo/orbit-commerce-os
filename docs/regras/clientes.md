@@ -223,7 +223,11 @@ As métricas do cliente são atualizadas automaticamente após cada pedido:
 
 > **⚠️ IMPORTANTE:** `total_orders` NÃO é usado para determinar "1ª compra". A tarja usa exclusivamente `orders.is_first_sale` (flag imutável gravado no momento da criação do pedido).
 
-> **Trigger:** `trg_recalc_customer_metrics_on_order` — dispara no INSERT ou UPDATE de `payment_status` na tabela `orders`. Chama a function `recalc_customer_metrics(tenant_id, customer_email)` que recalcula todas as métricas e o tier automaticamente.
+> **Trigger:** `trg_recalc_customer_metrics_on_order` — dispara no INSERT ou UPDATE na tabela `orders`. Quando `payment_status = 'approved'` (e era diferente antes, ou é um INSERT novo), chama a function `recalc_customer_metrics(tenant_id, customer_email)` que recalcula todas as métricas e o tier automaticamente, e `sync_subscriber_to_customer_with_tag` para sincronizar com email marketing.
+>
+> **Correções aplicadas (01/04/2026):**
+> - Trigger expandido para disparar em `INSERT OR UPDATE` (antes era apenas UPDATE, pedidos criados já com pagamento aprovado não disparavam o recálculo)
+> - Função `sync_subscriber_to_customer_with_tag` corrigida: referências ambíguas à coluna `customer_id` resolvidas com aliases de tabela
 
 ### 4.4 Promoção Automática para "Cliente" (Trigger de Banco)
 
