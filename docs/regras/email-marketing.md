@@ -1,7 +1,7 @@
 # Email Marketing — Regras e Especificações
 
 > **Status:** ✅ Ready  
-> **Última atualização:** 2025-01-20
+> **Última atualização:** 2026-04-01
 
 ---
 
@@ -24,6 +24,7 @@ Sistema completo de email marketing com listas segmentadas, templates personaliz
 | `supabase/functions/email-dispatcher/` | Worker de processamento |
 | `supabase/functions/marketing-form-submit/` | Captura de leads |
 | `supabase/functions/email-unsubscribe/` | Descadastramento |
+| `supabase/functions/email-marketing-list-sync/` | Sincronização periódica de listas baseadas em tags |
 
 ---
 
@@ -44,6 +45,7 @@ Customers ← customer_tag_assignments → Sync automático -------+
 2. Admin cria lista vinculada à tag
 3. Sistema sincroniza automaticamente todos os customers com essa tag para `email_marketing_subscribers`
 4. Quando um customer recebe a tag, automaticamente vira subscriber
+5. **A cada hora**, o `scheduler-tick` aciona `email-marketing-list-sync` que executa `sync_list_subscribers_from_tag` para todas as listas com tag vinculada, garantindo paridade entre o módulo de clientes e as listas de email marketing
 
 ---
 

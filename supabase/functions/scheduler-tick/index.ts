@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.0.0"; // Parallel dispatcher: steps 4-7 run concurrently via Promise.allSettled
+const VERSION = "v2.1.0"; // Added hourly email marketing list sync
 // ===========================================================
 
 const corsHeaders = {
@@ -262,6 +262,13 @@ interface CreativePollStats {
   errors: number;
 }
 
+interface EmailListSyncStats {
+  lists_synced: number;
+  subscribers_synced: number;
+  skipped_not_due: boolean;
+  errors: number;
+}
+
 interface TickStats {
   tick_at: string;
   pass: number;
@@ -282,8 +289,9 @@ interface TickStats {
   reconcile_payments: ReconcilePaymentsStats;
   tracking_poll: TrackingPollStats;
   scheduled_emails: ScheduledEmailsStats;
-  creative_poll: CreativePollStats;
-}
+    creative_poll: CreativePollStats;
+    email_list_sync: EmailListSyncStats;
+  }
 
 interface AggregatedStats {
   tick_started_at: string;
@@ -300,9 +308,11 @@ interface AggregatedStats {
     payments_reconciled: number;
     shipments_polled: number;
     shipments_updated: number;
-    scheduled_emails_sent: number;
-  };
-  passes: TickStats[];
+      scheduled_emails_sent: number;
+      email_lists_synced: number;
+      email_subscribers_synced: number;
+    };
+    passes: TickStats[];
 }
 
 // Helper: call a sub-function and return typed result
@@ -381,6 +391,8 @@ serve(async (req) => {
       shipments_polled: 0,
       shipments_updated: 0,
       scheduled_emails_sent: 0,
+      email_lists_synced: 0,
+      email_subscribers_synced: 0,
     };
 
     for (let pass = 1; pass <= passes; pass++) {
@@ -396,6 +408,7 @@ serve(async (req) => {
         tracking_poll: { polled: 0, updated: 0, errors_count: 0 },
         scheduled_emails: { processed: 0, sent: 0, failed: 0, skipped: 0 },
         creative_poll: { resumed: 0, errors: 0 },
+        email_list_sync: { lists_synced: 0, subscribers_synced: 0, skipped_not_due: false, errors: 0 },
       };
 
       // ====================================================================
@@ -461,14 +474,16 @@ serve(async (req) => {
       // ====================================================================
       // PHASE 2: Parallel dispatcher (independent tasks, only pass 1)
       // reconcile-payments, tracking-poll, process-scheduled-emails,
-      // creative-process e media-social-publish-worker
+      // creative-process, media-social-publish-worker,
+      // email-marketing-list-sync (hourly)
       // ALL run concurrently via Promise.allSettled
       // ====================================================================
       if (pass === 1) {
-        console.log(`[scheduler-tick] Starting parallel phase (5 tasks)...`);
-        const parallelStart = Date.now();
+        // Hourly gate: only run email list sync if current minute is 0 (top of hour)
+        const currentMinute = new Date().getMinutes();
+        const shouldRunEmailListSync = currentMinute < 2; // 0 or 1 to account for timing drift
 
-        const [reconcileResult, trackingResult, emailsResult, creativeResult, socialPublishResult] = await Promise.allSettled([
+        const parallelTasks: Promise<{ ok: boolean; data?: any; error?: string }>[] = [
           // Task A: reconcile-payments
           callSubFunction(supabaseUrl, supabaseServiceKey, 'reconcile-payments', { limit: 20 }),
           // Task B: tracking-poll
@@ -479,7 +494,25 @@ serve(async (req) => {
           callSubFunction(supabaseUrl, supabaseServiceKey, 'creative-process', { poll_running: true }),
           // Task E: media-social-publish-worker
           callSubFunction(supabaseUrl, supabaseServiceKey, 'media-social-publish-worker', {}),
-        ]);
+        ];
+
+        // Task F: email-marketing-list-sync (hourly only)
+        if (shouldRunEmailListSync) {
+          console.log(`[scheduler-tick] Hourly email list sync is DUE (minute=${currentMinute})`);
+          parallelTasks.push(
+            callSubFunction(supabaseUrl, supabaseServiceKey, 'email-marketing-list-sync', {})
+          );
+        } else {
+          console.log(`[scheduler-tick] Email list sync skipped (minute=${currentMinute}, next at :00)`);
+          passStats.email_list_sync.skipped_not_due = true;
+        }
+
+        console.log(`[scheduler-tick] Starting parallel phase (${parallelTasks.length} tasks)...`);
+        const parallelStart = Date.now();
+
+        const results = await Promise.allSettled(parallelTasks);
+        const [reconcileResult, trackingResult, emailsResult, creativeResult, socialPublishResult] = results;
+        const emailListSyncResult = shouldRunEmailListSync ? results[5] : undefined;
 
         const parallelDuration = Date.now() - parallelStart;
         console.log(`[scheduler-tick] Parallel phase completed in ${parallelDuration}ms`);
@@ -545,6 +578,22 @@ serve(async (req) => {
         } else {
           const error = socialPublishResult.status === 'rejected' ? socialPublishResult.reason : socialPublishResult.value.error;
           console.error(`[scheduler-tick] media-social-publish-worker error:`, error);
+        }
+
+        // Process email-marketing-list-sync result (hourly)
+        if (emailListSyncResult) {
+          if (emailListSyncResult.status === 'fulfilled' && emailListSyncResult.value.ok) {
+            const data = emailListSyncResult.value.data;
+            console.log(`[scheduler-tick] email-marketing-list-sync result:`, data);
+            passStats.email_list_sync.lists_synced = data.synced_lists ?? 0;
+            passStats.email_list_sync.subscribers_synced = data.total_synced ?? 0;
+            aggregatedTotals.email_lists_synced += passStats.email_list_sync.lists_synced;
+            aggregatedTotals.email_subscribers_synced += passStats.email_list_sync.subscribers_synced;
+          } else {
+            const error = emailListSyncResult.status === 'rejected' ? emailListSyncResult.reason : emailListSyncResult.value.error;
+            console.error(`[scheduler-tick] email-marketing-list-sync error:`, error);
+            passStats.email_list_sync.errors = 1;
+          }
         }
       }
 
