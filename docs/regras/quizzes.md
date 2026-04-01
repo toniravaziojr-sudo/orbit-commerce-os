@@ -216,7 +216,7 @@ SELECT upsert_subscriber_only(
 );
 ```
 
-> **Nota (01/04/2026):** Substituído `sync_subscriber_to_customer_with_tag` por `upsert_subscriber_only` para respeitar contrato Lead ≠ Customer. Leads de quiz NÃO criam registros na tabela de clientes.
+> **Nota (01/04/2026):** Substituído `sync_subscriber_to_customer_with_tag` por `upsert_subscriber_only` para respeitar contrato Lead ≠ Customer. Leads de quiz NÃO criam registros na tabela de clientes. Função legada removida do banco em 01/04/2026.
 
 ---
 

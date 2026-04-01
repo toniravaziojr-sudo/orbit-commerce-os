@@ -243,7 +243,7 @@ REGRAS FUNDAMENTAIS:
 | Função | Responsabilidade | O que NÃO faz |
 |--------|-----------------|---------------|
 | `upsert_subscriber_only` | Cria/atualiza subscriber, adiciona em lista, vincula a customer existente | NÃO cria customer |
-| `sync_subscriber_to_customer_with_tag` | [LEGADO] Cria subscriber E customer | **Uso restrito** — NÃO usar em formulários/leads |
+| ~~`sync_subscriber_to_customer_with_tag`~~ | [REMOVIDO em 01/04/2026] Função legada eliminada do banco | — |
 | `ensure_customer_tag` | Atribui tag sistêmica a customer por ID | NÃO cria customer nem subscriber |
 | `recalc_customer_metrics` | Recalcula métricas de compra | NÃO atribui tags |
 | `auto_tag_cliente_on_payment_approved` | Atribui tag "Cliente" quando pagamento aprovado | NÃO depende de lista de marketing |
