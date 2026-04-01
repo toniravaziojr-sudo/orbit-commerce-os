@@ -134,7 +134,7 @@ export function ApprovalTab({
         const { data, error } = await supabase.functions.invoke("meta-publish-post", {
           body: { calendar_item_ids: toPublish.map(i => i.id), tenant_id: currentTenant.id },
         });
-        if (error) toast.error("Erro ao publicar");
+        if (error) toast.error("Erro ao agendar");
         else if (data?.success) {
           const parts = [];
           if (data.published > 0) parts.push(`${data.published} publicado(s)`);
