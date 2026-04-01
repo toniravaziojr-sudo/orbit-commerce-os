@@ -1,6 +1,6 @@
 // =============================================
-// USE CUSTOMER ORDERS - Real database orders for logged-in customers
-// v2 - Uses order-lookup edge function (no direct DB reads)
+// USE CUSTOMER ORDERS - Real database orders
+// v3 - Admin view uses direct DB query; storefront uses edge function
 // =============================================
 
 import { useQuery } from '@tanstack/react-query';
@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useEffect, useState } from 'react';
 import { normalizeEmail } from '@/lib/normalizeEmail';
 import { normalizeOrderStatus, ORDER_STATUS_CONFIG } from '@/types/orderStatus';
+import { useAuth } from '@/hooks/useAuth';
 
 export interface OrderItem {
   id: string;
@@ -63,38 +64,96 @@ function useCurrentUserEmail(): { email: string | null; isLoading: boolean } {
   return { email, isLoading };
 }
 
-// List orders for a customer via edge function (secure, no direct DB reads)
+// Admin view: fetch orders for a specific customer email directly from DB
 export function useCustomerOrders(customerEmailOverride?: string) {
+  const { currentTenant } = useAuth();
   const { email: authEmail, isLoading: authLoading } = useCurrentUserEmail();
   
   const rawEmail = customerEmailOverride || authEmail;
   const customerEmail = normalizeEmail(rawEmail);
+  const tenantId = currentTenant?.id;
+
+  // If customerEmailOverride is provided, we're in admin mode → query DB directly
+  const isAdminMode = !!customerEmailOverride;
 
   const ordersQuery = useQuery({
-    queryKey: ['customer-orders', customerEmail],
+    queryKey: ['customer-orders', customerEmail, tenantId, isAdminMode],
     queryFn: async (): Promise<CustomerOrder[]> => {
       if (!customerEmail) return [];
 
-      console.log('[useCustomerOrders] Fetching orders via edge function for:', customerEmail);
+      if (isAdminMode && tenantId) {
+        // ADMIN MODE: Direct DB query filtered by the customer's email + tenant
+        console.log('[useCustomerOrders] Admin mode - querying DB for:', customerEmail);
 
-      const { data, error } = await supabase.functions.invoke('order-lookup', {
-        body: { action: 'list', customer_email: customerEmail },
-      });
+        const { data: orders, error } = await supabase
+          .from('orders')
+          .select('id, order_number, status, payment_status, shipping_status, total, subtotal, shipping_total, discount_total, created_at, shipped_at, delivered_at, tracking_code, shipping_carrier, customer_name, customer_email, items_count')
+          .eq('tenant_id', tenantId)
+          .ilike('customer_email', customerEmail)
+          .order('created_at', { ascending: false })
+          .limit(100);
 
-      if (error) {
-        console.error('[useCustomerOrders] Edge function error:', error);
-        throw error;
+        if (error) {
+          console.error('[useCustomerOrders] DB error:', error);
+          throw error;
+        }
+
+        // Fetch items for each order
+        const orderIds = (orders || []).map(o => o.id);
+        let itemsMap: Record<string, OrderItem[]> = {};
+        
+        if (orderIds.length > 0) {
+          const { data: items } = await supabase
+            .from('order_items')
+            .select('id, order_id, product_name, product_image_url, quantity, unit_price, total_price')
+            .in('order_id', orderIds);
+
+          if (items) {
+            for (const item of items) {
+              const oid = (item as any).order_id;
+              if (!itemsMap[oid]) itemsMap[oid] = [];
+              itemsMap[oid].push({
+                id: item.id,
+                product_name: item.product_name,
+                product_image_url: item.product_image_url || undefined,
+                quantity: item.quantity,
+                unit_price: item.unit_price,
+                total_price: item.total_price,
+              });
+            }
+          }
+        }
+
+        return (orders || []).map(o => ({
+          ...o,
+          subtotal: o.subtotal || 0,
+          shipping_total: o.shipping_total || 0,
+          discount_total: o.discount_total || 0,
+          items: itemsMap[o.id] || [],
+          customer_name: o.customer_name || '',
+          customer_email: o.customer_email || '',
+        })) as CustomerOrder[];
+      } else {
+        // STOREFRONT MODE: Use edge function (for logged-in customers viewing their own orders)
+        console.log('[useCustomerOrders] Storefront mode - edge function for:', customerEmail);
+
+        const { data, error } = await supabase.functions.invoke('order-lookup', {
+          body: { action: 'list', customer_email: customerEmail },
+        });
+
+        if (error) {
+          console.error('[useCustomerOrders] Edge function error:', error);
+          throw error;
+        }
+
+        if (!data?.success) {
+          throw new Error(data?.error || 'Erro ao buscar pedidos');
+        }
+
+        return (data.orders || []) as CustomerOrder[];
       }
-
-      if (!data?.success) {
-        console.error('[useCustomerOrders] Request failed:', data?.error);
-        throw new Error(data?.error || 'Erro ao buscar pedidos');
-      }
-
-      console.log('[useCustomerOrders] Found orders:', data.orders?.length || 0);
-      return (data.orders || []) as CustomerOrder[];
     },
-    enabled: !authLoading && !!customerEmail,
+    enabled: !authLoading && !!customerEmail && (!isAdminMode || !!tenantId),
   });
 
   return {
@@ -113,20 +172,12 @@ export function useCustomerOrder(orderId?: string) {
     queryFn: async (): Promise<CustomerOrder | null> => {
       if (!orderId) return null;
 
-      console.log('[useCustomerOrder] Fetching order via edge function:', orderId);
-
       const { data, error } = await supabase.functions.invoke('order-lookup', {
         body: { action: 'get', order_id: orderId },
       });
 
-      if (error) {
-        console.error('[useCustomerOrder] Edge function error:', error);
-        throw error;
-      }
-
-      if (!data?.success) {
-        throw new Error(data?.error || 'Erro ao buscar pedido');
-      }
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Erro ao buscar pedido');
 
       return (data.order as CustomerOrder) || null;
     },
