@@ -222,23 +222,26 @@ export function useImportData() {
       console.warn('[useImportData] Could not update job status to processing:', e);
     }
 
-    // Process in batches using import-batch function
+    // Process in batches using canonical motors
+    const motorMap: Record<string, string> = {
+      products: 'import-products',
+      orders: 'import-orders',
+      customers: 'import-customers',
+    };
+    const motorName = motorMap[module] || 'import-batch';
+
     for (let i = 0; i < totalBatches; i++) {
       const batchItems = data.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
       
       try {
-        console.log(`[useImportData] Sending batch ${i + 1}/${totalBatches} for ${module} (${batchItems.length} items)`);
+        console.log(`[useImportData] Sending batch ${i + 1}/${totalBatches} for ${module} via ${motorName} (${batchItems.length} items)`);
         
-        const { data: result, error } = await supabase.functions.invoke('import-batch', {
-          body: {
-            jobId: job.id,
-            tenantId,
-            platform,
-            module,
-            items: batchItems,
-            batchIndex: i,
-            categoryMap,
-          },
+        const body: any = module === 'customers'
+          ? { mode: 'normalized_batch', jobId: job.id, tenantId, items: batchItems }
+          : { jobId: job.id, tenantId, platform, module, items: batchItems, batchIndex: i, categoryMap };
+
+        const { data: result, error } = await supabase.functions.invoke(motorName, {
+          body,
         });
 
         if (error) {
@@ -246,13 +249,15 @@ export function useImportData() {
           totalFailed += batchItems.length;
           allErrors.push({ batch: i, error: error.message });
         } else if (result?.success && result.results) {
-          totalImported += result.results.imported || 0;
-          totalUpdated += result.results.updated || 0;
-          totalFailed += result.results.failed || 0;
-          totalSkipped += result.results.skipped || 0;
+          // Standard envelope: { created, updated, unchanged, skipped, errors }
+          const r = result.results;
+          totalImported += r.created || r.imported || 0;
+          totalUpdated += r.updated || 0;
+          totalFailed += r.errors || r.failed || 0;
+          totalSkipped += r.skipped || 0;
           
-          if (result.results.itemErrors?.length > 0) {
-            allErrors.push(...result.results.itemErrors);
+          if (r.itemErrors?.length > 0) {
+            allErrors.push(...r.itemErrors);
           }
         } else {
           console.error(`[useImportData] Batch ${i} failed:`, result?.error);

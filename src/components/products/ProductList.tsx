@@ -19,7 +19,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Plus, Search, MoreHorizontal, Pencil, Trash2, Package, Copy, ImageIcon, Eye } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Pencil, Trash2, Package, Copy, ImageIcon, Eye, Upload } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { QueryErrorState } from '@/components/ui/query-error-state';
@@ -31,6 +31,7 @@ import { usePrimaryPublicHost, buildPublicStorefrontUrl } from '@/hooks/usePrima
 interface ProductListProps {
   onCreateProduct: () => void;
   onEditProduct: (product: Product) => void;
+  onImport?: () => void;
 }
 
 interface ProductWithImage extends Product {
@@ -44,7 +45,7 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
   archived: { label: 'Arquivado', variant: 'destructive' },
 };
 
-export function ProductList({ onCreateProduct, onEditProduct }: ProductListProps) {
+export function ProductList({ onCreateProduct, onEditProduct, onImport }: ProductListProps) {
   const { products, isLoading, isError, refetch, deleteProduct, createProduct } = useProducts();
   const { currentTenant } = useAuth();
   const { primaryOrigin } = usePrimaryPublicHost(currentTenant?.id, currentTenant?.slug);
@@ -215,10 +216,18 @@ export function ProductList({ onCreateProduct, onEditProduct }: ProductListProps
             className="pl-10"
           />
         </div>
-        <Button onClick={onCreateProduct}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Produto
-        </Button>
+        <div className="flex gap-2">
+          {onImport && (
+            <Button variant="outline" onClick={onImport}>
+              <Upload className="mr-2 h-4 w-4" />
+              Importar
+            </Button>
+          )}
+          <Button onClick={onCreateProduct}>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo Produto
+          </Button>
+        </div>
       </div>
 
       {filteredProducts.length === 0 ? (

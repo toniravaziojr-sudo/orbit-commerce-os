@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { PageHeader } from '@/components/ui/page-header';
 import { ProductList } from '@/components/products/ProductList';
 import { ProductForm } from '@/components/products/ProductForm';
+import { FileImportDialog } from '@/components/import/FileImportDialog';
 import { Product } from '@/hooks/useProducts';
 
 type View = 'list' | 'create' | 'edit';
@@ -9,6 +10,7 @@ type View = 'list' | 'create' | 'edit';
 export default function Products() {
   const [view, setView] = useState<View>('list');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   // ... keep existing code (handlers)
   const handleCreateProduct = () => {
@@ -42,6 +44,7 @@ export default function Products() {
           <ProductList
             onCreateProduct={handleCreateProduct}
             onEditProduct={handleEditProduct}
+            onImport={() => setImportOpen(true)}
           />
         </>
       )}
@@ -53,6 +56,12 @@ export default function Products() {
           onSuccess={handleSuccess}
         />
       )}
+
+      <FileImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        module="products"
+      />
     </div>
   );
 }

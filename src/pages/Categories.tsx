@@ -7,11 +7,12 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, FolderTree, Package, Pencil, Trash2, ExternalLink, Save } from 'lucide-react';
+import { Plus, FolderTree, Package, Pencil, Trash2, ExternalLink, Save, Globe } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CategoryForm } from '@/components/categories/CategoryForm';
 import { CategoryProductsManager } from '@/components/categories/CategoryProductsManager';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { UrlImportDialog } from '@/components/import/UrlImportDialog';
 
 const emptyFormData = {
   name: '',
@@ -35,6 +36,7 @@ export default function Categories() {
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [formData, setFormData] = useState(emptyFormData);
   const [activeTab, setActiveTab] = useState<'details' | 'products'>('details');
+  const [importOpen, setImportOpen] = useState(false);
 
   const resetForm = () => {
     setFormData(emptyFormData);
@@ -113,10 +115,17 @@ export default function Categories() {
         title="Categorias"
         description="Gerencie as categorias da sua loja. A hierarquia de navegação é definida nos Menus."
         actions={
-          <Button onClick={handleCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            Nova Categoria
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Globe className="mr-2 h-4 w-4" />
+              Importar
+            </Button>
+            <Button onClick={handleCreate}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nova Categoria
+            </Button>
+            <UrlImportDialog open={importOpen} onOpenChange={setImportOpen} module="categories" />
+          </div>
         }
       />
 

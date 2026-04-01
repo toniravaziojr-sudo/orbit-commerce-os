@@ -5,8 +5,11 @@ import { useCategories } from '@/hooks/useProducts';
 import { useStorePages } from '@/hooks/useStorePages';
 import { PageHeader } from '@/components/ui/page-header';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { Globe } from 'lucide-react';
 import MenuPanel from '@/components/menus/MenuPanel';
 import MenuItemDialog from '@/components/menus/MenuItemDialog';
+import { UrlImportDialog } from '@/components/import/UrlImportDialog';
 
 // Local item type for pending changes
 interface LocalMenuItem {
@@ -31,6 +34,7 @@ export default function Menus() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMenuId, setDialogMenuId] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   
   // Callback refs for local state updates
   const onItemCreatedRef = useRef<((item: LocalMenuItem) => void) | null>(null);
@@ -126,6 +130,15 @@ export default function Menus() {
       <PageHeader
         title="Menus"
         description="Gerencie os menus de navegação da sua loja"
+        actions={
+          <>
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Globe className="mr-2 h-4 w-4" />
+              Importar
+            </Button>
+            <UrlImportDialog open={importOpen} onOpenChange={setImportOpen} module="menus" />
+          </>
+        }
       />
 
       {menusError && (

@@ -717,6 +717,7 @@ async function importCategory(
         internal_id: categoryId,
         external_id: candidate.url,
         status: 'success',
+        result: 'updated',
         data: { slug: candidate.slug, name: candidate.name, productCount: candidate.productCount }
       }, {
         onConflict: 'tenant_id,module,external_id',
@@ -751,6 +752,7 @@ async function importCategory(
         internal_id: categoryId,
         external_id: candidate.url,
         status: 'success',
+        result: 'created',
         data: { slug: candidate.slug, name: candidate.name, productCount: candidate.productCount }
       }, {
         onConflict: 'tenant_id,module,external_id',
@@ -877,6 +879,7 @@ Deno.serve(async (req) => {
 
       return jsonResponse({
         success: true,
+        results: { created: 0, updated: 0, unchanged: 0, skipped: 0, errors: 0, itemErrors: [] },
         stats: { total: 0, created: 0, updated: 0, skipped: 0, failed: 0, productsLinked: 0 },
         message: 'Nenhuma categoria encontrada'
       });
@@ -925,6 +928,14 @@ Deno.serve(async (req) => {
 
     return jsonResponse({
       success: true,
+      results: {
+        created: stats.created,
+        updated: stats.updated,
+        unchanged: 0,
+        skipped: stats.skipped,
+        errors: stats.failed,
+        itemErrors: [],
+      },
       stats,
       message: `Importação concluída: ${stats.created} criadas, ${stats.updated} atualizadas, ${stats.productsLinked} produtos vinculados`
     });

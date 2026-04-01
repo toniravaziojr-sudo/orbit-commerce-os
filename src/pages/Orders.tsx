@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, Plus, Search, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Package, Plus, Search, Download, ChevronLeft, ChevronRight, Upload } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +19,7 @@ import { useOrders, type Order, type OrderStatus } from '@/hooks/useOrders';
 import { normalizeOrderStatus } from '@/types/orderStatus';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { FeatureGate } from '@/components/layout/FeatureGate';
+import { FileImportDialog } from '@/components/import/FileImportDialog';
 
 const PAGE_SIZE = 50;
 
@@ -34,6 +35,7 @@ export default function Orders() {
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [dateField, setDateField] = useState('created_at');
+  const [importOpen, setImportOpen] = useState(false);
 
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
@@ -123,6 +125,10 @@ export default function Orders() {
         description="Gestão de pedidos, pagamentos e envios"
         actions={
           <div className="flex gap-3">
+            <Button variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
+              <Upload className="h-4 w-4" />
+              Importar
+            </Button>
             <FeatureGate feature="export_orders">
               <Button variant="outline" className="gap-2">
                 <Download className="h-4 w-4" />
@@ -133,6 +139,7 @@ export default function Orders() {
               <Plus className="h-4 w-4" />
               Novo Pedido
             </Button>
+            <FileImportDialog open={importOpen} onOpenChange={setImportOpen} module="orders" />
           </div>
         }
       />
