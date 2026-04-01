@@ -102,9 +102,10 @@ export function ApprovalTab({
   };
 
   const handlePublish = async () => {
-    if (!items || !currentTenant) return;
+    if (!items) { toast.error("Dados não carregados, tente novamente."); return; }
+    if (!currentTenant) { toast.error("Sessão não encontrada. Recarregue a página."); return; }
     const toPublish = approvedItems.filter(i => selectedIds.has(i.id));
-    if (toPublish.length === 0) { toast.info("Selecione itens aprovados para publicar."); return; }
+    if (toPublish.length === 0) { toast.info("Selecione itens aprovados para agendar."); return; }
 
     setIsPublishing(true);
     try {
@@ -133,7 +134,7 @@ export function ApprovalTab({
         const { data, error } = await supabase.functions.invoke("meta-publish-post", {
           body: { calendar_item_ids: toPublish.map(i => i.id), tenant_id: currentTenant.id },
         });
-        if (error) toast.error("Erro ao publicar");
+        if (error) toast.error("Erro ao agendar");
         else if (data?.success) {
           const parts = [];
           if (data.published > 0) parts.push(`${data.published} publicado(s)`);
@@ -144,7 +145,7 @@ export function ApprovalTab({
       }
       setSelectedIds(new Set());
       await refetchItems();
-    } catch { toast.error("Erro ao publicar"); }
+    } catch { toast.error("Erro ao agendar"); }
     finally { setIsPublishing(false); }
   };
 
@@ -245,7 +246,7 @@ export function ApprovalTab({
                 {filter === "approved" && selectedIds.size > 0 && (
                   <Button size="sm" onClick={handlePublish} disabled={isPublishing} className="gap-1">
                     {isPublishing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                    Publicar ({selectedIds.size})
+                    Agendar ({selectedIds.size})
                   </Button>
                 )}
               </div>
