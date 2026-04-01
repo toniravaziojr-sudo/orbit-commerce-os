@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.0.0"; // Parallel dispatcher: steps 4-7 run concurrently via Promise.allSettled
+const VERSION = "v2.1.0"; // Added hourly email marketing list sync
 // ===========================================================
 
 const corsHeaders = {
