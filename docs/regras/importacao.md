@@ -712,6 +712,21 @@ Regras:
 
 Isso permite auditoria precisa separando falhas técnicas de decisões de negócio.
 
+### RN-IMP-022: Lookup em Lotes para Grandes Volumes (import-customers)
+
+O motor `import-customers` realiza a busca de clientes e endereços existentes em **lotes de 500 registros** para evitar dois limites do banco de dados:
+
+1. **Limite do operador `.in()`**: Queries com milhares de valores no filtro podem exceder o tamanho máximo permitido pelo PostgreSQL.
+2. **Limite de 1.000 linhas por resposta**: O banco retorna no máximo 1.000 registros por query. Sem batching, importações com mais de 1.000 clientes existentes falhavam silenciosamente — o sistema "não encontrava" clientes já cadastrados e tentava criá-los novamente, gerando erros de duplicação.
+
+**Implementação:**
+- Constante `LOOKUP_BATCH = 500` define o tamanho de cada lote.
+- Emails são divididos em grupos de 500 e consultados sequencialmente.
+- Os resultados são acumulados em um `Map` para lookup O(1) durante o processamento.
+- O mesmo padrão é aplicado para busca de endereços existentes (`customer_addresses`).
+
+**Impacto:** Importações de qualquer volume (testado com ~8.000 clientes) agora identificam corretamente todos os registros existentes, permitindo que o Smart Merge funcione sem criar duplicatas.
+
 ---
 
 ## Limpador de Dados Importados
