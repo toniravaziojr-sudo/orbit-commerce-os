@@ -45,7 +45,7 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
   archived: { label: 'Arquivado', variant: 'destructive' },
 };
 
-export function ProductList({ onCreateProduct, onEditProduct }: ProductListProps) {
+export function ProductList({ onCreateProduct, onEditProduct, onImport }: ProductListProps) {
   const { products, isLoading, isError, refetch, deleteProduct, createProduct } = useProducts();
   const { currentTenant } = useAuth();
   const { primaryOrigin } = usePrimaryPublicHost(currentTenant?.id, currentTenant?.slug);
