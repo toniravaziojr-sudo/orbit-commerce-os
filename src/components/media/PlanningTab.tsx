@@ -400,10 +400,14 @@ export function PlanningTab({
         if (!error && data?.success) { successCount++; if (data.generation_id) generationIds.push(data.generation_id); }
       }
       if (successCount === 0) { toast.error("Falha ao iniciar geração"); setIsGeneratingAssets(false); setGenerationProgress(null); return; }
-      toast.info(`Gerando ${successCount} criativo(s)... Aguarde.`);
+      toast.info(
+        selectedItems.length === eligible.length
+          ? `Gerando ${successCount} criativo(s)... Aguarde.`
+          : `Gerando ${successCount} criativo(s) elegível(is) de ${selectedItems.length} publicação(ões) selecionada(s).`
+      );
       const pollInterval = setInterval(async () => {
         if (generationIds.length > 0) {
-          const { data: gens } = await supabase.from("media_asset_generations").select("id, status").in("id", generationIds);
+          const { data: gens } = await supabase.from("media_asset_generations").select("id, status, error_message").in("id", generationIds);
           const pending = gens?.filter(g => g.status === "queued" || g.status === "generating").length || 0;
           const failed = gens?.filter(g => g.status === "failed").length || 0;
           const succeeded = gens?.filter(g => g.status === "succeeded").length || 0;
@@ -412,7 +416,22 @@ export function PlanningTab({
             clearInterval(pollInterval);
             setGenerationProgress(null); setIsGeneratingAssets(false);
             if (succeeded > 0) toast.success(`${succeeded} criativo(s) gerado(s)!`);
-            if (failed > 0) toast.error(`${failed} criativo(s) falharam`);
+            if (failed > 0) {
+              const failedMessages = (gens || [])
+                .filter(g => g.status === "failed")
+                .map(g => g.error_message || "")
+                .filter(Boolean);
+              const insufficientCredits = failedMessages.some(msg => msg.includes("Créditos insuficientes"));
+              const missingProductImage = failedMessages.some(msg => msg.includes("nenhum tem imagem cadastrada"));
+
+              if (insufficientCredits) {
+                toast.error("A geração falhou porque o fallback de imagens está sem saldo disponível no momento.");
+              } else if (missingProductImage) {
+                toast.error("Algumas publicações citaram produtos sem imagem cadastrada, então o criativo foi bloqueado.");
+              } else {
+                toast.error(`${failed} criativo(s) falharam`);
+              }
+            }
             await refetchItems();
           }
         }
