@@ -307,7 +307,7 @@ Quando uma lista é criada:
 - Chama `upsert_subscriber_only` com `p_list_id` — NÃO cria customer (apenas subscriber)
 - Se já existir customer com mesmo email, vincula automaticamente
 - Deduplicação por email garantida em todos os caminhos (popup, footer, chat, formulários)
-- **Alterado em 01/04/2026:** substituído `sync_subscriber_to_customer_with_tag` por `upsert_subscriber_only` para respeitar contrato Lead ≠ Customer
+- **Alterado em 01/04/2026:** substituído `sync_subscriber_to_customer_with_tag` por `upsert_subscriber_only` para respeitar contrato Lead ≠ Customer. Função legada removida do banco em 01/04/2026.
 
 ---
 

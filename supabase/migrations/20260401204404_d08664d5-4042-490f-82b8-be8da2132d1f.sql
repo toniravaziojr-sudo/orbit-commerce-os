@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.sync_subscriber_to_customer_with_tag;
