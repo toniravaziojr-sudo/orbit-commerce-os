@@ -371,6 +371,43 @@ export async function getMetaCapiConfig(
     .maybeSingle();
 
   if (error || !data) return null;
+
+  // If CAPI is enabled, try to get the fresh token from the active V4 grant
+  // The token in marketing_integrations can become stale after password changes
+  if (data.meta_capi_enabled && data.meta_pixel_id) {
+    try {
+      const { getMetaConnectionForTenant } = await import("./meta-connection.ts");
+      const conn = await getMetaConnectionForTenant(supabase, tenantId, "capi-config");
+      if (conn?.access_token) {
+        // Use the fresh token from the grant, update marketing_integrations in background
+        if (data.meta_access_token !== conn.access_token) {
+          console.log(`[meta-capi] Using fresh token from V4 grant for tenant ${tenantId}`);
+          // Update the stale token in background (fire-and-forget)
+          supabase
+            .from('marketing_integrations')
+            .update({
+              meta_access_token: conn.access_token,
+              meta_status: 'active',
+              meta_last_error: null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('tenant_id', tenantId)
+            .then(({ error: updateErr }: any) => {
+              if (updateErr) console.warn(`[meta-capi] Failed to sync token to marketing_integrations:`, updateErr.message);
+              else console.log(`[meta-capi] Token synced to marketing_integrations for ${tenantId}`);
+            });
+
+          return {
+            ...data,
+            meta_access_token: conn.access_token,
+          } as MetaCapiConfig;
+        }
+      }
+    } catch (err) {
+      console.warn(`[meta-capi] Failed to get fresh token from grant, using stored token:`, (err as Error).message);
+    }
+  }
+
   return data as MetaCapiConfig;
 }
 
