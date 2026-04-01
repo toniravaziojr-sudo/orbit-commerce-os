@@ -394,20 +394,31 @@ async function smartMergeImport(
 
   const emails = uniqueCustomers.map(c => c.email);
 
+  console.log(`[import-customers v${VERSION}] DIAG: ${uniqueCustomers.length} unique emails to process, ${skippedDupes} dupes within CSV`);
+  console.log(`[import-customers v${VERSION}] DIAG: Sample emails[0..4]:`, JSON.stringify(emails.slice(0, 5)));
+
   // Pre-fetch existing customers in batches of 500 to avoid .in() limits
+  // IMPORTANT: each batch uses .limit(LOOKUP_BATCH) to override Supabase's default 1000-row cap
   const LOOKUP_BATCH = 500;
   const existingMap = new Map<string, any>();
   for (let i = 0; i < emails.length; i += LOOKUP_BATCH) {
     const emailBatch = emails.slice(i, i + LOOKUP_BATCH);
-    const { data: batch } = await supabase
+    const { data: batch, error: lookupErr } = await supabase
       .from('customers')
       .select('id, email, phone, cpf, cnpj, company_name, person_type, birth_date, gender, notes, total_spent, total_orders, accepts_marketing, accepts_email_marketing, accepts_sms_marketing')
       .eq('tenant_id', tenantId)
-      .in('email', emailBatch);
+      .in('email', emailBatch)
+      .limit(LOOKUP_BATCH);
+    
+    const batchNum = Math.floor(i / LOOKUP_BATCH) + 1;
+    console.log(`[import-customers v${VERSION}] DIAG: Lookup batch ${batchNum}: queried=${emailBatch.length}, found=${(batch || []).length}, error=${lookupErr ? lookupErr.message : 'none'}`);
+    
     for (const c of (batch || [])) {
       existingMap.set(c.email, c);
     }
   }
+
+  console.log(`[import-customers v${VERSION}] DIAG: Total existing found in map: ${existingMap.size} out of ${emails.length} emails`);
 
   // Pre-fetch existing addresses in batches
   const existingCustomerIds = Array.from(existingMap.values()).map((c: any) => c.id);
@@ -417,7 +428,8 @@ async function smartMergeImport(
     const { data: existingAddrs } = await supabase
       .from('customer_addresses')
       .select('customer_id')
-      .in('customer_id', idBatch);
+      .in('customer_id', idBatch)
+      .limit(LOOKUP_BATCH);
     for (const addr of (existingAddrs || [])) {
       customerAddressMap.set(addr.customer_id, true);
     }
