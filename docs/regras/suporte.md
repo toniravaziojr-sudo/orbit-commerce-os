@@ -128,10 +128,24 @@ Cada conversa exibe o ícone do canal sobre o avatar (canto inferior direito):
 | Email | `Mail` (lucide) | Azul (`text-blue-500`) |
 | Facebook Messenger | `MessageSquare` (lucide) | Azul escuro (`text-blue-600`) |
 | Instagram DM | `Instagram` (lucide) | Rosa (`text-pink-500`) |
+| Comentários Instagram | `Instagram` (lucide) | Rosa claro (`text-pink-400`) |
+| Comentários Facebook | `MessageSquare` (lucide) | Azul (`text-blue-500`) |
 | Mercado Livre | `ShoppingCart` (lucide) | Amarelo (`text-yellow-500`) |
 | Shopee | `ShoppingCart` (lucide) | Laranja (`text-orange-500`) |
 | TikTok Shop | `Music` (lucide) | Foreground |
 | Chat do Site | `Globe` (lucide) | Primary |
+
+### Canais com Auto-Detecção Meta (v4.5)
+
+Os canais `instagram_dm`, `facebook_messenger`, `instagram_comments` e `facebook_comments` detectam automaticamente a integração Meta ativa na tabela `tenant_meta_integrations`. Quando ativados via Integrações, aparecem como "Ativo — Via Integrações Meta" sem necessidade de configuração manual no Atendimento.
+
+Mapeamento de `integration_id` → `channel_type`:
+| integration_id | channel_type |
+|---|---|
+| `instagram_direct` | `instagram_dm` |
+| `facebook_messenger` | `facebook_messenger` |
+| `instagram_comentarios` | `instagram_comments` |
+| `facebook_comentarios` | `facebook_comments` |
 
 ### Abas de Filtro
 

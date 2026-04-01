@@ -46,6 +46,8 @@ const channelRestrictions: Partial<Record<SupportChannelType, { name: string; re
   email: { name: "Email", restrictions: [] },
   facebook_messenger: { name: "Messenger", restrictions: [] },
   instagram_dm: { name: "Instagram DM", restrictions: [] },
+  instagram_comments: { name: "Comentários Instagram", restrictions: ["Respostas devem ser curtas e públicas"] },
+  facebook_comments: { name: "Comentários Facebook", restrictions: ["Respostas devem ser curtas e públicas"] },
   chat: { name: "Chat do Site", restrictions: [] },
 };
 

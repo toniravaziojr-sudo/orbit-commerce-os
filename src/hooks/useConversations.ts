@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 export type ConversationStatus = 'new' | 'open' | 'waiting_customer' | 'waiting_agent' | 'bot' | 'resolved' | 'spam';
-export type SupportChannelType = 'whatsapp' | 'email' | 'facebook_messenger' | 'instagram_dm' | 'mercadolivre' | 'shopee' | 'tiktokshop' | 'chat';
+export type SupportChannelType = 'whatsapp' | 'email' | 'facebook_messenger' | 'instagram_dm' | 'instagram_comments' | 'facebook_comments' | 'mercadolivre' | 'shopee' | 'tiktokshop' | 'chat';
 
 export interface Conversation {
   id: string;

@@ -39,6 +39,10 @@ function ChannelIcon({ channel, className }: { channel: SupportChannelType; clas
       return <MessageSquare className={cn(iconClass, "text-blue-600")} />;
     case 'instagram_dm':
       return <Instagram className={cn(iconClass, "text-pink-500")} />;
+    case 'instagram_comments':
+      return <Instagram className={cn(iconClass, "text-pink-400")} />;
+    case 'facebook_comments':
+      return <MessageSquare className={cn(iconClass, "text-blue-500")} />;
     case 'mercadolivre':
       return <ShoppingCart className={cn(iconClass, "text-yellow-500")} />;
     case 'shopee':
@@ -149,7 +153,9 @@ export function ConversationList({
             <SelectItem value="whatsapp">💬 WhatsApp</SelectItem>
             <SelectItem value="email">✉️ Email</SelectItem>
             <SelectItem value="facebook_messenger">📘 Messenger</SelectItem>
-            <SelectItem value="instagram_dm">📸 Instagram</SelectItem>
+            <SelectItem value="instagram_dm">📸 Instagram DM</SelectItem>
+            <SelectItem value="instagram_comments">💬 Comentários IG</SelectItem>
+            <SelectItem value="facebook_comments">💬 Comentários FB</SelectItem>
             <SelectItem value="mercadolivre">🛒 Mercado Livre</SelectItem>
             <SelectItem value="shopee">🧡 Shopee</SelectItem>
           </SelectContent>

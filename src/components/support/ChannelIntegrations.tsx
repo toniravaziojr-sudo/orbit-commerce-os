@@ -26,6 +26,19 @@ interface IntegrationStatus {
   mercadolivre: { configured: boolean; connected: boolean; username?: string };
 }
 
+// Meta integration IDs mapped to support channel types
+const META_CHANNEL_MAP: Record<string, SupportChannelType> = {
+  instagram_direct: 'instagram_dm',
+  facebook_messenger: 'facebook_messenger',
+  instagram_comentarios: 'instagram_comments',
+  facebook_comentarios: 'facebook_comments',
+};
+
+interface MetaChannelStatus {
+  configured: boolean;
+  label?: string;
+}
+
 const channelInfo: Record<SupportChannelType, { name: string; icon: string; description: string; integrationPath: string }> = {
   whatsapp: {
     name: 'WhatsApp',
@@ -43,13 +56,25 @@ const channelInfo: Record<SupportChannelType, { name: string; icon: string; desc
     name: 'Messenger',
     icon: '📘',
     description: 'Atenda pelo Facebook Messenger',
-    integrationPath: '',
+    integrationPath: '/integrations',
   },
   instagram_dm: {
     name: 'Instagram DM',
     icon: '📸',
     description: 'Responda mensagens diretas do Instagram',
-    integrationPath: '',
+    integrationPath: '/integrations',
+  },
+  instagram_comments: {
+    name: 'Comentários Instagram',
+    icon: '💬',
+    description: 'Responda comentários nas publicações do Instagram',
+    integrationPath: '/integrations',
+  },
+  facebook_comments: {
+    name: 'Comentários Facebook',
+    icon: '💬',
+    description: 'Responda comentários nas publicações do Facebook',
+    integrationPath: '/integrations',
   },
   mercadolivre: {
     name: 'Mercado Livre',
@@ -80,6 +105,9 @@ const channelInfo: Record<SupportChannelType, { name: string; icon: string; desc
 // Canais que usam integrações existentes (não precisam de config própria)
 const linkedChannels: SupportChannelType[] = ['whatsapp', 'email'];
 
+// Canais que usam integração Meta (auto-detectados)
+const metaLinkedChannels: SupportChannelType[] = ['facebook_messenger', 'instagram_dm', 'instagram_comments', 'facebook_comments'];
+
 // Canais disponíveis para o tenant plataforma (admin) - sem marketplaces
 const PLATFORM_TENANT_CHANNELS: SupportChannelType[] = ['whatsapp', 'email', 'facebook_messenger', 'instagram_dm'];
 
@@ -102,9 +130,10 @@ export function ChannelIntegrations() {
     email: { configured: false, verified: false },
     mercadolivre: { configured: false, connected: false },
   });
+  const [metaChannelStatus, setMetaChannelStatus] = useState<Record<string, MetaChannelStatus>>({});
   const [loadingStatus, setLoadingStatus] = useState(true);
 
-  // Fetch integration status from existing configs
+  // Fetch integration status from existing configs + Meta integrations
   useEffect(() => {
     const fetchIntegrationStatus = async () => {
       if (!currentTenant?.id) return;
@@ -122,6 +151,27 @@ export function ChannelIntegrations() {
           .select('id, verification_status, from_email, from_name')
           .eq('tenant_id', currentTenant.id)
           .maybeSingle();
+
+        // Check Meta integrations (DM, Messenger, Comments)
+        const { data: metaIntegrations } = await supabase
+          .from('tenant_meta_integrations')
+          .select('integration_id, status, selected_assets')
+          .eq('tenant_id', currentTenant.id)
+          .eq('status', 'active')
+          .in('integration_id', ['instagram_direct', 'facebook_messenger', 'instagram_comentarios', 'facebook_comentarios']);
+
+        const metaStatus: Record<string, MetaChannelStatus> = {};
+        for (const mi of metaIntegrations || []) {
+          const channelType = META_CHANNEL_MAP[mi.integration_id];
+          if (channelType) {
+            const assets = mi.selected_assets as any;
+            const label = assets?.instagram?.username 
+              ? `@${assets.instagram.username}` 
+              : assets?.page?.name || 'Conectado';
+            metaStatus[channelType] = { configured: true, label };
+          }
+        }
+        setMetaChannelStatus(metaStatus);
 
         setIntegrationStatus({
           whatsapp: {
@@ -245,8 +295,10 @@ export function ChannelIntegrations() {
           const info = channelInfo[type];
           const channel = channels.find(c => c.channel_type === type);
           const isLinkedChannel = linkedChannels.includes(type);
-          const integrationReady = isIntegrationReady(type);
-          const integrationLabel = getIntegrationLabel(type);
+          const isMetaChannel = metaLinkedChannels.includes(type);
+          const metaStatus = metaChannelStatus[type];
+          const integrationReady = isMetaChannel ? !!metaStatus?.configured : isIntegrationReady(type);
+          const integrationLabel = isMetaChannel ? metaStatus?.label : getIntegrationLabel(type);
 
           return (
             <Card key={type} className={channel?.is_active ? 'border-primary/50' : ''}>
@@ -266,8 +318,8 @@ export function ChannelIntegrations() {
                 <CardDescription>{info.description}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {isLinkedChannel ? (
-                  // WhatsApp and Email - use existing integrations
+                {(isLinkedChannel || isMetaChannel) ? (
+                  // WhatsApp, Email, and Meta channels - use existing integrations
                   integrationReady ? (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
@@ -276,7 +328,7 @@ export function ChannelIntegrations() {
                             {integrationLabel || 'Integração configurada'}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Via Integrações
+                            {isMetaChannel ? 'Via Integrações Meta' : 'Via Integrações'}
                           </p>
                         </div>
                         <Switch
@@ -321,7 +373,7 @@ export function ChannelIntegrations() {
                       <div className="flex items-center gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
                         <AlertCircle className="h-5 w-5 text-yellow-600" />
                         <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                          Configure primeiro em Integrações
+                          {isMetaChannel ? 'Ative este recurso em Integrações Meta' : 'Configure primeiro em Integrações'}
                         </p>
                       </div>
                       <Button 
