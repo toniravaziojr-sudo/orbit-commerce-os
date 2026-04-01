@@ -637,7 +637,6 @@ async function smartMergeImport(
     }
 
     if (!inserted || inserted.length === 0) continue;
-    }
 
     // Post-insert: addresses, tags, subscribers
     const emailToId = new Map(inserted.map((c: any) => [c.email, c.id]));
