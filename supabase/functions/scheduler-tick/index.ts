@@ -460,14 +460,15 @@ serve(async (req) => {
 
       // ====================================================================
       // PHASE 2: Parallel dispatcher (independent tasks, only pass 1)
-      // reconcile-payments, tracking-poll, process-scheduled-emails, creative-process
+      // reconcile-payments, tracking-poll, process-scheduled-emails,
+      // creative-process e media-social-publish-worker
       // ALL run concurrently via Promise.allSettled
       // ====================================================================
       if (pass === 1) {
-        console.log(`[scheduler-tick] Starting parallel phase (4 tasks)...`);
+        console.log(`[scheduler-tick] Starting parallel phase (5 tasks)...`);
         const parallelStart = Date.now();
 
-        const [reconcileResult, trackingResult, emailsResult, creativeResult] = await Promise.allSettled([
+        const [reconcileResult, trackingResult, emailsResult, creativeResult, socialPublishResult] = await Promise.allSettled([
           // Task A: reconcile-payments
           callSubFunction(supabaseUrl, supabaseServiceKey, 'reconcile-payments', { limit: 20 }),
           // Task B: tracking-poll
@@ -476,6 +477,8 @@ serve(async (req) => {
           callSubFunction(supabaseUrl, supabaseServiceKey, 'process-scheduled-emails', {}),
           // Task D: creative-process (poll_running)
           callSubFunction(supabaseUrl, supabaseServiceKey, 'creative-process', { poll_running: true }),
+          // Task E: media-social-publish-worker
+          callSubFunction(supabaseUrl, supabaseServiceKey, 'media-social-publish-worker', {}),
         ]);
 
         const parallelDuration = Date.now() - parallelStart;
