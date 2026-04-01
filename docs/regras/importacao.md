@@ -743,7 +743,8 @@ import_items (
   module TEXT,           -- 'products', 'categories', 'customers', 'orders', 'menus', 'pages'
   external_id TEXT,      -- ID/URL original da plataforma de origem
   internal_id UUID,      -- ID no nosso sistema (FK para a tabela do módulo)
-  status TEXT,           -- 'success', 'failed', 'skipped'
+  status TEXT,           -- 'success' | 'error' (técnico)
+  result TEXT,           -- 'created' | 'updated' | 'unchanged' | 'skipped' (negócio)
   data JSONB             -- Dados adicionais para auditoria
 )
 ```
@@ -752,7 +753,9 @@ import_items (
 
 | Edge Function | Módulo Rastreado |
 |---------------|------------------|
-| `import-batch` | `products`, `customers`, `orders` |
+| `import-products` | `products` |
+| `import-customers` | `customers` |
+| `import-orders` | `orders` |
 | `import-store-categories` | `categories` |
 | `import-institutional-pages` | `pages` |
 | `import-menus` | `menus` |
