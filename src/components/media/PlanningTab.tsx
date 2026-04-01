@@ -400,10 +400,14 @@ export function PlanningTab({
         if (!error && data?.success) { successCount++; if (data.generation_id) generationIds.push(data.generation_id); }
       }
       if (successCount === 0) { toast.error("Falha ao iniciar geração"); setIsGeneratingAssets(false); setGenerationProgress(null); return; }
-      toast.info(`Gerando ${successCount} criativo(s)... Aguarde.`);
+      toast.info(
+        selectedItems.length === eligible.length
+          ? `Gerando ${successCount} criativo(s)... Aguarde.`
+          : `Gerando ${successCount} criativo(s) elegível(is) de ${selectedItems.length} publicação(ões) selecionada(s).`
+      );
       const pollInterval = setInterval(async () => {
         if (generationIds.length > 0) {
-          const { data: gens } = await supabase.from("media_asset_generations").select("id, status").in("id", generationIds);
+          const { data: gens } = await supabase.from("media_asset_generations").select("id, status, error_message").in("id", generationIds);
           const pending = gens?.filter(g => g.status === "queued" || g.status === "generating").length || 0;
           const failed = gens?.filter(g => g.status === "failed").length || 0;
           const succeeded = gens?.filter(g => g.status === "succeeded").length || 0;
@@ -412,7 +416,22 @@ export function PlanningTab({
             clearInterval(pollInterval);
             setGenerationProgress(null); setIsGeneratingAssets(false);
             if (succeeded > 0) toast.success(`${succeeded} criativo(s) gerado(s)!`);
-            if (failed > 0) toast.error(`${failed} criativo(s) falharam`);
+            if (failed > 0) {
+              const failedMessages = (gens || [])
+                .filter(g => g.status === "failed")
+                .map(g => g.error_message || "")
+                .filter(Boolean);
+              const insufficientCredits = failedMessages.some(msg => msg.includes("Créditos insuficientes"));
+              const missingProductImage = failedMessages.some(msg => msg.includes("nenhum tem imagem cadastrada"));
+
+              if (insufficientCredits) {
+                toast.error("A geração falhou porque o fallback de imagens está sem saldo disponível no momento.");
+              } else if (missingProductImage) {
+                toast.error("Algumas publicações citaram produtos sem imagem cadastrada, então o criativo foi bloqueado.");
+              } else {
+                toast.error(`${failed} criativo(s) falharam`);
+              }
+            }
             await refetchItems();
           }
         }
@@ -447,6 +466,14 @@ export function PlanningTab({
 
   const copyTooltip = !buttonsActive ? "Selecione dias primeiro" : selectionDiag?.copyBlockReason || null;
   const creativeTooltip = !buttonsActive ? "Selecione dias primeiro" : selectionDiag?.creativeBlockReason || null;
+  const selectedTotalCount = selectionDiag?.totalSelected ?? 0;
+  const selectedReadyCount = selectionDiag?.ready.length ?? 0;
+  const selectedCopyCount = selectionDiag
+    ? selectionDiag.totalSelected - selectionDiag.noStrategy.length
+    : 0;
+  const selectedCreativeCount = selectionDiag
+    ? [...selectionDiag.missingCreative, ...selectionDiag.ready].filter(i => i.content_type !== "text").length
+    : 0;
 
   // Steps are active if days selected AND have eligible items
   const copysActive = buttonsActive && (selectionDiag?.canGenerateCopys ?? false);
@@ -455,9 +482,9 @@ export function PlanningTab({
   const workflowSteps: StepConfig[] = [
     { number: 1, label: isSelectMode ? "Sair da Seleção" : "Selecionar Dias", icon: <MousePointer2 className="h-3.5 w-3.5" />, action: () => { if (isSelectMode) { setIsSelectMode(false); setSelectedDays(new Set()); } else { setIsSelectMode(true); } }, isActive: true, isLoading: false, isCurrent: currentStep === 1 },
     { number: 2, label: isGenerating ? "Gerando..." : "Estratégia IA", icon: <Sparkles className="h-3.5 w-3.5" />, action: handleOpenStrategyPrompt, isActive: buttonsActive, isLoading: isGenerating, isAI: true, isCurrent: currentStep === 2, tooltip: !buttonsActive ? "Selecione dias primeiro" : null },
-    { number: 3, label: isGeneratingCopys ? "Gerando..." : "Copys IA", icon: <PenTool className="h-3.5 w-3.5" />, action: handleGenerateCopys, isActive: copysActive, isLoading: isGeneratingCopys, isAI: true, count: stats.needsCopy > 0 ? stats.needsCopy : undefined, isCurrent: currentStep === 3, tooltip: copyTooltip },
+    { number: 3, label: isGeneratingCopys ? "Gerando..." : "Copys IA", icon: <PenTool className="h-3.5 w-3.5" />, action: handleGenerateCopys, isActive: copysActive, isLoading: isGeneratingCopys, isAI: true, count: buttonsActive ? (selectedCopyCount > 0 ? selectedCopyCount : undefined) : (stats.needsCopy > 0 ? stats.needsCopy : undefined), isCurrent: currentStep === 3, tooltip: copyTooltip },
     ...(!isBlog ? [{
-      number: 4, label: isGeneratingAssets ? "Gerando..." : "Criativos IA", icon: <Image className="h-3.5 w-3.5" />, action: handleGenerateCreatives, isActive: creativesActive, isLoading: isGeneratingAssets, isAI: true, count: stats.needsCreative > 0 ? stats.needsCreative : undefined, isCurrent: currentStep === 4, tooltip: creativeTooltip,
+      number: 4, label: isGeneratingAssets ? "Gerando..." : "Criativos IA", icon: <Image className="h-3.5 w-3.5" />, action: handleGenerateCreatives, isActive: creativesActive, isLoading: isGeneratingAssets, isAI: true, count: buttonsActive ? (selectedCreativeCount > 0 ? selectedCreativeCount : undefined) : (stats.needsCreative > 0 ? stats.needsCreative : undefined), isCurrent: currentStep === 4, tooltip: creativeTooltip,
     } as StepConfig] : []),
   ];
 
@@ -492,8 +519,8 @@ export function PlanningTab({
               {isSelectMode ? "Modo Seleção — clique nos dias" : "Etapas de Construção"}
             </h3>
             <div className="flex gap-3 text-xs text-muted-foreground">
-              <span className="font-medium">{stats.total} itens</span>
-              <span>{stats.readyToApprove} prontos</span>
+              <span className="font-medium">{buttonsActive ? selectedTotalCount : stats.total} {buttonsActive ? "selecionados" : "itens"}</span>
+              <span>{buttonsActive ? selectedReadyCount : stats.readyToApprove} prontos</span>
             </div>
           </div>
           <WorkflowStepper steps={workflowSteps} />
