@@ -639,89 +639,87 @@ async function smartMergeImport(
     if (!inserted || inserted.length === 0) continue;
     }
 
-    if (inserted) {
-      results.created += inserted.length;
-      const emailToId = new Map(inserted.map((c: any) => [c.email, c.id]));
+    // Post-insert: addresses, tags, subscribers
+    const emailToId = new Map(inserted.map((c: any) => [c.email, c.id]));
 
-      // Track all created customers
-      for (const c of batch) {
+    // Track all created customers
+    for (const c of batch) {
+      const customerId = emailToId.get(c.email);
+      if (customerId) {
+        const externalId = c.external_id || `import:customer:${c.email}`;
+        trackingItems.push({ internalId: customerId, externalId, result: 'created' });
+      }
+    }
+
+    // Insert addresses
+    const addresses = batch
+      .filter(c => c.street && c.city)
+      .map(c => {
         const customerId = emailToId.get(c.email);
-        if (customerId) {
-          const externalId = c.external_id || `import:customer:${c.email}`;
-          trackingItems.push({ internalId: customerId, externalId, result: 'created' });
-        }
-      }
-
-      // Insert addresses
-      const addresses = batch
-        .filter(c => c.street && c.city)
-        .map(c => {
-          const customerId = emailToId.get(c.email);
-          if (!customerId) return null;
-          return {
-            customer_id: customerId,
-            label: 'Principal',
-            is_default: true,
-            recipient_name: c.full_name,
-            street: c.street || '',
-            number: c.number || '',
-            complement: c.complement || null,
-            neighborhood: c.neighborhood || '',
-            city: c.city || '',
-            state: c.state || '',
-            postal_code: c.postal_code || '',
-            country: c.country || 'BR',
-          };
-        })
-        .filter(Boolean);
-
-      if (addresses.length > 0) {
-        await supabase.from('customer_addresses').insert(addresses);
-      }
-
-      // Tag assignments
-      if (clienteTagId) {
-        const tags = inserted.map((c: any) => ({ customer_id: c.id, tag_id: clienteTagId }));
-        await supabase.from('customer_tag_assignments').insert(tags);
-      }
-
-      // Email marketing subscribers
-      const subscribers = inserted.map((c: any) => {
-        const orig = batch.find(b => b.email === c.email);
+        if (!customerId) return null;
         return {
-          tenant_id: tenantId,
-          email: c.email,
-          name: orig?.full_name || 'Cliente',
-          phone: orig?.phone || null,
-          source: 'import',
-          created_from: 'import',
-          status: 'active',
-          customer_id: c.id,
+          customer_id: customerId,
+          label: 'Principal',
+          is_default: true,
+          recipient_name: c.full_name,
+          street: c.street || '',
+          number: c.number || '',
+          complement: c.complement || null,
+          neighborhood: c.neighborhood || '',
+          city: c.city || '',
+          state: c.state || '',
+          postal_code: c.postal_code || '',
+          country: c.country || 'BR',
         };
-      });
+      })
+      .filter(Boolean);
 
-      await supabase
+    if (addresses.length > 0) {
+      await supabase.from('customer_addresses').insert(addresses);
+    }
+
+    // Tag assignments
+    if (clienteTagId) {
+      const tags = inserted.map((c: any) => ({ customer_id: c.id, tag_id: clienteTagId }));
+      await supabase.from('customer_tag_assignments').upsert(tags, { onConflict: 'customer_id,tag_id', ignoreDuplicates: true });
+    }
+
+    // Email marketing subscribers
+    const subscribers = inserted.map((c: any) => {
+      const orig = batch.find(b => b.email === c.email);
+      return {
+        tenant_id: tenantId,
+        email: c.email,
+        name: orig?.full_name || 'Cliente',
+        phone: orig?.phone || null,
+        source: 'import',
+        created_from: 'import',
+        status: 'active',
+        customer_id: c.id,
+      };
+    });
+
+    await supabase
+      .from('email_marketing_subscribers')
+      .upsert(subscribers, { onConflict: 'tenant_id,email', ignoreDuplicates: true });
+
+    // Add to Clientes list
+    if (clientesListId) {
+      const { data: subs } = await supabase
         .from('email_marketing_subscribers')
-        .upsert(subscribers, { onConflict: 'tenant_id,email', ignoreDuplicates: true });
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .in('email', inserted.map((c: any) => c.email));
 
-      // Add to Clientes list
-      if (clientesListId) {
-        const { data: subs } = await supabase
-          .from('email_marketing_subscribers')
-          .select('id')
-          .eq('tenant_id', tenantId)
-          .in('email', inserted.map((c: any) => c.email));
-
-        if (subs) {
-          const listMembers = subs.map((s: any) => ({
-            tenant_id: tenantId,
-            list_id: clientesListId,
-            subscriber_id: s.id,
-          }));
-          await supabase
-            .from('email_marketing_list_members')
-            .upsert(listMembers, { onConflict: 'list_id,subscriber_id', ignoreDuplicates: true });
-        }
+      if (subs) {
+        const listMembers = subs.map((s: any) => ({
+          tenant_id: tenantId,
+          list_id: clientesListId,
+          subscriber_id: s.id,
+        }));
+        await supabase
+          .from('email_marketing_list_members')
+          .upsert(listMembers, { onConflict: 'list_id,subscriber_id', ignoreDuplicates: true });
       }
     }
   }
