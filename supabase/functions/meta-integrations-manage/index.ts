@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { revalidateStorefrontAfterTrackingChange } from "../_shared/storefront-revalidation.ts";
 
 const VERSION = "v1.2.0";
+// v1.3.0 — Sync fresh grant token to marketing_integrations on pixel/CAPI activation
 const TRACKING_INTEGRATION_IDS = new Set(["pixel_facebook", "conversions_api"]);
 
 const corsHeaders = {
@@ -330,6 +331,17 @@ async function executeSideEffects(
 
     if (integrationId === "pixel_facebook" && selectedAssets.pixel) {
       const pixel = selectedAssets.pixel;
+
+      // Get fresh token from active grant for CAPI usage
+      let freshToken: string | null = null;
+      try {
+        const { getMetaConnectionForTenant } = await import("../_shared/meta-connection.ts");
+        const conn = await getMetaConnectionForTenant(adminClient, tenantId, "pixel-side-effect");
+        freshToken = conn?.access_token || null;
+      } catch (e) {
+        console.warn(`[meta-integrations-manage] Could not get fresh token for pixel side-effect`);
+      }
+
       await adminClient
         .from("marketing_integrations")
         .upsert({
@@ -337,6 +349,8 @@ async function executeSideEffects(
           meta_pixel_id: pixel.id,
           meta_enabled: true,
           meta_status: "active",
+          meta_access_token: freshToken,
+          meta_last_error: null,
           updated_at: new Date().toISOString(),
         }, { onConflict: "tenant_id" });
 
@@ -345,6 +359,17 @@ async function executeSideEffects(
 
     if (integrationId === "conversions_api" && selectedAssets.pixel) {
       const pixel = selectedAssets.pixel;
+
+      // Get fresh token from active grant for CAPI usage
+      let freshToken: string | null = null;
+      try {
+        const { getMetaConnectionForTenant } = await import("../_shared/meta-connection.ts");
+        const conn = await getMetaConnectionForTenant(adminClient, tenantId, "capi-side-effect");
+        freshToken = conn?.access_token || null;
+      } catch (e) {
+        console.warn(`[meta-integrations-manage] Could not get fresh token for CAPI side-effect`);
+      }
+
       await adminClient
         .from("marketing_integrations")
         .upsert({
@@ -353,6 +378,8 @@ async function executeSideEffects(
           meta_enabled: true,
           meta_capi_enabled: true,
           meta_status: "active",
+          meta_access_token: freshToken,
+          meta_last_error: null,
           updated_at: new Date().toISOString(),
         }, { onConflict: "tenant_id" });
 

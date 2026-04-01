@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
+import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -125,13 +126,47 @@ serve(async (req) => {
     }
 
     if (!config.meta_pixel_id || !config.meta_access_token) {
-      return new Response(JSON.stringify({ 
-        error: 'Meta Pixel ID ou Access Token não configurados',
-        code: 'MISSING_CREDENTIALS'
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      // Try to get fresh token from V4 grant
+      if (config.meta_pixel_id) {
+        const conn = await getMetaConnectionForTenant(supabase, tenant_id, "marketing-send-meta");
+        if (conn?.access_token) {
+          config.meta_access_token = conn.access_token;
+          // Sync token in background
+          supabase
+            .from('marketing_integrations')
+            .update({ meta_access_token: conn.access_token, meta_status: 'active', meta_last_error: null, updated_at: new Date().toISOString() })
+            .eq('tenant_id', tenant_id)
+            .then(() => {});
+        }
+      }
+      if (!config.meta_pixel_id || !config.meta_access_token) {
+        return new Response(JSON.stringify({ 
+          error: 'Meta Pixel ID ou Access Token não configurados',
+          code: 'MISSING_CREDENTIALS'
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
+    // If token exists but might be stale, try fresh grant token
+    if (config.meta_access_token && config.meta_pixel_id) {
+      try {
+        const conn = await getMetaConnectionForTenant(supabase, tenant_id, "marketing-send-meta-refresh");
+        if (conn?.access_token && conn.access_token !== config.meta_access_token) {
+          console.log(`[marketing-send-meta] Using fresh token from V4 grant`);
+          config.meta_access_token = conn.access_token;
+          // Sync in background
+          supabase
+            .from('marketing_integrations')
+            .update({ meta_access_token: conn.access_token, meta_status: 'active', meta_last_error: null, updated_at: new Date().toISOString() })
+            .eq('tenant_id', tenant_id)
+            .then(() => {});
+        }
+      } catch (e) {
+        // Ignore — use existing token
+      }
     }
 
     // Extract IP and User-Agent from request headers

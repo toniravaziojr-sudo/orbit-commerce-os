@@ -234,10 +234,32 @@ export function MetaUnifiedSettings() {
                   Atualizar
                 </Button>
                 <Button variant="destructive" size="sm" onClick={() => disconnect()} disabled={isDisconnecting} className="gap-1.5">
-                  {isDisconnecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Unlink className="h-3.5 w-3.5" />}
-                  Desconectar
+                  {isDisconnecting ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Desconectando...
+                    </>
+                  ) : (
+                    <>
+                      <Unlink className="h-3.5 w-3.5" />
+                      Desconectar
+                    </>
+                  )}
                 </Button>
               </div>
+
+              {/* Feedback message during long operations */}
+              {(isDisconnecting || isToggling) && (
+                <Alert className="bg-muted/50 border-muted">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <AlertDescription className="text-xs">
+                    {isDisconnecting 
+                      ? "Desconectando e atualizando a loja publicada. Isso pode levar alguns segundos, aguarde..."
+                      : "Atualizando integração e sincronizando com a loja. Isso pode levar alguns segundos, aguarde..."
+                    }
+                  </AlertDescription>
+                </Alert>
+              )}
             </>
           ) : (
             <>
@@ -493,7 +515,10 @@ function MetaIntegrationToggleRow({
         </div>
         <div className="flex items-center gap-2">
           {isToggling ? (
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              <span className="text-xs text-muted-foreground animate-pulse">Aguarde...</span>
+            </div>
           ) : (
             <Switch
               checked={isActive}
