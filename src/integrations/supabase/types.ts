@@ -5343,6 +5343,54 @@ export type Database = {
           },
         ]
       }
+      email_marketing_sync_audit: {
+        Row: {
+          created_at: string
+          customer_id: string | null
+          id: string
+          metadata: Json | null
+          reason: string | null
+          source: string
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          metadata?: Json | null
+          reason?: string | null
+          source: string
+          status: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          metadata?: Json | null
+          reason?: string | null
+          source?: string
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_marketing_sync_audit_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_marketing_sync_audit_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_marketing_templates: {
         Row: {
           body_html: string
@@ -19188,6 +19236,17 @@ export type Database = {
       is_youtube_available_for_tenant: {
         Args: { p_tenant_id: string }
         Returns: boolean
+      }
+      log_marketing_sync_audit: {
+        Args: {
+          p_customer_id: string
+          p_metadata?: Json
+          p_reason?: string
+          p_source: string
+          p_status: string
+          p_tenant_id: string
+        }
+        Returns: undefined
       }
       migrate_existing_templates_to_sets: { Args: never; Returns: undefined }
       normalize_email: { Args: { p_email: string }; Returns: string }
