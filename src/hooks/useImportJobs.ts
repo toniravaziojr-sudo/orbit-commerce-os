@@ -222,23 +222,26 @@ export function useImportData() {
       console.warn('[useImportData] Could not update job status to processing:', e);
     }
 
-    // Process in batches using import-batch function
+    // Process in batches using canonical motors
+    const motorMap: Record<string, string> = {
+      products: 'import-products',
+      orders: 'import-orders',
+      customers: 'import-customers',
+    };
+    const motorName = motorMap[module] || 'import-batch';
+
     for (let i = 0; i < totalBatches; i++) {
       const batchItems = data.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
       
       try {
-        console.log(`[useImportData] Sending batch ${i + 1}/${totalBatches} for ${module} (${batchItems.length} items)`);
+        console.log(`[useImportData] Sending batch ${i + 1}/${totalBatches} for ${module} via ${motorName} (${batchItems.length} items)`);
         
-        const { data: result, error } = await supabase.functions.invoke('import-batch', {
-          body: {
-            jobId: job.id,
-            tenantId,
-            platform,
-            module,
-            items: batchItems,
-            batchIndex: i,
-            categoryMap,
-          },
+        const body: any = module === 'customers'
+          ? { mode: 'normalized_batch', jobId: job.id, tenantId, items: batchItems }
+          : { jobId: job.id, tenantId, platform, module, items: batchItems, batchIndex: i, categoryMap };
+
+        const { data: result, error } = await supabase.functions.invoke(motorName, {
+          body,
         });
 
         if (error) {

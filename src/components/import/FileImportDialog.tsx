@@ -128,12 +128,13 @@ export function FileImportDialog({ open, onOpenChange, module, onSuccess }: File
       setProgress(100);
 
       // Map result to standard envelope
+      const res = importResult.results || {} as any;
       const resultData: ImportResult = {
-        created: importResult.results?.created || 0,
-        updated: importResult.results?.updated || 0,
-        unchanged: importResult.results?.unchanged || 0,
-        skipped: importResult.results?.skipped || 0,
-        errors: importResult.results?.errors || importResult.results?.failed || 0,
+        created: res.created ?? 0,
+        updated: res.updated ?? 0,
+        unchanged: res.unchanged ?? 0,
+        skipped: res.skipped ?? 0,
+        errors: typeof res.errors === 'number' ? res.errors : (res.failed ?? 0),
       };
 
       setResult(resultData);
