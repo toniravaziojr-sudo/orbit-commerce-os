@@ -316,27 +316,29 @@ const colorOptions = [
 
 ## 7. Importação de Clientes
 
-### 7.1 Formato CSV
+### 7.1 Formato CSV (Universal)
 
-```csv
-email,full_name,phone,cpf,status
-cliente@email.com,João Silva,11999999999,12345678900,active
-```
+O importador aceita CSVs de qualquer plataforma (Shopify, WooCommerce, Nuvemshop, Tray, genérico). Os headers são mapeados automaticamente.
 
-### 7.2 Campos Suportados
+### 7.2 Mapeamento de Headers
 
-| Campo | Obrigatório | Mapeamento |
-|-------|-------------|------------|
-| email | ✅ | `email` |
-| full_name / name | ✅ | `full_name` |
-| phone | ❌ | `phone` |
-| cpf | ❌ | `cpf` |
-| status | ❌ | `status` (default: active) |
+| Campo do sistema | Headers aceitos |
+|------------------|----------------|
+| email | `email`, `e-mail`, `email address`, `customer email` |
+| full_name | `name`, `full_name`, `nome`, `nome completo`, `First Name + Last Name` |
+| phone | `phone`, `telefone`, `celular`, `mobile`, `whatsapp` |
+| cpf | `cpf`, `document`, `documento`, `tax id` |
+| status | `status`, `state` (default: active) |
+| accepts_marketing | `accepts_marketing`, `marketing`, `aceita marketing` |
+| birth_date | `birth_date`, `birthday`, `data_nascimento`, `nascimento` |
+| gender | `gender`, `sexo`, `gênero` |
 
 ### 7.3 Comportamento
 
 - Emails duplicados são ignorados (não sobrescrevem)
+- Clientes importados são automaticamente adicionados como subscribers na lista de email marketing
 - Relatório ao final com importados/ignorados/erros
+- Suporta separadores `,` e `;`
 
 ---
 
