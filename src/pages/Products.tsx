@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { PageHeader } from '@/components/ui/page-header';
 import { ProductList } from '@/components/products/ProductList';
 import { ProductForm } from '@/components/products/ProductForm';
+import { FileImportDialog } from '@/components/import/FileImportDialog';
 import { Product } from '@/hooks/useProducts';
 
 type View = 'list' | 'create' | 'edit';
