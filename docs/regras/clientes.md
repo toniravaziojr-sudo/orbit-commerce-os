@@ -423,9 +423,12 @@ O importador aceita CSVs de qualquer plataforma (Shopify, WooCommerce, Nuvemshop
 
 ## 14. Pendências
 
-- [ ] Exportação de clientes (CSV/Excel)
+- [x] ~~Exportação de clientes (CSV)~~ — Implementado em 01/04/2026
+- [x] ~~Progressão automática de tier~~ — Implementado em 01/04/2026
+- [x] ~~Métricas recalculadas com base em pedidos reais~~ — Implementado em 01/04/2026
+- [x] ~~Importação universal (multi-plataforma)~~ — Implementado em 01/04/2026
+- [x] ~~Sync automático com email marketing~~ — Implementado em 01/04/2026
 - [ ] Merge de clientes duplicados
-- [ ] Progressão automática de tier
 - [ ] Histórico de alterações do perfil
 - [ ] Validação de telefone (SMS)
 - [ ] Integração com sistemas de fidelidade externos
