@@ -79,6 +79,59 @@ export default function Customers() {
     navigate('/customers/new');
   };
 
+  const { currentTenant } = useAuth();
+
+  const handleExportCustomers = async () => {
+    if (!currentTenant?.id) return;
+    toast.info('Exportando clientes...');
+    
+    try {
+      // Fetch all customers for this tenant (paginated)
+      let allCustomers: any[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      
+      while (true) {
+        const { data, error } = await supabase
+          .from('customers')
+          .select('full_name, email, phone, cpf, status, total_orders, total_spent, average_ticket, loyalty_tier, created_at')
+          .eq('tenant_id', currentTenant.id)
+          .is('deleted_at', null)
+          .range(from, from + batchSize - 1)
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allCustomers = [...allCustomers, ...data];
+        if (data.length < batchSize) break;
+        from += batchSize;
+      }
+
+      if (allCustomers.length === 0) {
+        toast.warning('Nenhum cliente para exportar');
+        return;
+      }
+
+      exportToCSV(allCustomers, [
+        { key: 'full_name', label: 'Nome' },
+        { key: 'email', label: 'Email' },
+        { key: 'phone', label: 'Telefone' },
+        { key: 'cpf', label: 'CPF' },
+        { key: 'status', label: 'Status' },
+        { key: 'total_orders', label: 'Total Pedidos', format: (v) => String(v || 0) },
+        { key: 'total_spent', label: 'Total Gasto', format: (v) => formatCurrencyForExport(v) },
+        { key: 'average_ticket', label: 'Ticket Médio', format: (v) => formatCurrencyForExport(v) },
+        { key: 'loyalty_tier', label: 'Nível' },
+        { key: 'created_at', label: 'Data Cadastro', format: (v) => formatDateForExport(v) },
+      ], 'clientes');
+
+      toast.success(`${allCustomers.length} clientes exportados!`);
+    } catch (err) {
+      console.error('Export error:', err);
+      toast.error('Erro ao exportar clientes');
+    }
+  };
+
   const handleEdit = (customer: Customer) => {
     navigate(`/customers/${customer.id}`);
   };
