@@ -1,7 +1,7 @@
 # Suporte — Regras e Especificações
 
-> **Status:** 🟧 Pending (não validado)  
-> **Última atualização:** 2026-03-13
+> **Status:** ✅ Ready  
+> **Última atualização:** 2026-04-01
 
 ---
 
@@ -9,7 +9,7 @@
 
 Sistema de tickets para comunicação entre lojista e equipe da plataforma, incluindo sugestões de melhorias e solicitações de customização.
 
-Inclui também o módulo de **Atendimento** (central de atendimento unificada com IA) que gerencia conversas com clientes via múltiplos canais (WhatsApp, Email, Chat do Site, Mercado Livre, Shopee, etc.).
+Inclui também o módulo de **Atendimento** (central de atendimento unificada com IA) que gerencia conversas com clientes via múltiplos canais (WhatsApp, Email, Chat do Site, Messenger, Instagram DM, Comentários Instagram, Comentários Facebook, Mercado Livre, Shopee, etc.).
 
 ## Arquivos Principais
 
