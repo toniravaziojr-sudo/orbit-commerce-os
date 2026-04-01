@@ -546,7 +546,7 @@ import_items (
   id, tenant_id, job_id, module,
   external_id, internal_id,
   status,   -- success | error (técnico)
-  result,   -- created | updated | unchanged | skipped (negócio)
+  result,   -- created | updated | unchanged | skipped | legacy (negócio, NOT NULL, sem default)
   data
 )
 ```
