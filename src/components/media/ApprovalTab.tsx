@@ -5,10 +5,8 @@ import { Check, Image as ImageIcon, FileText, Instagram, Facebook, Send, Loader2
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
-
 import { CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MediaCalendarItem, MediaCampaign } from "@/hooks/useMediaCampaigns";
@@ -16,7 +14,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { showErrorToast } from '@/lib/error-toast';
 
 const platformIcons: Record<string, React.ReactNode> = {
   instagram: <Instagram className="h-3.5 w-3.5 text-pink-500" />,
@@ -53,14 +50,12 @@ export function ApprovalTab({
   const [isApproving, setIsApproving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
 
-  // Filter items
   const readyToApprove = useMemo(() => {
     if (!items) return [];
     return items.filter(i => {
       if (!["draft", "suggested", "review"].includes(i.status)) return false;
       if (!i.title) return false;
       const isStory = i.content_type === "story";
-      // Stories: exige apenas criativo (asset_url). Feed: exige copy + criativo.
       if (isStory) return !!i.asset_url;
       const hasCopy = i.copy && i.copy.trim() !== "";
       return hasCopy && (isBlog || i.content_type === "text" || i.asset_url);
@@ -97,32 +92,55 @@ export function ApprovalTab({
       toast.success(`${selectedIds.size} item(ns) aprovado(s)!`);
       setSelectedIds(new Set());
       await refetchItems();
-    } catch { toast.error("Erro ao aprovar"); }
-    finally { setIsApproving(false); }
+    } catch {
+      toast.error("Erro ao aprovar");
+    } finally {
+      setIsApproving(false);
+    }
   };
 
   const handlePublish = async () => {
-    if (!items) { toast.error("Dados não carregados, tente novamente."); return; }
-    if (!currentTenant) { toast.error("Sessão não encontrada. Recarregue a página."); return; }
+    if (!items) {
+      toast.error("Dados não carregados, tente novamente.");
+      return;
+    }
+    if (!currentTenant) {
+      toast.error("Sessão não encontrada. Recarregue a página.");
+      return;
+    }
+
     const toPublish = approvedItems.filter(i => selectedIds.has(i.id));
-    if (toPublish.length === 0) { toast.info("Selecione itens aprovados para agendar."); return; }
+    if (toPublish.length === 0) {
+      toast.info("Selecione itens aprovados para agendar.");
+      return;
+    }
 
     setIsPublishing(true);
     try {
+      let shouldClearSelection = true;
+
       if (isBlog) {
-        let scheduled = 0, published = 0, failedCount = 0;
+        let scheduled = 0;
+        let published = 0;
+        let failedCount = 0;
+
         for (const item of toPublish) {
           const scheduleAt = item.scheduled_date ? `${item.scheduled_date}T${item.scheduled_time || "10:00:00"}` : null;
           const { data, error } = await supabase.functions.invoke("media-publish-blog", {
             body: { calendar_item_id: item.id, publish_now: false, schedule_at: scheduleAt },
           });
+
           if (error || !data?.success) failedCount++;
           else if (data.published) published++;
           else if (data.scheduled) scheduled++;
         }
+
         if (scheduled > 0) toast.success(`${scheduled} post(s) agendado(s)!`);
         if (published > 0) toast.success(`${published} post(s) publicado(s)!`);
-        if (failedCount > 0) toast.error(`${failedCount} post(s) falharam`);
+        if (failedCount > 0) {
+          toast.error(`${failedCount} post(s) falharam`);
+          if (scheduled === 0 && published === 0) shouldClearSelection = false;
+        }
       } else {
         if (!metaConnected) {
           toast.error("Conecte suas redes sociais primeiro", {
@@ -131,27 +149,45 @@ export function ApprovalTab({
           setIsPublishing(false);
           return;
         }
+
         const { data, error } = await supabase.functions.invoke("meta-publish-post", {
           body: { calendar_item_ids: toPublish.map(i => i.id), tenant_id: currentTenant.id },
         });
-        if (error) toast.error("Erro ao agendar");
-        else if (data?.success) {
+
+        if (error) {
+          toast.error("Erro ao agendar");
+          shouldClearSelection = false;
+        } else if (data?.success === false) {
+          toast.error(data.message || data.error || "Não foi possível agendar agora.");
+          shouldClearSelection = false;
+        } else if (data?.success) {
           const parts = [];
           if (data.published > 0) parts.push(`${data.published} publicado(s)`);
           if (data.scheduled > 0) parts.push(`${data.scheduled} agendado(s)`);
           if (parts.length > 0) toast.success(parts.join(", ") + "!");
           if (data.failed > 0) toast.error(`${data.failed} falharam`);
+          if (data.preflight_errors?.length) {
+            toast.error(data.preflight_errors[0]?.errors?.[0] || "Alguns itens não puderam ser agendados.");
+          }
+          if ((data.published ?? 0) === 0 && (data.scheduled ?? 0) === 0) {
+            shouldClearSelection = false;
+          }
         }
       }
-      setSelectedIds(new Set());
+
+      if (shouldClearSelection) {
+        setSelectedIds(new Set());
+      }
       await refetchItems();
-    } catch { toast.error("Erro ao agendar"); }
-    finally { setIsPublishing(false); }
+    } catch {
+      toast.error("Erro ao agendar");
+    } finally {
+      setIsPublishing(false);
+    }
   };
 
   const isEmpty = readyToApprove.length === 0 && approvedItems.length === 0;
 
-  // Count incomplete drafts (have title but missing copy or creative)
   const incompleteDrafts = useMemo(() => {
     if (!items) return 0;
     return items.filter(i =>
@@ -163,7 +199,6 @@ export function ApprovalTab({
 
   return (
     <div className="space-y-4">
-      {/* Meta connection warning */}
       {!metaLoading && !metaConnected && !isBlog && (
         <Alert variant="default" className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
           <AlertCircle className="h-4 w-4 text-amber-600" />
@@ -174,7 +209,6 @@ export function ApprovalTab({
         </Alert>
       )}
 
-      {/* Incomplete drafts alert */}
       {incompleteDrafts > 0 && isEmpty && (
         <Alert className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
           <PenTool className="h-4 w-4 text-amber-600" />
@@ -199,7 +233,6 @@ export function ApprovalTab({
         />
       ) : (
         <>
-          {/* Filter tabs */}
           <div className="flex items-center gap-2">
             <Button
               variant={filter === "ready" ? "default" : "outline"}
@@ -218,14 +251,13 @@ export function ApprovalTab({
               onClick={() => { setFilter("approved"); setSelectedIds(new Set()); }}
               className="gap-1.5"
             >
-              Aprovados para Publicar
+              Prontos para Publicar
               {approvedItems.length > 0 && (
                 <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">{approvedItems.length}</Badge>
               )}
             </Button>
           </div>
 
-          {/* Selection bar */}
           {displayItems.length > 0 && (
             <div className="flex items-center justify-between px-3 py-2 rounded-lg border bg-muted/30">
               <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -253,7 +285,6 @@ export function ApprovalTab({
             </div>
           )}
 
-          {/* Items list */}
           <div className="max-h-[60vh] overflow-y-auto pr-1">
             <div className="space-y-2">
               {displayItems.map((item) => {
@@ -274,7 +305,6 @@ export function ApprovalTab({
                       className="mt-1 shrink-0"
                     />
 
-                    {/* Thumbnail */}
                     <div className="w-16 h-16 rounded-md overflow-hidden bg-muted shrink-0 flex items-center justify-center">
                       {item.asset_url ? (
                         <img src={item.asset_url} alt={item.title || "Criativo"} className="w-full h-full object-cover" />
@@ -285,7 +315,6 @@ export function ApprovalTab({
                       )}
                     </div>
 
-                    {/* Content */}
                     <div className="flex-1 min-w-0 space-y-1" onClick={() => toggleItem(item.id)}>
                       <div className="flex items-center gap-2">
                         <h4 className="text-sm font-medium truncate">{item.title || "Sem título"}</h4>
@@ -309,7 +338,6 @@ export function ApprovalTab({
                       </div>
                     </div>
 
-                    {/* Edit shortcut back to planning */}
                     <Button
                       size="sm"
                       variant="ghost"
