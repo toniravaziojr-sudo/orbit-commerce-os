@@ -394,26 +394,30 @@ async function smartMergeImport(
 
   const emails = uniqueCustomers.map(c => c.email);
 
-  // Pre-fetch existing customers with all fields needed for Smart Merge
-  const { data: existingCustomers } = await supabase
-    .from('customers')
-    .select('id, email, phone, cpf, cnpj, company_name, person_type, birth_date, gender, notes, total_spent, total_orders, accepts_marketing, accepts_email_marketing, accepts_sms_marketing')
-    .eq('tenant_id', tenantId)
-    .in('email', emails);
-
+  // Pre-fetch existing customers in batches of 500 to avoid .in() limits
+  const LOOKUP_BATCH = 500;
   const existingMap = new Map<string, any>();
-  for (const c of (existingCustomers || [])) {
-    existingMap.set(c.email, c);
+  for (let i = 0; i < emails.length; i += LOOKUP_BATCH) {
+    const emailBatch = emails.slice(i, i + LOOKUP_BATCH);
+    const { data: batch } = await supabase
+      .from('customers')
+      .select('id, email, phone, cpf, cnpj, company_name, person_type, birth_date, gender, notes, total_spent, total_orders, accepts_marketing, accepts_email_marketing, accepts_sms_marketing')
+      .eq('tenant_id', tenantId)
+      .in('email', emailBatch);
+    for (const c of (batch || [])) {
+      existingMap.set(c.email, c);
+    }
   }
 
-  // Pre-fetch existing addresses for existing customers
-  const existingCustomerIds = (existingCustomers || []).map((c: any) => c.id);
+  // Pre-fetch existing addresses in batches
+  const existingCustomerIds = Array.from(existingMap.values()).map((c: any) => c.id);
   let customerAddressMap = new Map<string, boolean>();
-  if (existingCustomerIds.length > 0) {
+  for (let i = 0; i < existingCustomerIds.length; i += LOOKUP_BATCH) {
+    const idBatch = existingCustomerIds.slice(i, i + LOOKUP_BATCH);
     const { data: existingAddrs } = await supabase
       .from('customer_addresses')
       .select('customer_id')
-      .in('customer_id', existingCustomerIds);
+      .in('customer_id', idBatch);
     for (const addr of (existingAddrs || [])) {
       customerAddressMap.set(addr.customer_id, true);
     }
