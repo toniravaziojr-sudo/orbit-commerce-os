@@ -39,6 +39,10 @@ function ChannelIcon({ channel, className }: { channel: SupportChannelType; clas
       return <MessageSquare className={cn(iconClass, "text-blue-600")} />;
     case 'instagram_dm':
       return <Instagram className={cn(iconClass, "text-pink-500")} />;
+    case 'instagram_comments':
+      return <Instagram className={cn(iconClass, "text-pink-400")} />;
+    case 'facebook_comments':
+      return <MessageSquare className={cn(iconClass, "text-blue-500")} />;
     case 'mercadolivre':
       return <ShoppingCart className={cn(iconClass, "text-yellow-500")} />;
     case 'shopee':
