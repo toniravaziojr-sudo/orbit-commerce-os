@@ -464,7 +464,7 @@ interface FlowConfig {
 - [x] NewsletterForm block captura leads
 - [x] NewsletterPopup block com triggers (mobile: layout simples sem imagem; desktop: side-image)
 - [x] QuizEmbed block integrado
-- [x] sync_subscriber_to_customer_with_tag unificado
+- [x] upsert_subscriber_only para captura de leads (substitui sync_subscriber_to_customer_with_tag em formulários)
 - [x] **Campaign Builder visual com wizard 3 steps**
 - [x] **Editor drag-and-drop de blocos de email**
 - [x] **Serialização blocos → HTML inline-style**
