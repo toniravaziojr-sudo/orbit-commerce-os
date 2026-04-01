@@ -180,7 +180,7 @@ export function useImportJobs() {
   };
 }
 
-const BATCH_SIZE = 30;
+const BATCH_SIZE = 200;
 
 export function useImportData() {
   const { currentTenant } = useAuth();

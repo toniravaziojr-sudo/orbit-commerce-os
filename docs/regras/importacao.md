@@ -644,6 +644,31 @@ Isso garante que clientes importados apareçam na lista de email marketing.
 - **Não pode haver duplicação de números de pedido**
 - Default para novos tenants: `next_order_number = 1` (não mais 1000)
 
+### RN-IMP-016: Batch Sizes por Módulo (REGRA DE PERFORMANCE)
+O sistema usa batch sizes otimizados por tipo de dado para equilibrar performance e estabilidade:
+
+| Módulo | Batch Size | Motivo |
+|--------|-----------|--------|
+| Clientes | 200 | Upsert simples, sem sub-entidades complexas |
+| Produtos | 50 | Imagens, variantes e categorias vinculadas |
+| Categorias | 100 | Estrutura simples |
+| Pedidos | 100 | Lookup de customer, mas batchável |
+
+- **GuidedImportWizard** (`useImportData`): batch size fixo de 200
+- **ImportWizard** (`useImportService`): batch size por módulo conforme tabela acima
+- Updates de clientes existentes usam concorrência de 10 requests paralelos por chunk
+- Inserts de novos clientes são feitos em batch único por lote
+
+### RN-IMP-017: Dois Fluxos de Importação de Arquivos
+Existem dois wizards de importação:
+
+| Wizard | Hook | Usado em |
+|--------|------|----------|
+| `GuidedImportWizard` | `useImportData` (de `useImportJobs.ts`) | Página `/import` (botão "Nova Importação") |
+| `ImportWizard` | `useImportService` (de `useImportService.ts`) | Fluxo alternativo com health check |
+
+Ambos chamam a mesma Edge Function `import-batch` no backend.
+
 ---
 
 ## Limpador de Dados Importados
