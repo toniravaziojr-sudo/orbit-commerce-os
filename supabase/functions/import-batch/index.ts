@@ -619,14 +619,23 @@ async function importCustomersBatch(supabase: any, tenantId: string, jobId: stri
   // OPTIMIZATION: Batch update existing customers (collect for tracking)
   const trackingItems: { internalId: string; externalId?: string }[] = [];
   
-  // Use bulk update if supported, otherwise sequential (but track in batch)
+  // Concurrent updates with controlled parallelism
   if (toUpdate.length > 0) {
-    // Sequential updates (Supabase doesn't support bulk update by different IDs)
-    // But we batch the tracking at the end
-    for (const upd of toUpdate) {
-      await supabase.from('customers').update(upd.data).eq('id', upd.id);
-      trackingItems.push({ internalId: upd.id, externalId: upd.externalId });
-      results.updated++;
+    const CONCURRENCY = 10;
+    for (let i = 0; i < toUpdate.length; i += CONCURRENCY) {
+      const chunk = toUpdate.slice(i, i + CONCURRENCY);
+      const updateResults = await Promise.allSettled(
+        chunk.map(upd => supabase.from('customers').update(upd.data).eq('id', upd.id))
+      );
+      for (let j = 0; j < chunk.length; j++) {
+        const upd = chunk[j];
+        if (updateResults[j].status === 'fulfilled') {
+          trackingItems.push({ internalId: upd.id, externalId: upd.externalId });
+          results.updated++;
+        } else {
+          results.failed++;
+        }
+      }
     }
   }
 
