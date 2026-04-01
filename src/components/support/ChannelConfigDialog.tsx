@@ -95,6 +95,14 @@ const channelDocs: Record<SupportChannelType, { url: string; instructions: strin
     url: '/integrations?tab=tiktok',
     instructions: 'A conexão com o TikTok Shop é feita pelo Hub de Integrações. Vincule sua conta para receber mensagens.',
   },
+  instagram_comments: {
+    url: '/integrations',
+    instructions: 'Os comentários do Instagram são gerenciados via Integrações Meta. Ative o toggle de Comentários.',
+  },
+  facebook_comments: {
+    url: '/integrations',
+    instructions: 'Os comentários do Facebook são gerenciados via Integrações Meta. Ative o toggle de Comentários.',
+  },
   chat: {
     url: '',
     instructions: 'O chat do site é ativado automaticamente. Ele aparecerá como um widget flutuante na sua loja virtual.',

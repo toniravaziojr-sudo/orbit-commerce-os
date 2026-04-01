@@ -26,6 +26,19 @@ interface IntegrationStatus {
   mercadolivre: { configured: boolean; connected: boolean; username?: string };
 }
 
+// Meta integration IDs mapped to support channel types
+const META_CHANNEL_MAP: Record<string, SupportChannelType> = {
+  instagram_direct: 'instagram_dm',
+  facebook_messenger: 'facebook_messenger',
+  instagram_comentarios: 'instagram_comments',
+  facebook_comentarios: 'facebook_comments',
+};
+
+interface MetaChannelStatus {
+  configured: boolean;
+  label?: string;
+}
+
 const channelInfo: Record<SupportChannelType, { name: string; icon: string; description: string; integrationPath: string }> = {
   whatsapp: {
     name: 'WhatsApp',
@@ -43,13 +56,25 @@ const channelInfo: Record<SupportChannelType, { name: string; icon: string; desc
     name: 'Messenger',
     icon: '📘',
     description: 'Atenda pelo Facebook Messenger',
-    integrationPath: '',
+    integrationPath: '/integrations',
   },
   instagram_dm: {
     name: 'Instagram DM',
     icon: '📸',
     description: 'Responda mensagens diretas do Instagram',
-    integrationPath: '',
+    integrationPath: '/integrations',
+  },
+  instagram_comments: {
+    name: 'Comentários Instagram',
+    icon: '💬',
+    description: 'Responda comentários nas publicações do Instagram',
+    integrationPath: '/integrations',
+  },
+  facebook_comments: {
+    name: 'Comentários Facebook',
+    icon: '💬',
+    description: 'Responda comentários nas publicações do Facebook',
+    integrationPath: '/integrations',
   },
   mercadolivre: {
     name: 'Mercado Livre',
@@ -80,29 +105,11 @@ const channelInfo: Record<SupportChannelType, { name: string; icon: string; desc
 // Canais que usam integrações existentes (não precisam de config própria)
 const linkedChannels: SupportChannelType[] = ['whatsapp', 'email'];
 
+// Canais que usam integração Meta (auto-detectados)
+const metaLinkedChannels: SupportChannelType[] = ['facebook_messenger', 'instagram_dm', 'instagram_comments', 'facebook_comments'];
+
 // Canais disponíveis para o tenant plataforma (admin) - sem marketplaces
 const PLATFORM_TENANT_CHANNELS: SupportChannelType[] = ['whatsapp', 'email', 'facebook_messenger', 'instagram_dm'];
-
-export function ChannelIntegrations() {
-  const { currentTenant } = useAuth();
-  const { isPlatformTenant } = useTenantAccess();
-  const navigate = useNavigate();
-  const { channels, isLoading, createChannel, updateChannel, deleteChannel } = useChannelAccounts();
-  const { isConnected: meliConnected, isLoading: meliLoading, connection: meliConnection } = useMeliConnection();
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [selectedType, setSelectedType] = useState<SupportChannelType | ''>('');
-  const [accountName, setAccountName] = useState('');
-  const [configDialogOpen, setConfigDialogOpen] = useState(false);
-  const [selectedChannel, setSelectedChannel] = useState<ChannelAccount | null>(null);
-  const [selectedChannelType, setSelectedChannelType] = useState<SupportChannelType>('whatsapp');
-  const [aiConfigOpen, setAiConfigOpen] = useState(false);
-  const [aiConfigChannel, setAiConfigChannel] = useState<{ type: SupportChannelType; name: string } | null>(null);
-  const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus>({
-    whatsapp: { configured: false, connected: false },
-    email: { configured: false, verified: false },
-    mercadolivre: { configured: false, connected: false },
-  });
-  const [loadingStatus, setLoadingStatus] = useState(true);
 
   // Fetch integration status from existing configs
   useEffect(() => {
