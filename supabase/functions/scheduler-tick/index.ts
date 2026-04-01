@@ -262,6 +262,13 @@ interface CreativePollStats {
   errors: number;
 }
 
+interface EmailListSyncStats {
+  lists_synced: number;
+  subscribers_synced: number;
+  skipped_not_due: boolean;
+  errors: number;
+}
+
 interface TickStats {
   tick_at: string;
   pass: number;
