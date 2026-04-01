@@ -215,34 +215,36 @@ As métricas do cliente são atualizadas automaticamente após cada pedido:
 
 | Campo | Cálculo |
 |-------|---------|
-| `total_orders` | COUNT(orders) — inclui ghost orders (dívida técnica) |
-| `total_spent` | SUM(orders.total) |
+| `total_orders` | COUNT(orders) onde payment_status='approved' e total>0 |
+| `total_spent` | SUM(orders.total) dos pedidos aprovados |
 | `average_ticket` | total_spent / total_orders |
-| `first_order_at` | MIN(orders.created_at) |
-| `last_order_at` | MAX(orders.created_at) |
+| `first_order_at` | MIN(orders.created_at) dos aprovados |
+| `last_order_at` | MAX(orders.created_at) dos aprovados |
 
 > **⚠️ IMPORTANTE:** `total_orders` NÃO é usado para determinar "1ª compra". A tarja usa exclusivamente `orders.is_first_sale` (flag imutável gravado no momento da criação do pedido).
 
+> **Trigger:** `trg_recalc_customer_metrics_on_order` — dispara no INSERT ou UPDATE de `payment_status` na tabela `orders`. Chama a function `recalc_customer_metrics(tenant_id, customer_email)` que recalcula todas as métricas e o tier automaticamente.
+
 ### 4.4 Promoção Automática para "Cliente" (Trigger de Banco)
 
-Quando um pedido tem `payment_status = 'approved'` (no INSERT ou UPDATE), o trigger `trg_auto_tag_cliente_on_payment` executa automaticamente:
+Quando um pedido tem `payment_status = 'approved'` (no INSERT ou UPDATE), o trigger `trg_recalc_customer_metrics_on_order` executa automaticamente:
 
-1. **Cria o cliente** em `customers` se o email normalizado ainda não existir no tenant
-2. **Atribui a tag "Cliente"** (cria a tag se não existir) via `customer_tag_assignments`
-3. **Adiciona à lista de email marketing** como subscriber ativo (se não estiver já)
+1. **Recalcula métricas** do cliente (total_orders, total_spent, average_ticket, datas)
+2. **Recalcula o tier** de fidelidade baseado nos critérios abaixo
+3. **Adiciona à lista de email marketing** como subscriber ativo (via `sync_subscriber_to_customer_with_tag`)
 
 O trigger é idempotente: executar múltiplas vezes para o mesmo pedido não gera duplicatas.
 
-### 4.4 Tiers de Fidelidade
+### 4.5 Tiers de Fidelidade (Progressão Automática)
 
-| Tier | Critério Sugerido |
-|------|-------------------|
+| Tier | Critério |
+|------|----------|
 | Bronze | Padrão inicial |
-| Silver | 5+ pedidos ou R$1.000+ gastos |
-| Gold | 15+ pedidos ou R$5.000+ gastos |
-| Platinum | 30+ pedidos ou R$15.000+ gastos |
+| Silver | 5+ pedidos OU R$1.000+ gastos |
+| Gold | 15+ pedidos OU R$5.000+ gastos |
+| Platinum | 30+ pedidos OU R$15.000+ gastos |
 
-> **Nota**: A progressão de tiers não está implementada automaticamente no MVP.
+> **✅ Implementado**: A progressão é calculada automaticamente pelo trigger `trg_recalc_customer_metrics_on_order` sempre que um pedido é aprovado. Backfill executado em 01/04/2026.
 
 ---
 
