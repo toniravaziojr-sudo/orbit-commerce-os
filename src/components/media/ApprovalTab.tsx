@@ -102,9 +102,10 @@ export function ApprovalTab({
   };
 
   const handlePublish = async () => {
-    if (!items || !currentTenant) return;
+    if (!items) { toast.error("Dados não carregados, tente novamente."); return; }
+    if (!currentTenant) { toast.error("Sessão não encontrada. Recarregue a página."); return; }
     const toPublish = approvedItems.filter(i => selectedIds.has(i.id));
-    if (toPublish.length === 0) { toast.info("Selecione itens aprovados para publicar."); return; }
+    if (toPublish.length === 0) { toast.info("Selecione itens aprovados para agendar."); return; }
 
     setIsPublishing(true);
     try {
