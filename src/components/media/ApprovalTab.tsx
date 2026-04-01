@@ -109,6 +109,8 @@ export function ApprovalTab({
 
     setIsPublishing(true);
     try {
+      let shouldClearSelection = true;
+
       if (isBlog) {
         let scheduled = 0, published = 0, failedCount = 0;
         for (const item of toPublish) {
@@ -122,7 +124,10 @@ export function ApprovalTab({
         }
         if (scheduled > 0) toast.success(`${scheduled} post(s) agendado(s)!`);
         if (published > 0) toast.success(`${published} post(s) publicado(s)!`);
-        if (failedCount > 0) toast.error(`${failedCount} post(s) falharam`);
+        if (failedCount > 0) {
+          toast.error(`${failedCount} post(s) falharam`);
+          if (scheduled === 0 && published === 0) shouldClearSelection = false;
+        }
       } else {
         if (!metaConnected) {
           toast.error("Conecte suas redes sociais primeiro", {
@@ -131,94 +136,50 @@ export function ApprovalTab({
           setIsPublishing(false);
           return;
         }
+
         const { data, error } = await supabase.functions.invoke("meta-publish-post", {
           body: { calendar_item_ids: toPublish.map(i => i.id), tenant_id: currentTenant.id },
         });
-        if (error) toast.error("Erro ao agendar");
-        else if (data?.success) {
+
+        if (error) {
+          toast.error("Erro ao agendar");
+          shouldClearSelection = false;
+        } else if (data?.success === false) {
+          toast.error(data.message || data.error || "Não foi possível agendar agora.");
+          shouldClearSelection = false;
+        } else if (data?.success) {
           const parts = [];
           if (data.published > 0) parts.push(`${data.published} publicado(s)`);
           if (data.scheduled > 0) parts.push(`${data.scheduled} agendado(s)`);
           if (parts.length > 0) toast.success(parts.join(", ") + "!");
           if (data.failed > 0) toast.error(`${data.failed} falharam`);
+          if (data.preflight_errors?.length) {
+            toast.error(data.preflight_errors[0]?.errors?.[0] || "Alguns itens não puderam ser agendados.");
+          }
+          if ((data.published ?? 0) === 0 && (data.scheduled ?? 0) === 0) {
+            shouldClearSelection = false;
+          }
         }
       }
-      setSelectedIds(new Set());
+
+      if (shouldClearSelection) {
+        setSelectedIds(new Set());
+      }
       await refetchItems();
-    } catch { toast.error("Erro ao agendar"); }
-    finally { setIsPublishing(false); }
+    } catch {
+      toast.error("Erro ao agendar");
+    } finally {
+      setIsPublishing(false);
+    }
   };
-
-  const isEmpty = readyToApprove.length === 0 && approvedItems.length === 0;
-
-  // Count incomplete drafts (have title but missing copy or creative)
-  const incompleteDrafts = useMemo(() => {
-    if (!items) return 0;
-    return items.filter(i =>
-      ["draft", "suggested", "review"].includes(i.status) &&
-      i.title &&
-      ((!i.copy || i.copy.trim() === "") || (!isBlog && i.content_type !== "text" && !i.asset_url))
-    ).length;
-  }, [items, isBlog]);
-
-  return (
-    <div className="space-y-4">
-      {/* Meta connection warning */}
-      {!metaLoading && !metaConnected && !isBlog && (
-        <Alert variant="default" className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
-          <AlertCircle className="h-4 w-4 text-amber-600" />
-          <AlertDescription className="flex items-center justify-between">
-            <span className="text-amber-800 dark:text-amber-200">Para publicar nas redes sociais, conecte suas contas.</span>
-            <Button size="sm" variant="outline" onClick={() => navigate("/integrations")} className="ml-4">Conectar</Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Incomplete drafts alert */}
-      {incompleteDrafts > 0 && isEmpty && (
-        <Alert className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
-          <PenTool className="h-4 w-4 text-amber-600" />
-          <AlertDescription className="flex items-center justify-between">
-            <span className="text-amber-800 dark:text-amber-200">
-              {incompleteDrafts} item(ns) ainda precisam de copy ou criativo antes de aprovar.
-            </span>
-            <Button size="sm" variant="outline" onClick={onGoToPlanning} className="ml-4 gap-1">
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Ir ao Planejamento
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {isEmpty ? (
-        <EmptyState
-          icon={CheckCircle2}
-          title="Nenhum item pronto para aprovar"
-          description="Quando os itens estiverem com copy e criativo preenchidos, eles aparecerão aqui para revisão e publicação."
-          action={{ label: "Ir ao Planejamento", onClick: onGoToPlanning }}
-        />
-      ) : (
-        <>
-          {/* Filter tabs */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant={filter === "ready" ? "default" : "outline"}
-              size="sm"
-              onClick={() => { setFilter("ready"); setSelectedIds(new Set()); }}
-              className="gap-1.5"
-            >
-              Prontos para Aprovar
-              {readyToApprove.length > 0 && (
-                <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">{readyToApprove.length}</Badge>
-              )}
-            </Button>
+...
             <Button
               variant={filter === "approved" ? "default" : "outline"}
               size="sm"
               onClick={() => { setFilter("approved"); setSelectedIds(new Set()); }}
               className="gap-1.5"
             >
-              Aprovados para Publicar
+              Prontos para Publicar
               {approvedItems.length > 0 && (
                 <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">{approvedItems.length}</Badge>
               )}

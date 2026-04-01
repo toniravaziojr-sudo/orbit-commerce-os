@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 import { getMetaConnectionForTenant } from "../_shared/meta-connection.ts";
 
-const VERSION = "3.1.0"; // Phase 5: Migrate to centralized meta-connection helper (V4+fallback)
+const VERSION = "3.1.1"; // Fix silent scheduling failure and validate active publishing integrations
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -60,6 +60,22 @@ serve(async (req) => {
       return jsonResponse({ success: false, error: "Sem acesso ao tenant" });
     }
 
+    const { data: activePublishingIntegrations } = await supabase
+      .from("tenant_meta_integrations")
+      .select("integration_id")
+      .eq("tenant_id", tenant_id)
+      .eq("status", "active")
+      .in("integration_id", ["facebook_publicacoes", "instagram_publicacoes"]);
+
+    const activeIntegrations = new Set((activePublishingIntegrations ?? []).map((integration) => integration.integration_id));
+
+    if (!activeIntegrations.has("facebook_publicacoes") && !activeIntegrations.has("instagram_publicacoes")) {
+      return jsonResponse({
+        success: false,
+        error: "Publicação não habilitada. Reconecte suas redes em Integrações.",
+      });
+    }
+
     // Get Meta connection via centralized helper (V4 + legacy fallback)
     const metaConn = await getMetaConnectionForTenant(supabase, tenant_id);
 
@@ -68,15 +84,6 @@ serve(async (req) => {
     }
 
     // Token expiry is handled by the helper (V4 checks grant status, legacy checks expires_at)
-
-    // Check scope packs
-    const scopePacks = (metaConn.metadata as any)?.scope_packs || [];
-    if (!scopePacks.includes("publicacao")) {
-      return jsonResponse({ 
-        success: false, 
-        error: "Permissão de publicação não concedida. Reconecte a Meta em Integrações com a permissão 'Publicação' habilitada." 
-      });
-    }
 
     const userAccessToken = metaConn.access_token;
     const metadata = metaConn.metadata as any;
