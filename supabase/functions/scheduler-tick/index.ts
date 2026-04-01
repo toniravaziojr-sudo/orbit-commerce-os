@@ -391,6 +391,8 @@ serve(async (req) => {
       shipments_polled: 0,
       shipments_updated: 0,
       scheduled_emails_sent: 0,
+      email_lists_synced: 0,
+      email_subscribers_synced: 0,
     };
 
     for (let pass = 1; pass <= passes; pass++) {
