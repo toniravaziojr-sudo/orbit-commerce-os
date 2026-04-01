@@ -89,7 +89,7 @@ export default function AdsManager() {
       }
       default: return [];
     }
-  }, [metaConn.status, googleConn.status, tiktokConn.connectionStatus]);
+  }, [metaSelectedAdAccounts, googleConn.status, tiktokConn.connectionStatus]);
 
   const toggleAccount = useCallback((channel: string, accountId: string) => {
     setSelectedAccounts(prev => {
