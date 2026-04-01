@@ -471,6 +471,7 @@ O importador aceita CSVs de qualquer plataforma (Shopify, WooCommerce, Nuvemshop
 - [x] ~~Métricas recalculadas com base em pedidos reais~~ — Implementado em 01/04/2026
 - [x] ~~Importação universal (multi-plataforma)~~ — Implementado em 01/04/2026
 - [x] ~~Sync automático com email marketing~~ — Implementado em 01/04/2026
+- [x] ~~Auditoria de skip para customer sem email~~ — Implementado em 01/04/2026 (tabela `email_marketing_sync_audit`)
 - [ ] Merge de clientes duplicados
 - [ ] Histórico de alterações do perfil
 - [ ] Validação de telefone (SMS)
