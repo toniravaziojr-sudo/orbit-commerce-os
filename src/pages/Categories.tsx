@@ -115,10 +115,17 @@ export default function Categories() {
         title="Categorias"
         description="Gerencie as categorias da sua loja. A hierarquia de navegação é definida nos Menus."
         actions={
-          <Button onClick={handleCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            Nova Categoria
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Globe className="mr-2 h-4 w-4" />
+              Importar
+            </Button>
+            <Button onClick={handleCreate}>
+              <Plus className="mr-2 h-4 w-4" />
+              Nova Categoria
+            </Button>
+            <UrlImportDialog open={importOpen} onOpenChange={setImportOpen} module="categories" />
+          </div>
         }
       />
 

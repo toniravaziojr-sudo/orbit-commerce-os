@@ -125,6 +125,10 @@ export default function Orders() {
         description="Gestão de pedidos, pagamentos e envios"
         actions={
           <div className="flex gap-3">
+            <Button variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
+              <Upload className="h-4 w-4" />
+              Importar
+            </Button>
             <FeatureGate feature="export_orders">
               <Button variant="outline" className="gap-2">
                 <Download className="h-4 w-4" />
@@ -135,6 +139,7 @@ export default function Orders() {
               <Plus className="h-4 w-4" />
               Novo Pedido
             </Button>
+            <FileImportDialog open={importOpen} onOpenChange={setImportOpen} module="orders" />
           </div>
         }
       />
