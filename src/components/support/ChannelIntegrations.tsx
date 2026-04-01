@@ -111,7 +111,29 @@ const metaLinkedChannels: SupportChannelType[] = ['facebook_messenger', 'instagr
 // Canais disponíveis para o tenant plataforma (admin) - sem marketplaces
 const PLATFORM_TENANT_CHANNELS: SupportChannelType[] = ['whatsapp', 'email', 'facebook_messenger', 'instagram_dm'];
 
-  // Fetch integration status from existing configs
+export function ChannelIntegrations() {
+  const { currentTenant } = useAuth();
+  const { isPlatformTenant } = useTenantAccess();
+  const navigate = useNavigate();
+  const { channels, isLoading, createChannel, updateChannel, deleteChannel } = useChannelAccounts();
+  const { isConnected: meliConnected, isLoading: meliLoading, connection: meliConnection } = useMeliConnection();
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [selectedType, setSelectedType] = useState<SupportChannelType | ''>('');
+  const [accountName, setAccountName] = useState('');
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
+  const [selectedChannel, setSelectedChannel] = useState<ChannelAccount | null>(null);
+  const [selectedChannelType, setSelectedChannelType] = useState<SupportChannelType>('whatsapp');
+  const [aiConfigOpen, setAiConfigOpen] = useState(false);
+  const [aiConfigChannel, setAiConfigChannel] = useState<{ type: SupportChannelType; name: string } | null>(null);
+  const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus>({
+    whatsapp: { configured: false, connected: false },
+    email: { configured: false, verified: false },
+    mercadolivre: { configured: false, connected: false },
+  });
+  const [metaChannelStatus, setMetaChannelStatus] = useState<Record<string, MetaChannelStatus>>({});
+  const [loadingStatus, setLoadingStatus] = useState(true);
+
+  // Fetch integration status from existing configs + Meta integrations
   useEffect(() => {
     const fetchIntegrationStatus = async () => {
       if (!currentTenant?.id) return;
@@ -129,6 +151,27 @@ const PLATFORM_TENANT_CHANNELS: SupportChannelType[] = ['whatsapp', 'email', 'fa
           .select('id, verification_status, from_email, from_name')
           .eq('tenant_id', currentTenant.id)
           .maybeSingle();
+
+        // Check Meta integrations (DM, Messenger, Comments)
+        const { data: metaIntegrations } = await supabase
+          .from('tenant_meta_integrations')
+          .select('integration_id, status, selected_assets')
+          .eq('tenant_id', currentTenant.id)
+          .eq('status', 'active')
+          .in('integration_id', ['instagram_direct', 'facebook_messenger', 'instagram_comentarios', 'facebook_comentarios']);
+
+        const metaStatus: Record<string, MetaChannelStatus> = {};
+        for (const mi of metaIntegrations || []) {
+          const channelType = META_CHANNEL_MAP[mi.integration_id];
+          if (channelType) {
+            const assets = mi.selected_assets as any;
+            const label = assets?.instagram?.username 
+              ? `@${assets.instagram.username}` 
+              : assets?.page?.name || 'Conectado';
+            metaStatus[channelType] = { configured: true, label };
+          }
+        }
+        setMetaChannelStatus(metaStatus);
 
         setIntegrationStatus({
           whatsapp: {
