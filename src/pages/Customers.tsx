@@ -19,6 +19,10 @@ import { CustomerTagsManager } from '@/components/customers/CustomerTagsManager'
 import { CustomerImport } from '@/components/customers/CustomerImport';
 import { useCustomers, useCustomerTags, type Customer } from '@/hooks/useCustomers';
 import { FeatureGate } from '@/components/layout/FeatureGate';
+import { exportToCSV, formatDateForExport, formatCurrencyForExport } from '@/lib/exportUtils';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 const PAGE_SIZE = 50;
 
