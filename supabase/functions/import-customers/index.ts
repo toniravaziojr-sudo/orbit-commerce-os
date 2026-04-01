@@ -28,7 +28,7 @@ import {
 } from '../_shared/import-helpers.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 
-const VERSION = '2026-04-01.0001';
+const VERSION = '2026-04-01.0002';
 
 // ===========================================
 // CSV HEADER MAPPING (for raw_file mode)
