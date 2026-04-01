@@ -24,6 +24,7 @@ Sistema completo de email marketing com listas segmentadas, templates personaliz
 | `supabase/functions/email-dispatcher/` | Worker de processamento |
 | `supabase/functions/marketing-form-submit/` | Captura de leads |
 | `supabase/functions/email-unsubscribe/` | Descadastramento |
+| `supabase/functions/email-marketing-list-sync/` | Sincronização periódica de listas baseadas em tags |
 
 ---
 
