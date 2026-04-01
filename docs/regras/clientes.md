@@ -88,17 +88,22 @@ interface Customer {
   unsubscribed_at: string | null;
   bounced_at: string | null;
   
-  // === Métricas (calculadas) ===
-  total_orders: number | null;     // Incrementado a cada INSERT em orders (inclui ghost orders — dívida técnica)
-  total_spent: number | null;
-  average_ticket: number | null;
-  first_order_at: string | null;
-  last_order_at: string | null;
+  // === Métricas (calculadas via trigger recalc_customer_metrics) ===
+  total_orders: number | null;     // Recalculado automaticamente com base em pedidos aprovados (payment_status='approved', total>0)
+  total_spent: number | null;      // Soma dos totais dos pedidos aprovados
+  average_ticket: number | null;   // total_spent / total_orders
+  first_order_at: string | null;   // Data do primeiro pedido aprovado
+  last_order_at: string | null;    // Data do último pedido aprovado
   // NOTA: A tarja "1ª compra" NÃO usa total_orders. Usa orders.is_first_sale (flag imutável).
   
-  // === Fidelidade ===
+  // === Fidelidade (calculada automaticamente pelo trigger) ===
   loyalty_points: number | null;
   loyalty_tier: 'bronze' | 'silver' | 'gold' | 'platinum' | null;
+  // Progressão automática de tier:
+  //   Bronze: padrão
+  //   Prata: 5+ pedidos OU R$1.000+ gastos
+  //   Ouro: 15+ pedidos OU R$5.000+ gastos
+  //   Platina: 30+ pedidos OU R$15.000+ gastos
   
   // === Origem ===
   last_source_platform: string | null;

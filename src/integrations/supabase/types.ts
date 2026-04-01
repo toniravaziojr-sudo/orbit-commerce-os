@@ -19183,6 +19183,10 @@ export type Database = {
       }
       migrate_existing_templates_to_sets: { Args: never; Returns: undefined }
       normalize_email: { Args: { p_email: string }; Returns: string }
+      recalc_customer_metrics: {
+        Args: { p_customer_email: string; p_tenant_id: string }
+        Returns: undefined
+      }
       record_ai_usage: {
         Args: { p_tenant_id: string; p_usage_cents: number }
         Returns: undefined
