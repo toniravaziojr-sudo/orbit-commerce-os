@@ -308,9 +308,11 @@ interface AggregatedStats {
     payments_reconciled: number;
     shipments_polled: number;
     shipments_updated: number;
-    scheduled_emails_sent: number;
-  };
-  passes: TickStats[];
+      scheduled_emails_sent: number;
+      email_lists_synced: number;
+      email_subscribers_synced: number;
+    };
+    passes: TickStats[];
 }
 
 // Helper: call a sub-function and return typed result
