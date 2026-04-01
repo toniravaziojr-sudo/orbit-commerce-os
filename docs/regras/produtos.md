@@ -47,7 +47,7 @@ O módulo de Produtos é o núcleo do catálogo do e-commerce. Permite gerenciar
 | Função | Responsabilidade |
 |--------|------------------|
 | `core-products` | API canônica: create, update, delete, addImage, updateComponents, updateRelated |
-| `import-batch` | Importação em lote de produtos |
+| `import-products` | Importação em lote de produtos (motor canônico) |
 
 ---
 

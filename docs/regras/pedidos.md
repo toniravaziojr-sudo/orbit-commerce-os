@@ -171,7 +171,7 @@ O campo `payment_gateway_id` é a prova de que o pedido foi processado pela oper
 |-------|---------|--------------|
 | 1. Função de cobrança (primário) | `pagarme-create-charge`, `mercadopago-create-charge` | Assim que a operadora responde, independente do status |
 | 2. Webhook (redundância) | `pagarme-webhook`, `mercadopago-storefront-webhook` | Em toda notificação de pagamento, regrava como segurança |
-| 3. Importação | `import-batch` | Ao importar pedidos de outras plataformas |
+| 3. Importação | `import-orders` | Ao importar pedidos de outras plataformas |
 
 **Filtro canônico para TODAS as queries de pedidos:**
 ```
@@ -458,7 +458,7 @@ Sem normalização, pedidos com status legado exibem badges errados (ex: pedido 
 ### 6.1.1 Flag "1ª Venda" (v2026-03-30 — Arquitetura V2)
 
 - **Lógica:** O campo `orders.is_first_sale` (boolean, imutável) é definido como `true` no momento da criação do pedido, quando o email normalizado do cliente ainda não existia na tabela `customers` do tenant. Uma vez gravado, nunca muda.
-- **Implementação:** O flag é gravado diretamente no INSERT do pedido por todos os writers: `checkout-create-order`, `core-orders`, `import-batch` e `admin-create-test-order`. O hook `useOrders.ts` consome `order.is_first_sale` diretamente do banco — sem cálculo no frontend.
+- **Implementação:** O flag é gravado diretamente no INSERT do pedido por todos os writers: `checkout-create-order`, `core-orders`, `import-orders` e `admin-create-test-order`. O hook `useOrders.ts` consome `order.is_first_sale` diretamente do banco — sem cálculo no frontend.
 - **UI:** Badge verde compacta `"1ª"` renderizada em `OrderList.tsx` ao lado da coluna de valor total quando `is_first_sale = true`.
 - **Filtro:** Botão toggle `"🆕 1ª Venda"` na página `Orders.tsx` filtra apenas pedidos com `is_first_sale = true`.
 - **Desacoplamento:** O campo `customers.total_orders` NÃO é usado para a tarja. Ele permanece como contador legado de todas as tentativas (dívida técnica separada).
@@ -643,7 +643,7 @@ Mudanças de status feitas por **webhook** (`pagarme-webhook`) e **cron** (`expi
 |-------|--------|--------|
 | 1. Função de cobrança | `pagarme-create-charge`, `mercadopago-create-charge`, `pagbank-create-charge` | Ao receber resposta da operadora (QUALQUER status: paid, pending, failed) |
 | 2. Webhook (redundância) | `pagarme-webhook`, `mercadopago-storefront-webhook` | Em toda notificação de pagamento |
-| 3. Importação | `import-batch` | Ao importar de outras plataformas |
+| 3. Importação | `import-orders` | Ao importar de outras plataformas |
 
 **REGRA CRÍTICA (v2026-03-14b):** O `payment_gateway_id` é gravado **independente do status do pagamento**. Mesmo que o cartão seja recusado, o pedido recebe o código da operadora e aparece na listagem. A lógica é: se a operadora respondeu (com sucesso ou recusa), o pedido é real. Sem resposta da operadora = checkout abandonado.
 
