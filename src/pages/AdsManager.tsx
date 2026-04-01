@@ -217,11 +217,10 @@ export default function AdsManager() {
     switch (channel) {
       case "meta": {
         const status = metaConn.status;
-        const adAccounts = status?.connection?.assets?.ad_accounts || [];
         return {
           isConnected: status?.isConnected || false,
           isLoading: metaConn.isLoading,
-          adAccounts: adAccounts.map((a: any) => ({ id: a.id, name: a.name })),
+          adAccounts: (metaSelectedAdAccounts || []).map((a: any) => ({ id: a.id, name: a.name })),
         };
       }
       case "google": {
