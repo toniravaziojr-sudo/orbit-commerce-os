@@ -502,28 +502,32 @@ src/
         └── wix.ts
 ```
 
-### Backend (Edge Functions)
+### Backend (Edge Functions — Motores Canônicos)
 
 ```
 supabase/functions/
 ├── firecrawl-scrape/                 # Scraping via Firecrawl
-├── import-batch/                     # Import em lote (produtos, clientes, pedidos)
-├── import-customers/                 # Import específico de clientes
+├── import-products/                  # Motor canônico de produtos (upsert por slug, imagens, variantes)
+├── import-orders/                    # Motor canônico de pedidos (numeração sequencial, dedup por source_order_number)
+├── import-customers/                 # Motor canônico de clientes (Smart Merge: preenche null sem sobrescrever)
 ├── import-store-categories/          # Import de categorias via scraping
 ├── import-institutional-pages/       # Import de páginas via IA + Firecrawl
-├── import-menus/                     # Import de menus hierárquicos
-└── _shared/
-    └── platform-adapters/            # Adaptadores de extração
-        ├── types.ts
-        ├── index.ts
-        ├── shopify-adapter.ts
-        ├── nuvemshop-adapter.ts
-        ├── tray-adapter.ts
-        ├── bagy-adapter.ts
-        ├── yampi-adapter.ts
-        ├── loja-integrada-adapter.ts
-        └── generic-adapter.ts
+├── import-menus/                     # Import de menus hierárquicos (replace total)
+├── _shared/
+│   ├── import-helpers.ts             # Tracking, slugify, parsing — código comum a todos os motores
+│   └── platform-adapters/            # Adaptadores de extração
+│       ├── types.ts
+│       ├── index.ts
+│       ├── shopify-adapter.ts
+│       ├── nuvemshop-adapter.ts
+│       ├── tray-adapter.ts
+│       ├── bagy-adapter.ts
+│       ├── yampi-adapter.ts
+│       ├── loja-integrada-adapter.ts
+│       └── generic-adapter.ts
 ```
+
+> **ELIMINADOS:** `import-batch/` (substituído por import-products + import-orders) e `bulk-customer-update/` (substituído pelo Smart Merge em import-customers).
 
 ### Banco de Dados
 
@@ -538,7 +542,10 @@ import_jobs (
 -- Items importados (para rollback/auditoria)
 import_items (
   id, tenant_id, job_id, module,
-  external_id, internal_id, status, data
+  external_id, internal_id,
+  status,   -- success | error (técnico)
+  result,   -- created | updated | unchanged | skipped (negócio)
+  data
 )
 ```
 
@@ -559,10 +566,11 @@ import_items (
                           └──────────────────┘
                                    │
                                    ▼
-                          ┌──────────────────┐
-                          │  Edge Function   │
-                          │  import-batch    │
-                          └──────────────────┘
+                          ┌──────────────────────────────────────┐
+                          │  Motor Canônico (Edge Function)      │
+                          │  import-products / import-orders /   │
+                          │  import-customers                    │
+                          └──────────────────────────────────────┘
                                    │
                                    ▼
                           ┌──────────────────┐
@@ -659,15 +667,42 @@ O sistema usa batch sizes otimizados por tipo de dado para equilibrar performanc
 - Updates de clientes existentes usam concorrência de 10 requests paralelos por chunk
 - Inserts de novos clientes são feitos em batch único por lote
 
-### RN-IMP-017: Dois Fluxos de Importação de Arquivos
-Existem dois wizards de importação:
+### RN-IMP-017: Motor Canônico Único por Módulo
+Todos os fluxos de importação (botão individual do módulo, GuidedImportWizard, ImportWizard) chamam o **mesmo motor canônico** por módulo:
 
-| Wizard | Hook | Usado em |
-|--------|------|----------|
-| `GuidedImportWizard` | `useImportData` (de `useImportJobs.ts`) | Página `/import` (botão "Nova Importação") |
-| `ImportWizard` | `useImportService` (de `useImportService.ts`) | Fluxo alternativo com health check |
+| Módulo | Motor Canônico | Merge |
+|--------|---------------|-------|
+| Produtos | `import-products` | Upsert por slug (sobrescreve) |
+| Clientes | `import-customers` | Smart Merge (preenche null sem sobrescrever) |
+| Pedidos | `import-orders` | Dedup por source_order_number (skip existentes) |
+| Categorias | `import-store-categories` | Upsert por slug (sobrescreve) |
+| Menus | `import-menus` | Replace total |
 
-Ambos chamam a mesma Edge Function `import-batch` no backend.
+O wizard NÃO contém lógica de persistência — apenas orquestra contexto, sequência e chamada dos motores.
+
+### RN-IMP-018: Menus — Comportamento de Replace
+Menus usam **substituição completa** (replace), não merge. Ao importar:
+- Todos os menus existentes do tenant são removidos
+- Os novos menus são inseridos do zero
+Comportamento idêntico no botão individual e no wizard.
+
+### RN-IMP-019: Páginas — Exceção Arquitetural Documentada
+O domínio "páginas" possui dois modos com naturezas distintas:
+- **Single Page** (`ai-import-page`): IA recria uma URL específica com fidelidade visual. Usado no botão individual.
+- **Batch Institutional** (`import-institutional-pages`): Scraping automático de N páginas institucionais. Usado no wizard Etapa 3.
+Ambos seguem o contrato padrão de resposta e tracking.
+
+### RN-IMP-020: Contrato de Entrada do import-customers
+O motor `import-customers` suporta dois modos explícitos via campo `mode`:
+- `mode: 'raw_file'` — Recebe `{ csvContent, tenantId }`. Faz parsing interno do CSV.
+- `mode: 'normalized_batch'` — Recebe `{ items, tenantId, jobId }`. Dados já parseados/normalizados.
+Não há formato implícito — o campo `mode` é obrigatório.
+
+### RN-IMP-021: Tracking com Status Técnico + Resultado de Negócio
+Cada `import_item` registra:
+- `status`: `success` | `error` (resultado técnico da operação)
+- `result`: `created` | `updated` | `unchanged` | `skipped` (resultado de negócio)
+Isso permite auditoria precisa separando falhas técnicas de decisões de negócio.
 
 ---
 
@@ -708,7 +743,8 @@ import_items (
   module TEXT,           -- 'products', 'categories', 'customers', 'orders', 'menus', 'pages'
   external_id TEXT,      -- ID/URL original da plataforma de origem
   internal_id UUID,      -- ID no nosso sistema (FK para a tabela do módulo)
-  status TEXT,           -- 'success', 'failed', 'skipped'
+  status TEXT,           -- 'success' | 'error' (técnico)
+  result TEXT,           -- 'created' | 'updated' | 'unchanged' | 'skipped' (negócio)
   data JSONB             -- Dados adicionais para auditoria
 )
 ```
@@ -717,7 +753,9 @@ import_items (
 
 | Edge Function | Módulo Rastreado |
 |---------------|------------------|
-| `import-batch` | `products`, `customers`, `orders` |
+| `import-products` | `products` |
+| `import-customers` | `customers` |
+| `import-orders` | `orders` |
 | `import-store-categories` | `categories` |
 | `import-institutional-pages` | `pages` |
 | `import-menus` | `menus` |
