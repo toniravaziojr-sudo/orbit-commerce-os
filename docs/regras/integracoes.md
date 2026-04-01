@@ -3082,14 +3082,16 @@ Cada integração define: `requiredScopes` (escopos Meta necessários), `feature
 
 | Arquivo | Ação |
 |---------|------|
-| `supabase/functions/meta-oauth-callback/index.ts` | Após `supersede_meta_grant`, desativa todas as integrações de grants anteriores (`status: inactive` para `auth_grant_id != novo grant`) |
+| `supabase/functions/meta-oauth-callback/index.ts` | Após `supersede_meta_grant`, desativa todas as integrações de grants anteriores (`status: disconnected` para `auth_grant_id != novo grant`) |
 | `supabase/functions/meta-integrations-manage/index.ts` | GET agora filtra integrações pelo `auth_grant_id` do grant ativo, ignorando registros órfãos de conexões antigas |
 
 **Regra de negócio:**
 - Novo auth = tela limpa (todos toggles desligados)
 - Mesmo usuário Facebook em diferentes tenants = integrações independentes
 - Reconexão no mesmo tenant = reset das integrações anteriores
-- Integrações antigas ficam no banco com `status: inactive` para histórico
+- Integrações antigas ficam no banco com `status: disconnected` para histórico
+
+> ⚠️ **REGRA CRÍTICA (v1.2.0+):** O status `inactive` é INVÁLIDO e viola a check constraint da tabela `tenant_meta_integrations`. SEMPRE usar `disconnected` para desativação/limpeza.
 
 ### Fase 5 — Migração dos Consumidores para Helper Centralizado (✅ Concluída)
 
