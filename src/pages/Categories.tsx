@@ -36,6 +36,7 @@ export default function Categories() {
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [formData, setFormData] = useState(emptyFormData);
   const [activeTab, setActiveTab] = useState<'details' | 'products'>('details');
+  const [importOpen, setImportOpen] = useState(false);
 
   const resetForm = () => {
     setFormData(emptyFormData);
