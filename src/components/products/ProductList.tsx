@@ -216,10 +216,18 @@ export function ProductList({ onCreateProduct, onEditProduct, onImport }: Produc
             className="pl-10"
           />
         </div>
-        <Button onClick={onCreateProduct}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Produto
-        </Button>
+        <div className="flex gap-2">
+          {onImport && (
+            <Button variant="outline" onClick={onImport}>
+              <Upload className="mr-2 h-4 w-4" />
+              Importar
+            </Button>
+          )}
+          <Button onClick={onCreateProduct}>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo Produto
+          </Button>
+        </div>
       </div>
 
       {filteredProducts.length === 0 ? (
