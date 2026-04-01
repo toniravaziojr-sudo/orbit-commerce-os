@@ -667,15 +667,42 @@ O sistema usa batch sizes otimizados por tipo de dado para equilibrar performanc
 - Updates de clientes existentes usam concorrência de 10 requests paralelos por chunk
 - Inserts de novos clientes são feitos em batch único por lote
 
-### RN-IMP-017: Dois Fluxos de Importação de Arquivos
-Existem dois wizards de importação:
+### RN-IMP-017: Motor Canônico Único por Módulo
+Todos os fluxos de importação (botão individual do módulo, GuidedImportWizard, ImportWizard) chamam o **mesmo motor canônico** por módulo:
 
-| Wizard | Hook | Usado em |
-|--------|------|----------|
-| `GuidedImportWizard` | `useImportData` (de `useImportJobs.ts`) | Página `/import` (botão "Nova Importação") |
-| `ImportWizard` | `useImportService` (de `useImportService.ts`) | Fluxo alternativo com health check |
+| Módulo | Motor Canônico | Merge |
+|--------|---------------|-------|
+| Produtos | `import-products` | Upsert por slug (sobrescreve) |
+| Clientes | `import-customers` | Smart Merge (preenche null sem sobrescrever) |
+| Pedidos | `import-orders` | Dedup por source_order_number (skip existentes) |
+| Categorias | `import-store-categories` | Upsert por slug (sobrescreve) |
+| Menus | `import-menus` | Replace total |
 
-Ambos chamam a mesma Edge Function `import-batch` no backend.
+O wizard NÃO contém lógica de persistência — apenas orquestra contexto, sequência e chamada dos motores.
+
+### RN-IMP-018: Menus — Comportamento de Replace
+Menus usam **substituição completa** (replace), não merge. Ao importar:
+- Todos os menus existentes do tenant são removidos
+- Os novos menus são inseridos do zero
+Comportamento idêntico no botão individual e no wizard.
+
+### RN-IMP-019: Páginas — Exceção Arquitetural Documentada
+O domínio "páginas" possui dois modos com naturezas distintas:
+- **Single Page** (`ai-import-page`): IA recria uma URL específica com fidelidade visual. Usado no botão individual.
+- **Batch Institutional** (`import-institutional-pages`): Scraping automático de N páginas institucionais. Usado no wizard Etapa 3.
+Ambos seguem o contrato padrão de resposta e tracking.
+
+### RN-IMP-020: Contrato de Entrada do import-customers
+O motor `import-customers` suporta dois modos explícitos via campo `mode`:
+- `mode: 'raw_file'` — Recebe `{ csvContent, tenantId }`. Faz parsing interno do CSV.
+- `mode: 'normalized_batch'` — Recebe `{ items, tenantId, jobId }`. Dados já parseados/normalizados.
+Não há formato implícito — o campo `mode` é obrigatório.
+
+### RN-IMP-021: Tracking com Status Técnico + Resultado de Negócio
+Cada `import_item` registra:
+- `status`: `success` | `error` (resultado técnico da operação)
+- `result`: `created` | `updated` | `unchanged` | `skipped` (resultado de negócio)
+Isso permite auditoria precisa separando falhas técnicas de decisões de negócio.
 
 ---
 
