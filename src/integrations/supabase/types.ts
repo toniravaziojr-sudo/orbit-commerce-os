@@ -7855,6 +7855,7 @@ export type Database = {
           internal_id: string | null
           job_id: string
           module: string
+          result: string | null
           status: string
           tenant_id: string
         }
@@ -7868,6 +7869,7 @@ export type Database = {
           internal_id?: string | null
           job_id: string
           module: string
+          result?: string | null
           status?: string
           tenant_id: string
         }
@@ -7881,6 +7883,7 @@ export type Database = {
           internal_id?: string | null
           job_id?: string
           module?: string
+          result?: string | null
           status?: string
           tenant_id?: string
         }
