@@ -35,6 +35,57 @@ const FILE_IMPORT_STEPS: FileStepConfig[] = [
   { id: 'orders', title: 'Pedidos', description: 'Importar histórico de pedidos via arquivo JSON ou CSV', icon: <ShoppingCart className="h-5 w-5" />, canSkip: true },
 ];
 
+/**
+ * Parse and consolidate a file for a given module + platform.
+ * This is a pure data-prep function — no persistence logic.
+ */
+async function parseFileForModule(
+  file: File,
+  stepId: string,
+  platform: string,
+): Promise<{ data: any[]; effectivePlatform: PlatformType }> {
+  const isShopifyPlatform = platform === 'shopify' || platform.includes('shopify');
+  const isNuvemshopPlatform = platform === 'nuvemshop' || platform.includes('nuvem');
+
+  const text = file.name.endsWith('.csv') ? await readFileWithEncoding(file) : await file.text();
+  let data: any[];
+
+  if (file.name.endsWith('.json')) {
+    const parsed = JSON.parse(text);
+    data = Array.isArray(parsed) ? parsed : parsed.products || parsed.customers || parsed.orders || [parsed];
+  } else {
+    const rawRows = parseCSV(text);
+
+    if (stepId === 'products') {
+      const hasShopify = rawRows.length > 0 && ('Handle' in rawRows[0] || 'handle' in rawRows[0]);
+      const hasNuvemshop = rawRows.length > 0 && (
+        'Identificador URL' in rawRows[0] || 'Nome do produto' in rawRows[0] ||
+        Object.keys(rawRows[0]).some(k => {
+          const norm = k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          return norm === 'identificador url' || norm === 'nome do produto';
+        })
+      );
+      data = (hasShopify || isShopifyPlatform) ? consolidateShopifyProducts(rawRows)
+           : (hasNuvemshop || isNuvemshopPlatform) ? consolidateNuvemshopProducts(rawRows)
+           : rawRows;
+    } else if (stepId === 'customers') {
+      const hasShopify = rawRows.length > 0 && ('Email' in rawRows[0] || 'email' in rawRows[0]);
+      data = (hasShopify || isShopifyPlatform) ? consolidateShopifyCustomers(rawRows) : rawRows;
+    } else if (stepId === 'orders') {
+      const hasShopify = rawRows.length > 0 && ('Name' in rawRows[0] || 'Order Number' in rawRows[0]);
+      data = (hasShopify || isShopifyPlatform) ? consolidateShopifyOrders(rawRows) : rawRows;
+    } else {
+      data = rawRows;
+    }
+  }
+
+  // Detect effective platform for normalization
+  const hasShopifyData = data.length > 0 && ('Handle' in data[0] || 'handle' in data[0] || 'Title' in data[0]);
+  const effectivePlatform: PlatformType = hasShopifyData ? 'shopify' : (platform as PlatformType) || 'unknown';
+
+  return { data, effectivePlatform };
+}
+
 export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
   const [wizardStep, setWizardStep] = useState<WizardStep>('url');
   const [storeUrl, setStoreUrl] = useState('');
@@ -89,156 +140,49 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
     }
   }, [storeUrl]);
 
-  // Usar detector centralizado para detectar plataforma
   const detectPlatform = (html: string, url: string): { name: string; confidence: string; platformId: PlatformType } => {
     const result = detectPlatformFromHtml(html, url);
     
-    // Mapear ID para nome amigável
     const platformNames: Record<PlatformType, string> = {
-      shopify: 'Shopify',
-      nuvemshop: 'Nuvemshop',
-      tray: 'Tray',
-      woocommerce: 'WooCommerce',
-      bagy: 'Bagy',
-      yampi: 'Yampi',
-      loja_integrada: 'Loja Integrada',
-      wix: 'Wix',
-      vtex: 'VTEX',
-      magento: 'Magento',
-      opencart: 'OpenCart',
-      prestashop: 'PrestaShop',
+      shopify: 'Shopify', nuvemshop: 'Nuvemshop', tray: 'Tray', woocommerce: 'WooCommerce',
+      bagy: 'Bagy', yampi: 'Yampi', loja_integrada: 'Loja Integrada', wix: 'Wix',
+      vtex: 'VTEX', magento: 'Magento', opencart: 'OpenCart', prestashop: 'PrestaShop',
       unknown: 'Não identificada',
     };
     
-    // Mapear confiança numérica para texto
     const confidenceText = result.confidence >= 70 ? 'alta' : result.confidence >= 40 ? 'média' : 'baixa';
     
-    return {
-      name: platformNames[result.platform] || 'Não identificada',
-      confidence: confidenceText,
-      platformId: result.platform,
-    };
+    return { name: platformNames[result.platform] || 'Não identificada', confidence: confidenceText, platformId: result.platform };
   };
 
+  // ─── Wizard delegates to canonical motors via useImportData ───
+  // No persistence logic here — only parse → normalize → call motor
   const handleFileImport = useCallback(async (stepId: string, file: File) => {
     if (!currentTenant?.id) return;
     setFileStepStatuses(prev => ({ ...prev, [stepId]: { status: 'processing' } }));
 
     try {
       const platform = analysisResult?.platform?.toLowerCase() || 'generic';
-      const isShopifyPlatform = platform === 'shopify' || platform.includes('shopify');
-      const isNuvemshopPlatform = platform === 'nuvemshop' || platform.includes('nuvem');
-      
-      // CRITICAL: Use encoding-aware file reading for CSVs (fixes Latin-1 mojibake from Nuvemshop)
-      const text = file.name.endsWith('.csv') ? await readFileWithEncoding(file) : await file.text();
-      let data: any[];
-      
-      if (file.name.endsWith('.json')) {
-        const parsed = JSON.parse(text);
-        data = Array.isArray(parsed) ? parsed : parsed.products || parsed.customers || parsed.orders || [parsed];
-      } else {
-        // Use proper CSV parser that handles BOM and quoted fields
-        const rawRows = parseCSV(text);
-        
-        console.log(`[handleFileImport] Parsed ${rawRows.length} rows for ${stepId} (platform: ${platform})`);
-        
-        // CRITICAL: Consolidate CSVs by platform + module type
-        // This prevents each variant row from being treated as a separate item
-        if (stepId === 'products') {
-          // Detect Shopify product CSV by Handle + Title columns
-          const hasShopifyStructure = rawRows.length > 0 && 
-            ('Handle' in rawRows[0] || 'handle' in rawRows[0]) &&
-            ('Title' in rawRows[0] || 'title' in rawRows[0]);
-          
-          // Detect Nuvemshop product CSV by "Identificador URL" or "Nome do produto" columns
-          const hasNuvemshopStructure = rawRows.length > 0 && (
-            'Identificador URL' in rawRows[0] || 
-            'Nome do produto' in rawRows[0] || 
-            'Nome' in rawRows[0] ||
-            // Check for normalized keys (encoding-fixed)
-            Object.keys(rawRows[0]).some(k => {
-              const norm = k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-              return norm === 'identificador url' || norm === 'nome do produto';
-            })
-          );
-          
-          if (hasShopifyStructure || isShopifyPlatform) {
-            console.log(`[handleFileImport] Shopify products - consolidating ${rawRows.length} rows`);
-            data = consolidateShopifyProducts(rawRows);
-            console.log(`[handleFileImport] Consolidated to ${data.length} products`);
-          } else if (hasNuvemshopStructure || isNuvemshopPlatform) {
-            console.log(`[handleFileImport] Nuvemshop products - consolidating ${rawRows.length} rows`);
-            data = consolidateNuvemshopProducts(rawRows);
-            console.log(`[handleFileImport] Consolidated to ${data.length} products`);
-          } else {
-            data = rawRows;
-          }
-        } else if (stepId === 'customers') {
-          // Detect Shopify customer CSV by Email + First Name columns
-          const hasShopifyCustomerStructure = rawRows.length > 0 && 
-            ('Email' in rawRows[0] || 'email' in rawRows[0]);
-          
-          if (hasShopifyCustomerStructure || isShopifyPlatform) {
-            console.log(`[handleFileImport] Shopify customers - consolidating ${rawRows.length} rows`);
-            data = consolidateShopifyCustomers(rawRows);
-            console.log(`[handleFileImport] Consolidated to ${data.length} customers`);
-          } else {
-            data = rawRows;
-          }
-        } else if (stepId === 'orders') {
-          // Detect Shopify order CSV by Name/Order Number column
-          const hasShopifyOrderStructure = rawRows.length > 0 && 
-            ('Name' in rawRows[0] || 'Order Number' in rawRows[0] || 'Número do Pedido' in rawRows[0]);
-          
-          if (hasShopifyOrderStructure || isShopifyPlatform) {
-            console.log(`[handleFileImport] Shopify orders - consolidating ${rawRows.length} rows`);
-            data = consolidateShopifyOrders(rawRows);
-            console.log(`[handleFileImport] Consolidated to ${data.length} orders`);
-          } else {
-            data = rawRows;
-          }
-        } else {
-          data = rawRows;
-        }
-      }
 
-      // Debug: Log first few items to verify parsing
-      console.log(`[handleFileImport] Processing ${data.length} items from ${file.name} (platform: ${platform})`);
-      if (data.length > 0) {
-        const sample = JSON.stringify(data[0]);
-        console.log('[handleFileImport] First item sample:', sample.substring(0, 800));
-        // Verify Title is present for products
-        if (stepId === 'products') {
-          const title = data[0]['Title'] || data[0]['title'] || data[0]['name'];
-          const handle = data[0]['Handle'] || data[0]['handle'];
-          console.log(`[handleFileImport] Product check - Title: "${title}", Handle: "${handle}"`);
-        }
-      }
+      // 1. Parse + consolidate (UX layer)
+      const { data, effectivePlatform } = await parseFileForModule(file, stepId, platform);
 
-      // CRITICAL: Use 'shopify' platform for normalization if Shopify structure detected
-      // This ensures correct normalization even if platform detection returned unknown
-      const hasShopifyData = stepId === 'products' && data.length > 0 && 
-        ('Handle' in data[0] || 'handle' in data[0] || 'Title' in data[0] || 'title' in data[0]);
-      const effectivePlatform = hasShopifyData ? 'shopify' : platform;
-
+      // 2. Normalize (UX preview layer — backend does final normalization)
       const dataType = stepId === 'products' ? 'product' : stepId === 'customers' ? 'customer' : 'order';
-      const normalized = normalizeData(effectivePlatform as PlatformType, dataType, data);
-      
-      // Debug: Verify normalization worked
-      if (normalized.length > 0 && stepId === 'products') {
-        const firstProduct = normalized[0] as any;
-        console.log(`[handleFileImport] After normalization (${effectivePlatform}) - name: "${firstProduct.name}", slug: "${firstProduct.slug}", price: ${firstProduct.price}, images: ${firstProduct.images?.length || 0}`);
-      }
+      const normalized = normalizeData(effectivePlatform, dataType, data);
 
+      // 3. Delegate to canonical motor via useImportData (same path as individual buttons)
       const moduleType = stepId as 'products' | 'customers' | 'orders';
       const result = await importData(platform, moduleType, normalized);
-      const importedCount = result.results?.imported || 0;
+
+      const importedCount = (result.results?.imported || 0);
       
       setFileStepStatuses(prev => ({
         ...prev,
         [stepId]: { status: 'completed', importedCount },
       }));
       
+      // Activate next step
       const currentIndex = FILE_IMPORT_STEPS.findIndex(s => s.id === stepId);
       if (currentIndex < FILE_IMPORT_STEPS.length - 1) {
         const nextStep = FILE_IMPORT_STEPS[currentIndex + 1];
@@ -247,7 +191,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       
       toast.success(`${importedCount} ${stepId} importados`);
     } catch (error: any) {
-      console.error(`[handleFileImport] Error:`, error);
+      console.error(`[GuidedImportWizard] Error importing ${stepId}:`, error);
       setFileStepStatuses(prev => ({ ...prev, [stepId]: { status: 'error', errorMessage: error.message } }));
       showErrorToast(error, { module: 'importação', action: 'processar' });
     }

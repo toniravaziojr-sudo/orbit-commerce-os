@@ -142,16 +142,20 @@ export function useImportService() {
       try {
         console.log(`[useImportService] Sending batch ${i + 1}/${totalBatches} for ${module} (${batchItems.length} items)`);
         
-        const { data, error } = await supabase.functions.invoke('import-batch', {
-          body: {
-            jobId,
-            tenantId,
-            platform,
-            module,
-            items: batchItems,
-            batchIndex: i,
-            categoryMap,
-          },
+        // Route to canonical motors instead of legacy import-batch
+        const motorMap: Record<string, string> = {
+          products: 'import-products',
+          orders: 'import-orders',
+          customers: 'import-customers',
+        };
+        const motorName = motorMap[module] || 'import-products';
+
+        const body: any = module === 'customers'
+          ? { mode: 'normalized_batch', jobId, tenantId, items: batchItems }
+          : { jobId, tenantId, platform, module, items: batchItems, batchIndex: i, categoryMap };
+
+        const { data, error } = await supabase.functions.invoke(motorName, {
+          body,
         });
 
         if (error) {

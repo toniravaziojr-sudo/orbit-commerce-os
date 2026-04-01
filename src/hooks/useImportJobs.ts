@@ -228,7 +228,7 @@ export function useImportData() {
       orders: 'import-orders',
       customers: 'import-customers',
     };
-    const motorName = motorMap[module] || 'import-batch';
+    const motorName = motorMap[module] || 'import-products';
 
     for (let i = 0; i < totalBatches; i++) {
       const batchItems = data.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
