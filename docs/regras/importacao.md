@@ -502,28 +502,32 @@ src/
         └── wix.ts
 ```
 
-### Backend (Edge Functions)
+### Backend (Edge Functions — Motores Canônicos)
 
 ```
 supabase/functions/
 ├── firecrawl-scrape/                 # Scraping via Firecrawl
-├── import-batch/                     # Import em lote (produtos, clientes, pedidos)
-├── import-customers/                 # Import específico de clientes
+├── import-products/                  # Motor canônico de produtos (upsert por slug, imagens, variantes)
+├── import-orders/                    # Motor canônico de pedidos (numeração sequencial, dedup por source_order_number)
+├── import-customers/                 # Motor canônico de clientes (Smart Merge: preenche null sem sobrescrever)
 ├── import-store-categories/          # Import de categorias via scraping
 ├── import-institutional-pages/       # Import de páginas via IA + Firecrawl
-├── import-menus/                     # Import de menus hierárquicos
-└── _shared/
-    └── platform-adapters/            # Adaptadores de extração
-        ├── types.ts
-        ├── index.ts
-        ├── shopify-adapter.ts
-        ├── nuvemshop-adapter.ts
-        ├── tray-adapter.ts
-        ├── bagy-adapter.ts
-        ├── yampi-adapter.ts
-        ├── loja-integrada-adapter.ts
-        └── generic-adapter.ts
+├── import-menus/                     # Import de menus hierárquicos (replace total)
+├── _shared/
+│   ├── import-helpers.ts             # Tracking, slugify, parsing — código comum a todos os motores
+│   └── platform-adapters/            # Adaptadores de extração
+│       ├── types.ts
+│       ├── index.ts
+│       ├── shopify-adapter.ts
+│       ├── nuvemshop-adapter.ts
+│       ├── tray-adapter.ts
+│       ├── bagy-adapter.ts
+│       ├── yampi-adapter.ts
+│       ├── loja-integrada-adapter.ts
+│       └── generic-adapter.ts
 ```
+
+> **ELIMINADOS:** `import-batch/` (substituído por import-products + import-orders) e `bulk-customer-update/` (substituído pelo Smart Merge em import-customers).
 
 ### Banco de Dados
 
