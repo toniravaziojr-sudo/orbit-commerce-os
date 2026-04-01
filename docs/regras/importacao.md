@@ -752,7 +752,7 @@ import_items (
   external_id TEXT,      -- ID/URL original da plataforma de origem
   internal_id UUID,      -- ID no nosso sistema (FK para a tabela do módulo)
   status TEXT,           -- 'success' | 'error' (técnico)
-  result TEXT,           -- 'created' | 'updated' | 'unchanged' | 'skipped' (negócio)
+  result TEXT NOT NULL,  -- 'created' | 'updated' | 'unchanged' | 'skipped' | 'legacy' (negócio, sem default)
   data JSONB             -- Dados adicionais para auditoria
 )
 ```
