@@ -870,6 +870,7 @@ Deno.serve(async (req) => {
         internal_id: menuId,
         external_id: storeUrl,
         status: 'success',
+        result: 'created',
         data: { 
           headerItems: stats.header,
           footer1Items: stats.footer1,
