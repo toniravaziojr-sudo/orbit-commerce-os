@@ -156,7 +156,7 @@ export default function Customers() {
               Importar
             </Button>
             <FeatureGate feature="export_customers">
-              <Button variant="outline" className="gap-2">
+              <Button variant="outline" className="gap-2" onClick={handleExportCustomers}>
                 <Download className="h-4 w-4" />
                 Exportar
               </Button>
