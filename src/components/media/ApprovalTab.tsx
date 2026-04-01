@@ -246,7 +246,7 @@ export function ApprovalTab({
                 {filter === "approved" && selectedIds.size > 0 && (
                   <Button size="sm" onClick={handlePublish} disabled={isPublishing} className="gap-1">
                     {isPublishing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                    Publicar ({selectedIds.size})
+                    Agendar ({selectedIds.size})
                   </Button>
                 )}
               </div>
