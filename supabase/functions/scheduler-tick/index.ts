@@ -408,6 +408,7 @@ serve(async (req) => {
         tracking_poll: { polled: 0, updated: 0, errors_count: 0 },
         scheduled_emails: { processed: 0, sent: 0, failed: 0, skipped: 0 },
         creative_poll: { resumed: 0, errors: 0 },
+        email_list_sync: { lists_synced: 0, subscribers_synced: 0, skipped_not_due: false, errors: 0 },
       };
 
       // ====================================================================
