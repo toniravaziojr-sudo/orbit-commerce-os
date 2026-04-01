@@ -328,7 +328,7 @@ export function ChannelIntegrations() {
                             {integrationLabel || 'Integração configurada'}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Via Integrações
+                            {isMetaChannel ? 'Via Integrações Meta' : 'Via Integrações'}
                           </p>
                         </div>
                         <Switch
