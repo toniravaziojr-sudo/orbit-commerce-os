@@ -318,8 +318,8 @@ export function ChannelIntegrations() {
                 <CardDescription>{info.description}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {isLinkedChannel ? (
-                  // WhatsApp and Email - use existing integrations
+                {(isLinkedChannel || isMetaChannel) ? (
+                  // WhatsApp, Email, and Meta channels - use existing integrations
                   integrationReady ? (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
