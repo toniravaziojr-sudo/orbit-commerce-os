@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { CategoryForm } from '@/components/categories/CategoryForm';
 import { CategoryProductsManager } from '@/components/categories/CategoryProductsManager';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { UrlImportDialog } from '@/components/import/UrlImportDialog';
 
 const emptyFormData = {
   name: '',
