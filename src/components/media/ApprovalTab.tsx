@@ -145,7 +145,7 @@ export function ApprovalTab({
       }
       setSelectedIds(new Set());
       await refetchItems();
-    } catch { toast.error("Erro ao publicar"); }
+    } catch { toast.error("Erro ao agendar"); }
     finally { setIsPublishing(false); }
   };
 
