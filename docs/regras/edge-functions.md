@@ -4,6 +4,12 @@
 
 ### ✅ Estabilidade de Publicação (2026-03-29)
 
+### ✅ Meta Publish Post — Regras de Agendamento (2026-04-01)
+
+- `meta-publish-post` deve retornar erro de negócio explícito quando a publicação não estiver habilitada.
+- A validação de publicação deve considerar as integrações ativas de Facebook/Instagram do tenant.
+- O helper compartilhado da Meta deve expor também os perfis do Instagram descobertos, para evitar falso bloqueio no agendamento.
+
 Após correções de regressão em lote, ficou obrigatório validar antes de publicar:
 - Não deixar fechamentos extras de bloco (`}`) no final de fluxos de ação
 - Não usar acesso inválido a campos de erro

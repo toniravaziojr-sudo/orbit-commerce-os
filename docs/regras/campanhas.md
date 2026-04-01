@@ -168,6 +168,12 @@ Os botões seguem ordem sequencial e só ficam ativos quando o passo anterior es
 | 5 | Aprovar | Items com copy e/ou criativo prontos → abre `ApprovalDialog` com resumo visual |
 | 6 | Finalizar Campanha | Items aprovados |
 
+#### Aprovação e Publicação (`ApprovalTab`)
+
+- A lista de itens aprovados usa o rótulo **"Prontos para Publicar"**.
+- O CTA principal dessa etapa usa o texto **"Agendar"**.
+- Quando o agendamento falhar, a tela deve manter a seleção e exibir o primeiro motivo retornado, sem encerrar o fluxo em silêncio.
+
 #### Diagnóstico de Seleção (SelectionDiagnostics)
 
 Quando o usuário seleciona dias no calendário, dois feedbacks visuais são exibidos:
