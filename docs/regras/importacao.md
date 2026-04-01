@@ -566,10 +566,11 @@ import_items (
                           └──────────────────┘
                                    │
                                    ▼
-                          ┌──────────────────┐
-                          │  Edge Function   │
-                          │  import-batch    │
-                          └──────────────────┘
+                          ┌──────────────────────────────────────┐
+                          │  Motor Canônico (Edge Function)      │
+                          │  import-products / import-orders /   │
+                          │  import-customers                    │
+                          └──────────────────────────────────────┘
                                    │
                                    ▼
                           ┌──────────────────┐
