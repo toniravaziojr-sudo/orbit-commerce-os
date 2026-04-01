@@ -1,0 +1,1 @@
+ALTER TABLE public.import_items ALTER COLUMN result SET NOT NULL;
