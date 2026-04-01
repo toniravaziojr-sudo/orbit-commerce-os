@@ -28,7 +28,7 @@ import {
 } from '../_shared/import-helpers.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 
-const VERSION = '2026-04-01.0001';
+const VERSION = '2026-04-01.0002';
 
 // ===========================================
 // CSV HEADER MAPPING (for raw_file mode)
@@ -394,20 +394,31 @@ async function smartMergeImport(
 
   const emails = uniqueCustomers.map(c => c.email);
 
+  console.log(`[import-customers v${VERSION}] DIAG: ${uniqueCustomers.length} unique emails to process, ${skippedDupes} dupes within CSV`);
+  console.log(`[import-customers v${VERSION}] DIAG: Sample emails[0..4]:`, JSON.stringify(emails.slice(0, 5)));
+
   // Pre-fetch existing customers in batches of 500 to avoid .in() limits
+  // IMPORTANT: each batch uses .limit(LOOKUP_BATCH) to override Supabase's default 1000-row cap
   const LOOKUP_BATCH = 500;
   const existingMap = new Map<string, any>();
   for (let i = 0; i < emails.length; i += LOOKUP_BATCH) {
     const emailBatch = emails.slice(i, i + LOOKUP_BATCH);
-    const { data: batch } = await supabase
+    const { data: batch, error: lookupErr } = await supabase
       .from('customers')
       .select('id, email, phone, cpf, cnpj, company_name, person_type, birth_date, gender, notes, total_spent, total_orders, accepts_marketing, accepts_email_marketing, accepts_sms_marketing')
       .eq('tenant_id', tenantId)
-      .in('email', emailBatch);
+      .in('email', emailBatch)
+      .limit(LOOKUP_BATCH);
+    
+    const batchNum = Math.floor(i / LOOKUP_BATCH) + 1;
+    console.log(`[import-customers v${VERSION}] DIAG: Lookup batch ${batchNum}: queried=${emailBatch.length}, found=${(batch || []).length}, error=${lookupErr ? lookupErr.message : 'none'}`);
+    
     for (const c of (batch || [])) {
       existingMap.set(c.email, c);
     }
   }
+
+  console.log(`[import-customers v${VERSION}] DIAG: Total existing found in map: ${existingMap.size} out of ${emails.length} emails`);
 
   // Pre-fetch existing addresses in batches
   const existingCustomerIds = Array.from(existingMap.values()).map((c: any) => c.id);
@@ -417,7 +428,8 @@ async function smartMergeImport(
     const { data: existingAddrs } = await supabase
       .from('customer_addresses')
       .select('customer_id')
-      .in('customer_id', idBatch);
+      .in('customer_id', idBatch)
+      .limit(LOOKUP_BATCH);
     for (const addr of (existingAddrs || [])) {
       customerAddressMap.set(addr.customer_id, true);
     }
@@ -476,6 +488,11 @@ async function smartMergeImport(
     } else {
       toInsert.push(c);
     }
+  }
+
+  console.log(`[import-customers v${VERSION}] DIAG: toInsert=${toInsert.length}, toMerge=${toMerge.length}`);
+  if (toInsert.length > 0) {
+    console.log(`[import-customers v${VERSION}] DIAG: Sample toInsert emails[0..9]:`, JSON.stringify(toInsert.slice(0, 10).map(c => c.email)));
   }
 
   const trackingItems: ImportItemTracking[] = [];
@@ -558,8 +575,8 @@ async function smartMergeImport(
     }
   }
 
-  // === INSERT NEW CUSTOMERS ===
-  const BATCH_SIZE = 500;
+  // === INSERT NEW CUSTOMERS (with individual fallback for duplicates) ===
+  const BATCH_SIZE = 200;
   for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
     const batch = toInsert.slice(i, i + BATCH_SIZE);
     const insertData = batch.map(c => ({
@@ -584,98 +601,124 @@ async function smartMergeImport(
       notes: c.notes,
     }));
 
-    const { data: inserted, error: insertError } = await supabase.from('customers').insert(insertData).select('id, email');
+    let inserted: any[] | null = null;
+    const { data: batchInserted, error: insertError } = await supabase.from('customers').insert(insertData).select('id, email');
 
     if (insertError) {
-      console.error('[import-customers] Batch insert error:', insertError);
-      results.errors += batch.length;
-      results.itemErrors.push({ index: i, identifier: `batch-${i}`, error: insertError.message });
-      continue;
+      // If batch fails due to duplicate, fall back to individual inserts
+      if (insertError.code === '23505') {
+        console.warn(`[import-customers v${VERSION}] Batch ${Math.floor(i / BATCH_SIZE) + 1} hit duplicate, falling back to individual inserts`);
+        const individualInserted: any[] = [];
+        for (const row of insertData) {
+          const { data: single, error: singleErr } = await supabase.from('customers').insert(row).select('id, email').maybeSingle();
+          if (singleErr) {
+            if (singleErr.code === '23505') {
+              console.log(`[import-customers v${VERSION}] DIAG: Skipping existing (missed by lookup): ${row.email}`);
+              results.unchanged++;
+            } else {
+              results.errors++;
+              results.itemErrors.push({ index: i, identifier: row.email, error: singleErr.message });
+            }
+          } else if (single) {
+            individualInserted.push(single);
+          }
+        }
+        inserted = individualInserted.length > 0 ? individualInserted : null;
+        results.created += individualInserted.length;
+      } else {
+        console.error(`[import-customers v${VERSION}] Batch insert error (non-dupe):`, insertError);
+        results.errors += batch.length;
+        results.itemErrors.push({ index: i, identifier: `batch-${i}`, error: insertError.message });
+        continue;
+      }
+    } else {
+      inserted = batchInserted;
+      if (inserted) results.created += inserted.length;
     }
 
-    if (inserted) {
-      results.created += inserted.length;
-      const emailToId = new Map(inserted.map((c: any) => [c.email, c.id]));
+    if (!inserted || inserted.length === 0) continue;
 
-      // Track all created customers
-      for (const c of batch) {
+    // Post-insert: addresses, tags, subscribers
+    const emailToId = new Map(inserted.map((c: any) => [c.email, c.id]));
+
+    // Track all created customers
+    for (const c of batch) {
+      const customerId = emailToId.get(c.email);
+      if (customerId) {
+        const externalId = c.external_id || `import:customer:${c.email}`;
+        trackingItems.push({ internalId: customerId, externalId, result: 'created' });
+      }
+    }
+
+    // Insert addresses
+    const addresses = batch
+      .filter(c => c.street && c.city)
+      .map(c => {
         const customerId = emailToId.get(c.email);
-        if (customerId) {
-          const externalId = c.external_id || `import:customer:${c.email}`;
-          trackingItems.push({ internalId: customerId, externalId, result: 'created' });
-        }
-      }
-
-      // Insert addresses
-      const addresses = batch
-        .filter(c => c.street && c.city)
-        .map(c => {
-          const customerId = emailToId.get(c.email);
-          if (!customerId) return null;
-          return {
-            customer_id: customerId,
-            label: 'Principal',
-            is_default: true,
-            recipient_name: c.full_name,
-            street: c.street || '',
-            number: c.number || '',
-            complement: c.complement || null,
-            neighborhood: c.neighborhood || '',
-            city: c.city || '',
-            state: c.state || '',
-            postal_code: c.postal_code || '',
-            country: c.country || 'BR',
-          };
-        })
-        .filter(Boolean);
-
-      if (addresses.length > 0) {
-        await supabase.from('customer_addresses').insert(addresses);
-      }
-
-      // Tag assignments
-      if (clienteTagId) {
-        const tags = inserted.map((c: any) => ({ customer_id: c.id, tag_id: clienteTagId }));
-        await supabase.from('customer_tag_assignments').insert(tags);
-      }
-
-      // Email marketing subscribers
-      const subscribers = inserted.map((c: any) => {
-        const orig = batch.find(b => b.email === c.email);
+        if (!customerId) return null;
         return {
-          tenant_id: tenantId,
-          email: c.email,
-          name: orig?.full_name || 'Cliente',
-          phone: orig?.phone || null,
-          source: 'import',
-          created_from: 'import',
-          status: 'active',
-          customer_id: c.id,
+          customer_id: customerId,
+          label: 'Principal',
+          is_default: true,
+          recipient_name: c.full_name,
+          street: c.street || '',
+          number: c.number || '',
+          complement: c.complement || null,
+          neighborhood: c.neighborhood || '',
+          city: c.city || '',
+          state: c.state || '',
+          postal_code: c.postal_code || '',
+          country: c.country || 'BR',
         };
-      });
+      })
+      .filter(Boolean);
 
-      await supabase
+    if (addresses.length > 0) {
+      await supabase.from('customer_addresses').insert(addresses);
+    }
+
+    // Tag assignments
+    if (clienteTagId) {
+      const tags = inserted.map((c: any) => ({ customer_id: c.id, tag_id: clienteTagId }));
+      await supabase.from('customer_tag_assignments').upsert(tags, { onConflict: 'customer_id,tag_id', ignoreDuplicates: true });
+    }
+
+    // Email marketing subscribers
+    const subscribers = inserted.map((c: any) => {
+      const orig = batch.find(b => b.email === c.email);
+      return {
+        tenant_id: tenantId,
+        email: c.email,
+        name: orig?.full_name || 'Cliente',
+        phone: orig?.phone || null,
+        source: 'import',
+        created_from: 'import',
+        status: 'active',
+        customer_id: c.id,
+      };
+    });
+
+    await supabase
+      .from('email_marketing_subscribers')
+      .upsert(subscribers, { onConflict: 'tenant_id,email', ignoreDuplicates: true });
+
+    // Add to Clientes list
+    if (clientesListId) {
+      const { data: subs } = await supabase
         .from('email_marketing_subscribers')
-        .upsert(subscribers, { onConflict: 'tenant_id,email', ignoreDuplicates: true });
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .in('email', inserted.map((c: any) => c.email));
 
-      // Add to Clientes list
-      if (clientesListId) {
-        const { data: subs } = await supabase
-          .from('email_marketing_subscribers')
-          .select('id')
-          .eq('tenant_id', tenantId)
-          .in('email', inserted.map((c: any) => c.email));
-
-        if (subs) {
-          const listMembers = subs.map((s: any) => ({
-            tenant_id: tenantId,
-            list_id: clientesListId,
-            subscriber_id: s.id,
-          }));
-          await supabase
-            .from('email_marketing_list_members')
-            .upsert(listMembers, { onConflict: 'list_id,subscriber_id', ignoreDuplicates: true });
-        }
+      if (subs) {
+        const listMembers = subs.map((s: any) => ({
+          tenant_id: tenantId,
+          list_id: clientesListId,
+          subscriber_id: s.id,
+        }));
+        await supabase
+          .from('email_marketing_list_members')
+          .upsert(listMembers, { onConflict: 'list_id,subscriber_id', ignoreDuplicates: true });
       }
     }
   }
