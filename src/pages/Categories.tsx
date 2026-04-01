@@ -7,7 +7,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, FolderTree, Package, Pencil, Trash2, ExternalLink, Save } from 'lucide-react';
+import { Plus, FolderTree, Package, Pencil, Trash2, ExternalLink, Save, Globe } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CategoryForm } from '@/components/categories/CategoryForm';
 import { CategoryProductsManager } from '@/components/categories/CategoryProductsManager';
