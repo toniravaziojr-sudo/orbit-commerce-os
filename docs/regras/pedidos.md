@@ -643,7 +643,7 @@ Mudanças de status feitas por **webhook** (`pagarme-webhook`) e **cron** (`expi
 |-------|--------|--------|
 | 1. Função de cobrança | `pagarme-create-charge`, `mercadopago-create-charge`, `pagbank-create-charge` | Ao receber resposta da operadora (QUALQUER status: paid, pending, failed) |
 | 2. Webhook (redundância) | `pagarme-webhook`, `mercadopago-storefront-webhook` | Em toda notificação de pagamento |
-| 3. Importação | `import-batch` | Ao importar de outras plataformas |
+| 3. Importação | `import-orders` | Ao importar de outras plataformas |
 
 **REGRA CRÍTICA (v2026-03-14b):** O `payment_gateway_id` é gravado **independente do status do pagamento**. Mesmo que o cartão seja recusado, o pedido recebe o código da operadora e aparece na listagem. A lógica é: se a operadora respondeu (com sucesso ou recusa), o pedido é real. Sem resposta da operadora = checkout abandonado.
 

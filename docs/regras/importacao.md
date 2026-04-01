@@ -203,7 +203,9 @@ if (/,\d{2}$/.test(normalized)) {
 - `src/lib/import/utils.ts` - Parse CSV, consolidação Shopify/Nuvemshop, encoding
 - `src/lib/import/types.ts` - Tipos normalizados
 - `src/components/import/ImportStep.tsx` - Step de upload
-- `supabase/functions/import-batch/index.ts` - Processamento em lote
+- `supabase/functions/import-products/index.ts` - Motor canônico de produtos
+- `supabase/functions/import-orders/index.ts` - Motor canônico de pedidos
+- `supabase/functions/import-customers/index.ts` - Motor canônico de clientes (Smart Merge)
 
 ---
 

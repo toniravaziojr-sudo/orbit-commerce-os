@@ -6,7 +6,10 @@ verify_jwt = false
 [functions.import-data-health]
 verify_jwt = false
 
-[functions.import-batch]
+[functions.import-products]
+verify_jwt = false
+
+[functions.import-orders]
 verify_jwt = false
 
 [functions.platform-secrets-check]
