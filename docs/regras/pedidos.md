@@ -171,7 +171,7 @@ O campo `payment_gateway_id` é a prova de que o pedido foi processado pela oper
 |-------|---------|--------------|
 | 1. Função de cobrança (primário) | `pagarme-create-charge`, `mercadopago-create-charge` | Assim que a operadora responde, independente do status |
 | 2. Webhook (redundância) | `pagarme-webhook`, `mercadopago-storefront-webhook` | Em toda notificação de pagamento, regrava como segurança |
-| 3. Importação | `import-batch` | Ao importar pedidos de outras plataformas |
+| 3. Importação | `import-orders` | Ao importar pedidos de outras plataformas |
 
 **Filtro canônico para TODAS as queries de pedidos:**
 ```
