@@ -34,6 +34,7 @@ export default function Menus() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMenuId, setDialogMenuId] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   
   // Callback refs for local state updates
   const onItemCreatedRef = useRef<((item: LocalMenuItem) => void) | null>(null);
