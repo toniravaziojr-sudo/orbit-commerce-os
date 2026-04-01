@@ -327,9 +327,13 @@ export function PlanningTab({
         body: { campaign_id: campaignId, tenant_id: currentTenant.id, target_dates: targetDates },
       });
       if (error) throw error;
-      if (data?.success) { toast.success(data.message || "Copys geradas!"); await refetchItems(); }
-      showErrorToast(error, { module: 'mídia', action: 'gerar' });
-    } catch { toast.error("Erro ao gerar copys"); }
+      if (data?.success) {
+        toast.success(data.message || "Copys geradas!");
+        await refetchItems();
+      } else if (data && !data.success) {
+        showErrorToast(new Error(data.error || "Erro ao gerar copys"), { module: 'mídia', action: 'gerar' });
+      }
+    } catch (err) { showErrorToast(err, { module: 'mídia', action: 'gerar' }); }
     finally { setIsGeneratingCopys(false); }
   };
 

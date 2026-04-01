@@ -11,9 +11,9 @@
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
 export const NATIVE_GEMINI_MODELS = {
-  primary: 'gemini-2.0-flash-exp',
+  primary: 'gemini-2.5-flash-preview-image-generation',
   // Fallback model se o primary não estiver disponível
-  fallback: 'gemini-2.0-flash-exp',
+  fallback: 'gemini-2.5-flash-preview-image-generation',
 } as const;
 
 /**
