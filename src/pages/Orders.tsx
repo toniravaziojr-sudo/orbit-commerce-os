@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, Plus, Search, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Package, Plus, Search, Download, ChevronLeft, ChevronRight, Upload } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
