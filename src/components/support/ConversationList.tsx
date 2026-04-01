@@ -153,7 +153,9 @@ export function ConversationList({
             <SelectItem value="whatsapp">💬 WhatsApp</SelectItem>
             <SelectItem value="email">✉️ Email</SelectItem>
             <SelectItem value="facebook_messenger">📘 Messenger</SelectItem>
-            <SelectItem value="instagram_dm">📸 Instagram</SelectItem>
+            <SelectItem value="instagram_dm">📸 Instagram DM</SelectItem>
+            <SelectItem value="instagram_comments">💬 Comentários IG</SelectItem>
+            <SelectItem value="facebook_comments">💬 Comentários FB</SelectItem>
             <SelectItem value="mercadolivre">🛒 Mercado Livre</SelectItem>
             <SelectItem value="shopee">🧡 Shopee</SelectItem>
           </SelectContent>
