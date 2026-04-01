@@ -234,7 +234,8 @@ REGRAS FUNDAMENTAIS:
 4. Customer sem email:
    - É customer válido (tags, métricas funcionam via customer_id)
    - NÃO cria subscriber/list_member (email obrigatório para marketing)
-   - Trigger trg_recalc_customer_on_order ignora silenciosamente (customer_email vazio)
+   - Trigger `trg_recalc_customer_on_order` registra evento auditável via `log_marketing_sync_audit` com status=skipped, reason=missing_email
+   - Evento consultável na tabela `email_marketing_sync_audit`
 ```
 
 ### 4.4 Funções de Banco — Contrato de Responsabilidades
