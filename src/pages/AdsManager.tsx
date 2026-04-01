@@ -1,4 +1,7 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Bot, BarChart3, Settings2, Lightbulb, MessageCircle, Hourglass } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { AdsChatTab } from "@/components/ads/AdsChatTab";
@@ -26,6 +29,7 @@ import { AdsGlobalSettingsTab } from "@/components/ads/AdsGlobalSettingsTab";
 import { AdsPendingApprovalTab } from "@/components/ads/AdsPendingApprovalTab";
 
 export default function AdsManager() {
+  const { currentTenant } = useAuth();
   const meta = useMetaAds();
   const tiktok = useTikTokAds();
   const google = useGoogleAds();
@@ -36,6 +40,25 @@ export default function AdsManager() {
   const adsInsights = useAdsInsights();
   const accountConfigs = useAdsAccountConfigs();
 
+  // Fetch only the ad accounts explicitly selected in the anuncios integration
+  const { data: metaSelectedAdAccounts } = useQuery({
+    queryKey: ["meta-ads-selected-accounts", currentTenant?.id],
+    queryFn: async () => {
+      if (!currentTenant?.id) return [];
+      const { data } = await supabase
+        .from("tenant_meta_integrations")
+        .select("selected_assets")
+        .eq("tenant_id", currentTenant.id)
+        .eq("integration_id", "anuncios")
+        .eq("status", "active")
+        .maybeSingle();
+      const assets = data?.selected_assets as any;
+      if (!assets?.ad_accounts || !Array.isArray(assets.ad_accounts)) return [];
+      return assets.ad_accounts.map((a: any) => ({ id: a.id, name: a.name || a.id }));
+    },
+    enabled: !!currentTenant?.id,
+    staleTime: 30000,
+  });
   const [activeMainTab, setActiveMainTab] = useState("overview");
   const [activeChannel, setActiveChannel] = useState("meta");
   const [activeSubTab, setActiveSubTab] = useState("campaigns");
@@ -54,8 +77,7 @@ export default function AdsManager() {
   const getAdAccountIds = useCallback((channel: string): string[] => {
     switch (channel) {
       case "meta": {
-        const adAccounts = metaConn.status?.connection?.assets?.ad_accounts || [];
-        return adAccounts.map((a: any) => a.id);
+        return (metaSelectedAdAccounts || []).map((a: any) => a.id);
       }
       case "google": {
         const adAccounts = googleConn.status?.connection?.assets?.ad_accounts || [];
@@ -67,7 +89,7 @@ export default function AdsManager() {
       }
       default: return [];
     }
-  }, [metaConn.status, googleConn.status, tiktokConn.connectionStatus]);
+  }, [metaSelectedAdAccounts, googleConn.status, tiktokConn.connectionStatus]);
 
   const toggleAccount = useCallback((channel: string, accountId: string) => {
     setSelectedAccounts(prev => {
@@ -195,11 +217,10 @@ export default function AdsManager() {
     switch (channel) {
       case "meta": {
         const status = metaConn.status;
-        const adAccounts = status?.connection?.assets?.ad_accounts || [];
         return {
           isConnected: status?.isConnected || false,
           isLoading: metaConn.isLoading,
-          adAccounts: adAccounts.map((a: any) => ({ id: a.id, name: a.name })),
+          adAccounts: (metaSelectedAdAccounts || []).map((a: any) => ({ id: a.id, name: a.name })),
         };
       }
       case "google": {
