@@ -542,7 +542,10 @@ import_jobs (
 -- Items importados (para rollback/auditoria)
 import_items (
   id, tenant_id, job_id, module,
-  external_id, internal_id, status, data
+  external_id, internal_id,
+  status,   -- success | error (técnico)
+  result,   -- created | updated | unchanged | skipped (negócio)
+  data
 )
 ```
 
