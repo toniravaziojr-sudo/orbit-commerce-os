@@ -2976,6 +2976,8 @@ O modelo legado (`marketplace_connections` com `marketplace='meta'`) continua fu
 
 Cada integração define: `requiredScopes` (escopos Meta necessários), `featureKey` (gating por plano), `hasConfigSection` + `configSectionKey` (seção de configuração expandível). O toggle `facebook_comentarios` requer os escopos `pages_manage_engagement`, `pages_read_engagement` e `pages_read_user_content` (este último é dependência obrigatória de `pages_manage_engagement` conforme documentação oficial da Meta).
 
+**Integração com Atendimento (v4.5):** As integrações `instagram_direct`, `facebook_messenger`, `instagram_comentarios` e `facebook_comentarios` são automaticamente detectadas pela tela de Canais do módulo de Atendimento (`ChannelIntegrations.tsx`). Quando ativas, os cards aparecem como "Via Integrações Meta" com switch para ativar/desativar a IA. Ver detalhes em `docs/regras/suporte.md` (seção "Canais com Auto-Detecção Meta").
+
 **Edge Function criada:**
 - `meta-integrations-manage` — GET lista integrações + grant ativo; POST ativa/desativa integração vinculando ao grant existente. Não faz auth. Acesso validado via `user_has_tenant_access` usando `userClient` (JWT do usuário) para que `auth.uid()` funcione corretamente na RPC.
 
