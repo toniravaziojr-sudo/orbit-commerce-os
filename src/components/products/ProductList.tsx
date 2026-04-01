@@ -31,6 +31,7 @@ import { usePrimaryPublicHost, buildPublicStorefrontUrl } from '@/hooks/usePrima
 interface ProductListProps {
   onCreateProduct: () => void;
   onEditProduct: (product: Product) => void;
+  onImport?: () => void;
 }
 
 interface ProductWithImage extends Product {
