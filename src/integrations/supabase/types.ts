@@ -19329,23 +19329,6 @@ export type Database = {
         Args: { p_list_id: string }
         Returns: Json
       }
-      sync_subscriber_to_customer_with_tag: {
-        Args: {
-          p_birth_date?: string
-          p_email: string
-          p_list_id?: string
-          p_name?: string
-          p_phone?: string
-          p_source?: string
-          p_tenant_id: string
-        }
-        Returns: {
-          customer_id: string
-          is_new_customer: boolean
-          is_new_subscriber: boolean
-          subscriber_id: string
-        }[]
-      }
       update_customer_order_stats: {
         Args: { p_tenant_id: string }
         Returns: {
