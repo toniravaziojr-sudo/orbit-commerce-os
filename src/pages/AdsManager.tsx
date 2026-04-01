@@ -77,8 +77,7 @@ export default function AdsManager() {
   const getAdAccountIds = useCallback((channel: string): string[] => {
     switch (channel) {
       case "meta": {
-        const adAccounts = metaConn.status?.connection?.assets?.ad_accounts || [];
-        return adAccounts.map((a: any) => a.id);
+        return (metaSelectedAdAccounts || []).map((a: any) => a.id);
       }
       case "google": {
         const adAccounts = googleConn.status?.connection?.assets?.ad_accounts || [];
