@@ -87,7 +87,7 @@ export function useCustomerOrders(customerEmailOverride?: string) {
 
         const { data: orders, error } = await supabase
           .from('orders')
-          .select('id, order_number, status, payment_status, shipping_status, total, subtotal, shipping_total, discount_total, created_at, shipped_at, delivered_at, tracking_code, shipping_carrier, customer_name, customer_email, items_count')
+          .select('id, order_number, status, payment_status, shipping_status, total, subtotal, shipping_total, discount_total, created_at, shipped_at, delivered_at, tracking_code, shipping_carrier, customer_name, customer_email')
           .eq('tenant_id', tenantId)
           .ilike('customer_email', customerEmail)
           .order('created_at', { ascending: false })
