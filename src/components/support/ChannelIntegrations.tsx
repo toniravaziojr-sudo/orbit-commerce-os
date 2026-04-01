@@ -295,8 +295,10 @@ export function ChannelIntegrations() {
           const info = channelInfo[type];
           const channel = channels.find(c => c.channel_type === type);
           const isLinkedChannel = linkedChannels.includes(type);
-          const integrationReady = isIntegrationReady(type);
-          const integrationLabel = getIntegrationLabel(type);
+          const isMetaChannel = metaLinkedChannels.includes(type);
+          const metaStatus = metaChannelStatus[type];
+          const integrationReady = isMetaChannel ? !!metaStatus?.configured : isIntegrationReady(type);
+          const integrationLabel = isMetaChannel ? metaStatus?.label : getIntegrationLabel(type);
 
           return (
             <Card key={type} className={channel?.is_active ? 'border-primary/50' : ''}>
