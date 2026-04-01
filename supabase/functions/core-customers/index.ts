@@ -247,6 +247,13 @@ Deno.serve(async (req) => {
           correlation_id: correlationId,
         });
 
+        // Assign systemic "Cliente" tag directly (decoupled from marketing lists)
+        await supabase.rpc('ensure_customer_tag', {
+          p_tenant_id: tenantId,
+          p_customer_id: newCustomer.id,
+          p_tag_name: 'Cliente',
+        });
+
         await emitEvent(supabase, tenantId, 'customer.created', newCustomer.id, {
           customer_id: newCustomer.id,
           email: normalizedEmail,

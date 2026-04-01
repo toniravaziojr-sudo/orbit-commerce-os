@@ -3136,8 +3136,8 @@ async function executeTool(
     case "addSubscriber": {
       const { listId, email, name } = tool_args;
       
-      // Use the existing RPC function for proper sync
-      const { data, error } = await supabase.rpc("sync_subscriber_to_customer_with_tag", {
+      // Use upsert_subscriber_only — adding subscriber NEVER creates customer
+      const { data, error } = await supabase.rpc("upsert_subscriber_only", {
         p_tenant_id: tenant_id,
         p_email: email.toLowerCase().trim(),
         p_name: name || null,

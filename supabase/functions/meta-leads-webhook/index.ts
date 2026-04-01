@@ -389,7 +389,7 @@ async function processLead(
   // 4) Sync to email marketing (subscriber) if email exists
   if (normalizedEmail) {
     try {
-      await supabase.rpc("sync_subscriber_to_customer_with_tag", {
+      await supabase.rpc("upsert_subscriber_only", {
         p_tenant_id: tenantId,
         p_email: normalizedEmail,
         p_name: lead.name || null,
