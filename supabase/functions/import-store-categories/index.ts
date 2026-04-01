@@ -717,6 +717,7 @@ async function importCategory(
         internal_id: categoryId,
         external_id: candidate.url,
         status: 'success',
+        result: 'updated',
         data: { slug: candidate.slug, name: candidate.name, productCount: candidate.productCount }
       }, {
         onConflict: 'tenant_id,module,external_id',
