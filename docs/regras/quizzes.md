@@ -200,20 +200,23 @@ Quando `options` contém `image_url`, a UI renderiza um **grid 2 colunas** de ca
 7. Retorna outro_text para exibição
 ```
 
-### Integração com sync_subscriber_to_customer_with_tag
+### Integração com upsert_subscriber_only
 
-O quiz usa a mesma rotina unificada de captura:
+O quiz usa a função de captura que NÃO cria customer (apenas subscriber):
 
 ```sql
-SELECT sync_subscriber_to_customer_with_tag(
+SELECT upsert_subscriber_only(
   p_tenant_id,
   p_email,
   p_name,
   p_phone,
-  p_tag_id,      -- tag_id do quiz
-  p_source       -- 'quiz:{slug}'
+  NULL,              -- birth_date
+  'quiz:{slug}',     -- source
+  p_list_id          -- lista vinculada (se houver)
 );
 ```
+
+> **Nota (01/04/2026):** Substituído `sync_subscriber_to_customer_with_tag` por `upsert_subscriber_only` para respeitar contrato Lead ≠ Customer. Leads de quiz NÃO criam registros na tabela de clientes.
 
 ---
 

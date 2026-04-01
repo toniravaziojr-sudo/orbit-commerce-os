@@ -657,7 +657,7 @@ for (const chunk of chunks) {
 |------|-----------|------------|
 | `listEmailLists` | Listar listas de email | todos |
 | `listSubscribers` | Listar inscritos de uma lista | todos |
-| `addSubscriber` | Adicionar inscrito (via RPC sync_subscriber_to_customer_with_tag) | owner, admin, manager |
+| `addSubscriber` | Adicionar inscrito (via RPC upsert_subscriber_only — NÃO cria customer) | owner, admin, manager |
 | `createEmailCampaign` | Criar campanha de email | owner, admin |
 | `listCampaigns` | Listar campanhas | todos |
 

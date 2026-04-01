@@ -2904,9 +2904,9 @@ Páginas SPA (carrinho, conta, rastreio, busca, quiz) ficavam presas em "Carrega
 | **Tipo** | Funcionalidade |
 | **Localização** | `supabase/functions/marketing-form-submit/index.ts` |
 | **Descrição** | Quando `source === 'support_chat'` e nenhum `list_id` é fornecido, auto-cria lista "Leads site" (slug: `leads-site`) com tag vinculada (`customer_tags`) |
-| **Comportamento** | 1. Busca lista existente por slug `leads-site`. 2. Se não existe, cria tag "Leads site" + lista vinculada. 3. Usa `effectiveListId` resultante no `sync_subscriber_to_customer_with_tag`. |
+| **Comportamento** | 1. Busca lista existente por slug `leads-site`. 2. Se não existe, cria tag "Leads site" + lista vinculada. 3. Usa `effectiveListId` resultante no `upsert_subscriber_only` (NÃO cria customer). |
 | **Condições** | Apenas para `source === 'support_chat'` sem `list_id` explícito |
-| **Afeta** | `email_marketing_lists`, `customer_tags`, `email_marketing_subscribers`, `customers` |
+| **Afeta** | `email_marketing_lists`, `customer_tags`, `email_marketing_subscribers` (NÃO mais `customers`) |
 
 ---
 
