@@ -575,8 +575,8 @@ async function smartMergeImport(
     }
   }
 
-  // === INSERT NEW CUSTOMERS ===
-  const BATCH_SIZE = 500;
+  // === INSERT NEW CUSTOMERS (with individual fallback for duplicates) ===
+  const BATCH_SIZE = 200;
   for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
     const batch = toInsert.slice(i, i + BATCH_SIZE);
     const insertData = batch.map(c => ({
@@ -601,13 +601,42 @@ async function smartMergeImport(
       notes: c.notes,
     }));
 
-    const { data: inserted, error: insertError } = await supabase.from('customers').insert(insertData).select('id, email');
+    let inserted: any[] | null = null;
+    const { data: batchInserted, error: insertError } = await supabase.from('customers').insert(insertData).select('id, email');
 
     if (insertError) {
-      console.error('[import-customers] Batch insert error:', insertError);
-      results.errors += batch.length;
-      results.itemErrors.push({ index: i, identifier: `batch-${i}`, error: insertError.message });
-      continue;
+      // If batch fails due to duplicate, fall back to individual inserts
+      if (insertError.code === '23505') {
+        console.warn(`[import-customers v${VERSION}] Batch ${Math.floor(i / BATCH_SIZE) + 1} hit duplicate, falling back to individual inserts`);
+        const individualInserted: any[] = [];
+        for (const row of insertData) {
+          const { data: single, error: singleErr } = await supabase.from('customers').insert(row).select('id, email').maybeSingle();
+          if (singleErr) {
+            if (singleErr.code === '23505') {
+              console.log(`[import-customers v${VERSION}] DIAG: Skipping existing (missed by lookup): ${row.email}`);
+              results.unchanged++;
+            } else {
+              results.errors++;
+              results.itemErrors.push({ index: i, identifier: row.email, error: singleErr.message });
+            }
+          } else if (single) {
+            individualInserted.push(single);
+          }
+        }
+        inserted = individualInserted.length > 0 ? individualInserted : null;
+        results.created += individualInserted.length;
+      } else {
+        console.error(`[import-customers v${VERSION}] Batch insert error (non-dupe):`, insertError);
+        results.errors += batch.length;
+        results.itemErrors.push({ index: i, identifier: `batch-${i}`, error: insertError.message });
+        continue;
+      }
+    } else {
+      inserted = batchInserted;
+      if (inserted) results.created += inserted.length;
+    }
+
+    if (!inserted || inserted.length === 0) continue;
     }
 
     if (inserted) {
