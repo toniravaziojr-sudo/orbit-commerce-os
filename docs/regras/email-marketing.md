@@ -450,6 +450,25 @@ interface FlowConfig {
 
 ---
 
+## Auditoria de Sincronização (email_marketing_sync_audit)
+
+Toda tentativa de projetar um customer para o módulo de email marketing é auditada:
+
+| Campo | Descrição |
+|-------|-----------|
+| `tenant_id` | Tenant |
+| `customer_id` | Customer envolvido (pode ser NULL) |
+| `source` | Origem: `order_approved`, `manual_create`, `import`, `reconciliation` |
+| `status` | `synced`, `skipped`, `failed` |
+| `reason` | Ex: `missing_email` |
+| `metadata` | Dados contextuais (order_id, etc.) |
+
+**Regra:** Quando um pedido é aprovado para um customer sem email válido, o trigger `trg_recalc_customer_on_order` registra `status=skipped, reason=missing_email` via `log_marketing_sync_audit()`. O customer permanece válido — apenas a sincronização com marketing é pulada de forma observável.
+
+**Função auxiliar:** `log_marketing_sync_audit(p_tenant_id, p_customer_id, p_source, p_status, p_reason, p_metadata)`
+
+---
+
 ## Checklist
 
 - [x] Listas CRUD funcional

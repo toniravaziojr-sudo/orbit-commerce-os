@@ -234,7 +234,8 @@ REGRAS FUNDAMENTAIS:
 4. Customer sem email:
    - É customer válido (tags, métricas funcionam via customer_id)
    - NÃO cria subscriber/list_member (email obrigatório para marketing)
-   - Trigger trg_recalc_customer_on_order ignora silenciosamente (customer_email vazio)
+   - Trigger `trg_recalc_customer_on_order` registra evento auditável via `log_marketing_sync_audit` com status=skipped, reason=missing_email
+   - Evento consultável na tabela `email_marketing_sync_audit`
 ```
 
 ### 4.4 Funções de Banco — Contrato de Responsabilidades
@@ -470,6 +471,7 @@ O importador aceita CSVs de qualquer plataforma (Shopify, WooCommerce, Nuvemshop
 - [x] ~~Métricas recalculadas com base em pedidos reais~~ — Implementado em 01/04/2026
 - [x] ~~Importação universal (multi-plataforma)~~ — Implementado em 01/04/2026
 - [x] ~~Sync automático com email marketing~~ — Implementado em 01/04/2026
+- [x] ~~Auditoria de skip para customer sem email~~ — Implementado em 01/04/2026 (tabela `email_marketing_sync_audit`)
 - [ ] Merge de clientes duplicados
 - [ ] Histórico de alterações do perfil
 - [ ] Validação de telefone (SMS)
