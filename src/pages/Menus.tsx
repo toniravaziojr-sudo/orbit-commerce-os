@@ -5,8 +5,11 @@ import { useCategories } from '@/hooks/useProducts';
 import { useStorePages } from '@/hooks/useStorePages';
 import { PageHeader } from '@/components/ui/page-header';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { Globe } from 'lucide-react';
 import MenuPanel from '@/components/menus/MenuPanel';
 import MenuItemDialog from '@/components/menus/MenuItemDialog';
+import { UrlImportDialog } from '@/components/import/UrlImportDialog';
 
 // Local item type for pending changes
 interface LocalMenuItem {
