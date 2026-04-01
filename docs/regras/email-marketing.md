@@ -1,7 +1,7 @@
 # Email Marketing — Regras e Especificações
 
 > **Status:** ✅ Ready  
-> **Última atualização:** 2025-01-20
+> **Última atualização:** 2026-04-01
 
 ---
 
