@@ -703,7 +703,13 @@ Não há formato implícito — o campo `mode` é obrigatório.
 ### RN-IMP-021: Tracking com Status Técnico + Resultado de Negócio
 Cada `import_item` registra:
 - `status`: `success` | `error` (resultado técnico da operação)
-- `result`: `created` | `updated` | `unchanged` | `skipped` (resultado de negócio)
+- `result`: `created` | `updated` | `unchanged` | `skipped` | `legacy` (resultado de negócio, **NOT NULL, sem default**)
+
+Regras:
+- **Registros novos**: devem preencher `result` explicitamente (`created`, `updated`, `unchanged` ou `skipped`). Se não preencherem, o INSERT falha — isso é intencional para detectar bugs.
+- **Registros históricos**: marcados como `legacy` (anteriores à implementação do tracking de resultado). Não é possível inferir o valor real com segurança.
+- O valor `legacy` NÃO deve ser usado por motores novos. É exclusivo para saneamento histórico.
+
 Isso permite auditoria precisa separando falhas técnicas de decisões de negócio.
 
 ---
