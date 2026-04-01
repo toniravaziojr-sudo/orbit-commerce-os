@@ -1,7 +1,7 @@
 # Suporte — Regras e Especificações
 
-> **Status:** 🟧 Pending (não validado)  
-> **Última atualização:** 2026-03-13
+> **Status:** ✅ Ready  
+> **Última atualização:** 2026-04-01
 
 ---
 
@@ -9,7 +9,7 @@
 
 Sistema de tickets para comunicação entre lojista e equipe da plataforma, incluindo sugestões de melhorias e solicitações de customização.
 
-Inclui também o módulo de **Atendimento** (central de atendimento unificada com IA) que gerencia conversas com clientes via múltiplos canais (WhatsApp, Email, Chat do Site, Mercado Livre, Shopee, etc.).
+Inclui também o módulo de **Atendimento** (central de atendimento unificada com IA) que gerencia conversas com clientes via múltiplos canais (WhatsApp, Email, Chat do Site, Messenger, Instagram DM, Comentários Instagram, Comentários Facebook, Mercado Livre, Shopee, etc.).
 
 ## Arquivos Principais
 
@@ -137,7 +137,7 @@ Cada conversa exibe o ícone do canal sobre o avatar (canto inferior direito):
 
 ### Canais com Auto-Detecção Meta (v4.5)
 
-Os canais `instagram_dm`, `facebook_messenger`, `instagram_comments` e `facebook_comments` detectam automaticamente a integração Meta ativa na tabela `tenant_meta_integrations`. Quando ativados via Integrações, aparecem como "Ativo — Via Integrações Meta" sem necessidade de configuração manual no Atendimento.
+Os canais `instagram_dm`, `facebook_messenger`, `instagram_comments` e `facebook_comments` detectam automaticamente a integração Meta ativa na tabela `tenant_meta_integrations`. Quando ativados via Integrações, aparecem como "Ativo — Via Integrações Meta" sem necessidade de configuração manual no Atendimento. Se a integração não estiver ativa, o card exibe "Ative este recurso em Integrações Meta" com botão para navegar.
 
 Mapeamento de `integration_id` → `channel_type`:
 | integration_id | channel_type |
@@ -146,6 +146,42 @@ Mapeamento de `integration_id` → `channel_type`:
 | `facebook_messenger` | `facebook_messenger` |
 | `instagram_comentarios` | `instagram_comments` |
 | `facebook_comentarios` | `facebook_comments` |
+
+### Tipos de Canal (`SupportChannelType`)
+
+| Valor | Nome exibido | Categoria |
+|-------|-------------|-----------|
+| `whatsapp` | WhatsApp | Linked (auto-detect via config) |
+| `email` | Email | Linked (auto-detect via config) |
+| `facebook_messenger` | Messenger | Meta (auto-detect) |
+| `instagram_dm` | Instagram DM | Meta (auto-detect) |
+| `instagram_comments` | Comentários Instagram | Meta (auto-detect) |
+| `facebook_comments` | Comentários Facebook | Meta (auto-detect) |
+| `mercadolivre` | Mercado Livre | Marketplace |
+| `shopee` | Shopee | Marketplace |
+| `tiktokshop` | TikTok Shop | Marketplace |
+| `chat` | Chat do Site | Próprio |
+
+### Configuração de IA por Canal (`AIChannelConfigDialog`)
+
+Cada canal suporta configuração individual de IA com restrições específicas:
+
+| Canal | Restrições padrão |
+|-------|------------------|
+| Comentários Instagram | "Respostas devem ser curtas e públicas" |
+| Comentários Facebook | "Respostas devem ser curtas e públicas" |
+| Marketplace (todos) | "Não enviar links externos", "Não mencionar outras plataformas", "Não solicitar contato fora da plataforma" |
+| Demais canais | Sem restrições padrão |
+
+### Arquivos Alterados (v4.5)
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/hooks/useConversations.ts` | Adicionados tipos `instagram_comments` e `facebook_comments` ao `SupportChannelType` |
+| `src/components/support/ChannelIntegrations.tsx` | Auto-detecção de integrações Meta ativas; novos cards para Comentários IG/FB |
+| `src/components/support/ConversationList.tsx` | Ícones e filtros para novos canais |
+| `src/components/support/AIChannelConfigDialog.tsx` | Configuração de IA para novos canais com restrições |
+| `src/components/support/ChannelConfigDialog.tsx` | Docs de configuração para novos canais |
 
 ### Abas de Filtro
 
