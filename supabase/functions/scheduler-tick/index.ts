@@ -474,14 +474,16 @@ serve(async (req) => {
       // ====================================================================
       // PHASE 2: Parallel dispatcher (independent tasks, only pass 1)
       // reconcile-payments, tracking-poll, process-scheduled-emails,
-      // creative-process e media-social-publish-worker
+      // creative-process, media-social-publish-worker,
+      // email-marketing-list-sync (hourly)
       // ALL run concurrently via Promise.allSettled
       // ====================================================================
       if (pass === 1) {
-        console.log(`[scheduler-tick] Starting parallel phase (5 tasks)...`);
-        const parallelStart = Date.now();
+        // Hourly gate: only run email list sync if current minute is 0 (top of hour)
+        const currentMinute = new Date().getMinutes();
+        const shouldRunEmailListSync = currentMinute < 2; // 0 or 1 to account for timing drift
 
-        const [reconcileResult, trackingResult, emailsResult, creativeResult, socialPublishResult] = await Promise.allSettled([
+        const parallelTasks: Promise<{ ok: boolean; data?: any; error?: string }>[] = [
           // Task A: reconcile-payments
           callSubFunction(supabaseUrl, supabaseServiceKey, 'reconcile-payments', { limit: 20 }),
           // Task B: tracking-poll
@@ -492,7 +494,25 @@ serve(async (req) => {
           callSubFunction(supabaseUrl, supabaseServiceKey, 'creative-process', { poll_running: true }),
           // Task E: media-social-publish-worker
           callSubFunction(supabaseUrl, supabaseServiceKey, 'media-social-publish-worker', {}),
-        ]);
+        ];
+
+        // Task F: email-marketing-list-sync (hourly only)
+        if (shouldRunEmailListSync) {
+          console.log(`[scheduler-tick] Hourly email list sync is DUE (minute=${currentMinute})`);
+          parallelTasks.push(
+            callSubFunction(supabaseUrl, supabaseServiceKey, 'email-marketing-list-sync', {})
+          );
+        } else {
+          console.log(`[scheduler-tick] Email list sync skipped (minute=${currentMinute}, next at :00)`);
+          passStats.email_list_sync.skipped_not_due = true;
+        }
+
+        console.log(`[scheduler-tick] Starting parallel phase (${parallelTasks.length} tasks)...`);
+        const parallelStart = Date.now();
+
+        const results = await Promise.allSettled(parallelTasks);
+        const [reconcileResult, trackingResult, emailsResult, creativeResult, socialPublishResult] = results;
+        const emailListSyncResult = shouldRunEmailListSync ? results[5] : undefined;
 
         const parallelDuration = Date.now() - parallelStart;
         console.log(`[scheduler-tick] Parallel phase completed in ${parallelDuration}ms`);
