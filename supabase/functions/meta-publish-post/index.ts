@@ -116,7 +116,7 @@ serve(async (req) => {
     let failed = 0;
     const errors: string[] = [];
     const preflightErrors: { itemId: string; title: string; errors: string[] }[] = [];
-    const STAGGER_INTERVAL_MS = 30_000;
+    const STAGGER_INTERVAL_MS = 3_000;
     let immediatePublishIndex = 0;
 
     console.log(`[meta-publish-post][${VERSION}] Processing ${sortedItems.length} items for tenant ${tenant_id}`);

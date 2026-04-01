@@ -538,6 +538,14 @@ serve(async (req) => {
           console.error(`[scheduler-tick] creative-process error:`, error);
           passStats.creative_poll.errors = 1;
         }
+
+        // Process media-social-publish-worker result
+        if (socialPublishResult.status === 'fulfilled' && socialPublishResult.value.ok) {
+          console.log(`[scheduler-tick] media-social-publish-worker result:`, socialPublishResult.value.data);
+        } else {
+          const error = socialPublishResult.status === 'rejected' ? socialPublishResult.reason : socialPublishResult.value.error;
+          console.error(`[scheduler-tick] media-social-publish-worker error:`, error);
+        }
       }
 
       allPassStats.push(passStats);
