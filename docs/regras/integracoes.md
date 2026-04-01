@@ -3450,3 +3450,17 @@ O token de acesso usado pelo CAPI (Conversions API) para enviar eventos server-s
 3. **No helper CAPI (meta-capi-sender):** `getMetaCapiConfig` agora aceita fallback de token do grant ativo quando `marketing_integrations.meta_access_token` está vazio
 
 **Resultado:** Elimina falhas de CAPI por token stale/vazio após reconexões ou trocas de senha na Meta.
+
+### Filtro de Contas de Anúncio por selected_assets (v4.5.1)
+
+> **Adicionado:** 2026-04-01
+
+**Problema anterior:** O Gestor de Tráfego (`AdsManager.tsx`) exibia todas as contas de anúncio encontradas durante o OAuth (`discovered_assets` do grant), em vez de exibir apenas as contas que o usuário selecionou explicitamente na integração `anuncios`.
+
+**Correção aplicada:**
+1. O `AdsManager` agora busca as contas de anúncio exclusivamente de `tenant_meta_integrations.selected_assets` onde `integration_id = 'anuncios'` e `status = 'active'`
+2. As funções `getChannelIntegration('meta')` e `getAdAccountIds('meta')` usam essa fonte de verdade
+3. Se a integração `anuncios` não estiver ativa ou não tiver contas selecionadas, nenhuma conta é exibida
+4. Históricos (chats, ações, relatórios, insights) permanecem acessíveis independentemente
+
+**Regra:** `discovered_assets` é o mapa bruto do OAuth — NUNCA deve ser usado como fonte de verdade para módulos funcionais. A fonte de verdade é sempre `tenant_meta_integrations.selected_assets`.
