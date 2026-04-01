@@ -130,6 +130,15 @@ export default function Menus() {
       <PageHeader
         title="Menus"
         description="Gerencie os menus de navegação da sua loja"
+        actions={
+          <>
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Globe className="mr-2 h-4 w-4" />
+              Importar
+            </Button>
+            <UrlImportDialog open={importOpen} onOpenChange={setImportOpen} module="menus" />
+          </>
+        }
       />
 
       {menusError && (
