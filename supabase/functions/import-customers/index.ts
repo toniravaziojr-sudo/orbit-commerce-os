@@ -490,6 +490,11 @@ async function smartMergeImport(
     }
   }
 
+  console.log(`[import-customers v${VERSION}] DIAG: toInsert=${toInsert.length}, toMerge=${toMerge.length}`);
+  if (toInsert.length > 0) {
+    console.log(`[import-customers v${VERSION}] DIAG: Sample toInsert emails[0..9]:`, JSON.stringify(toInsert.slice(0, 10).map(c => c.email)));
+  }
+
   const trackingItems: ImportItemTracking[] = [];
 
   // === SMART MERGE: Update existing customers (fill null/empty only) ===
