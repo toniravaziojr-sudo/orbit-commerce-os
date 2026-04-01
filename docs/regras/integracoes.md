@@ -3082,14 +3082,16 @@ Cada integração define: `requiredScopes` (escopos Meta necessários), `feature
 
 | Arquivo | Ação |
 |---------|------|
-| `supabase/functions/meta-oauth-callback/index.ts` | Após `supersede_meta_grant`, desativa todas as integrações de grants anteriores (`status: inactive` para `auth_grant_id != novo grant`) |
+| `supabase/functions/meta-oauth-callback/index.ts` | Após `supersede_meta_grant`, desativa todas as integrações de grants anteriores (`status: disconnected` para `auth_grant_id != novo grant`) |
 | `supabase/functions/meta-integrations-manage/index.ts` | GET agora filtra integrações pelo `auth_grant_id` do grant ativo, ignorando registros órfãos de conexões antigas |
 
 **Regra de negócio:**
 - Novo auth = tela limpa (todos toggles desligados)
 - Mesmo usuário Facebook em diferentes tenants = integrações independentes
 - Reconexão no mesmo tenant = reset das integrações anteriores
-- Integrações antigas ficam no banco com `status: inactive` para histórico
+- Integrações antigas ficam no banco com `status: disconnected` para histórico
+
+> ⚠️ **REGRA CRÍTICA (v1.2.0+):** O status `inactive` é INVÁLIDO e viola a check constraint da tabela `tenant_meta_integrations`. SEMPRE usar `disconnected` para desativação/limpeza.
 
 ### Fase 5 — Migração dos Consumidores para Helper Centralizado (✅ Concluída)
 
@@ -3414,3 +3416,35 @@ O `MetaPixelSection` não utiliza mais campo de texto livre para pixels adiciona
 2. Seleção via `RadioGroup` inline com nome e conta empresarial
 3. Persiste os IDs em `marketing_integrations.meta_additional_pixel_ids` (array de strings)
 4. Eventos de tracking (Pixel + CAPI) são disparados para todos os pixels configurados
+
+### Padronização de Status e UI de Feedback (v4.4.4)
+
+> **Adicionado:** 2026-04-01
+
+#### Correção de Status (`inactive` → `disconnected`)
+
+O status `inactive` **nunca existiu** como valor válido na check constraint da tabela `tenant_meta_integrations`. Todas as edge functions que usavam `inactive` foram corrigidas para `disconnected`:
+
+| Arquivo | Versão | Correção |
+|---------|--------|----------|
+| `meta-integrations-manage/index.ts` | v1.3.0 | `deactivate` e `cleanupSideEffects` usam `disconnected` |
+| `meta-oauth-callback/index.ts` | — | Limpeza de integrações de grants anteriores usa `disconnected` |
+| `meta-deauthorize-callback/index.ts` | v3.1.0 | Desautorização usa `disconnected` |
+
+#### Feedback Visual de Operações Lentas
+
+O `MetaUnifiedSettings.tsx` exibe feedback visual quando operações de toggle ou desconexão estão em andamento:
+
+- **Spinner com texto "Aguarde..."** nos botões de ação
+- **Alerta informativo** abaixo dos toggles: "Algumas operações como ativar Pixel ou desconectar podem levar alguns segundos. Aguarde enquanto o sistema conclui a operação."
+- Aparece automaticamente quando `isToggling` ou `isDisconnecting` está ativo
+
+#### Sincronização Automática de Token CAPI (v1.3.0)
+
+O token de acesso usado pelo CAPI (Conversions API) para enviar eventos server-side agora é sincronizado automaticamente:
+
+1. **Na ativação (meta-integrations-manage):** Ao ativar `pixel_facebook` ou `conversions_api`, o sistema busca o token do grant ativo e grava em `marketing_integrations.meta_access_token`
+2. **No envio de eventos (marketing-send-meta):** Se o token em `marketing_integrations` estiver vazio ou inválido, busca automaticamente do grant V4 ativo via `getMetaConnectionForTenant` e sincroniza de volta ao banco em background
+3. **No helper CAPI (meta-capi-sender):** `getMetaCapiConfig` agora aceita fallback de token do grant ativo quando `marketing_integrations.meta_access_token` está vazio
+
+**Resultado:** Elimina falhas de CAPI por token stale/vazio após reconexões ou trocas de senha na Meta.
