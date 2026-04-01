@@ -249,13 +249,15 @@ export function useImportData() {
           totalFailed += batchItems.length;
           allErrors.push({ batch: i, error: error.message });
         } else if (result?.success && result.results) {
-          totalImported += result.results.imported || 0;
-          totalUpdated += result.results.updated || 0;
-          totalFailed += result.results.failed || 0;
-          totalSkipped += result.results.skipped || 0;
+          // Standard envelope: { created, updated, unchanged, skipped, errors }
+          const r = result.results;
+          totalImported += r.created || r.imported || 0;
+          totalUpdated += r.updated || 0;
+          totalFailed += r.errors || r.failed || 0;
+          totalSkipped += r.skipped || 0;
           
-          if (result.results.itemErrors?.length > 0) {
-            allErrors.push(...result.results.itemErrors);
+          if (r.itemErrors?.length > 0) {
+            allErrors.push(...r.itemErrors);
           }
         } else {
           console.error(`[useImportData] Batch ${i} failed:`, result?.error);
