@@ -219,10 +219,10 @@ serve(async (req) => {
     if (supersededCount && supersededCount > 0) {
       console.log(`[meta-oauth-callback] ${supersededCount} grant(s) anterior(es) superseded`);
 
-      // V4.2: Deactivate ALL integrations from previous grants — new connection = clean slate
+      // V4.2: Disconnect ALL integrations from previous grants — new connection = clean slate
       const { error: deactivateError } = await supabase
         .from("tenant_meta_integrations")
-        .update({ status: "inactive", updated_at: new Date().toISOString() })
+        .update({ status: "disconnected", updated_at: new Date().toISOString() })
         .eq("tenant_id", tenant_id)
         .neq("auth_grant_id", grantId);
 
