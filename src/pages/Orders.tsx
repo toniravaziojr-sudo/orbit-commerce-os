@@ -16,7 +16,6 @@ import {
 import { StatCard } from '@/components/ui/stat-card';
 import { OrderList } from '@/components/orders/OrderList';
 import { useOrders, type Order, type OrderStatus } from '@/hooks/useOrders';
-import { normalizeOrderStatus } from '@/types/orderStatus';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { FeatureGate } from '@/components/layout/FeatureGate';
 import { FileImportDialog } from '@/components/import/FileImportDialog';
@@ -69,6 +68,7 @@ export default function Orders() {
   const { 
     orders, 
     totalCount, 
+    stats,
     isLoading,
     error,
     updateOrderStatus,
@@ -110,14 +110,6 @@ export default function Orders() {
     deleteOrder.mutate(orderId);
   };
 
-  // Calculate stats from current page
-  const pendingCount = orders.filter(o => normalizeOrderStatus(o.status) === 'awaiting_confirmation').length;
-  const processingCount = orders.filter(o => {
-    const s = normalizeOrderStatus(o.status);
-    return s === 'ready_to_invoice' || s === 'invoice_pending_sefaz' || s === 'invoice_authorized' || s === 'invoice_issued';
-  }).length;
-  const shippedCount = orders.filter(o => normalizeOrderStatus(o.status) === 'dispatched').length;
-
   return (
     <div className="space-y-8 animate-fade-in">
       <PageHeader
@@ -152,22 +144,22 @@ export default function Orders() {
           icon={Package}
         />
         <StatCard
-          title="Aguardando"
-          value={pendingCount.toString()}
+          title="Pedidos Aprovados"
+          value={stats.approvedCount.toString()}
           icon={Package}
-          description="Aguardando confirmação"
+          description="Pagamento aprovado"
         />
         <StatCard
-          title="Fiscal"
-          value={processingCount.toString()}
+          title="NF Emitida"
+          value={stats.nfIssuedCount.toString()}
           icon={Package}
-          description="NF em processo"
+          description="Nota fiscal emitida"
         />
         <StatCard
-          title="Despachados"
-          value={shippedCount.toString()}
+          title="Enviados"
+          value={stats.shippedCount.toString()}
           icon={Package}
-          description="Pacotes despachados"
+          description="Pedidos enviados"
         />
       </div>
 
@@ -223,11 +215,12 @@ export default function Orders() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos pgtos</SelectItem>
-                  <SelectItem value="awaiting_payment">Aguardando</SelectItem>
-                  <SelectItem value="paid">Pago</SelectItem>
+                  <SelectItem value="pending">Aguardando</SelectItem>
+                  <SelectItem value="processing">Processando</SelectItem>
+                  <SelectItem value="approved">Aprovado</SelectItem>
                   <SelectItem value="declined">Recusado</SelectItem>
-                  <SelectItem value="cancelled">Cancelado</SelectItem>
                   <SelectItem value="refunded">Estornado</SelectItem>
+                  <SelectItem value="cancelled">Cancelado</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={shippingFilter} onValueChange={handleShippingChange}>
@@ -236,16 +229,14 @@ export default function Orders() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos envios</SelectItem>
-                  <SelectItem value="awaiting_shipment">Aguardando envio</SelectItem>
-                  <SelectItem value="label_generated">Etiqueta gerada</SelectItem>
+                  <SelectItem value="pending">Aguardando envio</SelectItem>
+                  <SelectItem value="processing">Preparando</SelectItem>
                   <SelectItem value="shipped">Enviado</SelectItem>
                   <SelectItem value="in_transit">Em trânsito</SelectItem>
-                  <SelectItem value="arriving">Chegando</SelectItem>
+                  <SelectItem value="out_for_delivery">Saiu para entrega</SelectItem>
                   <SelectItem value="delivered">Entregue</SelectItem>
-                  <SelectItem value="problem">Problema</SelectItem>
-                  <SelectItem value="awaiting_pickup">Aguardando retirada</SelectItem>
-                  <SelectItem value="returning">Em devolução</SelectItem>
                   <SelectItem value="returned">Devolvido</SelectItem>
+                  <SelectItem value="failed">Problema</SelectItem>
                 </SelectContent>
               </Select>
               <Button
