@@ -17,9 +17,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const PAGARME_API_KEY = Deno.env.get("PAGARME_API_KEY");
-    if (!PAGARME_API_KEY) throw new Error("PAGARME_API_KEY not configured");
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
