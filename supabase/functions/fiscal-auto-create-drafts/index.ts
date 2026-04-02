@@ -2,6 +2,7 @@
 // FISCAL AUTO CREATE DRAFTS
 // Cria rascunhos automaticamente para pedidos pagos
 // sem NF-e existente
+// Modos: CRON (all tenants) | USER (single tenant) | TRIGGER (single order)
 // =============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -10,7 +11,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { unbundleKitItems } from "../_shared/kit-unbundler.ts";
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
 
-const VERSION = 'v8.6.2';
+const VERSION = 'v8.7.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
