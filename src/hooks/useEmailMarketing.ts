@@ -26,8 +26,6 @@ export function useEmailMarketing() {
         ...list,
         member_count: list.email_marketing_list_members?.[0]?.count ?? 0,
       }));
-      if (error) throw error;
-      return data;
     },
     enabled: !!tenantId,
   });
