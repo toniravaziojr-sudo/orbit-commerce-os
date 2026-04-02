@@ -278,16 +278,20 @@ As métricas do cliente são atualizadas automaticamente após cada pedido:
 
 > **⚠️ IMPORTANTE:** `total_orders` NÃO é usado para determinar "1ª compra". A tarja usa exclusivamente `orders.is_first_sale` (flag imutável gravado no momento da criação do pedido).
 
-### 4.8 Tiers de Fidelidade (Progressão Automática)
+### 4.8 Tiers de Fidelidade (Progressão Dinâmica por Tenant)
+
+Os limites de cada tier são calculados com base na **distribuição real de gastos dos clientes daquele tenant**, usando percentis:
 
 | Tier | Critério |
 |------|----------|
-| Bronze | Padrão inicial |
-| Silver | 5+ pedidos OU R$1.000+ gastos |
-| Gold | 15+ pedidos OU R$5.000+ gastos |
-| Platinum | 30+ pedidos OU R$15.000+ gastos |
+| Bronze | Abaixo do percentil 50 de gasto total do tenant |
+| Silver | Entre percentil 50 e 75 |
+| Gold | Entre percentil 75 e 90 |
+| Platinum | Top 10% (acima do percentil 90) |
 
-> **✅ Implementado**: A progressão é calculada automaticamente pelo trigger `trg_recalc_customer_metrics_on_order` sempre que um pedido é aprovado.
+> **✅ Implementado (02/04/2026):** A progressão é calculada dinamicamente pela função `recalc_customer_metrics` com base nos percentis do próprio tenant. Não existem valores fixos — cada negócio tem seus limites ajustados à sua realidade. Clientes sem compras ficam como Bronze.
+> 
+> **⚠️ Histórico:** Antes de 02/04/2026, os tiers usavam valores fixos (R$1.000, R$5.000, R$15.000). Isso foi substituído pelo modelo percentílico.
 
 ---
 

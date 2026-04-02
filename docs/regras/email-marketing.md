@@ -247,14 +247,13 @@ Configuração em `email_provider_configs`:
 ### Abas do Dashboard (`EmailMarketing.tsx`)
 
 1. **Listas** - CRUD de listas segmentadas
-   - Clique na lista abre `ListDetailDrawer` com subscribers
-   - Menu dropdown: Ver detalhes, Excluir
+   - **Contagem de leads exibida acima do nome da lista** (ex: "8.008 leads")
+   - Clique na lista abre detalhes com subscribers
    - Badge com cor da tag vinculada
 2. **Assinantes** - Visualização/busca de subscribers com filtro
-3. **Formulários** - Configuração de forms de captura
-4. **Templates** - Editor de templates com preview
-5. **Campanhas** - Gerenciamento de broadcasts/automações
-6. **Estatísticas** - Métricas de envio
+3. **Templates** - Editor de templates com preview
+4. **Campanhas** - Gerenciamento de broadcasts/automações
+5. **Automações** - Fluxos visuais com canvas drag-and-drop
 
 ### Popup Newsletter (Builder → Configurações do Tema)
 
