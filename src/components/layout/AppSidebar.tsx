@@ -228,6 +228,7 @@ const platformAdminNavigation: NavGroup[] = [
       { title: "Tutoriais por Módulo", href: "/platform/tutorials", icon: BookOpen },
        { title: "Tenants", href: "/platform/tenants", icon: Store },
        { title: "Ferramentas", href: "/platform/tools", icon: Wrench },
+       { title: "Questionário", href: "/platform/questionnaire", icon: FileText },
     ],
   },
 ];
