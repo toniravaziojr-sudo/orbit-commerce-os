@@ -220,6 +220,21 @@ O popup de newsletter foi movido para **Configurações do Tema > Popup Newslett
 
 **Tabela:** `newsletter_popup_configs`
 
+**Comportamento do botão de envio:**
+- Botão usa `type="submit"` explícito para garantir envio dentro do Dialog Radix
+- `e.stopPropagation()` no `handleSubmit` impede que o Dialog intercepte o evento de clique
+- Proteção contra cliques duplos (desabilitado durante `isLoading`)
+- Ao clicar, chama `marketing-form-submit` passando `tenant_id`, `list_id`, `email` e campos opcionais
+- Mensagem de sucesso exibida por 2 segundos antes do popup fechar automaticamente
+- Se `onInteractOutside` é acionado, o Dialog fecha normalmente sem interferir no submit
+
+**Arquivos envolvidos:**
+| Componente | Arquivo |
+|------------|---------|
+| Bloco visual | `src/components/builder/blocks/interactive/NewsletterPopupBlock.tsx` |
+| Loader storefront | `src/components/storefront/NewsletterPopupLoader.tsx` |
+| Edge Function | `supabase/functions/marketing-form-submit/index.ts` |
+
 ### Builder Blocks (Categoria: Formulários)
 
 | Bloco | Descrição |
