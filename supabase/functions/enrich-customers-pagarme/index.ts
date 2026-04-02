@@ -35,15 +35,44 @@ Deno.serve(async (req) => {
     const PAGARME_API_KEY = providerRow?.credentials?.api_key || Deno.env.get("PAGARME_API_KEY");
     if (!PAGARME_API_KEY) throw new Error("No Pagar.me API key found");
 
-    // Get orders with approved payment but missing CPF
+    // Get all approved orders with gateway ID — we'll check what's missing per-customer
     const { data: orders, error: ordErr } = await supabase
       .from("orders")
       .select("id, order_number, customer_email, customer_name, payment_gateway_id, customer_cpf")
       .eq("tenant_id", tenant_id)
       .eq("payment_status", "approved")
       .not("payment_gateway_id", "is", null)
-      .or("customer_cpf.is.null,customer_cpf.eq.")
       .order("created_at", { ascending: false });
+
+    // Get customers missing addresses
+    const { data: allCustomers } = await supabase
+      .from("customers")
+      .select("id, email")
+      .eq("tenant_id", tenant_id);
+
+    const customerIds = (allCustomers || []).map(c => c.id);
+    const { data: existingAddrs } = await supabase
+      .from("customer_addresses")
+      .select("customer_id")
+      .in("customer_id", customerIds);
+
+    const customersWithAddr = new Set((existingAddrs || []).map(a => a.customer_id));
+    const customerMap = new Map((allCustomers || []).map(c => [c.email?.toLowerCase(), c]));
+
+    // Filter orders to only those whose customer is missing address
+    const filteredOrders = (orders || []).filter(o => {
+      const cust = customerMap.get(o.customer_email?.toLowerCase());
+      return cust && !customersWithAddr.has(cust.id);
+    });
+
+    // Dedupe by email (one call per customer)
+    const seenEmails = new Set<string>();
+    const dedupedOrders = filteredOrders.filter(o => {
+      const key = o.customer_email?.toLowerCase();
+      if (seenEmails.has(key)) return false;
+      seenEmails.add(key);
+      return true;
+    });
 
     if (ordErr) throw ordErr;
 
