@@ -743,6 +743,39 @@ Regras:
 - Esta regra se aplica a **todos os módulos de importação** (produtos, clientes, pedidos, categorias, páginas, menus).
 - Ao criar ou ajustar qualquer motor de importação, o desenvolvedor deve verificar: "Existe algum campo no CSV que o sistema suporta mas não está sendo importado?" — Se sim, é um bug.
 
+### RN-IMP-024: Mapeamento Direto de Campos de Marketing (REGRA FIXA)
+
+Os campos de consentimento de marketing do CSV devem ser mapeados **diretamente** para os campos correspondentes no banco, sem usar campos intermediários ou legados.
+
+| Campo CSV | Campo no banco |
+|-----------|---------------|
+| `Accepts Email Marketing` | `accepts_email_marketing` |
+| `Accepts SMS Marketing` | `accepts_sms_marketing` |
+
+Regras:
+- **NÃO** usar o campo legado `accepts_marketing` (geral) como intermediário.
+- Se o CSV traz `yes`/`sim`/`true` → `true`. Qualquer outro valor → `false`.
+- Se o campo está vazio no CSV, default é `false` (não assumir "yes").
+- O Smart Merge só atualiza para `true`, nunca reverte `true` → `false`.
+
+### RN-IMP-025: Operações em Lote com Batching (REGRA DE PERFORMANCE)
+
+Todas as operações que usam `.in()` (consultas por lista de IDs ou emails) devem ser executadas em lotes de no máximo **500 itens** para evitar falhas silenciosas por limite do banco.
+
+Aplica-se a:
+- Verificação de tags existentes em clientes merged
+- Verificação de subscribers existentes
+- Inserção de tags, subscribers e membros de lista
+
+### RN-IMP-026: Tag e Lista para Clientes Merged (REGRA FIXA)
+
+Ao reimportar clientes que já existem (merge), o motor DEVE garantir:
+1. Tag `Cliente` atribuída (se ainda não tiver)
+2. Subscriber criado no email marketing (se ainda não existir)
+3. **Subscriber adicionado à lista "Clientes"** (se ainda não for membro)
+
+Estas garantias são idênticas às dos clientes novos — não pode haver diferença de tratamento entre criação e merge.
+
 ---
 
 ## Limpador de Dados Importados
