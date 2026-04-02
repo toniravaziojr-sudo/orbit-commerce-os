@@ -164,14 +164,6 @@ Deno.serve(async (req) => {
           const cust = customerMap.get(order.customer_email?.toLowerCase());
 
           if (cust) {
-            // Check if address already exists
-            const { data: existing } = await supabase
-              .from("customer_addresses")
-              .select("id")
-              .eq("customer_id", cust.id)
-              .limit(1);
-
-            if (!existing || existing.length === 0) {
               await supabase.from("customer_addresses").insert({
                 customer_id: cust.id,
                 tenant_id: tenant_id,
@@ -185,7 +177,6 @@ Deno.serve(async (req) => {
                 country: addrSource.country || "BR",
                 is_default: true,
               });
-            }
           }
         }
 
