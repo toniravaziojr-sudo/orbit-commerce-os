@@ -367,7 +367,7 @@ export function NewsletterPopupBlock({
             layout === 'side-image' && imageUrl && "sm:max-w-2xl p-0"
           )}
           style={containerStyle}
-          onInteractOutside={handleClose}
+          onInteractOutside={(e) => { e.preventDefault(); handleClose(); }}
         >
           {/* Custom close button with theme colors - high visibility */}
           <button
