@@ -301,7 +301,7 @@ As métricas do cliente são atualizadas automaticamente após cada pedido:
 | Filtros | Status (ativo, inativo, bloqueado) |
 | Tags | Botão para gerenciar tags |
 | Estatísticas | Total de clientes, novos no mês |
-| Importação | Upload de CSV |
+| Importação | Upload de CSV — usa o mesmo fluxo unificado do wizard (`useImportData` → motor canônico `import-customers` em lotes de 200). Sem fetch direto. |
 | Ações | Ver, Editar, Excluir |
 | Paginação | 50 por página |
 
