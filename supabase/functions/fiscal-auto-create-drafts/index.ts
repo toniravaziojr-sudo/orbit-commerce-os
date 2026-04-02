@@ -381,6 +381,30 @@ serve(async (req) => {
     const authHeader = req.headers.get('Authorization');
     const isCronMode = !authHeader || authHeader === `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`;
 
+    // ========== TRIGGER MODE: single order from DB trigger ==========
+    // Detected by presence of order_id + tenant_id in body with cron-like auth
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch { /* empty body is ok for cron */ }
+
+    if (isCronMode && body?.order_id && body?.tenant_id) {
+      console.log(`[fiscal-auto-create-drafts][${VERSION}] TRIGGER mode — order: ${body.order_id}, tenant: ${body.tenant_id}`);
+      
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      const result = await processTenanDrafts(supabase, body.tenant_id, null, body.order_id);
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          mode: 'trigger',
+          created: result.created,
+          errors: result.errors.length > 0 ? result.errors : undefined,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // ========== CRON MODE: process ALL configured tenants ==========
     if (isCronMode) {
       console.log(`[fiscal-auto-create-drafts][${VERSION}] CRON mode — processing all tenants`);
