@@ -670,7 +670,7 @@ O sistema usa batch sizes otimizados por tipo de dado para equilibrar performanc
 - Inserts de novos clientes são feitos em batch único por lote
 
 ### RN-IMP-017: Motor Canônico Único por Módulo
-Todos os fluxos de importação (botão individual do módulo, GuidedImportWizard, ImportWizard) chamam o **mesmo motor canônico** por módulo:
+Todos os fluxos de importação (botão individual do módulo, GuidedImportWizard, ImportWizard) chamam o **mesmo motor canônico** por módulo via `useImportData`:
 
 | Módulo | Motor Canônico | Merge |
 |--------|---------------|-------|
@@ -680,7 +680,9 @@ Todos os fluxos de importação (botão individual do módulo, GuidedImportWizar
 | Categorias | `import-store-categories` | Upsert por slug (sobrescreve) |
 | Menus | `import-menus` | Replace total |
 
-O wizard NÃO contém lógica de persistência — apenas orquestra contexto, sequência e chamada dos motores.
+O wizard e o botão individual NÃO contêm lógica de persistência e NÃO fazem fetch direto para Edge Functions de importação — ambos usam `useImportData` como caminho único, que cria o `import_job`, envia em lotes de 200 via `supabase.functions.invoke()`, e atualiza o status do job ao final.
+
+> **✅ Corrigido (02/04/2026):** O botão individual de Clientes (`CustomerImport.tsx`) foi migrado de um `fetch()` direto legado para o fluxo unificado `useImportData`, eliminando o erro "Failed to fetch" e garantindo paridade total com o wizard.
 
 ### RN-IMP-018: Menus — Comportamento de Replace
 Menus usam **substituição completa** (replace), não merge. Ao importar:
