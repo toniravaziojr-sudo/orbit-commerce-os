@@ -24,6 +24,17 @@ Deno.serve(async (req) => {
     const { tenant_id } = await req.json();
     if (!tenant_id) throw new Error("tenant_id required");
 
+    // Get tenant-specific Pagar.me credentials
+    const { data: providerRow } = await supabase
+      .from("payment_providers")
+      .select("credentials")
+      .eq("tenant_id", tenant_id)
+      .eq("provider", "pagarme")
+      .single();
+
+    const PAGARME_API_KEY = providerRow?.credentials?.api_key || Deno.env.get("PAGARME_API_KEY");
+    if (!PAGARME_API_KEY) throw new Error("No Pagar.me API key found");
+
     // Get orders with approved payment but missing CPF
     const { data: orders, error: ordErr } = await supabase
       .from("orders")
