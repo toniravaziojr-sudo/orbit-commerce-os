@@ -28,7 +28,8 @@ import {
 } from '../_shared/import-helpers.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
 
-const VERSION = '2026-04-02.0003';
+const VERSION = '2026-04-02.0004';
+const IN_BATCH_SIZE = 500;
 const CUSTOMER_LOOKUP_PAGE_SIZE = 1000;
 const ADDRESS_LOOKUP_BATCH = 500;
 const INSERT_BATCH_SIZE = 200;
