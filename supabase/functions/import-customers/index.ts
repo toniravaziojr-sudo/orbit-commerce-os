@@ -50,7 +50,7 @@ const HEADER_MAP: Record<string, string> = {};
 ['cnpj'].forEach(h => HEADER_MAP[h] = 'cnpj');
 ['company', 'company_name', 'empresa', 'razão social', 'default address company'].forEach(h => HEADER_MAP[h] = 'company_name');
 ['status', 'estado'].forEach(h => HEADER_MAP[h] = 'status');
-['accepts email marketing', 'accepts_email_marketing', 'marketing', 'newsletter', 'opt_in', 'aceita email marketing', 'aceita marketing'].forEach(h => HEADER_MAP[h] = 'accepts_marketing');
+['accepts email marketing', 'accepts_email_marketing', 'marketing', 'newsletter', 'opt_in', 'aceita email marketing', 'aceita marketing'].forEach(h => HEADER_MAP[h] = 'accepts_email_marketing');
 ['total spent', 'total_spent', 'total gasto', 'lifetime_value', 'ltv', 'valor total'].forEach(h => HEADER_MAP[h] = 'total_spent');
 ['total orders', 'total_orders', 'total pedidos', 'orders_count', 'número de pedidos', 'pedidos'].forEach(h => HEADER_MAP[h] = 'total_orders');
 ['note', 'notes', 'observações', 'observacao', 'notas', 'tags'].forEach(h => HEADER_MAP[h] = 'notes');
