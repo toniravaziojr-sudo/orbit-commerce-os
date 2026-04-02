@@ -2,25 +2,35 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Check, Star } from 'lucide-react';
-import { Plan, formatCurrency, formatPercentage } from '@/hooks/usePlans';
+import { formatCurrency } from '@/hooks/usePlans';
 import { cn } from '@/lib/utils';
 
+interface PlanCardPlan {
+  plan_key: string;
+  name: string;
+  description: string | null;
+  price_monthly_cents: number;
+  price_annual_cents: number;
+  included_orders_per_month: number | null;
+  feature_bullets: string[];
+  is_recommended?: boolean;
+  support_level?: string | null;
+}
+
 interface PlanCardProps {
-  plan: Plan;
+  plan: PlanCardPlan;
   isCurrentPlan?: boolean;
-  isPopular?: boolean;
+  billingCycle?: 'monthly' | 'annual';
   onSelect?: (planKey: string) => void;
   disabled?: boolean;
 }
 
-export function PlanCard({ plan, isCurrentPlan, isPopular, onSelect, disabled }: PlanCardProps) {
-  const features = [
-    'Todos os módulos disponíveis',
-    'SSL grátis',
-    'Migração automática',
-    `Até ${plan.order_limit || '∞'} pedidos/mês`,
-    `Taxa por venda: ${formatPercentage(plan.fee_bps)}`,
-  ];
+export function PlanCard({ plan, isCurrentPlan, billingCycle = 'monthly', onSelect, disabled }: PlanCardProps) {
+  const isPopular = plan.is_recommended;
+  const displayPrice = billingCycle === 'annual' ? plan.price_annual_cents : plan.price_monthly_cents;
+  const monthlyEquivalent = billingCycle === 'annual' 
+    ? Math.round(plan.price_annual_cents / 12) 
+    : plan.price_monthly_cents;
 
   return (
     <Card className={cn(
@@ -48,50 +58,29 @@ export function PlanCard({ plan, isCurrentPlan, isPopular, onSelect, disabled }:
 
       <CardContent className="flex-1">
         <div className="text-center mb-6">
-          {/* Plano básico tem taxa de 2.5% sobre vendas, não é grátis */}
-          {plan.plan_key === 'basico' ? (
-            <>
-              <span className="text-3xl font-bold">2,5%</span>
-              <span className="text-muted-foreground text-lg ml-1">sobre vendas</span>
-            </>
-          ) : plan.is_custom ? (
-            <>
-              <span className="text-2xl font-bold">Sob consulta</span>
-            </>
-          ) : (
-            <>
-              <span className="text-4xl font-bold">
-                {formatCurrency(plan.monthly_fee_cents)}
-              </span>
-              <span className="text-muted-foreground">/mês</span>
-            </>
+          <span className="text-4xl font-bold">
+            {formatCurrency(monthlyEquivalent)}
+          </span>
+          <span className="text-muted-foreground">/mês</span>
+          {billingCycle === 'annual' && (
+            <p className="text-xs text-green-600 mt-1 font-medium">
+              15% de desconto • {formatCurrency(displayPrice)}/ano
+            </p>
           )}
         </div>
 
-        <ul className="space-y-3">
-          {features.map((feature, index) => (
+        <ul className="space-y-2.5">
+          {(plan.feature_bullets || []).map((feature, index) => (
             <li key={index} className="flex items-start gap-2">
-              <Check className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+              <Check className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
               <span className="text-sm">{feature}</span>
             </li>
           ))}
-          <li className="flex items-start gap-2">
-            <Check className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
-            <span className="text-sm text-muted-foreground">IA cobrada sob consumo</span>
-          </li>
         </ul>
       </CardContent>
 
       <CardFooter>
-        {plan.is_custom ? (
-          <Button 
-            variant="outline" 
-            className="w-full"
-            onClick={() => window.open('https://wa.me/5511999999999?text=Quero%20saber%20mais%20sobre%20o%20plano%20Custom', '_blank')}
-          >
-            Fale Conosco
-          </Button>
-        ) : isCurrentPlan ? (
+        {isCurrentPlan ? (
           <Button variant="outline" className="w-full" disabled>
             Plano Atual
           </Button>
@@ -102,7 +91,7 @@ export function PlanCard({ plan, isCurrentPlan, isPopular, onSelect, disabled }:
             onClick={() => onSelect?.(plan.plan_key)}
             disabled={disabled}
           >
-            {plan.plan_key === 'basico' ? 'Começar Agora' : 'Assinar Agora'}
+            Assinar Agora
           </Button>
         )}
       </CardFooter>
