@@ -168,45 +168,38 @@ export function useOrders(options?: {
   const dateField = options?.dateField ?? 'created_at';
   const firstSaleOnly = options?.firstSaleOnly ?? false;
 
-  // Helper to build a base query with all active filters (reused for list + stats)
-  const buildBaseQuery = async () => {
-    let query = supabase
-      .from('orders')
-      .select('*', { count: 'exact' })
-      .eq('tenant_id', currentTenant!.id)
-      .not('payment_gateway_id', 'is', null);
-
-    if (search) {
-      query = query.or(`order_number.ilike.%${search}%,customer_name.ilike.%${search}%,customer_email.ilike.%${search}%`);
-    }
-    if (status && status !== 'all') {
-      query = query.eq('status', status as any);
-    }
-    if (paymentStatus && paymentStatus !== 'all') {
-      query = query.eq('payment_status', paymentStatus as any);
-    }
-    if (shippingStatus && shippingStatus !== 'all') {
-      query = query.eq('shipping_status', shippingStatus as any);
-    }
-
-    if (startDate) {
-      const { toSaoPauloStartIso } = await import('@/lib/date-timezone');
-      query = query.gte(dateField, toSaoPauloStartIso(startDate));
-    }
-    if (endDate) {
-      const { toSaoPauloEndIso } = await import('@/lib/date-timezone');
-      query = query.lte(dateField, toSaoPauloEndIso(endDate));
-    }
-
-    return query;
-  };
-
   const ordersQuery = useQuery({
     queryKey: ['orders', currentTenant?.id, page, pageSize, search, status, paymentStatus, shippingStatus, startDate?.toISOString(), endDate?.toISOString(), dateField, firstSaleOnly],
     queryFn: async () => {
       if (!currentTenant?.id) return { data: [], count: 0 };
+      
+      let query = supabase
+        .from('orders')
+        .select('*', { count: 'exact' })
+        .eq('tenant_id', currentTenant.id)
+        .not('payment_gateway_id', 'is', null);
 
-      const query = await buildBaseQuery();
+      if (search) {
+        query = query.or(`order_number.ilike.%${search}%,customer_name.ilike.%${search}%,customer_email.ilike.%${search}%`);
+      }
+      if (status && status !== 'all') {
+        query = query.eq('status', status as any);
+      }
+      if (paymentStatus && paymentStatus !== 'all') {
+        query = query.eq('payment_status', paymentStatus as any);
+      }
+      if (shippingStatus && shippingStatus !== 'all') {
+        query = query.eq('shipping_status', shippingStatus as any);
+      }
+
+      if (startDate) {
+        const { toSaoPauloStartIso } = await import('@/lib/date-timezone');
+        query = query.gte(dateField, toSaoPauloStartIso(startDate));
+      }
+      if (endDate) {
+        const { toSaoPauloEndIso } = await import('@/lib/date-timezone');
+        query = query.lte(dateField, toSaoPauloEndIso(endDate));
+      }
 
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
