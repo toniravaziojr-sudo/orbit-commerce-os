@@ -343,10 +343,10 @@ async function processMergedCustomers(
         if ((existing.total_orders === 0 || existing.total_orders === null) && incoming.total_orders > 0) {
           updates.total_orders = incoming.total_orders; hasChanges = true;
         }
-        if (incoming.accepts_marketing && !existing.accepts_email_marketing) {
+        if (incoming.accepts_email_marketing && !existing.accepts_email_marketing) {
           updates.accepts_email_marketing = true; updates.accepts_marketing = true; hasChanges = true;
         }
-        if (incoming.accepts_sms && !existing.accepts_sms_marketing) {
+        if (incoming.accepts_sms_marketing && !existing.accepts_sms_marketing) {
           updates.accepts_sms_marketing = true; hasChanges = true;
         }
 
