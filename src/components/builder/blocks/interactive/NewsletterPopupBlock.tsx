@@ -199,7 +199,8 @@ export function NewsletterPopupBlock({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isEditing) return;
+    e.stopPropagation();
+    if (isEditing || isLoading) return;
     
     // Validation
     if (!formData.email || !formData.email.includes('@')) {
