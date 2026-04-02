@@ -502,7 +502,7 @@ export function NewsletterPopupBlock({
 
           {error && <p className="text-destructive text-sm">{error}</p>}
 
-          <Button className="w-full" size="lg" disabled={isLoading} style={buttonStyle}>
+          <Button type="submit" className="w-full" size="lg" disabled={isLoading} style={buttonStyle}>
             {isLoading ? (
               <Loader2 className="w-4 h-4 animate-spin mr-2" />
             ) : (
