@@ -733,6 +733,18 @@ O motor `import-customers` trata reimportações grandes como operação de reco
 
 ---
 
+### RN-IMP-023: Princípio da Completude de Dados (REGRA UNIVERSAL)
+
+**Se o sistema tem o campo e o arquivo de origem tem o dado preenchido com valor real, o dado DEVE ser importado — sem exceção.**
+
+Regras:
+- Todo campo suportado pelo sistema que possua valor real no arquivo de origem deve ser mapeado e importado.
+- Valores zerados (`0`, `0.00`), strings vazias (`""`) e nulos são considerados **ausência de dado** e NÃO sobrescrevem valores existentes.
+- Esta regra se aplica a **todos os módulos de importação** (produtos, clientes, pedidos, categorias, páginas, menus).
+- Ao criar ou ajustar qualquer motor de importação, o desenvolvedor deve verificar: "Existe algum campo no CSV que o sistema suporta mas não está sendo importado?" — Se sim, é um bug.
+
+---
+
 ## Limpador de Dados Importados
 
 ### Objetivo
