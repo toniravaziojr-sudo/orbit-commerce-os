@@ -378,9 +378,13 @@ O importador aceita CSVs de qualquer plataforma (Shopify, WooCommerce, Nuvemshop
 
 ### 7.3 Comportamento
 
-- Emails duplicados são ignorados (não sobrescrevem)
-- Clientes importados são automaticamente adicionados como subscribers na lista de email marketing
-- Relatório ao final com importados/ignorados/erros
+- Emails duplicados no mesmo arquivo são ignorados
+- Reimportação de cliente existente faz merge inteligente: preenche apenas campos vazios ou nulos
+- Dados já existentes nunca são sobrescritos por valores vazios ou nulos do arquivo
+- Diferenças de maiúsculas/minúsculas no email são tratadas como o mesmo cliente
+- Endereços só são preenchidos quando o cliente ainda não possui endereço salvo
+- Clientes importados continuam sendo adicionados como subscribers na lista de email marketing
+- Relatório ao final com importados/atualizados/ignorados/erros
 - Suporta separadores `,` e `;`
 
 ---
