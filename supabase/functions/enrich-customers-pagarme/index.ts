@@ -76,11 +76,11 @@ Deno.serve(async (req) => {
 
     if (ordErr) throw ordErr;
 
-    console.log(`Found ${orders?.length || 0} orders missing CPF`);
+    console.log(`Found ${dedupedOrders.length} customers missing addresses (from ${orders?.length || 0} total orders)`);
 
     const results = { enriched: 0, skipped: 0, errors: 0, details: [] as any[] };
 
-    for (const order of (orders || [])) {
+    for (const order of dedupedOrders) {
       try {
         // Fetch order from Pagar.me
         const pagarmeOrderId = order.payment_gateway_id;
