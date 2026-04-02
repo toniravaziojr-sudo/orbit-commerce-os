@@ -88,11 +88,13 @@ async function processTenanDrafts(
   supabase: any,
   tenantId: string,
   userId: string | null,
+  singleOrderId?: string,
 ): Promise<{ created: number; errors: string[] }> {
   const created = { count: 0 };
   const errors: string[] = [];
 
-  console.log(`[fiscal-auto-create-drafts][${VERSION}] Starting for tenant:`, tenantId);
+  const mode = singleOrderId ? 'TRIGGER' : 'BATCH';
+  console.log(`[fiscal-auto-create-drafts][${VERSION}] Starting ${mode} for tenant:`, tenantId, singleOrderId ? `order: ${singleOrderId}` : '');
 
   // Get fiscal settings
   const { data: fiscalSettings, error: settingsError } = await supabase
@@ -115,7 +117,7 @@ async function processTenanDrafts(
   });
 
   // Get paid orders without invoices
-  const { data: paidOrders, error: ordersError } = await supabase
+  let query = supabase
     .from('orders')
     .select(`
       id,
@@ -132,13 +134,25 @@ async function processTenanDrafts(
       shipping_state,
       shipping_postal_code,
       customer_name,
+      paid_at,
+      created_at,
       customer:customers(id, full_name, cpf, email, phone)
     `)
     .eq('tenant_id', tenantId)
-    .eq('payment_status', 'approved')
-    .in('status', ['paid', 'ready_to_invoice'])
-    .order('created_at', { ascending: false })
-    .limit(50);
+    .eq('payment_status', 'approved');
+
+  if (singleOrderId) {
+    // TRIGGER mode: specific order
+    query = query.eq('id', singleOrderId);
+  } else {
+    // BATCH mode: all paid orders with eligible status
+    query = query
+      .in('status', ['paid', 'ready_to_invoice'])
+      .order('created_at', { ascending: false })
+      .limit(50);
+  }
+
+  const { data: paidOrders, error: ordersError } = await query;
 
   if (ordersError) {
     console.error('[fiscal-auto-create-drafts] Error fetching orders:', ordersError);
