@@ -356,7 +356,7 @@ export function NewsletterPopupBlock({
 
   // Dialog layouts (centered, side-image, fullscreen)
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleClose(); }}>
        <DialogPortal>
         <DialogOverlay />
         <DialogPrimitive.Content
