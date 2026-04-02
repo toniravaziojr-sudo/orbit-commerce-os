@@ -118,8 +118,8 @@ export function CustomerImport({ open, onOpenChange, onSuccess }: CustomerImport
       if (imported > 0) {
         toast.success(`${imported} clientes importados com sucesso!`);
         onSuccess();
-      } else if (unchanged > 0) {
-        toast.info(`${unchanged} clientes já estavam atualizados`);
+      } else if (skipped > 0 && imported === 0) {
+        toast.info(`${skipped} clientes já estavam atualizados`);
         onSuccess();
       }
     } catch (err) {
