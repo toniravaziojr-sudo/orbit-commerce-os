@@ -263,10 +263,16 @@ export function useOrders(options?: {
       };
 
       // Run all 3 counts in parallel
+      const [approvedQ, nfIssuedQ, shippedQ] = await Promise.all([
+        buildStatQuery('*'),
+        buildStatQuery('*'),
+        buildStatQuery('*'),
+      ]);
+
       const [approvedRes, nfIssuedRes, shippedRes] = await Promise.all([
-        (await buildStatQuery('*')).eq('payment_status', 'approved' as any),
-        (await buildStatQuery('*')).eq('status', 'invoice_issued' as any),
-        (await buildStatQuery('*')).eq('shipping_status', 'shipped' as any),
+        approvedQ.eq('payment_status', 'approved' as any),
+        nfIssuedQ.eq('status', 'invoice_issued' as any),
+        shippedQ.eq('shipping_status', 'shipped' as any),
       ]);
 
       return {
