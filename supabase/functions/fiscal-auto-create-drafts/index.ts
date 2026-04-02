@@ -272,6 +272,8 @@ async function processTenanDrafts(
       const destMunicipioCodigo = await getIbgeCodigo(supabase, order.shipping_city, order.shipping_state);
 
       const customerData = Array.isArray(order.customer) ? order.customer[0] : order.customer;
+      // Use paid_at as NF date (falls back to order created_at)
+      const nfDate = order.paid_at || order.created_at;
       const draftDataBase = {
         tenant_id: tenantId,
         order_id: order.id,
@@ -297,6 +299,7 @@ async function processTenanDrafts(
         dest_telefone: customerData?.phone || null,
         dest_email: customerData?.email || null,
         emitido_por: userId,
+        created_at: nfDate,
       };
 
       const { invoice, numero } = await insertFiscalInvoiceWithRetry({
