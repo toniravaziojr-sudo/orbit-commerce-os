@@ -151,8 +151,8 @@ interface NormalizedCustomer {
   person_type: string | null;
   birth_date: string | null;
   gender: string | null;
-  accepts_marketing: boolean;
-  accepts_sms: boolean;
+  accepts_email_marketing: boolean;
+  accepts_sms_marketing: boolean;
   total_spent: number;
   total_orders: number;
   notes: string | null;
