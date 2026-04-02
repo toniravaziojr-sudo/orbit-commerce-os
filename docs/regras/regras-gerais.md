@@ -1147,6 +1147,40 @@ Checkout abandonado é classificado como "com erro" quando:
 
 ---
 
+## Arquitetura Padrão: Trigger + Cron Fallback
+
+> **REGRA NÃO NEGOCIÁVEL** — Aplica-se a TODA automação que precise reagir a mudanças de estado no banco de dados.
+
+### Princípio
+
+Sempre que um evento no banco de dados (ex: pagamento aprovado, pedido criado, status alterado) precisar disparar uma ação automática (ex: criar rascunho fiscal, enviar notificação, atualizar estoque):
+
+| Camada | Responsabilidade |
+|--------|-----------------|
+| **Trigger (primário)** | Database trigger via `pg_net` que chama a edge function **instantaneamente** quando o evento ocorre. O usuário **NÃO precisa estar na página** para que a ação aconteça. |
+| **Cron (fallback)** | Job periódico (ex: a cada 5 minutos) que verifica se há registros pendentes que o trigger eventualmente não processou. Funciona como **rede de segurança**. |
+
+### Regras
+
+| Regra | Descrição |
+|-------|-----------|
+| **Trigger é obrigatório** | Toda automação baseada em mudança de estado DEVE ter um trigger no banco |
+| **Cron é obrigatório como fallback** | Toda automação com trigger DEVE ter um cron correspondente para cobrir falhas |
+| **Anti-duplicação** | Tanto trigger quanto cron DEVEM verificar se a ação já foi executada antes de criar/executar |
+| **Data real** | O registro criado DEVE usar a data do evento original (ex: `paid_at`), nunca `now()` |
+| **Independência de UI** | A automação DEVE funcionar sem que o usuário acesse qualquer página |
+
+### Proibições
+
+| ❌ Proibido | ✅ Correto |
+|-------------|------------|
+| Usar apenas cron para automações em tempo real | Trigger + cron fallback |
+| Criar ação que dependa do usuário acessar a página | Trigger automático no banco |
+| Usar `now()` como data do registro gerado | Usar a data do evento (ex: `paid_at`, `created_at` do pedido) |
+| Implementar sem anti-duplicação | Verificar existência antes de criar |
+
+---
+
 ## Regra de Imutabilidade
 
 | Regra | Descrição |
