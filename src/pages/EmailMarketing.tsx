@@ -130,6 +130,9 @@ export default function EmailMarketing() {
                           <ListPlus className="h-5 w-5 text-primary" />
                         </div>
                         <div className="min-w-0 flex-1">
+                          <p className="text-xs font-medium text-muted-foreground">
+                            {(list as any).member_count?.toLocaleString("pt-BR") ?? "—"} leads
+                          </p>
                           <p className="font-medium truncate">{list.name}</p>
                           <p className="text-sm text-muted-foreground truncate">
                             {list.description || "Sem descrição"}

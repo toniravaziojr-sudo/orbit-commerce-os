@@ -17,9 +17,15 @@ export function useEmailMarketing() {
       if (!tenantId) return [];
       const { data, error } = await supabase
         .from("email_marketing_lists")
-        .select("*, customer_tags(id, name, color)")
+        .select("*, customer_tags(id, name, color), email_marketing_list_members(count)")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
+      if (error) throw error;
+      // Map member count to a flat property
+      return (data || []).map((list: any) => ({
+        ...list,
+        member_count: list.email_marketing_list_members?.[0]?.count ?? 0,
+      }));
       if (error) throw error;
       return data;
     },
