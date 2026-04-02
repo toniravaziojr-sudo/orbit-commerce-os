@@ -1137,6 +1137,16 @@ Checkout abandonado é classificado como "com erro" quando:
 
 ---
 
+## Isenção de Documentação — Ações Manuais em Tenants
+
+| Regra | Descrição |
+|-------|-----------|
+| **Ações manuais em tenants específicos NÃO exigem documentação** | Quando o usuário solicitar uma ação operacional direta em um tenant (ex.: limpeza de dados, enriquecimento, correção pontual de registros, exclusão/inserção manual), **NÃO** é necessário atualizar docs de módulo. |
+| **Justificativa** | Essas ações não alteram estrutura, lógica, UI/UX ou comportamento do sistema. São operações pontuais e específicas de um tenant. |
+| **Quando AINDA é obrigatório documentar** | Se a ação manual resultar em criação de nova edge function reutilizável, alteração de schema, nova regra de negócio ou mudança de comportamento para todos os tenants — aí sim, documentar normalmente. |
+
+---
+
 ## Regra de Imutabilidade
 
 | Regra | Descrição |
