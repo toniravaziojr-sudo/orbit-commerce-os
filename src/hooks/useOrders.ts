@@ -177,9 +177,6 @@ export function useOrders(options?: {
         .from('orders')
         .select('*', { count: 'exact' })
         .eq('tenant_id', currentTenant.id)
-        // Ghost Order Rule: orders without gateway confirmation are NOT real orders.
-        // The webhook now guarantees payment_gateway_id is always set for real orders.
-        // Ghost orders (no gateway_id) are hidden — they go to abandoned checkouts instead.
         .not('payment_gateway_id', 'is', null);
 
       if (search) {
@@ -195,7 +192,6 @@ export function useOrders(options?: {
         query = query.eq('shipping_status', shippingStatus as any);
       }
 
-      // Date filters — using São Paulo timezone
       if (startDate) {
         const { toSaoPauloStartIso } = await import('@/lib/date-timezone');
         query = query.gte(dateField, toSaoPauloStartIso(startDate));
@@ -205,7 +201,6 @@ export function useOrders(options?: {
         query = query.lte(dateField, toSaoPauloEndIso(endDate));
       }
 
-      // Apply pagination
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
       
@@ -215,13 +210,71 @@ export function useOrders(options?: {
 
       if (error) throw error;
 
-      // Use persistent is_first_sale flag from database (immutable, set at creation)
       const orders = (data || []) as Order[];
-
-      // Client-side filter for first sale only
       const filtered = firstSaleOnly ? orders.filter(o => o.is_first_sale) : orders;
 
       return { data: filtered, count: firstSaleOnly ? filtered.length : (count ?? 0) };
+    },
+    enabled: !!currentTenant?.id,
+  });
+
+  // Separate stats query — counts from ALL matching orders, not just current page
+  const statsQuery = useQuery({
+    queryKey: ['orders-stats', currentTenant?.id, search, status, paymentStatus, shippingStatus, startDate?.toISOString(), endDate?.toISOString(), dateField],
+    queryFn: async () => {
+      if (!currentTenant?.id) return { approvedCount: 0, nfIssuedCount: 0, shippedCount: 0 };
+
+      // Pre-load date helpers if needed
+      let startIso: string | undefined;
+      let endIso: string | undefined;
+      if (startDate) {
+        const { toSaoPauloStartIso } = await import('@/lib/date-timezone');
+        startIso = toSaoPauloStartIso(startDate);
+      }
+      if (endDate) {
+        const { toSaoPauloEndIso } = await import('@/lib/date-timezone');
+        endIso = toSaoPauloEndIso(endDate);
+      }
+
+      const buildStatQuery = () => {
+        let q = supabase
+          .from('orders')
+          .select('*', { count: 'exact', head: true })
+          .eq('tenant_id', currentTenant!.id)
+          .not('payment_gateway_id', 'is', null);
+
+        if (search) {
+          q = q.or(`order_number.ilike.%${search}%,customer_name.ilike.%${search}%,customer_email.ilike.%${search}%`);
+        }
+        if (status && status !== 'all') {
+          q = q.eq('status', status as any);
+        }
+        if (paymentStatus && paymentStatus !== 'all') {
+          q = q.eq('payment_status', paymentStatus as any);
+        }
+        if (shippingStatus && shippingStatus !== 'all') {
+          q = q.eq('shipping_status', shippingStatus as any);
+        }
+        if (startIso) {
+          q = q.gte(dateField, startIso);
+        }
+        if (endIso) {
+          q = q.lte(dateField, endIso);
+        }
+        return q;
+      };
+
+      const [approvedRes, nfIssuedRes, shippedRes] = await Promise.all([
+        buildStatQuery().eq('payment_status', 'approved' as any),
+        buildStatQuery().eq('status', 'invoice_issued' as any),
+        buildStatQuery().eq('shipping_status', 'shipped' as any),
+      ]);
+
+      return {
+        approvedCount: approvedRes.count ?? 0,
+        nfIssuedCount: nfIssuedRes.count ?? 0,
+        shippedCount: shippedRes.count ?? 0,
+      };
     },
     enabled: !!currentTenant?.id,
   });
@@ -298,6 +351,7 @@ export function useOrders(options?: {
   return {
     orders: ordersQuery.data?.data ?? [],
     totalCount: ordersQuery.data?.count ?? 0,
+    stats: statsQuery.data ?? { approvedCount: 0, nfIssuedCount: 0, shippedCount: 0 },
     isLoading: ordersQuery.isLoading,
     error: ordersQuery.error,
     createOrder,
