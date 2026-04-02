@@ -11,9 +11,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
+import { useImportData } from '@/hooks/useImportJobs';
+import { parseCSV, consolidateShopifyCustomers, readFileWithEncoding } from '@/lib/import/utils';
+import { normalizeData } from '@/lib/import/platforms';
 import { toast } from 'sonner';
+import { showErrorToast } from '@/lib/error-toast';
 
 interface CustomerImportProps {
   open: boolean;
@@ -23,24 +25,32 @@ interface CustomerImportProps {
 
 interface ImportResult {
   success: boolean;
-  imported: number;
-  addresses: number;
+  created: number;
+  updated: number;
+  unchanged: number;
   skipped: number;
   errors: number;
-  details: {
-    skippedEmails: string[];
-    errorMessages: string[];
-  };
 }
 
+/**
+ * CustomerImport — Individual customer import button (Clientes module).
+ * 
+ * Uses the SAME unified flow as the GuidedImportWizard:
+ *   1. Parse CSV client-side (same utils)
+ *   2. Normalize data (same adapters)
+ *   3. Send via useImportData → canonical motor import-customers (same batching, same tracking)
+ * 
+ * NO direct fetch to edge functions. NO legacy paths.
+ */
 export function CustomerImport({ open, onOpenChange, onSuccess }: CustomerImportProps) {
-  const { currentTenant } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const { importData } = useImportData();
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -56,7 +66,7 @@ export function CustomerImport({ open, onOpenChange, onSuccess }: CustomerImport
   };
 
   const handleImport = async () => {
-    if (!file || !currentTenant?.id) return;
+    if (!file) return;
 
     setIsImporting(true);
     setProgress(10);
@@ -64,53 +74,60 @@ export function CustomerImport({ open, onOpenChange, onSuccess }: CustomerImport
     setResult(null);
 
     try {
-      // Read file content
-      const csvContent = await file.text();
+      // 1. Read file content with encoding detection (same as wizard)
+      const text = await readFileWithEncoding(file);
+      setProgress(20);
+
+      // 2. Parse CSV (same as wizard)
+      const rawRows = parseCSV(text);
+      if (rawRows.length === 0) {
+        throw new Error('Nenhum registro encontrado no CSV');
+      }
       setProgress(30);
 
-      // Get session for auth header
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('Você precisa estar logado para importar clientes');
-      }
+      // 3. Consolidate if Shopify format (same as wizard)
+      const hasShopify = rawRows.length > 0 && ('Email' in rawRows[0] || 'email' in rawRows[0]);
+      const data = hasShopify ? consolidateShopifyCustomers(rawRows) : rawRows;
+      setProgress(40);
 
+      // 4. Normalize data (same as wizard — uses generic/shopify adapter)
+      const hasShopifyData = data.length > 0 && ('Email' in data[0] || 'First Name' in data[0]);
+      const effectivePlatform = hasShopifyData ? 'shopify' : 'unknown';
+      const normalized = normalizeData(effectivePlatform as any, 'customer', data);
       setProgress(50);
 
-      // Call edge function
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/import-customers`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({
-            csvContent,
-            tenantId: currentTenant.id,
-          }),
-        }
-      );
-
-      setProgress(90);
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro ao importar clientes');
-      }
-
+      // 5. Send via useImportData — same batched flow as wizard
+      //    Creates import_job, sends in 200-item batches to import-customers motor
+      const importResult = await importData('csv', 'customers', normalized);
       setProgress(100);
-      setResult(data);
 
-      if (data.imported > 0) {
-        toast.success(`${data.imported} clientes importados com sucesso!`);
+      const created = importResult.results?.imported || importResult.results?.created || 0;
+      const updated = importResult.results?.updated || 0;
+      const unchanged = importResult.results?.unchanged || 0;
+      const skipped = importResult.results?.skipped || 0;
+      const errors = importResult.results?.failed || importResult.results?.errors || 0;
+
+      setResult({
+        success: true,
+        created,
+        updated,
+        unchanged,
+        skipped,
+        errors,
+      });
+
+      const total = created + updated;
+      if (total > 0) {
+        toast.success(`${total} clientes importados com sucesso!`);
+        onSuccess();
+      } else if (unchanged > 0) {
+        toast.info(`${unchanged} clientes já estavam atualizados`);
         onSuccess();
       }
     } catch (err) {
-      console.error('Import error:', err);
+      console.error('[CustomerImport] Import error:', err);
       setError(err instanceof Error ? err.message : 'Erro desconhecido');
-      toast.error('Erro ao importar clientes');
+      showErrorToast(err, { module: 'clientes', action: 'importar' });
     } finally {
       setIsImporting(false);
     }
@@ -168,7 +185,7 @@ export function CustomerImport({ open, onOpenChange, onSuccess }: CustomerImport
                   <Upload className="h-10 w-10 text-muted-foreground" />
                   <p className="font-medium">Clique para selecionar arquivo</p>
                   <p className="text-sm text-muted-foreground">
-                    Suporta CSV exportado do Shopify
+                    Suporta CSV exportado do Shopify ou similar
                   </p>
                 </div>
               )}
@@ -198,40 +215,32 @@ export function CustomerImport({ open, onOpenChange, onSuccess }: CustomerImport
           {/* Result */}
           {result && (
             <div className="space-y-4">
-              <Alert variant={result.imported > 0 ? 'default' : 'destructive'}>
+              <Alert variant={(result.created + result.updated) > 0 ? 'default' : 'destructive'}>
                 <CheckCircle className="h-4 w-4" />
                 <AlertTitle>Importação Concluída</AlertTitle>
                 <AlertDescription>
                   <ul className="mt-2 space-y-1">
-                    <li>✅ {result.imported} clientes importados</li>
-                    <li>📍 {result.addresses} endereços importados</li>
+                    {result.created > 0 && (
+                      <li>✅ {result.created} clientes criados</li>
+                    )}
+                    {result.updated > 0 && (
+                      <li>🔄 {result.updated} clientes atualizados (Smart Merge)</li>
+                    )}
+                    {result.unchanged > 0 && (
+                      <li>⏭️ {result.unchanged} sem alterações</li>
+                    )}
                     {result.skipped > 0 && (
-                      <li>⏭️ {result.skipped} ignorados (já existem)</li>
+                      <li>⏭️ {result.skipped} ignorados</li>
                     )}
                     {result.errors > 0 && (
                       <li>❌ {result.errors} erros</li>
                     )}
+                    {result.created === 0 && result.updated === 0 && result.unchanged === 0 && (
+                      <li>ℹ️ Nenhum cliente processado</li>
+                    )}
                   </ul>
                 </AlertDescription>
               </Alert>
-
-              {result.details.skippedEmails.length > 0 && (
-                <div className="text-sm text-muted-foreground">
-                  <p className="font-medium mb-1">Emails ignorados (amostra):</p>
-                  <p className="text-xs">{result.details.skippedEmails.join(', ')}</p>
-                </div>
-              )}
-
-              {result.details.errorMessages.length > 0 && (
-                <div className="text-sm text-destructive">
-                  <p className="font-medium mb-1">Erros (amostra):</p>
-                  <ul className="text-xs space-y-1">
-                    {result.details.errorMessages.map((msg, i) => (
-                      <li key={i}>{msg}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
             </div>
           )}
         </div>
