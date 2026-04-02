@@ -426,7 +426,7 @@ graph TD
 |----------|---------------|
 | Busca | Por número, nome ou email do cliente |
 | Filtros | Status, pagamento, envio, **🆕 1ª Venda**. Período via `DateRangeFilter` padrão (ver `regras-gerais.md`) |
-| Estatísticas | Cards com pendentes, em separação, enviados |
+| Estatísticas | 4 cards: **Total de Pedidos** (contagem geral filtrada), **Pedidos Aprovados** (payment_status=approved), **NF Emitida** (status=invoice_issued), **Enviados** (shipping_status=shipped). Todos consultam o banco com queries separadas respeitando os filtros ativos — NÃO contam da página atual. |
 | Origem | Badge indicando Loja própria ou Marketplace (size="sm") |
 | **1ª Venda** | Badge compacta "1ª" exibida ao lado do valor total quando `is_first_sale = true` |
 | Ações | Ver detalhes, atualizar status, excluir |
