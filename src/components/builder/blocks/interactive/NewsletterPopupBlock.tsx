@@ -199,7 +199,8 @@ export function NewsletterPopupBlock({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isEditing) return;
+    e.stopPropagation();
+    if (isEditing || isLoading) return;
     
     // Validation
     if (!formData.email || !formData.email.includes('@')) {
@@ -343,7 +344,7 @@ export function NewsletterPopupBlock({
                 required
               />
               {error && <p className="text-destructive text-xs">{error}</p>}
-              <Button className="w-full" disabled={isLoading} style={buttonStyle}>
+              <Button type="submit" className="w-full" disabled={isLoading} style={buttonStyle}>
                 {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : buttonText}
               </Button>
             </form>
@@ -355,7 +356,7 @@ export function NewsletterPopupBlock({
 
   // Dialog layouts (centered, side-image, fullscreen)
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleClose(); }}>
        <DialogPortal>
         <DialogOverlay />
         <DialogPrimitive.Content
@@ -366,7 +367,7 @@ export function NewsletterPopupBlock({
             layout === 'side-image' && imageUrl && "sm:max-w-2xl p-0"
           )}
           style={containerStyle}
-          onInteractOutside={handleClose}
+          onInteractOutside={(e) => { e.preventDefault(); handleClose(); }}
         >
           {/* Custom close button with theme colors - high visibility */}
           <button
@@ -501,7 +502,7 @@ export function NewsletterPopupBlock({
 
           {error && <p className="text-destructive text-sm">{error}</p>}
 
-          <Button className="w-full" size="lg" disabled={isLoading} style={buttonStyle}>
+          <Button type="submit" className="w-full" size="lg" disabled={isLoading} style={buttonStyle}>
             {isLoading ? (
               <Loader2 className="w-4 h-4 animate-spin mr-2" />
             ) : (
