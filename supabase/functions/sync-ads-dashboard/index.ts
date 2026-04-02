@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.0.0"; // Phase 7: V4-first — list Meta tenants from tenant_meta_auth_grants
+const VERSION = "v2.1.0"; // Phase 8: Sync campaign statuses before insights
 // ===========================================================
 
 const corsHeaders = {
