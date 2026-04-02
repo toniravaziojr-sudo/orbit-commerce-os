@@ -144,30 +144,24 @@ Deno.serve(async (req) => {
 
         await supabase.from("orders").update(orderUpdate).eq("id", order.id);
 
-        // Update customer CPF and phone
+        // Update customer CPF and phone (only if missing)
         const custUpdate: Record<string, any> = {};
-        custUpdate.cpf = cpf;
+        if (cpf) custUpdate.cpf = cpf;
         if (phone) custUpdate.phone = phone;
 
-        await supabase
-          .from("customers")
-          .update(custUpdate)
-          .eq("tenant_id", tenant_id)
-          .eq("email", order.customer_email)
-          .or("cpf.is.null,cpf.eq.");
-
-        // Also save customer address
-        if (address.line_1 || shippingAddr?.line_1) {
-          const addrSource = shippingAddr?.line_1 ? shippingAddr : address;
-          const addrParts = (addrSource.line_1 || "").split(",").map((s: string) => s.trim());
-          
-          // Get customer id
-          const { data: cust } = await supabase
+        if (Object.keys(custUpdate).length > 0) {
+          await supabase
             .from("customers")
-            .select("id")
+            .update(custUpdate)
             .eq("tenant_id", tenant_id)
-            .eq("email", order.customer_email)
-            .single();
+            .eq("email", order.customer_email);
+        }
+
+        // Save customer address (we already know they don't have one)
+        const addrSource = (pgOrder.shipping?.address?.line_1) ? pgOrder.shipping.address : address;
+        if (addrSource?.line_1) {
+          const addrParts = (addrSource.line_1 || "").split(",").map((s: string) => s.trim());
+          const cust = customerMap.get(order.customer_email?.toLowerCase());
 
           if (cust) {
             // Check if address already exists
