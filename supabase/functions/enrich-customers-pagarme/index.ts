@@ -35,23 +35,52 @@ Deno.serve(async (req) => {
     const PAGARME_API_KEY = providerRow?.credentials?.api_key || Deno.env.get("PAGARME_API_KEY");
     if (!PAGARME_API_KEY) throw new Error("No Pagar.me API key found");
 
-    // Get orders with approved payment but missing CPF
+    // Get all approved orders with gateway ID — we'll check what's missing per-customer
     const { data: orders, error: ordErr } = await supabase
       .from("orders")
       .select("id, order_number, customer_email, customer_name, payment_gateway_id, customer_cpf")
       .eq("tenant_id", tenant_id)
       .eq("payment_status", "approved")
       .not("payment_gateway_id", "is", null)
-      .or("customer_cpf.is.null,customer_cpf.eq.")
       .order("created_at", { ascending: false });
+
+    // Get customers missing addresses
+    const { data: allCustomers } = await supabase
+      .from("customers")
+      .select("id, email")
+      .eq("tenant_id", tenant_id);
+
+    const customerIds = (allCustomers || []).map(c => c.id);
+    const { data: existingAddrs } = await supabase
+      .from("customer_addresses")
+      .select("customer_id")
+      .in("customer_id", customerIds);
+
+    const customersWithAddr = new Set((existingAddrs || []).map(a => a.customer_id));
+    const customerMap = new Map((allCustomers || []).map(c => [c.email?.toLowerCase(), c]));
+
+    // Filter orders to only those whose customer is missing address
+    const filteredOrders = (orders || []).filter(o => {
+      const cust = customerMap.get(o.customer_email?.toLowerCase());
+      return cust && !customersWithAddr.has(cust.id);
+    });
+
+    // Dedupe by email (one call per customer)
+    const seenEmails = new Set<string>();
+    const dedupedOrders = filteredOrders.filter(o => {
+      const key = o.customer_email?.toLowerCase();
+      if (seenEmails.has(key)) return false;
+      seenEmails.add(key);
+      return true;
+    });
 
     if (ordErr) throw ordErr;
 
-    console.log(`Found ${orders?.length || 0} orders missing CPF`);
+    console.log(`Found ${dedupedOrders.length} customers missing addresses (from ${orders?.length || 0} total orders)`);
 
     const results = { enriched: 0, skipped: 0, errors: 0, details: [] as any[] };
 
-    for (const order of (orders || [])) {
+    for (const order of dedupedOrders) {
       try {
         // Fetch order from Pagar.me
         const pagarmeOrderId = order.payment_gateway_id;
@@ -115,40 +144,26 @@ Deno.serve(async (req) => {
 
         await supabase.from("orders").update(orderUpdate).eq("id", order.id);
 
-        // Update customer CPF and phone
+        // Update customer CPF and phone (only if missing)
         const custUpdate: Record<string, any> = {};
-        custUpdate.cpf = cpf;
+        if (cpf) custUpdate.cpf = cpf;
         if (phone) custUpdate.phone = phone;
 
-        await supabase
-          .from("customers")
-          .update(custUpdate)
-          .eq("tenant_id", tenant_id)
-          .eq("email", order.customer_email)
-          .or("cpf.is.null,cpf.eq.");
-
-        // Also save customer address
-        if (address.line_1 || shippingAddr?.line_1) {
-          const addrSource = shippingAddr?.line_1 ? shippingAddr : address;
-          const addrParts = (addrSource.line_1 || "").split(",").map((s: string) => s.trim());
-          
-          // Get customer id
-          const { data: cust } = await supabase
+        if (Object.keys(custUpdate).length > 0) {
+          await supabase
             .from("customers")
-            .select("id")
+            .update(custUpdate)
             .eq("tenant_id", tenant_id)
-            .eq("email", order.customer_email)
-            .single();
+            .eq("email", order.customer_email);
+        }
+
+        // Save customer address (we already know they don't have one)
+        const addrSource = (pgOrder.shipping?.address?.line_1) ? pgOrder.shipping.address : address;
+        if (addrSource?.line_1) {
+          const addrParts = (addrSource.line_1 || "").split(",").map((s: string) => s.trim());
+          const cust = customerMap.get(order.customer_email?.toLowerCase());
 
           if (cust) {
-            // Check if address already exists
-            const { data: existing } = await supabase
-              .from("customer_addresses")
-              .select("id")
-              .eq("customer_id", cust.id)
-              .limit(1);
-
-            if (!existing || existing.length === 0) {
               await supabase.from("customer_addresses").insert({
                 customer_id: cust.id,
                 tenant_id: tenant_id,
@@ -162,7 +177,6 @@ Deno.serve(async (req) => {
                 country: addrSource.country || "BR",
                 is_default: true,
               });
-            }
           }
         }
 
