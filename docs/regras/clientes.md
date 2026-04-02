@@ -1,7 +1,7 @@
 # Módulo: Clientes (Admin)
 
 > **Status**: ✅ Funcional e Protegido  
-> **Última atualização**: 2026-04-01
+> **Última atualização**: 2026-04-02
 
 ---
 
