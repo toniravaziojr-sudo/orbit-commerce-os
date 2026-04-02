@@ -99,8 +99,13 @@ Deno.serve(async (req) => {
     }
 
     // Run all syncs in parallel (grouped by platform to avoid overwhelming APIs)
-    // Meta syncs
+    // Meta: first sync campaign statuses, then performance insights
     if (metaIds.length > 0) {
+      console.log(`[sync-ads-dashboard] Meta: syncing campaign statuses first...`);
+      await Promise.allSettled(
+        metaIds.map((tid) => callSync("meta-ads-campaigns", tid, "meta"))
+      );
+      console.log(`[sync-ads-dashboard] Meta: syncing performance insights...`);
       await Promise.allSettled(
         metaIds.map((tid) => callSync("meta-ads-insights", tid, "meta"))
       );
