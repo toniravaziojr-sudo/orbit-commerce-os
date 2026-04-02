@@ -344,7 +344,7 @@ export function NewsletterPopupBlock({
                 required
               />
               {error && <p className="text-destructive text-xs">{error}</p>}
-              <Button className="w-full" disabled={isLoading} style={buttonStyle}>
+              <Button type="submit" className="w-full" disabled={isLoading} style={buttonStyle}>
                 {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : buttonText}
               </Button>
             </form>
