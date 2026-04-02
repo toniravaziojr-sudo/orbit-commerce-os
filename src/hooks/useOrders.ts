@@ -351,6 +351,7 @@ export function useOrders(options?: {
   return {
     orders: ordersQuery.data?.data ?? [],
     totalCount: ordersQuery.data?.count ?? 0,
+    stats: statsQuery.data ?? { approvedCount: 0, nfIssuedCount: 0, shippedCount: 0 },
     isLoading: ordersQuery.isLoading,
     error: ordersQuery.error,
     createOrder,
