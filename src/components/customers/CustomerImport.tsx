@@ -101,24 +101,22 @@ export function CustomerImport({ open, onOpenChange, onSuccess }: CustomerImport
       const importResult = await importData('csv', 'customers', normalized);
       setProgress(100);
 
-      const created = importResult.results?.imported || importResult.results?.created || 0;
-      const updated = importResult.results?.updated || 0;
-      const unchanged = importResult.results?.unchanged || 0;
-      const skipped = importResult.results?.skipped || 0;
-      const errors = importResult.results?.failed || importResult.results?.errors || 0;
+      const r = importResult.results || { imported: 0, failed: 0, skipped: 0 };
+      const imported = r.imported || 0;
+      const skipped = r.skipped || 0;
+      const failed = r.failed || 0;
 
       setResult({
         success: true,
-        created,
-        updated,
-        unchanged,
+        created: imported,
+        updated: 0,
+        unchanged: 0,
         skipped,
-        errors,
+        errors: failed,
       });
 
-      const total = created + updated;
-      if (total > 0) {
-        toast.success(`${total} clientes importados com sucesso!`);
+      if (imported > 0) {
+        toast.success(`${imported} clientes importados com sucesso!`);
         onSuccess();
       } else if (unchanged > 0) {
         toast.info(`${unchanged} clientes já estavam atualizados`);
