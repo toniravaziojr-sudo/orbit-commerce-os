@@ -231,11 +231,22 @@ export function useOrders(options?: {
     queryFn: async () => {
       if (!currentTenant?.id) return { approvedCount: 0, nfIssuedCount: 0, shippedCount: 0 };
 
-      // Build base filters for each stat count query
-      const buildStatQuery = async (selectFields: string) => {
+      // Pre-load date helpers if needed
+      let startIso: string | undefined;
+      let endIso: string | undefined;
+      if (startDate) {
+        const { toSaoPauloStartIso } = await import('@/lib/date-timezone');
+        startIso = toSaoPauloStartIso(startDate);
+      }
+      if (endDate) {
+        const { toSaoPauloEndIso } = await import('@/lib/date-timezone');
+        endIso = toSaoPauloEndIso(endDate);
+      }
+
+      const buildStatQuery = () => {
         let q = supabase
           .from('orders')
-          .select(selectFields, { count: 'exact', head: true })
+          .select('*', { count: 'exact', head: true })
           .eq('tenant_id', currentTenant!.id)
           .not('payment_gateway_id', 'is', null);
 
@@ -251,28 +262,19 @@ export function useOrders(options?: {
         if (shippingStatus && shippingStatus !== 'all') {
           q = q.eq('shipping_status', shippingStatus as any);
         }
-        if (startDate) {
-          const { toSaoPauloStartIso } = await import('@/lib/date-timezone');
-          q = q.gte(dateField, toSaoPauloStartIso(startDate));
+        if (startIso) {
+          q = q.gte(dateField, startIso);
         }
-        if (endDate) {
-          const { toSaoPauloEndIso } = await import('@/lib/date-timezone');
-          q = q.lte(dateField, toSaoPauloEndIso(endDate));
+        if (endIso) {
+          q = q.lte(dateField, endIso);
         }
         return q;
       };
 
-      // Run all 3 counts in parallel
-      const [approvedQ, nfIssuedQ, shippedQ] = await Promise.all([
-        buildStatQuery('*'),
-        buildStatQuery('*'),
-        buildStatQuery('*'),
-      ]);
-
       const [approvedRes, nfIssuedRes, shippedRes] = await Promise.all([
-        approvedQ.eq('payment_status', 'approved' as any),
-        nfIssuedQ.eq('status', 'invoice_issued' as any),
-        shippedQ.eq('shipping_status', 'shipped' as any),
+        buildStatQuery().eq('payment_status', 'approved' as any),
+        buildStatQuery().eq('status', 'invoice_issued' as any),
+        buildStatQuery().eq('shipping_status', 'shipped' as any),
       ]);
 
       return {
