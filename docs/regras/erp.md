@@ -51,19 +51,31 @@ Módulo de gestão empresarial: fiscal (NF-e via Nuvem Fiscal), financeiro, e co
 | `fiscal-auto-create-drafts` | Criação automática de rascunhos (cron 5min + manual) |
 | `fiscal-validate-order` | Validação pré-emissão |
 
-### Cron: fiscal-auto-create-drafts
+### Trigger: Criação Instantânea de NF (v8.7.0)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Database Trigger (pg_net) |
+| **Trigger** | `trg_fiscal_draft_on_payment_approved` em `orders` |
+| **Descrição** | Cria rascunho de NF-e **instantaneamente** quando `payment_status` muda para `approved` |
+| **Mecanismo** | Chama a edge function `fiscal-auto-create-drafts` em modo TRIGGER via `net.http_post` |
+| **Data da NF** | Usa `paid_at` do pedido (não `now()`) para refletir a data real da venda |
+| **Condições** | Dispara somente quando `OLD.payment_status IS DISTINCT FROM 'approved'` AND `NEW.payment_status = 'approved'` |
+| **Fallback** | O cron continua ativo como rede de segurança |
+
+### Cron: fiscal-auto-create-drafts (fallback)
 
 | Campo | Valor |
 |-------|-------|
 | **Tipo** | Cron Job (pg_cron) |
 | **Frequência** | A cada 5 minutos (`*/5 * * * *`) |
-| **Descrição** | Cria rascunhos de NF-e automaticamente para pedidos pagos sem NF-e existente |
-| **Modos** | **Cron** (sem auth → processa TODOS os tenants configurados) / **User** (com auth → processa tenant do usuário) |
-| **Condições** | Tenant deve ter `fiscal_settings.is_configured = true` |
-| **Filtro de pedidos** | `payment_status = 'approved'` AND `status IN ('paid', 'ready_to_invoice')` |
+| **Descrição** | Rede de segurança — cria rascunhos para pedidos pagos que o trigger eventualmente não processou |
+| **Modos** | **Cron** (todos tenants) / **User** (tenant do usuário) / **Trigger** (order_id + tenant_id no body) |
+| **Data da NF** | Usa `paid_at` do pedido como `created_at` da NF |
 | **Anti-duplicação** | Verifica `fiscal_invoices` existentes antes de criar; retry com incremento de número |
-| **verify_jwt** | `false` (necessário para cron via pg_cron) |
-| **Segurança** | Cron usa anon key → detectado como cron mode → usa service_role internamente |
+| **verify_jwt** | `false` (necessário para cron/trigger) |
+| **Segurança** | Cron/Trigger usa anon key → usa service_role internamente |
+
 
 ### Shared Module: fiscal-numbering.ts
 | Função | Descrição |

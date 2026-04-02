@@ -2,6 +2,7 @@
 // FISCAL AUTO CREATE DRAFTS
 // Cria rascunhos automaticamente para pedidos pagos
 // sem NF-e existente
+// Modos: CRON (all tenants) | USER (single tenant) | TRIGGER (single order)
 // =============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -10,7 +11,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { unbundleKitItems } from "../_shared/kit-unbundler.ts";
 import { getNextFiscalNumber, insertFiscalInvoiceWithRetry, syncFiscalNumberCursor } from "../_shared/fiscal-numbering.ts";
 
-const VERSION = 'v8.6.2';
+const VERSION = 'v8.7.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -87,11 +88,13 @@ async function processTenanDrafts(
   supabase: any,
   tenantId: string,
   userId: string | null,
+  singleOrderId?: string,
 ): Promise<{ created: number; errors: string[] }> {
   const created = { count: 0 };
   const errors: string[] = [];
 
-  console.log(`[fiscal-auto-create-drafts][${VERSION}] Starting for tenant:`, tenantId);
+  const mode = singleOrderId ? 'TRIGGER' : 'BATCH';
+  console.log(`[fiscal-auto-create-drafts][${VERSION}] Starting ${mode} for tenant:`, tenantId, singleOrderId ? `order: ${singleOrderId}` : '');
 
   // Get fiscal settings
   const { data: fiscalSettings, error: settingsError } = await supabase
@@ -114,7 +117,7 @@ async function processTenanDrafts(
   });
 
   // Get paid orders without invoices
-  const { data: paidOrders, error: ordersError } = await supabase
+  let query = supabase
     .from('orders')
     .select(`
       id,
@@ -131,13 +134,25 @@ async function processTenanDrafts(
       shipping_state,
       shipping_postal_code,
       customer_name,
+      paid_at,
+      created_at,
       customer:customers(id, full_name, cpf, email, phone)
     `)
     .eq('tenant_id', tenantId)
-    .eq('payment_status', 'approved')
-    .in('status', ['paid', 'ready_to_invoice'])
-    .order('created_at', { ascending: false })
-    .limit(50);
+    .eq('payment_status', 'approved');
+
+  if (singleOrderId) {
+    // TRIGGER mode: specific order
+    query = query.eq('id', singleOrderId);
+  } else {
+    // BATCH mode: all paid orders with eligible status
+    query = query
+      .in('status', ['paid', 'ready_to_invoice'])
+      .order('created_at', { ascending: false })
+      .limit(50);
+  }
+
+  const { data: paidOrders, error: ordersError } = await query;
 
   if (ordersError) {
     console.error('[fiscal-auto-create-drafts] Error fetching orders:', ordersError);
@@ -257,6 +272,8 @@ async function processTenanDrafts(
       const destMunicipioCodigo = await getIbgeCodigo(supabase, order.shipping_city, order.shipping_state);
 
       const customerData = Array.isArray(order.customer) ? order.customer[0] : order.customer;
+      // Use paid_at as NF date (falls back to order created_at)
+      const nfDate = order.paid_at || order.created_at;
       const draftDataBase = {
         tenant_id: tenantId,
         order_id: order.id,
@@ -282,6 +299,7 @@ async function processTenanDrafts(
         dest_telefone: customerData?.phone || null,
         dest_email: customerData?.email || null,
         emitido_por: userId,
+        created_at: nfDate,
       };
 
       const { invoice, numero } = await insertFiscalInvoiceWithRetry({
@@ -362,6 +380,30 @@ serve(async (req) => {
     
     const authHeader = req.headers.get('Authorization');
     const isCronMode = !authHeader || authHeader === `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`;
+
+    // ========== TRIGGER MODE: single order from DB trigger ==========
+    // Detected by presence of order_id + tenant_id in body with cron-like auth
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch { /* empty body is ok for cron */ }
+
+    if (isCronMode && body?.order_id && body?.tenant_id) {
+      console.log(`[fiscal-auto-create-drafts][${VERSION}] TRIGGER mode — order: ${body.order_id}, tenant: ${body.tenant_id}`);
+      
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      const result = await processTenanDrafts(supabase, body.tenant_id, null, body.order_id);
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          mode: 'trigger',
+          created: result.created,
+          errors: result.errors.length > 0 ? result.errors : undefined,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // ========== CRON MODE: process ALL configured tenants ==========
     if (isCronMode) {
