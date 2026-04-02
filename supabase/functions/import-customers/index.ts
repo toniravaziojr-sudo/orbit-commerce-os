@@ -785,29 +785,39 @@ async function smartMergeImport(
   if (clienteTagId && allMergedPairs.length > 0) {
     const mergedIds = Array.from(new Set(allMergedPairs.map(pair => pair.existing.id)));
 
-    const { data: existingTags } = await supabase
-      .from('customer_tag_assignments')
-      .select('customer_id')
-      .eq('tag_id', clienteTagId)
-      .in('customer_id', mergedIds);
+    // === Batch tag assignment for merged customers ===
+    const taggedIds = new Set<string>();
+    for (let b = 0; b < mergedIds.length; b += IN_BATCH_SIZE) {
+      const idBatch = mergedIds.slice(b, b + IN_BATCH_SIZE);
+      const { data: existingTags } = await supabase
+        .from('customer_tag_assignments')
+        .select('customer_id')
+        .eq('tag_id', clienteTagId)
+        .in('customer_id', idBatch);
+      for (const tag of (existingTags || [])) taggedIds.add(tag.customer_id);
+    }
 
-    const taggedIds = new Set((existingTags || []).map((tag: any) => tag.customer_id));
     const missingTags = mergedIds.filter(id => !taggedIds.has(id));
-
-    if (missingTags.length > 0) {
+    for (let b = 0; b < missingTags.length; b += IN_BATCH_SIZE) {
+      const batch = missingTags.slice(b, b + IN_BATCH_SIZE);
       await supabase.from('customer_tag_assignments').insert(
-        missingTags.map(id => ({ customer_id: id, tag_id: clienteTagId }))
+        batch.map(id => ({ customer_id: id, tag_id: clienteTagId }))
       );
     }
 
+    // === Batch subscriber creation for merged customers ===
     const mergedEmails = Array.from(new Set(allMergedPairs.map(pair => pair.incoming.email)));
-    const { data: existingSubscribers } = await supabase
-      .from('email_marketing_subscribers')
-      .select('email')
-      .eq('tenant_id', tenantId)
-      .in('email', mergedEmails);
+    const subscriberEmails = new Set<string>();
+    for (let b = 0; b < mergedEmails.length; b += IN_BATCH_SIZE) {
+      const emailBatch = mergedEmails.slice(b, b + IN_BATCH_SIZE);
+      const { data: existingSubs } = await supabase
+        .from('email_marketing_subscribers')
+        .select('email')
+        .eq('tenant_id', tenantId)
+        .in('email', emailBatch);
+      for (const sub of (existingSubs || [])) subscriberEmails.add(normalizeEmailValue(sub.email));
+    }
 
-    const subscriberEmails = new Set((existingSubscribers || []).map((subscriber: any) => normalizeEmailValue(subscriber.email)));
     const missingSubscribers = allMergedPairs
       .filter(pair => !subscriberEmails.has(pair.incoming.email))
       .map(pair => ({
@@ -821,10 +831,39 @@ async function smartMergeImport(
         customer_id: pair.existing.id,
       }));
 
-    if (missingSubscribers.length > 0) {
+    for (let b = 0; b < missingSubscribers.length; b += IN_BATCH_SIZE) {
+      const batch = missingSubscribers.slice(b, b + IN_BATCH_SIZE);
       await supabase
         .from('email_marketing_subscribers')
-        .upsert(missingSubscribers, { onConflict: 'tenant_id,email', ignoreDuplicates: true });
+        .upsert(batch, { onConflict: 'tenant_id,email', ignoreDuplicates: true });
+    }
+
+    // === Add ALL merged subscribers to "Clientes" list ===
+    if (clientesListId) {
+      const allMergedSubscriberIds: string[] = [];
+      for (let b = 0; b < mergedEmails.length; b += IN_BATCH_SIZE) {
+        const emailBatch = mergedEmails.slice(b, b + IN_BATCH_SIZE);
+        const { data: subs } = await supabase
+          .from('email_marketing_subscribers')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .in('email', emailBatch);
+        for (const sub of (subs || [])) allMergedSubscriberIds.push(sub.id);
+      }
+
+      if (allMergedSubscriberIds.length > 0) {
+        const listMembers = allMergedSubscriberIds.map(subId => ({
+          tenant_id: tenantId,
+          list_id: clientesListId,
+          subscriber_id: subId,
+        }));
+        for (let b = 0; b < listMembers.length; b += IN_BATCH_SIZE) {
+          const batch = listMembers.slice(b, b + IN_BATCH_SIZE);
+          await supabase
+            .from('email_marketing_list_members')
+            .upsert(batch, { onConflict: 'list_id,subscriber_id', ignoreDuplicates: true });
+        }
+      }
     }
   }
 
