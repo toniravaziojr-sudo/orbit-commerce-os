@@ -477,7 +477,7 @@ const App = () => {
                   <Route path="/platform/tutorials" element={<PlatformTutorials />} />
                    <Route path="/platform/tenants" element={<PlatformTenants />} />
                    <Route path="/platform/tools" element={<PlatformTools />} />
-                   <Route path="/platform/questionnaire" element={<PlatformQuestionnaire />} />
+                   
                   {/* System routes - Owner only */}
                   <Route path="/system/users" element={<GatedRoute moduleKey="sistema_usuarios" moduleName="Usuários e Permissões" moduleDescription="Gerencie usuários e permissões da sua loja"><SystemUsers /></GatedRoute>} />
                   <Route path="/system/settings" element={<SystemSettings />} />
