@@ -13850,6 +13850,44 @@ export type Database = {
           },
         ]
       }
+      questionnaire_responses: {
+        Row: {
+          answer: string
+          block_key: string
+          created_at: string
+          id: string
+          question_number: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          answer?: string
+          block_key: string
+          created_at?: string
+          id?: string
+          question_number: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          answer?: string
+          block_key?: string
+          created_at?: string
+          id?: string
+          question_number?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "questionnaire_responses_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quick_replies: {
         Row: {
           category: string | null
