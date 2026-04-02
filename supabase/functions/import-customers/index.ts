@@ -65,7 +65,7 @@ const HEADER_MAP: Record<string, string> = {};
 ['birth_date', 'birthday', 'data de nascimento', 'data_nascimento', 'aniversário', 'fecha_nacimiento'].forEach(h => HEADER_MAP[h] = 'birth_date');
 ['gender', 'sexo', 'gênero', 'genero'].forEach(h => HEADER_MAP[h] = 'gender');
 ['person_type', 'tipo pessoa', 'tipo_pessoa'].forEach(h => HEADER_MAP[h] = 'person_type');
-['accepts sms marketing', 'accepts_sms_marketing', 'sms', 'aceita sms'].forEach(h => HEADER_MAP[h] = 'accepts_sms');
+['accepts sms marketing', 'accepts_sms_marketing', 'sms', 'aceita sms'].forEach(h => HEADER_MAP[h] = 'accepts_sms_marketing');
 
 // ===========================================
 // CSV HELPERS
