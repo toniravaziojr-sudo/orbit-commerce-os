@@ -203,13 +203,20 @@ export default function BillingSettings() {
         </TabsList>
 
         <TabsContent value="plans" className="mt-6">
-          <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className="grid md:grid-cols-3 gap-4">
             {plans?.filter(p => !p.is_custom).map((plan) => (
               <PlanCard
                 key={plan.plan_key}
-                plan={plan}
+                plan={{
+                  plan_key: plan.plan_key,
+                  name: plan.name,
+                  description: plan.description,
+                  price_monthly_cents: plan.monthly_fee_cents,
+                  price_annual_cents: Math.round(plan.monthly_fee_cents * 12 * 0.85),
+                  included_orders_per_month: plan.order_limit,
+                  feature_bullets: plan.features || [],
+                }}
                 isCurrentPlan={subscription?.plan_key === plan.plan_key}
-                isPopular={plan.plan_key === 'scale'}
                 onSelect={handleSelectPlan}
               />
             ))}
