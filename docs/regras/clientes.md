@@ -96,14 +96,14 @@ interface Customer {
   last_order_at: string | null;    // Data do último pedido aprovado
   // NOTA: A tarja "1ª compra" NÃO usa total_orders. Usa orders.is_first_sale (flag imutável).
   
-  // === Fidelidade (calculada automaticamente pelo trigger) ===
+  // === Fidelidade (calculada automaticamente pelo trigger — DINÂMICA POR TENANT) ===
   loyalty_points: number | null;
   loyalty_tier: 'bronze' | 'silver' | 'gold' | 'platinum' | null;
-  // Progressão automática de tier:
-  //   Bronze: padrão
-  //   Prata: 5+ pedidos OU R$1.000+ gastos
-  //   Ouro: 15+ pedidos OU R$5.000+ gastos
-  //   Platina: 30+ pedidos OU R$15.000+ gastos
+  // Progressão automática de tier baseada em percentis do tenant:
+  //   Bronze: abaixo do percentil 50 de gasto do tenant
+  //   Silver: entre percentil 50 e 75
+  //   Gold: entre percentil 75 e 90
+  //   Platinum: top 10% (acima do percentil 90)
   
   // === Origem ===
   last_source_platform: string | null;
