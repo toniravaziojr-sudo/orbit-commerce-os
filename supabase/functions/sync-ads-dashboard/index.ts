@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
-const VERSION = "v2.0.0"; // Phase 7: V4-first — list Meta tenants from tenant_meta_auth_grants
+const VERSION = "v2.1.0"; // Phase 8: Sync campaign statuses before insights
 // ===========================================================
 
 const corsHeaders = {
@@ -99,8 +99,13 @@ Deno.serve(async (req) => {
     }
 
     // Run all syncs in parallel (grouped by platform to avoid overwhelming APIs)
-    // Meta syncs
+    // Meta: first sync campaign statuses, then performance insights
     if (metaIds.length > 0) {
+      console.log(`[sync-ads-dashboard] Meta: syncing campaign statuses first...`);
+      await Promise.allSettled(
+        metaIds.map((tid) => callSync("meta-ads-campaigns", tid, "meta"))
+      );
+      console.log(`[sync-ads-dashboard] Meta: syncing performance insights...`);
       await Promise.allSettled(
         metaIds.map((tid) => callSync("meta-ads-insights", tid, "meta"))
       );
