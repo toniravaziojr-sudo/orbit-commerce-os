@@ -624,16 +624,62 @@ Campos:
   - Unidades: minutos, horas, dias
   - Preview: "Você será notificado em: DD/MM/YYYY às HH:mm"
 
-### 3.13 Pendências Técnicas (a implementar)
+### 3.13 Pendências Técnicas e Etapas de Implementação
+
+#### Etapa 1 — Contrato Operacional + Infraestrutura
 
 | Item | Status | Descrição |
 |------|--------|-----------|
-| `agenda-whatsapp-webhook` | 🔴 A criar | Edge function para receber mensagens do admin e rotear ao agente Agenda |
-| Agente IA da Agenda | 🔴 A criar | Motor de IA que interpreta comandos do admin (lembretes, execuções) |
-| Integração Agenda ↔ Auxiliar | 🔴 A criar | Canal inter-agentes para delegação de tarefas |
-| Cron `agenda-dispatch-reminders` | 🟡 Parcial | Edge function existe, mas cron não configurado |
-| Tela de conexão WhatsApp do admin | 🔴 A criar | UI para vincular o número do administrador |
-| Sincronização de status órfãos | 🟡 Pendente | Lembretes `pending` em tarefas `completed` precisam ser marcados como `skipped` |
+| Tabela `agenda_authorized_phones` | 🔴 A criar | Substituir array por tabela própria de números autorizados |
+| Tabela `agenda_command_log` | 🔴 A criar | Log operacional com deduplicação e payload de confirmação |
+| Tabela `agenda_chat_history` | 🔴 A criar | Contexto conversacional para a IA |
+| Migração `sent` → `dispatched` | 🔴 A fazer | Renomear status em `agenda_reminders` |
+| Cron `agenda-dispatch-reminders` | 🟡 Parcial | Edge function existe, mas cron (pg_cron + pg_net, 5min) não configurado |
+| Limpeza de estados órfãos | 🟡 Pendente | Lembretes `pending` em tarefas `completed/cancelled` → `skipped` |
+| UI de configuração de número do admin | 🔴 A criar | Seção na aba Agenda para gerenciar números autorizados |
+
+#### Etapa 2 — Canal WhatsApp + Motor IA
+
+| Item | Status | Descrição |
+|------|--------|-----------|
+| Roteamento no `meta-whatsapp-webhook` | 🔴 A fazer | Adicionar ponto de decisão: admin → Agenda, outros → suporte |
+| Edge function `agenda-process-command` | 🔴 A criar | Motor IA (Gemini 2.5 Flash) que interpreta e executa comandos |
+| Templates WhatsApp para lembretes | 🔴 A criar | Templates aprovados pela Meta para lembretes proativos (fora da janela 24h) |
+
+> **Bloqueador:** sem template aprovado pela Meta, lembretes proativos fora da janela de 24h não serão entregues.
+
+#### Etapa 3 — Integração Agenda ↔ Auxiliar
+
+| Item | Status | Descrição |
+|------|--------|-----------|
+| Contrato inter-agentes | 🔴 A criar | JSON request/response com correlation_id, timeout 30s |
+| Allowlist de ações | 🔴 A definir | Subconjunto restrito de ações delegáveis (ver §3.7) |
+
+#### Etapa 4 — Recorrência + Diagnóstico
+
+| Item | Status | Descrição |
+|------|--------|-----------|
+| Recorrência blindada | 🟡 Parcial | Estrutura existe, lógica de `calculateNextDueAt` precisa revisão |
+| Painel de diagnóstico | 🔴 A criar | Visualização do `agenda_command_log` na aba Agenda |
+
+#### ~~`agenda-whatsapp-webhook`~~ — CANCELADO
+
+> **Decisão definitiva:** NÃO será criado webhook separado para a Agenda. O roteamento acontece dentro do `meta-whatsapp-webhook` existente. Esta decisão está documentada em §3.5.
+
+### 3.14 Cenários de Aceitação Obrigatórios
+
+| # | Cenário | Resultado esperado |
+|---|---------|-------------------|
+| 1 | Inbound duplicado (mesmo `external_message_id`) | Não processa 2x |
+| 2 | Admin autorizado envia mensagem | Roteia para Agenda |
+| 3 | Número não autorizado envia mensagem | Fluxo normal de suporte |
+| 4 | Confirmação após expiração (5min) | Não executa, informa expirado |
+| 5 | Lembrete fora da janela 24h | Usa template WhatsApp |
+| 6 | Sem template aprovado | Marca como `failed` com motivo |
+| 7 | Alvo ambíguo (múltiplas correspondências) | Pede refinamento |
+| 8 | Cancelamento em massa | Exige confirmação |
+| 9 | Dispatch de tarefa já concluída | Reminder marcado como `skipped` |
+| 10 | Cron concorrente (2 execuções simultâneas) | Sem envio duplicado (claim atômico) |
 
 ---
 
