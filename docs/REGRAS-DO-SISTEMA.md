@@ -132,10 +132,11 @@ Esta seção define apenas a sequência macro. Detalhes funcionais (timings, men
 ### 6.1 Checkout → Pedido
 1. Cliente monta carrinho na loja.
 2. Inicia checkout (dados pessoais, endereço, frete, pagamento).
-3. Pedido criado com status `pending`.
+3. Pedido criado com status `pending`. **Estoque reservado (soft lock).**
 4. Gateway processa pagamento.
-5. Webhook/polling confirma pagamento → status `approved`.
-6. Pedido aprovado dispara: reserva de estoque, atualização de métricas do cliente, tag "Cliente", NF-e, notificações.
+5. Webhook/polling confirma pagamento → status `approved`. **Baixa definitiva do estoque.**
+6. Pedido aprovado dispara: atualização de métricas do cliente, tag "Cliente", NF-e, notificações.
+7. Falha, expiração ou cancelamento do pagamento → **estoque reservado é liberado automaticamente.**
 
 ### 6.2 State Machine do Pedido
 - Os status do pedido seguem uma máquina de estados definida.
