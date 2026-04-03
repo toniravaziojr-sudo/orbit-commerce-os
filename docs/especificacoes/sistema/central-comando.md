@@ -272,7 +272,7 @@ Hooks:
 
 ### 3.1 Identidade e Papel
 
-A **Agenda** é o **terceiro agente de IA** do sistema (junto com o Auxiliar de Comando e o Gestor de Tráfego IA). Seu papel principal é:
+A **Agenda** é o **quarto agente de IA** do sistema (junto com o Assistente IA/ChatGPT, o Auxiliar de Comando e o Gestor de Tráfego IA). Seu papel principal é:
 
 - **Comunicar-se exclusivamente via WhatsApp** com o administrador da loja
 - **Agendar tarefas e disparar lembretes** conforme solicitações do usuário
