@@ -133,9 +133,9 @@ export default function EmailMarketingListDetail() {
       // Step 1: Get member IDs for this page from junction table
       const { data: members, error: membersError } = await supabase
         .from("email_marketing_list_members")
-        .select("subscriber_id, joined_at")
+        .select("subscriber_id, created_at")
         .eq("list_id", listId)
-        .order("joined_at", { ascending: false })
+        .order("created_at", { ascending: false })
         .range(from, to);
       
       if (membersError) throw membersError;
