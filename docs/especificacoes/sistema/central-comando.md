@@ -432,12 +432,12 @@ Componentes visuais usados por **3 chats** do sistema (Auxiliar de Comando, Chat
 
 ## Regras de Implementação
 
-1. **Métricas são em centavos** — sempre dividir por 100 antes de exibir
+1. **Valores monetários em Reais** — `orders.total` armazena em Reais, NÃO centavos. Não dividir por 100.
 2. **Realtime** — CommunicationsWidget usa canais Supabase para notifications e email_messages
 3. **Polling** — Métricas refresh a cada 60s, pedidos recentes a cada 30s
 4. **Permissões** — A Central de Comando é acessível a todos os usuários autenticados
-5. **"Atenção Agora"** — Atualmente usa dados demo estáticos (DEMO_ATTENTION_ITEMS) — migrar para dados reais é pendência futura
-6. **Ações Rápidas** — Botões sem onClick implementado (pendência futura — devem navegar para `/products/new`, `/orders/new`, `/customers?action=new`, etc.)
+5. **"Atenção Agora"** — Atualmente usa dados demo estáticos — migrar para dados reais é pendência futura
+6. **Ações Rápidas** — Botões sem onClick implementado (pendência futura)
 7. **Feriados** — Usa `src/lib/brazilian-holidays.ts` para feriados nacionais BR
 8. **WhatsApp** — Agenda depende de integração WhatsApp conectada para envio de lembretes
-9. **Calendário Agenda** — Usa `MonthlyCalendar` (componente unificado — ver `regras-gerais.md` § MonthlyCalendar) com render prop para tarefas/lembretes
+9. **Calendário Agenda** — Usa `MonthlyCalendar` (componente unificado — ver `transversais/padroes-ui.md` § MonthlyCalendar)
