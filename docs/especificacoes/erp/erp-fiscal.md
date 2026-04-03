@@ -266,12 +266,15 @@ awaiting_confirmation → ready_to_invoice → invoice_pending_sefaz → invoice
 | Webhook de pagamento aprovado | `awaiting_confirmation` → `ready_to_invoice` |
 | PIX/Boleto expirado | `awaiting_confirmation` → `payment_expired` |
 | fiscal-auto-create-drafts (auto-emissão ativa) | `ready_to_invoice` → `invoice_pending_sefaz` |
+| Webhook de pagamento (trigger fiscal) | `ready_to_invoice` → cria rascunho NF-e automaticamente |
+| scheduler-tick (fallback/reconciliação) | Cria rascunhos para pedidos `ready_to_invoice` sem NF-e |
 
 #### Regras
 1. **Separação de colunas**: `status` = etapa operacional interna. `shipping_status` = status de entrega. `payment_status` = status de pagamento.
 2. **Automação**: Transição para `ready_to_invoice` é automática via webhook de pagamento.
-3. **NF Autorizada vs Emitida**: "Autorizada" = SEFAZ aprovou e NF foi enviada ao cliente. "Emitida" = NF impressa e preparada para despacho físico.
-4. **Terminal**: `completed` é o estado final após confirmação de entrega.
+3. **Criação de rascunho fiscal**: O rascunho é criado automaticamente no momento da aprovação do pagamento (caminho primário via webhook). O scheduler-tick serve como fallback periódico para reconciliação de rascunhos não criados.
+4. **NF Autorizada vs Emitida**: "Autorizada" = SEFAZ aprovou e NF foi enviada ao cliente. "Emitida" = NF impressa e preparada para despacho físico.
+5. **Terminal**: `completed` é o estado final após confirmação de entrega.
 
 ---
 
@@ -492,3 +495,15 @@ Módulo centralizado usado por **todas** as 3 funções de criação fiscal.
 | Compras | Filtro de período (Purchases) | `DateRangeFilter` |
 
 > Ver `regras-gerais.md` § Padrão de Datas para especificação completa.
+
+---
+
+### Sincronização automática Pedido → Fiscal (v2026-04-03)
+
+| Campo | Valor |
+|-------|-------|
+| **Tipo** | Melhoria Estrutural |
+| **Localização** | `supabase/functions/_shared/fiscal-trigger.ts`, `pagarme-webhook`, `mercadopago-storefront-webhook`, `pagbank-webhook`, `scheduler-tick` |
+| **Contexto** | Rascunhos fiscais eram criados somente quando o usuário acessava o módulo Fiscal (chamada lazy na abertura da tela) |
+| **Correção** | (1) Caminho primário: cada webhook de pagamento (Pagar.me, Mercado Pago, PagBank), ao aprovar pagamento e setar `ready_to_invoice`, dispara `fiscal-auto-create-drafts` em modo TRIGGER (non-blocking). (2) Fallback: `scheduler-tick` chama `fiscal-auto-create-drafts` em modo CRON a cada tick para reconciliar rascunhos faltantes. |
+| **Afeta** | Módulo Fiscal → "Prontas para Emitir" já reflete pedidos aprovados sem depender de acesso à tela |
