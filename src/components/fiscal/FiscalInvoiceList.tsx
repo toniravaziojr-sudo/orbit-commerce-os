@@ -72,7 +72,6 @@ export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
   const [editingInvoice, setEditingInvoice] = useState<InvoiceData | null>(null);
   const [editingInvoiceError, setEditingInvoiceError] = useState<string | null>(null);
   const [editingInvoiceStatus, setEditingInvoiceStatus] = useState<string | null>(null);
-  const [isAutoCreating, setIsAutoCreating] = useState(false);
   const [submittingInvoiceId, setSubmittingInvoiceId] = useState<string | null>(null);
   const [cancelingInvoice, setCancelingInvoice] = useState<FiscalInvoice | null>(null);
   const [correctingInvoice, setCorrectingInvoice] = useState<FiscalInvoice | null>(null);
@@ -100,31 +99,6 @@ export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
 
   const isLoading = settingsLoading || statsLoading || invoicesLoading;
   const isConfigured = settings?.is_configured;
-
-  // Auto-create drafts on page load when configured (only for Saída)
-  useEffect(() => {
-    if (isConfigured && !isAutoCreating && tipoDocumento === 1) {
-      autoCreateDrafts();
-    }
-  }, [isConfigured, tipoDocumento]);
-
-  const autoCreateDrafts = async () => {
-    setIsAutoCreating(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('fiscal-auto-create-drafts');
-      
-      if (error) {
-        console.error('Error auto-creating drafts:', error);
-      } else if (data?.created > 0) {
-        toast.success(`${data.created} rascunho(s) criado(s) automaticamente`);
-        refetch();
-      }
-    } catch (error) {
-      console.error('Error calling auto-create-drafts:', error);
-    } finally {
-      setIsAutoCreating(false);
-    }
-  };
 
   // Filter invoices by tab, search, and advanced filters
   const filteredInvoices = invoices?.filter(inv => {
@@ -745,12 +719,10 @@ export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
                   variant="outline" 
                   size="icon" 
                   onClick={() => {
-                    autoCreateDrafts();
                     refetch();
                   }}
-                  disabled={isAutoCreating}
                 >
-                  <RefreshCw className={`h-4 w-4 ${isAutoCreating ? 'animate-spin' : ''}`} />
+                  <RefreshCw className="h-4 w-4" />
                 </Button>
               )}
             </div>

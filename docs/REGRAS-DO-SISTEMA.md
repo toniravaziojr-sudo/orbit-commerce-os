@@ -81,6 +81,13 @@ Nenhuma camada inferior sobrepõe a superior no seu domínio de autoridade.
 ### 3.6 Build
 - Nenhum ajuste é considerado concluído se build, lint ou typecheck falharem.
 
+### 3.7 Dados Prontos na UI (Zero Sync on Load)
+- Nenhuma tela do Comando Central deve disparar criação, sincronização ou reconciliação de dados ao ser acessada pelo usuário.
+- Quando o usuário abre qualquer módulo, os dados já devem estar disponíveis no banco — prontos para consulta imediata.
+- A responsabilidade de manter os dados atualizados é exclusivamente do **backend** (triggers, webhooks, cron/fallback).
+- O frontend apenas **lê** os dados existentes. Botões de atualização manual (refresh) podem existir como ação explícita do usuário, mas nunca como mecanismo automático ao carregar a tela.
+- Violação desta regra gera a percepção de lentidão ou de que o sistema "só funciona quando o usuário acessa a tela", o que é inaceitável.
+
 ---
 
 ## 4. CRITICIDADE DOS FLUXOS
