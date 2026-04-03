@@ -150,11 +150,18 @@ Esta seção define apenas a sequência macro. Detalhes funcionais (timings, men
 - Publicação: conteúdo entra no ar na loja pública somente após ação explícita de "Publicar".
 - Draft e publicado são versões independentes.
 
-### 6.4 Lifecycle do Cliente
-- **Lead:** subscriber sem compra (formulário, importação, captura).
-- **Cliente:** tem pelo menos 1 pedido aprovado.
-- Lead não vira cliente automaticamente sem pedido aprovado.
-- Cliente recebe tag sistêmica "Cliente" automaticamente ao ter pedido aprovado.
+### 6.4 Lifecycle do Contato
+
+| Estado | Definição | Origem |
+|--------|-----------|--------|
+| **Lead** | Contato capturado, sem opt-in confirmado | Formulário, popup, webhook, captura passiva |
+| **Subscriber** | Contato com opt-in válido para comunicação | Confirmação de opt-in (email, WhatsApp) |
+| **Customer** | Entidade registrada no módulo de clientes | Pedido aprovado, importação ou criação manual |
+
+- Lead **não** vira customer automaticamente. A conversão exige pedido aprovado, importação ou criação manual.
+- Subscriber **não** implica customer. Um subscriber pode nunca ter comprado.
+- Customer é válido mesmo **sem** pedido aprovado (importação, criação manual).
+- Customer recebe tag sistêmica "Cliente" automaticamente na criação (qualquer origem).
 - Métricas do cliente (total_orders, total_spent, ticket médio) são recalculadas por triggers internos.
 
 ### 6.5 Expiração/Validade de Pagamento
