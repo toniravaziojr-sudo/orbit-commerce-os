@@ -427,7 +427,7 @@ AgendaContent
 
 ### 3.7 Tabelas do Banco
 
-#### agenda_tasks
+#### agenda_tasks (existente)
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
@@ -444,7 +444,7 @@ AgendaContent
 | `created_at` | TIMESTAMPTZ | Data de criação |
 | `updated_at` | TIMESTAMPTZ | Data de atualização |
 
-#### agenda_reminders
+#### agenda_reminders (existente — status renomeado)
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
@@ -453,9 +453,102 @@ AgendaContent
 | `task_id` | UUID | FK agenda_tasks |
 | `channel` | TEXT | Sempre `whatsapp` |
 | `remind_at` | TIMESTAMPTZ | Quando enviar o lembrete |
-| `status` | TEXT | `pending`, `sent`, `failed`, `skipped` |
-| `sent_at` | TIMESTAMPTZ | Quando foi enviado |
+| `status` | TEXT | `pending`, `dispatched`, `failed`, `skipped` |
+| `sent_at` | TIMESTAMPTZ | Quando foi despachado |
 | `last_error` | TEXT | Último erro (se falhou) |
+
+> **Nota:** status `sent` foi renomeado para `dispatched`. Migração necessária para registros existentes.
+
+#### agenda_authorized_phones (a criar)
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `id` | UUID | PK |
+| `tenant_id` | UUID | FK tenants |
+| `phone` | TEXT | Formato `55XXXXXXXXXXX` |
+| `is_active` | BOOLEAN | Se está autorizado |
+| `label` | TEXT | Identificação (ex: "João - Owner") |
+| `configured_by` | UUID | Quem cadastrou |
+| `created_at` | TIMESTAMPTZ | |
+
+RLS: owner/manager do tenant. Índice único: `(tenant_id, phone)`.
+
+#### agenda_command_log (a criar)
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `id` | UUID | PK |
+| `tenant_id` | UUID | FK tenants |
+| `direction` | TEXT | `inbound` / `outbound` |
+| `external_message_id` | TEXT | ID da mensagem WhatsApp |
+| `from_phone` | TEXT | Origem |
+| `content` | TEXT | Conteúdo da mensagem |
+| `intent` | TEXT | Intenção interpretada |
+| `action_taken` | TEXT | Ação executada |
+| `pending_action` | JSONB | Payload congelado quando `awaiting_confirmation` |
+| `status` | TEXT | `received`, `interpreted`, `awaiting_confirmation`, `executed`, `rejected`, `expired`, `failed` |
+| `error_message` | TEXT | Erro, se houver |
+| `correlation_id` | UUID | Rastreio entre Agenda ↔ Auxiliar |
+| `created_at` | TIMESTAMPTZ | |
+
+Índice único: `(tenant_id, external_message_id)` para idempotência/deduplicação.
+
+**Propósito:** auditoria operacional — "o que aconteceu, quando, resultado".
+
+#### agenda_chat_history (a criar)
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `id` | UUID | PK |
+| `tenant_id` | UUID | FK tenants |
+| `role` | TEXT | `user` / `assistant` / `system` |
+| `content` | TEXT | Conteúdo |
+| `intent` | TEXT | Intenção interpretada |
+| `action_result` | JSONB | Resultado da ação |
+| `correlation_id` | UUID | Rastreio |
+| `created_at` | TIMESTAMPTZ | |
+
+**Propósito:** contexto conversacional para a IA (últimas N mensagens para continuidade). NÃO é auditoria — para isso usar `agenda_command_log`.
+
+> **Separação explícita:** `agenda_command_log` = auditoria operacional (fonte de verdade para "o que aconteceu"). `agenda_chat_history` = memória de curto prazo da IA (alimenta contexto de conversa). Não são redundantes — cada um tem papel distinto.
+
+#### Máquina de estados formal
+
+```
+agenda_tasks:    pending → completed | cancelled
+agenda_reminders: pending → dispatched | failed | skipped  (estados finais)
+agenda_commands:  received → interpreted → [awaiting_confirmation] → executed | rejected | expired | failed
+```
+
+#### Regra de confirmação ("Sim")
+
+- "Sim" associa-se ao **último** comando com status `awaiting_confirmation` do mesmo tenant + phone dentro da janela de 5 minutos
+- Se houver mais de um comando pendente simultaneamente: o sistema lista os pendentes e pede ao admin que especifique qual confirmar
+- Confirmação executa o `pending_action` congelado — **nunca** reinterpreta a conversa
+- Após 5 minutos sem confirmação: status → `expired`
+
+#### Regra de desambiguação de alvo
+
+Se a IA identificar mais de uma correspondência para o alvo de uma ação (ex: "concluir tarefa reunião" e existem 2 tarefas com "reunião"):
+- **Não executa**
+- Lista as opções encontradas
+- Pede ao admin que especifique
+
+Isso vale para **todas** as ações, incluindo consultas sem confirmação (ex: "status do pedido X" com múltiplas correspondências).
+
+#### Allowlist de ações delegáveis ao Auxiliar
+
+A Agenda só pode delegar ao Auxiliar de Comando ações da allowlist inicial:
+
+| Ação | Confirmação |
+|------|-------------|
+| Consultar status de pedido | Não (mas obedece desambiguação) |
+| Alterar preço de produto | Sim |
+| Publicar/despublicar produto | Sim |
+| Criar cupom de desconto | Sim |
+| Pausar/retomar campanha | Sim |
+
+Expansão da allowlist exige atualização documental e confirmação do usuário.
 
 ### 3.8 Tipos TypeScript
 
