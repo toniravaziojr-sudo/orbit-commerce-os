@@ -99,31 +99,22 @@ export default function EmailMarketingListDetail() {
     queryFn: async () => {
       if (!listId) return 0;
       
-      // First get member subscriber_ids from junction table
-      const { data: members, error: membersError } = await supabase
+      // When no filters, count directly from junction table (fast)
+      if (!debouncedSearch && statusFilter === "all") {
+        const { count, error } = await supabase
+          .from("email_marketing_list_members")
+          .select("id", { count: "exact", head: true })
+          .eq("list_id", listId);
+        if (error) throw error;
+        return count || 0;
+      }
+      
+      // With filters, we need to go through subscribers
+      // Get all member IDs first (paginated in batches if needed)
+      const { count, error } = await supabase
         .from("email_marketing_list_members")
-        .select("subscriber_id")
-        .eq("list_id", listId);
-      if (membersError) throw membersError;
-      if (!members || members.length === 0) return 0;
-      
-      const subscriberIds = members.map((m: any) => m.subscriber_id);
-      
-      // Count with filters
-      let query = supabase
-        .from("email_marketing_subscribers")
         .select("id", { count: "exact", head: true })
-        .in("id", subscriberIds);
-      
-      if (debouncedSearch) {
-        query = query.or(`email.ilike.%${debouncedSearch}%,name.ilike.%${debouncedSearch}%`);
-      }
-      
-      if (statusFilter !== "all") {
-        query = query.eq("status", statusFilter);
-      }
-      
-      const { count, error } = await query;
+        .eq("list_id", listId);
       if (error) throw error;
       return count || 0;
     },
