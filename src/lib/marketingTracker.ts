@@ -290,9 +290,10 @@ export interface MarketingConfig {
 //   - Lead, InitiateCheckout: fetch + keepalive (no redirect risk)
 //   - Purchase: fetch + keepalive primary, sendBeacon text/plain fallback
 //   - All other events: fetch + keepalive
-// v8.20.1: Wait for _fbp cookie (created by Meta Pixel script) with timeout
+// v8.25.0: Wait for _fbp cookie (created by Meta Pixel script) with timeout
+// Increased to 5s to maximize fbp capture on slow connections
 // Returns fbp value or null if not available within timeout
-function waitForFbp(timeoutMs: number = 1500): Promise<string | null> {
+function waitForFbp(timeoutMs: number = 5000): Promise<string | null> {
   return new Promise((resolve) => {
     // Check immediately
     const identity = getTrackingIdentity();
@@ -300,10 +301,10 @@ function waitForFbp(timeoutMs: number = 1500): Promise<string | null> {
       resolve(identity.fbp);
       return;
     }
-    // Poll every 200ms up to timeout
+    // Poll every 250ms up to timeout
     let elapsed = 0;
     const interval = setInterval(() => {
-      elapsed += 200;
+      elapsed += 250;
       const id = getTrackingIdentity();
       if (id.fbp) {
         clearInterval(interval);
@@ -313,7 +314,7 @@ function waitForFbp(timeoutMs: number = 1500): Promise<string | null> {
         console.warn('[MarketingTracker] _fbp cookie not available after', timeoutMs, 'ms — sending CAPI without it');
         resolve(null);
       }
-    }, 200);
+    }, 250);
   });
 }
 
