@@ -307,7 +307,7 @@ O sistema possui **dois fluxos de pagamento distintos e isolados**:
 ### 10.2 Draft vs Published
 - Toda edição no builder é draft.
 - Preview reflete o draft em tempo real.
-- Publicação é ação explícita e irreversível (novo snapshot publicado).
+- Publicação é ação explícita, imediata e visível ao público; qualquer reversão exige nova publicação ou mecanismo formal de rollback.
 - Storefront público consome apenas o último snapshot publicado.
 
 ### 10.3 Tratamento de Erros em Blocos
