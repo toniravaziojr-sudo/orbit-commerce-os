@@ -561,5 +561,5 @@ Componentes visuais usados por **3 chats** do sistema (Auxiliar de Comando, Chat
 5. **"Atenção Agora"** — Atualmente usa dados demo estáticos — migrar para dados reais é pendência futura
 6. **Ações Rápidas** — Botões sem onClick implementado (pendência futura)
 7. **Feriados** — Usa `src/lib/brazilian-holidays.ts` para feriados nacionais BR
-8. **WhatsApp** — Agenda depende de integração WhatsApp conectada para envio de lembretes
+8. **WhatsApp Agenda** — A Agenda é um **agente de IA** que se comunica exclusivamente via WhatsApp com o admin. Não possui chat no sistema. Depende de número WhatsApp do admin conectado e pode delegar tarefas ao Auxiliar de Comando.
 9. **Calendário Agenda** — Usa `MonthlyCalendar` (componente unificado — ver `transversais/padroes-ui.md` § MonthlyCalendar)
