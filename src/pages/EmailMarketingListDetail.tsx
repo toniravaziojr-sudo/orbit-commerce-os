@@ -417,7 +417,7 @@ export default function EmailMarketingListDetail() {
                         <TableCell>
                           {sub.source && (
                             <span className="text-xs bg-muted px-2 py-1 rounded">
-                              {sub.source}
+                              {formatSourceLabel(sub.source)}
                             </span>
                           )}
                         </TableCell>
