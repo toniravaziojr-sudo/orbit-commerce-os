@@ -521,7 +521,7 @@ O trabalho só é considerado 100% fechado quando a documentação estiver aplic
 
 ---
 
-## AVALIAÇÕES — REGRA ESTRUTURAL
+## 21. AVALIAÇÕES — REGRA ESTRUTURAL
 
 ### Classificação Canônica
 - **Avaliação verificada:** feita por cliente com pedido aprovado. Exibe marcação "Cliente verificado".
@@ -533,7 +533,7 @@ O trabalho só é considerado 100% fechado quando a documentação estiver aplic
 
 ---
 
-## PLANOS — REGRA ESTRUTURAL
+## 22. PLANOS — REGRA ESTRUTURAL
 
 ### Planos Canônicos
 O sistema opera com **3 planos**:
