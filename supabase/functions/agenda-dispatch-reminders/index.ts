@@ -229,14 +229,14 @@ Deno.serve(async (req) => {
             await supabase
               .from('agenda_reminders')
               .update({
-                status: 'sent',
+                status: 'dispatched',
                 sent_at: new Date().toISOString(),
                 last_error: null,
               })
               .eq('id', reminder.id);
             dispatched++;
-            results.push({ reminder_id: reminder.id, status: 'sent' });
-            console.log(`[agenda-dispatch] Reminder ${reminder.id} sent successfully`);
+            results.push({ reminder_id: reminder.id, status: 'dispatched' });
+            console.log(`[agenda-dispatch] Reminder ${reminder.id} dispatched successfully`);
           } else {
             await supabase
               .from('agenda_reminders')

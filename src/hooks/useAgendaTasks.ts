@@ -36,7 +36,7 @@ export interface AgendaReminder {
   task_id: string;
   channel: 'whatsapp';
   remind_at: string;
-  status: 'pending' | 'sent' | 'failed' | 'skipped';
+  status: 'pending' | 'dispatched' | 'failed' | 'skipped';
   sent_at: string | null;
   last_error: string | null;
   created_at: string;

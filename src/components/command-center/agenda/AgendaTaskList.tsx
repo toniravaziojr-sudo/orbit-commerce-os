@@ -177,12 +177,12 @@ export function AgendaTaskList({ tasks, isLoading, getTaskReminders }: AgendaTas
                             <div key={r.id} className="text-xs flex items-center gap-2">
                               <span>{format(new Date(r.remind_at), "dd/MM HH:mm")}</span>
                               <Badge variant="outline" className={`text-xs ${
-                                r.status === 'sent' ? 'text-success' :
+                                r.status === 'dispatched' ? 'text-success' :
                                 r.status === 'failed' ? 'text-destructive' :
                                 r.status === 'pending' ? 'text-warning' : ''
                               }`}>
                                 {r.status === 'pending' && 'Aguardando'}
-                                {r.status === 'sent' && 'Enviado'}
+                                {r.status === 'dispatched' && 'Enviado'}
                                 {r.status === 'failed' && 'Falhou'}
                                 {r.status === 'skipped' && 'Pulado'}
                               </Badge>
