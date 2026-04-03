@@ -141,17 +141,59 @@ if (!confirmed) return;
 
 `src/components/ui/date-range-filter.tsx` — **Obrigatório para todo filtro de período.**
 
+| Feature | Descrição |
+|---------|-----------|
+| **Calendário duplo** | Dois meses lado a lado para seleção visual |
+| **Seleção unificada** | Primeiro clique = início, segundo = fim. Dois cliques na mesma data = dia único |
+| **Inputs de data** | Campos editáveis DD/MM/AAAA para início e fim |
+| **Presets** | Todos de `date-presets.ts` com separadores por grupo |
+| **Sincronização preset↔manual** | Seleção manual ativa "Período customizado"; preset substitui manual |
+| **"Todo o período"** | Envia `undefined` para start/end. Hook busca `MIN(created_at)` dos pedidos confirmados como data-base |
+| **Label inteligente** | Presets nomeados no botão; customizados exibem datas |
+
+**Regra "Todo o período":** Quando `startDate` e `endDate` são `undefined`, busca o `MIN(created_at)` dos pedidos confirmados pelo gateway (`payment_gateway_id IS NOT NULL`). Se não existir nenhum pedido, usa fallback de 90 dias atrás.
+
+**Telas que usam:** Central de Comando, Pedidos, Relatórios, Checkouts Abandonados, Notificações, Logística, Compras, Financeiro, Anúncios.
+
 ### 3.4 DatePickerField — Data Única
 
 `src/components/ui/date-picker-field.tsx` — **Obrigatório em vez de `<input type="date">`.**
+
+| Feature | Descrição |
+|---------|-----------|
+| **Popover + Calendar** | Seletor visual baseado em Shadcn |
+| **Input manual** | Campo editável DD/MM/AAAA com parsing via date-fns |
+| **Locale ptBR** | Calendário em português |
+| **Props** | `minDate`, `maxDate`, `clearable`, `disabled` |
+
+**Telas que usam:** CustomerForm, InvoiceEditor, PurchaseFormDialog, FinanceEntryFormDialog, PlatformAnnouncements, CustomerDetail, Newsletter blocks.
 
 ### 3.5 DateTimePickerField — Data e Hora
 
 `src/components/ui/datetime-picker-field.tsx` — **Obrigatório em vez de `<input type="datetime-local">`.**
 
+| Feature | Descrição |
+|---------|-----------|
+| **Popover + Calendar + Time** | Data visual + input de hora HH:mm |
+| **Apply/Cancel** | Alterações confirmadas ao clicar "Aplicar" |
+| **Locale ptBR** | Calendário em português |
+| **Props** | `minDate`, `maxDate`, `clearable`, `disabled` |
+
+**Telas que usam:** ProductForm (promoção), DiscountFormDialog (validade), PropsEditor (builder), StepReview (email marketing).
+
 ### 3.6 MonthlyCalendar — Grade Mensal
 
 `src/components/ui/monthly-calendar.tsx` — **Obrigatório para calendários tipo grade.**
+
+| Feature | Descrição |
+|---------|-----------|
+| **Grade 7 colunas** | Dom-Sáb com cabeçalhos em ptBR |
+| **Navegação mensal** | Botões anterior/próximo mês |
+| **Feriados** | Detecção automática via `getHolidayForDate` com emoji e tooltip |
+| **Skeletons** | Estado de carregamento padronizado |
+| **renderDayContent** | Render prop para conteúdo específico |
+
+**Telas que usam:** Planejamento de Conteúdo, Acompanhamento de Publicações, Agenda.
 
 ### Proibições de Datas
 
@@ -162,6 +204,8 @@ if (!confirmed) return;
 | Calendário customizado para filtros | `DateRangeFilter` |
 | Constantes `DATE_PRESETS` locais | `date-presets.ts` |
 | Grade mensal com `eachDayOfInterval` manual | `MonthlyCalendar` |
+| `react-day-picker` direto para filtros | `DateRangeFilter` |
+| Calcular "período anterior" manualmente | `getPreviousPeriod` de `date-presets.ts` |
 
 ---
 
