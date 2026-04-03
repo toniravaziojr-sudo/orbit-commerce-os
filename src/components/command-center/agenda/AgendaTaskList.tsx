@@ -73,10 +73,10 @@ export function AgendaTaskList({ tasks, isLoading, getTaskReminders }: AgendaTas
 
   const getRemindersSummary = (reminders: AgendaReminder[]) => {
     const pending = reminders.filter(r => r.status === 'pending').length;
-    const sent = reminders.filter(r => r.status === 'sent').length;
+    const dispatched = reminders.filter(r => r.status === 'dispatched').length;
     const failed = reminders.filter(r => r.status === 'failed').length;
 
-    return { pending, sent, failed, total: reminders.length };
+    return { pending, dispatched, failed, total: reminders.length };
   };
 
   return (
