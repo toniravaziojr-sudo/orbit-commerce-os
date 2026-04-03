@@ -325,12 +325,22 @@ Origem do lembrete:
   ├─ Via WhatsApp: Usuário envia comando → Agenda interpreta → cria tarefa + lembretes
   └─ Via UI: Usuário cria manualmente no calendário da aba Agenda
 
-Disparo:
-  1. Cron job verifica agenda_reminders com remind_at ≤ now() e status = 'pending'
-  2. Edge function agenda-dispatch-reminders processa os lembretes
-  3. Envia via meta-whatsapp-send para o número do administrador
-  4. Atualiza status do lembrete (sent/failed)
+Disparo (cron a cada 5 minutos):
+  1. Claim atômico: UPDATE agenda_reminders SET status = 'dispatched'
+     WHERE status = 'pending' AND remind_at <= now() RETURNING *
+     (PostgreSQL garante row-level lock — sem envio duplicado em execuções concorrentes)
+  2. Edge function agenda-dispatch-reminders processa os lembretes retornados
+  3. Tenta envio via meta-whatsapp-send para o número do administrador
+     - Dentro da janela 24h: mensagem de texto livre
+     - Fora da janela 24h: template aprovado pela Meta (obrigatório)
+  4. Se envio OK: status permanece 'dispatched' (= "claimed e enviado com sucesso")
+  5. Se envio falhar: UPDATE status = 'failed', last_error = motivo
+  6. Lembretes de tarefas já completed/cancelled: marcados como 'skipped' (nunca enviados)
 ```
+
+**Semântica de `dispatched`:** significa "claimed para envio e tentativa realizada". Não significa "entregue ao destinatário" (o sistema não rastreia entrega final da Meta).
+
+**Idempotência:** o claim atômico via `UPDATE ... WHERE status = 'pending' RETURNING *` garante que duas execuções concorrentes do cron nunca processam o mesmo lembrete.
 
 **Tipos de agendamento suportados:**
 
@@ -355,29 +365,49 @@ O único setup necessário é o administrador **conectar o número de WhatsApp**
 
 ### 3.5 Arquitetura Técnica (Visão Geral)
 
+**Decisão arquitetural:** NÃO será criado webhook separado para a Agenda. O roteamento acontece dentro do `meta-whatsapp-webhook` existente.
+
 ```
 WhatsApp Cloud API (Meta)
   │
-  ├─ Webhook de entrada (mensagens do admin)
-  │    └─ Edge Function: agenda-whatsapp-webhook
-  │         ├─ Identifica tenant pelo número
-  │         ├─ Roteia para o agente Agenda (IA)
-  │         ├─ Agente interpreta comando (lembrete vs. execução)
-  │         └─ Se execução → chama pipeline do Auxiliar de Comando
+  ├─ Webhook de entrada (TODAS as mensagens WhatsApp)
+  │    └─ Edge Function: meta-whatsapp-webhook (EXISTENTE)
+  │         ├─ Identifica tenant pelo phone_number_id (já faz)
+  │         ├─ Salva em whatsapp_inbound_messages (já faz)
+  │         ├─ Verifica: from_phone está em agenda_authorized_phones do tenant?
+  │         │    ├─ SIM → Roteia para agente Agenda (agenda-process-command)
+  │         │    │    ├─ Deduplicar por (tenant_id, external_message_id) em agenda_command_log
+  │         │    │    ├─ Gravar em agenda_command_log (status: received)
+  │         │    │    ├─ IA interpreta comando (Gemini 2.5 Flash)
+  │         │    │    ├─ Leitura/lembrete → executa direto
+  │         │    │    ├─ Ação sensível → pede confirmação (payload congelado)
+  │         │    │    └─ Ação no sistema → delega ao Auxiliar (com confirmação, via allowlist)
+  │         │    └─ NÃO cria conversa de suporte
+  │         └─ NÃO → Fluxo normal de suporte/conversas (como hoje)
   │
   └─ Envio de saída (mensagens da IA para o admin)
        └─ Edge Function: meta-whatsapp-send
-            └─ Usa template aprovado ou mensagem dentro da janela de 24h
+            └─ Usa template aprovado (fora da janela 24h) ou mensagem livre (dentro da janela)
 ```
+
+**Decisão de roteamento:** mensagens de números autorizados da Agenda SEMPRE vão para o agente Agenda, nunca para o fluxo de suporte. Se o admin quiser falar com suporte, usa outro canal. Esta é uma decisão consciente e documentada.
+
+**Política temporal oficial:**
+- Timezone: `America/Sao_Paulo` (hardcoded, documentado)
+- Todas as datas/horas são interpretadas, persistidas e disparadas neste timezone
+- Parsing: "amanhã" = dia seguinte em SP, "9h" = 09:00 BRT
+- Ambiguidade: a IA confirma quando não consegue interpretar com certeza
+- Armazenamento: `due_at` e `remind_at` em UTC, interpretação e exibição em BRT
 
 **Edge Functions envolvidas:**
 
-| Edge Function | Papel |
-|--------------|-------|
-| `agenda-whatsapp-webhook` | Recebe mensagens do admin via webhook Meta (a criar) |
-| `agenda-dispatch-reminders` | Cron: dispara lembretes pendentes |
-| `meta-whatsapp-send` | Envia mensagens WhatsApp via Cloud API |
-| `command-assistant` | Pipeline do Auxiliar de Comando (chamado pela Agenda quando necessário) |
+| Edge Function | Papel | Status |
+|--------------|-------|--------|
+| `meta-whatsapp-webhook` | Webhook existente — recebe inbound e roteia (suporte OU agenda) | ✅ Existente (requer modificação para roteamento) |
+| `agenda-process-command` | Motor IA da Agenda: interpreta, executa, responde | 🔴 A criar |
+| `agenda-dispatch-reminders` | Cron (5min): dispara lembretes pendentes | ✅ Existente (requer cron) |
+| `meta-whatsapp-send` | Envia mensagens WhatsApp via Cloud API | ✅ Existente |
+| `command-assistant` | Pipeline do Auxiliar de Comando (chamado pela Agenda quando necessário) | ✅ Existente |
 
 ### 3.6 Calendário Visual (UI)
 
@@ -397,7 +427,7 @@ AgendaContent
 
 ### 3.7 Tabelas do Banco
 
-#### agenda_tasks
+#### agenda_tasks (existente)
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
@@ -414,7 +444,7 @@ AgendaContent
 | `created_at` | TIMESTAMPTZ | Data de criação |
 | `updated_at` | TIMESTAMPTZ | Data de atualização |
 
-#### agenda_reminders
+#### agenda_reminders (existente — status renomeado)
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
@@ -423,9 +453,102 @@ AgendaContent
 | `task_id` | UUID | FK agenda_tasks |
 | `channel` | TEXT | Sempre `whatsapp` |
 | `remind_at` | TIMESTAMPTZ | Quando enviar o lembrete |
-| `status` | TEXT | `pending`, `sent`, `failed`, `skipped` |
-| `sent_at` | TIMESTAMPTZ | Quando foi enviado |
+| `status` | TEXT | `pending`, `dispatched`, `failed`, `skipped` |
+| `sent_at` | TIMESTAMPTZ | Quando foi despachado |
 | `last_error` | TEXT | Último erro (se falhou) |
+
+> **Nota:** status `sent` foi renomeado para `dispatched`. Migração necessária para registros existentes.
+
+#### agenda_authorized_phones (a criar)
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `id` | UUID | PK |
+| `tenant_id` | UUID | FK tenants |
+| `phone` | TEXT | Formato `55XXXXXXXXXXX` |
+| `is_active` | BOOLEAN | Se está autorizado |
+| `label` | TEXT | Identificação (ex: "João - Owner") |
+| `configured_by` | UUID | Quem cadastrou |
+| `created_at` | TIMESTAMPTZ | |
+
+RLS: owner/manager do tenant. Índice único: `(tenant_id, phone)`.
+
+#### agenda_command_log (a criar)
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `id` | UUID | PK |
+| `tenant_id` | UUID | FK tenants |
+| `direction` | TEXT | `inbound` / `outbound` |
+| `external_message_id` | TEXT | ID da mensagem WhatsApp |
+| `from_phone` | TEXT | Origem |
+| `content` | TEXT | Conteúdo da mensagem |
+| `intent` | TEXT | Intenção interpretada |
+| `action_taken` | TEXT | Ação executada |
+| `pending_action` | JSONB | Payload congelado quando `awaiting_confirmation` |
+| `status` | TEXT | `received`, `interpreted`, `awaiting_confirmation`, `executed`, `rejected`, `expired`, `failed` |
+| `error_message` | TEXT | Erro, se houver |
+| `correlation_id` | UUID | Rastreio entre Agenda ↔ Auxiliar |
+| `created_at` | TIMESTAMPTZ | |
+
+Índice único: `(tenant_id, external_message_id)` para idempotência/deduplicação.
+
+**Propósito:** auditoria operacional — "o que aconteceu, quando, resultado".
+
+#### agenda_chat_history (a criar)
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `id` | UUID | PK |
+| `tenant_id` | UUID | FK tenants |
+| `role` | TEXT | `user` / `assistant` / `system` |
+| `content` | TEXT | Conteúdo |
+| `intent` | TEXT | Intenção interpretada |
+| `action_result` | JSONB | Resultado da ação |
+| `correlation_id` | UUID | Rastreio |
+| `created_at` | TIMESTAMPTZ | |
+
+**Propósito:** contexto conversacional para a IA (últimas N mensagens para continuidade). NÃO é auditoria — para isso usar `agenda_command_log`.
+
+> **Separação explícita:** `agenda_command_log` = auditoria operacional (fonte de verdade para "o que aconteceu"). `agenda_chat_history` = memória de curto prazo da IA (alimenta contexto de conversa). Não são redundantes — cada um tem papel distinto.
+
+#### Máquina de estados formal
+
+```
+agenda_tasks:    pending → completed | cancelled
+agenda_reminders: pending → dispatched | failed | skipped  (estados finais)
+agenda_commands:  received → interpreted → [awaiting_confirmation] → executed | rejected | expired | failed
+```
+
+#### Regra de confirmação ("Sim")
+
+- "Sim" associa-se ao **último** comando com status `awaiting_confirmation` do mesmo tenant + phone dentro da janela de 5 minutos
+- Se houver mais de um comando pendente simultaneamente: o sistema lista os pendentes e pede ao admin que especifique qual confirmar
+- Confirmação executa o `pending_action` congelado — **nunca** reinterpreta a conversa
+- Após 5 minutos sem confirmação: status → `expired`
+
+#### Regra de desambiguação de alvo
+
+Se a IA identificar mais de uma correspondência para o alvo de uma ação (ex: "concluir tarefa reunião" e existem 2 tarefas com "reunião"):
+- **Não executa**
+- Lista as opções encontradas
+- Pede ao admin que especifique
+
+Isso vale para **todas** as ações, incluindo consultas sem confirmação (ex: "status do pedido X" com múltiplas correspondências).
+
+#### Allowlist de ações delegáveis ao Auxiliar
+
+A Agenda só pode delegar ao Auxiliar de Comando ações da allowlist inicial:
+
+| Ação | Confirmação |
+|------|-------------|
+| Consultar status de pedido | Não (mas obedece desambiguação) |
+| Alterar preço de produto | Sim |
+| Publicar/despublicar produto | Sim |
+| Criar cupom de desconto | Sim |
+| Pausar/retomar campanha | Sim |
+
+Expansão da allowlist exige atualização documental e confirmação do usuário.
 
 ### 3.8 Tipos TypeScript
 
@@ -501,16 +624,62 @@ Campos:
   - Unidades: minutos, horas, dias
   - Preview: "Você será notificado em: DD/MM/YYYY às HH:mm"
 
-### 3.13 Pendências Técnicas (a implementar)
+### 3.13 Pendências Técnicas e Etapas de Implementação
+
+#### Etapa 1 — Contrato Operacional + Infraestrutura
 
 | Item | Status | Descrição |
 |------|--------|-----------|
-| `agenda-whatsapp-webhook` | 🔴 A criar | Edge function para receber mensagens do admin e rotear ao agente Agenda |
-| Agente IA da Agenda | 🔴 A criar | Motor de IA que interpreta comandos do admin (lembretes, execuções) |
-| Integração Agenda ↔ Auxiliar | 🔴 A criar | Canal inter-agentes para delegação de tarefas |
-| Cron `agenda-dispatch-reminders` | 🟡 Parcial | Edge function existe, mas cron não configurado |
-| Tela de conexão WhatsApp do admin | 🔴 A criar | UI para vincular o número do administrador |
-| Sincronização de status órfãos | 🟡 Pendente | Lembretes `pending` em tarefas `completed` precisam ser marcados como `skipped` |
+| Tabela `agenda_authorized_phones` | 🔴 A criar | Substituir array por tabela própria de números autorizados |
+| Tabela `agenda_command_log` | 🔴 A criar | Log operacional com deduplicação e payload de confirmação |
+| Tabela `agenda_chat_history` | 🔴 A criar | Contexto conversacional para a IA |
+| Migração `sent` → `dispatched` | 🔴 A fazer | Renomear status em `agenda_reminders` |
+| Cron `agenda-dispatch-reminders` | 🟡 Parcial | Edge function existe, mas cron (pg_cron + pg_net, 5min) não configurado |
+| Limpeza de estados órfãos | 🟡 Pendente | Lembretes `pending` em tarefas `completed/cancelled` → `skipped` |
+| UI de configuração de número do admin | 🔴 A criar | Seção na aba Agenda para gerenciar números autorizados |
+
+#### Etapa 2 — Canal WhatsApp + Motor IA
+
+| Item | Status | Descrição |
+|------|--------|-----------|
+| Roteamento no `meta-whatsapp-webhook` | 🔴 A fazer | Adicionar ponto de decisão: admin → Agenda, outros → suporte |
+| Edge function `agenda-process-command` | 🔴 A criar | Motor IA (Gemini 2.5 Flash) que interpreta e executa comandos |
+| Templates WhatsApp para lembretes | 🔴 A criar | Templates aprovados pela Meta para lembretes proativos (fora da janela 24h) |
+
+> **Bloqueador:** sem template aprovado pela Meta, lembretes proativos fora da janela de 24h não serão entregues.
+
+#### Etapa 3 — Integração Agenda ↔ Auxiliar
+
+| Item | Status | Descrição |
+|------|--------|-----------|
+| Contrato inter-agentes | 🔴 A criar | JSON request/response com correlation_id, timeout 30s |
+| Allowlist de ações | 🔴 A definir | Subconjunto restrito de ações delegáveis (ver §3.7) |
+
+#### Etapa 4 — Recorrência + Diagnóstico
+
+| Item | Status | Descrição |
+|------|--------|-----------|
+| Recorrência blindada | 🟡 Parcial | Estrutura existe, lógica de `calculateNextDueAt` precisa revisão |
+| Painel de diagnóstico | 🔴 A criar | Visualização do `agenda_command_log` na aba Agenda |
+
+#### ~~`agenda-whatsapp-webhook`~~ — CANCELADO
+
+> **Decisão definitiva:** NÃO será criado webhook separado para a Agenda. O roteamento acontece dentro do `meta-whatsapp-webhook` existente. Esta decisão está documentada em §3.5.
+
+### 3.14 Cenários de Aceitação Obrigatórios
+
+| # | Cenário | Resultado esperado |
+|---|---------|-------------------|
+| 1 | Inbound duplicado (mesmo `external_message_id`) | Não processa 2x |
+| 2 | Admin autorizado envia mensagem | Roteia para Agenda |
+| 3 | Número não autorizado envia mensagem | Fluxo normal de suporte |
+| 4 | Confirmação após expiração (5min) | Não executa, informa expirado |
+| 5 | Lembrete fora da janela 24h | Usa template WhatsApp |
+| 6 | Sem template aprovado | Marca como `failed` com motivo |
+| 7 | Alvo ambíguo (múltiplas correspondências) | Pede refinamento |
+| 8 | Cancelamento em massa | Exige confirmação |
+| 9 | Dispatch de tarefa já concluída | Reminder marcado como `skipped` |
+| 10 | Cron concorrente (2 execuções simultâneas) | Sem envio duplicado (claim atômico) |
 
 ---
 
