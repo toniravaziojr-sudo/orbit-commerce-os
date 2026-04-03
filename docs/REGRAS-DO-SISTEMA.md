@@ -186,7 +186,7 @@ Contratos definem a interface entre módulos: o que cada módulo fornece, o que 
 - Criação do pedido (`pending`) → **reserva de estoque (soft lock).**
 - Pagamento aprovado (`approved`) → **baixa definitiva do estoque.**
 - Falha, expiração ou cancelamento do pagamento → **liberação automática do estoque reservado.**
-- Estoque insuficiente não bloqueia criação do pedido, mas gera alerta.
+- Estoque insuficiente: **comportamento padrão é alerta** (não bloqueia criação do pedido). Bloqueio hard é **configurável pelo lojista** nas configurações da loja.
 
 ### 7.2 Pedido ↔ Fiscal
 - Pedido aprovado solicita emissão de NF-e ao provedor fiscal.
