@@ -225,7 +225,7 @@ Contratos definem a interface entre módulos: o que cada módulo fornece, o que 
 
 ### 7.9 Email Marketing ↔ Clientes
 - Subscribers e listas são gerenciados pelo módulo de Email Marketing.
-- Tag sistêmica "Cliente" é atribuída pelo core (trigger de pedido aprovado), não pelo módulo de Email Marketing.
+- Tag sistêmica "Cliente" é atribuída pelo core na criação do registro no módulo de Clientes (qualquer origem: pedido aprovado, importação ou criação manual), não pelo módulo de Email Marketing.
 - Email Marketing consome tags para segmentação, mas não é dono da atribuição.
 
 ---
