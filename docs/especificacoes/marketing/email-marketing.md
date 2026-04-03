@@ -23,7 +23,7 @@ Sistema completo de email marketing com listas segmentadas, templates personaliz
 | `src/pages/EmailMarketing.tsx` | Dashboard principal com abas |
 | `src/hooks/useEmailMarketing.ts` | Hook CRUD centralizado |
 | `src/components/email-marketing/ListDialog.tsx` | Modal criar lista |
-| `src/components/email-marketing/ListDetailDrawer.tsx` | Drawer detalhes da lista + subscribers |
+| `src/pages/EmailMarketingListDetail.tsx` | Página de detalhes da lista + subscribers (rota `/email-marketing/list/:listId`) |
 | `src/components/builder/theme-settings/PopupSettings.tsx` | Config popup newsletter (tema) |
 | `supabase/functions/email-campaign-broadcast/` | Disparo em massa |
 | `supabase/functions/email-dispatcher/` | Worker de processamento |
@@ -125,6 +125,21 @@ Fila de envio com status.
 | `scheduled_at` | TIMESTAMPTZ | Agendamento |
 | `sent_at` | TIMESTAMPTZ | Data de envio |
 | `provider_message_id` | TEXT | ID do provedor |
+
+### email_marketing_list_members
+Tabela de junção lista↔subscriber — **fonte de verdade para exibição de membros na tela de detalhe**.
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `id` | UUID | PK |
+| `tenant_id` | UUID | FK tenants |
+| `list_id` | UUID | FK email_marketing_lists |
+| `subscriber_id` | UUID | FK email_marketing_subscribers |
+| `created_at` | TIMESTAMPTZ | Data de inclusão na lista |
+
+**Constraints:** `UNIQUE(list_id, subscriber_id)` — evita duplicatas.
+
+**Regra:** A contagem e listagem de membros de uma lista DEVEM consultar esta tabela, nunca filtrar diretamente na tabela de subscribers por campo `source` ou outro atributo.
 
 ---
 
@@ -268,8 +283,9 @@ Configuração em `email_provider_configs`:
 
 1. **Listas** - CRUD de listas segmentadas
    - **Contagem de leads exibida acima do nome da lista** (ex: "8.008 leads")
-   - Clique na lista abre detalhes com subscribers
+   - Clique na lista abre página dedicada de detalhes (`EmailMarketingListDetail.tsx`)
    - Badge com cor da tag vinculada
+   - **Detalhe da lista:** consulta `email_marketing_list_members` (fonte de verdade), paginação de 50 por página, busca por nome/email, filtro por status
 2. **Assinantes** - Visualização/busca de subscribers com filtro
 3. **Templates** - Editor de templates com preview
 4. **Campanhas** - Gerenciamento de broadcasts/automações
