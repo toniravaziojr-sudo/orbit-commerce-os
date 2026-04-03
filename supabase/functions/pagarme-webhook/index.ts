@@ -9,6 +9,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { redactPayloadForLog } from "../_shared/redact-pii.ts";
 import { verifyPagarmeHmac, handleHmacResult } from "../_shared/webhook-hmac.ts";
 import { errorResponse } from "../_shared/error-response.ts";
+import { triggerFiscalDraftCreation } from "../_shared/fiscal-trigger.ts";
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -253,6 +254,17 @@ serve(async (req) => {
         console.error(`[${requestId}] Error updating order:`, updateOrderError);
       } else {
         console.log(`[${requestId}] Order ${existingTransaction.order_id} updated: payment=${newPaymentStatus}, status=${newOrderStatus}, gateway_id=${pagarmeOrderId}`);
+      }
+
+      // ==== TRIGGER FISCAL DRAFT CREATION (non-blocking) ====
+      if (newOrderStatus === 'ready_to_invoice') {
+        triggerFiscalDraftCreation({
+          supabaseUrl: SUPABASE_URL!,
+          supabaseServiceKey: SUPABASE_SERVICE_ROLE_KEY!,
+          orderId: existingTransaction.order_id,
+          tenantId: existingTransaction.tenant_id,
+          logPrefix: requestId,
+        });
       }
     }
 
