@@ -144,6 +144,12 @@ Este diretório contém as regras e especificações separadas por módulo para 
 
 ---
 
-## Documento Principal
+## Documentos Principais
 
-O documento principal com TODAS as regras consolidadas: [`docs/REGRAS.md`](../REGRAS.md)
+### 🆕 Nova Estrutura Documental (Layer 2)
+O documento canônico de regras estruturais do sistema: [`docs/REGRAS-DO-SISTEMA.md`](../REGRAS-DO-SISTEMA.md)
+
+> Este documento pertence à nova estrutura de 4 camadas e é a fonte de verdade para regras macro, fluxos canônicos, contratos entre módulos e fontes de verdade. Em caso de conflito com os docs legados abaixo, o REGRAS-DO-SISTEMA.md vence.
+
+### Documento Legado
+O documento antigo com regras consolidadas (em transição): [`docs/REGRAS.md`](../REGRAS.md)
