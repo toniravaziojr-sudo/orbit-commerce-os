@@ -1,7 +1,9 @@
 # Paridade Builder ↔ Público — Regra Universal
 
-> **Status:** ATIVO E OBRIGATÓRIO ✅  
-> **Versão:** v1.0.0 — 2026-03-10  
+> **Status:** ✅ Ativo  
+> **Camada:** Layer 3 — Especificações / Transversais  
+> **Migrado de:** `docs/regras/paridade-builder-publico.md`  
+> **Última atualização:** 2026-04-03  
 > **Escopo:** Toda alteração em blocos React (Builder) ou compiladores HTML (Edge)
 
 ---
