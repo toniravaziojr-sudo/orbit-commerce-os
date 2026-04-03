@@ -261,7 +261,7 @@ O sistema possui **dois fluxos de pagamento distintos e isolados**:
 | Marketing | Meta Ads, Google Ads, TikTok | Atribuição complementar. Respeitar janelas das plataformas. |
 | Comunicação | WhatsApp, SMTP | Canal de entrega. Falha não bloqueia operação. |
 
-### 8.2 Regras Universais de Integração
+### 8.4 Regras Universais de Integração
 - Credenciais são tenant-scoped e armazenadas de forma segura.
 - Falha em integração externa nunca deve derrubar operação core.
 - Toda integração deve ter: retry com backoff, log de falha, alerta ao admin.
