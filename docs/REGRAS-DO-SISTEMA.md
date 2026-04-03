@@ -25,7 +25,7 @@ Ele substitui conceitualmente o documento legado `docs/REGRAS.md` e os docs modu
 |-------|-----------|--------|
 | 1 — Governança | Knowledge (Custom Instructions) | ✅ Ativo |
 | 2 — Regras do Sistema | **Este documento** | ✅ Ativo |
-| 3 — Especificações dos Módulos | Docs de especificação (a criar) | 🔜 Pendente |
+| 3 — Especificações dos Módulos | `docs/ESPECIFICACOES-DOS-MODULOS.md` (índice) + `docs/especificacoes/` (modulares) | ✅ Ativo |
 | 4 — Manual do Sistema | Manual técnico consolidado | 🔜 Pendente |
 
 ---
