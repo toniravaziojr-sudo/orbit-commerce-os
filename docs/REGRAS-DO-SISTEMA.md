@@ -1,7 +1,7 @@
 # DOC DE REGRAS DO SISTEMA
 
 > **Status:** 🟢 Ativo  
-> **Versão:** 2.2.0  
+> **Versão:** 2.3.0  
 > **Camada:** Layer 2 — Regras do Sistema  
 > **Última atualização:** 2026-04-03
 
@@ -225,7 +225,7 @@ Contratos definem a interface entre módulos: o que cada módulo fornece, o que 
 
 ### 7.9 Email Marketing ↔ Clientes
 - Subscribers e listas são gerenciados pelo módulo de Email Marketing.
-- Tag sistêmica "Cliente" é atribuída pelo core (trigger de pedido aprovado), não pelo módulo de Email Marketing.
+- Tag sistêmica "Cliente" é atribuída pelo core na criação do registro no módulo de Clientes (qualquer origem: pedido aprovado, importação ou criação manual), não pelo módulo de Email Marketing.
 - Email Marketing consome tags para segmentação, mas não é dono da atribuição.
 
 ---
@@ -286,7 +286,7 @@ O sistema possui **dois fluxos de pagamento distintos e isolados**:
 | **Gestor de Tráfego IA** | Tráfego pago (campanhas, criativos, orçamento) | Executa ações de tráfego | Criativos e aumento de orçamento acima do limite exigem aprovação manual |
 
 ### 9.3 Regras Universais dos Agentes
-- Todo agente sabe tudo sobre o sistema (acesso a docs, dados do tenant, contexto).
+- Todo agente conhece a estrutura do sistema e opera dentro do escopo de permissões do seu domínio e da autorização do usuário. O acesso a dados do tenant é limitado ao necessário para a função do agente.
 - Nenhum agente executa ação destrutiva sem aprovação explícita.
 - Toda execução gera log de auditoria.
 - Créditos de IA são consumidos por uso e controlados pelo plano do tenant.
@@ -307,7 +307,7 @@ O sistema possui **dois fluxos de pagamento distintos e isolados**:
 ### 10.2 Draft vs Published
 - Toda edição no builder é draft.
 - Preview reflete o draft em tempo real.
-- Publicação é ação explícita e irreversível (novo snapshot publicado).
+- Publicação é ação explícita, imediata e visível ao público; qualquer reversão exige nova publicação ou mecanismo formal de rollback.
 - Storefront público consome apenas o último snapshot publicado.
 
 ### 10.3 Tratamento de Erros em Blocos
