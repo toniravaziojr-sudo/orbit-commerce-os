@@ -1,7 +1,7 @@
 # DOC DE REGRAS DO SISTEMA
 
 > **Status:** 🟢 Ativo  
-> **Versão:** 2.0.0  
+> **Versão:** 2.1.0  
 > **Camada:** Layer 2 — Regras do Sistema  
 > **Última atualização:** 2026-04-03
 
