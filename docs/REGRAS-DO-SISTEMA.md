@@ -435,46 +435,55 @@ Antes de implementar qualquer novo recurso (módulo, submódulo, função, integ
 
 Os docs abaixo pertencem à estrutura antiga (`docs/regras/*.md`). Durante a transição, continuam sendo consultados para detalhes funcionais dos módulos. Serão substituídos pelos novos docs de especificação (Layer 3) quando estes estiverem prontos.
 
-| Módulo | Doc de Especificação (legado) |
-|--------|-------------------------------|
-| Pedidos | `docs/regras/pedidos.md` |
-| Checkouts Abandonados | `docs/regras/checkouts-abandonados.md` |
-| Produtos | `docs/regras/produtos.md` |
-| Categorias | `docs/regras/categorias.md` |
-| Clientes | `docs/regras/clientes.md` |
-| Descontos | `docs/regras/descontos.md` |
-| Loja Virtual | `docs/regras/loja-virtual.md` |
-| Builder | `docs/regras/builder.md` |
-| Header | `docs/regras/header.md` |
-| Footer | `docs/regras/footer.md` |
-| Carrinho | `docs/regras/carrinho.md` |
-| Checkout | `docs/regras/checkout.md` |
-| Página de Produto | `docs/regras/pagina-produto.md` |
-| Página de Categoria | `docs/regras/pagina-categoria.md` |
-| Página de Obrigado | `docs/regras/pagina-obrigado.md` |
-| Páginas Institucionais | `docs/regras/paginas-institucionais.md` |
-| Blog | `docs/regras/blog.md` |
-| Ofertas (Bump/Upsell) | `docs/regras/ofertas.md` |
-| Avaliações | `docs/regras/avaliacoes.md` |
-| Mídias/Uploads | `docs/regras/midias-uploads.md` |
-| Geração de Imagens IA | `docs/regras/geracao-imagens-ai.md` |
-| Campanhas | `docs/regras/campanhas.md` |
-| Pacotes IA | `docs/regras/pacotes-ia.md` |
-| Central de Comando | `docs/regras/central-comando.md` |
-| Usuários e Permissões | `docs/regras/usuarios-permissoes.md` |
-| Planos e Billing | `docs/regras/planos-billing.md` |
-| Configurações do Sistema | `docs/regras/configuracoes-sistema.md` |
-| Emails da Plataforma | `docs/regras/platform-emails.md` |
-| Platform Admin | `docs/regras/platform-admin.md` |
-| Auxiliar de Comando | `docs/regras/auxiliar-comando.md` |
-| Importação | `docs/regras/importacao.md` |
-| Afiliados | `docs/regras/afiliados.md` |
-| Shopee | `docs/regras/shopee.md` |
-| Domínios | `docs/regras/dominios.md` |
-| Feature Rollout | `docs/regras/feature-rollout.md` |
-| Edge Functions | `docs/regras/edge-functions.md` |
-| Tenants | `docs/regras/tenants.md` |
-| Regras Gerais | `docs/regras/regras-gerais.md` |
+| Módulo | Doc de Especificação (legado) | Status |
+|--------|-------------------------------|--------|
+| Pedidos | `docs/regras/pedidos.md` | ✅ Ready |
+| Checkouts Abandonados | `docs/regras/checkouts-abandonados.md` | ✅ Ready |
+| Produtos | `docs/regras/produtos.md` | ✅ Ready |
+| Categorias | `docs/regras/categorias.md` | ✅ Ready |
+| Clientes | `docs/regras/clientes.md` | ✅ Ready |
+| Descontos | `docs/regras/descontos.md` | ✅ Ready |
+| Loja Virtual | `docs/regras/loja-virtual.md` | ✅ Ready |
+| Builder | `docs/regras/builder.md` | ✅ Ready |
+| Header | `docs/regras/header.md` | ✅ Ready |
+| Footer | `docs/regras/footer.md` | ✅ Ready |
+| Carrinho | `docs/regras/carrinho.md` | ✅ Ready |
+| Checkout | `docs/regras/checkout.md` | ✅ Ready |
+| Página de Produto | `docs/regras/pagina-produto.md` | ✅ Ready |
+| Página de Categoria | `docs/regras/pagina-categoria.md` | ✅ Ready |
+| Página de Obrigado | `docs/regras/pagina-obrigado.md` | ✅ Ready |
+| Páginas Institucionais | `docs/regras/paginas-institucionais.md` | ✅ Ready |
+| Blog | `docs/regras/blog.md` | ✅ Ready |
+| Ofertas (Bump/Upsell) | `docs/regras/ofertas.md` | ✅ Ready |
+| Avaliações | `docs/regras/avaliacoes.md` | ✅ Ready |
+| Mídias/Uploads | `docs/regras/midias-uploads.md` | ✅ Ready |
+| Geração de Imagens IA | `docs/regras/geracao-imagens-ai.md` | ✅ Ready |
+| Campanhas | `docs/regras/campanhas.md` | ✅ Ready |
+| Pacotes IA | `docs/regras/pacotes-ia.md` | ✅ Ready |
+| Central de Comando | `docs/regras/central-comando.md` | ✅ Ready |
+| Usuários e Permissões | `docs/regras/usuarios-permissoes.md` | ✅ Ready |
+| Planos e Billing | `docs/regras/planos-billing.md` | ✅ Ready |
+| Configurações do Sistema | `docs/regras/configuracoes-sistema.md` | ✅ Ready |
+| Emails da Plataforma | `docs/regras/platform-emails.md` | ✅ Ready |
+| Platform Admin | `docs/regras/platform-admin.md` | ✅ Ready |
+| Auxiliar de Comando | `docs/regras/auxiliar-comando.md` | ✅ Ready |
+| Importação | `docs/regras/importacao.md` | ✅ Ready |
+| Afiliados | `docs/regras/afiliados.md` | ✅ Ready |
+| Shopee | `docs/regras/shopee.md` | ✅ Ready |
+| Domínios | `docs/regras/dominios.md` | ✅ Ready |
+| Feature Rollout | `docs/regras/feature-rollout.md` | ✅ Ready |
+| Edge Functions | `docs/regras/edge-functions.md` | ✅ Ready |
+| Tenants | `docs/regras/tenants.md` | ✅ Ready |
+| Regras Gerais | `docs/regras/regras-gerais.md` | ✅ Ready |
+| Marketing Integrações | `docs/regras/marketing-integracoes.md` | 🟧 Pending |
+| Email Marketing | `docs/regras/email-marketing.md` | 🟧 Pending |
+| CRM | `docs/regras/crm.md` | 🟧 Pending |
+| Suporte | `docs/regras/suporte.md` | 🟧 Pending |
+| ERP | `docs/regras/erp.md` | 🟧 Pending |
+| Logística | `docs/regras/logistica.md` | 🟧 Pending |
+| Influencers | `docs/regras/influencers.md` | 🟧 Pending |
+| Mercado Livre | `docs/regras/mercado-livre.md` | 🟧 Pending |
+| Hub de Integrações | `docs/regras/integracoes.md` | 🟧 Pending |
 
 ### 19.2 Docs Removidos
 
@@ -512,7 +521,7 @@ O trabalho só é considerado 100% fechado quando a documentação estiver aplic
 
 ---
 
-## AVALIAÇÕES — REGRA ESTRUTURAL
+## 21. AVALIAÇÕES — REGRA ESTRUTURAL
 
 ### Classificação Canônica
 - **Avaliação verificada:** feita por cliente com pedido aprovado. Exibe marcação "Cliente verificado".
@@ -524,7 +533,7 @@ O trabalho só é considerado 100% fechado quando a documentação estiver aplic
 
 ---
 
-## PLANOS — REGRA ESTRUTURAL
+## 22. PLANOS — REGRA ESTRUTURAL
 
 ### Planos Canônicos
 O sistema opera com **3 planos**:
