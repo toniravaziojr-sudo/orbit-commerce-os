@@ -23,7 +23,7 @@ Sistema completo de email marketing com listas segmentadas, templates personaliz
 | `src/pages/EmailMarketing.tsx` | Dashboard principal com abas |
 | `src/hooks/useEmailMarketing.ts` | Hook CRUD centralizado |
 | `src/components/email-marketing/ListDialog.tsx` | Modal criar lista |
-| `src/components/email-marketing/ListDetailDrawer.tsx` | Drawer detalhes da lista + subscribers |
+| `src/pages/EmailMarketingListDetail.tsx` | Página de detalhes da lista + subscribers (rota `/email-marketing/list/:listId`) |
 | `src/components/builder/theme-settings/PopupSettings.tsx` | Config popup newsletter (tema) |
 | `supabase/functions/email-campaign-broadcast/` | Disparo em massa |
 | `supabase/functions/email-dispatcher/` | Worker de processamento |
