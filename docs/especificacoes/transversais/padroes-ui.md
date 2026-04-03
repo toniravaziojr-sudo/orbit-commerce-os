@@ -141,17 +141,59 @@ if (!confirmed) return;
 
 `src/components/ui/date-range-filter.tsx` — **Obrigatório para todo filtro de período.**
 
+| Feature | Descrição |
+|---------|-----------|
+| **Calendário duplo** | Dois meses lado a lado para seleção visual |
+| **Seleção unificada** | Primeiro clique = início, segundo = fim. Dois cliques na mesma data = dia único |
+| **Inputs de data** | Campos editáveis DD/MM/AAAA para início e fim |
+| **Presets** | Todos de `date-presets.ts` com separadores por grupo |
+| **Sincronização preset↔manual** | Seleção manual ativa "Período customizado"; preset substitui manual |
+| **"Todo o período"** | Envia `undefined` para start/end. Hook busca `MIN(created_at)` dos pedidos confirmados como data-base |
+| **Label inteligente** | Presets nomeados no botão; customizados exibem datas |
+
+**Regra "Todo o período":** Quando `startDate` e `endDate` são `undefined`, busca o `MIN(created_at)` dos pedidos confirmados pelo gateway (`payment_gateway_id IS NOT NULL`). Se não existir nenhum pedido, usa fallback de 90 dias atrás.
+
+**Telas que usam:** Central de Comando, Pedidos, Relatórios, Checkouts Abandonados, Notificações, Logística, Compras, Financeiro, Anúncios.
+
 ### 3.4 DatePickerField — Data Única
 
 `src/components/ui/date-picker-field.tsx` — **Obrigatório em vez de `<input type="date">`.**
+
+| Feature | Descrição |
+|---------|-----------|
+| **Popover + Calendar** | Seletor visual baseado em Shadcn |
+| **Input manual** | Campo editável DD/MM/AAAA com parsing via date-fns |
+| **Locale ptBR** | Calendário em português |
+| **Props** | `minDate`, `maxDate`, `clearable`, `disabled` |
+
+**Telas que usam:** CustomerForm, InvoiceEditor, PurchaseFormDialog, FinanceEntryFormDialog, PlatformAnnouncements, CustomerDetail, Newsletter blocks.
 
 ### 3.5 DateTimePickerField — Data e Hora
 
 `src/components/ui/datetime-picker-field.tsx` — **Obrigatório em vez de `<input type="datetime-local">`.**
 
+| Feature | Descrição |
+|---------|-----------|
+| **Popover + Calendar + Time** | Data visual + input de hora HH:mm |
+| **Apply/Cancel** | Alterações confirmadas ao clicar "Aplicar" |
+| **Locale ptBR** | Calendário em português |
+| **Props** | `minDate`, `maxDate`, `clearable`, `disabled` |
+
+**Telas que usam:** ProductForm (promoção), DiscountFormDialog (validade), PropsEditor (builder), StepReview (email marketing).
+
 ### 3.6 MonthlyCalendar — Grade Mensal
 
 `src/components/ui/monthly-calendar.tsx` — **Obrigatório para calendários tipo grade.**
+
+| Feature | Descrição |
+|---------|-----------|
+| **Grade 7 colunas** | Dom-Sáb com cabeçalhos em ptBR |
+| **Navegação mensal** | Botões anterior/próximo mês |
+| **Feriados** | Detecção automática via `getHolidayForDate` com emoji e tooltip |
+| **Skeletons** | Estado de carregamento padronizado |
+| **renderDayContent** | Render prop para conteúdo específico |
+
+**Telas que usam:** Planejamento de Conteúdo, Acompanhamento de Publicações, Agenda.
 
 ### Proibições de Datas
 
@@ -162,6 +204,8 @@ if (!confirmed) return;
 | Calendário customizado para filtros | `DateRangeFilter` |
 | Constantes `DATE_PRESETS` locais | `date-presets.ts` |
 | Grade mensal com `eachDayOfInterval` manual | `MonthlyCalendar` |
+| `react-day-picker` direto para filtros | `DateRangeFilter` |
+| Calcular "período anterior" manualmente | `getPreviousPeriod` de `date-presets.ts` |
 
 ---
 
@@ -177,32 +221,65 @@ if (!confirmed) return;
 
 `src/components/ui/error-fallback.tsx` — 3 variantes: `fullscreen`, `card`, `inline`.
 
+#### Props
+
+| Prop | Tipo | Obrigatória | Descrição |
+|------|------|-------------|-----------|
+| `variant` | `'fullscreen' \| 'card' \| 'inline'` | ✅ | Variante visual |
+| `title` | `string` | ❌ | Título (tem default por variante) |
+| `message` | `string` | ❌ | Mensagem descritiva |
+| `onRetry` | `() => void` | ❌ | Callback para tentar novamente |
+| `onReload` | `() => void` | ❌ | Callback para recarregar |
+| `showSupport` | `boolean` | ❌ | Exibe link de suporte |
+| `extraActions` | `ReactNode` | ❌ | Ações extras (ex: "Copiar Diagnóstico") |
+| `error` | `Error \| null` | ❌ | Erro original — detalhes só em debug |
+| `errorInfo` | `React.ErrorInfo \| null` | ❌ | Info do componente React que falhou |
+
+**Detalhes técnicos (debug):** Stack trace visível apenas em `development` ou com `?debug=1` na URL.
+
 ### Camadas de Proteção
 
 | Camada | Componente | Variante |
 |--------|-----------|----------|
 | Global (Admin) | `AdminErrorBoundary` | `fullscreen` |
-| Global (Builder) | `BuilderErrorBoundary` | `fullscreen` |
+| Global (Builder) | `BuilderErrorBoundary` | `fullscreen` + "Copiar Diagnóstico" |
 | Bloco (Builder) | `BlockErrorBoundary` | `inline` |
 | Página (Query) | `QueryErrorState` | `card` |
 | Hook/Ação | `showErrorToast` | — |
 
-### Categorias de Erro (`error-toast.ts`)
-
-| Categoria | Quando | Mensagem |
-|-----------|--------|----------|
-| **permission** | 403, "not authorized", "RLS" | "Você não tem permissão" |
-| **technical** | 500, timeout, network | "Erro interno do sistema" |
-| **validation** | 400, "duplicate", "invalid" | Mensagem original |
-
-### Regras
+### BlockErrorBoundary — Regras de Layout
 
 | Regra | Descrição |
 |-------|-----------|
-| Nenhum `console.error` sem `toast` | Todo catch que loga deve também notificar o usuário |
-| Toda página com query trata `isError` | `<QueryErrorState>` quando `isError === true` |
-| Catches vazios proibidos | Exceto para fallbacks de `localStorage` |
-| Stack trace só em debug | `?debug=1` ou ambiente `development` |
+| **Altura mínima** | `min-h-[80px]` — nunca colapsa a zero |
+| **Não empurra** | Não pode expandir indefinidamente |
+| **Isolado** | Erro em um bloco NÃO afeta outros blocos |
+| **Logging** | Detalhes técnicos via `console.group` — nunca na UI |
+
+### QueryErrorState — API Congelada
+
+`src/components/ui/query-error-state.tsx` — Wrapper fino sobre `ErrorFallback variant="card"`.
+
+| Prop | Tipo | Default |
+|------|------|---------|
+| `title` | `string` | `'Erro ao carregar dados'` |
+| `message` | `string` | `'Não foi possível carregar os dados. Tente novamente.'` |
+| `onRetry` | `() => void` | — |
+| `showSupportLink` | `boolean` | `true` |
+
+> ⚠️ **API congelada** — contrato legado de ~20 páginas. NÃO alterar props.
+
+```tsx
+if (isError) {
+  return (
+    <QueryErrorState
+      title="Erro ao carregar [módulo]"
+      message="Não foi possível carregar os dados. Tente novamente."
+      onRetry={() => refetch()}
+    />
+  );
+}
+```
 
 ---
 
@@ -285,6 +362,54 @@ if (!confirmed) return;
 | Cron obrigatório como fallback | Cobrir falhas do trigger |
 | Anti-duplicação | Ambos verificam se ação já executada |
 | Data real | Usar data do evento original, nunca `now()` |
+
+---
+
+## 11. Separação Admin vs Storefront — Componentes
+
+> **REGRA CRÍTICA** — Alterações no admin NUNCA devem afetar a loja pública dos tenants.
+
+### Domínios
+
+| Contexto | Domínio | Escopo |
+|----------|---------|--------|
+| **Admin (Comando Central)** | `app.comandocentral.com.br` | Sistema SaaS, UI fixa, tema azul marinho |
+| **Storefront (Loja Pública)** | `tenant.shops.comandocentral.com.br` ou domínio customizado | Loja do cliente, herda tema do tenant |
+
+### Componentes Separados
+
+| Componente | Admin | Storefront |
+|------------|-------|------------|
+| **Toaster (Sonner)** | `AdminToaster` (`src/components/ui/admin-sonner.tsx`) | `Toaster` (`src/components/ui/sonner.tsx`) |
+| **Tema/Cores** | Fixo (azul marinho #1e3a5f) | CSS Variables do tenant |
+| **Layout** | `AppShell.tsx` | `StorefrontLayout.tsx`, `TenantStorefrontLayout.tsx` |
+
+### Detecção de Contexto
+
+```typescript
+const shouldUseTenantRootRoutes = isOnTenantHost();
+// TRUE = domínio de tenant (loja pública)
+// FALSE = domínio admin (Comando Central)
+{shouldUseTenantRootRoutes ? <Sonner /> : <AdminToaster />}
+```
+
+### Proibições
+
+| ❌ Proibido | ✅ Correto |
+|-------------|------------|
+| Alterar `sonner.tsx` para estilizar toasts do admin | Alterar `admin-sonner.tsx` |
+| Usar cores hardcoded em componentes compartilhados | Usar CSS variables ou criar versão específica |
+| Assumir que mudança em UI afeta só um contexto | Verificar se componente é compartilhado |
+| Editar componentes em `src/components/storefront/` para ajustes do admin | Criar componente específico |
+
+### Verificação Obrigatória
+
+Antes de QUALQUER alteração de UI/estilo, verificar:
+
+1. **Qual contexto será afetado?** (Admin, Storefront ou ambos)
+2. **O componente é compartilhado?** (Se sim, considerar criar versão específica)
+3. **A mudança usa CSS variables ou cores hardcoded?**
+4. **Testar em ambos os contextos** após a mudança
 
 ---
 

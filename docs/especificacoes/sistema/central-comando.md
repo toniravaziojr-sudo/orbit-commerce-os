@@ -46,9 +46,9 @@ A Central de Comando (`/command-center`) é a página inicial do sistema adminis
 ### Estrutura Visual (de cima para baixo)
 
 1. **PaymentMethodBanner** — Banner de aviso para plano básico sem cartão
-2. **DateRangeFilter** — Filtro de período padrão do sistema (ver `regras-gerais.md` § Padrão de Datas). Usa `date-presets.ts` como fonte de verdade e `date-timezone.ts` para queries corretas no timezone de SP. Presets: Hoje, Ontem, Últimos 7/30 dias, etc. Semana inicia na segunda-feira.
+2. **DateRangeFilter** — Filtro de período padrão do sistema (ver `transversais/padroes-ui.md` § Padrão de Datas)
 3. **OrderLimitWarning** — Barra de progresso de limite de pedidos do plano
-4. **Stats Grid** — 4 StatCards (Vendas, Pedidos, Ticket Médio, Novos Clientes)
+4. **DashboardMetricsGrid** — 4 categorias de métricas empilhadas (§1.1)
 5. **CommunicationsWidget** — Atendimentos, erros de notificação, emails não lidos
 6. **AdsAlertsWidget** — Alertas do gestor de tráfego (saldo, ações pendentes, insights)
 7. **FiscalAlertsWidget** — Alertas fiscais (NF-e em pedidos cancelados)
@@ -60,25 +60,114 @@ A Central de Comando (`/command-center`) é a página inicial do sistema adminis
      - Card "Atenção Agora" (itens demo estáticos)
 9. **Ações Rápidas** — Grid de botões: Novo Produto, Novo Pedido, Novo Cliente, Processar Pedidos
 
+### 1.1 Layout de Métricas (v8.8.0 — 4 Categorias)
+
+**Componente:** `src/components/dashboard/DashboardMetricsGrid.tsx`
+
+O grid é organizado em **4 categorias empilhadas verticalmente** (`space-y-4`), cada uma contendo cards horizontais (`flex gap-3`):
+
+| Ordem | Título | Métricas | Fonte |
+|-------|--------|----------|-------|
+| **0 — Faturamento** | "Faturamento" | Faturamento Total, Faturamento Real, Retorno Real/ROAS, Taxa de Conversão | `orders`, `*_ad_insights`, `storefront_visits` |
+| **1 — Funil** | "Funil de Conversão" | Visitas → Carrinho → Checkout → Pedidos | `storefront_visits`, `carts`, `checkout_sessions`, `orders` |
+| **2 — Pedidos** | "Pedidos & Financeiro" | Pedidos Pagos, Não Pagos, Ticket Médio, Novos Clientes | `orders`, `customers` |
+| **3 — Checkouts** | "Checkouts Abandonados" | Total abandonados, Recuperados, Com erros de contato | `checkout_sessions` |
+
+#### Métricas de Faturamento
+
+| Métrica | Cálculo | Formato |
+|---------|---------|---------|
+| **Faturamento Total** | `SUM(orders.total)` — todos os pedidos | `R$ X.XXX,XX` |
+| **Faturamento Real** | `SUM(orders.total)` onde `payment_status = 'approved'` | `R$ X.XXX,XX` |
+| **Retorno Real (ROAS)** | Faturamento Real ÷ Ad Spend Total | `X.XXx` (cor azul se ≥1x, vermelho se <1x) |
+| **Taxa de Conversão** | `(pedidos pagos / visitantes únicos) × 100` | `X.XX%` |
+
+#### Ad Spend — Fontes de Dados
+
+| Plataforma | Tabela | Campo | Conversão |
+|------------|--------|-------|-----------|
+| Meta Ads | `meta_ad_insights` | `spend_cents` | ÷ 100 |
+| Google Ads | `google_ad_insights` | `cost_micros` | ÷ 1.000.000 |
+| TikTok Ads | `tiktok_ad_insights` | `spend_cents` | ÷ 100 |
+
+### 1.2 Arquitetura de Dados do Dashboard
+
+#### Fonte de Verdade e Deduplicação
+
+| Métrica | Fonte de Verdade | Deduplicação |
+|---------|-----------------|--------------|
+| **Visitantes** | `storefront_visits` (tracking interno via cookie `_sf_vid`) | `COUNT(DISTINCT visitor_id)` via RPC `count_unique_visitors` — sem limite de 1000 rows |
+| **Pedidos/Faturamento** | Tabela `orders` | `order.id` único |
+| **Ad Spend** | `*_ad_insights` | Deduplicado por `tenant_id + campaign_id + date` via upsert |
+
+#### Sincronização de Ad Insights
+
+| Campo | Valor |
+|-------|-------|
+| **Edge Function** | `sync-ads-dashboard` |
+| **Frequência** | A cada 15 minutos via `pg_cron` |
+| **Fluxo** | Busca tenants com conexões ativas → Chama sync por plataforma → `Promise.allSettled` |
+
+#### Visitantes (Tracking Interno)
+
+| Regra | Descrição |
+|-------|-----------|
+| **Fonte** | Tabela `storefront_visits` (tracking próprio via fetch+keepalive no Edge HTML) |
+| **Deduplicação** | Por `visitor_id` (cookie `_sf_vid`, 365 dias) |
+| **Independência** | NÃO depende de GA4, Meta Pixel ou qualquer pixel externo |
+| **Client-side** | `useVisitorTracking.ts` complementa para rotas SPA (checkout, carrinho) |
+| **UI** | Não exibir rótulo de origem — apenas o número |
+| **Proibição** | NUNCA usar `sendBeacon` para PostgREST (não suporta headers) — usar `fetch()` com `keepalive:true` |
+
+#### RPC `count_unique_visitors`
+
+`count_unique_visitors(p_tenant_id uuid, p_start timestamptz, p_end timestamptz) → integer`
+- `SECURITY DEFINER`, `search_path = public`
+- Conta `COUNT(DISTINCT visitor_id)` direto no banco (sem limite de 1000 rows)
+
+#### Regra "Com erros de contato"
+
+Checkout abandonado = "com erro" quando `customer_email` não contém `@` **E** `customer_phone` < 8 chars (ou nulo).
+
 ### Hook: `useDashboardMetrics`
 
 ```typescript
 interface DashboardMetrics {
-  salesToday: number;       // Soma de orders.total onde payment_status = 'approved'
-  salesYesterday: number;   // Período anterior equivalente
-  ordersToday: number;      // Count total de orders
+  salesToday: number;       // Soma de orders.total (approved) — em Reais
+  salesYesterday: number;
+  ordersToday: number;
   ordersYesterday: number;
+  paidOrdersToday: number;
+  paidOrdersYesterday: number;
+  unpaidOrdersToday: number;
+  unpaidOrdersYesterday: number;
   ticketToday: number;      // salesToday / paidOrders.length
   ticketYesterday: number;
-  newCustomersToday: number;   // Count de customers criados no período
+  newCustomersToday: number;
   newCustomersYesterday: number;
+  visitorsToday: number;    // storefront_visits (unique visitor_id)
+  visitorsYesterday: number;
+  cartsToday: number;
+  cartsYesterday: number;
+  checkoutsStartedToday: number;
+  checkoutsStartedYesterday: number;
+  abandonedCheckoutsToday: number;
+  abandonedCheckoutsYesterday: number;
+  recoveredCheckoutsToday: number;
+  errorCheckoutsToday: number;
+  totalRevenueToday: number;    // orders.total (todos, pagos+não pagos) — em Reais
+  totalRevenueYesterday: number;
+  adSpendToday: number;
+  adSpendYesterday: number;
+  conversionRateToday: number;  // (paidOrders / visitors) * 100
+  conversionRateYesterday: number;
 }
 ```
 
 **Regras:**
-- Valores monetários são em **centavos** (dividido por 100 para exibição via `formatCurrency`)
+- `orders.total` armazena em **Reais** (NÃO centavos). **NÃO dividir por 100.**
 - `refetchInterval: 60000` (1 minuto)
-- Período anterior é calculado com mesma duração antes do período selecionado
+- Período anterior calculado com mesma duração antes do período selecionado
 - Trend label dinâmico: "vs. ontem" (1d), "vs. semana anterior" (≤7d), "vs. mês anterior" (≤31d)
 
 ### Hook: `useRecentOrders`
@@ -91,11 +180,11 @@ interface DashboardMetrics {
 
 ### Helpers exportados
 
-| Função | Assinatura | Descrição |
-|--------|-----------|-----------|
-| `calculateTrend` | `(current, previous) → number` | % de variação. Se previous=0 e current>0, retorna 100 |
-| `formatCurrency` | `(cents) → string` | Formata em R$ via `Intl.NumberFormat('pt-BR')` |
-| `formatRelativeTime` | `(dateString) → string` | "Agora", "Há X min", "Há Xh", "Há Xd" |
+| Função | Descrição |
+|--------|-----------|
+| `calculateTrend(current, previous)` | % de variação. Se previous=0 e current>0, retorna 100 |
+| `formatCurrency(value)` | Formata em R$ via `Intl.NumberFormat('pt-BR')` |
+| `formatRelativeTime(dateString)` | "Agora", "Há X min", "Há Xh", "Há Xd" |
 
 ---
 
@@ -343,12 +432,12 @@ Componentes visuais usados por **3 chats** do sistema (Auxiliar de Comando, Chat
 
 ## Regras de Implementação
 
-1. **Métricas são em centavos** — sempre dividir por 100 antes de exibir
+1. **Valores monetários em Reais** — `orders.total` armazena em Reais, NÃO centavos. Não dividir por 100.
 2. **Realtime** — CommunicationsWidget usa canais Supabase para notifications e email_messages
 3. **Polling** — Métricas refresh a cada 60s, pedidos recentes a cada 30s
 4. **Permissões** — A Central de Comando é acessível a todos os usuários autenticados
-5. **"Atenção Agora"** — Atualmente usa dados demo estáticos (DEMO_ATTENTION_ITEMS) — migrar para dados reais é pendência futura
-6. **Ações Rápidas** — Botões sem onClick implementado (pendência futura — devem navegar para `/products/new`, `/orders/new`, `/customers?action=new`, etc.)
+5. **"Atenção Agora"** — Atualmente usa dados demo estáticos — migrar para dados reais é pendência futura
+6. **Ações Rápidas** — Botões sem onClick implementado (pendência futura)
 7. **Feriados** — Usa `src/lib/brazilian-holidays.ts` para feriados nacionais BR
 8. **WhatsApp** — Agenda depende de integração WhatsApp conectada para envio de lembretes
-9. **Calendário Agenda** — Usa `MonthlyCalendar` (componente unificado — ver `regras-gerais.md` § MonthlyCalendar) com render prop para tarefas/lembretes
+9. **Calendário Agenda** — Usa `MonthlyCalendar` (componente unificado — ver `transversais/padroes-ui.md` § MonthlyCalendar)

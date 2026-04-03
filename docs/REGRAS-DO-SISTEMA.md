@@ -574,4 +574,78 @@ Detalhes de cada plano (features, limites, preços, créditos) ficam no doc de e
 
 ---
 
+## 23. TENANTS ÂNCORA
+
+| Tenant | Email | Tenant ID | Descrição |
+|--------|-------|-----------|-----------|
+| **Super Admin (Platform)** | `toniravaziojr@gmail.com` | `cc000000-0000-0000-0000-000000000001` | Admin da plataforma com Admin Mode Toggle |
+| **Tenant Base Especial** | `respeiteohomem@gmail.com` | `d1a4d0ed-8842-495e-b741-540a9a345b25` | Tenant cliente especial (plan=unlimited, is_special=true) |
+
+- "Somente no tenant base especial" = **SPECIAL ONLY** (não afetar platform/admin nem customers comuns).
+- Esses IDs são referência operacional. Não usar como hardcode em lógica de negócio — usar hooks canônicos (§24).
+
+---
+
+## 24. HOOKS DE ACESSO AO TENANT
+
+| Hook | Status | Descrição |
+|------|--------|-----------|
+| **`useTenantAccess`** | ✅ **CANÔNICO** | Hook unificado. Retorna: `tenantType`, `plan`, `isSpecial`, `isPlatform`, `isPlatformTenant`, `isCustomerTenant`, `isUnlimited`, `planLevel`, `canAccess(feature)`, `showStatusIndicators`, `overrides` |
+| `useTenantType` | ⚠️ **DEPRECATED** | Wrapper fino sobre `useTenantAccess`. Mantido para backwards compat. Usar `useTenantAccess` em código novo. |
+| `useIsSpecialTenant` | ⚠️ **DEPRECATED** | Wrapper fino sobre `useTenantAccess().showStatusIndicators`. Usar `useTenantAccess` em código novo. |
+| **`usePlatformOperator`** | ✅ Ativo | Verifica se o usuário é admin da plataforma (tabela `platform_admins`). Eixo separado do tenant access. |
+| **`usePermissions`** | ✅ Ativo | RBAC de sub-usuários (owner/admin/operator/viewer). Eixo separado. |
+
+### Regras de Uso
+
+| ❌ Proibido | ✅ Correto |
+|-------------|------------|
+| Usar `useTenantType` em código novo | Usar `useTenantAccess` |
+| Usar `useIsSpecialTenant` em código novo | Usar `useTenantAccess().showStatusIndicators` |
+| Criar novo hook para dados do tenant | Adicionar ao `useTenantAccess` |
+
+### Auth / RLS (Resumo Operacional)
+
+| Aspecto | Descrição |
+|---------|-----------|
+| **Auth** | `auth.users` → `profiles` (id igual) |
+| **Multi-tenancy** | `tenants` + `user_roles`; `profiles.current_tenant_id` = tenant ativo |
+| **Roles** | Usar `hasRole()` (nunca hardcoded) |
+| **Platform admins** | Tabela `platform_admins` (separado). Platform admin não precisa de tenant para acessar |
+
+---
+
+## 25. LOCAIS CANÔNICOS DE FUNCIONALIDADE
+
+| Local Canônico | Responsabilidade |
+|----------------|------------------|
+| **Integrações (hub)** | Conectar/configurar integrações e credenciais globais |
+| **Atendimento** | Todas as mensagens de todos os canais (incluindo Mercado Livre: `channel_type='mercadolivre'`) |
+| **Marketplaces** | Operações específicas do marketplace (proibido "Mensagens" como aba principal) |
+| **Fiscal (NFe)** | Módulo fiscal/certificado — **não é "integração"** |
+| **Logística (/shipping)** | Frete e transportadoras — **não fica em Integrações** |
+| **Meu Drive (public.files)** | Fonte de verdade de arquivos/mídias do tenant |
+| **Usuários e Permissões** | Equipe do tenant — não confundir com `platform_admins` |
+
+---
+
+## 26. CREDENCIAIS GLOBAIS (platform_credentials)
+
+| Regra | Descrição |
+|-------|-----------|
+| **Allowlist** | Qualquer nova key precisa estar na allowlist de edição da edge function de update (ex: `EDITABLE_CREDENTIALS`), senão o save deve falhar |
+| **UX admin** | Após salvar, UI deve refletir estado persistido (SET + preview mascarado) e permitir editar/remover |
+
+---
+
+## 27. ISENÇÃO DE DOCUMENTAÇÃO — AÇÕES MANUAIS EM TENANTS
+
+| Regra | Descrição |
+|-------|-----------|
+| **Ações manuais em tenants específicos NÃO exigem documentação** | Quando o usuário solicitar ação operacional direta em um tenant (limpeza de dados, enriquecimento, correção pontual, exclusão/inserção manual), **NÃO** é necessário atualizar docs de módulo. |
+| **Justificativa** | Essas ações não alteram estrutura, lógica, UI/UX ou comportamento do sistema. São operações pontuais e específicas. |
+| **Exceção** | Se a ação resultar em criação de nova edge function reutilizável, alteração de schema, nova regra de negócio ou mudança para todos os tenants — aí sim, documentar normalmente. |
+
+---
+
 *Fim do documento.*
