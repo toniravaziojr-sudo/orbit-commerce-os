@@ -4,6 +4,7 @@ import { errorResponse } from "../_shared/error-response.ts";
 
 // ===== VERSION - SEMPRE INCREMENTAR AO FAZER MUDANÇAS =====
 const VERSION = "v2.1.0"; // Added hourly email marketing list sync
+// v2.2.0 - Added fiscal-auto-create-drafts as parallel fallback
 // ===========================================================
 
 const corsHeaders = {
@@ -393,6 +394,7 @@ serve(async (req) => {
       scheduled_emails_sent: 0,
       email_lists_synced: 0,
       email_subscribers_synced: 0,
+      fiscal_drafts_created: 0,
     };
 
     for (let pass = 1; pass <= passes; pass++) {
@@ -507,12 +509,19 @@ serve(async (req) => {
           passStats.email_list_sync.skipped_not_due = true;
         }
 
+        // Task G: fiscal-auto-create-drafts (CRON mode fallback — reconciliation)
+        parallelTasks.push(
+          callSubFunction(supabaseUrl, supabaseServiceKey, 'fiscal-auto-create-drafts', {})
+        );
+
         console.log(`[scheduler-tick] Starting parallel phase (${parallelTasks.length} tasks)...`);
         const parallelStart = Date.now();
 
         const results = await Promise.allSettled(parallelTasks);
-        const [reconcileResult, trackingResult, emailsResult, creativeResult, socialPublishResult] = results;
+        const [reconcileResult, trackingResult, emailsResult, creativeResult, socialPublishResult] = results.slice(0, 5);
         const emailListSyncResult = shouldRunEmailListSync ? results[5] : undefined;
+        const fiscalDraftsResultIndex = shouldRunEmailListSync ? 6 : 5;
+        const fiscalDraftsResult = results[fiscalDraftsResultIndex];
 
         const parallelDuration = Date.now() - parallelStart;
         console.log(`[scheduler-tick] Parallel phase completed in ${parallelDuration}ms`);
@@ -578,6 +587,16 @@ serve(async (req) => {
         } else {
           const error = socialPublishResult.status === 'rejected' ? socialPublishResult.reason : socialPublishResult.value.error;
           console.error(`[scheduler-tick] media-social-publish-worker error:`, error);
+        }
+
+        // Process fiscal-auto-create-drafts result
+        if (fiscalDraftsResult && fiscalDraftsResult.status === 'fulfilled' && fiscalDraftsResult.value.ok) {
+          const data = fiscalDraftsResult.value.data;
+          console.log(`[scheduler-tick] fiscal-auto-create-drafts result:`, data);
+          aggregatedTotals.fiscal_drafts_created += data.total_created ?? data.created ?? 0;
+        } else if (fiscalDraftsResult) {
+          const error = fiscalDraftsResult.status === 'rejected' ? fiscalDraftsResult.reason : fiscalDraftsResult.value?.error;
+          console.error(`[scheduler-tick] fiscal-auto-create-drafts error:`, error);
         }
 
         // Process email-marketing-list-sync result (hourly)
