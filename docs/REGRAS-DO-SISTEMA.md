@@ -7,17 +7,11 @@
 
 ---
 
-## ⚠️ AVISO — NOVA ESTRUTURA DOCUMENTAL
+## ESTRUTURA DOCUMENTAL (4 CAMADAS)
 
-Este documento faz parte da **nova estrutura documental de 4 camadas** do projeto.
+Este documento é a **fonte de verdade canônica** para regras estruturais, fluxos canônicos, contratos entre módulos e fontes de verdade do sistema.
 
-Ele substitui conceitualmente o documento legado `docs/REGRAS.md` e os docs modulares em `docs/regras/*.md` no que diz respeito a **regras estruturais, fluxos canônicos, contratos entre módulos e fontes de verdade**.
-
-**Durante a transição:**
-- Os docs antigos (`docs/regras/*.md` e `docs/REGRAS.md`) continuam existindo como **legado temporário**.
-- Este documento é a **fonte de verdade canônica** para regras estruturais e macro do sistema.
-- Em caso de conflito entre este documento e os docs legados, **este documento vence**.
-- Quando os 4 documentos da nova estrutura estiverem prontos, os docs antigos serão formalmente descontinuados e retirados do fluxo de leitura obrigatória.
+A migração do legado (`docs/REGRAS.md` e `docs/regras/*.md`) foi concluída em 2026-04-03. Todo conteúdo funcional foi absorvido pela nova estrutura. Os arquivos legados foram removidos.
 
 **Documentos da nova estrutura (Layer 1-4):**
 
