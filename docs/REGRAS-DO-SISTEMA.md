@@ -109,8 +109,8 @@ A classificação de criticidade determina a ordem de prioridade para correção
 | Pedidos | Tabela `orders` (core interno) | Gateway confirma → core persiste |
 | Produtos | Tabela `products` (core interno) | Marketplaces sincronizam via core |
 | Clientes | Tabela `customers` (core interno) | Tags e métricas recalculadas por triggers internos |
-| Estoque | Tabelas `product_variants` + `stock_movements` | Reserva no checkout, baixa no pagamento aprovado |
-| Pagamentos | Gateway externo é fonte de verdade do status | Config interna = espelho operacional |
+| Estoque | Tabelas `product_variants` + `stock_movements` | Reserva (soft lock) na criação do pedido; baixa definitiva no pagamento aprovado; liberação automática na falha, expiração ou cancelamento |
+| Pagamentos | Gateway externo é fonte de verdade do status de pagamento | Config interna = espelho operacional para UI e automações. Em divergência, gateway prevalece e sistema alerta. |
 | Fiscal (NF-e) | Provedor fiscal externo | Core registra referência e status |
 | Frete/Logística | Transportadora/provedor logístico para tracking | Status de negócio do pedido = core interno |
 | Atribuição de venda | Core interno = fonte primária | Plataformas externas = complementar, respeitando janelas de atribuição |
