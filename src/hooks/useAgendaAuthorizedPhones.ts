@@ -14,7 +14,8 @@ export interface AuthorizedPhone {
 }
 
 export function useAgendaAuthorizedPhones() {
-  const { tenantId, user } = useAuth();
+  const { currentTenant, user } = useAuth();
+  const tenantId = currentTenant?.id;
   const queryClient = useQueryClient();
 
   const { data: phones = [], isLoading } = useQuery({
