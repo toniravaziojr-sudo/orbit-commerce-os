@@ -303,23 +303,28 @@ O banco possui ~288 tabelas. Abaixo, as principais agrupadas por domínio funcio
 | `tiktok_shop_products`, `tiktok_shop_orders` | TikTok Shop |
 | `external_entity_mappings` | Mapeamento de entidades externas |
 
-### 8.7 Sistema e Plataforma
+### 8.7 Sistema
 
 | Tabela | Função |
 |--------|--------|
 | `tenants`, `special_tenants` | Multi-tenancy |
 | `profiles`, `user_roles`, `tenant_invites` | Usuários e permissões |
-| `tenant_subscriptions`, `tenant_invoices` | Billing do tenant |
-| `billing_plans`, `billing_checkout_sessions` | Planos e checkout SaaS |
-| `platform_admins`, `platform_credentials` | Admin da plataforma |
-| `tenant_domains` | Domínios customizados |
 | `import_jobs`, `import_items` | Importação |
 | `files` | Gestão de arquivos |
 | `credit_wallet`, `credit_ledger`, `credit_packages` | Créditos IA |
-| `system_health_checks` | Monitoramento |
 | `events_inbox` | Fila de eventos |
 
-### 8.8 Parcerias
+### 8.8 Plataforma
+
+| Tabela | Função |
+|--------|--------|
+| `platform_admins`, `platform_credentials` | Admin da plataforma |
+| `tenant_subscriptions`, `tenant_invoices` | Billing do tenant |
+| `billing_plans`, `billing_checkout_sessions` | Planos e checkout SaaS |
+| `tenant_domains` | Domínios customizados |
+| `system_health_checks` | Monitoramento |
+
+### 8.9 Parcerias
 
 | Tabela | Função |
 |--------|--------|
