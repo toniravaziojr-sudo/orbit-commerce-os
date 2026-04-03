@@ -19,7 +19,7 @@ A Central de Comando (`/command-center`) é a página inicial do sistema adminis
 |-----|-----------|-----------|
 | **Central de Execuções** (`overview`) | `DashboardContent` | Métricas, pedidos recentes, widgets de alerta |
 | **Assistente** (`assistant`) | `EmbeddedCommandAssistant` | Auxiliar de Comando IA (doc separado: `auxiliar-comando.md`) |
-| **Agenda** (`agenda`) | `AgendaContent` | Calendário de lembretes com notificações WhatsApp |
+| **Agenda** (`agenda`) | `AgendaContent` | **Agente de IA** — Calendário + comunicação exclusiva via WhatsApp com o admin |
 
 **Rota:** `/command-center` (redirect de `/` aponta aqui)  
 **Tab control:** via query param `?tab=overview|assistant|agenda`  
