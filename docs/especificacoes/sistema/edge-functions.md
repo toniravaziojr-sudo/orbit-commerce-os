@@ -235,7 +235,7 @@ As seguintes tabelas estão **sem policies anônimas** e devem permanecer assim 
 
 ## Regras Gerais
 
-> ⚠️ **REGRA DE PARIDADE BUILDER ↔ PÚBLICO:** Toda alteração em compiladores de bloco (`_shared/block-compiler/blocks/`) DEVE ser acompanhada da alteração correspondente no React (`src/components/builder/blocks/`). Consultar obrigatoriamente: **`docs/regras/paridade-builder-publico.md`** antes de qualquer mudança.
+> ⚠️ **REGRA DE PARIDADE BUILDER ↔ PÚBLICO:** Toda alteração em compiladores de bloco (`_shared/block-compiler/blocks/`) DEVE ser acompanhada da alteração correspondente no React (`src/components/builder/blocks/`). Consultar obrigatoriamente: **`docs/especificacoes/transversais/paridade-builder-publico.md`** antes de qualquer mudança.
 
 | Regra | Descrição |
 |-------|-----------|
