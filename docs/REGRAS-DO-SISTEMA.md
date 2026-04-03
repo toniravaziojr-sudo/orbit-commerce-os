@@ -1,7 +1,7 @@
 # DOC DE REGRAS DO SISTEMA
 
 > **Status:** 🟢 Ativo  
-> **Versão:** 2.0.0  
+> **Versão:** 2.1.0  
 > **Camada:** Layer 2 — Regras do Sistema  
 > **Última atualização:** 2026-04-03
 
@@ -78,9 +78,11 @@ Nenhuma camada inferior sobrepõe a superior no seu domínio de autoridade.
 - Alteração em um contexto nunca deve afetar o outro acidentalmente.
 - Componentes compartilhados exigem auditoria de impacto cruzado.
 
-### 3.5 Feature Incompleta
-- Esconder via feature flag. Nunca deixar UI quebrada em produção.
-- Módulos "em construção" só aparecem para tenants especiais e admin.
+### 3.5 Feature Incompleta e Escopo de Lançamento
+- Todo módulo ou recurso visível na navegação do Comando Central para todos os usuários faz parte do **core de lançamento** do sistema.
+- Módulos ou funcionalidades marcados como "em construção" ficam restritos a **tenants especiais e administradores da plataforma**, permanecendo ocultos para lojistas em planos padrão.
+- Esconder feature incompleta via feature flag. Nunca deixar UI quebrada em produção.
+- A presença de um recurso na interface oficial exige cobertura completa no Doc de Regras do Sistema e nos Docs de Especificação correspondentes.
 
 ### 3.6 Build
 - Nenhum ajuste é considerado concluído se build, lint ou typecheck falharem.
@@ -107,8 +109,8 @@ A classificação de criticidade determina a ordem de prioridade para correção
 | Pedidos | Tabela `orders` (core interno) | Gateway confirma → core persiste |
 | Produtos | Tabela `products` (core interno) | Marketplaces sincronizam via core |
 | Clientes | Tabela `customers` (core interno) | Tags e métricas recalculadas por triggers internos |
-| Estoque | Tabelas `product_variants` + `stock_movements` | Reserva no checkout, baixa no pagamento aprovado |
-| Pagamentos | Gateway externo é fonte de verdade do status | Config interna = espelho operacional |
+| Estoque | Tabelas `product_variants` + `stock_movements` | Reserva (soft lock) na criação do pedido; baixa definitiva no pagamento aprovado; liberação automática na falha, expiração ou cancelamento |
+| Pagamentos | Gateway externo é fonte de verdade do status de pagamento | Config interna = espelho operacional para UI e automações. Em divergência, gateway prevalece e sistema alerta. |
 | Fiscal (NF-e) | Provedor fiscal externo | Core registra referência e status |
 | Frete/Logística | Transportadora/provedor logístico para tracking | Status de negócio do pedido = core interno |
 | Atribuição de venda | Core interno = fonte primária | Plataformas externas = complementar, respeitando janelas de atribuição |
@@ -130,10 +132,11 @@ Esta seção define apenas a sequência macro. Detalhes funcionais (timings, men
 ### 6.1 Checkout → Pedido
 1. Cliente monta carrinho na loja.
 2. Inicia checkout (dados pessoais, endereço, frete, pagamento).
-3. Pedido criado com status `pending`.
+3. Pedido criado com status `pending`. **Estoque reservado (soft lock).**
 4. Gateway processa pagamento.
-5. Webhook/polling confirma pagamento → status `approved`.
-6. Pedido aprovado dispara: reserva de estoque, atualização de métricas do cliente, tag "Cliente", NF-e, notificações.
+5. Webhook/polling confirma pagamento → status `approved`. **Baixa definitiva do estoque.**
+6. Pedido aprovado dispara: atualização de métricas do cliente, tag "Cliente", NF-e, notificações.
+7. Falha, expiração ou cancelamento do pagamento → **estoque reservado é liberado automaticamente.**
 
 ### 6.2 State Machine do Pedido
 - Os status do pedido seguem uma máquina de estados definida.
@@ -173,8 +176,9 @@ Esta seção define apenas a sequência macro. Detalhes funcionais (timings, men
 Contratos definem a interface entre módulos: o que cada módulo fornece, o que consome, e o comportamento em caso de falha.
 
 ### 7.1 Pedido ↔ Estoque
-- Pedido aprovado reserva estoque.
-- Cancelamento libera estoque.
+- Criação do pedido (`pending`) → **reserva de estoque (soft lock).**
+- Pagamento aprovado (`approved`) → **baixa definitiva do estoque.**
+- Falha, expiração ou cancelamento do pagamento → **liberação automática do estoque reservado.**
 - Estoque insuficiente não bloqueia criação do pedido, mas gera alerta.
 
 ### 7.2 Pedido ↔ Fiscal
@@ -221,11 +225,29 @@ Contratos definem a interface entre módulos: o que cada módulo fornece, o que 
 
 ## 8. INTEGRAÇÕES EXTERNAS
 
-### 8.1 Classificação
+### 8.1 Separação Obrigatória: Billing SaaS vs Pagamentos da Loja
+
+O sistema possui **dois fluxos de pagamento distintos e isolados**:
+
+| Fluxo | Finalidade | Exemplo de Provedor |
+|-------|-----------|---------------------|
+| **Billing da Plataforma** | Cobrança da assinatura SaaS do lojista | Mercado Pago (assinaturas) |
+| **Pagamentos da Loja** | Cobranças do checkout dos clientes finais do tenant | Pagar.me, Mercado Pago, PagBank |
+
+- Os dois fluxos **nunca se misturam** operacionalmente, mesmo que usem o mesmo provedor.
+- Um provedor pode existir simultaneamente nos dois fluxos sem conflito.
+
+### 8.2 Multi-Gateway por Tenant
+- O sistema suporta **múltiplos gateways ativos simultaneamente** por tenant.
+- O lojista pode definir qual provedor será usado para cada **método de pagamento** (ex: Pagar.me para cartão, Mercado Pago para Pix).
+- O sistema prioriza integrações com suporte a **checkout transparente** e reconciliação via webhook.
+
+### 8.3 Classificação de Integrações
 
 | Tipo | Exemplos | Regra |
 |------|----------|-------|
-| Pagamento | Mercado Pago, Stripe, PIX | Gateway é fonte de verdade para pagamento. Core reconcilia. |
+| **Gateway de Pagamento** | Pagar.me, Mercado Pago, PagBank, Stripe | Provedores de infraestrutura. Gateway é fonte de verdade para status de pagamento. Core reconcilia. |
+| **Método de Pagamento** | Pix, Boleto, Cartão de Crédito | Formas de pagamento processadas através de um gateway. Não são gateways em si. |
 | Fiscal | Provedor NF-e | Emissão assíncrona com retentativa. Falha não bloqueia pedido. |
 | Logística | Correios, Melhor Envio | Tracking externo. Status de negócio é do core. |
 | Marketplace | Shopee, Mercado Livre | Sincronização bidirecional. Core é primário. |
@@ -390,14 +412,14 @@ Se houver dúvida sobre fechamento, não declarar "resolvido".
 
 ---
 
-## 17. ERROS RECORRENTES
+## 17. ERROS RECORRENTES — PADRÕES DE FALHA
 
-Registro de erros que já apareceram mais de uma vez, para evitar repetição de diagnóstico incorreto.
+Registro de padrões de falha que já apareceram mais de uma vez, para evitar repetição de diagnóstico incorreto. Detalhes técnicos específicos (nomes de triggers, funções, queries) ficam nos docs de especificação dos módulos afetados.
 
-| # | Erro | Módulo | Causa Real | Sessão de Registro |
-|---|------|--------|------------|-------------------|
-| 1 | Trigger `auto_tag_cliente_on_payment_approved` reportado como checando `'paid'` e contendo DELETE | Pedidos/Clientes | Falso. Checa `'approved'` e usa `ON CONFLICT DO NOTHING` | 2026-04-03 |
-| 2 | `trigger_update_customer_first_order` inflaciona métricas | Pedidos/Clientes | Incrementa `total_orders` em todo INSERT independente de status | 2026-04-03 |
+| # | Padrão de Falha | Módulo | Causa Real | Sessão de Registro |
+|---|-----------------|--------|------------|-------------------|
+| 1 | Trigger de tagging de cliente reportado como usando status ou operação incorretos | Pedidos/Clientes | Diagnóstico falso. O trigger opera corretamente com o status canônico e sem operações destrutivas. | 2026-04-03 |
+| 2 | Trigger de métricas de cliente inflaciona contadores | Pedidos/Clientes | Trigger disparava em todo INSERT de pedido independente do status, sem filtrar por pagamento aprovado. | 2026-04-03 |
 | — | — | — | — | — |
 
 ---
