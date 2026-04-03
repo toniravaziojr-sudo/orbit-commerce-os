@@ -162,7 +162,7 @@ export function AgendaTaskList({ tasks, isLoading, getTaskReminders }: AgendaTas
                         }`}>
                           <Bell className="h-3.5 w-3.5" />
                           {remindersSummary.pending > 0 && `${remindersSummary.pending} pendente(s)`}
-                          {remindersSummary.sent > 0 && ` • ${remindersSummary.sent} enviado(s)`}
+                          {remindersSummary.dispatched > 0 && ` • ${remindersSummary.dispatched} enviado(s)`}
                           {remindersSummary.failed > 0 && (
                             <span className="text-destructive">
                               • {remindersSummary.failed} falhou
