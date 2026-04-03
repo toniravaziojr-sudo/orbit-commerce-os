@@ -283,8 +283,9 @@ Configuração em `email_provider_configs`:
 
 1. **Listas** - CRUD de listas segmentadas
    - **Contagem de leads exibida acima do nome da lista** (ex: "8.008 leads")
-   - Clique na lista abre detalhes com subscribers
+   - Clique na lista abre página dedicada de detalhes (`EmailMarketingListDetail.tsx`)
    - Badge com cor da tag vinculada
+   - **Detalhe da lista:** consulta `email_marketing_list_members` (fonte de verdade), paginação de 50 por página, busca por nome/email, filtro por status
 2. **Assinantes** - Visualização/busca de subscribers com filtro
 3. **Templates** - Editor de templates com preview
 4. **Campanhas** - Gerenciamento de broadcasts/automações
