@@ -88,6 +88,11 @@ Nenhuma camada inferior sobrepõe a superior no seu domínio de autoridade.
 - O frontend apenas **lê** os dados existentes. Botões de atualização manual (refresh) podem existir como ação explícita do usuário, mas nunca como mecanismo automático ao carregar a tela.
 - Violação desta regra gera a percepção de lentidão ou de que o sistema "só funciona quando o usuário acessa a tela", o que é inaceitável.
 
+### 3.8 Entrega Incremental com Qualidade de Produção
+- Cada etapa aprovada deve ser entregue pronta para produção dentro do escopo daquela etapa, sem depender de gambiarra ou retrabalho estrutural posterior.
+- Não existe MVP — existe entrega incremental com qualidade de produção.
+- Isso não significa que tudo precisa ser entregue de uma vez. Significa que cada parte que entra, entra completa e blindada no seu escopo.
+
 ---
 
 ## 4. CRITICIDADE DOS FLUXOS
