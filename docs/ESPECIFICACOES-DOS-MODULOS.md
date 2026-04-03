@@ -223,7 +223,7 @@ Os docs em `docs/regras/` foram a fonte de verdade original. A transição para 
 
 - **Nunca editar** um doc legado em `docs/regras/` — toda evolução vai para `docs/especificacoes/`
 - A promoção de 🟧 → ✅ acontece quando o doc modular for revisado e considerado completo
-- Docs legados sem correspondente em `docs/especificacoes/` (ex: `regras-gerais.md`, `feature-rollout.md`, `paridade-builder-publico.md`) foram absorvidos pelo Layer 2 ou pela seção transversal e não possuem doc modular próprio
+- Docs legados sem correspondente modular em `docs/especificacoes/` (ex: `regras-gerais.md`, `feature-rollout.md`) foram absorvidos pelo Layer 2 ou pela seção transversal. `paridade-builder-publico.md` foi migrado para `docs/especificacoes/transversais/paridade-builder-publico.md`.
 
 ---
 

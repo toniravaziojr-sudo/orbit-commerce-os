@@ -3,7 +3,7 @@
 > **Status:** FUNCIONAL ✅ — Core + Filtros + Ordenação + Paginação + Badges Dinâmicos  
 > **Última atualização:** 2026-03-13  
 > **Arquitetura:** v8.5.0 — Filtros sidebar (desktop) + Sheet (mobile) — paridade total Builder/Público
-> **Regra de paridade:** Ver `docs/regras/paridade-builder-publico.md`
+> **Regra de paridade:** Ver `docs/especificacoes/transversais/paridade-builder-publico.md`
 
 > **Camada:** Layer 3 — Especificações / Storefront  
 > **Migrado de:** `docs/regras/pagina-categoria.md`  

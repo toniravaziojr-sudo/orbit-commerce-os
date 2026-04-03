@@ -243,7 +243,7 @@ As seguintes tabelas estão **sem policies anônimas** e devem permanecer assim 
 | **CORS** | Completo em TODAS as respostas (OPTIONS + success + error). **Falta de CORS = bug crítico** |
 | **Email** | Sempre `normalizeEmail()` (trim + lowercase) |
 | **RLS** | Validar SELECT/INSERT/UPDATE/DELETE por tabela antes de dar "done" |
-| **Paridade de Blocos** | Alterar compiler sem alterar React (ou vice-versa) é **PROIBIDO** → ver `paridade-builder-publico.md` |
+| **Paridade de Blocos** | Alterar compiler sem alterar React (ou vice-versa) é **PROIBIDO** → ver `docs/especificacoes/transversais/paridade-builder-publico.md` |
 
 ---
 
