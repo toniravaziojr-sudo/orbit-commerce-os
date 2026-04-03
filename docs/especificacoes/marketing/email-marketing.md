@@ -126,6 +126,21 @@ Fila de envio com status.
 | `sent_at` | TIMESTAMPTZ | Data de envio |
 | `provider_message_id` | TEXT | ID do provedor |
 
+### email_marketing_list_members
+Tabela de junção lista↔subscriber — **fonte de verdade para exibição de membros na tela de detalhe**.
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `id` | UUID | PK |
+| `tenant_id` | UUID | FK tenants |
+| `list_id` | UUID | FK email_marketing_lists |
+| `subscriber_id` | UUID | FK email_marketing_subscribers |
+| `created_at` | TIMESTAMPTZ | Data de inclusão na lista |
+
+**Constraints:** `UNIQUE(list_id, subscriber_id)` — evita duplicatas.
+
+**Regra:** A contagem e listagem de membros de uma lista DEVEM consultar esta tabela, nunca filtrar diretamente na tabela de subscribers por campo `source` ou outro atributo.
+
 ---
 
 ## Fluxos
