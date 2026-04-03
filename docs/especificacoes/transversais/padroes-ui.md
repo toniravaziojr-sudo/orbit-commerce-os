@@ -221,32 +221,65 @@ if (!confirmed) return;
 
 `src/components/ui/error-fallback.tsx` — 3 variantes: `fullscreen`, `card`, `inline`.
 
+#### Props
+
+| Prop | Tipo | Obrigatória | Descrição |
+|------|------|-------------|-----------|
+| `variant` | `'fullscreen' \| 'card' \| 'inline'` | ✅ | Variante visual |
+| `title` | `string` | ❌ | Título (tem default por variante) |
+| `message` | `string` | ❌ | Mensagem descritiva |
+| `onRetry` | `() => void` | ❌ | Callback para tentar novamente |
+| `onReload` | `() => void` | ❌ | Callback para recarregar |
+| `showSupport` | `boolean` | ❌ | Exibe link de suporte |
+| `extraActions` | `ReactNode` | ❌ | Ações extras (ex: "Copiar Diagnóstico") |
+| `error` | `Error \| null` | ❌ | Erro original — detalhes só em debug |
+| `errorInfo` | `React.ErrorInfo \| null` | ❌ | Info do componente React que falhou |
+
+**Detalhes técnicos (debug):** Stack trace visível apenas em `development` ou com `?debug=1` na URL.
+
 ### Camadas de Proteção
 
 | Camada | Componente | Variante |
 |--------|-----------|----------|
 | Global (Admin) | `AdminErrorBoundary` | `fullscreen` |
-| Global (Builder) | `BuilderErrorBoundary` | `fullscreen` |
+| Global (Builder) | `BuilderErrorBoundary` | `fullscreen` + "Copiar Diagnóstico" |
 | Bloco (Builder) | `BlockErrorBoundary` | `inline` |
 | Página (Query) | `QueryErrorState` | `card` |
 | Hook/Ação | `showErrorToast` | — |
 
-### Categorias de Erro (`error-toast.ts`)
-
-| Categoria | Quando | Mensagem |
-|-----------|--------|----------|
-| **permission** | 403, "not authorized", "RLS" | "Você não tem permissão" |
-| **technical** | 500, timeout, network | "Erro interno do sistema" |
-| **validation** | 400, "duplicate", "invalid" | Mensagem original |
-
-### Regras
+### BlockErrorBoundary — Regras de Layout
 
 | Regra | Descrição |
 |-------|-----------|
-| Nenhum `console.error` sem `toast` | Todo catch que loga deve também notificar o usuário |
-| Toda página com query trata `isError` | `<QueryErrorState>` quando `isError === true` |
-| Catches vazios proibidos | Exceto para fallbacks de `localStorage` |
-| Stack trace só em debug | `?debug=1` ou ambiente `development` |
+| **Altura mínima** | `min-h-[80px]` — nunca colapsa a zero |
+| **Não empurra** | Não pode expandir indefinidamente |
+| **Isolado** | Erro em um bloco NÃO afeta outros blocos |
+| **Logging** | Detalhes técnicos via `console.group` — nunca na UI |
+
+### QueryErrorState — API Congelada
+
+`src/components/ui/query-error-state.tsx` — Wrapper fino sobre `ErrorFallback variant="card"`.
+
+| Prop | Tipo | Default |
+|------|------|---------|
+| `title` | `string` | `'Erro ao carregar dados'` |
+| `message` | `string` | `'Não foi possível carregar os dados. Tente novamente.'` |
+| `onRetry` | `() => void` | — |
+| `showSupportLink` | `boolean` | `true` |
+
+> ⚠️ **API congelada** — contrato legado de ~20 páginas. NÃO alterar props.
+
+```tsx
+if (isError) {
+  return (
+    <QueryErrorState
+      title="Erro ao carregar [módulo]"
+      message="Não foi possível carregar os dados. Tente novamente."
+      onRetry={() => refetch()}
+    />
+  );
+}
+```
 
 ---
 
