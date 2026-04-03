@@ -130,7 +130,7 @@ export default function EmailMarketingListDetail() {
     enabled: !!listId,
   });
 
-  // Fetch paginated subscribers
+  // Fetch paginated subscribers via junction table
   const { data: subscribers = [], isLoading: subscribersLoading } = useQuery({
     queryKey: ["list-subscribers", listId, currentPage, debouncedSearch, statusFilter],
     queryFn: async () => {
@@ -139,25 +139,32 @@ export default function EmailMarketingListDetail() {
       const from = (currentPage - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
       
-      // Subscribers are linked via source field containing list_id
+      // Query via junction table with inner join to subscribers
       let query = supabase
-        .from("email_marketing_subscribers")
-        .select("id, email, name, phone, status, source, created_at, customer_id")
-        .like("source", `%${listId}%`)
-        .order("created_at", { ascending: false })
+        .from("email_marketing_list_members")
+        .select("subscriber_id, joined_at, email_marketing_subscribers!inner(id, email, name, phone, status, source, created_at, customer_id)")
+        .eq("list_id", listId)
+        .order("joined_at", { ascending: false })
         .range(from, to);
       
       if (debouncedSearch) {
-        query = query.or(`email.ilike.%${debouncedSearch}%,name.ilike.%${debouncedSearch}%`);
+        query = query.or(
+          `email.ilike.%${debouncedSearch}%,name.ilike.%${debouncedSearch}%`,
+          { referencedTable: "email_marketing_subscribers" }
+        );
       }
       
       if (statusFilter !== "all") {
-        query = query.eq("status", statusFilter);
+        query = query.eq("email_marketing_subscribers.status" as any, statusFilter);
       }
       
       const { data, error } = await query;
       if (error) throw error;
-      return data || [];
+      // Flatten: extract subscriber from nested object
+      return (data || []).map((row: any) => ({
+        ...row.email_marketing_subscribers,
+        joined_at: row.joined_at,
+      }));
     },
     enabled: !!listId,
   });
