@@ -207,23 +207,20 @@ Todo doc marcado como 🟧 Stub deve conter no mínimo:
 
 ---
 
-## 7. Transição dos Docs Legados
+## 7. Migração Concluída
 
-Os docs em `docs/regras/` foram a fonte de verdade original. A transição para `docs/especificacoes/` segue regras **por módulo**, não em bloco:
+A migração do legado (`docs/regras/*.md` e `docs/REGRAS.md`) foi concluída em **2026-04-03**.
 
-### 7.1 Regra de Transição por Módulo
+- Todo conteúdo funcional foi absorvido pelos docs modulares em `docs/especificacoes/`
+- Regras transversais (`regras-gerais.md`, `feature-rollout.md`) foram absorvidas pelo Layer 2 (`REGRAS-DO-SISTEMA.md`) e pela seção transversal (`padroes-ui.md`)
+- `paridade-builder-publico.md` foi migrado para `docs/especificacoes/transversais/paridade-builder-publico.md`
+- Os arquivos legados foram removidos do repositório
 
-| Status do doc novo | `docs/especificacoes/` | `docs/regras/` (legado) |
-|--------------------|------------------------|-------------------------|
-| **✅ Ativo** | Fonte de verdade. Todas as atualizações vão aqui. | Obsoleto. Não deve ser consultado nem editado. |
-| **🟧 Parcial** | Fonte de verdade para seções já documentadas. | Pode conter informação complementar ainda não migrada. Consultar como apoio, não como autoridade. |
-| **🟧 Stub** | Placeholder. Não é fonte de verdade. | Continua como referência transitória válida até o stub ser expandido. |
+### 7.1 Regra de Evolução
 
-### 7.2 Regra Geral
-
-- **Nunca editar** um doc legado em `docs/regras/` — toda evolução vai para `docs/especificacoes/`
+- Toda evolução de especificação vai exclusivamente para `docs/especificacoes/`
 - A promoção de 🟧 → ✅ acontece quando o doc modular for revisado e considerado completo
-- Docs legados sem correspondente modular em `docs/especificacoes/` (ex: `regras-gerais.md`, `feature-rollout.md`) foram absorvidos pelo Layer 2 ou pela seção transversal. `paridade-builder-publico.md` foi migrado para `docs/especificacoes/transversais/paridade-builder-publico.md`.
+- Cada doc em "Migrado de:" mantém referência histórica da origem, mas os arquivos legados não existem mais
 
 ---
 
