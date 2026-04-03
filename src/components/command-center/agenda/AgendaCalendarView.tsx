@@ -139,6 +139,9 @@ export function AgendaCalendarView() {
         </div>
       </div>
 
+      {/* Authorized Phones Config */}
+      <AgendaPhoneConfig />
+
       {/* Day Tasks Dialog */}
       <DayTasksDialog
         open={isDayDialogOpen}
