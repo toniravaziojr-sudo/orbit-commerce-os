@@ -110,7 +110,7 @@ incluindo as notas de qualidade antes e depois, para permitir comparação e evi
 
 ---
 
-## Registro #3 — Ajuste de 03/abr/2026 (v8.25.0)
+## Registro #3 — Ajuste de 03/abr/2026, ~18:00 UTC-3 (v8.25.0)
 
 **Notas ANTES:** (Registro #2 acima)
 
