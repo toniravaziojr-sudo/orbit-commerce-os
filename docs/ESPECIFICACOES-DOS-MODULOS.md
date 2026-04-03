@@ -1,242 +1,200 @@
 # ESPECIFICAÇÕES DOS MÓDULOS — Índice da Layer 3
 
-> **Status:** 🟢 Ativo  
 > **Versão:** 1.0.0  
-> **Camada:** Layer 3 — Especificações Funcionais  
-> **Última atualização:** 2026-04-03
+> **Status:** ✅ Ativo  
+> **Última atualização:** 2026-04-03  
+> **Tipo:** Índice canônico + regras de organização (NÃO é um doc de especificação em si)
 
 ---
 
-## ⚠️ AVISO — NATUREZA DESTE DOCUMENTO
+## 1. Propósito
 
-Este documento é o **índice canônico** da Layer 3 da hierarquia documental. Ele **NÃO contém especificações** — apenas organiza e aponta para os docs modulares em `docs/especificacoes/`.
+Este documento é o **índice da Layer 3** da hierarquia documental. Ele:
 
-**O que este documento define:**
-- Regras de organização da Layer 3
-- Mapa completo de todos os módulos com status
-- Regra de manutenção e criação de novos docs
-- Referência cruzada com Layer 2
-
----
-
-## 1. PAPEL DA LAYER 3
-
-| Aspecto | Descrição |
-|---------|-----------|
-| **Governa** | Comportamento funcional detalhado por módulo (telas, botões, estados, campos, fluxos internos) |
-| **Autoridade** | Funcional — resolve conflitos sobre detalhe de módulo |
-| **Não governa** | Regras estruturais, contratos entre módulos, fluxos macro (→ Layer 2) |
-| **Não governa** | Conduta da IA, checklist, proposta (→ Layer 1 / Knowledge) |
+- Define a organização dos docs de especificação modular
+- Mapeia cada módulo ao seu arquivo
+- Estabelece regras de manutenção
+- NÃO contém especificações funcionais (essas ficam nos docs modulares)
 
 ---
 
-## 2. REGRAS DE ORGANIZAÇÃO
+## 2. Regras de Organização
 
-### 2.1 Estrutura de Diretórios
+### 2.1 O que ENTRA na Layer 3
 
-Cada módulo tem seu próprio arquivo `.md` dentro de `docs/especificacoes/`, organizado por grupo temático:
-
-```
-docs/especificacoes/
-  ├── transversais/     → Padrões compartilhados (UI, datas, erros)
-  ├── ecommerce/        → Core: pedidos, produtos, clientes, categorias, descontos
-  ├── storefront/       → Loja pública: builder, checkout, páginas, blog
-  ├── marketing/        → Ofertas, avaliações, campanhas, criativos, email
-  ├── crm/              → Atendimento, suporte, chatgpt, checkouts abandonados
-  ├── erp/              → Fiscal, logística, pagbank
-  ├── marketplaces/     → Mercado Livre, Shopee, TikTok Shop, Extrator B2B
-  ├── sistema/          → Comando, permissões, billing, configurações
-  ├── plataforma/       → Platform admin, platform emails
-  └── parcerias/        → Afiliados, influencers
-```
-
-### 2.2 Regras de Manutenção
-
-| Regra | Descrição |
-|-------|-----------|
-| **Um módulo = um arquivo** | Nunca misturar dois módulos no mesmo doc |
-| **Conteúdo funcional apenas** | Regras estruturais/macro pertencem à Layer 2 |
-| **edge-functions.md** | Apenas parte funcional por domínio; padrões técnicos universais ficam na Layer 2 ou transversais |
-| **tenants.md** | Apenas parte funcional/operacional; regras de isolamento ficam na Layer 2 |
-| **Sem duplicação** | Se uma regra já existe na Layer 2, referenciar — não copiar |
-| **Stubs padronizados** | Módulos pendentes seguem template mínimo (ver seção 4) |
-
-### 2.3 O que ENTRA em cada doc modular
-
-- Telas, campos, botões, estados, fluxos internos
-- Validações e exceções do módulo
-- Schema/tabelas relevantes ao módulo
+- Comportamento funcional: telas, campos, botões, estados, fluxos internos
+- Validações e exceções por módulo
+- Tabelas/schema relevantes ao módulo
 - Hooks, componentes e edge functions centrais
 - Permissões e contratos locais
-- Pendências do módulo
 
-### 2.4 O que NÃO ENTRA
+### 2.2 O que NÃO ENTRA (pertence ao Layer 2)
 
-- Regras macro (multi-tenancy, anti-regressão, feature rollout) → Layer 2
-- Padrões técnicos universais → Transversais ou Layer 2
-- Conduta da IA → Knowledge (Layer 1)
+- Regras macro de multi-tenancy, anti-regressão, feature rollout
+- Contratos entre módulos (ex: fonte de verdade de pricing)
+- Regras de segurança globais (RLS, RBAC macro)
+- Padrões de comunicação entre layers
 
----
+### 2.3 Regra de Manutenção
 
-## 3. MAPA DE MÓDULOS
+- **Cada módulo tem seu doc próprio** — nunca misturar módulos no mesmo arquivo
+- **Docs legados em \`docs/regras/\`** continuam existindo durante a transição mas NÃO são mais fonte de verdade
+- **Fonte de verdade** é o doc correspondente em \`docs/especificacoes/\`
+- **Atualizações** seguem o protocolo Propose-Confirm-Apply do Knowledge
 
-### 3.1 Transversais
+### 2.4 Cuidados Especiais
 
-| Arquivo | Descrição | Status |
-|---------|-----------|--------|
-| `transversais/padroes-ui.md` | Loading states, datas, diálogos, erros, responsividade, formatação | ✅ Ativo |
+- **\`sistema/edge-functions.md\`**: Manter apenas parte funcional por domínio. Padrões técnicos universais ficam no Layer 2.
+- **\`sistema/tenants.md\`**: Manter apenas parte funcional/operacional. Regra macro de isolamento já está no Layer 2.
 
-### 3.2 E-commerce (Core)
-
-| Arquivo | Descrição | Status |
-|---------|-----------|--------|
-| `ecommerce/pedidos.md` | Ciclo de vida, máquina de estados, UI, integrações | ✅ Ativo |
-| `ecommerce/produtos.md` | Catálogo, variantes, kits, estoque, IA descrições | ✅ Ativo |
-| `ecommerce/clientes.md` | CRM, tags, métricas, tiers, identidade por email | ✅ Ativo |
-| `ecommerce/categorias.md` | Hierarquia, slugs, vinculação a produtos | 🔜 A migrar |
-| `ecommerce/descontos.md` | Cupons, regras, tipos de desconto | 🔜 A migrar |
-
-### 3.3 Storefront (Loja Pública)
-
-| Arquivo | Descrição | Status |
-|---------|-----------|--------|
-| `storefront/loja-virtual.md` | Arquitetura geral, rotas, edge-rendering | 🔜 A migrar |
-| `storefront/builder.md` | Editor visual, WYSIWYG, blocos, toolbar | 🔜 A migrar |
-| `storefront/header.md` | Header da loja, configurações | 🔜 A migrar |
-| `storefront/footer.md` | Footer da loja, configurações | 🔜 A migrar |
-| `storefront/carrinho.md` | Carrinho, mini-cart, frete | 🔜 A migrar |
-| `storefront/checkout.md` | Checkout completo, pagamento, segurança | ✅ Ativo |
-| `storefront/pagina-produto.md` | Página de produto pública | 🔜 A migrar |
-| `storefront/pagina-categoria.md` | Página de categoria pública | 🔜 A migrar |
-| `storefront/pagina-obrigado.md` | Thank You page, retry | 🔜 A migrar |
-| `storefront/paginas-institucionais.md` | Páginas institucionais | 🔜 A migrar |
-| `storefront/blog.md` | Blog da loja | 🔜 A migrar |
-| `storefront/landing-pages.md` | Landing pages IA | 🔜 A migrar |
-| `storefront/sistema-cores.md` | Temas de cores, CSS variables | 🔜 A migrar |
-
-### 3.4 Marketing
-
-| Arquivo | Descrição | Status |
-|---------|-----------|--------|
-| `marketing/ofertas.md` | Order bump, upsell, cross-sell, compre-junto | 🔜 A migrar |
-| `marketing/avaliacoes.md` | Reviews, importação, aprovação | 🔜 A migrar |
-| `marketing/midias-uploads.md` | Drive de mídia, uploads | 🔜 A migrar |
-| `marketing/geracao-imagens-ia.md` | Geração de imagens com IA | 🔜 A migrar |
-| `marketing/campanhas.md` | Planejamento de campanhas | 🔜 A migrar |
-| `marketing/criativos.md` | Criativos de anúncios | 🔜 A migrar |
-| `marketing/marketing-integracoes.md` | Integrações de marketing | 🟧 Pending |
-| `marketing/email-marketing.md` | Email marketing | 🟧 Pending |
-| `marketing/quizzes.md` | Quizzes interativos | 🔜 A migrar |
-
-### 3.5 CRM
-
-| Arquivo | Descrição | Status |
-|---------|-----------|--------|
-| `crm/crm-atendimento.md` | CRM e atendimento ao cliente | 🟧 Pending |
-| `crm/suporte.md` | Suporte IA | 🟧 Pending |
-| `crm/pacotes-ia.md` | Pacotes de créditos IA | 🔜 A migrar |
-| `crm/chatgpt.md` | Integração ChatGPT | 🔜 A migrar |
-| `crm/checkouts-abandonados.md` | Recuperação de checkouts | 🔜 A migrar |
-
-### 3.6 ERP
-
-| Arquivo | Descrição | Status |
-|---------|-----------|--------|
-| `erp/erp-fiscal.md` | ERP e módulo fiscal | 🔜 A migrar |
-| `erp/logistica.md` | Logística e frete | 🟧 Pending |
-| `erp/pagbank.md` | Integração PagBank | 🔜 A migrar |
-
-### 3.7 Marketplaces
-
-| Arquivo | Descrição | Status |
-|---------|-----------|--------|
-| `marketplaces/mercado-livre.md` | Integração Mercado Livre | 🟧 Pending |
-| `marketplaces/shopee.md` | Integração Shopee | 🟧 Pending |
-| `marketplaces/tiktok-shop.md` | Integração TikTok Shop | 🔜 A migrar |
-| `marketplaces/extrator-b2b.md` | Extrator B2B | 🔜 A migrar |
-
-### 3.8 Sistema
-
-| Arquivo | Descrição | Status |
-|---------|-----------|--------|
-| `sistema/central-comando.md` | Dashboard e central de execuções | 🔜 A migrar |
-| `sistema/auxiliar-comando.md` | Auxiliar IA do comando central | 🔜 A migrar |
-| `sistema/usuarios-permissoes.md` | RBAC, convites, perfis | 🔜 A migrar |
-| `sistema/planos-billing.md` | Planos, billing, checkout de assinatura | 🔜 A migrar |
-| `sistema/configuracoes.md` | Configurações do sistema | 🔜 A migrar |
-| `sistema/importacao.md` | Wizard de importação | 🔜 A migrar |
-| `sistema/hub-integracoes.md` | Hub de integrações | 🟧 Pending |
-| `sistema/dominios.md` | Domínios e DNS | 🔜 A migrar |
-| `sistema/tenants.md` | Funcional de tenants | 🔜 A migrar |
-| `sistema/edge-functions.md` | Funcional de edge functions | 🔜 A migrar |
-
-### 3.9 Plataforma
-
-| Arquivo | Descrição | Status |
-|---------|-----------|--------|
-| `plataforma/platform-admin.md` | Administração da plataforma | 🔜 A migrar |
-| `plataforma/platform-emails.md` | Emails transacionais da plataforma | 🔜 A migrar |
-
-### 3.10 Parcerias
-
-| Arquivo | Descrição | Status |
-|---------|-----------|--------|
-| `parcerias/afiliados.md` | Programa de afiliados | 🟧 Pending |
-| `parcerias/influencers.md` | Programa de influencers | 🟧 Stub |
-
----
-
-## 4. TEMPLATE PARA MÓDULOS PENDENTES (🟧)
+### 2.5 Template para Módulos Pendentes (🟧)
 
 Todo doc marcado como 🟧 Pending deve conter no mínimo:
 
-```markdown
-# Módulo: [Nome]
-
-> **Status:** 🟧 Pending — A ser detalhado durante implementação  
-> **Última atualização:** [data]
-
-## 1. Escopo Atual
-[O que existe hoje no sistema]
-
-## 2. O que Falta
-[Funcionalidades/telas pendentes de implementação]
-
-## 3. Dependências
-[Módulos dos quais depende ou que dependem dele]
-
-## 4. Observações
-[Notas sobre prioridade, decisões pendentes, etc.]
-```
+- Status Atual (o que já existe)
+- Escopo Previsto (o que deve cobrir)
+- Dependências (módulos dos quais depende)
+- Observações (notas para implementação futura)
 
 ---
 
-## 5. TRANSIÇÃO DOS DOCS LEGADOS
+## 3. Referência Cruzada
 
-### 5.1 Convivência
-
-Durante a transição, os docs legados em `docs/regras/` continuam existindo. Quando o doc modular correspondente em `docs/especificacoes/` estiver ativo (✅), ele é a **fonte de verdade** para aquele módulo. O doc legado fica como referência histórica.
-
-### 5.2 Regra de Precedência
-
-| Situação | Fonte de Verdade |
-|----------|------------------|
-| Doc modular ativo (✅) em `especificacoes/` | Doc modular |
-| Doc modular ainda não migrado (🔜) | Doc legado em `regras/` |
-| Doc modular pending (🟧) | Nenhum — a ser definido |
-| Conflito entre doc modular e legado | Doc modular vence |
+- **Layer 1 (Knowledge):** Governa comportamento da IA
+- **Layer 2 (Doc de Regras do Sistema):** \`docs/REGRAS-DO-SISTEMA.md\` — regras estruturais macro
+- **Layer 3 (Este índice):** Comportamento funcional detalhado por módulo
+- **Layer 4 (Manual):** Referência técnica ampla
 
 ---
 
-## 6. REFERÊNCIA CRUZADA
+## 4. Mapa de Módulos
 
-| Layer | Documento | Status |
-|-------|-----------|--------|
-| 1 — Governança | Knowledge (Custom Instructions) | ✅ Ativo |
-| 2 — Regras do Sistema | `docs/REGRAS-DO-SISTEMA.md` | ✅ Ativo |
-| **3 — Especificações** | **Este índice + `docs/especificacoes/`** | **✅ Ativo** |
-| 4 — Manual do Sistema | Manual técnico consolidado | 🔜 Pendente |
+### 4.0 Transversais
+
+| Arquivo | Descrição | Status |
+|---------|-----------|--------|
+| \`transversais/padroes-ui.md\` | Loading, datas, diálogos, responsividade | ✅ Ativo |
+
+### 4.1 E-commerce (Core)
+
+| Arquivo | Descrição | Status |
+|---------|-----------|--------|
+| \`ecommerce/pedidos.md\` | Pedidos, estados, ghost orders | ✅ Ativo |
+| \`ecommerce/produtos.md\` | Produtos, variantes, kits, IA | ✅ Ativo |
+| \`ecommerce/categorias.md\` | Categorias, hierarquia, drag-drop | ✅ Ativo |
+| \`ecommerce/clientes.md\` | Clientes, leads, identidade por email | ✅ Ativo |
+| \`ecommerce/descontos.md\` | Cupons, promoções, primeira compra | ✅ Ativo |
+
+### 4.2 Loja Online (Storefront)
+
+| Arquivo | Descrição | Status |
+|---------|-----------|--------|
+| \`storefront/loja-virtual.md\` | Arquitetura geral, Edge/SPA, rotas | ✅ Ativo |
+| \`storefront/builder.md\` | Editor visual, WYSIWYG, blocos | ✅ Ativo |
+| \`storefront/header.md\` | Cabeçalho, menus, busca, sticky | ✅ Ativo |
+| \`storefront/footer.md\` | Rodapé, SAC, selos, newsletter | ✅ Ativo |
+| \`storefront/carrinho.md\` | Carrinho, mini-cart, cross-sell | ✅ Ativo |
+| \`storefront/checkout.md\` | Checkout, pagamento, frete | ✅ Ativo |
+| \`storefront/pagina-produto.md\` | Página de produto, galeria, variantes | ✅ Ativo |
+| \`storefront/pagina-categoria.md\` | Página de categoria, filtros, grid | ✅ Ativo |
+| \`storefront/pagina-obrigado.md\` | Pós-compra, upsell, retentativa | ✅ Ativo |
+| \`storefront/paginas-institucionais.md\` | Páginas institucionais, IA essenciais | ✅ Ativo |
+| \`storefront/blog.md\` | Blog, campanhas IA, SEO | ✅ Ativo |
+| \`storefront/landing-pages.md\` | Landing pages IA e Builder | ✅ Ativo |
+| \`storefront/sistema-cores.md\` | Tema, tokens CSS, pipeline cores | ✅ Ativo |
+
+### 4.3 Marketing
+
+| Arquivo | Descrição | Status |
+|---------|-----------|--------|
+| \`marketing/ofertas.md\` | Bump, cross-sell, upsell, compre junto | ✅ Ativo |
+| \`marketing/avaliacoes.md\` | Avaliações de produtos | ✅ Ativo |
+| \`marketing/midias-uploads.md\` | Mídias e uploads | ✅ Ativo |
+| \`marketing/geracao-imagens-ia.md\` | Geração de imagens com IA | ✅ Ativo |
+| \`marketing/campanhas.md\` | Campanhas de marketing | ✅ Ativo |
+| \`marketing/criativos.md\` | Criativos de anúncios | ✅ Ativo |
+| \`marketing/ai-criativos.md\` | Criativos gerados por IA | ✅ Ativo |
+| \`marketing/marketing-integracoes.md\` | Integrações de marketing | 🟧 Parcial |
+| \`marketing/email-marketing.md\` | Email marketing | 🟧 Parcial |
+| \`marketing/quizzes.md\` | Quizzes interativos | ✅ Ativo |
+
+### 4.4 CRM
+
+| Arquivo | Descrição | Status |
+|---------|-----------|--------|
+| \`crm/crm-atendimento.md\` | CRM e atendimento | 🟧 Parcial |
+| \`crm/suporte.md\` | Suporte ao cliente | 🟧 Parcial |
+| \`crm/pacotes-ia.md\` | Pacotes de créditos IA | ✅ Ativo |
+| \`crm/chatgpt.md\` | Integração ChatGPT | ✅ Ativo |
+| \`crm/checkouts-abandonados.md\` | Recuperação de checkouts | ✅ Ativo |
+
+### 4.5 ERP
+
+| Arquivo | Descrição | Status |
+|---------|-----------|--------|
+| \`erp/erp-fiscal.md\` | ERP e fiscal (NF-e, NCM) | ✅ Ativo |
+| \`erp/logistica.md\` | Logística e frete | 🟧 Parcial |
+| \`erp/pagbank.md\` | Integração PagBank | ✅ Ativo |
+
+### 4.6 Marketplaces
+
+| Arquivo | Descrição | Status |
+|---------|-----------|--------|
+| \`marketplaces/mercado-livre.md\` | Integração Mercado Livre | 🟧 Parcial |
+| \`marketplaces/shopee.md\` | Integração Shopee | 🟧 Stub |
+| \`marketplaces/tiktok-shop.md\` | Integração TikTok Shop | ✅ Ativo |
+| \`marketplaces/extrator-b2b.md\` | Extrator B2B | ✅ Ativo |
+
+### 4.7 Sistema
+
+| Arquivo | Descrição | Status |
+|---------|-----------|--------|
+| \`sistema/central-comando.md\` | Dashboard e central de comando | ✅ Ativo |
+| \`sistema/auxiliar-comando.md\` | Assistente IA de comando | ✅ Ativo |
+| \`sistema/usuarios-permissoes.md\` | Usuários, roles, RBAC | ✅ Ativo |
+| \`sistema/planos-billing.md\` | Planos e cobrança | ✅ Ativo |
+| \`sistema/configuracoes.md\` | Configurações do sistema | ✅ Ativo |
+| \`sistema/importacao.md\` | Importação de dados | ✅ Ativo |
+| \`sistema/hub-integracoes.md\` | Hub de integrações | 🟧 Parcial |
+| \`sistema/dominios.md\` | Domínios custom e DNS | ✅ Ativo |
+| \`sistema/tenants.md\` | Tenants (parte funcional) | ✅ Ativo |
+| \`sistema/edge-functions.md\` | Edge Functions (parte funcional) | ✅ Ativo |
+
+### 4.8 Plataforma
+
+| Arquivo | Descrição | Status |
+|---------|-----------|--------|
+| \`plataforma/platform-admin.md\` | Admin da plataforma | ✅ Ativo |
+| \`plataforma/platform-emails.md\` | Emails transacionais | ✅ Ativo |
+
+### 4.9 Parcerias
+
+| Arquivo | Descrição | Status |
+|---------|-----------|--------|
+| \`parcerias/afiliados.md\` | Programa de afiliados | 🟧 Parcial |
+| \`parcerias/influencers.md\` | Programa de influencers | 🟧 Stub |
 
 ---
 
-*Fim do índice.*
+## 5. Estatísticas
+
+| Métrica | Valor |
+|---------|-------|
+| Total de módulos | 55 |
+| ✅ Ativos | 43 |
+| 🟧 Parciais/Stubs | 12 |
+| Grupos temáticos | 9 (+1 transversal) |
+
+---
+
+## 6. Transição dos Docs Legados
+
+Os docs em \`docs/regras/\` foram a fonte de verdade original. Com a criação da Layer 3 modular:
+
+1. **Fonte de verdade** → \`docs/especificacoes/\` (novo)
+2. **\`docs/regras/\`** → mantido como referência de transição, mas **não é mais editado**
+3. **Atualizações futuras** → aplicadas exclusivamente nos docs modulares novos
+
+---
+
+*Fim do índice Layer 3.*
