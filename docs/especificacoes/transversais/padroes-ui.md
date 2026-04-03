@@ -288,4 +288,52 @@ if (!confirmed) return;
 
 ---
 
+## 11. Separação Admin vs Storefront — Componentes
+
+> **REGRA CRÍTICA** — Alterações no admin NUNCA devem afetar a loja pública dos tenants.
+
+### Domínios
+
+| Contexto | Domínio | Escopo |
+|----------|---------|--------|
+| **Admin (Comando Central)** | `app.comandocentral.com.br` | Sistema SaaS, UI fixa, tema azul marinho |
+| **Storefront (Loja Pública)** | `tenant.shops.comandocentral.com.br` ou domínio customizado | Loja do cliente, herda tema do tenant |
+
+### Componentes Separados
+
+| Componente | Admin | Storefront |
+|------------|-------|------------|
+| **Toaster (Sonner)** | `AdminToaster` (`src/components/ui/admin-sonner.tsx`) | `Toaster` (`src/components/ui/sonner.tsx`) |
+| **Tema/Cores** | Fixo (azul marinho #1e3a5f) | CSS Variables do tenant |
+| **Layout** | `AppShell.tsx` | `StorefrontLayout.tsx`, `TenantStorefrontLayout.tsx` |
+
+### Detecção de Contexto
+
+```typescript
+const shouldUseTenantRootRoutes = isOnTenantHost();
+// TRUE = domínio de tenant (loja pública)
+// FALSE = domínio admin (Comando Central)
+{shouldUseTenantRootRoutes ? <Sonner /> : <AdminToaster />}
+```
+
+### Proibições
+
+| ❌ Proibido | ✅ Correto |
+|-------------|------------|
+| Alterar `sonner.tsx` para estilizar toasts do admin | Alterar `admin-sonner.tsx` |
+| Usar cores hardcoded em componentes compartilhados | Usar CSS variables ou criar versão específica |
+| Assumir que mudança em UI afeta só um contexto | Verificar se componente é compartilhado |
+| Editar componentes em `src/components/storefront/` para ajustes do admin | Criar componente específico |
+
+### Verificação Obrigatória
+
+Antes de QUALQUER alteração de UI/estilo, verificar:
+
+1. **Qual contexto será afetado?** (Admin, Storefront ou ambos)
+2. **O componente é compartilhado?** (Se sim, considerar criar versão específica)
+3. **A mudança usa CSS variables ou cores hardcoded?**
+4. **Testar em ambos os contextos** após a mudança
+
+---
+
 *Fim do documento.*
