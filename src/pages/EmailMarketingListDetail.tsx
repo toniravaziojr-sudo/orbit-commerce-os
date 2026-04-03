@@ -52,6 +52,17 @@ import { showErrorToast } from '@/lib/error-toast';
 
 const PAGE_SIZE = 50;
 
+function formatSourceLabel(source: string): string {
+  if (source === "tag_assignment") return "Automático (tag)";
+  if (source.startsWith("tag_sync:")) return "Sincronização";
+  if (source === "order") return "Pedido";
+  if (source === "newsletter_popup") return "Pop-up Newsletter";
+  if (source.startsWith("form:")) return "Formulário";
+  if (source === "import") return "Importação";
+  if (source === "manual") return "Manual";
+  return source;
+}
+
 export default function EmailMarketingListDetail() {
   const { listId } = useParams<{ listId: string }>();
   const navigate = useNavigate();
@@ -417,7 +428,7 @@ export default function EmailMarketingListDetail() {
                         <TableCell>
                           {sub.source && (
                             <span className="text-xs bg-muted px-2 py-1 rounded">
-                              {sub.source}
+                              {formatSourceLabel(sub.source)}
                             </span>
                           )}
                         </TableCell>
