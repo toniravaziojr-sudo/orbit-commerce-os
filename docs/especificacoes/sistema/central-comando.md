@@ -325,12 +325,22 @@ Origem do lembrete:
   ├─ Via WhatsApp: Usuário envia comando → Agenda interpreta → cria tarefa + lembretes
   └─ Via UI: Usuário cria manualmente no calendário da aba Agenda
 
-Disparo:
-  1. Cron job verifica agenda_reminders com remind_at ≤ now() e status = 'pending'
-  2. Edge function agenda-dispatch-reminders processa os lembretes
-  3. Envia via meta-whatsapp-send para o número do administrador
-  4. Atualiza status do lembrete (sent/failed)
+Disparo (cron a cada 5 minutos):
+  1. Claim atômico: UPDATE agenda_reminders SET status = 'dispatched'
+     WHERE status = 'pending' AND remind_at <= now() RETURNING *
+     (PostgreSQL garante row-level lock — sem envio duplicado em execuções concorrentes)
+  2. Edge function agenda-dispatch-reminders processa os lembretes retornados
+  3. Tenta envio via meta-whatsapp-send para o número do administrador
+     - Dentro da janela 24h: mensagem de texto livre
+     - Fora da janela 24h: template aprovado pela Meta (obrigatório)
+  4. Se envio OK: status permanece 'dispatched' (= "claimed e enviado com sucesso")
+  5. Se envio falhar: UPDATE status = 'failed', last_error = motivo
+  6. Lembretes de tarefas já completed/cancelled: marcados como 'skipped' (nunca enviados)
 ```
+
+**Semântica de `dispatched`:** significa "claimed para envio e tentativa realizada". Não significa "entregue ao destinatário" (o sistema não rastreia entrega final da Meta).
+
+**Idempotência:** o claim atômico via `UPDATE ... WHERE status = 'pending' RETURNING *` garante que duas execuções concorrentes do cron nunca processam o mesmo lembrete.
 
 **Tipos de agendamento suportados:**
 
