@@ -176,8 +176,9 @@ Esta seção define apenas a sequência macro. Detalhes funcionais (timings, men
 Contratos definem a interface entre módulos: o que cada módulo fornece, o que consome, e o comportamento em caso de falha.
 
 ### 7.1 Pedido ↔ Estoque
-- Pedido aprovado reserva estoque.
-- Cancelamento libera estoque.
+- Criação do pedido (`pending`) → **reserva de estoque (soft lock).**
+- Pagamento aprovado (`approved`) → **baixa definitiva do estoque.**
+- Falha, expiração ou cancelamento do pagamento → **liberação automática do estoque reservado.**
 - Estoque insuficiente não bloqueia criação do pedido, mas gera alerta.
 
 ### 7.2 Pedido ↔ Fiscal
