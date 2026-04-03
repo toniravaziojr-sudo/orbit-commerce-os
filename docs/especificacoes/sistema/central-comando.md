@@ -365,29 +365,49 @@ O único setup necessário é o administrador **conectar o número de WhatsApp**
 
 ### 3.5 Arquitetura Técnica (Visão Geral)
 
+**Decisão arquitetural:** NÃO será criado webhook separado para a Agenda. O roteamento acontece dentro do `meta-whatsapp-webhook` existente.
+
 ```
 WhatsApp Cloud API (Meta)
   │
-  ├─ Webhook de entrada (mensagens do admin)
-  │    └─ Edge Function: agenda-whatsapp-webhook
-  │         ├─ Identifica tenant pelo número
-  │         ├─ Roteia para o agente Agenda (IA)
-  │         ├─ Agente interpreta comando (lembrete vs. execução)
-  │         └─ Se execução → chama pipeline do Auxiliar de Comando
+  ├─ Webhook de entrada (TODAS as mensagens WhatsApp)
+  │    └─ Edge Function: meta-whatsapp-webhook (EXISTENTE)
+  │         ├─ Identifica tenant pelo phone_number_id (já faz)
+  │         ├─ Salva em whatsapp_inbound_messages (já faz)
+  │         ├─ Verifica: from_phone está em agenda_authorized_phones do tenant?
+  │         │    ├─ SIM → Roteia para agente Agenda (agenda-process-command)
+  │         │    │    ├─ Deduplicar por (tenant_id, external_message_id) em agenda_command_log
+  │         │    │    ├─ Gravar em agenda_command_log (status: received)
+  │         │    │    ├─ IA interpreta comando (Gemini 2.5 Flash)
+  │         │    │    ├─ Leitura/lembrete → executa direto
+  │         │    │    ├─ Ação sensível → pede confirmação (payload congelado)
+  │         │    │    └─ Ação no sistema → delega ao Auxiliar (com confirmação, via allowlist)
+  │         │    └─ NÃO cria conversa de suporte
+  │         └─ NÃO → Fluxo normal de suporte/conversas (como hoje)
   │
   └─ Envio de saída (mensagens da IA para o admin)
        └─ Edge Function: meta-whatsapp-send
-            └─ Usa template aprovado ou mensagem dentro da janela de 24h
+            └─ Usa template aprovado (fora da janela 24h) ou mensagem livre (dentro da janela)
 ```
+
+**Decisão de roteamento:** mensagens de números autorizados da Agenda SEMPRE vão para o agente Agenda, nunca para o fluxo de suporte. Se o admin quiser falar com suporte, usa outro canal. Esta é uma decisão consciente e documentada.
+
+**Política temporal oficial:**
+- Timezone: `America/Sao_Paulo` (hardcoded, documentado)
+- Todas as datas/horas são interpretadas, persistidas e disparadas neste timezone
+- Parsing: "amanhã" = dia seguinte em SP, "9h" = 09:00 BRT
+- Ambiguidade: a IA confirma quando não consegue interpretar com certeza
+- Armazenamento: `due_at` e `remind_at` em UTC, interpretação e exibição em BRT
 
 **Edge Functions envolvidas:**
 
-| Edge Function | Papel |
-|--------------|-------|
-| `agenda-whatsapp-webhook` | Recebe mensagens do admin via webhook Meta (a criar) |
-| `agenda-dispatch-reminders` | Cron: dispara lembretes pendentes |
-| `meta-whatsapp-send` | Envia mensagens WhatsApp via Cloud API |
-| `command-assistant` | Pipeline do Auxiliar de Comando (chamado pela Agenda quando necessário) |
+| Edge Function | Papel | Status |
+|--------------|-------|--------|
+| `meta-whatsapp-webhook` | Webhook existente — recebe inbound e roteia (suporte OU agenda) | ✅ Existente (requer modificação para roteamento) |
+| `agenda-process-command` | Motor IA da Agenda: interpreta, executa, responde | 🔴 A criar |
+| `agenda-dispatch-reminders` | Cron (5min): dispara lembretes pendentes | ✅ Existente (requer cron) |
+| `meta-whatsapp-send` | Envia mensagens WhatsApp via Cloud API | ✅ Existente |
+| `command-assistant` | Pipeline do Auxiliar de Comando (chamado pela Agenda quando necessário) | ✅ Existente |
 
 ### 3.6 Calendário Visual (UI)
 
