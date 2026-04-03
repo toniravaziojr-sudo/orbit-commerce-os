@@ -286,7 +286,7 @@ O sistema possui **dois fluxos de pagamento distintos e isolados**:
 | **Gestor de Tráfego IA** | Tráfego pago (campanhas, criativos, orçamento) | Executa ações de tráfego | Criativos e aumento de orçamento acima do limite exigem aprovação manual |
 
 ### 9.3 Regras Universais dos Agentes
-- Todo agente sabe tudo sobre o sistema (acesso a docs, dados do tenant, contexto).
+- Todo agente conhece a estrutura do sistema e opera dentro do escopo de permissões do seu domínio e da autorização do usuário. O acesso a dados do tenant é limitado ao necessário para a função do agente.
 - Nenhum agente executa ação destrutiva sem aprovação explícita.
 - Toda execução gera log de auditoria.
 - Créditos de IA são consumidos por uso e controlados pelo plano do tenant.
