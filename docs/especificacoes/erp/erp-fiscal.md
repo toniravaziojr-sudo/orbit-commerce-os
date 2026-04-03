@@ -81,6 +81,15 @@ Módulo de gestão empresarial: fiscal (NF-e via Nuvem Fiscal), financeiro, e co
 | **verify_jwt** | `false` (necessário para cron/trigger) |
 | **Segurança** | Cron/Trigger usa anon key → usa service_role internamente |
 
+### Regra: Zero Sync on Load (v8.23.0)
+
+| Campo | Valor |
+|-------|-------|
+| **Regra** | A tela Fiscal **não** dispara criação de rascunhos ao ser acessada |
+| **Motivo** | O backend (webhook + cron) já cria rascunhos instantaneamente no pagamento aprovado |
+| **Frontend** | Apenas lê os dados do banco via query; botão de refresh manual faz `refetch()` sem chamar edge function |
+| **Referência** | Regra 3.7 do Doc de Regras do Sistema (Zero Sync on Load) |
+
 
 ### Shared Module: fiscal-numbering.ts
 | Função | Descrição |
