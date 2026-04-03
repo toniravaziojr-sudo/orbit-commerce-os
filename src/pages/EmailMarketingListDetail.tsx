@@ -93,17 +93,27 @@ export default function EmailMarketingListDetail() {
     enabled: !!listId,
   });
 
-  // Fetch subscribers count for this list
+  // Fetch subscribers count for this list via junction table
   const { data: totalCount = 0 } = useQuery({
     queryKey: ["list-subscribers-count", listId, debouncedSearch, statusFilter],
     queryFn: async () => {
       if (!listId) return 0;
       
-      // Subscribers are linked via source field containing list_id
+      // First get member subscriber_ids from junction table
+      const { data: members, error: membersError } = await supabase
+        .from("email_marketing_list_members")
+        .select("subscriber_id")
+        .eq("list_id", listId);
+      if (membersError) throw membersError;
+      if (!members || members.length === 0) return 0;
+      
+      const subscriberIds = members.map((m: any) => m.subscriber_id);
+      
+      // Count with filters
       let query = supabase
         .from("email_marketing_subscribers")
         .select("id", { count: "exact", head: true })
-        .like("source", `%${listId}%`);
+        .in("id", subscriberIds);
       
       if (debouncedSearch) {
         query = query.or(`email.ilike.%${debouncedSearch}%,name.ilike.%${debouncedSearch}%`);
