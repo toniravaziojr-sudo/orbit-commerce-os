@@ -412,14 +412,14 @@ Se houver dúvida sobre fechamento, não declarar "resolvido".
 
 ---
 
-## 17. ERROS RECORRENTES
+## 17. ERROS RECORRENTES — PADRÕES DE FALHA
 
-Registro de erros que já apareceram mais de uma vez, para evitar repetição de diagnóstico incorreto.
+Registro de padrões de falha que já apareceram mais de uma vez, para evitar repetição de diagnóstico incorreto. Detalhes técnicos específicos (nomes de triggers, funções, queries) ficam nos docs de especificação dos módulos afetados.
 
-| # | Erro | Módulo | Causa Real | Sessão de Registro |
-|---|------|--------|------------|-------------------|
-| 1 | Trigger `auto_tag_cliente_on_payment_approved` reportado como checando `'paid'` e contendo DELETE | Pedidos/Clientes | Falso. Checa `'approved'` e usa `ON CONFLICT DO NOTHING` | 2026-04-03 |
-| 2 | `trigger_update_customer_first_order` inflaciona métricas | Pedidos/Clientes | Incrementa `total_orders` em todo INSERT independente de status | 2026-04-03 |
+| # | Padrão de Falha | Módulo | Causa Real | Sessão de Registro |
+|---|-----------------|--------|------------|-------------------|
+| 1 | Trigger de tagging de cliente reportado como usando status ou operação incorretos | Pedidos/Clientes | Diagnóstico falso. O trigger opera corretamente com o status canônico e sem operações destrutivas. | 2026-04-03 |
+| 2 | Trigger de métricas de cliente inflaciona contadores | Pedidos/Clientes | Trigger disparava em todo INSERT de pedido independente do status, sem filtrar por pagamento aprovado. | 2026-04-03 |
 | — | — | — | — | — |
 
 ---
