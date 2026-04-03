@@ -110,6 +110,28 @@ incluindo as notas de qualidade antes e depois, para permitir comparação e evi
 
 ---
 
+## Registro #3 — Ajuste de 03/abr/2026 (v8.25.0)
+
+**Notas ANTES:** (Registro #2 acima)
+
+**O que foi feito:**
+1. **Removida priorização IPv4** — O CAPI agora envia o IP exatamente como recebido do proxy (cf-connecting-ip > true-client-ip > x-real-ip > x-forwarded-for), sem filtrar por formato. Isso resolve o conflito IPv4/IPv6 que afetava 52% dos eventos.
+2. **Timeout do fbp aumentado de 1.5s para 5s** — Mais tempo para capturar o cookie `_fbp` do Meta Pixel, especialmente em conexões lentas. Polling a cada 250ms (antes 200ms). Se o cookie aparecer antes, resolve imediatamente.
+3. **external_id já estava garantido** — Verificação confirmou que o cookie `_sf_vid` já é criado sincronamente antes de qualquer evento no MarketingTrackerProvider.
+
+**Notas APÓS:** *(aguardando 48-72h para a Meta recalcular)*
+
+**Erros esperados a resolver:**
+- ⚠️ "Atualize seus endereços IP para IPv6" — deve desaparecer
+- ⚠️ "IP mismatch entre Pixel e CAPI" — deve desaparecer
+- ⚠️ "Baixa cobertura CAPI em Purchase" — deve melhorar com melhor matching
+
+**Validação planejada:**
+- Comparar notas do Events Manager em 06/abr/2026
+- Verificar se discrepância de vendas (loja vs campanhas) reduziu
+
+---
+
 ## Template para próximos registros
 
 ```
