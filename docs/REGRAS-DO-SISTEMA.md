@@ -78,9 +78,11 @@ Nenhuma camada inferior sobrepõe a superior no seu domínio de autoridade.
 - Alteração em um contexto nunca deve afetar o outro acidentalmente.
 - Componentes compartilhados exigem auditoria de impacto cruzado.
 
-### 3.5 Feature Incompleta
-- Esconder via feature flag. Nunca deixar UI quebrada em produção.
-- Módulos "em construção" só aparecem para tenants especiais e admin.
+### 3.5 Feature Incompleta e Escopo de Lançamento
+- Todo módulo ou recurso visível na navegação do Comando Central para todos os usuários faz parte do **core de lançamento** do sistema.
+- Módulos ou funcionalidades marcados como "em construção" ficam restritos a **tenants especiais e administradores da plataforma**, permanecendo ocultos para lojistas em planos padrão.
+- Esconder feature incompleta via feature flag. Nunca deixar UI quebrada em produção.
+- A presença de um recurso na interface oficial exige cobertura completa no Doc de Regras do Sistema e nos Docs de Especificação correspondentes.
 
 ### 3.6 Build
 - Nenhum ajuste é considerado concluído se build, lint ou typecheck falharem.
