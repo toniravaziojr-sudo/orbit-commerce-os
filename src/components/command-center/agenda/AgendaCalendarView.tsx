@@ -7,6 +7,7 @@ import { useWhatsAppStatus } from "@/hooks/useWhatsAppStatus";
 import { AgendaCalendar } from "./AgendaCalendar";
 import { DayTasksDialog } from "./DayTasksDialog";
 import { CreateTaskDialog } from "./CreateTaskDialog";
+import { AgendaPhoneConfig } from "./AgendaPhoneConfig";
 import { StatCard } from "@/components/ui/stat-card";
 import { Link } from "react-router-dom";
 
@@ -137,6 +138,9 @@ export function AgendaCalendarView() {
           <span>Com lembrete</span>
         </div>
       </div>
+
+      {/* Authorized Phones Config */}
+      <AgendaPhoneConfig />
 
       {/* Day Tasks Dialog */}
       <DayTasksDialog

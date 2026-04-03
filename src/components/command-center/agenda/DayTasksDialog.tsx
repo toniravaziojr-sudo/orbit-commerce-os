@@ -70,10 +70,10 @@ export function DayTasksDialog({
 
   const getRemindersSummary = (reminders: AgendaReminder[]) => {
     const pending = reminders.filter(r => r.status === 'pending').length;
-    const sent = reminders.filter(r => r.status === 'sent').length;
+    const dispatched = reminders.filter(r => r.status === 'dispatched').length;
     const failed = reminders.filter(r => r.status === 'failed').length;
 
-    return { pending, sent, failed, total: reminders.length };
+    return { pending, dispatched, failed, total: reminders.length };
   };
 
   return (
@@ -199,12 +199,12 @@ export function DayTasksDialog({
                                     <span>{format(new Date(r.remind_at), "HH:mm")}</span>
                                     <Badge variant="outline" className={cn(
                                       "text-[10px] py-0",
-                                      r.status === 'sent' ? "text-success" :
+                                      r.status === 'dispatched' ? "text-success" :
                                       r.status === 'failed' ? "text-destructive" :
                                       r.status === 'pending' ? "text-warning" : ""
                                     )}>
                                       {r.status === 'pending' && 'Aguardando'}
-                                      {r.status === 'sent' && 'Enviado'}
+                                      {r.status === 'dispatched' && 'Enviado'}
                                       {r.status === 'failed' && 'Falhou'}
                                       {r.status === 'skipped' && 'Pulado'}
                                     </Badge>

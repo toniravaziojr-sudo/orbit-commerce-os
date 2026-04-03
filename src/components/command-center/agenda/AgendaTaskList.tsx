@@ -73,10 +73,10 @@ export function AgendaTaskList({ tasks, isLoading, getTaskReminders }: AgendaTas
 
   const getRemindersSummary = (reminders: AgendaReminder[]) => {
     const pending = reminders.filter(r => r.status === 'pending').length;
-    const sent = reminders.filter(r => r.status === 'sent').length;
+    const dispatched = reminders.filter(r => r.status === 'dispatched').length;
     const failed = reminders.filter(r => r.status === 'failed').length;
 
-    return { pending, sent, failed, total: reminders.length };
+    return { pending, dispatched, failed, total: reminders.length };
   };
 
   return (
@@ -162,7 +162,7 @@ export function AgendaTaskList({ tasks, isLoading, getTaskReminders }: AgendaTas
                         }`}>
                           <Bell className="h-3.5 w-3.5" />
                           {remindersSummary.pending > 0 && `${remindersSummary.pending} pendente(s)`}
-                          {remindersSummary.sent > 0 && ` • ${remindersSummary.sent} enviado(s)`}
+                          {remindersSummary.dispatched > 0 && ` • ${remindersSummary.dispatched} enviado(s)`}
                           {remindersSummary.failed > 0 && (
                             <span className="text-destructive">
                               • {remindersSummary.failed} falhou
@@ -177,12 +177,12 @@ export function AgendaTaskList({ tasks, isLoading, getTaskReminders }: AgendaTas
                             <div key={r.id} className="text-xs flex items-center gap-2">
                               <span>{format(new Date(r.remind_at), "dd/MM HH:mm")}</span>
                               <Badge variant="outline" className={`text-xs ${
-                                r.status === 'sent' ? 'text-success' :
+                                r.status === 'dispatched' ? 'text-success' :
                                 r.status === 'failed' ? 'text-destructive' :
                                 r.status === 'pending' ? 'text-warning' : ''
                               }`}>
                                 {r.status === 'pending' && 'Aguardando'}
-                                {r.status === 'sent' && 'Enviado'}
+                                {r.status === 'dispatched' && 'Enviado'}
                                 {r.status === 'failed' && 'Falhou'}
                                 {r.status === 'skipped' && 'Pulado'}
                               </Badge>

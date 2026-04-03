@@ -1068,6 +1068,141 @@ export type Database = {
           },
         ]
       }
+      agenda_authorized_phones: {
+        Row: {
+          configured_by: string
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string | null
+          phone: string
+          tenant_id: string
+        }
+        Insert: {
+          configured_by: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          phone: string
+          tenant_id: string
+        }
+        Update: {
+          configured_by?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          phone?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agenda_authorized_phones_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agenda_chat_history: {
+        Row: {
+          action_result: Json | null
+          content: string | null
+          correlation_id: string | null
+          created_at: string
+          id: string
+          intent: string | null
+          role: string
+          tenant_id: string
+        }
+        Insert: {
+          action_result?: Json | null
+          content?: string | null
+          correlation_id?: string | null
+          created_at?: string
+          id?: string
+          intent?: string | null
+          role?: string
+          tenant_id: string
+        }
+        Update: {
+          action_result?: Json | null
+          content?: string | null
+          correlation_id?: string | null
+          created_at?: string
+          id?: string
+          intent?: string | null
+          role?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agenda_chat_history_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agenda_command_log: {
+        Row: {
+          action_taken: string | null
+          content: string | null
+          correlation_id: string | null
+          created_at: string
+          direction: string
+          error_message: string | null
+          external_message_id: string | null
+          from_phone: string | null
+          id: string
+          intent: string | null
+          pending_action: Json | null
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          action_taken?: string | null
+          content?: string | null
+          correlation_id?: string | null
+          created_at?: string
+          direction?: string
+          error_message?: string | null
+          external_message_id?: string | null
+          from_phone?: string | null
+          id?: string
+          intent?: string | null
+          pending_action?: Json | null
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          action_taken?: string | null
+          content?: string | null
+          correlation_id?: string | null
+          created_at?: string
+          direction?: string
+          error_message?: string | null
+          external_message_id?: string | null
+          from_phone?: string | null
+          id?: string
+          intent?: string | null
+          pending_action?: Json | null
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agenda_command_log_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agenda_reminders: {
         Row: {
           channel: string
