@@ -1,7 +1,7 @@
 # DOC DE REGRAS DO SISTEMA
 
 > **Status:** 🟢 Ativo  
-> **Versão:** 2.1.0  
+> **Versão:** 2.2.0  
 > **Camada:** Layer 2 — Regras do Sistema  
 > **Última atualização:** 2026-04-03
 
@@ -150,11 +150,18 @@ Esta seção define apenas a sequência macro. Detalhes funcionais (timings, men
 - Publicação: conteúdo entra no ar na loja pública somente após ação explícita de "Publicar".
 - Draft e publicado são versões independentes.
 
-### 6.4 Lifecycle do Cliente
-- **Lead:** subscriber sem compra (formulário, importação, captura).
-- **Cliente:** tem pelo menos 1 pedido aprovado.
-- Lead não vira cliente automaticamente sem pedido aprovado.
-- Cliente recebe tag sistêmica "Cliente" automaticamente ao ter pedido aprovado.
+### 6.4 Lifecycle do Contato
+
+| Estado | Definição | Origem |
+|--------|-----------|--------|
+| **Lead** | Contato capturado, sem opt-in confirmado | Formulário, popup, webhook, captura passiva |
+| **Subscriber** | Contato com opt-in válido para comunicação | Confirmação de opt-in (email, WhatsApp) |
+| **Customer** | Entidade registrada no módulo de clientes | Pedido aprovado, importação ou criação manual |
+
+- Lead **não** vira customer automaticamente. A conversão exige pedido aprovado, importação ou criação manual.
+- Subscriber **não** implica customer. Um subscriber pode nunca ter comprado.
+- Customer é válido mesmo **sem** pedido aprovado (importação, criação manual).
+- Customer recebe tag sistêmica "Cliente" automaticamente na criação (qualquer origem).
 - Métricas do cliente (total_orders, total_spent, ticket médio) são recalculadas por triggers internos.
 
 ### 6.5 Expiração/Validade de Pagamento
@@ -179,7 +186,7 @@ Contratos definem a interface entre módulos: o que cada módulo fornece, o que 
 - Criação do pedido (`pending`) → **reserva de estoque (soft lock).**
 - Pagamento aprovado (`approved`) → **baixa definitiva do estoque.**
 - Falha, expiração ou cancelamento do pagamento → **liberação automática do estoque reservado.**
-- Estoque insuficiente não bloqueia criação do pedido, mas gera alerta.
+- Estoque insuficiente: **comportamento padrão é alerta** (não bloqueia criação do pedido). Bloqueio hard é **configurável pelo lojista** nas configurações da loja.
 
 ### 7.2 Pedido ↔ Fiscal
 - Pedido aprovado solicita emissão de NF-e ao provedor fiscal.
@@ -254,7 +261,7 @@ O sistema possui **dois fluxos de pagamento distintos e isolados**:
 | Marketing | Meta Ads, Google Ads, TikTok | Atribuição complementar. Respeitar janelas das plataformas. |
 | Comunicação | WhatsApp, SMTP | Canal de entrega. Falha não bloqueia operação. |
 
-### 8.2 Regras Universais de Integração
+### 8.4 Regras Universais de Integração
 - Credenciais são tenant-scoped e armazenadas de forma segura.
 - Falha em integração externa nunca deve derrubar operação core.
 - Toda integração deve ter: retry com backoff, log de falha, alerta ao admin.
