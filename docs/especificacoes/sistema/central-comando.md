@@ -268,9 +268,122 @@ Hooks:
 
 ---
 
-## 3. Aba Agenda — Calendário de Lembretes
+## 3. Aba Agenda — Agente de IA da Agenda
 
-### Estrutura
+### 3.1 Identidade e Papel
+
+A **Agenda** é o **terceiro agente de IA** do sistema (junto com o Auxiliar de Comando e o Gestor de Tráfego IA). Seu papel principal é:
+
+- **Comunicar-se exclusivamente via WhatsApp** com o administrador da loja
+- **Agendar tarefas e disparar lembretes** conforme solicitações do usuário
+- **Delegar tarefas ao Auxiliar de Comando** e retornar os resultados ao usuário via WhatsApp
+- **Organizar a agenda** do usuário conforme comandos em linguagem natural
+
+> ⚠️ A Agenda **NÃO possui chat no sistema**. O "chat" dela é a conexão WhatsApp entre o número configurado e o WhatsApp do administrador.
+
+### 3.2 Fluxo Principal: Agenda ↔ Auxiliar de Comando
+
+```
+Usuário (WhatsApp)
+  │
+  ▼
+Agente Agenda (recebe mensagem via webhook WhatsApp)
+  │
+  ├─ Comando de lembrete → Cria/organiza tarefa internamente
+  │
+  └─ Comando de execução no sistema →
+       │
+       ▼
+     Auxiliar de Comando (recebe solicitação da Agenda)
+       │
+       ▼
+     Executa a tarefa (somente ações que o usuário poderia fazer manualmente)
+       │
+       ▼
+     Retorna feedback para a Agenda
+       │
+       ▼
+     Agente Agenda envia resultado via WhatsApp ao usuário
+       │
+       ▼
+     Usuário confirma ou solicita ajuste (via WhatsApp)
+```
+
+**Regras do fluxo inter-agentes:**
+
+| Regra | Descrição |
+|-------|-----------|
+| **Escopo do Auxiliar** | O Auxiliar de Comando só executa ações que o usuário conseguiria fazer manualmente na interface. Nunca altera configurações internas do sistema. |
+| **Confirmação** | O usuário sempre recebe um resumo do que será feito e confirma via WhatsApp antes da execução |
+| **Feedback** | Após execução, o resultado é sempre retornado ao usuário via WhatsApp |
+| **Erro** | Se a execução falhar, o erro é traduzido em linguagem de negócio e enviado ao usuário |
+
+### 3.3 Fluxo de Lembretes
+
+```
+Origem do lembrete:
+  ├─ Via WhatsApp: Usuário envia comando → Agenda interpreta → cria tarefa + lembretes
+  └─ Via UI: Usuário cria manualmente no calendário da aba Agenda
+
+Disparo:
+  1. Cron job verifica agenda_reminders com remind_at ≤ now() e status = 'pending'
+  2. Edge function agenda-dispatch-reminders processa os lembretes
+  3. Envia via meta-whatsapp-send para o número do administrador
+  4. Atualiza status do lembrete (sent/failed)
+```
+
+**Tipos de agendamento suportados:**
+
+| Comando do Usuário (exemplo) | Interpretação |
+|------------------------------|---------------|
+| "Me lembre dia 15 às 10h" | Cria tarefa em 15/mês às 10:00 |
+| "Avise 2 horas antes" | reminder_offset = 120 minutos |
+| "Todo dia às 9h" | Tarefa recorrente diária |
+| "Semana que vem, segunda" | Calcula data da próxima segunda |
+
+### 3.4 Conexão WhatsApp do Administrador
+
+O único setup necessário é o administrador **conectar o número de WhatsApp** pelo qual deseja se comunicar com a IA da Agenda.
+
+| Aspecto | Detalhe |
+|---------|---------|
+| **Onde configura** | Aba Agenda → Configuração de número (ou Integrações → WhatsApp) |
+| **O que armazena** | Número do administrador vinculado ao tenant |
+| **Direção** | A IA envia mensagens para esse número E recebe mensagens desse número |
+| **Webhook** | Mensagens recebidas do administrador são roteadas para o agente Agenda |
+| **Separação** | Este número é o canal de comunicação **exclusivo** entre o admin e a IA da Agenda. Não se confunde com o número WABA usado para atendimento ao cliente. |
+
+### 3.5 Arquitetura Técnica (Visão Geral)
+
+```
+WhatsApp Cloud API (Meta)
+  │
+  ├─ Webhook de entrada (mensagens do admin)
+  │    └─ Edge Function: agenda-whatsapp-webhook
+  │         ├─ Identifica tenant pelo número
+  │         ├─ Roteia para o agente Agenda (IA)
+  │         ├─ Agente interpreta comando (lembrete vs. execução)
+  │         └─ Se execução → chama pipeline do Auxiliar de Comando
+  │
+  └─ Envio de saída (mensagens da IA para o admin)
+       └─ Edge Function: meta-whatsapp-send
+            └─ Usa template aprovado ou mensagem dentro da janela de 24h
+```
+
+**Edge Functions envolvidas:**
+
+| Edge Function | Papel |
+|--------------|-------|
+| `agenda-whatsapp-webhook` | Recebe mensagens do admin via webhook Meta (a criar) |
+| `agenda-dispatch-reminders` | Cron: dispara lembretes pendentes |
+| `meta-whatsapp-send` | Envia mensagens WhatsApp via Cloud API |
+| `command-assistant` | Pipeline do Auxiliar de Comando (chamado pela Agenda quando necessário) |
+
+### 3.6 Calendário Visual (UI)
+
+A aba Agenda no sistema exibe um **calendário visual** para que o usuário também possa consultar e gerenciar tarefas pela interface (além do WhatsApp).
+
+#### Estrutura
 
 ```
 AgendaContent
@@ -282,7 +395,7 @@ AgendaContent
        └─ CreateTaskDialog (criação de tarefa)
 ```
 
-### Tabelas do Banco
+### 3.7 Tabelas do Banco
 
 #### agenda_tasks
 
@@ -314,7 +427,7 @@ AgendaContent
 | `sent_at` | TIMESTAMPTZ | Quando foi enviado |
 | `last_error` | TEXT | Último erro (se falhou) |
 
-### Tipos TypeScript
+### 3.8 Tipos TypeScript
 
 ```typescript
 type TaskStatus = 'pending' | 'completed' | 'cancelled';
@@ -337,9 +450,7 @@ interface CreateTaskInput {
 }
 ```
 
-### Hook: `useAgendaTasks`
-
-Operações disponíveis:
+### 3.9 Hook: `useAgendaTasks`
 
 | Operação | Método | Descrição |
 |----------|--------|-----------|
@@ -350,7 +461,7 @@ Operações disponíveis:
 | `deleteTask` | Mutation | Exclui tarefa e lembretes associados |
 | `getTaskReminders` | Helper | Filtra lembretes por task_id |
 
-### Calendário Visual
+### 3.10 Calendário Visual — Detalhes
 
 **Componente:** `AgendaCalendar`
 
@@ -369,7 +480,7 @@ Operações disponíveis:
 - Click em dia vazio → abre `CreateTaskDialog`
 - Stats no header: pendentes e concluídas do mês
 
-### Dialog de Tarefas do Dia (`DayTasksDialog`)
+### 3.11 Dialog de Tarefas do Dia (`DayTasksDialog`)
 
 - Lista todas as tarefas do dia selecionado
 - Para cada tarefa: título, descrição, horário, status badge, indicador de recorrência
@@ -377,7 +488,7 @@ Operações disponíveis:
 - Seção de lembretes por tarefa: status (pendente/enviado/falhou), horário
 - Botão "Adicionar Lembrete" no final
 
-### Dialog de Criação (`CreateTaskDialog`)
+### 3.12 Dialog de Criação (`CreateTaskDialog`)
 
 Campos:
 - **Título** (obrigatório)
@@ -389,6 +500,17 @@ Campos:
   - Padrão: 1 lembrete de 1 dia antes
   - Unidades: minutos, horas, dias
   - Preview: "Você será notificado em: DD/MM/YYYY às HH:mm"
+
+### 3.13 Pendências Técnicas (a implementar)
+
+| Item | Status | Descrição |
+|------|--------|-----------|
+| `agenda-whatsapp-webhook` | 🔴 A criar | Edge function para receber mensagens do admin e rotear ao agente Agenda |
+| Agente IA da Agenda | 🔴 A criar | Motor de IA que interpreta comandos do admin (lembretes, execuções) |
+| Integração Agenda ↔ Auxiliar | 🔴 A criar | Canal inter-agentes para delegação de tarefas |
+| Cron `agenda-dispatch-reminders` | 🟡 Parcial | Edge function existe, mas cron não configurado |
+| Tela de conexão WhatsApp do admin | 🔴 A criar | UI para vincular o número do administrador |
+| Sincronização de status órfãos | 🟡 Pendente | Lembretes `pending` em tarefas `completed` precisam ser marcados como `skipped` |
 
 ---
 
