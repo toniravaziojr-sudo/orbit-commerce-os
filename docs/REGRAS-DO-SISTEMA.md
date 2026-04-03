@@ -225,11 +225,29 @@ Contratos definem a interface entre módulos: o que cada módulo fornece, o que 
 
 ## 8. INTEGRAÇÕES EXTERNAS
 
-### 8.1 Classificação
+### 8.1 Separação Obrigatória: Billing SaaS vs Pagamentos da Loja
+
+O sistema possui **dois fluxos de pagamento distintos e isolados**:
+
+| Fluxo | Finalidade | Exemplo de Provedor |
+|-------|-----------|---------------------|
+| **Billing da Plataforma** | Cobrança da assinatura SaaS do lojista | Mercado Pago (assinaturas) |
+| **Pagamentos da Loja** | Cobranças do checkout dos clientes finais do tenant | Pagar.me, Mercado Pago, PagBank |
+
+- Os dois fluxos **nunca se misturam** operacionalmente, mesmo que usem o mesmo provedor.
+- Um provedor pode existir simultaneamente nos dois fluxos sem conflito.
+
+### 8.2 Multi-Gateway por Tenant
+- O sistema suporta **múltiplos gateways ativos simultaneamente** por tenant.
+- O lojista pode definir qual provedor será usado para cada **método de pagamento** (ex: Pagar.me para cartão, Mercado Pago para Pix).
+- O sistema prioriza integrações com suporte a **checkout transparente** e reconciliação via webhook.
+
+### 8.3 Classificação de Integrações
 
 | Tipo | Exemplos | Regra |
 |------|----------|-------|
-| Pagamento | Mercado Pago, Stripe, PIX | Gateway é fonte de verdade para pagamento. Core reconcilia. |
+| **Gateway de Pagamento** | Pagar.me, Mercado Pago, PagBank, Stripe | Provedores de infraestrutura. Gateway é fonte de verdade para status de pagamento. Core reconcilia. |
+| **Método de Pagamento** | Pix, Boleto, Cartão de Crédito | Formas de pagamento processadas através de um gateway. Não são gateways em si. |
 | Fiscal | Provedor NF-e | Emissão assíncrona com retentativa. Falha não bloqueia pedido. |
 | Logística | Correios, Melhor Envio | Tracking externo. Status de negócio é do core. |
 | Marketplace | Shopee, Mercado Livre | Sincronização bidirecional. Core é primário. |
