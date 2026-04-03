@@ -438,7 +438,17 @@ Admin salva → onSuccess → busca slug da categoria → cachePurge.category()
 
 ---
 
-## 17. Pendências
+## 17. Miniaturas de Categorias
+
+| Regra | Descrição |
+|-------|-----------|
+| **Cadastro de categoria** | **NÃO** possui campo de miniatura/thumbnail. Apenas nome, slug, descrição e banners. |
+| **Miniaturas nos blocos** | Imagens de miniatura são configuradas **diretamente nos blocos do Builder** (ex: FeaturedCategoriesBlock, CategoryListBlock) |
+| **Flexibilidade** | Cada bloco pode ter dimensões e imagens diferentes para a mesma categoria |
+
+---
+
+## 18. Pendências
 
 - [ ] Exportação de categorias (CSV)
 - [ ] Imagem de capa além do banner
