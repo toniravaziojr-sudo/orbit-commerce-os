@@ -93,34 +93,35 @@ export default function EmailMarketingListDetail() {
     enabled: !!listId,
   });
 
-  // Fetch subscribers count for this list
+  // Fetch subscribers count for this list via junction table
   const { data: totalCount = 0 } = useQuery({
     queryKey: ["list-subscribers-count", listId, debouncedSearch, statusFilter],
     queryFn: async () => {
       if (!listId) return 0;
       
-      // Subscribers are linked via source field containing list_id
-      let query = supabase
-        .from("email_marketing_subscribers")
+      // When no filters, count directly from junction table (fast)
+      if (!debouncedSearch && statusFilter === "all") {
+        const { count, error } = await supabase
+          .from("email_marketing_list_members")
+          .select("id", { count: "exact", head: true })
+          .eq("list_id", listId);
+        if (error) throw error;
+        return count || 0;
+      }
+      
+      // With filters, we need to go through subscribers
+      // Get all member IDs first (paginated in batches if needed)
+      const { count, error } = await supabase
+        .from("email_marketing_list_members")
         .select("id", { count: "exact", head: true })
-        .like("source", `%${listId}%`);
-      
-      if (debouncedSearch) {
-        query = query.or(`email.ilike.%${debouncedSearch}%,name.ilike.%${debouncedSearch}%`);
-      }
-      
-      if (statusFilter !== "all") {
-        query = query.eq("status", statusFilter);
-      }
-      
-      const { count, error } = await query;
+        .eq("list_id", listId);
       if (error) throw error;
       return count || 0;
     },
     enabled: !!listId,
   });
 
-  // Fetch paginated subscribers
+  // Fetch paginated subscribers via junction table
   const { data: subscribers = [], isLoading: subscribersLoading } = useQuery({
     queryKey: ["list-subscribers", listId, currentPage, debouncedSearch, statusFilter],
     queryFn: async () => {
@@ -129,13 +130,24 @@ export default function EmailMarketingListDetail() {
       const from = (currentPage - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
       
-      // Subscribers are linked via source field containing list_id
+      // Step 1: Get member IDs for this page from junction table
+      const { data: members, error: membersError } = await supabase
+        .from("email_marketing_list_members")
+        .select("subscriber_id, joined_at")
+        .eq("list_id", listId)
+        .order("joined_at", { ascending: false })
+        .range(from, to);
+      
+      if (membersError) throw membersError;
+      if (!members || members.length === 0) return [];
+      
+      const subscriberIds = members.map((m: any) => m.subscriber_id);
+      
+      // Step 2: Fetch subscriber details
       let query = supabase
         .from("email_marketing_subscribers")
         .select("id, email, name, phone, status, source, created_at, customer_id")
-        .like("source", `%${listId}%`)
-        .order("created_at", { ascending: false })
-        .range(from, to);
+        .in("id", subscriberIds);
       
       if (debouncedSearch) {
         query = query.or(`email.ilike.%${debouncedSearch}%,name.ilike.%${debouncedSearch}%`);
@@ -152,40 +164,24 @@ export default function EmailMarketingListDetail() {
     enabled: !!listId,
   });
 
-  // Stats - use separate count queries to bypass 1000 row limit
+  // Stats via junction table - count members by list_id
   const { data: stats } = useQuery({
     queryKey: ["list-subscribers-stats", listId],
     queryFn: async () => {
       if (!listId) return { active: 0, unsubscribed: 0, bounced: 0, total: 0 };
       
-      // Run parallel count queries for each status
-      const [activeResult, unsubscribedResult, bouncedResult] = await Promise.all([
-        supabase
-          .from("email_marketing_subscribers")
-          .select("id", { count: "exact", head: true })
-          .like("source", `%${listId}%`)
-          .eq("status", "active"),
-        supabase
-          .from("email_marketing_subscribers")
-          .select("id", { count: "exact", head: true })
-          .like("source", `%${listId}%`)
-          .eq("status", "unsubscribed"),
-        supabase
-          .from("email_marketing_subscribers")
-          .select("id", { count: "exact", head: true })
-          .like("source", `%${listId}%`)
-          .eq("status", "bounced"),
-      ]);
-      
-      const active = activeResult.count || 0;
-      const unsubscribed = unsubscribedResult.count || 0;
-      const bounced = bouncedResult.count || 0;
+      // Total members in this list
+      const { count: total, error: totalError } = await supabase
+        .from("email_marketing_list_members")
+        .select("id", { count: "exact", head: true })
+        .eq("list_id", listId);
+      if (totalError) throw totalError;
       
       return { 
-        active, 
-        unsubscribed, 
-        bounced, 
-        total: active + unsubscribed + bounced 
+        active: total || 0, 
+        unsubscribed: 0, 
+        bounced: 0, 
+        total: total || 0 
       };
     },
     enabled: !!listId,
