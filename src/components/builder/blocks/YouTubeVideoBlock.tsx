@@ -47,6 +47,7 @@ const aspectClasses: Record<AspectRatioType, string> = {
   '16:9': 'aspect-video',
   '4:3': 'aspect-[4/3]',
   '1:1': 'aspect-square',
+  '9:16': 'aspect-[9/16]',
 };
 
 export function YouTubeVideoBlock({
