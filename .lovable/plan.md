@@ -1,160 +1,239 @@
 
 
-# Relatório Factual — Estado Atual dos Triggers, Funções e Nomes Canônicos
+# Proposta Consolidada — Reestruturação dos Fluxos de Checkout, Pagamento e Clientes
+
+## Resumo Executivo
+
+Três sistemas interconectados precisam ser redesenhados para eliminar pedidos fantasma, clientes fantasma e garantir verificação ativa de pagamento. A proposta consolida os fluxos anteriormente discutidos (estado interno + abandono) com os dois novos sistemas solicitados (verificação de pagamento e identificação de clientes).
 
 ---
 
-## 1. DEFINIÇÕES SQL ATUAIS
+## COMO FUNCIONA HOJE
 
-### 1.1 `trg_auto_tag_cliente_on_payment` → `auto_tag_cliente_on_payment_approved()`
-
-**Status: ATIVO (enabled = O)**
-
-**Trigger:**
 ```text
-AFTER INSERT OR UPDATE OF payment_status ON public.orders
-FOR EACH ROW EXECUTE FUNCTION auto_tag_cliente_on_payment_approved()
+1. Cliente preenche dados pessoais
+   → checkout_session criada (active)
+
+2. Cliente clica "Finalizar Compra"
+   → Pedido REAL criado imediatamente (consome numeração #192, #193...)
+   → Cliente criado/atualizado no módulo Clientes imediatamente
+   → Chama operadora de pagamento
+      → Se responde: grava payment_gateway_id → pedido visível
+      → Se NÃO responde: pedido fantasma → cron cancela em 30min
+   → Cliente "fantasma" permanece no sistema com 0 pedidos
+
+3. Verificação de pagamento
+   → Apenas via webhook (passivo) + cron de expiração (30min/1h/4dias)
+   → Sem verificação ativa junto à operadora
+   → Sem monitoramento de chargebacks
+
+4. Identificação de clientes novos
+   → Cliente criado no momento do pedido (antes do pagamento)
+   → Trigger incrementa total_orders em todo INSERT
 ```
 
-**Função (código real do banco):**
-```sql
-IF NEW.payment_status = 'approved' AND (OLD.payment_status IS NULL OR OLD.payment_status <> 'approved') THEN
-  v_customer_id := NEW.customer_id;
-  IF v_customer_id IS NULL THEN RETURN NEW; END IF;
-
-  -- Busca ou cria tag "Cliente"
-  SELECT id INTO v_cliente_tag_id FROM customer_tags
-    WHERE tenant_id = NEW.tenant_id AND name = 'Cliente' LIMIT 1;
-
-  IF v_cliente_tag_id IS NULL THEN
-    INSERT INTO customer_tags (tenant_id, name, color, description)
-    VALUES (NEW.tenant_id, 'Cliente', '#10B981', 'Clientes com pedido aprovado')
-    RETURNING id INTO v_cliente_tag_id;
-  END IF;
-
-  -- Adiciona tag sem deletar as existentes
-  INSERT INTO customer_tag_assignments (customer_id, tag_id)
-  VALUES (v_customer_id, v_cliente_tag_id)
-  ON CONFLICT (customer_id, tag_id) DO NOTHING;
-END IF;
-```
-
-**Conclusão factual:**
-- Checa `'approved'` (NÃO `'paid'`)
-- NÃO contém lógica destrutiva (usa `ON CONFLICT DO NOTHING`, sem DELETE)
-- Está ativo e funcional
-- **O diagnóstico do plano anterior estava errado.** A afirmação de que checava `'paid'` e continha DELETE era incorreta.
+**Problemas:**
+- Numeração consumida por tentativas que nunca chegaram à operadora
+- Clientes como "Eliseu" entram no sistema com 0 pedidos pagos
+- Sem verificação proativa de status junto ao gateway
+- Sem detecção de chargebacks/estornos
+- Ghost orders precisam de filtro em todas as queries
 
 ---
 
-### 1.2 `trg_recalc_customer_metrics_on_order` → `trg_recalc_customer_on_order()`
+## COMO VAI FUNCIONAR
 
-**Status: ATIVO (enabled = O)**
+### Fase 1 — Estado Interno e Abandono
 
-**Trigger:**
 ```text
-AFTER INSERT OR UPDATE ON public.orders
-FOR EACH ROW EXECUTE FUNCTION trg_recalc_customer_on_order()
+Step 1 (dados pessoais)
+  → checkout_session criada (status: active)
+  → dados pessoais + itens armazenados na checkout_session
+  → NENHUM pedido criado, NENHUM cliente criado
+
+Clique em "Finalizar Compra"
+  → Sistema chama operadora de pagamento
+  → Operadora responde (qualquer status: aprovado, recusado, pendente)
+     → SÓ AGORA cria pedido real com numeração da loja
+     → checkout_session muda para "converted"
+  → Operadora NÃO responde (timeout, erro, tab fechada)
+     → NENHUM pedido criado
+     → checkout_session permanece "active"
+
+Verificação a cada minuto (cron):
+  → checkout_session ativa há mais de 30min sem conversão
+     → status muda para "abandoned"
+     → cliente adicionado à lista "Cliente Potencial" no email marketing
+     → estado interno muda para "inactive"
+
+Checkout abandonado que converte depois (mesmo checkout):
+  → status muda para "reverted" (revertido)
+  → pedido real criado, estado interno removido
+
+Checkout abandonado cujo cliente converte em OUTRO checkout:
+  → status muda para "recovered" (recuperado)
 ```
 
-**Função (do banco — já listada no schema):**
-```sql
-IF NEW.payment_status = 'approved' AND (OLD IS NULL OR OLD.payment_status IS DISTINCT FROM 'approved') THEN
-  PERFORM public.recalc_customer_metrics(NEW.tenant_id, NEW.customer_email);
+### Fase 2 — Verificação de Pagamento (Sistema A)
 
-  PERFORM public.sync_subscriber_to_customer_with_tag(
-    NEW.tenant_id, NEW.customer_email, NEW.customer_name, NEW.customer_phone,
-    NULL, 'order',
-    (SELECT l.id FROM email_marketing_lists l
-     JOIN customer_tags t ON l.tag_id = t.id
-     WHERE l.tenant_id = NEW.tenant_id AND t.name = 'Cliente' LIMIT 1)
-  );
-END IF;
-```
+**Fluxo 1 — Verificação Inicial (pós-pedido até status final)**
 
-**Problemas identificados:**
-- Chama `sync_subscriber_to_customer_with_tag` que **cria customer** se não existir — isso é redundante com o que o checkout já faz, e também é o caminho que faz lead virar customer (violação do contrato).
-- A atribuição da tag depende de encontrar uma lista com tag "Cliente". Se a lista não existir, `p_list_id` é NULL e a tag NÃO é atribuída. Isso viola o contrato de desacoplamento.
-- Porém, `trg_auto_tag_cliente_on_payment` (1.1) já cuida da tag de forma independente. Portanto há **redundância**: a tag é atribuída por dois caminhos.
-
----
-
-### 1.3 `trigger_update_customer_first_order` → `update_customer_first_order()`
-
-**Status: ATIVO (enabled = O)**
-
-**Trigger:**
 ```text
-AFTER INSERT ON public.orders
-FOR EACH ROW WHEN (new.customer_id IS NOT NULL)
-EXECUTE FUNCTION update_customer_first_order()
+Pedido criado (qualquer forma de pagamento)
+  → Verificação ativa do status junto à operadora:
+
+  Escala progressiva:
+  ┌────────────────────────────────────────────────┐
+  │ 0-60 min      → a cada 1 minuto               │
+  │ 1h-48h        → a cada 1 hora                  │
+  │ 48h-5 dias    → a cada 12 horas                │
+  │ 5 dias+       → a cada 24 horas                │
+  │ Até: prazo máximo da forma de pagamento         │
+  │   (consultado automaticamente na operadora)     │
+  └────────────────────────────────────────────────┘
+
+  Status finais aceitos:
+  → Aprovado     → payment_status = approved
+  → Expirado     → payment_status = cancelled (+ status = payment_expired)
+  → Cancelado    → payment_status = cancelled
+  → Recusado     → payment_status = declined
+
+  Se nenhum status final ao fim do prazo máximo:
+  → payment_status = cancelled (+ status = payment_expired)
 ```
 
-**Função (do banco):**
-```sql
-UPDATE public.customers SET
-  first_order_at = COALESCE(first_order_at, NEW.created_at),
-  last_order_at = NEW.created_at,
-  total_orders = COALESCE(total_orders, 0) + 1
-WHERE id = NEW.customer_id;
+**Fluxo 2 — Monitoramento pós-venda (chargebacks)**
+
+```text
+Pedido com pagamento aprovado
+  → Verificação diária do status por 60 dias
+
+  Se chargeback detectado:
+  → payment_status = chargeback_requested (NOVO)
+  → Acompanhamento diário por mais 15 dias:
+     → Chargeback recuperado → payment_status volta para approved
+     → Chargeback perdido   → payment_status = refunded
 ```
 
-**Problema confirmado:** Incrementa `total_orders` em TODO INSERT (independente de status de pagamento). Conflita com `recalc_customer_metrics` que recalcula apenas pedidos aprovados com total > 0.
+**Novos status de pagamento necessários:**
+
+| Status atual | Novos status |
+|---|---|
+| `awaiting_payment` | Mantido |
+| `paid` / `approved` | Mantido |
+| `declined` | Mantido |
+| `cancelled` | Mantido |
+| `refunded` | Mantido |
+| — | `chargeback_requested` (NOVO) |
+
+**Transições de pagamento atualizadas:**
+
+| De | Para | Válido |
+|----|------|--------|
+| `awaiting_payment` | `paid`, `declined`, `cancelled` | Sim |
+| `paid` | `refunded`, `chargeback_requested` | Sim |
+| `chargeback_requested` | `paid` (recuperado), `refunded` (perdido) | Sim |
+| `declined` | `awaiting_payment`, `cancelled` | Sim |
+| `cancelled` | — | Final |
+| `refunded` | — | Final |
+
+**Observação sobre viabilidade tecnica:** Os intervalos que você definiu (1 min por 1h, depois 1h por 48h, etc.) são tecnicamente viáveis. O sistema usará um cron de 1 minuto que consulta uma tabela de controle (`payment_verification_schedule`) para decidir quais pedidos verificar naquele momento, com base no tempo desde a criação e no último check. A consulta do prazo máximo de pagamento será feita via API da operadora quando possível, com fallbacks conservadores (30 min para PIX, 3 dias para boleto, imediato para cartão).
+
+### Fase 3 — Identificação de Clientes (Sistema B)
+
+```text
+Verificação a cada minuto no cadastro de pedidos:
+  → Identifica pedido novo com pagamento aprovado
+  → Busca cliente por email no módulo Clientes
+     → Se NÃO existe:
+        → Cria cadastro do cliente
+        → Marca pedido com "1ª Venda"
+        → Atribui tag "Cliente"
+        → Adiciona na lista "Clientes" do email marketing
+        → Recalcula métricas
+     → Se JÁ existe:
+        → Apenas recalcula métricas e atualiza dados
+```
+
+**Observação técnica:** A identificação de clientes novos será implementada como uma **combinação de trigger + cron de reconciliação**, seguindo a arquitetura padrão do sistema. O trigger dispara imediatamente quando `payment_status` muda para `approved`, garantindo resposta instantânea. O cron de 1 minuto serve apenas como fallback para casos onde o trigger falhar. Isso evita sobrecarga e garante confiabilidade.
 
 ---
 
-### 1.4 `sync_subscriber_to_customer_with_tag()`
+## MUDANÇAS NOS STATUS DO MÓDULO CHECKOUTS ABANDONADOS
 
-**Código completo já no schema acima. Resumo do comportamento:**
-- Busca subscriber por email → se não existe, **cria**
-- Busca customer por email → se não existe, **cria** ← **violação do contrato** (lead não deve virar customer)
-- Se `p_list_id` informado → adiciona em list_members e atribui tag da lista ao customer
-
----
-
-## 2. NOMES CANÔNICOS CONFIRMADOS
-
-| Conceito | Nome no banco | ID (tenant respeiteohomem) |
-|---|---|---|
-| Tag sistêmica | `Cliente` (singular) | `72201c3d-74cb-442e-a761-fab192fa3b36` |
-| Lista de email correspondente | `Clientes` (plural) | `46154bee-53d5-4472-bd8f-5da2a8c1d02c` |
-| Vínculo lista→tag | `tag_id = 72201c3d...` | Confirmado |
-
-**Chave estável interna:** o sistema busca por `name = 'Cliente'` na tabela `customer_tags`. A lista busca pelo `tag_id` vinculado.
+| Status | Antes | Depois |
+|--------|-------|--------|
+| `active` | Checkout em andamento | Checkout em andamento (estado interno ativo) |
+| `abandoned` | Inatividade > 30min | Inatividade > 30min sem pedido real (estado interno → inativo) |
+| `converted` | Pedido finalizado | Checkout converteu em pedido real diretamente |
+| `recovered` | Abandonado que converteu | Cliente converteu em **outro** checkout |
+| `reverted` | **Não existia** | **NOVO** — Mesmo checkout abandonado foi concluído e virou pedido real |
 
 ---
 
-## 3. CUSTOMER SEM EMAIL
+## NOVA LISTA DE EMAIL MARKETING: "CLIENTE POTENCIAL"
 
-**Estado atual:** A função `sync_subscriber_to_customer_with_tag` exige email. O trigger `trg_auto_tag_cliente_on_payment` usa `customer_id` (não email) — funciona para customer sem email, atribui tag normalmente. O trigger `trg_recalc_customer_on_order` usa `customer_email` — se vazio, `recalc_customer_metrics` não encontra o customer.
-
-**Comportamento correto conforme contrato:**
-- Customer sem email: continua customer válido ✅ (já funciona via trigger 1.1)
-- Não cria subscriber/list_member ✅ (email obrigatório para subscriber)
-- Auditoria de "skipped": **não existe hoje** — precisa ser adicionada
-
----
-
-## 4. CONFIRMAÇÃO DE CORREÇÕES NECESSÁRIAS
-
-Com base nos fatos acima, confirmo:
-
-| Requisito do contrato | Estado atual | Correção necessária |
-|---|---|---|
-| Lead não cria customer automaticamente | ❌ `sync_subscriber_to_customer_with_tag` cria customer | Criar função separada `upsert_subscriber_only` para formulários/leads |
-| Pedido aprovado cria/qualifica customer sem depender de lista | ✅ PARCIAL — `trg_auto_tag_cliente_on_payment` atribui tag sem depender de lista, MAS `trg_recalc_customer_on_order` tenta atribuir via lista também (redundância) | Remover atribuição de tag de dentro de `trg_recalc_customer_on_order` (manter só métricas + subscriber) |
-| Importação garante tag sistêmica | ❌ Depende de `sync_subscriber_to_customer_with_tag` que depende de lista | Importador deve atribuir tag diretamente |
-| Criação manual garante tag sistêmica | ❌ Não atribui tag | Adicionar atribuição na criação manual |
-| `trigger_update_customer_first_order` | ❌ Inflaciona métricas | Remover (redundante com `recalc_customer_metrics`) |
+| Item | Valor |
+|------|-------|
+| Nome | `Cliente Potencial` |
+| Tipo | Lista padrão do sistema |
+| Critério de entrada | Checkout abandonado (status = abandoned) |
+| Tag vinculada | `Cliente Potencial` (nova tag sistêmica) |
+| Cor da tag | `#f97316` (laranja) |
 
 ---
 
-## 5. RETIFICAÇÃO DO DIAGNÓSTICO ANTERIOR
+## LIFECYCLE ATUALIZADO
 
-O plano anterior afirmou que `auto_tag_cliente_on_payment_approved()`:
-- Checava `'paid'` → **FALSO.** Checa `'approved'`.
-- Continha `DELETE FROM customer_tag_assignments` → **FALSO.** Usa `ON CONFLICT DO NOTHING`.
-- Nunca disparava → **FALSO.** Está ativo e funcional.
+```text
+Lead → Subscriber → Cliente Potencial → Customer
+                         |                    |
+                   checkout abandonado    pedido real com pagamento aprovado
+```
 
-Essa função é, na verdade, a **única que já atende ao contrato de desacoplamento** — atribui a tag "Cliente" ao customer diretamente, sem depender de lista de email marketing.
+---
+
+## DOCUMENTOS IMPACTADOS
+
+### 1. `docs/especificacoes/ecommerce/pedidos.md`
+
+| Seção | Mudança |
+|-------|---------|
+| 3.1.1 (Ghost Orders) | **Removida.** Ghost orders deixam de existir. Pedidos só são criados após retorno da operadora |
+| 3.2 (Status de Pagamento) | Adicionar `chargeback_requested` |
+| 4.2 (Transições de Pagamento) | Adicionar transições de/para `chargeback_requested` |
+| 5.1 (Criação via Checkout) | Reescrever: pedido só criado após resposta do gateway |
+| 7.1 (Expiração Automática) | Substituir pela verificação progressiva junto à operadora |
+| **Nova seção 7.2** | Sistema de verificação de pagamento (escala progressiva + chargebacks) |
+| 8.1 (Numeração) | Nota: numeração só consumida para pedidos reais |
+| 8.3 (Estoque) | Ajustar: reserva só ocorre quando pedido real é criado (após gateway) |
+
+### 2. `docs/especificacoes/crm/checkouts-abandonados.md`
+
+| Seção | Mudança |
+|-------|---------|
+| Status da Sessão | Adicionar `reverted`, redefinir `recovered` |
+| Fluxo de Abandono | Reescrever com estado interno (ativo/inativo) |
+| Ghost Orders | **Seção removida** (conceito eliminado) |
+| **Nova seção** | Integração com lista "Cliente Potencial" |
+| **Nova seção** | Regra de conversão tardia (revertido) |
+| Regras de Negócio | Adicionar regra de estado interno e timeout |
+
+### 3. `docs/especificacoes/ecommerce/clientes.md`
+
+| Seção | Mudança |
+|-------|---------|
+| 4.2 (Criação de Cliente) | Cliente só criado após pagamento aprovado (não no clique de "Finalizar") |
+| 4.3 (Contrato Lead ≠ Customer) | Item 2 atualizado: Customer criado por pedido **aprovado** (não apenas "criado") |
+| **Nova seção** | Conceito de "Cliente Potencial" no lifecycle |
+
+---
+
+## O QUE NÃO MUDA
+
+- Lógica de `is_first_sale` (continua baseada em primeiro pedido aprovado por email)
+- Triggers de tag "Cliente" (continuam disparando em pedido aprovado)
+- Heartbeat do checkout (continua funcionando igual)
+- Lógica de retry de pagamento (continua para pedidos reais)
+- Webhooks das operadoras (continuam como fonte primária; a verificação ativa é complementar)
 
