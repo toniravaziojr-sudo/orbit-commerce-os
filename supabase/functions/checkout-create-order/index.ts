@@ -368,10 +368,9 @@ serve(async (req) => {
     const orderNumber = orderNumberData || `PED-${Date.now()}`;
     console.log('[checkout-create-order] Order number:', orderNumber);
 
-    // 2. Upsert customer
+    // 2. Link to existing customer if found (NO upsert — customer creation happens on payment approval)
     let customerId: string | null = null;
 
-    // Check if customer exists
     const { data: existingCustomer } = await supabase
       .from('customers')
       .select('id')
@@ -381,39 +380,9 @@ serve(async (req) => {
 
     if (existingCustomer) {
       customerId = existingCustomer.id;
-      console.log('[checkout-create-order] Updating existing customer:', customerId);
-      
-      await supabase
-        .from('customers')
-        .update({
-          full_name: payload.customer.name,
-          phone: payload.customer.phone,
-          cpf: payload.customer.cpf,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', customerId);
+      console.log('[checkout-create-order] Linked to existing customer:', customerId);
     } else {
-      console.log('[checkout-create-order] Creating new customer');
-      
-      const { data: newCustomer, error: customerError } = await supabase
-        .from('customers')
-        .insert({
-          tenant_id: payload.tenant_id,
-          email: normalizedEmail,
-          full_name: payload.customer.name,
-          phone: payload.customer.phone,
-          cpf: payload.customer.cpf,
-          status: 'active',
-        })
-        .select('id')
-        .single();
-
-      if (!customerError && newCustomer) {
-        customerId = newCustomer.id;
-        console.log('[checkout-create-order] New customer created:', customerId);
-      } else {
-        console.warn('[checkout-create-order] Could not create customer:', customerError);
-      }
+      console.log('[checkout-create-order] No existing customer for this email — will be created upon payment approval');
     }
 
     // 3. Create order
