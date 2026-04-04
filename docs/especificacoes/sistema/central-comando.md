@@ -626,24 +626,24 @@ Campos:
 
 ### 3.13 Pendências Técnicas e Etapas de Implementação
 
-#### Etapa 1 — Contrato Operacional + Infraestrutura
+#### Etapa 1 — Contrato Operacional + Infraestrutura ✅
 
 | Item | Status | Descrição |
 |------|--------|-----------|
-| Tabela `agenda_authorized_phones` | 🔴 A criar | Substituir array por tabela própria de números autorizados |
-| Tabela `agenda_command_log` | 🔴 A criar | Log operacional com deduplicação e payload de confirmação |
-| Tabela `agenda_chat_history` | 🔴 A criar | Contexto conversacional para a IA |
-| Migração `sent` → `dispatched` | 🔴 A fazer | Renomear status em `agenda_reminders` |
-| Cron `agenda-dispatch-reminders` | 🟡 Parcial | Edge function existe, mas cron (pg_cron + pg_net, 5min) não configurado |
-| Limpeza de estados órfãos | 🟡 Pendente | Lembretes `pending` em tarefas `completed/cancelled` → `skipped` |
-| UI de configuração de número do admin | 🔴 A criar | Seção na aba Agenda para gerenciar números autorizados |
+| Tabela `agenda_authorized_phones` | ✅ Feito | Tabela própria de números autorizados com RLS |
+| Tabela `agenda_command_log` | ✅ Feito | Log operacional com deduplicação e payload de confirmação |
+| Tabela `agenda_chat_history` | ✅ Feito | Contexto conversacional para a IA |
+| Migração `sent` → `dispatched` | ✅ Feito | Renomeado status em `agenda_reminders` |
+| Cron `agenda-dispatch-reminders` | ✅ Feito | pg_cron + pg_net configurados (5min) |
+| Limpeza de estados órfãos | ✅ Feito | Lembretes `pending` em tarefas `completed/cancelled` → `skipped` |
+| UI de configuração de número do admin | ✅ Feito | Seção na aba Agenda para gerenciar números autorizados |
 
-#### Etapa 2 — Canal WhatsApp + Motor IA
+#### Etapa 2 — Canal WhatsApp + Motor IA ✅
 
 | Item | Status | Descrição |
 |------|--------|-----------|
-| Roteamento no `meta-whatsapp-webhook` | 🔴 A fazer | Adicionar ponto de decisão: admin → Agenda, outros → suporte |
-| Edge function `agenda-process-command` | 🔴 A criar | Motor IA (Gemini 2.5 Flash) que interpreta e executa comandos |
+| Roteamento no `meta-whatsapp-webhook` | ✅ Feito | Ponto de decisão: admin → Agenda, outros → suporte |
+| Edge function `agenda-process-command` | ✅ Feito | Motor IA (Gemini 2.5 Flash) com interpretação, confirmação e execução |
 | Templates WhatsApp para lembretes | 🔴 A criar | Templates aprovados pela Meta para lembretes proativos (fora da janela 24h) |
 
 > **Bloqueador:** sem template aprovado pela Meta, lembretes proativos fora da janela de 24h não serão entregues.
