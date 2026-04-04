@@ -66,7 +66,7 @@ export function useMenus() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['menus'] });
       toast({ title: 'Menu criado com sucesso!' });
-      if (currentTenant?.id) cachePurge.menu(currentTenant.id);
+      if (currentTenant?.id) storefrontAutoUpdate(currentTenant.id, 'menu_created', 5000);
     },
     onError: (error: Error) => {
       toast({ title: 'Erro ao criar menu', description: error.message, variant: 'destructive' });
