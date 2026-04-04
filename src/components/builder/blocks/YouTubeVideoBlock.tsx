@@ -8,7 +8,7 @@ import { Play, AlertCircle } from 'lucide-react';
 import { BlockRenderContext } from '@/lib/builder/types';
 
 type WidthPreset = 'sm' | 'md' | 'lg' | 'xl' | 'full';
-type AspectRatioType = '16:9' | '4:3' | '1:1';
+type AspectRatioType = '16:9' | '4:3' | '1:1' | '9:16';
 
 interface YouTubeVideoBlockProps {
   title?: string;
