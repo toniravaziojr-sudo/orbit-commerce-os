@@ -615,6 +615,8 @@ Deno.serve(async (req) => {
           correlation_id: correlationId,
         });
 
+        fireRevalidation(supabase, tenantId, 'product_components_updated');
+
         return new Response(
           JSON.stringify({ success: true, data: { product_id, components_count: components?.length || 0 } }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
