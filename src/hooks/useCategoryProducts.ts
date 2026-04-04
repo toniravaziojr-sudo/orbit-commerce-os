@@ -237,10 +237,7 @@ export function useCategoryProducts(categoryId: string, options: UseCategoryProd
     },
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['category-products', categoryId] });
-      if (currentTenant?.id && categoryId) {
-        const { data: cat } = await supabase.from('categories').select('slug').eq('id', categoryId).single();
-        if (cat?.slug) cachePurge.category(currentTenant.id, cat.slug);
-      }
+      if (currentTenant?.id) catalogAutoUpdate(currentTenant.id, 'category_products_reordered');
     },
     onError: (error: Error) => {
       console.error('Error reordering products:', error);
