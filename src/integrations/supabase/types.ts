@@ -6183,6 +6183,54 @@ export type Database = {
           },
         ]
       }
+      fiscal_draft_queue: {
+        Row: {
+          attempts: number
+          created_at: string
+          error_message: string | null
+          id: string
+          order_id: string
+          processed_at: string | null
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          order_id: string
+          processed_at?: string | null
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          order_id?: string
+          processed_at?: string | null
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_draft_queue_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_draft_queue_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fiscal_inutilizacoes: {
         Row: {
           created_at: string | null
