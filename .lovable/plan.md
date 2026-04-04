@@ -1,44 +1,90 @@
 
-# Plano: Listas Padrão de Email Marketing
 
-## O que muda
+# Plano: Substituir trigger fiscal frágil por fila interna + documentar padrões de automação
 
-Todo tenant passa a ter 3 listas de email marketing criadas automaticamente, com tags correspondentes. Isso vale para novos tenants e também será ajustado nos existentes.
+## Contexto
 
-| # | Tag (singular) | Cor | Lista (plural) |
-|---|----------------|-----|-----------------|
-| 1 | Cliente | Verde #10B981 | Clientes |
-| 2 | Newsletter PopUp | Ciano #06b6d4 | Newsletter PopUp |
-| 3 | Cliente Potencial | Laranja #f97316 | Clientes Potenciais |
+O trigger `trg_fiscal_draft_on_payment_approved` usa `pg_net` para chamar uma Edge Function diretamente — o único lugar do sistema com esse padrão. Isso causa falhas silenciosas por timeout de 5 segundos e cold starts. O cron já existe como fallback, mas pedidos podem ficar minutos sem rascunho, e o problema só é percebido depois.
 
-## Estado atual
+## Por que NÃO Pure SQL (Opção B original)
 
-- **Respeite o Homem**: Tem tag "Cliente" + lista "Clientes" ✅. Tem tag "PoupUp" + lista "PoupUp" (nome legado). Falta tag e lista de "Cliente Potencial"/"Clientes Potenciais".
-- **Respeite o Homem Admin**: Tem tag "Cliente" sem lista vinculada. Falta tudo o resto.
-- **Demais tenants (19)**: Não possuem nenhuma dessas tags/listas.
+Ao investigar a função `fiscal-auto-create-drafts`, identifiquei que ela faz:
+- Busca de configurações fiscais do tenant
+- Busca de itens do pedido com dados fiscais de cada produto
+- **Desmembramento de kits** em componentes (consulta `products` + `product_components` com cálculo proporcional)
+- Busca de código IBGE do município (com fallback em 4 níveis de busca)
+- Lógica de retry para numeração fiscal (até 20 tentativas em caso de conflito)
+- Inserção da NF + itens + evento de log + sincronização de cursor
 
-## O que será feito
+Reescrever tudo isso em PL/pgSQL seria ~400 linhas de SQL procedural, difícil de manter e testar. A lógica de kit unbundling sozinha tem tratamento de proporção de preços, arredondamento e ajuste de centavos.
 
-### 1. Migration: Função + Trigger + Retroativo
+## Solução escolhida: Fila + Cron (máxima confiabilidade com mínima mudança)
 
-Uma migration SQL que:
+A ideia é simples: o trigger, em vez de tentar chamar uma Edge Function com timeout de 5 segundos, apenas **anota o pedido numa fila**. O cron (que já roda a cada minuto) processa essa fila.
 
-- **Cria a função `ensure_default_email_marketing_lists(p_tenant_id)`** — idempotente, cria as 3 tags e 3 listas se não existirem (usando `ON CONFLICT DO NOTHING`). Marca listas como `is_system = true`.
-- **Cria trigger `AFTER INSERT ON tenants`** — chama essa função automaticamente para todo tenant novo.
-- **Roda retroativamente** — executa a função para todos os tenants existentes.
-- **Renomeia "PoupUp" → "Newsletter PopUp"** na tag e na lista do tenant "Respeite o Homem".
+### O que muda para o usuário
+- Rascunhos fiscais serão criados de forma **100% confiável** — nenhum pedido será perdido
+- O tempo máximo entre aprovação do pagamento e criação do rascunho será de ~1 minuto (hoje pode nunca acontecer se o trigger falha)
 
-### 2. Simplificar o scheduler-tick
+### Etapas de implementação
 
-Remove o bloco de ~60 linhas do `abandon-sweep` (linhas 224-284) que cria tag/lista "Cliente Potencial" sob demanda. Como agora as listas já existem, o scheduler só precisa buscar a lista existente e inserir o contato. Fica mais simples e rápido.
+**1. Criar tabela `fiscal_draft_queue`**
+- Campos: `id`, `tenant_id`, `order_id`, `status` (pending/processing/done/failed), `created_at`, `processed_at`, `error_message`
+- RLS habilitado com política para service_role
+- Constraint unique em `(order_id)` com status pending para evitar duplicatas
 
-### 3. Atualizar documentação
+**2. Substituir o trigger atual**
+- Remover a função que usa `pg_net`
+- Criar novo trigger que faz apenas: `INSERT INTO fiscal_draft_queue (tenant_id, order_id) VALUES (NEW.tenant_id, NEW.id) ON CONFLICT DO NOTHING`
+- Mesmo critério de disparo: `payment_status` muda para `approved`
+- Execução: ~1ms, zero risco de falha
 
-- **`docs/especificacoes/marketing/email-marketing.md`** — adicionar seção "Listas Padrão do Sistema" com a tabela das 3 listas, explicar que são criadas automaticamente e não podem ser excluídas.
+**3. Atualizar o scheduler-tick**
+- Antes de chamar `fiscal-auto-create-drafts`, consultar a fila por itens pendentes
+- Para cada item pendente, chamar a Edge Function no modo TRIGGER (com `order_id` + `tenant_id`)
+- Marcar como `done` ou `failed` após processamento
+- Manter o fallback CRON existente (modo batch) como reconciliação adicional
 
-## Resultado final
+**4. Criar documento de padrões de automação**
+- Arquivo: `docs/AUTOMATION-PATTERNS.md`
+- Conteúdo: mapa dos 4 padrões do sistema com critérios de quando usar cada um:
 
-- Todo tenant (novo ou existente) terá as 3 listas padrão prontas.
-- O nome "PoupUp" será padronizado para "Newsletter PopUp".
-- O scheduler-tick fica mais limpo, sem lógica de criação sob demanda.
-- A documentação reflete a regra estabelecida.
+```text
+┌─────────────────────────────────────────────────────────┐
+│              PADRÕES DE AUTOMAÇÃO DO SISTEMA            │
+├──────────────────┬──────────────────────────────────────┤
+│ 1. Pure SQL      │ Dados internos simples               │
+│   Trigger        │ (updated_at, contadores, flags)      │
+│                  │ Confiabilidade: 100%                  │
+│                  │ Latência: 0ms                         │
+├──────────────────┼──────────────────────────────────────┤
+│ 2. Fila +        │ Lógica complexa interna que reage    │
+│   Cron           │ a mudança de estado (rascunhos,      │
+│                  │ sincronizações internas pesadas)      │
+│                  │ Confiabilidade: 100% (captura)        │
+│                  │ Latência: até 1 minuto                │
+├──────────────────┼──────────────────────────────────────┤
+│ 3. Edge Function │ Ação do usuário que precisa de        │
+│   Direta         │ resposta imediata ou integração       │
+│                  │ externa (emitir NF, IA, pagamento)    │
+│                  │ Confiabilidade: alta                   │
+│                  │ Latência: variável                     │
+├──────────────────┼──────────────────────────────────────┤
+│ 4. Webhook +     │ Serviço externo notifica o sistema    │
+│   Polling        │ (gateway, rastreio, marketplace)      │
+│                  │ Webhook = tempo real                   │
+│                  │ Polling/Cron = reconciliação           │
+└──────────────────┴──────────────────────────────────────┘
+
+REGRA DE OURO: pg_net direto de trigger → PROIBIDO.
+Se a lógica é complexa ou faz queries, usar Fila + Cron.
+Se a lógica é simples e local, usar Pure SQL Trigger.
+```
+
+### Detalhes técnicos
+
+- A tabela `fiscal_draft_queue` terá cleanup automático (itens `done` com mais de 7 dias removidos pelo cron)
+- O trigger antigo será removido na mesma migração que cria o novo
+- A Edge Function `fiscal-auto-create-drafts` continua existindo sem mudanças — apenas muda quem a chama (cron em vez de pg_net)
+- O modo CRON batch existente permanece como camada extra de reconciliação
+
