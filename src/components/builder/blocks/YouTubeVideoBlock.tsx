@@ -8,7 +8,7 @@ import { Play, AlertCircle } from 'lucide-react';
 import { BlockRenderContext } from '@/lib/builder/types';
 
 type WidthPreset = 'sm' | 'md' | 'lg' | 'xl' | 'full';
-type AspectRatioType = '16:9' | '4:3' | '1:1';
+type AspectRatioType = '16:9' | '4:3' | '1:1' | '9:16';
 
 interface YouTubeVideoBlockProps {
   title?: string;
@@ -47,6 +47,7 @@ const aspectClasses: Record<AspectRatioType, string> = {
   '16:9': 'aspect-video',
   '4:3': 'aspect-[4/3]',
   '1:1': 'aspect-square',
+  '9:16': 'aspect-[9/16]',
 };
 
 export function YouTubeVideoBlock({

@@ -32,6 +32,7 @@ const aspectMap: Record<string, string> = {
   '16:9': '56.25%',
   '4:3': '75%',
   '1:1': '100%',
+  '9:16': '177.78%',
 };
 
 export const youtubeVideoToStaticHTML: BlockCompilerFn = (

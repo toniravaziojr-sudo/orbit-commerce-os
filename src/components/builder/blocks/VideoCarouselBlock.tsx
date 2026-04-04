@@ -27,7 +27,7 @@ interface VideoCarouselBlockProps {
   videosJson?: string; // Alternative: JSON string of video URLs
   autoplay?: boolean;
   showControls?: boolean;
-  aspectRatio?: '16:9' | '4:3' | '1:1';
+  aspectRatio?: '16:9' | '4:3' | '1:1' | '9:16';
   context?: BlockRenderContext;
 }
 
@@ -141,6 +141,7 @@ export function VideoCarouselBlock({
     switch (aspectRatio) {
       case '4:3': return 'aspect-[4/3]';
       case '1:1': return 'aspect-square';
+      case '9:16': return 'aspect-[9/16]';
       default: return 'aspect-video';
     }
   }, [aspectRatio]);
