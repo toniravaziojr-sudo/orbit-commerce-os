@@ -18707,7 +18707,7 @@ export type Database = {
           meta_status: string
           meta_template_id: string | null
           rejected_at: string | null
-          rule_id: string
+          rule_id: string | null
           submitted_at: string | null
           template_body: string
           template_category: string
@@ -18727,7 +18727,7 @@ export type Database = {
           meta_status?: string
           meta_template_id?: string | null
           rejected_at?: string | null
-          rule_id: string
+          rule_id?: string | null
           submitted_at?: string | null
           template_body: string
           template_category?: string
@@ -18747,7 +18747,7 @@ export type Database = {
           meta_status?: string
           meta_template_id?: string | null
           rejected_at?: string | null
-          rule_id?: string
+          rule_id?: string | null
           submitted_at?: string | null
           template_body?: string
           template_category?: string
