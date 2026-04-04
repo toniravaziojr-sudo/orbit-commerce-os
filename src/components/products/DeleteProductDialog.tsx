@@ -127,7 +127,7 @@ export function DeleteProductDialog({
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             disabled={loading}
           >
-            Sim, excluir permanentemente
+            Sim, desativar produto
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
