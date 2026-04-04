@@ -7,7 +7,7 @@ export interface CheckoutSession {
   tenant_id: string;
   started_at: string;
   last_seen_at: string;
-  status: 'active' | 'abandoned' | 'converted' | 'recovered' | 'canceled';
+  status: 'active' | 'abandoned' | 'converted' | 'recovered' | 'reverted' | 'canceled';
   abandoned_at: string | null;
   converted_at: string | null;
   recovered_at: string | null;

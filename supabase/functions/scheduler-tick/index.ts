@@ -175,6 +175,7 @@ async function runAbandonSweep(supabaseUrl: string, supabaseServiceKey: string):
           body: JSON.stringify({
             status: 'abandoned',
             abandoned_at: now,
+            internal_state: 'inactive',
           }),
         });
 
@@ -219,6 +220,69 @@ async function runAbandonSweep(supabaseUrl: string, supabaseServiceKey: string):
           });
           stats.events_emitted++;
           console.log(`[abandon-sweep] Session ${session.id} abandoned, event emitted`);
+
+          // Add contact to "Cliente Potencial" list via upsert_subscriber_only
+          if (session.customer_email) {
+            try {
+              const supabase = createClient(supabaseUrl, supabaseServiceKey);
+              
+              // Ensure "Cliente Potencial" tag exists
+              let tagId: string | null = null;
+              const { data: existingTag } = await supabase
+                .from('customer_tags')
+                .select('id')
+                .eq('tenant_id', session.tenant_id)
+                .eq('name', 'Cliente Potencial')
+                .maybeSingle();
+
+              if (existingTag) {
+                tagId = existingTag.id;
+              } else {
+                const { data: newTag } = await supabase
+                  .from('customer_tags')
+                  .insert({ tenant_id: session.tenant_id, name: 'Cliente Potencial', color: '#f97316', description: 'Clientes que abandonaram o checkout' })
+                  .select('id')
+                  .single();
+                if (newTag) tagId = newTag.id;
+              }
+
+              // Ensure "Cliente Potencial" list exists (linked to tag)
+              let listId: string | null = null;
+              if (tagId) {
+                const { data: existingList } = await supabase
+                  .from('email_marketing_lists')
+                  .select('id')
+                  .eq('tenant_id', session.tenant_id)
+                  .eq('tag_id', tagId)
+                  .maybeSingle();
+
+                if (existingList) {
+                  listId = existingList.id;
+                } else {
+                  const { data: newList } = await supabase
+                    .from('email_marketing_lists')
+                    .insert({ tenant_id: session.tenant_id, name: 'Cliente Potencial', tag_id: tagId, is_system: true })
+                    .select('id')
+                    .single();
+                  if (newList) listId = newList.id;
+                }
+              }
+
+              // Upsert subscriber into the list
+              await supabase.rpc('upsert_subscriber_only', {
+                p_tenant_id: session.tenant_id,
+                p_email: session.customer_email,
+                p_name: session.customer_name || null,
+                p_phone: session.customer_phone || null,
+                p_source: 'abandoned_checkout',
+                p_list_id: listId,
+              });
+
+              console.log(`[abandon-sweep] Contact ${session.customer_email} added to "Cliente Potencial" list`);
+            } catch (subscriberError) {
+              console.warn(`[abandon-sweep] Failed to add contact to "Cliente Potencial":`, subscriberError);
+            }
+          }
         } catch (eventError) {
           console.log(`[abandon-sweep] Event for session ${session.id} already exists or error:`, eventError);
         }
@@ -496,6 +560,8 @@ serve(async (req) => {
           callSubFunction(supabaseUrl, supabaseServiceKey, 'creative-process', { poll_running: true }),
           // Task E: media-social-publish-worker
           callSubFunction(supabaseUrl, supabaseServiceKey, 'media-social-publish-worker', {}),
+          // Task F: verify-payment-status (progressive gateway polling)
+          callSubFunction(supabaseUrl, supabaseServiceKey, 'verify-payment-status', {}),
         ];
 
         // Task F: email-marketing-list-sync (hourly only)

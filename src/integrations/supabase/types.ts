@@ -2711,6 +2711,7 @@ export type Database = {
           fbc: string | null
           fbp: string | null
           id: string
+          internal_state: string | null
           items_snapshot: Json | null
           last_seen_at: string
           metadata: Json | null
@@ -2718,6 +2719,7 @@ export type Database = {
           payment_selected_at: string | null
           recovered_at: string | null
           region: string | null
+          reverted_at: string | null
           shipping_selected_at: string | null
           started_at: string
           status: string
@@ -2744,6 +2746,7 @@ export type Database = {
           fbc?: string | null
           fbp?: string | null
           id?: string
+          internal_state?: string | null
           items_snapshot?: Json | null
           last_seen_at?: string
           metadata?: Json | null
@@ -2751,6 +2754,7 @@ export type Database = {
           payment_selected_at?: string | null
           recovered_at?: string | null
           region?: string | null
+          reverted_at?: string | null
           shipping_selected_at?: string | null
           started_at?: string
           status?: string
@@ -2777,6 +2781,7 @@ export type Database = {
           fbc?: string | null
           fbp?: string | null
           id?: string
+          internal_state?: string | null
           items_snapshot?: Json | null
           last_seen_at?: string
           metadata?: Json | null
@@ -2784,6 +2789,7 @@ export type Database = {
           payment_selected_at?: string | null
           recovered_at?: string | null
           region?: string | null
+          reverted_at?: string | null
           shipping_selected_at?: string | null
           started_at?: string
           status?: string
@@ -11890,6 +11896,8 @@ export type Database = {
           cancellation_reason: string | null
           cancelled_at: string | null
           canonical_total: number | null
+          chargeback_deadline_at: string | null
+          chargeback_detected_at: string | null
           checkout_attempt_id: string | null
           created_at: string
           currency: string | null
@@ -11916,12 +11924,15 @@ export type Database = {
           marketplace_data: Json | null
           marketplace_order_id: string | null
           marketplace_source: string | null
+          next_payment_check_at: string | null
           order_number: string
           paid_at: string | null
+          payment_check_count: number | null
           payment_gateway: string | null
           payment_gateway_id: string | null
           payment_link_expires_at: string | null
           payment_link_url: string | null
+          payment_max_expiry_at: string | null
           payment_method: Database["public"]["Enums"]["payment_method"] | null
           payment_method_discount: number | null
           payment_status: Database["public"]["Enums"]["payment_status"]
@@ -11970,6 +11981,8 @@ export type Database = {
           cancellation_reason?: string | null
           cancelled_at?: string | null
           canonical_total?: number | null
+          chargeback_deadline_at?: string | null
+          chargeback_detected_at?: string | null
           checkout_attempt_id?: string | null
           created_at?: string
           currency?: string | null
@@ -11996,12 +12009,15 @@ export type Database = {
           marketplace_data?: Json | null
           marketplace_order_id?: string | null
           marketplace_source?: string | null
+          next_payment_check_at?: string | null
           order_number: string
           paid_at?: string | null
+          payment_check_count?: number | null
           payment_gateway?: string | null
           payment_gateway_id?: string | null
           payment_link_expires_at?: string | null
           payment_link_url?: string | null
+          payment_max_expiry_at?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_method_discount?: number | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
@@ -12050,6 +12066,8 @@ export type Database = {
           cancellation_reason?: string | null
           cancelled_at?: string | null
           canonical_total?: number | null
+          chargeback_deadline_at?: string | null
+          chargeback_detected_at?: string | null
           checkout_attempt_id?: string | null
           created_at?: string
           currency?: string | null
@@ -12076,12 +12094,15 @@ export type Database = {
           marketplace_data?: Json | null
           marketplace_order_id?: string | null
           marketplace_source?: string | null
+          next_payment_check_at?: string | null
           order_number?: string
           paid_at?: string | null
+          payment_check_count?: number | null
           payment_gateway?: string | null
           payment_gateway_id?: string | null
           payment_link_expires_at?: string | null
           payment_link_url?: string | null
+          payment_max_expiry_at?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_method_discount?: number | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
@@ -19754,6 +19775,7 @@ export type Database = {
         | "declined"
         | "refunded"
         | "cancelled"
+        | "chargeback_requested"
       shipping_status:
         | "pending"
         | "processing"
@@ -20050,6 +20072,7 @@ export const Constants = {
         "declined",
         "refunded",
         "cancelled",
+        "chargeback_requested",
       ],
       shipping_status: [
         "pending",
