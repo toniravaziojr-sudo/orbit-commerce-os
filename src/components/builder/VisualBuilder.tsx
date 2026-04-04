@@ -1156,7 +1156,6 @@ export function VisualBuilder({
   // Handle toggling block visibility (for quick actions)
   const handleToggleHidden = useCallback((blockId: string) => {
     store.toggleHidden(blockId);
-    const { findBlockById } = require('@/lib/builder/utils');
     const block = findBlockById(store.content, blockId);
     toast.success(block?.hidden ? 'Bloco ocultado' : 'Bloco visível');
   }, [store]);
