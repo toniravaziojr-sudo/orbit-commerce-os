@@ -84,7 +84,7 @@ export function DeleteProductDialog({
                         </li>
                       </ul>
                       <p className="text-xs text-muted-foreground mt-2">
-                        Os pedidos serão mantidos, mas o produto aparecerá como "[Excluído] {productName}".
+                        Os pedidos serão mantidos com a referência original ao produto preservada.
                       </p>
                     </div>
                   )}
