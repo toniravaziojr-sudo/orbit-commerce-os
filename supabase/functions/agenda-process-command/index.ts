@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { errorResponse } from "../_shared/error-response.ts";
 
-const VERSION = "v1.0.0";
+const VERSION = "v2.0.0"; // Etapa 3+4: Auxiliar integration, allowlist, template awareness
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,6 +26,15 @@ interface PendingAction {
   description: string;
   created_at: string;
 }
+
+// ── ALLOWLIST: ações que a Agenda pode delegar ao Auxiliar ──
+const AUXILIAR_ALLOWLIST: Record<string, { tool_name: string; needs_confirmation: boolean }> = {
+  order_status:       { tool_name: "searchOrders",       needs_confirmation: false },
+  update_price:       { tool_name: "bulkUpdateProductsPrice", needs_confirmation: true },
+  publish_product:    { tool_name: "bulkActivateProducts",    needs_confirmation: true },
+  create_discount:    { tool_name: "createDiscount",          needs_confirmation: true },
+  // Campaigns not yet wired — placeholder for future
+};
 
 // ============================================
 // MAIN HANDLER
@@ -106,16 +115,14 @@ Deno.serve(async (req) => {
     const isRejection = ["não", "nao", "n", "cancelar", "cancela", "no"].includes(normalizedContent);
 
     if (isConfirmation || isRejection) {
-      const result = await handleConfirmation(supabase, tenant_id, from_phone, isConfirmation, logId, traceId);
+      const result = await handleConfirmation(supabase, supabaseUrl, supabaseServiceKey, tenant_id, from_phone, isConfirmation, logId, correlationId, traceId);
       if (result.handled) {
-        // Send response via WhatsApp
         await sendAgendaReply(supabaseUrl, supabaseServiceKey, tenant_id, from_phone, result.reply);
         return new Response(
           JSON.stringify({ success: true, action: isConfirmation ? "confirmed" : "rejected" }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      // If no pending action found, fall through to IA interpretation
     }
 
     // ── CHAT HISTORY (last 10 messages for context) ──
@@ -145,7 +152,7 @@ Deno.serve(async (req) => {
       correlation_id: correlationId,
     });
 
-    // ── CALL AI (Gemini 2.5 Flash via Lovable proxy) ──
+    // ── CALL AI (Gemini 2.5 Flash via Lovable gateway) ──
     const now = new Date();
     const brTime = now.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
 
@@ -177,26 +184,13 @@ Deno.serve(async (req) => {
 
     if (aiResult.intent === "create_task" && aiResult.task_data) {
       if (aiResult.needs_confirmation) {
-        // Freeze action for confirmation
-        const pendingAction: PendingAction = {
-          action: "create_task",
-          params: aiResult.task_data,
-          description: aiResult.reply,
-          created_at: new Date().toISOString(),
-        };
-        await updateLog(supabase, logId, {
-          status: "awaiting_confirmation",
-          intent: "create_task",
-          pending_action: pendingAction,
-        });
+        await freezeAction(supabase, logId, "create_task", aiResult.task_data, aiResult.reply);
         finalStatus = "awaiting_confirmation";
       } else {
-        // Execute directly
         const taskResult = await executeCreateTask(supabase, tenant_id, aiResult.task_data, traceId);
         if (taskResult.success) {
           actionTaken = "create_task";
           finalStatus = "executed";
-          reply = aiResult.reply;
         } else {
           reply = `Desculpe, não consegui criar o lembrete: ${taskResult.error}. Tente novamente.`;
           finalStatus = "failed";
@@ -207,53 +201,55 @@ Deno.serve(async (req) => {
       actionTaken = "list_tasks";
     } else if (aiResult.intent === "complete_task" && aiResult.target_task_id) {
       if (aiResult.needs_confirmation) {
-        const pendingAction: PendingAction = {
-          action: "complete_task",
-          params: { task_id: aiResult.target_task_id },
-          description: aiResult.reply,
-          created_at: new Date().toISOString(),
-        };
-        await updateLog(supabase, logId, {
-          status: "awaiting_confirmation",
-          intent: "complete_task",
-          pending_action: pendingAction,
-        });
+        await freezeAction(supabase, logId, "complete_task", { task_id: aiResult.target_task_id }, aiResult.reply);
         finalStatus = "awaiting_confirmation";
       } else {
         await supabase.from("agenda_tasks").update({ status: "completed" }).eq("id", aiResult.target_task_id).eq("tenant_id", tenant_id);
+        await supabase.from("agenda_reminders").update({ status: "skipped", last_error: "task_completed" }).eq("task_id", aiResult.target_task_id).eq("status", "pending");
         finalStatus = "executed";
       }
     } else if (aiResult.intent === "cancel_task" && aiResult.target_task_id) {
-      const pendingAction: PendingAction = {
-        action: "cancel_task",
-        params: { task_id: aiResult.target_task_id },
-        description: aiResult.reply,
-        created_at: new Date().toISOString(),
-      };
-      await updateLog(supabase, logId, {
-        status: "awaiting_confirmation",
-        intent: "cancel_task",
-        pending_action: pendingAction,
-      });
+      await freezeAction(supabase, logId, "cancel_task", { task_id: aiResult.target_task_id }, aiResult.reply);
       finalStatus = "awaiting_confirmation";
     } else if (aiResult.intent === "cancel_all") {
-      const pendingAction: PendingAction = {
-        action: "cancel_all",
-        params: {},
-        description: aiResult.reply,
-        created_at: new Date().toISOString(),
-      };
-      await updateLog(supabase, logId, {
-        status: "awaiting_confirmation",
-        intent: "cancel_all",
-        pending_action: pendingAction,
-      });
+      await freezeAction(supabase, logId, "cancel_all", {}, aiResult.reply);
       finalStatus = "awaiting_confirmation";
+
+    // ── ETAPA 3: DELEGATE TO AUXILIAR DE COMANDO ──
+    } else if (aiResult.intent === "delegate_to_assistant" && aiResult.delegate_action) {
+      const allowlistEntry = AUXILIAR_ALLOWLIST[aiResult.delegate_action];
+      if (!allowlistEntry) {
+        reply = "⚠️ Desculpe, essa ação não está disponível pela Agenda. Faça diretamente no painel.";
+        finalStatus = "executed";
+        actionTaken = "delegate_blocked";
+      } else if (allowlistEntry.needs_confirmation) {
+        await freezeAction(supabase, logId, "delegate_to_assistant", {
+          delegate_action: aiResult.delegate_action,
+          tool_name: allowlistEntry.tool_name,
+          tool_args: aiResult.delegate_args || {},
+        }, aiResult.reply);
+        finalStatus = "awaiting_confirmation";
+      } else {
+        // Execute directly (read-only actions like order lookup)
+        const delegateResult = await delegateToAuxiliar(
+          supabaseUrl, supabaseServiceKey, supabase, tenant_id,
+          allowlistEntry.tool_name, aiResult.delegate_args || {},
+          correlationId, traceId,
+        );
+        if (delegateResult.success) {
+          reply = `${aiResult.reply}\n\n${delegateResult.summary}`;
+          finalStatus = "executed";
+          actionTaken = `delegate:${aiResult.delegate_action}`;
+        } else {
+          reply = `❌ Não consegui executar: ${delegateResult.error}`;
+          finalStatus = "failed";
+        }
+      }
+
     } else if (aiResult.intent === "disambiguate") {
       finalStatus = "interpreted";
       actionTaken = "disambiguate";
     } else {
-      // chat, greeting, unknown — just reply
       finalStatus = "executed";
       actionTaken = aiResult.intent || "chat";
     }
@@ -273,7 +269,7 @@ Deno.serve(async (req) => {
       role: "assistant",
       content: reply,
       intent: aiResult.intent,
-      action_result: aiResult.task_data || null,
+      action_result: aiResult.task_data || aiResult.delegate_args || null,
       correlation_id: correlationId,
     });
 
@@ -292,18 +288,44 @@ Deno.serve(async (req) => {
 });
 
 // ============================================
+// FREEZE ACTION (for confirmation flow)
+// ============================================
+
+async function freezeAction(
+  supabase: ReturnType<typeof createClient>,
+  logId: string | undefined,
+  action: string,
+  params: Record<string, unknown>,
+  description: string,
+) {
+  const pendingAction: PendingAction = {
+    action,
+    params,
+    description,
+    created_at: new Date().toISOString(),
+  };
+  await updateLog(supabase, logId, {
+    status: "awaiting_confirmation",
+    intent: action,
+    pending_action: pendingAction,
+  });
+}
+
+// ============================================
 // CONFIRMATION HANDLER
 // ============================================
 
 async function handleConfirmation(
   supabase: ReturnType<typeof createClient>,
+  supabaseUrl: string,
+  supabaseServiceKey: string,
   tenantId: string,
   fromPhone: string,
   isConfirm: boolean,
   currentLogId: string | undefined,
+  correlationId: string,
   traceId: string,
 ): Promise<{ handled: boolean; reply: string }> {
-  // Find the latest pending confirmation for this tenant+phone within 5 minutes
   const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
   const { data: pendingCommands } = await supabase
@@ -317,10 +339,27 @@ async function handleConfirmation(
     .limit(5);
 
   if (!pendingCommands || pendingCommands.length === 0) {
+    // Check for expired ones
+    const { data: expiredCommands } = await supabase
+      .from("agenda_command_log")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("from_phone", fromPhone)
+      .eq("status", "awaiting_confirmation")
+      .lt("created_at", fiveMinAgo)
+      .limit(5);
+
+    if (expiredCommands && expiredCommands.length > 0) {
+      // Auto-expire them
+      for (const exp of expiredCommands) {
+        await supabase.from("agenda_command_log").update({ status: "expired" }).eq("id", exp.id);
+      }
+      return { handled: true, reply: "⏰ A confirmação expirou (limite de 5 minutos). Envie o comando novamente se desejar." };
+    }
+
     return { handled: false, reply: "" };
   }
 
-  // If more than one pending, list them
   if (pendingCommands.length > 1) {
     const list = pendingCommands.map((c, i) => `${i + 1}. ${(c.pending_action as PendingAction)?.description || c.intent}`).join("\n");
     return {
@@ -333,18 +372,15 @@ async function handleConfirmation(
   const action = pending.pending_action as PendingAction;
 
   if (isConfirm) {
-    // Execute the frozen action
     let reply = "";
     try {
       if (action.action === "create_task") {
-        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
         const result = await executeCreateTask(supabase, tenantId, action.params, traceId);
         reply = result.success
           ? `✅ Lembrete criado com sucesso!\n\n*${action.params.title}*\n📅 ${action.params.due_at}`
           : `❌ Erro ao criar: ${result.error}`;
       } else if (action.action === "complete_task") {
         await supabase.from("agenda_tasks").update({ status: "completed" }).eq("id", action.params.task_id).eq("tenant_id", tenantId);
-        // Skip orphaned reminders
         await supabase.from("agenda_reminders").update({ status: "skipped", last_error: "task_completed" }).eq("task_id", action.params.task_id).eq("status", "pending");
         reply = "✅ Tarefa marcada como concluída!";
       } else if (action.action === "cancel_task") {
@@ -359,6 +395,17 @@ async function handleConfirmation(
           await supabase.from("agenda_reminders").update({ status: "skipped", last_error: "task_cancelled" }).in("task_id", ids).eq("status", "pending");
         }
         reply = `✅ ${count} tarefa(s) cancelada(s).`;
+      } else if (action.action === "delegate_to_assistant") {
+        // Execute the frozen delegation
+        const delegateResult = await delegateToAuxiliar(
+          supabaseUrl, supabaseServiceKey, supabase, tenantId,
+          action.params.tool_name as string,
+          (action.params.tool_args as Record<string, unknown>) || {},
+          correlationId, traceId,
+        );
+        reply = delegateResult.success
+          ? `✅ Ação executada!\n\n${delegateResult.summary}`
+          : `❌ Erro: ${delegateResult.error}`;
       } else {
         reply = "⚠️ Ação não reconhecida.";
       }
@@ -375,7 +422,6 @@ async function handleConfirmation(
 
     return { handled: true, reply };
   } else {
-    // Rejection
     await supabase.from("agenda_command_log").update({ status: "rejected" }).eq("id", pending.id);
     if (currentLogId) {
       await supabase.from("agenda_command_log").update({ status: "executed", intent: "rejection", action_taken: `rejected:${action.action}` }).eq("id", currentLogId);
@@ -385,7 +431,99 @@ async function handleConfirmation(
 }
 
 // ============================================
-// AI CALL (Lovable AI Proxy — Gemini 2.5 Flash)
+// DELEGATE TO AUXILIAR DE COMANDO (Etapa 3)
+// ============================================
+
+async function delegateToAuxiliar(
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+  supabase: ReturnType<typeof createClient>,
+  tenantId: string,
+  toolName: string,
+  toolArgs: Record<string, unknown>,
+  correlationId: string,
+  traceId: string,
+): Promise<{ success: boolean; summary: string; error?: string }> {
+  console.log(`[agenda-process-command][${traceId}] Delegating to Auxiliar: ${toolName}`, JSON.stringify(toolArgs).slice(0, 200));
+
+  // Get the first owner/admin user for the tenant
+  const { data: tenantUser } = await supabase
+    .from("tenant_users")
+    .select("user_id")
+    .eq("tenant_id", tenantId)
+    .in("user_type", ["owner", "admin"])
+    .limit(1)
+    .single();
+
+  if (!tenantUser) {
+    return { success: false, summary: "", error: "Nenhum administrador encontrado para o tenant" };
+  }
+
+  // Create a synthetic conversation_id for the delegation (for audit trail)
+  const syntheticConvId = `agenda-delegate-${correlationId}`;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+    const response = await fetch(`${supabaseUrl}/functions/v1/command-assistant-execute`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${supabaseServiceKey}`,
+      },
+      body: JSON.stringify({
+        conversation_id: syntheticConvId,
+        tenant_id: tenantId,
+        tool_name: toolName,
+        tool_args: toolArgs,
+        _internal_user_id: tenantUser.user_id,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    const result = await response.json();
+    console.log(`[agenda-process-command][${traceId}] Auxiliar response (${response.status}):`, JSON.stringify(result).slice(0, 300));
+
+    if (result.error) {
+      return { success: false, summary: "", error: result.error };
+    }
+
+    // Extract a human-readable summary from the tool result
+    const summary = formatAuxiliarResult(toolName, result);
+    return { success: true, summary };
+
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      return { success: false, summary: "", error: "Timeout (30s) ao consultar o Auxiliar" };
+    }
+    console.error(`[agenda-process-command][${traceId}] Auxiliar delegation error:`, err);
+    return { success: false, summary: "", error: String(err) };
+  }
+}
+
+function formatAuxiliarResult(toolName: string, result: Record<string, unknown>): string {
+  // For order searches, format nicely
+  if (toolName === "searchOrders" && result.result) {
+    const orders = (result.result as Record<string, unknown>)?.orders;
+    if (Array.isArray(orders) && orders.length > 0) {
+      return orders.slice(0, 5).map((o: Record<string, unknown>) =>
+        `📦 Pedido #${o.order_number || o.id} — ${o.status} — R$ ${((o.total_cents as number) / 100).toFixed(2)}`
+      ).join("\n");
+    }
+    return "Nenhum pedido encontrado.";
+  }
+
+  // Generic fallback
+  if (result.message) return String(result.message);
+  if (result.result) return `Resultado: ${JSON.stringify(result.result).slice(0, 300)}`;
+  return "Ação executada com sucesso.";
+}
+
+// ============================================
+// AI CALL (Lovable AI Gateway — Gemini 2.5 Flash)
 // ============================================
 
 interface AIResult {
@@ -394,6 +532,9 @@ interface AIResult {
   needs_confirmation: boolean;
   task_data?: Record<string, unknown>;
   target_task_id?: string;
+  // Etapa 3: delegation
+  delegate_action?: string;
+  delegate_args?: Record<string, unknown>;
 }
 
 async function callAI(
@@ -434,7 +575,7 @@ async function callAI(
       return { success: false, error: "Empty AI response" };
     }
 
-    console.log(`[agenda-process-command][${traceId}] AI raw:`, content.substring(0, 300));
+    console.log(`[agenda-process-command][${traceId}] AI raw:`, content.substring(0, 400));
 
     const parsed: AIResult = JSON.parse(content);
     return { success: true, data: parsed };
@@ -445,7 +586,7 @@ async function callAI(
 }
 
 // ============================================
-// SYSTEM PROMPT
+// SYSTEM PROMPT (v2 — with delegation capabilities)
 // ============================================
 
 function buildSystemPrompt(
@@ -455,11 +596,11 @@ function buildSystemPrompt(
   const taskList = pendingTasks.length > 0
     ? pendingTasks.map(t => {
         const due = new Date(t.due_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
-        return `- [${t.id.slice(0, 8)}] "${t.title}" — vence ${due}${t.is_recurring ? " (recorrente)" : ""}`;
+        return `- [${t.id}] "${t.title}" — vence ${due}${t.is_recurring ? " (recorrente)" : ""}`;
       }).join("\n")
     : "(nenhuma tarefa pendente)";
 
-  return `Você é a **Agenda**, assistente de IA pessoal do administrador da loja. Você gerencia tarefas e lembretes via WhatsApp.
+  return `Você é a **Agenda**, assistente de IA pessoal do administrador da loja. Você gerencia tarefas e lembretes via WhatsApp, e pode também executar algumas ações no sistema da loja.
 
 ## Data/hora atual
 ${currentTime} (Horário de Brasília)
@@ -468,27 +609,39 @@ ${currentTime} (Horário de Brasília)
 ${taskList}
 
 ## Suas capacidades
+
+### Gestão de Agenda
 1. **Criar tarefa/lembrete**: interpretar data, hora, recorrência e offsets de lembrete
 2. **Listar tarefas**: mostrar as pendentes de forma organizada
-3. **Concluir tarefa**: marcar como concluída (requer ID ou correspondência única de título)
+3. **Concluir tarefa**: marcar como concluída (requer correspondência única de título)
 4. **Cancelar tarefa**: marcar como cancelada (SEMPRE pedir confirmação)
 5. **Cancelar todas**: cancelar todas as pendentes (SEMPRE pedir confirmação)
-6. **Conversar**: responder perguntas gerais sobre a agenda
+
+### Ações no Sistema (delegadas ao Auxiliar de Comando)
+6. **Consultar pedido**: buscar status de pedidos por número ou termo
+7. **Alterar preço**: alterar preço de produto(s)
+8. **Publicar/despublicar produto**: ativar ou desativar produtos
+9. **Criar cupom de desconto**: criar novo cupom
+
+Ações de escrita no sistema SEMPRE pedem confirmação antes de executar.
+
+### Conversa
+10. **Conversar**: responder perguntas gerais sobre a agenda ou a loja
 
 ## Regras OBRIGATÓRIAS
 - Timezone: America/Sao_Paulo. Todas as datas/horas são neste fuso.
 - "amanhã" = dia seguinte, "segunda" = próxima segunda-feira, etc.
 - Se houver ambiguidade na data/hora, PERGUNTE ao admin.
-- Se um comando de ação (concluir, cancelar) encontrar MÚLTIPLAS tarefas com título similar, NÃO execute — liste as opções e peça para especificar.
-- Cancelamento de tarefa individual e cancelamento em massa SEMPRE pedem confirmação.
-- Criação de tarefa simples pode ser executada diretamente; criação com recorrência pede confirmação.
+- Se um comando encontrar MÚLTIPLAS correspondências, NÃO execute — liste as opções e peça para especificar.
+- Cancelamento de tarefa individual e em massa SEMPRE pedem confirmação.
+- Criação de tarefa simples pode ser executada diretamente; com recorrência pede confirmação.
 - Responda SEMPRE em português brasileiro, de forma concisa e amigável.
-- Use emojis moderadamente (📅 🔔 ✅ ❌ ⏰).
+- Use emojis moderadamente (📅 🔔 ✅ ❌ ⏰ 📦).
 
 ## Formato de resposta (JSON obrigatório)
 Responda SEMPRE com um JSON válido com esta estrutura:
 {
-  "intent": "create_task" | "list_tasks" | "complete_task" | "cancel_task" | "cancel_all" | "disambiguate" | "chat",
+  "intent": "create_task" | "list_tasks" | "complete_task" | "cancel_task" | "cancel_all" | "delegate_to_assistant" | "disambiguate" | "chat",
   "reply": "Mensagem que será enviada ao admin via WhatsApp",
   "needs_confirmation": true/false,
   "task_data": {  // apenas para create_task
@@ -496,11 +649,18 @@ Responda SEMPRE com um JSON válido com esta estrutura:
     "description": "string ou null",
     "due_at": "ISO 8601 string em UTC",
     "is_recurring": false,
-    "recurrence": null,  // ou { "type": "daily"|"weekly"|"monthly", "interval": 1 }
-    "reminder_offsets": [60]  // array de minutos antes do vencimento
+    "recurrence": null,
+    "reminder_offsets": [60]
   },
-  "target_task_id": "uuid"  // apenas para complete_task e cancel_task, usar o ID completo da lista
+  "target_task_id": "uuid completo",  // para complete_task e cancel_task
+  "delegate_action": "order_status" | "update_price" | "publish_product" | "create_discount",  // para delegate_to_assistant
+  "delegate_args": {}  // argumentos para a ação delegada (ex: {"query": "pedido 123"})
 }
+
+## Exemplos de delegação
+- "qual o status do pedido 1234?" → intent: "delegate_to_assistant", delegate_action: "order_status", delegate_args: {"query": "1234"}
+- "altera o preço do produto X para R$ 50" → intent: "delegate_to_assistant", delegate_action: "update_price", needs_confirmation: true
+- "cria um cupom de 10% chamado PROMO10" → intent: "delegate_to_assistant", delegate_action: "create_discount", needs_confirmation: true
 
 ## Padrões de lembrete
 - Se o admin não especificar: 1 lembrete de 1 hora antes (60 minutos)
@@ -527,7 +687,6 @@ function buildAIMessages(
   }
 
   messages.push({ role: "user", content: currentMessage });
-
   return messages;
 }
 
@@ -542,8 +701,6 @@ async function executeCreateTask(
   traceId: string,
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // We need a created_by — use a system user placeholder or the first admin
-    // For now, use the tenant_id as created_by marker (system-created)
     const { data: tenantMembers } = await supabase
       .from("tenant_users")
       .select("user_id")
@@ -573,7 +730,6 @@ async function executeCreateTask(
       return { success: false, error: taskError.message };
     }
 
-    // Create reminders
     const offsets = (taskData.reminder_offsets as number[]) || [60];
     const dueAt = new Date(taskData.due_at as string);
 
