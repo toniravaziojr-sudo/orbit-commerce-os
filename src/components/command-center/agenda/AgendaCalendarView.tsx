@@ -140,6 +140,9 @@ export function AgendaCalendarView() {
         </div>
       </div>
 
+      {/* Diagnostic Panel */}
+      <AgendaDiagnosticPanel />
+
       {/* Authorized Phones Config */}
       <AgendaPhoneConfig />
 
