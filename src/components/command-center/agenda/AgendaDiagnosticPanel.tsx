@@ -34,7 +34,8 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
 };
 
 export function AgendaDiagnosticPanel() {
-  const { currentTenantId } = useTenantContext();
+  const { currentTenant } = useAuth();
+  const currentTenantId = currentTenant?.id;
   const [logs, setLogs] = useState<CommandLogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
