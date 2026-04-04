@@ -99,12 +99,12 @@ serve(async (req) => {
       console.log(`[expire-stale-orders] Fixed ${fixedDeclined?.length || 0} declined-but-pending orders`);
     }
 
-    // 4. Cancel orphan orders (no payment transaction created)
-    // These are ghost orders — checkout started but payment was never created at the gateway.
-    // They must be marked as cancelled AND their checkout_session must be set to 'abandoned'.
+    // 4. Ghost order cleanup removed — new flow prevents ghost orders from being created.
+    // Orders are only created after gateway response, so orphan orders without payment_gateway_id
+    // should not exist. If any appear, they are logged but not auto-cancelled.
     const { data: pendingOrders } = await supabase
       .from('orders')
-      .select('id, order_number, tenant_id, customer_email, customer_name, total')
+      .select('id, order_number, tenant_id')
       .eq('payment_status', 'pending')
       .is('payment_gateway_id', null)
       .in('status', ['pending', 'awaiting_payment'])
@@ -112,57 +112,10 @@ serve(async (req) => {
 
     let orphanCount = 0;
     if (pendingOrders && pendingOrders.length > 0) {
+      console.warn(`[expire-stale-orders] Found ${pendingOrders.length} orphan orders without gateway ID — these should not exist in the new flow. Logging only.`);
       for (const order of pendingOrders) {
-        // Cancel the ghost order
-        await supabase
-          .from('orders')
-          .update({
-            payment_status: 'cancelled',
-            status: 'cancelled',
-            cancellation_reason: 'Pedido sem pagamento na operadora (automático)',
-            cancelled_at: now.toISOString(),
-            updated_at: now.toISOString(),
-          })
-          .eq('id', order.id);
-
-        // REGRA: com pedido = fluxo operacional, NÃO abandono de checkout
-        // Emitir evento order.ghost_cancelled em vez de marcar checkout_session como abandoned
-        try {
-          const emitResponse = await fetch(`${supabaseUrl}/functions/v1/emit-internal-event`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${supabaseServiceKey}`,
-            },
-            body: JSON.stringify({
-              tenant_id: order.tenant_id,
-              event_type: 'order.ghost_cancelled',
-              occurred_at: now.toISOString(),
-              subject: {
-                type: 'order',
-                id: order.id,
-              },
-              payload_normalized: {
-                order_id: order.id,
-                order_number: order.order_number,
-                customer_email: order.customer_email || null,
-                customer_name: order.customer_name || null,
-                total: order.total || 0,
-                reason: 'ghost_order_no_gateway',
-              },
-              idempotency_key: `ghost_cancelled_${order.id}`,
-            }),
-          });
-          
-          if (!emitResponse.ok) {
-            console.warn(`[expire-stale-orders] Failed to emit ghost_cancelled for ${order.order_number}:`, await emitResponse.text());
-          }
-        } catch (emitErr) {
-          console.warn(`[expire-stale-orders] Error emitting ghost_cancelled for ${order.order_number}:`, emitErr);
-        }
-
+        console.warn(`[expire-stale-orders] Orphan order: ${order.order_number} (${order.id})`);
         orphanCount++;
-        console.log(`[expire-stale-orders] Ghost order cancelled (no checkout contamination): ${order.order_number}`);
       }
     }
 

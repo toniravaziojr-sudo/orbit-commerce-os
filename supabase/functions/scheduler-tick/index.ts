@@ -560,6 +560,8 @@ serve(async (req) => {
           callSubFunction(supabaseUrl, supabaseServiceKey, 'creative-process', { poll_running: true }),
           // Task E: media-social-publish-worker
           callSubFunction(supabaseUrl, supabaseServiceKey, 'media-social-publish-worker', {}),
+          // Task F: verify-payment-status (progressive gateway polling)
+          callSubFunction(supabaseUrl, supabaseServiceKey, 'verify-payment-status', {}),
         ];
 
         // Task F: email-marketing-list-sync (hourly only)
