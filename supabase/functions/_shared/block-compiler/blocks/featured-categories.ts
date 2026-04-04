@@ -6,7 +6,8 @@
 // - Circular category images with responsive sizes (w-16/w-20/w-24 → 64/80/96px)
 // - Ring-2 hover effect on circles
 // - Category name below image (showName prop)
-// - CSS Grid layout: 3 cols mobile, up to 6 cols desktop (justify-items:center)
+// - Flexbox layout: flex-wrap + justify-center (categories always centered)
+// - v8.13.0: Migrated from CSS Grid to Flexbox for centered alignment
 // - Links to /categoria/{slug}
 // - Section padding: py-6 sm:py-8
 // =============================================
