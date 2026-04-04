@@ -175,7 +175,7 @@ export function useMenuItems(menuId: string | null) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['menu-items', menuId] });
       toast({ title: 'Item atualizado!' });
-      if (currentTenant?.id) cachePurge.menu(currentTenant.id);
+      if (currentTenant?.id) storefrontAutoUpdate(currentTenant.id, 'menu_item_updated', 5000);
     },
     onError: (error: Error) => {
       toast({ title: 'Erro ao atualizar item', description: error.message, variant: 'destructive' });
