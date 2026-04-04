@@ -5375,6 +5375,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          is_system: boolean
           name: string
           tag_id: string
           tenant_id: string
@@ -5384,6 +5385,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_system?: boolean
           name: string
           tag_id: string
           tenant_id: string
@@ -5393,6 +5395,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_system?: boolean
           name?: string
           tag_id?: string
           tenant_id?: string
@@ -19254,6 +19257,10 @@ export type Database = {
           p_tag_name?: string
           p_tenant_id: string
         }
+        Returns: undefined
+      }
+      ensure_default_email_marketing_lists: {
+        Args: { p_tenant_id: string }
         Returns: undefined
       }
       generate_billing_checkout_token: {
