@@ -2,7 +2,7 @@
 
 > **Status:** ✅ Ativo  
 > **Camada:** Layer 3 — Especificações / E-commerce  
-> **Última atualização:** 2026-04-03  
+> **Última atualização:** 2026-04-04  
 > **Migrado de:** `docs/regras/clientes.md`
 
 ---
@@ -10,6 +10,8 @@
 ## 1. Visão Geral
 
 CRM integrado ao e-commerce. Identidade do cliente baseada exclusivamente no **email** (normalizado via `trim().toLowerCase()`), não no CPF ou auth.uid().
+
+**REGRA FUNDAMENTAL (v2026-04-04):** Cliente só é criado no módulo de Clientes após pagamento aprovado. Checkout sem pagamento aprovado NÃO cria cliente — os dados ficam na `checkout_session` até a aprovação.
 
 ---
 
@@ -194,45 +196,75 @@ REGRA FUNDAMENTAL:
 - Mesmo cliente com emails diferentes = registros separados (MVP)
 ```
 
-### 4.2 Criação de Cliente
+### 4.2 Criação de Cliente (v2026-04-04)
 
 ```mermaid
 graph TD
-    A[Admin ou Checkout] --> B[Normaliza email]
+    A[Pagamento aprovado OU Admin OU Importação] --> B[Normaliza email]
     B --> C{Email já existe?}
-    C -->|Sim| D[Retorna erro DUPLICATE_EMAIL]
-    C -->|Não| E[coreCustomersApi.create]
-    E --> F[Cria registro]
-    F --> G[ensure_customer_tag → tag 'Cliente']
-    G --> H[Invalida cache]
+    C -->|Sim| D[Atualiza dados e recalcula métricas]
+    C -->|Não| E[Cria registro no módulo Clientes]
+    E --> F[ensure_customer_tag → tag 'Cliente']
+    F --> G[Marca pedido com is_first_sale = true]
+    G --> H[Adiciona na lista 'Clientes' do email marketing]
+    H --> I[Recalcula métricas]
 ```
 
-### 4.3 Contrato Lead ≠ Customer (CRÍTICO)
+**REGRA CRÍTICA (v2026-04-04):** Cliente NÃO é criado no clique de "Finalizar Compra". O checkout armazena os dados pessoais na `checkout_session`. O registro no módulo de Clientes só acontece quando:
+- **Pagamento aprovado** → trigger automático cria cliente
+- **Criação manual** → admin cria pelo painel
+- **Importação** → CSV via wizard
+
+### 4.3 Contrato Lead ≠ Cliente Potencial ≠ Customer (CRÍTICO — v2026-04-04)
 
 ```
 REGRAS FUNDAMENTAIS:
+
 1. Lead NÃO cria customer automaticamente
    - Formulários, popups, chat usam upsert_subscriber_only() → só cria subscriber
    - Se já existir customer com mesmo email, vincula (customer_id no subscriber)
    - Se NÃO existir customer → NÃO cria
 
-2. Customer é criado APENAS por:
-   - Checkout (pedido criado)
+2. Cliente Potencial NÃO é Customer (NOVO v2026-04-04)
+   - Checkout abandonado insere na lista "Cliente Potencial" do email marketing
+   - Usa upsert_subscriber_only() → NÃO cria customer
+   - É um estado intermediário entre Subscriber e Customer no lifecycle
+   - Tag sistêmica: "Cliente Potencial" (cor: #f97316, laranja)
+
+3. Customer é criado APENAS por:
+   - Pedido com pagamento APROVADO (não no clique de "Finalizar")
    - Criação manual (admin)
    - Importação (CSV)
 
-3. Tag "Cliente" é atribuída por:
+4. Tag "Cliente" é atribuída por:
    - trg_auto_tag_cliente_on_payment → pedido aprovado
    - core-customers → criação manual (via ensure_customer_tag)
    - import-customers → importação (via customer_tag_assignments)
 
-4. Customer sem email:
+5. Customer sem email:
    - É customer válido (tags, métricas funcionam via customer_id)
    - NÃO cria subscriber/list_member (email obrigatório para marketing)
    - Trigger registra evento auditável via log_marketing_sync_audit com status=skipped
 ```
 
-### 4.4 Funções de Banco — Contrato de Responsabilidades
+### 4.4 Lifecycle do Contato (v2026-04-04)
+
+```
+Lead → Subscriber → Cliente Potencial → Customer
+                         |                    |
+                   checkout abandonado    pedido real com pagamento aprovado
+```
+
+| Estado | Trigger | Tag sistêmica | Lista de email |
+|--------|---------|---------------|----------------|
+| Lead | Captura de contato | — | — |
+| Subscriber | Opt-in confirmado | — | Lista específica |
+| Cliente Potencial | Checkout abandonado | `Cliente Potencial` (#f97316) | `Cliente Potencial` |
+| Customer | Pagamento aprovado | `Cliente` (#10B981) | `Clientes` |
+
+**Progressão natural:** Um contato pode progredir de Lead → Subscriber → Cliente Potencial → Customer conforme interage com a loja. A progressão NÃO é obrigatória — um contato pode ir direto de Lead para Customer se fizer uma compra sem ter passado por checkout abandonado.
+
+### 4.5 Funções de Banco — Contrato de Responsabilidades
 
 | Função | Responsabilidade | O que NÃO faz |
 |--------|-----------------|---------------|
@@ -241,21 +273,23 @@ REGRAS FUNDAMENTAIS:
 | `recalc_customer_metrics` | Recalcula métricas de compra | NÃO atribui tags |
 | `auto_tag_cliente_on_payment_approved` | Atribui tag "Cliente" quando pagamento aprovado | NÃO depende de lista de marketing |
 
-### 4.5 Triggers Ativos na Tabela `orders`
+### 4.6 Triggers Ativos na Tabela `orders`
 
 | Trigger | Função | Quando dispara | O que faz |
 |---------|--------|----------------|-----------|
 | `trg_auto_tag_cliente_on_payment` | `auto_tag_cliente_on_payment_approved()` | INSERT/UPDATE de payment_status | Se `approved`: atribui tag "Cliente" via customer_id |
 | `trg_recalc_customer_metrics_on_order` | `trg_recalc_customer_on_order()` | INSERT/UPDATE | Se `approved`: recalcula métricas + sincroniza subscriber (sem criar customer) |
 
-### 4.6 Nomes Canônicos
+### 4.7 Nomes Canônicos
 
 | Conceito | Nome no banco | Chave de busca |
 |----------|--------------|----------------|
-| Tag sistêmica | `Cliente` (singular) | `customer_tags.name = 'Cliente'` |
-| Lista de marketing | `Clientes` (plural) | `email_marketing_lists.tag_id` → tag "Cliente" |
+| Tag sistêmica (cliente) | `Cliente` (singular) | `customer_tags.name = 'Cliente'` |
+| Tag sistêmica (potencial) | `Cliente Potencial` | `customer_tags.name = 'Cliente Potencial'` |
+| Lista de marketing (clientes) | `Clientes` (plural) | `email_marketing_lists.tag_id` → tag "Cliente" |
+| Lista de marketing (potenciais) | `Cliente Potencial` | `email_marketing_lists.tag_id` → tag "Cliente Potencial" |
 
-### 4.7 Métricas Automáticas
+### 4.8 Métricas Automáticas
 
 | Campo | Cálculo |
 |-------|---------|
@@ -265,7 +299,7 @@ REGRAS FUNDAMENTAIS:
 | `first_order_at` | MIN(orders.created_at) dos aprovados |
 | `last_order_at` | MAX(orders.created_at) dos aprovados |
 
-### 4.8 Tiers de Fidelidade (Progressão Dinâmica por Tenant)
+### 4.9 Tiers de Fidelidade (Progressão Dinâmica por Tenant)
 
 Os limites são calculados com base na distribuição real de gastos dos clientes do tenant, usando percentis:
 
@@ -327,7 +361,14 @@ Calculado dinamicamente por `recalc_customer_metrics`. Clientes sem compras fica
 - Regras de desconto por segmento
 - Atendimento personalizado
 
-### 6.2 Cores Disponíveis
+### 6.2 Tags Sistêmicas
+
+| Tag | Cor | Atribuição automática |
+|-----|-----|----------------------|
+| `Cliente` | `#10B981` (verde) | Pedido com pagamento aprovado |
+| `Cliente Potencial` | `#f97316` (laranja) | Checkout abandonado |
+
+### 6.3 Cores Disponíveis
 
 ```typescript
 const colorOptions = [
@@ -412,9 +453,10 @@ O importador aceita CSVs de qualquer plataforma (Shopify, WooCommerce, Nuvemshop
 
 | Módulo | Integração |
 |--------|------------|
-| Pedidos | Vínculo por `customer_email` |
-| Checkout | Auto-criação de cliente |
-| Email Marketing | Segmentação por tags e consentimento |
+| Pedidos | Vínculo por `customer_email`. Cliente criado apenas após pagamento aprovado |
+| Checkout | Dados armazenados na `checkout_session` até pagamento aprovado |
+| Checkouts Abandonados | Checkout abandonado → lista "Cliente Potencial" (NÃO cria customer) |
+| Email Marketing | Segmentação por tags e consentimento. Listas: "Clientes" e "Cliente Potencial" |
 | Suporte | Painel de informações do cliente |
 | Descontos | Cupons de primeira compra |
 | Notificações | Comunicações transacionais |
@@ -461,6 +503,8 @@ O importador aceita CSVs de qualquer plataforma (Shopify, WooCommerce, Nuvemshop
 - [x] ~~Importação universal~~ — Implementado
 - [x] ~~Sync com email marketing~~ — Implementado
 - [x] ~~Auditoria de skip sem email~~ — Implementado (tabela `email_marketing_sync_audit`)
+- [x] ~~Conceito "Cliente Potencial"~~ — Especificado (v2026-04-04)
+- [x] ~~Lifecycle Lead→Subscriber→Potencial→Customer~~ — Especificado (v2026-04-04)
 - [ ] Merge de clientes duplicados
 - [ ] Histórico de alterações do perfil
 - [ ] Validação de telefone (SMS)
