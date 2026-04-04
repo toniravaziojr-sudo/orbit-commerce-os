@@ -15,7 +15,7 @@ import { blockRegistry } from '@/lib/builder/registry';
 import { getDefaultTemplate } from '@/lib/builder/defaults';
 import { canDeleteBlock, getRequiredBlockInfo } from '@/lib/builder/pageContracts';
 import { isEssentialBlock, getEssentialBlockReason } from '@/lib/builder/essentialBlocks';
-import { findBlockById } from '@/lib/builder/utils';
+import { findBlockById, findParentBlock } from '@/lib/builder/utils';
 import { BuilderToolbar } from './BuilderToolbar';
 import { BuilderCanvas } from './BuilderCanvas';
 import { BlockRenderer } from './BlockRenderer';
@@ -1068,7 +1068,6 @@ export function VisualBuilder({
 
   // Handle moving block by direction (for quick actions on canvas)
   const handleMoveBlockByDirection = useCallback((blockId: string, direction: 'up' | 'down') => {
-    const { findParentBlock, findBlockById } = require('@/lib/builder/utils');
     const parent = findParentBlock(store.content, blockId);
     if (!parent || !parent.children) return;
     
@@ -1089,7 +1088,6 @@ export function VisualBuilder({
 
   // Handle deleting a specific block (for quick actions)
   const handleDeleteBlockById = useCallback((blockId: string) => {
-    const { findBlockById } = require('@/lib/builder/utils');
     const block = findBlockById(store.content, blockId);
     if (!block) return;
     
@@ -1157,7 +1155,6 @@ export function VisualBuilder({
   // Handle toggling block visibility (for quick actions)
   const handleToggleHidden = useCallback((blockId: string) => {
     store.toggleHidden(blockId);
-    const { findBlockById } = require('@/lib/builder/utils');
     const block = findBlockById(store.content, blockId);
     toast.success(block?.hidden ? 'Bloco ocultado' : 'Bloco visível');
   }, [store]);
