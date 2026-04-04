@@ -133,11 +133,13 @@ serve(async (req) => {
         matchedSessionId = session.id;
         wasAbandoned = session.status === 'abandoned';
 
+        // DIFFERENT session (fallback match): abandoned → recovered, active → converted
         const newStatus = wasAbandoned ? 'recovered' : 'converted';
         const updateData: Record<string, unknown> = {
           status: newStatus,
           order_id,
           converted_at: now,
+          internal_state: null,
         };
         if (wasAbandoned) {
           updateData.recovered_at = now;

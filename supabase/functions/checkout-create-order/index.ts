@@ -470,8 +470,11 @@ serve(async (req) => {
         retry_from_order_id: payload.retry_from_order_id || null,
         // Idempotency key
         checkout_attempt_id: payload.checkout_attempt_id || null,
-        // Immutable flag: true only when customer was created in this checkout (new email)
-        is_first_sale: !existingCustomer,
+        // is_first_sale is set to false here — will be updated to true by trigger on payment approval if applicable
+        is_first_sale: false,
+        // Payment verification scheduling
+        next_payment_check_at: new Date().toISOString(),
+        payment_check_count: 0,
       })
       .select('id')
       .single();
