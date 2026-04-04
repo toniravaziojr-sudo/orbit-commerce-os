@@ -4417,6 +4417,82 @@ Ao publicar uma página institucional ou landing page, o hook `usePublish` em `u
 
 Sem esses 3 passos, o público pode continuar servindo HTML antigo por até 15 minutos (TTL do cache de borda).
 
+---
+
+## ⚠️ CRÍTICO: Invalidação Automática de Cache — Regra Universal (v8.9.0)
+
+> **Data:** 2026-04-04  
+> **Status:** ✅ Ativo  
+> **Princípio:** Toda alteração de dados visíveis na loja pública DEVE invalidar o cache automaticamente. O lojista NÃO deve precisar republicar o tema para ver mudanças de catálogo.
+
+### Regra
+
+Qualquer operação de escrita que altere dados renderizados na vitrine pública deve disparar o pipeline de revalidação imediatamente após o sucesso da operação. O pipeline é composto por 3 etapas (fire-and-forget, não bloqueia a resposta ao usuário):
+
+1. **Marcar stale**: `storefront_prerendered_pages.status = 'stale'` para o tenant → Edge Function para de servir HTML antigo no próximo hit
+2. **Purgar cache CDN**: Chamada a `storefront-cache-purge` → remove HTML cacheado no Cloudflare
+3. **Re-prerender**: Chamada a `storefront-prerender` → regenera HTML pré-renderizado com dados atualizados
+
+### Módulos que DEVEM disparar revalidação
+
+| Módulo / Edge Function | Ações que disparam | Motivo |
+|------------------------|-------------------|--------|
+| `core-products` | `create`, `update`, `delete` | Produtos aparecem na home, categorias, buscas |
+| `core-products` | `add_image`, `remove_image`, `reorder_images` | Imagens exibidas em cards e páginas de produto |
+| `core-products` | `update_components`, `update_related` | Kits e relacionados afetam página de produto |
+| Builder (`usePublish`) | Publicação de template/página | Layout, cores, blocos da vitrine |
+| Builder (`useBuilderData`) | Publicação de página institucional | Páginas `/page/*` |
+| Categorias (admin) | Criar, editar, excluir, vincular produto | Páginas `/categoria/*` e menus |
+| Menus (admin) | Alterar estrutura de menus | Header/footer da vitrine |
+| Configurações da loja | Nome, logo, favicon, domínio | Header, SEO, meta tags |
+
+### Implementação Técnica
+
+Utilizar a função compartilhada `_shared/storefront-revalidation.ts`:
+
+```typescript
+import { revalidateStorefrontAfterTrackingChange } from "../_shared/storefront-revalidation.ts";
+
+// Após operação bem-sucedida (fire-and-forget — não bloqueia resposta):
+revalidateStorefrontAfterTrackingChange({
+  supabase,
+  supabaseUrl,
+  supabaseServiceKey,
+  tenantId,
+  reason: "product_updated",
+}).catch(err => console.warn('[revalidation] failed:', err.message));
+```
+
+### ❌ Proibições
+
+| Proibido | Consequência |
+|----------|--------------|
+| Alterar produto sem disparar revalidação | Loja pública mostra dados desatualizados |
+| Exigir que o lojista republique o tema para ver mudanças de catálogo | UX quebrada |
+| Bloquear a resposta da API esperando o prerender terminar | Latência desnecessária |
+| Usar cron como substituto de revalidação por evento | Atraso de minutos/horas |
+
+### Fluxo Visual
+
+```
+Lojista altera produto/categoria
+  → core-products/admin salva no banco
+  → fire-and-forget: revalidateStorefrontAfterTrackingChange()
+    → 1. Marca páginas como stale (banco)
+    → 2. Purga cache CDN (Cloudflare)
+    → 3. Dispara re-prerender (storefront-prerender)
+  → Resposta imediata ao lojista (não espera revalidação)
+  → Próximo visitante da loja recebe HTML atualizado
+```
+
+### Checklist de Validação
+
+- [ ] Criar produto → loja pública mostra o produto em até 30 segundos
+- [ ] Editar nome/preço → loja pública reflete a mudança
+- [ ] Excluir produto (soft delete) → produto desaparece da vitrine
+- [ ] Alterar categoria de produto → produto aparece na nova categoria
+- [ ] Alterar imagem principal → card na vitrine mostra nova imagem
+
 ### Melhoria Futura: Token Assinado para Preview
 
 Atualmente, qualquer pessoa com a URL `?preview=1` pode ver o rascunho. Como melhoria futura, implementar:

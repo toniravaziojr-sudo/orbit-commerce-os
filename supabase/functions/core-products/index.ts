@@ -1,17 +1,31 @@
 // =============================================
 // CORE-PRODUCTS: Canonical API for Product Operations
 // All writes to products table must go through this API
-// Implements: validation, audit, events, HARD DELETE
+// Implements: validation, audit, events, SOFT DELETE, storefront revalidation
 // =============================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { errorResponse } from '../_shared/error-response.ts';
+import { revalidateStorefrontAfterTrackingChange } from '../_shared/storefront-revalidation.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
+
+/** Fire-and-forget storefront revalidation after catalog changes */
+function fireRevalidation(supabase: any, tenantId: string, reason: string): void {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  revalidateStorefrontAfterTrackingChange({
+    supabase,
+    supabaseUrl,
+    supabaseServiceKey,
+    tenantId,
+    reason,
+  }).catch(err => console.warn(`[core-products][revalidation] ${reason} failed:`, err.message));
+}
 
 interface AuditEntry {
   tenant_id: string;
@@ -297,6 +311,8 @@ Deno.serve(async (req) => {
           name,
         }, `product_created_${newProduct.id}`);
 
+        fireRevalidation(supabase, tenantId, 'product_created');
+
         return new Response(
           JSON.stringify({ success: true, data: newProduct }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -413,6 +429,8 @@ Deno.serve(async (req) => {
           changed_fields: changedFields,
         }, `product_updated_${product_id}_${Date.now()}`);
 
+        fireRevalidation(supabase, tenantId, 'product_updated');
+
         return new Response(
           JSON.stringify({ success: true, data: updated }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -489,6 +507,8 @@ Deno.serve(async (req) => {
           affected_order_items: affectedOrderItems || 0,
         }, `product_deleted_${product_id}`);
 
+        fireRevalidation(supabase, tenantId, 'product_deleted');
+
         return new Response(
           JSON.stringify({ 
             success: true, 
@@ -545,6 +565,8 @@ Deno.serve(async (req) => {
           return errorResponse(insertError, corsHeaders, { module: 'products', action: 'add_image' });
         }
 
+        fireRevalidation(supabase, tenantId, 'product_image_added');
+
         return new Response(
           JSON.stringify({ success: true, data: newImage }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -594,6 +616,8 @@ Deno.serve(async (req) => {
           correlation_id: correlationId,
         });
 
+        fireRevalidation(supabase, tenantId, 'product_components_updated');
+
         return new Response(
           JSON.stringify({ success: true, data: { product_id, components_count: components?.length || 0 } }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -639,6 +663,8 @@ Deno.serve(async (req) => {
           source: 'core-products',
           correlation_id: correlationId,
         });
+
+        fireRevalidation(supabase, tenantId, 'product_related_updated');
 
         return new Response(
           JSON.stringify({ success: true, data: { product_id, related_count: related_ids?.length || 0 } }),

@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { cachePurge } from '@/lib/storefrontCachePurge';
+import { catalogAutoUpdate } from '@/lib/storefrontCachePurge';
 
 export interface CategoryProduct {
   id: string;
@@ -182,11 +182,7 @@ export function useCategoryProducts(categoryId: string, options: UseCategoryProd
       if (count) {
         toast.success(`${count} produto(s) adicionado(s) à categoria`);
       }
-      // Purge storefront cache for this category
-      if (currentTenant?.id && categoryId) {
-        const { data: cat } = await supabase.from('categories').select('slug').eq('id', categoryId).single();
-        if (cat?.slug) cachePurge.category(currentTenant.id, cat.slug);
-      }
+      if (currentTenant?.id) catalogAutoUpdate(currentTenant.id, 'category_products_added');
     },
     onError: (error: Error) => {
       console.error('Error adding products:', error);
@@ -215,10 +211,7 @@ export function useCategoryProducts(categoryId: string, options: UseCategoryProd
       if (count) {
         toast.success(`${count} produto(s) removido(s) da categoria`);
       }
-      if (currentTenant?.id && categoryId) {
-        const { data: cat } = await supabase.from('categories').select('slug').eq('id', categoryId).single();
-        if (cat?.slug) cachePurge.category(currentTenant.id, cat.slug);
-      }
+      if (currentTenant?.id) catalogAutoUpdate(currentTenant.id, 'category_products_removed');
     },
     onError: (error: Error) => {
       console.error('Error removing products:', error);
@@ -244,10 +237,7 @@ export function useCategoryProducts(categoryId: string, options: UseCategoryProd
     },
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['category-products', categoryId] });
-      if (currentTenant?.id && categoryId) {
-        const { data: cat } = await supabase.from('categories').select('slug').eq('id', categoryId).single();
-        if (cat?.slug) cachePurge.category(currentTenant.id, cat.slug);
-      }
+      if (currentTenant?.id) catalogAutoUpdate(currentTenant.id, 'category_products_reordered');
     },
     onError: (error: Error) => {
       console.error('Error reordering products:', error);

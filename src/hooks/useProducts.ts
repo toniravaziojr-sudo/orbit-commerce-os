@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { coreProductsApi } from '@/lib/coreApi';
-import { cachePurge } from '@/lib/storefrontCachePurge';
+import { cachePurge, catalogAutoUpdate } from '@/lib/storefrontCachePurge';
 
 export interface Product {
   id: string;
@@ -277,10 +277,10 @@ export function useCategories() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data: any) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories', currentTenant?.id] });
       toast.success('Categoria criada com sucesso!');
-      if (currentTenant?.id) cachePurge.category(currentTenant.id, data?.slug);
+      if (currentTenant?.id) catalogAutoUpdate(currentTenant.id, 'category_created');
     },
     onError: (error: Error) => {
       console.error('Error creating category:', error);
@@ -304,10 +304,10 @@ export function useCategories() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data: any) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories', currentTenant?.id] });
       toast.success('Categoria atualizada com sucesso!');
-      if (currentTenant?.id) cachePurge.category(currentTenant.id, data?.slug);
+      if (currentTenant?.id) catalogAutoUpdate(currentTenant.id, 'category_updated');
     },
     onError: (error: Error) => {
       console.error('Error updating category:', error);
@@ -327,6 +327,7 @@ export function useCategories() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories', currentTenant?.id] });
       toast.success('Categoria excluída com sucesso!');
+      if (currentTenant?.id) catalogAutoUpdate(currentTenant.id, 'category_deleted');
     },
     onError: (error: Error) => {
       console.error('Error deleting category:', error);
@@ -368,6 +369,7 @@ export function useCategories() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories', currentTenant?.id] });
+      if (currentTenant?.id) catalogAutoUpdate(currentTenant.id, 'category_reordered');
     },
     onError: (error: Error) => {
       console.error('Error reordering categories:', error);

@@ -68,6 +68,63 @@ export const cachePurge = {
 };
 
 // ============================================
+// CATALOG AUTO-UPDATE — Stale + purge + re-prerender for product/category changes
+// ============================================
+
+/** Module-level debounce state for catalog auto-update */
+let catalogAutoUpdateTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Debounced catalog auto-update: marks prerendered pages as stale,
+ * purges CDN cache, and triggers background re-prerender.
+ * 
+ * Use after any catalog change: product create/update/delete,
+ * category create/update/delete, product-category link changes.
+ * 
+ * @param tenantId - Tenant to update
+ * @param reason - Trigger reason for logging (e.g. 'category_created')
+ * @param delayMs - Debounce window (default 3000ms)
+ */
+export function catalogAutoUpdate(
+  tenantId: string,
+  reason = 'catalog_change',
+  delayMs = 3000
+): void {
+  if (catalogAutoUpdateTimer) {
+    clearTimeout(catalogAutoUpdateTimer);
+    catalogAutoUpdateTimer = null;
+  }
+
+  console.log(`[catalog-auto-update] Debounce started: ${reason} for tenant ${tenantId}`);
+
+  catalogAutoUpdateTimer = setTimeout(async () => {
+    catalogAutoUpdateTimer = null;
+    console.log(`[catalog-auto-update] Executing: ${reason} for tenant ${tenantId}`);
+
+    try {
+      // Step 1: Mark pages stale
+      await supabase
+        .from('storefront_prerendered_pages')
+        .update({ status: 'stale' })
+        .eq('tenant_id', tenantId)
+        .eq('status', 'active');
+
+      // Step 2: Purge CDN cache
+      await purgeStorefrontCache({ tenantId, resourceType: 'full' });
+
+      // Step 3: Re-prerender
+      await supabase.functions.invoke('storefront-prerender', {
+        body: { tenant_id: tenantId, trigger_type: reason },
+      });
+
+      console.log(`[catalog-auto-update] Done: ${reason}`);
+    } catch (err) {
+      console.warn(`[catalog-auto-update] Pipeline error (${reason}):`, err);
+    }
+  }, delayMs);
+}
+
+// ============================================
 // MENU AUTO-UPDATE — Debounced stale + purge + re-prerender
 // ============================================
 
