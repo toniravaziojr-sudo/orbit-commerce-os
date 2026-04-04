@@ -14,7 +14,19 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-interface AuditEntry {
+/** Fire-and-forget storefront revalidation after catalog changes */
+function fireRevalidation(supabase: any, tenantId: string, reason: string): void {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  revalidateStorefrontAfterTrackingChange({
+    supabase,
+    supabaseUrl,
+    supabaseServiceKey,
+    tenantId,
+    reason,
+  }).catch(err => console.warn(`[core-products][revalidation] ${reason} failed:`, err.message));
+}
+
   tenant_id: string;
   entity_type: 'product';
   entity_id: string;
