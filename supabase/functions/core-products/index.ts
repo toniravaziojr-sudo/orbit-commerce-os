@@ -27,6 +27,7 @@ function fireRevalidation(supabase: any, tenantId: string, reason: string): void
   }).catch(err => console.warn(`[core-products][revalidation] ${reason} failed:`, err.message));
 }
 
+interface AuditEntry {
   tenant_id: string;
   entity_type: 'product';
   entity_id: string;
