@@ -211,10 +211,7 @@ export function useCategoryProducts(categoryId: string, options: UseCategoryProd
       if (count) {
         toast.success(`${count} produto(s) removido(s) da categoria`);
       }
-      if (currentTenant?.id && categoryId) {
-        const { data: cat } = await supabase.from('categories').select('slug').eq('id', categoryId).single();
-        if (cat?.slug) cachePurge.category(currentTenant.id, cat.slug);
-      }
+      if (currentTenant?.id) catalogAutoUpdate(currentTenant.id, 'category_products_removed');
     },
     onError: (error: Error) => {
       console.error('Error removing products:', error);
