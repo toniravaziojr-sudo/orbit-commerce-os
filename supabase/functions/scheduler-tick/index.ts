@@ -175,6 +175,7 @@ async function runAbandonSweep(supabaseUrl: string, supabaseServiceKey: string):
           body: JSON.stringify({
             status: 'abandoned',
             abandoned_at: now,
+            internal_state: 'inactive',
           }),
         });
 
