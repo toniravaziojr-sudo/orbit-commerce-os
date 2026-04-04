@@ -1,90 +1,98 @@
 
 
-# Plano: Substituir trigger fiscal frágil por fila interna + documentar padrões de automação
+# Plano: Ciclo de Vida de Exclusão de Produtos — Doc + Sistema + Correção AMAZGAN
 
-## Contexto
+## Contexto do problema
 
-O trigger `trg_fiscal_draft_on_payment_approved` usa `pg_net` para chamar uma Edge Function diretamente — o único lugar do sistema com esse padrão. Isso causa falhas silenciosas por timeout de 5 segundos e cold starts. O cron já existe como fallback, mas pedidos podem ficar minutos sem rascunho, e o problema só é percebido depois.
+Hoje existem 3 falhas simultâneas no fluxo de exclusão de produtos:
 
-## Por que NÃO Pure SQL (Opção B original)
+1. **A Edge Function faz hard delete** (apaga o registro), mas 10+ módulos no sistema filtram por `deleted_at IS NULL` — ou seja, o sistema foi construído esperando soft delete
+2. **O painel admin não filtra `deleted_at`**, então produtos "fantasma" aparecem como se estivessem ativos
+3. **Os índices únicos de SKU e slug não consideram `deleted_at`**, então se um produto é excluído via soft delete por qualquer caminho, é impossível recadastrar com o mesmo SKU/slug
 
-Ao investigar a função `fiscal-auto-create-drafts`, identifiquei que ela faz:
-- Busca de configurações fiscais do tenant
-- Busca de itens do pedido com dados fiscais de cada produto
-- **Desmembramento de kits** em componentes (consulta `products` + `product_components` com cálculo proporcional)
-- Busca de código IBGE do município (com fallback em 4 níveis de busca)
-- Lógica de retry para numeração fiscal (até 20 tentativas em caso de conflito)
-- Inserção da NF + itens + evento de log + sincronização de cursor
+Resultado: os 7 kits da AMAZGAN estão marcados com `deleted_at` (por mecanismo desconhecido), invisíveis na loja, visíveis no admin, e bloqueando recadastro.
 
-Reescrever tudo isso em PL/pgSQL seria ~400 linhas de SQL procedural, difícil de manter e testar. A lógica de kit unbundling sozinha tem tratamento de proporção de preços, arredondamento e ajuste de centavos.
+---
 
-## Solução escolhida: Fila + Cron (máxima confiabilidade com mínima mudança)
+## Etapa 1 — Atualizar documentação (Layer 3)
 
-A ideia é simples: o trigger, em vez de tentar chamar uma Edge Function com timeout de 5 segundos, apenas **anota o pedido numa fila**. O cron (que já roda a cada minuto) processa essa fila.
+**Arquivo:** `docs/especificacoes/ecommerce/produtos.md` — Seção 9 (Exclusão)
 
-### O que muda para o usuário
-- Rascunhos fiscais serão criados de forma **100% confiável** — nenhum pedido será perdido
-- O tempo máximo entre aprovação do pagamento e criação do rascunho será de ~1 minuto (hoje pode nunca acontecer se o trigger falha)
+Reescrever a seção para documentar o modelo **Soft Delete universal**:
 
-### Etapas de implementação
+- Exclusão **sempre** marca `deleted_at = NOW()` — nunca apaga o registro
+- Status muda para `archived`
+- Dados relacionados (imagens, variantes, componentes, categorias) permanecem intactos
+- Itens de pedido mantêm referência ao `product_id` original (sem marcar `[Excluído]`)
+- Admin filtra `deleted_at IS NULL` em todas as listagens
+- Storefront já filtra corretamente (sem mudança)
+- Recadastro com mesmo SKU/slug é permitido graças a índices parciais
+- Auditoria registra `soft_delete` em vez de `hard_delete`
 
-**1. Criar tabela `fiscal_draft_queue`**
-- Campos: `id`, `tenant_id`, `order_id`, `status` (pending/processing/done/failed), `created_at`, `processed_at`, `error_message`
-- RLS habilitado com política para service_role
-- Constraint unique em `(order_id)` com status pending para evitar duplicatas
+---
 
-**2. Substituir o trigger atual**
-- Remover a função que usa `pg_net`
-- Criar novo trigger que faz apenas: `INSERT INTO fiscal_draft_queue (tenant_id, order_id) VALUES (NEW.tenant_id, NEW.id) ON CONFLICT DO NOTHING`
-- Mesmo critério de disparo: `payment_status` muda para `approved`
-- Execução: ~1ms, zero risco de falha
+## Etapa 2 — Aplicar no sistema
 
-**3. Atualizar o scheduler-tick**
-- Antes de chamar `fiscal-auto-create-drafts`, consultar a fila por itens pendentes
-- Para cada item pendente, chamar a Edge Function no modo TRIGGER (com `order_id` + `tenant_id`)
-- Marcar como `done` ou `failed` após processamento
-- Manter o fallback CRON existente (modo batch) como reconciliação adicional
+### 2.1 Migração SQL — Índices parciais
 
-**4. Criar documento de padrões de automação**
-- Arquivo: `docs/AUTOMATION-PATTERNS.md`
-- Conteúdo: mapa dos 4 padrões do sistema com critérios de quando usar cada um:
+Substituir os 3 índices únicos atuais por versões que ignoram registros com `deleted_at`:
 
-```text
-┌─────────────────────────────────────────────────────────┐
-│              PADRÕES DE AUTOMAÇÃO DO SISTEMA            │
-├──────────────────┬──────────────────────────────────────┤
-│ 1. Pure SQL      │ Dados internos simples               │
-│   Trigger        │ (updated_at, contadores, flags)      │
-│                  │ Confiabilidade: 100%                  │
-│                  │ Latência: 0ms                         │
-├──────────────────┼──────────────────────────────────────┤
-│ 2. Fila +        │ Lógica complexa interna que reage    │
-│   Cron           │ a mudança de estado (rascunhos,      │
-│                  │ sincronizações internas pesadas)      │
-│                  │ Confiabilidade: 100% (captura)        │
-│                  │ Latência: até 1 minuto                │
-├──────────────────┼──────────────────────────────────────┤
-│ 3. Edge Function │ Ação do usuário que precisa de        │
-│   Direta         │ resposta imediata ou integração       │
-│                  │ externa (emitir NF, IA, pagamento)    │
-│                  │ Confiabilidade: alta                   │
-│                  │ Latência: variável                     │
-├──────────────────┼──────────────────────────────────────┤
-│ 4. Webhook +     │ Serviço externo notifica o sistema    │
-│   Polling        │ (gateway, rastreio, marketplace)      │
-│                  │ Webhook = tempo real                   │
-│                  │ Polling/Cron = reconciliação           │
-└──────────────────┴──────────────────────────────────────┘
+- `products_tenant_id_sku_key` → partial unique `WHERE deleted_at IS NULL`
+- `products_tenant_id_slug_key` → partial unique `WHERE deleted_at IS NULL`
+- `idx_products_slug_lower` → partial unique `WHERE deleted_at IS NULL`
 
-REGRA DE OURO: pg_net direto de trigger → PROIBIDO.
-Se a lógica é complexa ou faz queries, usar Fila + Cron.
-Se a lógica é simples e local, usar Pure SQL Trigger.
-```
+Isso permite que dois registros com o mesmo SKU/slug coexistam desde que apenas um esteja ativo.
 
-### Detalhes técnicos
+### 2.2 Edge Function `core-products` — ação `delete`
 
-- A tabela `fiscal_draft_queue` terá cleanup automático (itens `done` com mais de 7 dias removidos pelo cron)
-- O trigger antigo será removido na mesma migração que cria o novo
-- A Edge Function `fiscal-auto-create-drafts` continua existindo sem mudanças — apenas muda quem a chama (cron em vez de pg_net)
-- O modo CRON batch existente permanece como camada extra de reconciliação
+Substituir o bloco de hard delete (linhas ~440-550) por:
+
+- `UPDATE products SET deleted_at = NOW(), status = 'archived' WHERE id = ? AND tenant_id = ?`
+- **Remover** toda a cascata de deleção (imagens, variantes, componentes, categorias, cart_items, related_products, buy_together_rules)
+- **Remover** a atualização de `order_items` que marca `[Excluído]`
+- Registrar auditoria como `soft_delete`
+- Emitir evento `product.deleted` normalmente
+
+### 2.3 Hook `useProducts` — listagem do admin
+
+Adicionar `.is('deleted_at', null)` na query principal (linha ~147), alinhando o admin com o comportamento da vitrine.
+
+### 2.4 Componente `DeleteProductDialog`
+
+Atualizar a mensagem de confirmação — remover referência a "excluir permanentemente" e trocar por "arquivar/desativar", já que o registro será preservado.
+
+---
+
+## Etapa 3 — Correção AMAZGAN
+
+Após as etapas 1 e 2, executar uma verificação automática:
+
+- Consultar os 7 produtos com `deleted_at` preenchido no tenant AMAZGAN
+- Se o usuário confirmar que devem ser restaurados: limpar `deleted_at` e restaurar `status = 'active'`
+- Se o usuário preferir mantê-los excluídos: nenhuma ação (o novo fluxo já os trata corretamente)
+
+---
+
+## Etapa 4 — Validação técnica
+
+Antes da validação do usuário, executar:
+
+1. **Banco:** Confirmar que os índices parciais estão criados e os antigos removidos
+2. **Edge Function:** Chamar `core-products` com `action: delete` em um produto de teste e verificar que o registro permanece com `deleted_at` preenchido (não é apagado)
+3. **Admin:** Verificar que a query do `useProducts` inclui o filtro `deleted_at IS NULL`
+4. **Storefront:** Confirmar que as queries existentes continuam filtrando corretamente
+5. **Recadastro:** Verificar que é possível criar um produto com o mesmo SKU de um produto excluído (soft deleted)
+6. **AMAZGAN:** Consultar estado final dos 7 produtos
+
+---
+
+## Arquivos impactados
+
+| Arquivo | Mudança |
+|---------|---------|
+| `docs/especificacoes/ecommerce/produtos.md` | Reescrita da Seção 9 |
+| `supabase/functions/core-products/index.ts` | Ação `delete` → soft delete |
+| `src/hooks/useProducts.ts` | Filtro `deleted_at IS NULL` |
+| `src/components/products/DeleteProductDialog.tsx` | Texto atualizado |
+| Migração SQL | Índices parciais |
 
