@@ -277,10 +277,10 @@ export function useCategories() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (data: any) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories', currentTenant?.id] });
       toast.success('Categoria criada com sucesso!');
-      if (currentTenant?.id) cachePurge.category(currentTenant.id, data?.slug);
+      if (currentTenant?.id) catalogAutoUpdate(currentTenant.id, 'category_created');
     },
     onError: (error: Error) => {
       console.error('Error creating category:', error);
