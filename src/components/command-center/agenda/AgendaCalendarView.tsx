@@ -8,6 +8,7 @@ import { AgendaCalendar } from "./AgendaCalendar";
 import { DayTasksDialog } from "./DayTasksDialog";
 import { CreateTaskDialog } from "./CreateTaskDialog";
 import { AgendaPhoneConfig } from "./AgendaPhoneConfig";
+import { AgendaDiagnosticPanel } from "./AgendaDiagnosticPanel";
 import { StatCard } from "@/components/ui/stat-card";
 import { Link } from "react-router-dom";
 
@@ -138,6 +139,9 @@ export function AgendaCalendarView() {
           <span>Com lembrete</span>
         </div>
       </div>
+
+      {/* Diagnostic Panel */}
+      <AgendaDiagnosticPanel />
 
       {/* Authorized Phones Config */}
       <AgendaPhoneConfig />
