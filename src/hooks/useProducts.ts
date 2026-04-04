@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { coreProductsApi } from '@/lib/coreApi';
-import { cachePurge } from '@/lib/storefrontCachePurge';
+import { cachePurge, catalogAutoUpdate } from '@/lib/storefrontCachePurge';
 
 export interface Product {
   id: string;
