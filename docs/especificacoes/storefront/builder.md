@@ -4,7 +4,7 @@
 
 > **Camada:** Layer 3 — Especificações / Storefront  
 > **Migrado de:** `docs/regras/builder.md`  
-> **Última atualização:** 2026-04-03
+> **Última atualização:** 2026-04-04
 
 
 ---
