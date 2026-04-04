@@ -564,6 +564,8 @@ Deno.serve(async (req) => {
           return errorResponse(insertError, corsHeaders, { module: 'products', action: 'add_image' });
         }
 
+        fireRevalidation(supabase, tenantId, 'product_image_added');
+
         return new Response(
           JSON.stringify({ success: true, data: newImage }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
