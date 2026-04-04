@@ -172,7 +172,7 @@ export function useProducts() {
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['products', currentTenant?.id] });
       toast.success('Produto criado com sucesso!');
-      if (currentTenant?.id) cachePurge.product(currentTenant.id, data?.slug);
+      // Product revalidation handled server-side by core-products Edge Function
     },
     onError: (error: Error) => {
       console.error('Error creating product:', error);
