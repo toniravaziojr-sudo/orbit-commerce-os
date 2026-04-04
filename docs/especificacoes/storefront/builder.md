@@ -4903,3 +4903,27 @@ Os handlers `handleDeleteBlockById`, `handleMoveBlockByDirection` e `handleToggl
 | Arquivo | Alteração |
 |---------|-----------|
 | `src/components/builder/VisualBuilder.tsx` | Removidos 3 `require()`, adicionado `findParentBlock` ao import ESM existente |
+
+---
+
+## v8.13.0 — Categorias em Destaque: Layout Centralizado (2026-04-04)
+
+### Problema
+O bloco de Categorias em Destaque usava CSS Grid com colunas fixas (3→6 colunas responsivas). Quando a quantidade de categorias era menor que o número de colunas, os itens ficavam alinhados à esquerda, quebrando a harmonia visual.
+
+### Solução
+Migração de CSS Grid para **Flexbox** com `flex-wrap` + `justify-center`, garantindo que as categorias fiquem sempre centralizadas independente da quantidade.
+
+### Regras
+
+| Regra | Descrição |
+|-------|-----------|
+| ✅ Flexbox centralizado | O container de categorias usa `flex flex-wrap justify-center` em vez de `grid`. |
+| ✅ Paridade React ↔ Edge | Alteração aplicada no componente React **e** no compilador Edge. |
+
+### Arquivos Alterados
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/components/builder/blocks/FeaturedCategoriesBlock.tsx` | Grid substituído por `flex flex-wrap justify-center` (grid real e demo) |
+| `supabase/functions/_shared/block-compiler/blocks/featured-categories.ts` | Grid inline substituído por `display:flex;flex-wrap:wrap;justify-content:center` |
