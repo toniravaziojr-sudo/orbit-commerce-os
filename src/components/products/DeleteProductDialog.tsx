@@ -112,8 +112,8 @@ export function DeleteProductDialog({
                     </p>
                   )}
 
-                  <p className="text-sm font-medium text-destructive">
-                    Esta ação é IRREVERSÍVEL. O produto será excluído permanentemente.
+                  <p className="text-sm font-medium text-muted-foreground">
+                    O produto será arquivado. Você poderá recadastrar um novo produto com o mesmo SKU/slug futuramente.
                   </p>
                 </>
               )}
