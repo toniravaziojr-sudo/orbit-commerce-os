@@ -1069,7 +1069,6 @@ export function VisualBuilder({
   // Handle moving block by direction (for quick actions on canvas)
   const handleMoveBlockByDirection = useCallback((blockId: string, direction: 'up' | 'down') => {
     const parent = findParentBlock(store.content, blockId);
-    const parent = findParentBlock(store.content, blockId);
     if (!parent || !parent.children) return;
     
     const currentIndex = parent.children.findIndex((c: BlockNode) => c.id === blockId);
