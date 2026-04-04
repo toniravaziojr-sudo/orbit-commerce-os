@@ -4869,3 +4869,37 @@ Envolver as `<Tabs>` em `{!value && (...)}`:
 - ❌ Mostrar Tabs de upload e preview ao mesmo tempo
 - ❌ Criar novo componente de mídia sem seguir esta regra
 - ❌ Duplicar lógica de upload/preview em componentes inline quando existe componente base
+
+---
+
+## Correção: Ações Rápidas de Blocos — Deletar, Mover, Ocultar (v8.12.0)
+
+> **Corrigido em:** 2026-04-04
+
+### Problema
+
+As ações rápidas de blocos no canvas (deletar, mover, ocultar) não funcionavam. O botão de deletar, por exemplo, não removia o bloco.
+
+### Causa Raiz
+
+Os handlers `handleDeleteBlockById`, `handleMoveBlockByDirection` e `handleToggleHidden` no `VisualBuilder` usavam **`require()` (CommonJS)** para importar utilitários dentro dos callbacks. Isso é incompatível com a arquitetura **Vite/ESM** do projeto, causando falha silenciosa na execução.
+
+### Correção Aplicada
+
+- Removidos **3 `require()` inline** dos handlers
+- Os utilitários `findBlockById` e `findParentBlock` já estavam importados via ESM no topo do arquivo — agora são usados diretamente
+- Nenhuma lógica de negócio foi alterada
+
+### Regra Anti-Regressão
+
+| Regra | Descrição |
+|-------|-----------|
+| ❌ Proibido `require()` | Nunca usar `require()` em arquivos `.tsx`/`.ts` do projeto. Usar apenas `import` ESM. |
+| ✅ Import no topo | Utilitários compartilhados devem ser importados no topo do arquivo, nunca dentro de callbacks. |
+| ✅ Validação | Qualquer alteração em handlers de ação de bloco deve ser testada: mover, duplicar, ocultar e deletar. |
+
+### Arquivos Alterados
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/components/builder/VisualBuilder.tsx` | Removidos 3 `require()`, adicionado `findParentBlock` ao import ESM existente |
