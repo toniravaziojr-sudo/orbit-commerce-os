@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { catalogAutoUpdate } from '@/lib/storefrontCachePurge';
+import { storefrontAutoUpdate } from '@/lib/storefrontCachePurge';
 
 export interface CategoryProduct {
   id: string;
@@ -182,7 +182,7 @@ export function useCategoryProducts(categoryId: string, options: UseCategoryProd
       if (count) {
         toast.success(`${count} produto(s) adicionado(s) à categoria`);
       }
-      if (currentTenant?.id) catalogAutoUpdate(currentTenant.id, 'category_products_added');
+      if (currentTenant?.id) storefrontAutoUpdate(currentTenant.id, 'category_products_added');
     },
     onError: (error: Error) => {
       console.error('Error adding products:', error);
@@ -211,7 +211,7 @@ export function useCategoryProducts(categoryId: string, options: UseCategoryProd
       if (count) {
         toast.success(`${count} produto(s) removido(s) da categoria`);
       }
-      if (currentTenant?.id) catalogAutoUpdate(currentTenant.id, 'category_products_removed');
+      if (currentTenant?.id) storefrontAutoUpdate(currentTenant.id, 'category_products_removed');
     },
     onError: (error: Error) => {
       console.error('Error removing products:', error);
@@ -237,7 +237,7 @@ export function useCategoryProducts(categoryId: string, options: UseCategoryProd
     },
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['category-products', categoryId] });
-      if (currentTenant?.id) catalogAutoUpdate(currentTenant.id, 'category_products_reordered');
+      if (currentTenant?.id) storefrontAutoUpdate(currentTenant.id, 'category_products_reordered');
     },
     onError: (error: Error) => {
       console.error('Error reordering products:', error);

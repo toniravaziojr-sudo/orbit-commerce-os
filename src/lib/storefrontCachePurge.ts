@@ -1,10 +1,10 @@
 /**
- * Storefront Cache Purge Utility
+ * Storefront Cache Purge & Auto-Update Utilities
  * 
- * Call after saving products, templates, settings, or menus in the admin
- * to invalidate the edge-rendered HTML cache in Cloudflare.
- * 
- * This is fire-and-forget — errors are logged but don't block the user.
+ * Provides two layers:
+ * 1. `cachePurge.*` — CDN-only purge (used for manual "Clear Cache" button)
+ * 2. `storefrontAutoUpdate()` — Full pipeline: stale → purge → re-prerender
+ *    (used by all admin mutations that affect storefront content)
  */
 
 import { supabase } from '@/integrations/supabase/client';
@@ -18,7 +18,7 @@ interface PurgeOptions {
 }
 
 /**
- * Purge storefront edge cache after admin saves.
+ * Purge storefront edge cache (CDN only — step 2 of 3).
  * Fire-and-forget: does not throw, logs errors silently.
  */
 export async function purgeStorefrontCache(options: PurgeOptions): Promise<void> {
@@ -39,13 +39,16 @@ export async function purgeStorefrontCache(options: PurgeOptions): Promise<void>
       console.log(`[cache-purge] Purged ${resourceType}${resourceSlug ? '/' + resourceSlug : ''}`);
     }
   } catch (err) {
-    // Fire and forget — don't break the admin flow
     console.warn('[cache-purge] Error:', err);
   }
 }
 
 /**
- * Convenience wrappers for common purge scenarios
+ * Convenience wrappers for CDN-only purge.
+ * 
+ * ⚠️ These only purge CDN cache (step 2 of 3).
+ * For admin mutations, use `storefrontAutoUpdate()` instead.
+ * Keep these for: manual "Clear Cache" button, Builder publish flow (has own pipeline).
  */
 export const cachePurge = {
   product: (tenantId: string, slug?: string) =>
@@ -68,176 +71,142 @@ export const cachePurge = {
 };
 
 // ============================================
-// CATALOG AUTO-UPDATE — Stale + purge + re-prerender for product/category changes
+// STOREFRONT AUTO-UPDATE — Unified pipeline (stale + purge + re-prerender)
 // ============================================
 
-/** Module-level debounce state for catalog auto-update */
-let catalogAutoUpdateTimer: ReturnType<typeof setTimeout> | null = null;
+/** Module-level debounce state for storefront auto-update */
+let storefrontAutoUpdateTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
- * Debounced catalog auto-update: marks prerendered pages as stale,
+ * Unified storefront auto-update: marks prerendered pages as stale,
  * purges CDN cache, and triggers background re-prerender.
  * 
- * Use after any catalog change: product create/update/delete,
- * category create/update/delete, product-category link changes.
+ * Coalesces multiple calls within `delayMs` into a single execution.
+ * Fire-and-forget: errors are logged but never block the admin flow.
+ * 
+ * USE THIS for all admin mutations that affect storefront content:
+ * - Category CRUD and product-category links
+ * - Menu CRUD (useMenus)
+ * - Store settings changes
+ * 
+ * DO NOT USE for:
+ * - Product CRUD → handled server-side by core-products Edge Function
+ * - Builder publish → has its own pipeline with retry and user feedback
+ * - Manual "Clear Cache" button → use cachePurge.full()
  * 
  * @param tenantId - Tenant to update
- * @param reason - Trigger reason for logging (e.g. 'category_created')
+ * @param reason - Trigger reason for logging (e.g. 'category_created', 'menu_updated')
  * @param delayMs - Debounce window (default 3000ms)
  */
-export function catalogAutoUpdate(
+export function storefrontAutoUpdate(
   tenantId: string,
-  reason = 'catalog_change',
+  reason = 'storefront_change',
   delayMs = 3000
 ): void {
-  if (catalogAutoUpdateTimer) {
-    clearTimeout(catalogAutoUpdateTimer);
-    catalogAutoUpdateTimer = null;
+  if (storefrontAutoUpdateTimer) {
+    clearTimeout(storefrontAutoUpdateTimer);
+    storefrontAutoUpdateTimer = null;
   }
 
-  console.log(`[catalog-auto-update] Debounce started: ${reason} for tenant ${tenantId}`);
+  console.log(`[storefront-auto-update] Debounce started: ${reason} for tenant ${tenantId} (${delayMs}ms)`);
 
-  catalogAutoUpdateTimer = setTimeout(async () => {
-    catalogAutoUpdateTimer = null;
-    console.log(`[catalog-auto-update] Executing: ${reason} for tenant ${tenantId}`);
+  storefrontAutoUpdateTimer = setTimeout(async () => {
+    storefrontAutoUpdateTimer = null;
+    console.log(`[storefront-auto-update] Executing: ${reason} for tenant ${tenantId}`);
 
     try {
-      // Step 1: Mark pages stale
-      await supabase
+      // Step 1: Mark pages stale → Edge stops serving old HTML
+      const { error: staleError } = await supabase
         .from('storefront_prerendered_pages')
         .update({ status: 'stale' })
         .eq('tenant_id', tenantId)
         .eq('status', 'active');
 
+      if (staleError) {
+        console.warn('[storefront-auto-update] Stale marking failed:', staleError.message);
+      }
+
       // Step 2: Purge CDN cache
       await purgeStorefrontCache({ tenantId, resourceType: 'full' });
 
-      // Step 3: Re-prerender
-      await supabase.functions.invoke('storefront-prerender', {
+      // Step 3: Re-prerender (fire-and-forget)
+      const { error: prerenderError } = await supabase.functions.invoke('storefront-prerender', {
         body: { tenant_id: tenantId, trigger_type: reason },
       });
 
-      console.log(`[catalog-auto-update] Done: ${reason}`);
+      if (prerenderError) {
+        console.warn('[storefront-auto-update] Re-prerender failed:', prerenderError.message);
+      } else {
+        console.log(`[storefront-auto-update] Done: ${reason}`);
+      }
     } catch (err) {
-      console.warn(`[catalog-auto-update] Pipeline error (${reason}):`, err);
+      console.warn(`[storefront-auto-update] Pipeline error (${reason}):`, err);
     }
   }, delayMs);
 }
 
-// ============================================
-// MENU AUTO-UPDATE — Debounced stale + purge + re-prerender
-// ============================================
-
-/** Module-level debounce state for menu auto-update */
-let menuAutoUpdateTimer: ReturnType<typeof setTimeout> | null = null;
-let menuAutoUpdatePending: string | null = null; // tenant_id waiting
-
-interface MenuAutoUpdateResult {
-  success: boolean;
-  staleCount?: number;
-  prerenderTriggered?: boolean;
-  error?: string;
-}
+/**
+ * @deprecated Use `storefrontAutoUpdate()` instead. Kept for backward compatibility.
+ */
+export const catalogAutoUpdate = storefrontAutoUpdate;
 
 /**
- * Debounced menu auto-update: marks prerendered pages as stale,
- * purges CDN cache, and triggers background re-prerender.
- * 
- * Coalesces multiple calls within `delayMs` into a single execution.
- * Safe: if re-prerender fails, live-render fallback handles requests (~5s).
- * 
- * @param tenantId - Tenant to update
- * @param delayMs - Debounce window (default 5000ms)
- * @returns Promise that resolves when the debounced operation completes
+ * @deprecated Use `storefrontAutoUpdate()` instead. Kept for backward compatibility.
  */
 export function menuAutoUpdate(
   tenantId: string,
   delayMs = 5000
-): Promise<MenuAutoUpdateResult> {
+): Promise<{ success: boolean; staleCount?: number; prerenderTriggered?: boolean; error?: string }> {
   return new Promise((resolve) => {
-    // Clear any pending timer for this tenant
-    if (menuAutoUpdateTimer) {
-      clearTimeout(menuAutoUpdateTimer);
-      menuAutoUpdateTimer = null;
+    // Reuse the unified timer
+    if (storefrontAutoUpdateTimer) {
+      clearTimeout(storefrontAutoUpdateTimer);
+      storefrontAutoUpdateTimer = null;
     }
 
-    menuAutoUpdatePending = tenantId;
-    console.log(`[menu-auto-update] Debounce started for tenant ${tenantId} (${delayMs}ms)`);
+    console.log(`[storefront-auto-update] Menu debounce started for tenant ${tenantId} (${delayMs}ms)`);
 
-    menuAutoUpdateTimer = setTimeout(async () => {
-      menuAutoUpdateTimer = null;
-      menuAutoUpdatePending = null;
+    storefrontAutoUpdateTimer = setTimeout(async () => {
+      storefrontAutoUpdateTimer = null;
+      console.log(`[storefront-auto-update] Executing menu update for tenant ${tenantId}`);
 
-      console.log(`[menu-auto-update] Executing for tenant ${tenantId}`);
-      const result = await executeMenuAutoUpdate(tenantId);
-      resolve(result);
+      try {
+        // Step 1: Mark stale
+        const { data: staleResult, error: staleError } = await supabase
+          .from('storefront_prerendered_pages')
+          .update({ status: 'stale' })
+          .eq('tenant_id', tenantId)
+          .eq('status', 'active')
+          .select('id');
+
+        if (staleError) {
+          console.warn('[storefront-auto-update] Stale marking failed:', staleError.message);
+        }
+
+        const staleCount = staleResult?.length || 0;
+
+        // Step 2: Purge CDN
+        await purgeStorefrontCache({ tenantId, resourceType: 'menu' });
+
+        // Step 3: Re-prerender
+        let prerenderTriggered = false;
+        try {
+          const { error: prerenderError } = await supabase.functions.invoke('storefront-prerender', {
+            body: { tenant_id: tenantId, trigger_type: 'menu_update' },
+          });
+          prerenderTriggered = !prerenderError;
+          if (prerenderError) {
+            console.warn('[storefront-auto-update] Re-prerender failed:', prerenderError.message);
+          }
+        } catch (err) {
+          console.warn('[storefront-auto-update] Re-prerender error:', err);
+        }
+
+        resolve({ success: true, staleCount, prerenderTriggered });
+      } catch (err: any) {
+        console.error('[storefront-auto-update] Pipeline error:', err);
+        resolve({ success: false, error: err.message || 'Unknown error' });
+      }
     }, delayMs);
   });
-}
-
-/**
- * Internal: Execute the actual stale + purge + prerender pipeline.
- */
-async function executeMenuAutoUpdate(tenantId: string): Promise<MenuAutoUpdateResult> {
-  try {
-    // Step 1: Mark ALL active prerendered pages as stale
-    // This ensures the next visitor gets live-rendered content (fallback)
-    console.log(`[menu-auto-update] Step 1: Marking pages stale for ${tenantId}`);
-    const { data: staleResult, error: staleError } = await supabase
-      .from('storefront_prerendered_pages')
-      .update({ status: 'stale' })
-      .eq('tenant_id', tenantId)
-      .eq('status', 'active')
-      .select('id');
-
-    if (staleError) {
-      console.warn('[menu-auto-update] Stale marking failed:', staleError.message);
-      // Non-fatal: continue with cache purge
-    }
-
-    const staleCount = staleResult?.length || 0;
-    console.log(`[menu-auto-update] Step 1 done: ${staleCount} pages marked stale`);
-
-    // Step 2: Purge CDN cache (fire-and-forget)
-    console.log(`[menu-auto-update] Step 2: Purging CDN cache`);
-    await purgeStorefrontCache({ tenantId, resourceType: 'menu' });
-    console.log(`[menu-auto-update] Step 2 done: CDN cache purged`);
-
-    // Step 3: Trigger background re-prerender (fire-and-forget)
-    // This calls storefront-prerender which will re-render ALL pages
-    // and atomically activate them. Uses published_content, NOT drafts.
-    console.log(`[menu-auto-update] Step 3: Triggering background re-prerender`);
-    let prerenderTriggered = false;
-    try {
-      const { error: prerenderError } = await supabase.functions.invoke('storefront-prerender', {
-        body: {
-          tenant_id: tenantId,
-          trigger_type: 'menu_update',
-        },
-      });
-
-      if (prerenderError) {
-        console.warn('[menu-auto-update] Re-prerender trigger failed:', prerenderError.message);
-        // Non-fatal: live-render fallback will handle requests
-      } else {
-        prerenderTriggered = true;
-        console.log(`[menu-auto-update] Step 3 done: re-prerender triggered`);
-      }
-    } catch (err) {
-      console.warn('[menu-auto-update] Re-prerender error:', err);
-      // Non-fatal
-    }
-
-    return {
-      success: true,
-      staleCount,
-      prerenderTriggered,
-    };
-  } catch (err: any) {
-    console.error('[menu-auto-update] Pipeline error:', err);
-    return {
-      success: false,
-      error: err.message || 'Unknown error',
-    };
-  }
 }
