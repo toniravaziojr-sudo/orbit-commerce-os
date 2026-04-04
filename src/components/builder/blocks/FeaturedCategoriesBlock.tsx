@@ -160,10 +160,7 @@ export function FeaturedCategoriesBlock({
         <section className="py-6 sm:py-8">
           <div className="max-w-7xl mx-auto px-4">
             <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">{title}</h2>
-            <div className={cn(
-              'grid gap-4 sm:gap-6 justify-items-center',
-              isMobile ? 'grid-cols-3' : 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6'
-            )}>
+            <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
               {demoCategories.map((cat) => (
                 <div key={cat.id} className="group flex flex-col items-center cursor-pointer">
                   <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full bg-muted/30 overflow-hidden mb-2 ring-2 ring-transparent group-hover:ring-primary transition-all flex items-center justify-center">

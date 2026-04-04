@@ -54,10 +54,7 @@ export function featuredCategoriesToStaticHTML(
       </div>
     </div>
     <style>
-      .sf-cat-grid{grid-template-columns:repeat(3,1fr);}
-      @media(min-width:640px){.sf-cat-grid{grid-template-columns:repeat(4,1fr);}}
-      @media(min-width:768px){.sf-cat-grid{grid-template-columns:repeat(5,1fr);}}
-      @media(min-width:1024px){.sf-cat-grid{grid-template-columns:repeat(6,1fr);}}
+      .sf-cat-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:24px;}
       .sf-cat-circle{width:64px;height:64px;ring:2px solid transparent;}
       @media(min-width:640px){.sf-cat-circle{width:80px;height:80px;}}
       @media(min-width:768px){.sf-cat-circle{width:96px;height:96px;}}
