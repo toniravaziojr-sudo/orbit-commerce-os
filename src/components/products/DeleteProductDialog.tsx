@@ -64,7 +64,7 @@ export function DeleteProductDialog({
               ) : (
                 <>
                   <p className="text-sm">
-                    Você está prestes a excluir <strong>{productName || 'este produto'}</strong> permanentemente.
+                    Você está prestes a desativar <strong>{productName || 'este produto'}</strong>. Ele será arquivado e não aparecerá mais no catálogo nem na loja.
                   </p>
 
                   {hasDependencies && (
