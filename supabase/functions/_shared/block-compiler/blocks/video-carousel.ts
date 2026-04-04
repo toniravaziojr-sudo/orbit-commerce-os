@@ -79,7 +79,7 @@ export const videoCarouselToStaticHTML: BlockCompilerFn = (
 </button>`;
   }).join('\n') : '';
 
-  return `<div class="sf-video-carousel" style="width:100%;">
+  return `<div class="sf-video-carousel" data-sf-video-carousel style="width:100%;">
   ${title ? `<h2 style="font-size:1.5rem;font-weight:700;margin-bottom:1rem;text-align:center;">${escapeHtml(title)}</h2>` : ''}
   <div style="position:relative;width:100%;padding-bottom:${padding};border-radius:0.5rem;overflow:hidden;background:#000;">
     ${mainVideoHtml}
