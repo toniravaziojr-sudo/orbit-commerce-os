@@ -183,7 +183,6 @@ Deno.serve(async (req) => {
                                 message.interactive.list_reply?.title || "";
               } else if (message.type === "image" && message.image) {
                 messageContent = message.image.caption || "[Imagem]";
-                // TODO: Fetch media URL from Meta API
               } else if (message.type === "audio") {
                 messageContent = "[Áudio]";
               } else if (message.type === "video") {
@@ -214,11 +213,49 @@ Deno.serve(async (req) => {
                 console.error(`[meta-whatsapp-webhook][${traceId}] Failed to save inbound message:`, insertError);
               }
 
-              // === INTEGRATION WITH SUPPORT MODULE ===
+              // ═══ ROUTING DECISION: Admin (Agenda) vs Customer (Support) ═══
+              const { data: authorizedPhone } = await supabase
+                .from("agenda_authorized_phones")
+                .select("id")
+                .eq("tenant_id", tenantId)
+                .eq("phone", customerPhone)
+                .eq("is_active", true)
+                .maybeSingle();
+
+              if (authorizedPhone) {
+                // ── ROUTE TO AGENDA AGENT ──
+                console.log(`[meta-whatsapp-webhook][${traceId}] Admin phone detected, routing to Agenda agent`);
+                try {
+                  const agendaResponse = await fetch(
+                    `${supabaseUrl}/functions/v1/agenda-process-command`,
+                    {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${supabaseServiceKey}`,
+                      },
+                      body: JSON.stringify({
+                        tenant_id: tenantId,
+                        from_phone: customerPhone,
+                        message_content: messageContent,
+                        external_message_id: message.id,
+                        message_type: messageType,
+                      }),
+                    }
+                  );
+                  const agendaResult = await agendaResponse.text();
+                  console.log(`[meta-whatsapp-webhook][${traceId}] Agenda response (${agendaResponse.status}):`, agendaResult.substring(0, 300));
+                } catch (agendaError) {
+                  console.error(`[meta-whatsapp-webhook][${traceId}] Agenda invocation error:`, agendaError);
+                }
+                // Admin messages do NOT create support conversations
+                continue;
+              }
+
+              // ── ROUTE TO SUPPORT FLOW (existing logic) ──
               // Find or create conversation for this customer
               let conversationId: string | null = null;
 
-              // Try to find existing open conversation for this phone
               const { data: existingConv } = await supabase
                 .from("conversations")
                 .select("id")
@@ -234,7 +271,6 @@ Deno.serve(async (req) => {
                 conversationId = existingConv.id;
                 console.log(`[meta-whatsapp-webhook][${traceId}] Found existing conversation: ${conversationId}`);
               } else {
-                // Create new conversation
                 const { data: newConv, error: convError } = await supabase
                   .from("conversations")
                   .insert({
@@ -259,7 +295,6 @@ Deno.serve(async (req) => {
                 }
               }
 
-              // Insert message into conversations module
               if (conversationId) {
                 const { error: msgError } = await supabase
                   .from("messages")
@@ -283,17 +318,15 @@ Deno.serve(async (req) => {
                 } else {
                   console.log(`[meta-whatsapp-webhook][${traceId}] Message created in support module`);
                   
-                  // Update conversation last_message_at
                   await supabase
                     .from("conversations")
                     .update({ 
                       last_message_at: new Date().toISOString(),
-                      status: "new" // Reset to new when customer sends message
+                      status: "new"
                     })
                     .eq("id", conversationId);
 
                   // === TRIGGER AI RESPONSE ===
-                  // Check if AI is enabled for this tenant's WhatsApp channel
                   const { data: aiConfig } = await supabase
                     .from("ai_support_config")
                     .select("is_enabled")
@@ -307,19 +340,18 @@ Deno.serve(async (req) => {
                     .eq("channel_type", "whatsapp")
                     .single();
 
-                  // AI is enabled if global config is on AND (no channel config OR channel config is on)
                   const aiEnabled = aiConfig?.is_enabled && (channelAiConfig?.is_enabled !== false);
 
                   if (aiEnabled) {
                     console.log(`[meta-whatsapp-webhook][${traceId}] AI enabled, invoking ai-support-chat...`);
                     try {
                       const aiResponse = await fetch(
-                        `${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-support-chat`,
+                        `${supabaseUrl}/functions/v1/ai-support-chat`,
                         {
                           method: "POST",
                           headers: {
                             "Content-Type": "application/json",
-                            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                            "Authorization": `Bearer ${supabaseServiceKey}`,
                           },
                           body: JSON.stringify({
                             conversation_id: conversationId,
