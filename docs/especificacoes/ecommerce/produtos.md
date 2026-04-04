@@ -460,6 +460,17 @@ Graças a **índices parciais** (`WHERE deleted_at IS NULL`), é possível cadas
 - Copia imagens, variantes, categorias
 - Produtos com `deleted_at` preenchido não podem ser duplicados
 
+### 9.3 Invalidação de Cache da Vitrine
+
+Toda operação de escrita do `core-products` (`create`, `update`, `delete`, `add_image`, `remove_image`, `reorder_images`, `update_components`, `update_related`) dispara automaticamente a revalidação do cache da loja pública via `_shared/storefront-revalidation.ts`.
+
+O pipeline é fire-and-forget (não bloqueia a resposta da API):
+1. Marca páginas pré-renderizadas como `stale`
+2. Purga cache CDN (Cloudflare)
+3. Dispara re-prerender do HTML público
+
+> **Regra completa:** Ver `docs/especificacoes/storefront/builder.md` → Seção "Invalidação Automática de Cache — Regra Universal"
+
 ---
 
 ## 10. Integração com Outros Módulos
@@ -473,6 +484,7 @@ Graças a **índices parciais** (`WHERE deleted_at IS NULL`), é possível cadas
 | Avaliações | Reviews vinculadas ao produto |
 | Storefront | Exibição pública via blocos do builder |
 | Importação | Migração de outras plataformas |
+| Cache/Prerender | Revalidação automática via `storefront-revalidation.ts` |
 
 ---
 
