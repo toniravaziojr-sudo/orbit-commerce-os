@@ -1089,7 +1089,6 @@ export function VisualBuilder({
 
   // Handle deleting a specific block (for quick actions)
   const handleDeleteBlockById = useCallback((blockId: string) => {
-    const { findBlockById } = require('@/lib/builder/utils');
     const block = findBlockById(store.content, blockId);
     if (!block) return;
     
