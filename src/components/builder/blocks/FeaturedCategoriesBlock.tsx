@@ -267,10 +267,7 @@ export function FeaturedCategoriesBlock({
             </div>
           </div>
         ) : (
-          <div className={cn(
-            'grid gap-4 sm:gap-6 justify-items-center',
-            isMobile ? 'grid-cols-3' : 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6'
-          )}>
+          <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
             {displayCategories.map((category) => (
               <CategoryCard key={category.id} category={category} />
             ))}
