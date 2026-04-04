@@ -648,19 +648,20 @@ Campos:
 
 > **Bloqueador:** sem template aprovado pela Meta, lembretes proativos fora da janela de 24h não serão entregues.
 
-#### Etapa 3 — Integração Agenda ↔ Auxiliar
+#### Etapa 3 — Integração Agenda ↔ Auxiliar ✅
 
 | Item | Status | Descrição |
 |------|--------|-----------|
-| Contrato inter-agentes | 🔴 A criar | JSON request/response com correlation_id, timeout 30s |
-| Allowlist de ações | 🔴 A definir | Subconjunto restrito de ações delegáveis (ver §3.7) |
+| Contrato inter-agentes | ✅ Feito | Delegation via `command-assistant-execute` com `_internal_user_id`, timeout 30s, `correlation_id` |
+| Allowlist de ações | ✅ Feito | `order_status`, `update_price`, `publish_product`, `create_discount` |
 
-#### Etapa 4 — Recorrência + Diagnóstico
+#### Etapa 4 — Recorrência + Diagnóstico ✅
 
 | Item | Status | Descrição |
 |------|--------|-----------|
-| Recorrência blindada | 🟡 Parcial | Estrutura existe, lógica de `calculateNextDueAt` precisa revisão |
-| Painel de diagnóstico | 🔴 A criar | Visualização do `agenda_command_log` na aba Agenda |
+| Recorrência blindada | ✅ Feito | `calculateNextDueAt` com safety loop (garante próxima data sempre no futuro) + `bymonthday` |
+| Template fallback (24h) | ✅ Feito | Detecção de janela 24h + fallback para template `agenda_lembrete` |
+| Painel de diagnóstico | ✅ Feito | Visualização do `agenda_command_log` na aba Agenda com filtros |
 
 #### ~~`agenda-whatsapp-webhook`~~ — CANCELADO
 
