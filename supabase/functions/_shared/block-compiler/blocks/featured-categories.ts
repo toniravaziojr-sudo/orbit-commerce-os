@@ -6,7 +6,8 @@
 // - Circular category images with responsive sizes (w-16/w-20/w-24 → 64/80/96px)
 // - Ring-2 hover effect on circles
 // - Category name below image (showName prop)
-// - CSS Grid layout: 3 cols mobile, up to 6 cols desktop (justify-items:center)
+// - Flexbox layout: flex-wrap + justify-center (categories always centered)
+// - v8.13.0: Migrated from CSS Grid to Flexbox for centered alignment
 // - Links to /categoria/{slug}
 // - Section padding: py-6 sm:py-8
 // =============================================
@@ -49,15 +50,12 @@ export function featuredCategoriesToStaticHTML(
       ${title ? `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
         <h2 style="font-size:clamp(20px,3vw,28px);font-weight:700;font-family:var(--sf-heading-font);color:inherit;">${escapeHtml(title)}</h2>
       </div>` : ''}
-      <div class="sf-cat-grid" style="display:grid;gap:24px;justify-items:center;">
+      <div class="sf-cat-grid" style="display:flex;flex-wrap:wrap;justify-content:center;gap:24px;">
         ${categoryCards}
       </div>
     </div>
     <style>
-      .sf-cat-grid{grid-template-columns:repeat(3,1fr);}
-      @media(min-width:640px){.sf-cat-grid{grid-template-columns:repeat(4,1fr);}}
-      @media(min-width:768px){.sf-cat-grid{grid-template-columns:repeat(5,1fr);}}
-      @media(min-width:1024px){.sf-cat-grid{grid-template-columns:repeat(6,1fr);}}
+      .sf-cat-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:24px;}
       .sf-cat-circle{width:64px;height:64px;ring:2px solid transparent;}
       @media(min-width:640px){.sf-cat-circle{width:80px;height:80px;}}
       @media(min-width:768px){.sf-cat-circle{width:96px;height:96px;}}
