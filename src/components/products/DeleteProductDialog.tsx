@@ -52,7 +52,7 @@ export function DeleteProductDialog({
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2 text-destructive">
             <AlertTriangle className="h-5 w-5" />
-            Excluir produto permanentemente?
+            Desativar e arquivar produto?
           </AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-4">
@@ -64,7 +64,7 @@ export function DeleteProductDialog({
               ) : (
                 <>
                   <p className="text-sm">
-                    Você está prestes a excluir <strong>{productName || 'este produto'}</strong> permanentemente.
+                    Você está prestes a desativar <strong>{productName || 'este produto'}</strong>. Ele será arquivado e não aparecerá mais no catálogo nem na loja.
                   </p>
 
                   {hasDependencies && (
@@ -84,7 +84,7 @@ export function DeleteProductDialog({
                         </li>
                       </ul>
                       <p className="text-xs text-muted-foreground mt-2">
-                        Os pedidos serão mantidos, mas o produto aparecerá como "[Excluído] {productName}".
+                        Os pedidos serão mantidos com a referência original ao produto preservada.
                       </p>
                     </div>
                   )}
@@ -112,8 +112,8 @@ export function DeleteProductDialog({
                     </p>
                   )}
 
-                  <p className="text-sm font-medium text-destructive">
-                    Esta ação é IRREVERSÍVEL. O produto será excluído permanentemente.
+                  <p className="text-sm font-medium text-muted-foreground">
+                    O produto será arquivado. Você poderá recadastrar um novo produto com o mesmo SKU/slug futuramente.
                   </p>
                 </>
               )}
@@ -127,7 +127,7 @@ export function DeleteProductDialog({
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             disabled={loading}
           >
-            Sim, excluir permanentemente
+            Sim, desativar produto
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

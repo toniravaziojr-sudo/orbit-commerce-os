@@ -410,15 +410,55 @@ interface AIDescriptionButtonProps {
 
 ## 9. Exclusão e Duplicação
 
-### Exclusão
+### 9.1 Modelo de Exclusão: Soft Delete Universal
 
-- Produtos com pedidos: soft delete (`status = 'archived'`)
-- `coreProductsApi.checkDependencies` verifica vínculos
+**Regra absoluta:** Nenhum produto é fisicamente removido do banco de dados. Toda exclusão é um soft delete.
 
-### Duplicação
+#### Comportamento ao excluir
+
+1. O campo `deleted_at` é preenchido com `NOW()`
+2. O campo `status` é alterado para `archived`
+3. Dados relacionados (imagens, variantes, componentes, categorias) **permanecem intactos** — não são removidos
+4. Itens de pedido (`order_items`) mantêm a referência ao `product_id` original sem alteração — o histórico permanece íntegro
+5. Itens de carrinho (`cart_items`) referenciando o produto são removidos (não faz sentido manter produto excluído no carrinho)
+
+#### Visibilidade após exclusão
+
+| Contexto | Comportamento |
+|----------|---------------|
+| Admin (listagem de produtos) | Filtra `deleted_at IS NULL` — produtos excluídos **não aparecem** |
+| Storefront (vitrine pública) | Filtra `deleted_at IS NULL` — produtos excluídos **não aparecem** |
+| Pedidos existentes | Mantêm referência original — histórico preservado |
+| Relatórios | Podem incluir produtos excluídos quando relevante |
+
+#### Recadastro com mesmo SKU/Slug
+
+Graças a **índices parciais** (`WHERE deleted_at IS NULL`), é possível cadastrar um novo produto com o mesmo SKU ou slug de um produto previamente excluído. Apenas um registro ativo (sem `deleted_at`) pode existir por SKU/slug por tenant.
+
+#### Índices parciais (banco de dados)
+
+| Índice | Definição |
+|--------|-----------|
+| `products_tenant_id_sku_key` | `UNIQUE (tenant_id, sku) WHERE deleted_at IS NULL` |
+| `products_tenant_id_slug_key` | `UNIQUE (tenant_id, slug) WHERE deleted_at IS NULL` |
+| `idx_products_slug_lower` | `UNIQUE (tenant_id, lower(slug)) WHERE deleted_at IS NULL` |
+
+#### Auditoria
+
+- A ação de exclusão registra `soft_delete` no log de auditoria (não `hard_delete`)
+- O evento `product.deleted` é emitido normalmente
+
+#### Verificação de dependências
+
+- `coreProductsApi.checkDependencies` verifica vínculos antes da exclusão
+- O diálogo de confirmação informa ao usuário quais dados estão vinculados
+- A exclusão é informada como "arquivamento" — o produto é desativado, não destruído
+
+### 9.2 Duplicação
 
 - Copia todos os dados exceto: id, sku (gera novo), slug (gera novo)
 - Copia imagens, variantes, categorias
+- Produtos com `deleted_at` preenchido não podem ser duplicados
 
 ---
 
