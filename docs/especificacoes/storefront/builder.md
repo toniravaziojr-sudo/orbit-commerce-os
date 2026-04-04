@@ -4419,9 +4419,10 @@ Sem esses 3 passos, o público pode continuar servindo HTML antigo por até 15 m
 
 ---
 
-## ⚠️ CRÍTICO: Invalidação Automática de Cache — Regra Universal (v8.9.0)
+## ⚠️ CRÍTICO: Invalidação Automática de Cache — Regra Universal (v8.9.1)
 
 > **Data:** 2026-04-04  
+> **Atualizado:** 2026-04-04  
 > **Status:** ✅ Ativo  
 > **Princípio:** Toda alteração de dados visíveis na loja pública DEVE invalidar o cache automaticamente. O lojista NÃO deve precisar republicar o tema para ver mudanças de catálogo.
 
@@ -4433,56 +4434,96 @@ Qualquer operação de escrita que altere dados renderizados na vitrine pública
 2. **Purgar cache CDN**: Chamada a `storefront-cache-purge` → remove HTML cacheado no Cloudflare
 3. **Re-prerender**: Chamada a `storefront-prerender` → regenera HTML pré-renderizado com dados atualizados
 
+### Arquitetura de Duas Camadas
+
+O sistema possui duas camadas de revalidação, cada uma com seu contexto de uso:
+
+| Camada | Função | Onde roda | Quando usar |
+|--------|--------|-----------|-------------|
+| **Server-side** | `_shared/storefront-revalidation.ts` | Edge Functions (Deno) | Operações do `core-products` (create, update, delete, add_image, update_components, update_related) |
+| **Client-side** | `storefrontAutoUpdate()` | Frontend (React) | Operações de admin que NÃO passam por Edge Function de escrita (categorias, menus, configurações da loja) |
+
+> **⚠️ Regra:** Nunca usar as duas camadas para a mesma operação. Produtos já são revalidados server-side pelo `core-products` — o frontend NÃO deve duplicar.
+
 ### Módulos que DEVEM disparar revalidação
 
-| Módulo / Edge Function | Ações que disparam | Motivo |
-|------------------------|-------------------|--------|
-| `core-products` | `create`, `update`, `delete` | Produtos aparecem na home, categorias, buscas |
-| `core-products` | `add_image`, `remove_image`, `reorder_images` | Imagens exibidas em cards e páginas de produto |
-| `core-products` | `update_components`, `update_related` | Kits e relacionados afetam página de produto |
-| Builder (`usePublish`) | Publicação de template/página | Layout, cores, blocos da vitrine |
-| Builder (`useBuilderData`) | Publicação de página institucional | Páginas `/page/*` |
-| Categorias (admin) | Criar, editar, excluir, vincular produto | Páginas `/categoria/*` e menus |
-| Menus (admin) | Alterar estrutura de menus | Header/footer da vitrine |
-| Configurações da loja | Nome, logo, favicon, domínio | Header, SEO, meta tags |
+| Módulo | Ações | Camada | Debounce | Arquivo |
+|--------|-------|--------|----------|---------|
+| `core-products` (Edge) | `create`, `update`, `delete`, `add_image`, `update_components`, `update_related` | Server-side | Sem debounce | `supabase/functions/core-products/index.ts` |
+| Categorias (admin) | Criar, editar, excluir, reordenar | Client-side | 3s | `src/hooks/useProducts.ts` |
+| Vínculos produto↔categoria | Adicionar, remover, reordenar | Client-side | 3s | `src/hooks/useCategoryProducts.ts` |
+| Menus (admin CRUD) | Criar, editar menu, adicionar/editar item | Client-side | 5s | `src/hooks/useMenus.ts` |
+| Menus (editor visual) | Salvar estrutura completa | Client-side | 5s | `src/components/menus/MenuPanel.tsx` |
+| Configurações da loja | Nome, logo, favicon, redes sociais | Client-side | 2s | `src/hooks/useStoreSettings.ts` |
+| Builder (publicar template) | Publicar tema/página | Pipeline próprio com retry | — | `src/hooks/useTemplateSetSave.ts` |
+| Builder (publicar página) | Publicar página institucional | Pipeline próprio com retry | — | `src/hooks/useBuilderData.ts` |
 
 ### Implementação Técnica
 
-Utilizar a função compartilhada `_shared/storefront-revalidation.ts`:
+**Server-side (Edge Functions):**
 
 ```typescript
 import { revalidateStorefrontAfterTrackingChange } from "../_shared/storefront-revalidation.ts";
 
-// Após operação bem-sucedida (fire-and-forget — não bloqueia resposta):
+// Após operação bem-sucedida (fire-and-forget):
 revalidateStorefrontAfterTrackingChange({
-  supabase,
-  supabaseUrl,
-  supabaseServiceKey,
-  tenantId,
+  supabase, supabaseUrl, supabaseServiceKey, tenantId,
   reason: "product_updated",
 }).catch(err => console.warn('[revalidation] failed:', err.message));
 ```
+
+**Client-side (React hooks):**
+
+```typescript
+import { storefrontAutoUpdate } from '@/lib/storefrontCachePurge';
+
+// Após mutação bem-sucedida:
+if (currentTenant?.id) storefrontAutoUpdate(currentTenant.id, 'category_created', 3000);
+```
+
+### Funções disponíveis em `storefrontCachePurge.ts`
+
+| Função | Pipeline | Uso correto |
+|--------|----------|-------------|
+| `storefrontAutoUpdate(tenantId, reason, delayMs?)` | Completo (stale → purge → prerender) com debounce | Admin mutations (categorias, menus, settings) |
+| `cachePurge.full(tenantId)` | Apenas CDN purge | Botão manual "Limpar Cache" |
+| `cachePurge.template(tenantId)` | Apenas CDN purge | Builder publish (tem pipeline próprio com retry) |
+| `menuAutoUpdate()` ⚠️ | Completo (deprecated) | Migrar para `storefrontAutoUpdate` |
+| `catalogAutoUpdate()` ⚠️ | Alias de `storefrontAutoUpdate` (deprecated) | Migrar para `storefrontAutoUpdate` |
 
 ### ❌ Proibições
 
 | Proibido | Consequência |
 |----------|--------------|
-| Alterar produto sem disparar revalidação | Loja pública mostra dados desatualizados |
+| Alterar dados da vitrine sem disparar revalidação | Loja pública mostra dados desatualizados |
 | Exigir que o lojista republique o tema para ver mudanças de catálogo | UX quebrada |
 | Bloquear a resposta da API esperando o prerender terminar | Latência desnecessária |
 | Usar cron como substituto de revalidação por evento | Atraso de minutos/horas |
+| Usar `cachePurge.*` isolado onde o pipeline completo é necessário | Stale não marcado, prerender não disparado |
+| Duplicar revalidação (frontend + Edge) para a mesma operação | Carga desnecessária no sistema |
 
 ### Fluxo Visual
 
 ```
-Lojista altera produto/categoria
-  → core-products/admin salva no banco
-  → fire-and-forget: revalidateStorefrontAfterTrackingChange()
-    → 1. Marca páginas como stale (banco)
-    → 2. Purga cache CDN (Cloudflare)
-    → 3. Dispara re-prerender (storefront-prerender)
-  → Resposta imediata ao lojista (não espera revalidação)
-  → Próximo visitante da loja recebe HTML atualizado
+Lojista altera dado visível na loja
+  ├─ Via Edge Function (ex: core-products)
+  │   → Salva no banco
+  │   → fire-and-forget: revalidateStorefrontAfterTrackingChange()
+  │     → 1. Marca páginas como stale
+  │     → 2. Purga cache CDN
+  │     → 3. Dispara re-prerender
+  │   → Resposta imediata ao lojista
+  │
+  └─ Via Admin Frontend (ex: categorias, menus, settings)
+      → Salva no banco (Supabase client)
+      → storefrontAutoUpdate(tenantId, reason, debounceMs)
+        → [debounce coalesce]
+        → 1. Marca páginas como stale
+        → 2. Purga cache CDN
+        → 3. Dispara re-prerender
+      → Toast de sucesso imediato ao lojista
+
+→ Próximo visitante da loja recebe HTML atualizado (~30s)
 ```
 
 ### Checklist de Validação
@@ -4492,6 +4533,8 @@ Lojista altera produto/categoria
 - [ ] Excluir produto (soft delete) → produto desaparece da vitrine
 - [ ] Alterar categoria de produto → produto aparece na nova categoria
 - [ ] Alterar imagem principal → card na vitrine mostra nova imagem
+- [ ] Criar/editar menu → header/footer da loja reflete a mudança
+- [ ] Alterar nome/logo da loja → header da vitrine reflete a mudança
 
 ### Melhoria Futura: Token Assinado para Preview
 

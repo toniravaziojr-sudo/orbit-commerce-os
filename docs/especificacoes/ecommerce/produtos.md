@@ -462,12 +462,14 @@ Graças a **índices parciais** (`WHERE deleted_at IS NULL`), é possível cadas
 
 ### 9.3 Invalidação de Cache da Vitrine
 
-Toda operação de escrita do `core-products` (`create`, `update`, `delete`, `add_image`, `remove_image`, `reorder_images`, `update_components`, `update_related`) dispara automaticamente a revalidação do cache da loja pública via `_shared/storefront-revalidation.ts`.
+Toda operação de escrita do `core-products` (`create`, `update`, `delete`, `add_image`, `update_components`, `update_related`) dispara automaticamente a revalidação **server-side** do cache da loja pública via `_shared/storefront-revalidation.ts`.
 
 O pipeline é fire-and-forget (não bloqueia a resposta da API):
 1. Marca páginas pré-renderizadas como `stale`
 2. Purga cache CDN (Cloudflare)
 3. Dispara re-prerender do HTML público
+
+> **Nota:** Operações de categorias (CRUD e vínculos com produtos) são revalidadas **client-side** via `storefrontAutoUpdate()` nos hooks `useProducts.ts` e `useCategoryProducts.ts`. O frontend NÃO duplica revalidação para operações que já passam pelo `core-products`.
 
 > **Regra completa:** Ver `docs/especificacoes/storefront/builder.md` → Seção "Invalidação Automática de Cache — Regra Universal"
 
