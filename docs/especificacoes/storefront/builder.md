@@ -2817,11 +2817,22 @@ Para adicionar novos presets no futuro:
 | **Tipo** | Componente de Mídia |
 | **Status** | 🟢 Ativo |
 | **Localização** | `src/lib/builder/registry.ts` |
-| **Contexto** | Carrossel de múltiplos vídeos (YouTube ou upload) |
-| **Descrição** | Primeiro vídeo embed + thumbnails. Suporta YouTube URLs e vídeos uploadados |
-| **Props** | `title` (string), `videos` (array), `videosJson` (textarea, alternativo), `showControls` (boolean), `aspectRatio` (select: 16:9/4:3/1:1/9:16), `autoplay` (boolean) |
-| **Compilador** | `video-carousel.ts` (Fase 3) — hidratação via `data-sf-video-carousel` |
-| **⚠️ Nota** | Bloco aparece **duplicado** no registry (linhas 2036 e 2678). A segunda definição sobrescreve a primeira |
+| **Contexto** | Carrossel ou grade de múltiplos vídeos (YouTube ou upload) |
+| **Descrição** | Dois modos de layout: **carousel** (1 vídeo por vez com thumbnails e navegação) e **grid** (múltiplos vídeos em grade com paginação). Controle de largura máxima para evitar layout desproporcional em vídeos verticais. |
+| **Props** | `title` (string), `layout` (select: carousel/grid), `maxWidth` (select: small-448px/medium-576px/large-768px/full), `itemsPerRow` (select: 1-4, visível em grid), `itemsPerPage` (select: 3/6/9/12, visível em grid), `videos` (array), `videosJson` (textarea, alternativo), `showControls` (boolean, visível em carousel), `aspectRatio` (select: 16:9/4:3/1:1/9:16) |
+| **Compilador** | `video-carousel.ts` (Fase 3) — hidratação via `data-sf-video-carousel`, atributos `data-sf-layout`, `data-sf-items-per-page`, `data-sf-total` |
+| **Versão** | v8.11.0 — Adicionados `layout`, `maxWidth`, `itemsPerRow`, `itemsPerPage` |
+
+##### Props detalhadas (v8.11.0)
+
+| Prop | Tipo | Default | Descrição |
+|------|------|---------|-----------|
+| `layout` | select | `carousel` | `carousel` = 1 vídeo por vez + thumbnails; `grid` = múltiplos em grade |
+| `maxWidth` | select | `full` | Largura máxima: `small` (448px), `medium` (576px), `large` (768px), `full` (100%) |
+| `itemsPerRow` | select | `3` | Colunas na grade (1-4). Só aparece quando `layout=grid`. Responsivo: mobile=1col, sm=2col, lg=valor configurado |
+| `itemsPerPage` | select | `6` | Limite de vídeos visíveis por página. Só aparece quando `layout=grid`. Pagina com botões Anterior/Próximo |
+| `showControls` | boolean | `true` | Setas de navegação. Só aparece quando `layout=carousel` |
+| `aspectRatio` | select | `16:9` | Proporção do player: 16:9, 4:3, 1:1, 9:16 |
 
 #### 4.5 Vídeo Upload (`VideoUpload`)
 
