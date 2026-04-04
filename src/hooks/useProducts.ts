@@ -280,7 +280,7 @@ export function useCategories() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories', currentTenant?.id] });
       toast.success('Categoria criada com sucesso!');
-      if (currentTenant?.id) catalogAutoUpdate(currentTenant.id, 'category_created');
+      if (currentTenant?.id) storefrontAutoUpdate(currentTenant.id, 'category_created');
     },
     onError: (error: Error) => {
       console.error('Error creating category:', error);
