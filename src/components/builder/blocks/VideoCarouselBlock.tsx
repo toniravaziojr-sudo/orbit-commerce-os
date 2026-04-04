@@ -27,7 +27,7 @@ interface VideoCarouselBlockProps {
   videosJson?: string; // Alternative: JSON string of video URLs
   autoplay?: boolean;
   showControls?: boolean;
-  aspectRatio?: '16:9' | '4:3' | '1:1';
+  aspectRatio?: '16:9' | '4:3' | '1:1' | '9:16';
   context?: BlockRenderContext;
 }
 
