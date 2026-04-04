@@ -211,7 +211,7 @@ export function useCategoryProducts(categoryId: string, options: UseCategoryProd
       if (count) {
         toast.success(`${count} produto(s) removido(s) da categoria`);
       }
-      if (currentTenant?.id) catalogAutoUpdate(currentTenant.id, 'category_products_removed');
+      if (currentTenant?.id) storefrontAutoUpdate(currentTenant.id, 'category_products_removed');
     },
     onError: (error: Error) => {
       console.error('Error removing products:', error);
