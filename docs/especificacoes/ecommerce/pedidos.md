@@ -87,7 +87,7 @@ interface Order {
   installment_value: number | null;
   
   // === Primeira Compra ===
-  is_first_sale: boolean;        // Imutável. true = email novo no tenant na criação
+  is_first_sale: boolean;        // Imutável. true = email novo no tenant + pagamento aprovado
   
   // === Envio ===
   shipping_carrier: string | null;
@@ -423,7 +423,8 @@ graph TD
 
 ### 6.1.1 Flag "1ª Venda"
 
-- `orders.is_first_sale` (boolean, imutável) — definido na criação quando email é novo no tenant
+- `orders.is_first_sale` (boolean, imutável) — definido quando o email é novo no tenant **e** o pagamento é aprovado
+- Um pedido só é considerado "1ª Venda" se for o primeiro pedido **pago** (payment_status = approved) daquele email no tenant
 - Gravado por: `checkout-create-order`, `core-orders`, `import-orders`, `admin-create-test-order`
 - Consumido diretamente do banco (sem cálculo no frontend)
 - Badge verde "1ª" em `OrderList.tsx` ao lado do valor

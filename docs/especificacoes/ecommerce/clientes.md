@@ -112,7 +112,7 @@ interface Customer {
 }
 ```
 
-> **⚠️ IMPORTANTE:** `total_orders` NÃO é usado para "1ª compra". A tarja usa `orders.is_first_sale` (flag imutável).
+> **⚠️ IMPORTANTE:** `total_orders` NÃO é usado para "1ª compra". A tarja usa `orders.is_first_sale` (flag imutável, definida apenas quando o pagamento é aprovado e o email é novo no tenant).
 
 ### 3.2 Tabela `customer_addresses`
 
