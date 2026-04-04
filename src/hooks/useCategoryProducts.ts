@@ -182,11 +182,7 @@ export function useCategoryProducts(categoryId: string, options: UseCategoryProd
       if (count) {
         toast.success(`${count} produto(s) adicionado(s) à categoria`);
       }
-      // Purge storefront cache for this category
-      if (currentTenant?.id && categoryId) {
-        const { data: cat } = await supabase.from('categories').select('slug').eq('id', categoryId).single();
-        if (cat?.slug) cachePurge.category(currentTenant.id, cat.slug);
-      }
+      if (currentTenant?.id) catalogAutoUpdate(currentTenant.id, 'category_products_added');
     },
     onError: (error: Error) => {
       console.error('Error adding products:', error);
