@@ -237,7 +237,7 @@ export function useCategoryProducts(categoryId: string, options: UseCategoryProd
     },
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['category-products', categoryId] });
-      if (currentTenant?.id) catalogAutoUpdate(currentTenant.id, 'category_products_reordered');
+      if (currentTenant?.id) storefrontAutoUpdate(currentTenant.id, 'category_products_reordered');
     },
     onError: (error: Error) => {
       console.error('Error reordering products:', error);
