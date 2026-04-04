@@ -310,6 +310,8 @@ Deno.serve(async (req) => {
           name,
         }, `product_created_${newProduct.id}`);
 
+        fireRevalidation(supabase, tenantId, 'product_created');
+
         return new Response(
           JSON.stringify({ success: true, data: newProduct }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
