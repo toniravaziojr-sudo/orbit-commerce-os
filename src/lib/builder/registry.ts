@@ -2137,12 +2137,61 @@ const blockDefinitions: BlockDefinition[] = [
       videosJson: '',
       showControls: true,
       aspectRatio: '16:9',
+      maxWidth: 'full',
+      layout: 'carousel',
+      itemsPerRow: 3,
+      itemsPerPage: 6,
     },
     propsSchema: {
       title: {
         type: 'string',
         label: 'Título (opcional)',
         placeholder: 'Nossos Vídeos',
+      },
+      layout: {
+        type: 'select',
+        label: 'Layout',
+        defaultValue: 'carousel',
+        options: [
+          { label: 'Carrossel (1 por vez)', value: 'carousel' },
+          { label: 'Grade (múltiplos)', value: 'grid' },
+        ],
+      },
+      maxWidth: {
+        type: 'select',
+        label: 'Largura Máxima',
+        defaultValue: 'full',
+        options: [
+          { label: 'Pequeno (448px)', value: 'small' },
+          { label: 'Médio (576px)', value: 'medium' },
+          { label: 'Grande (768px)', value: 'large' },
+          { label: 'Tela cheia', value: 'full' },
+        ],
+        helpText: 'Controla a largura máxima do bloco. Ideal usar "Médio" ou "Grande" para vídeos verticais (9:16)',
+      },
+      itemsPerRow: {
+        type: 'select',
+        label: 'Itens por Linha',
+        defaultValue: '3',
+        options: [
+          { label: '1 coluna', value: '1' },
+          { label: '2 colunas', value: '2' },
+          { label: '3 colunas', value: '3' },
+          { label: '4 colunas', value: '4' },
+        ],
+        showWhen: { layout: 'grid' },
+      },
+      itemsPerPage: {
+        type: 'select',
+        label: 'Itens por Página',
+        defaultValue: '6',
+        options: [
+          { label: '3 vídeos', value: '3' },
+          { label: '6 vídeos', value: '6' },
+          { label: '9 vídeos', value: '9' },
+          { label: '12 vídeos', value: '12' },
+        ],
+        showWhen: { layout: 'grid' },
       },
       videos: {
         type: 'array',
@@ -2159,6 +2208,7 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'boolean',
         label: 'Mostrar setas de navegação',
         defaultValue: true,
+        showWhen: { layout: 'carousel' },
       },
       aspectRatio: {
         type: 'select',
