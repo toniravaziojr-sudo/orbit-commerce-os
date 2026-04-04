@@ -369,6 +369,7 @@ export function useCategories() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories', currentTenant?.id] });
+      if (currentTenant?.id) catalogAutoUpdate(currentTenant.id, 'category_reordered');
     },
     onError: (error: Error) => {
       console.error('Error reordering categories:', error);
