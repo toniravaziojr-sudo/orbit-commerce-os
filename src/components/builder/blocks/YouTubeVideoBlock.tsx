@@ -23,7 +23,7 @@ function extractYouTubeId(url: string): string | null {
   
   // Handle various YouTube URL formats
   const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+    /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([^&\n?#]+)/,
     /^([a-zA-Z0-9_-]{11})$/,
   ];
   
