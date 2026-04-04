@@ -144,6 +144,9 @@ export function AgendaCalendarView() {
       {/* Diagnostic Panel */}
       <AgendaDiagnosticPanel />
 
+      {/* Template Status */}
+      <AgendaTemplateStatus />
+
       {/* Authorized Phones Config */}
       <AgendaPhoneConfig />
 
