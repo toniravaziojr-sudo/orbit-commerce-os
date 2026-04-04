@@ -87,14 +87,16 @@ serve(async (req) => {
         matchedSessionId = session.id;
         wasAbandoned = session.status === 'abandoned';
 
-        const newStatus = wasAbandoned ? 'recovered' : 'converted';
+        // SAME session completing: abandoned → reverted, active → converted
+        const newStatus = wasAbandoned ? 'reverted' : 'converted';
         const updateData: Record<string, unknown> = {
           status: newStatus,
           order_id,
           converted_at: now,
+          internal_state: null, // clear internal state on conversion
         };
         if (wasAbandoned) {
-          updateData.recovered_at = now;
+          updateData.reverted_at = now;
         }
 
         await supabase
