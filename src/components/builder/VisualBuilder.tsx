@@ -15,7 +15,7 @@ import { blockRegistry } from '@/lib/builder/registry';
 import { getDefaultTemplate } from '@/lib/builder/defaults';
 import { canDeleteBlock, getRequiredBlockInfo } from '@/lib/builder/pageContracts';
 import { isEssentialBlock, getEssentialBlockReason } from '@/lib/builder/essentialBlocks';
-import { findBlockById } from '@/lib/builder/utils';
+import { findBlockById, findParentBlock } from '@/lib/builder/utils';
 import { BuilderToolbar } from './BuilderToolbar';
 import { BuilderCanvas } from './BuilderCanvas';
 import { BlockRenderer } from './BlockRenderer';
