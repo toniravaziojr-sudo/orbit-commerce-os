@@ -503,6 +503,85 @@ serve(async (req) => {
       }
 
       // ====================================================================
+      // PHASE 1.5: Process fiscal_draft_queue (reliable queue → Edge Function)
+      // Runs every pass to minimize latency
+      // ====================================================================
+      try {
+        console.log(`[scheduler-tick] Processing fiscal draft queue...`);
+        const supabase = createClient(supabaseUrl, supabaseServiceKey);
+        
+        // Fetch pending items (limit 10 per pass)
+        const { data: queueItems, error: queueError } = await supabase
+          .from('fiscal_draft_queue')
+          .select('id, tenant_id, order_id, attempts')
+          .eq('status', 'pending')
+          .order('created_at', { ascending: true })
+          .limit(10);
+
+        if (queueError) {
+          console.error(`[scheduler-tick] fiscal queue fetch error:`, queueError);
+        } else if (queueItems && queueItems.length > 0) {
+          console.log(`[scheduler-tick] fiscal queue: ${queueItems.length} pending items`);
+          
+          for (const item of queueItems) {
+            try {
+              // Mark as processing
+              await supabase
+                .from('fiscal_draft_queue')
+                .update({ status: 'processing', attempts: item.attempts + 1 })
+                .eq('id', item.id);
+
+              // Call the existing edge function in TRIGGER mode
+              const result = await callSubFunction(supabaseUrl, supabaseServiceKey, 'fiscal-auto-create-drafts', {
+                order_id: item.order_id,
+                tenant_id: item.tenant_id,
+              });
+
+              if (result.ok) {
+                await supabase
+                  .from('fiscal_draft_queue')
+                  .update({ status: 'done', processed_at: new Date().toISOString() })
+                  .eq('id', item.id);
+                aggregatedTotals.fiscal_drafts_created++;
+                console.log(`[scheduler-tick] fiscal queue: order ${item.order_id} processed OK`);
+              } else {
+                const maxAttempts = 5;
+                const newStatus = item.attempts + 1 >= maxAttempts ? 'failed' : 'pending';
+                await supabase
+                  .from('fiscal_draft_queue')
+                  .update({
+                    status: newStatus,
+                    error_message: result.error?.substring(0, 500) || 'Unknown error',
+                    processed_at: newStatus === 'failed' ? new Date().toISOString() : null,
+                  })
+                  .eq('id', item.id);
+                console.error(`[scheduler-tick] fiscal queue: order ${item.order_id} failed (attempt ${item.attempts + 1}/${maxAttempts}): ${result.error}`);
+              }
+            } catch (itemError) {
+              console.error(`[scheduler-tick] fiscal queue: error processing ${item.order_id}:`, itemError);
+              await supabase
+                .from('fiscal_draft_queue')
+                .update({ status: 'pending', error_message: String(itemError).substring(0, 500) })
+                .eq('id', item.id);
+            }
+          }
+        } else {
+          console.log(`[scheduler-tick] fiscal queue: no pending items`);
+        }
+
+        // Cleanup: remove done items older than 7 days
+        const cleanupDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        await supabase
+          .from('fiscal_draft_queue')
+          .delete()
+          .eq('status', 'done')
+          .lt('processed_at', cleanupDate);
+
+      } catch (fiscalQueueError) {
+        console.error(`[scheduler-tick] fiscal queue fatal error:`, fiscalQueueError);
+      }
+
+      // ====================================================================
       // PHASE 2: Parallel dispatcher (independent tasks, only pass 1)
       // reconcile-payments, tracking-poll, process-scheduled-emails,
       // creative-process, media-social-publish-worker,
